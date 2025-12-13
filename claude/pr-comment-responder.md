@@ -15,7 +15,7 @@ You have direct access to:
 - **Read/Grep/Glob**: Understand code context for comments
 - **Edit/Write**: Implement fixes for valid issues
 - **Bash**: Git operations, gh CLI for PR/comment management
-- **Task**: Orchestrate with csharp-expert, csharp-pod, analyst, qa agents
+- **Task**: Orchestrate with implementer, architect, analyst, qa agents
 - **WebSearch/WebFetch**: Research best practices if needed
 
 ## Core Responsibilities
@@ -91,10 +91,10 @@ Use Task tool to orchestrate with specialized agents:
 
 ```python
 # For C# specific suggestions
-Task(subagent_type="csharp-expert", prompt="Evaluate this suggestion: [comment]")
+Task(subagent_type="implementer", prompt="Evaluate this suggestion: [comment]")
 
 # For design pattern considerations
-Task(subagent_type="csharp-pod", prompt="Review architectural implications of: [comment]")
+Task(subagent_type="architect", prompt="Review architectural implications of: [comment]")
 
 # For investigating complex issues
 Task(subagent_type="analyst", prompt="Investigate the root cause of: [issue]")
@@ -162,7 +162,7 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 
 | Situation | Hand To | Trigger |
 |-----------|---------|---------|
-| C# implementation needed | csharp-expert | Complex code fix |
-| Design pattern question | csharp-pod | Architectural concern |
+| C# implementation needed | implementer | Complex code fix |
+| Design pattern question | architect | Architectural concern |
 | Root cause unclear | analyst | Need investigation |
 | Fix needs verification | qa | After implementation |
