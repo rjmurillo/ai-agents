@@ -92,8 +92,26 @@ foreach ($File in $AgentFiles) {
 $ClaudeMd = Join-Path (Split-Path -Parent $ScriptDir) "CLAUDE.md"
 if (Test-Path $ClaudeMd) {
     $DestClaude = Join-Path $RepoPath "CLAUDE.md"
-    Copy-Item -Path $ClaudeMd -Destination $DestClaude -Force
-    Write-Host "  Installed CLAUDE.md to repo root" -ForegroundColor Green
+    $ClaudeExists = Test-Path $DestClaude
+
+    if ($ClaudeExists -and -not $Force) {
+        # Check if content was already appended (idempotency)
+        $ExistingContent = Get-Content -Path $DestClaude -Raw
+        $AppendMarker = "# --- Appended by install-claude-repo.ps1 ---"
+        if ($ExistingContent -match [regex]::Escape($AppendMarker)) {
+            Write-Host "  CLAUDE.md already contains appended content, skipping" -ForegroundColor Yellow
+        } else {
+            # Append to existing file to preserve user customizations
+            $NewContent = Get-Content -Path $ClaudeMd -Raw
+            Add-Content -Path $DestClaude -Value "`n`n$AppendMarker`n" -Encoding utf8
+            Add-Content -Path $DestClaude -Value $NewContent -Encoding utf8
+            Write-Host "  Appended to existing CLAUDE.md in repo root" -ForegroundColor Green
+        }
+    } else {
+        Copy-Item -Path $ClaudeMd -Destination $DestClaude -Force
+        $Status = if ($ClaudeExists) { "Replaced" } else { "Installed" }
+        Write-Host "  $Status CLAUDE.md in repo root" -ForegroundColor Green
+    }
 }
 
 # Create .agents directory structure

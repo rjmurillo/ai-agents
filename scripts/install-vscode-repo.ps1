@@ -93,8 +93,26 @@ $CopilotInstructions = Join-Path (Split-Path -Parent $ScriptDir) "copilot-instru
 $GithubDir = Join-Path $RepoPath ".github"
 if (Test-Path $CopilotInstructions) {
     $DestCopilot = Join-Path $GithubDir "copilot-instructions.md"
-    Copy-Item -Path $CopilotInstructions -Destination $DestCopilot -Force
-    Write-Host "  Installed copilot-instructions.md to .github/" -ForegroundColor Green
+    $CopilotExists = Test-Path $DestCopilot
+
+    if ($CopilotExists -and -not $Force) {
+        # Check if content was already appended (idempotency)
+        $ExistingContent = Get-Content -Path $DestCopilot -Raw
+        $AppendMarker = "# --- Appended by install-vscode-repo.ps1 ---"
+        if ($ExistingContent -match [regex]::Escape($AppendMarker)) {
+            Write-Host "  copilot-instructions.md already contains appended content, skipping" -ForegroundColor Yellow
+        } else {
+            # Append to existing file to preserve user customizations
+            $NewContent = Get-Content -Path $CopilotInstructions -Raw
+            Add-Content -Path $DestCopilot -Value "`n`n$AppendMarker`n" -Encoding utf8
+            Add-Content -Path $DestCopilot -Value $NewContent -Encoding utf8
+            Write-Host "  Appended to existing copilot-instructions.md in .github/" -ForegroundColor Green
+        }
+    } else {
+        Copy-Item -Path $CopilotInstructions -Destination $DestCopilot -Force
+        $Status = if ($CopilotExists) { "Replaced" } else { "Installed" }
+        Write-Host "  $Status copilot-instructions.md in .github/" -ForegroundColor Green
+    }
 }
 
 # Create .agents directory structure

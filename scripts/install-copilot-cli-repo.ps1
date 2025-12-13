@@ -100,11 +100,18 @@ if (Test-Path $CopilotInstructions) {
     $CopilotExists = Test-Path $DestCopilot
 
     if ($CopilotExists -and -not $Force) {
-        # Append to existing file to preserve user customizations
-        $NewContent = Get-Content -Path $CopilotInstructions -Raw
-        Add-Content -Path $DestCopilot -Value "`n`n# --- Appended by install-copilot-cli-repo.ps1 ---`n"
-        Add-Content -Path $DestCopilot -Value $NewContent
-        Write-Host "  Appended to existing copilot-instructions.md in .github/" -ForegroundColor Green
+        # Check if content was already appended (idempotency)
+        $ExistingContent = Get-Content -Path $DestCopilot -Raw
+        $AppendMarker = "# --- Appended by install-copilot-cli-repo.ps1 ---"
+        if ($ExistingContent -match [regex]::Escape($AppendMarker)) {
+            Write-Host "  copilot-instructions.md already contains appended content, skipping" -ForegroundColor Yellow
+        } else {
+            # Append to existing file to preserve user customizations
+            $NewContent = Get-Content -Path $CopilotInstructions -Raw
+            Add-Content -Path $DestCopilot -Value "`n`n$AppendMarker`n" -Encoding utf8
+            Add-Content -Path $DestCopilot -Value $NewContent -Encoding utf8
+            Write-Host "  Appended to existing copilot-instructions.md in .github/" -ForegroundColor Green
+        }
     } else {
         Copy-Item -Path $CopilotInstructions -Destination $DestCopilot -Force
         $Status = if ($CopilotExists) { "Replaced" } else { "Installed" }
