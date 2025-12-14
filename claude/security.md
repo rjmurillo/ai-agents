@@ -25,11 +25,45 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 
 ## Key Responsibilities
 
-1. **Assess** code for OWASP Top 10 vulnerabilities
-2. **Review** dependencies for known CVEs
-3. **Design** threat models for features
-4. **Recommend** secure coding patterns
-5. **Document** security findings in `.agents/security/`
+### Capability 1: Static Analysis & Vulnerability Scanning
+
+- CWE detection (CWE-78 shell injection, CWE-79 XSS, CWE-89 SQL injection)
+- OWASP Top 10 scanning
+- Vulnerable dependency detection
+- Code anti-pattern detection
+- See: [Static Analysis Checklist](../.agents/security/static-analysis-checklist.md)
+
+### Capability 2: Secret Detection & Environment Leak Scanning
+
+- Hardcoded API keys, tokens, passwords
+- Environment variable leaks
+- .env file exposure patterns
+- Credential pattern matching
+- See: [Secret Detection Patterns](../.agents/security/secret-detection-patterns.md)
+
+### Capability 3: Code Quality Audit (Security Perspective)
+
+- Flag files > 500 lines (testing burden)
+- Identify overly complex functions
+- Detect tight coupling (environment, dependencies)
+- Module boundary violations
+- See: [Code Quality Security Guide](../.agents/security/code-quality-security.md)
+
+### Capability 4: Architecture & Boundary Security Audit
+
+- Privilege boundary analysis
+- Attack surface mapping
+- Trust boundary identification
+- Sensitive data flow analysis
+- See: [Architecture Security Template](../.agents/security/architecture-security-template.md)
+
+### Capability 5: Best Practices Enforcement
+
+- Input validation enforcement
+- Error handling adequacy
+- Logging of sensitive operations
+- Cryptography usage correctness
+- See: [Security Best Practices](../.agents/security/security-best-practices.md)
 
 ## Memory Protocol
 
