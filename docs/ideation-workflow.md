@@ -120,8 +120,8 @@ GitHub Issue #42: "Add caching" (no further details)
 | Decision | Meaning | Next Step |
 |----------|---------|-----------|
 | **Proceed** | Good idea, worth pursuing | Move to Phase 3 |
-| **Defer** | Good idea, but not now | Add to backlog with conditions |
-| **Reject** | Not aligned with goals | Document reasoning, close |
+| **Defer** | Good idea, but not now | Pause workflow, create backlog entry at `.agents/roadmap/backlog.md` with conditions and resume trigger |
+| **Reject** | Not aligned with goals | Report rejection to user, persist rationale in validation doc |
 
 **Output**: `.agents/analysis/ideation-[topic]-validation.md`
 

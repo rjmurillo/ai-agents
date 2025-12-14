@@ -333,8 +333,8 @@ Assess complexity BEFORE selecting agents:
 **Decision Options**:
 
 - **Proceed**: Move to Phase 3 (Planning)
-- **Defer**: Good idea, but not now - add to backlog with conditions
-- **Reject**: Not aligned with goals - document reasoning for future reference
+- **Defer**: Good idea, but not now. The orchestrator pauses the current workflow, creates a backlog entry at `.agents/roadmap/backlog.md` with specified conditions, and records the resume trigger (time-based, event-based, or manual). Workflow resumes when conditions are met.
+- **Reject**: Not aligned with goals. The orchestrator reports the rejection and documented reasoning back to the user, persisting the decision rationale in the `.agents/analysis/ideation-[topic]-validation.md` file for future reference.
 
 ### Phase 3: Epic & PRD Creation
 
