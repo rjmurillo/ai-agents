@@ -545,12 +545,76 @@ When encountering issues requiring investigation:
 
 All agent artifacts go to `.agents/`:
 
-- `.agents/analysis/` - Analyst reports
+- `.agents/analysis/` - Analyst reports, ideation research
 - `.agents/architecture/` - Architect decisions (ADRs)
-- `.agents/planning/` - Planner work packages
+- `.agents/critique/` - Critic reviews
+- `.agents/planning/` - Planner work packages, PRDs, handoffs
 - `.agents/qa/` - QA test strategies
-- `.agents/roadmap/` - Roadmap documents
+- `.agents/retrospective/` - Learning extractions
+- `.agents/roadmap/` - Roadmap documents, epics
+- `.agents/security/` - Threat models, security reviews
 - `.agents/sessions/` - Session logs
+- `.agents/skills/` - Learned strategies
+
+## Session Continuity
+
+For multi-session projects, maintain a handoff document:
+
+**Location**: `.agents/planning/handoff-[topic].md`
+
+**Handoff Document Template**:
+
+````markdown
+## Handoff: [Topic]
+
+**Last Updated**: [YYYY-MM-DD] by [Agent/Session]
+**Current Phase**: [Phase name]
+**Branch**: [branch name]
+
+### Current State
+
+[Build status, test status, key metrics]
+
+### Session Summary
+
+**Purpose**: [What this session accomplished]
+
+**Work Completed**:
+
+1. [Item 1]
+2. [Item 2]
+
+**Files Changed**:
+
+- [file1] - [what changed]
+- [file2] - [what changed]
+
+### Next Session Quick Start
+
+```powershell
+# Commands to verify state
+```
+
+**Priority Tasks**:
+
+1. [Next task]
+2. [Following task]
+
+### Open Issues
+
+- [Issue 1]
+- [Issue 2]
+
+### Metrics Dashboard
+
+| Metric | Current | Target | Status |
+|--------|---------|--------|--------|
+| [Metric] | [Value] | [Target] | [Status] |
+````
+
+**When to Create**: Any project spanning 3+ sessions or involving multiple waves/phases.
+
+**Update Frequency**: End of each session, before context switch.
 
 ## Failure Recovery
 
