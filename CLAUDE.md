@@ -162,3 +162,8 @@ python .agents/utilities/fix-markdown-fences/fix_fences.py
 - Supports batch processing of multiple files
 
 **Reference**: See `.agents/utilities/fix-markdown-fences/SKILL.md` for implementation details and additional language versions.
+
+- When generating or reviewing code, use codebase-context MCP tools (`mcp__codebase-context__get_team_patterns`, `mcp__codebase-context__search_codebase`) to check team patterns first.
+- When cloudmcp-manager memory functions fail, use Serena memory tools as fallback:
+  - Primary functions: `memory-add_observations`, `memory-create_entities`, `memory-create_relations`, `memory-delete_entities`, `memory-delete_observations`, `memory-delete_relations`, `memory-open_nodes`, `memory-read_graph`, `memory-search_nodes`
+  - Fallback functions: `write_memory`, `read_memory`, `list_memories`, `delete_memory`, `edit_memory`

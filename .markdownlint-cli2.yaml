@@ -53,6 +53,8 @@ globs:
   - "**/*.md"
   - "!node_modules/**"
   - "!.agents/**"
+  - "!.serena/memories/**"
+
 
 ignores:
   - "node_modules/**"

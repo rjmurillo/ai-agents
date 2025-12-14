@@ -97,6 +97,34 @@ Use cloudmcp-manager/memory-create_relations to link related concepts
 | **critic** | Plan validation | Scope assessment, risk identification, alignment checks | No code, no implementation proposals |
 | **qa** | Test verification | Test strategy, coverage validation, infrastructure gaps | QA docs only |
 | **roadmap** | Strategic vision | Epic definition, prioritization, outcome focus | No implementation, no architecture |
+| **security** | Vulnerability assessment | Threat modeling, code audits | No implementation |
+| **devops** | CI/CD pipelines | Infrastructure, deployment | No business logic |
+| **explainer** | Documentation | PRDs, feature docs | No code |
+
+## Routing Algorithm
+
+For detailed routing logic, see:
+
+- [Task Classification Guide](../docs/task-classification-guide.md)
+- [Orchestrator Routing Algorithm](../docs/orchestrator-routing-algorithm.md)
+- [Routing Flowchart](../docs/diagrams/routing-flowchart.md)
+
+### Quick Classification
+
+| If task involves... | Task Type | Agents Required |
+|---------------------|-----------|-----------------|
+| `**/Auth/**`, `**/Security/**` | Security | security, architect, implementer, qa |
+| `.github/workflows/*`, `.githooks/*` | Infrastructure | devops, security, qa |
+| New functionality | Feature | analyst, architect, planner, implementer, qa |
+| Something broken | Bug Fix | analyst, implementer, qa |
+| "Why does X..." | Research | analyst |
+| Architecture decisions | Strategic | roadmap, architect, planner, critic |
+
+### Mandatory Agent Rules
+
+1. **Security agent ALWAYS for**: Files matching `**/Auth/**`, `.githooks/*`, `*.env*`
+2. **QA agent ALWAYS after**: Any implementer changes
+3. **Critic agent BEFORE**: Multi-domain implementations
 
 ## Routing Heuristics
 
@@ -109,6 +137,8 @@ Use cloudmcp-manager/memory-create_relations to link related concepts
 | Test strategy | qa | implementer |
 | Research/investigation | analyst | - |
 | Strategic decisions | roadmap | architect |
+| Security assessment | security | analyst |
+| Infrastructure changes | devops | security |
 
 ## Handoff Protocol
 
