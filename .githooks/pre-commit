@@ -191,6 +191,24 @@ else
 fi
 
 #
+# Security Detection (Non-blocking warning)
+#
+# Detects infrastructure and security-critical file changes
+# and recommends security agent review if matches found.
+#
+SECURITY_DETECTION_SCRIPT="$REPO_ROOT/.agents/utilities/security-detection/detect_infrastructure.py"
+
+if [ -f "$SECURITY_DETECTION_SCRIPT" ]; then
+    if command -v python3 &> /dev/null; then
+        echo_info "Checking for security-critical file changes..."
+        python3 "$SECURITY_DETECTION_SCRIPT" --git-staged || true
+    elif command -v python &> /dev/null; then
+        echo_info "Checking for security-critical file changes..."
+        python "$SECURITY_DETECTION_SCRIPT" --git-staged || true
+    fi
+fi
+
+#
 # Final Summary
 #
 echo ""
