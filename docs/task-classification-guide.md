@@ -106,6 +106,21 @@ Every task is classified across three dimensions:
 
 **Agent Sequence**: `analyst -> architect -> implementer -> qa`
 
+### Ideation
+
+**Indicators**:
+
+- Package or library URLs (NuGet, npm, PyPI)
+- Vague scope: "we need to add", "we should consider"
+- GitHub issues without clear specifications
+- Exploratory language: "what if we", "would it make sense"
+- Incomplete feature descriptions lacking acceptance criteria
+- "Shower thoughts" or early-stage ideas
+
+**Agent Sequence**: `analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> security -> qa`
+
+**Note**: This is the most comprehensive sequence, designed to transform vague ideas into actionable implementation plans through research, validation, planning, and review phases.
+
 ---
 
 ## Dimension 2: Complexity Level
@@ -241,6 +256,8 @@ Every task is classified across three dimensions:
 | Epic planning | Strategic | Multi-Domain | Low |
 | `.githooks/*` | Infrastructure | Multi-Step | Critical |
 | Shell scripts | Infrastructure | Multi-Step | Critical |
+| Package URLs, "we should add" | Ideation | Multi-Domain | Low |
+| Vague feature idea | Ideation | Multi-Domain | Low |
 
 ---
 

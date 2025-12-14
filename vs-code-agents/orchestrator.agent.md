@@ -138,7 +138,7 @@ Before spawning multiple agents, verify the investment is justified:
 
 Every task is classified across three dimensions:
 
-1. **Task Type**: Feature, Bug Fix, Infrastructure, Security, Strategic, Research, Documentation, Refactoring
+1. **Task Type**: Feature, Bug Fix, Infrastructure, Security, Strategic, Research, Documentation, Refactoring, Ideation
 2. **Complexity Level**: Simple (single agent), Multi-Step (sequential agents), Multi-Domain (parallel concerns)
 3. **Risk Level**: Low, Medium, High, Critical
 
@@ -156,6 +156,7 @@ Every task is classified across three dimensions:
 | Documentation | explainer -> critic |
 | Strategic | roadmap -> architect -> planner -> critic |
 | Refactoring | analyst -> architect -> implementer -> qa |
+| Ideation | analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> security -> qa |
 
 ### Complexity Assessment
 
@@ -184,6 +185,7 @@ Assess complexity BEFORE selecting agents:
 | Something broken | Bug Fix | Simple/Standard | analyst (if unclear), implementer, qa |
 | "Why does X..." | Research | Trivial/Simple | analyst or direct answer |
 | Architecture decisions | Strategic | Complex | roadmap, architect, planner, critic |
+| Package/library URLs, vague scope, "we should add" | Ideation | Complex | Full ideation pipeline (see below) |
 
 ### Mandatory Agent Rules
 
@@ -206,6 +208,165 @@ Assess complexity BEFORE selecting agents:
 | Strategic decisions | roadmap | architect |
 | Security assessment | security | analyst |
 | Infrastructure changes | devops | security |
+| Feature ideation | analyst | roadmap |
+
+## Ideation Workflow
+
+**Trigger Detection**: Recognize ideation scenarios by these signals:
+
+- Package/library URLs (NuGet, npm, PyPI, etc.)
+- Vague scope language: "we need to add", "we should consider", "what if we"
+- GitHub issues without clear specifications
+- Exploratory requests: "would it make sense to", "I was thinking about"
+- Incomplete feature descriptions lacking acceptance criteria
+
+### Phase 1: Research & Discovery
+
+**Agent**: analyst
+
+**Tools to use**:
+
+- Microsoft Code Sample Search - Code samples
+- Microsoft Docs Search - Microsoft docs
+- Context7 library docs - Library documentation
+- DeepWiki - Repository knowledge
+- Perplexity research - Deep research
+- Web search - General web research
+
+**Output**: Research findings document at `.agents/analysis/ideation-[topic].md`
+
+**Research Template**:
+
+```markdown
+## Ideation Research: [Topic]
+
+### Package/Technology Overview
+[What it is, what problem it solves]
+
+### Community Signal
+[GitHub stars, downloads, maintenance activity, issues]
+
+### Technical Fit Assessment
+[How it fits with current codebase, dependencies, patterns]
+
+### Integration Complexity
+[Effort estimate, breaking changes, migration path]
+
+### Alternatives Considered
+[Other options and why this one is preferred]
+
+### Risks and Concerns
+[Security, licensing, maintenance burden]
+
+### Recommendation
+[Proceed / Defer / Reject with rationale]
+```
+
+### Phase 2: Validation & Consensus
+
+**Agents**: high-level-advisor -> independent-thinker -> critic -> roadmap
+
+| Agent | Role | Question to Answer |
+|-------|------|-------------------|
+| high-level-advisor | Strategic fit | Does this align with product direction? |
+| independent-thinker | Challenge assumptions | What are we missing? What could go wrong? |
+| critic | Validate research | Is the analysis complete and accurate? |
+| roadmap | Priority assessment | Where does this fit in the product roadmap? |
+
+**Output**: Consensus decision document at `.agents/analysis/ideation-[topic]-validation.md`
+
+**Decision Options**:
+
+- **Proceed**: Move to Phase 3 (Planning)
+- **Defer**: Good idea, but not now - add to backlog with conditions
+- **Reject**: Not aligned with goals - document reasoning for future reference
+
+### Phase 3: Epic & PRD Creation
+
+**Agents**: roadmap -> explainer -> task-generator
+
+| Agent | Output | Location |
+|-------|--------|----------|
+| roadmap | Epic vision with outcomes | `.agents/roadmap/epic-[topic].md` |
+| explainer | Full PRD with specifications | `.agents/planning/prd-[topic].md` |
+| task-generator | Work breakdown structure | `.agents/planning/tasks-[topic].md` |
+
+**Epic Template** (roadmap produces):
+
+```markdown
+## Epic: [Title]
+
+### Vision
+[What success looks like]
+
+### Outcomes (not outputs)
+- [ ] [Measurable outcome 1]
+- [ ] [Measurable outcome 2]
+
+### Success Metrics
+[How we'll know it worked]
+
+### Scope Boundaries
+**In Scope**: [What's included]
+**Out of Scope**: [What's explicitly excluded]
+
+### Dependencies
+[What must exist first]
+```
+
+### Phase 4: Implementation Plan Review
+
+**Agents**: architect, devops, security, qa (can run in parallel)
+
+| Agent | Review Focus | Output |
+|-------|--------------|--------|
+| architect | Design patterns, architectural fit | Design review notes |
+| devops | CI/CD impact, infrastructure needs | Infrastructure assessment |
+| security | Threat assessment, secure coding | Security review |
+| qa | Test strategy, coverage requirements | Test plan outline |
+
+**Consensus Required**: All agents must approve before work begins.
+
+**Output**: Approved implementation plan at `.agents/planning/implementation-plan-[topic].md`
+
+### Ideation Workflow Summary
+
+```text
+[Vague Idea / Package URL / Incomplete Issue]
+              |
+              v
+    ┌─────────────────┐
+    │  Phase 1:       │
+    │  analyst        │ → Research findings
+    │  (Research)     │
+    └────────┬────────┘
+             v
+    ┌─────────────────┐
+    │  Phase 2:       │
+    │  high-level-    │
+    │  advisor →      │
+    │  independent-   │ → Proceed / Defer / Reject
+    │  thinker →      │
+    │  critic →       │
+    │  roadmap        │
+    └────────┬────────┘
+             v (if Proceed)
+    ┌─────────────────┐
+    │  Phase 3:       │
+    │  roadmap →      │
+    │  explainer →    │ → Epic, PRD, WBS
+    │  task-generator │
+    └────────┬────────┘
+             v
+    ┌─────────────────┐
+    │  Phase 4:       │
+    │  architect,     │
+    │  devops,        │ → Approved Plan
+    │  security, qa   │
+    └────────┬────────┘
+             v
+    [Ready for Implementation]
+```
 
 ### Planner vs Task-Generator
 
