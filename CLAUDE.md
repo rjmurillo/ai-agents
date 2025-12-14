@@ -162,3 +162,5 @@ python .agents/utilities/fix-markdown-fences/fix_fences.py
 - Supports batch processing of multiple files
 
 **Reference**: See `.agents/utilities/fix-markdown-fences/SKILL.md` for implementation details and additional language versions.
+
+- When generating or reviewing code, use codebase-context tools to check team patterns first.
