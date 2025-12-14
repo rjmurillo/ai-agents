@@ -145,11 +145,27 @@ Before spawning multiple agents, verify the investment is justified:
 
 ## Routing Algorithm
 
-For detailed routing logic, see:
+### Task Classification
 
-- [Task Classification Guide](../docs/task-classification-guide.md)
-- [Orchestrator Routing Algorithm](../docs/orchestrator-routing-algorithm.md)
-- [Routing Flowchart](../docs/diagrams/routing-flowchart.md)
+Every task is classified across three dimensions:
+
+1. **Task Type**: Feature, Bug Fix, Infrastructure, Security, Strategic, Research, Documentation, Refactoring
+2. **Complexity Level**: Simple (single agent), Multi-Step (sequential agents), Multi-Domain (parallel concerns)
+3. **Risk Level**: Low, Medium, High, Critical
+
+### Agent Sequences by Task Type
+
+| Task Type | Agent Sequence |
+|-----------|----------------|
+| Feature (multi-domain) | analyst -> architect -> planner -> critic -> implementer -> qa |
+| Feature (multi-step) | analyst -> planner -> implementer -> qa |
+| Bug Fix (multi-step) | analyst -> implementer -> qa |
+| Bug Fix (simple) | implementer -> qa |
+| Security | analyst -> security -> architect -> critic -> implementer -> qa |
+| Infrastructure | analyst -> devops -> security -> critic -> qa |
+| Research | analyst (standalone) |
+| Documentation | explainer -> critic |
+| Strategic | roadmap -> architect -> planner -> critic |
 
 ### Complexity Assessment
 
