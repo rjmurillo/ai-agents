@@ -191,13 +191,26 @@ Assess complexity BEFORE selecting agents:
 |-----------|---------------|----------|
 | C# implementation | implementer | analyst |
 | Architecture review | architect | analyst |
-| Task decomposition | planner | roadmap |
-| Challenge assumptions | critic | analyst |
+| Epic → Milestones | planner | roadmap |
+| Milestones → Atomic tasks | task-generator | planner |
+| Challenge assumptions | independent-thinker | critic |
+| Plan validation | critic | analyst |
 | Test strategy | qa | implementer |
 | Research/investigation | analyst | - |
 | Strategic decisions | roadmap | architect |
 | Security assessment | security | analyst |
 | Infrastructure changes | devops | security |
+
+### Planner vs Task-Generator
+
+| Agent | Input | Output | When to Use |
+|-------|-------|--------|-------------|
+| **planner** | Epic/Feature | Milestones with deliverables | Breaking down large scope |
+| **task-generator** | PRD/Milestone | Atomic tasks with acceptance criteria | Before implementer/qa/devops work |
+
+**Workflow**: `roadmap → planner → task-generator → implementer/qa/devops`
+
+The task-generator produces work items sized for individual agents (implementer, qa, devops, architect).
 
 ## Handoff Protocol
 

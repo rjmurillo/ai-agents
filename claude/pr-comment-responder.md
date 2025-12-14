@@ -187,6 +187,8 @@ fi
 
 ## Routing Heuristics
 
+### By Comment Pattern
+
 | Comment Pattern | Path | Delegation |
 |-----------------|------|------------|
 | "Typo in..." | Quick Fix | implementer |
@@ -199,20 +201,110 @@ fi
 | "Why not do X instead?" | Strategic | orchestrator |
 | "This seems like scope creep" | Strategic | orchestrator |
 
+### By File Domain (Direct Agent Routing)
+
+Some comments warrant direct agent routing without full orchestration:
+
+| File Pattern | Comment Type | Direct To | Why |
+|--------------|--------------|-----------|-----|
+| `.github/workflows/*` | CI/CD issues | devops | Domain expertise |
+| `.githooks/*` | Hook problems | devops + security | Infrastructure + security |
+| `**/Auth/**`, `*.env*` | Security concerns | security | Critical path |
+| Any file | "WHETHER to do X" | independent-thinker | Challenge assumptions first |
+
+### Domain-Specific Delegation
+
+#### DevOps Comments (skip orchestrator)
+
+```python
+# For CI/CD, pipeline, or infrastructure comments
+Task(subagent_type="devops", prompt="""
+PR review comment on infrastructure file:
+
+Comment: [comment text]
+File: [.github/workflows/build.yml]
+Line: [line number]
+Author: @[author]
+
+Assess the infrastructure concern and implement fix if valid.
+Coordinate with security agent if `.githooks/*` or secrets involved.
+""")
+```
+
+#### Strategic "WHETHER" Questions (independent-thinker first)
+
+```python
+# When reviewer questions WHETHER to do something
+Task(subagent_type="independent-thinker", prompt="""
+Evaluate this PR review challenge:
+
+Comment: "[Why not use X instead?]"
+File: [file path]
+Context: [relevant code]
+
+Provide unfiltered analysis:
+1. Is the reviewer's concern valid?
+2. What are the actual tradeoffs?
+3. Should we change approach or defend current choice?
+
+Be intellectually honest - don't automatically agree with either side.
+""")
+```
+
 ## Memory Protocol
 
-**Retrieve at start:**
+Memory is a critical strength for PR comment handling. Reviewers (especially bots) have predictable patterns that improve triage accuracy over time.
+
+### Retrieval (MANDATORY at start)
 
 ```text
+# General PR patterns
 mcp__cloudmcp-manager__memory-search_nodes with query="PR review patterns"
-mcp__cloudmcp-manager__memory-search_nodes with query="[bot name] false positives"
+
+# Bot-specific false positives (critical for efficiency)
+mcp__cloudmcp-manager__memory-search_nodes with query="CodeRabbit false positives"
+mcp__cloudmcp-manager__memory-search_nodes with query="Copilot suggestions patterns"
+
+# Reviewer preferences (human reviewers have patterns too)
+mcp__cloudmcp-manager__memory-search_nodes with query="reviewer [username] preferences"
+
+# Domain-specific patterns
+mcp__cloudmcp-manager__memory-search_nodes with query="[file type] review patterns"
 ```
 
-**Store after handling:**
+### Storage (After EVERY triage decision)
 
 ```text
-mcp__cloudmcp-manager__memory-add_observations for new patterns learned
+# Store bot false positive patterns
+mcp__cloudmcp-manager__memory-create_entities(entities=[{
+  "name": "CodeRabbit-FP-[pattern]",
+  "entityType": "BotFalsePositive",
+  "observations": ["Trigger: [what caused it]", "Resolution: [how handled]", "Frequency: [how often]"]
+}])
+
+# Store successful triage decisions
+mcp__cloudmcp-manager__memory-add_observations(observations=[{
+  "entityName": "PR-Triage-Patterns",
+  "contents": ["[comment pattern] → [path chosen] → [outcome]"]
+}])
+
+# Link reviewer to their patterns
+mcp__cloudmcp-manager__memory-create_relations(relations=[{
+  "from": "Reviewer-[username]",
+  "to": "[pattern entity]",
+  "relationType": "frequently_raises"
+}])
 ```
+
+### What to Remember
+
+| Category | Store | Why |
+|----------|-------|-----|
+| **Bot False Positives** | Pattern, trigger, resolution | Avoid re-investigating known issues |
+| **Reviewer Preferences** | Style preferences, common concerns | Anticipate feedback |
+| **Triage Decisions** | Comment → Path → Outcome | Improve classification accuracy |
+| **Domain Patterns** | File type + common issues | Route faster |
+| **Successful Rebuttals** | When "no action" was correct | Confidence in declining |
 
 ## Communication Guidelines
 
@@ -250,6 +342,10 @@ mcp__cloudmcp-manager__memory-add_observations for new patterns learned
 | Situation | Delegate To | Why |
 |-----------|-------------|-----|
 | Quick fix (one-sentence explanation) | implementer | Skip orchestrator overhead |
+| CI/CD, pipeline, workflow comments | devops | Domain expertise, skip orchestrator |
+| Security-sensitive files | security | Critical path, no delays |
+| "WHETHER to do X" questions | independent-thinker | Challenge assumptions before deciding |
 | Needs investigation | orchestrator (Standard path) | Full workflow needed |
 | Scope/priority question | orchestrator (Strategic path) | Strategic evaluation needed |
 | Bot follow-up handling | (self) | Specialized bot knowledge |
+| Known bot false positive (from memory) | (self) | Decline with stored rationale |
