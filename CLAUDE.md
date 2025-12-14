@@ -164,3 +164,4 @@ python .agents/utilities/fix-markdown-fences/fix_fences.py
 **Reference**: See `.agents/utilities/fix-markdown-fences/SKILL.md` for implementation details and additional language versions.
 
 - When generating or reviewing code, use codebase-context tools to check team patterns first.
+- when `memory-add_observations`, `memory-create_entities`, `memory-create_relations`, `memory-delete_entities`, `memory-delete_observations`, `memory-delete_relations`, `memory-open_nodes`, `memory-read_graph`, `memory-search_nodes` fails, fall back to `write_memory`, `read_memory`, `list_memories`, `delete_memory`, `edit_memory`
