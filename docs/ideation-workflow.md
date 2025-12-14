@@ -190,7 +190,7 @@ Full sequence for reference:
 
 ```text
 analyst -> high-level-advisor -> independent-thinker -> critic ->
-roadmap -> explainer -> task-generator -> architect -> security -> qa
+roadmap -> explainer -> task-generator -> architect -> devops -> security -> qa
 ```
 
 Note: In Phase 4, architect/devops/security/qa can run in parallel for efficiency.

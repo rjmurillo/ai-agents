@@ -167,7 +167,7 @@ Every task is classified across three dimensions:
 | Documentation | explainer -> critic |
 | Strategic | roadmap -> architect -> planner -> critic |
 | Refactoring | analyst -> architect -> implementer -> qa |
-| Ideation | analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> security -> qa |
+| Ideation | analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> devops -> security -> qa |
 
 ### Complexity Assessment
 

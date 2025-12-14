@@ -117,7 +117,7 @@ Every task is classified across three dimensions:
 - Incomplete feature descriptions lacking acceptance criteria
 - "Shower thoughts" or early-stage ideas
 
-**Agent Sequence**: `analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> security -> qa`
+**Agent Sequence**: `analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> devops -> security -> qa`
 
 **Note**: This is the most comprehensive sequence, designed to transform vague ideas into actionable implementation plans through research, validation, planning, and review phases.
 
