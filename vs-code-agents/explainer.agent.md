@@ -135,13 +135,13 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 
 ### Retrieval
 
-```
+```text
 cloudmcp-manager/memory-search_nodes with query="documentation [topic]"
 ```
 
 ### Storage
 
-```
+```text
 cloudmcp-manager/memory-create_entities for document patterns
 cloudmcp-manager/memory-add_observations for clarification patterns
 ```

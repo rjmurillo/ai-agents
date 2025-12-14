@@ -32,18 +32,21 @@ This repository provides a coordinated multi-agent system for software developme
 ## Standard Workflows
 
 **Feature Development:**
-```
-analyst → architect → planner → critic → implementer → qa → retrospective
+
+```text
+analyst -> architect -> planner -> critic -> implementer -> qa -> retrospective
 ```
 
 **Quick Fix:**
-```
-implementer → qa
+
+```text
+implementer -> qa
 ```
 
 **Strategic Decision:**
-```
-independent-thinker → high-level-advisor → task-generator
+
+```text
+independent-thinker -> high-level-advisor -> task-generator
 ```
 
 ## Invocation Examples
@@ -100,6 +103,7 @@ When applying learned strategies, cite skills:
 ## Output Directories
 
 Agents save artifacts to `.agents/`:
+
 - `analysis/` - Analyst findings
 - `architecture/` - ADRs
 - `planning/` - Plans and PRDs
@@ -115,3 +119,46 @@ Agents save artifacts to `.agents/`:
 4. **Store Learnings**: Update memory at milestones
 5. **Test Everything**: No skipping hard tests
 6. **Commit Atomically**: Small, conventional commits
+
+## Utilities
+
+### Fix Markdown Fences
+
+When generating or fixing markdown with code blocks, use the fix-markdown-fences utility to repair malformed closing fences automatically.
+
+**Location**: `.agents/utilities/fix-markdown-fences/SKILL.md`
+
+**Problem**: Closing fences should never have language identifiers (e.g., ` ` `text). This utility detects and fixes them:
+
+```markdown
+<!-- Wrong -->
+` ` `python
+def hello():
+    pass
+` ` `python
+
+<!-- Correct -->
+` ` `python
+def hello():
+    pass
+` ` `
+```
+
+**Usage**:
+
+```bash
+# PowerShell
+pwsh .agents/utilities/fix-markdown-fences/fix_fences.ps1
+
+# Python
+python .agents/utilities/fix-markdown-fences/fix_fences.py
+```
+
+**Benefits**:
+
+- Prevents token waste from repeated fence fixing cycles
+- Validates markdown before committing
+- Handles edge cases (nested indentation, multiple blocks, unclosed blocks)
+- Supports batch processing of multiple files
+
+**Reference**: See `.agents/utilities/fix-markdown-fences/SKILL.md` for implementation details and additional language versions.

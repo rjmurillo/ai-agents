@@ -33,6 +33,7 @@ A coordinated multi-agent system for software development, available for **VS Co
 ```
 
 **Usage:**
+
 ```bash
 # Command-line invocation
 copilot --agent analyst --prompt "investigate issue X"
@@ -54,14 +55,14 @@ copilot
 
 ## Directory Structure
 
-```
-├── vs-code-agents/          # VS Code / GitHub Copilot agents
-├── copilot-cli/             # GitHub Copilot CLI agents
-├── claude/                   # Claude Code CLI agents
-├── scripts/                  # Installation scripts
-├── copilot-instructions.md   # GitHub Copilot instructions
-├── CLAUDE.md                 # Claude Code instructions
-└── USING-AGENTS.md           # Detailed usage guide
+```text
+vs-code-agents/          # VS Code / GitHub Copilot agents
+copilot-cli/             # GitHub Copilot CLI agents
+claude/                  # Claude Code CLI agents
+scripts/                 # Installation scripts
+copilot-instructions.md  # GitHub Copilot instructions
+CLAUDE.md                # Claude Code instructions
+USING-AGENTS.md          # Detailed usage guide
 ```
 
 ## Agents
@@ -80,11 +81,24 @@ copilot
 | skillbook | Skill management |
 | + 7 more... | See [USING-AGENTS.md](USING-AGENTS.md) |
 
+## Contributing
+
+### Pre-commit Hook Setup
+
+Enable markdown linting auto-fix on commits:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+This automatically fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
+
 ## Documentation
 
 - [USING-AGENTS.md](USING-AGENTS.md) - Comprehensive usage guide
 - [copilot-instructions.md](copilot-instructions.md) - GitHub Copilot integration
 - [CLAUDE.md](CLAUDE.md) - Claude Code integration
+- [docs/markdown-linting.md](docs/markdown-linting.md) - Markdown standards
 
 ## License
 
