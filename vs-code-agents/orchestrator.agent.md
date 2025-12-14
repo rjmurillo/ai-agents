@@ -275,6 +275,49 @@ Assess complexity BEFORE selecting agents:
 
 **Output**: Consensus decision document at `.agents/analysis/ideation-[topic]-validation.md`
 
+**Validation Document Template**:
+
+```markdown
+## Ideation Validation: [Topic]
+
+**Date**: [YYYY-MM-DD]
+**Research Document**: `ideation-[topic].md`
+
+### Agent Assessments
+
+#### High-Level Advisor
+**Question**: Does this align with product direction?
+**Assessment**: [Response]
+**Verdict**: [Aligned / Partially Aligned / Not Aligned]
+
+#### Independent Thinker
+**Question**: What are we missing? What could go wrong?
+**Concerns Raised**:
+1. [Concern 1]
+2. [Concern 2]
+**Blind Spots Identified**: [Any assumptions that weren't challenged]
+
+#### Critic
+**Question**: Is the analysis complete and accurate?
+**Gaps Found**: [List gaps]
+**Quality Assessment**: [Complete / Needs Work / Insufficient]
+
+#### Roadmap
+**Question**: Where does this fit in the product roadmap?
+**Priority**: [P0 / P1 / P2 / P3]
+**Wave**: [Current / Next / Future / Backlog]
+**Dependencies**: [List any blockers]
+
+### Consensus Decision
+**Final Decision**: [Proceed / Defer / Reject]
+**Conditions** (if Defer): [What must change]
+**Reasoning** (if Reject): [Why rejected]
+
+### Next Steps
+- [ ] [Action 1]
+- [ ] [Action 2]
+```
+
 **Decision Options**:
 
 - **Proceed**: Move to Phase 3 (Planning)
@@ -328,6 +371,59 @@ Assess complexity BEFORE selecting agents:
 **Consensus Required**: All agents must approve before work begins.
 
 **Output**: Approved implementation plan at `.agents/planning/implementation-plan-[topic].md`
+
+**Implementation Plan Template**:
+
+```markdown
+## Implementation Plan: [Topic]
+
+**Epic**: `epic-[topic].md`
+**PRD**: `prd-[topic].md`
+**Status**: Draft / Under Review / Approved
+
+### Review Summary
+
+| Agent | Status | Notes |
+|-------|--------|-------|
+| Architect | Pending / Approved / Concerns | |
+| DevOps | Pending / Approved / Concerns | |
+| Security | Pending / Approved / Concerns | |
+| QA | Pending / Approved / Concerns | |
+
+### Architect Review
+**Design Patterns**: [Recommended patterns]
+**Architectural Concerns**: [Any issues identified]
+**Verdict**: [Approved / Needs Changes]
+
+### DevOps Review
+**CI/CD Impact**: [Changes needed]
+**Infrastructure Requirements**: [New infra needed]
+**Verdict**: [Approved / Needs Changes]
+
+### Security Review
+**Threat Assessment**: [Identified threats]
+**Mitigations Required**: [Security measures]
+**Verdict**: [Approved / Needs Changes]
+
+### QA Review
+**Test Strategy**: [Approach]
+**Coverage Requirements**: [Minimum coverage]
+**Verdict**: [Approved / Needs Changes]
+
+### Final Approval
+**Consensus Reached**: [Yes / No]
+**Approved By**: [List of approving agents]
+**Date**: [YYYY-MM-DD]
+
+### Work Breakdown
+Reference: `.agents/planning/tasks-[topic].md`
+
+| Task | Agent | Priority |
+|------|-------|----------|
+| [Task 1] | implementer | P0 |
+| [Task 2] | implementer | P1 |
+| [Task 3] | qa | P1 |
+```
 
 ### Ideation Workflow Summary
 
