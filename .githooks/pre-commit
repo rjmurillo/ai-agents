@@ -196,9 +196,14 @@ fi
 # Detects infrastructure and security-critical file changes
 # and recommends security agent review if matches found.
 #
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+#
 SECURITY_DETECTION_SCRIPT="$REPO_ROOT/.agents/utilities/security-detection/detect_infrastructure.py"
 
-if [ -f "$SECURITY_DETECTION_SCRIPT" ]; then
+# MEDIUM-002: Reject symlinks for security detection script
+if [ -L "$SECURITY_DETECTION_SCRIPT" ]; then
+    echo_warning "Skipping security detection: script path is a symlink"
+elif [ -f "$SECURITY_DETECTION_SCRIPT" ]; then
     if command -v python3 &> /dev/null; then
         echo_info "Checking for security-critical file changes..."
         python3 "$SECURITY_DETECTION_SCRIPT" --git-staged || true
