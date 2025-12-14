@@ -48,7 +48,7 @@ Every task is classified across three dimensions:
 - Docker/container configuration
 - Deployment automation
 
-**Agent Sequence**: `devops -> security -> critic -> qa`
+**Agent Sequence**: `analyst -> devops -> security -> critic -> qa`
 
 ### Security
 
@@ -60,7 +60,7 @@ Every task is classified across three dimensions:
 - Security audit request
 - Files in `**/Auth/**`, `**/Security/**`
 
-**Agent Sequence**: `security -> architect -> implementer -> qa`
+**Agent Sequence**: `analyst -> security -> architect -> critic -> implementer -> qa`
 
 ### Strategic/Planning
 

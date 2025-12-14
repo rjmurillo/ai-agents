@@ -155,6 +155,7 @@ Every task is classified across three dimensions:
 | Research | analyst (standalone) |
 | Documentation | explainer -> critic |
 | Strategic | roadmap -> architect -> planner -> critic |
+| Refactoring | analyst -> architect -> implementer -> qa |
 
 ### Complexity Assessment
 
