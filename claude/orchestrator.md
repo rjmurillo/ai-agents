@@ -68,6 +68,25 @@ mcp__cloudmcp-manager__memory-create_relations to link concepts
 
 ## Execution Protocol
 
+### Phase 0: Triage (MANDATORY)
+
+Before orchestrating, determine if orchestration is even needed:
+
+```markdown
+- [ ] Is this a question (→ direct answer) or a task (→ orchestrate)?
+- [ ] Can this be solved with a single tool call or direct action?
+- [ ] Does memory already contain the solution?
+- [ ] What is the complexity level? (See Complexity Assessment below)
+```
+
+**Exit Early When:**
+
+- User needs information, not action → Answer directly
+- Task touches 1-2 files with clear scope → Use implementer only
+- Memory contains a validated solution → Apply it directly
+
+> **Weinberg's Law of the Hammer**: "The child who receives a hammer for Christmas will discover that everything needs pounding." Not every task needs every agent. The cheapest orchestration is the one that doesn't happen.
+
 ### Phase 1: Initialization (MANDATORY)
 
 ```markdown
@@ -86,6 +105,18 @@ mcp__cloudmcp-manager__memory-create_relations to link concepts
 - [ ] IMMEDIATELY start delegating - don't wait for perfect planning
 - [ ] Route first sub-task to appropriate agent
 ```
+
+### Value Checkpoint (After Phase 2)
+
+Before spawning multiple agents, verify the investment is justified:
+
+```markdown
+- [ ] CHECKPOINT: Will this require >2 agent delegations?
+- [ ] If yes: Confirm scope matches user's actual need
+- [ ] If uncertain: Deliver partial results first, then expand
+```
+
+**Schrag's Principle**: "You cannot clean up technical debt faster than others create it." Don't over-invest in orchestration that exceeds the problem's actual scope.
 
 ### Phase 3: Autonomous Execution
 
@@ -120,16 +151,33 @@ For detailed routing logic, see:
 - [Orchestrator Routing Algorithm](../docs/orchestrator-routing-algorithm.md)
 - [Routing Flowchart](../docs/diagrams/routing-flowchart.md)
 
+### Complexity Assessment
+
+Assess complexity BEFORE selecting agents:
+
+| Level | Criteria | Agent Strategy |
+|-------|----------|----------------|
+| **Trivial** | Direct tool call answers it | No agent needed |
+| **Simple** | 1-2 files, clear scope, known pattern | implementer only |
+| **Standard** | 3-5 files, may need research | 2-3 agents with clear handoffs |
+| **Complex** | Cross-cutting, new domain, security-sensitive | Full orchestration with critic review |
+
+**Heuristics:**
+
+- If you can describe the fix in one sentence → Simple
+- If task matches 2+ categories below → route to analyst first for decomposition
+- If uncertain about scope → Standard (not Complex)
+
 ### Quick Classification
 
-| If task involves... | Task Type | Agents Required |
-|---------------------|-----------|-----------------|
-| `**/Auth/**`, `**/Security/**` | Security | security, architect, implementer, qa |
-| `.github/workflows/*`, `.githooks/*` | Infrastructure | devops, security, qa |
-| New functionality | Feature | analyst, architect, planner, implementer, qa |
-| Something broken | Bug Fix | analyst, implementer, qa |
-| "Why does X..." | Research | analyst |
-| Architecture decisions | Strategic | roadmap, architect, planner, critic |
+| If task involves... | Task Type | Complexity | Agents Required |
+|---------------------|-----------|------------|-----------------|
+| `**/Auth/**`, `**/Security/**` | Security | Complex | security, architect, implementer, qa |
+| `.github/workflows/*`, `.githooks/*` | Infrastructure | Standard | devops, security, qa |
+| New functionality | Feature | Assess first | See Complexity Assessment |
+| Something broken | Bug Fix | Simple/Standard | analyst (if unclear), implementer, qa |
+| "Why does X..." | Research | Trivial/Simple | analyst or direct answer |
+| Architecture decisions | Strategic | Complex | roadmap, architect, planner, critic |
 
 ### Mandatory Agent Rules
 
@@ -143,13 +191,26 @@ For detailed routing logic, see:
 |-----------|---------------|----------|
 | C# implementation | implementer | analyst |
 | Architecture review | architect | analyst |
-| Task decomposition | planner | roadmap |
-| Challenge assumptions | critic | analyst |
+| Epic → Milestones | planner | roadmap |
+| Milestones → Atomic tasks | task-generator | planner |
+| Challenge assumptions | independent-thinker | critic |
+| Plan validation | critic | analyst |
 | Test strategy | qa | implementer |
 | Research/investigation | analyst | - |
 | Strategic decisions | roadmap | architect |
 | Security assessment | security | analyst |
 | Infrastructure changes | devops | security |
+
+### Planner vs Task-Generator
+
+| Agent | Input | Output | When to Use |
+|-------|-------|--------|-------------|
+| **planner** | Epic/Feature | Milestones with deliverables | Breaking down large scope |
+| **task-generator** | PRD/Milestone | Atomic tasks with acceptance criteria | Before implementer/qa/devops work |
+
+**Workflow**: `roadmap → planner → task-generator → implementer/qa/devops`
+
+The task-generator produces work items sized for individual agents (implementer, qa, devops, architect).
 
 ## Handoff Protocol
 
@@ -253,9 +314,15 @@ Mark orchestration complete only when:
 ## Results
 [Synthesized output]
 
+## Pattern Applied
+[What pattern or principle solved this - user can apply independently next time]
+[Include: trigger condition, solution approach, when to reuse]
+
 ## Commits
 [List of conventional commits]
 
 ## Open Items
 [Anything incomplete]
 ```
+
+**Weinberg's Consulting Secret**: The goal is helping users solve future problems independently, not creating dependency. Always surface the reusable pattern.
