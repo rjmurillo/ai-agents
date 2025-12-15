@@ -6,6 +6,7 @@ A coordinated multi-agent system for software development, available for **VS Co
 
 - **17 specialized agents** for different development phases
 - **Explicit handoff protocols** between agents
+- **Multi-Agent Impact Analysis Framework** for comprehensive planning
 - **Cross-session memory** using cloudmcp-manager
 - **Self-improvement system** with skill tracking and retrospectives
 - **Installation scripts** for global or per-repository setup
@@ -98,6 +99,7 @@ This automatically fixes markdown violations before each commit. See [docs/markd
 - [USING-AGENTS.md](USING-AGENTS.md) - Comprehensive usage guide
 - [copilot-instructions.md](copilot-instructions.md) - GitHub Copilot integration
 - [CLAUDE.md](CLAUDE.md) - Claude Code integration
+- [.agents/planning/IMPACT-ANALYSIS-EXAMPLE.md](.agents/planning/IMPACT-ANALYSIS-EXAMPLE.md) - Impact Analysis Framework example
 - [docs/markdown-linting.md](docs/markdown-linting.md) - Markdown standards
 
 ## License
