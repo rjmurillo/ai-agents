@@ -37,11 +37,15 @@ When planner requests impact analysis (before implementation):
 - [ ] Assess testing complexity (unit, integration, e2e)
 - [ ] Identify code quality risks
 - [ ] Estimate implementation effort
+```
+
 ```text
 
 ### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-code.md`
+
+```
 
 ```markdown
 # Impact Analysis: [Feature] - Code
@@ -84,11 +88,28 @@ Save to: `.agents/planning/impact-analysis-[feature]-code.md`
 |------|------------|--------|------------|
 | [Risk] | [L/M/H] | [L/M/H] | [Strategy] |
 
+## Breaking Changes
+
+| Change | Severity | Migration Path |
+|--------|----------|----------------|
+| [API change] | [Breaking/Deprecation/None] | [How to migrate or N/A] |
+
+**Backward Compatibility**: [Yes/No/Partial]
+**Deprecation Strategy**: [Immediate removal/Deprecation period/Version bump only]
+
 ## Recommendations
 
 1. [Specific code approach with rationale]
 2. [Pattern to use/avoid]
 3. [Refactoring needed first]
+
+## Issues Discovered
+
+| Issue | Priority | Category | Description |
+|-------|----------|----------|-------------|
+| [Issue ID] | [P0/P1/P2] | [Bug/Risk/Debt/Blocker] | [Brief description] |
+
+**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
 
 ## Dependencies
 
@@ -100,7 +121,7 @@ Save to: `.agents/planning/impact-analysis-[feature]-code.md`
 - **Implementation**: [Hours/Days]
 - **Testing**: [Hours/Days]
 - **Total**: [Hours/Days]
-```text
+```
 
 ## Constraints
 

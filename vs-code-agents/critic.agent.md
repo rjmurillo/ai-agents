@@ -35,13 +35,19 @@ Identify ambiguities, technical debt risks, and misalignments BEFORE implementat
 ```text
 cloudmcp-manager/memory-search_nodes with query="critique [plan name]"
 cloudmcp-manager/memory-open_nodes for previous reviews
+```
+
 ```text
 
 ### Storage (After Reviews)
 
+```
+
 ```text
 cloudmcp-manager/memory-create_entities for new critiques
 cloudmcp-manager/memory-add_observations for feedback patterns
+```
+
 ```text
 
 ## Review Criteria
@@ -75,9 +81,49 @@ cloudmcp-manager/memory-add_observations for feedback patterns
 | Dependency Order | Sequencing makes sense |
 | Objective Preservation | Master objective supported |
 
+### Impact Analysis (When Present)
+
+| Criterion | What to Check |
+|-----------|---------------|
+| Consultation Coverage | All required specialists consulted |
+| Consultation Status | Marked as "Complete" |
+| Cross-Domain Risks | Identified and mitigated |
+| Conflicting Recommendations | None unresolved |
+| Issues Discovered | Populated and triaged |
+| Specialist Agreement | Unanimous or escalated |
+
+## Disagreement Detection & Escalation
+
+When reviewing plans with impact analysis, check for **conflicting recommendations** across specialist agents:
+
+### Signs of Disagreement
+- Contradictory recommendations between domains
+- Security vs. implementation trade-off conflicts
+- Architecture patterns that conflict with DevOps requirements
+- QA coverage requirements that conflict with scope/timeline
+- Unresolved concerns flagged by any specialist
+
+### Escalation Protocol
+
+If specialists do NOT have unanimous agreement:
+
+1. **Document the conflict** in the critique clearly
+2. **Assess severity**: Minor (proceed with note) vs. Major (requires resolution)
+3. **For major conflicts**: MUST escalate to **high-level-advisor**
+4. **Block approval** until high-level-advisor provides guidance
+5. **Document resolution** in critique for retrospective learning
+
+| Conflict Type | Example | Resolution Owner |
+|--------------|---------|------------------|
+| Security vs. Usability | Auth complexity vs. user experience | high-level-advisor |
+| Performance vs. Maintainability | Optimization vs. code clarity | architect |
+| Scope vs. Quality | Feature breadth vs. test coverage | high-level-advisor |
+
 ## Critique Document Format
 
 Save to: `.agents/critique/NNN-[document-name]-critique.md`
+
+```
 
 ```markdown
 # Critique: [Document Name]
@@ -117,11 +163,24 @@ Save to: `.agents/critique/NNN-[document-name]-critique.md`
 
 [Explanation of verdict]
 
+## Impact Analysis Review (if applicable)
+
+**Consultation Coverage**: [N/N specialists consulted]
+**Cross-Domain Conflicts**: [None | List conflicts]
+**Escalation Required**: [No | Yes - to high-level-advisor]
+
+### Specialist Agreement Status
+| Specialist | Agrees with Plan | Concerns |
+|------------|-----------------|----------|
+| [Agent] | [Yes/No/Partial] | [Brief concern or N/A] |
+
+**Unanimous Agreement**: [Yes | No - requires escalation]
+
 ## Revision History
 | Date | Reviewer | Changes |
 |------|----------|---------|
 | [Date] | Critic | Initial review |
-```text
+```
 
 ## Handoff Options
 
@@ -131,6 +190,7 @@ Save to: `.agents/critique/NNN-[document-name]-critique.md`
 | **analyst** | Research required | Request analysis |
 | **implementer** | Plan approved | Ready for execution |
 | **architect** | Architecture concerns | Technical decision |
+| **high-level-advisor** | Specialist disagreement | Resolve conflict |
 
 ## Handoff Protocol
 
@@ -153,6 +213,8 @@ When critique is complete:
 - [ ] Determine verdict
 - [ ] Save critique document
 - [ ] Handoff appropriately
+```
+
 ```text
 
 ## Execution Mindset
@@ -164,3 +226,5 @@ When critique is complete:
 **Challenge:** Assumptions that could derail implementation
 
 **Recommend:** Specific, actionable improvements
+
+```

@@ -35,13 +35,19 @@ Provide structure on objectives, process, value, and risks - not prescriptive co
 ```text
 cloudmcp-manager/memory-search_nodes with query="planning [epic]"
 cloudmcp-manager/memory-open_nodes for previous plans
+```
+
 ```text
 
 ### Storage (At Milestones)
 
+```
+
 ```text
 cloudmcp-manager/memory-create_entities for new plans
 cloudmcp-manager/memory-add_observations for plan updates
+```
+
 ```text
 
 Store summaries of 300-1500 characters focusing on reasoning, decisions, tradeoffs.
@@ -50,40 +56,58 @@ Store summaries of 300-1500 characters focusing on reasoning, decisions, tradeof
 
 ### Phase 1: Value Alignment
 
+```
+
 ```markdown
 - [ ] Present value statement in user story format
 - [ ] Gather approval before detailed planning
 - [ ] Identify target release version
+```
+
 ```text
 
 ### Phase 2: Context Gathering
+
+```
 
 ```markdown
 - [ ] Review roadmap for strategic alignment
 - [ ] Review architecture for technical constraints
 - [ ] Enumerate assumptions and open questions
+```
+
 ```text
 
 ### Phase 3: Work Package Creation
+
+```
 
 ```markdown
 - [ ] Outline milestones with implementation-ready detail
 - [ ] Define acceptance criteria for each task
 - [ ] Sequence based on dependencies
 - [ ] Include version management as final milestone
+```
+
 ```text
 
 ### Phase 4: Mandatory Review
+
+```
 
 ```markdown
 - [ ] Handoff to Critic for validation
 - [ ] Address feedback
 - [ ] Finalize plan
+```
+
 ```text
 
 ## Plan Document Format
 
 Save to: `.agents/planning/NNN-[plan-name]-plan.md`
+
+```
 
 ```markdown
 # Plan: [Plan Name]
@@ -129,6 +153,8 @@ As a [user type], I want [capability] so that [benefit].
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | [Risk] | [Impact] | [Mitigation] |
+```
+
 ```text
 
 ## Multi-Agent Impact Analysis Framework
@@ -149,27 +175,39 @@ Trigger impact analysis for:
 
 **Phase 1: Scope Analysis**
 
+```
+
 ```markdown
 - [ ] Analyze proposed change dimensions
 - [ ] Identify affected domains (code, architecture, security, operations, quality)
 - [ ] Determine which specialist agents to consult
+```
+
 ```text
 
 **Phase 2: Specialist Consultations**
+
+```
 
 ```markdown
 - [ ] Invoke each required specialist with structured impact analysis prompt
 - [ ] Collect impact analysis findings from each agent
 - [ ] Document consultation results in plan
+```
+
 ```text
 
 **Phase 3: Aggregation & Integration**
+
+```
 
 ```markdown
 - [ ] Synthesize findings across all consultations
 - [ ] Identify conflicts or dependencies between domains
 - [ ] Update plan with integrated impact analysis
 - [ ] Add domain-specific risks and mitigations
+```
+
 ```text
 
 ### Specialist Agent Roles
@@ -186,6 +224,8 @@ Trigger impact analysis for:
 
 When consulting specialists, use structured prompts:
 
+```
+
 ```text
 @workspace /agent [agent] Impact Analysis Request: [Feature/Change Name]
 
@@ -201,11 +241,15 @@ When consulting specialists, use structured prompts:
 5. Estimate complexity in your domain (Low/Medium/High)
 
 **Deliverable**: Save findings to `.agents/planning/impact-analysis-[feature]-[domain].md`
+```
+
 ```text
 
 ### Impact Analysis Document Format
 
 Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md`
+
+```
 
 ```markdown
 # Impact Analysis: [Feature] - [Domain]
@@ -247,14 +291,21 @@ Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md
 ## Estimated Effort
 
 [Time estimate for this domain's work]
+```
+
 ```text
 
 ### Aggregated Impact Summary
 
 After consultations, add to plan:
 
+```
+
 ```markdown
 ## Impact Analysis Summary
+
+**Consultation Status**: [In Progress | Complete | Blocked]
+**Blocking Issues**: [None | List issues preventing completion]
 
 **Consultations Completed**:
 - [x] Implementer - [Complexity: Medium]
@@ -283,7 +334,27 @@ Based on specialist consultations:
 - **Operations**: [Low/Medium/High]
 - **Quality**: [Low/Medium/High]
 - **Overall**: [Low/Medium/High]
-```text
+
+### Impact Analysis Metrics
+
+**Consultation Coverage**:
+- Specialists Requested: [N]
+- Specialists Completed: [N]
+- Coverage: [N/N = %]
+
+**Issues Discovered Pre-Implementation**:
+- Critical (P0): [N]
+- High (P1): [N]
+- Medium (P2): [N]
+- Total: [N]
+
+**Planning Checkpoints**:
+- Analysis Started: [Date/Time or Commit]
+- Consultations Complete: [Date/Time or Commit]
+- Plan Finalized: [Date/Time or Commit]
+
+*These metrics support retrospective analysis and continuous improvement.*
+```
 
 ### Example: Multi-Domain Impact Analysis
 
@@ -304,7 +375,30 @@ Aggregate findings:
 - QA: High (comprehensive security testing required)
 
 Overall: High complexity - Proceed with caution, security-first approach
-```text
+```
+
+### Handling Specialist Disagreements
+
+During impact analysis, specialists may have **conflicting recommendations**. The planner should:
+
+1. **Document conflicts clearly** in the aggregated summary
+2. **Attempt resolution** by clarifying scope or constraints
+3. **If unresolved**, document for critic review:
+   - Conflicting positions from each specialist
+   - Why resolution was not possible at planning level
+   - Proposed resolution path (if any)
+
+**Example Conflict Documentation**:
+
+```markdown
+### Unresolved Conflicts
+
+| Conflict | Agent A Position | Agent B Position | Notes |
+|----------|-----------------|-----------------|-------|
+| Auth complexity | Security: Require MFA | Implementer: Scope too large | Escalate to high-level-advisor |
+```
+
+**Note**: The **critic** agent is responsible for escalating major conflicts to **high-level-advisor**. Unanimous specialist agreement is required for smooth approval.
 
 ## Handoff Options
 

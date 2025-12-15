@@ -34,11 +34,15 @@ When planner requests impact analysis (during planning phase):
 - [ ] Assess hard-to-test scenarios
 - [ ] Identify quality risks
 - [ ] Estimate testing effort
+```
+
 ```text
 
 ### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-qa.md`
+
+```
 
 ```markdown
 # Impact Analysis: [Feature] - QA
@@ -105,11 +109,29 @@ Save to: `.agents/planning/impact-analysis-[feature]-qa.md`
 - **Impact on overall coverage**: [Increase/Decrease/Neutral]
 - **Critical paths coverage**: [%]
 
+## Automation Strategy
+
+| Test Area | Automate? | Rationale | Tool Recommendation |
+|-----------|-----------|-----------|---------------------|
+| [Area] | [Yes/No/Partial] | [Why] | [Tool] |
+
+**Automation Coverage Target**: [%]
+**Manual Testing Required**: [List scenarios requiring human judgment]
+**Automation ROI**: [High/Medium/Low] - [Brief justification]
+
 ## Recommendations
 
 1. [Testing approach with rationale]
 2. [Test framework/tool to use]
 3. [Coverage strategy]
+
+## Issues Discovered
+
+| Issue | Priority | Category | Description |
+|-------|----------|----------|-------------|
+| [Issue ID] | [P0/P1/P2] | [Coverage Gap/Risk/Debt/Blocker] | [Brief description] |
+
+**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
 
 ## Dependencies
 
@@ -122,7 +144,7 @@ Save to: `.agents/planning/impact-analysis-[feature]-qa.md`
 - **Test implementation**: [Hours/Days]
 - **Test execution**: [Hours/Days]
 - **Total**: [Hours/Days]
-```text
+```
 
 ## Constraints
 

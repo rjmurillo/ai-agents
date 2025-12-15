@@ -34,11 +34,15 @@ When planner requests impact analysis (during planning phase):
 - [ ] Determine infrastructure requirements
 - [ ] Evaluate CI/CD performance implications
 - [ ] Identify secrets/configuration management needs
+```
+
 ```text
 
 ### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-devops.md`
+
+```
 
 ```markdown
 # Impact Analysis: [Feature] - DevOps
@@ -96,11 +100,31 @@ Save to: `.agents/planning/impact-analysis-[feature]-devops.md`
 | Build Time | [Increase/Decrease] | [Strategy] |
 | Deployment Time | [Increase/Decrease] | [Strategy] |
 
+## Developer Experience Impact
+
+| Workflow | Current State | After Change | Migration Effort |
+|----------|---------------|--------------|------------------|
+| Local dev setup | [Current] | [New] | [L/M/H] |
+| IDE integration | [Current] | [New] | [L/M/H] |
+| Build commands | [Current] | [New] | [L/M/H] |
+| Debug workflow | [Current] | [New] | [L/M/H] |
+
+**Setup Changes Required**: [None/Config update/Tool install/Major rework]
+**Documentation Updates**: [List docs that need updating]
+
 ## Recommendations
 
 1. [Pipeline approach with rationale]
 2. [Infrastructure pattern to use]
 3. [Monitoring/alerting needed]
+
+## Issues Discovered
+
+| Issue | Priority | Category | Description |
+|-------|----------|----------|-------------|
+| [Issue ID] | [P0/P1/P2] | [Bug/Risk/Debt/Blocker] | [Brief description] |
+
+**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
 
 ## Dependencies
 
@@ -113,7 +137,7 @@ Save to: `.agents/planning/impact-analysis-[feature]-devops.md`
 - **Infrastructure setup**: [Hours/Days]
 - **Testing/validation**: [Hours/Days]
 - **Total**: [Hours/Days]
-```text
+```
 
 ## Memory Protocol (cloudmcp-manager)
 

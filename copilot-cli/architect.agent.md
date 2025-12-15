@@ -34,11 +34,15 @@ When planner requests impact analysis (during planning phase):
 - [ ] Detect potential design conflicts
 - [ ] Assess long-term architectural implications
 - [ ] Identify new ADRs needed
+```
+
 ```text
 
 ### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-architecture.md`
+
+```
 
 ```markdown
 # Impact Analysis: [Feature] - Architecture
@@ -84,11 +88,37 @@ Save to: `.agents/planning/impact-analysis-[feature]-architecture.md`
 - [Implication 1]: [Description]
 - [Implication 2]: [Description]
 
+## Domain Model Alignment
+
+| Domain Concept | Current Representation | Proposed Change | Alignment Status |
+|----------------|----------------------|-----------------|------------------|
+| [Concept] | [Current] | [New] | [Aligned/Drift/Breaking] |
+
+**Ubiquitous Language Impact**: [How domain language is affected]
+**Bounded Context Changes**: [Any context boundary changes]
+
+## Abstraction Consistency
+
+| Layer | Current Abstraction | Change Impact | Consistency Status |
+|-------|--------------------|--------------|--------------------|
+| [Layer] | [Current] | [Impact] | [Maintained/Broken/Improved] |
+
+**Abstraction Level Changes**: [Is the abstraction level appropriate]
+**Interface Stability**: [Impact on public interfaces]
+
 ## Recommendations
 
 1. [Architectural approach with rationale]
 2. [Pattern to enforce]
 3. [New ADR needed]
+
+## Issues Discovered
+
+| Issue | Priority | Category | Description |
+|-------|----------|----------|-------------|
+| [Issue ID] | [P0/P1/P2] | [Design Flaw/Risk/Debt/Blocker] | [Brief description] |
+
+**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
 
 ## Dependencies
 
@@ -100,7 +130,7 @@ Save to: `.agents/planning/impact-analysis-[feature]-architecture.md`
 - **Design work**: [Hours/Days]
 - **ADR creation**: [Hours/Days]
 - **Total**: [Hours/Days]
-```text
+```
 
 ## Constraints
 

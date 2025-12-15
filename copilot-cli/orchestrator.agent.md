@@ -158,6 +158,42 @@ Every task is classified across three dimensions:
 | Refactoring | analyst -> architect -> implementer -> qa |
 | Ideation | analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> devops -> security -> qa |
 
+**Note**: Multi-domain features triggering 3+ areas should use impact analysis consultations during planning phase.
+
+### Impact Analysis Orchestration
+
+When a feature triggers **3+ domains** (code, architecture, security, operations, quality), orchestrate the impact analysis framework:
+
+**Trigger Conditions** - Route to planner with impact analysis when:
+
+- Feature touches 3+ domains (code, architecture, CI/CD, security, quality)
+- Security-sensitive areas involved (auth, data handling, external APIs)
+- Breaking changes expected (API modifications, schema changes)
+- Infrastructure changes (build pipelines, deployment, new services)
+
+**Orchestration Flow**:
+
+1. Route to planner with impact analysis flag
+2. Planner invokes specialist agents for impact analysis
+3. Planner aggregates findings and documents conflicts
+4. Route to critic for validation
+5. If specialist disagreement → critic escalates to high-level-advisor
+6. After resolution → route to implementer
+
+**Handling Failed Consultations**:
+
+- Retry once with clarified prompt
+- If still failing, log gap and proceed with partial analysis
+- Flag in plan as "Incomplete: [missing domain]"
+
+**Escalation Path**:
+
+| Situation | Action |
+|-----------|--------|
+| Single specialist times out | Mark incomplete, proceed |
+| Multiple specialists disagree | Critic escalates to high-level-advisor |
+| High-level-advisor required | Block approval until resolution |
+
 ### Complexity Assessment
 
 Assess complexity BEFORE selecting agents:

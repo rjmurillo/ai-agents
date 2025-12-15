@@ -172,6 +172,56 @@ Every task is classified across three dimensions:
 
 **Note**: Multi-domain features triggering 3+ areas should use impact analysis consultations during planning phase.
 
+### Impact Analysis Orchestration
+
+When a feature triggers **3+ domains** (code, architecture, security, operations, quality), orchestrate the impact analysis framework:
+
+**Trigger Conditions** - Route to planner with impact analysis when:
+
+- Feature touches 3+ domains (code, architecture, CI/CD, security, quality)
+- Security-sensitive areas involved (auth, data handling, external APIs)
+- Breaking changes expected (API modifications, schema changes)
+- Infrastructure changes (build pipelines, deployment, new services)
+- High-risk changes (production-critical, compliance-related)
+
+**Orchestration Flow**:
+
+```text
+1. Route to planner with impact analysis flag
+2. Planner invokes specialist agents for impact analysis:
+   - implementer: Code impact
+   - architect: Design impact
+   - security: Security impact
+   - devops: Operations impact
+   - qa: Quality impact
+3. Planner aggregates findings and documents conflicts
+4. Route to critic for validation
+5. If specialist disagreement → critic escalates to high-level-advisor
+6. After resolution → route to implementer
+```
+
+**Handling Failed Consultations**:
+
+1. **Retry once** with clarified prompt
+2. If still failing, **log gap** and proceed with partial analysis
+3. **Flag in plan** as "Incomplete: [missing domain]"
+4. Critic must acknowledge incomplete consultation in review
+
+**Timeout Strategy**:
+
+- Allow **2 iterations** per specialist before marking incomplete
+- Do not block entire planning on single specialist failure
+- Document timeout in plan metrics for retrospective
+
+**Escalation Path**:
+
+| Situation | Action |
+|-----------|--------|
+| Single specialist times out | Mark incomplete, proceed |
+| Multiple specialists disagree | Document conflict, critic escalates to high-level-advisor |
+| All specialists time out | Abort to analyst for scope reduction |
+| High-level-advisor required | Block approval until resolution |
+
 ### Complexity Assessment
 
 Assess complexity BEFORE selecting agents:
