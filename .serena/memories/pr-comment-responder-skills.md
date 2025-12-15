@@ -12,7 +12,7 @@
 
 **Atomicity**: 92%
 
-**Tag**: helpful when applied, harmful when skipped
+**Tag**: harmful when skipped (incomplete reviewer coverage)
 
 ---
 
