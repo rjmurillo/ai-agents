@@ -183,6 +183,70 @@ Based on the above, [accept/defer/request more evidence]:
 - Not Found: [What couldn't be verified]
 ```
 
+### Ideation Research
+
+When orchestrator routes an ideation task (vague feature idea, package URL, incomplete spec):
+
+```markdown
+## Ideation Research: [Topic]
+
+### Package/Technology Overview
+[What it is, what problem it solves]
+
+### Community Signal
+Research the following:
+- GitHub stars, forks, watchers
+- NuGet/npm download trends
+- Issue activity (open vs closed ratio)
+- Last release date and maintenance cadence
+- Major users/adopters
+
+### Technical Fit Assessment
+Analyze compatibility with:
+- Current codebase patterns
+- Existing dependencies (version conflicts?)
+- Target framework compatibility
+- Build/CI pipeline impact
+
+### Integration Complexity
+Estimate:
+- Lines of code / files affected
+- Breaking changes required
+- Migration path for existing code
+- Documentation updates needed
+
+### Alternatives Considered
+| Alternative | Pros | Cons | Why Not |
+|-------------|------|------|---------|
+| [Option A] | ... | ... | ... |
+| [Option B] | ... | ... | ... |
+
+### Risks and Concerns
+- Security implications
+- Licensing (MIT, Apache, GPL, etc.)
+- Maintenance burden
+- Community support quality
+
+### Recommendation
+[Proceed / Defer / Reject] with rationale:
+- Evidence strength: [Strong / Moderate / Weak]
+- Risk level: [Low / Medium / High]
+- Strategic fit: [High / Medium / Low]
+
+### Next Steps
+If Proceed: Route to high-level-advisor for validation
+If Defer: Add to backlog with conditions
+If Reject: Document reasoning for future reference
+```
+
+**Tools for Ideation Research:**
+
+- Microsoft Docs Search - Official Microsoft documentation
+- Context7 library docs - Library documentation
+- DeepWiki - Repository documentation
+- Perplexity - Deep research and web search
+- Web search - General web research
+
 ## Analysis Document Format
 
 Save to: `.agents/analysis/NNN-[topic]-analysis.md`

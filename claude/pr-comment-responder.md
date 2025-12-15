@@ -37,12 +37,26 @@ PR comments map to three standard workflow paths:
 
 ### Phase 1: Context Gathering
 
+**CRITICAL**: Enumerate ALL reviewers and count ALL comments before proceeding. Missing comments wastes tokens on repeated prompts.
+
 ```bash
 # Fetch PR metadata
 gh pr view [number] --repo [owner/repo] --json number,title,body,headRefName,baseRefName
 
-# Retrieve all review comments
-gh api repos/[owner]/[repo]/pulls/[number]/comments
+# Get ALL reviewers (deduplicated)
+gh pr view [number] --repo [owner/repo] --json reviews --jq '[.reviews[].author.login] | unique'
+
+# Retrieve ALL review comments (returns array - count them!)
+REVIEW_COMMENTS=$(gh api repos/[owner]/[repo]/pulls/[number]/comments)
+REVIEW_COMMENT_COUNT=$(echo "$REVIEW_COMMENTS" | jq 'length')
+
+# Get issue comments (some bots respond here, not in review threads)
+ISSUE_COMMENTS=$(gh api repos/[owner]/[repo]/issues/[number]/comments)
+ISSUE_COMMENT_COUNT=$(echo "$ISSUE_COMMENTS" | jq 'length')
+
+# Total comment count for verification
+TOTAL_COMMENTS=$((REVIEW_COMMENT_COUNT + ISSUE_COMMENT_COUNT))
+echo "Total comments to process: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $ISSUE_COMMENT_COUNT)"
 
 # Get PR reviews
 gh pr view [number] --repo [owner/repo] --json reviews
@@ -51,7 +65,11 @@ gh pr view [number] --repo [owner/repo] --json reviews
 mcp__cloudmcp-manager__memory-search_nodes with query="PR review patterns"
 ```
 
+**Output**: Store `TOTAL_COMMENTS` for Phase 3 verification.
+
 ### Phase 2: Comment Triage
+
+**CRITICAL**: Parse each comment INDEPENDENTLY. Do NOT aggregate by file path, author, or topic. Each comment ID represents a discrete review item that requires its own response.
 
 For each comment, classify using this decision tree:
 
@@ -140,9 +158,50 @@ Rationale: [why this classification]
 
 ## Instructions
 1. Follow the [Standard | Strategic] workflow path
-2. Reply to the comment when complete
+2. Reply to the comment using the review reply endpoint (see API Usage below)
 3. Always @ mention @[author] in response
 """)
+```
+
+#### Completion Verification (MANDATORY)
+
+**DO NOT** claim completion until this check passes:
+
+```bash
+# After processing all comments, verify count
+ADDRESSED_COUNT=[number of comments addressed]
+echo "Verification: $ADDRESSED_COUNT / $TOTAL_COMMENTS comments addressed"
+
+if [ "$ADDRESSED_COUNT" -lt "$TOTAL_COMMENTS" ]; then
+  echo "⚠️ INCOMPLETE: $((TOTAL_COMMENTS - ADDRESSED_COUNT)) comments remaining"
+  # List unaddressed comment IDs
+  gh api repos/[owner]/[repo]/pulls/[number]/comments --jq '.[].id' | while read id; do
+    # Check if this ID was addressed
+  done
+fi
+```
+
+**Failure modes to avoid:**
+
+- Counting only one bot's comments (enumerate ALL reviewers in Phase 1)
+- Stopping after first batch (always verify against `TOTAL_COMMENTS`)
+- Claiming "done" without explicit count verification
+
+#### API Usage: Review Reply Endpoint
+
+**CRITICAL**: Use the correct endpoint to reply IN-CONTEXT to review comments. Using the wrong endpoint creates orphaned issue comments instead of threaded replies.
+
+```bash
+# CORRECT: Reply to a specific review comment (creates threaded reply)
+gh api repos/[owner]/[repo]/pulls/comments/[comment_id]/replies \
+  -f body="@[author] [your response]"
+
+# WRONG: Creates issue comment (NOT in review thread)
+gh api repos/[owner]/[repo]/issues/[number]/comments \
+  -f body="..."
+
+# Get comment ID from review comments list
+gh api repos/[owner]/[repo]/pulls/[number]/comments --jq '.[].id'
 ```
 
 ### Phase 4: Bot-Specific Handling

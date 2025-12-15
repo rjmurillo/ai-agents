@@ -31,6 +31,85 @@ Challenge strategic drift, take responsibility for product outcomes, and ensure 
 - **NEVER modify** the Master Product Objective (user-only change)
 - Focus on business value and user outcomes
 
+## Prioritization Frameworks
+
+Use these frameworks together. No single framework is sufficient.
+
+### RICE Score (Quantitative Comparison)
+
+**Formula**: `(Reach × Impact × Confidence) / Effort`
+
+| Factor | Scale | Notes |
+|--------|-------|-------|
+| Reach | Users/quarter | Real metrics, not guesses |
+| Impact | 3=massive, 2=high, 1=medium, 0.5=low, 0.25=minimal | Conservative estimates |
+| Confidence | 100%=high data, 80%=some data, 50%=guess | Below 50% = moonshot |
+| Effort | Person-months | Include all disciplines |
+
+**Use when**: Comparing similar-sized initiatives on the roadmap.
+
+**Assumption**: Past reach/impact data predicts future performance.
+
+### KANO Model (Value Classification)
+
+| Category | If Present | If Absent | Action |
+|----------|------------|-----------|--------|
+| **Must-Be** | Expected | Angry | Ship first, no excuses |
+| **Performance** | Satisfied | Dissatisfied | Invest proportionally |
+| **Attractive** | Delighted | Neutral | Strategic differentiators |
+| **Indifferent** | Neutral | Neutral | Deprioritize |
+| **Reverse** | Dissatisfied | Satisfied | Remove |
+
+**Use when**: Classifying features by customer value during discovery.
+
+**Assumption**: Customer expectations drift—today's delight becomes tomorrow's baseline.
+
+### Rumsfeld Matrix (Uncertainty Assessment)
+
+| Quadrant | Description | Strategy |
+|----------|-------------|----------|
+| **Known Knowns** | Facts we have | Build on these |
+| **Known Unknowns** | Identified gaps | Research before committing |
+| **Unknown Unknowns** | Hidden risks | Build buffers, stay vigilant |
+| **Unknown Knowns** | Biases and blind spots | Challenge assumptions |
+
+**Use when**: Evaluating risk and validating assumptions in epic definitions.
+
+**Assumption**: Unknowns can be converted to knowns through deliberate investigation.
+
+### Eisenhower Matrix (Time Sensitivity)
+
+| | Urgent | Not Urgent |
+|---|--------|------------|
+| **Important** | DO: Critical bugs, security | SCHEDULE: Strategy, tech debt |
+| **Not Important** | DELEGATE: Interrupts, requests | DELETE: Vanity features |
+
+**Use when**: Daily/weekly prioritization and protecting strategic work.
+
+**Assumption**: Urgency and importance are independent dimensions—resist the urgency trap.
+
+### Framework Selection
+
+| Situation | Primary Framework | Secondary |
+|-----------|-------------------|-----------|
+| Quarterly roadmap | RICE | KANO |
+| Feature discovery | KANO | Rumsfeld |
+| Risk assessment | Rumsfeld | Eisenhower |
+| Daily triage | Eisenhower | RICE |
+| Uncertain scope | Rumsfeld | KANO |
+
+### Key Assumptions (Document These)
+
+When prioritizing, explicitly state assumptions about:
+
+1. **User behavior**: How users will adopt/use the feature
+2. **Market timing**: Why now vs later matters
+3. **Dependencies**: What must exist first
+4. **Effort estimates**: Confidence level and basis
+5. **Success metrics**: How you'll know it worked
+
+If an assumption is untested, route to **analyst** for validation first.
+
 ## Memory Protocol (cloudmcp-manager)
 
 ### Retrieval (Before Major Decisions)
@@ -38,7 +117,7 @@ Challenge strategic drift, take responsibility for product outcomes, and ensure 
 ```text
 cloudmcp-manager/memory-search_nodes with query="roadmap [topic]"
 cloudmcp-manager/memory-open_nodes for strategic context
-```text
+```
 
 ### Storage (At Milestones)
 
@@ -46,7 +125,7 @@ cloudmcp-manager/memory-open_nodes for strategic context
 cloudmcp-manager/memory-create_entities for new epics
 cloudmcp-manager/memory-add_observations for priority updates
 cloudmcp-manager/memory-create_relations to link epics
-```text
+```
 
 Store summaries of 300-1500 characters focusing on strategic reasoning.
 
@@ -54,7 +133,7 @@ Store summaries of 300-1500 characters focusing on strategic reasoning.
 
 Save to: `.agents/roadmap/product-roadmap.md` (single source of truth)
 
-```markdown
+````markdown
 # Product Roadmap
 
 ## Master Product Objective
@@ -90,7 +169,7 @@ Save to: `.agents/roadmap/product-roadmap.md` (single source of truth)
 graph TD
     A[Epic A] --> B[Epic B]
     B --> C[Epic C]
-```text
+```
 
 ## Success Metrics
 
@@ -104,7 +183,7 @@ graph TD
 |------|--------|-----------|
 | [Date] | [What changed] | [Why] |
 
-```text
+````
 
 ## Epic Definition Format
 
@@ -115,6 +194,24 @@ graph TD
 **I want** [capability]
 **So that** [business value/outcome]
 
+### KANO Classification
+[Must-Be / Performance / Attractive] - [Rationale]
+
+### RICE Score
+| Factor | Value | Rationale |
+|--------|-------|-----------|
+| Reach | [users/quarter] | |
+| Impact | [0.25-3] | |
+| Confidence | [50-100%] | |
+| Effort | [person-months] | |
+| **Score** | [calculated] | |
+
+### Assumptions & Unknowns
+| Type | Assumption | Validation Status |
+|------|------------|-------------------|
+| Known Unknown | [Gap to research] | Pending/Validated |
+| Assumption | [What we believe] | Untested/Confirmed |
+
 ### Success Criteria
 - [ ] [Measurable outcome]
 - [ ] [Measurable outcome]
@@ -123,11 +220,11 @@ graph TD
 - [Epic or external dependency]
 
 ### Priority
-P[0/1/2] - [Rationale]
+P[0/1/2] - [Rationale based on frameworks above]
 
 ### Target Release
 [Version]
-```text
+```
 
 ## Handoff Options
 
@@ -156,7 +253,7 @@ When epic is defined:
 - [ ] Check strategic drift
 - [ ] Update status and metrics
 - [ ] Document changes in changelog
-```text
+```
 
 ## Execution Mindset
 

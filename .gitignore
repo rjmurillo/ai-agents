@@ -1,0 +1,6 @@
+# Claude Code local settings
+.claude/
+
+# Generated index files
+.codebase-index.json
+.codebase-intelligence.json
