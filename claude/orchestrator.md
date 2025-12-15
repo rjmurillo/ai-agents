@@ -87,6 +87,108 @@ Before orchestrating, determine if orchestration is even needed:
 
 > **Weinberg's Law of the Hammer**: "The child who receives a hammer for Christmas will discover that everything needs pounding." Not every task needs every agent. The cheapest orchestration is the one that doesn't happen.
 
+### Phase 0.5: Task Classification & Domain Identification (MANDATORY)
+
+After triage confirms orchestration is needed, classify the task and identify affected domains before selecting agents.
+
+#### Step 1: Classify the Task Type
+
+Analyze the request and select ONE primary task type:
+
+| Task Type | Definition | Signal Words/Patterns |
+|-----------|------------|----------------------|
+| **Feature** | New functionality or capability | "add", "implement", "create", "new feature" |
+| **Bug Fix** | Correcting broken behavior | "fix", "broken", "doesn't work", "error", "crash" |
+| **Refactoring** | Restructuring without behavior change | "refactor", "clean up", "reorganize", "improve structure" |
+| **Infrastructure** | Build, CI/CD, deployment changes | "pipeline", "workflow", "deploy", "build", ".github/", ".githooks/" |
+| **Security** | Vulnerability remediation, hardening | "vulnerability", "CVE", "auth", "permissions", "**/Auth/**", "*.env*" |
+| **Documentation** | Docs, guides, explanations | "document", "explain", "README", "guide" |
+| **Research** | Investigation, analysis, exploration | "investigate", "why does", "how does", "analyze" |
+| **Strategic** | Architecture decisions, direction | "architecture", "design", "ADR", "technical direction" |
+| **Ideation** | Vague ideas needing validation | URLs, "we should", "what if", "consider adding" |
+
+**Classification Output**:
+
+```text
+Task Type: [Selected Type]
+Confidence: [High/Medium/Low]
+Reasoning: [Why this classification]
+```
+
+#### Step 2: Identify Affected Domains
+
+Determine which domains the task touches. A domain is affected if the task requires changes, review, or consideration in that area.
+
+| Domain | Scope | Indicators |
+|--------|-------|------------|
+| **Code** | Application source, business logic | `.cs`, `.ts`, `.py` files, algorithms, data structures |
+| **Architecture** | System design, patterns, structure | Cross-module changes, new dependencies, API contracts |
+| **Security** | Auth, data protection, vulnerabilities | Credentials, encryption, user data, external APIs |
+| **Operations** | CI/CD, deployment, infrastructure | Workflows, pipelines, Docker, cloud config |
+| **Quality** | Testing, coverage, verification | Test files, coverage requirements, QA processes |
+| **Data** | Schema, migrations, storage | Database changes, data models, ETL |
+| **API** | External interfaces, contracts | Endpoints, request/response schemas, versioning |
+| **UX** | User experience, frontend | UI components, user flows, accessibility |
+
+**Domain Identification Checklist**:
+
+```markdown
+- [ ] Code: Does this change application source code?
+- [ ] Architecture: Does this affect system design or introduce dependencies?
+- [ ] Security: Does this touch auth, sensitive data, or external APIs?
+- [ ] Operations: Does this affect build, deploy, or infrastructure?
+- [ ] Quality: Does this require new tests or coverage changes?
+- [ ] Data: Does this modify data models or storage?
+- [ ] API: Does this change external interfaces?
+- [ ] UX: Does this affect user-facing behavior?
+```
+
+**Domain Output**:
+
+```text
+Primary Domain: [Main domain]
+Secondary Domains: [List of other affected domains]
+Domain Count: [N]
+Multi-Domain: [Yes if N >= 3, No otherwise]
+```
+
+#### Step 3: Determine Complexity from Classification
+
+| Task Type | Domain Count | Complexity | Strategy |
+|-----------|--------------|------------|----------|
+| Any | 1 | Simple | Single specialist agent |
+| Any | 2 | Standard | Sequential 2-3 agents |
+| Any | 3+ | Complex | Full orchestration with impact analysis |
+| Security | Any | Complex | Always full security review |
+| Strategic | Any | Complex | Always critic review |
+| Ideation | Any | Complex | Full ideation pipeline |
+
+#### Step 4: Select Agent Sequence
+
+Use classification + domains to select the appropriate sequence from **Agent Sequences by Task Type** below.
+
+**Classification Summary Template** (document before proceeding):
+
+```markdown
+## Task Classification
+
+**Request**: [One-line summary of user request]
+
+### Classification
+- **Task Type**: [Type]
+- **Primary Domain**: [Domain]
+- **Secondary Domains**: [Domains]
+- **Domain Count**: [N]
+- **Complexity**: [Simple/Standard/Complex]
+- **Risk Level**: [Low/Medium/High/Critical]
+
+### Agent Sequence Selected
+[Sequence from routing table]
+
+### Rationale
+[Why this classification and sequence]
+```
+
 ### Phase 1: Initialization (MANDATORY)
 
 ```markdown
@@ -158,6 +260,7 @@ Every task is classified across three dimensions:
 | Task Type | Agent Sequence |
 |-----------|----------------|
 | Feature (multi-domain) | analyst -> architect -> planner -> critic -> implementer -> qa |
+| Feature (multi-domain with impact analysis) | analyst -> architect -> planner -> [planner orchestrates: implementer, architect, security, devops, qa impact analyses] -> critic -> implementer -> qa |
 | Feature (multi-step) | analyst -> planner -> implementer -> qa |
 | Bug Fix (multi-step) | analyst -> implementer -> qa |
 | Bug Fix (simple) | implementer -> qa |
@@ -168,6 +271,91 @@ Every task is classified across three dimensions:
 | Strategic | roadmap -> architect -> planner -> critic |
 | Refactoring | analyst -> architect -> implementer -> qa |
 | Ideation | analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> devops -> security -> qa |
+
+**Note**: Multi-domain features triggering 3+ areas should use impact analysis consultations during planning phase.
+
+### Impact Analysis Orchestration
+
+When a feature triggers **3+ domains** (code, architecture, security, operations, quality), orchestrate the impact analysis framework:
+
+**Trigger Conditions** - Route to planner with impact analysis when:
+
+- Feature touches 3+ domains (code, architecture, CI/CD, security, quality)
+- Security-sensitive areas involved (auth, data handling, external APIs)
+- Breaking changes expected (API modifications, schema changes)
+- Infrastructure changes (build pipelines, deployment, new services)
+- High-risk changes (production-critical, compliance-related)
+
+**Orchestration Flow**:
+
+```text
+1. Route to planner with impact analysis flag
+2. Planner invokes specialist agents for impact analysis:
+   - implementer: Code impact
+   - architect: Design impact
+   - security: Security impact
+   - devops: Operations impact
+   - qa: Quality impact
+3. Planner aggregates findings and documents conflicts
+4. Route to critic for validation
+5. If specialist disagreement → critic escalates to high-level-advisor
+6. After resolution → route to implementer
+```
+
+**Handling Failed Consultations**:
+
+1. **Retry once** with clarified prompt
+2. If still failing, **log gap** and proceed with partial analysis
+3. **Flag in plan** as "Incomplete: [missing domain]"
+4. Critic must acknowledge incomplete consultation in review
+
+**Disagree and Commit Protocol**:
+
+When specialists have conflicting recommendations, apply the "Disagree and Commit" principle:
+
+*Phase 1 - Decision (Dissent Encouraged)*:
+
+- All specialists present their positions with data and rationale
+- Disagreements are surfaced explicitly and documented
+- Each specialist argues for their recommendation
+- Critic synthesizes positions and identifies core conflicts
+
+*Phase 2 - Resolution*:
+
+- If consensus emerges → proceed with agreed approach
+- If conflict persists → escalate to high-level-advisor for decision
+- High-level-advisor makes the call with documented rationale
+
+*Phase 3 - Commitment (Alignment Required)*:
+
+- Once decision is made, ALL specialists commit to execution
+- No passive-aggressive execution or "I told you so" behavior
+- Specialists execute as if it was their preferred option
+- Earlier disagreement cannot be used as excuse for poor execution
+
+**Commitment Language**:
+
+```text
+"I disagree with [approach] because [reasons], but I commit to executing
+[decided approach] fully. My concerns are documented for retrospective."
+```
+
+**Escalation Path**:
+
+| Situation | Action |
+|-----------|--------|
+| Single specialist times out | Mark incomplete, proceed |
+| Specialists disagree, data supports resolution | Critic decides, specialists commit |
+| Specialists disagree, no clear winner | Escalate to high-level-advisor |
+| High-level-advisor decides | All specialists commit and execute |
+| Chronic disagreement on same topic | Flag for retrospective, consider process improvement |
+
+**Failure Modes to Avoid**:
+
+- Endless consensus-seeking that stalls execution
+- Revisiting decided arguments during implementation
+- Secretly rooting against the chosen approach
+- Using disagreement as excuse for poor outcomes
 
 ### Complexity Assessment
 

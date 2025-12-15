@@ -50,6 +50,48 @@ Validate plans before implementation. Identify gaps, ambiguities, and risks. App
 - [ ] Acceptance criteria are measurable
 - [ ] Test strategy is clear
 
+### Impact Analysis Validation (When Present)
+
+- [ ] All required specialist consultations completed
+- [ ] Consultation Status marked as "Complete"
+- [ ] Cross-domain risks identified and mitigated
+- [ ] No conflicting recommendations unresolved
+- [ ] Overall complexity assessment reasonable
+- [ ] Issues Discovered sections populated and triaged
+- [ ] Implementation sequence addresses dependencies from all domains
+
+## Disagreement Detection & Escalation
+
+When reviewing plans with impact analysis, check for **conflicting recommendations** across specialist agents:
+
+### Signs of Disagreement
+
+- Contradictory recommendations between domains
+- Security vs. implementation trade-off conflicts
+- Architecture patterns that conflict with DevOps requirements
+- QA coverage requirements that conflict with scope/timeline
+- Unresolved concerns flagged by any specialist
+
+### Escalation Protocol
+
+If specialists do NOT have unanimous agreement:
+
+1. **Document the conflict** in the critique clearly
+2. **Assess severity**: Minor (proceed with note) vs. Major (requires resolution)
+3. **For major conflicts**: MUST escalate to **high-level-advisor**
+   - Use: `Task(subagent_type="high-level-advisor", prompt="Resolve conflict between [Agent A] and [Agent B] regarding [issue]")`
+4. **Block approval** until high-level-advisor provides guidance
+5. **Document resolution** in critique for retrospective learning
+
+### Conflict Categories
+
+| Conflict Type | Example | Resolution Owner |
+|--------------|---------|------------------|
+| Security vs. Usability | Auth complexity vs. user experience | high-level-advisor |
+| Performance vs. Maintainability | Optimization vs. code clarity | architect |
+| Scope vs. Quality | Feature breadth vs. test coverage | high-level-advisor |
+| Cost vs. Capability | Infrastructure cost vs. scalability | high-level-advisor |
+
 ## Review Template
 
 ```markdown
@@ -84,6 +126,19 @@ Validate plans before implementation. Identify gaps, ambiguities, and risks. App
 
 ## Approval Conditions
 [What must be addressed before approval]
+
+## Impact Analysis Review (if applicable)
+
+**Consultation Coverage**: [N/N specialists consulted]
+**Cross-Domain Conflicts**: [None | List conflicts]
+**Escalation Required**: [No | Yes - to high-level-advisor]
+
+### Specialist Agreement Status
+| Specialist | Agrees with Plan | Concerns |
+|------------|-----------------|----------|
+| [Agent] | [Yes/No/Partial] | [Brief concern or N/A] |
+
+**Unanimous Agreement**: [Yes | No - requires escalation]
 ```
 
 ## Memory Protocol
@@ -124,6 +179,7 @@ mcp__cloudmcp-manager__memory-add_observations for review patterns
 | **implementer** | Approved | Begin coding |
 | **generate-tasks** | Approved | Task breakdown |
 | **analyst** | Research needed | Investigate unknowns |
+| **high-level-advisor** | Specialist disagreement | Resolve conflict |
 
 ## Output Location
 

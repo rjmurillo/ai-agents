@@ -86,6 +86,8 @@ Query memory: "skill [topic] [keywords]"
 
 ### Justification
 [Explain why this is genuinely new, not a duplicate]
+```
+
 ```text
 
 ---
@@ -93,6 +95,8 @@ Query memory: "skill [topic] [keywords]"
 ## Skill Format
 
 ### Skill Entity Structure
+
+```
 
 ```json
 {
@@ -108,6 +112,8 @@ Query memory: "skill [topic] [keywords]"
   "validation_count": 3,
   "failure_count": 0
 }
+```
+
 ```text
 
 ### Skill Categories
@@ -128,6 +134,8 @@ Query memory: "skill [topic] [keywords]"
 
 ### ADD Operation
 
+```
+
 ```markdown
 ## ADD: [Skill-Category-Number]
 
@@ -144,9 +152,13 @@ Query memory: "skill [topic] [keywords]"
 
 ### Memory Command
 cloudmcp-manager/memory-create_entities
+```
+
 ```text
 
 ### UPDATE Operation
+
+```
 
 ```markdown
 ## UPDATE: [Skill-ID]
@@ -163,9 +175,13 @@ cloudmcp-manager/memory-create_entities
 
 ### Memory Command
 cloudmcp-manager/memory-add_observations
+```
+
 ```text
 
 ### TAG Operation
+
+```
 
 ```markdown
 ## TAG: [Skill-ID]
@@ -184,9 +200,13 @@ cloudmcp-manager/memory-add_observations
 
 ### Memory Command
 cloudmcp-manager/memory-add_observations
+```
+
 ```text
 
 ### REMOVE Operation
+
+```
 
 ```markdown
 ## REMOVE: [Skill-ID]
@@ -202,6 +222,8 @@ cloudmcp-manager/memory-add_observations
 
 ### Memory Command
 cloudmcp-manager/memory-delete_entities (or mark deprecated)
+```
+
 ```text
 
 ---
@@ -229,6 +251,8 @@ cloudmcp-manager/memory-delete_entities (or mark deprecated)
 When skills conflict:
 
 1. **Identify Conflict**
+
+```
 
    ```text
    Skill-A says: "Always use approach X"
@@ -283,9 +307,13 @@ cloudmcp-manager/memory-create_entities
     ]
   }]
 }
+```
+
 ```text
 
 **Update Skill:**
+
+```
 
 ```text
 cloudmcp-manager/memory-add_observations
@@ -298,6 +326,8 @@ cloudmcp-manager/memory-add_observations
     ]
   }]
 }
+```
+
 ```text
 
 ---
@@ -322,17 +352,25 @@ Skillbook Manager:
 
 When agents retrieve skills:
 
+```
+
 ```text
 cloudmcp-manager/memory-search_nodes
 Query: "skill [task context]"
+```
+
 ```text
 
 Agents should cite:
+
+```
 
 ```markdown
 **Applying**: Skill-Build-001
 **Strategy**: Use /m:1 /nodeReuse:false for CI builds
 **Expected**: Avoid file locking errors
+```
+
 ```text
 
 ---
@@ -354,3 +392,5 @@ Agents should cite:
 **Deduplicate:** UPDATE existing before ADD new
 
 **Validate:** Tag based on evidence, not assumptions
+
+```

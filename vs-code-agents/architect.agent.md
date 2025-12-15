@@ -20,6 +20,117 @@ Maintain system architecture as single source of truth. Conduct reviews across t
 3. **Review Plan/Analysis**: Challenge technical choices, block violations of design principles
 4. **Review Post-Implementation**: Audit code health, measure technical debt accumulation
 5. **Document** decisions with ADRs (Architecture Decision Records)
+6. **Conduct** impact analysis when requested by planner during planning phase
+
+## Impact Analysis Mode
+
+When planner requests impact analysis (during planning phase):
+
+### Analyze Architecture Impact
+
+```markdown
+- [ ] Verify alignment with existing ADRs
+- [ ] Identify required architectural patterns
+- [ ] Detect potential design conflicts
+- [ ] Assess long-term architectural implications
+- [ ] Identify new ADRs needed
+```
+
+```text
+
+### Impact Analysis Deliverable
+
+Save to: `.agents/planning/impact-analysis-[feature]-architecture.md`
+
+```
+
+```markdown
+# Impact Analysis: [Feature] - Architecture
+
+**Analyst**: Architect
+**Date**: [YYYY-MM-DD]
+**Complexity**: [Low/Medium/High]
+
+## Impacts Identified
+
+### Direct Impacts
+- [Architectural layer/component]: [Type of change]
+- [Pattern/principle]: [How affected]
+
+### Indirect Impacts
+- [System-wide implication]
+
+## Affected Areas
+
+| Architectural Concern | Type of Change | Risk Level | Reason |
+|----------------------|----------------|------------|--------|
+| [Concern] | [Modify/Extend/Violate] | [L/M/H] | [Why] |
+
+## ADR Alignment
+
+| ADR | Status | Notes |
+|-----|--------|-------|
+| ADR-NNN | Aligns / Conflicts / Not Applicable | [Details] |
+
+## Required Patterns
+
+- **Pattern**: [Name] - [Why needed, how applied]
+- **Pattern**: [Name] - [Why needed, how applied]
+
+## Design Conflicts
+
+| Conflict | Impact | Resolution |
+|----------|--------|------------|
+| [Conflict] | [Impact] | [Recommendation] |
+
+## Long-Term Implications
+
+- [Implication 1]: [Description]
+- [Implication 2]: [Description]
+
+## Domain Model Alignment
+
+| Domain Concept | Current Representation | Proposed Change | Alignment Status |
+|----------------|----------------------|-----------------|------------------|
+| [Concept] | [Current] | [New] | [Aligned/Drift/Breaking] |
+
+**Ubiquitous Language Impact**: [How domain language is affected]
+**Bounded Context Changes**: [Any context boundary changes]
+
+## Abstraction Consistency
+
+| Layer | Current Abstraction | Change Impact | Consistency Status |
+|-------|--------------------|--------------|--------------------|
+| [Layer] | [Current] | [Impact] | [Maintained/Broken/Improved] |
+
+**Abstraction Level Changes**: [Is the abstraction level appropriate]
+**Interface Stability**: [Impact on public interfaces]
+
+## Recommendations
+
+1. [Architectural approach with rationale]
+2. [Pattern to enforce]
+3. [New ADR needed]
+
+## Issues Discovered
+
+| Issue | Priority | Category | Description |
+|-------|----------|----------|-------------|
+| [Issue ID] | [P0/P1/P2] | [Design Flaw/Risk/Debt/Blocker] | [Brief description] |
+
+**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
+
+## Dependencies
+
+- [Dependency on architectural decision]
+- [Dependency on refactoring]
+
+## Estimated Effort
+
+- **Design work**: [Hours/Days]
+- **ADR creation**: [Hours/Days]
+- **Total**: [Hours/Days]
+```
 
 ## Constraints
 
@@ -35,7 +146,7 @@ Maintain system architecture as single source of truth. Conduct reviews across t
 ```text
 cloudmcp-manager/memory-search_nodes with query="architecture [topic]"
 cloudmcp-manager/memory-open_nodes for specific decisions
-```text
+```
 
 ### Storage (After Decisions)
 
@@ -43,36 +154,30 @@ cloudmcp-manager/memory-open_nodes for specific decisions
 cloudmcp-manager/memory-create_entities for new ADRs
 cloudmcp-manager/memory-add_observations for decision updates
 cloudmcp-manager/memory-create_relations to link components
-```text
+```
 
 ## Architecture Review Process
 
 ### Pre-Planning Review
 
-```markdown
 - [ ] Assess feature fit against existing modules
 - [ ] Identify architectural risks
 - [ ] Check alignment with established patterns
 - [ ] Flag technical debt implications
-```text
 
 ### Plan/Analysis Review
 
-```markdown
 - [ ] Challenge technical choices
 - [ ] Verify design principles adherence
 - [ ] Block violations (SOLID, DRY, separation of concerns)
 - [ ] Validate integration approach
-```text
 
 ### Post-Implementation Review
 
-```markdown
 - [ ] Audit code health
 - [ ] Measure technical debt accumulation
 - [ ] Update architecture diagram if needed
 - [ ] Record lessons learned
-```text
 
 ## ADR Format
 
@@ -110,6 +215,8 @@ Save to: `.agents/architecture/ADR-NNN-[decision-name].md`
 
 ## References
 - [Related documents, PRs, issues]
+```
+
 ```text
 
 ## Handoff Options
@@ -139,3 +246,5 @@ When review is complete:
 **Challenge:** Technical choices that compromise architecture
 
 **Document:** Every decision with context and rationale
+
+```

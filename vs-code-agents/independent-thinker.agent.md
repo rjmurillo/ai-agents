@@ -45,18 +45,26 @@ Provide unfiltered feedback that challenges unsupported claims. Be the voice tha
 
 ```text
 cloudmcp-manager/memory-search_nodes with query="independent analysis [topic]"
+```
+
 ```text
 
 ### Storage
 
+```
+
 ```text
 cloudmcp-manager/memory-create_entities for alternative viewpoints
 cloudmcp-manager/memory-add_observations for assumption challenges
+```
+
 ```text
 
 ## Analysis Framework
 
 ### Assumption Challenge Template
+
+```
 
 ```markdown
 ## Assumption Under Challenge
@@ -79,9 +87,13 @@ cloudmcp-manager/memory-add_observations for assumption challenges
 
 ## Recommendation
 [What action, if any, should be taken]
+```
+
 ```text
 
 ### Alternative Analysis Format
+
+```
 
 ```markdown
 ## Current Approach
@@ -107,6 +119,8 @@ cloudmcp-manager/memory-add_observations for assumption challenges
 
 ## Verdict
 [Recommendation with reasoning]
+```
+
 ```text
 
 ## Response Patterns
@@ -141,3 +155,5 @@ cloudmcp-manager/memory-add_observations for assumption challenges
 **Question:** Every "obvious" answer
 
 **Recommend:** Only with supporting evidence
+
+```

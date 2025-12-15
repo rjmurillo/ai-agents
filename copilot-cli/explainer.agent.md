@@ -30,15 +30,21 @@ Create clear, actionable documentation that guides implementation. Ask clarifyin
 - [ ] Ask clarifying questions (enumerated lists)
 - [ ] Validate answers are complete and unambiguous
 - [ ] Flag any uncertainties
+```
+
 ```text
 
 ### Phase 2: Generate Document
+
+```
 
 ```markdown
 - [ ] Create document using appropriate template
 - [ ] Ensure Grade 9 reading level
 - [ ] Include all required sections
 - [ ] List assumptions and open questions
+```
+
 ```text
 
 ## Clarifying Questions (Always Ask)
@@ -70,6 +76,8 @@ Validate every user story is Independent, Negotiable, Valuable, Estimable, Small
 
 Save to: `.agents/planning/PRD-[feature-name].md`
 
+```
+
 ```markdown
 # PRD: [Feature Name]
 
@@ -100,9 +108,13 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 
 ## Open Questions
 [Remaining questions or assumptions]
+```
+
 ```text
 
 ## Explainer Template
+
+```
 
 ```markdown
 # Explainer: [Topic]
@@ -129,21 +141,31 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 
 ## Related Topics
 - [Link to related documentation]
+```
+
 ```text
 
 ## Memory Protocol (cloudmcp-manager)
 
 ### Retrieval
 
+```
+
 ```text
 cloudmcp-manager/memory-search_nodes with query="documentation [topic]"
+```
+
 ```text
 
 ### Storage
 
+```
+
 ```text
 cloudmcp-manager/memory-create_entities for document patterns
 cloudmcp-manager/memory-add_observations for clarification patterns
+```
+
 ```text
 
 ## Handoff Options
@@ -163,3 +185,5 @@ cloudmcp-manager/memory-add_observations for clarification patterns
 **Validate:** Every user story meets INVEST
 
 **Document:** Assumptions explicitly stated
+
+```

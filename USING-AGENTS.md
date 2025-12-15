@@ -8,7 +8,7 @@ This repository provides a coordinated multi-agent system for software developme
 
 ```text
 Orchestrator → Analyst → Architect → Planner → Critic → Implementer → QA → Retrospective
-```text
+```
 
 The Memory agent provides long-running context across sessions using `cloudmcp-manager` for persistent memory.
 
@@ -22,13 +22,13 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 
 ```powershell
 .\scripts\install-vscode-global.ps1
-```text
+```
 
 **Per-repository:**
 
 ```powershell
 .\scripts\install-vscode-repo.ps1 -RepoPath "C:\Path\To\Your\Repo"
-```text
+```
 
 ### GitHub Copilot CLI Installation
 
@@ -36,13 +36,13 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 
 ```powershell
 .\scripts\install-copilot-cli-repo.ps1 -RepoPath "C:\Path\To\Your\Repo"
-```text
+```
 
 **Global (known issues - see [Issue #2](https://github.com/rjmurillo/vs-code-agents/issues/2)):**
 
 ```powershell
 .\scripts\install-copilot-cli-global.ps1
-```text
+```
 
 > **Note:** User-level agents in `~/.copilot/agents/` are not currently loaded due to [GitHub Issue #452](https://github.com/github/copilot-cli/issues/452). Use per-repository installation.
 
@@ -52,13 +52,13 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 
 ```powershell
 .\scripts\install-claude-global.ps1
-```text
+```
 
 **Per-repository:**
 
 ```powershell
 .\scripts\install-claude-repo.ps1 -RepoPath "C:\Path\To\Your\Repo"
-```text
+```
 
 ---
 
@@ -82,7 +82,7 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 ├── copilot-instructions.md   # GitHub Copilot instructions
 ├── CLAUDE.md                 # Claude Code instructions
 └── USING-AGENTS.md           # This file
-```text
+```
 
 ---
 
@@ -118,6 +118,119 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 
 ---
 
+## Orchestrator: Task Classification & Domain Identification
+
+The orchestrator uses a formal classification process to properly route tasks to the right agent sequences.
+
+### Task Classification (Step 1)
+
+Every incoming task is classified by type:
+
+| Task Type | Definition | Signal Words |
+|-----------|------------|--------------|
+| **Feature** | New functionality | "add", "implement", "create" |
+| **Bug Fix** | Correcting broken behavior | "fix", "broken", "error" |
+| **Refactoring** | Restructuring without behavior change | "refactor", "clean up" |
+| **Infrastructure** | Build, CI/CD, deployment | "pipeline", "workflow", "deploy" |
+| **Security** | Vulnerability remediation | "vulnerability", "auth", "CVE" |
+| **Documentation** | Docs, guides | "document", "explain" |
+| **Research** | Investigation, analysis | "investigate", "why does" |
+| **Strategic** | Architecture decisions | "architecture", "ADR" |
+| **Ideation** | Vague ideas needing validation | URLs, "we should", "what if" |
+
+### Domain Identification (Step 2)
+
+Tasks are analyzed for which domains they affect:
+
+| Domain | Scope |
+|--------|-------|
+| **Code** | Application source, business logic |
+| **Architecture** | System design, patterns, structure |
+| **Security** | Auth, data protection, vulnerabilities |
+| **Operations** | CI/CD, deployment, infrastructure |
+| **Quality** | Testing, coverage, verification |
+| **Data** | Schema, migrations, storage |
+| **API** | External interfaces, contracts |
+| **UX** | User experience, frontend |
+
+### Complexity Determination (Step 3)
+
+| Domain Count | Complexity | Strategy |
+|--------------|------------|----------|
+| 1 domain | Simple | Single specialist agent |
+| 2 domains | Standard | Sequential 2-3 agents |
+| 3+ domains | Complex | Full orchestration with impact analysis |
+
+Security, Strategic, and Ideation tasks are always treated as Complex.
+
+---
+
+## Impact Analysis Framework
+
+For complex, multi-domain changes, the planner orchestrates impact analysis consultations with specialist agents before finalizing plans.
+
+### When to Use Impact Analysis
+
+- **Multi-domain changes**: Affects 3+ areas (code, architecture, CI/CD, security, quality)
+- **Architecture changes**: Modifies core patterns or introduces new dependencies
+- **Security-sensitive changes**: Touches authentication, authorization, data handling
+- **Infrastructure changes**: Affects build, deployment, or CI/CD pipelines
+- **Breaking changes**: Modifies public APIs or contracts
+
+### Consultation Process
+
+```text
+1. Planner identifies change scope and affected domains
+2. Planner invokes specialist agents with structured impact analysis requests:
+   - implementer: Code impact
+   - architect: Design impact
+   - security: Security impact
+   - devops: Operations impact
+   - qa: Quality impact
+3. Specialists analyze impacts and create impact analysis documents
+4. Planner aggregates findings and integrates into plan
+5. Critic reviews the plan including all impact analyses
+```
+
+### Impact Analysis Outputs
+
+Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md`
+
+---
+
+## Disagree and Commit Protocol
+
+When specialists have conflicting recommendations, the system applies the "Disagree and Commit" principle to avoid endless consensus-seeking.
+
+### Protocol Phases
+
+*Phase 1 - Decision (Dissent Encouraged)*:
+
+- All specialists present their positions with data and rationale
+- Disagreements are surfaced explicitly and documented
+- Critic synthesizes positions and identifies core conflicts
+
+*Phase 2 - Resolution*:
+
+- If consensus emerges → proceed with agreed approach
+- If conflict persists → escalate to high-level-advisor for decision
+- High-level-advisor makes the call with documented rationale
+
+*Phase 3 - Commitment (Alignment Required)*:
+
+- Once decision is made, ALL specialists commit to execution
+- No passive-aggressive execution or "I told you so" behavior
+- Earlier disagreement cannot be used as excuse for poor execution
+
+### Commitment Language
+
+```text
+"I disagree with [approach] because [reasons], but I commit to executing
+[decided approach] fully. My concerns are documented for retrospective."
+```
+
+---
+
 ## VS Code Usage
 
 ### Invoking Agents
@@ -128,7 +241,7 @@ In GitHub Copilot Chat:
 @orchestrator Help me implement a new feature
 @implementer Fix the bug in UserService.cs
 @analyst Investigate why tests are failing
-```text
+```
 
 ### Installation Locations
 
@@ -146,7 +259,7 @@ See the official documentation: <https://code.visualstudio.com/docs/copilot/copi
 
 ## GitHub Copilot CLI Usage
 
-### Invoking Agents
+### Invocation Methods
 
 **Command-line invocation:**
 
@@ -154,23 +267,23 @@ See the official documentation: <https://code.visualstudio.com/docs/copilot/copi
 copilot --agent analyst --prompt "investigate why tests are failing"
 copilot --agent implementer --prompt "fix the bug in UserService.cs"
 copilot --agent orchestrator --prompt "help me implement a new feature"
-```text
+```
 
 **Interactive mode:**
 
 ```bash
 copilot
 /agent analyst
-```text
+```
 
-### Installation Locations
+### CLI Installation Locations
 
 | Type | Location | Status |
 |------|----------|--------|
 | Per-repo | `.github/agents/` | **Works** |
 | Global | `~/.copilot/agents/` | Known bug (#452) |
 
-### Important Notes
+### CLI Notes
 
 - Use per-repository installation until global agent loading is fixed
 - Agents are defined with YAML frontmatter including `name`, `description`, and `tools`
@@ -182,7 +295,7 @@ See the official documentation: <https://docs.github.com/en/copilot/how-tos/use-
 
 ## Claude Code Usage
 
-### Invoking Agents
+### Task Tool Invocation
 
 Using the Task tool:
 
@@ -190,16 +303,16 @@ Using the Task tool:
 Task(subagent_type="analyst", prompt="Investigate why X fails")
 Task(subagent_type="implementer", prompt="Implement feature X")
 Task(subagent_type="critic", prompt="Validate plan at .agents/planning/...")
-```text
+```
 
-### Installation Locations
+### Claude Installation Locations
 
 | Type | Location |
 |------|----------|
 | Global | `~/.claude/agents/` |
 | Per-repo | `.claude/agents/` |
 
-### Important Notes
+### Claude Notes
 
 - Restart Claude Code after installing new agents
 - Use `/agents` command to view available agents
@@ -238,19 +351,33 @@ All agents use `cloudmcp-manager` for cross-session memory (replaces Flowbaby).
 
 ```text
 orchestrator → analyst → architect → planner → critic → implementer → qa → retrospective
+```
+
+### Feature Development with Impact Analysis
+
 ```text
+orchestrator → analyst → architect → planner → [impact analysis] → critic → implementer → qa
+```
+
+Where impact analysis involves planner coordinating: implementer, architect, security, devops, qa
 
 ### Quick Fix Path
 
 ```text
 implementer → qa
-```text
+```
 
 ### Strategic Decision Path
 
 ```text
 independent-thinker → high-level-advisor → task-generator
+```
+
+### Ideation Pipeline
+
 ```text
+analyst → high-level-advisor → independent-thinker → critic → roadmap → explainer → task-generator
+```
 
 ---
 
@@ -258,14 +385,22 @@ independent-thinker → high-level-advisor → task-generator
 
 ### Orchestrator – Task Coordination
 
-**Role**: Routes work to specialized agents based on task requirements.
+**Role**: Routes work to specialized agents based on task classification and domain identification.
 
 **Use when**:
 
 - Starting complex multi-step tasks
 - Unclear which agent should handle a request
 
-**Handoffs to**: analyst, architect, planner, implementer (based on task)
+**Key Capabilities**:
+
+- Task classification (9 types)
+- Domain identification (8 domains)
+- Complexity assessment
+- Agent sequence selection
+- Impact analysis orchestration
+
+**Handoffs to**: analyst, architect, planner, implementer (based on classification)
 
 ---
 
@@ -304,7 +439,7 @@ independent-thinker → high-level-advisor → task-generator
 
 ### Planner – Implementation Planning
 
-**Role**: Turns epics into concrete, implementation-ready plans.
+**Role**: Turns epics into concrete, implementation-ready plans. Orchestrates impact analysis consultations for multi-domain changes.
 
 **Use when**:
 
@@ -319,16 +454,17 @@ independent-thinker → high-level-advisor → task-generator
 
 ### Critic – Plan Reviewer
 
-**Role**: Critically reviews plans before implementation.
+**Role**: Critically reviews plans before implementation. Validates impact analyses and detects specialist disagreements.
 
 **Use when**:
 
 - Plan is "done" and needs quality gate
 - Before any implementation begins
+- Impact analysis needs validation
 
 **Outputs**: Critiques in `.agents/critique/NNN-*-critique.md`
 
-**Handoffs to**: planner (revision needed), implementer (approved)
+**Handoffs to**: planner (revision needed), implementer (approved), high-level-advisor (disagreement escalation)
 
 ---
 
@@ -410,7 +546,7 @@ The agent system includes a continuous improvement loop:
 Execution → Reflection → Skill Update → Improved Execution
     ↑                                          ↓
     └──────────────────────────────────────────┘
-```text
+```
 
 ### Skill Citation Protocol
 
@@ -425,7 +561,7 @@ When applying learned strategies, cite skills:
 
 **Result**: Build succeeded
 **Skill Validated**: Yes
-```text
+```
 
 ### Atomicity Scoring
 
@@ -457,10 +593,11 @@ To customize, edit the relevant agent file while keeping the handoff protocol in
 
 ## Putting It All Together
 
-1. Start with **Orchestrator** or **Roadmap** for vision
-2. Use **Planner** for concrete plans
-3. **Architect / Analyst / Security / Critic** to refine and de-risk
-4. **Implementer** for code and tests
-5. **QA** for technical quality
-6. **Retrospective** and **Skillbook** for continuous improvement
-7. **Memory** throughout to keep context across sessions
+1. Start with **Orchestrator** for task classification and routing
+2. Use **Analyst** for research and unknowns
+3. Use **Planner** for concrete plans (with impact analysis for complex changes)
+4. **Critic** validates plans and handles disagreement escalation
+5. **Implementer** for code and tests
+6. **QA** for technical quality
+7. **Retrospective** and **Skillbook** for continuous improvement
+8. **Memory** throughout to keep context across sessions
