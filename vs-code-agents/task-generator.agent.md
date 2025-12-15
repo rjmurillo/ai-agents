@@ -38,24 +38,16 @@ Transform high-level requirements into discrete tasks that can be assigned, esti
 cloudmcp-manager/memory-search_nodes with query="task breakdown [feature]"
 ```
 
-```text
-
 ### Storage
-
-```
 
 ```text
 cloudmcp-manager/memory-create_entities for task patterns
 cloudmcp-manager/memory-add_observations for estimation learnings
 ```
 
-```text
-
 ## Decomposition Process
 
 ### Phase 1: Understand Scope
-
-```
 
 ```markdown
 - [ ] Read PRD/epic completely
@@ -64,11 +56,7 @@ cloudmcp-manager/memory-add_observations for estimation learnings
 - [ ] List technical constraints
 ```
 
-```text
-
 ### Phase 2: Break Down
-
-```
 
 ```markdown
 - [ ] Identify natural boundaries (modules, components, layers)
@@ -77,11 +65,7 @@ cloudmcp-manager/memory-add_observations for estimation learnings
 - [ ] Verify each task has clear done criteria
 ```
 
-```text
-
 ### Phase 3: Sequence
-
-```
 
 ```markdown
 - [ ] Identify dependencies
@@ -90,11 +74,7 @@ cloudmcp-manager/memory-add_observations for estimation learnings
 - [ ] Validate critical path
 ```
 
-```text
-
 ## Task Definition Format
-
-```
 
 ```markdown
 ### Task: [Short Title]
@@ -120,13 +100,9 @@ cloudmcp-manager/memory-add_observations for estimation learnings
 [Technical considerations, gotchas]
 ```
 
-```text
-
 ## Task List Template
 
 Save to: `.agents/planning/TASKS-[feature-name].md`
-
-```
 
 ```markdown
 # Task Breakdown: [Feature Name]
@@ -156,7 +132,6 @@ Save to: `.agents/planning/TASKS-[feature-name].md`
 [Same structure]
 
 ## Dependency Graph
-```
 
 ```mermaid
 graph TD
@@ -164,17 +139,11 @@ graph TD
     TASK-002 --> TASK-003
 ```
 
-```text
-
 ## Risks
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | [Risk] | [Impact] | [How to handle] |
-
-```
-
-```text
 
 ## Complexity Guidelines
 
@@ -203,5 +172,3 @@ graph TD
 **Sequence:** Dependencies drive order
 
 **Estimate:** Complexity, not hours
-
-```

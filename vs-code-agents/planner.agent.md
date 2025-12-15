@@ -35,20 +35,14 @@ Provide structure on objectives, process, value, and risks - not prescriptive co
 ```text
 cloudmcp-manager/memory-search_nodes with query="planning [epic]"
 cloudmcp-manager/memory-open_nodes for previous plans
-```
 
-```text
 
 ### Storage (At Milestones)
-
-```
 
 ```text
 cloudmcp-manager/memory-create_entities for new plans
 cloudmcp-manager/memory-add_observations for plan updates
 ```
-
-```text
 
 Store summaries of 300-1500 characters focusing on reasoning, decisions, tradeoffs.
 
@@ -56,19 +50,13 @@ Store summaries of 300-1500 characters focusing on reasoning, decisions, tradeof
 
 ### Phase 1: Value Alignment
 
-```
-
 ```markdown
 - [ ] Present value statement in user story format
 - [ ] Gather approval before detailed planning
 - [ ] Identify target release version
 ```
 
-```text
-
 ### Phase 2: Context Gathering
-
-```
 
 ```markdown
 - [ ] Review roadmap for strategic alignment
@@ -76,11 +64,7 @@ Store summaries of 300-1500 characters focusing on reasoning, decisions, tradeof
 - [ ] Enumerate assumptions and open questions
 ```
 
-```text
-
 ### Phase 3: Work Package Creation
-
-```
 
 ```markdown
 - [ ] Outline milestones with implementation-ready detail
@@ -89,11 +73,7 @@ Store summaries of 300-1500 characters focusing on reasoning, decisions, tradeof
 - [ ] Include version management as final milestone
 ```
 
-```text
-
 ### Phase 4: Mandatory Review
-
-```
 
 ```markdown
 - [ ] Handoff to Critic for validation
@@ -101,13 +81,9 @@ Store summaries of 300-1500 characters focusing on reasoning, decisions, tradeof
 - [ ] Finalize plan
 ```
 
-```text
-
 ## Plan Document Format
 
 Save to: `.agents/planning/NNN-[plan-name]-plan.md`
-
-```
 
 ```markdown
 # Plan: [Plan Name]
@@ -155,8 +131,6 @@ As a [user type], I want [capability] so that [benefit].
 | [Risk] | [Impact] | [Mitigation] |
 ```
 
-```text
-
 ## Multi-Agent Impact Analysis Framework
 
 Before finalizing plans, conduct domain-specific impact analysis by consulting specialist agents. This ensures comprehensive planning that accounts for all affected areas.
@@ -173,9 +147,7 @@ Trigger impact analysis for:
 
 ### Agent Consultation Protocol
 
-**Phase 1: Scope Analysis**
-
-```
+#### Phase 1: Scope Analysis
 
 ```markdown
 - [ ] Analyze proposed change dimensions
@@ -183,11 +155,7 @@ Trigger impact analysis for:
 - [ ] Determine which specialist agents to consult
 ```
 
-```text
-
-**Phase 2: Specialist Consultations**
-
-```
+#### Phase 2: Specialist Consultations
 
 ```markdown
 - [ ] Invoke each required specialist with structured impact analysis prompt
@@ -195,11 +163,7 @@ Trigger impact analysis for:
 - [ ] Document consultation results in plan
 ```
 
-```text
-
-**Phase 3: Aggregation & Integration**
-
-```
+#### Phase 3: Aggregation and Integration
 
 ```markdown
 - [ ] Synthesize findings across all consultations
@@ -207,8 +171,6 @@ Trigger impact analysis for:
 - [ ] Update plan with integrated impact analysis
 - [ ] Add domain-specific risks and mitigations
 ```
-
-```text
 
 ### Specialist Agent Roles
 
@@ -223,8 +185,6 @@ Trigger impact analysis for:
 ### Impact Analysis Prompt Template
 
 When consulting specialists, use structured prompts:
-
-```
 
 ```text
 @workspace /agent [agent] Impact Analysis Request: [Feature/Change Name]
@@ -243,13 +203,9 @@ When consulting specialists, use structured prompts:
 **Deliverable**: Save findings to `.agents/planning/impact-analysis-[feature]-[domain].md`
 ```
 
-```text
-
 ### Impact Analysis Document Format
 
 Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md`
-
-```
 
 ```markdown
 # Impact Analysis: [Feature] - [Domain]
@@ -293,13 +249,9 @@ Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md
 [Time estimate for this domain's work]
 ```
 
-```text
-
 ### Aggregated Impact Summary
 
 After consultations, add to plan:
-
-```
 
 ```markdown
 ## Impact Analysis Summary
