@@ -32,7 +32,7 @@ $ErrorActionPreference = "Stop"
 
 # Determine source and destination paths
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "copilot-cli"
+$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "src" "copilot-cli"
 $DestDir = Join-Path $RepoPath ".github\agents"
 
 Write-Host "GitHub Copilot CLI Repository Agent Installer" -ForegroundColor Cyan

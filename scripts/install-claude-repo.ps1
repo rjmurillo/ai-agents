@@ -28,7 +28,7 @@ $ErrorActionPreference = "Stop"
 
 # Determine source and destination paths
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "claude"
+$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "src" "claude"
 $DestDir = Join-Path $RepoPath ".claude\agents"
 
 Write-Host "Claude Code Repository Agent Installer" -ForegroundColor Cyan

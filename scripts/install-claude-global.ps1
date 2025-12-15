@@ -22,7 +22,7 @@ $ErrorActionPreference = "Stop"
 
 # Determine source and destination paths
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "claude"
+$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "src" "claude"
 
 # Claude agents directory
 $DestDir = Join-Path $HOME ".claude\agents"

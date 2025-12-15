@@ -44,7 +44,7 @@ if ($Response -ne 'y' -and $Response -ne 'Y') {
 
 # Determine source and destination paths
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "copilot-cli"
+$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "src" "copilot-cli"
 
 # Copilot CLI user agents directory
 if ($env:XDG_CONFIG_HOME) {

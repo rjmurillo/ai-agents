@@ -22,7 +22,7 @@ $ErrorActionPreference = "Stop"
 
 # Determine source and destination paths
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "vs-code-agents"
+$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "src" "vs-code-agents"
 
 # VS Code user prompts directory
 if ($env:APPDATA) {

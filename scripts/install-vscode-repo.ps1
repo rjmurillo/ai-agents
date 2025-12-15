@@ -28,7 +28,7 @@ $ErrorActionPreference = "Stop"
 
 # Determine source and destination paths
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "vs-code-agents"
+$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "src" "vs-code-agents"
 $DestDir = Join-Path $RepoPath ".github\agents"
 
 Write-Host "VSCode Repository Agent Installer" -ForegroundColor Cyan
