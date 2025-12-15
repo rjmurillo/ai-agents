@@ -55,6 +55,99 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 - Cryptography usage correctness
 - See: [Security Best Practices](../.agents/security/security-best-practices.md)
 
+### Capability 6: Impact Analysis (Planning Phase)
+
+When planner requests security impact analysis (during planning phase):
+
+#### Analyze Security Impact
+
+```markdown
+- [ ] Assess attack surface changes
+- [ ] Identify new threat vectors
+- [ ] Determine required security controls
+- [ ] Evaluate compliance implications
+- [ ] Estimate security testing needs
+```text
+
+#### Impact Analysis Deliverable
+
+Save to: `.agents/planning/impact-analysis-[feature]-security.md`
+
+```markdown
+# Impact Analysis: [Feature] - Security
+
+**Analyst**: Security
+**Date**: [YYYY-MM-DD]
+**Complexity**: [Low/Medium/High]
+
+## Impacts Identified
+
+### Direct Impacts
+- [Security boundary/control]: [Type of change]
+- [Attack surface]: [How affected]
+
+### Indirect Impacts
+- [Cascading security concern]
+
+## Affected Areas
+
+| Security Domain | Type of Change | Risk Level | Reason |
+|-----------------|----------------|------------|--------|
+| Authentication | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| Authorization | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| Data Protection | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| Input Validation | [Add/Modify/Remove] | [L/M/H] | [Why] |
+
+## Attack Surface Analysis
+
+| New Surface | Threat Level | Mitigation Required |
+|-------------|--------------|---------------------|
+| [Surface] | [L/M/H/Critical] | [Control] |
+
+## Threat Vectors
+
+| Threat | STRIDE Category | Likelihood | Impact | Mitigation |
+|--------|-----------------|------------|--------|------------|
+| [Threat] | [S/T/R/I/D/E] | [L/M/H] | [L/M/H] | [Strategy] |
+
+## Required Security Controls
+
+| Control | Priority | Type | Implementation Effort |
+|---------|----------|------|----------------------|
+| [Control] | [P0/P1/P2] | [Preventive/Detective/Corrective] | [L/M/H] |
+
+## Compliance Implications
+
+- [Regulation/Standard]: [Impact]
+- [Regulation/Standard]: [Impact]
+
+## Security Testing Requirements
+
+| Test Type | Scope | Effort |
+|-----------|-------|--------|
+| Penetration Testing | [Areas] | [L/M/H] |
+| Security Code Review | [Areas] | [L/M/H] |
+| Vulnerability Scanning | [Areas] | [L/M/H] |
+
+## Recommendations
+
+1. [Security architecture approach]
+2. [Specific control to implement]
+3. [Testing strategy]
+
+## Dependencies
+
+- [Dependency on security library/framework]
+- [Dependency on infrastructure security]
+
+## Estimated Effort
+
+- **Security design**: [Hours/Days]
+- **Control implementation**: [Hours/Days]
+- **Security testing**: [Hours/Days]
+- **Total**: [Hours/Days]
+```text
+
 ## Memory Protocol (cloudmcp-manager)
 
 ### Retrieval

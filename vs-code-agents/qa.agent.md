@@ -20,6 +20,109 @@ model: Claude Opus 4.5 (anthropic)
 3. **Create** QA documentation in `.agents/qa/`
 4. **Identify** testing infrastructure needs
 5. **Validate** coverage comprehensively
+6. **Conduct** impact analysis when requested by planner during planning phase
+
+## Impact Analysis Mode
+
+When planner requests impact analysis (during planning phase):
+
+### Analyze Quality & Testing Impact
+
+```markdown
+- [ ] Identify required test types (unit, integration, e2e)
+- [ ] Determine coverage targets
+- [ ] Assess hard-to-test scenarios
+- [ ] Identify quality risks
+- [ ] Estimate testing effort
+```text
+
+### Impact Analysis Deliverable
+
+Save to: `.agents/planning/impact-analysis-[feature]-qa.md`
+
+```markdown
+# Impact Analysis: [Feature] - QA
+
+**Analyst**: QA
+**Date**: [YYYY-MM-DD]
+**Complexity**: [Low/Medium/High]
+
+## Impacts Identified
+
+### Direct Impacts
+- [Test suite/area]: [Type of change required]
+- [Quality metric]: [How affected]
+
+### Indirect Impacts
+- [Cascading testing concern]
+
+## Affected Areas
+
+| Test Area | Type of Change | Risk Level | Reason |
+|-----------|----------------|------------|--------|
+| Unit Tests | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| Integration Tests | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| E2E Tests | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| Performance Tests | [Add/Modify/Remove] | [L/M/H] | [Why] |
+
+## Required Test Types
+
+| Test Type | Scope | Coverage Target | Rationale |
+|-----------|-------|-----------------|-----------|
+| Unit | [Areas] | [%] | [Why needed] |
+| Integration | [Areas] | [%] | [Why needed] |
+| E2E | [Scenarios] | [N scenarios] | [Why needed] |
+| Performance | [Metrics] | [Targets] | [Why needed] |
+| Security | [Areas] | [Coverage] | [Why needed] |
+
+## Hard-to-Test Scenarios
+
+| Scenario | Challenge | Recommended Approach |
+|----------|-----------|---------------------|
+| [Scenario] | [Why difficult] | [Strategy] |
+
+## Quality Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| [Risk] | [L/M/H] | [L/M/H] | [Testing strategy] |
+
+## Test Data Requirements
+
+| Data Type | Volume | Sensitivity | Generation Strategy |
+|-----------|--------|-------------|---------------------|
+| [Type] | [Amount] | [L/M/H] | [How to create] |
+
+## Test Environment Needs
+
+| Environment | Purpose | Special Requirements |
+|-------------|---------|---------------------|
+| [Env name] | [Usage] | [Requirements] |
+
+## Coverage Analysis
+
+- **Expected new code coverage**: [%]
+- **Impact on overall coverage**: [Increase/Decrease/Neutral]
+- **Critical paths coverage**: [%]
+
+## Recommendations
+
+1. [Testing approach with rationale]
+2. [Test framework/tool to use]
+3. [Coverage strategy]
+
+## Dependencies
+
+- [Dependency on test data/fixtures]
+- [Dependency on test environment]
+
+## Estimated Effort
+
+- **Test design**: [Hours/Days]
+- **Test implementation**: [Hours/Days]
+- **Test execution**: [Hours/Days]
+- **Total**: [Hours/Days]
+```text
 
 ## Constraints
 

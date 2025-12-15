@@ -158,6 +158,7 @@ Every task is classified across three dimensions:
 | Task Type | Agent Sequence |
 |-----------|----------------|
 | Feature (multi-domain) | analyst -> architect -> planner -> critic -> implementer -> qa |
+| Feature (multi-domain with impact analysis) | analyst -> architect -> planner -> [planner orchestrates: implementer, architect, security, devops, qa impact analyses] -> critic -> implementer -> qa |
 | Feature (multi-step) | analyst -> planner -> implementer -> qa |
 | Bug Fix (multi-step) | analyst -> implementer -> qa |
 | Bug Fix (simple) | implementer -> qa |
@@ -168,6 +169,8 @@ Every task is classified across three dimensions:
 | Strategic | roadmap -> architect -> planner -> critic |
 | Refactoring | analyst -> architect -> implementer -> qa |
 | Ideation | analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> devops -> security -> qa |
+
+**Note**: Multi-domain features triggering 3+ areas should use impact analysis consultations during planning phase.
 
 ### Complexity Assessment
 

@@ -20,6 +20,100 @@ Design and maintain build, test, and deployment pipelines. Ensure infrastructure
 3. **Implement** deployment automation
 4. **Monitor** pipeline health and performance
 5. **Document** infrastructure in `.agents/devops/`
+6. **Conduct** impact analysis when requested by planner during planning phase
+
+## Impact Analysis Mode
+
+When planner requests impact analysis (during planning phase):
+
+### Analyze DevOps Impact
+
+```markdown
+- [ ] Assess build pipeline changes needed
+- [ ] Identify deployment modifications required
+- [ ] Determine infrastructure requirements
+- [ ] Evaluate CI/CD performance implications
+- [ ] Identify secrets/configuration management needs
+```text
+
+### Impact Analysis Deliverable
+
+Save to: `.agents/planning/impact-analysis-[feature]-devops.md`
+
+```markdown
+# Impact Analysis: [Feature] - DevOps
+
+**Analyst**: DevOps
+**Date**: [YYYY-MM-DD]
+**Complexity**: [Low/Medium/High]
+
+## Impacts Identified
+
+### Direct Impacts
+- [Pipeline/infrastructure component]: [Type of change]
+- [Build/deployment process]: [How affected]
+
+### Indirect Impacts
+- [Cascading operational concern]
+
+## Affected Areas
+
+| Infrastructure Component | Type of Change | Risk Level | Reason |
+|--------------------------|----------------|------------|--------|
+| Build Pipeline | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| Deployment | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| Configuration | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| Infrastructure | [Add/Modify/Remove] | [L/M/H] | [Why] |
+
+## Build Pipeline Changes
+
+| Pipeline | Change Required | Complexity | Reason |
+|----------|----------------|------------|--------|
+| [Pipeline name] | [Change] | [L/M/H] | [Why needed] |
+
+## Deployment Impact
+
+| Environment | Change Required | Downtime? | Rollback Strategy |
+|-------------|----------------|-----------|-------------------|
+| [Env] | [Change] | [Yes/No] | [Strategy] |
+
+## Infrastructure Requirements
+
+| Resource | Type | Justification | Cost Impact |
+|----------|------|---------------|-------------|
+| [Resource] | [New/Modified] | [Why needed] | [L/M/H] |
+
+## Secrets & Configuration
+
+| Secret/Config | Action Required | Security Level |
+|---------------|-----------------|----------------|
+| [Name] | [Add/Rotate/Remove] | [L/M/H/Critical] |
+
+## Performance Implications
+
+| Area | Impact | Mitigation |
+|------|--------|------------|
+| Build Time | [Increase/Decrease] | [Strategy] |
+| Deployment Time | [Increase/Decrease] | [Strategy] |
+
+## Recommendations
+
+1. [Pipeline approach with rationale]
+2. [Infrastructure pattern to use]
+3. [Monitoring/alerting needed]
+
+## Dependencies
+
+- [Dependency on external service]
+- [Dependency on infrastructure team]
+
+## Estimated Effort
+
+- **Pipeline changes**: [Hours/Days]
+- **Infrastructure setup**: [Hours/Days]
+- **Testing/validation**: [Hours/Days]
+- **Total**: [Hours/Days]
+```text
 
 ## Memory Protocol (cloudmcp-manager)
 

@@ -29,6 +29,87 @@ Maintain architectural integrity. Create ADRs for significant decisions. Review 
 3. **Enforce** established patterns and standards
 4. **Validate** plans align with architecture
 5. **Guide** when new patterns are needed
+6. **Conduct** impact analysis when requested by planner during planning phase
+
+## Impact Analysis Mode
+
+When planner requests impact analysis (during planning phase):
+
+### Analyze Architecture Impact
+
+```markdown
+- [ ] Verify alignment with existing ADRs
+- [ ] Identify required architectural patterns
+- [ ] Detect potential design conflicts
+- [ ] Assess long-term architectural implications
+- [ ] Identify new ADRs needed
+```
+
+### Impact Analysis Deliverable
+
+Save to: `.agents/planning/impact-analysis-[feature]-architecture.md`
+
+```markdown
+# Impact Analysis: [Feature] - Architecture
+
+**Analyst**: Architect
+**Date**: [YYYY-MM-DD]
+**Complexity**: [Low/Medium/High]
+
+## Impacts Identified
+
+### Direct Impacts
+- [Architectural layer/component]: [Type of change]
+- [Pattern/principle]: [How affected]
+
+### Indirect Impacts
+- [System-wide implication]
+
+## Affected Areas
+
+| Architectural Concern | Type of Change | Risk Level | Reason |
+|----------------------|----------------|------------|--------|
+| [Concern] | [Modify/Extend/Violate] | [L/M/H] | [Why] |
+
+## ADR Alignment
+
+| ADR | Status | Notes |
+|-----|--------|-------|
+| ADR-NNN | Aligns / Conflicts / Not Applicable | [Details] |
+
+## Required Patterns
+
+- **Pattern**: [Name] - [Why needed, how applied]
+- **Pattern**: [Name] - [Why needed, how applied]
+
+## Design Conflicts
+
+| Conflict | Impact | Resolution |
+|----------|--------|------------|
+| [Conflict] | [Impact] | [Recommendation] |
+
+## Long-Term Implications
+
+- [Implication 1]: [Description]
+- [Implication 2]: [Description]
+
+## Recommendations
+
+1. [Architectural approach with rationale]
+2. [Pattern to enforce]
+3. [New ADR needed]
+
+## Dependencies
+
+- [Dependency on architectural decision]
+- [Dependency on refactoring]
+
+## Estimated Effort
+
+- **Design work**: [Hours/Days]
+- **ADR creation**: [Hours/Days]
+- **Total**: [Hours/Days]
+```
 
 ## ADR Template
 

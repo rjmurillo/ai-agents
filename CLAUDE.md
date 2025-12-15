@@ -37,6 +37,19 @@ This repository provides a coordinated multi-agent system for software developme
 analyst -> architect -> planner -> critic -> implementer -> qa -> retrospective
 ```
 
+**Feature Development with Impact Analysis:**
+
+```text
+analyst -> architect -> planner -> [impact analysis consultations] -> critic -> implementer -> qa -> retrospective
+
+Where impact analysis consultations involve planner coordinating:
+- implementer (code impact)
+- architect (architecture impact)
+- security (security impact)
+- devops (CI/CD impact)
+- qa (testing impact)
+```
+
 **Quick Fix:**
 
 ```text
@@ -47,6 +60,53 @@ implementer -> qa
 
 ```text
 independent-thinker -> high-level-advisor -> task-generator
+```
+
+## Impact Analysis Framework
+
+The **Multi-Agent Impact Analysis Framework** enables comprehensive planning by having the planner orchestrate specialist consultations before finalization.
+
+### When to Use Impact Analysis
+
+- **Multi-domain changes**: Affects 3+ areas (code, architecture, CI/CD, security, quality)
+- **Architecture changes**: Modifies core patterns or introduces new dependencies
+- **Security-sensitive changes**: Touches authentication, authorization, data handling
+- **Infrastructure changes**: Affects build, deployment, or CI/CD pipelines
+- **Breaking changes**: Modifies public APIs or contracts
+
+### Consultation Process
+
+1. **Planner** identifies change scope and affected domains
+2. **Planner** invokes specialist agents with structured impact analysis requests
+3. **Specialists** analyze impacts in their domain and create impact analysis documents
+4. **Planner** aggregates findings and integrates into plan
+5. **Critic** reviews the plan including all impact analyses
+
+### Specialist Roles in Impact Analysis
+
+| Specialist | Focus Area | Output Document |
+|------------|-----------|-----------------|
+| **implementer** | Code structure, patterns, testing complexity | `impact-analysis-[feature]-code.md` |
+| **architect** | Design consistency, architectural fit | `impact-analysis-[feature]-architecture.md` |
+| **security** | Attack surface, threat vectors, controls | `impact-analysis-[feature]-security.md` |
+| **devops** | Build pipelines, deployment, infrastructure | `impact-analysis-[feature]-devops.md` |
+| **qa** | Test strategy, coverage, quality risks | `impact-analysis-[feature]-qa.md` |
+
+### Example Workflow
+
+```text
+User: "Plan implementation of OAuth 2.0 authentication"
+
+1. planner analyzes scope → multi-domain change detected
+2. planner invokes impact analysis consultations:
+   - Task(subagent_type="implementer", prompt="Impact analysis for OAuth implementation")
+   - Task(subagent_type="architect", prompt="Architecture impact analysis for OAuth")
+   - Task(subagent_type="security", prompt="Security impact analysis for OAuth")
+   - Task(subagent_type="devops", prompt="DevOps impact analysis for OAuth")
+   - Task(subagent_type="qa", prompt="QA impact analysis for OAuth")
+3. Each specialist creates impact analysis document in .agents/planning/
+4. planner synthesizes findings into comprehensive plan
+5. planner routes to critic for validation
 ```
 
 ## Invocation Examples
