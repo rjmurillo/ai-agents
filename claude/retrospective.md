@@ -186,6 +186,8 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 1. [Specific action]
 2. [Specific action]
 
+```text
+
 ```
 
 ## Memory Storage
