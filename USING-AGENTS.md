@@ -66,12 +66,13 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 
 ```text
 .
-├── vs-code-agents/          # VS Code / GitHub Copilot agents
-│   └── *.agent.md
-├── copilot-cli/             # GitHub Copilot CLI agents
-│   └── *.agent.md
-├── claude/                   # Claude Code CLI agents
-│   └── *.md
+├── src/                      # Agent source files
+│   ├── vs-code-agents/       # VS Code / GitHub Copilot agents
+│   │   └── *.agent.md
+│   ├── copilot-cli/          # GitHub Copilot CLI agents
+│   │   └── *.agent.md
+│   └── claude/               # Claude Code CLI agents
+│       └── *.md
 ├── scripts/                  # Installation scripts
 │   ├── install-vscode-global.ps1
 │   ├── install-vscode-repo.ps1

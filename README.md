@@ -57,9 +57,10 @@ copilot
 ## Directory Structure
 
 ```text
-vs-code-agents/          # VS Code / GitHub Copilot agents
-copilot-cli/             # GitHub Copilot CLI agents
-claude/                  # Claude Code CLI agents
+src/
+├── vs-code-agents/      # VS Code / GitHub Copilot agents
+├── copilot-cli/         # GitHub Copilot CLI agents
+└── claude/              # Claude Code CLI agents
 scripts/                 # Installation scripts
 copilot-instructions.md  # GitHub Copilot instructions
 CLAUDE.md                # Claude Code instructions

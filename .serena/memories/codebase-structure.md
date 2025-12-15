@@ -9,11 +9,12 @@ ai-agents/
 ├── .githooks/                  # Git hooks (pre-commit)
 ├── .github/                    # GitHub configuration
 ├── .serena/                    # Serena MCP configuration
-├── claude/                     # Claude Code CLI agent definitions
-├── copilot-cli/                # GitHub Copilot CLI agent definitions
+├── src/                        # Agent source files
+│   ├── claude/                 # Claude Code CLI agent definitions
+│   ├── copilot-cli/            # GitHub Copilot CLI agent definitions
+│   └── vs-code-agents/         # VS Code / GitHub Copilot agent definitions
 ├── docs/                       # Documentation
 ├── scripts/                    # Installation scripts
-├── vs-code-agents/             # VS Code / GitHub Copilot agent definitions
 ├── .markdownlint-cli2.yaml     # Markdown linting configuration
 ├── CLAUDE.md                   # Claude Code instructions
 ├── copilot-instructions.md     # GitHub Copilot instructions
@@ -23,7 +24,9 @@ ai-agents/
 
 ## Agent Directories
 
-### claude/
+All agent source files are located under `src/`:
+
+### src/claude/
 
 Claude Code CLI agent definitions (18 agents):
 
@@ -33,11 +36,11 @@ Claude Code CLI agent definitions (18 agents):
 - qa.md, retrospective.md, roadmap.md, security.md, skillbook.md
 - task-generator.md
 
-### copilot-cli/
+### src/copilot-cli/
 
 GitHub Copilot CLI agents (same 18 agents with `.agent.md` suffix)
 
-### vs-code-agents/
+### src/vs-code-agents/
 
 VS Code / GitHub Copilot agents (same 18 agents with `.agent.md` suffix)
 
