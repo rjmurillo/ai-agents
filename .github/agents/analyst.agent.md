@@ -1,7 +1,7 @@
 ---
 description: Research and analysis specialist for pre-implementation investigation. Conducts root cause analysis, API research, and requirements gathering. Use before implementation when scope is unclear, investigating bugs, or evaluating feature requests.
 argument-hint: Describe the topic, issue, or feature to research
-tools: ['read', 'search', 'web', 'github/*', 'cloudmcp-manager/*', 'cognitionai/deepwiki/*', 'context7/*', 'perplexity/*']
+tools: ['read', 'search', 'web', 'github/*', 'cloudmcp-manager/*', 'cognitionai/deepwiki/*', 'context7/*', 'perplexity/*', 'serena/*']
 model: Claude Opus 4.5 (anthropic)
 ---
 # Analyst Agent
