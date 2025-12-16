@@ -13,7 +13,7 @@
 
 .NOTES
     Requires Pester 5.x or later.
-    Run with: pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./build/tests/Detect-AgentDrift.Tests.ps1"
+    Run with: pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./build/scripts/tests/Detect-AgentDrift.Tests.ps1"
 #>
 
 BeforeAll {

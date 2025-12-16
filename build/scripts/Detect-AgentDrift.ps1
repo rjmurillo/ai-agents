@@ -78,10 +78,10 @@ $ErrorActionPreference = "Stop"
 # Script is in build/scripts/, so go up two levels to repo root
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not $ClaudePath) {
-    $ClaudePath = Join-Path $RepoRoot "src\claude"
+    $ClaudePath = Join-Path $RepoRoot "src" "claude"
 }
 if (-not $VSCodePath) {
-    $VSCodePath = Join-Path $RepoRoot "src\vs-code-agents"
+    $VSCodePath = Join-Path $RepoRoot "src" "vs-code-agents"
 }
 
 # Validate paths exist

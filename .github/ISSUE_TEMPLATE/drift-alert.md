@@ -75,5 +75,5 @@ pwsh build/scripts/Detect-AgentDrift.ps1 -SimilarityThreshold 90
 - [ ] Identified root cause of drift
 - [ ] Decided on resolution approach
 - [ ] Made necessary updates
-- [ ] Verified with `pwsh build/Detect-AgentDrift.ps1`
+- [ ] Verified with `pwsh build/scripts/Detect-AgentDrift.ps1`
 - [ ] Closed this issue

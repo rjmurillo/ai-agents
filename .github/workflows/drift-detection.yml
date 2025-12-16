@@ -109,8 +109,8 @@ jobs:
           # Read drift details
           DRIFT_DETAILS=$(cat drift-details.md)
 
-          # Create issue body
-          cat << 'EOF' > issue-body.md
+          # Create issue body (unquoted EOF allows variable expansion)
+          cat << EOF > issue-body.md
           ## Agent Drift Detected
 
           **Detection Date**: $(date -u +"%Y-%m-%d %H:%M UTC")
