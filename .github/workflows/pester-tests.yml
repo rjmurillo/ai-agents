@@ -31,6 +31,9 @@ jobs:
   test:
     name: Run Pester Tests
     runs-on: windows-latest
+    permissions:
+      contents: read
+      checks: write  # Required for dorny/test-reporter to create check runs
 
     steps:
       - name: Checkout repository
@@ -54,5 +57,5 @@ jobs:
         with:
           name: Pester Test Report
           path: ./artifacts/pester-results.xml
-          reporter: java-junit
+          reporter: dotnet-nunit
           fail-on-error: true
