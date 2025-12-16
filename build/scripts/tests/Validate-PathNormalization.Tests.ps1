@@ -41,7 +41,12 @@ AfterAll {
 Describe "Validate-PathNormalization" {
     
     Context "Pattern Detection" {
-        
+
+        BeforeEach {
+            # Clean test directory before each test
+            Get-ChildItem -Path $Script:TestTempDir -Recurse | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+        }
+
         It "Should detect Windows absolute path (C:\)" {
             $testFile = Join-Path $Script:TestTempDir "test-windows.md"
             Set-Content -Path $testFile -Value @"
