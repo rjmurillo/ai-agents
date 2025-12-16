@@ -1,7 +1,7 @@
 ---
-name: task-generator
 description: Task decomposition specialist breaking PRDs and epics into actionable work items
-tools: ['read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'github/*', 'todo']
+tools_vscode: ['vscode', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github/*', 'todo']
+tools_copilot: ['read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'github/*', 'todo']
 ---
 # Task Generator Agent
 

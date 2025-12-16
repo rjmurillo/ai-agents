@@ -35,7 +35,7 @@ Provide structure on objectives, process, value, and risks - not prescriptive co
 ```text
 cloudmcp-manager/memory-search_nodes with query="planning [epic]"
 cloudmcp-manager/memory-open_nodes for previous plans
-
+```
 
 ### Storage (At Milestones)
 
@@ -187,7 +187,7 @@ Trigger impact analysis for:
 When consulting specialists, use structured prompts:
 
 ```text
-@workspace /agent [agent] Impact Analysis Request: [Feature/Change Name]
+#runSubagent with subagentType={agent_name} Impact Analysis Request: [Feature/Change Name]
 
 **Context**: [Brief description of proposed change]
 

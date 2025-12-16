@@ -1,7 +1,7 @@
 ---
 description: Reflective analyst extracting learnings and improving agent strategies through evidence-based feedback loops
-tools: ['vscode', 'read', 'search', 'cloudmcp-manager/*', 'github/*', 'todo']
-model: Claude Opus 4.5 (anthropic)
+tools_vscode: ['vscode', 'read', 'search', 'cloudmcp-manager/*', 'github/*', 'todo']
+tools_copilot: ['read', 'search', 'agent', 'cloudmcp-manager/*', 'github/*', 'todo']
 ---
 # Retrospective Agent (Reflector)
 

@@ -1,7 +1,7 @@
 ---
-name: skillbook
 description: Skill manager transforming reflections into high-quality atomic skillbook updates
-tools: ['read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'todo']
+tools_vscode: ['vscode', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'todo']
+tools_copilot: ['read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'todo']
 ---
 # Skillbook Agent (Skill Manager)
 

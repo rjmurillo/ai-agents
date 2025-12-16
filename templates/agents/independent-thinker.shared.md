@@ -1,7 +1,7 @@
 ---
 description: Contrarian analyst providing factually accurate, intellectually independent analysis that challenges assumptions
-tools: ['vscode', 'read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
-model: Claude Opus 4.5 (anthropic)
+tools_vscode: ['vscode', 'read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
+tools_copilot: ['read', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo']
 ---
 # Independent Thinker Agent
 

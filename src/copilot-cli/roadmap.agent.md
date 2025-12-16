@@ -37,7 +37,7 @@ Use these frameworks together. No single framework is sufficient.
 
 ### RICE Score (Quantitative Comparison)
 
-**Formula**: `(Reach × Impact × Confidence) / Effort`
+**Formula**: `(Reach x Impact x Confidence) / Effort`
 
 | Factor | Scale | Notes |
 |--------|-------|-------|
@@ -62,7 +62,7 @@ Use these frameworks together. No single framework is sufficient.
 
 **Use when**: Classifying features by customer value during discovery.
 
-**Assumption**: Customer expectations drift—today's delight becomes tomorrow's baseline.
+**Assumption**: Customer expectations drift-today's delight becomes tomorrow's baseline.
 
 ### Rumsfeld Matrix (Uncertainty Assessment)
 
@@ -86,7 +86,7 @@ Use these frameworks together. No single framework is sufficient.
 
 **Use when**: Daily/weekly prioritization and protecting strategic work.
 
-**Assumption**: Urgency and importance are independent dimensions—resist the urgency trap.
+**Assumption**: Urgency and importance are independent dimensions-resist the urgency trap.
 
 ### Framework Selection
 

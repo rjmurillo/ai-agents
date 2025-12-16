@@ -36,13 +36,9 @@ When planner requests impact analysis (during planning phase):
 - [ ] Identify secrets/configuration management needs
 ```
 
-```text
-
 ### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-devops.md`
-
-```
 
 ```markdown
 # Impact Analysis: [Feature] - DevOps

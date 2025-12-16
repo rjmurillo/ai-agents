@@ -69,13 +69,9 @@ When planner requests security impact analysis (during planning phase):
 - [ ] Estimate security testing needs
 ```
 
-```text
-
 #### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-security.md`
-
-```
 
 ```markdown
 # Impact Analysis: [Feature] - Security

@@ -36,13 +36,9 @@ When planner requests impact analysis (during planning phase):
 - [ ] Identify new ADRs needed
 ```
 
-```text
-
 ### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-architecture.md`
-
-```
 
 ```markdown
 # Impact Analysis: [Feature] - Architecture
@@ -160,24 +156,30 @@ cloudmcp-manager/memory-create_relations to link components
 
 ### Pre-Planning Review
 
+```markdown
 - [ ] Assess feature fit against existing modules
 - [ ] Identify architectural risks
 - [ ] Check alignment with established patterns
 - [ ] Flag technical debt implications
+```
 
 ### Plan/Analysis Review
 
+```markdown
 - [ ] Challenge technical choices
 - [ ] Verify design principles adherence
 - [ ] Block violations (SOLID, DRY, separation of concerns)
 - [ ] Validate integration approach
+```
 
 ### Post-Implementation Review
 
+```markdown
 - [ ] Audit code health
 - [ ] Measure technical debt accumulation
 - [ ] Update architecture diagram if needed
 - [ ] Record lessons learned
+```
 
 ## ADR Format
 
@@ -217,8 +219,6 @@ Save to: `.agents/architecture/ADR-NNN-[decision-name].md`
 - [Related documents, PRs, issues]
 ```
 
-```text
-
 ## Handoff Options
 
 | Target | When | Purpose |
@@ -246,5 +246,3 @@ When review is complete:
 **Challenge:** Technical choices that compromise architecture
 
 **Document:** Every decision with context and rationale
-
-```

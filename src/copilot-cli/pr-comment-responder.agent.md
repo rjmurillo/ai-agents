@@ -19,15 +19,17 @@ PR comments map to three standard workflow paths:
 
 | Path | Agents | Triage Signal |
 |------|--------|---------------|
-| **Quick Fix** | `implementer → qa` | Can explain fix in one sentence |
-| **Standard** | `analyst → architect → planner → critic → implementer → qa` | Need to investigate first |
-| **Strategic** | `independent-thinker → high-level-advisor → task-generator` | Question is *whether*, not *how* |
+| **Quick Fix** | `implementer -> qa` | Can explain fix in one sentence |
+| **Standard** | `analyst -> architect -> planner -> critic -> implementer -> qa` | Need to investigate first |
+| **Strategic** | `independent-thinker -> high-level-advisor -> task-generator` | Question is *whether*, not *how* |
 
 ## Workflow Protocol
 
 ### Phase 1: Context Gathering
 
 **CRITICAL**: Enumerate ALL reviewers and count ALL comments before proceeding. Missing comments wastes tokens on repeated prompts.
+
+Use gh CLI commands:
 
 ```bash
 # Fetch PR metadata
@@ -65,14 +67,14 @@ For each comment, classify using this decision tree:
 
 ```text
 Is this about WHETHER to do something? (scope, priority, alternatives)
-    │
-    ├─ YES → STRATEGIC PATH
-    │
-    └─ NO → Can you explain the fix in one sentence?
-                │
-                ├─ YES → QUICK FIX PATH
-                │
-                └─ NO → STANDARD PATH
+    |
+    +- YES -> STRATEGIC PATH
+    |
+    +- NO -> Can you explain the fix in one sentence?
+                |
+                +- YES -> QUICK FIX PATH
+                |
+                +- NO -> STANDARD PATH
 ```
 
 **Quick Fix indicators:**
@@ -105,23 +107,23 @@ Is this about WHETHER to do something? (scope, priority, alternatives)
 
 For simple fixes, skip orchestrator overhead:
 
-```bash
-copilot --agent implementer --prompt "Fix this PR review comment (Quick Fix Path):
+```text
+/agent implementer Fix this PR review comment (Quick Fix Path):
 
 Comment: [comment text]
 File: [file path]
 Line: [line number]
 Author: @[author]
 
-This is a straightforward fix. Implement, test, commit, and reply to the comment."
+This is a straightforward fix. Implement, test, commit, and reply to the comment.
 ```
 
 #### Standard/Strategic Path - Delegate to Orchestrator
 
 Pass classification and context to orchestrator:
 
-```bash
-copilot --agent orchestrator --prompt "Handle this PR review comment:
+```text
+/agent orchestrator Handle this PR review comment:
 
 ## Classification
 Path: [Standard Feature Development | Strategic Decision]
@@ -141,12 +143,12 @@ Rationale: [why this classification]
 
 ## PR Context
 - PR #[number]: [title]
-- Branch: [head] → [base]
+- Branch: [head] -> [base]
 
 ## Instructions
 1. Follow the [Standard | Strategic] workflow path
 2. Reply to the comment using the review reply endpoint (see API Usage below)
-3. Always @ mention @[author] in response"
+3. Always @ mention @[author] in response
 ```
 
 #### Completion Verification (MANDATORY)
@@ -159,7 +161,7 @@ ADDRESSED_COUNT=[number of comments addressed]
 echo "Verification: $ADDRESSED_COUNT / $TOTAL_COMMENTS comments addressed"
 
 if [ "$ADDRESSED_COUNT" -lt "$TOTAL_COMMENTS" ]; then
-  echo "⚠️ INCOMPLETE: $((TOTAL_COMMENTS - ADDRESSED_COUNT)) comments remaining"
+  echo "WARNING: INCOMPLETE: $((TOTAL_COMMENTS - ADDRESSED_COUNT)) comments remaining"
   # List unaddressed comment IDs
   gh api repos/[owner]/[repo]/pulls/[number]/comments --jq '.[].id' | while read id; do
     # Check if this ID was addressed
@@ -248,9 +250,8 @@ Some comments warrant direct agent routing without full orchestration:
 
 #### DevOps Comments (skip orchestrator)
 
-```bash
-# For CI/CD, pipeline, or infrastructure comments
-copilot --agent devops --prompt "PR review comment on infrastructure file:
+```text
+/agent devops PR review comment on infrastructure file:
 
 Comment: [comment text]
 File: [.github/workflows/build.yml]
@@ -258,14 +259,13 @@ Line: [line number]
 Author: @[author]
 
 Assess the infrastructure concern and implement fix if valid.
-Coordinate with security agent if .githooks/* or secrets involved."
+Coordinate with security agent if .githooks/* or secrets involved.
 ```
 
 #### Strategic "WHETHER" Questions (independent-thinker first)
 
-```bash
-# When reviewer questions WHETHER to do something
-copilot --agent independent-thinker --prompt "Evaluate this PR review challenge:
+```text
+/agent independent-thinker Evaluate this PR review challenge:
 
 Comment: [Why not use X instead?]
 File: [file path]
@@ -276,7 +276,7 @@ Provide unfiltered analysis:
 2. What are the actual tradeoffs?
 3. Should we change approach or defend current choice?
 
-Be intellectually honest - don't automatically agree with either side."
+Be intellectually honest - don't automatically agree with either side.
 ```
 
 ## Memory Protocol (cloudmcp-manager)
@@ -307,7 +307,7 @@ cloudmcp-manager/memory-search_nodes with query="[file type] review patterns"
 cloudmcp-manager/memory-create_entities with entities for BotFalsePositive type
 
 # Store successful triage decisions
-cloudmcp-manager/memory-add_observations for pattern → path → outcome
+cloudmcp-manager/memory-add_observations for pattern -> path -> outcome
 
 # Link reviewer to their patterns
 cloudmcp-manager/memory-create_relations linking reviewer to patterns
@@ -319,7 +319,7 @@ cloudmcp-manager/memory-create_relations linking reviewer to patterns
 |----------|-------|-----|
 | **Bot False Positives** | Pattern, trigger, resolution | Avoid re-investigating known issues |
 | **Reviewer Preferences** | Style preferences, common concerns | Anticipate feedback |
-| **Triage Decisions** | Comment → Path → Outcome | Improve classification accuracy |
+| **Triage Decisions** | Comment -> Path -> Outcome | Improve classification accuracy |
 | **Domain Patterns** | File type + common issues | Route faster |
 | **Successful Rebuttals** | When "no action" was correct | Confidence in declining |
 

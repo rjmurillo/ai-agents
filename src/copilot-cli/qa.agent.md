@@ -36,13 +36,9 @@ When planner requests impact analysis (during planning phase):
 - [ ] Estimate testing effort
 ```
 
-```text
-
 ### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-qa.md`
-
-```
 
 ```markdown
 # Impact Analysis: [Feature] - QA

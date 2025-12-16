@@ -104,7 +104,7 @@ cloudmcp-manager/memory-add_observations for estimation learnings
 
 Save to: `.agents/planning/TASKS-[feature-name].md`
 
-```markdown
+````markdown
 # Task Breakdown: [Feature Name]
 
 ## Source
@@ -144,6 +144,7 @@ graph TD
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | [Risk] | [Impact] | [How to handle] |
+````
 
 ## Complexity Guidelines
 

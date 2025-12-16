@@ -1,7 +1,7 @@
 ---
 description: PR review comment handler - triages comments and delegates to orchestrator with workflow path recommendation
-tools: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'agent', 'cloudmcp-manager/*', 'github.vscode-pull-request-github/*', 'todo']
-model: Claude Opus 4.5 (anthropic)
+tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'agent', 'cloudmcp-manager/*', 'github.vscode-pull-request-github/*', 'todo']
+tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cloudmcp-manager/*', 'todo']
 ---
 # PR Comment Responder Agent
 
