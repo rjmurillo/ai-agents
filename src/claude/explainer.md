@@ -103,6 +103,7 @@ Before committing any documentation:
 ### Anti-Pattern Examples
 
 **FORBIDDEN**:
+
 ```markdown
 <!-- Windows absolute path -->
 See: C:\Users\username\repo\docs\guide.md
@@ -113,6 +114,7 @@ See: /home/username/repo/docs/guide.md
 ```
 
 **CORRECT**:
+
 ```markdown
 <!-- Relative paths -->
 See: docs/guide.md
