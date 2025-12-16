@@ -550,6 +550,8 @@ analyst → high-level-advisor → independent-thinker → critic → roadmap �
 - New strategy discovered that should be reused
 - Need to update or tag existing skills
 
+**Outputs**: Skills in `.agents/skills/`
+
 ---
 
 ## Self-Improvement System
