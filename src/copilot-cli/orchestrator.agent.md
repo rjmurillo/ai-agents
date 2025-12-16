@@ -248,7 +248,7 @@ These three workflow paths are the canonical reference for all task routing. Oth
 | Task Type | Agent Sequence | Path |
 |-----------|----------------|------|
 | Feature (multi-domain) | analyst -> architect -> planner -> critic -> implementer -> qa | Standard (extended) |
-| Feature (multi-domain with impact analysis) | analyst -> architect -> planner -> [planner orchestrates: implementer, architect, security, devops, qa impact analyses] -> critic -> implementer -> qa | Standard (extended) |
+| Feature (multi-domain with impact analysis) | analyst -> architect -> planner -> [ORCHESTRATOR calls: implementer, architect, security, devops, qa for impact analyses] -> critic -> implementer -> qa | Standard (extended) |
 | Feature (multi-step) | analyst -> planner -> implementer -> qa | Standard |
 | Bug Fix (multi-step) | analyst -> implementer -> qa | Standard (lite) |
 | Bug Fix (simple) | implementer -> qa | Quick Fix |
@@ -321,14 +321,22 @@ When a feature triggers **3+ domains** (code, architecture, security, operations
 
 **Orchestration Flow**:
 
-1. Route to planner with impact analysis flag
-2. Planner invokes specialist agents for impact analysis
-3. Planner aggregates findings and documents conflicts
-4. Route to critic for validation
-5. If specialist disagreement → critic escalates to high-level-advisor
-6. After resolution → route to implementer
+```text
+1. Orchestrator routes to planner with impact analysis flag
+2. Planner returns impact analysis plan
+3. Orchestrator invokes specialist agents (one at a time or noting parallel potential):
+   a. Orchestrator → implementer (code impact) → back to Orchestrator
+   b. Orchestrator → architect (design impact) → back to Orchestrator
+   c. Orchestrator → security (security impact) → back to Orchestrator
+   d. Orchestrator → devops (operations impact) → back to Orchestrator
+   e. Orchestrator → qa (quality impact) → back to Orchestrator
+4. Orchestrator aggregates findings from all specialists
+5. Orchestrator routes to critic for validation
+6. If specialist disagreement → Orchestrator routes to high-level-advisor
+7. After resolution → Orchestrator routes to implementer
+```
 
-**Handling Failed Consultations**:
+**Note**: Since subagents cannot delegate, planner creates the analysis plan and YOU (orchestrator) execute each consultation step.
 
 - Retry once with clarified prompt
 - If still failing, log gap and proceed with partial analysis
