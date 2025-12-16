@@ -170,7 +170,7 @@ function Test-FileForAbsolutePaths {
 Write-ColorOutput "=== Path Normalization Validation ===" $ColorCyan
 Write-Host ""
 
-$rootPath = Resolve-Path $Path
+$rootPath = (Resolve-Path $Path).Path
 Write-Host "Scanning path: $rootPath"
 Write-Host "Extensions: $($Extensions -join ', ')"
 Write-Host "Excluded paths: $($ExcludePaths -join ', ')"
