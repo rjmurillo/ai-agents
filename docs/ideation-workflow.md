@@ -28,13 +28,20 @@ GitHub Issue #42: "Add caching" (no further details)
 
 ## Workflow Phases
 
+**All phases coordinated by orchestrator (ROOT agent). Subagents return to orchestrator, who routes to next agent.**
+
 ```text
 [Vague Idea]
      │
      ▼
+┌─────────────────────────────────────────────────────┐
+│  ORCHESTRATOR (ROOT - manages all routing)          │
+└─────────────────────────────────────────────────────┘
+     │
+     ▼
 ┌─────────────────────────────────────────┐
 │  PHASE 1: Research & Discovery          │
-│  Agent: analyst                         │
+│  Orchestrator → analyst → returns       │
 │  Output: Research findings              │
 │  Location: .agents/analysis/            │
 └─────────────────────────────────────────┘
@@ -42,9 +49,11 @@ GitHub Issue #42: "Add caching" (no further details)
      ▼
 ┌─────────────────────────────────────────┐
 │  PHASE 2: Validation & Consensus        │
-│  Agents: high-level-advisor →           │
-│          independent-thinker →          │
-│          critic → roadmap               │
+│  Orchestrator routes sequentially:      │
+│    → high-level-advisor → returns       │
+│    → independent-thinker → returns      │
+│    → critic → returns                   │
+│    → roadmap → returns                  │
 │  Output: Proceed / Defer / Reject       │
 │  Location: .agents/analysis/            │
 └─────────────────────────────────────────┘
@@ -52,8 +61,10 @@ GitHub Issue #42: "Add caching" (no further details)
      ▼ (if Proceed)
 ┌─────────────────────────────────────────┐
 │  PHASE 3: Epic & PRD Creation           │
-│  Agents: roadmap → explainer →          │
-│          task-generator                 │
+│  Orchestrator routes sequentially:      │
+│    → roadmap → returns                  │
+│    → explainer → returns                │
+│    → task-generator → returns           │
 │  Output: Epic, PRD, Work Breakdown      │
 │  Location: .agents/roadmap/             │
 │            .agents/planning/            │
@@ -62,8 +73,11 @@ GitHub Issue #42: "Add caching" (no further details)
      ▼
 ┌─────────────────────────────────────────┐
 │  PHASE 4: Implementation Plan Review    │
-│  Agents: architect, devops,             │
-│          security, qa (parallel)        │
+│  Orchestrator routes (parallel):        │
+│    → architect → returns                │
+│    → devops → returns                   │
+│    → security → returns                 │
+│    → qa → returns                       │
 │  Output: Approved implementation plan   │
 │  Location: .agents/planning/            │
 └─────────────────────────────────────────┘
@@ -106,7 +120,7 @@ GitHub Issue #42: "Add caching" (no further details)
 
 ### Phase 2: Validation & Consensus
 
-**Agents** (sequential):
+**Orchestrator routes sequentially to each validation agent:**
 
 | Agent | Role | Key Question |
 |-------|------|--------------|
@@ -129,7 +143,7 @@ GitHub Issue #42: "Add caching" (no further details)
 
 ### Phase 3: Epic & PRD Creation
 
-**Agents** (sequential):
+**Orchestrator routes sequentially to planning agents:**
 
 | Agent | Output | Location |
 |-------|--------|----------|
