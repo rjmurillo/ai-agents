@@ -457,8 +457,8 @@ $agentsPath = Join-Path $TemplatesPath "agents"
 $sharedFiles = Get-ChildItem -Path $agentsPath -Filter "*.shared.md" -ErrorAction SilentlyContinue
 
 if (-not $sharedFiles -or $sharedFiles.Count -eq 0) {
-    Write-Warning "No shared source files found in $agentsPath"
-    exit 0
+    Write-Error "No shared source files found in $agentsPath"
+    exit 1
 }
 
 Write-Host "Found $($sharedFiles.Count) shared source file(s)" -ForegroundColor Green
