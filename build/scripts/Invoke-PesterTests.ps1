@@ -57,7 +57,7 @@ param(
     [string]$TestPath = "./scripts/tests",
 
     [Parameter()]
-    [string]$OutputPath = "./test-results/pester-results.xml",
+    [string]$OutputPath = "./artifacts/pester-results.xml",
 
     [Parameter()]
     [ValidateSet("NUnitXml", "JUnitXml")]

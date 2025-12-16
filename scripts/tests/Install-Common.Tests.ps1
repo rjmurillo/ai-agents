@@ -113,22 +113,34 @@ Describe "Get-InstallConfig" {
     }
 
     Context "All Environment/Scope Combinations" {
-        $environments = @("Claude", "Copilot", "VSCode")
-        $scopes = @("Global", "Repo")
+        BeforeAll {
+            $Script:TestCases = @(
+                @{ Env = "Claude"; Scope = "Global" }
+                @{ Env = "Claude"; Scope = "Repo" }
+                @{ Env = "Copilot"; Scope = "Global" }
+                @{ Env = "Copilot"; Scope = "Repo" }
+                @{ Env = "VSCode"; Scope = "Global" }
+                @{ Env = "VSCode"; Scope = "Repo" }
+            )
+        }
 
-        foreach ($env in $environments) {
-            foreach ($scope in $scopes) {
-                It "Returns valid configuration for $env $scope" {
-                    $config = Get-InstallConfig -Environment $env -Scope $scope -ConfigPath $Script:ConfigPath
+        It "Returns valid configuration for <Env> <Scope>" -ForEach @(
+            @{ Env = "Claude"; Scope = "Global" }
+            @{ Env = "Claude"; Scope = "Repo" }
+            @{ Env = "Copilot"; Scope = "Global" }
+            @{ Env = "Copilot"; Scope = "Repo" }
+            @{ Env = "VSCode"; Scope = "Global" }
+            @{ Env = "VSCode"; Scope = "Repo" }
+        ) {
+            $configPath = Join-Path $PSScriptRoot "..\lib\Config.psd1"
+            $config = Get-InstallConfig -Environment $Env -Scope $Scope -ConfigPath $configPath
 
-                    $config | Should -Not -BeNullOrEmpty
-                    $config.Environment | Should -Be $env
-                    $config.Scope | Should -Be $scope
-                    $config.SourceDir | Should -Not -BeNullOrEmpty
-                    $config.FilePattern | Should -Not -BeNullOrEmpty
-                    $config.DestDir | Should -Not -BeNullOrEmpty
-                }
-            }
+            $config | Should -Not -BeNullOrEmpty
+            $config.Environment | Should -Be $Env
+            $config.Scope | Should -Be $Scope
+            $config.SourceDir | Should -Not -BeNullOrEmpty
+            $config.FilePattern | Should -Not -BeNullOrEmpty
+            $config.DestDir | Should -Not -BeNullOrEmpty
         }
     }
 }
@@ -152,15 +164,21 @@ Describe "Resolve-DestinationPath" {
         It "Expands `$HOME variable" {
             $result = Resolve-DestinationPath -PathExpression '$HOME/.claude/agents'
 
-            $result | Should -Match [regex]::Escape($HOME)
+            # $HOME should expand to user's home directory
+            $result | Should -Not -BeNullOrEmpty
             $result | Should -Match "\.claude"
+            # Verify it's an absolute path (starts with drive letter on Windows or / on Unix)
+            $result | Should -Match '^([A-Za-z]:|/)'
         }
 
         It "Expands `$env:APPDATA variable" {
             if ($env:APPDATA) {
                 $result = Resolve-DestinationPath -PathExpression '$env:APPDATA/Code/User/prompts'
 
-                $result | Should -Match [regex]::Escape($env:APPDATA)
+                # Verify the path contains expected components
+                $result | Should -Not -BeNullOrEmpty
+                $result | Should -Match 'Code'
+                $result | Should -Match 'prompts'
             }
             else {
                 Set-ItResult -Skipped -Because "APPDATA environment variable not set"

@@ -180,6 +180,42 @@ Agents save artifacts to `.agents/`:
 5. **Test Everything**: No skipping hard tests
 6. **Commit Atomically**: Small, conventional commits
 
+## Testing
+
+### Running Pester Tests
+
+PowerShell unit tests for installation scripts are located in `scripts/tests/`. Run them using the reusable test runner:
+
+```powershell
+# Local development (detailed output, continues on failure)
+pwsh ./build/scripts/Invoke-PesterTests.ps1
+
+# CI mode (exits with error code on failure)
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
+
+# Run specific test file
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -TestPath "./scripts/tests/Install-Common.Tests.ps1"
+
+# Maximum verbosity for debugging
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -Verbosity Diagnostic
+```
+
+**Test Coverage:**
+
+- `Install-Common.Tests.ps1` - Tests for all 11 shared module functions
+- `Config.Tests.ps1` - Configuration validation tests
+- `install.Tests.ps1` - Entry point parameter validation
+
+**Output:**
+
+Test results are saved to `artifacts/pester-results.xml` (gitignored).
+
+**When to Run Tests:**
+
+- Before committing changes to `scripts/`
+- After modifying `scripts/lib/Install-Common.psm1` or `scripts/lib/Config.psd1`
+- When the `qa` agent validates implementation
+
 ## Utilities
 
 ### Fix Markdown Fences

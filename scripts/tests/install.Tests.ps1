@@ -137,7 +137,9 @@ Describe "Script Content Analysis" {
 
     Context "Module Integration" {
         It "Imports Install-Common module" {
-            $Script:Content | Should -Match "Import-Module.*Install-Common"
+            # Script defines ModulePath pointing to Install-Common and imports it
+            $Script:Content | Should -Match "Install-Common\.psm1"
+            $Script:Content | Should -Match "Import-Module"
         }
 
         It "Uses Get-InstallConfig function" {

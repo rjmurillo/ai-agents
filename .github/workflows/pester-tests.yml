@@ -45,7 +45,7 @@ jobs:
         if: always()
         with:
           name: pester-test-results
-          path: ./test-results/pester-results.xml
+          path: ./artifacts/pester-results.xml
           retention-days: 30
 
       - name: Publish Test Report
@@ -53,6 +53,6 @@ jobs:
         if: always()
         with:
           name: Pester Test Report
-          path: ./test-results/pester-results.xml
+          path: ./artifacts/pester-results.xml
           reporter: java-junit
           fail-on-error: true

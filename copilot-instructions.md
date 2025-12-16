@@ -88,6 +88,31 @@ Agents use `cloudmcp-manager` memory tools for cross-session continuity:
 | Security review | security | analyst |
 | Post-project learning | retrospective | analyst |
 
+## Testing
+
+### Running Pester Tests
+
+PowerShell unit tests for installation scripts are in `scripts/tests/`. Use the reusable test runner:
+
+```powershell
+# Local development (detailed output)
+pwsh ./build/scripts/Invoke-PesterTests.ps1
+
+# CI mode (exits on failure)
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
+
+# Run specific test file
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -TestPath "./scripts/tests/Install-Common.Tests.ps1"
+```
+
+**Test Files:**
+
+- `Install-Common.Tests.ps1` - Shared module functions
+- `Config.Tests.ps1` - Configuration validation
+- `install.Tests.ps1` - Entry point validation
+
+**Run tests before committing changes to `scripts/` directory.**
+
 ## Best Practices
 
 ### For All Agents

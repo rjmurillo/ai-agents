@@ -47,9 +47,10 @@ Describe "_Common Configuration" {
             $Script:Config._Common.EndMarker | Should -Match "END"
         }
 
-        It "Has AgentsDirs array" {
+        It "Has AgentsDirs" {
             $Script:Config._Common.AgentsDirs | Should -Not -BeNullOrEmpty
-            $Script:Config._Common.AgentsDirs | Should -BeOfType [array]
+            # Note: Import-PowerShellDataFile may return Object[] which passes -is [array]
+            @($Script:Config._Common.AgentsDirs).Count | Should -BeGreaterThan 0
         }
     }
 
@@ -79,7 +80,7 @@ Describe "_Common Configuration" {
         }
 
         It "Has at least 8 directories" {
-            $Script:Config._Common.AgentsDirs.Count | Should -BeGreaterOrEqual 8
+            @($Script:Config._Common.AgentsDirs).Count | Should -BeGreaterOrEqual 8
         }
     }
 
@@ -100,7 +101,9 @@ Describe "_Common Configuration" {
 }
 
 Describe "Claude Configuration" {
-    $Script:ClaudeConfig = $Script:Config.Claude
+    BeforeAll {
+        $Script:ClaudeConfig = $Script:Config.Claude
+    }
 
     Context "Environment Properties" {
         It "Has DisplayName" {
@@ -140,16 +143,17 @@ Describe "Claude Configuration" {
             $Script:ClaudeConfig.Repo.InstructionsFile | Should -Be "CLAUDE.md"
         }
 
-        It "Has InstructionsDest (can be empty for repo root)" {
-            # Empty string means repo root
-            $Script:ClaudeConfig.Repo.InstructionsDest | Should -Not -BeNullOrEmpty -Because "Should be defined even if empty string"
-            # Note: Empty string is valid (means repo root)
+        It "Has InstructionsDest defined (empty string valid for repo root)" {
+            # Empty string is valid - means repo root
+            $Script:ClaudeConfig.Repo.Keys | Should -Contain "InstructionsDest"
         }
     }
 }
 
 Describe "Copilot Configuration" {
-    $Script:CopilotConfig = $Script:Config.Copilot
+    BeforeAll {
+        $Script:CopilotConfig = $Script:Config.Copilot
+    }
 
     Context "Environment Properties" {
         It "Has DisplayName" {
@@ -212,7 +216,9 @@ Describe "Copilot Configuration" {
 }
 
 Describe "VSCode Configuration" {
-    $Script:VSCodeConfig = $Script:Config.VSCode
+    BeforeAll {
+        $Script:VSCodeConfig = $Script:Config.VSCode
+    }
 
     Context "Environment Properties" {
         It "Has DisplayName" {
@@ -259,12 +265,16 @@ Describe "VSCode Configuration" {
 
 Describe "Cross-Environment Consistency" {
     Context "Source Directory Structure" {
-        $environments = @("Claude", "Copilot", "VSCode")
+        It "Claude SourceDir starts with 'src/'" {
+            $Script:Config.Claude.SourceDir | Should -Match "^src/"
+        }
 
-        foreach ($env in $environments) {
-            It "$env SourceDir starts with 'src/'" {
-                $Script:Config[$env].SourceDir | Should -Match "^src/"
-            }
+        It "Copilot SourceDir starts with 'src/'" {
+            $Script:Config.Copilot.SourceDir | Should -Match "^src/"
+        }
+
+        It "VSCode SourceDir starts with 'src/'" {
+            $Script:Config.VSCode.SourceDir | Should -Match "^src/"
         }
     }
 
