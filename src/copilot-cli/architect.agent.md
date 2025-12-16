@@ -2,7 +2,7 @@
 name: architect
 description: System design authority maintaining architectural coherence and technical governance. Creates ADRs, conducts design reviews, and performs impact analysis. Use when introducing new dependencies, changing system boundaries, or making cross-cutting technical decisions.
 argument-hint: Describe the design decision, review request, or ADR topic
-tools: ['read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
+tools: ['read', 'edit', 'search', 'cloudmcp-manager/*', 'serena/*', 'memory']
 ---
 # Architect Agent
 

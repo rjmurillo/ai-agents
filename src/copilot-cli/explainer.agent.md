@@ -2,7 +2,7 @@
 name: explainer
 description: Documentation specialist creating PRDs, explainers, and technical specifications. Writes clear, junior-developer-friendly docs with explicit requirements. Use when creating feature specs, requirement documents, or explaining complex features for implementation.
 argument-hint: Name the feature, concept, or topic to document
-tools: ['read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
+tools: ['read', 'edit', 'cloudmcp-manager/*', 'memory']
 ---
 # Explainer Agent
 
@@ -84,6 +84,7 @@ Before committing any documentation:
 ### Anti-Pattern Examples
 
 **FORBIDDEN**:
+
 ```markdown
 <!-- Windows absolute path -->
 See: C:\Users\username\repo\docs\guide.md
@@ -94,6 +95,7 @@ See: /home/username/repo/docs/guide.md
 ```
 
 **CORRECT**:
+
 ```markdown
 <!-- Relative paths -->
 See: docs/guide.md

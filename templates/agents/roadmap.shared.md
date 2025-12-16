@@ -1,8 +1,8 @@
 ---
 description: Strategic product owner defining WHAT to build and WHY with outcome-focused vision. Creates epics, prioritizes by business value, and maintains product direction. Use when defining new features, prioritizing backlog, or validating work alignment with product strategy.
 argument-hint: Describe the feature vision or backlog item to prioritize
-tools_vscode: ['vscode', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
-tools_copilot: ['read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
+tools_vscode: ['vscode', 'read', 'edit', 'cloudmcp-manager/*', 'memory']
+tools_copilot: ['read', 'edit', 'cloudmcp-manager/*', 'memory']
 ---
 # Roadmap Agent
 

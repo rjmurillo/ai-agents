@@ -1,8 +1,8 @@
 ---
 description: Skill manager transforming reflections into high-quality atomic skillbook updates. Guards strategy quality, prevents duplicates, and maintains learned patterns. Use after retrospective analysis to persist proven strategies or remove harmful patterns.
 argument-hint: Provide the reflection or strategy pattern to persist
-tools_vscode: ['vscode', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'todo', 'serena/*']
-tools_copilot: ['read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'todo', 'serena/*']
+tools_vscode: ['read', 'edit', 'search', 'cloudmcp-manager/*', 'memory']
+tools_copilot: ['read', 'edit', 'search', 'cloudmcp-manager/*', 'memory']
 ---
 # Skillbook Agent (Skill Manager)
 

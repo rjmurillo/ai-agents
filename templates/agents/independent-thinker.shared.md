@@ -1,8 +1,8 @@
 ---
 description: Contrarian analyst providing factually accurate, intellectually independent analysis that challenges assumptions. Presents evidence-based alternatives and declares uncertainty rather than guessing. Use when validating important decisions, challenging group consensus, or needing devil's advocate perspective.
 argument-hint: State the decision or assumption to challenge
-tools_vscode: ['vscode', 'read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
-tools_copilot: ['read', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
+tools_vscode: ['read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'memory']
+tools_copilot: ['read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'memory']
 ---
 # Independent Thinker Agent
 

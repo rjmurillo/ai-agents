@@ -2,7 +2,7 @@
 name: planner
 description: High-rigor planning assistant translating roadmap epics into implementation-ready work packages. Creates milestones, task sequences, and planning artifacts. Use after analyst research is complete and before implementation to structure work breakdown.
 argument-hint: Provide the epic or roadmap item to plan
-tools: ['read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
+tools: ['read', 'edit', 'search', 'cloudmcp-manager/*', 'memory']
 ---
 # Planner Agent
 

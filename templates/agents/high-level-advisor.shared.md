@@ -1,8 +1,8 @@
 ---
 description: Brutally honest strategic advisor cutting through blind spots and delivering unfiltered truth. Provides ruthless triage, challenges assumptions, and resolves decision paralysis. Use when facing strategic impasses, conflicting agent recommendations, or needing hard prioritization decisions.
 argument-hint: Describe the strategic decision or conflict needing advice
-tools_vscode: ['vscode', 'read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
-tools_copilot: ['read', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
+tools_vscode: ['read', 'search', 'cloudmcp-manager/*', 'memory']
+tools_copilot: ['read', 'search', 'cloudmcp-manager/*', 'memory']
 ---
 # High-Level Advisor Agent
 
