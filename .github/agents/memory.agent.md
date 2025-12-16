@@ -1,7 +1,7 @@
 ---
 description: Memory management agent for cross-session context continuity using cloudmcp-manager. Retrieves relevant past information before planning and stores progress summaries at milestones. Use at session start for context retrieval and after milestones for knowledge persistence.
 argument-hint: Specify the context to retrieve or milestone to store
-tools: ['vscode', 'read', 'search', 'cloudmcp-manager/*', 'todo', 'serena/*']
+tools: ['read', 'memory', 'cloudmcp-manager/*', 'serena/*']
 model: Claude Opus 4.5 (anthropic)
 ---
 # Memory Agent

@@ -1,7 +1,7 @@
 ---
 description: System design authority maintaining architectural coherence and technical governance. Creates ADRs, conducts design reviews, and performs impact analysis. Use when introducing new dependencies, changing system boundaries, or making cross-cutting technical decisions.
 argument-hint: Describe the design decision, review request, or ADR topic
-tools: ['vscode', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
+tools: ['read', 'edit', 'search', 'cloudmcp-manager/*', 'serena/*']
 model: Claude Opus 4.5 (anthropic)
 ---
 # Architect Agent
