@@ -86,6 +86,9 @@ function Test-PathWithinRoot {
     <#
     .SYNOPSIS
         Security check: Validates that a path is within the repository root.
+    .DESCRIPTION
+        Ensures path is a true descendant of root by appending directory separator
+        to prevent prefix-matching attacks (e.g., C:\repo_evil matching C:\repo).
     #>
     [CmdletBinding()]
     param(
@@ -97,7 +100,16 @@ function Test-PathWithinRoot {
     )
 
     $resolvedPath = [System.IO.Path]::GetFullPath($Path)
-    $resolvedRoot = [System.IO.Path]::GetFullPath($Root)
+    $resolvedRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+    # Append directory separator to ensure only true descendants match
+    $resolvedRoot += [System.IO.Path]::DirectorySeparatorChar
+
+    # Path equals root (without trailing separator) is valid
+    $pathWithoutTrailing = $resolvedPath.TrimEnd('\', '/')
+    $rootWithoutTrailing = $resolvedRoot.TrimEnd('\', '/')
+    if ($pathWithoutTrailing -eq $rootWithoutTrailing) {
+        return $true
+    }
 
     return $resolvedPath.StartsWith($resolvedRoot, [StringComparison]::OrdinalIgnoreCase)
 }

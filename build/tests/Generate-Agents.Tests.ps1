@@ -24,7 +24,17 @@ BeforeAll {
     function Test-PathWithinRoot {
         param([string]$Path, [string]$Root)
         $resolvedPath = [System.IO.Path]::GetFullPath($Path)
-        $resolvedRoot = [System.IO.Path]::GetFullPath($Root)
+        $resolvedRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+        # Append directory separator to ensure only true descendants match
+        $resolvedRoot += [System.IO.Path]::DirectorySeparatorChar
+
+        # Path equals root (without trailing separator) is valid
+        $pathWithoutTrailing = $resolvedPath.TrimEnd('\', '/')
+        $rootWithoutTrailing = $resolvedRoot.TrimEnd('\', '/')
+        if ($pathWithoutTrailing -eq $rootWithoutTrailing) {
+            return $true
+        }
+
         return $resolvedPath.StartsWith($resolvedRoot, [StringComparison]::OrdinalIgnoreCase)
     }
 
@@ -141,6 +151,15 @@ Describe "Test-PathWithinRoot" {
             $path = Join-Path $root "."
 
             Test-PathWithinRoot -Path $path -Root $root | Should -Be $true
+        }
+
+        It "Returns false for similar prefix paths (security edge case)" {
+            # This test prevents prefix-matching attacks where C:\repo_evil
+            # would incorrectly match C:\repo without proper separator handling
+            $root = $Script:TestTempDir
+            $path = "${root}_evil/file.md"
+
+            Test-PathWithinRoot -Path $path -Root $root | Should -Be $false
         }
     }
 }
