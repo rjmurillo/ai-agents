@@ -195,7 +195,7 @@ For complex, multi-domain changes, the planner orchestrates impact analysis cons
 
 ### Impact Analysis Outputs
 
-Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md`
+Each specialist creates: `.agents/planning/impact-analysis-[domain]-[feature].md`
 
 ---
 

@@ -86,11 +86,11 @@ The **Multi-Agent Impact Analysis Framework** enables comprehensive planning by 
 
 | Specialist | Focus Area | Output Document |
 |------------|-----------|-----------------|
-| **implementer** | Code structure, patterns, testing complexity | `impact-analysis-[feature]-code.md` |
-| **architect** | Design consistency, architectural fit | `impact-analysis-[feature]-architecture.md` |
-| **security** | Attack surface, threat vectors, controls | `impact-analysis-[feature]-security.md` |
-| **devops** | Build pipelines, deployment, infrastructure | `impact-analysis-[feature]-devops.md` |
-| **qa** | Test strategy, coverage, quality risks | `impact-analysis-[feature]-qa.md` |
+| **implementer** | Code structure, patterns, testing complexity | `impact-analysis-code-[feature].md` |
+| **architect** | Design consistency, architectural fit | `impact-analysis-architecture-[feature].md` |
+| **security** | Attack surface, threat vectors, controls | `impact-analysis-security-[feature].md` |
+| **devops** | Build pipelines, deployment, infrastructure | `impact-analysis-devops-[feature].md` |
+| **qa** | Test strategy, coverage, quality risks | `impact-analysis-qa-[feature].md` |
 
 ### Example Workflow
 
