@@ -346,13 +346,23 @@ Reply to comments that need immediate response BEFORE implementation:
 
 #### Reply Template
 
-```bash
-# Reply to review comment (in-thread)
-gh api repos/[owner]/[repo]/pulls/comments/[comment_id]/replies \
-  -f body="[response]"
+> **⚠️ CRITICAL**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
 
-# Reply to issue comment (use issue comments endpoint)
+```bash
+# Reply to review comment (CORRECT - in-thread reply)
+# Uses pulls/{pull_number}/comments endpoint with in_reply_to field
+gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
+  -X POST \
+  -f body="[response]" \
+  -F in_reply_to=[comment_id]
+
+# Note: in_reply_to must reference a top-level review comment ID (not a reply)
+# When in_reply_to is provided, location fields (commit_id, path, position) are ignored
+
+# Post new top-level PR comment (issue comments endpoint)
+# ONLY use this for new standalone comments, NOT for replies
 gh api repos/[owner]/[repo]/issues/[number]/comments \
+  -X POST \
   -f body="[response]"
 ```
 
@@ -436,11 +446,13 @@ git push origin [branch]
 #### Step 6.3: Reply with Resolution
 
 ```bash
-# Reply with commit reference
-gh api repos/[owner]/[repo]/pulls/comments/[comment_id]/replies \
+# Reply with commit reference (in-thread reply to review comment)
+gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
+  -X POST \
   -f body="Fixed in [commit_hash].
 
-[Brief summary of change]"
+[Brief summary of change]" \
+  -F in_reply_to=[comment_id]
 ```
 
 #### Step 6.4: Update Task List
@@ -622,3 +634,4 @@ This agent primarily delegates to **orchestrator**. Direct handoffs:
 4. **Incomplete verification**: Always verify all comments addressed
 5. **Skipping acknowledgment**: Always react with 👀 first
 6. **Orphaned PRs**: Clean up unnecessary bot-created PRs
+7. **Wrong reply API**: Never use `/issues/{number}/comments` to reply to review comments—this places replies out of context as top-level comments instead of in-thread. Use `/pulls/{pull_number}/comments` with `in_reply_to`
