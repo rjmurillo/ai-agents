@@ -93,18 +93,26 @@ USING-AGENTS.md          # Detailed usage guide
 
 ## Contributing
 
-### Pre-commit Hook Setup
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 
-Enable markdown linting auto-fix on commits:
+1. Fork and clone the repository
+2. Enable pre-commit hooks: `git config core.hooksPath .githooks`
+3. Make changes following the guidelines
+4. Submit a pull request
 
-```bash
-git config core.hooksPath .githooks
-```
+### Agent Development
 
-This automatically fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
+This project uses a **template-based generation system**. To modify agents:
+
+1. Edit templates in `templates/agents/*.shared.md`
+2. Run `pwsh build/Generate-Agents.ps1` to regenerate
+3. Commit both template and generated files
+
+**Do not edit files in `src/vs-code-agents/` or `src/copilot-cli/` directly.** See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## Documentation
 
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines and agent development
 - [docs/installation.md](docs/installation.md) - Complete installation guide
 - [USING-AGENTS.md](USING-AGENTS.md) - Comprehensive usage guide
 - [copilot-instructions.md](copilot-instructions.md) - GitHub Copilot integration
