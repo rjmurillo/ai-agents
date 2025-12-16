@@ -1,6 +1,6 @@
 ---
 name: devops
-description: CI/CD pipelines, infrastructure, and deployment automation
+description: DevOps specialist for CI/CD pipelines, infrastructure, and deployment automation. Designs GitHub Actions workflows, configures build systems, and manages deployment scripts. Use when modifying .github/workflows/, build configurations, or deployment processes.
 model: opus
 ---
 # DevOps Agent

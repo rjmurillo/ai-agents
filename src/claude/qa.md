@@ -1,6 +1,6 @@
 ---
 name: qa
-description: Test verification, coverage strategy
+description: Quality assurance specialist verifying implementation works correctly for users. Designs test strategies, validates coverage, and creates QA documentation. Use immediately after implementer changes to verify acceptance criteria and test coverage.
 model: opus
 ---
 # QA Agent

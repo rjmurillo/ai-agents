@@ -1,6 +1,6 @@
 ---
 name: analyst
-description: Pre-implementation research, root cause analysis, feature request review
+description: Research and analysis specialist for pre-implementation investigation. Conducts root cause analysis, API research, and requirements gathering. Use before implementation when scope is unclear, investigating bugs, or evaluating feature requests.
 model: opus
 ---
 # Analyst Agent

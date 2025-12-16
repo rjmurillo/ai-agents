@@ -1,6 +1,6 @@
 ---
 name: orchestrator
-description: Autonomous task orchestrator coordinating specialized agents end-to-end
+description: Autonomous task orchestrator that coordinates specialized agents end-to-end. Routes work to appropriate agents, manages handoffs, and ensures complete task execution. Use for complex multi-step tasks requiring multiple agent specializations or when task routing is unclear.
 model: opus
 ---
 # Orchestrator Agent

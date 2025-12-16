@@ -1,6 +1,6 @@
 ---
 name: task-generator
-description: After creating or updating a PRD for breaking PRDs into actionable task lists
+description: Task decomposition specialist breaking PRDs and epics into actionable work items. Creates atomic tasks with acceptance criteria and complexity estimates. Use after PRD/epic creation to generate implementation-ready task lists for individual agents.
 model: opus
 ---
 # Task Generator

@@ -1,6 +1,6 @@
 ---
 name: explainer
-description: Product specs, feature documentation
+description: Documentation specialist creating PRDs, explainers, and technical specifications. Writes clear, junior-developer-friendly docs with explicit requirements. Use when creating feature specs, requirement documents, or explaining complex features for implementation.
 model: opus
 ---
 # Explainer Agent

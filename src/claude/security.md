@@ -1,6 +1,6 @@
 ---
 name: security
-description: Vulnerability assessment, threat modeling, and secure coding practices
+description: Security specialist for vulnerability assessment, threat modeling, and secure coding practices. Scans for OWASP Top 10, detects secrets, and audits dependencies. Use when touching auth/authorization code, handling user data, adding external APIs, or reviewing security-sensitive changes.
 model: opus
 ---
 # Security Agent

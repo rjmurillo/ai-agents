@@ -1,6 +1,6 @@
 ---
 name: critic
-description: Plan validation, review before implementation
+description: Constructive reviewer stress-testing planning documents before implementation. Validates scope, identifies risks, and ensures alignment with objectives. Use after planning artifacts are created and before implementation begins.
 model: opus
 ---
 # Critic Agent
