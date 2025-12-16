@@ -151,3 +151,29 @@ When applying learned strategies, cite skills:
 **Result**: Actual outcome
 **Skill Validated**: Yes | No | Partial
 ```
+
+### Key Learnings from Practice
+
+#### Documentation & Security Standards (Dec 2024)
+
+**Path Normalization**: Documentation must use relative paths only to prevent environment contamination.
+- ❌ Forbidden: `C:\Users\...`, `/Users/...`, `/home/...`
+- ✅ Correct: `docs/guide.md`, `../architecture/design.md`, `.agents/planning/file.md`
+- Automated validation in CI
+
+**Two-Phase Security Review**: Critical for security-sensitive changes:
+1. **Planning Phase**: Security agent creates threat model and control design
+2. **Implementation**: Implementer flags security-relevant changes (auth, data protection, input handling, file system, execution, environment/config)
+3. **Verification Phase**: Security agent performs PIV (Post-Implementation Verification)
+
+**CI Performance**: Use `ubuntu-latest` for GitHub Actions workflows (much faster than `windows-latest`). Exception: Windows-only features or PowerShell Desktop.
+
+#### Process Patterns
+
+**Validation-Driven Standards**:
+1. Document standard with anti-patterns and examples
+2. Create validation script with clear error messages
+3. Integrate into CI
+4. Baseline and triage existing violations separately
+
+**Template-Based Contracts**: Provide filled example templates, not just empty ones, to reduce ambiguity in agent outputs.
