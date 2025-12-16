@@ -190,6 +190,16 @@ Agents should cite:
 
 ## Handoff Protocol
 
+**As a subagent, you CANNOT delegate directly**. Work with orchestrator for routing.
+
+When skillbook update is complete:
+
+1. Confirm skill created/updated in memory via memory agent
+2. Return summary of changes to orchestrator
+3. Recommend notification to relevant agents (orchestrator handles this)
+
+## Handoff Options (Recommendations for Orchestrator)
+
 | Target | When | Purpose |
 |--------|------|---------|
 | **retrospective** | Need more evidence | Request additional analysis |

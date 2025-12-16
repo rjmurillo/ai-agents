@@ -808,7 +808,17 @@ Execution --> Reflection --> Skill Update --> Improved Execution
 
 ---
 
-## Handoff Options
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate directly**. Return learnings to orchestrator.
+
+When retrospective is complete:
+
+1. Save retrospective document to `.agents/retrospective/`
+2. Return learnings and recommended skill updates to orchestrator
+3. Recommend orchestrator routes to skillbook for skill persistence (if applicable)
+
+## Handoff Options (Recommendations for Orchestrator)
 
 | Target | When | Purpose |
 |--------|------|---------|
