@@ -336,9 +336,42 @@ Task(subagent_type="critic", prompt="Validate plan at .agents/planning/...")
 
 ## Memory System
 
-All agents use `cloudmcp-manager` for cross-session memory (replaces Flowbaby).
+Agents have access to multiple memory systems depending on the platform and available tools.
 
-### Memory Operations
+### Memory Tool Priority
+
+**Use memory tools in this order of preference:**
+
+1. **Serena Memory** (preferred) - File-based, cross-platform, shared with Claude Code/Desktop
+2. **cloudmcp-manager** - Graph-based entity storage, shared with Claude Code/Desktop  
+3. **VS Code `memory` tool** (last resort) - VS Code proprietary, not shared with other AI agents
+
+**Important**: If the VS Code `memory` tool is available alongside Serena or cloudmcp-manager, query it for any existing context that should be synchronized to the shared memory systems. This ensures knowledge is accessible across all AI agent platforms (VS Code, Claude Code, Claude Desktop).
+
+### Serena Memory (Preferred)
+
+Serena provides file-based memory at `.serena/memories/` that is shared across platforms:
+
+| Tool | Purpose |
+|------|---------|
+| `write_memory` | Create or overwrite a memory file |
+| `read_memory` | Read content from a memory file |
+| `list_memories` | List all available memory files |
+| `delete_memory` | Remove a memory file |
+| `edit_memory` | Update content using literal or regex replacement |
+
+**Example Usage:**
+
+```text
+write_memory(memory_file_name="session-notes.md", content="# Session Notes\n...")
+read_memory(memory_file_name="session-notes.md")
+list_memories()
+edit_memory(memory_file_name="session-notes.md", needle="IN PROGRESS", repl="COMPLETED", mode="literal")
+```
+
+### Graph-Based Memory (cloudmcp-manager)
+
+For environments with `cloudmcp-manager`, use graph-based memory for richer entity relationships:
 
 | Operation | Tool | Purpose |
 |-----------|------|---------|
@@ -348,6 +381,18 @@ All agents use `cloudmcp-manager` for cross-session memory (replaces Flowbaby).
 | Update | `memory-add_observations` | Add to existing entities |
 | Link | `memory-create_relations` | Connect related concepts |
 
+### File-Based Memory (VS Code Only)
+
+The VS Code `memory` tool provides proprietary file-based storage at `/memories/`. **Use only when Serena and cloudmcp-manager are unavailable.**
+
+| Command | Arguments | Purpose |
+|---------|-----------|---------|
+| `view` | `path` | Read memory file or list directory |
+| `str_replace` | `path`, `old_str`, `new_str` | Update content in memory file |
+| `create` | `path`, `content` | Create new memory file |
+
+**Synchronization Note**: If VS Code `memory` tool has existing content and Serena/cloudmcp-manager are also available, read from VS Code `memory` and write to the shared memory systems to ensure cross-platform availability.
+
 ### Entity Naming Conventions
 
 | Type | Pattern | Example |
@@ -356,6 +401,77 @@ All agents use `cloudmcp-manager` for cross-session memory (replaces Flowbaby).
 | Decision | `ADR-[Number]` | `ADR-001` |
 | Pattern | `Pattern-[Name]` | `Pattern-StrategyTax` |
 | Skill | `Skill-[Category]-[Number]` | `Skill-Build-001` |
+
+### Memory Usage Best Practices
+
+**Memory-First Principle**: Retrieve relevant context BEFORE multi-step reasoning. Don't operate in a vacuum.
+
+#### When to Use Memory (MANDATORY)
+
+| Phase | Action | Serena (preferred) | cloudmcp-manager | VS Code `memory` (last resort) |
+|-------|--------|-------------------|------------------|-------------------------------|
+| **Session Start** | Retrieve context | `list_memories`, `read_memory` | `memory-search_nodes` | `view` path `/memories/` |
+| **Before Planning** | Check prior decisions | `read_memory` relevant files | `memory-search_nodes` | `view` relevant memory files |
+| **At Milestones** | Store progress | `edit_memory` to update | `memory-add_observations` | `str_replace` to update |
+| **After Decisions** | Record ADRs | `write_memory` | `memory-create_entities` | `create` or `str_replace` |
+| **After Learning** | Store patterns/skills | `write_memory` new file | `memory-create_entities` | `create` new memory file |
+| **Session End** | Persist handoff | `edit_memory` to update | `memory-add_observations` | `str_replace` to update |
+
+#### Memory Query Patterns
+
+**Context Retrieval (session start):**
+
+```text
+Query: "[task type] [project name] [key concepts]"
+Example: "authentication feature user-service OAuth"
+```
+
+**Prior Decision Search:**
+
+```text
+Query: "ADR [topic]" or "decision [area]"
+Example: "ADR authentication" or "decision caching strategy"
+```
+
+**Skill/Pattern Lookup:**
+
+```text
+Query: "Skill-[Category]" or "Pattern-[Name]"
+Example: "Skill-Build" or "Pattern-retry"
+```
+
+#### What to Store
+
+| Store When | Entity Type | Example Content |
+|------------|-------------|-----------------|
+| New feature started | `Feature-[Name]` | Requirements, scope, stakeholders |
+| Design decision made | `ADR-[Number]` | Decision, rationale, alternatives considered |
+| Bug pattern discovered | `Pattern-[Name]` | Problem signature, root cause, fix approach |
+| Successful strategy found | `Skill-[Category]-[Number]` | Atomic strategy, context, evidence |
+| Session handoff needed | Update existing entity | Progress, blockers, next steps |
+
+#### Memory Anti-Patterns (Avoid These)
+
+| Anti-Pattern | Problem | Correct Approach |
+|--------------|---------|------------------|
+| Starting without search | Lost context, repeated work | Always `memory-search_nodes` first |
+| Storing vague observations | Unusable later | Be specific: include file paths, decisions, evidence |
+| Forgetting to link entities | Isolated knowledge | Use `memory-create_relations` for connected concepts |
+| Storing mid-task only | Lost final learnings | Always store at milestones AND completion |
+| Duplicate entities | Fragmented knowledge | Search before create; update existing entities |
+
+#### Memory Protocol by Agent Type
+
+| Agent | Primary Memory Actions |
+|-------|----------------------|
+| **orchestrator** | Search at start; store routing decisions and outcomes |
+| **analyst** | Search for prior research; store findings and recommendations |
+| **architect** | Search for ADRs; store new decisions with full rationale |
+| **planner** | Search for related plans; store milestones and dependencies |
+| **implementer** | Search for patterns/skills; store implementation notes |
+| **qa** | Search for test strategies; store coverage gaps and findings |
+| **retrospective** | Search all related entities; create skill entities from learnings |
+| **skillbook** | Search for duplicates; create/update skill entities |
 
 ---
 
