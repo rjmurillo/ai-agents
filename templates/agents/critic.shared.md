@@ -212,9 +212,9 @@ When critique is complete:
 1. Save critique document to `.agents/critique/`
 2. Store review summary in memory
 3. Based on verdict:
-   - **APPROVED**: Route to **implementer** (ready for execution)
-   - **NEEDS REVISION**: Route back to **planner** (approach is sound, needs fixes)
-   - **REJECTED**: Route to **analyst** for investigation (foundational understanding is flawed)
+   - **APPROVED**: `Task(subagent_type="implementer", prompt="Implement [plan name] per approved plan at .agents/planning/[plan-file].md. Critique approved at .agents/critique/[critique-file].md")`
+   - **NEEDS REVISION**: `Task(subagent_type="planner", prompt="Revise [plan name] to address critique findings at .agents/critique/[critique-file].md. Key issues: [list critical issues]")`
+   - **REJECTED**: `Task(subagent_type="analyst", prompt="Investigate [topic] before planning can proceed. Critique at .agents/critique/[critique-file].md identified fundamental gaps: [list gaps]. Research needed: [specific questions]")`
 
 ## Review Process
 

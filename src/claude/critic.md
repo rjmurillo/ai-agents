@@ -196,7 +196,7 @@ When critique is complete:
 1. Save critique document to `.agents/critique/`
 2. Store review summary in memory
 3. Based on verdict:
-   - **APPROVED**: Route to **implementer**
+   - **APPROVED**: Route to **implementer** `Task(subagent_type="orchestrator", prompt="Ready for implementation of [plan]")`
    - **REVISE**: Route back to **planner**
    - **REJECTED**: Route to **analyst** for investigation
 
