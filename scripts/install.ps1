@@ -296,8 +296,12 @@ Write-Host ""
 # Create destination directory
 Initialize-Destination -Path $DestDir -Description "agents" | Out-Null
 
-# Get agent files
-$AgentFiles = Get-AgentFiles -SourceDir $SourceDir -FilePattern $Config.FilePattern
+# Get agent files (excluding instruction files that may match the pattern)
+$ExcludeFiles = @()
+if ($Config.InstructionsFile) {
+    $ExcludeFiles += $Config.InstructionsFile
+}
+$AgentFiles = Get-AgentFiles -SourceDir $SourceDir -FilePattern $Config.FilePattern -ExcludeFiles $ExcludeFiles
 
 if ($AgentFiles.Count -eq 0) {
     Write-Host "No agent files to install." -ForegroundColor Yellow

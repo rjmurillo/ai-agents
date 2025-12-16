@@ -278,6 +278,40 @@ Describe "Get-AgentFiles" {
             $files[0] | Should -BeOfType [System.IO.FileInfo]
         }
     }
+
+    Context "ExcludeFiles Parameter" {
+        BeforeAll {
+            # Create additional test files for exclusion tests
+            "instructions" | Out-File -FilePath (Join-Path $Script:SourceTestDir "CLAUDE.md") -Encoding utf8
+        }
+
+        It "Excludes specified file from results" {
+            $files = Get-AgentFiles -SourceDir $Script:SourceTestDir -FilePattern "*.md" -ExcludeFiles @("CLAUDE.md")
+
+            $files.Name | Should -Not -Contain "CLAUDE.md"
+            $files.Count | Should -Be 3  # agent1.md, agent2.md, agent1.agent.md (not CLAUDE.md)
+        }
+
+        It "Excludes multiple files from results" {
+            $files = Get-AgentFiles -SourceDir $Script:SourceTestDir -FilePattern "*.md" -ExcludeFiles @("CLAUDE.md", "agent1.md")
+
+            $files.Name | Should -Not -Contain "CLAUDE.md"
+            $files.Name | Should -Not -Contain "agent1.md"
+            $files.Count | Should -Be 2  # agent2.md, agent1.agent.md
+        }
+
+        It "Returns all files when ExcludeFiles is empty" {
+            $files = Get-AgentFiles -SourceDir $Script:SourceTestDir -FilePattern "*.md" -ExcludeFiles @()
+
+            $files.Count | Should -Be 4  # All .md files including CLAUDE.md
+        }
+
+        It "Returns all files when ExcludeFiles is not specified" {
+            $files = Get-AgentFiles -SourceDir $Script:SourceTestDir -FilePattern "*.md"
+
+            $files.Count | Should -Be 4  # All .md files including CLAUDE.md
+        }
+    }
 }
 
 Describe "Initialize-Destination" {

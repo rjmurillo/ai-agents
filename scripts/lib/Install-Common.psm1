@@ -171,6 +171,9 @@ function Get-AgentFiles {
     .PARAMETER FilePattern
         File pattern to match (e.g., '*.md', '*.agent.md')
 
+    .PARAMETER ExcludeFiles
+        Array of filenames to exclude from results (e.g., instruction files).
+
     .OUTPUTS
         [System.IO.FileInfo[]] Array of matching files.
     #>
@@ -180,10 +183,17 @@ function Get-AgentFiles {
         [string]$SourceDir,
 
         [Parameter(Mandatory)]
-        [string]$FilePattern
+        [string]$FilePattern,
+
+        [string[]]$ExcludeFiles = @()
     )
 
     $Files = Get-ChildItem -Path $SourceDir -Filter $FilePattern -File
+
+    # Exclude specified files (e.g., instruction files that match the pattern)
+    if ($ExcludeFiles.Count -gt 0) {
+        $Files = $Files | Where-Object { $_.Name -notin $ExcludeFiles }
+    }
 
     if ($Files.Count -eq 0) {
         Write-Warning "No agent files found matching '$FilePattern' in: $SourceDir"
