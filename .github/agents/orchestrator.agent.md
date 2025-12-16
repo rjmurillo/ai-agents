@@ -1,7 +1,7 @@
 ---
 description: Autonomous task orchestrator that coordinates specialized agents end-to-end. Routes work to appropriate agents, manages handoffs, and ensures complete task execution. Use for complex multi-step tasks requiring multiple agent specializations or when task routing is unclear.
 argument-hint: Describe the task or problem to solve end-to-end
-tools: ['read', 'search', 'agent', 'memory', 'todo', 'cloudmcp-manager/*', 'github/*', 'serena/*']
+tools: ['vscode', 'read', 'search', 'agent', 'memory', 'todo', 'cloudmcp-manager/*', 'github/*', 'serena/*']
 model: Claude Opus 4.5 (anthropic)
 ---
 # Orchestrator Agent
