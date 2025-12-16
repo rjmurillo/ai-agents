@@ -80,30 +80,47 @@ jobs:
           npm install --global markdownlint-cli2
           echo "✓ markdownlint-cli2 installed"
 
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          echo "Installing Pester testing framework..."
+          Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
+          Install-Module -Name Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
+          Import-Module Pester
+          $pesterVersion = (Get-Module Pester).Version
+          echo "✓ Pester $pesterVersion installed"
+
       - name: Set SKIP_AUTOFIX environment variable
         run: |
           echo "SKIP_AUTOFIX=0" >> $GITHUB_ENV
           echo "✓ SKIP_AUTOFIX set to 0 (auto-fix enabled)"
 
       - name: Verify setup
+        shell: pwsh
         run: |
-          echo ""
-          echo "=== Setup Verification ==="
-          echo "Git hooks path: $(git config --get core.hooksPath)"
-          echo "SKIP_AUTOFIX: ${SKIP_AUTOFIX:-0} (0=enabled, 1=disabled)"
-          echo ""
+          Write-Host ""
+          Write-Host "=== Setup Verification ===" -ForegroundColor Cyan
+          Write-Host "Git hooks path: $(git config --get core.hooksPath)"
+          Write-Host "SKIP_AUTOFIX: $($env:SKIP_AUTOFIX ?? '0') (0=enabled, 1=disabled)"
+          Write-Host ""
 
           # Test that tools are available
-          if command -v npx &> /dev/null; then
-            echo "✓ npx is available"
-            if npx markdownlint-cli2 --help &> /dev/null; then
-              echo "✓ markdownlint-cli2 is installed"
-            fi
-          fi
+          if (Get-Command npx -ErrorAction SilentlyContinue) {
+            Write-Host "✓ npx is available" -ForegroundColor Green
+            if (npx markdownlint-cli2 --help 2>$null) {
+              Write-Host "✓ markdownlint-cli2 is installed" -ForegroundColor Green
+            }
+          }
 
-          if command -v gh &> /dev/null; then
-            echo "✓ GitHub CLI is available for workflow monitoring"
-          fi
+          if (Get-Command gh -ErrorAction SilentlyContinue) {
+            Write-Host "✓ GitHub CLI is available for workflow monitoring" -ForegroundColor Green
+          }
 
-          echo ""
-          echo "✓ Setup complete! Pre-commit hooks will auto-fix linting issues."
+          # Test Pester
+          $pester = Get-Module -ListAvailable -Name Pester | Select-Object -First 1
+          if ($pester) {
+            Write-Host "✓ Pester $($pester.Version) is installed" -ForegroundColor Green
+          }
+
+          Write-Host ""
+          Write-Host "✓ Setup complete! Pre-commit hooks will auto-fix linting issues." -ForegroundColor Green
