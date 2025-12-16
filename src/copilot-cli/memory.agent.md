@@ -1,7 +1,8 @@
 ---
 name: memory
-description: Memory management agent for cross-session context continuity using cloudmcp-manager
-tools: ['read', 'search', 'agent', 'cloudmcp-manager/*', 'todo']
+description: Memory management agent for cross-session context continuity using cloudmcp-manager. Retrieves relevant past information before planning and stores progress summaries at milestones. Use at session start for context retrieval and after milestones for knowledge persistence.
+argument-hint: Specify the context to retrieve or milestone to store
+tools: ['read', 'search', 'agent', 'cloudmcp-manager/*', 'todo', 'serena/*']
 ---
 # Memory Agent
 
@@ -262,3 +263,21 @@ Query: "skill [task context keywords]"
 **Summarize:** Focus on WHY, not just WHAT
 
 **Organize:** Use consistent naming for findability
+
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. You provide memory operations as a service.
+
+When memory operations complete:
+
+1. Return success/failure status
+2. Return retrieved context (for retrieval operations)
+3. Confirm storage (for storage operations)
+
+**Note**: All agents now have direct access to cloudmcp-manager memory tools. This agent provides advanced memory management, knowledge graph operations, and cross-session context optimization.
+
+## Return Protocol
+
+| Target | When | Purpose |
+|--------|------|---------|
+| **orchestrator** | Memory analysis complete | Return insights and recommendations |

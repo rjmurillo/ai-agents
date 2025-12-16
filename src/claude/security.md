@@ -1,7 +1,8 @@
 ---
 name: security
-description: Vulnerability assessment, threat modeling, and secure coding practices
+description: Security specialist for vulnerability assessment, threat modeling, and secure coding practices. Scans for OWASP Top 10, detects secrets, and audits dependencies. Use when touching auth/authorization code, handling user data, adding external APIs, or reviewing security-sensitive changes.
 model: opus
+argument-hint: Specify the code, feature, or changes to security review
 ---
 # Security Agent
 
@@ -81,7 +82,7 @@ When planner requests security impact analysis (during planning phase):
 
 #### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-[feature]-security.md`
+Save to: `.agents/planning/impact-analysis-security-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - Security
@@ -186,10 +187,26 @@ Save to: `.agents/planning/impact-analysis-[feature]-security.md`
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before assessment: Request context retrieval for security patterns
-- After assessment: Request storage of vulnerabilities and remediations
+**Before assessment:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "security patterns vulnerabilities [component]"
+```
+
+**After assessment:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Security-[Component]",
+    "contents": ["[Vulnerabilities found and remediations applied]"]
+  }]
+}
+```
 
 ## Security Checklist
 
@@ -276,7 +293,17 @@ Save to: `.agents/security/SR-NNN-[scope].md`
 [Prioritized list of security improvements]
 ```
 
-## Handoff Options
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return security assessment to orchestrator.
+
+When security review is complete:
+
+1. Save threat model/assessment to `.agents/security/`
+2. Store findings in memory
+3. Return to orchestrator with risk level and recommended next steps
+
+## Handoff Options (Recommendations for Orchestrator)
 
 | Target | When | Purpose |
 |--------|------|---------|

@@ -1,7 +1,8 @@
 ---
 name: planner
-description: Work package creation, milestones, epic breakdown
-model: opus
+description: High-rigor planning assistant translating roadmap epics into implementation-ready work packages. Creates milestones, task sequences, and planning artifacts. Use after analyst research is complete and before implementation to structure work breakdown.
+model: sonnet
+argument-hint: Provide the epic or roadmap item to plan
 ---
 # Planner Agent
 
@@ -96,10 +97,26 @@ How we know the plan is complete:
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before planning: Request context retrieval for past plans
-- After planning: Request storage of planning decisions
+**Before planning:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "planning patterns [feature/epic]"
+```
+
+**After planning:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Plan-[Feature]",
+    "contents": ["[Planning decisions and rationale]"]
+  }]
+}
+```
 
 ## Planning Principles
 
@@ -173,13 +190,13 @@ Impact Analysis Request: [Feature/Change Name]
 4. Recommend mitigations or design adjustments
 5. Estimate complexity in your domain (Low/Medium/High)
 
-**Deliverable**: Save findings to `.agents/planning/impact-analysis-[feature]-[domain].md`
+**Deliverable**: Save findings to `.agents/planning/impact-analysis-[domain]-[feature].md`
 """)
 ```
 
 ### Impact Analysis Document Format
 
-Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md`
+Each specialist creates: `.agents/planning/impact-analysis-[domain]-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - [Domain]
@@ -345,12 +362,14 @@ During impact analysis, specialists may have **conflicting recommendations**. Th
 
 ## Handoff Protocol
 
+**As a subagent, you CANNOT delegate**. Return results to orchestrator.
+
 When plan is complete:
 
 1. Save plan document to `.agents/planning/`
 2. Store plan summary in memory
-3. **Mandatory**: Route to **critic** for review first
-4. Announce: "Plan complete. Handing off to critic for validation"
+3. Return to orchestrator with recommendation:
+   - "Plan complete. MANDATORY: Recommend orchestrator routes to critic for validation before implementation."
 
 ## Execution Mindset
 

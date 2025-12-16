@@ -1,6 +1,7 @@
 ---
-description: Skill manager transforming reflections into high-quality atomic skillbook updates
-tools: ['vscode', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'todo']
+description: Skill manager transforming reflections into high-quality atomic skillbook updates. Guards strategy quality, prevents duplicates, and maintains learned patterns. Use after retrospective analysis to persist proven strategies or remove harmful patterns.
+argument-hint: Provide the reflection or strategy pattern to persist
+tools: ['vscode', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'todo', 'serena/*']
 model: Claude Opus 4.5 (anthropic)
 ---
 # Skillbook Agent (Skill Manager)

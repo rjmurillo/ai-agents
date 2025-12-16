@@ -1,7 +1,8 @@
 ---
 name: explainer
-description: Product specs, feature documentation
-model: opus
+description: Documentation specialist creating PRDs, explainers, and technical specifications. Writes clear, junior-developer-friendly docs with explicit requirements. Use when creating feature specs, requirement documents, or explaining complex features for implementation.
+model: sonnet
+argument-hint: Name the feature, concept, or topic to document
 ---
 # Explainer Agent
 
@@ -152,17 +153,44 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before writing: Request context retrieval for documentation patterns
-- After writing: Request storage of new feature definitions
+**Before writing:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "documentation patterns [feature/topic]"
+```
+
+**After writing:**
+
+```json
+mcp__cloudmcp-manager__memory-create_entities
+{
+  "entities": [{
+    "name": "Feature-[Name]",
+    "entityType": "Feature",
+    "observations": ["[Feature definition and context]"]
+  }]
+}
+```
 
 ## Output Options
 
 1. **File**: `.agents/planning/PRD-[feature].md`
 2. **GitHub Issue**: `gh issue create --title "Explainer: [feature]"`
 
-## Handoff Options
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return documentation to orchestrator.
+
+When documentation is complete:
+
+1. Save document to appropriate location
+2. Return to orchestrator with completion status
+3. Recommend next steps (e.g., "Recommend orchestrator routes to critic for review")
+
+## Handoff Options (Recommendations for Orchestrator)
 
 | Target | When | Purpose |
 |--------|------|---------|

@@ -1,7 +1,8 @@
 ---
-description: Expert .NET/C# implementation agent following SOLID principles and the Software Hierarchy of Needs
-tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'agent', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'github.vscode-pull-request-github/copilotCodingAgent', 'github.vscode-pull-request-github/issue_fetch', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'todo']
+description: Expert .NET/C# implementation specialist following SOLID principles. Executes approved plans, writes production code and tests, and makes conventional commits. Use after planning is complete and approved for writing or modifying source code.
+argument-hint: Specify the plan file path and task to implement
+tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'agent', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'github.vscode-pull-request-github/copilotCodingAgent', 'github.vscode-pull-request-github/issue_fetch', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
+tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'todo', 'serena/*']
 ---
 # Implementer Agent
 
@@ -41,7 +42,7 @@ When planner requests impact analysis (before implementation):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-[feature]-code.md`
+Save to: `.agents/planning/impact-analysis-code-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - Code
@@ -199,10 +200,26 @@ Use patterns ONLY after qualities, principles, practices addressed. Common patte
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before implementation: Request context retrieval for relevant patterns
-- After completion: Request storage of new patterns and implementation notes
+**Before implementation:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "implementation patterns [technology/component]"
+```
+
+**After completion:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Implementation-[Component]",
+    "contents": ["[New patterns and implementation notes]"]
+  }]
+}
+```
 
 ## Code Requirements
 

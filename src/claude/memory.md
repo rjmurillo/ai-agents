@@ -1,7 +1,8 @@
 ---
 name: memory
-description: Cross-session context continuity using cloudmcp-manager
+description: Memory management agent for cross-session context continuity using cloudmcp-manager. Retrieves relevant past information before planning and stores progress summaries at milestones. Use at session start for context retrieval and after milestones for knowledge persistence.
 model: sonnet
+argument-hint: Specify the context to retrieve or milestone to store
 ---
 # Memory Agent
 
@@ -177,11 +178,23 @@ When observations contradict:
 2. Create relation with type `supersedes`
 3. Mark for review with `[REVIEW]` prefix if uncertain
 
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return results to orchestrator.
+
+When memory operations complete:
+
+1. Return success/failure status
+2. Return retrieved context (for retrieval operations)
+3. Confirm storage (for storage operations)
+
+**Note**: All agents have direct access to cloudmcp-manager memory tools. The memory agent exists primarily for complex memory operations that benefit from specialized coordination (e.g., skill graph maintenance, cross-entity relation management).
+
 ## Handoff Options
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **Any agent** | Memory retrieved | Continue work with context |
+| **orchestrator** | Memory operations complete | Return to task coordination |
 
 ## Execution Mindset
 

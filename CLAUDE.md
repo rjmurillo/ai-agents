@@ -40,14 +40,24 @@ analyst -> architect -> planner -> critic -> implementer -> qa -> retrospective
 **Feature Development with Impact Analysis:**
 
 ```text
-analyst -> architect -> planner -> [impact analysis consultations] -> critic -> implementer -> qa -> retrospective
+Orchestrator manages the full workflow:
 
-Where impact analysis consultations involve planner coordinating:
-- implementer (code impact)
-- architect (architecture impact)
-- security (security impact)
-- devops (CI/CD impact)
-- qa (testing impact)
+Orchestrator → analyst → returns to Orchestrator
+Orchestrator → architect → returns to Orchestrator
+Orchestrator → planner (creates impact analysis plan) → returns to Orchestrator
+
+Orchestrator executes impact analysis consultations:
+  → implementer (code impact) → returns to Orchestrator
+  → architect (design impact) → returns to Orchestrator
+  → security (security impact) → returns to Orchestrator
+  → devops (CI/CD impact) → returns to Orchestrator
+  → qa (testing impact) → returns to Orchestrator
+
+Orchestrator aggregates findings and continues:
+  → critic → returns to Orchestrator
+  → implementer → returns to Orchestrator
+  → qa → returns to Orchestrator
+  → retrospective → complete
 ```
 
 **Quick Fix:**
@@ -64,7 +74,9 @@ independent-thinker -> high-level-advisor -> task-generator
 
 ## Impact Analysis Framework
 
-The **Multi-Agent Impact Analysis Framework** enables comprehensive planning by having the planner orchestrate specialist consultations before finalization.
+The **Multi-Agent Impact Analysis Framework** enables comprehensive planning through orchestrator-managed specialist consultations.
+
+**CRITICAL**: Orchestrator is the ROOT agent. Subagents (including planner) cannot delegate to other subagents. When multi-domain analysis is needed, planner creates the analysis plan and orchestrator executes the consultations.
 
 ### When to Use Impact Analysis
 
@@ -76,37 +88,42 @@ The **Multi-Agent Impact Analysis Framework** enables comprehensive planning by 
 
 ### Consultation Process
 
-1. **Planner** identifies change scope and affected domains
-2. **Planner** invokes specialist agents with structured impact analysis requests
-3. **Specialists** analyze impacts in their domain and create impact analysis documents
-4. **Planner** aggregates findings and integrates into plan
-5. **Critic** reviews the plan including all impact analyses
+1. **Orchestrator** routes to planner with impact analysis flag
+2. **Planner** creates structured impact analysis plan identifying domains and questions
+3. **Planner** returns plan to orchestrator
+4. **Orchestrator** invokes specialist agents (one at a time):
+   - Orchestrator → implementer (code impact) → returns to Orchestrator
+   - Orchestrator → architect (design impact) → returns to Orchestrator
+   - Orchestrator → security (security impact) → returns to Orchestrator
+   - Orchestrator → devops (operations impact) → returns to Orchestrator
+   - Orchestrator → qa (quality impact) → returns to Orchestrator
+5. **Orchestrator** aggregates findings and routes to critic for validation
 
 ### Specialist Roles in Impact Analysis
 
 | Specialist | Focus Area | Output Document |
 |------------|-----------|-----------------|
-| **implementer** | Code structure, patterns, testing complexity | `impact-analysis-[feature]-code.md` |
-| **architect** | Design consistency, architectural fit | `impact-analysis-[feature]-architecture.md` |
-| **security** | Attack surface, threat vectors, controls | `impact-analysis-[feature]-security.md` |
-| **devops** | Build pipelines, deployment, infrastructure | `impact-analysis-[feature]-devops.md` |
-| **qa** | Test strategy, coverage, quality risks | `impact-analysis-[feature]-qa.md` |
+| **implementer** | Code structure, patterns, testing complexity | `impact-analysis-code-[feature].md` |
+| **architect** | Design consistency, architectural fit | `impact-analysis-architecture-[feature].md` |
+| **security** | Attack surface, threat vectors, controls | `impact-analysis-security-[feature].md` |
+| **devops** | Build pipelines, deployment, infrastructure | `impact-analysis-devops-[feature].md` |
+| **qa** | Test strategy, coverage, quality risks | `impact-analysis-qa-[feature].md` |
 
 ### Example Workflow
 
 ```text
 User: "Plan implementation of OAuth 2.0 authentication"
 
-1. planner analyzes scope → multi-domain change detected
-2. planner invokes impact analysis consultations:
-   - Task(subagent_type="implementer", prompt="Impact analysis for OAuth implementation")
-   - Task(subagent_type="architect", prompt="Architecture impact analysis for OAuth")
-   - Task(subagent_type="security", prompt="Security impact analysis for OAuth")
-   - Task(subagent_type="devops", prompt="DevOps impact analysis for OAuth")
-   - Task(subagent_type="qa", prompt="QA impact analysis for OAuth")
-3. Each specialist creates impact analysis document in .agents/planning/
-4. planner synthesizes findings into comprehensive plan
-5. planner routes to critic for validation
+1. Orchestrator routes to planner → planner analyzes scope → multi-domain change detected
+2. Planner creates impact analysis plan, returns to orchestrator
+3. Orchestrator invokes each specialist in sequence:
+   - Orchestrator → implementer ("Impact analysis for OAuth implementation") → returns
+   - Orchestrator → architect ("Architecture impact analysis for OAuth") → returns
+   - Orchestrator → security ("Security impact analysis for OAuth") → returns
+   - Orchestrator → devops ("DevOps impact analysis for OAuth") → returns
+   - Orchestrator → qa ("QA impact analysis for OAuth") → returns
+4. Each specialist creates impact analysis document in .agents/planning/
+5. Orchestrator aggregates findings and routes to critic for validation
 ```
 
 ## Invocation Examples

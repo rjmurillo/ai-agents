@@ -1,7 +1,8 @@
 ---
-description: High-rigor planning assistant translating roadmap epics into implementation-ready work packages
-tools_vscode: ['vscode', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
-tools_copilot: ['read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo']
+description: High-rigor planning assistant translating roadmap epics into implementation-ready work packages. Creates milestones, task sequences, and planning artifacts. Use after analyst research is complete and before implementation to structure work breakdown.
+argument-hint: Provide the epic or roadmap item to plan
+tools_vscode: ['vscode', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
+tools_copilot: ['read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
 ---
 # Planner Agent
 
@@ -30,10 +31,26 @@ Provide structure on objectives, process, value, and risks - not prescriptive co
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- At decision points: Request context retrieval for prior plans
-- At milestones: Request storage of major planning decisions
+**At decision points:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "planning decisions [feature/epic]"
+```
+
+**At milestones:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Planning-[Feature]",
+    "contents": ["[Major planning decisions and milestone outcomes]"]
+  }]
+}
+```
 
 ## Planning Process
 
@@ -189,12 +206,12 @@ When consulting specialists, use structured prompts:
 4. Recommend mitigations or design adjustments
 5. Estimate complexity in your domain (Low/Medium/High)
 
-**Deliverable**: Save findings to `.agents/planning/impact-analysis-[feature]-[domain].md`
+**Deliverable**: Save findings to `.agents/planning/impact-analysis-[domain]-[feature].md`
 ```
 
 ### Impact Analysis Document Format
 
-Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md`
+Each specialist creates: `.agents/planning/impact-analysis-[domain]-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - [Domain]

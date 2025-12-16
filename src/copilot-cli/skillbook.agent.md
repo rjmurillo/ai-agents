@@ -1,7 +1,8 @@
 ---
 name: skillbook
-description: Skill manager transforming reflections into high-quality atomic skillbook updates
-tools: ['read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'todo']
+description: Skill manager transforming reflections into high-quality atomic skillbook updates. Guards strategy quality, prevents duplicates, and maintains learned patterns. Use after retrospective analysis to persist proven strategies or remove harmful patterns.
+argument-hint: Provide the reflection or strategy pattern to persist
+tools: ['read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'todo', 'serena/*']
 ---
 # Skillbook Agent (Skill Manager)
 

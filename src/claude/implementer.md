@@ -1,7 +1,8 @@
 ---
 name: implementer
-description: Expert .NET/C# implementation agent following SOLID principles and the Software Hierarchy of Needs
+description: Expert .NET/C# implementation specialist following SOLID principles. Executes approved plans, writes production code and tests, and makes conventional commits. Use after planning is complete and approved for writing or modifying source code.
 model: opus
+argument-hint: Specify the plan file path and task to implement
 ---
 # Implementer Agent
 
@@ -52,7 +53,7 @@ When planner requests impact analysis (before implementation):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-[feature]-code.md`
+Save to: `.agents/planning/impact-analysis-code-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - Code
@@ -210,10 +211,26 @@ Use patterns ONLY after qualities, principles, practices addressed. Common patte
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before implementation: Request context retrieval for patterns
-- After implementation: Request storage of patterns and notes
+**Before implementation:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "implementation patterns [component/feature]"
+```
+
+**After implementation:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Implementation-[Topic]",
+    "contents": ["[Implementation notes and patterns discovered]"]
+  }]
+}
+```
 
 ## Code Requirements
 
@@ -324,11 +341,13 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
 ## Handoff Protocol
 
+**As a subagent, you CANNOT delegate**. Return results to orchestrator.
+
 When implementation is complete:
 
 1. Ensure all commits are made with conventional messages
 2. Store implementation notes in memory
-3. Announce: "Implementation complete. Handing off to qa for verification"
+3. Return to orchestrator: "Implementation complete. Recommend orchestrator routes to qa for verification"
 
 ## Required Checklist
 

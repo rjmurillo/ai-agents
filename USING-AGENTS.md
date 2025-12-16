@@ -7,8 +7,18 @@ This repository provides a coordinated multi-agent system for software developme
 ### Typical Workflow
 
 ```text
-Orchestrator → Analyst → Architect → Planner → Critic → Implementer → QA → Retrospective
+Orchestrator (ROOT agent) coordinates all delegation:
+
+Orchestrator → Analyst → returns to Orchestrator
+Orchestrator → Architect → returns to Orchestrator
+Orchestrator → Planner → returns to Orchestrator
+Orchestrator → Critic → returns to Orchestrator
+Orchestrator → Implementer → returns to Orchestrator
+Orchestrator → QA → returns to Orchestrator
+Orchestrator → Retrospective → complete
 ```
+
+**Architecture**: Subagents CANNOT delegate to other subagents. They return results to orchestrator, who handles all routing decisions.
 
 The Memory agent provides long-running context across sessions using `cloudmcp-manager` for persistent memory.
 
@@ -168,7 +178,9 @@ Security, Strategic, and Ideation tasks are always treated as Complex.
 
 ## Impact Analysis Framework
 
-For complex, multi-domain changes, the planner orchestrates impact analysis consultations with specialist agents before finalizing plans.
+For complex, multi-domain changes, orchestrator manages impact analysis consultations with specialist agents.
+
+**Architecture Note**: Since subagents cannot delegate, planner creates the analysis plan and orchestrator executes each specialist consultation.
 
 ### When to Use Impact Analysis
 
@@ -181,21 +193,22 @@ For complex, multi-domain changes, the planner orchestrates impact analysis cons
 ### Consultation Process
 
 ```text
-1. Planner identifies change scope and affected domains
-2. Planner invokes specialist agents with structured impact analysis requests:
-   - implementer: Code impact
-   - architect: Design impact
-   - security: Security impact
-   - devops: Operations impact
-   - qa: Quality impact
-3. Specialists analyze impacts and create impact analysis documents
-4. Planner aggregates findings and integrates into plan
-5. Critic reviews the plan including all impact analyses
+1. Orchestrator routes to planner with impact analysis flag
+2. Planner identifies change scope and affected domains, creates analysis plan
+3. Planner returns plan to orchestrator
+4. Orchestrator invokes specialist agents (sequentially or in parallel):
+   - Orchestrator → implementer: Code impact → returns to Orchestrator
+   - Orchestrator → architect: Design impact → returns to Orchestrator
+   - Orchestrator → security: Security impact → returns to Orchestrator
+   - Orchestrator → devops: Operations impact → returns to Orchestrator
+   - Orchestrator → qa: Quality impact → returns to Orchestrator
+5. Orchestrator aggregates findings
+6. Orchestrator routes to critic for validation
 ```
 
 ### Impact Analysis Outputs
 
-Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md`
+Each specialist creates: `.agents/planning/impact-analysis-[domain]-[feature].md`
 
 ---
 
