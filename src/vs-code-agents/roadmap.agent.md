@@ -1,5 +1,6 @@
 ---
 description: Strategic product owner defining WHAT to build and WHY with outcome-focused vision. Creates epics, prioritizes by business value, and maintains product direction. Use when defining new features, prioritizing backlog, or validating work alignment with product strategy.
+argument-hint: Describe the feature vision or backlog item to prioritize
 tools: ['vscode', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
 model: Claude Opus 4.5 (anthropic)
 ---
