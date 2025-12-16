@@ -677,6 +677,22 @@ When `cloudmcp-manager` memory functions fail, use Serena memory tools as fallba
 - **Primary functions**: `memory-add_observations`, `memory-create_entities`, `memory-create_relations`, `memory-delete_entities`, `memory-delete_observations`, `memory-delete_relations`, `memory-open_nodes`, `memory-read_graph`, `memory-search_nodes`
 - **Fallback functions**: `write_memory`, `read_memory`, `list_memories`, `delete_memory`, `edit_memory`
 
+### Serena Toolbox
+
+When the Serena MCP is available, agents should call the `mcp_serena_initial_instructions` tool immediately after being given their task by the user.
+
+**Tool**: `mcp_serena_initial_instructions`
+
+**Purpose**: Provides the "Serena Instructions Manual" which contains essential information on how to use the Serena toolbox.
+
+**When to call**:
+
+- At the start of any task when Serena MCP is available
+- Before using other Serena tools (symbol management, file search, code insertion)
+- When working with semantic coding tools
+
+**Why it matters**: The manual provides critical context about efficient code reading strategies, symbolic navigation, and resource-efficient operations that optimize agent performance when working with large codebases.
+
 ---
 
 ## Key Learnings from Practice
