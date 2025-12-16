@@ -217,10 +217,30 @@ Line 3: Normal text
         It "Should provide remediation steps on failure" {
             $testFile = Join-Path $Script:TestTempDir "test-remediation.md"
             Set-Content -Path $testFile -Value "Path: C:\test\file.md"
-            
+
             $output = pwsh -File $Script:ScriptPath -Path $Script:TestTempDir 2>&1 | Out-String
             $output | Should -Match "Remediation Steps"
             $output | Should -Match "relative paths"
+        }
+
+        It "Should display relative paths in output (not absolute)" {
+            # Regression test for PathInfo bug (commit 3fc9171)
+            # Bug: Resolve-Path returns PathInfo object, not string
+            # This caused .Length to return $null, breaking relative path calculation
+
+            $subDir = Join-Path $Script:TestTempDir "subdir"
+            New-Item -ItemType Directory -Path $subDir -Force | Out-Null
+            $testFile = Join-Path $subDir "nested.md"
+            Set-Content -Path $testFile -Value "Path: C:\test\file.md"
+
+            $output = pwsh -File $Script:ScriptPath -Path $Script:TestTempDir 2>&1 | Out-String
+
+            # Should show relative path like "subdir\nested.md" or "subdir/nested.md"
+            $output | Should -Match "File: subdir[/\\]nested\.md"
+
+            # Should NOT show absolute path with drive letter or root /
+            $output | Should -Not -Match "File: [A-Z]:[/\\]"
+            $output | Should -Not -Match "File: /[A-Z]"
         }
     }
     
