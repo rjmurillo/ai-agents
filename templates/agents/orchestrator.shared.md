@@ -248,7 +248,7 @@ These three workflow paths are the canonical reference for all task routing. Oth
 | Task Type | Agent Sequence | Path |
 |-----------|----------------|------|
 | Feature (multi-domain) | analyst -> architect -> planner -> critic -> implementer -> qa | Standard (extended) |
-| Feature (multi-domain with impact analysis) | analyst -> architect -> planner -> [ORCHESTRATOR calls: implementer, architect, security, devops, qa for impact analyses] -> critic -> implementer -> qa | Standard (extended) |
+| Feature (multi-domain with impact analysis) | analyst -> architect -> planner -> [ORCHESTRATOR calls: implementer, architect, security, devops, qa for impact analyzes] -> critic -> implementer -> qa | Standard (extended) |
 | Feature (multi-step) | analyst -> planner -> implementer -> qa | Standard |
 | Bug Fix (multi-step) | analyst -> implementer -> qa | Standard (lite) |
 | Bug Fix (simple) | implementer -> qa | Quick Fix |
