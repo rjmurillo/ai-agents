@@ -173,13 +173,13 @@ Impact Analysis Request: [Feature/Change Name]
 4. Recommend mitigations or design adjustments
 5. Estimate complexity in your domain (Low/Medium/High)
 
-**Deliverable**: Save findings to `.agents/planning/impact-analysis-[feature]-[domain].md`
+**Deliverable**: Save findings to `.agents/planning/impact-analysis-[domain]-[feature].md`
 """)
 ```
 
 ### Impact Analysis Document Format
 
-Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md`
+Each specialist creates: `.agents/planning/impact-analysis-[domain]-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - [Domain]

@@ -52,7 +52,7 @@ When planner requests impact analysis (before implementation):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-[feature]-code.md`
+Save to: `.agents/planning/impact-analysis-code-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - Code

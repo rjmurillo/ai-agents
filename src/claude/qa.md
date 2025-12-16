@@ -58,7 +58,7 @@ When planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-[feature]-qa.md`
+Save to: `.agents/planning/impact-analysis-qa-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - QA
