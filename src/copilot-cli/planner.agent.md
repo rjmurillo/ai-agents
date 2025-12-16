@@ -358,6 +358,61 @@ During impact analysis, specialists may have **conflicting recommendations**. Th
 
 **Note**: The **critic** agent is responsible for escalating major conflicts to **high-level-advisor**. Unanimous specialist agreement is required for smooth approval.
 
+## Condition-to-Task Traceability
+
+When aggregating specialist reviews, ENSURE all conditions from specialist reviews are linked to specific task IDs.
+
+### Traceability Requirement
+
+> Every condition from specialist reviews MUST have a corresponding task assignment in the Work Breakdown.
+
+### Work Breakdown Template with Conditions
+
+When creating work breakdowns, include a Conditions column to trace specialist requirements:
+
+```markdown
+| Task ID | Description | Effort | Conditions |
+|---------|-------------|--------|------------|
+| TASK-001 | Implement base auth service | 2h | None |
+| TASK-002 | Add OAuth2 integration | 3h | Security: Use PKCE flow |
+| TASK-003 | Create login form | 1.5h | QA: Requires test spec file path |
+| TASK-004 | Add error handling | 1h | None |
+| TASK-005 | Write integration tests | 2h | QA: Increase effort to 2h |
+```
+
+### Validation Checklist
+
+Before finalizing any plan with specialist conditions:
+
+- [ ] Every specialist condition has a task assignment
+- [ ] Work Breakdown table reflects all conditions
+- [ ] No orphan conditions (conditions without task links)
+- [ ] Conditions column specifies source agent (e.g., "QA:", "Security:")
+
+### Anti-Pattern: Orphan Conditions
+
+**Anti-Pattern**: Putting conditions in a separate section without cross-references to tasks causes implementation gaps.
+
+```markdown
+## Conditions (INCORRECT)
+- QA: Needs test specification file
+- Security: Use PKCE for OAuth
+
+## Work Breakdown (INCORRECT - no condition links)
+| Task ID | Description | Effort |
+|---------|-------------|--------|
+| TASK-001 | Implement OAuth | 3h |
+```
+
+**Correct Approach**: Link conditions directly to tasks:
+
+```markdown
+| Task ID | Description | Effort | Conditions |
+|---------|-------------|--------|------------|
+| TASK-001 | Implement OAuth | 3h | Security: Use PKCE flow |
+| TASK-002 | Create test specs | 1h | QA: Needs test specification file |
+```
+
 ## Planning Principles
 
 - **Incremental**: Deliver value at each milestone

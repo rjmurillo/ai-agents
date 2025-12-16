@@ -183,6 +183,64 @@ graph TD
 
 **Estimate:** Complexity, not hours
 
+## Estimate Reconciliation Protocol
+
+When generating tasks from a PRD or epic, ensure effort estimates remain consistent.
+
+### 10% Threshold Rule
+
+> If derived task estimates differ from source PRD/epic estimates by >10%, reconciliation is REQUIRED.
+
+### Reconciliation Process
+
+1. **Extract source estimate** from epic/PRD before generating tasks
+2. **Sum task estimates** after task breakdown complete
+3. **Compare estimates**: If divergence >10%, complete reconciliation table:
+
+| Source | Derived | Difference | Action Required |
+|--------|---------|------------|-----------------|
+| [Epic hours] | [Task total] | [%] | [See actions below] |
+
+### Reconciliation Actions (one MUST be chosen)
+
+| Action | When to Use | Documentation Required |
+|--------|-------------|----------------------|
+| **Update source** | Tasks reveal more accurate scope | Note in output, recommend epic update |
+| **Document rationale** | Difference is justified | Explain why estimates differ in output |
+| **Flag for review** | Uncertain about divergence | Flag for critic/planner review |
+
+### Output Template Addition
+
+Include this section in all task breakdown outputs when estimates diverge >10%:
+
+```markdown
+## Estimate Reconciliation
+
+**Source Document**: [Epic/PRD filename]
+**Source Estimate**: [X-Y hours]
+**Derived Estimate**: [A-B hours]
+**Difference**: [+/-N%]
+**Status**: [Aligned | Reconciled | Flagged for review]
+**Rationale** (if divergent): [Why estimates differ]
+```
+
+### Anti-Pattern: Unreconciled Estimate Drift
+
+**Anti-Pattern**: Epic states "8-14 hours" but tasks total "12-16 hours" (43% increase) without explanation.
+
+**Correct Approach**: Document reconciliation explicitly:
+
+```markdown
+## Estimate Reconciliation
+
+**Source Document**: EPIC-001-auth-feature.md
+**Source Estimate**: 8-14 hours
+**Derived Estimate**: 12-16 hours
+**Difference**: +43% (high end)
+**Status**: Reconciled
+**Rationale**: Task breakdown revealed additional complexity in OAuth integration not visible at epic level. Recommend updating epic estimate.
+```
+
 ## Handoff Protocol
 
 **As a subagent, you CANNOT delegate**. Return task breakdown to orchestrator.
@@ -190,8 +248,9 @@ graph TD
 When task breakdown is complete:
 
 1. Save tasks document to `.agents/planning/`
-2. Store estimation insights in memory
-3. Return to orchestrator with recommendation (e.g., "Recommend orchestrator routes to critic for validation")
+2. **Validate estimate reconciliation**: Compare derived effort estimates against source PRD/epic estimates. If divergence exceeds 10%, document reconciliation rationale
+3. Store estimation insights in memory
+4. Return to orchestrator with recommendation (e.g., "Recommend orchestrator routes to critic for validation")
 
 ## Handoff Options (Recommendations for Orchestrator)
 
