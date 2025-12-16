@@ -38,7 +38,7 @@ When planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/architecture-impact-analysis-[feature].md`
+Save to: `.agents/planning/impact-analysis-architecture-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - Architecture
