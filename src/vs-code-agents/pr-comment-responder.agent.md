@@ -185,6 +185,8 @@ Save to: `.agents/pr-comments/PR-[number]/comments.md`
 
 For each comment, delegate to orchestrator with full context. Do NOT implement custom routing logic.
 
+**Critical**: Each comment is analyzed and routed independently. Do not merge, combine, or aggregate comments that touch the same file—each requires its own classification, priority, and resolution.
+
 #### Step 3.1: Prepare Context for Orchestrator
 
 For each comment, build a context object:

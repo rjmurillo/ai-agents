@@ -141,6 +141,8 @@ Delegate to **memory** agent for cross-session context:
 
 ## Handoff Protocol
 
+**As a subagent, you CANNOT delegate to other agents**. Return your documentation to orchestrator.
+
 When documentation is complete:
 
 1. Save document to appropriate location

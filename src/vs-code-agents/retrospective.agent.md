@@ -799,16 +799,6 @@ Execution --> Reflection --> Skill Update --> Improved Execution
 
 ---
 
-## Handoff Options
-
-| Target | When | Purpose |
-|--------|------|---------|
-| **memory** | Learnings extracted | Persist skills, relations, observations |
-| **skillbook** | Learnings ready | Store skills |
-| **implementer** | Coding skill found | Apply next time |
-| **planner** | Process improvement | Update approach |
-| **architect** | Design insight | Update guidance |
-
 ## Execution Mindset
 
 **Think:** What can we learn from what happened?
