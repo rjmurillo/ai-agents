@@ -1,8 +1,8 @@
 ---
 description: Expert .NET/C# implementation specialist following SOLID principles. Executes approved plans, writes production code and tests, and makes conventional commits. Use after planning is complete and approved for writing or modifying source code.
 argument-hint: Specify the plan file path and task to implement
-tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'agent', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'github.vscode-pull-request-github/copilotCodingAgent', 'github.vscode-pull-request-github/issue_fetch', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'todo']
+tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'agent', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'github.vscode-pull-request-github/copilotCodingAgent', 'github.vscode-pull-request-github/issue_fetch', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
+tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'todo', 'serena/*']
 ---
 # Implementer Agent
 

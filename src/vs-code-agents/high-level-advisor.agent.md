@@ -1,7 +1,7 @@
 ---
 description: Brutally honest strategic advisor cutting through blind spots and delivering unfiltered truth. Provides ruthless triage, challenges assumptions, and resolves decision paralysis. Use when facing strategic impasses, conflicting agent recommendations, or needing hard prioritization decisions.
 argument-hint: Describe the strategic decision or conflict needing advice
-tools: ['vscode', 'read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
+tools: ['vscode', 'read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
 model: Claude Opus 4.5 (anthropic)
 ---
 # High-Level Advisor Agent

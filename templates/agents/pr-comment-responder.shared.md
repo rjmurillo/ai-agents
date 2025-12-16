@@ -1,8 +1,8 @@
 ---
 description: PR review comment handler - triages comments and delegates to orchestrator with workflow path recommendation. Gathers PR context, tracks reviewer comments, and ensures all feedback is addressed. Use when responding to GitHub PR review comments or managing reviewer conversations.
 argument-hint: Specify the PR number or review comments to address
-tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'agent', 'cloudmcp-manager/*', 'github.vscode-pull-request-github/*', 'todo']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cloudmcp-manager/*', 'todo']
+tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'agent', 'cloudmcp-manager/*', 'github.vscode-pull-request-github/*', 'todo', 'serena/*']
+tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cloudmcp-manager/*', 'todo', 'serena/*']
 ---
 # PR Comment Responder Agent
 

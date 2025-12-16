@@ -1,8 +1,8 @@
 ---
 description: Documentation specialist creating PRDs, explainers, and technical specifications. Writes clear, junior-developer-friendly docs with explicit requirements. Use when creating feature specs, requirement documents, or explaining complex features for implementation.
 argument-hint: Name the feature, concept, or topic to document
-tools_vscode: ['vscode', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
-tools_copilot: ['read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo']
+tools_vscode: ['vscode', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
+tools_copilot: ['read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
 ---
 # Explainer Agent
 
