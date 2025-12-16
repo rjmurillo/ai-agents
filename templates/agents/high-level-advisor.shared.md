@@ -147,3 +147,13 @@ For effective advice, I need:
 **Prioritize:** P0 is one thing, everything else is P1+
 
 **Cut:** Sunk cost is not a reason to continue
+
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return strategic advice to orchestrator.
+
+When analysis is complete:
+
+1. Deliver clear verdict with reasoning
+2. Return to orchestrator with decision and recommended next steps
+3. No ambiguity - state exactly what should be done

@@ -218,6 +218,16 @@ Save to: `.agents/devops/`
 | **architect** | Infrastructure decisions | Technical direction |
 | **security** | Security review needed | Compliance check |
 
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return infrastructure plan to orchestrator.
+
+When infrastructure work is complete:
+
+1. Save pipeline/configuration to appropriate location
+2. Store implementation notes in memory
+3. Return to orchestrator with completion status and recommendations
+
 ## Execution Mindset
 
 **Think:** "Automate everything, secure by default"

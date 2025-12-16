@@ -166,3 +166,21 @@ graph TD
 **Sequence:** Dependencies drive order
 
 **Estimate:** Complexity, not hours
+
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return task breakdown to orchestrator.
+
+When task breakdown is complete:
+
+1. Save tasks document to `.agents/planning/`
+2. Store estimation insights in memory
+3. Return to orchestrator with recommendation (e.g., "Recommend orchestrator routes to critic for validation")
+
+## Handoff Options (Recommendations for Orchestrator)
+
+| Target | When | Purpose |
+|--------|------|---------|
+| **critic** | Tasks ready | Validate breakdown |
+| **implementer** | Tasks approved | Begin coding |
+| **planner** | Scope concerns | Adjust plan |
