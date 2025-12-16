@@ -13,107 +13,13 @@
 #>
 
 BeforeAll {
-    # Import functions from the script by dot-sourcing
-    $ScriptPath = Join-Path $PSScriptRoot "..\Generate-Agents.ps1"
+    # Import shared functions from module (ensures tests use actual implementations)
+    $ModulePath = Join-Path $PSScriptRoot "..\Generate-Agents.Common.psm1"
+    Import-Module $ModulePath -Force
 
-    # Create a module scope to hold the functions
+    # Create temp directory for test artifacts
     $Script:TestTempDir = Join-Path $env:TEMP "Generate-Agents-Tests-$(Get-Random)"
     New-Item -ItemType Directory -Path $Script:TestTempDir -Force | Out-Null
-
-    # Define test functions (copies from script for unit testing)
-    function Test-PathWithinRoot {
-        param([string]$Path, [string]$Root)
-        $resolvedPath = [System.IO.Path]::GetFullPath($Path)
-        $resolvedRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
-        # Append directory separator to ensure only true descendants match
-        $resolvedRoot += [System.IO.Path]::DirectorySeparatorChar
-
-        # Path equals root (without trailing separator) is valid
-        $pathWithoutTrailing = $resolvedPath.TrimEnd('\', '/')
-        $rootWithoutTrailing = $resolvedRoot.TrimEnd('\', '/')
-        if ($pathWithoutTrailing -eq $rootWithoutTrailing) {
-            return $true
-        }
-
-        return $resolvedPath.StartsWith($resolvedRoot, [StringComparison]::OrdinalIgnoreCase)
-    }
-
-    function Read-YamlFrontmatter {
-        param([string]$Content)
-        if ($Content -match '^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$') {
-            return [PSCustomObject]@{
-                FrontmatterRaw = $Matches[1]
-                Body           = $Matches[2]
-            }
-        }
-        return $null
-    }
-
-    function ConvertFrom-SimpleFrontmatter {
-        param([string]$FrontmatterRaw)
-        $result = @{}
-        $lines = $FrontmatterRaw -split '\r?\n'
-        foreach ($line in $lines) {
-            if ($line -match '^(\w+):\s*(.*)$') {
-                $key = $Matches[1]
-                $value = $Matches[2].Trim()
-                if ($value -match "^\[.*\]$") {
-                    $result[$key] = $value
-                }
-                elseif ($value -eq '' -or $value -eq 'null') {
-                    $result[$key] = $null
-                }
-                else {
-                    if ($value -match '^"(.*)"$' -or $value -match "^'(.*)'$") {
-                        $value = $Matches[1]
-                    }
-                    $result[$key] = $value
-                }
-            }
-        }
-        return $result
-    }
-
-    function Convert-HandoffSyntax {
-        param([string]$Body, [string]$TargetSyntax)
-        $result = $Body
-        switch ($TargetSyntax) {
-            "#runSubagent" {
-                $result = $result -replace '`/agent\s+(\w+)`', '`#runSubagent with subagentType=$1`'
-                $result = $result -replace '/agent\s+\[agent_name\]', '#runSubagent with subagentType={agent_name}'
-            }
-            "/agent" {
-                $result = $result -replace '`#runSubagent with subagentType=(\w+)`', '`/agent $1`'
-                $result = $result -replace '#runSubagent with subagentType=\{agent_name\}', '/agent [agent_name]'
-            }
-        }
-        return $result
-    }
-
-    function Convert-FrontmatterForPlatform {
-        param([hashtable]$Frontmatter, [hashtable]$PlatformConfig, [string]$AgentName)
-        $result = @{}
-        foreach ($key in $Frontmatter.Keys) {
-            $value = $Frontmatter[$key]
-            if ($value -notmatch '^\{\{PLATFORM_') {
-                $result[$key] = $value
-            }
-        }
-        $fm = $PlatformConfig['frontmatter']
-        if ($fm -and $fm['includeNameField'] -eq $true) {
-            $result['name'] = $AgentName
-        }
-        else {
-            $result.Remove('name')
-        }
-        if ($fm -and $fm['model']) {
-            $result['model'] = $fm['model']
-        }
-        else {
-            $result.Remove('model')
-        }
-        return $result
-    }
 }
 
 AfterAll {
