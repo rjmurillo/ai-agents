@@ -22,6 +22,18 @@
 - None blocking
 - Enables templating decision after 90-day data collection
 
+## Status
+
+**SUPERSEDED** by three-platform-templating-plan (2025-12-15)
+
+The 2-variant approach was abandoned because:
+
+1. Wrong source of truth (Claude manual, should be generated)
+2. Data showed 88-98% divergence, plan deferred action
+3. Orchestration failure: all specialists approved flawed direction
+
+See `three-platform-templating-plan` memory for current approach.
+
 ## Created
 
 2025-12-15
