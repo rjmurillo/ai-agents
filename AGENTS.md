@@ -90,9 +90,9 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 │   ├── install-copilot-cli-repo.ps1
 │   ├── install-claude-global.ps1
 │   └── install-claude-repo.ps1
-├── copilot-instructions.md   # GitHub Copilot instructions
-├── CLAUDE.md                 # Claude Code instructions
-└── USING-AGENTS.md           # This file
+├── AGENTS.md                 # Canonical agent instructions (this file)
+├── CLAUDE.md                 # Claude Code shim → AGENTS.md
+└── .github/copilot-instructions.md  # Copilot shim → AGENTS.md
 ```
 
 ---
@@ -336,9 +336,42 @@ Task(subagent_type="critic", prompt="Validate plan at .agents/planning/...")
 
 ## Memory System
 
-All agents use `cloudmcp-manager` for cross-session memory (replaces Flowbaby).
+Agents have access to multiple memory systems depending on the platform and available tools.
 
-### Memory Operations
+### Memory Tool Priority
+
+**Use memory tools in this order of preference:**
+
+1. **Serena Memory** (preferred) - File-based, cross-platform, shared with Claude Code/Desktop
+2. **cloudmcp-manager** - Graph-based entity storage, shared with Claude Code/Desktop  
+3. **VS Code `memory` tool** (last resort) - VS Code proprietary, not shared with other AI agents
+
+**Important**: If the VS Code `memory` tool is available alongside Serena or cloudmcp-manager, query it for any existing context that should be synchronized to the shared memory systems. This ensures knowledge is accessible across all AI agent platforms (VS Code, Claude Code, Claude Desktop).
+
+### Serena Memory (Preferred)
+
+Serena provides file-based memory at `.serena/memories/` that is shared across platforms:
+
+| Tool | Purpose |
+|------|---------|
+| `write_memory` | Create or overwrite a memory file |
+| `read_memory` | Read content from a memory file |
+| `list_memories` | List all available memory files |
+| `delete_memory` | Remove a memory file |
+| `edit_memory` | Update content using literal or regex replacement |
+
+**Example Usage:**
+
+```text
+write_memory(memory_file_name="session-notes.md", content="# Session Notes\n...")
+read_memory(memory_file_name="session-notes.md")
+list_memories()
+edit_memory(memory_file_name="session-notes.md", needle="IN PROGRESS", repl="COMPLETED", mode="literal")
+```
+
+### Graph-Based Memory (cloudmcp-manager)
+
+For environments with `cloudmcp-manager`, use graph-based memory for richer entity relationships:
 
 | Operation | Tool | Purpose |
 |-----------|------|---------|
@@ -348,6 +381,18 @@ All agents use `cloudmcp-manager` for cross-session memory (replaces Flowbaby).
 | Update | `memory-add_observations` | Add to existing entities |
 | Link | `memory-create_relations` | Connect related concepts |
 
+### File-Based Memory (VS Code Only)
+
+The VS Code `memory` tool provides proprietary file-based storage at `/memories/`. **Use only when Serena and cloudmcp-manager are unavailable.**
+
+| Command | Arguments | Purpose |
+|---------|-----------|---------|
+| `view` | `path` | Read memory file or list directory |
+| `str_replace` | `path`, `old_str`, `new_str` | Update content in memory file |
+| `create` | `path`, `content` | Create new memory file |
+
+**Synchronization Note**: If VS Code `memory` tool has existing content and Serena/cloudmcp-manager are also available, read from VS Code `memory` and write to the shared memory systems to ensure cross-platform availability.
+
 ### Entity Naming Conventions
 
 | Type | Pattern | Example |
@@ -356,6 +401,77 @@ All agents use `cloudmcp-manager` for cross-session memory (replaces Flowbaby).
 | Decision | `ADR-[Number]` | `ADR-001` |
 | Pattern | `Pattern-[Name]` | `Pattern-StrategyTax` |
 | Skill | `Skill-[Category]-[Number]` | `Skill-Build-001` |
+
+### Memory Usage Best Practices
+
+**Memory-First Principle**: Retrieve relevant context BEFORE multi-step reasoning. Don't operate in a vacuum.
+
+#### When to Use Memory (MANDATORY)
+
+| Phase | Action | Serena (preferred) | cloudmcp-manager | VS Code `memory` (last resort) |
+|-------|--------|-------------------|------------------|-------------------------------|
+| **Session Start** | Retrieve context | `list_memories`, `read_memory` | `memory-search_nodes` | `view` path `/memories/` |
+| **Before Planning** | Check prior decisions | `read_memory` relevant files | `memory-search_nodes` | `view` relevant memory files |
+| **At Milestones** | Store progress | `edit_memory` to update | `memory-add_observations` | `str_replace` to update |
+| **After Decisions** | Record ADRs | `write_memory` | `memory-create_entities` | `create` or `str_replace` |
+| **After Learning** | Store patterns/skills | `write_memory` new file | `memory-create_entities` | `create` new memory file |
+| **Session End** | Persist handoff | `edit_memory` to update | `memory-add_observations` | `str_replace` to update |
+
+#### Memory Query Patterns
+
+**Context Retrieval (session start):**
+
+```text
+Query: "[task type] [project name] [key concepts]"
+Example: "authentication feature user-service OAuth"
+```
+
+**Prior Decision Search:**
+
+```text
+Query: "ADR [topic]" or "decision [area]"
+Example: "ADR authentication" or "decision caching strategy"
+```
+
+**Skill/Pattern Lookup:**
+
+```text
+Query: "Skill-[Category]" or "Pattern-[Name]"
+Example: "Skill-Build" or "Pattern-retry"
+```
+
+#### What to Store
+
+| Store When | Entity Type | Example Content |
+|------------|-------------|-----------------|
+| New feature started | `Feature-[Name]` | Requirements, scope, stakeholders |
+| Design decision made | `ADR-[Number]` | Decision, rationale, alternatives considered |
+| Bug pattern discovered | `Pattern-[Name]` | Problem signature, root cause, fix approach |
+| Successful strategy found | `Skill-[Category]-[Number]` | Atomic strategy, context, evidence |
+| Session handoff needed | Update existing entity | Progress, blockers, next steps |
+
+#### Memory Anti-Patterns (Avoid These)
+
+| Anti-Pattern | Problem | Correct Approach |
+|--------------|---------|------------------|
+| Starting without search | Lost context, repeated work | Always `memory-search_nodes` first |
+| Storing vague observations | Unusable later | Be specific: include file paths, decisions, evidence |
+| Forgetting to link entities | Isolated knowledge | Use `memory-create_relations` for connected concepts |
+| Storing mid-task only | Lost final learnings | Always store at milestones AND completion |
+| Duplicate entities | Fragmented knowledge | Search before create; update existing entities |
+
+#### Memory Protocol by Agent Type
+
+| Agent | Primary Memory Actions |
+|-------|----------------------|
+| **orchestrator** | Search at start; store routing decisions and outcomes |
+| **analyst** | Search for prior research; store findings and recommendations |
+| **architect** | Search for ADRs; store new decisions with full rationale |
+| **planner** | Search for related plans; store milestones and dependencies |
+| **implementer** | Search for patterns/skills; store implementation notes |
+| **qa** | Search for test strategies; store coverage gaps and findings |
+| **retrospective** | Search all related entities; create skill entities from learnings |
+| **skillbook** | Search for duplicates; create/update skill entities |
 
 ---
 
@@ -550,6 +666,8 @@ analyst → high-level-advisor → independent-thinker → critic → roadmap �
 - New strategy discovered that should be reused
 - Need to update or tag existing skills
 
+**Outputs**: Skills in `.agents/skills/`
+
 ---
 
 ## Self-Improvement System
@@ -602,6 +720,129 @@ Each agent file defines:
 - **Constraints**: What the agent must NOT do
 
 To customize, edit the relevant agent file while keeping the handoff protocol intact.
+
+---
+
+## Testing
+
+### Running Pester Tests
+
+PowerShell unit tests for installation scripts are located in `scripts/tests/`. Run them using the reusable test runner:
+
+```powershell
+# Local development (detailed output, continues on failure)
+pwsh ./build/scripts/Invoke-PesterTests.ps1
+
+# CI mode (exits with error code on failure)
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
+
+# Run specific test file
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -TestPath "./scripts/tests/Install-Common.Tests.ps1"
+
+# Maximum verbosity for debugging
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -Verbosity Diagnostic
+```
+
+**Test Coverage:**
+
+- `Install-Common.Tests.ps1` - Tests for all 11 shared module functions
+- `Config.Tests.ps1` - Configuration validation tests
+- `install.Tests.ps1` - Entry point parameter validation
+
+**Output:**
+
+Test results are saved to `artifacts/pester-results.xml` (gitignored).
+
+**When to Run Tests:**
+
+- Before committing changes to `scripts/`
+- After modifying `scripts/lib/Install-Common.psm1` or `scripts/lib/Config.psd1`
+- When the `qa` agent validates implementation
+
+---
+
+## Utilities
+
+### Fix Markdown Fences
+
+When generating or fixing markdown with code blocks, use the fix-markdown-fences utility to repair malformed closing fences automatically.
+
+**Location**: `.agents/utilities/fix-markdown-fences/SKILL.md`
+
+**Problem**: Closing fences should never have language identifiers (e.g., ` ` `text). This utility detects and fixes them.
+
+**Usage**:
+
+```bash
+# PowerShell
+pwsh .agents/utilities/fix-markdown-fences/fix_fences.ps1
+
+# Python
+python .agents/utilities/fix-markdown-fences/fix_fences.py
+```
+
+**Benefits**:
+
+- Prevents token waste from repeated fence fixing cycles
+- Validates markdown before committing
+- Handles edge cases (nested indentation, multiple blocks, unclosed blocks)
+- Supports batch processing of multiple files
+
+### Memory Fallback
+
+When `cloudmcp-manager` memory functions fail, use Serena memory tools as fallback:
+
+- **Primary functions**: `memory-add_observations`, `memory-create_entities`, `memory-create_relations`, `memory-delete_entities`, `memory-delete_observations`, `memory-delete_relations`, `memory-open_nodes`, `memory-read_graph`, `memory-search_nodes`
+- **Fallback functions**: `write_memory`, `read_memory`, `list_memories`, `delete_memory`, `edit_memory`
+
+### Serena Toolbox
+
+When the Serena MCP is available, agents should call the `mcp_serena_initial_instructions` tool immediately after being given their task by the user.
+
+**Tool**: `mcp_serena_initial_instructions`
+
+**Purpose**: Provides the "Serena Instructions Manual" which contains essential information on how to use the Serena toolbox.
+
+**When to call**:
+
+- At the start of any task when Serena MCP is available
+- Before using other Serena tools (symbol management, file search, code insertion)
+- When working with semantic coding tools
+
+**Why it matters**: The manual provides critical context about efficient code reading strategies, symbolic navigation, and resource-efficient operations that optimize agent performance when working with large codebases.
+
+**Note**: If the Serena MCP is not available, memories can be found in `.serena/memories`.
+
+---
+
+## Key Learnings from Practice
+
+### Documentation Standards (Phase 1 Remediation, Dec 2024)
+
+**Path Normalization**: Always use relative paths in documentation to prevent environment contamination.
+
+- Forbidden patterns: `[A-Z]:\` (Windows), `/Users/` (macOS), `/home/` (Linux)
+- Use relative paths: `docs/guide.md`, `../architecture/design.md`
+- Validation automated via CI
+
+**Two-Phase Security Review**: Security-sensitive changes require both pre-implementation and post-implementation verification.
+
+- Phase 1 (Planning): Threat model, control design
+- Phase 2 (Post-Implementation): PIV (Post-Implementation Verification)
+- Implementer must flag security-relevant changes during coding
+
+### Process Improvements
+
+**Validation-Driven Standards**: When establishing new standards:
+
+1. Document the standard with anti-patterns
+2. Create validation script with pedagogical error messages
+3. Integrate into CI
+4. Baseline existing violations separately
+
+**Template-Based Contracts**: Provide both empty templates AND filled examples to reduce ambiguity in agent outputs.
+
+**CI Runner Performance**: Prefer `ubuntu-latest` over `windows-latest` for GitHub Actions (much faster). Use Windows runners only when PowerShell Desktop or Windows-specific features required.
 
 ---
 

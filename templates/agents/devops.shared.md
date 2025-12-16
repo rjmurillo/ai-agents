@@ -1,8 +1,8 @@
 ---
 description: DevOps specialist for CI/CD pipelines, infrastructure, and deployment automation. Designs GitHub Actions workflows, configures build systems, and manages deployment scripts. Use when modifying .github/workflows/, build configurations, or deployment processes.
 argument-hint: Describe the CI/CD workflow, pipeline, or infrastructure task
-tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
+tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github/list_workflows', 'github/list_workflow_runs', 'github/get_workflow_run', 'github/get_job_logs', 'github/run_workflow', 'github/rerun_failed_jobs', 'github/list_releases', 'github/get_file_contents', 'serena/*', 'memory']
+tools_copilot: ['shell', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github/list_workflows', 'github/list_workflow_runs', 'github/get_workflow_run', 'github/get_job_logs', 'github/run_workflow', 'github/rerun_failed_jobs', 'github/list_releases', 'github/get_file_contents', 'serena/*']
 ---
 # DevOps Agent
 

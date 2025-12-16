@@ -565,15 +565,15 @@ function Write-InstallComplete {
         switch ($Environment) {
             "Claude" {
                 Write-Host "  git add .claude CLAUDE.md .agents" -ForegroundColor Gray
-                Write-Host "  git commit -m 'feat: add Claude agent system'" -ForegroundColor Gray
+                Write-Host "  git commit -m 'feat(agents): add Claude agent system'" -ForegroundColor Gray
             }
             "Copilot" {
                 Write-Host "  git add .github/agents .agents" -ForegroundColor Gray
-                Write-Host "  git commit -m 'feat: add Copilot CLI agent system'" -ForegroundColor Gray
+                Write-Host "  git commit -m 'feat(agents): add Copilot CLI agent system'" -ForegroundColor Gray
             }
             "VSCode" {
                 Write-Host "  git add .github/agents .agents" -ForegroundColor Gray
-                Write-Host "  git commit -m 'feat: add VS Code agent system'" -ForegroundColor Gray
+                Write-Host "  git commit -m 'feat(agents): add VS Code agent system'" -ForegroundColor Gray
             }
         }
     }

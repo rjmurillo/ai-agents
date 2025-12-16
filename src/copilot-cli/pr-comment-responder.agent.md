@@ -2,7 +2,7 @@
 name: pr-comment-responder
 description: PR review comment handler - triages comments and delegates to orchestrator with workflow path recommendation. Gathers PR context, tracks reviewer comments, and ensures all feedback is addressed. Use when responding to GitHub PR review comments or managing reviewer conversations.
 argument-hint: Specify the PR number or review comments to address
-tools: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cloudmcp-manager/*', 'todo', 'serena/*']
+tools: ['shell', 'read', 'edit', 'agent', 'cloudmcp-manager/*', 'github.vscode-pull-request-github/*', 'serena/*']
 ---
 # PR Comment Responder Agent
 
@@ -27,6 +27,63 @@ This agent delegates to orchestrator, which uses these canonical workflow paths:
 | **Strategic** | `independent-thinker → high-level-advisor → task-generator` | Question is *whether*, not *how* |
 
 See `orchestrator.md` for full routing logic. This agent passes context to orchestrator; orchestrator determines the path.
+
+## Triage Heuristics
+
+### Reviewer Signal Quality
+
+Prioritize comments based on historical actionability rates:
+
+| Reviewer | Signal Quality | Evidence | Recommended Action |
+|----------|---------------|----------|-------------------|
+| **cursor[bot]** | High (100%) | 4/4 actionable bugs in PR #32, #47 | Process immediately |
+| **Human reviewers** | High | Domain expertise, project context | Process with priority |
+| **CodeRabbit** | Medium (~30%) | Many style suggestions, some real issues | Triage carefully |
+| **Copilot** | Medium (~30%) | Mixed signal, follow-up PR behavior | Verify before acting |
+
+**cursor[bot]** has demonstrated 100% actionability - every comment identified a real bug. Prioritize these comments for immediate attention.
+
+### Quick Fix Path Criteria
+
+For atomic bugs that meet ALL of these criteria, delegate directly to `implementer` (bypassing orchestrator) for efficiency:
+
+| Criterion | Description | Example |
+|-----------|-------------|---------|
+| **Single-file** | Fix affects only one file | Adding BeforeEach to one test file |
+| **Single-function** | Change is within one function/block | Converting PathInfo to string |
+| **Clear fix** | Can explain the fix in one sentence | "Add .Path to extract string from PathInfo" |
+| **No architectural impact** | Doesn't change interfaces or patterns | Bug fix, not refactoring |
+
+**When to bypass orchestrator:**
+
+```text
+#runSubagent with subagentType=implementer
+Fix: [one-sentence description]...
+```
+
+For Standard/Strategic paths, still use orchestrator:
+
+```text
+#runSubagent with subagentType=orchestrator
+Analyze and implement...
+```
+
+### QA Integration Requirement
+
+**MANDATORY**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
+
+| Fix Type | QA Required | Rationale |
+|----------|-------------|-----------|
+| Quick Fix | Yes | May need regression tests (PR #47 PathInfo example) |
+| Standard | Yes | Full test coverage verification |
+| Strategic | Yes | Architectural impact assessment |
+
+Evidence: In PR #47, QA agent added a regression test for a "simple" PathInfo bug that would have otherwise gone untested.
+
+```text
+#runSubagent with subagentType=qa
+Verify fix and assess regression test needs...
+```
 
 ## Workflow Protocol
 

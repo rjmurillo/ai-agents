@@ -1,7 +1,7 @@
 ---
 description: Documentation specialist creating PRDs, explainers, and technical specifications. Writes clear, junior-developer-friendly docs with explicit requirements. Use when creating feature specs, requirement documents, or explaining complex features for implementation.
 argument-hint: Name the feature, concept, or topic to document
-tools: ['vscode', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
+tools: ['vscode', 'read', 'edit', 'cloudmcp-manager/*', 'serena/*', 'memory']
 model: Claude Opus 4.5 (anthropic)
 ---
 # Explainer Agent
@@ -66,6 +66,50 @@ Validate every user story is Independent, Negotiable, Valuable, Estimable, Small
 
 **Scope/Boundaries:**
 "What should this feature NOT do?"
+
+## Path Normalization Protocol
+
+**CRITICAL**: Documentation must use relative paths only. Absolute paths contaminate documentation and cause environment-specific issues.
+
+### Validation Requirements
+
+Before committing any documentation:
+
+```markdown
+- [ ] All file paths are relative (no absolute paths)
+- [ ] Validated against forbidden patterns: `[A-Z]:\|\/Users\/|\/home\/`
+- [ ] Cross-platform path separators normalized
+```
+
+### Anti-Pattern Examples
+
+**FORBIDDEN**:
+
+```markdown
+<!-- Windows absolute path -->
+See: C:\Users\username\repo\docs\guide.md
+
+<!-- macOS/Linux absolute paths -->
+See: /Users/username/repo/docs/guide.md
+See: /home/username/repo/docs/guide.md
+```
+
+**CORRECT**:
+
+```markdown
+<!-- Relative paths -->
+See: docs/guide.md
+See: ../architecture/design.md
+See: .agents/planning/PRD-feature.md
+```
+
+### Path Conversion Checklist
+
+When including file references:
+
+1. **Convert absolute to relative**: Strip workspace root, use relative from current location
+2. **Normalize separators**: Use forward slashes `/` for cross-platform compatibility
+3. **Validate**: Check against regex `[A-Z]:\|\/Users\/|\/home\/`
 
 ## PRD Template
 

@@ -111,8 +111,45 @@ project/
 
 ---
 
+## Skill-CI-Runner-001: Prefer Linux Runners
+
+**Statement**: Prefer ubuntu-latest over windows-latest for GitHub Actions runners - MUCH faster
+
+**Context**: GitHub Actions workflow configuration
+
+**Evidence**: User feedback on PR #47: "prefer 'linux-latest' runners. MUCH faster"
+
+**Atomicity**: 95%
+
+**Tag**: helpful
+
+**Impact**: 8/10
+
+**Exceptions**:
+
+- PowerShell Desktop required (not pwsh/PowerShell Core)
+- Windows-specific features or APIs needed
+- Testing Windows-only behavior
+
+**Pattern**:
+
+```yaml
+# Default: Use Linux
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+# Exception: Windows-specific testing
+  windows-test:
+    runs-on: windows-latest
+    if: needs.check.outputs.windows-required == 'true'
+```
+
+---
+
 ## Related Files
 
 - Test Runner: `build/scripts/Invoke-PesterTests.ps1`
 - Pester Workflow: `.github/workflows/pester-tests.yml`
 - Copilot Setup: `.github/workflows/copilot-setup-steps.yml`
+- Source: `.agents/retrospective/pr-feedback-remediation.md`

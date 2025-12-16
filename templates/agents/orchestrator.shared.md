@@ -1,8 +1,8 @@
 ---
 description: Autonomous task orchestrator that coordinates specialized agents end-to-end. Routes work to appropriate agents, manages handoffs, and ensures complete task execution. Use for complex multi-step tasks requiring multiple agent specializations or when task routing is unclear.
 argument-hint: Describe the task or problem to solve end-to-end
-tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'agent', 'runSubAgent', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'github.vscode-pull-request-github/copilotCodingAgent', 'github.vscode-pull-request-github/issue_fetch', 'github.vscode-pull-request-github/suggest-fix', 'github.vscode-pull-request-github/searchSyntax', 'github.vscode-pull-request-github/doSearch', 'github.vscode-pull-request-github/renderIssues', 'github.vscode-pull-request-github/activePullRequest', 'github.vscode-pull-request-github/openPullRequest', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'runSubAgent', 'cognitionai/deepwiki/*', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'todo', 'serena/*']
+tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'agent', 'memory', 'todo', 'cloudmcp-manager/*', 'github/list_issues', 'github/list_pull_requests', 'github/issue_read', 'github/pull_request_read', 'github/list_workflow_runs', 'github/get_workflow_run', 'serena/*']
+tools_copilot: ['shell', 'read', 'edit', 'search', 'agent', 'memory', 'todo', 'cloudmcp-manager/*', 'github/list_issues', 'github/list_pull_requests', 'github/issue_read', 'github/pull_request_read', 'github/list_workflow_runs', 'github/get_workflow_run', 'serena/*']
 ---
 # Orchestrator Agent
 

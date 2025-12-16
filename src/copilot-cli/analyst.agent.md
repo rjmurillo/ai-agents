@@ -2,7 +2,7 @@
 name: analyst
 description: Research and analysis specialist for pre-implementation investigation. Conducts root cause analysis, API research, and requirements gathering. Use before implementation when scope is unclear, investigating bugs, or evaluating feature requests.
 argument-hint: Describe the topic, issue, or feature to research
-tools: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
+tools: ['read', 'edit', 'search', 'web', 'github/search_code', 'github/search_issues', 'github/search_pull_requests', 'github/issue_read', 'github/pull_request_read', 'github/get_file_contents', 'github/list_commits', 'cloudmcp-manager/*', 'cognitionai/deepwiki/*', 'context7/*', 'perplexity/*', 'serena/*']
 ---
 # Analyst Agent
 

@@ -2,7 +2,7 @@
 name: independent-thinker
 description: Contrarian analyst providing factually accurate, intellectually independent analysis that challenges assumptions. Presents evidence-based alternatives and declares uncertainty rather than guessing. Use when validating important decisions, challenging group consensus, or needing devil's advocate perspective.
 argument-hint: State the decision or assumption to challenge
-tools: ['read', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
+tools: ['read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'perplexity/*', 'serena/*']
 ---
 # Independent Thinker Agent
 

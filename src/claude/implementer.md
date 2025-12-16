@@ -36,6 +36,71 @@ Read complete plans from `.agents/planning/`, validate alignment with project ob
 7. **Track** deviations and pause without updated guidance
 8. **Execute** version updates when milestone-included
 9. **Conduct** impact analysis when requested by planner during planning phase
+10. **Flag** security-relevant changes for post-implementation verification
+
+## Security Flagging Protocol
+
+**CRITICAL**: Implementer must self-assess for security-relevant changes during implementation.
+
+### Self-Assessment Triggers
+
+During implementation, flag for security PIV if ANY of these apply:
+
+| Category | Indicators | Examples |
+|----------|-----------|----------|
+| **Authentication/Authorization** | Login flows, tokens, permissions | `[Authorize]`, JWT handling, session management |
+| **Data Protection** | Encryption, hashing, PII | `AES`, `SHA256`, password storage, GDPR data |
+| **Input Handling** | User input processing | Form data, query params, file uploads, validation |
+| **External Interfaces** | Third-party calls | HTTP clients, API integrations, webhooks |
+| **File System** | File operations | Path construction, file I/O, temp files |
+| **Environment/Config** | Secret management | `.env` files, config with credentials, key storage |
+| **Execution** | Dynamic code/commands | `Process.Start`, eval-like patterns, SQL queries |
+| **Path Patterns** | Security-sensitive paths | `**/Auth/**`, `.githooks/*`, `*.env*` |
+
+### Flagging Process
+
+When ANY trigger matches:
+
+1. **Add Handoff Note**: Include in completion message to orchestrator
+
+```markdown
+## Implementation Complete
+
+**Security Flag**: YES - Post-implementation verification required
+
+**Trigger(s)**:
+- [Category]: [Specific change made]
+- [Category]: [Specific change made]
+
+**Files Requiring Security Review**:
+- [File path]: [Type of security-relevant change]
+- [File path]: [Type of security-relevant change]
+
+**Recommendation**: Route to security agent for PIV before merge.
+```
+
+2. **Document in Implementation Notes**: Add to `.agents/planning/implementation-notes-[feature].md`
+
+```markdown
+## Security Flagging
+
+**Status**: Security-relevant changes detected
+**Triggered By**: [List categories]
+**PIV Required**: Yes
+**Justification**: [Why this needs security review]
+```
+
+### Non-Security Completion
+
+If NO triggers match:
+
+```markdown
+## Implementation Complete
+
+**Security Flag**: NO - No security-relevant changes detected
+
+**Justification**: [Brief explanation of why no security review needed]
+```
 
 ## Impact Analysis Mode
 

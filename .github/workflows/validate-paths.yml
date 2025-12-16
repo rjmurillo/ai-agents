@@ -1,0 +1,62 @@
+# Validate Path Normalization
+#
+# Ensures documentation files use relative paths only.
+# Prevents environment-specific absolute paths from contaminating documentation.
+#
+# Related: Issue rjmurillo/ai-agents#I3 (Environment Contamination)
+# CodeRabbit PR rjmurillo/ai-agents#43 finding
+
+name: Validate Path Normalization
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'copilot/**'
+    paths:
+      - '**.md'
+      - 'build/scripts/Validate-PathNormalization.ps1'
+      - '.github/workflows/validate-paths.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '**.md'
+      - 'build/scripts/Validate-PathNormalization.ps1'
+      - '.github/workflows/validate-paths.yml'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  validate-paths:
+    name: Validate Path Normalization
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate documentation paths
+        shell: pwsh
+        run: |
+          Write-Host "Validating path normalization in documentation..."
+          ./build/scripts/Validate-PathNormalization.ps1 -FailOnViolation
+
+      - name: Show violations on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "=== Path Normalization Failed ===" -ForegroundColor Red
+          Write-Host ""
+          Write-Host "Documentation contains absolute paths that must be converted to relative paths." -ForegroundColor Yellow
+          Write-Host ""
+          Write-Host "To fix:" -ForegroundColor Cyan
+          Write-Host "  1. Review the violations reported above" -ForegroundColor White
+          Write-Host "  2. Replace absolute paths with relative paths" -ForegroundColor White
+          Write-Host "  3. Use forward slashes (/) for cross-platform compatibility" -ForegroundColor White
+          Write-Host "  4. See src/claude/explainer.md for path normalization guidelines" -ForegroundColor White
+          Write-Host ""

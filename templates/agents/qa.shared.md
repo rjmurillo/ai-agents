@@ -1,8 +1,8 @@
 ---
 description: Quality assurance specialist verifying implementation works correctly for users. Designs test strategies, validates coverage, and creates QA documentation. Use immediately after implementer changes to verify acceptance criteria and test coverage.
 argument-hint: Provide the implementation or feature to verify
-tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo', 'serena/*']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo', 'serena/*']
+tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'serena/*', 'memory']
+tools_copilot: ['shell', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'serena/*']
 ---
 # QA Agent
 
