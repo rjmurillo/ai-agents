@@ -191,6 +191,48 @@ else
 fi
 
 #
+# Planning Artifacts Validation
+#
+# Validates cross-document consistency in planning artifacts.
+# Checks:
+# - Effort estimate consistency (20% threshold)
+# - Condition-to-task traceability (no orphan conditions)
+#
+# Related: Issue rjmurillo/ai-agents#I2, #I4 (Cross-Document Consistency)
+#
+PLANNING_VALIDATE_SCRIPT="$REPO_ROOT/build/scripts/Validate-PlanningArtifacts.ps1"
+
+# Check if any planning files are staged
+STAGED_PLANNING_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/planning/.*\.md$' || true)
+
+if [ -n "$STAGED_PLANNING_FILES" ]; then
+    echo_info "Checking planning artifact consistency..."
+    
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$PLANNING_VALIDATE_SCRIPT" ]; then
+        echo_warning "Skipping planning validation: script path is a symlink"
+    elif [ -f "$PLANNING_VALIDATE_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run validation in warning mode (don't block commits, but show issues)
+            if ! pwsh -File "$PLANNING_VALIDATE_SCRIPT" -Path "$REPO_ROOT" 2>&1; then
+                echo_warning "Planning artifact validation found issues (see above)."
+                echo_info "  Consider running: pwsh build/scripts/Validate-PlanningArtifacts.ps1"
+                # Non-blocking: just warn, don't fail the commit
+            else
+                echo_success "Planning artifacts OK."
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping planning artifact validation."
+            echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+        fi
+    else
+        echo_info "Planning validation script not found. Skipping."
+    fi
+else
+    echo_info "No planning files staged. Skipping planning artifact validation."
+fi
+
+#
 # Security Detection (Non-blocking warning)
 #
 # Detects infrastructure and security-critical file changes
