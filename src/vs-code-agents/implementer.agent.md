@@ -1,7 +1,7 @@
 ---
 description: Expert .NET/C# implementation specialist following SOLID principles. Executes approved plans, writes production code and tests, and makes conventional commits. Use after planning is complete and approved for writing or modifying source code.
 argument-hint: Specify the plan file path and task to implement
-tools: ['vscode', 'execute', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github/*', 'memory', 'todo', 'serena/*']
+tools: ['vscode', 'execute', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github/*', 'serena/*', 'memory']
 model: Claude Opus 4.5 (anthropic)
 ---
 # Implementer Agent

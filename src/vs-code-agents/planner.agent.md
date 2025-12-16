@@ -1,7 +1,7 @@
 ---
 description: High-rigor planning assistant translating roadmap epics into implementation-ready work packages. Creates milestones, task sequences, and planning artifacts. Use after analyst research is complete and before implementation to structure work breakdown.
 argument-hint: Provide the epic or roadmap item to plan
-tools: ['vscode', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'memory']
+tools: ['vscode', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'serena/*', 'memory']
 model: Claude Opus 4.5 (anthropic)
 ---
 # Planner Agent

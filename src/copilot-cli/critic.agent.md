@@ -2,7 +2,7 @@
 name: critic
 description: Constructive reviewer stress-testing planning documents before implementation. Validates scope, identifies risks, and ensures alignment with objectives. Use after planning artifacts are created and before implementation begins.
 argument-hint: Provide the plan file path or planning artifact to review
-tools: ['read', 'search', 'cloudmcp-manager/*', 'memory']
+tools: ['read', 'search', 'cloudmcp-manager/*', 'serena/*']
 ---
 # Critic Agent
 

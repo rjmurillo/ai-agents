@@ -2,7 +2,7 @@
 name: explainer
 description: Documentation specialist creating PRDs, explainers, and technical specifications. Writes clear, junior-developer-friendly docs with explicit requirements. Use when creating feature specs, requirement documents, or explaining complex features for implementation.
 argument-hint: Name the feature, concept, or topic to document
-tools: ['read', 'edit', 'cloudmcp-manager/*', 'memory']
+tools: ['read', 'edit', 'cloudmcp-manager/*', 'serena/*']
 ---
 # Explainer Agent
 
