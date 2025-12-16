@@ -1,17 +1,19 @@
 <#
 .SYNOPSIS
-    Installs Claude Code agents to a specific repository.
+    Install Claude Code agents to a repository.
 
 .DESCRIPTION
-    Copies Claude agent files to a repository's .claude/agents directory.
-    Agents will only be available when Claude Code is run from that directory.
+    Wrapper script for backward compatibility.
+    Calls the unified install.ps1 with -Environment Claude -RepoPath.
+
+    DEPRECATED: This script is maintained for backward compatibility.
+    Prefer using: .\install.ps1 -Environment Claude -RepoPath <path>
 
 .PARAMETER RepoPath
-    Path to the repository where agents should be installed.
-    Defaults to current directory.
+    Target repository path. Defaults to current directory.
 
 .PARAMETER Force
-    Overwrite existing agent files without prompting.
+    Overwrite existing files without prompting.
 
 .EXAMPLE
     .\install-claude-repo.ps1
@@ -26,126 +28,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Determine source and destination paths
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$SourceDir = Join-Path (Split-Path -Parent $ScriptDir) "claude"
-$DestDir = Join-Path $RepoPath ".claude\agents"
-
-Write-Host "Claude Code Repository Agent Installer" -ForegroundColor Cyan
-Write-Host "=======================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Source: $SourceDir"
-Write-Host "Repository: $RepoPath"
-Write-Host "Destination: $DestDir"
-Write-Host ""
-
-# Verify source exists
-if (-not (Test-Path $SourceDir)) {
-    Write-Error "Source directory not found: $SourceDir"
-    exit 1
-}
-
-# Verify repo path is a git repository
-$GitDir = Join-Path $RepoPath ".git"
-if (-not (Test-Path $GitDir)) {
-    Write-Warning "Target path does not appear to be a git repository"
-    $Response = Read-Host "Continue anyway? (y/N)"
-    if ($Response -ne 'y' -and $Response -ne 'Y') {
-        exit 0
-    }
-}
-
-# Create destination if needed
-if (-not (Test-Path $DestDir)) {
-    Write-Host "Creating .claude/agents directory..." -ForegroundColor Yellow
-    New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
-}
-
-# Get agent files
-$AgentFiles = Get-ChildItem -Path $SourceDir -Filter "*.md"
-
-if ($AgentFiles.Count -eq 0) {
-    Write-Warning "No agent files found in source directory"
-    exit 0
-}
-
-Write-Host "Found $($AgentFiles.Count) agent files to install:" -ForegroundColor Green
-
-foreach ($File in $AgentFiles) {
-    $DestPath = Join-Path $DestDir $File.Name
-    $Exists = Test-Path $DestPath
-
-    if ($Exists -and -not $Force) {
-        $Response = Read-Host "  $($File.Name) exists. Overwrite? (y/N)"
-        if ($Response -ne 'y' -and $Response -ne 'Y') {
-            Write-Host "  Skipping $($File.Name)" -ForegroundColor Yellow
-            continue
-        }
-    }
-
-    Copy-Item -Path $File.FullName -Destination $DestPath -Force
-    $Status = if ($Exists) { "Updated" } else { "Installed" }
-    Write-Host "  $Status $($File.Name)" -ForegroundColor Green
-}
-
-# Copy CLAUDE.md to repo root
-$ClaudeMd = Join-Path (Split-Path -Parent $ScriptDir) "CLAUDE.md"
-if (Test-Path $ClaudeMd) {
-    $DestClaude = Join-Path $RepoPath "CLAUDE.md"
-    $ClaudeExists = Test-Path $DestClaude
-
-    if ($ClaudeExists -and -not $Force) {
-        # Check if content was already appended (idempotency)
-        $ExistingContent = Get-Content -Path $DestClaude -Raw
-        $AppendMarker = "# --- Appended by install-claude-repo.ps1 ---"
-        if ($ExistingContent -match [regex]::Escape($AppendMarker)) {
-            Write-Host "  CLAUDE.md already contains appended content, skipping" -ForegroundColor Yellow
-        } else {
-            # Append to existing file to preserve user customizations
-            $NewContent = Get-Content -Path $ClaudeMd -Raw
-            Add-Content -Path $DestClaude -Value "`n`n$AppendMarker`n" -Encoding utf8
-            Add-Content -Path $DestClaude -Value $NewContent -Encoding utf8
-            Write-Host "  Appended to existing CLAUDE.md in repo root" -ForegroundColor Green
-        }
-    } else {
-        Copy-Item -Path $ClaudeMd -Destination $DestClaude -Force
-        $Status = if ($ClaudeExists) { "Replaced" } else { "Installed" }
-        Write-Host "  $Status CLAUDE.md in repo root" -ForegroundColor Green
-    }
-}
-
-# Create .agents directory structure
-$AgentsDirs = @(
-    ".agents/analysis",
-    ".agents/architecture",
-    ".agents/planning",
-    ".agents/critique",
-    ".agents/qa",
-    ".agents/retrospective"
-)
-
-Write-Host ""
-Write-Host "Creating .agents output directories..." -ForegroundColor Yellow
-
-foreach ($Dir in $AgentsDirs) {
-    $FullPath = Join-Path $RepoPath $Dir
-    if (-not (Test-Path $FullPath)) {
-        New-Item -ItemType Directory -Path $FullPath -Force | Out-Null
-
-        # Create .gitkeep
-        $GitKeep = Join-Path $FullPath ".gitkeep"
-        "" | Out-File -FilePath $GitKeep -Encoding utf8
-
-        Write-Host "  Created $Dir" -ForegroundColor Green
-    }
-}
-
-Write-Host ""
-Write-Host "Installation complete!" -ForegroundColor Cyan
-Write-Host "Agents are now available in this repository." -ForegroundColor Cyan
-Write-Host ""
-Write-Host "IMPORTANT: Restart Claude Code to load new agents." -ForegroundColor Yellow
-Write-Host ""
-Write-Host "Remember to commit the new files:" -ForegroundColor Gray
-Write-Host "  git add .claude CLAUDE.md .agents" -ForegroundColor Gray
-Write-Host "  git commit -m 'feat: add Claude agent system'" -ForegroundColor Gray
+# Call unified installer
+$InstallScript = Join-Path $PSScriptRoot "install.ps1"
+& $InstallScript -Environment Claude -RepoPath $RepoPath -Force:$Force

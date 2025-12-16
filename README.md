@@ -13,53 +13,62 @@ A coordinated multi-agent system for software development, available for **VS Co
 
 ## Quick Start
 
-### VS Code
+### Remote Installation (Recommended)
+
+Install directly from GitHub without cloning the repository:
 
 ```powershell
-# Global installation
-.\scripts\install-vscode-global.ps1
-
-# Per-repository installation
-.\scripts\install-vscode-repo.ps1 -RepoPath "C:\Path\To\Repo"
+# Remote installation (interactive)
+Set-ExecutionPolicy Bypass -Scope Process -Force
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
 ```
 
-### GitHub Copilot CLI
+This prompts you to select the environment (Claude/Copilot/VSCode) and scope (Global/Repository).
+
+### Local Installation
+
+If you have cloned the repository, use the unified installer:
 
 ```powershell
-# Per-repository installation (recommended)
-.\scripts\install-copilot-cli-repo.ps1 -RepoPath "C:\Path\To\Repo"
+# Claude Code
+.\scripts\install.ps1 -Environment Claude -Global              # User-level
+.\scripts\install.ps1 -Environment Claude -RepoPath "."        # Repository
 
-# Global installation (currently has known issues - see [Issue #2](https://github.com/rjmurillo/vs-code-agents/issues/2))
-.\scripts\install-copilot-cli-global.ps1
+# GitHub Copilot CLI
+.\scripts\install.ps1 -Environment Copilot -Global             # User-level
+.\scripts\install.ps1 -Environment Copilot -RepoPath "."       # Repository
+
+# VS Code
+.\scripts\install.ps1 -Environment VSCode -Global              # User-level
+.\scripts\install.ps1 -Environment VSCode -RepoPath "."        # Repository
 ```
 
-**Usage:**
+Add `-Force` to overwrite existing files without prompting.
+
+**Note**: Copilot CLI global installation has a [known issue](https://github.com/github/copilot-cli/issues/452) - use repository installation instead.
+
+### Usage Examples
 
 ```bash
-# Command-line invocation
+# Claude Code
+Task(subagent_type="analyst", prompt="investigate issue X")
+
+# VS Code
+@orchestrator Help me implement a new feature
+
+# Copilot CLI
 copilot --agent analyst --prompt "investigate issue X"
-
-# Interactive mode
-copilot
-/agent implementer
 ```
 
-### Claude Code
-
-```powershell
-# Global installation
-.\scripts\install-claude-global.ps1
-
-# Per-repository installation
-.\scripts\install-claude-repo.ps1 -RepoPath "C:\Path\To\Repo"
-```
+See [docs/installation.md](docs/installation.md) for complete installation documentation.
 
 ## Directory Structure
 
 ```text
-vs-code-agents/          # VS Code / GitHub Copilot agents
-copilot-cli/             # GitHub Copilot CLI agents
-claude/                  # Claude Code CLI agents
+src/
+├── vs-code-agents/      # VS Code / GitHub Copilot agents
+├── copilot-cli/         # GitHub Copilot CLI agents
+└── claude/              # Claude Code CLI agents
 scripts/                 # Installation scripts
 copilot-instructions.md  # GitHub Copilot instructions
 CLAUDE.md                # Claude Code instructions
@@ -96,10 +105,11 @@ This automatically fixes markdown violations before each commit. See [docs/markd
 
 ## Documentation
 
+- [docs/installation.md](docs/installation.md) - Complete installation guide
 - [USING-AGENTS.md](USING-AGENTS.md) - Comprehensive usage guide
 - [copilot-instructions.md](copilot-instructions.md) - GitHub Copilot integration
 - [CLAUDE.md](CLAUDE.md) - Claude Code integration
-- [.agents/planning/IMPACT-ANALYSIS-EXAMPLE.md](.agents/planning/IMPACT-ANALYSIS-EXAMPLE.md) - Impact Analysis Framework example
+- [docs/ideation-workflow.md](docs/ideation-workflow.md) - Ideation workflow documentation
 - [docs/markdown-linting.md](docs/markdown-linting.md) - Markdown standards
 
 ## License

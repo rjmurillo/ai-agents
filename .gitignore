@@ -4,3 +4,6 @@
 # Generated index files
 .codebase-index.json
 .codebase-intelligence.json
+
+# Build artifacts
+artifacts/

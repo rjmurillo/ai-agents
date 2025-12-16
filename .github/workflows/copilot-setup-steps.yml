@@ -1,0 +1,126 @@
+name: Copilot Workspace Setup
+
+# This workflow runs setup steps for GitHub Copilot Workspace environments
+# to ensure git hooks and linting tools are properly configured.
+#
+# This workflow also provides GitHub CLI access for GitHub Copilot agents to monitor
+# workflows, view logs, and interact with the repository programmatically.
+#
+# The GH_TOKEN environment variable enables gh CLI commands without authentication.
+#
+# Triggers:
+# - workflow_dispatch: Manual trigger for testing or re-setup
+# - workflow_call: Can be called from other workflows or Copilot Workspace creation scripts
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for running setup"
+        required: false
+        default: "Manual setup trigger"
+  workflow_call:
+    # Allow this workflow to be called by other workflows
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+jobs:
+  # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
+  copilot-setup-steps:
+    name: Configure Git Hooks and Linting Tools
+    runs-on: ubuntu-latest
+
+    env:
+      # Enable GitHub CLI for GitHub agents or scripts
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "lts/*"
+
+      - name: Verify Node.js installation
+        run: |
+          echo "Verifying Node.js installation..."
+          node --version
+          npm --version
+          echo ""
+          echo "✓ Node.js and npm are ready"
+
+      - name: Verify GitHub CLI availability
+        run: |
+          echo "Verifying GitHub CLI availability..."
+          gh --version
+          echo ""
+          echo "✓ GitHub CLI is available"
+          echo "✓ GH_TOKEN is configured for Copilot agents"
+
+      - name: Enable git hooks
+        run: |
+          echo "Configuring git hooks..."
+          git config core.hooksPath .githooks
+          echo "✓ Git hooks enabled at .githooks/"
+
+          # Verify hooks are configured
+          HOOKS_PATH=$(git config --get core.hooksPath)
+          echo "Current hooks path: $HOOKS_PATH"
+
+      - name: Install markdownlint-cli2
+        run: |
+          echo "Installing markdownlint-cli2..."
+          npm install --global markdownlint-cli2
+          echo "✓ markdownlint-cli2 installed"
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          echo "Installing Pester testing framework..."
+          Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
+          Install-Module -Name Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
+          Import-Module Pester
+          $pesterVersion = (Get-Module Pester).Version
+          echo "✓ Pester $pesterVersion installed"
+
+      - name: Set SKIP_AUTOFIX environment variable
+        run: |
+          echo "SKIP_AUTOFIX=0" >> $GITHUB_ENV
+          echo "✓ SKIP_AUTOFIX set to 0 (auto-fix enabled)"
+
+      - name: Verify setup
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "=== Setup Verification ===" -ForegroundColor Cyan
+          Write-Host "Git hooks path: $(git config --get core.hooksPath)"
+          Write-Host "SKIP_AUTOFIX: $($env:SKIP_AUTOFIX ?? '0') (0=enabled, 1=disabled)"
+          Write-Host ""
+
+          # Test that tools are available
+          if (Get-Command npx -ErrorAction SilentlyContinue) {
+            Write-Host "✓ npx is available" -ForegroundColor Green
+            if (npx markdownlint-cli2 --help 2>$null) {
+              Write-Host "✓ markdownlint-cli2 is installed" -ForegroundColor Green
+            }
+          }
+
+          if (Get-Command gh -ErrorAction SilentlyContinue) {
+            Write-Host "✓ GitHub CLI is available for workflow monitoring" -ForegroundColor Green
+          }
+
+          # Test Pester
+          $pester = Get-Module -ListAvailable -Name Pester | Select-Object -First 1
+          if ($pester) {
+            Write-Host "✓ Pester $($pester.Version) is installed" -ForegroundColor Green
+          }
+
+          Write-Host ""
+          Write-Host "✓ Setup complete! Pre-commit hooks will auto-fix linting issues." -ForegroundColor Green
