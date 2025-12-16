@@ -139,7 +139,15 @@ Delegate to **memory** agent for cross-session context:
 - Before writing: Request context retrieval for documentation patterns
 - After completion: Request storage of document patterns and clarification insights
 
-## Handoff Options
+## Handoff Protocol
+
+When documentation is complete:
+
+1. Save document to appropriate location
+2. Return to orchestrator with completion status
+3. Recommend next steps (e.g., "Recommend orchestrator routes to critic for review")
+
+## Handoff Options (Recommendations for Orchestrator)
 
 | Target | When | Purpose |
 |--------|------|---------|

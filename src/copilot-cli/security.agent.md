@@ -267,7 +267,17 @@ Save to: `.agents/security/SR-NNN-[scope].md`
 [Prioritized list of security improvements]
 ```
 
-## Handoff Options
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return security assessment to orchestrator.
+
+When security review is complete:
+
+1. Save threat model/assessment to `.agents/security/`
+2. Store findings in memory
+3. Return to orchestrator with risk level and recommended next steps
+
+## Handoff Options (Recommendations for Orchestrator)
 
 | Target | When | Purpose |
 |--------|------|---------|

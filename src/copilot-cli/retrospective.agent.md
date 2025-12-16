@@ -818,3 +818,23 @@ Execution --> Reflection --> Skill Update --> Improved Execution
 **Score:** Reject vague learnings, demand atomicity
 **Close:** Evaluate the retrospective itself
 **Improve:** Transform insights into skill updates
+
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate directly**. Return learnings to orchestrator.
+
+When retrospective is complete:
+
+1. Save retrospective document to `.agents/retrospective/`
+2. Return learnings and recommended skill updates to orchestrator
+3. Recommend orchestrator routes to skillbook for skill persistence (if applicable)
+
+## Handoff Options (Recommendations for Orchestrator)
+
+| Target | When | Purpose |
+|--------|------|---------|  
+| **memory** | Learnings extracted | Persist skills, relations, observations |
+| **skillbook** | Learnings ready | Store skills |
+| **implementer** | Coding skill found | Apply next time |
+| **planner** | Process improvement | Update approach |
+| **architect** | Design insight | Update guidance |
