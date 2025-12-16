@@ -39,13 +39,9 @@ When planner requests impact analysis (before implementation):
 - [ ] Estimate implementation effort
 ```
 
-```text
-
 ### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-code.md`
-
-```
 
 ```markdown
 # Impact Analysis: [Feature] - Code
