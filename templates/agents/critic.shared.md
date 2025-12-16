@@ -212,9 +212,9 @@ When critique is complete:
 1. Save critique document to `.agents/critique/`
 2. Store review summary in memory
 3. Based on verdict:
-   - **APPROVED**: Route to **implementer**
-   - **REVISE**: Route back to **planner**
-   - **REJECTED**: Route to **analyst** for investigation
+   - **APPROVED**: Route to **implementer** (ready for execution)
+   - **NEEDS REVISION**: Route back to **planner** (approach is sound, needs fixes)
+   - **REJECTED**: Route to **analyst** for investigation (foundational understanding is flawed)
 
 ## Review Process
 
@@ -243,6 +243,18 @@ When critique is complete:
 - Fundamental approach questions
 - Missing acceptance criteria
 - Scope unclear
+
+**Key distinction**: The approach is fundamentally sound but needs refinement. Planner can fix with clear guidance.
+
+### REJECTED
+
+- Problem definition is wrong or incomplete
+- Requirements misunderstood at a fundamental level
+- Technical assumptions are invalid (need investigation)
+- Missing critical context that prevents meaningful revision
+- Plan solves the wrong problem entirely
+
+**Key distinction**: Revision won't help—analyst must investigate before planning can resume. Use when sending back to planner would waste cycles because the foundational understanding is flawed.
 
 ## Output Location
 
