@@ -87,7 +87,8 @@ function ConvertFrom-SimpleFrontmatter {
     $lines = $FrontmatterRaw -split '\r?\n'
 
     foreach ($line in $lines) {
-        if ($line -match '^(\w+):\s*(.*)$') {
+        # Match keys with letters, digits, underscores, and hyphens (for argument-hint etc.)
+        if ($line -match '^([\w-]+):\s*(.*)$') {
             $key = $Matches[1]
             $value = $Matches[2].Trim()
 
@@ -201,8 +202,8 @@ function Format-FrontmatterYaml {
 
     $lines = @()
 
-    # Define field order
-    $fieldOrder = @('name', 'description', 'tools', 'model')
+    # Define field order (argument-hint after description for VS Code agents)
+    $fieldOrder = @('name', 'description', 'argument-hint', 'tools', 'model')
 
     # Output fields in order
     foreach ($field in $fieldOrder) {
