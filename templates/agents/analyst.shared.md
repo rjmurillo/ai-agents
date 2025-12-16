@@ -1,5 +1,5 @@
 ---
-description: Research and analysis specialist for pre-implementation investigation and feature request review
+description: Research and analysis specialist for pre-implementation investigation. Conducts root cause analysis, API research, and requirements gathering. Use before implementation when scope is unclear, investigating bugs, or evaluating feature requests.
 tools_vscode: ['vscode', 'read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
 tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo']
 ---

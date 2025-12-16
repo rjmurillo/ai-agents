@@ -1,5 +1,5 @@
 ---
-description: DevOps specialist for CI/CD pipelines, infrastructure, and deployment automation
+description: DevOps specialist for CI/CD pipelines, infrastructure, and deployment automation. Designs GitHub Actions workflows, configures build systems, and manages deployment scripts. Use when modifying .github/workflows/, build configurations, or deployment processes.
 tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
 tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo']
 ---

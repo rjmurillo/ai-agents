@@ -1,5 +1,5 @@
 ---
-description: Memory management agent for cross-session context continuity using cloudmcp-manager
+description: Memory management agent for cross-session context continuity using cloudmcp-manager. Retrieves relevant past information before planning and stores progress summaries at milestones. Use at session start for context retrieval and after milestones for knowledge persistence.
 tools_vscode: ['vscode', 'read', 'search', 'cloudmcp-manager/*', 'todo']
 tools_copilot: ['read', 'search', 'agent', 'cloudmcp-manager/*', 'todo']
 ---
