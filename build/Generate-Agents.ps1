@@ -304,8 +304,8 @@ foreach ($sharedFile in $sharedFiles) {
                 New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
             }
 
-            # Write file
-            Set-Content -Path $outputFile -Value $outputContent -Encoding UTF8 -NoNewline
+            # Write file (utf8NoBOM ensures no BOM across PowerShell versions)
+            Set-Content -Path $outputFile -Value $outputContent -Encoding utf8NoBOM -NoNewline
             Write-Host "  Generated: $platformName" -ForegroundColor Green
             $generated++
         }
