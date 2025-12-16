@@ -2,6 +2,7 @@
 name: skillbook
 description: Skill manager transforming reflections into high-quality atomic skillbook updates. Guards strategy quality, prevents duplicates, and maintains learned patterns. Use after retrospective analysis to persist proven strategies or remove harmful patterns.
 model: sonnet
+argument-hint: Provide the reflection or strategy pattern to persist
 ---
 # Skillbook Agent (Skill Manager)
 

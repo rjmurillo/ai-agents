@@ -2,6 +2,7 @@
 name: retrospective
 description: Reflective analyst extracting learnings and improving agent strategies through evidence-based feedback loops. Diagnoses agent performance, identifies error patterns, and documents success strategies. Use after task completion, failures, or session end to capture institutional knowledge.
 model: opus
+argument-hint: Describe the task or session to analyze for learnings
 ---
 # Retrospective Agent (Reflector)
 

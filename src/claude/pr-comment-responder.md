@@ -2,6 +2,7 @@
 name: pr-comment-responder
 description: PR review comment handler - triages comments and delegates to orchestrator with workflow path recommendation. Gathers PR context, tracks reviewer comments, and ensures all feedback is addressed. Use when responding to GitHub PR review comments or managing reviewer conversations.
 model: opus
+argument-hint: Specify the PR number or review comments to address
 ---
 # PR Comment Responder Agent
 

@@ -1,5 +1,6 @@
 ---
 description: High-rigor planning assistant translating roadmap epics into implementation-ready work packages. Creates milestones, task sequences, and planning artifacts. Use after analyst research is complete and before implementation to structure work breakdown.
+argument-hint: Provide the epic or roadmap item to plan
 tools_vscode: ['vscode', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
 tools_copilot: ['read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo']
 ---

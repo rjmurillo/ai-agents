@@ -1,5 +1,6 @@
 ---
 description: Constructive reviewer stress-testing planning documents before implementation. Validates scope, identifies risks, and ensures alignment with objectives. Use after planning artifacts are created and before implementation begins.
+argument-hint: Provide the plan file path or planning artifact to review
 tools_vscode: ['vscode', 'read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
 tools_copilot: ['read', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo']
 ---
