@@ -36,13 +36,9 @@ When planner requests impact analysis (during planning phase):
 - [ ] Estimate testing effort
 ```
 
-```text
-
 ### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-qa.md`
-
-```
 
 ```markdown
 # Impact Analysis: [Feature] - QA
@@ -153,31 +149,24 @@ Save to: `.agents/planning/impact-analysis-[feature]-qa.md`
 - **Cannot modify** planning artifacts
 - Focus on verification, not creation
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval (Before Test Strategy)
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="qa [feature]"
-cloudmcp-manager/memory-open_nodes for previous test patterns
-```
-
-### Storage (After Verification)
-
-```text
-cloudmcp-manager/memory-create_entities for new test patterns
-cloudmcp-manager/memory-add_observations for test results
-```
+- Before test strategy: Request context retrieval for relevant QA patterns
+- After verification: Request storage of test patterns and results
 
 ## Two-Phase Process
 
 ### Phase 1: Pre-Implementation (Test Strategy)
 
+```markdown
 - [ ] Review plan to understand feature scope
 - [ ] Identify test infrastructure requirements
 - [ ] Design test scenarios from user perspective
 - [ ] Create test strategy document
 - [ ] Call out infrastructure gaps: "TESTING INFRASTRUCTURE NEEDED: [what]"
+```
 
 ### Phase 2: Post-Implementation (Verification)
 
@@ -188,13 +177,9 @@ cloudmcp-manager/memory-add_observations for test results
 - [ ] Produce final status: "QA Complete" or "QA Failed"
 ```
 
-```text
-
 ## Infrastructure Requirements
 
 Identify upfront and flag missing pieces:
-
-```
 
 ```markdown
 ## Required Testing Infrastructure
@@ -215,13 +200,9 @@ Identify upfront and flag missing pieces:
 TESTING INFRASTRUCTURE NEEDED: [specific need]
 ```
 
-```text
-
 ## Test Strategy Document Format
 
 Save to: `.agents/qa/NNN-[feature]-test-strategy.md`
-
-```
 
 ```markdown
 # Test Strategy: [Feature Name]
@@ -264,13 +245,9 @@ Save to: `.agents/qa/NNN-[feature]-test-strategy.md`
 3. Regression suite
 ```
 
-```text
-
 ## Test Report Format
 
 Save to: `.agents/qa/NNN-[feature]-test-report.md`
-
-```
 
 ```markdown
 # Test Report: [Feature Name]
@@ -308,8 +285,6 @@ Save to: `.agents/qa/NNN-[feature]-test-report.md`
 - [Recommendation for improvement]
 ```
 
-```text
-
 ## Handoff Options
 
 | Target | When | Purpose |
@@ -337,5 +312,3 @@ When QA is complete:
 **Verify:** All acceptance criteria have corresponding tests
 
 **Report:** Clear pass/fail with actionable feedback
-
-```

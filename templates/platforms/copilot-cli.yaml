@@ -1,0 +1,22 @@
+# Copilot CLI Platform Configuration
+# Used by Generate-Agents.ps1 to transform shared sources
+
+platform: copilot-cli
+outputDir: src/copilot-cli
+fileExtension: .agent.md
+
+# Frontmatter settings
+frontmatter:
+  # Copilot CLI does not use model field
+  model: null
+  # Copilot CLI requires name field
+  includeNameField: true
+
+# Agent handoff syntax
+handoffSyntax: "/agent"
+
+# Tool syntax style
+toolSyntax: path
+
+# Memory protocol prefix (for MCP tools)
+memoryPrefix: "cloudmcp-manager/"

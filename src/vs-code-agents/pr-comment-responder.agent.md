@@ -19,9 +19,9 @@ PR comments map to three standard workflow paths:
 
 | Path | Agents | Triage Signal |
 |------|--------|---------------|
-| **Quick Fix** | `implementer → qa` | Can explain fix in one sentence |
-| **Standard** | `analyst → architect → planner → critic → implementer → qa` | Need to investigate first |
-| **Strategic** | `independent-thinker → high-level-advisor → task-generator` | Question is *whether*, not *how* |
+| **Quick Fix** | `implementer -> qa` | Can explain fix in one sentence |
+| **Standard** | `analyst -> architect -> planner -> critic -> implementer -> qa` | Need to investigate first |
+| **Strategic** | `independent-thinker -> high-level-advisor -> task-generator` | Question is *whether*, not *how* |
 
 ## Workflow Protocol
 
@@ -29,15 +29,33 @@ PR comments map to three standard workflow paths:
 
 **CRITICAL**: Enumerate ALL reviewers and count ALL comments before proceeding. Missing comments wastes tokens on repeated prompts.
 
-Use VS Code's GitHub Pull Request extension or gh CLI:
+Use gh CLI commands:
 
-- Fetch PR metadata (number, branch, base)
-- **Get ALL reviewers**: `gh pr view [number] --json reviews --jq '[.reviews[].author.login] | unique'`
-- **Retrieve ALL review comments** (pending and submitted) - count them!
-- **Get issue comments**: Some bots respond here, not in review threads
-- **Track total**: `TOTAL_COMMENTS = review_comments + issue_comments`
-- Identify comment authors (bots vs humans)
-- Check memory for known patterns
+```bash
+# Fetch PR metadata
+gh pr view [number] --repo [owner/repo] --json number,title,body,headRefName,baseRefName
+
+# Get ALL reviewers (deduplicated)
+gh pr view [number] --repo [owner/repo] --json reviews --jq '[.reviews[].author.login] | unique'
+
+# Retrieve ALL review comments (returns array - count them!)
+REVIEW_COMMENTS=$(gh api repos/[owner]/[repo]/pulls/[number]/comments)
+REVIEW_COMMENT_COUNT=$(echo "$REVIEW_COMMENTS" | jq 'length')
+
+# Get issue comments (some bots respond here, not in review threads)
+ISSUE_COMMENTS=$(gh api repos/[owner]/[repo]/issues/[number]/comments)
+ISSUE_COMMENT_COUNT=$(echo "$ISSUE_COMMENTS" | jq 'length')
+
+# Total comment count for verification
+TOTAL_COMMENTS=$((REVIEW_COMMENT_COUNT + ISSUE_COMMENT_COUNT))
+echo "Total comments to process: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $ISSUE_COMMENT_COUNT)"
+
+# Get PR reviews
+gh pr view [number] --repo [owner/repo] --json reviews
+
+# Check memory for known patterns
+cloudmcp-manager/memory-search_nodes with query="PR review patterns"
+```
 
 **Output**: Store `TOTAL_COMMENTS` for Phase 3 verification.
 
@@ -49,14 +67,14 @@ For each comment, classify using this decision tree:
 
 ```text
 Is this about WHETHER to do something? (scope, priority, alternatives)
-    │
-    ├─ YES → STRATEGIC PATH
-    │
-    └─ NO → Can you explain the fix in one sentence?
-                │
-                ├─ YES → QUICK FIX PATH
-                │
-                └─ NO → STANDARD PATH
+    |
+    +- YES -> STRATEGIC PATH
+    |
+    +- NO -> Can you explain the fix in one sentence?
+                |
+                +- YES -> QUICK FIX PATH
+                |
+                +- NO -> STANDARD PATH
 ```
 
 **Quick Fix indicators:**
@@ -90,7 +108,7 @@ Is this about WHETHER to do something? (scope, priority, alternatives)
 For simple fixes, skip orchestrator overhead:
 
 ```text
-@implementer Fix this PR review comment (Quick Fix Path):
+/agent implementer Fix this PR review comment (Quick Fix Path):
 
 Comment: [comment text]
 File: [file path]
@@ -102,10 +120,10 @@ This is a straightforward fix. Implement, test, commit, and reply to the comment
 
 #### Standard/Strategic Path - Delegate to Orchestrator
 
-Pass classification and context to orchestrator using `#runSubagent`:
+Pass classification and context to orchestrator:
 
 ```text
-@orchestrator Handle this PR review comment:
+/agent orchestrator Handle this PR review comment:
 
 ## Classification
 Path: [Standard Feature Development | Strategic Decision]
@@ -125,7 +143,7 @@ Rationale: [why this classification]
 
 ## PR Context
 - PR #[number]: [title]
-- Branch: [head] → [base]
+- Branch: [head] -> [base]
 
 ## Instructions
 1. Follow the [Standard | Strategic] workflow path
@@ -143,7 +161,7 @@ ADDRESSED_COUNT=[number of comments addressed]
 echo "Verification: $ADDRESSED_COUNT / $TOTAL_COMMENTS comments addressed"
 
 if [ "$ADDRESSED_COUNT" -lt "$TOTAL_COMMENTS" ]; then
-  echo "⚠️ INCOMPLETE: $((TOTAL_COMMENTS - ADDRESSED_COUNT)) comments remaining"
+  echo "WARNING: INCOMPLETE: $((TOTAL_COMMENTS - ADDRESSED_COUNT)) comments remaining"
   # List unaddressed comment IDs
   gh api repos/[owner]/[repo]/pulls/[number]/comments --jq '.[].id' | while read id; do
     # Check if this ID was addressed
@@ -207,15 +225,15 @@ Copilot responds differently than humans:
 
 | Comment Pattern | Path | Delegation |
 |-----------------|------|------------|
-| "Typo in..." | Quick Fix | @implementer |
-| "Missing null check" | Quick Fix | @implementer |
-| "Style: use X" | Quick Fix | @implementer |
-| "This could cause a bug..." | Standard | @orchestrator |
-| "Consider refactoring..." | Standard | @orchestrator |
-| "Add feature X" | Standard | @orchestrator |
-| "Should this be in this PR?" | Strategic | @orchestrator |
-| "Why not do X instead?" | Strategic | @orchestrator |
-| "This seems like scope creep" | Strategic | @orchestrator |
+| "Typo in..." | Quick Fix | implementer |
+| "Missing null check" | Quick Fix | implementer |
+| "Style: use X" | Quick Fix | implementer |
+| "This could cause a bug..." | Standard | orchestrator |
+| "Consider refactoring..." | Standard | orchestrator |
+| "Add feature X" | Standard | orchestrator |
+| "Should this be in this PR?" | Strategic | orchestrator |
+| "Why not do X instead?" | Strategic | orchestrator |
+| "This seems like scope creep" | Strategic | orchestrator |
 
 ### By File Domain (Direct Agent Routing)
 
@@ -223,17 +241,17 @@ Some comments warrant direct agent routing without full orchestration:
 
 | File Pattern | Comment Type | Direct To | Why |
 |--------------|--------------|-----------|-----|
-| `.github/workflows/*` | CI/CD issues | @devops | Domain expertise |
-| `.githooks/*` | Hook problems | @devops + @security | Infrastructure + security |
-| `**/Auth/**`, `*.env*` | Security concerns | @security | Critical path |
-| Any file | "WHETHER to do X" | @independent-thinker | Challenge assumptions first |
+| `.github/workflows/*` | CI/CD issues | devops | Domain expertise |
+| `.githooks/*` | Hook problems | devops + security | Infrastructure + security |
+| `**/Auth/**`, `*.env*` | Security concerns | security | Critical path |
+| Any file | "WHETHER to do X" | independent-thinker | Challenge assumptions first |
 
 ### Domain-Specific Delegation
 
 #### DevOps Comments (skip orchestrator)
 
 ```text
-@devops PR review comment on infrastructure file:
+/agent devops PR review comment on infrastructure file:
 
 Comment: [comment text]
 File: [.github/workflows/build.yml]
@@ -241,13 +259,13 @@ Line: [line number]
 Author: @[author]
 
 Assess the infrastructure concern and implement fix if valid.
-Coordinate with @security if .githooks/* or secrets involved.
+Coordinate with security agent if .githooks/* or secrets involved.
 ```
 
 #### Strategic "WHETHER" Questions (independent-thinker first)
 
 ```text
-@independent-thinker Evaluate this PR review challenge:
+/agent independent-thinker Evaluate this PR review challenge:
 
 Comment: [Why not use X instead?]
 File: [file path]
@@ -261,38 +279,68 @@ Provide unfiltered analysis:
 Be intellectually honest - don't automatically agree with either side.
 ```
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-Memory is a critical strength for PR comment handling. Reviewers (especially bots) have predictable patterns that improve triage accuracy over time.
+Delegate to **memory** agent for cross-session context. Memory is critical for PR comment handling as reviewers (especially bots) have predictable patterns that improve triage accuracy over time.
 
 ### Retrieval (MANDATORY at start)
 
-```text
-# General PR patterns
-cloudmcp-manager/memory-search_nodes with query="PR review patterns"
+Request context retrieval for:
 
-# Bot-specific false positives (critical for efficiency)
-cloudmcp-manager/memory-search_nodes with query="CodeRabbit false positives"
-cloudmcp-manager/memory-search_nodes with query="Copilot suggestions patterns"
+- General PR patterns
+- Bot-specific false positives (CodeRabbit, Copilot)
+- Reviewer preferences (human reviewers have patterns too)
+- Domain-specific patterns by file type
 
-# Reviewer preferences (human reviewers have patterns too)
-cloudmcp-manager/memory-search_nodes with query="reviewer [username] preferences"
+```python
+Task(subagent_type="memory", prompt="""
+Retrieve PR review context for {owner}/{repo}:
 
-# Domain-specific patterns
-cloudmcp-manager/memory-search_nodes with query="[file type] review patterns"
+1. PR review patterns for this repository
+2. Known bot false positives:
+   - CodeRabbit patterns that are typically noise (e.g., markdown linting on generated files)
+   - Copilot follow-up PR patterns that should be closed
+3. Reviewer preferences:
+   - Style preferences by reviewer
+   - Common concerns they raise
+   - Past resolutions that worked
+4. Domain patterns by file type (e.g., .ps1, .yml, .md)
+
+Return structured context I can use for triage decisions.
+""")
 ```
 
 ### Storage (After EVERY triage decision)
 
-```text
-# Store bot false positive patterns
-cloudmcp-manager/memory-create_entities with entities for BotFalsePositive type
+Request storage of:
 
-# Store successful triage decisions
-cloudmcp-manager/memory-add_observations for pattern → path → outcome
+- Bot false positive patterns
+- Successful triage decisions (pattern -> path -> outcome)
+- Reviewer-to-pattern relationships
 
-# Link reviewer to their patterns
-cloudmcp-manager/memory-create_relations linking reviewer to patterns
+```python
+Task(subagent_type="memory", prompt="""
+Store PR review learnings from {owner}/{repo} PR #{number}:
+
+1. Bot false positives encountered:
+   - Pattern: [e.g., "CodeRabbit MD031 on generated files"]
+   - Trigger: [what caused it]
+   - Resolution: [declined with rationale / fixed / escalated]
+
+2. Reviewer preference evidence:
+   - Reviewer: [username]
+   - Preference observed: [e.g., "prefers explicit error handling"]
+   - Comment that revealed it: [brief quote]
+
+3. Triage path outcomes:
+   - Comment type: [e.g., "security concern on .ps1 file"]
+   - Path taken: [Quick Fix / Standard / Strategic]
+   - Delegated to: [agent name]
+   - Outcome: [Fixed / Declined / Deferred]
+   - Success: [Yes/No - was this the right path?]
+
+Store for future PR review triage in this repository.
+""")
 ```
 
 ### What to Remember
@@ -301,7 +349,7 @@ cloudmcp-manager/memory-create_relations linking reviewer to patterns
 |----------|-------|-----|
 | **Bot False Positives** | Pattern, trigger, resolution | Avoid re-investigating known issues |
 | **Reviewer Preferences** | Style preferences, common concerns | Anticipate feedback |
-| **Triage Decisions** | Comment → Path → Outcome | Improve classification accuracy |
+| **Triage Decisions** | Comment -> Path -> Outcome | Improve classification accuracy |
 | **Domain Patterns** | File type + common issues | Route faster |
 | **Successful Rebuttals** | When "no action" was correct | Confidence in declining |
 
@@ -320,9 +368,9 @@ cloudmcp-manager/memory-create_relations linking reviewer to patterns
 ### Triage Results
 | Comment | Path | Delegated To | Outcome |
 |---------|------|--------------|---------|
-| "Fix typo" | Quick Fix | @implementer | Fixed |
-| "Add caching" | Standard | @orchestrator | Fixed |
-| "Should we X?" | Strategic | @orchestrator | Deferred |
+| "Fix typo" | Quick Fix | implementer | Fixed |
+| "Add caching" | Standard | orchestrator | Fixed |
+| "Should we X?" | Strategic | orchestrator | Deferred |
 
 ### Bot Interactions
 | Bot | Comment | Follow-up PR | Action |
@@ -340,11 +388,11 @@ cloudmcp-manager/memory-create_relations linking reviewer to patterns
 
 | Situation | Delegate To | Why |
 |-----------|-------------|-----|
-| Quick fix (one-sentence explanation) | @implementer | Skip orchestrator overhead |
-| CI/CD, pipeline, workflow comments | @devops | Domain expertise, skip orchestrator |
-| Security-sensitive files | @security | Critical path, no delays |
-| "WHETHER to do X" questions | @independent-thinker | Challenge assumptions before deciding |
-| Needs investigation | @orchestrator (Standard path) | Full workflow needed |
-| Scope/priority question | @orchestrator (Strategic path) | Strategic evaluation needed |
+| Quick fix (one-sentence explanation) | implementer | Skip orchestrator overhead |
+| CI/CD, pipeline, workflow comments | devops | Domain expertise, skip orchestrator |
+| Security-sensitive files | security | Critical path, no delays |
+| "WHETHER to do X" questions | independent-thinker | Challenge assumptions before deciding |
+| Needs investigation | orchestrator (Standard path) | Full workflow needed |
+| Scope/priority question | orchestrator (Strategic path) | Strategic evaluation needed |
 | Bot follow-up handling | (self) | Specialized bot knowledge |
 | Known bot false positive (from memory) | (self) | Decline with stored rationale |

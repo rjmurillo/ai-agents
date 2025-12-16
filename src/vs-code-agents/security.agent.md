@@ -69,13 +69,9 @@ When planner requests security impact analysis (during planning phase):
 - [ ] Estimate security testing needs
 ```
 
-```text
-
 #### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-security.md`
-
-```
 
 ```markdown
 # Impact Analysis: [Feature] - Security
@@ -178,28 +174,16 @@ Save to: `.agents/planning/impact-analysis-[feature]-security.md`
 - **Total**: [Hours/Days]
 ```
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="security [topic]"
-```
-
-### Storage
-
-```text
-cloudmcp-manager/memory-create_entities for vulnerabilities found
-cloudmcp-manager/memory-add_observations for remediation patterns
-```
-
-```text
+- Before security analysis: Request context retrieval for security topics
+- After analysis: Request storage of vulnerabilities and remediation patterns
 
 ## Security Checklist
 
 ### Code Review
-
-```
 
 ```markdown
 - [ ] Input validation (all user inputs sanitized)
@@ -212,11 +196,7 @@ cloudmcp-manager/memory-add_observations for remediation patterns
 - [ ] Configuration (secrets in secure store, not code)
 ```
 
-```text
-
 ### Dependency Review
-
-```
 
 ```markdown
 - [ ] Run `dotnet list package --vulnerable`
@@ -225,13 +205,9 @@ cloudmcp-manager/memory-add_observations for remediation patterns
 - [ ] Review transitive dependencies
 ```
 
-```text
-
 ## Threat Model Format
 
 Save to: `.agents/security/TM-NNN-[feature].md`
-
-```
 
 ```markdown
 # Threat Model: [Feature Name]
@@ -262,13 +238,9 @@ Save to: `.agents/security/TM-NNN-[feature].md`
 | [Control] | P0/P1/P2 | Pending/Implemented |
 ```
 
-```text
-
 ## Security Report Format
 
 Save to: `.agents/security/SR-NNN-[scope].md`
-
-```
 
 ```markdown
 # Security Report: [Scope]
@@ -294,8 +266,6 @@ Save to: `.agents/security/SR-NNN-[scope].md`
 [Prioritized list of security improvements]
 ```
 
-```text
-
 ## Handoff Options
 
 | Target | When | Purpose |
@@ -314,5 +284,3 @@ Save to: `.agents/security/SR-NNN-[scope].md`
 **Recommend:** Specific, actionable mitigations
 
 **Document:** Every finding with remediation steps
-
-```

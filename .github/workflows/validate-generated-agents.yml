@@ -1,0 +1,82 @@
+# Validate Generated Agent Files
+#
+# Ensures generated agent files haven't been edited directly.
+# Regenerates all agents from templates and fails if committed files differ.
+#
+# Local developers and AI agents can run the same validation using:
+#   pwsh ./build/Generate-Agents.ps1 -Validate
+
+name: Validate Generated Agents
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+    paths:
+      - 'templates/**'
+      - 'src/vs-code-agents/**'
+      - 'src/copilot-cli/**'
+      - 'build/Generate-Agents.ps1'
+      - '.github/workflows/validate-generated-agents.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'templates/**'
+      - 'src/vs-code-agents/**'
+      - 'src/copilot-cli/**'
+      - 'build/Generate-Agents.ps1'
+      - '.github/workflows/validate-generated-agents.yml'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  validate:
+    name: Validate Generated Files
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Regenerate and validate agent files
+        shell: pwsh
+        run: |
+          Write-Host "Running agent generation in validation mode..."
+          ./build/Generate-Agents.ps1 -Validate
+
+      - name: Show diff on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "=== Files that differ from generated output ===" -ForegroundColor Red
+          Write-Host ""
+
+          # Regenerate without validation to get the expected content
+          ./build/Generate-Agents.ps1
+
+          # Show which files changed
+          $changedFiles = git diff --name-only
+
+          if ($changedFiles) {
+            Write-Host "The following generated files were manually edited:" -ForegroundColor Red
+            Write-Host ""
+            foreach ($file in $changedFiles) {
+              Write-Host "  - $file" -ForegroundColor Yellow
+            }
+            Write-Host ""
+            Write-Host "To fix this issue:" -ForegroundColor Cyan
+            Write-Host "  1. Edit the source template in templates/agents/*.shared.md" -ForegroundColor White
+            Write-Host "  2. Run: pwsh build/Generate-Agents.ps1" -ForegroundColor White
+            Write-Host "  3. Commit the regenerated files" -ForegroundColor White
+            Write-Host ""
+            Write-Host "=== Detailed diff ===" -ForegroundColor Red
+            git diff
+          }
+          else {
+            Write-Host "No differences detected in git diff (validation may have failed for other reasons)"
+          }

@@ -42,29 +42,16 @@ You have direct access to:
 
 ## Memory Protocol
 
-**ALWAYS retrieve memory at session start and store at milestones.**
+Delegate to **memory** agent for cross-session context.
 
-### Retrieval (Before Multi-Step Reasoning)
+**ALWAYS** at session start and milestones:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="[topic]"
-mcp__cloudmcp-manager__memory-open_nodes for specific entities
-```
-
-### Storage (At Milestones or Every 5 Turns)
-
-```text
-mcp__cloudmcp-manager__memory-create_entities for new learnings
-mcp__cloudmcp-manager__memory-add_observations for updates
-mcp__cloudmcp-manager__memory-create_relations to link concepts
-```
-
-**What to Store:**
-
-- Agent performance observations (success patterns, failure modes)
-- Routing decisions that worked vs failed
-- Solutions to recurring problems
-- Project conventions discovered
+- Before multi-step reasoning: Request context retrieval for topic
+- At milestones (or every 5 turns): Request storage of:
+  - Agent performance observations (success patterns, failure modes)
+  - Routing decisions that worked vs failed
+  - Solutions to recurring problems
+  - Project conventions discovered
 
 ## Execution Protocol
 

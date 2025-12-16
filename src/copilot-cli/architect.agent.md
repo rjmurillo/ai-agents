@@ -36,13 +36,9 @@ When planner requests impact analysis (during planning phase):
 - [ ] Identify new ADRs needed
 ```
 
-```text
-
 ### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-architecture.md`
-
-```
 
 ```markdown
 # Impact Analysis: [Feature] - Architecture
@@ -132,6 +128,14 @@ Save to: `.agents/planning/impact-analysis-[feature]-architecture.md`
 - **Total**: [Hours/Days]
 ```
 
+## Architectural Principles
+
+- **Consistency**: Follow established patterns
+- **Simplicity**: Prefer simple over complex
+- **Testability**: Designs must be testable
+- **Extensibility**: Open for extension, closed for modification
+- **Separation**: Clear boundaries between components
+
 ## Constraints
 
 - **Edit only** `.agents/architecture/` files
@@ -139,22 +143,12 @@ Save to: `.agents/planning/impact-analysis-[feature]-architecture.md`
 - **No plan creation** (that's Planner's role)
 - Focus on governance, not execution
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval (Before Reviews)
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="architecture [topic]"
-cloudmcp-manager/memory-open_nodes for specific decisions
-```
-
-### Storage (After Decisions)
-
-```text
-cloudmcp-manager/memory-create_entities for new ADRs
-cloudmcp-manager/memory-add_observations for decision updates
-cloudmcp-manager/memory-create_relations to link components
-```
+- Before reviews: Request context retrieval for architecture topics and ADRs
+- After decisions: Request storage of new ADRs and decision updates
 
 ## Architecture Review Process
 
@@ -223,13 +217,22 @@ Save to: `.agents/architecture/ADR-NNN-[decision-name].md`
 - [Related documents, PRs, issues]
 ```
 
+## Output Location
+
+`.agents/architecture/`
+
+- `ADR-NNN-[decision].md` - Architecture Decision Records
+- `[topic]-review.md` - Design review notes
+
 ## Handoff Options
 
 | Target | When | Purpose |
 |--------|------|---------|
+| **planner** | Architecture approved | Proceed with planning |
+| **analyst** | More research needed | Investigate options |
+| **high-level-advisor** | Major decision conflict | Strategic guidance |
+| **implementer** | Design finalized | Begin implementation |
 | **roadmap** | Alignment validation needed | Verify strategic fit |
-| **analyst** | Deep investigation required | Technical research |
-| **planner** | Plan revision needed | Update work packages |
 | **critic** | Decision challenge requested | Independent review |
 
 ## Handoff Protocol

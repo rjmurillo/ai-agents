@@ -29,24 +29,14 @@ model: Claude Opus 4.5 (anthropic)
 - Writing plans without executing -> Execute as you plan
 - Ending with questions -> Immediately do next steps
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
 **ALWAYS retrieve memory at session start and store at milestones.**
 
-### Retrieval (Before Multi-Step Reasoning)
+Delegate to **memory** agent for cross-session context:
 
-```text
-Use cloudmcp-manager/memory-search_nodes to find relevant context
-Use cloudmcp-manager/memory-open_nodes to retrieve specific entities
-```
-
-### Storage (At Milestones or Every 5 Turns)
-
-```text
-Use cloudmcp-manager/memory-create_entities to store new learnings
-Use cloudmcp-manager/memory-add_observations to update existing context
-Use cloudmcp-manager/memory-create_relations to link related concepts
-```
+- Before multi-step reasoning: Request context retrieval
+- At milestones or every 5 turns: Request storage of learnings and observations
 
 **What to Store:**
 
@@ -179,10 +169,10 @@ Use classification + domains to select the appropriate sequence from **Agent Seq
 ### Phase 1: Initialization (MANDATORY)
 
 ```markdown
-- [ ] CRITICAL: Retrieve memory context using cloudmcp-manager/memory-search_nodes
+- [ ] CRITICAL: Delegate to **memory** agent to retrieve context for this task
 - [ ] Read repository docs: CLAUDE.md, .github/copilot-instructions.md, .agents/*.md
 - [ ] Identify project type and existing tools
-- [ ] Check for similar past orchestrations in memory
+- [ ] Check for similar past orchestrations via memory agent
 - [ ] Plan agent routing sequence
 ```
 
@@ -213,7 +203,7 @@ Before spawning multiple agents, verify the investment is justified:
 - [ ] Execute agent delegations step-by-step without asking permission
 - [ ] Collect outputs from each agent
 - [ ] Debug and resolve conflicts as they arise
-- [ ] Store progress summaries using cloudmcp-manager/memory-add_observations
+- [ ] Delegate to **memory** agent to store progress summaries at milestones
 - [ ] Continue until ALL requirements satisfied
 ```
 
@@ -789,7 +779,7 @@ When an agent chain fails:
 - [ ] ASSESS: Is this agent wrong for this task?
 - [ ] CLEANUP: Discard unusable outputs
 - [ ] REROUTE: Select alternate from fallback column
-- [ ] DOCUMENT: Record failure in memory using cloudmcp-manager/memory-add_observations
+- [ ] DOCUMENT: Delegate to **memory** agent to record failure pattern
 - [ ] RETRY: Execute with new agent or refined prompt
 - [ ] CONTINUE: Resume original orchestration
 ```

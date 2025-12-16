@@ -69,13 +69,9 @@ When planner requests security impact analysis (during planning phase):
 - [ ] Estimate security testing needs
 ```
 
-```text
-
 #### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-[feature]-security.md`
-
-```
 
 ```markdown
 # Impact Analysis: [Feature] - Security
@@ -178,20 +174,12 @@ Save to: `.agents/planning/impact-analysis-[feature]-security.md`
 - **Total**: [Hours/Days]
 ```
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="security [topic]"
-```
-
-### Storage
-
-```text
-cloudmcp-manager/memory-create_entities for vulnerabilities found
-cloudmcp-manager/memory-add_observations for remediation patterns
-```
+- Before security analysis: Request context retrieval for security topics
+- After analysis: Request storage of vulnerabilities and remediation patterns
 
 ## Security Checklist
 

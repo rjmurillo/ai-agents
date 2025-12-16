@@ -28,23 +28,12 @@ Provide structure on objectives, process, value, and risks - not prescriptive co
 - **No implementation code** in plans
 - **Only create** planning artifacts
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval (At Decision Points)
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="planning [epic]"
-cloudmcp-manager/memory-open_nodes for previous plans
-```
-
-### Storage (At Milestones)
-
-```text
-cloudmcp-manager/memory-create_entities for new plans
-cloudmcp-manager/memory-add_observations for plan updates
-```
-
-Store summaries of 300-1500 characters focusing on reasoning, decisions, tradeoffs.
+- At decision points: Request context retrieval for prior plans
+- At milestones: Request storage of major planning decisions
 
 ## Planning Process
 
@@ -149,22 +138,28 @@ Trigger impact analysis for:
 
 #### Phase 1: Scope Analysis
 
+```markdown
 - [ ] Analyze proposed change dimensions
 - [ ] Identify affected domains (code, architecture, security, operations, quality)
 - [ ] Determine which specialist agents to consult
+```
 
 #### Phase 2: Specialist Consultations
 
+```markdown
 - [ ] Invoke each required specialist with structured impact analysis prompt
 - [ ] Collect impact analysis findings from each agent
 - [ ] Document consultation results in plan
+```
 
-#### Phase 3: Aggregation & Integration
+#### Phase 3: Aggregation and Integration
 
+```markdown
 - [ ] Synthesize findings across all consultations
 - [ ] Identify conflicts or dependencies between domains
 - [ ] Update plan with integrated impact analysis
 - [ ] Add domain-specific risks and mitigations
+```
 
 ### Specialist Agent Roles
 
@@ -181,7 +176,7 @@ Trigger impact analysis for:
 When consulting specialists, use structured prompts:
 
 ```text
-@agent [agent] Impact Analysis Request: [Feature/Change Name]
+/agent [agent_name] Impact Analysis Request: [Feature/Change Name]
 
 **Context**: [Brief description of proposed change]
 
@@ -197,13 +192,9 @@ When consulting specialists, use structured prompts:
 **Deliverable**: Save findings to `.agents/planning/impact-analysis-[feature]-[domain].md`
 ```
 
-```text
-
 ### Impact Analysis Document Format
 
 Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md`
-
-```
 
 ```markdown
 # Impact Analysis: [Feature] - [Domain]
@@ -247,13 +238,9 @@ Each specialist creates: `.agents/planning/impact-analysis-[feature]-[domain].md
 [Time estimate for this domain's work]
 ```
 
-```text
-
 ### Aggregated Impact Summary
 
 After consultations, add to plan:
-
-```
 
 ```markdown
 ## Impact Analysis Summary
@@ -353,6 +340,21 @@ During impact analysis, specialists may have **conflicting recommendations**. Th
 ```
 
 **Note**: The **critic** agent is responsible for escalating major conflicts to **high-level-advisor**. Unanimous specialist agreement is required for smooth approval.
+
+## Planning Principles
+
+- **Incremental**: Deliver value at each milestone
+- **Testable**: Each milestone has verifiable criteria
+- **Sequenced**: Dependencies drive order
+- **Scoped**: Clear in/out boundaries
+- **Realistic**: Account for risks and unknowns
+
+## Output Location
+
+`.agents/planning/`
+
+- `NNN-[feature]-plan.md` - Implementation plans
+- `PRD-[feature].md` - Product requirements
 
 ## Handoff Options
 

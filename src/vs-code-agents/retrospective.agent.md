@@ -59,8 +59,6 @@ For each execution outcome, analyze:
 [See atomicity scoring below]
 ```
 
-```text
-
 ### Error Diagnosis Protocol
 
 When analyzing failures:
@@ -130,8 +128,6 @@ When analyzing failures:
 
 ### Tag Format
 
-```
-
 ```markdown
 ### Skill Tag
 
@@ -142,15 +138,11 @@ When analyzing failures:
 **Recommendation**: [Keep | Refine | Remove | Needs More Data]
 ```
 
-```text
-
 ---
 
 ## PART 4: Learning Extraction Template
 
 Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
-
-```
 
 ```markdown
 # Retrospective: [Scope/Project]
@@ -196,8 +188,6 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 ## Skillbook Updates Recommended
 
 ### ADD (New Skills)
-```
-
 ```json
 {
   "skill_id": "SKILL-YYYY-MM-DD-NNN",
@@ -207,8 +197,6 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
   "atomicity": [score]
 }
 ```
-
-```text
 
 ### UPDATE (Refine Existing)
 
@@ -255,9 +243,9 @@ Before adding new skills, verify no semantic duplicates:
 
 [Links between entities]
 
-```
-
 ```text
+[Relations in active voice]
+```
 
 ---
 
@@ -265,17 +253,11 @@ Before adding new skills, verify no semantic duplicates:
 
 ### Feedback Cycle
 
-```
-
 ```text
-
-Execution → Reflection → Skill Update → Improved Execution
-    ↑                                          ↓
-    └──────────────────────────────────────────┘
-
+Execution -> Reflection -> Skill Update -> Improved Execution
+    ^                                          |
+    +------------------------------------------+
 ```
-
-```text
 
 ### Integration Protocol
 
@@ -289,27 +271,19 @@ Execution → Reflection → Skill Update → Improved Execution
 
 When applying learned strategies, agents should cite:
 
-```
-
 ```markdown
 **Applying**: [SKILL-ID]
 **Strategy**: [Brief description]
 **Expected Outcome**: [What should happen]
 ```
 
-```text
-
 After execution:
-
-```
 
 ```markdown
 **Result**: [Actual outcome]
 **Skill Validated**: Yes | No | Partial
 **Feedback**: [Brief note for retrospective]
 ```
-
-```text
 
 ---
 
@@ -327,8 +301,6 @@ After execution:
 
 **After Reflection:**
 
-```
-
 ```text
 cloudmcp-manager/memory-create_entities for new skills
 cloudmcp-manager/memory-add_observations for skill updates
@@ -337,8 +309,6 @@ cloudmcp-manager/memory-create_relations to link:
   - Skills to Failures (prevents)
   - Skills to other Skills (related_to, supersedes)
 ```
-
-```text
 
 ---
 
@@ -360,5 +330,3 @@ cloudmcp-manager/memory-create_relations to link:
 **Score:** Reject vague learnings, demand specificity
 
 **Improve:** Transform insights into actionable skill updates
-
-```

@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+# CodeRabbit Configuration - ai-agents repository
+#
+# Inherits organization settings and only overrides markdownlint.
+# This repo uses .markdownlint-cli2.yaml with custom rules
+# (4-backtick fences for nested blocks, different MD031/MD032 handling).
+
+inheritance: true
+
+reviews:
+  tools:
+    markdownlint:
+      enabled: false

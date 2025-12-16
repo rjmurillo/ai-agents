@@ -19,15 +19,17 @@ PR comments map to three standard workflow paths:
 
 | Path | Agents | Triage Signal |
 |------|--------|---------------|
-| **Quick Fix** | `implementer → qa` | Can explain fix in one sentence |
-| **Standard** | `analyst → architect → planner → critic → implementer → qa` | Need to investigate first |
-| **Strategic** | `independent-thinker → high-level-advisor → task-generator` | Question is *whether*, not *how* |
+| **Quick Fix** | `implementer -> qa` | Can explain fix in one sentence |
+| **Standard** | `analyst -> architect -> planner -> critic -> implementer -> qa` | Need to investigate first |
+| **Strategic** | `independent-thinker -> high-level-advisor -> task-generator` | Question is *whether*, not *how* |
 
 ## Workflow Protocol
 
 ### Phase 1: Context Gathering
 
 **CRITICAL**: Enumerate ALL reviewers and count ALL comments before proceeding. Missing comments wastes tokens on repeated prompts.
+
+Use gh CLI commands:
 
 ```bash
 # Fetch PR metadata
@@ -65,14 +67,14 @@ For each comment, classify using this decision tree:
 
 ```text
 Is this about WHETHER to do something? (scope, priority, alternatives)
-    │
-    ├─ YES → STRATEGIC PATH
-    │
-    └─ NO → Can you explain the fix in one sentence?
-                │
-                ├─ YES → QUICK FIX PATH
-                │
-                └─ NO → STANDARD PATH
+    |
+    +- YES -> STRATEGIC PATH
+    |
+    +- NO -> Can you explain the fix in one sentence?
+                |
+                +- YES -> QUICK FIX PATH
+                |
+                +- NO -> STANDARD PATH
 ```
 
 **Quick Fix indicators:**
@@ -105,23 +107,23 @@ Is this about WHETHER to do something? (scope, priority, alternatives)
 
 For simple fixes, skip orchestrator overhead:
 
-```bash
-copilot --agent implementer --prompt "Fix this PR review comment (Quick Fix Path):
+```text
+/agent implementer Fix this PR review comment (Quick Fix Path):
 
 Comment: [comment text]
 File: [file path]
 Line: [line number]
 Author: @[author]
 
-This is a straightforward fix. Implement, test, commit, and reply to the comment."
+This is a straightforward fix. Implement, test, commit, and reply to the comment.
 ```
 
 #### Standard/Strategic Path - Delegate to Orchestrator
 
 Pass classification and context to orchestrator:
 
-```bash
-copilot --agent orchestrator --prompt "Handle this PR review comment:
+```text
+/agent orchestrator Handle this PR review comment:
 
 ## Classification
 Path: [Standard Feature Development | Strategic Decision]
@@ -141,12 +143,12 @@ Rationale: [why this classification]
 
 ## PR Context
 - PR #[number]: [title]
-- Branch: [head] → [base]
+- Branch: [head] -> [base]
 
 ## Instructions
 1. Follow the [Standard | Strategic] workflow path
 2. Reply to the comment using the review reply endpoint (see API Usage below)
-3. Always @ mention @[author] in response"
+3. Always @ mention @[author] in response
 ```
 
 #### Completion Verification (MANDATORY)
@@ -159,7 +161,7 @@ ADDRESSED_COUNT=[number of comments addressed]
 echo "Verification: $ADDRESSED_COUNT / $TOTAL_COMMENTS comments addressed"
 
 if [ "$ADDRESSED_COUNT" -lt "$TOTAL_COMMENTS" ]; then
-  echo "⚠️ INCOMPLETE: $((TOTAL_COMMENTS - ADDRESSED_COUNT)) comments remaining"
+  echo "WARNING: INCOMPLETE: $((TOTAL_COMMENTS - ADDRESSED_COUNT)) comments remaining"
   # List unaddressed comment IDs
   gh api repos/[owner]/[repo]/pulls/[number]/comments --jq '.[].id' | while read id; do
     # Check if this ID was addressed
@@ -248,9 +250,8 @@ Some comments warrant direct agent routing without full orchestration:
 
 #### DevOps Comments (skip orchestrator)
 
-```bash
-# For CI/CD, pipeline, or infrastructure comments
-copilot --agent devops --prompt "PR review comment on infrastructure file:
+```text
+/agent devops PR review comment on infrastructure file:
 
 Comment: [comment text]
 File: [.github/workflows/build.yml]
@@ -258,14 +259,13 @@ Line: [line number]
 Author: @[author]
 
 Assess the infrastructure concern and implement fix if valid.
-Coordinate with security agent if .githooks/* or secrets involved."
+Coordinate with security agent if .githooks/* or secrets involved.
 ```
 
 #### Strategic "WHETHER" Questions (independent-thinker first)
 
-```bash
-# When reviewer questions WHETHER to do something
-copilot --agent independent-thinker --prompt "Evaluate this PR review challenge:
+```text
+/agent independent-thinker Evaluate this PR review challenge:
 
 Comment: [Why not use X instead?]
 File: [file path]
@@ -276,41 +276,71 @@ Provide unfiltered analysis:
 2. What are the actual tradeoffs?
 3. Should we change approach or defend current choice?
 
-Be intellectually honest - don't automatically agree with either side."
+Be intellectually honest - don't automatically agree with either side.
 ```
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-Memory is a critical strength for PR comment handling. Reviewers (especially bots) have predictable patterns that improve triage accuracy over time.
+Delegate to **memory** agent for cross-session context. Memory is critical for PR comment handling as reviewers (especially bots) have predictable patterns that improve triage accuracy over time.
 
 ### Retrieval (MANDATORY at start)
 
-```text
-# General PR patterns
-cloudmcp-manager/memory-search_nodes with query="PR review patterns"
+Request context retrieval for:
 
-# Bot-specific false positives (critical for efficiency)
-cloudmcp-manager/memory-search_nodes with query="CodeRabbit false positives"
-cloudmcp-manager/memory-search_nodes with query="Copilot suggestions patterns"
+- General PR patterns
+- Bot-specific false positives (CodeRabbit, Copilot)
+- Reviewer preferences (human reviewers have patterns too)
+- Domain-specific patterns by file type
 
-# Reviewer preferences (human reviewers have patterns too)
-cloudmcp-manager/memory-search_nodes with query="reviewer [username] preferences"
+```python
+Task(subagent_type="memory", prompt="""
+Retrieve PR review context for {owner}/{repo}:
 
-# Domain-specific patterns
-cloudmcp-manager/memory-search_nodes with query="[file type] review patterns"
+1. PR review patterns for this repository
+2. Known bot false positives:
+   - CodeRabbit patterns that are typically noise (e.g., markdown linting on generated files)
+   - Copilot follow-up PR patterns that should be closed
+3. Reviewer preferences:
+   - Style preferences by reviewer
+   - Common concerns they raise
+   - Past resolutions that worked
+4. Domain patterns by file type (e.g., .ps1, .yml, .md)
+
+Return structured context I can use for triage decisions.
+""")
 ```
 
 ### Storage (After EVERY triage decision)
 
-```text
-# Store bot false positive patterns
-cloudmcp-manager/memory-create_entities with entities for BotFalsePositive type
+Request storage of:
 
-# Store successful triage decisions
-cloudmcp-manager/memory-add_observations for pattern → path → outcome
+- Bot false positive patterns
+- Successful triage decisions (pattern -> path -> outcome)
+- Reviewer-to-pattern relationships
 
-# Link reviewer to their patterns
-cloudmcp-manager/memory-create_relations linking reviewer to patterns
+```python
+Task(subagent_type="memory", prompt="""
+Store PR review learnings from {owner}/{repo} PR #{number}:
+
+1. Bot false positives encountered:
+   - Pattern: [e.g., "CodeRabbit MD031 on generated files"]
+   - Trigger: [what caused it]
+   - Resolution: [declined with rationale / fixed / escalated]
+
+2. Reviewer preference evidence:
+   - Reviewer: [username]
+   - Preference observed: [e.g., "prefers explicit error handling"]
+   - Comment that revealed it: [brief quote]
+
+3. Triage path outcomes:
+   - Comment type: [e.g., "security concern on .ps1 file"]
+   - Path taken: [Quick Fix / Standard / Strategic]
+   - Delegated to: [agent name]
+   - Outcome: [Fixed / Declined / Deferred]
+   - Success: [Yes/No - was this the right path?]
+
+Store for future PR review triage in this repository.
+""")
 ```
 
 ### What to Remember
@@ -319,7 +349,7 @@ cloudmcp-manager/memory-create_relations linking reviewer to patterns
 |----------|-------|-----|
 | **Bot False Positives** | Pattern, trigger, resolution | Avoid re-investigating known issues |
 | **Reviewer Preferences** | Style preferences, common concerns | Anticipate feedback |
-| **Triage Decisions** | Comment → Path → Outcome | Improve classification accuracy |
+| **Triage Decisions** | Comment -> Path -> Outcome | Improve classification accuracy |
 | **Domain Patterns** | File type + common issues | Route faster |
 | **Successful Rebuttals** | When "no action" was correct | Confidence in declining |
 

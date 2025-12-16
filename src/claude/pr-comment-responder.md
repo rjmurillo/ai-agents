@@ -312,58 +312,24 @@ Be intellectually honest - don't automatically agree with either side.
 
 ## Memory Protocol
 
-Memory is a critical strength for PR comment handling. Reviewers (especially bots) have predictable patterns that improve triage accuracy over time.
+Delegate to **memory** agent for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
 
-### Retrieval (MANDATORY at start)
+**At start (MANDATORY):** Request context retrieval for:
 
-```text
-# General PR patterns
-mcp__cloudmcp-manager__memory-search_nodes with query="PR review patterns"
+- PR review patterns
+- Bot false positives (CodeRabbit, Copilot)
+- Reviewer preferences
+- Domain-specific patterns
 
-# Bot-specific false positives (critical for efficiency)
-mcp__cloudmcp-manager__memory-search_nodes with query="CodeRabbit false positives"
-mcp__cloudmcp-manager__memory-search_nodes with query="Copilot suggestions patterns"
+**After EVERY triage decision:** Request storage of:
 
-# Reviewer preferences (human reviewers have patterns too)
-mcp__cloudmcp-manager__memory-search_nodes with query="reviewer [username] preferences"
-
-# Domain-specific patterns
-mcp__cloudmcp-manager__memory-search_nodes with query="[file type] review patterns"
-```
-
-### Storage (After EVERY triage decision)
-
-```text
-# Store bot false positive patterns
-mcp__cloudmcp-manager__memory-create_entities(entities=[{
-  "name": "CodeRabbit-FP-[pattern]",
-  "entityType": "BotFalsePositive",
-  "observations": ["Trigger: [what caused it]", "Resolution: [how handled]", "Frequency: [how often]"]
-}])
-
-# Store successful triage decisions
-mcp__cloudmcp-manager__memory-add_observations(observations=[{
-  "entityName": "PR-Triage-Patterns",
-  "contents": ["[comment pattern] → [path chosen] → [outcome]"]
-}])
-
-# Link reviewer to their patterns
-mcp__cloudmcp-manager__memory-create_relations(relations=[{
-  "from": "Reviewer-[username]",
-  "to": "[pattern entity]",
-  "relationType": "frequently_raises"
-}])
-```
-
-### What to Remember
-
-| Category | Store | Why |
-|----------|-------|-----|
-| **Bot False Positives** | Pattern, trigger, resolution | Avoid re-investigating known issues |
-| **Reviewer Preferences** | Style preferences, common concerns | Anticipate feedback |
-| **Triage Decisions** | Comment → Path → Outcome | Improve classification accuracy |
-| **Domain Patterns** | File type + common issues | Route faster |
-| **Successful Rebuttals** | When "no action" was correct | Confidence in declining |
+| Category | What to Store | Why |
+|----------|---------------|-----|
+| Bot False Positives | Pattern, trigger, resolution | Avoid re-investigating |
+| Reviewer Preferences | Style preferences, concerns | Anticipate feedback |
+| Triage Decisions | Comment → Path → Outcome | Improve accuracy |
+| Domain Patterns | File type + common issues | Route faster |
+| Successful Rebuttals | When "no action" was correct | Confidence in declining |
 
 ## Communication Guidelines
 

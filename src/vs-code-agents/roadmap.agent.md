@@ -37,7 +37,7 @@ Use these frameworks together. No single framework is sufficient.
 
 ### RICE Score (Quantitative Comparison)
 
-**Formula**: `(Reach × Impact × Confidence) / Effort`
+**Formula**: `(Reach x Impact x Confidence) / Effort`
 
 | Factor | Scale | Notes |
 |--------|-------|-------|
@@ -62,7 +62,7 @@ Use these frameworks together. No single framework is sufficient.
 
 **Use when**: Classifying features by customer value during discovery.
 
-**Assumption**: Customer expectations drift—today's delight becomes tomorrow's baseline.
+**Assumption**: Customer expectations drift-today's delight becomes tomorrow's baseline.
 
 ### Rumsfeld Matrix (Uncertainty Assessment)
 
@@ -86,7 +86,7 @@ Use these frameworks together. No single framework is sufficient.
 
 **Use when**: Daily/weekly prioritization and protecting strategic work.
 
-**Assumption**: Urgency and importance are independent dimensions—resist the urgency trap.
+**Assumption**: Urgency and importance are independent dimensions-resist the urgency trap.
 
 ### Framework Selection
 
@@ -110,24 +110,12 @@ When prioritizing, explicitly state assumptions about:
 
 If an assumption is untested, route to **analyst** for validation first.
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval (Before Major Decisions)
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="roadmap [topic]"
-cloudmcp-manager/memory-open_nodes for strategic context
-```
-
-### Storage (At Milestones)
-
-```text
-cloudmcp-manager/memory-create_entities for new epics
-cloudmcp-manager/memory-add_observations for priority updates
-cloudmcp-manager/memory-create_relations to link epics
-```
-
-Store summaries of 300-1500 characters focusing on strategic reasoning.
+- Before major decisions: Request context retrieval for roadmap topics
+- At milestones: Request storage of epics and priority updates
 
 ## Roadmap Document Format
 

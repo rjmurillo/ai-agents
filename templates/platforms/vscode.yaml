@@ -1,0 +1,22 @@
+# VS Code Platform Configuration
+# Used by Generate-Agents.ps1 to transform shared sources
+
+platform: vscode
+outputDir: src/vs-code-agents
+fileExtension: .agent.md
+
+# Frontmatter settings
+frontmatter:
+  # VS Code requires model field
+  model: "Claude Opus 4.5 (anthropic)"
+  # VS Code does not use name field
+  includeNameField: false
+
+# Agent handoff syntax
+handoffSyntax: "#runSubagent"
+
+# Tool syntax style
+toolSyntax: path
+
+# Memory protocol prefix (for MCP tools)
+memoryPrefix: "cloudmcp-manager/"

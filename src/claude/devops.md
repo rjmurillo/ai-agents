@@ -148,18 +148,10 @@ Save to: `.agents/planning/impact-analysis-[feature]-devops.md`
 
 ## Memory Protocol
 
-### Retrieval
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="devops [topic]"
-```
-
-### Storage
-
-```text
-mcp__cloudmcp-manager__memory-create_entities for pipeline configurations
-mcp__cloudmcp-manager__memory-add_observations for issue resolutions
-```
+- Before pipeline work: Request context retrieval for DevOps patterns
+- After pipeline work: Request storage of configurations and resolutions
 
 ## Pipeline Standards
 

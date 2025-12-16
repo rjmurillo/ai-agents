@@ -210,19 +210,10 @@ Use patterns ONLY after qualities, principles, practices addressed. Common patte
 
 ## Memory Protocol
 
-### Retrieval (Before Implementation)
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="implementation [feature]"
-mcp__cloudmcp-manager__memory-open_nodes for previous patterns
-```
-
-### Storage (After Completion)
-
-```text
-mcp__cloudmcp-manager__memory-create_entities for new patterns discovered
-mcp__cloudmcp-manager__memory-add_observations for implementation notes
-```
+- Before implementation: Request context retrieval for patterns
+- After implementation: Request storage of patterns and notes
 
 ## Code Requirements
 

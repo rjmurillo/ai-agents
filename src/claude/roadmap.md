@@ -122,22 +122,10 @@ If an assumption is untested, route to **analyst** for validation first.
 
 ## Memory Protocol
 
-### Retrieval (Before Major Decisions)
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="roadmap [topic]"
-mcp__cloudmcp-manager__memory-open_nodes for strategic context
-```
-
-### Storage (At Milestones)
-
-```text
-mcp__cloudmcp-manager__memory-create_entities for new epics
-mcp__cloudmcp-manager__memory-add_observations for priority updates
-mcp__cloudmcp-manager__memory-create_relations to link epics
-```
-
-Store summaries of 300-1500 characters focusing on strategic reasoning.
+- Before decisions: Request context retrieval for roadmap and strategic context
+- At milestones: Request storage of epics and priority updates
 
 ## Roadmap Document Format
 
