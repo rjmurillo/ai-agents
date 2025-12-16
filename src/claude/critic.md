@@ -104,6 +104,16 @@ If specialists do NOT have unanimous agreement:
 **Conflicting Agents**: [Agent A] vs [Agent B]
 **Issue**: [Specific technical disagreement]
 
+### Verified Facts (exact values, not summaries)
+
+| Fact | Value | Source |
+|------|-------|--------|
+| [Data point] | [Exact value] | [Where verified] |
+
+### Numeric Data
+
+- [All percentages, hours, counts from analysis]
+
 ### Agent A Position
 - **Recommendation**: [Exact recommendation]
 - **Evidence**: [Specific facts, metrics, code references]
@@ -114,11 +124,43 @@ If specialists do NOT have unanimous agreement:
 - **Evidence**: [Specific facts, metrics, code references]
 - **Risk if ignored**: [Quantified impact]
 
+### Decision Questions
+
+1. [Specific question requiring resolution]
+
 **Recommendation**: Route to high-level-advisor for resolution
 ```
 
 4. **Block approval** until orchestrator escalates and gets guidance
 5. **Document conflict** in critique for orchestrator to route to retrospective
+
+## Escalation Prompt Completeness Requirements
+
+When escalating to high-level-advisor (via orchestrator), ENSURE all verified facts are preserved with exact values.
+
+### Mandatory Escalation Data
+
+All escalation prompts MUST include:
+
+1. **Verified Facts Table**: Exact values, not ranges or summaries
+2. **Numeric Data**: All percentages, hours, counts - preserve original precision
+3. **Conflicting Positions**: Each agent's position with rationale
+4. **Decision Questions**: Specific questions requiring resolution
+
+### Anti-Pattern: Information Loss During Synthesis
+
+**Anti-Pattern**: Converting "99%+ overlap (VS Code/Copilot), 60-70% (Claude)" to "80-90% overlap" loses actionable detail.
+
+**Correct Approach**: Preserve all exact values in escalation:
+
+```markdown
+| Fact | Value | Source |
+|------|-------|--------|
+| VS Code/Copilot overlap | 99%+ | Template analysis |
+| Claude overlap | 60-70% | Template analysis |
+```
+
+**Why This Matters**: High-level-advisor cannot make informed decisions without precise data. Summarizing away detail forces decisions based on incomplete information.
 
 ### Conflict Categories
 
