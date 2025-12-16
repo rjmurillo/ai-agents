@@ -38,7 +38,7 @@ When planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-[feature]-devops.md`
+Save to: `.agents/planning/impact-analysis-devops-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - DevOps
