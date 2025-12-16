@@ -252,6 +252,70 @@ Query: "skill [task context keywords]"
 
 ---
 
+## Freshness Protocol
+
+Memory entities require active maintenance to remain accurate as downstream artifacts evolve.
+
+### Update Triggers
+
+Update parent memory entities when downstream refinements occur:
+
+| Event | Action | Example |
+|-------|--------|---------|
+| **Epic refined** | Update `Feature-*` entity with new scope | Scope narrowed during planning |
+| **PRD completed** | Add observation linking to PRD | PRD created from epic |
+| **Tasks decomposed** | Update with task count and coverage | 15 tasks generated |
+| **Implementation started** | Add progress observations | Sprint 1 started |
+| **Milestone completed** | Update with outcome | Auth feature shipped |
+| **Decision changed** | Supersede old observation | ADR-005 supersedes ADR-003 |
+
+### Source Tracking in Observations
+
+Every observation MUST include its source for traceability:
+
+**Required Format:**
+
+```text
+[YYYY-MM-DD] [Source]: [Observation content]
+```
+
+**Source Types:**
+
+| Source Type | Format | Example |
+|-------------|--------|---------|
+| Agent session | `[agent-name]` | `[planner]` |
+| Document | `[doc:path]` | `[doc:planning/prd-auth.md]` |
+| Decision | `[decision:ADR-NNN]` | `[decision:ADR-005]` |
+| User | `[user]` | `[user]` |
+| External | `[ext:source]` | `[ext:GitHub#123]` |
+
+**Example Observations with Source Tracking:**
+
+```json
+{
+  "observations": [{
+    "entityName": "Feature-Authentication",
+    "contents": [
+      "[2025-01-15] [roadmap]: Epic EPIC-001 created for OAuth2 integration",
+      "[2025-01-16] [planner]: Decomposed into 3 milestones, 15 tasks",
+      "[2025-01-17] [doc:planning/prd-auth.md]: PRD completed, scope locked",
+      "[2025-01-20] [implementer]: Sprint 1 started, 5/15 tasks in progress",
+      "[2025-01-25] [decision:ADR-005]: Switched from PKCE to client credentials"
+    ]
+  }]
+}
+```
+
+### Staleness Detection
+
+Observations older than 30 days without updates should be reviewed:
+
+1. **Mark for review**: Prefix with `[REVIEW]` if uncertain about accuracy
+2. **Supersede if outdated**: Create new observation with `supersedes` relation
+3. **Archive if irrelevant**: Move to separate archive entity
+
+---
+
 ## Execution Mindset
 
 **Think:** "I preserve institutional knowledge across sessions"
