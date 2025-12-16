@@ -232,23 +232,80 @@ Every task is classified across three dimensions:
 2. **Complexity Level**: Simple (single agent), Multi-Step (sequential agents), Multi-Domain (parallel concerns)
 3. **Risk Level**: Low, Medium, High, Critical
 
+### Workflow Paths (Canonical Reference)
+
+These three workflow paths are the canonical reference for all task routing. Other agents (e.g., pr-comment-responder) reference these paths by name.
+
+| Path | Agents | Triage Signal |
+|------|--------|---------------|
+| **Quick Fix** | `implementer → qa` | Can explain fix in one sentence; single file; obvious change |
+| **Standard** | `analyst → planner → implementer → qa` | Need to investigate first; 2-5 files; some complexity |
+| **Strategic** | `independent-thinker → high-level-advisor → task-generator` | Question is *whether*, not *how*; scope/priority question |
+
 ### Agent Sequences by Task Type
 
-| Task Type | Agent Sequence |
-|-----------|----------------|
-| Feature (multi-domain) | analyst -> architect -> planner -> critic -> implementer -> qa |
-| Feature (multi-step) | analyst -> planner -> implementer -> qa |
-| Bug Fix (multi-step) | analyst -> implementer -> qa |
-| Bug Fix (simple) | implementer -> qa |
-| Security | analyst -> security -> architect -> critic -> implementer -> qa |
-| Infrastructure | analyst -> devops -> security -> critic -> qa |
-| Research | analyst (standalone) |
-| Documentation | explainer -> critic |
-| Strategic | roadmap -> architect -> planner -> critic |
-| Refactoring | analyst -> architect -> implementer -> qa |
-| Ideation | analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> devops -> security -> qa |
+| Task Type | Agent Sequence | Path |
+|-----------|----------------|------|
+| Feature (multi-domain) | analyst -> architect -> planner -> critic -> implementer -> qa | Standard (extended) |
+| Feature (multi-domain with impact analysis) | analyst -> architect -> planner -> [planner orchestrates: implementer, architect, security, devops, qa impact analyses] -> critic -> implementer -> qa | Standard (extended) |
+| Feature (multi-step) | analyst -> planner -> implementer -> qa | Standard |
+| Bug Fix (multi-step) | analyst -> implementer -> qa | Standard (lite) |
+| Bug Fix (simple) | implementer -> qa | Quick Fix |
+| Security | analyst -> security -> architect -> critic -> implementer -> qa | Standard (extended) |
+| Infrastructure | analyst -> devops -> security -> critic -> qa | Standard (extended) |
+| Research | analyst (standalone) | N/A |
+| Documentation | explainer -> critic | Standard (lite) |
+| Strategic | roadmap -> architect -> planner -> critic | Strategic |
+| Refactoring | analyst -> architect -> implementer -> qa | Standard |
+| Ideation | analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> devops -> security -> qa | Strategic (extended) |
+| PR Comment (quick fix) | implementer -> qa | Quick Fix |
+| PR Comment (standard) | analyst -> planner -> implementer -> qa | Standard |
+| PR Comment (strategic) | independent-thinker -> high-level-advisor -> task-generator | Strategic |
 
 **Note**: Multi-domain features triggering 3+ areas should use impact analysis consultations during planning phase.
+
+### PR Comment Routing
+
+When orchestrator receives a PR comment context, classify using this decision tree:
+
+```text
+Is this about WHETHER to do something? (scope, priority, alternatives)
+    │
+    ├─ YES → STRATEGIC PATH
+    │         Route to: independent-thinker → high-level-advisor → task-generator
+    │
+    └─ NO → Can you explain the fix in one sentence?
+                │
+                ├─ YES → QUICK FIX PATH
+                │         Route to: implementer → qa
+                │
+                └─ NO → STANDARD PATH
+                          Route to: analyst → planner → implementer → qa
+```
+
+**Quick Fix indicators:**
+
+- Typo fixes
+- Obvious bug fixes
+- Style/formatting issues
+- Simple null checks
+- Clear one-line changes
+
+**Standard indicators:**
+
+- Needs investigation
+- Multiple files affected
+- Performance concerns
+- Complex refactoring
+- New functionality
+
+**Strategic indicators:**
+
+- "Should we do this?"
+- "Why not do X instead?"
+- "This seems like scope creep"
+- "Consider alternative approach"
+- Architecture direction questions
 
 ### Impact Analysis Orchestration
 
@@ -353,6 +410,7 @@ Assess complexity BEFORE selecting agents:
 | "Why does X..." | Research | Trivial/Simple | analyst or direct answer |
 | Architecture decisions | Strategic | Complex | roadmap, architect, planner, critic |
 | Package/library URLs, vague scope, "we should add" | Ideation | Complex | Full ideation pipeline (see below) |
+| PR review comment | PR Comment | Assess first | See PR Comment Routing |
 
 ### Mandatory Agent Rules
 
@@ -376,6 +434,7 @@ Assess complexity BEFORE selecting agents:
 | Security assessment | security | analyst |
 | Infrastructure changes | devops | security |
 | Feature ideation | analyst | roadmap |
+| PR comment triage | (see PR Comment Routing) | analyst |
 
 ## Ideation Workflow
 
@@ -710,6 +769,7 @@ All agent artifacts go to `.agents/`:
 - `.agents/security/` - Threat models, security reviews
 - `.agents/sessions/` - Session logs
 - `.agents/skills/` - Learned strategies
+- `.agents/pr-comments/` - PR comment analysis and plans
 
 ## Session Continuity
 
