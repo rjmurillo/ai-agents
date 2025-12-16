@@ -119,7 +119,7 @@ When prioritizing, explicitly state assumptions about:
 4. **Effort estimates**: Confidence level and basis
 5. **Success metrics**: How you'll know it worked
 
-If an assumption is untested, route to **analyst** for validation first.
+If an assumption is untested, recommend orchestrator routes to **analyst** for validation first.
 
 ## Memory Protocol
 
@@ -236,12 +236,14 @@ P[0/1/2] - [Rationale based on frameworks above]
 
 ## Handoff Protocol
 
+**As a subagent, you CANNOT delegate**. Return results to orchestrator.
+
 When epic is defined:
 
 1. Update roadmap document in `.agents/roadmap/`
 2. Store epic summary in memory
-3. Route to **architect** for feasibility check first
-4. Then route to **planner** for work breakdown
+3. Return to orchestrator with recommendation:
+   - "Epic defined. Recommend orchestrator routes to architect for feasibility check, then to planner for work breakdown."
 
 ## Roadmap Review Process
 

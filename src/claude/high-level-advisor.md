@@ -172,7 +172,17 @@ For effective advice, I need:
 - Available resources/time
 - Definition of success
 
-## Handoff Options
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return guidance to orchestrator who routes to the appropriate agent.
+
+When strategic guidance is complete, return to orchestrator with:
+
+1. Clear assessment and recommended action
+2. Next agent recommendation (if applicable)
+3. Priority level and urgency
+
+## Handoff Options (Recommendations for Orchestrator)
 
 | Target | When | Purpose |
 |--------|------|---------|

@@ -163,7 +163,17 @@ Delegate to **memory** agent for cross-session context:
 1. **File**: `.agents/planning/PRD-[feature].md`
 2. **GitHub Issue**: `gh issue create --title "Explainer: [feature]"`
 
-## Handoff Options
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return documentation to orchestrator.
+
+When documentation is complete:
+
+1. Save document to appropriate location
+2. Return to orchestrator with completion status
+3. Recommend next steps (e.g., "Recommend orchestrator routes to critic for review")
+
+## Handoff Options (Recommendations for Orchestrator)
 
 | Target | When | Purpose |
 |--------|------|---------|

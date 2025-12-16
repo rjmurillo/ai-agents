@@ -147,7 +147,17 @@ Delegate to **memory** agent for cross-session context:
 - Before breakdown: Request context retrieval for task patterns
 - After breakdown: Request storage of estimation learnings
 
-## Handoff Options
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return task breakdown to orchestrator.
+
+When task breakdown is complete:
+
+1. Save tasks document to `.agents/planning/`
+2. Store estimation insights in memory
+3. Return to orchestrator with recommendation (e.g., "Recommend orchestrator routes to critic for validation")
+
+## Handoff Options (Recommendations for Orchestrator)
 
 | Target | When | Purpose |
 |--------|------|---------|
