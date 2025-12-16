@@ -2,7 +2,7 @@
 name: memory
 description: Memory management agent for cross-session context continuity using cloudmcp-manager. Retrieves relevant past information before planning and stores progress summaries at milestones. Use at session start for context retrieval and after milestones for knowledge persistence.
 argument-hint: Specify the context to retrieve or milestone to store
-tools: ['read', 'memory', 'cloudmcp-manager/*', 'serena/*']
+tools: ['read', 'edit', 'memory', 'cloudmcp-manager/*', 'serena/*']
 ---
 # Memory Agent
 

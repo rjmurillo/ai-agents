@@ -2,7 +2,7 @@
 name: implementer
 description: Expert .NET/C# implementation specialist following SOLID principles. Executes approved plans, writes production code and tests, and makes conventional commits. Use after planning is complete and approved for writing or modifying source code.
 argument-hint: Specify the plan file path and task to implement
-tools: ['shell', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github/*', 'serena/*']
+tools: ['shell', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github/create_branch', 'github/push_files', 'github/create_or_update_file', 'github/create_pull_request', 'github/update_pull_request', 'github/pull_request_read', 'github/issue_read', 'github/add_issue_comment', 'serena/*']
 ---
 # Implementer Agent
 

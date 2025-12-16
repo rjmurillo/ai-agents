@@ -2,7 +2,7 @@
 name: orchestrator
 description: Autonomous task orchestrator that coordinates specialized agents end-to-end. Routes work to appropriate agents, manages handoffs, and ensures complete task execution. Use for complex multi-step tasks requiring multiple agent specializations or when task routing is unclear.
 argument-hint: Describe the task or problem to solve end-to-end
-tools: ['read', 'search', 'agent', 'memory', 'todo', 'cloudmcp-manager/*', 'github/*', 'serena/*']
+tools: ['shell', 'read', 'edit', 'search', 'agent', 'memory', 'todo', 'cloudmcp-manager/*', 'github/list_issues', 'github/list_pull_requests', 'github/issue_read', 'github/pull_request_read', 'github/list_workflow_runs', 'github/get_workflow_run', 'serena/*']
 ---
 # Orchestrator Agent
 

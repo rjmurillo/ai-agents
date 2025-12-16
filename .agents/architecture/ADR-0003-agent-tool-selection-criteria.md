@@ -99,10 +99,34 @@ Verify implementation by checking each `.github/agents/*.agent.md` file has:
 
 ### Category 4: GitHub Integration
 
-| Tool | Purpose | Best For |
-|------|---------|----------|
-| `github/*` | Full GitHub API | Issues, PRs, repos, commits |
-| `github.vscode-pull-request-github/*` | PR-specific operations | PR comments, reviews |
+The GitHub MCP Server provides ~77 tools. **Blanket allocation of `github/*` is an anti-pattern** that violates the same "just in case" principle this ADR seeks to avoid. Instead, use specific GitHub toolsets.
+
+#### GitHub Toolset Definitions
+
+| Toolset | Tools (~) | Default | Description |
+|---------|-----------|---------|-------------|
+| `context` | 3 | ✅ | User/team context (get_me, get_team_members, get_teams) |
+| `repos` | 17 | ✅ | Repository operations (branches, commits, files, search) |
+| `issues` | 8 | ✅ | Issue management (CRUD, search, comments) |
+| `pull_requests` | 10 | ✅ | PR operations (create, merge, review, comment) |
+| `users` | 1 | ✅ | User search |
+| `actions` | 14 | ❌ | GitHub Actions/CI/CD workflows |
+| `code_security` | 2 | ❌ | Code scanning alerts |
+| `dependabot` | 2 | ❌ | Dependabot alerts |
+| `secret_protection` | 2 | ❌ | Secret scanning |
+
+#### Role-Specific GitHub Tool Allocation
+
+| Agent | GitHub Toolsets | Mode | Rationale |
+|-------|-----------------|------|----------|
+| analyst | `context`, `repos`, `issues`, `pull_requests` | read-only | Research issues, PRs, code |
+| orchestrator | `context`, `repos`, `issues`, `pull_requests` | read-only | Monitor status for coordination |
+| implementer | `context`, `repos`, `issues`, `pull_requests` | read-write | Create branches, PRs, commits |
+| devops | `context`, `repos`, `actions` | read-write | CI/CD workflow management |
+| security | `code_security`, `secret_protection`, `dependabot` | read-only | Security scanning review |
+| pr-comment-responder | `github.vscode-pull-request-github/*` | read-write | VS Code PR extension (separate server) |
+
+**Agents without GitHub tools**: architect, critic, explainer, high-level-advisor, independent-thinker, memory, planner, qa, retrospective, roadmap, skillbook, task-generator
 
 ### Category 5: Agent Orchestration
 
@@ -116,24 +140,26 @@ Verify implementation by checking each `.github/agents/*.agent.md` file has:
 
 ### Core Operations by Role
 
+**Important**: Agents that produce handoff artifacts (analysis reports, critiques, retrospectives) need `edit` to write to `.agents/` directories. This is distinct from editing source code.
+
 | Agent | read | edit | search | execute | Rationale |
 |-------|:----:|:----:|:------:|:-------:|-----------|
-| analyst | ✓ | ✗ | ✓ | ✗ | Research-only, no modifications |
+| analyst | ✓ | ✓ | ✓ | ✗ | Research + write findings to `.agents/analysis/` |
 | architect | ✓ | ✓ | ✓ | ✗ | ADR/doc creation, no execution |
-| critic | ✓ | ✗ | ✓ | ✗ | Review-only, no modifications |
+| critic | ✓ | ✓ | ✓ | ✗ | Review + write critiques to `.agents/critique/` |
 | devops | ✓ | ✓ | ✓ | ✓ | Full CI/CD pipeline access |
 | explainer | ✓ | ✓ | ✗ | ✗ | Documentation creation |
-| high-level-advisor | ✓ | ✗ | ✓ | ✗ | Strategic review, no implementation |
+| high-level-advisor | ✓ | ✓ | ✓ | ✗ | Strategic review + write advisories |
 | implementer | ✓ | ✓ | ✓ | ✓ | Full development capabilities |
-| independent-thinker | ✓ | ✗ | ✓ | ✗ | Analysis without bias from editing |
-| memory | ✓ | ✗ | ✗ | ✗ | Memory management only |
-| orchestrator | ✓ | ✗ | ✓ | ✗ | Coordination, not implementation |
+| independent-thinker | ✓ | ✓ | ✓ | ✗ | Analysis + write alternative perspectives |
+| memory | ✓ | ✓ | ✗ | ✗ | Memory management + handoff docs |
+| orchestrator | ✓ | ✓ | ✓ | ✓ | Coordination + status checks (git status, build verification) |
 | planner | ✓ | ✓ | ✓ | ✗ | Plan creation, no execution |
 | pr-comment-responder | ✓ | ✓ | ✗ | ✓ | PR interaction with code fixes |
 | qa | ✓ | ✓ | ✓ | ✓ | Test creation and execution |
-| retrospective | ✓ | ✗ | ✓ | ✗ | Review without modification |
+| retrospective | ✓ | ✓ | ✓ | ✗ | Review + write retrospectives to `.agents/retrospective/` |
 | roadmap | ✓ | ✓ | ✗ | ✗ | Strategic document creation |
-| security | ✓ | ✗ | ✓ | ✗ | Security audit, no code changes |
+| security | ✓ | ✓ | ✓ | ✗ | Security audit + write findings to `.agents/security/` |
 | skillbook | ✓ | ✓ | ✓ | ✗ | Skill documentation updates |
 | task-generator | ✓ | ✓ | ✓ | ✗ | Task file creation |
 
@@ -141,22 +167,22 @@ Verify implementation by checking each `.github/agents/*.agent.md` file has:
 
 | Agent | Research | GitHub | Orchestration | Rationale |
 |-------|:--------:|:------:|:-------------:|-----------|
-| analyst | web, perplexity, context7, deepwiki | github/* | ✗ | Heavy research needs |
+| analyst | web, perplexity, context7, deepwiki | repos/issues/PRs (read-only) | ✗ | Heavy research needs |
 | architect | ✗ | ✗ | ✗ | Internal design focus |
 | critic | ✗ | ✗ | ✗ | Internal review focus |
-| devops | ✗ | github/* | ✗ | GitHub Actions, workflows |
+| devops | ✗ | repos + actions | ✗ | GitHub Actions, workflows |
 | explainer | ✗ | ✗ | ✗ | Documentation focus |
 | high-level-advisor | ✗ | ✗ | ✗ | Strategic reasoning |
-| implementer | ✗ | github/* | ✗ | PRs, commits, issues |
+| implementer | ✗ | repos/issues/PRs | ✗ | Create branches, PRs, commits |
 | independent-thinker | web, perplexity, deepwiki | ✗ | ✗ | External perspective research |
 | memory | ✗ | ✗ | memory | Direct memory ops |
-| orchestrator | ✗ | github/* | agent, todo, memory | Full coordination |
+| orchestrator | ✗ | repos/issues/PRs (read-only) | agent, todo, memory | Full coordination |
 | planner | ✗ | ✗ | ✗ | Internal planning |
 | pr-comment-responder | ✗ | vscode-pr/* | agent | PR-specific operations |
 | qa | ✗ | ✗ | ✗ | Test-focused |
 | retrospective | ✗ | ✗ | agent | May delegate analysis |
 | roadmap | ✗ | ✗ | ✗ | Strategic documents |
-| security | web, perplexity | ✗ | ✗ | CVE/vulnerability research |
+| security | web, perplexity | security toolsets (read-only) | ✗ | CVE/vulnerability research |
 | skillbook | ✗ | ✗ | ✗ | Internal skill docs |
 | task-generator | ✗ | ✗ | ✗ | Task file creation |
 
@@ -164,30 +190,30 @@ Verify implementation by checking each `.github/agents/*.agent.md` file has:
 
 | Agent | Tools | Count |
 |-------|-------|:-----:|
-| analyst | read, search, web, github/*, cloudmcp-manager/*, cognitionai/deepwiki/*, context7/*, perplexity/*, serena/* | 9 |
+| analyst | read, edit, search, web, github/search_*, github/*_read, cloudmcp-manager/*, cognitionai/deepwiki/*, context7/*, perplexity/*, serena/* | 11 |
 | architect | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
-| critic | read, search, cloudmcp-manager/*, serena/* | 4 |
-| devops | execute, read, edit, search, cloudmcp-manager/*, github/*, serena/* | 7 |
+| critic | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
+| devops | execute, read, edit, search, cloudmcp-manager/*, github/list_workflow*, github/get_workflow*, github/run_workflow, serena/* | 10 |
 | explainer | read, edit, cloudmcp-manager/*, serena/* | 4 |
-| high-level-advisor | read, search, cloudmcp-manager/*, serena/* | 4 |
-| implementer | execute, read, edit, search, cloudmcp-manager/*, github/*, serena/* | 7 |
-| independent-thinker | read, search, web, cognitionai/deepwiki/*, cloudmcp-manager/*, perplexity/*, serena/* | 7 |
-| memory | read, memory, cloudmcp-manager/*, serena/* | 4 |
-| orchestrator | read, search, agent, memory, todo, cloudmcp-manager/*, github/*, serena/* | 8 |
+| high-level-advisor | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
+| implementer | execute, read, edit, search, cloudmcp-manager/*, github/create_branch, github/push_files, github/create_pull_request, github/pull_request_read, github/issue_read, serena/* | 11 |
+| independent-thinker | read, edit, search, web, cognitionai/deepwiki/*, cloudmcp-manager/*, perplexity/*, serena/* | 8 |
+| memory | read, edit, memory, cloudmcp-manager/*, serena/* | 5 |
+| orchestrator | execute, read, edit, search, agent, memory, todo, cloudmcp-manager/*, github/list_*, github/*_read, serena/* | 11 |
 | planner | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
 | pr-comment-responder | execute, read, edit, agent, cloudmcp-manager/*, github.vscode-pull-request-github/*, serena/* | 7 |
 | qa | execute, read, edit, search, cloudmcp-manager/*, serena/* | 6 |
-| retrospective | read, search, agent, cloudmcp-manager/*, serena/* | 5 |
+| retrospective | read, edit, search, agent, cloudmcp-manager/*, serena/* | 6 |
 | roadmap | read, edit, cloudmcp-manager/*, serena/* | 4 |
-| security | read, search, web, cloudmcp-manager/*, serena/*, perplexity/* | 6 |
+| security | read, edit, search, web, cloudmcp-manager/*, serena/*, perplexity/*, github/list_*_alerts, github/get_*_alert | 10 |
 | skillbook | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
 | task-generator | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
 
 **Statistics:**
-- Minimum: 4 tools (critic, explainer, high-level-advisor, memory, roadmap)
-- Maximum: 9 tools (analyst)
-- Average: 5.6 tools per agent
-- Reduction: ~58 → 5.6 average (90% reduction)
+- Minimum: 4 tools (explainer, roadmap)
+- Maximum: 11 tools (analyst, implementer)
+- Average: 6.5 tools per agent
+- Reduction: ~77 GitHub tools alone → specific subsets (74-90% reduction per agent)
 
 ## Pros and Cons of the Options
 
@@ -240,9 +266,20 @@ Verify implementation by checking each `.github/agents/*.agent.md` file has:
 
 **Exception**: Only `implementer`, `devops`, `qa`, and `pr-comment-responder` should have `execute`.
 
-### ❌ DO NOT: Grant edit to review-only agents
+### ⚠️ CLARIFICATION: Edit for handoff artifacts vs source code
 
-**Why**: Agents like `critic`, `analyst`, `high-level-advisor`, `retrospective`, and `security` should analyze without modifying. Edit capability creates temptation to "fix" instead of "report."
+**Context**: Agents that produce analysis reports, critiques, or retrospectives need `edit` to write their findings to `.agents/` directories. This is a necessary capability for handoff artifacts.
+
+**The principle**: Agents should not edit **source code** outside their domain. Analysis agents should write to `.agents/` directories only, not to `src/`, `tests/`, or production code paths.
+
+**Agents with artifact-only edit scope**:
+- `analyst` → `.agents/analysis/`
+- `critic` → `.agents/critique/`
+- `high-level-advisor` → `.agents/planning/` (advisories)
+- `retrospective` → `.agents/retrospective/`
+- `security` → `.agents/security/`
+
+**Source code edit agents** (can edit anywhere): `implementer`, `devops`, `qa`, `pr-comment-responder`
 
 ### ❌ DO NOT: Give all agents research tools
 
@@ -263,6 +300,16 @@ Verify implementation by checking each `.github/agents/*.agent.md` file has:
 ### ❌ DO NOT: Add tools "just in case"
 
 **Why**: Every tool adds context overhead. Only add tools with demonstrated need based on agent responsibilities.
+
+**Bad Example**: Allocating `github/*` (~77 tools) when agent only needs `github/pull_request_read` and `github/issue_read` (~2 tools).
+
+### ❌ DO NOT: Use blanket `github/*` allocation
+
+**Why**: The GitHub MCP Server provides ~77 tools across 19 toolsets. Blanket allocation adds 30-40KB of tool definitions to context. Use specific toolsets instead:
+- Research agents: repos/issues/PRs read-only
+- Implementation agents: repos/issues/PRs read-write
+- DevOps agents: repos + actions
+- Security agents: security toolsets only
 
 ## Implementation Notes
 

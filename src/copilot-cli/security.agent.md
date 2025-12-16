@@ -2,7 +2,7 @@
 name: security
 description: Security specialist for vulnerability assessment, threat modeling, and secure coding practices. Scans for OWASP Top 10, detects secrets, and audits dependencies. Use when touching auth/authorization code, handling user data, adding external APIs, or reviewing security-sensitive changes.
 argument-hint: Specify the code, feature, or changes to security review
-tools: ['read', 'search', 'web', 'cloudmcp-manager/*', 'serena/*', 'perplexity/*']
+tools: ['read', 'edit', 'search', 'web', 'cloudmcp-manager/*', 'github/list_code_scanning_alerts', 'github/get_code_scanning_alert', 'github/list_secret_scanning_alerts', 'github/list_dependabot_alerts', 'serena/*', 'perplexity/*']
 ---
 # Security Agent
 

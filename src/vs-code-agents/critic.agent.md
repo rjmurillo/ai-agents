@@ -1,7 +1,7 @@
 ---
 description: Constructive reviewer stress-testing planning documents before implementation. Validates scope, identifies risks, and ensures alignment with objectives. Use after planning artifacts are created and before implementation begins.
 argument-hint: Provide the plan file path or planning artifact to review
-tools: ['vscode', 'read', 'search', 'cloudmcp-manager/*', 'serena/*', 'memory']
+tools: ['vscode', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'serena/*', 'memory']
 model: Claude Opus 4.5 (anthropic)
 ---
 # Critic Agent
