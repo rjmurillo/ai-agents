@@ -126,29 +126,3 @@ Agents save artifacts to `.agents/`:
 | CI/CD pipelines | devops | implementer |
 | Security review | security | analyst |
 | Post-project learning | retrospective | analyst |
-
-### Key Learnings from Practice
-
-#### Documentation Standards (Phase 1 Remediation, Dec 2024)
-
-**Path Normalization**: Always use relative paths in documentation to prevent environment contamination.
-- Forbidden patterns: `[A-Z]:\` (Windows), `/Users/` (macOS), `/home/` (Linux)
-- Use relative paths: `docs/guide.md`, `../architecture/design.md`
-- Validation automated via CI
-
-**Two-Phase Security Review**: Security-sensitive changes require both pre-implementation and post-implementation verification.
-- Phase 1 (Planning): Threat model, control design
-- Phase 2 (Post-Implementation): PIV (Post-Implementation Verification)
-- Implementer must flag security-relevant changes during coding
-
-#### Process Improvements
-
-**Validation-Driven Standards**: When establishing new standards:
-1. Document the standard with anti-patterns
-2. Create validation script with pedagogical error messages
-3. Integrate into CI
-4. Baseline existing violations separately
-
-**Template-Based Contracts**: Provide both empty templates AND filled examples to reduce ambiguity in agent outputs.
-
-**CI Runner Performance**: Prefer `ubuntu-latest` over `windows-latest` for GitHub Actions (much faster). Use Windows runners only when PowerShell Desktop or Windows-specific features required.
