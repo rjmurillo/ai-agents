@@ -61,7 +61,7 @@ param(
 
     [Parameter()]
     [ValidateSet("NUnitXml", "JUnitXml")]
-    [string]$OutputFormat = "NUnitXml",
+    [string]$OutputFormat = "JUnitXml",
 
     [Parameter()]
     [ValidateSet("None", "Normal", "Detailed", "Diagnostic")]

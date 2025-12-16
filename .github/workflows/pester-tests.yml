@@ -57,5 +57,5 @@ jobs:
         with:
           name: Pester Test Report
           path: ./artifacts/pester-results.xml
-          reporter: dotnet-nunit
+          reporter: java-junit
           fail-on-error: true
