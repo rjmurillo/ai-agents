@@ -330,13 +330,14 @@ Reply to comments that need immediate response BEFORE implementation:
 #### Reply Template
 
 ```bash
-# Reply to review comment (in-thread)
-gh api repos/[owner]/[repo]/pulls/comments/[comment_id]/replies \
-  -f body="[response]"
-
-# Reply to issue comment (use issue comments endpoint)
-gh api repos/[owner]/[repo]/issues/[number]/comments \
-  -f body="[response]"
+# CRITICAL: Reply to review comments using pulls comments API with in_reply_to
+# NEVER use /issues/{number}/comments - that creates out-of-context PR comments
+gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
+  -X POST \
+  -F body="[response]" \
+  -F in_reply_to=[comment_id]
+# Note: in_reply_to must be the ID of a top-level review comment (not a reply)
+# When in_reply_to is set, path/position/commit_id are ignored
 ```
 
 #### Response Templates
@@ -418,11 +419,13 @@ git push origin [branch]
 #### Step 6.3: Reply with Resolution
 
 ```bash
-# Reply with commit reference
-gh api repos/[owner]/[repo]/pulls/comments/[comment_id]/replies \
-  -f body="Fixed in [commit_hash].
+# Reply with commit reference using correct API
+gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
+  -X POST \
+  -F body="Fixed in [commit_hash].
 
-[Brief summary of change]"
+[Brief summary of change]" \
+  -F in_reply_to=[comment_id]
 ```
 
 #### Step 6.4: Update Task List
@@ -604,6 +607,7 @@ This agent primarily delegates to **orchestrator**. Direct handoffs:
 4. **Incomplete verification**: Always verify all comments addressed
 5. **Skipping acknowledgment**: Always react with 👀 first
 6. **Orphaned PRs**: Clean up unnecessary bot-created PRs
+7. **Wrong reply API**: Never use `/issues/{number}/comments` to reply to review comments - it creates out-of-context PR comments instead of threaded replies
 
 ## Handoff Protocol
 
