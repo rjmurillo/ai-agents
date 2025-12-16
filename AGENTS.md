@@ -90,9 +90,9 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 │   ├── install-copilot-cli-repo.ps1
 │   ├── install-claude-global.ps1
 │   └── install-claude-repo.ps1
-├── copilot-instructions.md   # GitHub Copilot instructions
-├── CLAUDE.md                 # Claude Code instructions
-└── USING-AGENTS.md           # This file
+├── AGENTS.md                 # Canonical agent instructions (this file)
+├── CLAUDE.md                 # Claude Code shim → AGENTS.md
+└── .github/copilot-instructions.md  # Copilot shim → AGENTS.md
 ```
 
 ---
@@ -602,6 +602,111 @@ Each agent file defines:
 - **Constraints**: What the agent must NOT do
 
 To customize, edit the relevant agent file while keeping the handoff protocol intact.
+
+---
+
+## Testing
+
+### Running Pester Tests
+
+PowerShell unit tests for installation scripts are located in `scripts/tests/`. Run them using the reusable test runner:
+
+```powershell
+# Local development (detailed output, continues on failure)
+pwsh ./build/scripts/Invoke-PesterTests.ps1
+
+# CI mode (exits with error code on failure)
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
+
+# Run specific test file
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -TestPath "./scripts/tests/Install-Common.Tests.ps1"
+
+# Maximum verbosity for debugging
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -Verbosity Diagnostic
+```
+
+**Test Coverage:**
+
+- `Install-Common.Tests.ps1` - Tests for all 11 shared module functions
+- `Config.Tests.ps1` - Configuration validation tests
+- `install.Tests.ps1` - Entry point parameter validation
+
+**Output:**
+
+Test results are saved to `artifacts/pester-results.xml` (gitignored).
+
+**When to Run Tests:**
+
+- Before committing changes to `scripts/`
+- After modifying `scripts/lib/Install-Common.psm1` or `scripts/lib/Config.psd1`
+- When the `qa` agent validates implementation
+
+---
+
+## Utilities
+
+### Fix Markdown Fences
+
+When generating or fixing markdown with code blocks, use the fix-markdown-fences utility to repair malformed closing fences automatically.
+
+**Location**: `.agents/utilities/fix-markdown-fences/SKILL.md`
+
+**Problem**: Closing fences should never have language identifiers (e.g., ` ` `text). This utility detects and fixes them.
+
+**Usage**:
+
+```bash
+# PowerShell
+pwsh .agents/utilities/fix-markdown-fences/fix_fences.ps1
+
+# Python
+python .agents/utilities/fix-markdown-fences/fix_fences.py
+```
+
+**Benefits**:
+
+- Prevents token waste from repeated fence fixing cycles
+- Validates markdown before committing
+- Handles edge cases (nested indentation, multiple blocks, unclosed blocks)
+- Supports batch processing of multiple files
+
+### Memory Fallback
+
+When `cloudmcp-manager` memory functions fail, use Serena memory tools as fallback:
+
+- **Primary functions**: `memory-add_observations`, `memory-create_entities`, `memory-create_relations`, `memory-delete_entities`, `memory-delete_observations`, `memory-delete_relations`, `memory-open_nodes`, `memory-read_graph`, `memory-search_nodes`
+- **Fallback functions**: `write_memory`, `read_memory`, `list_memories`, `delete_memory`, `edit_memory`
+
+---
+
+## Key Learnings from Practice
+
+### Documentation Standards (Phase 1 Remediation, Dec 2024)
+
+**Path Normalization**: Always use relative paths in documentation to prevent environment contamination.
+
+- Forbidden patterns: `[A-Z]:\` (Windows), `/Users/` (macOS), `/home/` (Linux)
+- Use relative paths: `docs/guide.md`, `../architecture/design.md`
+- Validation automated via CI
+
+**Two-Phase Security Review**: Security-sensitive changes require both pre-implementation and post-implementation verification.
+
+- Phase 1 (Planning): Threat model, control design
+- Phase 2 (Post-Implementation): PIV (Post-Implementation Verification)
+- Implementer must flag security-relevant changes during coding
+
+### Process Improvements
+
+**Validation-Driven Standards**: When establishing new standards:
+
+1. Document the standard with anti-patterns
+2. Create validation script with pedagogical error messages
+3. Integrate into CI
+4. Baseline existing violations separately
+
+**Template-Based Contracts**: Provide both empty templates AND filled examples to reduce ambiguity in agent outputs.
+
+**CI Runner Performance**: Prefer `ubuntu-latest` over `windows-latest` for GitHub Actions (much faster). Use Windows runners only when PowerShell Desktop or Windows-specific features required.
 
 ---
 

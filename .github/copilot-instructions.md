@@ -1,5 +1,17 @@
 # GitHub Copilot Instructions
 
+Refer to [AGENTS.md](../AGENTS.md) for complete project instructions.
+
+This file exists for GitHub Copilot's repo-level custom instructions. All canonical agent documentation is maintained in `AGENTS.md` to follow the DRY principle.
+
+## Quick Reference
+
+- **Agent invocation**: `@agent_name` in Copilot Chat or `#runSubagent with subagentType=agent_name`
+- **Memory system**: `cloudmcp-manager` memory tools
+- **Output directories**: `.agents/{analysis,architecture,planning,critique,qa,retrospective}/`
+
+For full details on workflows, agent catalog, and best practices, see [AGENTS.md](../AGENTS.md).
+
 <!-- BEGIN: ai-agents installer -->
 ## AI Agent System
 
