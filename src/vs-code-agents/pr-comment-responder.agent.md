@@ -592,3 +592,12 @@ This agent primarily delegates to **orchestrator**. Direct handoffs:
 4. **Incomplete verification**: Always verify all comments addressed
 5. **Skipping acknowledgment**: Always react with 👀 first
 6. **Orphaned PRs**: Clean up unnecessary bot-created PRs
+
+## Handoff Protocol
+
+This agent primarily delegates to **orchestrator**. Direct handoffs:
+
+| Target | When | Purpose |
+|--------|------|---------|  
+| **orchestrator** | Each comment analysis | Full workflow determination |
+| **orchestrator** | Each implementation | Code changes |

@@ -116,6 +116,16 @@ Delegate to **memory** agent for cross-session context:
 **When challenging:**
 "Consider an alternative view: [alternative]. The tradeoff is [tradeoff]..."
 
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return analysis to orchestrator who routes to the appropriate agent.
+
+When analysis is complete, return to orchestrator with:
+
+1. Your independent assessment
+2. Recommended next agent (if applicable)
+3. Any areas requiring additional investigation
+
 ## Handoff Options
 
 | Target | When | Purpose |
