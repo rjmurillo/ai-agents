@@ -154,8 +154,9 @@ Delegate to **memory** agent for cross-session context:
 When task breakdown is complete:
 
 1. Save tasks document to `.agents/planning/`
-2. Store estimation insights in memory
-3. Return to orchestrator with recommendation (e.g., "Recommend orchestrator routes to critic for validation")
+2. **Validate estimate reconciliation**: Compare derived effort estimates against source PRD/epic estimates. If divergence exceeds 10%, document reconciliation rationale
+3. Store estimation insights in memory
+4. Return to orchestrator with recommendation (e.g., "Recommend orchestrator routes to critic for validation")
 
 ## Handoff Options (Recommendations for Orchestrator)
 

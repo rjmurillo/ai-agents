@@ -96,8 +96,27 @@ If specialists do NOT have unanimous agreement:
 
 1. **Document the conflict** in the critique clearly
 2. **Assess severity**: Minor (proceed with note) vs. Major (requires resolution)
-3. **For major conflicts**: MUST return to orchestrator with escalation recommendation:
-   - "ESCALATION REQUIRED: Conflict between [Agent A] and [Agent B] regarding [issue]. Recommend orchestrator routes to high-level-advisor."
+3. **For major conflicts**: MUST return to orchestrator with structured escalation:
+
+```markdown
+## ESCALATION REQUIRED
+
+**Conflicting Agents**: [Agent A] vs [Agent B]
+**Issue**: [Specific technical disagreement]
+
+### Agent A Position
+- **Recommendation**: [Exact recommendation]
+- **Evidence**: [Specific facts, metrics, code references]
+- **Risk if ignored**: [Quantified impact]
+
+### Agent B Position
+- **Recommendation**: [Exact recommendation]
+- **Evidence**: [Specific facts, metrics, code references]
+- **Risk if ignored**: [Quantified impact]
+
+**Recommendation**: Route to high-level-advisor for resolution
+```
+
 4. **Block approval** until orchestrator escalates and gets guidance
 5. **Document conflict** in critique for orchestrator to route to retrospective
 

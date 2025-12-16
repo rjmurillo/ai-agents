@@ -2,7 +2,7 @@
 name: skillbook
 description: Skill manager transforming reflections into high-quality atomic skillbook updates. Guards strategy quality, prevents duplicates, and maintains learned patterns. Use after retrospective analysis to persist proven strategies or remove harmful patterns.
 model: sonnet
-argument-hint: Provide the reflection or strategy pattern to persist
+argument-hint: "Provide reflection as markdown with: ## Pattern (behavior observed), ## Evidence (execution proof), ## Recommendation (ADD/UPDATE/TAG/REMOVE skill)"
 ---
 # Skillbook Agent (Skill Manager)
 
@@ -204,7 +204,8 @@ When skillbook update is complete:
 |--------|------|---------|
 | **retrospective** | Need more evidence | Request additional analysis |
 | **orchestrator** | Skills updated | Notify for next task |
-| **memory** | Storage needed | Execute memory operations |
+
+**Note**: Memory operations are executed directly via cloudmcp-manager memory tools (see Claude Code Tools section). You do not delegate to a memory agent—you invoke memory tools directly.
 
 ## Execution Mindset
 

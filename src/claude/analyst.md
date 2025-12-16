@@ -271,6 +271,8 @@ When analysis is complete:
 2. Store findings in memory
 3. Return to orchestrator with clear recommendations for next steps
 
+**Impact Analysis Mode**: When invoked by orchestrator for impact analysis during planning phase, save findings to `.agents/planning/impact-analysis-analyst-[feature].md` instead of the standard analysis path.
+
 ## Analysis Document Format
 
 Save to: `.agents/analysis/NNN-[topic]-analysis.md`
