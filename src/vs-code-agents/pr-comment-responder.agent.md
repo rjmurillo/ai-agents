@@ -1,5 +1,5 @@
 ---
-description: PR review comment handler - gathers context and delegates to orchestrator for analysis and implementation
+description: PR review comment handler - triages comments and delegates to orchestrator with workflow path recommendation. Gathers PR context, tracks reviewer comments, and ensures all feedback is addressed. Use when responding to GitHub PR review comments or managing reviewer conversations.
 tools: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'agent', 'cloudmcp-manager/*', 'github.vscode-pull-request-github/*', 'todo']
 model: Claude Opus 4.5 (anthropic)
 ---

@@ -1,5 +1,5 @@
 ---
-description: Constructive reviewer stress-testing planning documents before implementation
+description: Constructive reviewer stress-testing planning documents before implementation. Validates scope, identifies risks, and ensures alignment with objectives. Use after planning artifacts are created and before implementation begins.
 tools: ['vscode', 'read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
 model: Claude Opus 4.5 (anthropic)
 ---

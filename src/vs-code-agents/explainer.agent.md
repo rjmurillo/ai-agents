@@ -1,5 +1,5 @@
 ---
-description: Documentation specialist creating PRDs, explainers, and technical specifications
+description: Documentation specialist creating PRDs, explainers, and technical specifications. Writes clear, junior-developer-friendly docs with explicit requirements. Use when creating feature specs, requirement documents, or explaining complex features for implementation.
 tools: ['vscode', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
 model: Claude Opus 4.5 (anthropic)
 ---

@@ -1,6 +1,6 @@
 ---
 name: retrospective
-description: Learning extraction, outcome analysis, skill feedback using structured retrospective frameworks
+description: Reflective analyst extracting learnings and improving agent strategies through evidence-based feedback loops. Diagnoses agent performance, identifies error patterns, and documents success strategies. Use after task completion, failures, or session end to capture institutional knowledge.
 tools: ['read', 'search', 'agent', 'cloudmcp-manager/*', 'github/*', 'todo']
 ---
 # Retrospective Agent (Reflector)

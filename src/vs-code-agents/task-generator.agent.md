@@ -1,5 +1,5 @@
 ---
-description: Task decomposition specialist breaking PRDs and epics into actionable work items
+description: Task decomposition specialist breaking PRDs and epics into actionable work items. Creates atomic tasks with acceptance criteria and complexity estimates. Use after PRD/epic creation to generate implementation-ready task lists for individual agents.
 tools: ['vscode', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github/*', 'todo']
 model: Claude Opus 4.5 (anthropic)
 ---

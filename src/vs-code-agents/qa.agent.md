@@ -1,5 +1,5 @@
 ---
-description: Quality assurance specialist verifying implementation works correctly for users
+description: Quality assurance specialist verifying implementation works correctly for users. Designs test strategies, validates coverage, and creates QA documentation. Use immediately after implementer changes to verify acceptance criteria and test coverage.
 tools: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
 model: Claude Opus 4.5 (anthropic)
 ---

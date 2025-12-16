@@ -1,6 +1,6 @@
 ---
 name: analyst
-description: Research and analysis specialist for pre-implementation investigation and feature request review
+description: Research and analysis specialist for pre-implementation investigation. Conducts root cause analysis, API research, and requirements gathering. Use before implementation when scope is unclear, investigating bugs, or evaluating feature requests.
 tools: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'todo']
 ---
 # Analyst Agent

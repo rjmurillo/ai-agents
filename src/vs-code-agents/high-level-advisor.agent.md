@@ -1,5 +1,5 @@
 ---
-description: Brutally honest strategic advisor cutting through blind spots and delivering unfiltered truth
+description: Brutally honest strategic advisor cutting through blind spots and delivering unfiltered truth. Provides ruthless triage, challenges assumptions, and resolves decision paralysis. Use when facing strategic impasses, conflicting agent recommendations, or needing hard prioritization decisions.
 tools: ['vscode', 'read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
 model: Claude Opus 4.5 (anthropic)
 ---

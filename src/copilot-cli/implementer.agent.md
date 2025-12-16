@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: Expert .NET/C# implementation agent following SOLID principles and the Software Hierarchy of Needs
+description: Expert .NET/C# implementation specialist following SOLID principles. Executes approved plans, writes production code and tests, and makes conventional commits. Use after planning is complete and approved for writing or modifying source code.
 tools: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'todo']
 ---
 # Implementer Agent
