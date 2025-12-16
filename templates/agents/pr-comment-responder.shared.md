@@ -292,6 +292,24 @@ Request context retrieval for:
 - Reviewer preferences (human reviewers have patterns too)
 - Domain-specific patterns by file type
 
+```python
+Task(subagent_type="memory", prompt="""
+Retrieve PR review context for {owner}/{repo}:
+
+1. PR review patterns for this repository
+2. Known bot false positives:
+   - CodeRabbit patterns that are typically noise (e.g., markdown linting on generated files)
+   - Copilot follow-up PR patterns that should be closed
+3. Reviewer preferences:
+   - Style preferences by reviewer
+   - Common concerns they raise
+   - Past resolutions that worked
+4. Domain patterns by file type (e.g., .ps1, .yml, .md)
+
+Return structured context I can use for triage decisions.
+""")
+```
+
 ### Storage (After EVERY triage decision)
 
 Request storage of:
@@ -299,6 +317,31 @@ Request storage of:
 - Bot false positive patterns
 - Successful triage decisions (pattern -> path -> outcome)
 - Reviewer-to-pattern relationships
+
+```python
+Task(subagent_type="memory", prompt="""
+Store PR review learnings from {owner}/{repo} PR #{number}:
+
+1. Bot false positives encountered:
+   - Pattern: [e.g., "CodeRabbit MD031 on generated files"]
+   - Trigger: [what caused it]
+   - Resolution: [declined with rationale / fixed / escalated]
+
+2. Reviewer preference evidence:
+   - Reviewer: [username]
+   - Preference observed: [e.g., "prefers explicit error handling"]
+   - Comment that revealed it: [brief quote]
+
+3. Triage path outcomes:
+   - Comment type: [e.g., "security concern on .ps1 file"]
+   - Path taken: [Quick Fix / Standard / Strategic]
+   - Delegated to: [agent name]
+   - Outcome: [Fixed / Declined / Deferred]
+   - Success: [Yes/No - was this the right path?]
+
+Store for future PR review triage in this repository.
+""")
+```
 
 ### What to Remember
 
