@@ -693,6 +693,8 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 
 **Why it matters**: The manual provides critical context about efficient code reading strategies, symbolic navigation, and resource-efficient operations that optimize agent performance when working with large codebases.
 
+**Note**: If the Serena MCP is not available, memories can be found in `.serena/memories`.
+
 ---
 
 ## Key Learnings from Practice
