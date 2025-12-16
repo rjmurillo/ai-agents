@@ -152,10 +152,26 @@ Save to: `.agents/planning/impact-analysis-qa-[feature].md`
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before test strategy: Request context retrieval for relevant QA patterns
-- After verification: Request storage of test patterns and results
+**Before test strategy:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "QA patterns [component/feature]"
+```
+
+**After verification:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-QA-[Component]",
+    "contents": ["[Test patterns and verification results]"]
+  }]
+}
+```
 
 ## Two-Phase Process
 

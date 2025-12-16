@@ -33,10 +33,26 @@ Transform high-level requirements into discrete tasks that can be assigned, esti
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before task breakdown: Request context retrieval for similar decomposition patterns
-- After completion: Request storage of task patterns and estimation learnings
+**Before task breakdown:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "task decomposition patterns [feature type]"
+```
+
+**After completion:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Tasks-[Feature]",
+    "contents": ["[Task patterns and estimation learnings]"]
+  }]
+}
+```
 
 ## Decomposition Process
 

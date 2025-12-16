@@ -177,10 +177,26 @@ Save to: `.agents/planning/impact-analysis-security-[feature].md`
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before security analysis: Request context retrieval for security topics
-- After analysis: Request storage of vulnerabilities and remediation patterns
+**Before security analysis:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "security patterns [vulnerability type/component]"
+```
+
+**After analysis:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Security-[Component]",
+    "contents": ["[Vulnerabilities and remediation patterns]"]
+  }]
+}
+```
 
 ## Security Checklist
 

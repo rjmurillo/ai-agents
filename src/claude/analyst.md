@@ -256,10 +256,26 @@ WebSearch, WebFetch
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before analysis: Request context retrieval for research topic
-- After analysis: Request storage of findings and recommendations
+**Before analysis:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "[research topic] analysis patterns"
+```
+
+**After analysis:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Analysis-[Topic]",
+    "contents": ["[Key findings and recommendations]"]
+  }]
+}
+```
 
 ## Handoff Protocol
 

@@ -759,9 +759,9 @@ Meta-learning about the retrospective process.
 
 ## Memory Storage
 
-Delegate to **memory** agent for all persistence operations.
+Use cloudmcp-manager memory tools directly for all persistence operations.
 
-**Handoff payload:**
+**Tool invocations:**
 
 ````markdown
 ## Memory Request
@@ -823,8 +823,9 @@ When retrospective is complete:
 
 | Target | When | Purpose |
 |--------|------|---------|  
-| **memory** | Learnings extracted | Persist skills, relations, observations |
 | **skillbook** | Learnings ready | Store skills |
 | **implementer** | Coding skill found | Apply next time |
 | **planner** | Process improvement | Update approach |
 | **architect** | Design insight | Update guidance |
+
+**Note**: Use cloudmcp-manager memory tools directly to persist skills, relations, and observations - no delegation to memory agent required.

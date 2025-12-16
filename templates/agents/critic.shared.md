@@ -60,10 +60,26 @@ Identify ambiguities, technical debt risks, and misalignments BEFORE implementat
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before reviews: Request context retrieval for prior critiques and failure patterns
-- After reviews: Request storage of review patterns and learnings
+**Before reviews:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "critique patterns [topic/component]"
+```
+
+**After reviews:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Critique-[Topic]",
+    "contents": ["[Review findings and patterns discovered]"]
+  }]
+}
+```
 
 ## Review Criteria
 

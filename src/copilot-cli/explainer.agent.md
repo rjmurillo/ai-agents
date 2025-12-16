@@ -134,10 +134,26 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before writing: Request context retrieval for documentation patterns
-- After completion: Request storage of document patterns and clarification insights
+**Before writing:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "documentation patterns [feature/topic]"
+```
+
+**After completion:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Documentation-[Topic]",
+    "contents": ["[Document patterns and clarification insights]"]
+  }]
+}
+```
 
 ## Handoff Protocol
 

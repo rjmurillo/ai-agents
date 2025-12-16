@@ -42,10 +42,26 @@ Provide unfiltered feedback that challenges unsupported claims. Be the voice tha
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before analysis: Request context retrieval for relevant topics
-- After analysis: Request storage of alternative viewpoints and challenges
+**Before analysis:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "alternative viewpoints [topic]"
+```
+
+**After analysis:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Challenge-[Topic]",
+    "contents": ["[Alternative viewpoints and challenges identified]"]
+  }]
+}
+```
 
 ## Analysis Framework
 

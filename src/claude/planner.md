@@ -97,10 +97,26 @@ How we know the plan is complete:
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before planning: Request context retrieval for past plans
-- After planning: Request storage of planning decisions
+**Before planning:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "planning patterns [feature/epic]"
+```
+
+**After planning:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Plan-[Feature]",
+    "contents": ["[Planning decisions and rationale]"]
+  }]
+}
+```
 
 ## Planning Principles
 

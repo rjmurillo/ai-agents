@@ -123,10 +123,26 @@ If an assumption is untested, recommend orchestrator routes to **analyst** for v
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before decisions: Request context retrieval for roadmap and strategic context
-- At milestones: Request storage of epics and priority updates
+**Before decisions:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "roadmap strategic priorities [domain]"
+```
+
+**At milestones:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Roadmap-[Release]",
+    "contents": ["[Epic updates and priority decisions]"]
+  }]
+}
+```
 
 ## Roadmap Document Format
 

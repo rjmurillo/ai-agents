@@ -153,10 +153,27 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before writing: Request context retrieval for documentation patterns
-- After writing: Request storage of new feature definitions
+**Before writing:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "documentation patterns [feature/topic]"
+```
+
+**After writing:**
+
+```json
+mcp__cloudmcp-manager__memory-create_entities
+{
+  "entities": [{
+    "name": "Feature-[Name]",
+    "entityType": "Feature",
+    "observations": ["[Feature definition and context]"]
+  }]
+}
+```
 
 ## Output Options
 

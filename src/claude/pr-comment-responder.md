@@ -494,16 +494,26 @@ fi
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
+Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
 
-**At start (MANDATORY):** Request context retrieval for:
+**At start (MANDATORY):**
 
-- PR review patterns
-- Bot false positives (CodeRabbit, Copilot)
-- Reviewer preferences
-- Domain-specific patterns
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "PR review patterns bot behaviors reviewer preferences"
+```
 
-**After EVERY triage decision:** Request storage of:
+**After EVERY triage decision:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "PR-Pattern-[Category]",
+    "contents": ["[Pattern details]"]
+  }]
+}
+```
 
 | Category | What to Store | Why |
 |----------|---------------|-----|

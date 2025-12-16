@@ -274,10 +274,10 @@ When memory operations complete:
 2. Return retrieved context (for retrieval operations)
 3. Confirm storage (for storage operations)
 
-**Memory agent is unique**: Other agents delegate TO you for memory operations, you return results to them.
+**Note**: All agents now have direct access to cloudmcp-manager memory tools. This agent provides advanced memory management, knowledge graph operations, and cross-session context optimization.
 
-## Handoff Options (You Serve All Agents)
+## Return Protocol
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **Any agent** | Memory retrieved | Continue work with context |
+| **orchestrator** | Memory analysis complete | Return insights and recommendations |

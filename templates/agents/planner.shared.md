@@ -31,10 +31,26 @@ Provide structure on objectives, process, value, and risks - not prescriptive co
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- At decision points: Request context retrieval for prior plans
-- At milestones: Request storage of major planning decisions
+**At decision points:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "planning decisions [feature/epic]"
+```
+
+**At milestones:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Planning-[Feature]",
+    "contents": ["[Major planning decisions and milestone outcomes]"]
+  }]
+}
+```
 
 ## Planning Process
 

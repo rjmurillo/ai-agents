@@ -120,13 +120,46 @@ Query: "skill [topic] [keywords]"
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before skill lookup: Request context retrieval for skills in category
-- After skill creation: Request storage of new skill with:
-  - Statement, Context, Evidence
-  - Atomicity score, Tag (helpful/harmful/neutral), Impact (1-10)
-- After skill validation: Request observation update with validation results
+**Before skill lookup:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "skill [category] [context]"
+```
+
+**After skill creation:**
+
+```json
+mcp__cloudmcp-manager__memory-create_entities
+{
+  "entities": [{
+    "name": "Skill-[Category]-[NNN]",
+    "entityType": "Skill",
+    "observations": [
+      "Statement: [skill statement]",
+      "Context: [when to apply]",
+      "Evidence: [source of learning]",
+      "Atomicity: [score]",
+      "Tag: [helpful|harmful|neutral]",
+      "Impact: [1-10]"
+    ]
+  }]
+}
+```
+
+**After skill validation:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Skill-[Category]-[NNN]",
+    "contents": ["Validation: [success|failure] - [details]"]
+  }]
+}
+```
 
 ## Contradiction Resolution
 
@@ -194,7 +227,7 @@ Agents should cite:
 
 When skillbook update is complete:
 
-1. Confirm skill created/updated in memory via memory agent
+1. Confirm skill created/updated via cloudmcp-manager memory tools
 2. Return summary of changes to orchestrator
 3. Recommend notification to relevant agents (orchestrator handles this)
 

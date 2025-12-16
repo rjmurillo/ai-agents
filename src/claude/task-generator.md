@@ -142,10 +142,26 @@ TASK-001 → TASK-002 → TASK-003
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before breakdown: Request context retrieval for task patterns
-- After breakdown: Request storage of estimation learnings
+**Before breakdown:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "task estimation patterns [feature type]"
+```
+
+**After breakdown:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Estimation-[Feature]",
+    "contents": ["[Estimation learnings and accuracy data]"]
+  }]
+}
+```
 
 ## Handoff Protocol
 

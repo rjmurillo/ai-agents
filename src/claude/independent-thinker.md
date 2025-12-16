@@ -84,10 +84,26 @@ Before providing answers:
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before analysis: Request context retrieval for prior analysis on topic
-- After analysis: Request storage of analytical findings and challenges
+**Before analysis:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "analysis challenges [topic/assumption]"
+```
+
+**After analysis:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Analysis-Challenge-[Topic]",
+    "contents": ["[Analytical findings and challenged assumptions]"]
+  }]
+}
+```
 
 ## Analysis Framework
 

@@ -768,33 +768,45 @@ Meta-learning about the retrospective process.
 
 ## Memory Protocol
 
-Delegate to **memory** agent for all persistence operations.
+Use cloudmcp-manager memory tools directly for all persistence operations.
 
-**Handoff payload:**
+**Create new skills:**
 
-````markdown
-## Memory Request
+```json
+mcp__cloudmcp-manager__memory-create_entities
+{
+  "entities": [{
+    "name": "Skill-[Category]-[NNN]",
+    "entityType": "Skill",
+    "observations": ["[Skill statement with context and evidence]"]
+  }]
+}
+```
 
-### Operation Type
-[CREATE | UPDATE | TAG | REMOVE | RELATE]
+**Add observations to existing entities:**
 
-### Entities
-| Entity Type | Name | Content |
-|-------------|------|---------|
-| Skill | [Skill-Cat-NNN] | [Statement] |
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "[Skill ID]",
+    "contents": ["[New observation with evidence source]"]
+  }]
+}
+```
 
-### Observations (for updates)
-| Entity | Observation | Evidence |
-|--------|-------------|----------|
-| [Skill ID] | [New observation] | [Source] |
+**Create relations between entities:**
 
-### Relations
-| From | Relation | To |
-|------|----------|-----|
-| [Skill ID] | derived_from | [Learning ID] |
-| [Skill ID] | prevents | [Failure ID] |
-| [Skill ID] | supersedes | [Old Skill ID] |
-````
+```json
+mcp__cloudmcp-manager__memory-create_relations
+{
+  "relations": [
+    {"from": "[Skill ID]", "to": "[Learning ID]", "relationType": "derived_from"},
+    {"from": "[Skill ID]", "to": "[Failure ID]", "relationType": "prevents"},
+    {"from": "[Skill ID]", "to": "[Old Skill ID]", "relationType": "supersedes"}
+  ]
+}
+```
 
 ---
 
@@ -822,10 +834,11 @@ When retrospective is complete:
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **memory** | Learnings extracted | Persist skills, relations, observations |
 | **skillbook** | Learnings ready | Store skills |
 | **implementer** | Coding skill found | Apply next time |
 | **planner** | Process improvement | Update approach |
+
+**Note**: Memory persistence is done directly via cloudmcp-manager memory tools (see Memory Protocol section above).
 | **architect** | Design insight | Update guidance |
 
 ## Execution Mindset

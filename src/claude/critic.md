@@ -180,10 +180,26 @@ If specialists do NOT have unanimous agreement:
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before review: Request context retrieval for past critique patterns
-- After review: Request storage of review findings and patterns
+**Before review:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "critique patterns [topic/component]"
+```
+
+**After review:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Critique-[Topic]",
+    "contents": ["[Review findings and patterns discovered]"]
+  }]
+}
+```
 
 ## Verdict Rules
 

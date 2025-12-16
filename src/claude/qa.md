@@ -254,10 +254,26 @@ dotnet reportgenerator -reports:coverage.xml -targetdir:coverage-report
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before testing: Request context retrieval for test strategies
-- After testing: Request storage of testing insights and patterns
+**Before testing:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "test strategies [feature/component]"
+```
+
+**After testing:**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Pattern-Testing-[Topic]",
+    "contents": ["[Testing insights and patterns discovered]"]
+  }]
+}
+```
 
 ## Constraints
 

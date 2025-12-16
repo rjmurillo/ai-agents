@@ -88,16 +88,33 @@ You have direct access to:
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context.
+Use cloudmcp-manager memory tools directly for cross-session context.
 
 **ALWAYS** at session start and milestones:
 
-- Before multi-step reasoning: Request context retrieval for topic
-- At milestones (or every 5 turns): Request storage of:
-  - Agent performance observations (success patterns, failure modes)
-  - Routing decisions that worked vs failed
-  - Solutions to recurring problems
-  - Project conventions discovered
+**Before multi-step reasoning:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "[task topic] orchestration patterns"
+```
+
+**At milestones (or every 5 turns):**
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "Orchestration-[Topic]",
+    "contents": [
+      "Agent performance: [success patterns, failure modes]",
+      "Routing decisions: [what worked vs failed]",
+      "Solutions: [recurring problems resolved]",
+      "Conventions: [project patterns discovered]"
+    ]
+  }]
+}
+```
 
 ## Execution Protocol
 

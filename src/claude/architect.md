@@ -311,10 +311,27 @@ When reviewing an ADR:
 
 ## Memory Protocol
 
-Delegate to **memory** agent for cross-session context:
+Use cloudmcp-manager memory tools directly for cross-session context:
 
-- Before design: Request context retrieval for architecture decisions
-- After design: Request storage of ADRs and design rationale
+**Before design:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "architecture decisions [component/topic]"
+```
+
+**After design:**
+
+```json
+mcp__cloudmcp-manager__memory-create_entities
+{
+  "entities": [{
+    "name": "ADR-[Number]",
+    "entityType": "Decision",
+    "observations": ["[Decision rationale and context]"]
+  }]
+}
+```
 
 ## Architectural Principles
 
