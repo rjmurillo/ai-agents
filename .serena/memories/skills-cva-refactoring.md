@@ -105,6 +105,53 @@ $InstallScript = Join-Path $PSScriptRoot "install.ps1"
 
 ---
 
+## Skill-PowerShell-Markers-001: Content Block Markers
+
+**Statement**: Use HTML comments (BEGIN/END markers) for upgradeable content blocks in markdown files
+
+**Context**: When installers need to update portions of existing files
+
+**Evidence**: Install-InstructionsFile handles append, upgrade, replace scenarios
+
+**Atomicity**: 91%
+
+**Pattern**:
+
+```markdown
+<!-- BEGIN: ai-agents installer -->
+[Managed content that can be upgraded]
+<!-- END: ai-agents installer -->
+```
+
+**Implementation**:
+
+```powershell
+$BeginMarker = "<!-- BEGIN: ai-agents installer -->"
+$EndMarker = "<!-- END: ai-agents installer -->"
+
+if ($ExistingContent -match [regex]::Escape($BeginMarker)) {
+    # Upgrade: Replace existing block
+    $Pattern = "(?s)$([regex]::Escape($BeginMarker)).*?$([regex]::Escape($EndMarker))"
+    $UpdatedContent = $ExistingContent -replace $Pattern, "$BeginMarker`n$NewContent`n$EndMarker"
+} else {
+    # First install: Append block
+    $UpdatedContent = $ExistingContent + "`n`n$BeginMarker`n$NewContent`n$EndMarker"
+}
+```
+
+---
+
+## Session Validation
+
+**2025-12-15 Session**: All skills validated as helpful in install scripts refactoring:
+
+- Skill-Refactor-CVA-001: Successfully applied, 4 atomic commits
+- Skill-PowerShell-Config-001: Config.psd1 eliminated duplication
+- Skill-PowerShell-Remote-001: Remote install working via iex
+- Skill-Refactor-Wrapper-001: 6 legacy scripts backward compatible
+
+---
+
 ## Related Files
 
 - Plan: `.agents/planning/cva-install-scripts.md`
