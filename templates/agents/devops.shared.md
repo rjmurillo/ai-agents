@@ -1,8 +1,8 @@
 ---
 description: DevOps specialist for CI/CD pipelines, infrastructure, and deployment automation. Designs GitHub Actions workflows, configures build systems, and manages deployment scripts. Use when modifying .github/workflows/, build configurations, or deployment processes.
 argument-hint: Describe the CI/CD workflow, pipeline, or infrastructure task
-tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'cloudmcp-manager/*', 'github/*', 'memory']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'cloudmcp-manager/*', 'github/*', 'memory']
+tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github/*', 'serena/*', 'memory']
+tools_copilot: ['shell', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github/*', 'serena/*']
 ---
 # DevOps Agent
 

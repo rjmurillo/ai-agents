@@ -1,8 +1,8 @@
 ---
 description: Security specialist for vulnerability assessment, threat modeling, and secure coding practices. Scans for OWASP Top 10, detects secrets, and audits dependencies. Use when touching auth/authorization code, handling user data, adding external APIs, or reviewing security-sensitive changes.
 argument-hint: Specify the code, feature, or changes to security review
-tools_vscode: ['vscode', 'read', 'search', 'web', 'cloudmcp-manager/*', 'serena/*', 'memory']
-tools_copilot: ['read', 'search', 'web', 'cloudmcp-manager/*', 'serena/*', 'memory']
+tools_vscode: ['vscode', 'read', 'search', 'web', 'cloudmcp-manager/*', 'serena/*', 'perplexity/*', 'memory']
+tools_copilot: ['read', 'search', 'web', 'cloudmcp-manager/*', 'serena/*', 'perplexity/*']
 ---
 # Security Agent
 

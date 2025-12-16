@@ -1,8 +1,8 @@
 ---
 description: Reflective analyst extracting learnings and improving agent strategies through evidence-based feedback loops. Diagnoses agent performance, identifies error patterns, and documents success strategies. Use after task completion, failures, or session end to capture institutional knowledge.
 argument-hint: Describe the task or session to analyze for learnings
-tools_vscode: ['read', 'search', 'agent', 'cloudmcp-manager/*', 'memory']
-tools_copilot: ['read', 'search', 'agent', 'cloudmcp-manager/*', 'memory']
+tools_vscode: ['vscode', 'read', 'search', 'agent', 'cloudmcp-manager/*', 'serena/*', 'memory']
+tools_copilot: ['read', 'search', 'agent', 'cloudmcp-manager/*', 'serena/*']
 ---
 # Retrospective Agent (Reflector)
 

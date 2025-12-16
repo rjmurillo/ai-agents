@@ -1,8 +1,8 @@
 ---
 description: Task decomposition specialist breaking PRDs and epics into actionable work items. Creates atomic tasks with acceptance criteria and complexity estimates. Use after PRD/epic creation to generate implementation-ready task lists for individual agents.
 argument-hint: Provide the PRD or epic to break into tasks
-tools_vscode: ['vscode', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'memory']
-tools_copilot: ['read', 'edit', 'search', 'cloudmcp-manager/*', 'memory']
+tools_vscode: ['vscode', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'serena/*', 'memory']
+tools_copilot: ['read', 'edit', 'search', 'cloudmcp-manager/*', 'serena/*']
 ---
 # Task Generator Agent
 

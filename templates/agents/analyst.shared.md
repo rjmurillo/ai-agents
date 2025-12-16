@@ -1,8 +1,8 @@
 ---
 description: Research and analysis specialist for pre-implementation investigation. Conducts root cause analysis, API research, and requirements gathering. Use before implementation when scope is unclear, investigating bugs, or evaluating feature requests.
 argument-hint: Describe the topic, issue, or feature to research
-tools_vscode: ['vscode', 'read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'serena/*', 'memory']
-tools_copilot: ['read', 'search', 'web', 'cognitionai/deepwiki/*', 'cloudmcp-manager/*', 'github/*', 'serena/*', 'memory']
+tools_vscode: ['vscode', 'read', 'search', 'web', 'github/*', 'cloudmcp-manager/*', 'cognitionai/deepwiki/*', 'context7/*', 'perplexity/*', 'serena/*', 'memory']
+tools_copilot: ['read', 'search', 'web', 'github/*', 'cloudmcp-manager/*', 'cognitionai/deepwiki/*', 'context7/*', 'perplexity/*', 'serena/*']
 ---
 # Analyst Agent
 
