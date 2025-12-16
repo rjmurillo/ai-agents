@@ -325,11 +325,13 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
 ## Handoff Protocol
 
+**As a subagent, you CANNOT delegate**. Return results to orchestrator.
+
 When implementation is complete:
 
 1. Ensure all commits are made with conventional messages
 2. Store implementation notes in memory
-3. Announce: "Implementation complete. Handing off to qa for verification"
+3. Return to orchestrator: "Implementation complete. Recommend orchestrator routes to qa for verification"
 
 ## Required Checklist
 

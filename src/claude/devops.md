@@ -220,7 +220,17 @@ Save to: `.agents/devops/`
 | [Issue] | [Fix] |
 ```
 
-## Handoff Options
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return infrastructure plan to orchestrator.
+
+When infrastructure work is complete:
+
+1. Save pipeline/configuration to appropriate location
+2. Store implementation notes in memory
+3. Return to orchestrator with completion status and recommendations
+
+## Handoff Options (Recommendations for Orchestrator)
 
 | Target | When | Purpose |
 |--------|------|---------|

@@ -283,13 +283,15 @@ Delegate to **memory** agent for cross-session context:
 
 ## Handoff Protocol
 
+**As a subagent, you CANNOT delegate**. Return results to orchestrator.
+
 When QA is complete:
 
 1. Save test report to `.agents/qa/`
 2. Store results summary in memory
-3. Based on status:
-   - **QA COMPLETE**: Route to orchestrator or user
-   - **QA FAILED**: Route to **implementer** with specific failures
+3. Return to orchestrator with clear status:
+   - **QA COMPLETE**: "All tests passing. Ready for user validation."
+   - **QA FAILED**: "Tests failed. Recommend orchestrator routes to implementer with these failures: [list]"
 
 ## Execution Mindset
 
