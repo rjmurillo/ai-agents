@@ -70,6 +70,104 @@ When planner requests security impact analysis (during planning phase):
 - [ ] Estimate security testing needs
 ```
 
+### Capability 7: Post-Implementation Verification (PIV)
+
+**CRITICAL**: Security review is a TWO-PHASE process. Pre-implementation analysis is insufficient.
+
+#### Security-Relevant Change Triggers
+
+Post-implementation verification REQUIRED when implementation includes:
+
+| Trigger Pattern | Examples | Risk |
+|-----------------|----------|------|
+| Authentication/Authorization | Login, OAuth, JWT, session management | Critical |
+| Data Protection | Encryption, hashing, secure storage | Critical |
+| Input Handling | User input parsing, validation, sanitization | High |
+| External Interfaces | API calls, webhooks, third-party integrations | High |
+| File System Operations | File upload, path traversal prevention | High |
+| Environment Variables | Secret handling, config management | Critical |
+| Execution/Eval | Dynamic code execution, shell commands | Critical |
+| Path patterns: `**/Auth/**`, `.githooks/*`, `*.env*` | Any changes to these paths | Critical |
+
+#### Post-Implementation Verification (PIV) Protocol
+
+When orchestrator routes back to security after implementation:
+
+1. **Retrieve Implementation Context**
+   - Read all changed files from implementer
+   - Review git diff for actual code changes
+   - Compare implementation against security plan
+
+2. **Execute PIV Checklist**
+
+```markdown
+- [ ] All planned security controls implemented correctly
+- [ ] No new vulnerabilities introduced during implementation
+- [ ] Input validation actually enforced (not just documented)
+- [ ] Error handling doesn't leak sensitive data
+- [ ] Secrets not hardcoded (check actual code)
+- [ ] Dependencies match security requirements
+- [ ] Test coverage includes security test cases
+```
+
+3. **PIV Report Template**
+
+Save to: `.agents/security/PIV-[feature].md`
+
+```markdown
+# Post-Implementation Verification: [Feature]
+
+**Date**: [YYYY-MM-DD]
+**Implementation Reviewed**: [Commit SHA or PR number]
+**Security Controls Planned**: [N]
+**Security Controls Verified**: [N]
+
+## Verification Results
+
+| Control | Status | Finding |
+|---------|--------|---------|
+| [Control from plan] | ✅ Pass / ❌ Fail / ⚠️ Partial | [Details] |
+
+## New Findings
+
+### Issues Discovered
+
+| Issue | Severity | CWE | Description | Remediation |
+|-------|----------|-----|-------------|-------------|
+| [ID] | Critical/High/Med/Low | [CWE-NNN] | [What's wrong] | [How to fix] |
+
+**Issue Summary**: Critical: [N], High: [N], Medium: [N], Low: [N]
+
+## Verification Tests
+
+| Test Type | Status | Coverage |
+|-----------|--------|----------|
+| Unit tests (security) | ✅/❌ | [N% or N tests] |
+| Integration tests | ✅/❌ | [N% or N tests] |
+| Manual verification | ✅/❌ | [What was tested] |
+
+## Deviations from Plan
+
+| Planned Control | Implementation Status | Justification |
+|-----------------|----------------------|---------------|
+| [Control] | Implemented/Deferred/Modified | [Why] |
+
+## Recommendation
+
+- [ ] **APPROVED**: Implementation meets security requirements
+- [ ] **CONDITIONAL**: Approved with minor fixes required
+- [ ] **REJECTED**: Critical issues must be resolved before merge
+
+### Required Actions
+
+1. [Action required before approval]
+2. [Action required before approval]
+
+## Signature
+
+**Security Agent**: Verified [YYYY-MM-DD]
+```
+
 #### Impact Analysis Deliverable
 
 Save to: `.agents/planning/impact-analysis-security-[feature].md`

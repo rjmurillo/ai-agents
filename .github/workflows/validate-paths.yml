@@ -31,7 +31,7 @@ on:
 jobs:
   validate-paths:
     name: Validate Path Normalization
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: read
 
