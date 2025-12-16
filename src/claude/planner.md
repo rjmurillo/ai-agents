@@ -346,12 +346,14 @@ During impact analysis, specialists may have **conflicting recommendations**. Th
 
 ## Handoff Protocol
 
+**As a subagent, you CANNOT delegate**. Return results to orchestrator.
+
 When plan is complete:
 
 1. Save plan document to `.agents/planning/`
 2. Store plan summary in memory
-3. **Mandatory**: Route to **critic** for review first
-4. Announce: "Plan complete. Handing off to critic for validation"
+3. Return to orchestrator with recommendation:
+   - "Plan complete. MANDATORY: Recommend orchestrator routes to critic for validation before implementation."
 
 ## Execution Mindset
 

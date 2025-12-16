@@ -224,10 +224,10 @@ Estimate:
 - Risk level: [Low / Medium / High]
 - Strategic fit: [High / Medium / Low]
 
-### Next Steps
-If Proceed: Route to high-level-advisor for validation
-If Defer: Add to backlog with conditions
-If Reject: Document reasoning for future reference
+### Next Steps (Recommendations for Orchestrator)
+If Proceed: Recommend orchestrator routes to high-level-advisor for validation
+If Defer: Recommend orchestrator adds to backlog with conditions
+If Reject: Document reasoning. Recommend orchestrator reports rejection to user
 ```
 
 **Tools for Ideation Research:**
@@ -260,6 +260,16 @@ Delegate to **memory** agent for cross-session context:
 
 - Before analysis: Request context retrieval for research topic
 - After analysis: Request storage of findings and recommendations
+
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate to other agents**. Return your analysis to orchestrator.
+
+When analysis is complete:
+
+1. Save analysis document to `.agents/analysis/`
+2. Store findings in memory
+3. Return to orchestrator with clear recommendations for next steps
 
 ## Analysis Document Format
 
@@ -312,15 +322,6 @@ Save to: `.agents/analysis/NNN-[topic]-analysis.md`
 | **architect** | Design implications discovered | Technical decisions |
 | **security** | Vulnerability identified | Security assessment |
 | **roadmap** | Feature request evaluated | Prioritization decision |
-
-## Handoff Protocol
-
-When analysis is complete:
-
-1. Save analysis document to `.agents/analysis/`
-2. Store key findings in memory
-3. Announce: "Analysis complete. Handing off to [agent] for [next step]"
-4. Provide document path and summary
 
 ## Execution Mindset
 

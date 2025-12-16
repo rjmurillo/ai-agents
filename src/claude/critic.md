@@ -90,14 +90,16 @@ When reviewing plans with impact analysis, check for **conflicting recommendatio
 
 ### Escalation Protocol
 
+**You cannot delegate to high-level-advisor**. Return conflict to orchestrator for escalation.
+
 If specialists do NOT have unanimous agreement:
 
 1. **Document the conflict** in the critique clearly
 2. **Assess severity**: Minor (proceed with note) vs. Major (requires resolution)
-3. **For major conflicts**: MUST escalate to **high-level-advisor**
-   - Use: `Task(subagent_type="high-level-advisor", prompt="Resolve conflict between [Agent A] and [Agent B] regarding [issue]")`
-4. **Block approval** until high-level-advisor provides guidance
-5. **Document resolution** in critique for retrospective learning
+3. **For major conflicts**: MUST return to orchestrator with escalation recommendation:
+   - "ESCALATION REQUIRED: Conflict between [Agent A] and [Agent B] regarding [issue]. Recommend orchestrator routes to high-level-advisor."
+4. **Block approval** until orchestrator escalates and gets guidance
+5. **Document conflict** in critique for orchestrator to route to retrospective
 
 ### Conflict Categories
 
@@ -192,14 +194,18 @@ Delegate to **memory** agent for cross-session context:
 
 ## Handoff Protocol
 
+**As a subagent, you CANNOT delegate to other agents**. Return your results to orchestrator who will handle routing.
+
 When critique is complete:
 
 1. Save critique document to `.agents/critique/`
 2. Store review summary in memory
-3. Based on verdict:
-    - APPROVED: `Task(subagent_type="implementer", prompt="Implement [plan name] per approved plan at .agents/planning/[plan-file].md...")`
-    - NEEDS REVISION: `Task(subagent_type="planner", prompt="Revise [plan name] to address critique findings... Key issues: [list]")`
-    - REJECTED: `Task(subagent_type="analyst", prompt="Investigate [topic]... fundamental gaps: [list]. Research needed: [questions]")`
+3. Return critique with clear verdict and recommended next agent:
+    - **APPROVED**: "Plan approved. Recommend orchestrator routes to implementer for execution."
+    - **NEEDS REVISION**: "Plan needs revision. Recommend orchestrator routes to planner with these issues: [list]"
+    - **REJECTED**: "Plan rejected. Recommend orchestrator routes to analyst for research on: [questions]"
+
+**Orchestrator will handle all delegation decisions based on your recommendations.**
 
 ## Output Location
 

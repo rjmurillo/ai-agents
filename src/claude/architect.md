@@ -351,12 +351,14 @@ Delegate to **memory** agent for cross-session context:
 
 ## Handoff Protocol
 
+**As a subagent, you CANNOT delegate**. Return results to orchestrator.
+
 When review is complete:
 
 1. Save findings to `.agents/architecture/`
 2. Update architecture changelog if decisions made
 3. Store decision in memory
-4. Announce: "Architecture review complete. Handing off to [agent] for [next step]"
+4. Return to orchestrator: "Architecture review complete. Recommend orchestrator routes to [agent] for [next step]"
 
 ## Execution Mindset
 
