@@ -1,7 +1,10 @@
 # Pester Tests for PowerShell Install Scripts
 #
 # Runs Pester unit tests for the ai-agents installation scripts.
-# Triggered on push/PR changes to the scripts/ directory.
+# Triggered on push/PR changes to the scripts/ or build/ directories.
+#
+# Local developers and AI agents can run the same tests using:
+#   pwsh ./build/scripts/Invoke-PesterTests.ps1
 
 name: Pester Tests
 
@@ -13,14 +16,16 @@ on:
       - 'fix/**'
     paths:
       - 'scripts/**'
+      - 'build/scripts/**'
       - '.github/workflows/pester-tests.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'scripts/**'
+      - 'build/scripts/**'
       - '.github/workflows/pester-tests.yml'
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch: # Allow manual triggering
 
 jobs:
   test:
@@ -31,30 +36,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Pester
-        shell: pwsh
-        run: |
-          Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
-          Install-Module -Name Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
-          Import-Module Pester
-          Get-Module Pester | Select-Object Name, Version
-
       - name: Run Pester Tests
         shell: pwsh
-        run: |
-          $config = New-PesterConfiguration
-          $config.Run.Path = "./scripts/tests"
-          $config.Run.Exit = $true
-          $config.TestResult.Enabled = $true
-          $config.TestResult.OutputFormat = "NUnitXml"
-          $config.TestResult.OutputPath = "./test-results/pester-results.xml"
-          $config.Output.Verbosity = "Detailed"
-
-          # Create output directory
-          New-Item -ItemType Directory -Path "./test-results" -Force | Out-Null
-
-          # Run tests
-          Invoke-Pester -Configuration $config
+        run: ./build/scripts/Invoke-PesterTests.ps1 -CI
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
