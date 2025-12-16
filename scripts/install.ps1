@@ -5,6 +5,7 @@
 .DESCRIPTION
     Installs AI coding agents to the appropriate location based on environment and scope.
     Supports both global (user-level) and repository-level installations.
+    Can be invoked remotely via iex (Invoke-Expression) for easy installation.
 
 .PARAMETER Environment
     Target environment: Claude, Copilot, or VSCode
@@ -30,21 +31,23 @@
     .\install.ps1 -Environment VSCode -RepoPath "." -Force
     # Installs VSCode agents to current repo, overwriting existing
 
+.EXAMPLE
+    # Remote installation (interactive mode):
+    Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
+
 .NOTES
-    Part of the ai-agents installer consolidation (CVA plan Phase 2).
+    Part of the ai-agents installer consolidation (CVA plan Phase 4).
+    Supports both local and remote execution via iex.
     Requires Install-Common.psm1 module from scripts/lib directory.
 #>
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)]
     [ValidateSet("Claude", "Copilot", "VSCode")]
     [string]$Environment,
 
-    [Parameter(Mandatory, ParameterSetName = "Global")]
     [switch]$Global,
 
-    [Parameter(Mandatory, ParameterSetName = "Repo")]
     [string]$RepoPath,
 
     [switch]$Force
@@ -52,13 +55,116 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+#region Remote Execution Detection and Bootstrap
+
+# Detect execution context: $PSScriptRoot is empty when running via iex
+$IsRemoteExecution = -not $PSScriptRoot
+
+if ($IsRemoteExecution) {
+    # Bootstrap: Download required files to temp directory
+    $TempDir = Join-Path $env:TEMP "ai-agents-install-$(Get-Random)"
+    New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
+
+    $BaseUrl = "https://raw.githubusercontent.com/rjmurillo/ai-agents/main"
+
+    Write-Host ""
+    Write-Host "AI Agents Installer (Remote)" -ForegroundColor Cyan
+    Write-Host "============================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Downloading installer components..." -ForegroundColor Gray
+
+    try {
+        # Create lib directory structure
+        $LibDir = Join-Path $TempDir "lib"
+        New-Item -ItemType Directory -Path $LibDir -Force | Out-Null
+
+        # Download module and config using WebClient for compatibility
+        $WebClient = New-Object System.Net.WebClient
+        $WebClient.DownloadFile("$BaseUrl/scripts/lib/Install-Common.psm1", "$LibDir/Install-Common.psm1")
+        $WebClient.DownloadFile("$BaseUrl/scripts/lib/Config.psd1", "$LibDir/Config.psd1")
+
+        Write-Host "  Downloaded Install-Common.psm1" -ForegroundColor Green
+        Write-Host "  Downloaded Config.psd1" -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Failed to download installer components: $_"
+        if (Test-Path $TempDir) {
+            Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        exit 1
+    }
+
+    $ScriptRoot = $TempDir
+}
+else {
+    $ScriptRoot = $PSScriptRoot
+}
+
+#endregion
+
+#region Interactive Mode (for parameter-less invocation)
+
+if (-not $Environment) {
+    Write-Host ""
+    Write-Host "AI Agents Installer" -ForegroundColor Cyan
+    Write-Host "===================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Select Environment:" -ForegroundColor Yellow
+    Write-Host "  1. Claude Code"
+    Write-Host "  2. GitHub Copilot CLI"
+    Write-Host "  3. VS Code / Copilot Chat"
+    Write-Host ""
+    $choice = Read-Host "Enter choice (1-3)"
+    $Environment = switch ($choice) {
+        "1" { "Claude" }
+        "2" { "Copilot" }
+        "3" { "VSCode" }
+        default {
+            Write-Error "Invalid choice: $choice. Please enter 1, 2, or 3."
+            if ($IsRemoteExecution -and (Test-Path $TempDir)) {
+                Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            exit 1
+        }
+    }
+}
+
+if (-not $Global -and -not $RepoPath) {
+    Write-Host ""
+    Write-Host "Select Scope:" -ForegroundColor Yellow
+    Write-Host "  1. Global (all projects - user-level installation)"
+    Write-Host "  2. Repository (specific project)"
+    Write-Host ""
+    $choice = Read-Host "Enter choice (1-2)"
+    if ($choice -eq "1") {
+        $Global = $true
+    }
+    elseif ($choice -eq "2") {
+        $RepoPath = Read-Host "Enter repository path (or press Enter for current directory)"
+        if (-not $RepoPath) {
+            $RepoPath = (Get-Location).Path
+        }
+    }
+    else {
+        Write-Error "Invalid choice: $choice. Please enter 1 or 2."
+        if ($IsRemoteExecution -and (Test-Path $TempDir)) {
+            Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        exit 1
+    }
+}
+
+#endregion
+
 #region Module Loading
 
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ModulePath = Join-Path $ScriptDir "lib\Install-Common.psm1"
+$ModulePath = Join-Path $ScriptRoot "lib\Install-Common.psm1"
 
 if (-not (Test-Path $ModulePath)) {
     Write-Error "Required module not found: $ModulePath"
+    if ($IsRemoteExecution -and (Test-Path $TempDir)) {
+        Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
     exit 1
 }
 
@@ -83,11 +189,71 @@ $Config = Get-InstallConfig -Environment $Environment -Scope $Scope
 
 #endregion
 
-#region Resolve Source and Destination Paths
+#region Download Source Files (Remote Execution)
 
-# Source directory is relative to scripts/../src/<env>
-$RootDir = Split-Path -Parent $ScriptDir
-$SourceDir = Join-Path $RootDir $Config.SourceDir
+if ($IsRemoteExecution) {
+    # Create source directory structure in temp
+    $SourceDir = Join-Path $ScriptRoot $Config.SourceDir
+    New-Item -ItemType Directory -Path $SourceDir -Force | Out-Null
+
+    Write-Host ""
+    Write-Host "Downloading $($Config.DisplayName) agents..." -ForegroundColor Gray
+
+    try {
+        # Get file list from GitHub API
+        $ApiUrl = "https://api.github.com/repos/rjmurillo/ai-agents/contents/$($Config.SourceDir)"
+
+        # Use Invoke-RestMethod with appropriate headers
+        $Headers = @{
+            "User-Agent" = "ai-agents-installer"
+            "Accept"     = "application/vnd.github.v3+json"
+        }
+
+        $Files = Invoke-RestMethod -Uri $ApiUrl -Headers $Headers -ErrorAction Stop
+
+        # Filter files by pattern
+        $PatternRegex = "^" + ($Config.FilePattern -replace "\*", ".*" -replace "\.", "\.") + "$"
+        $MatchingFiles = $Files | Where-Object { $_.name -match $PatternRegex -and $_.type -eq "file" }
+
+        if ($MatchingFiles.Count -eq 0) {
+            Write-Warning "No agent files found matching pattern: $($Config.FilePattern)"
+        }
+
+        foreach ($File in $MatchingFiles) {
+            $DestFile = Join-Path $SourceDir $File.name
+            $WebClient.DownloadFile($File.download_url, $DestFile)
+            Write-Host "  Downloaded $($File.name)" -ForegroundColor Green
+        }
+
+        # Download instructions file if applicable
+        if ($Config.InstructionsFile) {
+            $InstructionsUrl = "$BaseUrl/$($Config.SourceDir)/$($Config.InstructionsFile)"
+            $InstructionsLocal = Join-Path $SourceDir $Config.InstructionsFile
+
+            try {
+                $WebClient.DownloadFile($InstructionsUrl, $InstructionsLocal)
+                Write-Host "  Downloaded $($Config.InstructionsFile)" -ForegroundColor Green
+            }
+            catch {
+                Write-Host "  Note: Instructions file not found (optional)" -ForegroundColor Yellow
+            }
+        }
+    }
+    catch {
+        Write-Error "Failed to download agent files: $_"
+        Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
+}
+else {
+    # Local execution: Source directory is relative to scripts/../src/<env>
+    $RootDir = Split-Path -Parent $ScriptRoot
+    $SourceDir = Join-Path $RootDir $Config.SourceDir
+}
+
+#endregion
+
+#region Resolve Source and Destination Paths
 
 # Resolve destination path
 $DestDir = Resolve-DestinationPath -PathExpression $Config.DestDir -RepoPath $RepoPath
@@ -194,5 +360,16 @@ Write-InstallComplete `
 
 Write-Host ""
 Write-Host "Summary: $($Stats.Installed) installed, $($Stats.Updated) updated, $($Stats.Skipped) skipped" -ForegroundColor Gray
+
+#endregion
+
+#region Cleanup (Remote Execution)
+
+if ($IsRemoteExecution -and (Test-Path $TempDir)) {
+    # Clean up temp directory
+    Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host ""
+    Write-Host "Cleaned up temporary files." -ForegroundColor Gray
+}
 
 #endregion
