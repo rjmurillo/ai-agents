@@ -255,18 +255,10 @@ WebSearch, WebFetch
 
 ## Memory Protocol
 
-**Retrieve Context:**
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="research [topic]"
-```
-
-**Store Findings:**
-
-```text
-mcp__cloudmcp-manager__memory-create_entities for new research findings
-mcp__cloudmcp-manager__memory-add_observations for updates
-```
+- Before analysis: Request context retrieval for research topic
+- After analysis: Request storage of findings and recommendations
 
 ## Analysis Document Format
 

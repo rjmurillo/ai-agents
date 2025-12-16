@@ -83,17 +83,10 @@ Before providing answers:
 
 ## Memory Protocol
 
-**Retrieve Prior Analysis:**
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="analysis [topic]"
-```
-
-**Store Insights:**
-
-```text
-mcp__cloudmcp-manager__memory-add_observations for analytical findings
-```
+- Before analysis: Request context retrieval for prior analysis on topic
+- After analysis: Request storage of analytical findings and challenges
 
 ## Analysis Framework
 

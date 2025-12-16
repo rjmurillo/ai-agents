@@ -84,17 +84,10 @@ Then provide:
 
 ## Memory Protocol
 
-**Retrieve Context:**
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="strategic decisions [project]"
-```
-
-**Store Insights:**
-
-```text
-mcp__cloudmcp-manager__memory-add_observations for strategic learnings
-```
+- Before advising: Request context retrieval for strategic decisions
+- After advising: Request storage of strategic insights
 
 ## Strategic Frameworks
 

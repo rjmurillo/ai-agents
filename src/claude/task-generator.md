@@ -141,17 +141,10 @@ TASK-001 → TASK-002 → TASK-003
 
 ## Memory Protocol
 
-**Retrieve Patterns:**
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="task breakdown [feature type]"
-```
-
-**Store Learnings:**
-
-```text
-mcp__cloudmcp-manager__memory-add_observations for estimation learnings
-```
+- Before breakdown: Request context retrieval for task patterns
+- After breakdown: Request storage of estimation learnings
 
 ## Handoff Options
 

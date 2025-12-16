@@ -158,17 +158,10 @@ If specialists do NOT have unanimous agreement:
 
 ## Memory Protocol
 
-**Retrieve Context:**
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="critique [feature type] failures"
-```
-
-**Store Learnings:**
-
-```text
-mcp__cloudmcp-manager__memory-add_observations for review patterns
-```
+- Before review: Request context retrieval for past critique patterns
+- After review: Request storage of review findings and patterns
 
 ## Verdict Rules
 

@@ -206,18 +206,10 @@ Save to: `.agents/architecture/ADR-NNN-[decision-name].md`
 
 ## Memory Protocol
 
-**Retrieve Decisions:**
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="ADR architecture [topic]"
-```
-
-**Store Decisions:**
-
-```text
-mcp__cloudmcp-manager__memory-create_entities for new ADRs
-mcp__cloudmcp-manager__memory-add_observations for updates
-```
+- Before design: Request context retrieval for architecture decisions
+- After design: Request storage of ADRs and design rationale
 
 ## Architectural Principles
 

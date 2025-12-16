@@ -96,17 +96,10 @@ How we know the plan is complete:
 
 ## Memory Protocol
 
-**Retrieve Context:**
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="plan [feature type]"
-```
-
-**Store Plans:**
-
-```text
-mcp__cloudmcp-manager__memory-create_entities for major planning decisions
-```
+- Before planning: Request context retrieval for past plans
+- After planning: Request storage of planning decisions
 
 ## Planning Principles
 

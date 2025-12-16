@@ -198,28 +198,16 @@ Execution → Reflection → Skill Update → Improved Execution
     └──────────────────────────────────────────┘
 ```
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Entity Naming
+Delegate to **memory** agent for cross-session context:
 
-| Type | Pattern | Example |
-|------|---------|---------|
-| Skill | `Skill-[Category]-[Number]` | `Skill-Caching-001` |
-| Learning | `Learning-[Date]-[Number]` | `Learning-2025-01-001` |
-| Failure | `Failure-[Category]-[Number]` | `Failure-Build-003` |
-
-### Storage Operations
-
-**After Reflection:**
-
-```text
-mcp__cloudmcp-manager__memory-create_entities for new skills
-mcp__cloudmcp-manager__memory-add_observations for skill updates
-mcp__cloudmcp-manager__memory-create_relations to link:
-  - Skills to Learnings (derived_from)
-  - Skills to Failures (prevents)
-  - Skills to other Skills (related_to, supersedes)
-```
+- Before reflection: Request context retrieval for past learnings
+- After reflection: Request storage of:
+  - New skills (named `Skill-[Category]-[Number]`)
+  - Learnings (named `Learning-[Date]-[Number]`)
+  - Failures (named `Failure-[Category]-[Number]`)
+  - Relations linking skills to learnings and failures
 
 ## Handoff Protocol
 

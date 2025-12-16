@@ -253,17 +253,10 @@ dotnet reportgenerator -reports:coverage.xml -targetdir:coverage-report
 
 ## Memory Protocol
 
-**Retrieve Patterns:**
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="test strategy [feature type]"
-```
-
-**Store Learnings:**
-
-```text
-mcp__cloudmcp-manager__memory-add_observations for testing insights
-```
+- Before testing: Request context retrieval for test strategies
+- After testing: Request storage of testing insights and patterns
 
 ## Constraints
 

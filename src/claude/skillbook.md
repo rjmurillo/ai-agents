@@ -117,42 +117,15 @@ Query: "skill [topic] [keywords]"
 | Process | Workflow | Skill-Process-001 |
 | Tool | Tool-specific | Skill-Tool-001 |
 
-## Memory Operations
+## Memory Protocol
 
-**Create Skill:**
+Delegate to **memory** agent for cross-session context:
 
-```json
-mcp__cloudmcp-manager__memory-create_entities
-{
-  "entities": [{
-    "name": "Skill-Build-001",
-    "entityType": "Skill",
-    "observations": [
-      "Statement: Use /m:1 /nodeReuse:false for CI builds",
-      "Context: Windows multi-framework builds",
-      "Evidence: Session 39 - fixed CI failures",
-      "Atomicity: 88",
-      "Tag: helpful",
-      "Impact: 9"
-    ]
-  }]
-}
-```
-
-**Update Skill:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Skill-Build-001",
-    "contents": [
-      "Validation: 2025-01-20 - prevented build failure",
-      "Validated: 4"
-    ]
-  }]
-}
-```
+- Before skill lookup: Request context retrieval for skills in category
+- After skill creation: Request storage of new skill with:
+  - Statement, Context, Evidence
+  - Atomicity score, Tag (helpful/harmful/neutral), Impact (1-10)
+- After skill validation: Request observation update with validation results
 
 ## Contradiction Resolution
 

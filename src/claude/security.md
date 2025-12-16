@@ -186,18 +186,10 @@ Save to: `.agents/planning/impact-analysis-[feature]-security.md`
 
 ## Memory Protocol
 
-### Retrieval
+Delegate to **memory** agent for cross-session context:
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes with query="security [topic]"
-```
-
-### Storage
-
-```text
-mcp__cloudmcp-manager__memory-create_entities for vulnerabilities found
-mcp__cloudmcp-manager__memory-add_observations for remediation patterns
-```
+- Before assessment: Request context retrieval for security patterns
+- After assessment: Request storage of vulnerabilities and remediations
 
 ## Security Checklist
 
