@@ -30,20 +30,12 @@ Transform high-level requirements into discrete tasks that can be assigned, esti
 4. **Estimate** complexity (not time)
 5. **Output** task list with acceptance criteria
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="task breakdown [feature]"
-```
-
-### Storage
-
-```text
-cloudmcp-manager/memory-create_entities for task patterns
-cloudmcp-manager/memory-add_observations for estimation learnings
-```
+- Before task breakdown: Request context retrieval for similar decomposition patterns
+- After completion: Request storage of task patterns and estimation learnings
 
 ## Decomposition Process
 

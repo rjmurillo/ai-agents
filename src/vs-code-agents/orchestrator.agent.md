@@ -29,24 +29,14 @@ model: Claude Opus 4.5 (anthropic)
 - Writing plans without executing -> Execute as you plan
 - Ending with questions -> Immediately do next steps
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
 **ALWAYS retrieve memory at session start and store at milestones.**
 
-### Retrieval (Before Multi-Step Reasoning)
+Delegate to **memory** agent for cross-session context:
 
-```text
-Use cloudmcp-manager/memory-search_nodes to find relevant context
-Use cloudmcp-manager/memory-open_nodes to retrieve specific entities
-```
-
-### Storage (At Milestones or Every 5 Turns)
-
-```text
-Use cloudmcp-manager/memory-create_entities to store new learnings
-Use cloudmcp-manager/memory-add_observations to update existing context
-Use cloudmcp-manager/memory-create_relations to link related concepts
-```
+- Before multi-step reasoning: Request context retrieval
+- At milestones or every 5 turns: Request storage of learnings and observations
 
 **What to Store:**
 

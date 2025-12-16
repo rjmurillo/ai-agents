@@ -17,3 +17,6 @@ handoffSyntax: "/agent"
 
 # Tool syntax style
 toolSyntax: path
+
+# Memory protocol prefix (for MCP tools)
+memoryPrefix: "cloudmcp-manager/"

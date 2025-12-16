@@ -279,39 +279,26 @@ Provide unfiltered analysis:
 Be intellectually honest - don't automatically agree with either side.
 ```
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-Memory is a critical strength for PR comment handling. Reviewers (especially bots) have predictable patterns that improve triage accuracy over time.
+Delegate to **memory** agent for cross-session context. Memory is critical for PR comment handling as reviewers (especially bots) have predictable patterns that improve triage accuracy over time.
 
 ### Retrieval (MANDATORY at start)
 
-```text
-# General PR patterns
-cloudmcp-manager/memory-search_nodes with query="PR review patterns"
+Request context retrieval for:
 
-# Bot-specific false positives (critical for efficiency)
-cloudmcp-manager/memory-search_nodes with query="CodeRabbit false positives"
-cloudmcp-manager/memory-search_nodes with query="Copilot suggestions patterns"
-
-# Reviewer preferences (human reviewers have patterns too)
-cloudmcp-manager/memory-search_nodes with query="reviewer [username] preferences"
-
-# Domain-specific patterns
-cloudmcp-manager/memory-search_nodes with query="[file type] review patterns"
-```
+- General PR patterns
+- Bot-specific false positives (CodeRabbit, Copilot)
+- Reviewer preferences (human reviewers have patterns too)
+- Domain-specific patterns by file type
 
 ### Storage (After EVERY triage decision)
 
-```text
-# Store bot false positive patterns
-cloudmcp-manager/memory-create_entities with entities for BotFalsePositive type
+Request storage of:
 
-# Store successful triage decisions
-cloudmcp-manager/memory-add_observations for pattern -> path -> outcome
-
-# Link reviewer to their patterns
-cloudmcp-manager/memory-create_relations linking reviewer to patterns
-```
+- Bot false positive patterns
+- Successful triage decisions (pattern -> path -> outcome)
+- Reviewer-to-pattern relationships
 
 ### What to Remember
 

@@ -39,20 +39,12 @@ Provide ruthless triage, strategic prioritization, and direct verdicts. Unblock 
 - Do line-by-line code review
 - Validate poor decisions to make you feel better
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="strategic decision [topic]"
-```
-
-### Storage
-
-```text
-cloudmcp-manager/memory-create_entities for strategic decisions
-cloudmcp-manager/memory-add_observations for priority changes
-```
+- Before strategic decisions: Request context retrieval for relevant decisions
+- After decisions: Request storage of strategic decisions and priority changes
 
 ## Strategic Frameworks
 

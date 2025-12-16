@@ -39,20 +39,12 @@ Provide unfiltered feedback that challenges unsupported claims. Be the voice tha
 - Provide answers without evidence
 - Be contrarian for its own sake
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="independent analysis [topic]"
-```
-
-### Storage
-
-```text
-cloudmcp-manager/memory-create_entities for alternative viewpoints
-cloudmcp-manager/memory-add_observations for assumption challenges
-```
+- Before analysis: Request context retrieval for relevant topics
+- After analysis: Request storage of alternative viewpoints and challenges
 
 ## Analysis Framework
 

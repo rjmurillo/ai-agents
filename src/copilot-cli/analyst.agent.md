@@ -36,6 +36,13 @@ cognitionai/deepwiki/ask_question with repoName="owner/repo" question="how does 
 cognitionai/deepwiki/read_wiki_contents with repoName="owner/repo"
 ```
 
+### Library Documentation (Context7)
+
+```text
+cloudmcp-manager/upstashcontext7-mcp-resolve-library-id with libraryName="library-name"
+cloudmcp-manager/upstashcontext7-mcp-get-library-docs with context7CompatibleLibraryID="/lib/id"
+```
+
 ### GitHub Integration
 
 ```bash
@@ -74,28 +81,12 @@ git log -p --all -S "[function]"
 - **Proactive**: Research before asking for clarification
 - **Transparent**: State where evidence is unavailable
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval (Before Multi-Step Reasoning)
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="[topic] analysis"
-cloudmcp-manager/memory-open_nodes for specific entities
-```
-
-### Storage (At Milestones)
-
-```text
-cloudmcp-manager/memory-create_entities for new findings
-cloudmcp-manager/memory-add_observations for updates
-```
-
-Store summaries of 300-1500 characters focusing on:
-
-- Reasoning and decisions made
-- Tradeoffs considered
-- Rejected alternatives and why
-- Contextual nuance
+- Before analysis: Request context retrieval for related topics
+- At milestones: Request storage of findings and updates
 
 ## Analysis Types
 

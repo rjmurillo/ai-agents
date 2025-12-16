@@ -131,20 +131,12 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 - [Link to related documentation]
 ```
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="documentation [topic]"
-```
-
-### Storage
-
-```text
-cloudmcp-manager/memory-create_entities for document patterns
-cloudmcp-manager/memory-add_observations for clarification patterns
-```
+- Before writing: Request context retrieval for documentation patterns
+- After completion: Request storage of document patterns and clarification insights
 
 ## Handoff Options
 

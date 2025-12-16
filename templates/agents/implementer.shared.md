@@ -201,21 +201,12 @@ Greatest vulnerability: wrong or missing abstraction.
 
 Use patterns ONLY after qualities, principles, practices addressed. Common patterns: Strategy, Bridge, Adapter, Facade, Proxy, Decorator, Factory, Builder.
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval (Before Implementation)
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="implementation [feature]"
-cloudmcp-manager/memory-open_nodes for previous patterns
-```
-
-### Storage (After Completion)
-
-```text
-cloudmcp-manager/memory-create_entities for new patterns discovered
-cloudmcp-manager/memory-add_observations for implementation notes
-```
+- Before implementation: Request context retrieval for relevant patterns
+- After completion: Request storage of new patterns and implementation notes
 
 ## Code Requirements
 

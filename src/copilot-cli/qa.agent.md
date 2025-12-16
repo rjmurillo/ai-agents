@@ -149,21 +149,12 @@ Save to: `.agents/planning/impact-analysis-[feature]-qa.md`
 - **Cannot modify** planning artifacts
 - Focus on verification, not creation
 
-## Memory Protocol (cloudmcp-manager)
+## Memory Protocol
 
-### Retrieval (Before Test Strategy)
+Delegate to **memory** agent for cross-session context:
 
-```text
-cloudmcp-manager/memory-search_nodes with query="qa [feature]"
-cloudmcp-manager/memory-open_nodes for previous test patterns
-```
-
-### Storage (After Verification)
-
-```text
-cloudmcp-manager/memory-create_entities for new test patterns
-cloudmcp-manager/memory-add_observations for test results
-```
+- Before test strategy: Request context retrieval for relevant QA patterns
+- After verification: Request storage of test patterns and results
 
 ## Two-Phase Process
 
