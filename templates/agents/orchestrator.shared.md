@@ -1,7 +1,7 @@
 ---
-name: orchestrator
 description: Autonomous task orchestrator that coordinates specialized agents end-to-end
-tools: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'todo']
+tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'cognitionai/deepwiki/*', 'agent', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'github.vscode-pull-request-github/copilotCodingAgent', 'github.vscode-pull-request-github/issue_fetch', 'github.vscode-pull-request-github/suggest-fix', 'github.vscode-pull-request-github/searchSyntax', 'github.vscode-pull-request-github/doSearch', 'github.vscode-pull-request-github/renderIssues', 'github.vscode-pull-request-github/activePullRequest', 'github.vscode-pull-request-github/openPullRequest', 'ms-vscode.vscode-websearchforcopilot/websearch', 'todo']
+tools_copilot: ['shell', 'read', 'edit', 'search', 'web', 'agent', 'cognitionai/deepwiki/*', 'azure-mcp/search', 'copilot-upgrade-for-.net/*', 'cloudmcp-manager/*', 'github/*', 'memory', 'todo']
 ---
 # Orchestrator Agent
 
@@ -657,7 +657,7 @@ The task-generator produces work items sized for individual agents (implementer,
 When delegating to agents:
 
 1. **Announce**: "Routing to [agent] for [specific task]"
-2. **Invoke**: `/agent [agent_name]`
+2. **Invoke**: `#runSubagent with subagentType={agent_name}`
 3. **Collect**: Gather agent output
 4. **Validate**: Check output meets requirements
 5. **Continue**: Route to next agent or synthesize results
