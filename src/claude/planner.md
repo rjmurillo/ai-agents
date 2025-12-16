@@ -1,7 +1,7 @@
 ---
 name: planner
 description: High-rigor planning assistant translating roadmap epics into implementation-ready work packages. Creates milestones, task sequences, and planning artifacts. Use after analyst research is complete and before implementation to structure work breakdown.
-model: opus
+model: sonnet
 argument-hint: Provide the epic or roadmap item to plan
 ---
 # Planner Agent
