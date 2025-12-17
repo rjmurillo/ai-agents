@@ -75,17 +75,22 @@
 
 ---
 
-### Skill-Workflow-001: Quick Fix Path
+### Skill-Workflow-001: Quick Fix Path (Review-Triage-Quick-Fix-001)
 
 **Statement**: Bypass orchestrator for atomic bugs: single-file, single-function, clear fix
 
 **Context**: During PR comment triage when bug meets atomic criteria
 
-**Evidence**: PR #47 - 2 bugs (test pollution, PathInfo type) fixed via direct implementer delegation in ~10 minutes
+**Evidence**:
+
+- PR #52 - 3 issues correctly classified as Quick Fix (single-file, clear fix). Resolution: 4 minutes from comment retrieval to commit push
+- PR #47 - 2 bugs (test pollution, PathInfo type) fixed via direct implementer delegation in ~10 minutes
 
 **Atomicity**: 89%
 
 **Tag**: helpful (routing efficiency)
+
+**Validated**: 2 (PR #47, #52)
 
 ---
 
@@ -103,21 +108,25 @@
 
 ---
 
-### Skill-PR-006: cursor[bot] Signal Quality
+### Skill-PR-006: cursor[bot] Signal Quality (Review-Bot-Signal-Quality-001)
 
-**Statement**: Prioritize cursor[bot] review comments; 100% actionability rate (4/4 in PR #32, #47)
+**Statement**: Prioritize cursor[bot] review comments; 100% actionability rate
 
 **Context**: During PR comment triage, when multiple reviewers present
 
 **Evidence**:
 
+- PR #52 - 1/1 cursor[bot] comment CRITICAL (untracked file detection bug)
 - PR #47 - 2/2 cursor[bot] comments were actionable bugs (test pollution, PathInfo type)
 - PR #32 - 2/2 cursor[bot] comments actionable
-- Signal-to-noise: cursor 4/4 (100%) vs other bots 6/14 (43%)
+- **Total**: 5/5 actionable (100% signal quality maintained)
+- Signal-to-noise: cursor 5/5 (100%) vs other bots 8/20 (40%)
 
 **Atomicity**: 96%
 
 **Tag**: helpful (triage prioritization)
+
+**Validated**: 3 (PR #32, #47, #52)
 
 ---
 
