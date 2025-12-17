@@ -214,7 +214,7 @@ if [ -n "$STAGED_PLANNING_FILES" ]; then
     elif [ -f "$PLANNING_VALIDATE_SCRIPT" ]; then
         if command -v pwsh &> /dev/null; then
             # Run validation in warning mode (don't block commits, but show issues)
-            if ! pwsh -File "$PLANNING_VALIDATE_SCRIPT" -Path "$REPO_ROOT" 2>&1; then
+            if ! pwsh -NoProfile -File "$PLANNING_VALIDATE_SCRIPT" -Path "$REPO_ROOT" 2>&1; then
                 echo_warning "Planning artifact validation found issues (see above)."
                 echo_info "  Consider running: pwsh build/scripts/Validate-PlanningArtifacts.ps1"
                 # Non-blocking: just warn, don't fail the commit
@@ -257,7 +257,7 @@ if [ -n "$STAGED_PLANNING_FILES" ]; then
         if command -v pwsh &> /dev/null; then
             # Run validation - failures will be reported but won't block commits
             # Note: -CI flag ensures script returns non-zero exit code on failures
-            if ! pwsh -File "$CONSISTENCY_VALIDATE_SCRIPT" -All -CI -Path "$REPO_ROOT" 2>&1; then
+            if ! pwsh -NoProfile -File "$CONSISTENCY_VALIDATE_SCRIPT" -All -CI -Path "$REPO_ROOT" 2>&1; then
                 echo_warning "Consistency validation found issues (see above)."
                 echo_info "  Consider running: pwsh scripts/Validate-Consistency.ps1 -All"
                 # Non-blocking: just warn, don't fail the commit
@@ -269,6 +269,51 @@ if [ -n "$STAGED_PLANNING_FILES" ]; then
         fi
     else
         echo_info "Consistency validation script not found. Skipping."
+    fi
+fi
+
+#
+# MCP Configuration Sync
+#
+# Syncs Claude's .mcp.json to VS Code's mcp.json format when .mcp.json is staged.
+# Claude uses "mcpServers" key, VS Code uses "servers" key.
+# .mcp.json is the source of truth; mcp.json is auto-generated.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+#
+MCP_SYNC_SCRIPT="$REPO_ROOT/scripts/Sync-McpConfig.ps1"
+
+# Check if .mcp.json is staged
+STAGED_MCP_FILE=$(echo "$STAGED_FILES" | grep -E '^\.mcp\.json$' || true)
+
+if [ -n "$STAGED_MCP_FILE" ]; then
+    echo_info "Syncing MCP configuration..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$MCP_SYNC_SCRIPT" ]; then
+        echo_warning "Skipping MCP sync: script path is a symlink"
+    elif [ -f "$MCP_SYNC_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run sync script
+            if pwsh -NoProfile -File "$MCP_SYNC_SCRIPT" 2>&1; then
+                # Check if mcp.json was modified and needs staging
+                if [ -f "$REPO_ROOT/mcp.json" ] && ! git diff --quiet -- "$REPO_ROOT/mcp.json" 2>/dev/null; then
+                    echo_success "Synced: mcp.json"
+                    git add -- "$REPO_ROOT/mcp.json"
+                    FILES_FIXED=1
+                else
+                    echo_success "MCP config already in sync."
+                fi
+            else
+                echo_warning "MCP sync script failed (see above)."
+                # Non-blocking: just warn, don't fail the commit
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping MCP config sync."
+            echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+        fi
+    else
+        echo_info "MCP sync script not found. Skipping."
     fi
 fi
 
