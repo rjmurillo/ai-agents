@@ -95,7 +95,7 @@ function Test-NamingConvention {
         'adr'     = '^ADR-\d{3}-[\w-]+\.md$'
         'prd'     = '^prd-[\w-]+\.md$'
         'tasks'   = '^tasks-[\w-]+\.md$'
-        'plan'    = '^(implementation-plan|plan)-[\w-]+\.md$'
+        'plan'    = '^\d{3}-[\w-]+-plan\.md$|^(implementation-plan|plan)-[\w-]+\.md$'
         'tm'      = '^TM-\d{3}-[\w-]+\.md$'
     }
 
