@@ -173,9 +173,9 @@ When returning work for revision, use this format:
 
 ### Validation Script
 
-Location: `.agents/utilities/validate-consistency.ps1` (to be created)
+Location: `scripts/Validate-Consistency.ps1`
 
-Expected capabilities:
+Capabilities:
 
 ```powershell
 # Validate a specific feature's artifacts
@@ -195,7 +195,7 @@ Consistency validation can be integrated into CI:
 
 ```yaml
 - name: Validate Consistency
-  run: pwsh .agents/utilities/validate-consistency.ps1 -All -CI
+  run: pwsh scripts/Validate-Consistency.ps1 -All -CI
 ```
 
 ---

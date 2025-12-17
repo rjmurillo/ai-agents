@@ -630,6 +630,8 @@ Reason: [explanation]
 Continue to: critic
 ```
 
+**Automation**: Run `scripts/Validate-Consistency.ps1 -Feature "[name]"` for automated validation.
+
 See also: `.agents/governance/consistency-protocol.md` for the complete validation procedure.
 
 ## Routing Heuristics
