@@ -10,8 +10,8 @@ cursor[bot] (Cursor Bugbot) is an AI code reviewer that has demonstrated excepti
 |----|----------|------------|------|-------|
 | #32 | 1 | 1 | 100% | Documentation consistency (devops sequence) |
 | #47 | 4 | 4 | 100% | PathInfo bugs, test coverage gaps |
-| #52 | 3 | 3 | 100% | Git staging, status messages, grep patterns |
-| **Total** | **8** | **8** | **100%** | All comments identified real bugs |
+| #52 | 5 | 5 | 100% | Git staging, status messages, grep patterns, SKIP_AUTOFIX ignored, PassThru exit codes |
+| **Total** | **10** | **10** | **100%** | All comments identified real bugs |
 
 ## Pattern: Bug Detection Focus
 
@@ -37,6 +37,16 @@ cursor[bot] excels at detecting:
 
 - PowerShell PathInfo vs string types (PR #47)
 - Return value mismatches
+
+### 5. Cross-Language Semantics (NEW from PR #52)
+
+- PowerShell `return` in script scope exits with code 0 (PR #52: PassThru exit codes masked)
+- Exit code contracts violated at bash-PowerShell boundary
+
+### 6. Pattern Consistency Violations (NEW from PR #52)
+
+- Missing environment variable checks (PR #52: SKIP_AUTOFIX ignored)
+- Inconsistent code patterns in same file
 
 ## Handling Recommendations
 
