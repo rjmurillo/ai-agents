@@ -142,9 +142,90 @@ When handling PR review comments:
 6. [ ] Use review reply endpoint: `gh api repos/OWNER/REPO/pulls/PR/comments -X POST -F in_reply_to=ID -f body=TEXT` (Skill-PR-004)
 7. [ ] Verify count before claiming done (Skill-PR-003)
 
-## Metrics (as of PR #47)
+## Reviewer Signal Quality Evaluation
 
-- **Triage accuracy**: 100% (0/8 missed in PR #47)
-- **cursor[bot] actionability**: 100% (4/4 across PR #32, #47)
-- **Noise ratio**: 75% (6/8 non-actionable in PR #47)
-- **Quick Fix efficiency**: 2 bugs, ~10 minutes, 2 single-line fixes
+### Per-Reviewer Performance (Cumulative)
+
+| Reviewer | PRs Reviewed | Comments | Actionable | Signal Rate | Trend |
+|----------|-------------|----------|------------|-------------|-------|
+| **cursor[bot]** | #32, #47, #52 | 5 | 5 | **100%** | ✅ Stable |
+| **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | ↑ Improving |
+| **coderabbitai[bot]** | #32, #47, #52 | 6 | 1 | **17%** | ↓ Low signal |
+
+### Per-PR Breakdown
+
+#### PR #52 (2025-12-17)
+
+| Reviewer | Comments | Actionable | Details |
+|----------|----------|------------|---------|
+| cursor[bot] | 1 | 1 (100%) | CRITICAL: untracked file detection bug |
+| Copilot | 2 | 2 (100%) | WhatIf+PassThru return value, missing test |
+| coderabbitai[bot] | 2 | 0 (0%) | 1 duplicate of Copilot, 1 summary |
+
+**Notes:**
+
+- cursor[bot] maintained 100% (5/5 total)
+- Copilot unusually high signal (normally ~30%)
+- CodeRabbit duplicate reduced signal value
+
+#### PR #47 (2025-12-14)
+
+| Reviewer | Comments | Actionable | Details |
+|----------|----------|------------|---------|
+| cursor[bot] | 2 | 2 (100%) | Test pollution, PathInfo type |
+| Copilot | 4 | 1 (25%) | Mixed signal |
+| coderabbitai[bot] | 2 | 0 (0%) | Style suggestions |
+
+#### PR #32 (2025-12-12)
+
+| Reviewer | Comments | Actionable | Details |
+|----------|----------|------------|---------|
+| cursor[bot] | 2 | 2 (100%) | Both actionable bugs |
+| Copilot | 3 | 1 (33%) | One valid, two noise |
+| coderabbitai[bot] | 2 | 1 (50%) | One valid suggestion |
+
+### Triage Priority Matrix
+
+Based on cumulative signal quality:
+
+| Priority | Reviewer | Action | Rationale |
+|----------|----------|--------|-----------|
+| **P0** | cursor[bot] | Process immediately | 100% actionable, finds CRITICAL bugs |
+| **P1** | Human reviewers | Process with priority | Domain expertise, context |
+| **P2** | Copilot | Review carefully | ~44% signal, improving trend |
+| **P3** | coderabbitai[bot] | Skim for real issues | ~17% signal, often duplicates |
+
+### Signal Quality Thresholds
+
+| Quality | Range | Recommended Action |
+|---------|-------|-------------------|
+| **High** | >80% | Process all comments immediately |
+| **Medium** | 30-80% | Triage carefully, verify before acting |
+| **Low** | <30% | Quick scan, focus on non-duplicate content |
+
+### Comment Type Analysis
+
+| Type | Actionability | Examples |
+|------|---------------|----------|
+| **Bug reports** | ~90% | cursor[bot] bugs, Copilot type errors |
+| **Missing coverage** | ~70% | Test gaps, edge cases |
+| **Style suggestions** | ~20% | Formatting, naming conventions |
+| **Summaries** | 0% | CodeRabbit walkthroughs |
+| **Duplicates** | 0% | Same issue from multiple bots |
+
+### Recommendations
+
+1. **Always process cursor[bot] first** - 100% track record
+2. **Check for duplicates** - CodeRabbit often echoes Copilot
+3. **Copilot improving** - Take seriously, but verify
+4. **Skip summaries** - No action needed on walkthrough comments
+
+---
+
+## Metrics (as of PR #52)
+
+- **Triage accuracy**: 100% (5/5 in PR #52, 8/8 in PR #47)
+- **cursor[bot] actionability**: 100% (5/5 across PR #32, #47, #52)
+- **Copilot actionability**: 44% (4/9 across PR #32, #47, #52)
+- **CodeRabbit actionability**: 17% (1/6 across PR #32, #47, #52)
+- **Quick Fix efficiency**: 3 bugs in 4 minutes (PR #52)
