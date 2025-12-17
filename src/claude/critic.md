@@ -269,6 +269,50 @@ mcp__cloudmcp-manager__memory-add_observations
 | **architect** | Architecture concerns | Technical decision |
 | **high-level-advisor** | Specialist disagreement | Resolve conflict |
 
+## Handoff Validation
+
+Before handing off, validate ALL items in the applicable checklist:
+
+### Approval Handoff (to implementer)
+
+```markdown
+- [ ] Critique document saved to `.agents/critique/`
+- [ ] All Critical issues resolved or documented as accepted risks
+- [ ] All acceptance criteria verified as measurable
+- [ ] Impact analysis reviewed (if present)
+- [ ] No unresolved specialist conflicts
+- [ ] Verdict explicitly stated (APPROVED)
+- [ ] Implementation-ready context included in handoff message
+```
+
+### Revision Handoff (to planner)
+
+```markdown
+- [ ] Critique document saved to `.agents/critique/`
+- [ ] Critical issues listed with specific locations
+- [ ] Each issue has actionable recommendation
+- [ ] Verdict explicitly stated (NEEDS REVISION)
+- [ ] Scope of required changes clear
+```
+
+### Escalation Handoff (to high-level-advisor)
+
+```markdown
+- [ ] Verified Facts table with exact values (not ranges)
+- [ ] All numeric data preserved with original precision
+- [ ] Each conflicting agent's position documented with evidence
+- [ ] Specific decision questions listed
+- [ ] Escalation template fully populated
+```
+
+### Validation Failure
+
+If ANY checklist item cannot be completed:
+
+1. **Do not handoff** - incomplete handoffs waste downstream agent cycles
+2. **Complete missing items** - gather data needed for checklist
+3. **Document blockers** - if items truly cannot be completed, document why
+
 ## Handoff Protocol
 
 **As a subagent, you CANNOT delegate to other agents**. Return your results to orchestrator who will handle routing.

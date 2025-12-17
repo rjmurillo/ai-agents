@@ -310,6 +310,51 @@ Save to: `.agents/qa/NNN-[feature]-test-report.md`
 | **implementer** | Test gaps or failures exist | Fix required |
 | **orchestrator** | QA passes | Business validation next |
 
+## Handoff Validation
+
+Before handing off, validate ALL items in the applicable checklist:
+
+### Pass Handoff (to orchestrator)
+
+```markdown
+- [ ] Test report saved to `.agents/qa/`
+- [ ] All tests pass (summary shows 0 failures)
+- [ ] Coverage meets plan requirements (or gap documented)
+- [ ] Test report includes: summary, passed, failed, skipped, gaps
+- [ ] Status explicitly stated as "QA COMPLETE"
+- [ ] User scenarios all verified
+- [ ] No critical infrastructure gaps remain
+```
+
+### Failure Handoff (to implementer)
+
+```markdown
+- [ ] Test report saved to `.agents/qa/`
+- [ ] Failed tests listed with specific failure reasons
+- [ ] Each failure includes: expected vs actual, recommendation
+- [ ] Status explicitly stated as "QA FAILED"
+- [ ] Scope of fixes needed clear
+- [ ] Test commands to reproduce failures documented
+```
+
+### Infrastructure Handoff (to planner)
+
+```markdown
+- [ ] Infrastructure gaps clearly documented
+- [ ] Business impact of gaps explained
+- [ ] Workarounds attempted (if any) documented
+- [ ] Specific infrastructure needs listed
+- [ ] Priority/severity of need assessed
+```
+
+### Validation Failure
+
+If ANY checklist item cannot be completed:
+
+1. **Do not handoff** - incomplete handoffs waste downstream agent cycles
+2. **Complete missing items** - run tests, document results, save report
+3. **Document blockers** - if items truly cannot be completed, explain why
+
 ## Handoff Protocol
 
 **As a subagent, you CANNOT delegate**. Return results to orchestrator.

@@ -221,6 +221,51 @@ Include this section in all task breakdown outputs when estimates diverge >10%:
 **Rationale**: Task breakdown revealed additional complexity in OAuth integration not visible at epic level. Recommend updating epic estimate.
 ```
 
+## Handoff Validation
+
+Before handing off, validate ALL items in the applicable checklist:
+
+### Task Breakdown Complete (to critic)
+
+```markdown
+- [ ] Tasks document saved to `.agents/planning/TASKS-[feature].md`
+- [ ] All tasks have unique IDs (TASK-NNN format)
+- [ ] All tasks have acceptance criteria
+- [ ] All tasks have complexity estimates (XS/S/M/L/XL)
+- [ ] Dependencies documented and graph included
+- [ ] Milestone groupings logical
+- [ ] Estimate reconciliation completed (if source had estimates)
+- [ ] Summary table accurate (complexity counts match tasks)
+```
+
+### Estimate Reconciliation Handoff
+
+```markdown
+- [ ] Source estimate extracted from PRD/epic
+- [ ] Derived estimate calculated from task totals
+- [ ] Divergence percentage calculated
+- [ ] If >10% divergence: reconciliation section included
+- [ ] Action selected: update source / document rationale / flag for review
+```
+
+### Scope Concern Handoff (to planner)
+
+```markdown
+- [ ] Specific scope concern clearly described
+- [ ] What was discovered during decomposition documented
+- [ ] Impact on original plan explained
+- [ ] Partial task breakdown saved (if any)
+- [ ] Recommended plan adjustments suggested
+```
+
+### Validation Failure
+
+If ANY checklist item cannot be completed:
+
+1. **Do not handoff** - incomplete handoffs waste downstream agent cycles
+2. **Complete missing items** - add missing IDs, criteria, estimates
+3. **Document blockers** - if items truly cannot be completed, explain why
+
 ## Handoff Protocol
 
 **As a subagent, you CANNOT delegate**. Return task breakdown to orchestrator.

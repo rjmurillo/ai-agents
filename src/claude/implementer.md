@@ -404,6 +404,50 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 | **qa** | Implementation complete | Verification |
 | **architect** | Design deviation required | Technical decision |
 
+## Handoff Validation
+
+Before handing off, validate ALL items in the applicable checklist:
+
+### Completion Handoff (to qa)
+
+```markdown
+- [ ] All plan tasks implemented or explicitly deferred with rationale
+- [ ] All tests pass (`dotnet test` exits 0)
+- [ ] Build succeeds (`dotnet build` exits 0)
+- [ ] Commits made with conventional message format
+- [ ] Security flagging completed (YES/NO with justification)
+- [ ] Implementation notes documented (if complex changes)
+- [ ] Files changed list accurate and complete
+```
+
+### Blocker Handoff (to analyst/planner/architect)
+
+```markdown
+- [ ] Specific blocker clearly described
+- [ ] What was attempted documented
+- [ ] What information/decision is needed stated
+- [ ] Work completed so far summarized
+- [ ] Partial commits made (if any work done)
+```
+
+### Security-Flagged Completion Handoff
+
+```markdown
+- [ ] All standard completion items validated
+- [ ] Security triggers identified and documented
+- [ ] Files requiring security review listed
+- [ ] PIV recommendation included in handoff message
+- [ ] Implementation notes include Security Flagging section
+```
+
+### Validation Failure
+
+If ANY checklist item cannot be completed:
+
+1. **Do not handoff** - incomplete handoffs waste downstream agent cycles
+2. **Complete missing items** - run tests, make commits, document rationale
+3. **Document blockers** - if items truly cannot be completed, explain why and route appropriately
+
 ## Handoff Protocol
 
 **As a subagent, you CANNOT delegate**. Return results to orchestrator.
