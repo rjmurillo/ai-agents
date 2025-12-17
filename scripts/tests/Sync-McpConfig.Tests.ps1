@@ -196,6 +196,41 @@ Describe "Sync-McpConfig.ps1" {
             # Assert - File should have been rewritten
             $secondWriteTime | Should -BeGreaterThan $firstWriteTime
         }
+
+        It "Returns false with PassThru when files already in sync" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $destPath = Join-Path $Script:TestDir "mcp.json"
+            $sourceContent = @{
+                mcpServers = @{ test = @{ type = "stdio"; command = "test" } }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # First sync
+            & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath
+
+            # Act - Second sync with PassThru
+            $result = & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath -PassThru
+
+            # Assert - Should return false since files are already in sync
+            $result | Should -Be $false
+        }
+
+        It "Returns true with PassThru when files are synced" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $destPath = Join-Path $Script:TestDir "mcp.json"
+            $sourceContent = @{
+                mcpServers = @{ test = @{ type = "stdio"; command = "test" } }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # Act - First sync with PassThru
+            $result = & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath -PassThru
+
+            # Assert - Should return true since files were synced
+            $result | Should -Be $true
+        }
     }
 
     Context "WhatIf Support" {

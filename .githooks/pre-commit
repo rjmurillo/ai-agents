@@ -294,17 +294,23 @@ if [ -n "$STAGED_MCP_FILE" ]; then
         echo_warning "Skipping MCP sync: script path is a symlink"
     elif [ -f "$MCP_SYNC_SCRIPT" ]; then
         if command -v pwsh &> /dev/null; then
-            # Run sync script
-            if pwsh -NoProfile -File "$MCP_SYNC_SCRIPT" 2>&1; then
-                # Auto-stage mcp.json (git add is idempotent - safe for new/modified/unchanged files)
-                if [ -f "$REPO_ROOT/mcp.json" ]; then
+            # Run sync script with PassThru to get sync status (returns True/False string)
+            SYNC_OUTPUT=$(pwsh -NoProfile -File "$MCP_SYNC_SCRIPT" -PassThru 2>&1)
+            SYNC_EXIT=$?
+
+            if [ $SYNC_EXIT -eq 0 ]; then
+                # Script succeeded - check if files were actually synced
+                if echo "$SYNC_OUTPUT" | grep -q "True"; then
+                    # Files were synced - stage the generated file
                     git add -- "$REPO_ROOT/mcp.json"
                     echo_success "Synced: mcp.json"
                     FILES_FIXED=1
                 else
+                    # Files already in sync (PassThru returned False)
                     echo_success "MCP config already in sync."
                 fi
             else
+                # Script failed
                 echo_warning "MCP sync script failed (see above)."
                 # Non-blocking: just warn, don't fail the commit
             fi
