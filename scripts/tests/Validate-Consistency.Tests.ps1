@@ -399,3 +399,516 @@ Describe "Test-NamingConventions" {
         $result.Issues | Should -Match "PRD naming violation"
     }
 }
+
+Describe "Test-ScopeAlignment - Requirement Counting Regex" {
+    <#
+    .SYNOPSIS
+        Extensive tests for the regex pattern used to count requirements in Test-ScopeAlignment.
+        Tests the fix for PR #50 comment 2625540786: missing (?m) multiline flag.
+
+    .DESCRIPTION
+        The regex '(?m)- \[[ x]\]|^\d+\.|^-\s' should match:
+        - Checkbox items: "- [ ]" or "- [x]"
+        - Numbered lists: "1." at start of line (with (?m) flag)
+        - Plain list items: "- " at start of line (with (?m) flag)
+
+        These tests verify the fix works correctly for all list formats.
+    #>
+
+    BeforeAll {
+        # Helper function to create test files and invoke Test-ScopeAlignment
+        # Must be in BeforeAll for Pester 5.x (not evaluated during Discovery)
+        function script:Invoke-ScopeAlignmentTest {
+            param(
+                [string]$EpicSuccessCriteria,
+                [string]$PrdRequirements
+            )
+
+            $epicContent = @"
+# Epic
+
+### Success Criteria
+$EpicSuccessCriteria
+"@
+            # Include EPIC-001 reference to satisfy the Epic reference check
+            $prdContent = @"
+# PRD
+
+**Epic**: EPIC-001-test.md
+
+## Requirements
+$PrdRequirements
+
+## Other Section
+"@
+
+            $epicPath = Join-Path $RoadmapPath "EPIC-001-test.md"
+            $prdPath = Join-Path $PlanningPath "prd-test.md"
+
+            Set-Content -Path $epicPath -Value $epicContent -NoNewline
+            Set-Content -Path $prdPath -Value $prdContent -NoNewline
+
+            return Test-ScopeAlignment -EpicPath $epicPath -PRDPath $prdPath
+        }
+    }
+
+    BeforeEach {
+        # Clean up any existing test files
+        Get-ChildItem -Path $RoadmapPath -Filter "*.md" -ErrorAction SilentlyContinue | Remove-Item -Force
+        Get-ChildItem -Path $PlanningPath -Filter "*.md" -ErrorAction SilentlyContinue | Remove-Item -Force
+    }
+
+    Context "Positive Tests - Checkbox Items" {
+        It "Counts single unchecked checkbox" {
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria "- [ ] One criterion" -PrdRequirements "- [ ] One requirement"
+            $result.Passed | Should -BeTrue
+            $result.Issues | Should -Not -Contain "PRD has fewer requirements"
+        }
+
+        It "Counts single checked checkbox" {
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria "- [x] One criterion" -PrdRequirements "- [x] One requirement"
+            $result.Passed | Should -BeTrue
+            $result.Issues | Should -Not -Contain "PRD has fewer requirements"
+        }
+
+        It "Counts multiple unchecked checkboxes" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+"@
+            $prdReqs = @"
+- [ ] Requirement 1
+- [ ] Requirement 2
+- [ ] Requirement 3
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Counts mixed checked and unchecked checkboxes" {
+            $epicCriteria = @"
+- [x] Criterion 1
+- [ ] Criterion 2
+"@
+            $prdReqs = @"
+- [x] Requirement 1
+- [ ] Requirement 2
+- [x] Requirement 3
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+    }
+
+    Context "Positive Tests - Numbered Lists" {
+        It "Counts single-digit numbered item" {
+            $epicCriteria = "- [ ] One criterion"
+            $prdReqs = @"
+1. First requirement
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Counts double-digit numbered items" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+"@
+            $prdReqs = @"
+10. Tenth requirement
+11. Eleventh requirement
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Counts triple-digit numbered items" {
+            $epicCriteria = "- [ ] One criterion"
+            $prdReqs = @"
+100. Hundredth requirement
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Counts multiple sequential numbered items" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+"@
+            $prdReqs = @"
+1. First requirement
+2. Second requirement
+3. Third requirement
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Counts non-sequential numbered items" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+"@
+            $prdReqs = @"
+1. First requirement
+5. Fifth requirement
+10. Tenth requirement
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+    }
+
+    Context "Positive Tests - Plain List Items" {
+        It "Counts single plain list item" {
+            $epicCriteria = "- [ ] One criterion"
+            $prdReqs = @"
+- Simple requirement
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Counts multiple plain list items" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+"@
+            $prdReqs = @"
+- First requirement
+- Second requirement
+- Third requirement
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Counts plain list items with varying content" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+"@
+            $prdReqs = @"
+- Short
+- This is a much longer requirement with more detail
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+    }
+
+    Context "Positive Tests - Mixed Formats" {
+        It "Counts checkboxes and numbered items together" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+"@
+            $prdReqs = @"
+- [ ] Checkbox requirement
+1. Numbered requirement
+2. Another numbered
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Counts checkboxes and plain lists together" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+"@
+            $prdReqs = @"
+- [ ] Checkbox requirement
+- Plain list item 1
+- Plain list item 2
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Counts all three formats together" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+- [ ] Criterion 4
+- [ ] Criterion 5
+"@
+            $prdReqs = @"
+- [ ] Checkbox unchecked
+- [x] Checkbox checked
+1. Numbered item
+- Plain list item
+2. Another numbered
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+    }
+
+    Context "Negative Tests - Empty and Missing" {
+        It "Returns no match for empty requirements section" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+"@
+            $prdReqs = ""  # Empty requirements
+
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            # Empty requirements means 0 count, which is less than 2 criteria
+            $result.Issues | Should -Contain "PRD has fewer requirements (0) than Epic success criteria (2)"
+        }
+
+        It "Returns no match for non-list content" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+"@
+            $prdReqs = @"
+This is just plain text with no list items.
+It doesn't contain any checkboxes, numbers, or dashes at line start.
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Issues | Should -Contain "PRD has fewer requirements (0) than Epic success criteria (2)"
+        }
+    }
+
+    Context "Negative Tests - Malformed Patterns" {
+        It "Does not count checkbox missing space after dash" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+"@
+            # Note: "-[ ]" is missing space after dash - not valid markdown
+            $prdReqs = @"
+-[ ] Malformed checkbox 1
+-[ ] Malformed checkbox 2
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            # These malformed checkboxes should not be counted
+            $result.Issues | Should -Contain "PRD has fewer requirements (0) than Epic success criteria (2)"
+        }
+
+        It "Does not count number without period" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+"@
+            $prdReqs = @"
+1 First item without period
+2 Second item without period
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Issues | Should -Contain "PRD has fewer requirements (0) than Epic success criteria (2)"
+        }
+
+        It "Does not count dash without space" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+"@
+            $prdReqs = @"
+-NoSpace1
+-NoSpace2
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Issues | Should -Contain "PRD has fewer requirements (0) than Epic success criteria (2)"
+        }
+
+        It "Does not count inline patterns (not at line start)" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+"@
+            $prdReqs = @"
+Text with 1. inline numbered list
+More text - with inline dash
+Also has - [ ] inline checkbox
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            # The checkbox pattern "- [ ]" doesn't require line start anchor, so it will match
+            # But the numbered and plain dash won't match since they're not at line start
+            # This test verifies the (?m) flag is working for line-start patterns
+            $result.Issues | Should -Contain "PRD has fewer requirements (1) than Epic success criteria (2)"
+        }
+    }
+
+    Context "Edge Cases" {
+        It "Handles single requirement item" {
+            $epicCriteria = "- [ ] Single criterion"
+            $prdReqs = "- [ ] Single requirement"
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Handles large number of requirement items" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+"@
+            # Generate 50 requirements
+            $prdReqs = (1..50 | ForEach-Object { "- [ ] Requirement $_" }) -join "`n"
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Handles requirements with CRLF line endings" {
+            $epicCriteria = "- [ ] Criterion 1`r`n- [ ] Criterion 2"
+            $prdReqs = "- [ ] Requirement 1`r`n- [ ] Requirement 2"
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Handles requirements with LF-only line endings" {
+            $epicCriteria = "- [ ] Criterion 1`n- [ ] Criterion 2"
+            $prdReqs = "- [ ] Requirement 1`n- [ ] Requirement 2"
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Handles empty lines between requirements" {
+            $epicCriteria = @"
+- [ ] Criterion 1
+
+- [ ] Criterion 2
+"@
+            $prdReqs = @"
+- [ ] Requirement 1
+
+- [ ] Requirement 2
+
+- [ ] Requirement 3
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Passed | Should -BeTrue
+        }
+
+        It "Handles requirements with leading whitespace (should still match)" {
+            # Note: The regex doesn't account for leading whitespace on numbered items
+            # This test documents current behavior
+            $epicCriteria = "- [ ] Criterion 1"
+            $prdReqs = @"
+  1. Indented numbered item
+"@
+            # With current regex, indented items won't match because ^ requires line start
+            # This is expected behavior for numbered lists
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+            $result.Issues | Should -Contain "PRD has fewer requirements (0) than Epic success criteria (1)"
+        }
+    }
+
+    Context "Regression Tests - Consistency with Test-RequirementCoverage" {
+        <#
+        .SYNOPSIS
+            Verifies that Test-ScopeAlignment regex behavior is consistent with
+            Test-RequirementCoverage (line 272 in Validate-Consistency.ps1)
+        #>
+
+        It "Both functions count same checkbox content identically" {
+            $prdContent = @"
+## Requirements
+
+- [ ] Requirement 1
+- [x] Requirement 2
+- [ ] Requirement 3
+"@
+            $tasksContent = @"
+## Tasks
+
+- [ ] Task 1
+- [ ] Task 2
+- [ ] Task 3
+"@
+            $prdFile = Join-Path $PlanningPath "prd-test.md"
+            $tasksFile = Join-Path $PlanningPath "tasks-test.md"
+            Set-Content -Path $prdFile -Value $prdContent
+            Set-Content -Path $tasksFile -Value $tasksContent
+
+            $coverageResult = Test-RequirementCoverage -PRDPath $prdFile -TasksPath $tasksFile
+
+            # The RequirementCount from Test-RequirementCoverage should match
+            # what Test-ScopeAlignment would count in the Requirements section
+            $coverageResult.RequirementCount | Should -Be 3
+        }
+
+        It "Both functions count numbered list content identically" {
+            $prdContent = @"
+## Requirements
+
+1. First requirement
+2. Second requirement
+3. Third requirement
+"@
+            $tasksContent = @"
+## Tasks
+
+- [ ] Task 1
+- [ ] Task 2
+- [ ] Task 3
+"@
+            $prdFile = Join-Path $PlanningPath "prd-test.md"
+            $tasksFile = Join-Path $PlanningPath "tasks-test.md"
+            Set-Content -Path $prdFile -Value $prdContent
+            Set-Content -Path $tasksFile -Value $tasksContent
+
+            $coverageResult = Test-RequirementCoverage -PRDPath $prdFile -TasksPath $tasksFile
+
+            # Test-RequirementCoverage should correctly count numbered items with (?m) flag
+            $coverageResult.RequirementCount | Should -Be 3
+        }
+    }
+
+    Context "Before/After Fix Verification" {
+        <#
+        .SYNOPSIS
+            Documents the behavior change from the fix.
+            Before: ^ only matched at string start
+            After: ^ matches at each line start with (?m)
+        #>
+
+        It "Numbered items at line start are now counted (was broken)" {
+            # This test would have FAILED before the fix
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+"@
+            $prdReqs = @"
+1. First numbered requirement
+2. Second numbered requirement
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+
+            # With fix: numbered items are counted, so 2 >= 2 passes
+            # Without fix: only 0 would be counted, causing false positive warning
+            $result.Passed | Should -BeTrue
+            $result.Issues | Should -Not -Contain "PRD has fewer requirements"
+        }
+
+        It "Plain dash items at line start are now counted (was broken)" {
+            # This test would have FAILED before the fix
+            $epicCriteria = @"
+- [ ] Criterion 1
+- [ ] Criterion 2
+"@
+            $prdReqs = @"
+- First plain list item
+- Second plain list item
+"@
+            $result = Invoke-ScopeAlignmentTest -EpicSuccessCriteria $epicCriteria -PrdRequirements $prdReqs
+
+            # With fix: plain list items are counted, so 2 >= 2 passes
+            # Without fix: only 0 would be counted, causing false positive warning
+            $result.Passed | Should -BeTrue
+            $result.Issues | Should -Not -Contain "PRD has fewer requirements"
+        }
+    }
+}

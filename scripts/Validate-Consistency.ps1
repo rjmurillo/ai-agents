@@ -223,7 +223,7 @@ function Test-ScopeAlignment {
             # Check PRD has corresponding requirements
             if ($prdContent -match '(?s)## Requirements(.+?)(?=##|$)') {
                 $requirements = $Matches[1]
-                $reqCount = ([regex]::Matches($requirements, '- \[[ x]\]|^\d+\.|^-\s')).Count
+                $reqCount = ([regex]::Matches($requirements, '(?m)- \[[ x]\]|^\d+\.|^-\s')).Count
                 if ($reqCount -lt $criteriaCount) {
                     $result.Issues += "PRD has fewer requirements ($reqCount) than Epic success criteria ($criteriaCount)"
                 }
