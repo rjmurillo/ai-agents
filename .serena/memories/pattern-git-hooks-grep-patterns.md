@@ -69,9 +69,54 @@ Common edge cases for path-based false positives:
 - CRITICAL-001: Use arrays and proper quoting to prevent injection
 - HIGH-001: Use while/read loops for files with spaces
 
-## Reference
+## TOCTOU Race Conditions in Multi-Process Hooks
 
-- Issue: PR #52 comment 2628441553
-- Fix: Commit cd4c6b2
-- File: `.githooks/pre-commit` line 303
+### Anti-Pattern: Security Check in Child Process
+
+```bash
+# PowerShell script checks for symlinks
+RESULT=$(pwsh -File sync-script.ps1)  # Symlink check happens here
+git add -- "$FILE"                     # But staging happens here - RACE WINDOW
+```
+
+### TOCTOU Problem
+
+Time-of-check to time-of-use (TOCTOU) race condition when:
+
+1. Security validation runs in a child process (e.g., PowerShell)
+2. Subsequent action runs in the parent process (e.g., git add)
+
+An attacker can replace the file with a symlink between process completion and the parent's action.
+
+### Solution: Defense-in-Depth
+
+Always re-validate security conditions in the same process that performs the action:
+
+```bash
+RESULT=$(pwsh -File sync-script.ps1)  # First check in PowerShell
+if [ -L "$FILE" ]; then               # Defense-in-depth check in bash
+    echo "Error: symlink detected"
+else
+    git add -- "$FILE"                # Action in same process as check
+fi
+```
+
+### Key Insight
+
+CodeRabbit correctly identified that PowerShell's symlink check only runs when the file exists. On first run (or after deletion), the file is created without symlink validation. Defense-in-depth catches this gap.
+
+### TOCTOU References
+
+- Issue: PR #52 comment 2628504961 (CodeRabbit TOCTOU analysis)
+- Fix: Commit 8d9c05a
+- Original symlink check: PowerShell lines 94-98, 144-148
+- Defense-in-depth check: `.githooks/pre-commit` line 306
+
+## References
+
+- Grep pattern issue: PR #52 comment 2628441553
+- Grep fix: Commit cd4c6b2
+- TOCTOU issue: PR #52 comment 2628504961
+- TOCTOU fix: Commit 8d9c05a
+- File: `.githooks/pre-commit`
 - QA Report: `.agents/qa/PR-52-grep-pattern-fix-verification.md`

@@ -116,17 +116,82 @@
 
 **Evidence**:
 
-- PR #52 - 1/1 cursor[bot] comment CRITICAL (untracked file detection bug)
+- PR #52 - 3/3 cursor[bot] comments were actionable bugs:
+  - #2628175065: Untracked file staging (fixed in 4815d56)
+  - #2628305876: Incorrect status messages (fixed in b4c9353)
+  - #2628441553: Grep pattern false positives (fixed in cd4c6b2)
 - PR #47 - 2/2 cursor[bot] comments were actionable bugs (test pollution, PathInfo type)
-- PR #32 - 2/2 cursor[bot] comments actionable
-- **Total**: 5/5 actionable (100% signal quality maintained)
-- Signal-to-noise: cursor 5/5 (100%) vs other bots 8/20 (40%)
+- PR #32 - 2/2 cursor[bot] comments actionable (documentation consistency, devops sequence)
+- **Total**: 8/8 actionable (100% signal quality maintained)
+- Signal-to-noise: cursor 8/8 (100%) vs other bots ~40%
 
 **Atomicity**: 96%
 
 **Tag**: helpful (triage prioritization)
 
 **Validated**: 3 (PR #32, #47, #52)
+
+**See also**: Memory `cursor-bot-review-patterns` for detailed patterns
+
+---
+
+### Skill-Triage-001: Domain-Adjusted Signal Quality (Review-Domain-Signal-001)
+
+**Statement**: Adjust reviewer signal quality heuristics based on comment domain (security > style)
+
+**Context**: When triaging bot review comments, especially on security-sensitive files
+
+**Evidence**:
+
+- PR #52 - CodeRabbit style suggestions ~30% actionable overall
+- PR #52 - CodeRabbit security comment on .githooks was 100% valid (TOCTOU)
+- Initial dismissal led to missed vulnerability
+
+**Atomicity**: 88%
+
+**Tag**: harmful when skipped (causes false negatives on security issues)
+
+**Heuristic**:
+
+| Comment Domain | Base Signal | Adjustment |
+|----------------|-------------|------------|
+| Bug report | Use base | No change |
+| Style suggestion | Use base | No change |
+| Security issue | +40% | Always investigate |
+| .githooks file | +50% | ASSERTIVE ENFORCEMENT |
+
+**Validated**: 1 (PR #52 symlink TOCTOU)
+
+**See also**: Memory `skills-security` (Skill-Security-009)
+
+---
+
+### Skill-Triage-002: Never Dismiss Security Without Process Analysis (Review-Security-Dismiss-001)
+
+**Statement**: Before dismissing a security suggestion citing existing protection, verify the protection covers all process boundaries and execution paths
+
+**Context**: When responding to security review comments on multi-process code
+
+**Evidence**:
+
+- PR #52 - Dismissed symlink comment citing PowerShell protection
+- Missed: PowerShell check was in child process, git add in parent (TOCTOU)
+- Missed: PowerShell check only runs when file exists (first-run gap)
+
+**Atomicity**: 93%
+
+**Tag**: harmful when skipped (causes security vulnerabilities)
+
+**Checklist Before Dismissing Security Comment**:
+
+1. [ ] Does protection cover ALL execution paths? (creation, update, error)
+2. [ ] Is protection in same process as the action it protects?
+3. [ ] What can change between check and use? (TOCTOU analysis)
+4. [ ] Does protection have conditional execution? (existence checks)
+
+**Validated**: 1 (PR #52 symlink TOCTOU)
+
+**See also**: Memory `pr-52-symlink-retrospective`
 
 ---
 
@@ -148,9 +213,9 @@ When handling PR review comments:
 
 | Reviewer | PRs Reviewed | Comments | Actionable | Signal Rate | Trend |
 |----------|-------------|----------|------------|-------------|-------|
-| **cursor[bot]** | #32, #47, #52 | 5 | 5 | **100%** | ✅ Stable |
+| **cursor[bot]** | #32, #47, #52 | 8 | 8 | **100%** | ✅ Stable |
 | **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | ↑ Improving |
-| **coderabbitai[bot]** | #32, #47, #52 | 6 | 1 | **17%** | ↓ Low signal |
+| **coderabbitai[bot]** | #32, #47, #52 | 6 | 2 | **33%** | → Stable |
 
 ### Per-PR Breakdown
 
@@ -158,15 +223,16 @@ When handling PR review comments:
 
 | Reviewer | Comments | Actionable | Details |
 |----------|----------|------------|---------|
-| cursor[bot] | 1 | 1 (100%) | CRITICAL: untracked file detection bug |
+| cursor[bot] | 3 | 3 (100%) | Untracked file staging, status messages, grep patterns |
 | Copilot | 2 | 2 (100%) | WhatIf+PassThru return value, missing test |
-| coderabbitai[bot] | 2 | 0 (0%) | 1 duplicate of Copilot, 1 summary |
+| coderabbitai[bot] | 2 | 2 (100%) | 1 duplicate of Copilot, 1 symlink TOCTOU (valid!) |
 
 **Notes:**
 
-- cursor[bot] maintained 100% (5/5 total)
+- cursor[bot] maintained 100% (8/8 total across PR #32, #47, #52)
+- All 3 cursor[bot] bugs were real issues fixed in commits 4815d56, b4c9353, cd4c6b2
 - Copilot unusually high signal (normally ~30%)
-- CodeRabbit duplicate reduced signal value
+- CodeRabbit symlink suggestion was redundant (PowerShell script already protects)
 
 #### PR #47 (2025-12-14)
 
@@ -224,8 +290,8 @@ Based on cumulative signal quality:
 
 ## Metrics (as of PR #52)
 
-- **Triage accuracy**: 100% (5/5 in PR #52, 8/8 in PR #47)
-- **cursor[bot] actionability**: 100% (5/5 across PR #32, #47, #52)
+- **Triage accuracy**: 100% (7/7 in PR #52, 8/8 in PR #47)
+- **cursor[bot] actionability**: 100% (8/8 across PR #32, #47, #52)
 - **Copilot actionability**: 44% (4/9 across PR #32, #47, #52)
-- **CodeRabbit actionability**: 17% (1/6 across PR #32, #47, #52)
-- **Quick Fix efficiency**: 3 bugs in 4 minutes (PR #52)
+- **CodeRabbit actionability**: 33% (2/6 across PR #32, #47, #52)
+- **Quick Fix efficiency**: 3 bugs fixed (PR #52: commits 4815d56, b4c9353, cd4c6b2)
