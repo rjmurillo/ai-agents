@@ -167,11 +167,109 @@ Phase 3 (Post-Implementation):
 
 ---
 
+## Skill-Security-007: Defense-in-Depth for Cross-Process Security Checks (94%)
+
+**Statement**: Always re-validate security conditions in the process that performs the action, even if validation occurred in a child process
+
+**Context**: When security validation (symlink check, path validation) runs in a subprocess and a subsequent action (file write, git add) runs in the parent
+
+**Evidence**: PR #52 - PowerShell symlink check insufficient due to TOCTOU race window between pwsh completion and bash git add
+
+**Atomicity**: 94%
+
+**Tag**: helpful (security)
+
+**Impact**: 9/10
+
+**Pattern**:
+
+```bash
+# Child process validates
+RESULT=$(pwsh -File sync-script.ps1)  # Symlink check here
+
+# Parent MUST re-validate before action
+if [ -L "$FILE" ]; then               # Defense-in-depth check
+    echo "Error: symlink"
+else
+    git add -- "$FILE"                # Action in same process as check
+fi
+```
+
+**Anti-Pattern**:
+
+- Trusting child process security checks without re-validation
+- Performing action in different process than security check
+
+**Source**: `.agents/retrospective/pr-52-symlink-retrospective.md`
+
+---
+
+## Skill-Security-008: First-Run Gap Analysis (91%)
+
+**Statement**: When reviewing conditional security checks, verify they cover creation scenarios, not just modification scenarios
+
+**Context**: When security code uses existence checks (`if file exists then validate`)
+
+**Evidence**: PR #52 - `if (Test-Path $DestinationPath)` meant symlink check only ran on updates, not creates
+
+**Atomicity**: 91%
+
+**Tag**: helpful (security)
+
+**Impact**: 8/10
+
+**Pattern**:
+
+```powershell
+# WRONG: Only validates when file exists
+if (Test-Path $Path) {
+    if ((Get-Item $Path).LinkType) { throw "symlink" }
+}
+# First-run creates file without validation!
+
+# RIGHT: Validate after creation too
+$result = Create-File $Path
+if ((Get-Item $Path).LinkType) { throw "symlink" }
+```
+
+**Source**: `.agents/retrospective/pr-52-symlink-retrospective.md`
+
+---
+
+## Skill-Security-009: Domain-Adjusted Signal Quality for Security Comments (88%)
+
+**Statement**: Security review comments from any reviewer have higher actionability than style suggestions - adjust triage priority accordingly
+
+**Context**: When triaging bot review comments on security-sensitive files
+
+**Evidence**: PR #52 - CodeRabbit style suggestions ~30% actionable overall, but security suggestion on .githooks was 100% valid (TOCTOU vulnerability)
+
+**Atomicity**: 88%
+
+**Tag**: helpful (triage)
+
+**Impact**: 7/10
+
+**Heuristic**:
+
+| Comment Domain | Base Signal | Adjustment |
+|----------------|-------------|------------|
+| Bug report | Use base | No change |
+| Style suggestion | Use base | No change |
+| Security issue | +40% | Always investigate |
+| .githooks file | +50% | ASSERTIVE ENFORCEMENT required |
+
+**Source**: `.agents/retrospective/pr-52-symlink-retrospective.md`
+
+---
+
 ## Related Documents
 
 - Source: `.agents/retrospective/phase1-remediation-pr43.md`
+- Source: `.agents/retrospective/pr-52-symlink-retrospective.md`
 - Source: `.agents/security/security-best-practices.md`
 - Source: `.agents/security/secret-detection-patterns.md`
 - Source: `.agents/security/infrastructure-file-patterns.md`
 - Issue: #I7 in retrospective
 - Related: skills-process-workflow-gaps (workflow patterns)
+- Related: pr-comment-responder-skills (triage patterns)
