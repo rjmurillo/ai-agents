@@ -255,8 +255,9 @@ if [ -n "$STAGED_PLANNING_FILES" ]; then
         echo_warning "Skipping consistency validation: script path is a symlink"
     elif [ -f "$CONSISTENCY_VALIDATE_SCRIPT" ]; then
         if command -v pwsh &> /dev/null; then
-            # Run validation in warning mode (don't block commits, but show issues)
-            if ! pwsh -File "$CONSISTENCY_VALIDATE_SCRIPT" -All -Path "$REPO_ROOT" 2>&1; then
+            # Run validation - failures will be reported but won't block commits
+            # Note: -CI flag ensures script returns non-zero exit code on failures
+            if ! pwsh -File "$CONSISTENCY_VALIDATE_SCRIPT" -All -CI -Path "$REPO_ROOT" 2>&1; then
                 echo_warning "Consistency validation found issues (see above)."
                 echo_info "  Consider running: pwsh scripts/Validate-Consistency.ps1 -All"
                 # Non-blocking: just warn, don't fail the commit
