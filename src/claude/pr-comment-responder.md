@@ -42,16 +42,53 @@ See `orchestrator.md` for full routing logic. This agent passes context to orche
 
 ### Reviewer Signal Quality
 
-Prioritize comments based on historical actionability rates:
+Prioritize comments based on historical actionability rates (updated after each PR):
 
-| Reviewer | Signal Quality | Evidence | Recommended Action |
-|----------|---------------|----------|-------------------|
-| **cursor[bot]** | High (100%) | 4/4 actionable bugs in PR #32, #47 | Process immediately |
-| **Human reviewers** | High | Domain expertise, project context | Process with priority |
-| **CodeRabbit** | Medium (~30%) | Many style suggestions, some real issues | Triage carefully |
-| **Copilot** | Medium (~30%) | Mixed signal, follow-up PR behavior | Verify before acting |
+#### Cumulative Performance (as of PR #52)
 
-**cursor[bot]** has demonstrated 100% actionability - every comment identified a real bug. Prioritize these comments for immediate attention.
+| Reviewer | PRs | Comments | Actionable | Signal | Trend | Action |
+|----------|-----|----------|------------|--------|-------|--------|
+| **cursor[bot]** | #32, #47, #52 | 5 | 5 | **100%** | ✅ Stable | Process immediately |
+| **Human reviewers** | - | - | - | High | - | Process with priority |
+| **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | ↑ Improving | Review carefully |
+| **coderabbitai[bot]** | #32, #47, #52 | 6 | 1 | **17%** | ↓ Low | Skim for real issues |
+
+#### Priority Matrix
+
+| Priority | Reviewer | Rationale |
+|----------|----------|-----------|
+| **P0** | cursor[bot] | 100% actionable, finds CRITICAL bugs |
+| **P1** | Human reviewers | Domain expertise, project context |
+| **P2** | Copilot | ~44% signal, improving trend |
+| **P3** | coderabbitai[bot] | ~17% signal, often duplicates |
+
+#### Signal Quality Thresholds
+
+| Quality | Range | Action |
+|---------|-------|--------|
+| **High** | >80% | Process all comments immediately |
+| **Medium** | 30-80% | Triage carefully, verify before acting |
+| **Low** | <30% | Quick scan, focus on non-duplicate content |
+
+#### Comment Type Analysis
+
+| Type | Actionability | Examples |
+|------|---------------|----------|
+| Bug reports | ~90% | cursor[bot] bugs, type errors |
+| Missing coverage | ~70% | Test gaps, edge cases |
+| Style suggestions | ~20% | Formatting, naming |
+| Summaries | 0% | CodeRabbit walkthroughs |
+| Duplicates | 0% | Same issue from multiple bots |
+
+**cursor[bot]** has demonstrated 100% actionability (5/5 across PR #32, #47, #52) - every comment identified a real bug. Prioritize these comments for immediate attention.
+
+#### Updating Signal Quality
+
+After completing each PR comment response session, update this section and the `pr-comment-responder-skills` memory with:
+
+1. Per-reviewer comment counts and actionability
+2. Any trend changes (improving/declining signal)
+3. New patterns observed (e.g., duplicate detection)
 
 ### Quick Fix Path Criteria
 
