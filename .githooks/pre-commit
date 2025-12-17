@@ -233,6 +233,45 @@ else
 fi
 
 #
+# Consistency Validation
+#
+# Validates cross-document consistency for agent-generated artifacts.
+# Checks:
+# - Scope alignment (epic vs PRD)
+# - Requirement coverage (PRD to tasks)
+# - Naming conventions (EPIC-NNN, ADR-NNN patterns)
+# - Cross-reference validity (file existence)
+#
+# Related: Issue rjmurillo/ai-agents#44 (Phase 3 consistency)
+#
+CONSISTENCY_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-Consistency.ps1"
+
+# Check if any planning files are staged that might need consistency validation
+if [ -n "$STAGED_PLANNING_FILES" ]; then
+    echo_info "Checking cross-document consistency..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$CONSISTENCY_VALIDATE_SCRIPT" ]; then
+        echo_warning "Skipping consistency validation: script path is a symlink"
+    elif [ -f "$CONSISTENCY_VALIDATE_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run validation in warning mode (don't block commits, but show issues)
+            if ! pwsh -File "$CONSISTENCY_VALIDATE_SCRIPT" -All -Path "$REPO_ROOT" 2>&1; then
+                echo_warning "Consistency validation found issues (see above)."
+                echo_info "  Consider running: pwsh scripts/Validate-Consistency.ps1 -All"
+                # Non-blocking: just warn, don't fail the commit
+            else
+                echo_success "Consistency validation OK."
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping consistency validation."
+        fi
+    else
+        echo_info "Consistency validation script not found. Skipping."
+    fi
+fi
+
+#
 # Security Detection (Non-blocking warning)
 #
 # Detects infrastructure and security-critical file changes
