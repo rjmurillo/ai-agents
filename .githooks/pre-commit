@@ -296,10 +296,10 @@ if [ -n "$STAGED_MCP_FILE" ]; then
         if command -v pwsh &> /dev/null; then
             # Run sync script
             if pwsh -NoProfile -File "$MCP_SYNC_SCRIPT" 2>&1; then
-                # Check if mcp.json was modified and needs staging
-                if [ -f "$REPO_ROOT/mcp.json" ] && ! git diff --quiet -- "$REPO_ROOT/mcp.json" 2>/dev/null; then
-                    echo_success "Synced: mcp.json"
+                # Auto-stage mcp.json (git add is idempotent - safe for new/modified/unchanged files)
+                if [ -f "$REPO_ROOT/mcp.json" ]; then
                     git add -- "$REPO_ROOT/mcp.json"
+                    echo_success "Synced: mcp.json"
                     FILES_FIXED=1
                 else
                     echo_success "MCP config already in sync."

@@ -214,6 +214,23 @@ Describe "Sync-McpConfig.ps1" {
             # Assert
             $destPath | Should -Not -Exist
         }
+
+        It "Returns false when WhatIf is used with PassThru" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $destPath = Join-Path $Script:TestDir "mcp.json"
+            $sourceContent = @{
+                mcpServers = @{ test = @{ type = "stdio"; command = "test" } }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # Act
+            $result = & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath -WhatIf -PassThru
+
+            # Assert
+            $result | Should -Be $false
+            $destPath | Should -Not -Exist
+        }
     }
 
     Context "PassThru Behavior" {

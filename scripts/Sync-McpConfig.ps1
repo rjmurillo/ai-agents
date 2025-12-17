@@ -168,5 +168,8 @@ if ($needsUpdate -or $Force) {
         [System.IO.File]::WriteAllText($DestinationPath, $destContent, [System.Text.UTF8Encoding]::new($false))
         Write-Host "Synced MCP config: $SourcePath -> $DestinationPath" -ForegroundColor Green
         if ($PassThru) { return $true }
+    } else {
+        # WhatIf: return false when PassThru is specified
+        if ($PassThru) { return $false }
     }
 }
