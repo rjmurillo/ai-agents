@@ -190,6 +190,45 @@ graph TD
 
 ````
 
+## Artifact Naming Conventions
+
+Roadmap artifacts follow strict naming conventions for consistency and traceability.
+
+### Epic Naming
+
+| Type | Pattern | Example |
+|------|---------|---------|
+| Epic File | `EPIC-NNN-[kebab-case-name].md` | `EPIC-001-user-authentication.md` |
+| Epic Reference | `EPIC-NNN` | `EPIC-001` |
+
+**Numbering Rules:**
+
+1. **Sequential Assignment**: Numbers are assigned in order of creation (001, 002, 003...)
+2. **No Reuse**: Retired/rejected epic numbers are NEVER reused
+3. **Gap Tolerance**: Gaps in sequence are acceptable (001, 002, 005 is valid if 003, 004 were rejected)
+4. **Zero-Padding**: Always use 3 digits with leading zeros
+
+### Related Artifact Cross-References
+
+When epics generate downstream artifacts, use consistent naming:
+
+| Artifact Type | Pattern | Example |
+|---------------|---------|---------|
+| PRD | `prd-[epic-name].md` | `prd-user-authentication.md` |
+| Tasks | `tasks-[epic-name].md` | `tasks-user-authentication.md` |
+| Implementation Plan | `implementation-plan-[epic-name].md` | `implementation-plan-user-authentication.md` |
+
+**Cross-Reference Format**: Use relative paths from `.agents/` root.
+
+```markdown
+## Related Artifacts
+- Epic: `roadmap/EPIC-001-user-authentication.md`
+- PRD: `planning/prd-user-authentication.md`
+- Tasks: `planning/tasks-user-authentication.md`
+```
+
+See also: `.agents/governance/naming-conventions.md` for the complete artifact naming schema.
+
 ## Epic Definition Format
 
 ```markdown

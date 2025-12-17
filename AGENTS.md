@@ -831,6 +831,22 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 - Phase 2 (Post-Implementation): PIV (Post-Implementation Verification)
 - Implementer must flag security-relevant changes during coding
 
+### Naming Conventions
+
+**Artifact Naming**: All planning artifacts follow strict naming conventions documented in `.agents/governance/naming-conventions.md`.
+
+| Artifact Type | Pattern | Example |
+|---------------|---------|---------|
+| Epic | `EPIC-NNN-kebab-case-name` | `EPIC-001-user-authentication` |
+| PRD | `PRD-feature-name.md` | `PRD-oauth-integration.md` |
+| ADR | `ADR-NNN-kebab-case-title.md` | `ADR-001-database-selection.md` |
+| Task | `TASK-EPIC-NNN-MM` | `TASK-001-03` |
+| Plan | `NNN-feature-plan.md` | `001-oauth-plan.md` |
+
+**Memory Entity Naming**: See Memory System section for entity naming (Feature-*, ADR-*, Pattern-*, Skill-*).
+
+**Consistency Validation**: Run `scripts/Validate-Consistency.ps1` to automatically validate naming conventions, cross-references, and requirement coverage.
+
 ### Process Improvements
 
 **Validation-Driven Standards**: When establishing new standards:
