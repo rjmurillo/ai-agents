@@ -301,10 +301,16 @@ if [ -n "$STAGED_MCP_FILE" ]; then
             if [ $SYNC_EXIT -eq 0 ]; then
                 # Script succeeded - check if files were actually synced
                 if echo "$SYNC_OUTPUT" | grep -q '^True$'; then
-                    # Files were synced - stage the generated file
-                    git add -- "$REPO_ROOT/mcp.json"
-                    echo_success "Synced: mcp.json"
-                    FILES_FIXED=1
+                    # MEDIUM-002: Defense-in-depth symlink check before staging
+                    # (Mitigates TOCTOU race between PowerShell check and git add)
+                    if [ -L "$REPO_ROOT/mcp.json" ]; then
+                        echo_warning "Skipping MCP sync staging: mcp.json is a symlink"
+                    else
+                        # Files were synced - stage the generated file
+                        git add -- "$REPO_ROOT/mcp.json"
+                        echo_success "Synced: mcp.json"
+                        FILES_FIXED=1
+                    fi
                 else
                     # Files already in sync (PassThru returned False)
                     echo_success "MCP config already in sync."
