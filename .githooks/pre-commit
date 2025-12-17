@@ -287,13 +287,15 @@ MCP_SYNC_SCRIPT="$REPO_ROOT/scripts/Sync-McpConfig.ps1"
 STAGED_MCP_FILE=$(echo "$STAGED_FILES" | grep -E '^\.mcp\.json$' || true)
 
 if [ -n "$STAGED_MCP_FILE" ]; then
-    echo_info "Syncing MCP configuration..."
+    # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
+    if [ "$AUTOFIX" = "1" ]; then
+        echo_info "Syncing MCP configuration..."
 
-    # MEDIUM-002: Reject symlinks for security
-    if [ -L "$MCP_SYNC_SCRIPT" ]; then
-        echo_warning "Skipping MCP sync: script path is a symlink"
-    elif [ -f "$MCP_SYNC_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$MCP_SYNC_SCRIPT" ]; then
+            echo_warning "Skipping MCP sync: script path is a symlink"
+        elif [ -f "$MCP_SYNC_SCRIPT" ]; then
+            if command -v pwsh &> /dev/null; then
             # Run sync script with PassThru to get sync status (returns True/False string)
             SYNC_OUTPUT=$(pwsh -NoProfile -File "$MCP_SYNC_SCRIPT" -PassThru 2>&1)
             SYNC_EXIT=$?
@@ -326,6 +328,9 @@ if [ -n "$STAGED_MCP_FILE" ]; then
         fi
     else
         echo_info "MCP sync script not found. Skipping."
+    fi
+    else
+        echo_info "MCP config sync skipped (auto-fix disabled)."
     fi
 fi
 

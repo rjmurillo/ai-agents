@@ -86,14 +86,12 @@ if (-not $DestinationPath) {
 # Validate source exists
 if (-not (Test-Path $SourcePath)) {
     Write-Error "Source file not found: $SourcePath"
-    if ($PassThru) { return $false }
     exit 1
 }
 
 # Security: Reject symlinks (MEDIUM-002 from pre-commit patterns)
 if ((Get-Item $SourcePath).LinkType) {
     Write-Error "Security: Source path is a symlink, which is not allowed: $SourcePath"
-    if ($PassThru) { return $false }
     exit 1
 }
 
@@ -104,14 +102,12 @@ try {
 }
 catch {
     Write-Error "Failed to parse source JSON from $SourcePath : $_"
-    if ($PassThru) { return $false }
     exit 1
 }
 
 # Validate source has expected structure
 if (-not $sourceJson.ContainsKey('mcpServers')) {
     Write-Error "Source file does not contain 'mcpServers' key. Expected Claude .mcp.json format."
-    if ($PassThru) { return $false }
     exit 1
 }
 
@@ -143,7 +139,6 @@ if (Test-Path $DestinationPath) {
     # Security: Reject symlinks
     if ((Get-Item $DestinationPath).LinkType) {
         Write-Error "Security: Destination path is a symlink, which is not allowed: $DestinationPath"
-        if ($PassThru) { return $false }
         exit 1
     }
 
