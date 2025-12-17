@@ -116,14 +116,16 @@
 
 **Evidence**:
 
-- PR #52 - 3/3 cursor[bot] comments were actionable bugs:
+- PR #52 - 5/5 cursor[bot] comments were actionable bugs:
   - #2628175065: Untracked file staging (fixed in 4815d56)
   - #2628305876: Incorrect status messages (fixed in b4c9353)
   - #2628441553: Grep pattern false positives (fixed in cd4c6b2)
+  - #2628566684: MCP sync SKIP_AUTOFIX check (fixed in 4c7549f)
+  - #2628566687: PassThru error exit codes (fixed in 4c7549f)
 - PR #47 - 2/2 cursor[bot] comments were actionable bugs (test pollution, PathInfo type)
 - PR #32 - 2/2 cursor[bot] comments actionable (documentation consistency, devops sequence)
-- **Total**: 8/8 actionable (100% signal quality maintained)
-- Signal-to-noise: cursor 8/8 (100%) vs other bots ~40%
+- **Total**: 9/9 actionable (100% signal quality maintained)
+- Signal-to-noise: cursor 9/9 (100%) vs other bots ~40%
 
 **Atomicity**: 96%
 
@@ -213,9 +215,9 @@ When handling PR review comments:
 
 | Reviewer | PRs Reviewed | Comments | Actionable | Signal Rate | Trend |
 |----------|-------------|----------|------------|-------------|-------|
-| **cursor[bot]** | #32, #47, #52 | 8 | 8 | **100%** | ✅ Stable |
+| **cursor[bot]** | #32, #47, #52 | 9 | 9 | **100%** | ✅ Stable |
 | **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | ↑ Improving |
-| **coderabbitai[bot]** | #32, #47, #52 | 6 | 2 | **33%** | → Stable |
+| **coderabbitai[bot]** | #32, #47, #52 | 6 | 3 | **50%** | → Stable |
 
 ### Per-PR Breakdown
 
@@ -223,14 +225,14 @@ When handling PR review comments:
 
 | Reviewer | Comments | Actionable | Details |
 |----------|----------|------------|---------|
-| cursor[bot] | 3 | 3 (100%) | Untracked file staging, status messages, grep patterns |
+| cursor[bot] | 5 | 5 (100%) | Untracked file staging, status messages, grep patterns, SKIP_AUTOFIX, PassThru exit codes |
 | Copilot | 2 | 2 (100%) | WhatIf+PassThru return value, missing test |
 | coderabbitai[bot] | 2 | 2 (100%) | 1 duplicate of Copilot, 1 symlink TOCTOU (valid!) |
 
 **Notes:**
 
-- cursor[bot] maintained 100% (8/8 total across PR #32, #47, #52)
-- All 3 cursor[bot] bugs were real issues fixed in commits 4815d56, b4c9353, cd4c6b2
+- cursor[bot] maintained 100% (9/9 total across PR #32, #47, #52)
+- All 5 cursor[bot] bugs in PR #52 were real issues fixed in commits 4815d56, b4c9353, cd4c6b2, 4c7549f
 - Copilot unusually high signal (normally ~30%)
 - CodeRabbit symlink suggestion was redundant (PowerShell script already protects)
 
@@ -291,7 +293,7 @@ Based on cumulative signal quality:
 ## Metrics (as of PR #52)
 
 - **Triage accuracy**: 100% (7/7 in PR #52, 8/8 in PR #47)
-- **cursor[bot] actionability**: 100% (8/8 across PR #32, #47, #52)
+- **cursor[bot] actionability**: 100% (9/9 across PR #32, #47, #52)
 - **Copilot actionability**: 44% (4/9 across PR #32, #47, #52)
-- **CodeRabbit actionability**: 33% (2/6 across PR #32, #47, #52)
+- **CodeRabbit actionability**: 50% (3/6 across PR #32, #47, #52)
 - **Quick Fix efficiency**: 3 bugs fixed (PR #52: commits 4815d56, b4c9353, cd4c6b2)

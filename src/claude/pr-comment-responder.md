@@ -48,10 +48,10 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 | Reviewer | PRs | Comments | Actionable | Signal | Trend | Action |
 |----------|-----|----------|------------|--------|-------|--------|
-| **cursor[bot]** | #32, #47, #52 | 5 | 5 | **100%** | ✅ Stable | Process immediately |
+| **cursor[bot]** | #32, #47, #52 | 9 | 9 | **100%** | ✅ Stable | Process immediately |
 | **Human reviewers** | - | - | - | High | - | Process with priority |
 | **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | ↑ Improving | Review carefully |
-| **coderabbitai[bot]** | #32, #47, #52 | 6 | 1 | **17%** | ↓ Low | Skim for real issues |
+| **coderabbitai[bot]** | #32, #47, #52 | 6 | 3 | **50%** | → Medium | Review carefully |
 
 #### Priority Matrix
 
@@ -59,8 +59,8 @@ Prioritize comments based on historical actionability rates (updated after each 
 |----------|----------|-----------|
 | **P0** | cursor[bot] | 100% actionable, finds CRITICAL bugs |
 | **P1** | Human reviewers | Domain expertise, project context |
+| **P2** | coderabbitai[bot] | ~50% signal, medium quality |
 | **P2** | Copilot | ~44% signal, improving trend |
-| **P3** | coderabbitai[bot] | ~17% signal, often duplicates |
 
 #### Signal Quality Thresholds
 
@@ -80,7 +80,9 @@ Prioritize comments based on historical actionability rates (updated after each 
 | Summaries | 0% | CodeRabbit walkthroughs |
 | Duplicates | 0% | Same issue from multiple bots |
 
-**cursor[bot]** has demonstrated 100% actionability (5/5 across PR #32, #47, #52) - every comment identified a real bug. Prioritize these comments for immediate attention.
+**cursor[bot]** has demonstrated 100% actionability (9/9 across PR #32, #47, #52) - every comment identified a real bug. Prioritize these comments for immediate attention.
+
+**Note**: Statistics are sourced from `.serena/memories/pr-comment-responder-skills.md` and should be updated there after each PR review session.
 
 #### Updating Signal Quality
 
