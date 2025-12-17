@@ -300,7 +300,7 @@ if [ -n "$STAGED_MCP_FILE" ]; then
 
             if [ $SYNC_EXIT -eq 0 ]; then
                 # Script succeeded - check if files were actually synced
-                if echo "$SYNC_OUTPUT" | grep -q "True"; then
+                if echo "$SYNC_OUTPUT" | grep -q '^True$'; then
                     # Files were synced - stage the generated file
                     git add -- "$REPO_ROOT/mcp.json"
                     echo_success "Synced: mcp.json"
