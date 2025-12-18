@@ -390,3 +390,77 @@ cat .agents/governance/consistency-protocol.md
 
 **Status**: Complete - retrospective saved.
 
+---
+
+### 2025-12-17: Session Protocol Enforcement Implementation
+
+**Objective**: Implement verification-based enforcement with technical controls per retrospective recommendations.
+
+**Context**: Retrospective at `.agents/retrospective/2025-12-17-protocol-compliance-failure.md` identified trust-based compliance doesn't work. Created shift to verification-based enforcement.
+
+**Agent**: orchestrator (self)
+
+**Deliverables**:
+
+1. **SESSION-PROTOCOL.md** (canonical source):
+   - Single source of truth for session protocol
+   - RFC 2119 key words (MUST, SHOULD, MAY)
+   - Verification mechanisms for each requirement
+   - Blocking gate enforcement model
+   - Session log template with checklists
+   - Violation handling procedures
+   - Location: `.agents/SESSION-PROTOCOL.md`
+
+2. **CLAUDE.md updates**:
+   - Replaced verbose "MANDATORY" language with RFC 2119 terms
+   - Added "BLOCKING GATE" heading for emphasis
+   - References canonical SESSION-PROTOCOL.md
+   - Verification requirements for each phase
+
+3. **AGENTS.md updates**:
+   - Session protocol section rewritten for RFC 2119
+   - Tables with Req Level, Step, and Verification columns
+   - "Putting It All Together" section updated
+   - References canonical SESSION-PROTOCOL.md
+
+4. **Validation script** (`scripts/Validate-SessionProtocol.ps1`):
+   - Validates session log existence and naming
+   - Checks Protocol Compliance section presence
+   - Verifies MUST requirements are completed
+   - Checks HANDOFF.md update timestamp
+   - Reports SHOULD violations as warnings (not errors)
+   - Supports console/markdown/json output formats
+   - CI mode for pipeline integration
+
+5. **Validation tests** (`scripts/tests/Validate-SessionProtocol.Tests.ps1`):
+   - 30+ test cases covering all validation functions
+   - RFC 2119 behavior verification
+   - Edge cases for naming, content, timestamps
+   - Follows existing Pester test patterns
+
+**Key Changes**:
+
+| Before | After |
+|--------|-------|
+| "MANDATORY" labels | RFC 2119 MUST/SHOULD/MAY |
+| Trust-based compliance | Verification-based enforcement |
+| Multiple protocol sources | Single canonical SESSION-PROTOCOL.md |
+| No validation tooling | Validate-SessionProtocol.ps1 script |
+
+**RFC 2119 Usage**:
+- MUST = protocol failure if violated
+- SHOULD = warning if violated
+- MAY = truly optional
+
+**Files Created**:
+- `.agents/SESSION-PROTOCOL.md`
+- `scripts/Validate-SessionProtocol.ps1`
+- `scripts/tests/Validate-SessionProtocol.Tests.ps1`
+
+**Files Modified**:
+- `CLAUDE.md`
+- `AGENTS.md`
+- `.agents/HANDOFF.md` (this file)
+
+**Status**: Complete - ready for markdown linting and commit
+

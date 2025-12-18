@@ -1,48 +1,47 @@
 # Claude Code Instructions
 
-## ⚠️ MANDATORY: Initialize Serena FIRST
+## BLOCKING GATE: Session Protocol
 
-**BEFORE doing ANY work**, you MUST call these tools in order:
+> **Canonical Source**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
+>
+> This file uses RFC 2119 key words. MUST = required, SHOULD = recommended, MAY = optional.
+
+### Phase 1: Serena Initialization (BLOCKING)
+
+You MUST NOT proceed to any other action until both calls succeed:
 
 ```text
 1. mcp__serena__activate_project  (with project path)
 2. mcp__serena__initial_instructions
 ```
 
-This is NON-NEGOTIABLE. Do not read files, do not search, do not answer questions until Serena is initialized. The Serena MCP provides critical project context, memories, and semantic code tools.
+**Verification**: Tool output appears in session transcript.
 
-**Why this matters**: Without Serena initialization, you lack access to:
+**If skipped**: You lack project memories, semantic code tools, and historical context.
 
-- Project memories containing past decisions and user preferences
-- Semantic code navigation tools
-- Historical context that prevents repeated mistakes
+### Phase 2: Context Retrieval (BLOCKING)
 
----
+You MUST read `.agents/HANDOFF.md` before starting work.
 
-## ⚠️ MANDATORY: Session Protocol Applies ALWAYS
+**Verification**: Content appears in session context; you reference prior decisions.
 
-**The session protocol is NON-NEGOTIABLE, including for:**
+**If skipped**: You will repeat completed work or contradict prior decisions.
 
-- Resumed/continued conversations (context summarization does NOT exempt you)
-- "Quick" tasks (even a 2-command task is still a session)
-- Instructions saying "continue without asking questions" (that refers to task questions, not protocol)
+### Phase 3: Session Log (REQUIRED)
 
-**Minimum session checklist:**
+You MUST create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` early in session.
 
-```text
-START (before any work):
-□ Initialize Serena (see above)
-□ Read .agents/HANDOFF.md for context
+**Verification**: File exists with Protocol Compliance section.
 
-END (before session closes):
-□ Update .agents/HANDOFF.md with what was done
-□ Run: npx markdownlint-cli2 --fix "**/*.md"
-□ Commit .agents/ files if changed
-```
+### Session End (REQUIRED)
 
-**Why this matters**: You are an expert amnesiac. Without reading HANDOFF.md, you will repeat work or contradict prior decisions. Without updating it, the next session starts blind.
+Before closing, you MUST:
 
-See [AGENTS.md § Session Protocol](AGENTS.md#-mandatory-follow-session-workflow-protocol) for the full checklist.
+1. Update `.agents/HANDOFF.md` with session summary
+2. Run `npx markdownlint-cli2 --fix "**/*.md"`
+3. Commit all changes including `.agents/` files
+
+**Full protocol with RFC 2119 requirements**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
 
 ---
 

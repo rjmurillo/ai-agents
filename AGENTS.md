@@ -21,9 +21,13 @@ This is NON-NEGOTIABLE. Do not read files, do not search, do not answer question
 
 ---
 
-## ⚠️ MANDATORY: Follow Session Workflow Protocol
+## BLOCKING GATE: Session Protocol
 
-**Agents are experts, but amnesiacs.** Each agent session starts with zero context from previous work. The session workflow protocol ensures continuity between sessions.
+> **Canonical Source**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
+>
+> This section uses RFC 2119 key words. MUST = required, SHOULD = recommended, MAY = optional.
+
+**Agents are experts, but amnesiacs.** Each agent session starts with zero context from previous work. The session protocol ensures continuity between sessions through **verification-based enforcement** - technical controls that make violations impossible, not just discouraged.
 
 ### Why This Matters
 
@@ -34,51 +38,40 @@ Without following the session protocol:
 - You will lose learnings that should inform future work
 - The user will have to re-explain context every session
 
-### Session Protocol Files
+### Session Start Requirements (BLOCKING)
 
-**Read these files in order at session start:**
+These requirements MUST be completed before ANY other work. Work is blocked until verification succeeds.
 
-| Order | File | Purpose |
-|-------|------|---------|
-| 1 | `.agents/AGENT-INSTRUCTIONS.md` | Task execution protocol, commit standards, templates |
-| 2 | `.agents/SESSION-START-PROMPT.md` | Session initialization checklist |
-| 3 | `.agents/HANDOFF.md` | Previous session context, current state, next steps |
-| 4 | `.agents/planning/enhancement-PROJECT-PLAN.md` | Project phases and task tracking |
+| Req Level | Step | Verification |
+|-----------|------|--------------|
+| **MUST** | Initialize Serena (`mcp__serena__activate_project`, `mcp__serena__initial_instructions`) | Tool output in transcript |
+| **MUST** | Read `.agents/HANDOFF.md` | Content in context |
+| **MUST** | Create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
+| **SHOULD** | Search relevant Serena memories | Memory results present |
+| **SHOULD** | Verify git status and note starting commit | Output documented |
 
-**Update these files before session end:**
+### Session End Requirements (BLOCKING)
 
-| File | Action |
-|------|--------|
-| `.agents/HANDOFF.md` | Update with session summary, what's next, blockers |
-| `.agents/sessions/YYYY-MM-DD-session-NN.md` | Create detailed session log |
-| `.agents/planning/*-PROJECT-PLAN.md` | Check off completed tasks |
+These requirements MUST be completed before session closes.
 
-### Session Start Checklist (MANDATORY)
+| Req Level | Step | Verification |
+|-----------|------|--------------|
+| **MUST** | Update `.agents/HANDOFF.md` | File modified timestamp |
+| **MUST** | Run `npx markdownlint-cli2 --fix "**/*.md"` | Lint passes |
+| **MUST** | Commit all changes including `.agents/` | Commit SHA exists |
+| **SHOULD** | Update PROJECT-PLAN.md task checkboxes | Tasks marked complete |
+| **SHOULD** | Invoke retrospective (significant sessions) | Doc created |
 
-```text
-□ Read .agents/AGENT-INSTRUCTIONS.md
-□ Read .agents/SESSION-START-PROMPT.md
-□ Read .agents/HANDOFF.md
-□ Identify current phase and assigned tasks
-□ Create session log: .agents/sessions/YYYY-MM-DD-session-NN.md
-□ Verify git state: git status
-□ Note starting commit: git log --oneline -1
-```
+### Full Protocol Documentation
 
-### Session End Checklist (MANDATORY)
+For complete protocol with:
 
-```text
-□ All tasks checked off in PROJECT-PLAN.md
-□ Session log complete with decisions and challenges
-□ HANDOFF.md updated with:
-  □ What was completed
-  □ What's next
-  □ Any blockers or concerns
-□ Markdown lint passes: npx markdownlint-cli2 --fix "**/*.md"
-□ All files committed (including .agents/ files)
-□ Retrospective agent invoked (for significant sessions)
-□ Git status is clean
-```
+- RFC 2119 requirement levels
+- Verification mechanisms
+- Session log template
+- Violation handling
+
+See: **[.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)**
 
 ### The Memory Bridge
 
@@ -984,23 +977,26 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 
 ## Putting It All Together
 
-### Every Session (Non-Negotiable)
+### Every Session (BLOCKING - RFC 2119)
+
+> **Full Protocol**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
 
 ```text
-SESSION START:
-1. Initialize Serena (mcp__serena__activate_project, mcp__serena__initial_instructions)
-2. Read .agents/AGENT-INSTRUCTIONS.md
-3. Read .agents/HANDOFF.md for previous session context
-4. Create session log at .agents/sessions/YYYY-MM-DD-session-NN.md
+SESSION START (BLOCKING - MUST complete before work):
+1. MUST: Initialize Serena (mcp__serena__activate_project, mcp__serena__initial_instructions)
+2. MUST: Read .agents/HANDOFF.md for previous session context
+3. MUST: Create session log at .agents/sessions/YYYY-MM-DD-session-NN.md
+4. SHOULD: Search relevant Serena memories
+5. SHOULD: Verify git status and note starting commit
 
 [... do your work ...]
 
-SESSION END:
-5. Update .agents/HANDOFF.md with session summary
-6. Check off completed tasks in PROJECT-PLAN.md
-7. Run markdown linting
-8. Commit all changes (including .agents/ files)
-9. Invoke retrospective agent (for significant sessions)
+SESSION END (BLOCKING - MUST complete before closing):
+6. MUST: Update .agents/HANDOFF.md with session summary
+7. MUST: Run npx markdownlint-cli2 --fix "**/*.md"
+8. MUST: Commit all changes (including .agents/ files)
+9. SHOULD: Check off completed tasks in PROJECT-PLAN.md
+10. SHOULD: Invoke retrospective agent (for significant sessions)
 ```
 
 ### Agent Workflow
