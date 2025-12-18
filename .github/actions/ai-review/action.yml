@@ -514,7 +514,7 @@ runs:
         STDERR_FILE=$(mktemp)
 
         set +e
-        timeout "$TIMEOUT_SECONDS" copilot --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+        timeout "$TIMEOUT_SECONDS" copilot --no-color --silent --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
         EXIT_CODE=$?
 
         OUTPUT=$(cat "$STDOUT_FILE")
