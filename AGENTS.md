@@ -357,6 +357,15 @@ In GitHub Copilot Chat:
 | Global | `~/.config/Code/User/prompts/` (Linux/Mac) |
 | Per-repo | `.github/agents/` |
 
+### VS Code File Types
+
+The installer copies both agent files and prompt files:
+
+| File Type | Pattern | Purpose |
+|-----------|---------|---------|
+| Agent files | `*.agent.md` | Full agent definitions with tools and instructions |
+| Prompt files | `*.prompt.md` | Reusable prompts (auto-generated from selected agents) |
+
 ### More Information
 
 See the official documentation: <https://code.visualstudio.com/docs/copilot/copilot-agents>
@@ -389,6 +398,15 @@ copilot
 | Per-repo | `.github/agents/` | **Works** |
 | Global | `~/.copilot/agents/` | Known bug (#452) |
 
+### Copilot CLI File Types
+
+The installer copies both agent files and prompt files:
+
+| File Type | Pattern | Purpose |
+|-----------|---------|---------|
+| Agent files | `*.agent.md` | Full agent definitions with tools and instructions |
+| Prompt files | `*.prompt.md` | Reusable prompts (auto-generated from selected agents) |
+
 ### CLI Notes
 
 - Use per-repository installation until global agent loading is fixed
@@ -413,16 +431,26 @@ Task(subagent_type="critic", prompt="Validate plan at .agents/planning/...")
 
 ### Claude Installation Locations
 
-| Type | Location |
-|------|----------|
-| Global | `~/.claude/agents/` |
-| Per-repo | `.claude/agents/` |
+| Type | Agents | Commands |
+|------|--------|----------|
+| Global | `~/.claude/agents/` | `~/.claude/commands/` |
+| Per-repo | `.claude/agents/` | `.claude/commands/` |
+
+### Claude File Types
+
+The installer copies both agent files and slash command files:
+
+| File Type | Pattern | Location | Purpose |
+|-----------|---------|----------|---------|
+| Agent files | `*.md` | `agents/` | Full agent definitions for Task tool |
+| Command files | `*.md` | `commands/` | Slash commands (e.g., `/pr-comment-responder`) |
 
 ### Claude Notes
 
 - Restart Claude Code after installing new agents
 - Use `/agents` command to view available agents
-- Project-level agents override global agents
+- Use `/` to see available slash commands
+- Project-level agents and commands override global ones
 
 ---
 
