@@ -494,3 +494,22 @@ cat .agents/governance/consistency-protocol.md
 
 **Status**: Complete - PR #59 created and ready for review
 
+---
+
+### 2025-12-17: Session Protocol Update - Session Log Linking
+
+**Session Log**: [Session 02](./sessions/2025-12-17-session-02-protocol-update.md)
+
+**Objective**: Update session handoff protocol to require agents to link their session log in HANDOFF.md.
+
+**Changes Made**:
+
+1. **Updated `.agents/SESSION-PROTOCOL.md`**:
+   - Added "Link to session log" as first requirement for HANDOFF.md updates
+   - Updated session end checklist to explicitly mention session log link
+   - Bumped document version to 1.1
+
+**Rationale**: Session log links in HANDOFF.md enable easy navigation from the handoff document to detailed session context, improving cross-session traceability.
+
+**Status**: Complete
+

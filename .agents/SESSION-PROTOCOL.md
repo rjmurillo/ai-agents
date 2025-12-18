@@ -166,6 +166,7 @@ The agent MUST update documentation before ending.
 **Requirements:**
 
 1. The agent MUST update `.agents/HANDOFF.md` with:
+   - Link to session log (e.g., `[Session NN](./sessions/YYYY-MM-DD-session-NN.md)`)
    - What was completed this session
    - What should happen next session
    - Any blockers or concerns
@@ -242,7 +243,7 @@ Copy this checklist to each session log and verify completion:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` | [ ] | File modified |
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
 | MUST | Complete session log | [ ] | All sections filled |
 | MUST | Run markdown lint | [ ] | Output: `npx markdownlint-cli2 --fix "**/*.md"` |
 | MUST | Commit all changes | [ ] | Commit SHA: _______ |
@@ -317,7 +318,7 @@ All MUST requirements above are marked complete.
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` | [ ] | File modified |
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
 | MUST | Complete session log | [ ] | All sections filled |
 | MUST | Run markdown lint | [ ] | Output below |
 | MUST | Commit all changes | [ ] | Commit SHA: _______ |
@@ -448,6 +449,7 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1 | 2025-12-17 | Added requirement to link session log in HANDOFF.md |
 | 1.0 | 2025-12-17 | Initial canonical protocol with RFC 2119 requirements |
 
 ---
