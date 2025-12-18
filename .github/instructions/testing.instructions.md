@@ -9,6 +9,7 @@ For comprehensive testing standards, see [.agents/steering/testing-approach.md](
 ## Quick Reference - Pester Tests
 
 **Structure:**
+
 ```powershell
 Describe "FunctionName" {
     Context "When scenario" {
@@ -20,6 +21,7 @@ Describe "FunctionName" {
 ```
 
 **Key Principles:**
+
 - AAA Pattern (Arrange, Act, Assert)
 - Independent tests
 - Descriptive names
