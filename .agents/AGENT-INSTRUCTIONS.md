@@ -65,13 +65,18 @@ Before starting work, complete these steps IN ORDER:
 
 ```markdown
 ## Session Start Checklist
-
-- [ ] Created session log: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+- [ ] Invoke serena initialization:
+  ```text
+  mcp__serena__activate_project  (with project path)
+  mcp__serena__initial_instructions
+  ```
+- [ ] Created session log: `.agents/sessions/YYYY-MM-DD-session-NN.md`. Everything is referred to by "session-NN" from here on.
 - [ ] Read HANDOFF.md from previous session
 - [ ] Identified all tasks in assigned phase from enhancement-PROJECT-PLAN.md
 - [ ] Verified git state is clean: `git status`
 - [ ] Verified branch: `git branch --show-current`
 - [ ] Noted starting commit: `git log --oneline -1`
+- [ ] Read the commits since last session for context: `git log --oneline [last-session-commit]..HEAD`. If that cannot be determined, read the last 5 commits `git log --oneline -5`.
 ```
 
 ### 2. Task Execution (FOR EACH TASK)
@@ -116,7 +121,7 @@ Before starting work, complete these steps IN ORDER:
 - [ ] Linting passes:
   - [ ] `npx markdownlint-cli2 --fix "**/*.md"` - Fix markdown issues
 - [ ] All files committed (including .agents/ files)
-- [ ] Retrospective agent invoked (for significant sessions)
+- [ ] Retrospective agent invoked (for significant sessions or completing pr-comment-responder loop and fixes were made)
 - [ ] Git status is clean (or intentionally dirty with explanation)
 ```
 
