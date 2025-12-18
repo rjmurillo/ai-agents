@@ -1,21 +1,29 @@
 <#
 .SYNOPSIS
-    Synchronizes MCP configuration from Claude's .mcp.json to VS Code's mcp.json format.
+    Synchronizes MCP configuration from Claude's .mcp.json to VS Code's .vscode/mcp.json format.
 
 .DESCRIPTION
     Transforms Claude Code's .mcp.json (using "mcpServers" root key) to VS Code's
     mcp.json format (using "servers" root key). The script treats .mcp.json as the
-    source of truth and generates mcp.json for VS Code compatibility.
+    source of truth and generates .vscode/mcp.json for VS Code compatibility.
 
     Format differences:
     - Claude (.mcp.json):  { "mcpServers": { ... } }
-    - VS Code (mcp.json):  { "servers": { ... } }
+    - VS Code (.vscode/mcp.json):  { "servers": { ... } }
+
+    Server-specific transformations:
+    - serena: Changes --context "claude-code" to "ide" and --port "24282" to "24283"
+      for VS Code/IDE compatibility.
+
+    Note: These are the only two supported configurations. GitHub Copilot CLI uses
+    a different file (~/.copilot/mcp-config.json) in the user's home directory,
+    which is not managed by this script.
 
 .PARAMETER SourcePath
     Path to the Claude .mcp.json file. Defaults to .mcp.json in repository root.
 
 .PARAMETER DestinationPath
-    Path to the VS Code mcp.json file. Defaults to mcp.json in repository root.
+    Path to the VS Code mcp.json file. Defaults to .vscode/mcp.json in repository root.
 
 .PARAMETER Force
     Overwrite destination even if content would be identical.
@@ -28,14 +36,14 @@
 
 .EXAMPLE
     .\Sync-McpConfig.ps1
-    # Syncs .mcp.json to mcp.json in current directory
+    # Syncs .mcp.json to .vscode/mcp.json in current repository
 
 .EXAMPLE
     .\Sync-McpConfig.ps1 -WhatIf
     # Shows what would be changed without making changes
 
 .EXAMPLE
-    .\Sync-McpConfig.ps1 -SourcePath "C:\MyRepo\.mcp.json" -DestinationPath "C:\MyRepo\mcp.json"
+    .\Sync-McpConfig.ps1 -SourcePath "C:\MyRepo\.mcp.json" -DestinationPath "C:\MyRepo\.vscode\mcp.json"
     # Syncs specific files
 
 .LINK
@@ -80,7 +88,8 @@ if (-not $SourcePath) {
 }
 
 if (-not $DestinationPath) {
-    $DestinationPath = Join-Path $repoRoot 'mcp.json'
+    $vscodePath = Join-Path $repoRoot '.vscode'
+    $DestinationPath = Join-Path $vscodePath 'mcp.json'
 }
 
 # Validate source exists
@@ -112,8 +121,32 @@ if (-not $sourceJson.ContainsKey('mcpServers')) {
 }
 
 # Transform: mcpServers -> servers
+$servers = $sourceJson['mcpServers'].Clone()
+
+# Transform serena configuration for VS Code compatibility
+# Claude Code uses: --context claude-code --port 24282
+# VS Code uses:     --context ide --port 24283
+if ($servers.ContainsKey('serena') -and $servers['serena'].ContainsKey('args')) {
+    # Deep clone the serena config to avoid modifying source
+    $serenaConfig = @{}
+    foreach ($key in $servers['serena'].Keys) {
+        if ($key -eq 'args') {
+            $serenaConfig[$key] = @($servers['serena']['args'])
+        } else {
+            $serenaConfig[$key] = $servers['serena'][$key]
+        }
+    }
+
+    # Transform args: replace claude-code -> ide and 24282 -> 24283
+    $serenaConfig['args'] = $serenaConfig['args'] | ForEach-Object {
+        $_ -replace '^claude-code$', 'ide' -replace '^24282$', '24283'
+    }
+
+    $servers['serena'] = $serenaConfig
+}
+
 $destJson = [ordered]@{
-    servers = $sourceJson['mcpServers']
+    servers = $servers
 }
 
 # Preserve any additional top-level keys (like 'inputs' if present)
@@ -159,6 +192,13 @@ if (Test-Path $DestinationPath) {
 # Write destination
 if ($needsUpdate -or $Force) {
     if ($PSCmdlet.ShouldProcess($DestinationPath, "Sync MCP configuration from $SourcePath")) {
+        # Ensure destination directory exists (for .vscode/mcp.json)
+        $destDir = Split-Path -Parent $DestinationPath
+        if ($destDir -and -not (Test-Path $destDir)) {
+            New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+            Write-Verbose "Created directory: $destDir"
+        }
+
         # Write with UTF8 no BOM for cross-platform compatibility
         [System.IO.File]::WriteAllText($DestinationPath, $destContent, [System.Text.UTF8Encoding]::new($false))
         Write-Host "Synced MCP config: $SourcePath -> $DestinationPath" -ForegroundColor Green

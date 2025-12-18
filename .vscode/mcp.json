@@ -1,16 +1,20 @@
 {
   "servers": {
     "serena": {
-      "type": "stdio",
       "command": "uvx",
       "args": [
         "--from",
         "git+https://github.com/oraios/serena",
         "serena",
         "start-mcp-server",
+        "--project",
+        "ai-agents",
         "--context",
-        "claude-code"
-      ]
+        "ide",
+        "--port",
+        "24283"
+      ],
+      "type": "stdio"
     },
     "deepwiki": {
       "type": "http",

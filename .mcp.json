@@ -8,8 +8,12 @@
         "git+https://github.com/oraios/serena",
         "serena",
         "start-mcp-server",
+        "--project",
+        "ai-agents",
         "--context",
-        "claude-code"
+        "claude-code",
+        "--port",
+        "24282"
       ]
     },
     "deepwiki": {
