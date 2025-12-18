@@ -3,7 +3,12 @@
     Runs Pester tests for the ai-agents PowerShell scripts.
 
 .DESCRIPTION
-    Executes Pester unit tests located in scripts/tests/ directory.
+    Executes Pester unit tests located in multiple test directories:
+    - scripts/tests/ - Installation script tests
+    - build/scripts/tests/ - Build script tests  
+    - build/tests/ - Code generation tests
+    - .claude/skills/*/tests/ - Claude skill tests
+    
     Supports both CI/CD and local development scenarios.
 
     This script is called by:
@@ -12,16 +17,17 @@
     - AI agents validating changes
 
 .PARAMETER TestPath
-    Path to the test directory or specific test file.
-    Defaults to ./scripts/tests
+    Array of paths to test directories or specific test files.
+    Supports wildcards for pattern matching (e.g., "./.claude/skills/*/tests")
+    Defaults to all standard test locations in the repository.
 
 .PARAMETER OutputPath
     Path for test result output file.
-    Defaults to ./test-results/pester-results.xml
+    Defaults to ./artifacts/pester-results.xml
 
 .PARAMETER OutputFormat
     Format for test results. Valid values: NUnitXml, JUnitXml
-    Defaults to NUnitXml
+    Defaults to JUnitXml
 
 .PARAMETER Verbosity
     Output verbosity level. Valid values: None, Normal, Detailed, Diagnostic
@@ -36,11 +42,15 @@
 
 .EXAMPLE
     .\Invoke-PesterTests.ps1
-    # Run all tests with default settings (local development)
+    # Run all tests from all standard locations
 
 .EXAMPLE
     .\Invoke-PesterTests.ps1 -CI
-    # Run tests in CI mode (exits with error on failure)
+    # Run all tests in CI mode (exits with error on failure)
+
+.EXAMPLE
+    .\Invoke-PesterTests.ps1 -TestPath "./scripts/tests"
+    # Run only tests from scripts/tests directory
 
 .EXAMPLE
     .\Invoke-PesterTests.ps1 -TestPath "./scripts/tests/Install-Common.Tests.ps1"
@@ -54,7 +64,7 @@
 [CmdletBinding()]
 param(
     [Parameter()]
-    [string]$TestPath = "./scripts/tests",
+    [string[]]$TestPath = @("./scripts/tests", "./build/scripts/tests", "./build/tests", "./.claude/skills/*/tests"),
 
     [Parameter()]
     [string]$OutputPath = "./artifacts/pester-results.xml",
@@ -76,15 +86,49 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Disable ANSI color codes in CI mode to prevent XML corruption
+# ANSI escape codes (0x1B) are invalid in XML and cause test-reporter to fail
+if ($CI) {
+    $env:NO_COLOR = '1'
+    if ($PSVersionTable.PSVersion.Major -ge 7) {
+        $PSStyle.OutputRendering = 'PlainText'
+    }
+    # Also set TERM to dumb to signal to scripts not to use colors
+    $env:TERM = 'dumb'
+}
+
 # Resolve paths relative to repository root
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$TestPath = Join-Path $RepoRoot $TestPath.TrimStart("./").TrimStart(".\")
-$OutputPath = Join-Path $RepoRoot $OutputPath.TrimStart("./").TrimStart(".\")
 
+# Resolve all test paths (expand wildcards and convert to absolute paths)
+$ResolvedTestPaths = @()
+foreach ($path in $TestPath) {
+    # Normalize path separators and remove leading ./ or .\
+    $cleanPath = $path -replace '^\.[\\/]', ''
+    $fullPath = Join-Path $RepoRoot $cleanPath
+    
+    # Expand wildcards
+    if ($fullPath -like "*[*]*" -or $fullPath -like "*[?]*") {
+        $expanded = Get-Item -Path $fullPath -ErrorAction SilentlyContinue
+        if ($expanded) {
+            $ResolvedTestPaths += $expanded.FullName
+        }
+    }
+    elseif (Test-Path $fullPath) {
+        $ResolvedTestPaths += $fullPath
+    }
+}
+
+# Filter to only existing paths
+$TestPath = $ResolvedTestPaths | Where-Object { Test-Path $_ }
+$OutputPath = Join-Path $RepoRoot ($OutputPath -replace '^\.[\\/]', '')
 Write-Host ""
 Write-Host "=== Pester Test Runner ===" -ForegroundColor Cyan
 Write-Host "Repository Root: $RepoRoot"
-Write-Host "Test Path: $TestPath"
+Write-Host "Test Paths:"
+foreach ($path in $TestPath) {
+    Write-Host "  - $path" -ForegroundColor Gray
+}
 Write-Host "Output Path: $OutputPath"
 Write-Host "Output Format: $OutputFormat"
 Write-Host "Verbosity: $Verbosity"
@@ -102,9 +146,9 @@ if (-not $pester) {
 }
 Write-Host "Using Pester version: $($pester.Version)" -ForegroundColor Green
 
-# Verify test path exists
-if (-not (Test-Path $TestPath)) {
-    Write-Error "Test path not found: $TestPath"
+# Verify at least one test path exists
+if ($TestPath.Count -eq 0) {
+    Write-Error "No test paths found or all test paths are invalid"
     exit 1
 }
 

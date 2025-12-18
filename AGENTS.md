@@ -21,6 +21,77 @@ This is NON-NEGOTIABLE. Do not read files, do not search, do not answer question
 
 ---
 
+## ⚠️ MANDATORY: Follow Session Workflow Protocol
+
+**Agents are experts, but amnesiacs.** Each agent session starts with zero context from previous work. The session workflow protocol ensures continuity between sessions.
+
+### Why This Matters
+
+Without following the session protocol:
+
+- You will repeat work already completed
+- You will make decisions that contradict earlier agreements
+- You will lose learnings that should inform future work
+- The user will have to re-explain context every session
+
+### Session Protocol Files
+
+**Read these files in order at session start:**
+
+| Order | File | Purpose |
+|-------|------|---------|
+| 1 | `.agents/AGENT-INSTRUCTIONS.md` | Task execution protocol, commit standards, templates |
+| 2 | `.agents/SESSION-START-PROMPT.md` | Session initialization checklist |
+| 3 | `.agents/HANDOFF.md` | Previous session context, current state, next steps |
+| 4 | `.agents/planning/enhancement-PROJECT-PLAN.md` | Project phases and task tracking |
+
+**Update these files before session end:**
+
+| File | Action |
+|------|--------|
+| `.agents/HANDOFF.md` | Update with session summary, what's next, blockers |
+| `.agents/sessions/YYYY-MM-DD-session-NN.md` | Create detailed session log |
+| `.agents/planning/*-PROJECT-PLAN.md` | Check off completed tasks |
+
+### Session Start Checklist (MANDATORY)
+
+```text
+□ Read .agents/AGENT-INSTRUCTIONS.md
+□ Read .agents/SESSION-START-PROMPT.md
+□ Read .agents/HANDOFF.md
+□ Identify current phase and assigned tasks
+□ Create session log: .agents/sessions/YYYY-MM-DD-session-NN.md
+□ Verify git state: git status
+□ Note starting commit: git log --oneline -1
+```
+
+### Session End Checklist (MANDATORY)
+
+```text
+□ All tasks checked off in PROJECT-PLAN.md
+□ Session log complete with decisions and challenges
+□ HANDOFF.md updated with:
+  □ What was completed
+  □ What's next
+  □ Any blockers or concerns
+□ Markdown lint passes: npx markdownlint-cli2 --fix "**/*.md"
+□ All files committed (including .agents/ files)
+□ Retrospective agent invoked (for significant sessions)
+□ Git status is clean
+```
+
+### The Memory Bridge
+
+The combination of:
+
+1. **Serena memories** (`.serena/memories/`) - Technical patterns and skills
+2. **Session handoffs** (`.agents/HANDOFF.md`) - Workflow state and context
+3. **Session logs** (`.agents/sessions/`) - Decision history
+
+...creates continuity that compensates for agent amnesia. Use ALL of them.
+
+---
+
 ## Overview
 
 This repository provides a coordinated multi-agent system for software development, available for **VS Code (GitHub Copilot)**, **GitHub Copilot CLI**, and **Claude Code CLI**. Each agent focuses on a specific phase or concern with clear responsibilities, constraints, and handoffs.
@@ -885,6 +956,27 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 
 ## Putting It All Together
 
+### Every Session (Non-Negotiable)
+
+```text
+SESSION START:
+1. Initialize Serena (mcp__serena__activate_project, mcp__serena__initial_instructions)
+2. Read .agents/AGENT-INSTRUCTIONS.md
+3. Read .agents/HANDOFF.md for previous session context
+4. Create session log at .agents/sessions/YYYY-MM-DD-session-NN.md
+
+[... do your work ...]
+
+SESSION END:
+5. Update .agents/HANDOFF.md with session summary
+6. Check off completed tasks in PROJECT-PLAN.md
+7. Run markdown linting
+8. Commit all changes (including .agents/ files)
+9. Invoke retrospective agent (for significant sessions)
+```
+
+### Agent Workflow
+
 1. Start with **Orchestrator** for task classification and routing
 2. Use **Analyst** for research and unknowns
 3. Use **Planner** for concrete plans (with impact analysis for complex changes)
@@ -893,3 +985,17 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 6. **QA** for technical quality
 7. **Retrospective** and **Skillbook** for continuous improvement
 8. **Memory** throughout to keep context across sessions
+
+### The Expert Amnesiac Problem
+
+Agents have deep expertise but zero memory between sessions. The session protocol solves this:
+
+| Problem | Solution |
+|---------|----------|
+| "What was decided before?" | Read `HANDOFF.md` |
+| "What's the current task?" | Read `PROJECT-PLAN.md` |
+| "How should I format commits?" | Read `AGENT-INSTRUCTIONS.md` |
+| "What patterns work here?" | Query Serena memories |
+| "What happened last session?" | Read session logs |
+
+**If you skip these reads, you WILL waste tokens rediscovering context that already exists.**

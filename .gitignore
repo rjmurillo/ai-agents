@@ -9,3 +9,6 @@
 
 # Build artifacts
 artifacts/
+
+# Agent PR scratch files
+.agents/pr-comments/
