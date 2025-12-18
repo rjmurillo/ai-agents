@@ -46,6 +46,23 @@ You are reviewing a pull request for architectural design and system structure c
 - Is the solution sustainable long-term?
 - Are there shortcuts that will cause problems later?
 
+### 7. Architecture Decision Records (ADRs)
+
+- Does this change introduce significant architectural decisions?
+- Are new patterns, frameworks, or dependencies being introduced without ADR?
+- Is there a technology choice that should be documented?
+- Are trade-offs being made that future maintainers need to understand?
+- Check `.agents/architecture/` or `docs/adr/` for existing ADRs
+
+**ADR-worthy decisions include**:
+
+- New external dependencies or frameworks
+- Changes to data storage or caching strategies
+- New integration patterns or protocols
+- Security architecture changes
+- Performance optimization trade-offs
+- Deprecation of existing patterns
+
 ## Output Requirements
 
 Provide your analysis in this format:
@@ -81,6 +98,13 @@ Provide your analysis in this format:
 - **Debt Reduced**: Low/Medium/High
 - **Net Impact**: Improved/Neutral/Degraded
 
+### ADR Assessment
+
+- **ADR Required**: Yes/No
+- **Decisions Identified**: [list architectural decisions found]
+- **Existing ADR**: [reference if found, or "None"]
+- **Recommendation**: [Create ADR / Update existing / N/A]
+
 ### Recommendations
 
 1. [Specific architectural improvements]
@@ -108,3 +132,4 @@ Automatically use `CRITICAL_FAIL` if you find:
 - God objects or classes with >10 responsibilities
 - Hard-coded dependencies that should be injected
 - Data layer accessed directly from presentation layer
+- Significant architectural decisions without corresponding ADR
