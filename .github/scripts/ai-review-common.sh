@@ -57,8 +57,26 @@ post_pr_comment() {
 
     if [ -n "$existing_comment_id" ]; then
         echo "Updating existing comment (ID: $existing_comment_id)"
-        echo "$comment_body" | gh pr comment "$pr_number" --edit-last --body-file - 2>/dev/null || \
-        echo "$comment_body" | gh pr comment "$pr_number" --body-file -
+        # Use gh api to update specific comment by ID (SEC-004: avoids race condition with --edit-last)
+        # Get repo owner/name from current git remote
+        local repo
+        repo=$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null || echo "")
+
+        if [ -n "$repo" ]; then
+            # Update via GitHub API using specific comment ID
+            # -F body=@- reads the body from stdin and creates proper JSON
+            if ! echo "$comment_body" | gh api \
+              --method PATCH \
+              "/repos/$repo/issues/comments/$existing_comment_id" \
+              -F body=@- \
+              --silent 2>/dev/null; then
+                echo "Warning: Failed to update comment via API, creating new comment"
+                echo "$comment_body" | gh pr comment "$pr_number" --body-file -
+            fi
+        else
+            echo "Warning: Could not determine repo, creating new comment"
+            echo "$comment_body" | gh pr comment "$pr_number" --body-file -
+        fi
     else
         echo "Creating new comment"
         echo "$comment_body" | gh pr comment "$pr_number" --body-file -
