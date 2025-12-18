@@ -268,6 +268,19 @@ Expanded AI PR Quality Gate from 3 to 6 parallel agents:
 
 - `.github/workflows/ai-pr-quality-gate.yml` - Updated matrix, aggregate logic, report generation
 
+**Follow-up Enhancements**:
+
+| Prompt | Enhancement |
+|--------|-------------|
+| Architect | Added ADR requirement checks - flags architectural decisions without corresponding ADR |
+| DevOps | Added review of `.github/actions/`, PR/issue templates, automation/skill extraction opportunities |
+
+**Commits**:
+
+- `875b158` feat(workflow): expand AI PR Quality Gate to 6 parallel agents
+- `cc13700` feat(prompt): add ADR requirement check to architect agent
+- `31e4bb1` feat(prompt): expand devops agent to review templates and automation
+
 **Status**: Complete
 
 ---

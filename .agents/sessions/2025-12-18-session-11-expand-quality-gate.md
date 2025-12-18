@@ -65,6 +65,22 @@ All MUST requirements above are marked complete.
 
 - `.github/workflows/ai-pr-quality-gate.yml` - Added 3 new matrix entries, updated aggregate logic
 
+### Follow-up Enhancements
+
+**Architect Prompt - ADR Requirements** (per user feedback):
+
+- Added Section 7: Architecture Decision Records (ADRs)
+- Checks for architectural decisions without corresponding ADR
+- ADR Assessment section in output format
+- Added to critical failure triggers
+
+**DevOps Prompt - Templates & Automation** (per user feedback):
+
+- Added Section 8: Custom Composite Actions (`.github/actions/`)
+- Added Section 9: GitHub Templates (PR template, issue templates)
+- Added Section 10: Automation & Skill Extraction opportunities
+- Template Assessment and Automation Opportunities output sections
+
 ---
 
 ## Session End (COMPLETE ALL before closing)
@@ -96,7 +112,9 @@ nothing to commit, working tree clean
 
 ### Commits This Session
 
-- `0c9fe1f` feat(workflow): expand AI PR Quality Gate to 6 parallel agents
+- `875b158` feat(workflow): expand AI PR Quality Gate to 6 parallel agents
+- `cc13700` feat(prompt): add ADR requirement check to architect agent
+- `31e4bb1` feat(prompt): expand devops agent to review templates and automation
 
 ---
 
