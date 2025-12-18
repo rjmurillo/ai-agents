@@ -11,6 +11,10 @@
     - Claude (.mcp.json):  { "mcpServers": { ... } }
     - VS Code (.vscode/mcp.json):  { "servers": { ... } }
 
+    Server-specific transformations:
+    - serena: Changes --context "claude-code" to "ide" and --port "24282" to "24283"
+      for VS Code/IDE compatibility.
+
     Note: These are the only two supported configurations. GitHub Copilot CLI uses
     a different file (~/.copilot/mcp-config.json) in the user's home directory,
     which is not managed by this script.
@@ -117,8 +121,32 @@ if (-not $sourceJson.ContainsKey('mcpServers')) {
 }
 
 # Transform: mcpServers -> servers
+$servers = $sourceJson['mcpServers'].Clone()
+
+# Transform serena configuration for VS Code compatibility
+# Claude Code uses: --context claude-code --port 24282
+# VS Code uses:     --context ide --port 24283
+if ($servers.ContainsKey('serena') -and $servers['serena'].ContainsKey('args')) {
+    # Deep clone the serena config to avoid modifying source
+    $serenaConfig = @{}
+    foreach ($key in $servers['serena'].Keys) {
+        if ($key -eq 'args') {
+            $serenaConfig[$key] = @($servers['serena']['args'])
+        } else {
+            $serenaConfig[$key] = $servers['serena'][$key]
+        }
+    }
+
+    # Transform args: replace claude-code -> ide and 24282 -> 24283
+    $serenaConfig['args'] = $serenaConfig['args'] | ForEach-Object {
+        $_ -replace '^claude-code$', 'ide' -replace '^24282$', '24283'
+    }
+
+    $servers['serena'] = $serenaConfig
+}
+
 $destJson = [ordered]@{
-    servers = $sourceJson['mcpServers']
+    servers = $servers
 }
 
 # Preserve any additional top-level keys (like 'inputs' if present)
