@@ -37,12 +37,6 @@ Apply when the issue relates to a specific agent:
 - `area-installation` - Installation scripts
 - `area-infrastructure` - Build, CI/CD, configuration
 
-### Phase Labels (choose if applicable)
-
-- `phase-0` - Foundation work
-- `phase-1` - Core implementation
-- `phase-2` - Enhancement and polish
-
 ## Output Format
 
 Respond with ONLY valid JSON (no markdown, no explanation):
