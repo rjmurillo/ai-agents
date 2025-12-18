@@ -414,6 +414,7 @@ These three workflow paths are the canonical reference for all task routing. Oth
 | PR Comment (quick fix) | implementer -> qa | Quick Fix |
 | PR Comment (standard) | analyst -> planner -> implementer -> qa | Standard |
 | PR Comment (strategic) | independent-thinker -> high-level-advisor -> task-generator | Strategic |
+| Post-Retrospective | retrospective -> [skillbook if skills] -> [memory if updates] -> git add | Automatic |
 
 **Note**: Multi-domain features triggering 3+ areas should use impact analysis consultations during planning phase.
 
@@ -919,6 +920,180 @@ Reference: `.agents/planning/tasks-[topic].md`
 
 Note: Arrows indicate ORCHESTRATOR delegation.
 Subagents always return control to ORCHESTRATOR.
+```
+
+## Post-Retrospective Workflow (Automatic)
+
+When a retrospective agent completes, it returns a **Structured Handoff Output** that the orchestrator MUST process automatically. No user prompting required.
+
+### Trigger
+
+Retrospective agent returns output containing `## Retrospective Handoff` section.
+
+### Automatic Processing Sequence
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    RETROSPECTIVE COMPLETES                   │
+│            Returns Structured Handoff Output                 │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              v
+┌─────────────────────────────────────────────────────────────┐
+│ Step 1: Parse Handoff Output                                │
+│   - Extract Skill Candidates table                          │
+│   - Extract Memory Updates table                            │
+│   - Extract Git Operations table                            │
+│   - Read Handoff Summary for routing decisions              │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              v
+┌─────────────────────────────────────────────────────────────┐
+│ Step 2: Route to Skillbook (IF skill candidates exist)      │
+│   - Filter skills with atomicity >= 70%                     │
+│   - Route ADD operations to skillbook for new skills        │
+│   - Route UPDATE operations to skillbook for modifications  │
+│   - Route TAG operations to skillbook for validation counts │
+│   - Route REMOVE operations to skillbook for deprecation    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              v
+┌─────────────────────────────────────────────────────────────┐
+│ Step 3: Persist Memory Updates (IF memory updates exist)    │
+│   - Use cloudmcp-manager memory tools directly              │
+│   - OR route to memory agent for complex updates            │
+│   - Create/update entities in specified files               │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              v
+┌─────────────────────────────────────────────────────────────┐
+│ Step 4: Execute Git Operations (IF git operations listed)   │
+│   - Run `git add` for each path in Git Operations table     │
+│   - Stage .serena/memories/*.md files                       │
+│   - Stage .agents/retrospective/*.md files                  │
+│   - Do NOT commit (user will commit when ready)             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              v
+┌─────────────────────────────────────────────────────────────┐
+│ Step 5: Report Completion                                   │
+│   - Summarize skills persisted                              │
+│   - Summarize memory updates made                           │
+│   - List files staged for commit                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Implementation Details
+
+#### Step 1: Parse Handoff Output
+
+Look for these sections in retrospective output:
+
+```markdown
+### Skill Candidates
+| Skill ID | Statement | Atomicity | Operation | Target |
+...
+
+### Memory Updates
+| Entity | Type | Content | File |
+...
+
+### Git Operations
+| Operation | Path | Reason |
+...
+
+### Handoff Summary
+- **Skills to persist**: N candidates
+- **Memory files touched**: [list]
+- **Recommended next**: [routing hint]
+```
+
+#### Step 2: Skillbook Routing
+
+```python
+# For each skill candidate with atomicity >= 70%
+Task(
+    subagent_type="skillbook",
+    prompt="""Process skill operation:
+
+    Operation: [ADD/UPDATE/TAG/REMOVE]
+    Skill ID: [Skill-Category-NNN]
+    Statement: [Atomic skill statement]
+    Atomicity: [%]
+    Target File: [.serena/memories/file.md if UPDATE]
+    Evidence: [From retrospective]
+
+    Execute the operation and confirm completion."""
+)
+```
+
+#### Step 3: Memory Persistence
+
+For simple updates, use cloudmcp-manager directly:
+
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "[Entity from table]",
+    "contents": ["[Content from table]"]
+  }]
+}
+```
+
+For complex updates, route to memory agent.
+
+#### Step 4: Git Operations
+
+Execute directly via Bash:
+
+```bash
+# Stage all memory files listed in Git Operations table
+git add ".serena/memories/skills-*.md"
+git add ".agents/retrospective/YYYY-MM-DD-*.md"
+```
+
+### Conditional Routing
+
+| Condition | Action |
+|-----------|--------|
+| Skill Candidates table empty | Skip Step 2 |
+| Memory Updates table empty | Skip Step 3 |
+| Git Operations table empty | Skip Step 4 |
+| All tables empty | Log warning, no downstream processing |
+
+### Error Handling
+
+| Error | Recovery |
+|-------|----------|
+| Skillbook fails | Log error, continue with memory/git |
+| Memory persistence fails | Log error, continue with git |
+| Git add fails | Report failure to user |
+| Malformed handoff output | Parse what's available, warn about missing sections |
+
+### Example Orchestrator Response
+
+After processing retrospective handoff:
+
+```text
+## Retrospective Processing Complete
+
+### Skills Persisted
+- Skill-Validation-006: Added to skills-validation.md
+- Skill-CI-003: Updated in skills-ci-infrastructure.md
+
+### Memory Updates
+- Added observation to AI-Workflow-Patterns entity
+- Created Session-17-Learnings entity
+
+### Files Staged
+  git add .serena/memories/skills-validation.md
+  git add .serena/memories/skills-ci-infrastructure.md
+  git add .serena/memories/learnings-2025-12.md
+  git add .agents/retrospective/2025-12-18-workflow-retro.md
+
+### Next Steps
+Run: git commit -m "chore: persist retrospective learnings"
 ```
 
 ### Planner vs Task-Generator
