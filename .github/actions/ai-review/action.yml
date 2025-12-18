@@ -147,6 +147,7 @@ runs:
         echo "copilot_version=$VERSION" >> $GITHUB_OUTPUT
 
     - name: Verify GitHub authentication
+      if: inputs.enable-diagnostics == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.bot-pat }}
