@@ -554,6 +554,46 @@ What this workflow does...
 
 ---
 
+## Skill-CI-Research-002: Research Platform Before Implementation (92%)
+
+**Statement**: Before implementing CI/CD features, read platform documentation for known limitations, authentication behaviors, and compatibility requirements
+
+**Context**: Starting GitHub Actions, Azure Pipelines, or similar work
+
+**Trigger**: Any new CI/CD workflow, GitHub Action, or build script
+
+**Evidence**: Session 03-07 (2025-12-18): All these issues were documented behaviors that could have been researched:
+- Matrix output limitation (GitHub Community Discussion #17245)
+- GH_TOKEN auto-authentication (GitHub CLI docs)
+- grep lookbehind requirements (GNU grep documentation)
+- YAML heredoc parsing rules (YAML spec)
+
+**Atomicity**: 92%
+
+**Impact**: 9/10 - Prevents debugging sessions
+
+**Tag**: helpful
+
+**Created**: 2025-12-18
+
+**Pre-Implementation Research Checklist**:
+
+| Platform | Key Documentation |
+|----------|-------------------|
+| GitHub Actions | [Contexts](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs), [Outputs](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/passing-information-between-jobs), [Matrix](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/running-variations-of-jobs-in-a-workflow) |
+| GitHub CLI | [Authentication](https://cli.github.com/manual/gh_auth) |
+| Shell | Regex compatibility (grep vs sed vs awk) |
+| YAML | Heredoc/multi-line string handling |
+
+**Known Limitations to Research**:
+
+1. **Matrix outputs**: Only ONE leg's outputs exposed to downstream jobs - use artifacts
+2. **GH_TOKEN**: Auto-authenticates when env var set - don't call `gh auth login`
+3. **Lookbehinds**: GNU grep requires fixed-length - use sed for variable patterns
+4. **YAML heredocs**: Zero-indent lines parsed as YAML keys - use consistent indentation
+
+---
+
 ## Related Files
 
 - Test Runner: `build/scripts/Invoke-PesterTests.ps1`

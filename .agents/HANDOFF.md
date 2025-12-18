@@ -235,6 +235,63 @@ cat .agents/governance/consistency-protocol.md
 
 ## Recent Sessions
 
+### 2025-12-18: Skill Extraction from Hyper-Critical Retrospective
+
+**Session Log**: [Session 12](./sessions/2025-12-18-session-12-skill-extraction.md)
+
+**Objective**: Extract skills from hyper-critical retrospective and persist to memory with growth mindset
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Context**:
+
+The Session 10 retrospective identified catastrophic failures in Session 03:
+
+- 2,189 LOC claimed "zero bugs" → 6+ critical bugs, 24+ fix commits
+- PR #60 has 30 review comments (ignored) and 4 high-severity security alerts
+
+**Skills Extracted (7 total)**:
+
+| Skill ID | Statement | Atomicity |
+|----------|-----------|-----------|
+| Skill-Validation-004 | Test before retrospective (includes PR feedback gate) | 95% |
+| Skill-Validation-005 | PR feedback = validation data | 92% |
+| Skill-Skepticism-001 | Zero bugs triggers verification, not celebration | 90% |
+| Skill-CI-Research-002 | Research platform limits first | 92% |
+| Anti-Pattern-001 | Victory lap before finish line | 98% |
+| Anti-Pattern-002 | Metric fixation | 95% |
+
+**Skills Updated (2)**:
+
+- Skill-Planning-003: Added validation caveat - planning ≠ implementation quality
+- Skill-Planning-004: Corrected false "zero bugs" claim
+
+**Memories Updated**:
+
+| Memory | Changes |
+|--------|---------|
+| `skills-validation` | +5 skills, +2 anti-patterns |
+| `skills-ci-infrastructure` | +1 skill (Skill-CI-Research-002) |
+| `skills-planning` | +2 caveats correcting false claims |
+| `retrospective-2025-12-18-ai-workflow-failure` | New - comprehensive failure analysis |
+
+**PR Feedback Analyzed**:
+
+- 30 review comments: 19 Copilot, 9 Gemini, 2 GitHub Security
+- 4 high-severity code scanning alerts (path injection CWE-22)
+- Enhanced Skill-Validation-004 to require PR comment triage before retrospective
+
+**Key Learning**:
+
+> "Zero bugs" is a warning sign, not an achievement.
+> Testing is not optional. Retrospectives after validation only.
+
+**Status**: Complete
+
+---
+
 ### 2025-12-18: Expand AI PR Quality Gate with Additional Agents
 
 **Session Log**: [Session 11](./sessions/2025-12-18-session-11-expand-quality-gate.md)
