@@ -137,23 +137,7 @@ function Write-ErrorAndExit {
 
 #region Validation
 
-# Check gh CLI
-if (-not (Test-GhAuthenticated)) {
-    Write-ErrorAndExit "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first." 4
-}
-
-# Infer owner/repo if not provided
-if (-not $Owner -or -not $Repo) {
-    $repoInfo = Get-RepoInfo
-    if ($repoInfo) {
-        if (-not $Owner) { $Owner = $repoInfo.Owner }
-        if (-not $Repo) { $Repo = $repoInfo.Repo }
-    }
-    else {
-        Write-ErrorAndExit "Could not infer repository info. Please provide -Owner and -Repo parameters." 1
-    }
-}
-
+# Parameter validation first (before gh CLI check, to ensure predictable exit codes)
 # Get body content
 if ($BodyFile) {
     if (-not (Test-Path $BodyFile)) {
@@ -174,6 +158,23 @@ if (-not $CommentType) {
 # Validate CommentId for review type
 if ($CommentType -eq "review" -and -not $CommentId) {
     Write-ErrorAndExit "CommentId is required for review comment replies. Use -CommentType 'issue' for top-level comments." 1
+}
+
+# Check gh CLI (after parameter validation to ensure predictable exit codes for tests)
+if (-not (Test-GhAuthenticated)) {
+    Write-ErrorAndExit "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first." 4
+}
+
+# Infer owner/repo if not provided (requires gh CLI to be available)
+if (-not $Owner -or -not $Repo) {
+    $repoInfo = Get-RepoInfo
+    if ($repoInfo) {
+        if (-not $Owner) { $Owner = $repoInfo.Owner }
+        if (-not $Repo) { $Repo = $repoInfo.Repo }
+    }
+    else {
+        Write-ErrorAndExit "Could not infer repository info. Please provide -Owner and -Repo parameters." 1
+    }
 }
 
 #endregion

@@ -86,6 +86,17 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Disable ANSI color codes in CI mode to prevent XML corruption
+# ANSI escape codes (0x1B) are invalid in XML and cause test-reporter to fail
+if ($CI) {
+    $env:NO_COLOR = '1'
+    if ($PSVersionTable.PSVersion.Major -ge 7) {
+        $PSStyle.OutputRendering = 'PlainText'
+    }
+    # Also set TERM to dumb to signal to scripts not to use colors
+    $env:TERM = 'dumb'
+}
+
 # Resolve paths relative to repository root
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 

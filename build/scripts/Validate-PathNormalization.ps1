@@ -58,6 +58,9 @@ param(
     [switch]$FailOnViolation
 )
 
+# Detect if colors should be disabled (CI environments, NO_COLOR standard)
+$NoColor = $env:NO_COLOR -or $env:TERM -eq 'dumb' -or $env:CI
+
 # Absolute path detection patterns
 $ForbiddenPatterns = @(
     @{
@@ -80,19 +83,33 @@ $ForbiddenPatterns = @(
     }
 )
 
-# ANSI color codes for output
-$ColorReset = "`e[0m"
-$ColorRed = "`e[31m"
-$ColorYellow = "`e[33m"
-$ColorGreen = "`e[32m"
-$ColorCyan = "`e[36m"
+# ANSI color codes for output (disabled when NO_COLOR is set)
+if ($NoColor) {
+    $ColorReset = ""
+    $ColorRed = ""
+    $ColorYellow = ""
+    $ColorGreen = ""
+    $ColorCyan = ""
+}
+else {
+    $ColorReset = "`e[0m"
+    $ColorRed = "`e[31m"
+    $ColorYellow = "`e[33m"
+    $ColorGreen = "`e[32m"
+    $ColorCyan = "`e[36m"
+}
 
 function Write-ColorOutput {
     param(
         [string]$Message,
         [string]$Color = $ColorReset
     )
-    Write-Host "$Color$Message$ColorReset"
+    if ($NoColor) {
+        Write-Host $Message
+    }
+    else {
+        Write-Host "$Color$Message$ColorReset"
+    }
 }
 
 function Get-FilesToScan {
@@ -213,7 +230,17 @@ else {
     $violationsByFile = $allViolations | Group-Object -Property File
 
     foreach ($fileGroup in $violationsByFile) {
-        $relativePath = $fileGroup.Name.Substring($rootPath.Length).TrimStart('\', '/')
+        # Use Push-Location/Pop-Location for proper relative path calculation
+        # This handles path normalization issues (e.g., RUNNER~1 vs runneradmin)
+        Push-Location $rootPath
+        try {
+            $relativePath = Resolve-Path -Path $fileGroup.Name -Relative
+            # Remove leading .\ or ./
+            $relativePath = $relativePath -replace '^\.[\\/]', ''
+        }
+        finally {
+            Pop-Location
+        }
         Write-ColorOutput "File: $relativePath" $ColorYellow
         Write-Host ""
 
