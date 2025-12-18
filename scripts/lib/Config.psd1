@@ -36,11 +36,21 @@
             DestDir          = '$HOME/.claude/agents'
             InstructionsFile = "CLAUDE.md"
             InstructionsDest = '$HOME/.claude'
+            # Claude commands (slash commands)
+            CommandsDir      = '$HOME/.claude/commands'
+            CommandFiles     = @(
+                "pr-comment-responder.md"
+            )
         }
         Repo        = @{
             DestDir          = '.claude/agents'
             InstructionsFile = "CLAUDE.md"
             InstructionsDest = ''  # Root of repo
+            # Claude commands for repo scope
+            CommandsDir      = '.claude/commands'
+            CommandFiles     = @(
+                "pr-comment-responder.md"
+            )
         }
     }
 

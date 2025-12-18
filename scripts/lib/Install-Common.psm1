@@ -75,6 +75,8 @@ function Get-InstallConfig {
         DestDir          = $ScopeConfig.DestDir
         InstructionsFile = $ScopeConfig.InstructionsFile
         InstructionsDest = $ScopeConfig.InstructionsDest
+        CommandsDir      = $ScopeConfig.CommandsDir
+        CommandFiles     = $ScopeConfig.CommandFiles
         BeginMarker      = $Config._Common.BeginMarker
         EndMarker        = $Config._Common.EndMarker
         AgentsDirs       = $Config._Common.AgentsDirs
@@ -370,6 +372,86 @@ function Copy-AgentFile {
     return $Status
 }
 
+function Install-CommandFiles {
+    <#
+    .SYNOPSIS
+        Installs agent files as Claude commands (slash commands).
+
+    .DESCRIPTION
+        Copies specified agent files to the commands directory.
+        This enables files like pr-comment-responder.md to be invoked
+        as /pr-comment-responder in Claude Code.
+
+    .PARAMETER SourceDir
+        Path to the source directory containing agent files.
+
+    .PARAMETER CommandsDir
+        Destination directory for command files.
+
+    .PARAMETER CommandFiles
+        Array of filenames to install as commands.
+
+    .PARAMETER Force
+        Skip overwrite prompting.
+
+    .OUTPUTS
+        [hashtable] Statistics: Installed, Updated, Skipped counts.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$SourceDir,
+
+        [Parameter(Mandatory)]
+        [string]$CommandsDir,
+
+        [Parameter(Mandatory)]
+        [string[]]$CommandFiles,
+
+        [switch]$Force
+    )
+
+    $Stats = @{
+        Installed = 0
+        Updated   = 0
+        Skipped   = 0
+    }
+
+    # Create commands directory if it doesn't exist
+    if (-not (Test-Path $CommandsDir)) {
+        Write-Host "Creating commands directory..." -ForegroundColor Yellow
+        New-Item -ItemType Directory -Path $CommandsDir -Force | Out-Null
+    }
+
+    foreach ($FileName in $CommandFiles) {
+        $SourcePath = Join-Path $SourceDir $FileName
+        $DestPath = Join-Path $CommandsDir $FileName
+
+        if (-not (Test-Path $SourcePath)) {
+            Write-Warning "  Command file not found: $FileName"
+            continue
+        }
+
+        $Exists = Test-Path $DestPath
+
+        if ($Exists -and -not $Force) {
+            $Response = Read-Host "  $FileName exists in commands. Overwrite? (y/N)"
+            if ($Response -ne 'y' -and $Response -ne 'Y') {
+                Write-Host "  Skipping $FileName" -ForegroundColor Yellow
+                $Stats.Skipped++
+                continue
+            }
+        }
+
+        Copy-Item -Path $SourcePath -Destination $DestPath -Force
+        $Status = if ($Exists) { "Updated" } else { "Installed" }
+        Write-Host "  $Status command: $FileName" -ForegroundColor Green
+        $Stats[$Status]++
+    }
+
+    return $Stats
+}
+
 function Install-InstructionsFile {
     <#
     .SYNOPSIS
@@ -593,6 +675,7 @@ Export-ModuleMember -Function @(
     'Test-GitRepository'
     'Initialize-AgentsDirectories'
     'Copy-AgentFile'
+    'Install-CommandFiles'
     'Install-InstructionsFile'
     'Write-InstallHeader'
     'Write-InstallComplete'

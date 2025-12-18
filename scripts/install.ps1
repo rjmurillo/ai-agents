@@ -325,6 +325,23 @@ foreach ($File in $AgentFiles) {
 
 Write-Host ""
 
+# Install command files (if configured)
+if ($Config.CommandsDir -and $Config.CommandFiles -and $Config.CommandFiles.Count -gt 0) {
+    Write-Host "Installing Claude commands..." -ForegroundColor Cyan
+
+    $CommandsDir = Resolve-DestinationPath -PathExpression $Config.CommandsDir -RepoPath $RepoPath
+
+    $CommandStats = Install-CommandFiles `
+        -SourceDir $SourceDir `
+        -CommandsDir $CommandsDir `
+        -CommandFiles $Config.CommandFiles `
+        -Force:$Force
+
+    Write-Host ""
+    Write-Host "Commands: $($CommandStats.Installed) installed, $($CommandStats.Updated) updated, $($CommandStats.Skipped) skipped" -ForegroundColor Gray
+    Write-Host ""
+}
+
 # For Repo scope: create .agents directories
 if ($Scope -eq "Repo") {
     Write-Host "Setting up .agents directories..." -ForegroundColor Cyan

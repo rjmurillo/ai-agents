@@ -132,6 +132,20 @@ Describe "Claude Configuration" {
         It "Has InstructionsDest" {
             $Script:ClaudeConfig.Global.InstructionsDest | Should -Not -BeNullOrEmpty
         }
+
+        It "Has CommandsDir" {
+            $Script:ClaudeConfig.Global.CommandsDir | Should -Not -BeNullOrEmpty
+            $Script:ClaudeConfig.Global.CommandsDir | Should -Match "\.claude.*commands"
+        }
+
+        It "Has CommandFiles array" {
+            $Script:ClaudeConfig.Global.CommandFiles | Should -Not -BeNullOrEmpty
+            @($Script:ClaudeConfig.Global.CommandFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "CommandFiles contains pr-comment-responder.md" {
+            $Script:ClaudeConfig.Global.CommandFiles | Should -Contain "pr-comment-responder.md"
+        }
     }
 
     Context "Repo Scope" {
@@ -146,6 +160,19 @@ Describe "Claude Configuration" {
         It "Has InstructionsDest defined (empty string valid for repo root)" {
             # Empty string is valid - means repo root
             $Script:ClaudeConfig.Repo.Keys | Should -Contain "InstructionsDest"
+        }
+
+        It "Has CommandsDir" {
+            $Script:ClaudeConfig.Repo.CommandsDir | Should -Be ".claude/commands"
+        }
+
+        It "Has CommandFiles array" {
+            $Script:ClaudeConfig.Repo.CommandFiles | Should -Not -BeNullOrEmpty
+            @($Script:ClaudeConfig.Repo.CommandFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "CommandFiles contains pr-comment-responder.md" {
+            $Script:ClaudeConfig.Repo.CommandFiles | Should -Contain "pr-comment-responder.md"
         }
     }
 }
