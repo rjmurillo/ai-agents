@@ -889,6 +889,8 @@ Task Completion
 
 For structured requirements management with 3-tier traceability.
 
+**Note**: The orchestrator agent coordinates this workflow. See `../../src/claude/orchestrator.md` for detailed delegation patterns and routing logic.
+
 ```
 Feature Request
        │

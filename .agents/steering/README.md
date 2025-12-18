@@ -8,6 +8,8 @@ The steering system provides context-aware guidance injection for agents based o
 
 Steering files contain domain-specific guidance that gets injected into agent context when working with matching files. This implements the Kiro pattern of glob-based inclusion.
 
+**Note**: For GitHub Copilot users, equivalent path-specific custom instructions are available in `.github/instructions/` with the `applyTo:` directive format. See [GitHub Copilot Custom Instructions](https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions#creating-path-specific-custom-instructions-3) for details.
+
 ## How It Works
 
 ### 1. Task Analysis
@@ -224,17 +226,15 @@ Context from steering:
 
 ### Orchestrator
 
-Orchestrator determines which steering to inject:
+Orchestrator determines which steering to inject using the PowerShell skill:
 
-```python
-def get_applicable_steering(files_affected):
-    steering_files = []
-    for file in files_affected:
-        for steering in all_steering_files:
-            if glob_match(steering.scope, file):
-                steering_files.append(steering)
-    return dedupe_by_priority(steering_files)
+```powershell
+# See .claude/skills/steering-matcher/Get-ApplicableSteering.ps1
+$applicableSteering = Get-ApplicableSteering -Files $filesAffected
+# Returns steering files sorted by priority (descending)
 ```
+
+For implementation details, see [Claude Skill: Steering Matcher](../../.claude/skills/steering-matcher/README.md).
 
 ### Agent Prompts
 
