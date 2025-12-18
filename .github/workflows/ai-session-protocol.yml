@@ -304,8 +304,12 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
-          Send-PRComment -PRNumber $env:PR_NUMBER -CommentFile $env:REPORT_FILE -Marker "AI-SESSION-PROTOCOL"
+          # Use GitHub skill script for idempotent comment posting
+          # PRs are issues in GitHub API, so we use Post-IssueComment with marker
+          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
+            -Issue $env:PR_NUMBER `
+            -BodyFile $env:REPORT_FILE `
+            -Marker "AI-SESSION-PROTOCOL"
 
       - name: Set Job Summary
         shell: pwsh

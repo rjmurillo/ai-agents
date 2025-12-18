@@ -241,8 +241,6 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
-
           # Replace placeholders in PRD comment
           $prdContent = Get-Content /tmp/prd-comment.md -Raw
           $prdContent = $prdContent -replace 'COMPLEXITY_SCORE_PLACEHOLDER', $env:COMPLEXITY_SCORE
@@ -253,7 +251,11 @@ jobs:
           $prdContent = $prdContent -replace 'RUN_ID_PLACEHOLDER', $env:RUN_ID
           $prdContent | Set-Content /tmp/prd-comment.md -Encoding UTF8
 
-          Send-IssueComment -IssueNumber $env:ISSUE_NUMBER -CommentFile "/tmp/prd-comment.md" -Marker "AI-PRD-GENERATION"
+          # Use GitHub skill script for idempotent comment posting
+          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
+            -Issue $env:ISSUE_NUMBER `
+            -BodyFile "/tmp/prd-comment.md" `
+            -Marker "AI-PRD-GENERATION"
 
       - name: Post Triage Summary
         shell: pwsh
@@ -271,8 +273,6 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
-
           # Get priority emoji
           $priorityEmoji = switch ($env:PRIORITY) {
             'P0' { '' }
@@ -354,4 +354,9 @@ jobs:
           "@
 
           $triageComment | Set-Content /tmp/triage-comment.md -Encoding UTF8
-          Send-IssueComment -IssueNumber $env:ISSUE_NUMBER -CommentFile "/tmp/triage-comment.md" -Marker "AI-ISSUE-TRIAGE"
+
+          # Use GitHub skill script for idempotent comment posting
+          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
+            -Issue $env:ISSUE_NUMBER `
+            -BodyFile "/tmp/triage-comment.md" `
+            -Marker "AI-ISSUE-TRIAGE"

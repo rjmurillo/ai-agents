@@ -31,8 +31,9 @@ Describe "AIReviewCommon Module" {
             $expectedFunctions = @(
                 'Initialize-AIReview'
                 'Invoke-WithRetry'
-                'Send-PRComment'
-                'Send-IssueComment'
+                # Note: Send-PRComment and Send-IssueComment removed - use GitHub skill scripts instead:
+                # - .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1
+                # - .claude/skills/github/scripts/issue/Post-IssueComment.ps1
                 'Get-Verdict'
                 'Get-Labels'
                 'Get-Milestone'
@@ -515,31 +516,11 @@ Summary complete.
         }
     }
 
-    Context "Send-PRComment" -Tag "Integration" {
-        It "Should return false for missing comment file" {
-            $result = Send-PRComment -PRNumber 123 -CommentFile "nonexistent.md" -ErrorAction SilentlyContinue
-            $result | Should -Be $false
-        }
-
-        It "Should read comment from file" -Skip:$true {
-            # This test requires mocking gh CLI
-            $tempFile = Join-Path $TestDrive "comment.md"
-            Set-Content -Path $tempFile -Value "Test comment"
-
-            Mock gh -ModuleName AIReviewCommon -MockWith { }
-
-            Send-PRComment -PRNumber 123 -CommentFile $tempFile
-
-            Should -Invoke gh -ModuleName AIReviewCommon
-        }
-    }
-
-    Context "Send-IssueComment" -Tag "Integration" {
-        It "Should return false for missing comment file" {
-            $result = Send-IssueComment -IssueNumber 456 -CommentFile "nonexistent.md" -ErrorAction SilentlyContinue
-            $result | Should -Be $false
-        }
-    }
+    # Note: Send-PRComment and Send-IssueComment tests removed.
+    # These functions were moved to GitHub skill scripts:
+    # - .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1
+    # - .claude/skills/github/scripts/issue/Post-IssueComment.ps1
+    # See tests in .claude/skills/github/tests/ for coverage.
 
     Context "Get-VerdictEmoji" {
         It "Should return check mark for PASS" {

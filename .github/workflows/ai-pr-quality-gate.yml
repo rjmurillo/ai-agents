@@ -357,8 +357,12 @@ jobs:
           PR_NUMBER: ${{ env.PR_NUMBER }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
-          Send-PRComment -PRNumber $env:PR_NUMBER -CommentFile $env:REPORT_FILE -Marker "AI-PR-QUALITY-GATE"
+          # Use GitHub skill script for idempotent comment posting
+          # PRs are issues in GitHub API, so we use Post-IssueComment with marker
+          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
+            -Issue $env:PR_NUMBER `
+            -BodyFile $env:REPORT_FILE `
+            -Marker "AI-PR-QUALITY-GATE"
 
       - name: Set Job Summary
         shell: pwsh
