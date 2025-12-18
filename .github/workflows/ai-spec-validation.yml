@@ -38,28 +38,41 @@ jobs:
 
       - name: Extract Spec References
         id: spec-ref
-        env:
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
+          # Save PR context to files safely using quoted heredoc
+          # This prevents shell expansion of any characters in the title/body (SEC-001 fix)
+
+          cat > /tmp/pr-title.txt << 'EOF_TITLE'
+          ${{ github.event.pull_request.title }}
+          EOF_TITLE
+
+          cat > /tmp/pr-body.txt << 'EOF_BODY'
+          ${{ github.event.pull_request.body }}
+          EOF_BODY
+
+          # Read from files (now safe from injection)
+          PR_TITLE=$(cat /tmp/pr-title.txt)
+          PR_BODY=$(cat /tmp/pr-body.txt)
+
           # Look for spec references in PR body and title
           # Patterns: REQ-NNN, DESIGN-NNN, TASK-NNN, .agents/specs/..., #issue
+          COMBINED="$PR_BODY $PR_TITLE"
           SPEC_REFS=""
 
-          # Check for requirement IDs
-          REQ_IDS=$(echo "$PR_BODY $PR_TITLE" | grep -oP '(REQ|DESIGN|TASK)-\d+' | sort -u | tr '\n' ' ' || true)
+          # Check for requirement IDs (use grep -E for POSIX portability)
+          REQ_IDS=$(echo "$COMBINED" | grep -oE '(REQ|DESIGN|TASK)-[0-9]+' | sort -u | tr '\n' ' ' || true)
           if [ -n "$REQ_IDS" ]; then
             SPEC_REFS="$REQ_IDS"
           fi
 
-          # Check for spec file paths
-          SPEC_PATHS=$(echo "$PR_BODY" | grep -oP '\.agents/specs/\S+\.md' | sort -u | tr '\n' ' ' || true)
+          # Check for spec file paths (use grep -E for POSIX portability)
+          SPEC_PATHS=$(echo "$COMBINED" | grep -oE '\.agents/specs/[^[:space:]]+\.md' | sort -u | tr '\n' ' ' || true)
           if [ -n "$SPEC_PATHS" ]; then
             SPEC_REFS="$SPEC_REFS $SPEC_PATHS"
           fi
 
-          # Check for linked issues
-          ISSUE_REFS=$(echo "$PR_BODY" | grep -oP '(Closes|Fixes|Resolves|Implements)\s*#\d+' | grep -oP '\d+' | sort -u | tr '\n' ' ' || true)
+          # Check for linked issues (use grep -E for POSIX portability)
+          ISSUE_REFS=$(echo "$COMBINED" | grep -oE '(Closes|Fixes|Resolves|Implements)[[:space:]]*#[0-9]+' | grep -oE '[0-9]+' | sort -u | tr '\n' ' ' || true)
 
           echo "spec_refs=$SPEC_REFS" >> $GITHUB_OUTPUT
           echo "issue_refs=$ISSUE_REFS" >> $GITHUB_OUTPUT
@@ -72,6 +85,9 @@ jobs:
             echo "Found issue references: $ISSUE_REFS"
             echo "has_specs=true" >> $GITHUB_OUTPUT
           fi
+
+          # Cleanup temp files
+          rm -f /tmp/pr-title.txt /tmp/pr-body.txt
 
       - name: Load Spec Content
         if: steps.spec-ref.outputs.has_specs == 'true'
