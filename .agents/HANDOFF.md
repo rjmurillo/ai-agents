@@ -245,11 +245,11 @@ cat .agents/governance/consistency-protocol.md
 
 **Branch**: `feat/ai-agent-workflow`
 
-**Scope**: Crawled repository, extracted knowledge from memories, generated documentation for 4 components
+**Scope**: Crawled repository 2-3 levels deep, extracted knowledge from memories, generated documentation for 7 components
 
-**Outcome**: SUCCESS - 4 AGENTS.md files created
+**Outcome**: SUCCESS - 7 AGENTS.md files created/updated
 
-**Files Created**:
+**Phase 1 - Top-Level Components** (4 files):
 
 | File | Description |
 |------|-------------|
@@ -258,6 +258,20 @@ cat .agents/governance/consistency-protocol.md
 | `scripts/AGENTS.md` | Installation and utility scripts |
 | `.github/AGENTS.md` | GitHub Actions workflows and composite actions |
 
+**Phase 2 - Nested Components** (3 files):
+
+| File | Description |
+|------|-------------|
+| `.agents/AGENTS.md` | Agent artifacts system, naming conventions, traceability |
+| `.claude/skills/AGENTS.md` | GitHub and steering-matcher skill scripts |
+| `src/claude/AGENTS.md` | Claude Code agents with critical workflow rules |
+
+**Critical Workflow Rules Added**:
+
+- **templates/AGENTS.md**: Template is source of truth for VS Code/Copilot; synchronization from Claude agents
+- **build/AGENTS.md**: Claude-to-Template synchronization; regeneration requirements
+- **src/claude/AGENTS.md**: Comprehensive workflow rules for Claude agent changes
+
 **Key Features**:
 
 - Mermaid architecture diagrams for each component
@@ -265,6 +279,7 @@ cat .agents/governance/consistency-protocol.md
 - Error handling and security considerations
 - Monitoring workflows and validation mechanisms
 - Cross-references between component documentation
+- Workflow rules for maintaining synchronization
 
 **Memories Consulted**:
 
@@ -274,6 +289,7 @@ cat .agents/governance/consistency-protocol.md
 - `install-scripts-cva` - Installation patterns
 - `research-agent-templating-2025-12-15` - Template system
 - `epic-2-variant-consolidation` - Consolidation strategy
+- `skill-usage-mandatory` - GitHub skill enforcement rules
 
 **Status**: Complete
 

@@ -75,12 +75,22 @@ Generated AGENTS.md files for each component:
 
 ## Files Created
 
+### Phase 1: Top-Level Components
+
 | File | Lines | Description |
 |------|-------|-------------|
-| `templates/AGENTS.md` | ~180 | Template system and AI agent catalog |
-| `build/AGENTS.md` | ~220 | Build automation scripts |
+| `templates/AGENTS.md` | ~220 | Template system, AI agent catalog, workflow rules |
+| `build/AGENTS.md` | ~270 | Build automation scripts, workflow rules |
 | `scripts/AGENTS.md` | ~290 | Installation and utility scripts |
 | `.github/AGENTS.md` | ~340 | GitHub Actions workflows and actions |
+
+### Phase 2: Nested Components
+
+| File | Lines | Description |
+|------|-------|-------------|
+| `.agents/AGENTS.md` | ~200 | Agent artifacts system, naming conventions |
+| `.claude/skills/AGENTS.md` | ~230 | GitHub and steering-matcher skills |
+| `src/claude/AGENTS.md` | ~280 | Claude Code agents, critical workflow rules |
 
 ## Key Patterns Applied
 

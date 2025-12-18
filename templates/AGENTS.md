@@ -36,6 +36,61 @@ flowchart TD
     style Output fill:#e8f5e9
 ```
 
+## Critical Workflow Rules
+
+### Rule 1: Template is Source of Truth (for VS Code/Copilot)
+
+**IMPORTANT**: Never edit generated files directly.
+
+```text
+WRONG: Edit src/vs-code-agents/analyst.agent.md directly
+RIGHT: Edit templates/agents/analyst.shared.md, then regenerate
+```
+
+### Rule 2: Synchronization from Claude Agents
+
+When `src/claude/` agents are modified with **universal changes** (not Claude-specific):
+
+```text
+1. Identify universal changes in src/claude/{agent}.md
+2. Duplicate those changes to templates/agents/{agent}.shared.md
+3. Run: pwsh build/Generate-Agents.ps1
+4. Commit all files atomically
+```
+
+See: [src/claude/AGENTS.md](../src/claude/AGENTS.md) for full synchronization rules.
+
+### Rule 3: Regeneration Required After Template Changes
+
+After ANY modification to `templates/`:
+
+```powershell
+# Regenerate all platform files
+pwsh build/Generate-Agents.ps1
+
+# Validate generation succeeded
+pwsh build/Generate-Agents.ps1 -Validate
+
+# Commit template AND generated files together
+git add templates/ src/vs-code-agents/ src/copilot-cli/
+git commit -m "feat(agents): update {agent} template and regenerate"
+```
+
+### Rule 4: Drift Monitoring
+
+Weekly CI (`drift-detection.yml`) checks for semantic drift between:
+
+- Claude agents (`src/claude/`) - hand-maintained
+- VS Code agents (`src/vs-code-agents/`) - generated from templates
+
+**Action Required** if drift detected:
+
+1. Review GitHub issue created by CI
+2. Determine if drift is intentional or accidental
+3. Sync content or document the intentional difference
+
+---
+
 ## Agent Catalog
 
 The template system defines 18 specialized AI agents:

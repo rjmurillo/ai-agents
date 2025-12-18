@@ -53,6 +53,57 @@ flowchart TD
     style Outputs fill:#e8f5e9
 ```
 
+## Critical Workflow Rules
+
+### Rule 1: Always Regenerate After Template Changes
+
+After modifying ANY file in `templates/`:
+
+```powershell
+# Regenerate platform-specific files
+pwsh build/Generate-Agents.ps1
+
+# Verify generation succeeded
+pwsh build/Generate-Agents.ps1 -Validate
+
+# Commit ALL affected files together
+git add templates/ src/vs-code-agents/ src/copilot-cli/
+git commit -m "feat(agents): update template and regenerate"
+```
+
+### Rule 2: Claude-to-Template Synchronization
+
+When `src/claude/` agents receive **universal changes**:
+
+```text
+1. Edit src/claude/{agent}.md (Claude-specific source)
+2. Duplicate changes to templates/agents/{agent}.shared.md
+3. Run: pwsh build/Generate-Agents.ps1
+4. Commit all files atomically
+```
+
+See: [src/claude/AGENTS.md](../src/claude/AGENTS.md) for full rules.
+
+### Rule 3: Never Edit Generated Files
+
+Files in `src/vs-code-agents/` and `src/copilot-cli/` are **generated**:
+
+```text
+WRONG: Edit src/vs-code-agents/analyst.agent.md
+RIGHT: Edit templates/agents/analyst.shared.md, then regenerate
+```
+
+### Rule 4: CI Validation
+
+Two automated checks enforce these rules:
+
+| Workflow | Purpose | Failure Action |
+|----------|---------|----------------|
+| `validate-generated-agents.yml` | Verify generated files match templates | Must regenerate |
+| `drift-detection.yml` | Check Claude/VS Code consistency | Review and sync |
+
+---
+
 ## Agent Catalog
 
 ### Generate-Agents.ps1
