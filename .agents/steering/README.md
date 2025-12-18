@@ -86,13 +86,16 @@ Each steering file includes:
 ---
 name: [Steering File Name]
 applyTo: [Glob pattern(s)]
+excludeFrom: [Optional: Glob pattern(s) to exclude]
 priority: [1-10, higher = more important]
 version: [Semantic version]
 status: [placeholder | draft | published]
 ---
 ```
 
-**Note**: `applyTo` uses the same glob pattern format as GitHub Copilot's custom instructions for consistency.
+**Notes**:
+- `applyTo` uses the same glob pattern format as GitHub Copilot's custom instructions for consistency.
+- `excludeFrom` is optional and specifies patterns to exclude from matching (e.g., exclude test files from production patterns).
 
 ### Content Sections
 
