@@ -232,7 +232,67 @@ ERROR: Incorrect path reference at explainer.md:45
 
 ---
 
+## Anti-Pattern-003: Implement Before Verify
+
+**Description**: Writing code before checking constraints causes repeated violations requiring user intervention
+
+**Symptoms**:
+- Writing inline `gh` commands without checking if `.claude/skills/github/` has capability
+- Creating bash/Python scripts without checking language preferences
+- Putting logic in workflow YAML without checking thin-workflow pattern
+- Making commits without checking atomicity rules
+- User corrections for same violation type multiple times per session
+
+**Evidence**: Session 15 - 5+ user interventions for violations of established patterns
+
+**Cost**:
+- 30-45 minutes lost to rework per session
+- Token waste on duplicate implementations
+- User frustration with repeated corrections
+
+**Remedy**:
+1. Read PROJECT-CONSTRAINTS.md BEFORE implementation (BLOCKING gate)
+2. Check `.claude/skills/` BEFORE writing GitHub operations (verification required)
+3. Verify approach against patterns BEFORE coding
+4. Correct sequence: (1) Read constraints, (2) Check skills, (3) Verify approach, (4) Implement
+
+---
+
+## Anti-Pattern-004: Trust-Based Compliance
+
+**Description**: Trusting agent to remember constraints without verification gates results in repeated violations
+
+**Symptoms**:
+- Documentation exists (memories, ADRs) but violations occur anyway
+- Agent acknowledges rules but doesn't apply them
+- Corrections don't persist beyond 10-15 minutes
+- Each violation requires fresh user intervention
+- Pattern: correct → implement → violate → correct (loop)
+
+**Evidence**: 
+- Session 15: 5+ violations despite `skill-usage-mandatory`, `user-preference-no-bash-python`, `pattern-thin-workflows` memories
+- Retrospective 2025-12-17: Trust-based protocol compliance failures
+
+**Root Cause**: No BLOCKING gates requiring verification (tool output) instead of trust (agent promise)
+
+**Remedy**:
+1. Shift from trust-based to verification-based enforcement
+2. Add BLOCKING gates requiring tool output (not agent acknowledgment)
+3. Examples:
+   - ❌ "I will check for skills" (trust) 
+   - ✅ `Check-SkillExists.ps1` output showing check performed (verification)
+4. Extend SESSION-PROTOCOL.md with Phase 1.5 constraint validation gates
+
+**Force Field Analysis**:
+- Driving forces: Documentation exists (3/5), User frustration (4/5), Protocol pattern exists (5/5)
+- Restraining forces: No BLOCKING gates (5/5), Trust-based (5/5), Scattered docs (3/5)
+- Net: -5 (restraining stronger) → System favors violations until verification-based gates added
+
+---
+
 ## Related Documents
 
 - Source: `.agents/retrospective/phase1-remediation-pr43.md`
+- Source: `.agents/retrospective/2025-12-18-session-15-retrospective.md`
 - Related: skills-linting (Skill-Lint-002 false positives)
+- Related: retrospective-2025-12-18-session-15-pr-60 (session summary)
