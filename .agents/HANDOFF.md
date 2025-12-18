@@ -426,6 +426,49 @@ cat .agents/governance/consistency-protocol.md
 
 ---
 
+### 2025-12-18: AI Workflow Debugging
+
+**Session Log**: [Session 04](./sessions/2025-12-18-session-04-ai-workflow-debugging.md)
+
+**Objective**: Debug and fix failures in AI PR Quality Gate workflow.
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**PR**: [#60](https://github.com/rjmurillo/ai-agents/pull/60)
+
+**Issues Fixed (6)**:
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| YAML parsing error line 210 | Heredoc zero indentation | Moved to separate file |
+| gh auth login failure | GH_TOKEN already set | Verify-only step |
+| grep lookbehind errors | Variable-length patterns | Replaced with sed |
+| Invalid format '[]' | Newline in output | Fixed extraction |
+| PR comment denied | BOT_PAT scope | Use github.token |
+| Multi-line version | copilot --version output | Extract first line |
+
+**Debug Outputs Added**:
+
+- `full-prompt`, `agent-definition`, `prompt-template`
+- `context-built`, `context-mode`
+- `copilot-exit-code`, `copilot-version`
+
+**Final Status**:
+
+- Workflow infrastructure: WORKING
+- PR comment posting: WORKING
+- Copilot CLI execution: FAILING (exit code 1)
+
+**Remaining Issue**: `BOT_PAT` needs Copilot access for `rjmurillo-bot` account.
+
+**Commits**: `df334a3`, `b6edb99`, `f4b24d0`, `45c089c`, `bfc362c`
+
+**Status**: Complete - workflow infrastructure fixed, pending Copilot access configuration
+
+---
+
 ### 2025-12-18: Retrospective - MCP Config Session
 
 **Objective**: Diagnose why GitHub Copilot CLI didn't load MCP servers from repo and recommend fixes.
