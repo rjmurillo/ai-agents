@@ -90,16 +90,16 @@ function Get-ApplicableSteering {
         if ($content -match '(?s)^---\s*\n(.*?)\n---') {
             $frontMatter = $matches[1]
             
-            # Parse applyTo, exclude, and priority
+            # Parse applyTo, excludeFrom, and priority
             $applyTo = if ($frontMatter -match 'applyTo:\s*"([^"]+)"') { $matches[1] } else { $null }
-            $exclude = if ($frontMatter -match 'exclude:\s*"([^"]+)"') { $matches[1] } else { $null }
+            $excludeFrom = if ($frontMatter -match 'excludeFrom:\s*"([^"]+)"') { $matches[1] } else { $null }
             $priority = if ($frontMatter -match 'priority:\s*(\d+)') { [int]$matches[1] } else { 5 }
 
             if ($applyTo) {
                 # Split patterns
                 $includePatterns = $applyTo -split ',' | ForEach-Object { $_.Trim() }
-                $excludePatterns = if ($exclude) {
-                    $exclude -split ',' | ForEach-Object { $_.Trim() }
+                $excludePatterns = if ($excludeFrom) {
+                    $excludeFrom -split ',' | ForEach-Object { $_.Trim() }
                 } else {
                     @()
                 }
@@ -115,11 +115,11 @@ function Get-ApplicableSteering {
 
                     if ($matchesInclude -and -not $matchesExclude) {
                         $applicableSteering += [PSCustomObject]@{
-                            Name     = $steeringFile.BaseName
-                            Path     = $steeringFile.FullName
-                            ApplyTo  = $applyTo
-                            Exclude  = $exclude
-                            Priority = $priority
+                            Name        = $steeringFile.BaseName
+                            Path        = $steeringFile.FullName
+                            ApplyTo     = $applyTo
+                            ExcludeFrom = $excludeFrom
+                            Priority    = $priority
                         }
                         break  # Only need one file to match to include this steering file
                     }
