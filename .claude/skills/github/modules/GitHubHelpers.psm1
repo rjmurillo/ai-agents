@@ -1,0 +1,448 @@
+<#
+.SYNOPSIS
+    Shared helper functions for GitHub CLI operations.
+
+.DESCRIPTION
+    Common utilities used across GitHub skill scripts:
+    - Repository inference from git remote
+    - GitHub CLI authentication check
+    - Error handling with exit codes
+    - Common formatting functions
+
+.NOTES
+    Import this module in scripts with:
+    Import-Module (Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1") -Force
+#>
+
+#region Input Validation Functions
+
+function Test-GitHubNameValid {
+    <#
+    .SYNOPSIS
+        Validates GitHub owner or repository names.
+
+    .DESCRIPTION
+        Ensures names conform to GitHub's naming rules to prevent command injection (CWE-78).
+        - Owner: alphanumeric and hyphens, 1-39 chars, cannot start/end with hyphen
+        - Repo: alphanumeric, hyphens, underscores, periods, 1-100 chars
+
+    .PARAMETER Name
+        The name to validate.
+
+    .PARAMETER Type
+        The type of name: "Owner" or "Repo".
+
+    .OUTPUTS
+        Boolean indicating if the name is valid.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("Owner", "Repo")]
+        [string]$Type
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $false
+    }
+
+    $pattern = switch ($Type) {
+        "Owner" { '^[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$' }
+        "Repo"  { '^[a-zA-Z0-9._-]{1,100}$' }
+    }
+
+    return $Name -match $pattern
+}
+
+function Test-SafeFilePath {
+    <#
+    .SYNOPSIS
+        Validates that a file path does not traverse outside allowed boundaries.
+
+    .DESCRIPTION
+        Prevents path traversal attacks (CWE-22) by ensuring resolved path stays
+        within the allowed base directory. Rejects paths with traversal attempts.
+
+    .PARAMETER Path
+        The file path to validate.
+
+    .PARAMETER AllowedBase
+        The base directory paths must stay within. Defaults to current directory.
+
+    .OUTPUTS
+        Boolean indicating if the path is safe.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter()]
+        [string]$AllowedBase = (Get-Location).Path
+    )
+
+    # Reject obvious traversal attempts early
+    if ($Path -match '\.\.[/\\]') {
+        return $false
+    }
+
+    try {
+        $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+        $resolvedBase = [System.IO.Path]::GetFullPath($AllowedBase)
+
+        # Ensure resolved path starts with the allowed base
+        return $resolvedPath.StartsWith($resolvedBase, [System.StringComparison]::OrdinalIgnoreCase)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Assert-ValidBodyFile {
+    <#
+    .SYNOPSIS
+        Validates a BodyFile parameter for safe file access.
+
+    .DESCRIPTION
+        Checks that the file exists and is within allowed boundaries.
+        Exits with error if validation fails.
+
+    .PARAMETER BodyFile
+        The file path to validate.
+
+    .PARAMETER AllowedBase
+        Optional base directory restriction. If not provided, only checks existence.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BodyFile,
+
+        [Parameter()]
+        [string]$AllowedBase
+    )
+
+    if (-not (Test-Path $BodyFile)) {
+        Write-ErrorAndExit "Body file not found: $BodyFile" 2
+    }
+
+    if ($AllowedBase -and -not (Test-SafeFilePath -Path $BodyFile -AllowedBase $AllowedBase)) {
+        Write-ErrorAndExit "Body file path traversal not allowed: $BodyFile" 1
+    }
+}
+
+#endregion
+
+#region Repository Functions
+
+function Get-RepoInfo {
+    <#
+    .SYNOPSIS
+        Infers repository owner and name from git remote.
+
+    .DESCRIPTION
+        Parses the git remote origin URL to extract GitHub owner and repo.
+        Supports both HTTPS and SSH URLs.
+
+    .OUTPUTS
+        Hashtable with Owner and Repo keys, or $null if not found.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param()
+
+    try {
+        $remoteUrl = git remote get-url origin 2>$null
+        if ($remoteUrl -match 'github\.com[:/]([^/]+)/([^/.]+)') {
+            return @{
+                Owner = $Matches[1]
+                Repo  = $Matches[2] -replace '\.git$', ''
+            }
+        }
+    }
+    catch { }
+    return $null
+}
+
+function Resolve-RepoParams {
+    <#
+    .SYNOPSIS
+        Resolves Owner and Repo parameters, inferring if not provided.
+
+    .DESCRIPTION
+        Returns resolved Owner and Repo, or exits with error if cannot be determined.
+
+    .PARAMETER Owner
+        Repository owner (optional if in git repo).
+
+    .PARAMETER Repo
+        Repository name (optional if in git repo).
+
+    .OUTPUTS
+        Hashtable with Owner and Repo keys.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [string]$Owner,
+        [string]$Repo
+    )
+
+    if (-not $Owner -or -not $Repo) {
+        $repoInfo = Get-RepoInfo
+        if ($repoInfo) {
+            if (-not $Owner) { $Owner = $repoInfo.Owner }
+            if (-not $Repo) { $Repo = $repoInfo.Repo }
+        }
+        else {
+            Write-ErrorAndExit "Could not infer repository info. Please provide -Owner and -Repo parameters." 1
+        }
+    }
+
+    # Validate names to prevent command injection (CWE-78)
+    if (-not (Test-GitHubNameValid -Name $Owner -Type "Owner")) {
+        Write-ErrorAndExit "Invalid GitHub owner name: $Owner" 1
+    }
+    if (-not (Test-GitHubNameValid -Name $Repo -Type "Repo")) {
+        Write-ErrorAndExit "Invalid GitHub repository name: $Repo" 1
+    }
+
+    return @{
+        Owner = $Owner
+        Repo  = $Repo
+    }
+}
+
+#endregion
+
+#region Authentication Functions
+
+function Test-GhAuthenticated {
+    <#
+    .SYNOPSIS
+        Checks if GitHub CLI is installed and authenticated.
+
+    .OUTPUTS
+        Boolean indicating authentication status.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+
+    try {
+        $null = gh auth status 2>&1
+        return $LASTEXITCODE -eq 0
+    }
+    catch {
+        return $false
+    }
+}
+
+function Assert-GhAuthenticated {
+    <#
+    .SYNOPSIS
+        Ensures GitHub CLI is authenticated, exits if not.
+    #>
+    [CmdletBinding()]
+    param()
+
+    if (-not (Test-GhAuthenticated)) {
+        Write-ErrorAndExit "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first." 4
+    }
+}
+
+#endregion
+
+#region Error Handling Functions
+
+function Write-ErrorAndExit {
+    <#
+    .SYNOPSIS
+        Writes an error and exits with the specified code.
+
+    .PARAMETER Message
+        Error message to display.
+
+    .PARAMETER ExitCode
+        Exit code to return.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+
+        [Parameter(Mandatory = $true)]
+        [int]$ExitCode
+    )
+
+    Write-Error $Message
+    exit $ExitCode
+}
+
+#endregion
+
+#region API Helper Functions
+
+function Invoke-GhApiPaginated {
+    <#
+    .SYNOPSIS
+        Calls GitHub API with pagination support.
+
+    .DESCRIPTION
+        Fetches all pages of results from a paginated API endpoint.
+
+    .PARAMETER Endpoint
+        The API endpoint (e.g., "repos/owner/repo/pulls/1/comments").
+
+    .PARAMETER PageSize
+        Number of items per page (default: 100, max: 100).
+
+    .OUTPUTS
+        Array of all items across all pages.
+    #>
+    [CmdletBinding()]
+    [OutputType([array])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Endpoint,
+
+        [Parameter()]
+        [ValidateRange(1, 100)]
+        [int]$PageSize = 100
+    )
+
+    $allItems = [System.Collections.Generic.List[object]]::new()
+    $page = 1
+
+    do {
+        Write-Verbose "Fetching page $page from $Endpoint"
+
+        $separator = if ($Endpoint -match '\?') { '&' } else { '?' }
+        $url = "$Endpoint${separator}per_page=$PageSize&page=$page"
+
+        $response = gh api $url 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "API request failed: $response"
+            break
+        }
+
+        $items = $response | ConvertFrom-Json
+
+        if ($null -eq $items -or $items.Count -eq 0) {
+            break
+        }
+
+        foreach ($item in $items) {
+            $allItems.Add($item)
+        }
+
+        $page++
+    } while ($items.Count -eq $PageSize)
+
+    return @($allItems)
+}
+
+#endregion
+
+#region Formatting Functions
+
+function Get-PriorityEmoji {
+    <#
+    .SYNOPSIS
+        Returns the emoji for a priority level.
+
+    .PARAMETER Priority
+        Priority level (P0, P1, P2, P3).
+
+    .OUTPUTS
+        Emoji string.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Priority
+    )
+
+    switch ($Priority) {
+        "P0" { return "🔥" }  # Fire = critical/urgent
+        "P1" { return "❗" }  # Exclamation = important
+        "P2" { return "➖" }  # Dash = normal/medium
+        "P3" { return "⬇️" }  # Down arrow = low
+        default { return "❔" }  # Unknown
+    }
+}
+
+function Get-ReactionEmoji {
+    <#
+    .SYNOPSIS
+        Returns the emoji for a GitHub reaction type.
+
+    .PARAMETER Reaction
+        Reaction type (+1, -1, laugh, confused, heart, hooray, rocket, eyes).
+
+    .OUTPUTS
+        Emoji string.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Reaction
+    )
+
+    switch ($Reaction) {
+        "+1" { return "👍" }
+        "-1" { return "👎" }
+        "laugh" { return "😄" }
+        "confused" { return "😕" }
+        "heart" { return "❤️" }
+        "hooray" { return "🎉" }
+        "rocket" { return "🚀" }
+        "eyes" { return "👀" }
+        default { return $Reaction }
+    }
+}
+
+#endregion
+
+#region Exit Codes
+
+<#
+Standard exit codes for GitHub skill scripts:
+    0 - Success
+    1 - Invalid parameters
+    2 - Resource not found (PR, issue, label, milestone)
+    3 - GitHub API error
+    4 - gh CLI not found or not authenticated
+    5 - Idempotency skip (e.g., comment already exists)
+#>
+
+#endregion
+
+# Export functions
+Export-ModuleMember -Function @(
+    # Validation
+    'Test-GitHubNameValid'
+    'Test-SafeFilePath'
+    'Assert-ValidBodyFile'
+    # Repository
+    'Get-RepoInfo'
+    'Resolve-RepoParams'
+    # Authentication
+    'Test-GhAuthenticated'
+    'Assert-GhAuthenticated'
+    # Error handling
+    'Write-ErrorAndExit'
+    # API helpers
+    'Invoke-GhApiPaginated'
+    # Formatting
+    'Get-PriorityEmoji'
+    'Get-ReactionEmoji'
+)
