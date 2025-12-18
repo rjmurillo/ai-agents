@@ -17,7 +17,7 @@
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
 | MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
 | MUST | Create this session log | [x] | This file exists |
-| SHOULD | Search relevant Serena memories | [ ] | In progress |
+| SHOULD | Search relevant Serena memories | [x] | Used ci-infrastructure, pr-review |
 | SHOULD | Verify git status | [x] | Output documented below |
 | SHOULD | Note starting commit | [x] | SHA documented below |
 
@@ -87,30 +87,34 @@ Changed from job outputs to artifacts for passing findings:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
-| MUST | Complete session log | [ ] | All sections filled |
-| MUST | Run markdown lint | [ ] | Output below |
-| MUST | Commit all changes | [ ] | Commit SHA: _______ |
-| SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
-| SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
-| SHOULD | Verify clean git status | [ ] | Output below |
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | 0 errors |
+| MUST | Commit all changes | [x] | Commit SHA: 54e1016 |
+| SHOULD | Update PROJECT-PLAN.md | [-] | N/A - bug fix |
+| SHOULD | Invoke retrospective (significant sessions) | [-] | N/A - straightforward fix |
+| SHOULD | Verify clean git status | [x] | Clean after push |
 
 ### Lint Output
 
-[Paste markdownlint output here]
+```text
+markdownlint-cli2 v0.20.0 (markdownlint v0.40.0)
+Summary: 0 error(s)
+```
 
 ### Final Git Status
 
-[Paste git status output here]
+Clean - all changes committed and pushed.
 
 ### Commits This Session
 
-- `[SHA]` - [message]
+- `54e1016` - fix(ci): use artifacts to pass findings between matrix jobs
 
 ---
 
 ## Notes for Next Session
 
-- [Important context]
-- [Gotchas discovered]
-- [Recommendations]
+- GitHub Actions matrix jobs only expose ONE matrix leg's outputs
+- Use artifacts (upload/download) for reliable data passing between matrix jobs
+- Always use env vars for shell variable expansion, never direct `${{ }}` interpolation
+- Verified fix works: all three agent findings now display in PR comment
