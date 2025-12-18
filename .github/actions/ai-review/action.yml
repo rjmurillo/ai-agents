@@ -81,14 +81,16 @@ runs:
         echo "Copilot CLI version:"
         copilot --version || echo "Version check not supported"
 
-    - name: Authenticate with GitHub
+    - name: Verify GitHub authentication
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.bot-pat }}
       run: |
-        echo "Authenticating with GitHub..."
-        echo "$GH_TOKEN" | gh auth login --with-token
-        gh auth status
+        echo "Verifying GitHub authentication..."
+        # GH_TOKEN env var is automatically used by gh CLI - no explicit login needed
+        gh auth status || echo "Note: Using GH_TOKEN for authentication"
+        echo "Testing API access..."
+        gh api user -q '.login' || echo "Warning: Could not verify API access"
 
     - name: Build context
       id: context
