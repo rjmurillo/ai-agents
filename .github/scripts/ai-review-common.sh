@@ -90,9 +90,9 @@ post_issue_comment() {
 parse_verdict() {
     local output="$1"
 
-    # Try explicit VERDICT: pattern first
+    # Try explicit VERDICT: pattern first using sed (avoids grep -P lookbehind issues)
     local verdict
-    verdict=$(echo "$output" | grep -oP '(?<=VERDICT:\s*)[A-Z_]+' | head -1 || echo "")
+    verdict=$(echo "$output" | sed -n 's/.*VERDICT:[[:space:]]*\([A-Z_]*\).*/\1/p' | head -1)
 
     if [ -n "$verdict" ]; then
         echo "$verdict"
@@ -116,8 +116,14 @@ parse_verdict() {
 parse_labels() {
     local output="$1"
 
-    # Extract LABEL: entries and format as JSON array
-    echo "$output" | grep -oP '(?<=LABEL:\s*)\S+' | jq -R -s -c 'split("\n") | map(select(length > 0))' 2>/dev/null || echo "[]"
+    # Extract LABEL: entries using sed (avoids grep -P lookbehind issues) and format as JSON array
+    local labels_raw
+    labels_raw=$(echo "$output" | sed -n 's/.*LABEL:[[:space:]]*\([^[:space:]]*\).*/\1/p' | tr '\n' ',' | sed 's/,$//')
+    if [ -n "$labels_raw" ]; then
+        echo "$labels_raw" | jq -R -c 'split(",") | map(select(length > 0))' 2>/dev/null || echo "[]"
+    else
+        echo "[]"
+    fi
 }
 
 # Parse milestone from AI output
@@ -125,7 +131,8 @@ parse_labels() {
 parse_milestone() {
     local output="$1"
 
-    echo "$output" | grep -oP '(?<=MILESTONE:\s*)\S+' | head -1 || echo ""
+    # Use sed to extract milestone (avoids grep -P lookbehind issues)
+    echo "$output" | sed -n 's/.*MILESTONE:[[:space:]]*\([^[:space:]]*\).*/\1/p' | head -1
 }
 
 # Aggregate multiple verdicts into a final verdict

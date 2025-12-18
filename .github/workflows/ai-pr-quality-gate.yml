@@ -185,6 +185,8 @@ jobs:
 
       - name: Post PR Comment
         if: steps.check-changes.outputs.skip_review != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           source .github/scripts/ai-review-common.sh
           post_pr_comment "${{ github.event.pull_request.number }}" "${{ steps.report.outputs.report_file }}" "AI-PR-QUALITY-GATE"
