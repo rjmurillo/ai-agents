@@ -125,12 +125,16 @@ jobs:
           source .github/scripts/ai-review-common.sh
 
           REPORT_FILE="$AI_REVIEW_DIR/pr-quality-report.md"
+          FINAL_VERDICT="${{ steps.aggregate.outputs.final_verdict }}"
+          ALERT_TYPE=$(get_verdict_alert_type "$FINAL_VERDICT")
 
           cat > "$REPORT_FILE" << EOF
           ## AI Quality Gate Review
 
           **Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          **Final Verdict**: \`${{ steps.aggregate.outputs.final_verdict }}\`
+
+          > [!$ALERT_TYPE]
+          > **Final Verdict: $FINAL_VERDICT**
 
           ### Summary
 

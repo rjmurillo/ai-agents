@@ -217,6 +217,9 @@ jobs:
           cat > /tmp/triage-comment.md << EOF
           ## AI Triage Summary
 
+          > [!NOTE]
+          > This issue has been automatically triaged by AI
+
           | Field | Value |
           |-------|-------|
           | Category | $CATEGORY |

@@ -174,6 +174,69 @@ $content
 EOF
 }
 
+# Format a verdict using GitHub's markdown alert syntax
+# Usage: format_verdict_alert "$verdict" "$message"
+# Output: GitHub alert block with appropriate severity
+# Mapping:
+#   PASS         -> [!TIP]      (green)
+#   WARN/PARTIAL -> [!WARNING]  (yellow)
+#   CRITICAL_FAIL/REJECTED/FAIL -> [!CAUTION] (red)
+format_verdict_alert() {
+    local verdict="$1"
+    local message="${2:-}"
+
+    local alert_type
+    case "$verdict" in
+        PASS)
+            alert_type="TIP"
+            ;;
+        WARN|PARTIAL)
+            alert_type="WARNING"
+            ;;
+        CRITICAL_FAIL|REJECTED|FAIL)
+            alert_type="CAUTION"
+            ;;
+        *)
+            alert_type="NOTE"
+            ;;
+    esac
+
+    if [ -n "$message" ]; then
+        cat << EOF
+> [!$alert_type]
+> **Verdict: $verdict**
+>
+> $message
+EOF
+    else
+        cat << EOF
+> [!$alert_type]
+> **Verdict: $verdict**
+EOF
+    fi
+}
+
+# Get the alert type for a verdict (for inline use)
+# Usage: alert_type=$(get_verdict_alert_type "$verdict")
+get_verdict_alert_type() {
+    local verdict="$1"
+
+    case "$verdict" in
+        PASS)
+            echo "TIP"
+            ;;
+        WARN|PARTIAL)
+            echo "WARNING"
+            ;;
+        CRITICAL_FAIL|REJECTED|FAIL)
+            echo "CAUTION"
+            ;;
+        *)
+            echo "NOTE"
+            ;;
+    esac
+}
+
 # Get exit code based on verdict
 # Usage: exit_code=$(get_exit_code "$verdict")
 get_exit_code() {

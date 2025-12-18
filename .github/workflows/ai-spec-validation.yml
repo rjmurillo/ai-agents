@@ -233,9 +233,10 @@ jobs:
             cat > "$REPORT_FILE" << EOF
           ## Spec-to-Implementation Validation
 
-          **Status**: ⚠️ No spec references found
-
-          This PR does not reference any specifications (REQ-*, DESIGN-*, TASK-*, or linked issues).
+          > [!WARNING]
+          > **No spec references found**
+          >
+          > This PR does not reference any specifications (REQ-*, DESIGN-*, TASK-*, or linked issues).
 
           Consider adding spec references to the PR description:
           - Reference requirements: \`Implements REQ-001\`
@@ -258,11 +259,15 @@ jobs:
               FINAL_VERDICT="PASS"
             fi
 
+            ALERT_TYPE=$(get_verdict_alert_type "$FINAL_VERDICT")
+
             cat > "$REPORT_FILE" << EOF
           ## Spec-to-Implementation Validation
 
           **Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          **Final Verdict**: \`$FINAL_VERDICT\`
+
+          > [!$ALERT_TYPE]
+          > **Final Verdict: $FINAL_VERDICT**
 
           ### Summary
 

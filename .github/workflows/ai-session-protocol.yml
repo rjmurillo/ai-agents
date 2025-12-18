@@ -154,13 +154,26 @@ jobs:
           source .github/scripts/ai-review-common.sh
 
           REPORT_FILE="/tmp/session-compliance-report.md"
+          OVERALL_VERDICT="${{ steps.validate.outputs.overall_verdict }}"
+          MUST_FAILURES="${{ steps.validate.outputs.must_failures }}"
+          ALERT_TYPE=$(get_verdict_alert_type "$OVERALL_VERDICT")
+
+          # Build verdict message based on failures
+          if [ "$MUST_FAILURES" -gt 0 ]; then
+            VERDICT_MSG="$MUST_FAILURES MUST requirement(s) not met. These must be addressed before merge."
+          else
+            VERDICT_MSG="All session protocol requirements satisfied."
+          fi
 
           cat > "$REPORT_FILE" << EOF
           ## Session Protocol Compliance Report
 
           **Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          **Overall Verdict**: \`${{ steps.validate.outputs.overall_verdict }}\`
-          **MUST Failures**: ${{ steps.validate.outputs.must_failures }}
+
+          > [!$ALERT_TYPE]
+          > **Overall Verdict: $OVERALL_VERDICT**
+          >
+          > $VERDICT_MSG
 
           ### Compliance Summary
 
