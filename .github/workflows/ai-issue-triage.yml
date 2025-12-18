@@ -56,8 +56,8 @@ jobs:
         run: |
           ROADMAP_FILE=".agents/roadmap/product-roadmap.md"
           if [ -f "$ROADMAP_FILE" ]; then
-            # Get first 200 lines to keep context manageable
-            ROADMAP_CONTENT=$(head -200 "$ROADMAP_FILE")
+            # Get first 30000 lines to keep context manageable
+            ROADMAP_CONTENT=$(head -30000 "$ROADMAP_FILE")
           else
             ROADMAP_CONTENT="No roadmap file found"
           fi

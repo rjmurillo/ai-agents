@@ -78,6 +78,19 @@ outputs:
   copilot-version:
     description: 'Copilot CLI version used'
     value: ${{ steps.install.outputs.copilot_version }}
+  # Enhanced diagnostic outputs
+  copilot-diagnostic:
+    description: 'Copilot CLI diagnostic information (health check results)'
+    value: ${{ steps.diagnose.outputs.diagnostic }}
+  copilot-health:
+    description: 'Copilot CLI health status (healthy, degraded, failed)'
+    value: ${{ steps.diagnose.outputs.health_status }}
+  copilot-stderr:
+    description: 'Stderr output from Copilot CLI (if any)'
+    value: ${{ steps.invoke.outputs.stderr_output }}
+  auth-status:
+    description: 'GitHub authentication status details'
+    value: ${{ steps.diagnose.outputs.auth_status }}
 
 runs:
   using: 'composite'
@@ -118,6 +131,164 @@ runs:
         gh auth status || echo "Note: Using GH_TOKEN for authentication"
         echo "Testing API access..."
         gh api user -q '.login' || echo "Warning: Could not verify API access"
+
+    - name: Diagnose Copilot CLI
+      id: diagnose
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.bot-pat }}
+      run: |
+        echo "=== COPILOT CLI DIAGNOSTICS ==="
+        echo ""
+
+        HEALTH_STATUS="healthy"
+        DIAGNOSTIC=""
+        AUTH_STATUS=""
+
+        # 1. Check if copilot command exists
+        echo "1. Checking copilot command availability..."
+        if ! command -v copilot &> /dev/null; then
+          echo "::error::copilot command not found in PATH"
+          HEALTH_STATUS="failed"
+          DIAGNOSTIC+="ERROR: copilot command not found\n"
+        else
+          echo "   ✓ copilot command found: $(which copilot)"
+          DIAGNOSTIC+="copilot binary: $(which copilot)\n"
+        fi
+
+        # 2. Check copilot version (detailed)
+        echo ""
+        echo "2. Checking copilot version..."
+        VERSION_OUTPUT=$(copilot --version 2>&1) || true
+        echo "   Version output: $VERSION_OUTPUT"
+        DIAGNOSTIC+="version: $VERSION_OUTPUT\n"
+
+        # 3. Check copilot help (validates basic functionality)
+        echo ""
+        echo "3. Checking copilot --help..."
+        if copilot --help > /dev/null 2>&1; then
+          echo "   ✓ copilot --help works"
+          DIAGNOSTIC+="help: OK\n"
+        else
+          echo "   ✗ copilot --help failed"
+          HEALTH_STATUS="degraded"
+          DIAGNOSTIC+="help: FAILED\n"
+        fi
+
+        # 4. Check GitHub API authentication scopes
+        echo ""
+        echo "4. Checking GitHub API authentication..."
+        AUTH_RESPONSE=$(gh api user 2>&1) || true
+        if echo "$AUTH_RESPONSE" | grep -q '"login"'; then
+          AUTH_USER=$(echo "$AUTH_RESPONSE" | jq -r '.login' 2>/dev/null || echo "unknown")
+          echo "   ✓ Authenticated as: $AUTH_USER"
+          AUTH_STATUS="authenticated as $AUTH_USER"
+
+          # Check token scopes
+          SCOPES=$(gh api -i user 2>&1 | grep -i "x-oauth-scopes" | cut -d':' -f2 | tr -d ' ' || echo "unknown")
+          echo "   Token scopes: ${SCOPES:-none detected}"
+          AUTH_STATUS+=", scopes: ${SCOPES:-unknown}"
+          DIAGNOSTIC+="auth_user: $AUTH_USER\n"
+          DIAGNOSTIC+="auth_scopes: $SCOPES\n"
+        else
+          echo "   ✗ GitHub API authentication failed"
+          echo "   Response: $AUTH_RESPONSE"
+          HEALTH_STATUS="degraded"
+          AUTH_STATUS="authentication failed"
+          DIAGNOSTIC+="auth_error: $AUTH_RESPONSE\n"
+        fi
+
+        # 5. Check for Copilot-specific access (try to access Copilot API)
+        echo ""
+        echo "5. Checking Copilot API access..."
+        # Note: This is a heuristic check - Copilot CLI doesn't expose direct API check
+        # We test with a minimal prompt to see if it works
+
+        set +e
+        COPILOT_TEST_OUTPUT=""
+        COPILOT_TEST_STDERR=""
+
+        # Create temp files for capturing output
+        STDOUT_FILE=$(mktemp)
+        STDERR_FILE=$(mktemp)
+
+        # Run minimal test with very short timeout
+        echo "   Running minimal test prompt (10s timeout)..."
+        timeout 10 copilot --prompt "Reply with only the word OK" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+        TEST_EXIT_CODE=$?
+
+        COPILOT_TEST_OUTPUT=$(cat "$STDOUT_FILE")
+        COPILOT_TEST_STDERR=$(cat "$STDERR_FILE")
+        rm -f "$STDOUT_FILE" "$STDERR_FILE"
+        set -e
+
+        echo "   Test exit code: $TEST_EXIT_CODE"
+
+        if [ $TEST_EXIT_CODE -eq 0 ]; then
+          echo "   ✓ Copilot CLI test prompt succeeded"
+          echo "   Output: $COPILOT_TEST_OUTPUT"
+          DIAGNOSTIC+="test_prompt: PASSED\n"
+        elif [ $TEST_EXIT_CODE -eq 124 ]; then
+          echo "   ⚠ Copilot CLI test prompt timed out"
+          HEALTH_STATUS="degraded"
+          DIAGNOSTIC+="test_prompt: TIMEOUT\n"
+        else
+          echo "   ✗ Copilot CLI test prompt failed (exit code: $TEST_EXIT_CODE)"
+          HEALTH_STATUS="failed"
+          DIAGNOSTIC+="test_prompt: FAILED (exit $TEST_EXIT_CODE)\n"
+
+          if [ -n "$COPILOT_TEST_STDERR" ]; then
+            echo "   Stderr: $COPILOT_TEST_STDERR"
+            DIAGNOSTIC+="test_stderr: $COPILOT_TEST_STDERR\n"
+          fi
+
+          if [ -n "$COPILOT_TEST_OUTPUT" ]; then
+            echo "   Stdout: $COPILOT_TEST_OUTPUT"
+            DIAGNOSTIC+="test_stdout: $COPILOT_TEST_OUTPUT\n"
+          fi
+
+          # Analyze common failure modes
+          if [ -z "$COPILOT_TEST_OUTPUT" ] && [ -z "$COPILOT_TEST_STDERR" ]; then
+            echo ""
+            echo "   ⚠ DIAGNOSIS: CLI produced no output at all"
+            echo "   This typically indicates one of:"
+            echo "   - The GitHub account does not have Copilot access enabled"
+            echo "   - The PAT token lacks Copilot permissions"
+            echo "   - Network connectivity issues to Copilot API"
+            DIAGNOSTIC+="diagnosis: NO_OUTPUT - likely missing Copilot access\n"
+          fi
+        fi
+
+        # 6. Environment check
+        echo ""
+        echo "6. Environment variables check..."
+        echo "   GH_TOKEN: ${GH_TOKEN:+[SET - ${#GH_TOKEN} chars]}"
+        echo "   GITHUB_TOKEN: ${GITHUB_TOKEN:+[SET - ${#GITHUB_TOKEN} chars]}"
+        echo "   HOME: $HOME"
+        echo "   PATH includes npm: $(echo $PATH | grep -q npm && echo yes || echo no)"
+        DIAGNOSTIC+="gh_token_set: ${GH_TOKEN:+yes}\n"
+        DIAGNOSTIC+="github_token_set: ${GITHUB_TOKEN:+yes}\n"
+
+        # Summary
+        echo ""
+        echo "=== DIAGNOSTIC SUMMARY ==="
+        echo "Health Status: $HEALTH_STATUS"
+        echo "Auth Status: $AUTH_STATUS"
+        echo ""
+
+        # Set outputs
+        echo "health_status=$HEALTH_STATUS" >> $GITHUB_OUTPUT
+        echo "auth_status=$AUTH_STATUS" >> $GITHUB_OUTPUT
+        {
+          echo "diagnostic<<EOF_DIAG"
+          echo -e "$DIAGNOSTIC"
+          echo "EOF_DIAG"
+        } >> $GITHUB_OUTPUT
+
+        # Warn but don't fail - let the main invoke step handle failures
+        if [ "$HEALTH_STATUS" = "failed" ]; then
+          echo "::warning::Copilot CLI diagnostics indicate problems - main invocation may fail"
+        fi
 
     - name: Build context
       id: context
@@ -308,20 +479,74 @@ runs:
 
         # Invoke Copilot CLI with timeout
         echo "Invoking Copilot CLI (timeout: ${TIMEOUT_MINUTES}m)..."
+        echo "Prompt size: $(wc -c < /tmp/ai-review-full-prompt.md) bytes"
+
+        # Create temp files for separate stdout/stderr capture
+        STDOUT_FILE=$(mktemp)
+        STDERR_FILE=$(mktemp)
 
         set +e
-        OUTPUT=$(timeout "$TIMEOUT_SECONDS" copilot --prompt "$FULL_PROMPT" 2>&1)
+        timeout "$TIMEOUT_SECONDS" copilot --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
         EXIT_CODE=$?
+
+        OUTPUT=$(cat "$STDOUT_FILE")
+        STDERR_OUTPUT=$(cat "$STDERR_FILE")
+        rm -f "$STDOUT_FILE" "$STDERR_FILE"
         set -e
 
+        # Log what we captured
+        echo "Exit code: $EXIT_CODE"
+        echo "Stdout length: ${#OUTPUT} chars"
+        echo "Stderr length: ${#STDERR_OUTPUT} chars"
+
+        # Detailed error analysis
         if [ $EXIT_CODE -eq 124 ]; then
           echo "::error::Copilot CLI timed out after ${TIMEOUT_MINUTES} minutes"
-          OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: AI review timed out - this is a blocking failure, not a warning"
+          OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: AI review timed out after ${TIMEOUT_MINUTES} minutes"
+          if [ -n "$STDERR_OUTPUT" ]; then
+            OUTPUT="$OUTPUT"$'\n'"STDERR: $STDERR_OUTPUT"
+          fi
         elif [ $EXIT_CODE -ne 0 ]; then
           echo "::error::Copilot CLI exited with code $EXIT_CODE"
-          if [ -z "$OUTPUT" ]; then
-            OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: AI review failed (exit code $EXIT_CODE) - CLI produced no output"
+
+          # Log stderr for debugging
+          if [ -n "$STDERR_OUTPUT" ]; then
+            echo "Stderr output:"
+            echo "$STDERR_OUTPUT"
           fi
+
+          # Analyze failure mode
+          if [ -z "$OUTPUT" ] && [ -z "$STDERR_OUTPUT" ]; then
+            echo ""
+            echo "=== FAILURE ANALYSIS ==="
+            echo "The Copilot CLI produced no output (stdout or stderr)."
+            echo "This typically indicates one of the following issues:"
+            echo ""
+            echo "1. MISSING COPILOT ACCESS"
+            echo "   - The GitHub account associated with BOT_PAT does not have"
+            echo "     GitHub Copilot access enabled"
+            echo "   - Solution: Enable Copilot for the account or use a different PAT"
+            echo ""
+            echo "2. INVALID PAT TOKEN"
+            echo "   - The PAT token may be expired or have insufficient scopes"
+            echo "   - Required: 'copilot' scope for Copilot access"
+            echo ""
+            echo "3. NETWORK ISSUES"
+            echo "   - Unable to reach Copilot API endpoints"
+            echo "   - Check network connectivity and proxy settings"
+            echo ""
+            echo "4. RATE LIMITING"
+            echo "   - Too many requests in a short time period"
+            echo "   - Wait and retry"
+            echo "========================="
+            echo ""
+
+            OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI failed (exit code $EXIT_CODE) with no output - likely missing Copilot access for the bot account"
+          elif [ -z "$OUTPUT" ]; then
+            # Has stderr but no stdout
+            OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI failed (exit code $EXIT_CODE)"$'\n'"STDERR: $STDERR_OUTPUT"
+          fi
+          # If OUTPUT is not empty, keep it as-is (may contain error details from CLI)
         fi
 
         # Save output
@@ -332,6 +557,13 @@ runs:
           echo "raw_output<<EOF_RAW"
           echo "$OUTPUT"
           echo "EOF_RAW"
+        } >> $GITHUB_OUTPUT
+
+        # Output stderr separately for debugging
+        {
+          echo "stderr_output<<EOF_STDERR"
+          echo "$STDERR_OUTPUT"
+          echo "EOF_STDERR"
         } >> $GITHUB_OUTPUT
 
         # Output full prompt for debugging
