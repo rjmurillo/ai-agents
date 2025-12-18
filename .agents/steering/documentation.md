@@ -1,7 +1,7 @@
 ---
 name: Documentation Standards
 applyTo: "**/*.md"
-exclude: "src/claude/**/*.md,.agents/steering/**"
+excludeFrom: "src/claude/**/*.md,.agents/steering/**"
 priority: 5
 version: 0.1.0
 status: placeholder
