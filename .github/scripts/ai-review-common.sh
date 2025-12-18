@@ -106,8 +106,11 @@ parse_verdict() {
         echo "REJECTED"
     elif echo "$output" | grep -qi "PASS\|approved\|looks good\|no issues"; then
         echo "PASS"
-    else
+    elif echo "$output" | grep -qi "WARN\|warning\|caution"; then
         echo "WARN"
+    else
+        # No parseable verdict = failure mode, not a warning
+        echo "CRITICAL_FAIL"
     fi
 }
 

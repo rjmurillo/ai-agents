@@ -315,12 +315,12 @@ runs:
         set -e
 
         if [ $EXIT_CODE -eq 124 ]; then
-          echo "Warning: Copilot CLI timed out after ${TIMEOUT_MINUTES} minutes"
-          OUTPUT="VERDICT: WARN"$'\n'"MESSAGE: AI review timed out, manual review recommended"
+          echo "::error::Copilot CLI timed out after ${TIMEOUT_MINUTES} minutes"
+          OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: AI review timed out - this is a blocking failure, not a warning"
         elif [ $EXIT_CODE -ne 0 ]; then
-          echo "Warning: Copilot CLI exited with code $EXIT_CODE"
+          echo "::error::Copilot CLI exited with code $EXIT_CODE"
           if [ -z "$OUTPUT" ]; then
-            OUTPUT="VERDICT: WARN"$'\n'"MESSAGE: AI review failed (exit code $EXIT_CODE), manual review recommended"
+            OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: AI review failed (exit code $EXIT_CODE) - CLI produced no output"
           fi
         fi
 
@@ -360,8 +360,12 @@ runs:
             VERDICT="REJECTED"
           elif echo "$OUTPUT" | grep -qi "PASS\|approved\|looks good"; then
             VERDICT="PASS"
-          else
+          elif echo "$OUTPUT" | grep -qi "WARN\|warning\|caution"; then
             VERDICT="WARN"
+          else
+            # No parseable verdict = failure mode, not a warning
+            echo "::error::Could not parse verdict from AI output - treating as failure"
+            VERDICT="CRITICAL_FAIL"
           fi
         fi
 
