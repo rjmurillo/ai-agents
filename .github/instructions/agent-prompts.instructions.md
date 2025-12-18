@@ -9,6 +9,7 @@ For comprehensive agent prompt standards, see [.agents/steering/agent-prompts.md
 ## Quick Reference
 
 **Front Matter Template:**
+
 ```yaml
 ---
 name: agent-name
@@ -19,11 +20,13 @@ argument-hint: Example of how to invoke this agent
 ```
 
 **Model Selection** (per ADR-002):
+
 - **opus**: architect, high-level-advisor, implementer, independent-thinker, orchestrator, roadmap, security
 - **sonnet**: analyst, critic, devops, explainer, memory, planner, pr-comment-responder, qa, retrospective, skillbook, task-generator  
 - **haiku**: Reserved for high-volume/low-latency routing (not currently used)
 
 **Structure Requirements:**
+
 1. Front matter with YAML metadata
 2. Core Identity section
 3. Responsibilities list

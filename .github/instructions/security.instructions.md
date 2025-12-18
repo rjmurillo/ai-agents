@@ -9,6 +9,7 @@ For comprehensive security guidance, see [.agents/steering/security-practices.md
 ## Quick Reference
 
 ### OWASP Top 10 Focus Areas
+
 - **Injection**: Validate and sanitize all input
 - **Broken Authentication**: Use industry-standard protocols (OAuth2, OIDC)  
 - **Sensitive Data Exposure**: Never hardcode secrets
@@ -23,36 +24,44 @@ For comprehensive security guidance, see [.agents/steering/security-practices.md
 ### Critical Patterns
 
 **Authentication:**
+
 - Use OAuth2 with PKCE for authorization code flow
 - Validate JWT signatures, issuer, audience, expiration
 - Never use plain SHA for passwords (use bcrypt or Argon2)
 - Implement rate limiting against brute force
 
 **Secrets Management:**
+
 - Never hardcode credentials, API keys, tokens
 - Use secure configuration (environment variables, key vaults)
 - Rotate secrets regularly
 - Audit .env files, never commit them
 
 **Input Validation:**
+
 - Validate all external input (APIs, forms, files)
 - Use allowlists, not denylists
 - Sanitize before processing
 - Prevent SQL injection, command injection, path traversal
 
 **Output Encoding:**
+
 - Encode output to prevent XSS
 - Use context-appropriate encoding (HTML, JavaScript, URL)
 
 ### File Path Triggers
+
 Security review REQUIRED for changes to:
+
 - `**/Auth/**` - Authentication/authorization code
 - `.githooks/*` - Pre-commit hooks (can leak secrets)
 - `*.env*` - Environment configuration
 - `**/*.secrets.*` - Secret storage patterns
 
 ### Threat Modeling
+
 Apply STRIDE for new features:
+
 - **S**poofing: Authentication controls
 - **T**ampering: Integrity controls
 - **R**epudiation: Logging and auditing
