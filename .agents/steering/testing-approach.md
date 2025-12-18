@@ -1,6 +1,6 @@
 ---
 name: Testing Approach
-applyTo: "**/*.test.*,**/*.spec.*"
+applyTo: "**/*.Tests.ps1"
 priority: 7
 version: 0.1.0
 status: placeholder
@@ -13,28 +13,27 @@ status: placeholder
 ## Scope
 
 **Applies to**: 
-- `**/*.test.*` - Test files
-- `**/*.spec.*` - Specification files
+- `**/*.Tests.ps1` - Pester test files
 
 ## Purpose
 
-This steering file will provide testing conventions and patterns.
+This steering file will provide Pester testing conventions and patterns.
 
 ## Planned Content (Phase 4)
 
 ### Guidelines
-- xUnit conventions
-- Test naming patterns
+- Pester 5.x conventions
+- Test naming patterns (Describe/Context/It)
 - AAA pattern (Arrange, Act, Assert)
 - Test isolation
 - Coverage expectations (≥80%)
 
 ### Patterns
-- Unit test structure
-- Integration test patterns
-- Mocking strategies (Moq)
-- Test data builders
-- Fixture management
+- Describe/Context/It structure
+- BeforeAll/BeforeEach setup
+- Mock usage with Pester
+- Parameter validation testing
+- Pipeline testing
 
 ### Anti-Patterns
 - Test interdependencies
@@ -44,9 +43,9 @@ This steering file will provide testing conventions and patterns.
 - Overly complex tests
 
 ### Examples
-- Well-structured unit tests
-- Integration test scenarios
-- Mocking examples
+- Well-structured Pester tests
+- Mock scenarios
+- Parameter validation tests
 
 ---
 

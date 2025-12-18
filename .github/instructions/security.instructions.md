@@ -1,5 +1,5 @@
 ---
-applyTo: "**/Auth/**,*.env*,**/*.secrets.*,.githooks/*"
+applyTo: "**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,.githooks/**"
 ---
 
 # Security Best Practices

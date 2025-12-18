@@ -1,6 +1,6 @@
 ---
 name: Security Practices
-applyTo: "**/Auth/**,*.env*,**/*.secrets.*"
+applyTo: "**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,.githooks/**"
 priority: 10
 version: 0.1.0
 status: placeholder
@@ -16,6 +16,8 @@ status: placeholder
 - `**/Auth/**` - Authentication/authorization code
 - `*.env*` - Environment configuration
 - `**/*.secrets.*` - Secret management
+- `.github/workflows/**` - GitHub Actions workflows (secret exposure, code injection)
+- `.githooks/**` - Git hooks (pre-commit secret scanning)
 
 ## Purpose
 
