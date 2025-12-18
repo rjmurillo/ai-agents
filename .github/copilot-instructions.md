@@ -21,6 +21,33 @@ This is NON-NEGOTIABLE. Do not read files, do not search, do not answer question
 
 ---
 
+## ⚠️ MANDATORY: Session Protocol Applies ALWAYS
+
+**The session protocol is NON-NEGOTIABLE, including for:**
+
+- Resumed/continued conversations (context summarization does NOT exempt you)
+- "Quick" tasks (even a 2-command task is still a session)
+- Instructions saying "continue without asking questions" (that refers to task questions, not protocol)
+
+**Minimum session checklist:**
+
+```text
+START (before any work):
+□ Initialize Serena (see above)
+□ Read .agents/HANDOFF.md for context
+
+END (before session closes):
+□ Update .agents/HANDOFF.md with what was done
+□ Run: npx markdownlint-cli2 --fix "**/*.md"
+□ Commit .agents/ files if changed
+```
+
+**Why this matters**: You are an expert amnesiac. Without reading HANDOFF.md, you will repeat work or contradict prior decisions. Without updating it, the next session starts blind.
+
+See [AGENTS.md § Session Protocol](../AGENTS.md#-mandatory-follow-session-workflow-protocol) for the full checklist.
+
+---
+
 Refer to [AGENTS.md](../AGENTS.md) for complete project instructions.
 
 This file exists for GitHub Copilot's repo-level custom instructions. All canonical agent documentation is maintained in `AGENTS.md` to follow the DRY principle.
