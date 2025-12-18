@@ -25,8 +25,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    # Skip for issues from bots
-    if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+    # Skip for bots and non-substantive edits (title-only changes)
+    # For 'edited' events, only run if the body changed (not just title)
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      github.actor != 'github-actions[bot]' &&
+      (github.event.action != 'edited' || github.event.changes.body != null)
 
     steps:
       - name: Checkout repository
