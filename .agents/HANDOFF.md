@@ -411,6 +411,17 @@ cat .agents/governance/consistency-protocol.md
 - Configure `secrets.BOT_PAT` with repo and issues:write scopes
 - Copilot CLI access for `rjmurillo-bot` service account
 
+**Retrospective**: [2025-12-18 AI Workflow Implementation](./retrospective/2025-12-18-ai-workflow-implementation.md)
+
+**Key Learnings**:
+
+1. **Parallel exploration pattern**: 3 concurrent Explore agents reduced planning time by ~50%
+2. **Plan approval checkpoint**: User reviewed architecture before implementation → zero bugs
+3. **Composite action pattern**: Saved ~1,368 LOC via reuse (1 action × 4 workflows)
+4. **Structured output tokens**: PASS/WARN/CRITICAL_FAIL enable deterministic bash parsing
+
+**Skills Extracted**: 6 (4 new, 2 updated) with ≥92% atomicity scores
+
 **Status**: Complete - PR #60 ready for review
 
 ---
