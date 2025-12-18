@@ -15,16 +15,25 @@ on:
       - '.github/**'
       - '.agents/**'
 
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+        type: number
+
 permissions:
   contents: read
   pull-requests: write
 
 concurrency:
-  group: ai-quality-${{ github.event.pull_request.number }}
+  group: ai-quality-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
 
 env:
   GH_TOKEN: ${{ secrets.BOT_PAT }}
+  # Compute PR number from either pull_request event or workflow_dispatch input
+  PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 jobs:
   ai-quality-review:
@@ -50,7 +59,7 @@ jobs:
       - name: Check for docs-only changes
         id: check-changes
         run: |
-          CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only)
+          CHANGED_FILES=$(gh pr diff ${{ env.PR_NUMBER }} --name-only)
 
           # Check if only documentation files changed
           NON_DOC_FILES=$(echo "$CHANGED_FILES" | grep -vE '\.(md|txt|rst)$' | grep -v '^docs/' || true)
@@ -70,7 +79,7 @@ jobs:
         with:
           agent: security
           context-type: pr-diff
-          pr-number: ${{ github.event.pull_request.number }}
+          pr-number: ${{ env.PR_NUMBER }}
           prompt-file: .github/prompts/pr-quality-gate-security.md
           timeout-minutes: 5
           bot-pat: ${{ secrets.BOT_PAT }}
@@ -82,7 +91,7 @@ jobs:
         with:
           agent: qa
           context-type: pr-diff
-          pr-number: ${{ github.event.pull_request.number }}
+          pr-number: ${{ env.PR_NUMBER }}
           prompt-file: .github/prompts/pr-quality-gate-qa.md
           timeout-minutes: 5
           bot-pat: ${{ secrets.BOT_PAT }}
@@ -94,7 +103,7 @@ jobs:
         with:
           agent: analyst
           context-type: pr-diff
-          pr-number: ${{ github.event.pull_request.number }}
+          pr-number: ${{ env.PR_NUMBER }}
           prompt-file: .github/prompts/pr-quality-gate-analyst.md
           timeout-minutes: 5
           bot-pat: ${{ secrets.BOT_PAT }}
@@ -245,7 +254,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           source .github/scripts/ai-review-common.sh
-          post_pr_comment "${{ github.event.pull_request.number }}" "${{ steps.report.outputs.report_file }}" "AI-PR-QUALITY-GATE"
+          post_pr_comment "${{ env.PR_NUMBER }}" "${{ steps.report.outputs.report_file }}" "AI-PR-QUALITY-GATE"
 
       - name: Set Job Summary
         if: steps.check-changes.outputs.skip_review != 'true'
