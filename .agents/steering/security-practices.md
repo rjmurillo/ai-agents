@@ -1,6 +1,6 @@
 ---
 name: Security Practices
-scope: "**/Auth/**,*.env*,**/*.secrets.*"
+applyTo: "**/Auth/**,*.env*,**/*.secrets.*"
 priority: 10
 version: 0.1.0
 status: placeholder

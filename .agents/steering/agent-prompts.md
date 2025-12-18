@@ -1,6 +1,6 @@
 ---
 name: Agent Prompts
-scope: "src/claude/**/*.md,.github/copilot-instructions.md"
+applyTo: "src/claude/**/*.md,.github/copilot-instructions.md"
 priority: 9
 version: 0.1.0
 status: placeholder

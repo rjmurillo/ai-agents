@@ -1,44 +1,34 @@
-applyTo: "src/claude/**/*.md,.github/copilot-instructions.md"
+---
+applyTo: "**/AGENTS.md,.github/copilot-instructions.md,src/claude/**/*.md,templates/agents/**/*.md"
+---
 
 # Agent Prompt Standards
 
-Guidelines for writing consistent, effective agent prompts.
+For comprehensive agent prompt standards, see [.agents/steering/agent-prompts.md](../../.agents/steering/agent-prompts.md) and [.agents/AGENT-SYSTEM.md](../../.agents/AGENT-SYSTEM.md).
 
-## Structure
+## Quick Reference
 
-All agent prompts must include:
-
-1. **Front matter**: YAML metadata (name, description, model, argument-hint)
-2. **Core Identity**: Role and primary purpose
-3. **Responsibilities**: Numbered list of key tasks
-4. **Delegation Protocol**: How to hand off to other agents
-5. **Output Format**: Expected artifact structure
-6. **Quality Gates**: Validation criteria
-
-## Best Practices
-
-- **Clear scope**: Define what agent does and doesn't do
-- **Explicit handoffs**: Specify when to delegate to other agents
-- **Memory integration**: Use cloudmcp-manager for context
-- **Consistent terminology**: Use standard terms from AGENT-SYSTEM.md
-- **Examples**: Include concrete examples of outputs
-
-## Front Matter Template
-
+**Front Matter Template:**
 ```yaml
 ---
 name: agent-name
 description: One-line description of agent purpose
-model: sonnet | opus
+model: sonnet | opus | haiku
 argument-hint: Example of how to invoke this agent
 ---
 ```
 
-## Anti-Patterns to Avoid
+**Model Selection** (per ADR-002):
+- **opus**: architect, high-level-advisor, implementer, independent-thinker, orchestrator, roadmap, security
+- **sonnet**: analyst, critic, devops, explainer, memory, planner, pr-comment-responder, qa, retrospective, skillbook, task-generator  
+- **haiku**: Reserved for high-volume/low-latency routing (not currently used)
 
-- ❌ Ambiguous delegation instructions
-- ❌ Missing success criteria
-- ❌ Inconsistent artifact naming
-- ❌ Unclear output expectations
+**Structure Requirements:**
+1. Front matter with YAML metadata
+2. Core Identity section
+3. Responsibilities list
+4. Delegation Protocol
+5. Output Format specification
+6. Quality Gates
 
-*Note: Full steering content to be implemented in Phase 4. See `.agents/steering/agent-prompts.md` for placeholder.*
+*This file serves as a Copilot-specific entry point. The authoritative steering content is maintained in `.agents/steering/agent-prompts.md` and `.agents/AGENT-SYSTEM.md`.*

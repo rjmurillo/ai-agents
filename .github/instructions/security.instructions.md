@@ -1,38 +1,63 @@
-applyTo: "**/Auth/**,*.env*,**/*.secrets.*"
+---
+applyTo: "**/Auth/**,*.env*,**/*.secrets.*,.githooks/*"
+---
 
 # Security Best Practices
 
-Apply OWASP security guidelines for authentication, authorization, and sensitive data handling.
+For comprehensive security guidance, see [.agents/steering/security-practices.md](../../.agents/steering/security-practices.md) and the security agent at [src/claude/security.md](../../src/claude/security.md).
 
-## Key Requirements
+## Quick Reference
 
-- **Authentication**: Use industry-standard protocols (OAuth2, OIDC)
-- **Authorization**: Implement role-based or claims-based access control
-- **Secrets**: Never hardcode secrets, use secure configuration
-- **Input validation**: Validate and sanitize all external input
-- **Output encoding**: Encode output to prevent injection attacks
-- **Cryptography**: Use platform crypto libraries, never roll your own
+### OWASP Top 10 Focus Areas
+- **Injection**: Validate and sanitize all input
+- **Broken Authentication**: Use industry-standard protocols (OAuth2, OIDC)  
+- **Sensitive Data Exposure**: Never hardcode secrets
+- **XXE/XSS**: Encode output, validate XML
+- **Broken Access Control**: Implement RBAC/claims-based authz
+- **Security Misconfiguration**: Secure defaults, minimal exposure
+- **Insecure Deserialization**: Validate serialized data
+- **Using Components with Known Vulnerabilities**: Audit dependencies
+- **Insufficient Logging**: Log security events
+- **Server-Side Request Forgery (SSRF)**: Validate URLs
 
-## Patterns
+### Critical Patterns
 
-- **PKCE**: For OAuth2 authorization code flow
-- **JWT validation**: Verify signature, issuer, audience, expiration
-- **Password hashing**: Use bcrypt or Argon2, never plain SHA
-- **Rate limiting**: Protect against brute force attacks
-- **CSRF protection**: Implement anti-forgery tokens
+**Authentication:**
+- Use OAuth2 with PKCE for authorization code flow
+- Validate JWT signatures, issuer, audience, expiration
+- Never use plain SHA for passwords (use bcrypt or Argon2)
+- Implement rate limiting against brute force
 
-## Anti-Patterns to Avoid
+**Secrets Management:**
+- Never hardcode credentials, API keys, tokens
+- Use secure configuration (environment variables, key vaults)
+- Rotate secrets regularly
+- Audit .env files, never commit them
 
-- ❌ Hardcoded credentials or API keys
-- ❌ Weak password policies
-- ❌ Missing input validation
-- ❌ SQL injection vulnerabilities
-- ❌ Timing attacks on authentication
+**Input Validation:**
+- Validate all external input (APIs, forms, files)
+- Use allowlists, not denylists
+- Sanitize before processing
+- Prevent SQL injection, command injection, path traversal
 
-## Threat Modeling
+**Output Encoding:**
+- Encode output to prevent XSS
+- Use context-appropriate encoding (HTML, JavaScript, URL)
 
-- Consider STRIDE for new features
-- Document security controls
-- Review authentication flows for vulnerabilities
+### File Path Triggers
+Security review REQUIRED for changes to:
+- `**/Auth/**` - Authentication/authorization code
+- `.githooks/*` - Pre-commit hooks (can leak secrets)
+- `*.env*` - Environment configuration
+- `**/*.secrets.*` - Secret storage patterns
 
-*Note: Full steering content to be implemented in Phase 4. See `.agents/steering/security-practices.md` for placeholder.*
+### Threat Modeling
+Apply STRIDE for new features:
+- **S**poofing: Authentication controls
+- **T**ampering: Integrity controls
+- **R**epudiation: Logging and auditing
+- **I**nformation Disclosure: Encryption, access control
+- **D**enial of Service: Rate limiting, resource limits
+- **E**levation of Privilege**: Authorization, least privilege
+
+*This file serves as a Copilot-specific entry point. The authoritative steering content is maintained in `.agents/steering/security-practices.md` and the security agent expertise in `src/claude/security.md`.*

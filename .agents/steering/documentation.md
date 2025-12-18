@@ -1,6 +1,6 @@
 ---
 name: Documentation Standards
-scope: "**/*.md"
+applyTo: "**/*.md"
 exclude: "src/claude/**/*.md,.agents/steering/**"
 priority: 5
 version: 0.1.0

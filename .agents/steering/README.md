@@ -8,7 +8,19 @@ The steering system provides context-aware guidance injection for agents based o
 
 Steering files contain domain-specific guidance that gets injected into agent context when working with matching files. This implements the Kiro pattern of glob-based inclusion.
 
-**Note**: For GitHub Copilot users, equivalent path-specific custom instructions are available in `.github/instructions/` with the `applyTo:` directive format. See [GitHub Copilot Custom Instructions](https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions#creating-path-specific-custom-instructions-3) for details.
+### Unified Steering Architecture
+
+The steering system uses a **single source of truth** approach:
+
+- **Authoritative Source**: `.agents/steering/` - Full steering content for all platforms
+- **Copilot Entry Points**: `.github/instructions/` - Lightweight pointers with quick reference
+
+This design avoids content duplication while supporting both Claude-based agents (via orchestrator injection) and GitHub Copilot (via `applyTo:` directive). The `.github/instructions/` files contain:
+1. Front matter with `applyTo:` glob patterns
+2. Links to authoritative `.agents/steering/` content  
+3. Quick reference snippets for immediate context
+
+See [GitHub Copilot Custom Instructions](https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions#creating-path-specific-custom-instructions-3) for how Copilot uses these files.
 
 ## How It Works
 
@@ -73,11 +85,14 @@ Each steering file includes:
 ```yaml
 ---
 name: [Steering File Name]
-scope: [Glob pattern(s)]
+applyTo: [Glob pattern(s)]
 priority: [1-10, higher = more important]
 version: [Semantic version]
+status: [placeholder | draft | published]
 ---
 ```
+
+**Note**: `applyTo` uses the same glob pattern format as GitHub Copilot's custom instructions for consistency.
 
 ### Content Sections
 
@@ -122,98 +137,50 @@ version: [Semantic version]
 | `*.cs` | C# files (current dir) | `Program.cs` |
 | `**/*.cs` | C# files (all dirs) | `src/Auth/TokenService.cs` |
 | `**/Auth/**` | Files in Auth dirs | `src/Auth/Models/User.cs` |
-| `**/*.test.*` | Test files | `TokenService.test.cs` |
+| `**/*.Tests.ps1` | Pester test files | `Get-Config.Tests.ps1` |
 | `*.{cs,ts}` | C# or TypeScript | `Service.cs`, `service.ts` |
 
-## Steering Files (Planned - Phase 4)
+## Steering Files (Phase 4)
 
-### csharp-patterns.md
-
-**Scope**: `**/*.cs`
-
-**Content**:
-- SOLID principles
-- Naming conventions
-- Async/await patterns
-- Exception handling
-- Performance patterns
-
-### agent-prompts.md
-
-**Scope**: `src/claude/**/*.md`
-
-**Content**:
-- Prompt engineering guidelines
-- Agent interface consistency
-- Memory protocol usage
-- Handoff format
-
-### testing-approach.md
-
-**Scope**: `**/*.test.*, **/*.spec.*`
-
-**Content**:
-- xUnit conventions
-- Test naming patterns
-- Mocking strategies
-- Coverage expectations
-
-### security-practices.md
-
-**Scope**: `**/Auth/**, *.env*, **/*.secrets.*`
-
-**Content**:
-- OWASP guidelines
-- Authentication patterns
-- Secrets management
-- Input validation
-
-### documentation.md
-
-**Scope**: `**/*.md` (excluding `src/claude/`)
-
-**Content**:
-- Markdown formatting
-- Document structure
-- Cross-reference format
-- Metadata requirements
+| File | applyTo Pattern | Purpose | Copilot Entry Point |
+|------|-----------------|---------|---------------------|
+| `agent-prompts.md` | `**/AGENTS.md,src/claude/**/*.md,templates/agents/**/*.md` | Agent prompt standards | `.github/instructions/agent-prompts.instructions.md` |
+| `security-practices.md` | `**/Auth/**,*.env*,**/*.secrets.*,.githooks/*` | Security best practices | `.github/instructions/security.instructions.md` |
+| `testing-approach.md` | `**/*.Tests.ps1` | Pester testing conventions | `.github/instructions/testing.instructions.md` |
+| `documentation.md` | `**/*.md` (excluding agents/steering) | Documentation standards | `.github/instructions/documentation.instructions.md` |
 
 ## Usage Example
 
 ### Task Scenario
 
 ```text
-User: Implement user login endpoint
+User: Write Pester tests for the steering matcher skill
 Orchestrator analyzes:
-- Files: src/Auth/Controllers/AuthController.cs
+- Files: .claude/skills/steering-matcher/Get-ApplicableSteering.Tests.ps1
 - Matches:
-  - csharp-patterns.md (**.cs)
-  - security-practices.md (**/Auth/**)
+  - testing-approach.md (**/*.Tests.ps1)
 
-Orchestrator to implementer:
-"Implement login endpoint.
+Orchestrator to qa:
+"Create test strategy for PowerShell skill.
 
 Context from steering:
-- csharp-patterns.md: Use async/await, validate inputs
-- security-practices.md: Hash passwords with bcrypt, prevent timing attacks
+- testing-approach.md: Use Pester AAA pattern, mock dependencies, verify behavior
 "
 ```
 
 ### Token Usage Comparison
 
 **Without steering scoping** (all files):
-- csharp-patterns.md: 2,500 tokens
 - agent-prompts.md: 1,800 tokens
-- testing-approach.md: 2,200 tokens
+- testing-approach.md: 2,200 tokens  
 - security-practices.md: 3,000 tokens
 - documentation.md: 1,500 tokens
-- **Total**: 11,000 tokens
+- **Total**: 8,500 tokens
 
 **With steering scoping** (matched only):
-- csharp-patterns.md: 2,500 tokens
-- security-practices.md: 3,000 tokens
-- **Total**: 5,500 tokens
-- **Savings**: 50%
+- testing-approach.md: 2,200 tokens
+- **Total**: 2,200 tokens
+- **Savings**: 74%
 
 ## Implementation Status
 

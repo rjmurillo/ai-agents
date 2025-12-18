@@ -1,6 +1,6 @@
 ---
 name: Testing Approach
-scope: "**/*.test.*,**/*.spec.*"
+applyTo: "**/*.test.*,**/*.spec.*"
 priority: 7
 version: 0.1.0
 status: placeholder

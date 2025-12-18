@@ -1,6 +1,6 @@
 ---
 name: C# Patterns
-scope: "**/*.cs"
+applyTo: "**/*.cs"
 priority: 8
 version: 0.1.0
 status: placeholder

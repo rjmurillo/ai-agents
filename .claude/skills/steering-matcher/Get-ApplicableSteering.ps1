@@ -17,50 +17,72 @@
     Get-ApplicableSteering -Files $files
 
 .OUTPUTS
-    Array of hashtables with steering file information (Name, Path, Scope, Priority).
+    Array of PSCustomObjects with steering file information (Name, Path, ApplyTo, Priority).
 #>
 
 function Get-ApplicableSteering {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [string[]]$Files,
 
         [Parameter(Mandatory = $false)]
         [string]$SteeringPath = ".agents/steering"
     )
+    
+    # Return empty array if no files provided
+    if ($Files.Count -eq 0) {
+        return @()
+    }
 
     # Get all steering files
     $steeringFiles = Get-ChildItem -Path $SteeringPath -Filter "*.md" -File | 
-        Where-Object { $_.Name -ne "README.md" }
+        Where-Object { $_.Name -ne "README.md" -and $_.Name -ne "SKILL.md" }
 
     $applicableSteering = @()
 
     foreach ($steeringFile in $steeringFiles) {
-        # Read front matter to get scope and priority
+        # Read front matter to get applyTo and priority
         $content = Get-Content -Path $steeringFile.FullName -Raw
         
         # Extract YAML front matter
         if ($content -match '(?s)^---\s*\n(.*?)\n---') {
             $frontMatter = $matches[1]
             
-            # Parse scope and priority
-            $scope = if ($frontMatter -match 'scope:\s*"([^"]+)"') { $matches[1] } else { $null }
+            # Parse applyTo and priority
+            $applyTo = if ($frontMatter -match 'applyTo:\s*"([^"]+)"') { $matches[1] } else { $null }
             $priority = if ($frontMatter -match 'priority:\s*(\d+)') { [int]$matches[1] } else { 5 }
 
-            if ($scope) {
-                # Split scope if it contains multiple patterns
-                $patterns = $scope -split ',' | ForEach-Object { $_.Trim() }
+            if ($applyTo) {
+                # Split applyTo if it contains multiple patterns
+                $patterns = $applyTo -split ',' | ForEach-Object { $_.Trim() }
 
                 # Check if any file matches any pattern
                 $matched = $false
                 foreach ($pattern in $patterns) {
                     foreach ($file in $Files) {
-                        # Convert glob pattern to regex
-                        $regexPattern = $pattern -replace '\*\*/', '.*/' -replace '\*', '[^/]*' -replace '\?', '.'
+                        # Normalize paths
+                        $normalizedFile = $file -replace '\\', '/'
+                        $normalizedPattern = $pattern -replace '\\', '/'
+                        
+                        # Convert glob pattern to regex (use placeholders to avoid interference)
+                        $regexPattern = $normalizedPattern
+                        $regexPattern = $regexPattern -replace '\*\*/', '<!GLOBSTAR_SLASH!>'
+                        $regexPattern = $regexPattern -replace '/\*\*', '<!SLASH_GLOBSTAR!>'
+                        $regexPattern = $regexPattern -replace '^\*\*', '<!START_GLOBSTAR!>'
+                        $regexPattern = $regexPattern -replace '\*\*$', '<!END_GLOBSTAR!>'
+                        $regexPattern = $regexPattern -replace '\*', '[^/]*'
+                        $regexPattern = $regexPattern -replace '\?', '.'
+                        $regexPattern = $regexPattern -replace '\.', '\.'
+                        # Replace placeholders with actual regex
+                        $regexPattern = $regexPattern -replace '<!GLOBSTAR_SLASH!>', '(?:.+/|)'
+                        $regexPattern = $regexPattern -replace '<!SLASH_GLOBSTAR!>', '/.*'
+                        $regexPattern = $regexPattern -replace '<!START_GLOBSTAR!>', '.*'
+                        $regexPattern = $regexPattern -replace '<!END_GLOBSTAR!>', '.*'
                         $regexPattern = "^$regexPattern$"
 
-                        if ($file -match $regexPattern) {
+                        if ($normalizedFile -match $regexPattern) {
                             $matched = $true
                             break
                         }
@@ -69,10 +91,10 @@ function Get-ApplicableSteering {
                 }
 
                 if ($matched) {
-                    $applicableSteering += @{
+                    $applicableSteering += [PSCustomObject]@{
                         Name     = $steeringFile.BaseName
                         Path     = $steeringFile.FullName
-                        Scope    = $scope
+                        ApplyTo  = $applyTo
                         Priority = $priority
                     }
                 }
@@ -95,6 +117,6 @@ $steering = Get-ApplicableSteering -Files $files -SteeringPath ".agents/steering
 
 foreach ($s in $steering) {
     Write-Host "Matched: $($s.Name) (Priority: $($s.Priority))"
-    Write-Host "  Scope: $($s.Scope)"
+    Write-Host "  ApplyTo: $($s.ApplyTo)"
 }
 #>
