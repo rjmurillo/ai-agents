@@ -1,7 +1,7 @@
 name: AI PR Quality Gate
 
 # AI-powered PR review using GitHub Copilot CLI
-# Invokes security, qa, and analyst agents to review PRs
+# Invokes security, qa, and analyst agents to review PRs IN PARALLEL
 # Blocks merge if CRITICAL_FAIL detected
 
 on:
@@ -31,37 +31,27 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # GitHub CLI authentication (for gh commands)
-  GH_TOKEN: ${{ secrets.BOT_PAT }}
-  # Copilot CLI authentication (requires fine-grained PAT with "Copilot Requests" permission)
-  # See: docs/copilot-cli-setup.md for token creation instructions
-  COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
   # Compute PR number from either pull_request event or workflow_dispatch input
   PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 jobs:
-  ai-quality-review:
-    name: AI Quality Review
+  # Quick check to see if we should skip AI review (docs-only changes)
+  check-changes:
+    name: Check Changes
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    # Skip for PRs from bots (avoid recursive reviews)
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
-      final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
-      security-verdict: ${{ steps.security.outputs.verdict }}
-      qa-verdict: ${{ steps.qa.outputs.verdict }}
-      analyst-verdict: ${{ steps.analyst.outputs.verdict }}
+      skip_review: ${{ steps.check.outputs.skip_review }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          fetch-depth: 0
 
       - name: Check for docs-only changes
-        id: check-changes
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
           CHANGED_FILES=$(gh pr diff ${{ env.PR_NUMBER }} --name-only)
 
@@ -76,54 +66,89 @@ jobs:
             echo "skip_review=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Security Review
-        id: security
-        if: steps.check-changes.outputs.skip_review != 'true'
+  # Run all three reviews in parallel using matrix strategy
+  review:
+    name: ${{ matrix.agent }} Review
+    runs-on: ubuntu-latest
+    needs: check-changes
+    if: needs.check-changes.outputs.skip_review != 'true'
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false  # Don't cancel other reviews if one fails
+      matrix:
+        include:
+          - agent: security
+            prompt-file: .github/prompts/pr-quality-gate-security.md
+            emoji: "🔒"
+          - agent: qa
+            prompt-file: .github/prompts/pr-quality-gate-qa.md
+            emoji: "🧪"
+          - agent: analyst
+            prompt-file: .github/prompts/pr-quality-gate-analyst.md
+            emoji: "📊"
+
+    outputs:
+      # Each matrix job writes to its own output
+      security-verdict: ${{ steps.set-output.outputs.security-verdict }}
+      security-findings: ${{ steps.set-output.outputs.security-findings }}
+      qa-verdict: ${{ steps.set-output.outputs.qa-verdict }}
+      qa-findings: ${{ steps.set-output.outputs.qa-findings }}
+      analyst-verdict: ${{ steps.set-output.outputs.analyst-verdict }}
+      analyst-findings: ${{ steps.set-output.outputs.analyst-findings }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      - name: ${{ matrix.emoji }} ${{ matrix.agent }} Review
+        id: review
         uses: ./.github/actions/ai-review
         with:
-          agent: security
+          agent: ${{ matrix.agent }}
           context-type: pr-diff
           pr-number: ${{ env.PR_NUMBER }}
-          prompt-file: .github/prompts/pr-quality-gate-security.md
+          prompt-file: ${{ matrix.prompt-file }}
           timeout-minutes: 5
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-      - name: QA Review
-        id: qa
-        if: steps.check-changes.outputs.skip_review != 'true'
-        uses: ./.github/actions/ai-review
-        with:
-          agent: qa
-          context-type: pr-diff
-          pr-number: ${{ env.PR_NUMBER }}
-          prompt-file: .github/prompts/pr-quality-gate-qa.md
-          timeout-minutes: 5
-          bot-pat: ${{ secrets.BOT_PAT }}
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+      - name: Set matrix output
+        id: set-output
+        run: |
+          # Write outputs with agent-specific keys so aggregate job can read them
+          echo "${{ matrix.agent }}-verdict=${{ steps.review.outputs.verdict }}" >> $GITHUB_OUTPUT
+          {
+            echo "${{ matrix.agent }}-findings<<EOF_FINDINGS"
+            echo "${{ steps.review.outputs.findings }}"
+            echo "EOF_FINDINGS"
+          } >> $GITHUB_OUTPUT
 
-      - name: Analyst Review
-        id: analyst
-        if: steps.check-changes.outputs.skip_review != 'true'
-        uses: ./.github/actions/ai-review
-        with:
-          agent: analyst
-          context-type: pr-diff
-          pr-number: ${{ env.PR_NUMBER }}
-          prompt-file: .github/prompts/pr-quality-gate-analyst.md
-          timeout-minutes: 5
-          bot-pat: ${{ secrets.BOT_PAT }}
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+  # Aggregate results from all parallel reviews
+  aggregate:
+    name: Aggregate Results
+    runs-on: ubuntu-latest
+    needs: [check-changes, review]
+    if: needs.check-changes.outputs.skip_review != 'true'
+
+    outputs:
+      final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Aggregate Verdicts
         id: aggregate
-        if: steps.check-changes.outputs.skip_review != 'true'
         run: |
           source .github/scripts/ai-review-common.sh
 
-          SECURITY_VERDICT="${{ steps.security.outputs.verdict }}"
-          QA_VERDICT="${{ steps.qa.outputs.verdict }}"
-          ANALYST_VERDICT="${{ steps.analyst.outputs.verdict }}"
+          # Get verdicts from matrix job outputs
+          SECURITY_VERDICT="${{ needs.review.outputs.security-verdict }}"
+          QA_VERDICT="${{ needs.review.outputs.qa-verdict }}"
+          ANALYST_VERDICT="${{ needs.review.outputs.analyst-verdict }}"
 
           log "Security verdict: $SECURITY_VERDICT"
           log "QA verdict: $QA_VERDICT"
@@ -133,10 +158,16 @@ jobs:
           log "Final verdict: $FINAL"
 
           echo "final_verdict=$FINAL" >> $GITHUB_OUTPUT
+          echo "security_verdict=$SECURITY_VERDICT" >> $GITHUB_OUTPUT
+          echo "qa_verdict=$QA_VERDICT" >> $GITHUB_OUTPUT
+          echo "analyst_verdict=$ANALYST_VERDICT" >> $GITHUB_OUTPUT
 
       - name: Generate Report
         id: report
-        if: steps.check-changes.outputs.skip_review != 'true'
+        env:
+          SECURITY_FINDINGS: ${{ needs.review.outputs.security-findings }}
+          QA_FINDINGS: ${{ needs.review.outputs.qa-findings }}
+          ANALYST_FINDINGS: ${{ needs.review.outputs.analyst-findings }}
         run: |
           source .github/scripts/ai-review-common.sh
 
@@ -154,9 +185,9 @@ jobs:
             esac
           }
 
-          SECURITY_VERDICT="${{ steps.security.outputs.verdict }}"
-          QA_VERDICT="${{ steps.qa.outputs.verdict }}"
-          ANALYST_VERDICT="${{ steps.analyst.outputs.verdict }}"
+          SECURITY_VERDICT="${{ steps.aggregate.outputs.security_verdict }}"
+          QA_VERDICT="${{ steps.aggregate.outputs.qa_verdict }}"
+          ANALYST_VERDICT="${{ steps.aggregate.outputs.analyst_verdict }}"
 
           SECURITY_EMOJI=$(get_verdict_emoji "$SECURITY_VERDICT")
           QA_EMOJI=$(get_verdict_emoji "$QA_VERDICT")
@@ -174,7 +205,7 @@ jobs:
           <details>
           <summary>📋 Walkthrough</summary>
 
-          This PR was reviewed by three AI agents analyzing different aspects of the changes:
+          This PR was reviewed by three AI agents **in parallel**, analyzing different aspects of the changes:
 
           - **🔒 Security Agent**: Scans for vulnerabilities, secrets exposure, and security anti-patterns
           - **🧪 QA Agent**: Evaluates test coverage, error handling, and code quality
@@ -193,7 +224,7 @@ jobs:
           EOF
 
           # Add security findings with better formatting
-          if [ -n "${{ steps.security.outputs.findings }}" ]; then
+          if [ -n "$SECURITY_FINDINGS" ]; then
             cat >> "$REPORT_FILE" << 'SECTION_EOF'
 
           <details>
@@ -201,13 +232,13 @@ jobs:
 
           SECTION_EOF
             echo "" >> "$REPORT_FILE"
-            echo "${{ steps.security.outputs.findings }}" >> "$REPORT_FILE"
+            echo "$SECURITY_FINDINGS" >> "$REPORT_FILE"
             echo "" >> "$REPORT_FILE"
             echo "</details>" >> "$REPORT_FILE"
           fi
 
           # Add QA findings with better formatting
-          if [ -n "${{ steps.qa.outputs.findings }}" ]; then
+          if [ -n "$QA_FINDINGS" ]; then
             cat >> "$REPORT_FILE" << 'SECTION_EOF'
 
           <details>
@@ -215,13 +246,13 @@ jobs:
 
           SECTION_EOF
             echo "" >> "$REPORT_FILE"
-            echo "${{ steps.qa.outputs.findings }}" >> "$REPORT_FILE"
+            echo "$QA_FINDINGS" >> "$REPORT_FILE"
             echo "" >> "$REPORT_FILE"
             echo "</details>" >> "$REPORT_FILE"
           fi
 
           # Add analyst findings with better formatting
-          if [ -n "${{ steps.analyst.outputs.findings }}" ]; then
+          if [ -n "$ANALYST_FINDINGS" ]; then
             cat >> "$REPORT_FILE" << 'SECTION_EOF'
 
           <details>
@@ -229,7 +260,7 @@ jobs:
 
           SECTION_EOF
             echo "" >> "$REPORT_FILE"
-            echo "${{ steps.analyst.outputs.findings }}" >> "$REPORT_FILE"
+            echo "$ANALYST_FINDINGS" >> "$REPORT_FILE"
             echo "" >> "$REPORT_FILE"
             echo "</details>" >> "$REPORT_FILE"
           fi
@@ -256,7 +287,6 @@ jobs:
           echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
 
       - name: Post PR Comment
-        if: steps.check-changes.outputs.skip_review != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -264,12 +294,10 @@ jobs:
           post_pr_comment "${{ env.PR_NUMBER }}" "${{ steps.report.outputs.report_file }}" "AI-PR-QUALITY-GATE"
 
       - name: Set Job Summary
-        if: steps.check-changes.outputs.skip_review != 'true'
         run: |
           cat "${{ steps.report.outputs.report_file }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Check for Critical Failures
-        if: steps.check-changes.outputs.skip_review != 'true'
         run: |
           FINAL_VERDICT="${{ steps.aggregate.outputs.final_verdict }}"
 
