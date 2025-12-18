@@ -671,6 +671,169 @@ function Format-MarkdownTableRow {
 
 #endregion
 
+#region GitHub Comment Functions
+
+function Send-PRComment {
+    <#
+    .SYNOPSIS
+        Post or update a PR comment idempotently.
+
+    .DESCRIPTION
+        Posts a new comment or updates an existing one based on a marker.
+        The marker is added as an HTML comment for identification.
+
+    .PARAMETER PRNumber
+        The PR number.
+
+    .PARAMETER CommentFile
+        Path to the file containing the comment body.
+
+    .PARAMETER Marker
+        Unique marker to identify the comment for updates. Default: "AI-REVIEW"
+
+    .EXAMPLE
+        Send-PRComment -PRNumber 123 -CommentFile "/tmp/report.md" -Marker "AI-QUALITY-GATE"
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [int]$PRNumber,
+
+        [Parameter(Mandatory)]
+        [string]$CommentFile,
+
+        [Parameter()]
+        [string]$Marker = "AI-REVIEW"
+    )
+
+    if (-not (Test-Path $CommentFile)) {
+        Write-LogError "Comment file not found: $CommentFile"
+        return $false
+    }
+
+    $commentContent = Get-Content $CommentFile -Raw
+    $commentBody = "<!-- $Marker -->`n$commentContent"
+
+    # Check for existing comment with this marker
+    try {
+        $comments = gh pr view $PRNumber --json comments -q ".comments[] | select(.body | contains(`"<!-- $Marker -->`")) | .databaseId" 2>$null
+        $existingCommentId = ($comments -split "`n" | Select-Object -First 1)
+    }
+    catch {
+        $existingCommentId = $null
+    }
+
+    if ($existingCommentId) {
+        Write-Log "Updating existing comment (ID: $existingCommentId)"
+        try {
+            $repo = gh repo view --json nameWithOwner -q '.nameWithOwner' 2>$null
+            if ($repo) {
+                # Update via GitHub API using specific comment ID
+                $commentBody | gh api --method PATCH "/repos/$repo/issues/comments/$existingCommentId" -F body=@- --silent 2>$null
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning "Failed to update comment via API, creating new comment"
+                    $commentBody | gh pr comment $PRNumber --body-file -
+                }
+            }
+            else {
+                Write-Warning "Could not determine repo, creating new comment"
+                $commentBody | gh pr comment $PRNumber --body-file -
+            }
+        }
+        catch {
+            Write-Warning "Error updating comment: $_"
+            $commentBody | gh pr comment $PRNumber --body-file -
+        }
+    }
+    else {
+        Write-Log "Creating new comment"
+        $commentBody | gh pr comment $PRNumber --body-file -
+    }
+
+    return $LASTEXITCODE -eq 0
+}
+
+function Send-IssueComment {
+    <#
+    .SYNOPSIS
+        Post a comment on an issue.
+
+    .DESCRIPTION
+        Posts a new comment on an issue with an optional marker for identification.
+
+    .PARAMETER IssueNumber
+        The issue number.
+
+    .PARAMETER CommentFile
+        Path to the file containing the comment body.
+
+    .PARAMETER Marker
+        Optional marker to add to the comment. Default: "AI-TRIAGE"
+
+    .EXAMPLE
+        Send-IssueComment -IssueNumber 123 -CommentFile "/tmp/triage.md" -Marker "AI-TRIAGE"
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [int]$IssueNumber,
+
+        [Parameter(Mandatory)]
+        [string]$CommentFile,
+
+        [Parameter()]
+        [string]$Marker = "AI-TRIAGE"
+    )
+
+    if (-not (Test-Path $CommentFile)) {
+        Write-LogError "Comment file not found: $CommentFile"
+        return $false
+    }
+
+    $commentContent = Get-Content $CommentFile -Raw
+    $commentBody = "<!-- $Marker -->`n$commentContent"
+
+    Write-Log "Posting comment to issue #$IssueNumber"
+    $commentBody | gh issue comment $IssueNumber --body-file -
+
+    return $LASTEXITCODE -eq 0
+}
+
+function Get-VerdictEmoji {
+    <#
+    .SYNOPSIS
+        Get the emoji for a verdict.
+
+    .DESCRIPTION
+        Maps verdict values to appropriate emojis for display.
+
+    .PARAMETER Verdict
+        The verdict value.
+
+    .OUTPUTS
+        System.String - The emoji for the verdict.
+
+    .EXAMPLE
+        $emoji = Get-VerdictEmoji -Verdict 'PASS'
+        # Returns '✅'
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Verdict
+    )
+
+    switch ($Verdict) {
+        'PASS' { return '✅' }
+        'WARN' { return '⚠️' }
+        { $_ -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL' } { return '❌' }
+        default { return '❔' }
+    }
+}
+
+#endregion
+
 #region Module Initialization
 
 # Initialize on import
@@ -694,6 +857,7 @@ Export-ModuleMember -Function @(
     'Format-VerdictAlert'
     'Get-VerdictAlertType'
     'Get-VerdictExitCode'
+    'Get-VerdictEmoji'
     # Logging
     'Write-Log'
     'Write-LogError'
@@ -702,7 +866,7 @@ Export-ModuleMember -Function @(
     'Get-PRChangedFiles'
     'ConvertTo-JsonEscaped'
     'Format-MarkdownTableRow'
+    # GitHub Comments
+    'Send-PRComment'
+    'Send-IssueComment'
 )
-
-# Note: For GitHub operations (PR comments, issue management, etc.), use the
-# dedicated skill scripts in .claude/skills/github/ directly. See module help.

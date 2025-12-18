@@ -204,247 +204,177 @@ jobs:
 
       - name: Aggregate Verdicts
         id: aggregate
+        shell: pwsh
         run: |
-          source .github/scripts/ai-review-common.sh
+          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
 
           # Get verdicts from loaded results
-          SECURITY_VERDICT="${{ steps.load-results.outputs.security_verdict }}"
-          QA_VERDICT="${{ steps.load-results.outputs.qa_verdict }}"
-          ANALYST_VERDICT="${{ steps.load-results.outputs.analyst_verdict }}"
-          ARCHITECT_VERDICT="${{ steps.load-results.outputs.architect_verdict }}"
-          DEVOPS_VERDICT="${{ steps.load-results.outputs.devops_verdict }}"
-          ROADMAP_VERDICT="${{ steps.load-results.outputs.roadmap_verdict }}"
+          $securityVerdict = "${{ steps.load-results.outputs.security_verdict }}"
+          $qaVerdict = "${{ steps.load-results.outputs.qa_verdict }}"
+          $analystVerdict = "${{ steps.load-results.outputs.analyst_verdict }}"
+          $architectVerdict = "${{ steps.load-results.outputs.architect_verdict }}"
+          $devopsVerdict = "${{ steps.load-results.outputs.devops_verdict }}"
+          $roadmapVerdict = "${{ steps.load-results.outputs.roadmap_verdict }}"
 
-          log "Security verdict: $SECURITY_VERDICT"
-          log "QA verdict: $QA_VERDICT"
-          log "Analyst verdict: $ANALYST_VERDICT"
-          log "Architect verdict: $ARCHITECT_VERDICT"
-          log "DevOps verdict: $DEVOPS_VERDICT"
-          log "Roadmap verdict: $ROADMAP_VERDICT"
+          Write-Log "Security verdict: $securityVerdict"
+          Write-Log "QA verdict: $qaVerdict"
+          Write-Log "Analyst verdict: $analystVerdict"
+          Write-Log "Architect verdict: $architectVerdict"
+          Write-Log "DevOps verdict: $devopsVerdict"
+          Write-Log "Roadmap verdict: $roadmapVerdict"
 
-          FINAL=$(aggregate_verdicts "$SECURITY_VERDICT" "$QA_VERDICT" "$ANALYST_VERDICT" "$ARCHITECT_VERDICT" "$DEVOPS_VERDICT" "$ROADMAP_VERDICT")
-          log "Final verdict: $FINAL"
+          $final = Merge-Verdicts -Verdicts @($securityVerdict, $qaVerdict, $analystVerdict, $architectVerdict, $devopsVerdict, $roadmapVerdict)
+          Write-Log "Final verdict: $final"
 
-          echo "final_verdict=$FINAL" >> $GITHUB_OUTPUT
-          echo "security_verdict=$SECURITY_VERDICT" >> $GITHUB_OUTPUT
-          echo "qa_verdict=$QA_VERDICT" >> $GITHUB_OUTPUT
-          echo "analyst_verdict=$ANALYST_VERDICT" >> $GITHUB_OUTPUT
-          echo "architect_verdict=$ARCHITECT_VERDICT" >> $GITHUB_OUTPUT
-          echo "devops_verdict=$DEVOPS_VERDICT" >> $GITHUB_OUTPUT
-          echo "roadmap_verdict=$ROADMAP_VERDICT" >> $GITHUB_OUTPUT
+          "final_verdict=$final" >> $env:GITHUB_OUTPUT
+          "security_verdict=$securityVerdict" >> $env:GITHUB_OUTPUT
+          "qa_verdict=$qaVerdict" >> $env:GITHUB_OUTPUT
+          "analyst_verdict=$analystVerdict" >> $env:GITHUB_OUTPUT
+          "architect_verdict=$architectVerdict" >> $env:GITHUB_OUTPUT
+          "devops_verdict=$devopsVerdict" >> $env:GITHUB_OUTPUT
+          "roadmap_verdict=$roadmapVerdict" >> $env:GITHUB_OUTPUT
 
       - name: Generate Report
         id: report
+        shell: pwsh
+        env:
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
         run: |
-          source .github/scripts/ai-review-common.sh
+          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
 
-          REPORT_FILE="$AI_REVIEW_DIR/pr-quality-report.md"
-          FINAL_VERDICT="${{ steps.aggregate.outputs.final_verdict }}"
-          ALERT_TYPE=$(get_verdict_alert_type "$FINAL_VERDICT")
+          $reportDir = Initialize-AIReview
+          $reportFile = Join-Path $reportDir "pr-quality-report.md"
+          $finalVerdict = "${{ steps.aggregate.outputs.final_verdict }}"
+          $alertType = Get-VerdictAlertType -Verdict $finalVerdict
 
-          # Helper function to get verdict emoji
-          get_verdict_emoji() {
-            case "$1" in
-              PASS) echo "✅" ;;
-              WARN) echo "⚠️" ;;
-              CRITICAL_FAIL|REJECTED|FAIL) echo "❌" ;;
-              *) echo "❔" ;;
-            esac
-          }
+          # Get verdicts
+          $securityVerdict = "${{ steps.aggregate.outputs.security_verdict }}"
+          $qaVerdict = "${{ steps.aggregate.outputs.qa_verdict }}"
+          $analystVerdict = "${{ steps.aggregate.outputs.analyst_verdict }}"
+          $architectVerdict = "${{ steps.aggregate.outputs.architect_verdict }}"
+          $devopsVerdict = "${{ steps.aggregate.outputs.devops_verdict }}"
+          $roadmapVerdict = "${{ steps.aggregate.outputs.roadmap_verdict }}"
 
-          SECURITY_VERDICT="${{ steps.aggregate.outputs.security_verdict }}"
-          QA_VERDICT="${{ steps.aggregate.outputs.qa_verdict }}"
-          ANALYST_VERDICT="${{ steps.aggregate.outputs.analyst_verdict }}"
-          ARCHITECT_VERDICT="${{ steps.aggregate.outputs.architect_verdict }}"
-          DEVOPS_VERDICT="${{ steps.aggregate.outputs.devops_verdict }}"
-          ROADMAP_VERDICT="${{ steps.aggregate.outputs.roadmap_verdict }}"
+          # Get emojis
+          $securityEmoji = Get-VerdictEmoji -Verdict $securityVerdict
+          $qaEmoji = Get-VerdictEmoji -Verdict $qaVerdict
+          $analystEmoji = Get-VerdictEmoji -Verdict $analystVerdict
+          $architectEmoji = Get-VerdictEmoji -Verdict $architectVerdict
+          $devopsEmoji = Get-VerdictEmoji -Verdict $devopsVerdict
+          $roadmapEmoji = Get-VerdictEmoji -Verdict $roadmapVerdict
+          $finalEmoji = Get-VerdictEmoji -Verdict $finalVerdict
 
-          SECURITY_EMOJI=$(get_verdict_emoji "$SECURITY_VERDICT")
-          QA_EMOJI=$(get_verdict_emoji "$QA_VERDICT")
-          ANALYST_EMOJI=$(get_verdict_emoji "$ANALYST_VERDICT")
-          ARCHITECT_EMOJI=$(get_verdict_emoji "$ARCHITECT_VERDICT")
-          DEVOPS_EMOJI=$(get_verdict_emoji "$DEVOPS_VERDICT")
-          ROADMAP_EMOJI=$(get_verdict_emoji "$ROADMAP_VERDICT")
-          FINAL_EMOJI=$(get_verdict_emoji "$FINAL_VERDICT")
-
-          cat > "$REPORT_FILE" << EOF
+          # Build report content
+          $report = @"
           <!-- AI-PR-QUALITY-GATE -->
 
-          ## 🤖 AI Quality Gate Review
+          ## AI Quality Gate Review
 
-          > [!$ALERT_TYPE]
-          > $FINAL_EMOJI **Final Verdict: $FINAL_VERDICT**
+          > [!$alertType]
+          > $finalEmoji **Final Verdict: $finalVerdict**
 
           <details>
-          <summary>📋 Walkthrough</summary>
+          <summary>Walkthrough</summary>
 
           This PR was reviewed by six AI agents **in parallel**, analyzing different aspects of the changes:
 
-          - **🔒 Security Agent**: Scans for vulnerabilities, secrets exposure, and security anti-patterns
-          - **🧪 QA Agent**: Evaluates test coverage, error handling, and code quality
-          - **📊 Analyst Agent**: Assesses code quality, impact analysis, and maintainability
-          - **📐 Architect Agent**: Reviews design patterns, system boundaries, and architectural concerns
-          - **⚙️ DevOps Agent**: Evaluates CI/CD, build pipelines, and infrastructure changes
-          - **🗺️ Roadmap Agent**: Assesses strategic alignment, feature scope, and user value
+          - **Security Agent**: Scans for vulnerabilities, secrets exposure, and security anti-patterns
+          - **QA Agent**: Evaluates test coverage, error handling, and code quality
+          - **Analyst Agent**: Assesses code quality, impact analysis, and maintainability
+          - **Architect Agent**: Reviews design patterns, system boundaries, and architectural concerns
+          - **DevOps Agent**: Evaluates CI/CD, build pipelines, and infrastructure changes
+          - **Roadmap Agent**: Assesses strategic alignment, feature scope, and user value
 
           </details>
 
-          ### 📊 Review Summary
+          ### Review Summary
 
           | Agent | Verdict | Status |
           |:------|:--------|:------:|
-          | 🔒 Security | $SECURITY_VERDICT | $SECURITY_EMOJI |
-          | 🧪 QA | $QA_VERDICT | $QA_EMOJI |
-          | 📊 Analyst | $ANALYST_VERDICT | $ANALYST_EMOJI |
-          | 📐 Architect | $ARCHITECT_VERDICT | $ARCHITECT_EMOJI |
-          | ⚙️ DevOps | $DEVOPS_VERDICT | $DEVOPS_EMOJI |
-          | 🗺️ Roadmap | $ROADMAP_VERDICT | $ROADMAP_EMOJI |
+          | Security | $securityVerdict | $securityEmoji |
+          | QA | $qaVerdict | $qaEmoji |
+          | Analyst | $analystVerdict | $analystEmoji |
+          | Architect | $architectVerdict | $architectEmoji |
+          | DevOps | $devopsVerdict | $devopsEmoji |
+          | Roadmap | $roadmapVerdict | $roadmapEmoji |
 
-          EOF
+          "@
 
-          # Read findings from artifact files (safe from shell interpolation issues)
-          SECURITY_FINDINGS_FILE="ai-review-results/security-findings.txt"
-          QA_FINDINGS_FILE="ai-review-results/qa-findings.txt"
-          ANALYST_FINDINGS_FILE="ai-review-results/analyst-findings.txt"
-          ARCHITECT_FINDINGS_FILE="ai-review-results/architect-findings.txt"
-          DEVOPS_FINDINGS_FILE="ai-review-results/devops-findings.txt"
-          ROADMAP_FINDINGS_FILE="ai-review-results/roadmap-findings.txt"
+          # Add findings sections
+          $findingsMap = @{
+            'security' = 'Security Review Details'
+            'qa' = 'QA Review Details'
+            'analyst' = 'Analyst Review Details'
+            'architect' = 'Architect Review Details'
+            'devops' = 'DevOps Review Details'
+            'roadmap' = 'Roadmap Review Details'
+          }
 
-          # Add security findings with better formatting
-          if [ -s "$SECURITY_FINDINGS_FILE" ]; then
-            cat >> "$REPORT_FILE" << 'SECTION_EOF'
+          foreach ($agent in $findingsMap.Keys) {
+            $findingsFile = "ai-review-results/$agent-findings.txt"
+            if (Test-Path $findingsFile) {
+              $findings = Get-Content $findingsFile -Raw
+              if ($findings) {
+                $title = $findingsMap[$agent]
+                $report += "`n<details>`n<summary>$title</summary>`n`n$findings`n`n</details>`n"
+              }
+            } else {
+              Write-Warning "No $agent findings file found"
+            }
+          }
 
-          <details>
-          <summary>🔒 Security Review Details</summary>
-
-          SECTION_EOF
-            echo "" >> "$REPORT_FILE"
-            cat "$SECURITY_FINDINGS_FILE" >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
-            echo "</details>" >> "$REPORT_FILE"
-          else
-            echo "Warning: No security findings file found" >&2
-          fi
-
-          # Add QA findings with better formatting
-          if [ -s "$QA_FINDINGS_FILE" ]; then
-            cat >> "$REPORT_FILE" << 'SECTION_EOF'
-
-          <details>
-          <summary>🧪 QA Review Details</summary>
-
-          SECTION_EOF
-            echo "" >> "$REPORT_FILE"
-            cat "$QA_FINDINGS_FILE" >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
-            echo "</details>" >> "$REPORT_FILE"
-          else
-            echo "Warning: No QA findings file found" >&2
-          fi
-
-          # Add analyst findings with better formatting
-          if [ -s "$ANALYST_FINDINGS_FILE" ]; then
-            cat >> "$REPORT_FILE" << 'SECTION_EOF'
-
-          <details>
-          <summary>📊 Analyst Review Details</summary>
-
-          SECTION_EOF
-            echo "" >> "$REPORT_FILE"
-            cat "$ANALYST_FINDINGS_FILE" >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
-            echo "</details>" >> "$REPORT_FILE"
-          else
-            echo "Warning: No analyst findings file found" >&2
-          fi
-
-          # Add architect findings with better formatting
-          if [ -s "$ARCHITECT_FINDINGS_FILE" ]; then
-            cat >> "$REPORT_FILE" << 'SECTION_EOF'
-
-          <details>
-          <summary>📐 Architect Review Details</summary>
-
-          SECTION_EOF
-            echo "" >> "$REPORT_FILE"
-            cat "$ARCHITECT_FINDINGS_FILE" >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
-            echo "</details>" >> "$REPORT_FILE"
-          else
-            echo "Warning: No architect findings file found" >&2
-          fi
-
-          # Add devops findings with better formatting
-          if [ -s "$DEVOPS_FINDINGS_FILE" ]; then
-            cat >> "$REPORT_FILE" << 'SECTION_EOF'
-
-          <details>
-          <summary>⚙️ DevOps Review Details</summary>
-
-          SECTION_EOF
-            echo "" >> "$REPORT_FILE"
-            cat "$DEVOPS_FINDINGS_FILE" >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
-            echo "</details>" >> "$REPORT_FILE"
-          else
-            echo "Warning: No devops findings file found" >&2
-          fi
-
-          # Add roadmap findings with better formatting
-          if [ -s "$ROADMAP_FINDINGS_FILE" ]; then
-            cat >> "$REPORT_FILE" << 'SECTION_EOF'
-
-          <details>
-          <summary>🗺️ Roadmap Review Details</summary>
-
-          SECTION_EOF
-            echo "" >> "$REPORT_FILE"
-            cat "$ROADMAP_FINDINGS_FILE" >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
-            echo "</details>" >> "$REPORT_FILE"
-          else
-            echo "Warning: No roadmap findings file found" >&2
-          fi
-
-          # Add footer with run info and branding
-          cat >> "$REPORT_FILE" << EOF
+          # Add footer
+          $report += @"
 
           ---
 
           <details>
-          <summary>ℹ️ Run Details</summary>
+          <summary>Run Details</summary>
 
           | Property | Value |
           |:---------|:------|
-          | **Run ID** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
-          | **Triggered by** | \`${{ github.event_name }}\` on \`${{ github.ref_name }}\` |
-          | **Commit** | \`${{ github.sha }}\` |
+          | **Run ID** | [$env:RUN_ID]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) |
+          | **Triggered by** | ``$env:EVENT_NAME`` on ``$env:REF_NAME`` |
+          | **Commit** | ``$env:SHA`` |
 
           </details>
 
-          <sub>🤖 Powered by [AI Quality Gate](https://github.com/${{ github.repository }}) · [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>
-          EOF
+          <sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) - [View Workflow]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID)</sub>
+          "@
 
-          echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
+          $report | Set-Content $reportFile -Encoding UTF8
+          "report_file=$reportFile" >> $env:GITHUB_OUTPUT
 
       - name: Post PR Comment
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          source .github/scripts/ai-review-common.sh
-          post_pr_comment "${{ env.PR_NUMBER }}" "${{ steps.report.outputs.report_file }}" "AI-PR-QUALITY-GATE"
+          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
+          Send-PRComment -PRNumber $env:PR_NUMBER -CommentFile $env:REPORT_FILE -Marker "AI-PR-QUALITY-GATE"
 
       - name: Set Job Summary
+        shell: pwsh
+        env:
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          cat "${{ steps.report.outputs.report_file }}" >> $GITHUB_STEP_SUMMARY
+          Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Check for Critical Failures
+        shell: pwsh
         run: |
-          FINAL_VERDICT="${{ steps.aggregate.outputs.final_verdict }}"
+          $finalVerdict = "${{ steps.aggregate.outputs.final_verdict }}"
 
-          if [ "$FINAL_VERDICT" = "CRITICAL_FAIL" ] || [ "$FINAL_VERDICT" = "REJECTED" ]; then
-            echo "::error::AI Quality Gate found critical issues that must be addressed before merge"
+          if ($finalVerdict -in 'CRITICAL_FAIL', 'REJECTED') {
+            Write-Output "::error::AI Quality Gate found critical issues that must be addressed before merge"
             exit 1
-          fi
+          }
 
-          echo "AI Quality Gate passed with verdict: $FINAL_VERDICT"
+          Write-Output "AI Quality Gate passed with verdict: $finalVerdict"

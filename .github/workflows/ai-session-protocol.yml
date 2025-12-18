@@ -161,45 +161,46 @@ jobs:
 
       - name: Aggregate Verdicts
         id: aggregate
+        shell: pwsh
         run: |
-          source .github/scripts/ai-review-common.sh
+          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
 
-          OVERALL_VERDICT="PASS"
-          TOTAL_MUST_FAILURES=0
+          $overallVerdict = "PASS"
+          $totalMustFailures = 0
 
           # Process all verdict files
-          for verdict_file in validation-results/*-verdict.txt; do
-            if [ -f "$verdict_file" ]; then
-              VERDICT=$(cat "$verdict_file")
-              log "Found verdict: $VERDICT from $verdict_file"
+          $verdictFiles = Get-ChildItem -Path "validation-results/*-verdict.txt" -ErrorAction SilentlyContinue
+          foreach ($verdictFile in $verdictFiles) {
+            $verdict = Get-Content $verdictFile.FullName -Raw
+            $verdict = $verdict.Trim()
+            Write-Log "Found verdict: $verdict from $($verdictFile.Name)"
 
-              if [ "$VERDICT" = "CRITICAL_FAIL" ] || [ "$VERDICT" = "REJECTED" ]; then
-                OVERALL_VERDICT="CRITICAL_FAIL"
-              elif [ "$VERDICT" = "WARN" ] && [ "$OVERALL_VERDICT" = "PASS" ]; then
-                OVERALL_VERDICT="WARN"
-              fi
-            fi
-          done
+            if ($verdict -in 'CRITICAL_FAIL', 'REJECTED') {
+              $overallVerdict = "CRITICAL_FAIL"
+            } elseif ($verdict -eq 'WARN' -and $overallVerdict -eq 'PASS') {
+              $overallVerdict = "WARN"
+            }
+          }
 
           # Count MUST failures
-          for must_file in validation-results/*-must-failures.txt; do
-            if [ -f "$must_file" ]; then
-              COUNT=$(cat "$must_file" || echo "0")
-              TOTAL_MUST_FAILURES=$((TOTAL_MUST_FAILURES + COUNT))
-            fi
-          done
+          $mustFiles = Get-ChildItem -Path "validation-results/*-must-failures.txt" -ErrorAction SilentlyContinue
+          foreach ($mustFile in $mustFiles) {
+            $count = [int](Get-Content $mustFile.FullName -Raw -ErrorAction SilentlyContinue)
+            $totalMustFailures += $count
+          }
 
-          if [ "$TOTAL_MUST_FAILURES" -gt 0 ]; then
-            OVERALL_VERDICT="CRITICAL_FAIL"
-          fi
+          if ($totalMustFailures -gt 0) {
+            $overallVerdict = "CRITICAL_FAIL"
+          }
 
-          echo "final_verdict=$OVERALL_VERDICT" >> $GITHUB_OUTPUT
-          echo "must_failures=$TOTAL_MUST_FAILURES" >> $GITHUB_OUTPUT
+          "final_verdict=$overallVerdict" >> $env:GITHUB_OUTPUT
+          "must_failures=$totalMustFailures" >> $env:GITHUB_OUTPUT
 
-          log "Final verdict: $OVERALL_VERDICT (MUST failures: $TOTAL_MUST_FAILURES)"
+          Write-Log "Final verdict: $overallVerdict (MUST failures: $totalMustFailures)"
 
       - name: Generate Compliance Report
         id: report
+        shell: pwsh
         env:
           OVERALL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
           MUST_FAILURES: ${{ steps.aggregate.outputs.must_failures }}
@@ -207,44 +208,35 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          source .github/scripts/ai-review-common.sh
+          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
 
-          REPORT_FILE="$AI_REVIEW_DIR/session-compliance-report.md"
-          ALERT_TYPE=$(get_verdict_alert_type "$OVERALL_VERDICT")
-
-          # Helper function to get verdict emoji
-          get_verdict_emoji() {
-            case "$1" in
-              PASS) echo "✅" ;;
-              WARN) echo "⚠️" ;;
-              CRITICAL_FAIL|REJECTED|FAIL) echo "❌" ;;
-              *) echo "❔" ;;
-            esac
-          }
-          FINAL_EMOJI=$(get_verdict_emoji "$OVERALL_VERDICT")
+          $reportDir = Initialize-AIReview
+          $reportFile = Join-Path $reportDir "session-compliance-report.md"
+          $alertType = Get-VerdictAlertType -Verdict $env:OVERALL_VERDICT
+          $finalEmoji = Get-VerdictEmoji -Verdict $env:OVERALL_VERDICT
 
           # Build verdict message
-          if [ "$MUST_FAILURES" -gt 0 ]; then
-            VERDICT_MSG="$MUST_FAILURES MUST requirement(s) not met. These must be addressed before merge."
-          else
-            VERDICT_MSG="All session protocol requirements satisfied."
-          fi
+          $verdictMsg = if ([int]$env:MUST_FAILURES -gt 0) {
+            "$($env:MUST_FAILURES) MUST requirement(s) not met. These must be addressed before merge."
+          } else {
+            "All session protocol requirements satisfied."
+          }
 
           # Count files checked
-          FILES_CHECKED=$(find validation-results -name "*-verdict.txt" | wc -l)
+          $filesChecked = (Get-ChildItem -Path "validation-results/*-verdict.txt" -ErrorAction SilentlyContinue).Count
 
-          cat > "$REPORT_FILE" << EOF
+          $report = @"
           <!-- AI-SESSION-PROTOCOL -->
 
-          ## 📋 Session Protocol Compliance Report
+          ## Session Protocol Compliance Report
 
-          > [!$ALERT_TYPE]
-          > $FINAL_EMOJI **Overall Verdict: $OVERALL_VERDICT**
+          > [!$alertType]
+          > $finalEmoji **Overall Verdict: $($env:OVERALL_VERDICT)**
           >
-          > $VERDICT_MSG
+          > $verdictMsg
 
           <details>
-          <summary>📖 What is Session Protocol?</summary>
+          <summary>What is Session Protocol?</summary>
 
           Session logs document agent work sessions and must comply with RFC 2119 requirements:
 
@@ -252,89 +244,85 @@ jobs:
           - **SHOULD**: Recommended practices (warnings)
           - **MAY**: Optional enhancements
 
-          See [\`.agents/SESSION-PROTOCOL.md\`](.agents/SESSION-PROTOCOL.md) for full specification.
+          See [`.agents/SESSION-PROTOCOL.md`](.agents/SESSION-PROTOCOL.md) for full specification.
 
           </details>
 
-          ### 📊 Compliance Summary
+          ### Compliance Summary
 
           | Session File | Verdict | MUST Failures |
           |:-------------|:--------|:-------------:|
-          EOF
+          "@
 
           # Add summary row for each session file
-          for verdict_file in validation-results/*-verdict.txt; do
-            if [ -f "$verdict_file" ]; then
-              FILE_NAME=$(basename "$verdict_file" -verdict.txt)
-              VERDICT=$(cat "$verdict_file")
-              MUST_FILE="validation-results/${FILE_NAME}-must-failures.txt"
-              MUST_COUNT=$(cat "$MUST_FILE" 2>/dev/null || echo "0")
-              EMOJI=$(get_verdict_emoji "$VERDICT")
+          $verdictFiles = Get-ChildItem -Path "validation-results/*-verdict.txt" -ErrorAction SilentlyContinue
+          foreach ($verdictFile in $verdictFiles) {
+            $fileName = $verdictFile.BaseName -replace '-verdict$', ''
+            $verdict = (Get-Content $verdictFile.FullName -Raw).Trim()
+            $mustFile = "validation-results/$fileName-must-failures.txt"
+            $mustCount = if (Test-Path $mustFile) { (Get-Content $mustFile -Raw).Trim() } else { "0" }
+            $emoji = Get-VerdictEmoji -Verdict $verdict
 
-              echo "| \`$FILE_NAME.md\` | $EMOJI $VERDICT | $MUST_COUNT |" >> "$REPORT_FILE"
-            fi
-          done
+            $report += "`n| ``$fileName.md`` | $emoji $verdict | $mustCount |"
+          }
 
           # Add detailed findings
-          echo "" >> "$REPORT_FILE"
-          echo "### 🔍 Detailed Results" >> "$REPORT_FILE"
-          echo "" >> "$REPORT_FILE"
+          $report += "`n`n### Detailed Results`n"
 
-          for findings_file in validation-results/*-findings.txt; do
-            if [ -f "$findings_file" ]; then
-              FILE_NAME=$(basename "$findings_file" -findings.txt)
-              echo "<details>" >> "$REPORT_FILE"
-              echo "<summary>📄 $FILE_NAME</summary>" >> "$REPORT_FILE"
-              echo "" >> "$REPORT_FILE"
-              cat "$findings_file" >> "$REPORT_FILE"
-              echo "" >> "$REPORT_FILE"
-              echo "</details>" >> "$REPORT_FILE"
-              echo "" >> "$REPORT_FILE"
-            fi
-          done
+          $findingsFiles = Get-ChildItem -Path "validation-results/*-findings.txt" -ErrorAction SilentlyContinue
+          foreach ($findingsFile in $findingsFiles) {
+            $fileName = $findingsFile.BaseName -replace '-findings$', ''
+            $findings = Get-Content $findingsFile.FullName -Raw
+            $report += "`n<details>`n<summary>$fileName</summary>`n`n$findings`n</details>`n"
+          }
 
           # Add footer
-          cat >> "$REPORT_FILE" << EOF
+          $report += @"
 
           ---
 
           <details>
-          <summary>ℹ️ Run Details</summary>
+          <summary>Run Details</summary>
 
           | Property | Value |
           |:---------|:------|
-          | **Run ID** | [$RUN_ID]($SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID) |
-          | **Files Checked** | $FILES_CHECKED |
+          | **Run ID** | [$($env:RUN_ID)]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID)) |
+          | **Files Checked** | $filesChecked |
 
           </details>
 
-          <sub>🤖 Powered by [AI Session Protocol Validator](https://github.com/$GITHUB_REPOSITORY) · [View Workflow]($SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID)</sub>
-          EOF
+          <sub>Powered by [AI Session Protocol Validator](https://github.com/$($env:GITHUB_REPOSITORY)) - [View Workflow]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID))</sub>
+          "@
 
-          echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
+          $report | Set-Content $reportFile -Encoding UTF8
+          "report_file=$reportFile" >> $env:GITHUB_OUTPUT
 
       - name: Post PR Comment
+        shell: pwsh
         env:
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          source .github/scripts/ai-review-common.sh
-          post_pr_comment "$PR_NUMBER" "$REPORT_FILE" "AI-SESSION-PROTOCOL"
+          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
+          Send-PRComment -PRNumber $env:PR_NUMBER -CommentFile $env:REPORT_FILE -Marker "AI-SESSION-PROTOCOL"
 
       - name: Set Job Summary
+        shell: pwsh
         env:
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          cat "$REPORT_FILE" >> $GITHUB_STEP_SUMMARY
+          Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Enforce MUST Requirements
+        shell: pwsh
         env:
           MUST_FAILURES: ${{ steps.aggregate.outputs.must_failures }}
           FINAL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
         run: |
-          if [ "$FINAL_VERDICT" = "CRITICAL_FAIL" ] || [ "$MUST_FAILURES" -gt 0 ]; then
-            echo "::error::Session protocol validation failed: $MUST_FAILURES MUST requirement(s) not met"
+          if ($env:FINAL_VERDICT -eq 'CRITICAL_FAIL' -or [int]$env:MUST_FAILURES -gt 0) {
+            Write-Output "::error::Session protocol validation failed: $($env:MUST_FAILURES) MUST requirement(s) not met"
             exit 1
-          fi
+          }
 
-          echo "Session protocol validation passed"
+          Write-Output "Session protocol validation passed"

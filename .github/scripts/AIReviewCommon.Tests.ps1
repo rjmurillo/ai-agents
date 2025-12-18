@@ -31,8 +31,8 @@ Describe "AIReviewCommon Module" {
             $expectedFunctions = @(
                 'Initialize-AIReview'
                 'Invoke-WithRetry'
-                'Add-PRComment'
-                'Add-IssueComment'
+                'Send-PRComment'
+                'Send-IssueComment'
                 'Get-Verdict'
                 'Get-Labels'
                 'Get-Milestone'
@@ -41,6 +41,7 @@ Describe "AIReviewCommon Module" {
                 'Format-VerdictAlert'
                 'Get-VerdictAlertType'
                 'Get-VerdictExitCode'
+                'Get-VerdictEmoji'
                 'Write-Log'
                 'Write-LogError'
                 'Assert-EnvironmentVariables'
@@ -514,15 +515,10 @@ Summary complete.
         }
     }
 
-    Context "Add-PRComment" -Tag "Integration" {
-        It "Should throw for missing comment file" {
-            { Add-PRComment -PRNumber 123 -CommentFile "nonexistent.md" } |
-                Should -Throw "*Comment file not found*"
-        }
-
-        It "Should throw for empty comment body" {
-            { Add-PRComment -PRNumber 123 -CommentBody "" } |
-                Should -Throw "*Comment body cannot be empty*"
+    Context "Send-PRComment" -Tag "Integration" {
+        It "Should return false for missing comment file" {
+            $result = Send-PRComment -PRNumber 123 -CommentFile "nonexistent.md" -ErrorAction SilentlyContinue
+            $result | Should -Be $false
         }
 
         It "Should read comment from file" -Skip:$true {
@@ -532,21 +528,42 @@ Summary complete.
 
             Mock gh -ModuleName AIReviewCommon -MockWith { }
 
-            Add-PRComment -PRNumber 123 -CommentFile $tempFile
+            Send-PRComment -PRNumber 123 -CommentFile $tempFile
 
             Should -Invoke gh -ModuleName AIReviewCommon
         }
     }
 
-    Context "Add-IssueComment" -Tag "Integration" {
-        It "Should throw for missing comment file" {
-            { Add-IssueComment -IssueNumber 456 -CommentFile "nonexistent.md" } |
-                Should -Throw "*Comment file not found*"
+    Context "Send-IssueComment" -Tag "Integration" {
+        It "Should return false for missing comment file" {
+            $result = Send-IssueComment -IssueNumber 456 -CommentFile "nonexistent.md" -ErrorAction SilentlyContinue
+            $result | Should -Be $false
+        }
+    }
+
+    Context "Get-VerdictEmoji" {
+        It "Should return check mark for PASS" {
+            Get-VerdictEmoji -Verdict 'PASS' | Should -Be '✅'
         }
 
-        It "Should throw for empty comment body" {
-            { Add-IssueComment -IssueNumber 456 -CommentBody "" } |
-                Should -Throw "*Comment body cannot be empty*"
+        It "Should return warning for WARN" {
+            Get-VerdictEmoji -Verdict 'WARN' | Should -Be '⚠️'
+        }
+
+        It "Should return X for CRITICAL_FAIL" {
+            Get-VerdictEmoji -Verdict 'CRITICAL_FAIL' | Should -Be '❌'
+        }
+
+        It "Should return X for REJECTED" {
+            Get-VerdictEmoji -Verdict 'REJECTED' | Should -Be '❌'
+        }
+
+        It "Should return X for FAIL" {
+            Get-VerdictEmoji -Verdict 'FAIL' | Should -Be '❌'
+        }
+
+        It "Should return question mark for unknown" {
+            Get-VerdictEmoji -Verdict 'UNKNOWN' | Should -Be '❔'
         }
     }
 

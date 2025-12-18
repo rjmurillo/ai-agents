@@ -192,175 +192,152 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
+        shell: pwsh
         run: |
-          source .github/scripts/ai-review-common.sh
+          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
 
-          REPORT_FILE="$AI_REVIEW_DIR/spec-validation-report.md"
+          $reportDir = Initialize-AIReview
+          $reportFile = Join-Path $reportDir "spec-validation-report.md"
 
-          # Helper function to get verdict emoji
-          get_verdict_emoji() {
-            case "$1" in
-              PASS) echo "✅" ;;
-              WARN|PARTIAL) echo "⚠️" ;;
-              CRITICAL_FAIL|REJECTED|FAIL) echo "❌" ;;
-              *) echo "❔" ;;
-            esac
-          }
-
-          if [ "$HAS_SPECS" != "true" ]; then
-            cat > "$REPORT_FILE" << EOF
+          if ($env:HAS_SPECS -ne 'true') {
+            $report = @"
           <!-- AI-SPEC-VALIDATION -->
 
-          ## 📐 Spec-to-Implementation Validation
+          ## Spec-to-Implementation Validation
 
           > [!WARNING]
-          > ⚠️ **No spec references found**
+          > **No spec references found**
           >
           > This PR does not reference any specifications (REQ-*, DESIGN-*, TASK-*, or linked issues).
 
           <details>
-          <summary>📖 How to add spec references</summary>
+          <summary>How to add spec references</summary>
 
           Add spec references to your PR description to enable traceability:
 
           | Method | Example |
           |:-------|:--------|
-          | Reference requirements | \`Implements REQ-001\` |
-          | Link issues | \`Closes #123\` |
-          | Reference spec files | \`.agents/specs/requirements/...\` |
+          | Reference requirements | ``Implements REQ-001`` |
+          | Link issues | ``Closes #123`` |
+          | Reference spec files | ``.agents/specs/requirements/...`` |
 
           </details>
 
           ---
 
-          <sub>🤖 Powered by [AI Spec Validator](https://github.com/$GITHUB_REPOSITORY) · *Validation skipped - no specs found*</sub>
-          EOF
-          else
+          <sub>Powered by [AI Spec Validator](https://github.com/$($env:GITHUB_REPOSITORY)) - *Validation skipped - no specs found*</sub>
+          "@
+          } else {
             # Determine final verdict
-            FINAL_VERDICT="PASS"
-            if [ "$TRACE_VERDICT" = "CRITICAL_FAIL" ] || [ "$TRACE_VERDICT" = "FAIL" ] || \
-               [ "$COMPLETENESS_VERDICT" = "CRITICAL_FAIL" ] || [ "$COMPLETENESS_VERDICT" = "FAIL" ]; then
-              FINAL_VERDICT="FAIL"
-            elif [ "$TRACE_VERDICT" = "WARN" ] || [ "$COMPLETENESS_VERDICT" = "WARN" ]; then
-              FINAL_VERDICT="PARTIAL"
-            fi
+            $finalVerdict = 'PASS'
+            if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL') {
+              $finalVerdict = 'FAIL'
+            } elseif ($env:TRACE_VERDICT -eq 'WARN' -or $env:COMPLETENESS_VERDICT -eq 'WARN') {
+              $finalVerdict = 'PARTIAL'
+            }
 
-            ALERT_TYPE=$(get_verdict_alert_type "$FINAL_VERDICT")
-            FINAL_EMOJI=$(get_verdict_emoji "$FINAL_VERDICT")
-            TRACE_EMOJI=$(get_verdict_emoji "$TRACE_VERDICT")
-            COMPLETENESS_EMOJI=$(get_verdict_emoji "$COMPLETENESS_VERDICT")
+            $alertType = Get-VerdictAlertType -Verdict $finalVerdict
+            $finalEmoji = Get-VerdictEmoji -Verdict $finalVerdict
+            $traceEmoji = Get-VerdictEmoji -Verdict $env:TRACE_VERDICT
+            $completenessEmoji = Get-VerdictEmoji -Verdict $env:COMPLETENESS_VERDICT
 
-            cat > "$REPORT_FILE" << EOF
+            $specRefs = if ($env:SPEC_REFS) { $env:SPEC_REFS } else { "*None*" }
+            $issueRefs = if ($env:ISSUE_REFS) { $env:ISSUE_REFS } else { "*None*" }
+            $traceFindings = if ($env:TRACE_FINDINGS) { $env:TRACE_FINDINGS } else { "No traceability output" }
+            $completenessFindings = if ($env:COMPLETENESS_FINDINGS) { $env:COMPLETENESS_FINDINGS } else { "No completeness output" }
+
+            $report = @"
           <!-- AI-SPEC-VALIDATION -->
 
-          ## 📐 Spec-to-Implementation Validation
+          ## Spec-to-Implementation Validation
 
-          > [!$ALERT_TYPE]
-          > $FINAL_EMOJI **Final Verdict: $FINAL_VERDICT**
+          > [!$alertType]
+          > $finalEmoji **Final Verdict: $finalVerdict**
 
           <details>
-          <summary>📖 What is Spec Validation?</summary>
+          <summary>What is Spec Validation?</summary>
 
           This validation ensures your implementation matches the specifications:
 
-          - **🔗 Requirements Traceability**: Verifies PR changes map to spec requirements
-          - **✅ Implementation Completeness**: Checks all requirements are addressed
+          - **Requirements Traceability**: Verifies PR changes map to spec requirements
+          - **Implementation Completeness**: Checks all requirements are addressed
 
           </details>
 
-          ### 📊 Validation Summary
+          ### Validation Summary
 
           | Check | Verdict | Status |
           |:------|:--------|:------:|
-          | 🔗 Requirements Traceability | \`$TRACE_VERDICT\` | $TRACE_EMOJI |
-          | ✅ Implementation Completeness | \`$COMPLETENESS_VERDICT\` | $COMPLETENESS_EMOJI |
+          | Requirements Traceability | ``$($env:TRACE_VERDICT)`` | $traceEmoji |
+          | Implementation Completeness | ``$($env:COMPLETENESS_VERDICT)`` | $completenessEmoji |
 
-          ### 📎 Spec References
+          ### Spec References
 
           | Type | References |
           |:-----|:-----------|
-          | 📄 **Specs** | ${SPEC_REFS:-*None*} |
-          | 🔗 **Issues** | ${ISSUE_REFS:-*None*} |
-
-          EOF
-
-            # Add traceability results
-            cat >> "$REPORT_FILE" << 'SECTION_EOF'
+          | **Specs** | $specRefs |
+          | **Issues** | $issueRefs |
 
           <details>
-          <summary>🔗 Requirements Traceability Details</summary>
+          <summary>Requirements Traceability Details</summary>
 
-          SECTION_EOF
-            echo "" >> "$REPORT_FILE"
-            if [ -n "$TRACE_FINDINGS" ]; then
-              echo "$TRACE_FINDINGS" >> "$REPORT_FILE"
-            else
-              echo "No traceability output" >> "$REPORT_FILE"
-            fi
-            echo "" >> "$REPORT_FILE"
-            echo "</details>" >> "$REPORT_FILE"
+          $traceFindings
 
-            # Add completeness results
-            cat >> "$REPORT_FILE" << 'SECTION_EOF'
+          </details>
 
           <details>
-          <summary>✅ Implementation Completeness Details</summary>
+          <summary>Implementation Completeness Details</summary>
 
-          SECTION_EOF
-            echo "" >> "$REPORT_FILE"
-            if [ -n "$COMPLETENESS_FINDINGS" ]; then
-              echo "$COMPLETENESS_FINDINGS" >> "$REPORT_FILE"
-            else
-              echo "No completeness output" >> "$REPORT_FILE"
-            fi
-            echo "" >> "$REPORT_FILE"
-            echo "</details>" >> "$REPORT_FILE"
+          $completenessFindings
 
-            # Add footer
-            cat >> "$REPORT_FILE" << EOF
+          </details>
 
           ---
 
           <details>
-          <summary>ℹ️ Run Details</summary>
+          <summary>Run Details</summary>
 
           | Property | Value |
           |:---------|:------|
-          | **Run ID** | [$RUN_ID]($SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID) |
-          | **Triggered by** | \`$EVENT_NAME\` on \`$REF_NAME\` |
+          | **Run ID** | [$($env:RUN_ID)]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID)) |
+          | **Triggered by** | ``$($env:EVENT_NAME)`` on ``$($env:REF_NAME)`` |
 
           </details>
 
-          <sub>🤖 Powered by [AI Spec Validator](https://github.com/$GITHUB_REPOSITORY) · [View Workflow]($SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID)</sub>
-          EOF
-          fi
+          <sub>Powered by [AI Spec Validator](https://github.com/$($env:GITHUB_REPOSITORY)) - [View Workflow]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID))</sub>
+          "@
+          }
 
-          echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
+          $report | Set-Content $reportFile -Encoding UTF8
+          "report_file=$reportFile" >> $env:GITHUB_OUTPUT
 
       - name: Post PR Comment
+        shell: pwsh
         env:
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          source .github/scripts/ai-review-common.sh
-          post_pr_comment "$PR_NUMBER" "$REPORT_FILE" "AI-SPEC-VALIDATION"
+          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
+          Send-PRComment -PRNumber $env:PR_NUMBER -CommentFile $env:REPORT_FILE -Marker "AI-SPEC-VALIDATION"
 
       - name: Set Job Summary
+        shell: pwsh
         env:
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          cat "$REPORT_FILE" >> $GITHUB_STEP_SUMMARY
+          Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Check for Failures
         if: steps.spec-ref.outputs.has_specs == 'true'
+        shell: pwsh
         env:
           TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
         run: |
-          if [ "$TRACE_VERDICT" = "CRITICAL_FAIL" ] || [ "$TRACE_VERDICT" = "FAIL" ] || \
-             [ "$COMPLETENESS_VERDICT" = "CRITICAL_FAIL" ] || [ "$COMPLETENESS_VERDICT" = "FAIL" ]; then
-            echo "::error::Spec validation failed - implementation does not fully satisfy requirements"
+          if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL') {
+            Write-Output "::error::Spec validation failed - implementation does not fully satisfy requirements"
             exit 1
-          fi
+          }
 
-          echo "Spec validation passed"
+          Write-Output "Spec validation passed"
