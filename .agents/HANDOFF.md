@@ -235,6 +235,42 @@ cat .agents/governance/consistency-protocol.md
 
 ## Recent Sessions
 
+### 2025-12-18: ASCII to Mermaid Diagram Conversion
+
+**Session Log**: [Session 25](./sessions/2025-12-18-session-25-ascii-to-mermaid.md)
+
+**Objective**: Convert ASCII box diagrams in markdown files to Mermaid format
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Scope**: Traversed all markdown files, identified 6 files with convertible ASCII diagrams, ran 6 parallel agents
+
+**Outcome**: SUCCESS - 24 diagrams converted to Mermaid
+
+**Conversion Summary**:
+
+| File | Diagrams |
+|------|----------|
+| `docs/diagrams/routing-flowchart.md` | 8 flowcharts |
+| `.agents/AGENT-SYSTEM.md` | 10 workflow diagrams |
+| `templates/agents/retrospective.shared.md` | 2 (flow + feedback loop) |
+| `.agents/security/architecture-security-template.md` | 2 (trust zones + data flow) |
+| `templates/agents/orchestrator.shared.md` | 1 (PR comment routing) |
+| `AGENTS.md` | 1 (improvement loop) |
+
+**Key Features**:
+
+- Parallel agent execution for efficient processing
+- Color-coded styling for security trust zones
+- Template changes propagated via Generate-Agents.ps1
+- All diagrams validated with markdown linting
+
+**Status**: Complete
+
+---
+
 ### 2025-12-18: Component AGENTS.md Documentation
 
 **Session Log**: [Session 24](./sessions/2025-12-18-session-24-component-agents-docs.md)

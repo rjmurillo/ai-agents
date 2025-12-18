@@ -32,40 +32,49 @@ Perform analysis when:
 
 ## Retrospective Flow
 
-```text
-Phase 0: Data Gathering
-  |-- 4-Step Debrief
-  |-- Execution Trace Analysis
-  +-- Outcome Classification
+```mermaid
+flowchart TB
+    subgraph P0["Phase 0: Data Gathering"]
+        P0A[4-Step Debrief]
+        P0B[Execution Trace Analysis]
+        P0C[Outcome Classification]
+    end
 
-Phase 1: Generate Insights
-  |-- Five Whys
-  |-- Fishbone Analysis
-  |-- Force Field Analysis
-  |-- Patterns and Shifts
-  +-- Learning Matrix
+    subgraph P1["Phase 1: Generate Insights"]
+        P1A[Five Whys]
+        P1B[Fishbone Analysis]
+        P1C[Force Field Analysis]
+        P1D[Patterns and Shifts]
+        P1E[Learning Matrix]
+    end
 
-Phase 2: Diagnosis
-  |-- Critical Error Patterns
-  |-- Success Analysis
-  |-- Near Misses
-  |-- Efficiency Opportunities
-  +-- Skill Gaps
+    subgraph P2["Phase 2: Diagnosis"]
+        P2A[Critical Error Patterns]
+        P2B[Success Analysis]
+        P2C[Near Misses]
+        P2D[Efficiency Opportunities]
+        P2E[Skill Gaps]
+    end
 
-Phase 3: Decide What to Do
-  |-- Action Classification
-  |-- SMART Validation
-  +-- Dependency Ordering
+    subgraph P3["Phase 3: Decide What to Do"]
+        P3A[Action Classification]
+        P3B[SMART Validation]
+        P3C[Dependency Ordering]
+    end
 
-Phase 4: Learning Extraction
-  |-- Atomicity Scoring
-  |-- Skillbook Updates
-  +-- Deduplication Check
+    subgraph P4["Phase 4: Learning Extraction"]
+        P4A[Atomicity Scoring]
+        P4B[Skillbook Updates]
+        P4C[Deduplication Check]
+    end
 
-Phase 5: Close the Retrospective
-  |-- +/Delta
-  |-- ROTI
-  +-- Helped, Hindered, Hypothesis
+    subgraph P5["Phase 5: Close the Retrospective"]
+        P5A[+/Delta]
+        P5B[ROTI]
+        P5C[Helped, Hindered, Hypothesis]
+    end
+
+    P0 --> P1 --> P2 --> P3 --> P4 --> P5
 ```
 
 ---
@@ -797,10 +806,10 @@ Use cloudmcp-manager memory tools directly for all persistence operations.
 
 ## Continuous Improvement Loop
 
-```text
-Execution --> Reflection --> Skill Update --> Improved Execution
-    ^                                              |
-    +----------------------------------------------+
+```mermaid
+flowchart LR
+    A[Execution] --> B[Reflection] --> C[Skill Update] --> D[Improved Execution]
+    D --> A
 ```
 
 ---

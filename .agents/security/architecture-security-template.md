@@ -55,43 +55,54 @@ This template guides security architecture reviews. Use it to evaluate privilege
 
 ### Trust Zones
 
-```text
-+----------------------------------------------------------+
-|                    UNTRUSTED ZONE                         |
-|  +------------------+     +------------------+            |
-|  |   Browser/Client |     | Third-Party APIs |            |
-|  +------------------+     +------------------+            |
-+----------------------------------------------------------+
-                           |
-                    [TRUST BOUNDARY 1]
-                    (Input Validation)
-                           |
-+----------------------------------------------------------+
-|                    DMZ / SEMI-TRUSTED                     |
-|  +------------------+     +------------------+            |
-|  | Load Balancer    |     | CDN              |            |
-|  +------------------+     +------------------+            |
-+----------------------------------------------------------+
-                           |
-                    [TRUST BOUNDARY 2]
-                    (Authentication)
-                           |
-+----------------------------------------------------------+
-|                    TRUSTED ZONE                           |
-|  +------------------+     +------------------+            |
-|  | Application      |     | Background Jobs  |            |
-|  +------------------+     +------------------+            |
-+----------------------------------------------------------+
-                           |
-                    [TRUST BOUNDARY 3]
-                    (Authorization)
-                           |
-+----------------------------------------------------------+
-|                    HIGHLY TRUSTED ZONE                    |
-|  +------------------+     +------------------+            |
-|  | Database         |     | Secret Store     |            |
-|  +------------------+     +------------------+            |
-+----------------------------------------------------------+
+```mermaid
+flowchart TB
+    subgraph UNTRUSTED["UNTRUSTED ZONE"]
+        Browser["Browser/Client"]
+        ThirdParty["Third-Party APIs"]
+    end
+
+    TB1{{"TRUST BOUNDARY 1<br/>(Input Validation)"}}
+
+    subgraph DMZ["DMZ / SEMI-TRUSTED"]
+        LoadBalancer["Load Balancer"]
+        CDN["CDN"]
+    end
+
+    TB2{{"TRUST BOUNDARY 2<br/>(Authentication)"}}
+
+    subgraph TRUSTED["TRUSTED ZONE"]
+        Application["Application"]
+        BackgroundJobs["Background Jobs"]
+    end
+
+    TB3{{"TRUST BOUNDARY 3<br/>(Authorization)"}}
+
+    subgraph HIGHLY_TRUSTED["HIGHLY TRUSTED ZONE"]
+        Database["Database"]
+        SecretStore["Secret Store"]
+    end
+
+    Browser --> TB1
+    ThirdParty --> TB1
+    TB1 --> LoadBalancer
+    TB1 --> CDN
+    LoadBalancer --> TB2
+    CDN --> TB2
+    TB2 --> Application
+    TB2 --> BackgroundJobs
+    Application --> TB3
+    BackgroundJobs --> TB3
+    TB3 --> Database
+    TB3 --> SecretStore
+
+    style UNTRUSTED fill:#ffcccc,stroke:#cc0000
+    style DMZ fill:#ffffcc,stroke:#cccc00
+    style TRUSTED fill:#ccffcc,stroke:#00cc00
+    style HIGHLY_TRUSTED fill:#ccccff,stroke:#0000cc
+    style TB1 fill:#ff9999,stroke:#cc0000,stroke-width:2px
+    style TB2 fill:#ffff99,stroke:#cccc00,stroke-width:2px
+    style TB3 fill:#99ff99,stroke:#00cc00,stroke-width:2px
 ```
 
 ### Boundary Controls
@@ -144,14 +155,18 @@ This template guides security architecture reviews. Use it to evaluate privilege
 
 ### Data Flow Diagram
 
-```text
-[User] --> [Input] --> [Validation] --> [Processing] --> [Storage]
-                                              |
-                                              v
-                                         [Logging]
-                                              |
-                                              v
-                                     [Audit Store]
+```mermaid
+flowchart LR
+    User["User"] --> Input["Input"]
+    Input --> Validation["Validation"]
+    Validation --> Processing["Processing"]
+    Processing --> Storage["Storage"]
+    Processing --> Logging["Logging"]
+    Logging --> AuditStore["Audit Store"]
+
+    style User fill:#e0e0e0,stroke:#666
+    style Storage fill:#ccccff,stroke:#0000cc
+    style AuditStore fill:#ccccff,stroke:#0000cc
 ```
 
 ### Data Flow Risks

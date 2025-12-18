@@ -91,6 +91,20 @@ Evidence: In PR #47, QA agent added a regression test for a "simple" PathInfo bu
 Verify fix and assess regression test needs...
 ```
 
+## GitHub Skill (Cross-Platform Note)
+
+When running in environments with PowerShell support (Windows, PowerShell Core on Linux/macOS), the unified github skill at `.claude/skills/github/` provides tested scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
+
+| Operation | Skill Script | Bash Fallback |
+|-----------|--------------|---------------|
+| PR metadata | `Get-PRContext.ps1` | `gh pr view` |
+| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
+| Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq` |
+| Reply to comment | `Post-PRCommentReply.ps1` | `gh api -X POST` |
+| Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
+
+The bash examples below work cross-platform; use skill scripts when PowerShell is available.
+
 ## Workflow Protocol
 
 ### Phase 1: Context Gathering

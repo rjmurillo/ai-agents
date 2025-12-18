@@ -787,10 +787,12 @@ analyst → high-level-advisor → independent-thinker → critic → roadmap �
 
 The agent system includes a continuous improvement loop:
 
-```text
-Execution → Reflection → Skill Update → Improved Execution
-    ↑                                          ↓
-    └──────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    A[Execution] --> B[Reflection]
+    B --> C[Skill Update]
+    C --> D[Improved Execution]
+    D --> A
 ```
 
 ### Skill Citation Protocol
