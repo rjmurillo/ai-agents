@@ -117,7 +117,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 **cursor[bot]** has demonstrated 100% actionability (9/9 across PR #32, #47, #52) - every comment identified a real bug. Prioritize these comments for immediate attention.
 
-**Note**: Statistics are sourced from `.serena/memories/pr-comment-responder-skills.md` and should be updated there after each PR review session.
+**Note**: Statistics are sourced from the `pr-comment-responder-skills` memory (use `mcp__serena__read_memory` with `memory_file_name="pr-comment-responder-skills"`) and should be updated there after each PR review session.
 
 #### Updating Signal Quality
 

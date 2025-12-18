@@ -36,7 +36,7 @@ Single source of truth for project constraints. Index-style document pointing to
 | MUST check `.claude/skills/` before GitHub operations | skill-usage-mandatory | Phase 1.5 gate |
 | MUST extend skills if capability missing, not write inline | skill-usage-mandatory | Code review |
 
-**Reference**: [skill-usage-mandatory.md](../../.serena/memories/skill-usage-mandatory.md)
+**Reference**: Use `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`
 
 **Rationale Summary**: Skills are tested, handle errors, have proper parameter validation, and are maintained centrally. Raw commands bypass all quality controls.
 
@@ -80,7 +80,7 @@ Single source of truth for project constraints. Index-style document pointing to
 | SHOULD limit to max 5 files OR single topic | code-style-conventions | commit-msg hook |
 | MUST use conventional commit format | code-style-conventions | commit-msg hook |
 
-**Reference**: [code-style-conventions.md](../../.serena/memories/code-style-conventions.md)
+**Reference**: Use `mcp__serena__read_memory` with `memory_file_name="code-style-conventions"`
 
 **Format**:
 

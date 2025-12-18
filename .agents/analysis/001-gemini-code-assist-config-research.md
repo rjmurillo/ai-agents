@@ -208,7 +208,7 @@ memory_config:
 **Recommended Route**: `analyst` -> `implementer`
 
 **For Implementer**:
-1. Read skill file at `.serena/memories/skills-gemini-code-assist.md`
+1. Read skill file using `mcp__serena__read_memory` with `memory_file_name="skills-gemini-code-assist"`
 2. Create `.gemini/config.yaml` with recommended settings
 3. Create `.gemini/styleguide.md` with project-specific standards
 4. Commit changes
@@ -225,4 +225,4 @@ memory_config:
 - **Official Documentation**: https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github
 - **Complete JSON Schema**: Extracted from documentation
 - **Glob Pattern Reference**: https://code.visualstudio.com/docs/editor/glob-patterns
-- **Skill File**: `.serena/memories/skills-gemini-code-assist.md`
+- **Skill File**: Use `mcp__serena__read_memory` with `memory_file_name="skills-gemini-code-assist"`

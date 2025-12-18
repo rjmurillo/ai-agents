@@ -255,5 +255,5 @@ pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123 -BodyFile
 ## Related Documentation
 
 - [Root AGENTS.md](../../AGENTS.md) - Agent usage instructions
-- [skill-usage-mandatory memory](../../.serena/memories/skill-usage-mandatory.md) - Enforcement rules
+- skill-usage-mandatory memory (use `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`) - Enforcement rules
 - [pr-comment-responder agent](../../src/claude/pr-comment-responder.md) - Primary consumer

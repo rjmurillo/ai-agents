@@ -222,7 +222,7 @@ Before merging workflow changes:
 ## Related Decisions
 
 - **ADR-005**: PowerShell-Only Scripting (all modules must be PowerShell)
-- **Pattern**: `.serena/memories/pattern-thin-workflows.md` (detailed pattern documentation)
+- **Pattern**: `pattern-thin-workflows` memory (use `mcp__serena__read_memory` with `memory_file_name="pattern-thin-workflows"`) - detailed pattern documentation
 - **Skill**: `.claude/skills/github/` (reusable GitHub operations)
 
 ---

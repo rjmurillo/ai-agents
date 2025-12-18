@@ -139,5 +139,5 @@ gh pr view $PR_NUMBER --json title,body,files
 
 - ADR-005: PowerShell-only scripting
 - ADR-006: Thin workflows, testable modules
-- User preference: No bash/Python (`.serena/memories/user-preference-no-bash-python.md`)
-- Pattern: Thin workflows (`.serena/memories/pattern-thin-workflows.md`)
+- User preference: No bash/Python (use `mcp__serena__read_memory` with `memory_file_name="user-preference-no-bash-python"`)
+- Pattern: Thin workflows (use `mcp__serena__read_memory` with `memory_file_name="pattern-thin-workflows"`)

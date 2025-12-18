@@ -342,7 +342,7 @@ The agent MUST validate skill availability before implementing GitHub operations
    ```powershell
    ls .claude/skills/github/scripts/**/*.ps1
    ```
-3. The agent MUST read `.serena/memories/skill-usage-mandatory.md`
+3. The agent MUST read the `skill-usage-mandatory` memory using `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`
 4. The agent MUST document available skills in session log under "Skill Inventory"
 5. During work, if GitHub operation needed:
    - MUST check Skill Inventory FIRST
@@ -390,7 +390,7 @@ The agent MUST validate skill availability before implementing GitHub operations
 [Agent MUST paste ls output here during Phase 1.5]
 
 **Skill Usage Policy Acknowledged:**
-- [ ] Read `.serena/memories/skill-usage-mandatory.md`
+- [ ] Read `skill-usage-mandatory` memory using `mcp__serena__read_memory`
 - [ ] Understand: NEVER use raw `gh` when skill exists
 - [ ] Understand: MUST check inventory before GitHub operations
 - [ ] Understand: MUST extend skill if capability missing

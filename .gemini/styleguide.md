@@ -477,13 +477,13 @@ Agents MAY include implementation notes in the session log.
 
 ### Memory Storage
 
-Serena memories are stored in `.serena/memories/` with descriptive filenames.
+Serena memories are stored in `.serena/memories/` with descriptive filenames. When Serena MCP is available, access memories using `mcp__serena__read_memory` with just the memory name (without path or extension).
 
 **Good examples**:
 
-- `.serena/memories/skills-implementation.md`
-- `.serena/memories/skills-github-cli.md`
-- `.serena/memories/retrospective-2025-12-18-ai-workflow.md`
+- `skills-implementation` (access via `mcp__serena__read_memory` with `memory_file_name="skills-implementation"`) and stored on disk at `.serena/memories/skills-implementation.md`
+- `skills-github-cli` (access via `mcp__serena__read_memory` with `memory_file_name="skills-github-cli"`) and stored on disk at `.serena/memories/skills-github-cli.md`
+- `retrospective-2025-12-18-ai-workflow` (access via `mcp__serena__read_memory` with `memory_file_name="retrospective-2025-12-18-ai-workflow"`) and stored on disk at `.serena/memories/retrospective-2025-12-18-ai-workflow.md`
 
 ## Documentation Standards
 

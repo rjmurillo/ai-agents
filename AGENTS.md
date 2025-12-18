@@ -519,7 +519,7 @@ The VS Code `memory` tool provides proprietary file-based storage at `/memories/
 
 **Memory-First Principle**: Retrieve relevant context BEFORE multi-step reasoning. Don't operate in a vacuum.
 
-#### When to Use Memory (MANDATORY)
+#### When to Use Memory (MUST)
 
 | Phase | Action | Serena (preferred) | cloudmcp-manager | VS Code `memory` (last resort) |
 |-------|--------|-------------------|------------------|-------------------------------|
@@ -572,6 +572,41 @@ Example: "Skill-Build" or "Pattern-retry"
 | Forgetting to link entities | Isolated knowledge | Use `memory-create_relations` for connected concepts |
 | Storing mid-task only | Lost final learnings | Always store at milestones AND completion |
 | Duplicate entities | Fragmented knowledge | Search before create; update existing entities |
+
+#### Memory Reference Requirements (RFC 2119)
+
+When documenting or instructing agents to access Serena memories, the following requirements apply:
+
+| Req Level | Requirement |
+|-----------|-------------|
+| **MUST** | Use `mcp__serena__read_memory` with `memory_file_name` parameter (not file paths) in instructive documentation |
+| **MUST** | Include fallback clause for when Serena MCP is unavailable |
+| **MUST NOT** | Reference memories by file path (e.g., `.serena/memories/foo.md`) in agent instructions |
+| **SHOULD** | Use consistent syntax: `read [name] memory using mcp__serena__read_memory with memory_file_name="[name]"` |
+| **MAY** | Reference file paths in informational contexts (tables showing storage locations, git commands) |
+
+**Reference Type Taxonomy:**
+
+| Type | Definition | Action |
+|------|------------|--------|
+| **Instructive** | Tells agent what to read/do | MUST use tool call syntax |
+| **Informational** | Describes where files are stored | MAY use file paths |
+| **Operational** | Used in git/shell commands | MUST use file paths |
+
+**Correct Pattern:**
+
+```markdown
+Read the `skill-usage-mandatory` memory using `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`
+- If Serena MCP is unavailable, read `.serena/memories/skill-usage-mandatory.md`
+```
+
+**Incorrect Pattern:**
+
+```markdown
+Read `.serena/memories/skill-usage-mandatory.md`
+```
+
+**Rationale:** Tool calls abstract the file system, enabling future storage changes without documentation updates. Fallback clauses ensure graceful degradation when Serena MCP is unavailable.
 
 #### Memory Protocol by Agent Type
 
@@ -926,7 +961,7 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 
 **Why it matters**: The manual provides critical context about efficient code reading strategies, symbolic navigation, and resource-efficient operations that optimize agent performance when working with large codebases.
 
-**Note**: If the Serena MCP is not available, memories can be found in `.serena/memories`.
+**Note**: If the Serena MCP is not available, memories can be read directly from `.serena/memories/`. However, when Serena is available, always use `mcp__serena__read_memory` with just the memory name (e.g., `memory_file_name="skill-usage-mandatory"`) rather than file paths.
 
 ---
 
@@ -961,6 +996,27 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 **Memory Entity Naming**: See Memory System section for entity naming (Feature-*, ADR-*, Pattern-*, Skill-*).
 
 **Consistency Validation**: Run `scripts/Validate-Consistency.ps1` to automatically validate naming conventions, cross-references, and requirement coverage.
+
+### Agent Generation System
+
+**Three-Platform Architecture**: The agent system generates files for three platforms with different maintenance models.
+
+| Platform | Directory | Maintenance | Generation |
+|----------|-----------|-------------|------------|
+| Claude Code | `src/claude/` | Manual | N/A |
+| VS Code | `src/vs-code-agents/` | Auto | `build/Generate-Agents.ps1` |
+| Copilot CLI | `src/copilot-cli/` | Auto | `build/Generate-Agents.ps1` |
+
+**Key Differences** (Claude vs Templates):
+
+- Frontmatter: Claude uses `name`/`model`, templates use `description`/`tools_*`
+- Handoff syntax: Claude uses `Task(subagent_type=...)`, templates use `runSubagent(...)`
+- Memory prefix: Claude uses `mcp__cloudmcp-manager__*`, templates use `cloudmcp-manager/`
+
+**Related Memories**:
+
+- Serena: Use `mcp__serena__read_memory` with `memory_file_name="pattern-agent-generation-three-platforms"`
+- Analysis: `.agents/analysis/claude-vs-template-differences.md`
 
 ### Process Improvements
 

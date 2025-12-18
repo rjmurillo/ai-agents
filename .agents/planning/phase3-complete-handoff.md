@@ -216,7 +216,7 @@ When continuing this work:
 
 1. Read this handoff document
 2. Read `.agents/retrospective/2025-12-16-phase3-consistency-validation.md` for detailed learnings
-3. Read `.serena/memories/phase3-consistency-skills.md` for atomic skills
+3. Read `phase3-consistency-skills` memory using `mcp__serena__read_memory` with `memory_file_name="phase3-consistency-skills"`
 4. Follow the template-first workflow
 5. Scripts belong in `scripts/` only - never duplicate to `.agents/utilities/`
 6. New validation rules should start as warnings (non-blocking)

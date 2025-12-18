@@ -235,6 +235,50 @@ cat .agents/governance/consistency-protocol.md
 
 ## Recent Sessions
 
+### 2025-12-18: Serena Memory Reference Migration
+
+**Session Log**: [Session 26](./sessions/2025-12-18-session-26-serena-memory-references.md)
+
+**Objective**: Migrate Serena memory references from file paths to tool calls
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Scope**: Updated 16 files to use `mcp__serena__read_memory` tool calls instead of direct file path references
+
+**Outcome**: SUCCESS - All instructive memory references migrated with fallback clauses
+
+**Files Modified**:
+
+| Category | Files | Changes |
+|----------|-------|---------|
+| Documentation | `AGENTS.md` | Added RFC 2119 memory reference requirements |
+| Session Protocol | `SESSION-PROTOCOL.md`, `HANDOFF.md` | Tool call syntax with fallbacks |
+| Agent Docs | `src/claude/AGENTS.md`, `pr-comment-responder.md` | Memory access instructions |
+| ADRs | `ADR-005`, `ADR-006` | Memory references |
+| Governance | `PROJECT-CONSTRAINTS.md` | Constraint references |
+| Memories | `skill-usage-mandatory.md`, `skills-bash-integration.md` | Self-references |
+
+**Key Deliverables**:
+
+1. **RFC 2119 Memory Reference Requirements** - Added to AGENTS.md with reference type taxonomy (instructive/informational/operational)
+2. **4 Documentation Maintenance Skills** - Persisted to `skills-documentation` memory (95-96% atomicity)
+3. **Retrospective** - `.agents/retrospective/2025-12-18-serena-memory-reference-migration.md`
+
+**Skills Extracted**:
+
+| Skill ID | Statement | Atomicity |
+|----------|-----------|-----------|
+| Skill-Documentation-Maintenance-001 | Search entire codebase for pattern before migration | 95% |
+| Skill-Documentation-Maintenance-002 | Categorize references by type before migration | 95% |
+| Skill-Documentation-Maintenance-003 | Include fallback clause for tool calls | 96% |
+| Skill-Documentation-Maintenance-004 | Use identical syntax across all instances | 96% |
+
+**Status**: Complete
+
+---
+
 ### 2025-12-18: ASCII to Mermaid Diagram Conversion
 
 **Session Log**: [Session 25](./sessions/2025-12-18-session-25-ascii-to-mermaid.md)
@@ -509,7 +553,7 @@ cat .agents/governance/consistency-protocol.md
 
 1. Verify `.claude/skills/` directory exists
 2. List available GitHub skill scripts
-3. Read `.serena/memories/skill-usage-mandatory.md`
+3. Read `skill-usage-mandatory` memory using `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`
 4. Read `.agents/governance/PROJECT-CONSTRAINTS.md`
 5. Document available skills in session log under "Skill Inventory"
 

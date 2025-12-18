@@ -124,7 +124,7 @@ This resulted in:
 
 ### Enforcement
 
-1. **Agent Memory**: `.serena/memories/user-preference-no-bash-python.md` documents preference
+1. **Agent Memory**: `user-preference-no-bash-python` memory documents preference (use `mcp__serena__read_memory` with `memory_file_name="user-preference-no-bash-python"`)
 2. **This ADR**: Canonical reference for architecture decision
 3. **Code Review**: Reject PRs with bash (.sh) or Python (.py) scripts
 4. **Agent Prompts**: Update agent instructions to prefer PowerShell
@@ -172,8 +172,8 @@ If a task genuinely cannot be done in PowerShell:
 ## Related Decisions
 
 - **ADR-006**: Thin Workflows, Testable Modules (companion to this ADR)
-- **Pattern**: Thin workflows (`.serena/memories/pattern-thin-workflows.md`)
-- **User Preference**: No bash/Python (`.serena/memories/user-preference-no-bash-python.md`)
+- **Pattern**: Thin workflows (use `mcp__serena__read_memory` with `memory_file_name="pattern-thin-workflows"`)
+- **User Preference**: No bash/Python (use `mcp__serena__read_memory` with `memory_file_name="user-preference-no-bash-python"`)
 
 ---
 

@@ -292,4 +292,4 @@ Invoke-Pester ./build/tests/
 - [build/AGENTS.md](../../build/AGENTS.md) - Build automation
 - [Root AGENTS.md](../../AGENTS.md) - Agent usage instructions
 - [AGENT-SYSTEM.md](../../.agents/AGENT-SYSTEM.md) - Full system documentation
-- [skill-usage-mandatory](../../.serena/memories/skill-usage-mandatory.md) - GitHub skill rules
+- skill-usage-mandatory (use `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`) - GitHub skill rules

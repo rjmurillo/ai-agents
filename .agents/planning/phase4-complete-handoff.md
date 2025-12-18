@@ -111,6 +111,6 @@ When continuing agent documentation work:
 
 1. Read this handoff document
 2. Read `.agents/retrospective/2025-12-16-phase4-handoff-validation.md` for detailed learnings
-3. Read `.serena/memories/phase4-handoff-validation-skills.md` for extracted skills
+3. Read `phase4-handoff-validation-skills` memory using `mcp__serena__read_memory` with `memory_file_name="phase4-handoff-validation-skills"`
 4. Follow the template-first workflow for generated agents
 5. Remember Claude agents require manual sync (not part of Generate-Agents.ps1)
