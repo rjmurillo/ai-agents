@@ -68,11 +68,19 @@
             DestDir          = '$HOME/.copilot/agents'
             InstructionsFile = $null  # No global instructions file
             InstructionsDest = $null
+            # Prompt files (copied alongside agents with .prompt.md extension)
+            PromptFiles      = @(
+                "pr-comment-responder.agent.md"
+            )
         }
         Repo        = @{
             DestDir          = '.github/agents'
             InstructionsFile = "copilot-instructions.md"
             InstructionsDest = '.github'
+            # Prompt files (copied alongside agents with .prompt.md extension)
+            PromptFiles      = @(
+                "pr-comment-responder.agent.md"
+            )
         }
     }
 
@@ -85,11 +93,19 @@
             DestDir          = '$env:APPDATA/Code/User/prompts'
             InstructionsFile = "copilot-instructions.md"
             InstructionsDest = '$env:APPDATA/Code/User/prompts'
+            # Prompt files (copied alongside agents with .prompt.md extension)
+            PromptFiles      = @(
+                "pr-comment-responder.agent.md"
+            )
         }
         Repo        = @{
             DestDir          = '.github/agents'
             InstructionsFile = "copilot-instructions.md"
             InstructionsDest = '.github'
+            # Prompt files (copied alongside agents with .prompt.md extension)
+            PromptFiles      = @(
+                "pr-comment-responder.agent.md"
+            )
         }
     }
 }

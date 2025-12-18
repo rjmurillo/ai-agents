@@ -225,6 +225,15 @@ Describe "Copilot Configuration" {
             # Copilot CLI doesn't support global instructions file
             $Script:CopilotConfig.Global.InstructionsFile | Should -BeNullOrEmpty
         }
+
+        It "Has PromptFiles array" {
+            $Script:CopilotConfig.Global.PromptFiles | Should -Not -BeNullOrEmpty
+            @($Script:CopilotConfig.Global.PromptFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "PromptFiles contains pr-comment-responder.agent.md" {
+            $Script:CopilotConfig.Global.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
+        }
     }
 
     Context "Repo Scope" {
@@ -238,6 +247,15 @@ Describe "Copilot Configuration" {
 
         It "Has InstructionsDest" {
             $Script:CopilotConfig.Repo.InstructionsDest | Should -Be ".github"
+        }
+
+        It "Has PromptFiles array" {
+            $Script:CopilotConfig.Repo.PromptFiles | Should -Not -BeNullOrEmpty
+            @($Script:CopilotConfig.Repo.PromptFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "PromptFiles contains pr-comment-responder.agent.md" {
+            $Script:CopilotConfig.Repo.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
         }
     }
 }
@@ -273,6 +291,15 @@ Describe "VSCode Configuration" {
         It "Has InstructionsDest" {
             $Script:VSCodeConfig.Global.InstructionsDest | Should -Not -BeNullOrEmpty
         }
+
+        It "Has PromptFiles array" {
+            $Script:VSCodeConfig.Global.PromptFiles | Should -Not -BeNullOrEmpty
+            @($Script:VSCodeConfig.Global.PromptFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "PromptFiles contains pr-comment-responder.agent.md" {
+            $Script:VSCodeConfig.Global.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
+        }
     }
 
     Context "Repo Scope" {
@@ -286,6 +313,15 @@ Describe "VSCode Configuration" {
 
         It "Has InstructionsDest" {
             $Script:VSCodeConfig.Repo.InstructionsDest | Should -Be ".github"
+        }
+
+        It "Has PromptFiles array" {
+            $Script:VSCodeConfig.Repo.PromptFiles | Should -Not -BeNullOrEmpty
+            @($Script:VSCodeConfig.Repo.PromptFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "PromptFiles contains pr-comment-responder.agent.md" {
+            $Script:VSCodeConfig.Repo.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
         }
     }
 }

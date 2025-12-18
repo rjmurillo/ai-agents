@@ -342,6 +342,21 @@ if ($Config.CommandsDir -and $Config.CommandFiles -and $Config.CommandFiles.Coun
     Write-Host ""
 }
 
+# Install prompt files (if configured) - copies .agent.md files as .prompt.md
+if ($Config.PromptFiles -and $Config.PromptFiles.Count -gt 0) {
+    Write-Host "Installing prompt files..." -ForegroundColor Cyan
+
+    $PromptStats = Install-PromptFiles `
+        -SourceDir $SourceDir `
+        -DestDir $DestDir `
+        -PromptFiles $Config.PromptFiles `
+        -Force:$Force
+
+    Write-Host ""
+    Write-Host "Prompts: $($PromptStats.Installed) installed, $($PromptStats.Updated) updated, $($PromptStats.Skipped) skipped" -ForegroundColor Gray
+    Write-Host ""
+}
+
 # For Repo scope: create .agents directories
 if ($Scope -eq "Repo") {
     Write-Host "Setting up .agents directories..." -ForegroundColor Cyan

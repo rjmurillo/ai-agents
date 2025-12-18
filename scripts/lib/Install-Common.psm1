@@ -77,6 +77,7 @@ function Get-InstallConfig {
         InstructionsDest = $ScopeConfig.InstructionsDest
         CommandsDir      = $ScopeConfig.CommandsDir
         CommandFiles     = $ScopeConfig.CommandFiles
+        PromptFiles      = $ScopeConfig.PromptFiles
         BeginMarker      = $Config._Common.BeginMarker
         EndMarker        = $Config._Common.EndMarker
         AgentsDirs       = $Config._Common.AgentsDirs
@@ -452,6 +453,84 @@ function Install-CommandFiles {
     return $Stats
 }
 
+function Install-PromptFiles {
+    <#
+    .SYNOPSIS
+        Installs agent files as prompt files with .prompt.md extension.
+
+    .DESCRIPTION
+        Copies specified agent files to the same destination directory but with
+        the .agent.md extension replaced with .prompt.md. This enables files like
+        pr-comment-responder.agent.md to also be available as pr-comment-responder.prompt.md
+        for use as Copilot prompts.
+
+    .PARAMETER SourceDir
+        Path to the source directory containing agent files.
+
+    .PARAMETER DestDir
+        Destination directory for prompt files (same as agents directory).
+
+    .PARAMETER PromptFiles
+        Array of agent filenames to also install as prompts.
+
+    .PARAMETER Force
+        Skip overwrite prompting.
+
+    .OUTPUTS
+        [hashtable] Statistics: Installed, Updated, Skipped counts.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$SourceDir,
+
+        [Parameter(Mandatory)]
+        [string]$DestDir,
+
+        [Parameter(Mandatory)]
+        [string[]]$PromptFiles,
+
+        [switch]$Force
+    )
+
+    $Stats = @{
+        Installed = 0
+        Updated   = 0
+        Skipped   = 0
+    }
+
+    foreach ($FileName in $PromptFiles) {
+        $SourcePath = Join-Path $SourceDir $FileName
+
+        if (-not (Test-Path $SourcePath)) {
+            Write-Warning "  Prompt source file not found: $FileName"
+            continue
+        }
+
+        # Convert .agent.md to .prompt.md
+        $PromptFileName = $FileName -replace '\.agent\.md$', '.prompt.md'
+        $DestPath = Join-Path $DestDir $PromptFileName
+
+        $Exists = Test-Path $DestPath
+
+        if ($Exists -and -not $Force) {
+            $Response = Read-Host "  $PromptFileName exists. Overwrite? (y/N)"
+            if ($Response -ne 'y' -and $Response -ne 'Y') {
+                Write-Host "  Skipping $PromptFileName" -ForegroundColor Yellow
+                $Stats.Skipped++
+                continue
+            }
+        }
+
+        Copy-Item -Path $SourcePath -Destination $DestPath -Force
+        $Status = if ($Exists) { "Updated" } else { "Installed" }
+        Write-Host "  $Status prompt: $PromptFileName" -ForegroundColor Green
+        $Stats[$Status]++
+    }
+
+    return $Stats
+}
+
 function Install-InstructionsFile {
     <#
     .SYNOPSIS
@@ -676,6 +755,7 @@ Export-ModuleMember -Function @(
     'Initialize-AgentsDirectories'
     'Copy-AgentFile'
     'Install-CommandFiles'
+    'Install-PromptFiles'
     'Install-InstructionsFile'
     'Write-InstallHeader'
     'Write-InstallComplete'

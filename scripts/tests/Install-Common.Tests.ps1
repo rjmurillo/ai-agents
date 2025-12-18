@@ -106,6 +106,20 @@ Describe "Get-InstallConfig" {
             $config.InstructionsFile | Should -Be "copilot-instructions.md"
             $config.InstructionsDest | Should -Be ".github"
         }
+
+        It "Returns PromptFiles for Copilot Global scope" {
+            $config = Get-InstallConfig -Environment "Copilot" -Scope "Global" -ConfigPath $Script:ConfigPath
+
+            $config.PromptFiles | Should -Not -BeNullOrEmpty
+            $config.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
+        }
+
+        It "Returns PromptFiles for Copilot Repo scope" {
+            $config = Get-InstallConfig -Environment "Copilot" -Scope "Repo" -ConfigPath $Script:ConfigPath
+
+            $config.PromptFiles | Should -Not -BeNullOrEmpty
+            $config.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
+        }
     }
 
     Context "VSCode Environment" {
@@ -124,6 +138,20 @@ Describe "Get-InstallConfig" {
 
             $config.DestDir | Should -Be ".github/agents"
             $config.InstructionsFile | Should -Be "copilot-instructions.md"
+        }
+
+        It "Returns PromptFiles for VSCode Global scope" {
+            $config = Get-InstallConfig -Environment "VSCode" -Scope "Global" -ConfigPath $Script:ConfigPath
+
+            $config.PromptFiles | Should -Not -BeNullOrEmpty
+            $config.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
+        }
+
+        It "Returns PromptFiles for VSCode Repo scope" {
+            $config = Get-InstallConfig -Environment "VSCode" -Scope "Repo" -ConfigPath $Script:ConfigPath
+
+            $config.PromptFiles | Should -Not -BeNullOrEmpty
+            $config.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
         }
     }
 
@@ -542,6 +570,82 @@ Describe "Install-CommandFiles" {
 
             $result.Installed | Should -Be 1
             Test-Path (Join-Path $destDir "pr-comment-responder.md") | Should -Be $true
+        }
+    }
+}
+
+Describe "Install-PromptFiles" {
+    BeforeAll {
+        # Create test directories
+        $Script:PromptSourceDir = Join-Path $Script:TestTempDir "prompt-source-$(Get-Random)"
+        $Script:PromptDestDir = Join-Path $Script:TestTempDir "prompt-dest-$(Get-Random)"
+
+        New-Item -ItemType Directory -Path $Script:PromptSourceDir -Force | Out-Null
+
+        # Create test agent files (with .agent.md extension)
+        "# PR Comment Responder Agent" | Out-File -FilePath (Join-Path $Script:PromptSourceDir "pr-comment-responder.agent.md") -Encoding utf8
+        "# Another Agent" | Out-File -FilePath (Join-Path $Script:PromptSourceDir "another-agent.agent.md") -Encoding utf8
+    }
+
+    Context "File Installation with Name Transformation" {
+        BeforeEach {
+            # Create fresh destination directory for each test
+            $Script:PromptDestDir = Join-Path $Script:TestTempDir "prompt-dest-$(Get-Random)"
+            New-Item -ItemType Directory -Path $Script:PromptDestDir -Force | Out-Null
+        }
+
+        It "Installs agent file as prompt file with .prompt.md extension" {
+            $result = Install-PromptFiles -SourceDir $Script:PromptSourceDir -DestDir $Script:PromptDestDir -PromptFiles @("pr-comment-responder.agent.md") -Force
+
+            $result.Installed | Should -Be 1
+            $result.Updated | Should -Be 0
+            $result.Skipped | Should -Be 0
+            # Verify .prompt.md file was created (not .agent.md)
+            Test-Path (Join-Path $Script:PromptDestDir "pr-comment-responder.prompt.md") | Should -Be $true
+            Test-Path (Join-Path $Script:PromptDestDir "pr-comment-responder.agent.md") | Should -Be $false
+        }
+
+        It "Installs multiple prompt files with correct name transformation" {
+            $result = Install-PromptFiles -SourceDir $Script:PromptSourceDir -DestDir $Script:PromptDestDir -PromptFiles @("pr-comment-responder.agent.md", "another-agent.agent.md") -Force
+
+            $result.Installed | Should -Be 2
+            Test-Path (Join-Path $Script:PromptDestDir "pr-comment-responder.prompt.md") | Should -Be $true
+            Test-Path (Join-Path $Script:PromptDestDir "another-agent.prompt.md") | Should -Be $true
+        }
+
+        It "Returns Updated status when prompt file already exists with -Force" {
+            # First install
+            Install-PromptFiles -SourceDir $Script:PromptSourceDir -DestDir $Script:PromptDestDir -PromptFiles @("pr-comment-responder.agent.md") -Force
+
+            # Second install (update)
+            $result = Install-PromptFiles -SourceDir $Script:PromptSourceDir -DestDir $Script:PromptDestDir -PromptFiles @("pr-comment-responder.agent.md") -Force
+
+            $result.Installed | Should -Be 0
+            $result.Updated | Should -Be 1
+        }
+    }
+
+    Context "Error Handling" {
+        It "Warns and continues when source agent file not found" {
+            $destDir = Join-Path $Script:TestTempDir "prompt-dest-$(Get-Random)"
+            New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+
+            # Should not throw, just warn
+            $result = Install-PromptFiles -SourceDir $Script:PromptSourceDir -DestDir $destDir -PromptFiles @("nonexistent.agent.md") -Force
+
+            $result.Installed | Should -Be 0
+            $result.Updated | Should -Be 0
+            $result.Skipped | Should -Be 0
+        }
+
+        It "Processes existing files even when some are missing" {
+            $destDir = Join-Path $Script:TestTempDir "prompt-dest-$(Get-Random)"
+            New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+
+            $result = Install-PromptFiles -SourceDir $Script:PromptSourceDir -DestDir $destDir -PromptFiles @("pr-comment-responder.agent.md", "nonexistent.agent.md") -Force
+
+            $result.Installed | Should -Be 1
+            Test-Path (Join-Path $destDir "pr-comment-responder.prompt.md") | Should -Be $true
         }
     }
 }

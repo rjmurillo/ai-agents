@@ -203,6 +203,24 @@ Describe "Script Content Analysis" {
         }
     }
 
+    Context "Prompt Installation" {
+        It "Uses Install-PromptFiles function" {
+            $Script:Content | Should -Match "Install-PromptFiles"
+        }
+
+        It "Checks for PromptFiles configuration" {
+            $Script:Content | Should -Match '\$Config\.PromptFiles'
+        }
+
+        It "Displays prompt installation message" {
+            $Script:Content | Should -Match "Installing prompt files"
+        }
+
+        It "Displays prompt statistics" {
+            $Script:Content | Should -Match "Prompts:.*installed.*updated.*skipped"
+        }
+    }
+
     Context "Error Handling" {
         It "Sets ErrorActionPreference to Stop" {
             $Script:Content | Should -Match '\$ErrorActionPreference\s*=\s*"Stop"'
