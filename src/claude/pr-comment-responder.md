@@ -31,6 +31,35 @@ You have direct access to:
 - **Task**: Delegate to orchestrator (primary)
 - **TodoWrite**: Track review progress
 - **cloudmcp-manager memory tools**: PR review patterns, bot behaviors
+- **github skill**: `.claude/skills/github/` - unified GitHub operations
+
+## GitHub Skill Integration
+
+**MANDATORY**: Use the unified github skill at `.claude/skills/github/` for all GitHub operations. The skill provides tested, validated scripts with proper error handling, pagination, and security validation.
+
+### Available Scripts
+
+| Operation | Script | Replaces |
+|-----------|--------|----------|
+| PR metadata | `Get-PRContext.ps1` | `gh pr view` |
+| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
+| Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq unique` |
+| Reply to comment | `Post-PRCommentReply.ps1` | `gh api ... -X POST` |
+| Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
+| Issue comment | `Post-IssueComment.ps1` | `gh api .../comments` |
+
+### Skill Usage Pattern
+
+```powershell
+# All scripts are in .claude/skills/github/scripts/
+# From repo root, invoke with pwsh:
+pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 50
+
+# For global installs, use $HOME:
+pwsh $HOME/.claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 50
+```
+
+See `.claude/skills/github/SKILL.md` for full documentation.
 
 ## Workflow Paths Reference
 
@@ -144,6 +173,16 @@ Task(subagent_type="qa", prompt="Verify fix and assess regression test needs..."
 
 #### Step 1.1: Fetch PR Metadata
 
+```powershell
+# Using github skill (PREFERRED)
+pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest [number] -IncludeChangedFiles
+
+# Returns JSON with: number, title, body, headRefName, baseRefName, state, author, changedFiles
+```
+
+<details>
+<summary>Alternative: Raw gh CLI</summary>
+
 ```bash
 # Get PR metadata
 PR_DATA=$(gh pr view [number] --repo [owner/repo] --json number,title,body,headRefName,baseRefName,state,author)
@@ -156,7 +195,20 @@ PR_BRANCH=$(echo "$PR_DATA" | jq -r '.headRefName')
 PR_BASE=$(echo "$PR_DATA" | jq -r '.baseRefName')
 ```
 
+</details>
+
 #### Step 1.2: Enumerate All Reviewers
+
+```powershell
+# Using github skill (PREFERRED) - prevents single-bot blindness (Skill-PR-001)
+pwsh .claude/skills/github/scripts/pr/Get-PRReviewers.ps1 -PullRequest [number]
+
+# Exclude bots from enumeration
+pwsh .claude/skills/github/scripts/pr/Get-PRReviewers.ps1 -PullRequest [number] -ExcludeBots
+```
+
+<details>
+<summary>Alternative: Raw gh CLI</summary>
 
 ```bash
 # Get ALL unique reviewers (review comments + issue comments)
@@ -168,7 +220,19 @@ ALL_REVIEWERS=$(echo "$REVIEWERS $ISSUE_REVIEWERS" | jq -s 'add | unique')
 echo "Reviewers: $ALL_REVIEWERS"
 ```
 
+</details>
+
 #### Step 1.3: Retrieve ALL Comments (with pagination)
+
+```powershell
+# Using github skill (PREFERRED) - handles pagination automatically
+pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number]
+
+# Returns all review comments with: id, author, path, line, body, diff_hunk, created_at, in_reply_to_id
+```
+
+<details>
+<summary>Alternative: Raw gh CLI with manual pagination</summary>
 
 ```bash
 # Review comments (code-level) - paginate if needed
@@ -200,7 +264,23 @@ TOTAL_COMMENTS=$((REVIEW_COMMENT_COUNT + ISSUE_COMMENT_COUNT))
 echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $ISSUE_COMMENT_COUNT)"
 ```
 
+</details>
+
 #### Step 1.4: Extract Comment Details
+
+The `Get-PRReviewComments.ps1` script returns full comment details including:
+
+- `id`: Comment ID for reactions and replies
+- `author`: Reviewer username
+- `path`: File path
+- `line`: Line number (or original_line for outdated)
+- `body`: Comment text
+- `diff_hunk`: Surrounding code context
+- `created_at`: Timestamp
+- `in_reply_to_id`: Parent comment for threads
+
+<details>
+<summary>Alternative: Raw gh CLI extraction</summary>
 
 ```bash
 # Extract review comments with context
@@ -224,6 +304,8 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 }'
 ```
 
+</details>
+
 ### Phase 2: Comment Map Generation
 
 Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number]/comments.md`.
@@ -231,6 +313,18 @@ Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number
 #### Step 2.1: Acknowledge Each Comment
 
 For each comment, react with 👀 (eyes) to indicate acknowledgment:
+
+```powershell
+# Using github skill (PREFERRED)
+# Review comment reaction
+pwsh .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId [comment_id] -Reaction "eyes"
+
+# Issue comment reaction
+pwsh .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId [comment_id] -CommentType "issue" -Reaction "eyes"
+```
+
+<details>
+<summary>Alternative: Raw gh CLI</summary>
 
 ```bash
 # React to review comment
@@ -241,6 +335,8 @@ gh api repos/[owner]/[repo]/pulls/comments/[comment_id]/reactions \
 gh api repos/[owner]/[repo]/issues/comments/[comment_id]/reactions \
   -X POST -f content="eyes"
 ```
+
+</details>
 
 #### Step 2.2: Generate Comment Map
 
@@ -446,6 +542,21 @@ Reply to comments that need immediate response BEFORE implementation:
 
 > **⚠️ CRITICAL**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
 
+```powershell
+# Using github skill (PREFERRED) - handles thread-preserving replies correctly (Skill-PR-004)
+# Reply to review comment (in-thread reply using /replies endpoint)
+pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -CommentId [comment_id] -Body "[response]"
+
+# For multi-line responses, use -BodyFile to avoid escaping issues
+pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -CommentId [comment_id] -BodyFile reply.md
+
+# Post new top-level PR comment (no CommentId = issue comment)
+pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -Body "[response]"
+```
+
+<details>
+<summary>Alternative: Raw gh CLI</summary>
+
 ```bash
 # Reply to review comment (CORRECT - in-thread reply)
 # Uses pulls/{pull_number}/comments endpoint with in_reply_to field
@@ -463,6 +574,8 @@ gh api repos/[owner]/[repo]/issues/[number]/comments \
   -X POST \
   -f body="[response]"
 ```
+
+</details>
 
 #### Response Templates
 
@@ -543,6 +656,17 @@ git push origin [branch]
 
 #### Step 6.3: Reply with Resolution
 
+```powershell
+# Using github skill (PREFERRED)
+pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [pull_number] -CommentId [comment_id] -Body "Fixed in [commit_hash].`n`n[Brief summary of change]"
+
+# Or use a file for multi-line content
+pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [pull_number] -CommentId [comment_id] -BodyFile resolution.md
+```
+
+<details>
+<summary>Alternative: Raw gh CLI</summary>
+
 ```bash
 # Reply with commit reference (in-thread reply to review comment)
 gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
@@ -552,6 +676,8 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
 [Brief summary of change]" \
   -F in_reply_to=[comment_id]
 ```
+
+</details>
 
 #### Step 6.4: Update Task List
 

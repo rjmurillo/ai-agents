@@ -259,7 +259,7 @@ Pure logic validation (parameters) must run before environmental checks (externa
 ## Files Modified
 
 - `build/scripts/Validate-PathNormalization.ps1`: Path normalization + NO_COLOR respect
-- `.claude/skills/github-pr-reply/scripts/Post-PRCommentReply.ps1`: Validation reordering
+- `.claude/skills/github/scripts/pr/Post-PRCommentReply.ps1`: Validation reordering
 - `build/scripts/Invoke-PesterTests.ps1`: ANSI disabling in CI mode
 
 **Test Results**: 104/108 → 108/108 passing (0 failures)
