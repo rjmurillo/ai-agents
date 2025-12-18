@@ -46,10 +46,6 @@ inputs:
       If not provided, falls back to bot-pat (which may fail without Copilot permission).
     required: false
     default: ''
-  copilot-agent:
-    description: 'Copilot CLI agent to use (e.g., orchestrator, qa, security, etc.)'
-    required: false
-    default: 'orchestrator'
   copilot-model:
     description: |
       AI model to use (e.g., choices: "claude-sonnet-4.5", "claude-haiku-4.5", "claude-opus-4.5",
@@ -166,7 +162,7 @@ runs:
         # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
         GH_TOKEN: ${{ inputs.bot-pat }}
-        COPILOT_AGENT: ${{ inputs.copilot-agent }}
+        COPILOT_AGENT: ${{ inputs.agent }}
         COPILOT_MODEL: ${{ inputs.copilot-model }}
       run: |
         echo "=== COPILOT CLI DIAGNOSTICS ==="
@@ -406,38 +402,32 @@ runs:
           echo "EOF_CONTEXT"
         } >> $GITHUB_OUTPUT
 
-    - name: Load agent definition
+    - name: Verify agent definition
       id: agent
       shell: bash
       env:
         AGENT: ${{ inputs.agent }}
       run: |
-        # Try multiple locations for agent definition
-        AGENT_FILE=""
-        for path in ".github/agents/${AGENT}.agent.md" "src/copilot-cli/${AGENT}.agent.md"; do
-          if [ -f "$path" ]; then
-            AGENT_FILE="$path"
-            break
-          fi
-        done
+        # Copilot CLI will load agent from .github/agents/<name>.agent.md automatically
+        # We just verify it exists and report the location
+        AGENT_FILE=".github/agents/${AGENT}.agent.md"
 
-        if [ -n "$AGENT_FILE" ]; then
+        if [ -f "$AGENT_FILE" ]; then
           echo "Found agent definition at: $AGENT_FILE"
-          cat "$AGENT_FILE" > /tmp/ai-review-agent.md
           echo "agent_source=$AGENT_FILE" >> $GITHUB_OUTPUT
-        else
-          echo "Warning: No agent definition found for '$AGENT', using minimal prompt"
-          echo "You are a $AGENT agent. Analyze the provided context and give your assessment." > /tmp/ai-review-agent.md
-          echo "agent_source=generated" >> $GITHUB_OUTPUT
-        fi
-        echo "agent_file=/tmp/ai-review-agent.md" >> $GITHUB_OUTPUT
 
-        # Output agent definition for debugging
-        {
-          echo "agent_definition<<EOF_AGENT"
-          cat /tmp/ai-review-agent.md
-          echo "EOF_AGENT"
-        } >> $GITHUB_OUTPUT
+          # Output agent definition for debugging
+          {
+            echo "agent_definition<<EOF_AGENT"
+            cat "$AGENT_FILE"
+            echo "EOF_AGENT"
+          } >> $GITHUB_OUTPUT
+        else
+          echo "::warning::No agent definition found at $AGENT_FILE"
+          echo "Copilot CLI will use default behavior for agent '$AGENT'"
+          echo "agent_source=not_found" >> $GITHUB_OUTPUT
+          echo "agent_definition=" >> $GITHUB_OUTPUT
+        fi
 
     - name: Load prompt template
       id: prompt
@@ -478,25 +468,20 @@ runs:
         GH_TOKEN: ${{ inputs.bot-pat }}
         ADDITIONAL_CONTEXT: ${{ inputs.additional-context }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
-        COPILOT_AGENT: ${{ inputs.copilot-agent }}
+        COPILOT_AGENT: ${{ inputs.agent }}
         COPILOT_MODEL: ${{ inputs.copilot-model }}
       run: |
-        # Assemble full prompt
+        # Assemble prompt from template + context
+        # Note: Agent definition is loaded automatically by Copilot CLI via --agent flag
         FULL_PROMPT=""
 
-        # Add agent definition
-        if [ -f /tmp/ai-review-agent.md ]; then
-          FULL_PROMPT=$(cat /tmp/ai-review-agent.md)
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n---\n\n'
-        fi
-
-        # Add prompt template
+        # Add prompt template (task instructions)
         if [ -f /tmp/ai-review-prompt.md ]; then
-          FULL_PROMPT="$FULL_PROMPT$(cat /tmp/ai-review-prompt.md)"
+          FULL_PROMPT=$(cat /tmp/ai-review-prompt.md)
           FULL_PROMPT="$FULL_PROMPT"$'\n\n'
         fi
 
-        # Add context
+        # Add context (PR diff, issue, etc.)
         FULL_PROMPT="$FULL_PROMPT## Context"$'\n\n'
         if [ -f /tmp/ai-review-context.txt ]; then
           FULL_PROMPT="$FULL_PROMPT$(cat /tmp/ai-review-context.txt)"
