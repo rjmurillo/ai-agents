@@ -32,6 +32,9 @@
         DisplayName = "Claude Code"
         SourceDir   = "src/claude"
         FilePattern = "*.md"
+        # Skills directories (PowerShell modules with GitHub helpers, etc.)
+        SkillsSourceDir = ".claude/skills"
+        Skills          = @("github")  # List of skill directories to install
         Global      = @{
             DestDir          = '$HOME/.claude/agents'
             InstructionsFile = "CLAUDE.md"
@@ -41,6 +44,8 @@
             CommandFiles     = @(
                 "pr-comment-responder.md"
             )
+            # Skills destination
+            SkillsDir        = '$HOME/.claude/skills'
         }
         Repo        = @{
             DestDir          = '.claude/agents'
@@ -51,6 +56,8 @@
             CommandFiles     = @(
                 "pr-comment-responder.md"
             )
+            # Skills destination
+            SkillsDir        = '.claude/skills'
         }
     }
 

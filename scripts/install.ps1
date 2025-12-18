@@ -357,6 +357,35 @@ if ($Config.PromptFiles -and $Config.PromptFiles.Count -gt 0) {
     Write-Host ""
 }
 
+# Install skills (if configured) - Claude-specific PowerShell modules
+if ($Config.Skills -and $Config.Skills.Count -gt 0 -and $Config.SkillsDir) {
+    Write-Host "Installing skills..." -ForegroundColor Cyan
+
+    # Resolve skills source and destination paths
+    $SkillsSourceDir = if ($IsRemoteExecution) {
+        # For remote: skills need to be downloaded separately
+        Write-Host "  Note: Skills require local installation (not available via remote)" -ForegroundColor Yellow
+        $null
+    }
+    else {
+        Join-Path $RootDir $Config.SkillsSourceDir
+    }
+
+    if ($SkillsSourceDir -and (Test-Path $SkillsSourceDir)) {
+        $SkillsDestDir = Resolve-DestinationPath -PathExpression $Config.SkillsDir -RepoPath $RepoPath
+
+        $SkillStats = Install-SkillFiles `
+            -SourceDir $SkillsSourceDir `
+            -SkillsDir $SkillsDestDir `
+            -Skills $Config.Skills `
+            -Force:$Force
+
+        Write-Host ""
+        Write-Host "Skills: $($SkillStats.Installed) installed, $($SkillStats.Updated) updated, $($SkillStats.Skipped) skipped" -ForegroundColor Gray
+        Write-Host ""
+    }
+}
+
 # For Repo scope: create .agents directories
 if ($Scope -eq "Repo") {
     Write-Host "Setting up .agents directories..." -ForegroundColor Cyan
