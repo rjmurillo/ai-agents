@@ -289,6 +289,70 @@ It "Returns exit code 2 when both Body and BodyFile are missing" {
 
 ---
 
+## Skill-PowerShell-Wildcard-Escaping-001: Bracket Escaping for -like Operator
+
+**Statement**: Use bracket notation `[?]` and `[*]` to match literal wildcard characters in PowerShell -like comparisons
+
+**Context**: When detecting wildcard characters in file paths or patterns for conditional logic in PowerShell scripts
+
+**Evidence**: PR #55 commit 106d211: Condition `$fullPath -like "*?*"` always evaluated to true (matches ANY 2+ char string); fix changed to `$fullPath -like "*[?]*"` to match literal `?` character
+
+**Atomicity**: 95%
+
+**Tag**: helpful
+
+**Impact**: 10/10
+
+**Pattern**:
+
+```powershell
+# WRONG: ? is treated as wildcard (matches any single char)
+if ($path -like "*?*") {  # Matches "ab", "test.txt", etc.
+    # This branch taken for ANY path with 2+ characters!
+}
+
+# WRONG: * is treated as wildcard (matches zero or more chars)
+if ($path -like "**") {  # Matches any string including empty
+    # This branch taken for ALL paths!
+}
+
+# RIGHT: Bracket notation matches literal characters
+if ($path -like "*[?]*") {  # Only matches paths containing literal ?
+    # Correctly detects wildcard character
+}
+
+if ($path -like "*[*]*") {  # Only matches paths containing literal *
+    # Correctly detects wildcard character
+}
+```
+
+**Why it matters**:
+
+- PowerShell `-like` operator uses wildcards: `?` (any single char), `*` (zero or more chars)
+- To match literal wildcard characters, use bracket notation: `[?]`, `[*]`
+- Without brackets, conditions like `"*?*"` match almost any string
+- Can create dead code branches when condition always evaluates to true
+
+**Anti-Pattern**: Using unescaped wildcard chars in -like when checking for literal characters
+
+**Test Pattern**:
+
+```powershell
+It "Should detect literal ? in filename" {
+    $path = "test?.ps1"
+    $path -like "*[?]*" | Should -Be $true
+}
+
+It "Should not match paths without literal ?" {
+    $path = "test.ps1"
+    $path -like "*[?]*" | Should -Be $false
+}
+```
+
+**Validated**: 1 (PR #55 commit 106d211)
+
+---
+
 ## Related Skills
 
-- See above formal skills section for Skill-PowerShell-Testing-Combinations-001, Skill-PowerShell-Parameter-Patterns-001, Skill-PowerShell-Testing-Process-001, Skill-PowerShell-Path-Normalization-001, Skill-Testing-Exit-Code-Order-001
+- See above formal skills section for Skill-PowerShell-Testing-Combinations-001, Skill-PowerShell-Parameter-Patterns-001, Skill-PowerShell-Testing-Process-001, Skill-PowerShell-Path-Normalization-001, Skill-Testing-Exit-Code-Order-001, Skill-PowerShell-Wildcard-Escaping-001
