@@ -235,6 +235,41 @@ cat .agents/governance/consistency-protocol.md
 
 ## Recent Sessions
 
+### 2025-12-18: AI PR Quality Gate - Fix Missing QA Findings
+
+**Session Log**: [Session 07](./sessions/2025-12-18-session-07-qa-output-debug.md)
+
+**Objective**: Debug and fix QA agent findings not appearing in PR comment
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**PR**: [#60](https://github.com/rjmurillo/ai-agents/pull/60)
+
+**Root Causes Found**:
+
+1. **Shell Interpolation Bug**: Direct `${{ }}` interpolation in shell scripts
+   breaks when AI output contains quotes or special characters
+2. **Matrix Output Limitation**: GitHub Actions matrix jobs only expose ONE
+   matrix leg's outputs to downstream jobs (non-deterministic behavior)
+
+**Fix Implemented**:
+
+Changed from job outputs to artifacts for passing findings:
+
+- Each matrix job saves findings to files and uploads as artifact
+- Aggregate job downloads all artifacts using `merge-multiple: true`
+- Report generation reads from files (safe from interpolation issues)
+
+**Files Changed**:
+
+- `.github/workflows/ai-pr-quality-gate.yml` - Use artifacts instead of job outputs
+
+**Status**: Complete - awaiting PR push and test run
+
+---
+
 ### 2025-12-17: Claude Code MCP Config Research
 
 **Objective**: Research Claude Code MCP configuration requirements and resolve conflicting config files

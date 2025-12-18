@@ -1,7 +1,9 @@
 name: AI PR Quality Gate
 
 # AI-powered PR review using GitHub Copilot CLI
+
 # Invokes security, qa, and analyst agents to review PRs IN PARALLEL
+
 # Blocks merge if CRITICAL_FAIL detected
 
 on:
@@ -31,11 +33,15 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Compute PR number from either pull_request event or workflow_dispatch input
+
+# Compute PR number from either pull_request event or workflow_dispatch input
+
   PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 jobs:
-  # Quick check to see if we should skip AI review (docs-only changes)
+
+# Quick check to see if we should skip AI review (docs-only changes)
+
   check-changes:
     name: Check Changes
     runs-on: ubuntu-latest
@@ -66,7 +72,8 @@ jobs:
             echo "skip_review=false" >> $GITHUB_OUTPUT
           fi
 
-  # Run all three reviews in parallel using matrix strategy
+# Run all three reviews in parallel using matrix strategy
+
   review:
     name: ${{ matrix.agent }} Review
     runs-on: ubuntu-latest
@@ -88,14 +95,9 @@ jobs:
             prompt-file: .github/prompts/pr-quality-gate-analyst.md
             emoji: "📊"
 
-    outputs:
-      # Each matrix job writes to its own output
-      security-verdict: ${{ steps.set-output.outputs.security-verdict }}
-      security-findings: ${{ steps.set-output.outputs.security-findings }}
-      qa-verdict: ${{ steps.set-output.outputs.qa-verdict }}
-      qa-findings: ${{ steps.set-output.outputs.qa-findings }}
-      analyst-verdict: ${{ steps.set-output.outputs.analyst-verdict }}
-      analyst-findings: ${{ steps.set-output.outputs.analyst-findings }}
+    # NOTE: Matrix job outputs only expose ONE matrix leg's outputs to downstream jobs.
+    # We use artifacts instead to reliably pass findings between jobs.
+    # Verdicts use job outputs (small strings, safe for interpolation).
 
     steps:
       - name: Checkout repository
@@ -115,18 +117,35 @@ jobs:
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-      - name: Set matrix output
-        id: set-output
+      - name: Save review results
+        id: save-results
+        env:
+          AGENT: ${{ matrix.agent }}
+          VERDICT: ${{ steps.review.outputs.verdict }}
+          FINDINGS: ${{ steps.review.outputs.findings }}
         run: |
-          # Write outputs with agent-specific keys so aggregate job can read them
-          echo "${{ matrix.agent }}-verdict=${{ steps.review.outputs.verdict }}" >> $GITHUB_OUTPUT
-          {
-            echo "${{ matrix.agent }}-findings<<EOF_FINDINGS"
-            echo "${{ steps.review.outputs.findings }}"
-            echo "EOF_FINDINGS"
-          } >> $GITHUB_OUTPUT
+          # Create output directory for this agent's results
+          mkdir -p ai-review-results
 
-  # Aggregate results from all parallel reviews
+          # Write verdict (safe for job outputs - small string)
+          echo "$VERDICT" > "ai-review-results/${AGENT}-verdict.txt"
+
+          # Write findings to file (avoids shell interpolation issues with special chars)
+          echo "$FINDINGS" > "ai-review-results/${AGENT}-findings.txt"
+
+          echo "Saved ${AGENT} results:"
+          echo "  Verdict: $VERDICT"
+          echo "  Findings: $(wc -c < ai-review-results/${AGENT}-findings.txt) bytes"
+
+      - name: Upload review results
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4
+        with:
+          name: review-${{ matrix.agent }}
+          path: ai-review-results/
+          retention-days: 1
+
+# Aggregate results from all parallel reviews
+
   aggregate:
     name: Aggregate Results
     runs-on: ubuntu-latest
@@ -140,15 +159,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
+      - name: Download all review artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          pattern: review-*
+          path: ai-review-results
+          merge-multiple: true
+
+      - name: Load review results
+        id: load-results
+        run: |
+          # Read verdicts from artifact files
+          SECURITY_VERDICT=$(cat ai-review-results/security-verdict.txt 2>/dev/null || echo "UNKNOWN")
+          QA_VERDICT=$(cat ai-review-results/qa-verdict.txt 2>/dev/null || echo "UNKNOWN")
+          ANALYST_VERDICT=$(cat ai-review-results/analyst-verdict.txt 2>/dev/null || echo "UNKNOWN")
+
+          echo "Loaded verdicts:"
+          echo "  Security: $SECURITY_VERDICT"
+          echo "  QA: $QA_VERDICT"
+          echo "  Analyst: $ANALYST_VERDICT"
+
+          # Export verdicts for subsequent steps
+          echo "security_verdict=$SECURITY_VERDICT" >> $GITHUB_OUTPUT
+          echo "qa_verdict=$QA_VERDICT" >> $GITHUB_OUTPUT
+          echo "analyst_verdict=$ANALYST_VERDICT" >> $GITHUB_OUTPUT
+
       - name: Aggregate Verdicts
         id: aggregate
         run: |
           source .github/scripts/ai-review-common.sh
 
-          # Get verdicts from matrix job outputs
-          SECURITY_VERDICT="${{ needs.review.outputs.security-verdict }}"
-          QA_VERDICT="${{ needs.review.outputs.qa-verdict }}"
-          ANALYST_VERDICT="${{ needs.review.outputs.analyst-verdict }}"
+          # Get verdicts from loaded results
+          SECURITY_VERDICT="${{ steps.load-results.outputs.security_verdict }}"
+          QA_VERDICT="${{ steps.load-results.outputs.qa_verdict }}"
+          ANALYST_VERDICT="${{ steps.load-results.outputs.analyst_verdict }}"
 
           log "Security verdict: $SECURITY_VERDICT"
           log "QA verdict: $QA_VERDICT"
@@ -164,10 +208,6 @@ jobs:
 
       - name: Generate Report
         id: report
-        env:
-          SECURITY_FINDINGS: ${{ needs.review.outputs.security-findings }}
-          QA_FINDINGS: ${{ needs.review.outputs.qa-findings }}
-          ANALYST_FINDINGS: ${{ needs.review.outputs.analyst-findings }}
         run: |
           source .github/scripts/ai-review-common.sh
 
@@ -223,8 +263,13 @@ jobs:
 
           EOF
 
+          # Read findings from artifact files (safe from shell interpolation issues)
+          SECURITY_FINDINGS_FILE="ai-review-results/security-findings.txt"
+          QA_FINDINGS_FILE="ai-review-results/qa-findings.txt"
+          ANALYST_FINDINGS_FILE="ai-review-results/analyst-findings.txt"
+
           # Add security findings with better formatting
-          if [ -n "$SECURITY_FINDINGS" ]; then
+          if [ -s "$SECURITY_FINDINGS_FILE" ]; then
             cat >> "$REPORT_FILE" << 'SECTION_EOF'
 
           <details>
@@ -232,13 +277,15 @@ jobs:
 
           SECTION_EOF
             echo "" >> "$REPORT_FILE"
-            echo "$SECURITY_FINDINGS" >> "$REPORT_FILE"
+            cat "$SECURITY_FINDINGS_FILE" >> "$REPORT_FILE"
             echo "" >> "$REPORT_FILE"
             echo "</details>" >> "$REPORT_FILE"
+          else
+            echo "Warning: No security findings file found" >&2
           fi
 
           # Add QA findings with better formatting
-          if [ -n "$QA_FINDINGS" ]; then
+          if [ -s "$QA_FINDINGS_FILE" ]; then
             cat >> "$REPORT_FILE" << 'SECTION_EOF'
 
           <details>
@@ -246,13 +293,15 @@ jobs:
 
           SECTION_EOF
             echo "" >> "$REPORT_FILE"
-            echo "$QA_FINDINGS" >> "$REPORT_FILE"
+            cat "$QA_FINDINGS_FILE" >> "$REPORT_FILE"
             echo "" >> "$REPORT_FILE"
             echo "</details>" >> "$REPORT_FILE"
+          else
+            echo "Warning: No QA findings file found" >&2
           fi
 
           # Add analyst findings with better formatting
-          if [ -n "$ANALYST_FINDINGS" ]; then
+          if [ -s "$ANALYST_FINDINGS_FILE" ]; then
             cat >> "$REPORT_FILE" << 'SECTION_EOF'
 
           <details>
@@ -260,9 +309,11 @@ jobs:
 
           SECTION_EOF
             echo "" >> "$REPORT_FILE"
-            echo "$ANALYST_FINDINGS" >> "$REPORT_FILE"
+            cat "$ANALYST_FINDINGS_FILE" >> "$REPORT_FILE"
             echo "" >> "$REPORT_FILE"
             echo "</details>" >> "$REPORT_FILE"
+          else
+            echo "Warning: No analyst findings file found" >&2
           fi
 
           # Add footer with run info and branding
