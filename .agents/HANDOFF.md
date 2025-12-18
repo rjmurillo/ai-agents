@@ -365,6 +365,49 @@ cat .agents/governance/consistency-protocol.md
 
 ---
 
+### 2025-12-18: MCP Workspace Variable Fix
+
+**Session Log**: [Session 05](./sessions/2025-12-18-session-05-mcp-workspace-variable.md)
+
+**Objective**: Fix Serena MCP startup error due to duplicate project names by using `${workspaceFolder}` and verify sync script handles it correctly.
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Problem**: Serena MCP failed to start with error:
+
+```text
+Multiple projects found with name 'ai-agents'. Please activate it by location instead.
+```
+
+**Root Cause**: Two directories share the project name "ai-agents":
+
+- `D:/src/GitHub/rjmurillo-bot/ai-agents`
+- `D:/src/GitHub/rjmurillo/ai-agents`
+
+**Solution**: Changed `.mcp.json` to use `${workspaceFolder}` instead of project name:
+
+```json
+"--project",
+"${workspaceFolder}",  // Was: "ai-agents"
+```
+
+**Verification**: Confirmed Sync-McpConfig.ps1 handles `${workspaceFolder}` correctly:
+
+- Both Claude Code and VS Code support same `${workspaceFolder}` syntax
+- Script's regex uses exact match anchors, so variable passes through unchanged
+- No code changes required to sync script
+
+**Files Modified**:
+
+- `.mcp.json` - Changed project from name to `${workspaceFolder}`
+- `.vscode/mcp.json` - Re-synced with updated config
+
+**Status**: Complete
+
+---
+
 *Last Updated: 2025-12-18*
 *Phase 0 Session: 2025-12-18-session-01-phase-0-foundation*
 *Next Phase: Phase 1 - Spec Layer*
