@@ -321,13 +321,13 @@ Test content
     }
 
     Context "Exclusion patterns" {
-        It "Should exclude files matching exclude pattern" {
-            # Arrange - Create steering file with exclude pattern
+        It "Should exclude files matching excludeFrom pattern" {
+            # Arrange - Create steering file with excludeFrom pattern
             $excludeContent = @"
 ---
 name: Documentation with Exclusions
 applyTo: "**/*.md"
-exclude: "src/claude/**/*.md,.agents/steering/**"
+excludeFrom: "src/claude/**/*.md,.agents/steering/**"
 priority: 5
 version: 0.1.0
 status: test
@@ -349,9 +349,9 @@ Test content
             }
         }
 
-        It "Should include files matching applyTo but not matching exclude" {
+        It "Should include files matching applyTo but not matching excludeFrom" {
             # Arrange - Using same steering file from previous test
-            # Files that match applyTo but NOT exclude
+            # Files that match applyTo but NOT excludeFrom
             $files = @("README.md", "docs/guide.md", "CHANGELOG.md")
 
             # Act
@@ -362,13 +362,13 @@ Test content
             $result.Name | Should -Contain "doc-with-exclude"
         }
 
-        It "Should handle multiple exclude patterns" {
+        It "Should handle multiple excludeFrom patterns" {
             # Arrange
             $multiExcludeContent = @"
 ---
 name: Multi Exclude Test
 applyTo: "**/*.ps1"
-exclude: "**/*.Tests.ps1,**/build/**"
+excludeFrom: "**/*.Tests.ps1,**/build/**"
 priority: 5
 version: 0.1.0
 status: test
@@ -390,8 +390,8 @@ Test content
             }
         }
 
-        It "Should work when exclude field is absent" {
-            # Arrange - Create steering without exclude field
+        It "Should work when excludeFrom field is absent" {
+            # Arrange - Create steering without excludeFrom field
             $noExcludeContent = @"
 ---
 name: No Exclude Test
@@ -410,12 +410,12 @@ Test content
             # Act
             $result = Get-ApplicableSteering -Files $files -SteeringPath $testSteeringPath
 
-            # Assert - Should match since there's no exclude
+            # Assert - Should match since there's no excludeFrom
             $result | Should -Not -BeNullOrEmpty
             $result.Name | Should -Contain "no-exclude"
         }
 
-        It "Should include Exclude property in output when present" {
+        It "Should include ExcludeFrom property in output when present" {
             # Arrange - Using doc-with-exclude from earlier tests
             $files = @("README.md")
 
@@ -424,8 +424,8 @@ Test content
 
             # Assert
             $docSteering = $result | Where-Object { $_.Name -eq "doc-with-exclude" }
-            $docSteering.Exclude | Should -Not -BeNullOrEmpty
-            $docSteering.Exclude | Should -BeExactly "src/claude/**/*.md,.agents/steering/**"
+            $docSteering.ExcludeFrom | Should -Not -BeNullOrEmpty
+            $docSteering.ExcludeFrom | Should -BeExactly "src/claude/**/*.md,.agents/steering/**"
         }
     }
 }
