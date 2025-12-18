@@ -102,5 +102,14 @@ Added **Post-Retrospective Workflow (Automatic)** section defining:
 
 - [x] Session log created
 - [x] Implementation complete
-- [ ] HANDOFF.md updated
-- [ ] Changes committed
+- [x] HANDOFF.md updated
+- [x] Changes committed
+
+## Commits
+
+- `d7489ba` feat(agents): add automatic retrospective-to-orchestrator handoff
+- `bf554fa` docs(handoff): add session 15 retrospective summary
+
+---
+
+*Session completed: 2025-12-18*
