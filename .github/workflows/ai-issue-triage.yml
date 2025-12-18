@@ -214,39 +214,66 @@ jobs:
           PRIORITY="${{ steps.align.outputs.priority }}"
           MILESTONE="${{ steps.align.outputs.milestone }}"
 
+          # Get priority emoji
+          get_priority_emoji() {
+            case "$1" in
+              P0) echo "🔴" ;;
+              P1) echo "🟠" ;;
+              P2) echo "🟡" ;;
+              P3) echo "🟢" ;;
+              *) echo "⚪" ;;
+            esac
+          }
+          PRIORITY_EMOJI=$(get_priority_emoji "$PRIORITY")
+
           cat > /tmp/triage-comment.md << EOF
-          ## AI Triage Summary
+          <!-- AI-ISSUE-TRIAGE -->
+
+          ## 🤖 AI Triage Summary
 
           > [!NOTE]
-          > This issue has been automatically triaged by AI
-
-          | Field | Value |
-          |-------|-------|
-          | Category | $CATEGORY |
-          | Labels | $LABELS |
-          | Priority | $PRIORITY |
-          | Milestone | ${MILESTONE:-Not assigned} |
+          > This issue has been automatically triaged by AI agents
 
           <details>
-          <summary>Categorization Analysis</summary>
+          <summary>📋 What is AI Triage?</summary>
 
-          \`\`\`
+          This issue was analyzed by two AI agents:
+
+          - **📊 Analyst Agent**: Categorizes the issue and suggests appropriate labels
+          - **🗺️ Roadmap Agent**: Aligns the issue with project milestones and priorities
+
+          </details>
+
+          ### 📊 Triage Results
+
+          | Property | Value |
+          |:---------|:------|
+          | 📁 **Category** | \`$CATEGORY\` |
+          | 🏷️ **Labels** | ${LABELS:-*None assigned*} |
+          | $PRIORITY_EMOJI **Priority** | \`$PRIORITY\` |
+          | 🎯 **Milestone** | ${MILESTONE:-*Not assigned*} |
+
+          <details>
+          <summary>🔍 Categorization Analysis</summary>
+
+          \`\`\`json
           $(cat /tmp/categorize-output.txt 2>/dev/null || echo "N/A")
           \`\`\`
 
           </details>
 
           <details>
-          <summary>Roadmap Alignment</summary>
+          <summary>🗺️ Roadmap Alignment</summary>
 
-          \`\`\`
+          \`\`\`json
           $(cat /tmp/align-output.txt 2>/dev/null || echo "N/A")
           \`\`\`
 
           </details>
 
           ---
-          *Triaged by AI using GitHub Copilot CLI*
+
+          <sub>🤖 Powered by [AI Issue Triage](https://github.com/${{ github.repository }}) · [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>
           EOF
 
           source .github/scripts/ai-review-common.sh

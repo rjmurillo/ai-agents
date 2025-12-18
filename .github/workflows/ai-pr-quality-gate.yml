@@ -128,62 +128,114 @@ jobs:
           FINAL_VERDICT="${{ steps.aggregate.outputs.final_verdict }}"
           ALERT_TYPE=$(get_verdict_alert_type "$FINAL_VERDICT")
 
-          cat > "$REPORT_FILE" << EOF
-          ## AI Quality Gate Review
+          # Helper function to get verdict emoji
+          get_verdict_emoji() {
+            case "$1" in
+              PASS) echo "✅" ;;
+              WARN) echo "⚠️" ;;
+              CRITICAL_FAIL|REJECTED|FAIL) echo "❌" ;;
+              *) echo "❔" ;;
+            esac
+          }
 
-          **Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          SECURITY_VERDICT="${{ steps.security.outputs.verdict }}"
+          QA_VERDICT="${{ steps.qa.outputs.verdict }}"
+          ANALYST_VERDICT="${{ steps.analyst.outputs.verdict }}"
+
+          SECURITY_EMOJI=$(get_verdict_emoji "$SECURITY_VERDICT")
+          QA_EMOJI=$(get_verdict_emoji "$QA_VERDICT")
+          ANALYST_EMOJI=$(get_verdict_emoji "$ANALYST_VERDICT")
+          FINAL_EMOJI=$(get_verdict_emoji "$FINAL_VERDICT")
+
+          cat > "$REPORT_FILE" << EOF
+          <!-- AI-PR-QUALITY-GATE -->
+
+          ## 🤖 AI Quality Gate Review
 
           > [!$ALERT_TYPE]
-          > **Final Verdict: $FINAL_VERDICT**
+          > $FINAL_EMOJI **Final Verdict: $FINAL_VERDICT**
 
-          ### Summary
+          <details>
+          <summary>📋 Walkthrough</summary>
 
-          | Agent | Verdict |
-          |-------|---------|
-          | Security | ${{ steps.security.outputs.verdict }} |
-          | QA | ${{ steps.qa.outputs.verdict }} |
-          | Analyst | ${{ steps.analyst.outputs.verdict }} |
+          This PR was reviewed by three AI agents analyzing different aspects of the changes:
+
+          - **🔒 Security Agent**: Scans for vulnerabilities, secrets exposure, and security anti-patterns
+          - **🧪 QA Agent**: Evaluates test coverage, error handling, and code quality
+          - **📊 Analyst Agent**: Assesses architecture impact, maintainability, and best practices
+
+          </details>
+
+          ### 📊 Review Summary
+
+          | Agent | Verdict | Status |
+          |:------|:--------|:------:|
+          | 🔒 Security | $SECURITY_VERDICT | $SECURITY_EMOJI |
+          | 🧪 QA | $QA_VERDICT | $QA_EMOJI |
+          | 📊 Analyst | $ANALYST_VERDICT | $ANALYST_EMOJI |
 
           EOF
 
-          # Add security findings
+          # Add security findings with better formatting
           if [ -n "${{ steps.security.outputs.findings }}" ]; then
             cat >> "$REPORT_FILE" << 'SECTION_EOF'
-          ### Security Review
 
           <details>
-          <summary>Click to expand</summary>
+          <summary>🔒 Security Review Details</summary>
 
           SECTION_EOF
+            echo "" >> "$REPORT_FILE"
             echo "${{ steps.security.outputs.findings }}" >> "$REPORT_FILE"
-            echo -e "\n</details>\n" >> "$REPORT_FILE"
+            echo "" >> "$REPORT_FILE"
+            echo "</details>" >> "$REPORT_FILE"
           fi
 
-          # Add QA findings
+          # Add QA findings with better formatting
           if [ -n "${{ steps.qa.outputs.findings }}" ]; then
             cat >> "$REPORT_FILE" << 'SECTION_EOF'
-          ### QA Review
 
           <details>
-          <summary>Click to expand</summary>
+          <summary>🧪 QA Review Details</summary>
 
           SECTION_EOF
+            echo "" >> "$REPORT_FILE"
             echo "${{ steps.qa.outputs.findings }}" >> "$REPORT_FILE"
-            echo -e "\n</details>\n" >> "$REPORT_FILE"
+            echo "" >> "$REPORT_FILE"
+            echo "</details>" >> "$REPORT_FILE"
           fi
 
-          # Add analyst findings
+          # Add analyst findings with better formatting
           if [ -n "${{ steps.analyst.outputs.findings }}" ]; then
             cat >> "$REPORT_FILE" << 'SECTION_EOF'
-          ### Analyst Review
 
           <details>
-          <summary>Click to expand</summary>
+          <summary>📊 Analyst Review Details</summary>
 
           SECTION_EOF
+            echo "" >> "$REPORT_FILE"
             echo "${{ steps.analyst.outputs.findings }}" >> "$REPORT_FILE"
-            echo -e "\n</details>\n" >> "$REPORT_FILE"
+            echo "" >> "$REPORT_FILE"
+            echo "</details>" >> "$REPORT_FILE"
           fi
+
+          # Add footer with run info and branding
+          cat >> "$REPORT_FILE" << EOF
+
+          ---
+
+          <details>
+          <summary>ℹ️ Run Details</summary>
+
+          | Property | Value |
+          |:---------|:------|
+          | **Run ID** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+          | **Triggered by** | \`${{ github.event_name }}\` on \`${{ github.ref_name }}\` |
+          | **Commit** | \`${{ github.sha }}\` |
+
+          </details>
+
+          <sub>🤖 Powered by [AI Quality Gate](https://github.com/${{ github.repository }}) · [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>
+          EOF
 
           echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
 

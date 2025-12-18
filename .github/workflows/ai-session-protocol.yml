@@ -158,6 +158,17 @@ jobs:
           MUST_FAILURES="${{ steps.validate.outputs.must_failures }}"
           ALERT_TYPE=$(get_verdict_alert_type "$OVERALL_VERDICT")
 
+          # Helper function to get verdict emoji
+          get_verdict_emoji() {
+            case "$1" in
+              PASS) echo "✅" ;;
+              WARN) echo "⚠️" ;;
+              CRITICAL_FAIL|REJECTED|FAIL) echo "❌" ;;
+              *) echo "❔" ;;
+            esac
+          }
+          FINAL_EMOJI=$(get_verdict_emoji "$OVERALL_VERDICT")
+
           # Build verdict message based on failures
           if [ "$MUST_FAILURES" -gt 0 ]; then
             VERDICT_MSG="$MUST_FAILURES MUST requirement(s) not met. These must be addressed before merge."
@@ -166,19 +177,32 @@ jobs:
           fi
 
           cat > "$REPORT_FILE" << EOF
-          ## Session Protocol Compliance Report
+          <!-- AI-SESSION-PROTOCOL -->
 
-          **Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          ## 📋 Session Protocol Compliance Report
 
           > [!$ALERT_TYPE]
-          > **Overall Verdict: $OVERALL_VERDICT**
+          > $FINAL_EMOJI **Overall Verdict: $OVERALL_VERDICT**
           >
           > $VERDICT_MSG
 
-          ### Compliance Summary
+          <details>
+          <summary>📖 What is Session Protocol?</summary>
+
+          Session logs document agent work sessions and must comply with RFC 2119 requirements:
+
+          - **MUST**: Required for compliance (blocking failures)
+          - **SHOULD**: Recommended practices (warnings)
+          - **MAY**: Optional enhancements
+
+          See [\`.agents/SESSION-PROTOCOL.md\`](.agents/SESSION-PROTOCOL.md) for full specification.
+
+          </details>
+
+          ### 📊 Compliance Summary
 
           | Requirement | Level | Status |
-          |-------------|-------|--------|
+          |:------------|:------|:------:|
           EOF
 
           # Aggregate results from all session files
@@ -186,7 +210,7 @@ jobs:
             if [ -f "$result_file" ]; then
               FILE_NAME=$(basename "$result_file" .txt)
               echo "" >> "$REPORT_FILE"
-              echo "### $FILE_NAME" >> "$REPORT_FILE"
+              echo "### 📄 $FILE_NAME" >> "$REPORT_FILE"
               echo "" >> "$REPORT_FILE"
 
               # Extract MUST/SHOULD/MAY lines
@@ -204,7 +228,7 @@ jobs:
                     EMOJI="⚠️"
                   fi
 
-                  echo "| $REQ | $LEVEL | $EMOJI $STATUS |" >> "$REPORT_FILE"
+                  echo "| $REQ | \`$LEVEL\` | $EMOJI |" >> "$REPORT_FILE"
                 fi
               done < "$result_file"
             fi
@@ -212,14 +236,14 @@ jobs:
 
           # Add details sections
           echo "" >> "$REPORT_FILE"
-          echo "### Detailed Results" >> "$REPORT_FILE"
+          echo "### 🔍 Detailed Results" >> "$REPORT_FILE"
           echo "" >> "$REPORT_FILE"
 
           for result_file in /tmp/session-results/*.txt; do
             if [ -f "$result_file" ]; then
               FILE_NAME=$(basename "$result_file" .txt)
               echo "<details>" >> "$REPORT_FILE"
-              echo "<summary>$FILE_NAME</summary>" >> "$REPORT_FILE"
+              echo "<summary>📄 $FILE_NAME</summary>" >> "$REPORT_FILE"
               echo "" >> "$REPORT_FILE"
               echo '```' >> "$REPORT_FILE"
               cat "$result_file" >> "$REPORT_FILE"
@@ -229,6 +253,24 @@ jobs:
               echo "" >> "$REPORT_FILE"
             fi
           done
+
+          # Add footer
+          cat >> "$REPORT_FILE" << EOF
+
+          ---
+
+          <details>
+          <summary>ℹ️ Run Details</summary>
+
+          | Property | Value |
+          |:---------|:------|
+          | **Run ID** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+          | **Files Checked** | $(wc -l < /tmp/changed-sessions.txt 2>/dev/null || echo "N/A") |
+
+          </details>
+
+          <sub>🤖 Powered by [AI Session Protocol Validator](https://github.com/${{ github.repository }}) · [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>
+          EOF
 
           echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
 

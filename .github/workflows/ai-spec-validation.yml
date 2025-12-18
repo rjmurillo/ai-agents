@@ -229,22 +229,43 @@ jobs:
           REPORT_FILE="/tmp/spec-validation-report.md"
           HAS_SPECS="${{ steps.spec-ref.outputs.has_specs }}"
 
+          # Helper function to get verdict emoji
+          get_verdict_emoji() {
+            case "$1" in
+              PASS) echo "✅" ;;
+              WARN|PARTIAL) echo "⚠️" ;;
+              CRITICAL_FAIL|REJECTED|FAIL) echo "❌" ;;
+              *) echo "❔" ;;
+            esac
+          }
+
           if [ "$HAS_SPECS" != "true" ]; then
             cat > "$REPORT_FILE" << EOF
-          ## Spec-to-Implementation Validation
+          <!-- AI-SPEC-VALIDATION -->
+
+          ## 📐 Spec-to-Implementation Validation
 
           > [!WARNING]
-          > **No spec references found**
+          > ⚠️ **No spec references found**
           >
           > This PR does not reference any specifications (REQ-*, DESIGN-*, TASK-*, or linked issues).
 
-          Consider adding spec references to the PR description:
-          - Reference requirements: \`Implements REQ-001\`
-          - Link issues: \`Closes #123\`
-          - Reference spec files: \`.agents/specs/requirements/...\`
+          <details>
+          <summary>📖 How to add spec references</summary>
+
+          Add spec references to your PR description to enable traceability:
+
+          | Method | Example |
+          |:-------|:--------|
+          | Reference requirements | \`Implements REQ-001\` |
+          | Link issues | \`Closes #123\` |
+          | Reference spec files | \`.agents/specs/requirements/...\` |
+
+          </details>
 
           ---
-          *Validation skipped - no specs to validate against*
+
+          <sub>🤖 Powered by [AI Spec Validator](https://github.com/${{ github.repository }}) · *Validation skipped - no specs found*</sub>
           EOF
           else
             TRACE_VERDICT="${{ steps.trace.outputs.verdict }}"
@@ -260,50 +281,85 @@ jobs:
             fi
 
             ALERT_TYPE=$(get_verdict_alert_type "$FINAL_VERDICT")
+            FINAL_EMOJI=$(get_verdict_emoji "$FINAL_VERDICT")
+            TRACE_EMOJI=$(get_verdict_emoji "$TRACE_VERDICT")
+            COMPLETENESS_EMOJI=$(get_verdict_emoji "$COMPLETENESS_VERDICT")
 
             cat > "$REPORT_FILE" << EOF
-          ## Spec-to-Implementation Validation
+          <!-- AI-SPEC-VALIDATION -->
 
-          **Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          ## 📐 Spec-to-Implementation Validation
 
           > [!$ALERT_TYPE]
-          > **Final Verdict: $FINAL_VERDICT**
+          > $FINAL_EMOJI **Final Verdict: $FINAL_VERDICT**
 
-          ### Summary
+          <details>
+          <summary>📖 What is Spec Validation?</summary>
 
-          | Check | Verdict |
-          |-------|---------|
-          | Requirements Traceability | $TRACE_VERDICT |
-          | Implementation Completeness | $COMPLETENESS_VERDICT |
+          This validation ensures your implementation matches the specifications:
 
-          ### Spec References
+          - **🔗 Requirements Traceability**: Verifies PR changes map to spec requirements
+          - **✅ Implementation Completeness**: Checks all requirements are addressed
 
-          - References: ${{ steps.spec-ref.outputs.spec_refs }}
-          - Linked Issues: ${{ steps.spec-ref.outputs.issue_refs }}
+          </details>
+
+          ### 📊 Validation Summary
+
+          | Check | Verdict | Status |
+          |:------|:--------|:------:|
+          | 🔗 Requirements Traceability | \`$TRACE_VERDICT\` | $TRACE_EMOJI |
+          | ✅ Implementation Completeness | \`$COMPLETENESS_VERDICT\` | $COMPLETENESS_EMOJI |
+
+          ### 📎 Spec References
+
+          | Type | References |
+          |:-----|:-----------|
+          | 📄 **Specs** | ${{ steps.spec-ref.outputs.spec_refs || '*None*' }} |
+          | 🔗 **Issues** | ${{ steps.spec-ref.outputs.issue_refs || '*None*' }} |
 
           EOF
 
             # Add traceability results
             cat >> "$REPORT_FILE" << 'SECTION_EOF'
-          ### Requirements Traceability
 
           <details>
-          <summary>Click to expand</summary>
+          <summary>🔗 Requirements Traceability Details</summary>
 
           SECTION_EOF
+            echo "" >> "$REPORT_FILE"
             cat /tmp/trace-output.txt >> "$REPORT_FILE" 2>/dev/null || echo "No traceability output" >> "$REPORT_FILE"
-            echo -e "\n</details>\n" >> "$REPORT_FILE"
+            echo "" >> "$REPORT_FILE"
+            echo "</details>" >> "$REPORT_FILE"
 
             # Add completeness results
             cat >> "$REPORT_FILE" << 'SECTION_EOF'
-          ### Implementation Completeness
 
           <details>
-          <summary>Click to expand</summary>
+          <summary>✅ Implementation Completeness Details</summary>
 
           SECTION_EOF
+            echo "" >> "$REPORT_FILE"
             cat /tmp/completeness-output.txt >> "$REPORT_FILE" 2>/dev/null || echo "No completeness output" >> "$REPORT_FILE"
-            echo -e "\n</details>\n" >> "$REPORT_FILE"
+            echo "" >> "$REPORT_FILE"
+            echo "</details>" >> "$REPORT_FILE"
+
+            # Add footer
+            cat >> "$REPORT_FILE" << EOF
+
+          ---
+
+          <details>
+          <summary>ℹ️ Run Details</summary>
+
+          | Property | Value |
+          |:---------|:------|
+          | **Run ID** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+          | **Triggered by** | \`${{ github.event_name }}\` on \`${{ github.ref_name }}\` |
+
+          </details>
+
+          <sub>🤖 Powered by [AI Spec Validator](https://github.com/${{ github.repository }}) · [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>
+          EOF
           fi
 
           echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
