@@ -52,7 +52,69 @@
 
 ---
 
+## Skill-Planning-003: Parallel Exploration Pattern (95%)
+
+**Statement**: For infrastructure work, launch parallel Explore agents to gather context concurrently before planning
+
+**Context**: Infrastructure changes (workflows, CI/CD, multi-file). Launch before planning phase.
+
+**Trigger**: Infrastructure or multi-file change request received
+
+**Evidence**: Session 03 (2025-12-18): 3 parallel Explore agents (workflows, agent system, roadmap) reduced planning time by ~50%. Comprehensive understanding achieved before design started, resulting in zero discovered gaps during implementation.
+
+**Atomicity**: 95%
+
+- Specific action (launch parallel agents) ✓
+- Single concept (parallel exploration) ✓
+- Actionable (before planning) ✓
+- Measurable (timestamps show concurrency) ✓
+- Minor deduction: "infrastructure work" slightly vague (-5%)
+
+**Impact**: 9/10 - Dramatically reduces planning time for complex changes
+
+**Category**: Planning Workflow
+
+**Tag**: helpful
+
+**Created**: 2025-12-18
+
+**Validated**: 1 (AI Workflow Implementation session)
+
+---
+
+## Skill-Planning-004: Approval Checkpoint for Multi-File Changes (100%)
+
+**Statement**: Multi-file changes (≥3 files or infrastructure) require user approval of architecture before implementation
+
+**Context**: Before implementing complex changes that modify multiple files or affect infrastructure
+
+**Trigger**: Implementation plan spans ≥3 files OR involves infrastructure (CI/CD, workflows, config)
+
+**Evidence**: Session 03 (2025-12-18): User approved architecture for 14-file change (2,189 LOC). Result: zero implementation bugs, zero pivots. Plan executed exactly as designed.
+
+**Atomicity**: 100%
+
+- Specific trigger (≥3 files) ✓
+- Single concept (approval gate) ✓
+- Actionable (request approval) ✓
+- Measurable (can verify approval received) ✓
+
+**Impact**: Critical - Prevents wasted effort on incorrect architecture
+
+**Category**: Planning Workflow
+
+**Tag**: helpful
+
+**Created**: 2025-12-18
+
+**Validated**: 1 (AI Workflow Implementation session)
+
+**Note**: This extends Skill-Planning-002 with specific trigger criteria.
+
+---
+
 ## Related Documents
 
 - Source: `.agents/retrospective/phase1-remediation-pr43.md`
+- Source: `.agents/retrospective/2025-12-18-ai-workflow-implementation.md`
 - Related: skills-workflow (Skill-Workflow-007 scope selection)

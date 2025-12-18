@@ -271,10 +271,299 @@ function Test-InCIMode {
 
 ---
 
+## Skill-CI-Heredoc-001: YAML Heredoc Indentation (95%)
+
+**Statement**: In YAML run blocks, heredoc content must have consistent indentation; zero-indent lines are parsed as YAML
+
+**Context**: GitHub Actions workflow `run: |` blocks with multi-line content
+
+**Trigger**: Creating YAML workflow with embedded multi-line content
+
+**Evidence**: Session 04 (2025-12-18): Run 20331947252 failed with "could not find expected ':'". Heredoc content with zero indentation (e.g., `## Task`) was parsed as YAML keys, not string content.
+
+**Atomicity**: 95%
+
+**Impact**: Critical - Workflow fails to parse
+
+**Tag**: helpful
+
+**Created**: 2025-12-18
+
+**Fix**: Move large heredoc content to separate files and reference them, or ensure consistent indentation.
+
+---
+
+## Skill-CI-Auth-001: GH_TOKEN Auto-Authentication (92%)
+
+**Statement**: When GH_TOKEN env var is set, gh CLI auto-authenticates; explicit `gh auth login` fails
+
+**Context**: GitHub Actions workflows using gh CLI
+
+**Trigger**: Configuring gh CLI authentication in workflows
+
+**Evidence**: Session 04 (2025-12-18): `gh auth login --with-token` failed with exit code 1 because GH_TOKEN was already set. GitHub CLI automatically uses the env var.
+
+**Atomicity**: 92%
+
+**Impact**: 8/10 - Prevents workflow failures
+
+**Tag**: helpful
+
+**Created**: 2025-12-18
+
+**Pattern**:
+
+```yaml
+# WRONG: Explicit login when token is already set
+- name: Auth
+  run: echo "${{ secrets.TOKEN }}" | gh auth login --with-token
+
+# RIGHT: Just set the env var and use gh directly
+- name: Use gh
+  env:
+    GH_TOKEN: ${{ secrets.TOKEN }}
+  run: gh pr list
+```
+
+---
+
+## Skill-CI-Regex-001: Fixed-Length Lookbehinds for Portability (90%)
+
+**Statement**: GNU grep lookbehinds must be fixed-length; use sed for portable variable-length regex
+
+**Context**: Shell scripts using regex in GitHub Actions
+
+**Trigger**: Using `grep -oP` with lookbehind assertions
+
+**Evidence**: Session 04 (2025-12-18): Pattern `(?<=VERDICT:\s*)` failed with "lookbehind assertion is not fixed length". Variable-length `\s*` not supported.
+
+**Atomicity**: 90%
+
+**Impact**: 8/10 - Cross-platform compatibility
+
+**Tag**: helpful
+
+**Created**: 2025-12-18
+
+**Pattern**:
+
+```bash
+# WRONG: Variable-length lookbehind
+grep -oP '(?<=VERDICT:\s*)\w+' file.txt
+
+# RIGHT: Use sed
+sed -n 's/.*VERDICT:\s*\(\w\+\).*/\1/p' file.txt
+```
+
+---
+
+## Skill-CI-Output-001: Single-Line GitHub Actions Outputs (95%)
+
+**Statement**: GitHub Actions outputs must be single-line; multi-line values break output format
+
+**Context**: Setting GitHub Actions step outputs
+
+**Trigger**: Capturing command output for use in subsequent steps
+
+**Evidence**: Session 04 (2025-12-18): `copilot --version` outputs multiple lines (version + commit), breaking output format with "Invalid format 'Commit: 83653a1'".
+
+**Atomicity**: 95%
+
+**Impact**: 8/10 - Prevents workflow failures
+
+**Tag**: helpful
+
+**Created**: 2025-12-18
+
+**Pattern**:
+
+```bash
+# WRONG: Multi-line output
+VERSION=$(copilot --version)
+echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+# RIGHT: Extract single line
+VERSION=$(copilot --version | head -1)
+echo "version=$VERSION" >> $GITHUB_OUTPUT
+```
+
+---
+
+## Skill-CI-Matrix-Output-001: Matrix Jobs Use Artifacts for Data Passing (98%)
+
+**Statement**: GitHub Actions matrix jobs only expose ONE leg's outputs; use artifacts for reliable data passing
+
+**Context**: Matrix strategy jobs needing to pass data to downstream jobs
+
+**Trigger**: Matrix job outputs needed in aggregate/summary job
+
+**Evidence**: Session 07 (2025-12-18): Matrix jobs (security, qa, analyst) all wrote outputs but only ONE matrix leg's outputs were available to downstream job. GitHub Community Discussion #17245 confirms this limitation.
+
+**Atomicity**: 98%
+
+**Impact**: Critical - Matrix output behavior is non-deterministic
+
+**Tag**: helpful
+
+**Created**: 2025-12-18
+
+**Pattern**:
+
+```yaml
+# Matrix job: Save to file and upload artifact
+review:
+  strategy:
+    matrix:
+      agent: [security, qa, analyst]
+  steps:
+    - run: echo "$FINDINGS" > ${{ matrix.agent }}-findings.txt
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.agent }}-findings
+        path: ${{ matrix.agent }}-findings.txt
+
+# Aggregate job: Download all artifacts
+aggregate:
+  needs: review
+  steps:
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: '*-findings'
+        merge-multiple: true
+    - run: cat security-findings.txt qa-findings.txt analyst-findings.txt
+```
+
+---
+
+## Skill-CI-Shell-Interpolation-001: Use Env Vars for Shell Variables (95%)
+
+**Statement**: Never use `${{ }}` directly in shell strings; use env vars for safe interpolation
+
+**Context**: GitHub Actions shell scripts with dynamic content
+
+**Trigger**: Passing GitHub Actions expressions to shell scripts
+
+**Evidence**: Session 07 (2025-12-18): Direct interpolation `if [ -n "${{ steps.x.outputs.findings }}" ]` broke when output contained quotes or special characters.
+
+**Atomicity**: 95%
+
+**Impact**: Critical - Special characters break shell
+
+**Tag**: helpful
+
+**Created**: 2025-12-18
+
+**Pattern**:
+
+```yaml
+# WRONG: Direct interpolation
+- run: |
+    if [ -n "${{ steps.review.outputs.findings }}" ]; then
+      echo "Found findings"
+    fi
+
+# RIGHT: Use env var
+- run: |
+    if [ -n "$FINDINGS" ]; then
+      echo "Found findings"
+    fi
+  env:
+    FINDINGS: ${{ steps.review.outputs.findings }}
+```
+
+---
+
+## Skill-CI-Structured-Output-001: Verdict Tokens for AI Automation (98%)
+
+**Statement**: AI automation in CI/CD requires verdict tokens (PASS/WARN/CRITICAL_FAIL) for deterministic bash parsing
+
+**Context**: AI-driven quality gates in CI/CD pipelines
+
+**Trigger**: Designing AI review prompts for CI automation
+
+**Evidence**: Session 03 (2025-12-18): Structured verdict format enabled clean bash parsing without AI interpretation. Exit code logic: CRITICAL_FAIL → exit 1, else → exit 0.
+
+**Atomicity**: 98%
+
+**Impact**: Critical - Enables AI-driven CI gates
+
+**Tag**: helpful
+
+**Created**: 2025-12-18
+
+**Pattern**:
+
+```markdown
+## Output Format
+
+End your response with:
+VERDICT: [PASS|WARN|CRITICAL_FAIL]
+MESSAGE: [One sentence summary]
+```
+
+```bash
+# Parse verdict
+VERDICT=$(grep -oP '^VERDICT:\s*\K\w+' response.txt || echo "WARN")
+if [ "$VERDICT" = "CRITICAL_FAIL" ]; then
+  exit 1
+fi
+```
+
+---
+
+## Skill-CI-Comment-Formatting-001: CodeRabbit-Style PR Comments (85%)
+
+**Statement**: Use emoji headers, verdict badges, and collapsible sections for vibrant PR comments
+
+**Context**: AI-generated PR review comments
+
+**Trigger**: Formatting PR comments for AI workflows
+
+**Evidence**: Session 08 (2025-12-18): Enhanced AI workflow comments with CodeRabbit-style formatting (emoji headers, verdict badges, walkthrough sections, branded footer).
+
+**Atomicity**: 85%
+
+**Impact**: 7/10 - Improved developer experience
+
+**Tag**: helpful
+
+**Created**: 2025-12-18
+
+**Pattern**:
+
+```markdown
+## 🤖 AI Quality Gate Review
+
+### Summary
+
+| Agent | Verdict |
+|-------|---------|
+| 🔒 Security | ✅ PASS |
+| 🧪 QA | ⚠️ WARN |
+
+<details>
+<summary>📋 Walkthrough</summary>
+
+What this workflow does...
+
+</details>
+
+---
+🤖 Generated by AI Quality Gate • [Run Details](link)
+```
+
+---
+
 ## Related Files
 
 - Test Runner: `build/scripts/Invoke-PesterTests.ps1`
 - Pester Workflow: `.github/workflows/pester-tests.yml`
 - Copilot Setup: `.github/workflows/copilot-setup-steps.yml`
+- AI Review Action: `.github/actions/ai-review/action.yml`
+- AI Quality Gate: `.github/workflows/ai-pr-quality-gate.yml`
 - Retrospective: `.agents/retrospective/2025-12-17-ci-test-failures-xml-corruption.md`
+- Session 03: `.agents/sessions/2025-12-18-session-03-ai-workflow-implementation.md`
+- Session 04: `.agents/sessions/2025-12-18-session-04-ai-workflow-debugging.md`
+- Session 07: `.agents/sessions/2025-12-18-session-07-qa-output-debug.md`
+- Session 08: `.agents/sessions/2025-12-18-session-08-vibrant-comments.md`
 - Source: `.agents/retrospective/pr-feedback-remediation.md`
