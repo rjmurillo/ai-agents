@@ -102,8 +102,10 @@ runs:
         echo "Installing GitHub Copilot CLI..."
         npm install -g @github/copilot
         echo "Copilot CLI version:"
-        VERSION=$(copilot --version 2>&1 || echo "unknown")
-        echo "$VERSION"
+        VERSION_FULL=$(copilot --version 2>&1 || echo "unknown")
+        echo "$VERSION_FULL"
+        # Extract just the version number (first line) for output
+        VERSION=$(echo "$VERSION_FULL" | head -1 | tr -d '\n')
         echo "copilot_version=$VERSION" >> $GITHUB_OUTPUT
 
     - name: Verify GitHub authentication
