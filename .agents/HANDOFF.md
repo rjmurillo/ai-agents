@@ -235,6 +235,53 @@ cat .agents/governance/consistency-protocol.md
 
 ## Recent Sessions
 
+### 2025-12-18: GitHub CLI Documentation and Skills Extraction
+
+**Session Log**: [Session 14](./sessions/2025-12-18-session-14-github-cli-documentation.md)
+
+**Objective**: Build comprehensive GitHub CLI (`gh`) and REST API documentation as skills and memories to help agents avoid mistakes when using these tools.
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Research Conducted**:
+
+- GitHub REST API documentation (PRs, Issues, Repos, Actions, Releases, Commits, Checks, Search)
+- GitHub CLI manual (pr, issue, run, workflow, release, api commands)
+- Authentication and rate limiting patterns
+- jq JSON parsing patterns
+
+**Artifacts Created**:
+
+| File | Description |
+|------|-------------|
+| `.serena/memories/skills-github-cli.md` | 15 gh CLI skills + 5 anti-patterns |
+| `.serena/memories/github-rest-api-reference.md` | Comprehensive REST API endpoint reference |
+| `.serena/memories/skills-jq-json-parsing.md` | 10 jq skills + 4 pitfalls |
+
+**Key Skills Documented**:
+
+- PR creation, review, merge, listing patterns
+- Issue creation, editing, lifecycle management
+- Workflow run management and triggering
+- Release creation and asset management
+- Direct API access with pagination
+- Authentication and scope management
+- JSON output parsing with jq
+
+**Key Anti-Patterns**:
+
+- Repository rename silent failures in scripts
+- GITHUB_TOKEN limitations for workflow_run
+- Running commands outside repositories
+- Expecting pagination by default
+- Direct token storage
+
+**Status**: Complete
+
+---
+
 ### 2025-12-18: Workflow Standardization (Applying Quality Gate Lessons)
 
 **Session Log**: [Session 13](./sessions/2025-12-18-session-13-workflow-lessons.md)
