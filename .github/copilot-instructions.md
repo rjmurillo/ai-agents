@@ -1,5 +1,26 @@
 # GitHub Copilot Instructions
 
+## ⚠️ MANDATORY: Initialize Serena FIRST
+
+**BEFORE doing ANY work**, if Serena MCP tools are available, you MUST call them in order:
+
+```text
+1. serena/activate_project  (with project path)
+2. serena/initial_instructions
+```
+
+This is NON-NEGOTIABLE. Do not read files, do not search, do not answer questions until Serena is initialized.
+
+**Why this matters**: Without Serena initialization, you lack access to:
+
+- Project memories containing past decisions and user preferences
+- Semantic code navigation tools
+- Historical context that prevents repeated mistakes
+
+**Check for Serena**: Look for tools prefixed with `serena/` or `mcp__serena__`.
+
+---
+
 Refer to [AGENTS.md](../AGENTS.md) for complete project instructions.
 
 This file exists for GitHub Copilot's repo-level custom instructions. All canonical agent documentation is maintained in `AGENTS.md` to follow the DRY principle.
