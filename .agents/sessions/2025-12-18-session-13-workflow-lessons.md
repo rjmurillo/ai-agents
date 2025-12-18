@@ -37,15 +37,63 @@ All MUST requirements above are marked complete.
 
 ### Lesson Extraction from ai-pr-quality-gate.yml
 
-**Status**: In Progress
+**Status**: Completed
 
-**What needs to be done**:
+**Key Patterns Identified**:
 
-Identify patterns from the mature ai-pr-quality-gate.yml workflow and apply them to:
+1. **Composite Action Encapsulation**: `.github/actions/ai-review/action.yml` handles Node.js/npm/Copilot CLI setup, authentication, agent loading, and verdict parsing
+2. **Shell Interpolation Safety**: Use env vars instead of direct `${{ }}` in shell scripts to prevent injection
+3. **Matrix Strategy with Artifacts**: For parallel validation, use artifacts (not job outputs) since outputs only expose one matrix leg
+4. **GITHUB_OUTPUT Heredocs**: Multi-line content must be prepared in prior steps since YAML inputs can't execute shell commands
+5. **Structured Verdict Tokens**: PASS | WARN | CRITICAL_FAIL for automation
 
-1. ai-issue-triage.yml
-2. ai-session-protocol.yml
-3. ai-spec-validation.yml
+### Workflow Refactoring
+
+**ai-issue-triage.yml**:
+
+- Removed manual Node.js/npm/Copilot CLI setup
+- Removed redundant roadmap context loading (delegated to agent)
+- Converted to use composite action for both analyst and roadmap agents
+- Fixed shell interpolation via env vars
+- Fixed priority emojis for accessibility (distinct symbols vs color-only)
+
+**ai-session-protocol.yml**:
+
+- Converted from single-job loop to 3-job matrix structure:
+  - `detect-changes`: Identifies changed session files, outputs JSON array
+  - `validate`: Matrix job validates each file in parallel using composite action
+  - `aggregate`: Downloads artifacts, generates combined report
+- Uses artifacts for passing data between matrix legs
+
+**ai-spec-validation.yml**:
+
+- Removed manual Node.js/npm/Copilot CLI setup
+- Added `Prepare Spec Context` step for multi-line GITHUB_OUTPUT
+- Converted both trace and completeness checks to composite action
+- Fixed shell interpolation via env vars
+- Uses composite action outputs for report generation
+
+### Learnings Documentation
+
+- Created memory `skills-github-workflow-patterns.md` documenting:
+  - Composite action encapsulation pattern
+  - Shell interpolation safety patterns
+  - Matrix strategy with artifacts
+  - GITHUB_OUTPUT heredoc syntax
+  - Verdict token standards
+  - Common mistakes to avoid
+
+---
+
+## Testing Status
+
+**IMPORTANT**: These workflows have NOT been end-to-end tested. They require:
+
+1. **ai-issue-triage.yml**: Open a new issue to trigger
+2. **ai-session-protocol.yml**: Create PR with changes to `.agents/sessions/*.md`
+3. **ai-spec-validation.yml**: Create PR with changes to `src/**` that references a spec
+
+Recommend creating test issues/PRs in the next session to validate.
 
 ---
 
@@ -53,30 +101,43 @@ Identify patterns from the mature ai-pr-quality-gate.yml workflow and apply them
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
-| MUST | Complete session log | [ ] | All sections filled |
-| MUST | Run markdown lint | [ ] | Output below |
-| MUST | Commit all changes | [ ] | Commit SHA: _______ |
-| SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
-| SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
-| SHOULD | Verify clean git status | [ ] | Output below |
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | 0 errors |
+| MUST | Commit all changes | [x] | Commits: 1bf48e1, 007d4b6 |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - no plan tasks |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | Skip - incremental work |
+| SHOULD | Verify clean git status | [x] | Output below |
 
 ### Lint Output
 
-[Paste markdownlint output here]
+```text
+markdownlint-cli2 v0.20.0 (markdownlint v0.40.0)
+Finding: **/*.md **/*.md !node_modules/** !.agents/** !.serena/memories/** !node_modules/** !.agents/** !src/claude/CLAUDE.md !src/vs-code-agents/copilot-instructions.md !src/copilot-cli/copilot-instructions.md
+Linting: 127 file(s)
+Summary: 0 error(s)
+```
 
 ### Final Git Status
 
-[Paste git status output here]
+```text
+On branch feat/ai-agent-workflow
+Your branch is ahead of 'origin/feat/ai-agent-workflow' by 7 commits.
+  (use "git push" to publish your local commits)
+
+nothing to commit, working tree clean
+```
 
 ### Commits This Session
 
-- `[SHA]` - [message]
+- `1bf48e1` - refactor: standardize AI workflows to use composite action
+- `007d4b6` - fix(a11y): use distinct priority emojis for accessibility
 
 ---
 
 ## Notes for Next Session
 
-- [Important context]
-- [Gotchas discovered]
-- [Recommendations]
+- **Testing Required**: The three refactored workflows need end-to-end testing via actual issues/PRs
+- **Memory Created**: `skills-github-workflow-patterns.md` documents the patterns applied
+- **Accessibility Pattern**: Use distinct symbols (not just colors) for priority indicators
+- **Common Pitfall**: YAML `with:` inputs can't execute shell commands - use prior step with GITHUB_OUTPUT

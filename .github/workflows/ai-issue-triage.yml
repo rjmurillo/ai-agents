@@ -154,13 +154,13 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          # Get priority emoji (using distinct symbols for accessibility)
+          # Get priority emoji (universally intuitive symbols)
           get_priority_emoji() {
             case "$1" in
-              P0) echo "🚨" ;;  # Critical/urgent
-              P1) echo "⚡" ;;  # High priority
-              P2) echo "📋" ;;  # Normal priority
-              P3) echo "📝" ;;  # Low priority
+              P0) echo "🔥" ;;  # Fire = critical/urgent
+              P1) echo "❗" ;;  # Exclamation = important
+              P2) echo "➖" ;;  # Dash = normal/medium
+              P3) echo "⬇️" ;;  # Down arrow = low
               *) echo "❔" ;;   # Unknown
             esac
           }

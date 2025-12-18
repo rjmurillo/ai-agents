@@ -235,6 +235,45 @@ cat .agents/governance/consistency-protocol.md
 
 ## Recent Sessions
 
+### 2025-12-18: Workflow Standardization (Applying Quality Gate Lessons)
+
+**Session Log**: [Session 13](./sessions/2025-12-18-session-13-workflow-lessons.md)
+
+**Objective**: Apply lessons learned from ai-pr-quality-gate.yml to other AI workflows
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Changes Made**:
+
+| Workflow | Changes |
+|----------|---------|
+| ai-issue-triage.yml | Replaced manual Copilot CLI setup with composite action, removed roadmap context loading, fixed accessibility emojis |
+| ai-session-protocol.yml | Converted to 3-job matrix structure (detect-changes → validate → aggregate), uses artifacts for parallel validation |
+| ai-spec-validation.yml | Replaced manual setup with composite action, added prepare-context step for GITHUB_OUTPUT |
+
+**Key Patterns Applied**:
+
+1. **Composite Action Encapsulation**: Use `.github/actions/ai-review` for all Copilot CLI invocations
+2. **Shell Interpolation Safety**: Use env vars instead of direct `${{ }}` in shell scripts
+3. **Matrix Strategy with Artifacts**: For parallel jobs, use artifacts (not job outputs)
+4. **GITHUB_OUTPUT Heredocs**: Multi-line content via `<<EOF` syntax in separate steps
+5. **Accessibility**: Distinct symbols (🔥❗➖⬇️) not just color for priority indicators
+
+**Memory Created**: `skills-github-workflow-patterns.md`
+
+**Testing Note**: Workflows refactored but NOT end-to-end tested. Require actual issues/PRs to validate.
+
+**Commits**:
+
+- `1bf48e1` refactor: standardize AI workflows to use composite action
+- `007d4b6` fix(a11y): use distinct priority emojis for accessibility
+
+**Status**: Complete (pending testing)
+
+---
+
 ### 2025-12-18: Skill Extraction from Hyper-Critical Retrospective
 
 **Session Log**: [Session 12](./sessions/2025-12-18-session-12-skill-extraction.md)
