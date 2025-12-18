@@ -56,3 +56,16 @@ This file exists for Claude Code's auto-load behavior. All canonical agent docum
 - **Output directories**: `.agents/{analysis,architecture,planning,critique,qa,retrospective}/`
 
 For full details on workflows, agent catalog, and best practices, see [AGENTS.md](AGENTS.md).
+
+## Default Behavior: Use Orchestrator Agent
+
+When the user gives you any task, you MUST use the orchestrator agent rather than executing the task natively. The orchestrator will route to appropriate specialized agents.
+
+**Exception**: Simple questions that don't require code changes or multi-step tasks can be answered directly.
+
+```python
+# For any non-trivial task, invoke orchestrator first
+Task(subagent_type="orchestrator", prompt="[user's task description]")
+```
+
+This ensures proper agent coordination, memory management, and consistent workflows.
