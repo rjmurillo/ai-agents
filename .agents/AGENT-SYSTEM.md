@@ -689,9 +689,11 @@ Triage by priority and implement fixes.
 
 ## 3. Workflow Patterns
 
-### 3.1 Standard Development Flow
+**Reference**: These workflows are the canonical patterns defined in `../../src/claude/orchestrator.md`. The orchestrator coordinates all agent delegation using a one-level-deep pattern (orchestrator → subagent → back to orchestrator).
 
-For typical feature implementation with quality gates.
+### 3.1 Quick Fix Flow
+
+For simple, well-defined fixes that can be explained in one sentence.
 
 ```
 User Request
@@ -702,43 +704,6 @@ User Request
 └──────┬──────┘
        │
        ▼
-┌─────────────┐    Impact     ┌──────────┐
-│   planner   │───Analysis───▶│specialists│
-└──────┬──────┘               └──────────┘
-       │
-       ▼
-┌─────────────┐
-│   critic    │──Rejected?──▶ Back to planner
-└──────┬──────┘
-       │ Approved
-       ▼
-┌─────────────┐
-│ implementer │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│     qa      │──Failed?──▶ Back to implementer
-└──────┬──────┘
-       │ Passed
-       ▼
-    Complete
-```
-
-**Agents**: `orchestrator → planner → critic → implementer → qa`
-
-**Use When**: New features, significant changes
-
----
-
-### 3.2 Quick Fix Flow
-
-For simple, well-defined fixes.
-
-```
-User Request
-     │
-     ▼
 ┌─────────────┐
 │ implementer │
 └──────┬──────┘
@@ -752,18 +717,25 @@ User Request
     Complete
 ```
 
-**Agents**: `implementer → qa`
+**Agents**: `orchestrator → implementer → qa`
 
-**Use When**: Bug fixes with clear reproduction, single-file changes
+**Use When**: 
+- Single file changes
+- Obvious bug fixes
+- Typo fixes
+- Simple null checks
+- Style/formatting issues
+
+**Triage Signal**: Can explain fix in one sentence
 
 ---
 
-### 3.3 Ideation Flow
+### 3.2 Standard Development Flow
 
-For exploring new feature ideas.
+For typical features requiring investigation and planning.
 
 ```
-Vibe Prompt
+User Request
      │
      ▼
 ┌─────────────┐
@@ -772,37 +744,63 @@ Vibe Prompt
        │
        ▼
 ┌─────────────┐
-│   analyst   │──Research
+│   analyst   │──Investigate
 └──────┬──────┘
        │
        ▼
 ┌─────────────┐
-│  architect  │──Design
+│   planner   │──Create Plan
 └──────┬──────┘
        │
        ▼
 ┌─────────────┐
-│   planner   │──Plan
+│ implementer │──Execute
 └──────┬──────┘
        │
        ▼
-┌──────────────┐
-│task-generator│──Tasks
-└──────────────┘
+┌─────────────┐
+│     qa      │──Validate
+└──────┬──────┘
+       │
+       ▼
+    Complete
 ```
 
-**Agents**: `orchestrator → analyst → architect → planner → task-generator`
+**Agents**: `orchestrator → analyst → planner → implementer → qa`
 
-**Use When**: Exploring new features, understanding scope
+**Use When**:
+- Need to investigate first
+- 2-5 files affected
+- Some complexity
+- New functionality
+- Performance concerns
+
+**Triage Signal**: Cannot explain fix in one sentence; requires analysis
+
+**Variations**:
+
+- **Standard (lite)**: Skip planner for straightforward implementations after analysis
+  - Bug fixes: `analyst → implementer → qa`
+  - Documentation: `explainer → critic`
+
+- **Standard (extended)**: Add architecture/security review
+  - Multi-domain features: `analyst → architect → planner → critic → implementer → qa`
+  - Security changes: `analyst → security → architect → critic → implementer → qa`
+  - Infrastructure: `analyst → devops → security → critic → qa`
 
 ---
 
-### 3.4 Strategic Decision Flow
+### 3.3 Strategic Decision Flow
 
-For high-stakes decisions requiring challenge.
+For decisions about WHETHER to do something (not HOW).
 
 ```
 Decision Request
+       │
+       ▼
+┌─────────────┐
+│ orchestrator│
+└──────┬──────┘
        │
        ▼
 ┌───────────────────┐
@@ -820,44 +818,191 @@ Decision Request
 └──────────────┘
 ```
 
-**Agents**: `independent-thinker → high-level-advisor → task-generator`
+**Agents**: `orchestrator → independent-thinker → high-level-advisor → task-generator`
 
-**Use When**: Architecture decisions, priority conflicts, strategic pivots
+**Use When**:
+- "Should we do this?" questions
+- Scope/priority conflicts
+- Alternative approaches
+- Architecture direction questions
+
+**Triage Signal**: Question is about *whether*, not *how*
+
+---
+
+### 3.4 Ideation Flow
+
+For exploring vague ideas and package requests.
+
+**Trigger Detection**:
+- Package/library URLs
+- Vague scope: "we need to add", "what if we"
+- Incomplete feature descriptions
+- Exploratory requests
+
+**Phase 1: Research & Discovery**
+
+```
+Vibe Prompt
+     │
+     ▼
+┌─────────────┐
+│ orchestrator│
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│   analyst   │──Research (web search, docs, samples)
+└──────┬──────┘
+       │
+       └──→ `.agents/analysis/ideation-[topic].md`
+```
+
+**Phase 2: Validation & Consensus**
+
+```
+Research Output
+       │
+       ▼
+┌──────────────────┐
+│high-level-advisor│──Strategic fit?
+└────────┬─────────┘
+         │
+         ▼
+┌───────────────────┐
+│independent-thinker│──What could go wrong?
+└────────┬──────────┘
+         │
+         ▼
+┌─────────────┐
+│   critic    │──Analysis complete?
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│   roadmap   │──Priority & wave?
+└──────┬──────┘
+       │
+       ├──→ Decision: Proceed / Defer / Reject
+       │
+       └──→ `.agents/analysis/ideation-[topic]-validation.md`
+```
+
+**Phase 3: Epic & PRD Creation** (if Proceed)
+
+```
+Proceed Decision
+       │
+       ▼
+┌─────────────┐
+│   roadmap   │──Epic vision
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│  explainer  │──PRD with requirements
+└──────┬──────┘
+       │
+       ▼
+┌──────────────┐
+│task-generator│──Work breakdown
+└──────┬───────┘
+       │
+       └──→ Ready for Phase 4: Plan Review
+```
+
+**Phase 4: Plan Review** (all must approve)
+
+```
+Task Breakdown
+       │
+       ▼
+┌─────────────┐
+│  architect  │──Design review
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│   devops    │──Infrastructure impact
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│  security   │──Security review
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│     qa      │──Test strategy
+└──────┬──────┘
+       │
+       ├──→ All Approved?
+       │    └─ Yes → Implementation ready
+       │    └─ No → Back to planning
+```
+
+**Full Sequence**: `analyst → high-level-advisor → independent-thinker → critic → roadmap → explainer → task-generator → architect → devops → security → qa`
+
+**Defer Handling**: Create backlog entry at `.agents/roadmap/backlog.md` with resume conditions
+
+**Reject Handling**: Document reasoning in validation file, report to user
 
 ---
 
 ### 3.5 Impact Analysis Flow
 
-For understanding change implications across domains.
+For multi-domain changes (3+ domains: code, architecture, security, ops, quality).
+
+**Trigger Conditions**:
+- Feature touches 3+ domains
+- Security-sensitive areas (auth, data, external APIs)
+- Breaking changes (API, schema)
+- Infrastructure changes (CI/CD, deployment)
+- High-risk changes (production-critical)
 
 ```
-Change Request
+Multi-Domain Change
        │
        ▼
 ┌─────────────┐
-│   planner   │
+│ orchestrator│
 └──────┬──────┘
        │
-       ├───────────────┬───────────────┬──────────────┐
-       ▼               ▼               ▼              ▼
-┌──────────┐    ┌──────────┐    ┌─────────┐    ┌────────┐
-│ architect│    │    qa    │    │ devops  │    │security│
-└────┬─────┘    └────┬─────┘    └────┬────┘    └────┬───┘
-     │               │               │              │
-     └───────────────┴───────────────┴──────────────┘
-                            │
-                            ▼
-                    ┌─────────────┐
-                    │ Aggregation │
-                    └──────┬──────┘
-                           │
-                           ▼
-                       Decision
+       ▼
+┌─────────────┐
+│   planner   │──Impact analysis plan
+└──────┬──────┘
+       │
+       └──→ Orchestrator invokes specialists (one at a time):
+              │
+              ├──→ implementer (code impact)
+              ├──→ architect (design impact)
+              ├──→ security (security impact)
+              ├──→ devops (operations impact)
+              └──→ qa (quality impact)
+                   │
+                   ▼
+              ┌─────────────┐
+              │ Orchestrator│──Aggregate findings
+              └──────┬──────┘
+                     │
+                     ▼
+              ┌─────────────┐
+              │   critic    │──Validate (handle conflicts)
+              └──────┬──────┘
+                     │
+                     ├──→ Disagreement? → high-level-advisor
+                     │
+                     └──→ Resolution → implementer
 ```
 
-**Agents**: `planner → [architect, qa, devops, security] → aggregation`
+**Note**: Orchestrator executes each consultation and aggregates (subagents cannot delegate to each other)
 
-**Use When**: Major changes, cross-cutting concerns, risk assessment
+**Disagree and Commit Protocol**:
+1. All specialists present positions with data
+2. Critic facilitates discussion
+3. High-level-advisor makes final call if needed
+4. All commit to execution once decided
 
 ---
 
@@ -879,7 +1024,7 @@ Task Completion
 └───────────────┘
 ```
 
-**Agents**: `retrospective → skillbook`
+**Agents**: `orchestrator → retrospective → skillbook`
 
 **Use When**: After task completion, failures, session end
 
@@ -889,10 +1034,15 @@ Task Completion
 
 For structured requirements management with 3-tier traceability.
 
-**Note**: The orchestrator agent coordinates this workflow. See `../../src/claude/orchestrator.md` for detailed delegation patterns and routing logic.
+**Note**: This workflow integrates with Standard Flow. Orchestrator coordinates all delegation. See `../../src/claude/orchestrator.md` for delegation patterns.
 
 ```
 Feature Request
+       │
+       ▼
+┌─────────────┐
+│ orchestrator│
+└──────┬──────┘
        │
        ▼
 ┌───────────────┐
@@ -917,10 +1067,15 @@ Feature Request
         ▼
 ┌───────────────┐
 │  implementer  │──Execute Tasks
+└───────┬───────┘
+        │
+        ▼
+┌───────────────┐
+│      qa       │──Validate
 └───────────────┘
 ```
 
-**Agents**: `spec-generator → architect → task-generator → critic → implementer`
+**Agents**: `orchestrator → spec-generator → architect → task-generator → critic → implementer → qa`
 
 **Use When**: Formal requirements needed, regulatory compliance, complex features requiring traceability
 
