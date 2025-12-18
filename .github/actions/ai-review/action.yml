@@ -57,6 +57,13 @@ inputs:
       "gpt-5.1-codex", "gpt-5-mini", "gpt-4.1", "gemini-3-pro-preview")'
     required: false
     default: 'claude-opus-4.5'
+  enable-diagnostics:
+    description: |
+      Enable Copilot CLI diagnostic test before main invocation.
+      WARNING: This runs a test prompt which costs money! Only enable for debugging.
+      Default is false to minimize costs.
+    required: false
+    default: 'false'
 
 outputs:
   verdict:
@@ -152,6 +159,7 @@ runs:
 
     - name: Diagnose Copilot CLI
       id: diagnose
+      if: inputs.enable-diagnostics == 'true'
       shell: bash
       env:
         # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
