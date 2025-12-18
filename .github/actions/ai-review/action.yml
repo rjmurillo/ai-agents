@@ -200,32 +200,14 @@ runs:
         if [ -n "$PROMPT_FILE" ] && [ -f "$PROMPT_FILE" ]; then
           echo "Using prompt template: $PROMPT_FILE"
           cat "$PROMPT_FILE" > /tmp/ai-review-prompt.md
+        elif [ -f ".github/prompts/default-ai-review.md" ]; then
+          echo "Using default prompt template"
+          cat ".github/prompts/default-ai-review.md" > /tmp/ai-review-prompt.md
         else
-          # Default prompt template
-          cat > /tmp/ai-review-prompt.md << 'PROMPT_EOF'
-## Task
-
-Analyze the provided context and give your assessment.
-
-## Required Output Format
-
-End your response with a verdict line in this exact format:
-
-```
-VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED]
-MESSAGE: [Brief explanation]
-```
-
-If labels should be applied, include lines like:
-```
-LABEL: label-name
-```
-
-If a milestone should be assigned, include:
-```
-MILESTONE: milestone-name
-```
-PROMPT_EOF
+          echo "Warning: No prompt template found, using minimal prompt"
+          echo "Analyze the provided context and give your assessment." > /tmp/ai-review-prompt.md
+          echo "" >> /tmp/ai-review-prompt.md
+          echo "End with: VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED]" >> /tmp/ai-review-prompt.md
         fi
         echo "prompt_file=/tmp/ai-review-prompt.md" >> $GITHUB_OUTPUT
 
