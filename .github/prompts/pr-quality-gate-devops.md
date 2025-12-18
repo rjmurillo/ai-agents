@@ -55,6 +55,42 @@ You are reviewing a pull request for CI/CD, build, deployment, and infrastructur
 - Is caching used to avoid redundant work?
 - Are runner specifications appropriate (ubuntu-latest vs self-hosted)?
 
+### 8. Custom Composite Actions
+
+Review changes to `.github/actions/`:
+
+- Is the action well-documented with clear inputs/outputs?
+- Are action inputs validated before use?
+- Is the action reusable across multiple workflows?
+- Are there opportunities to extract repeated workflow steps into actions?
+- Is error handling consistent with calling workflows?
+
+### 9. GitHub Templates
+
+Review changes to `.github/PULL_REQUEST_TEMPLATE.md` and `.github/ISSUE_TEMPLATE/`:
+
+- Are templates clear and actionable?
+- Do PR templates guide contributors to provide necessary context?
+- Do issue templates capture required information for triage?
+- Are checklists comprehensive but not overwhelming?
+- Is the template structure consistent with project conventions?
+
+### 10. Automation & Skill Extraction
+
+Look for opportunities to improve developer experience:
+
+- Are there repeated manual steps that could be automated?
+- Could workflow patterns be extracted to `.claude/commands/` for reuse?
+- Are there complex procedures that should be documented as skills?
+- Is there duplication between workflows that could be consolidated?
+- Could AI agent prompts be improved based on workflow patterns?
+
+**Check for extraction candidates**:
+
+- Repeated shell script blocks → composite action
+- Common workflow patterns → reusable workflow
+- Manual procedures → slash command or skill
+
 ## Output Requirements
 
 Provide your analysis in this format:
@@ -83,6 +119,18 @@ Provide your analysis in this format:
 | Severity | Category | Finding | Location | Fix |
 |----------|----------|---------|----------|-----|
 | Critical/High/Medium/Low | [category] | [description] | [file:line] | [recommendation] |
+
+### Template Assessment
+
+- **PR Template**: Adequate/Needs improvement/Missing
+- **Issue Templates**: Adequate/Needs improvement/Missing
+- **Template Issues**: [list any problems found]
+
+### Automation Opportunities
+
+| Opportunity | Type | Benefit | Effort |
+|-------------|------|---------|--------|
+| [description] | Action/Workflow/Skill/Command | Low/Medium/High | Low/Medium/High |
 
 ### Recommendations
 
