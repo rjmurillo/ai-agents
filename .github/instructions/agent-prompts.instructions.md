@@ -1,5 +1,5 @@
 ---
-applyTo: "**/AGENTS.md,.github/copilot-instructions.md,src/claude/**/*.md,templates/agents/**/*.md"
+applyTo: "**/AGENTS.md,.github/copilot-instructions.md,src/claude/**/*.md"
 ---
 
 # Agent Prompt Standards
