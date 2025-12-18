@@ -235,6 +235,127 @@ cat .agents/governance/consistency-protocol.md
 
 ## Recent Sessions
 
+### 2025-12-18: Check-SkillExists.ps1 Automation Tool
+
+**Session Log**: [Session 21](./sessions/2025-12-18-session-21-check-skill-exists.md)
+
+**Objective**: Implement Check-SkillExists.ps1 automation tool per Analysis 004 recommendation
+
+**Agent**: implementer (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Context**: Analysis 004 recommended creating a self-documenting skill discovery tool to enable Phase 1.5 BLOCKING gate verification. The tool addresses skill usage violations from Session 15 by providing programmatic skill existence checks.
+
+**Solution**: Created Check-SkillExists.ps1 with simple boolean check interface (Option A from Analysis 004).
+
+**Files Created**:
+
+| File | Description |
+|------|-------------|
+| `scripts/Check-SkillExists.ps1` | Skill existence verification script |
+| `tests/Check-SkillExists.Tests.ps1` | Pester tests (13 tests) |
+| `.agents/sessions/2025-12-18-session-21-check-skill-exists.md` | Session log |
+
+**Interface**:
+
+```powershell
+# Check for specific skill
+.\Check-SkillExists.ps1 -Operation "pr" -Action "PRContext"  # Returns: $true
+
+# List all available skills
+.\Check-SkillExists.ps1 -ListAvailable
+```
+
+**Parameters**:
+
+- `-Operation`: pr, issue, reactions, label, milestone
+- `-Action`: Substring match against script names
+- `-ListAvailable`: Lists all skills organized by operation type
+
+**Test Results**: 13 tests passed, 0 failed
+
+**Status**: Complete
+
+---
+
+### 2025-12-18: Phase 1.5 Skill Validation BLOCKING Gate
+
+**Session Log**: [Session 20](./sessions/2025-12-18-session-20-phase-1-5-gate.md)
+
+**Objective**: Implement Phase 1.5 BLOCKING gate in SESSION-PROTOCOL.md per Analysis 003 recommendation
+
+**Agent**: implementer (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Context**: Session 15 retrospective identified 5+ skill violations despite documentation. Root cause: No BLOCKING gate requiring skill validation before work. Trust-based compliance fails; verification-based enforcement (like Serena init) has 100% compliance.
+
+**Solution**: Added Phase 1.5 between Phase 2 (Context Retrieval) and Phase 3 (Session Log Creation) requiring agents to validate skill availability before starting work.
+
+**Files Modified**:
+
+| File | Description |
+|------|-------------|
+| `.agents/SESSION-PROTOCOL.md` | Added Phase 1.5, updated checklists and template |
+| `.agents/sessions/2025-12-18-session-20-phase-1-5-gate.md` | Session log |
+
+**Phase 1.5 Requirements (MUST)**:
+
+1. Verify `.claude/skills/` directory exists
+2. List available GitHub skill scripts
+3. Read `.serena/memories/skill-usage-mandatory.md`
+4. Read `.agents/governance/PROJECT-CONSTRAINTS.md`
+5. Document available skills in session log under "Skill Inventory"
+
+**Expected Impact**:
+
+- 80-90% reduction in skill usage violations
+- 15-20% reduction in wasted tokens on rework
+- 70-80% reduction in corrective interventions
+
+**Status**: Complete
+
+---
+
+### 2025-12-18: PROJECT-CONSTRAINTS.md Consolidation
+
+**Session Log**: [Session 19](./sessions/2025-12-18-session-19-project-constraints.md)
+
+**Objective**: Create PROJECT-CONSTRAINTS.md as index-style reference document per Analysis 002 recommendation
+
+**Agent**: implementer (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Context**: Session 15 retrospective identified 5+ constraint violations despite existing documentation. Root cause: no consolidated reference and no BLOCKING gate for constraint validation.
+
+**Solution**: Created index-style PROJECT-CONSTRAINTS.md pointing to authoritative sources (ADRs, memories).
+
+**Files Created**:
+
+| File | Description |
+|------|-------------|
+| `.agents/governance/PROJECT-CONSTRAINTS.md` | Index-style constraints reference |
+| `.agents/sessions/2025-12-18-session-19-project-constraints.md` | Session log |
+
+**Constraint Categories Documented**:
+
+1. **Language Constraints**: PowerShell-only (ADR-005)
+2. **Skill Usage Constraints**: Use skills, not raw commands (skill-usage-mandatory.md)
+3. **Workflow Constraints**: Thin workflows, testable modules (ADR-006)
+4. **Commit Constraints**: Atomic commits, conventional format (code-style-conventions.md)
+5. **Session Protocol Constraints**: Serena init, HANDOFF read (SESSION-PROTOCOL.md)
+
+**Next Steps** (documented in Analysis 002):
+
+- Phase B: Add Phase 1.5 BLOCKING gate to SESSION-PROTOCOL.md (not implemented this session)
+- Phase C: Create Check-SkillExists.ps1 automation (not implemented this session)
+
+**Status**: Complete
+
+---
+
 ### 2025-12-18: Retrospective Auto-Handoff Implementation
 
 **Session Log**: [Session 17](./sessions/2025-12-18-session-17-retrospective-auto-handoff.md)
