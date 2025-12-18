@@ -512,6 +512,93 @@ Multiple projects found with name 'ai-agents'. Please activate it by location in
 
 ---
 
+### 2025-12-18: Copilot CLI Authentication Research & Diagnostics
+
+**Objective**: Investigate why Copilot CLI produces no output and implement proper authentication.
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**PR**: [#60](https://github.com/rjmurillo/ai-agents/pull/60)
+
+**Problem Analysis**:
+
+Copilot CLI was exiting with code 1 and producing NO output (stdout or stderr).
+Initial diagnostics showed the CLI was installed correctly and GitHub API auth
+worked, but the minimal test prompt failed silently.
+
+**Root Cause Discovery**:
+
+Research of community resources revealed:
+
+1. **Token Type Matters**: Copilot CLI requires a **fine-grained PAT** (not classic PAT)
+2. **Special Permission**: Token must have **"Copilot Requests: Read"** permission
+3. **Environment Variable**: `COPILOT_GITHUB_TOKEN` has highest priority (avoids conflicts)
+4. **Account Requirement**: The account owning the PAT must have Copilot subscription
+
+**Key Resources**:
+
+- [VeVarunSharma - Injecting AI Agents into CI/CD](https://dev.to/vevarunsharma/injecting-ai-agents-into-cicd-using-github-copilot-cli-in-github-actions-for-smart-failures-58m8)
+- [DeepWiki - Copilot CLI Authentication Methods](https://deepwiki.com/github/copilot-cli/4.1-authentication-methods)
+- [Elio Struyf - Custom Security Agent with GitHub Copilot](https://www.eliostruyf.com/custom-security-agent-github-copilot-actions/)
+- [GitHub Community Discussion #167158](https://github.com/orgs/community/discussions/167158)
+
+**Changes Implemented**:
+
+1. **Diagnostic Step Added** (`.github/actions/ai-review/action.yml`):
+   - 6-point health check before main invocation
+   - Tests: command exists, version, help, GitHub auth, test prompt, environment
+   - Clear diagnosis for "no output" failures
+
+2. **Enhanced Error Handling**:
+   - Separate stdout/stderr capture
+   - Detailed failure analysis explaining common causes
+   - New outputs: `copilot-diagnostic`, `copilot-health`, `copilot-stderr`, `auth-status`
+
+3. **Authentication Updates**:
+   - Added `copilot-token` input to action (separate from `bot-pat`)
+   - Uses `COPILOT_GITHUB_TOKEN` environment variable
+   - Falls back to `bot-pat` if `copilot-token` not provided
+
+4. **Workflow Updates** (`ai-pr-quality-gate.yml`):
+   - Added `workflow_dispatch` trigger for manual runs
+   - Added `COPILOT_GITHUB_TOKEN` environment variable
+   - All agent invocations pass both tokens
+
+5. **Documentation** (`docs/copilot-cli-setup.md`):
+   - Step-by-step token creation guide
+   - Token precedence explanation
+   - Troubleshooting guide
+   - Security considerations
+
+**Token Setup Required**:
+
+1. Create fine-grained PAT at: https://github.com/settings/personal-access-tokens/new
+2. Enable permission: **Copilot Requests: Read**
+3. Add repository secret: `COPILOT_GITHUB_TOKEN`
+
+**Environment Variable Precedence**:
+
+| Priority | Variable | Purpose |
+|----------|----------|---------|
+| 1 (Highest) | `COPILOT_GITHUB_TOKEN` | Dedicated Copilot auth |
+| 2 | `GH_TOKEN` | GitHub CLI operations |
+| 3 | `GITHUB_TOKEN` | Legacy/CI default |
+
+**Files Created**:
+
+- `docs/copilot-cli-setup.md` - Authentication setup guide
+
+**Files Modified**:
+
+- `.github/actions/ai-review/action.yml` - Diagnostics + token handling
+- `.github/workflows/ai-pr-quality-gate.yml` - COPILOT_GITHUB_TOKEN + manual dispatch
+
+**Status**: Complete - awaiting `COPILOT_GITHUB_TOKEN` secret configuration
+
+---
+
 ### 2025-12-18: Retrospective - MCP Config Session
 
 **Objective**: Diagnose why GitHub Copilot CLI didn't load MCP servers from repo and recommend fixes.

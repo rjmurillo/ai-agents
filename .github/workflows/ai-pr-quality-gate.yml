@@ -31,7 +31,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # GitHub CLI authentication (for gh commands)
   GH_TOKEN: ${{ secrets.BOT_PAT }}
+  # Copilot CLI authentication (requires fine-grained PAT with "Copilot Requests" permission)
+  # See: docs/copilot-cli-setup.md for token creation instructions
+  COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
   # Compute PR number from either pull_request event or workflow_dispatch input
   PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
@@ -83,6 +87,7 @@ jobs:
           prompt-file: .github/prompts/pr-quality-gate-security.md
           timeout-minutes: 5
           bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: QA Review
         id: qa
@@ -95,6 +100,7 @@ jobs:
           prompt-file: .github/prompts/pr-quality-gate-qa.md
           timeout-minutes: 5
           bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: Analyst Review
         id: analyst
@@ -107,6 +113,7 @@ jobs:
           prompt-file: .github/prompts/pr-quality-gate-analyst.md
           timeout-minutes: 5
           bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: Aggregate Verdicts
         id: aggregate

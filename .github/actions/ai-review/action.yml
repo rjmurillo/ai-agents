@@ -37,8 +37,15 @@ inputs:
     required: false
     default: '500'
   bot-pat:
-    description: 'GitHub PAT for authentication (with Copilot access)'
+    description: 'GitHub PAT for GitHub CLI operations (gh commands). Can be classic or fine-grained PAT with repo access.'
     required: true
+  copilot-token:
+    description: |
+      Fine-grained PAT with "Copilot Requests" permission for Copilot CLI.
+      Required for AI review functionality. See docs/copilot-cli-setup.md.
+      If not provided, falls back to bot-pat (which may fail without Copilot permission).
+    required: false
+    default: ''
 
 outputs:
   verdict:
@@ -136,6 +143,8 @@ runs:
       id: diagnose
       shell: bash
       env:
+        # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
+        COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
         GH_TOKEN: ${{ inputs.bot-pat }}
       run: |
         echo "=== COPILOT CLI DIAGNOSTICS ==="
@@ -441,6 +450,8 @@ runs:
       id: invoke
       shell: bash
       env:
+        # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
+        COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
         GH_TOKEN: ${{ inputs.bot-pat }}
         ADDITIONAL_CONTEXT: ${{ inputs.additional-context }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
