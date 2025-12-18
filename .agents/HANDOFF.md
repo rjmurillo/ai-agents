@@ -233,6 +233,138 @@ cat .agents/governance/consistency-protocol.md
 
 ---
 
-*Last Updated: 2025-12-18*
+## Recent Sessions
+
+### 2025-12-17: Claude Code MCP Config Research
+
+**Objective**: Research Claude Code MCP configuration requirements and resolve conflicting config files
+
+**Agent**: analyst
+
+**Deliverables**:
+- Analysis document: `.agents/analysis/001-claude-code-mcp-config-research.md`
+
+**Critical Discovery**:
+- Project has TWO conflicting MCP config files:
+  - `.mcp.json` with CORRECT `"mcpServers"` key
+  - `mcp.json` with INVALID `"servers"` key
+
+**Key Findings**:
+- File name: `.mcp.json` (WITH leading dot) - CANONICAL
+- Root key: `"mcpServers"` (camelCase) - ONLY documented key
+- Locations (priority order):
+  1. Local scope: `~/.claude.json` under project path
+  2. Project scope: `.mcp.json` in project root (version-controlled)
+  3. User scope: `~/.claude.json` global
+- Schema: Supports stdio (command/args/env), http (url/headers), sse (url/headers)
+- Environment variables: `${VAR}` and `${VAR:-default}` syntax supported
+- Security: Project-scoped servers require approval prompt
+
+**Recommendations**:
+1. Delete invalid `mcp.json` file
+2. Use only `.mcp.json` with `"mcpServers"` root key
+3. Update `Sync-MCPConfig.ps1` to validate schema
+4. Document canonical format in project docs
+
+**Status**: Complete - awaiting implementer for file cleanup
+
+### 2025-12-17: VS Code MCP Configuration Research
+
+**Objective**: Research VS Code MCP server configuration format to support mcp-sync utility
+
+**Agent**: analyst
+
+**Deliverables**:
+- Analysis document: `.agents/analysis/001-vscode-mcp-configuration-analysis.md`
+
+**Critical Discovery**:
+- VS Code uses DIFFERENT configuration format than Claude Desktop
+  - Root key: `"servers"` (VS Code) vs `"mcpServers"` (Claude Desktop)
+  - File name: `mcp.json` (no leading dot) vs `.mcp.json` (Claude Desktop)
+  - Location: `.vscode/mcp.json` (workspace) vs project root (Claude Desktop)
+
+**Key Findings**:
+- File name: `mcp.json` (WITHOUT leading dot)
+- Root key: `"servers"` (NOT `"mcpServers"`)
+- Locations (priority order):
+  1. Workspace config: `.vscode/mcp.json` (committable to version control)
+  2. User config: Via `MCP: Open User Configuration` command
+- Schema supports: stdio, HTTP transports
+- Input variables: `inputs` array with `promptString` type for secure credentials
+- Variable substitution: `${input:variable-id}` syntax in env and headers
+- IntelliSense and schema validation available in VS Code editor
+
+**Schema Compatibility Matrix**:
+| Feature | Claude Desktop | VS Code |
+|---------|---------------|---------|
+| Root key | `mcpServers` | `servers` |
+| File name | `.mcp.json` | `mcp.json` |
+| Location | project root | `.vscode/` |
+| Input variables | ❌ | ✅ |
+
+**Recommendations for mcp-sync utility**:
+1. Generate separate config files for different clients
+2. Transform root key based on target client
+3. Support input variables for VS Code targets
+4. Document format differences for users
+
+**Status**: Complete - analysis available for implementer
+
+### 2025-12-17: GitHub Copilot CLI MCP Config Research
+
+**Objective**: Research GitHub Copilot CLI MCP configuration format
+
+**Agent**: analyst
+
+**Deliverables**:
+
+- Analysis document: `.agents/analysis/001-github-copilot-cli-mcp-config-analysis.md`
+
+**Key Findings**:
+
+- File name: `mcp-config.json` (NOT `.mcp.json`)
+- Root key: `mcpServers` (NOT `servers`)
+- Location: `~/.copilot/mcp-config.json` (user-level, not project-level)
+- Schema: Supports stdio (command/args) and http/sse (url) transports
+- Environment variables: Require `${VAR}` syntax (v0.0.340+)
+- Secrets: Must use `COPILOT_MCP_` prefix
+- Important: GitHub Copilot CLI and VS Code use DIFFERENT config formats
+
+**Status**: Complete
+
+### 2025-12-17: MCP Config Sync Implementation
+
+**Objective**: Fix Sync-McpConfig.ps1 to output to correct VS Code location
+
+**Changes Made**:
+
+1. **Updated Sync-McpConfig.ps1**:
+   - Changed default destination from `mcp.json` to `.vscode/mcp.json`
+   - Added directory creation logic for `.vscode/` directory
+   - Updated documentation and examples
+
+2. **Updated Sync-McpConfig.Tests.ps1**:
+   - Added tests for directory creation behavior
+   - Updated Format Compatibility context to check `.vscode/mcp.json`
+
+3. **Cleaned up project files**:
+   - Deleted orphan `mcp.json` from project root
+   - Created `.vscode/mcp.json` with correct `servers` root key
+
+**MCP Configuration Summary**:
+
+| Environment | File | Root Key | Location |
+|-------------|------|----------|----------|
+| Claude Code | `.mcp.json` | `mcpServers` | Project root |
+| VS Code | `mcp.json` | `servers` | `.vscode/` |
+| Copilot CLI | `mcp-config.json` | `mcpServers` | `~/.copilot/` |
+
+**Test Results**: 18 passed, 0 failed
+
+**Status**: Complete
+
+---
+
+*Last Updated: 2025-12-17*
 *Phase 0 Session: 2025-12-18-session-01-phase-0-foundation*
 *Next Phase: Phase 1 - Spec Layer*

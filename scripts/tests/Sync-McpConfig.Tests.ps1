@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Tests the MCP configuration synchronization from Claude's .mcp.json
-    to VS Code's mcp.json format.
+    to VS Code's .vscode/mcp.json format.
 
 .NOTES
     Requires Pester 5.x or later.
@@ -341,6 +341,62 @@ Describe "Sync-McpConfig.ps1" {
     }
 }
 
+Describe "Directory Creation" {
+    BeforeEach {
+        # Create fresh test directory for each test
+        $Script:TestDir = Join-Path $TestDrive "mcp-test-$(Get-Random)"
+        New-Item -ItemType Directory -Path $Script:TestDir -Force | Out-Null
+    }
+
+    AfterEach {
+        # Clean up test directory
+        if (Test-Path $Script:TestDir) {
+            Remove-Item -Path $Script:TestDir -Recurse -Force
+        }
+    }
+
+    Context "Target Directory Handling" {
+        It "Creates .vscode directory if it does not exist" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $vscodePath = Join-Path $Script:TestDir ".vscode"
+            $destPath = Join-Path $vscodePath "mcp.json"
+            $sourceContent = @{
+                mcpServers = @{ test = @{ type = "stdio"; command = "test" } }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # Verify .vscode doesn't exist
+            $vscodePath | Should -Not -Exist
+
+            # Act
+            & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath
+
+            # Assert
+            $vscodePath | Should -Exist
+            $destPath | Should -Exist
+        }
+
+        It "Works when .vscode directory already exists" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $vscodePath = Join-Path $Script:TestDir ".vscode"
+            $destPath = Join-Path $vscodePath "mcp.json"
+            New-Item -ItemType Directory -Path $vscodePath -Force | Out-Null
+            $sourceContent = @{
+                mcpServers = @{ test = @{ type = "stdio"; command = "test" } }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # Act
+            & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath
+
+            # Assert
+            $destPath | Should -Exist
+        }
+    }
+}
+
 Describe "Format Compatibility" {
     BeforeAll {
         $gitRoot = git rev-parse --show-toplevel 2>$null
@@ -350,7 +406,8 @@ Describe "Format Compatibility" {
             $Script:RepoRoot = $PWD.Path
         }
         $Script:ClaudeMcpPath = Join-Path $Script:RepoRoot ".mcp.json"
-        $Script:VSCodeMcpPath = Join-Path $Script:RepoRoot "mcp.json"
+        $Script:VSCodeDir = Join-Path $Script:RepoRoot ".vscode"
+        $Script:VSCodeMcpPath = Join-Path $Script:VSCodeDir "mcp.json"
         $Script:HasClaudeMcp = Test-Path $Script:ClaudeMcpPath
         $Script:HasVSCodeMcp = Test-Path $Script:VSCodeMcpPath
     }
@@ -361,7 +418,7 @@ Describe "Format Compatibility" {
             $json.mcpServers | Should -Not -BeNullOrEmpty
         }
 
-        It "VS Code mcp.json has servers key" -Skip:(-not $Script:HasVSCodeMcp) {
+        It "VS Code .vscode/mcp.json has servers key" -Skip:(-not $Script:HasVSCodeMcp) {
             $json = Get-Content -Path $Script:VSCodeMcpPath -Raw | ConvertFrom-Json
             $json.servers | Should -Not -BeNullOrEmpty
         }
