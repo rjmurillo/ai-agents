@@ -402,33 +402,6 @@ runs:
           echo "EOF_CONTEXT"
         } >> $GITHUB_OUTPUT
 
-    - name: Verify agent definition
-      id: agent
-      shell: bash
-      env:
-        AGENT: ${{ inputs.agent }}
-      run: |
-        # Copilot CLI will load agent from .github/agents/<name>.agent.md automatically
-        # We just verify it exists and report the location
-        AGENT_FILE=".github/agents/${AGENT}.agent.md"
-
-        if [ -f "$AGENT_FILE" ]; then
-          echo "Found agent definition at: $AGENT_FILE"
-          echo "agent_source=$AGENT_FILE" >> $GITHUB_OUTPUT
-
-          # Output agent definition for debugging
-          {
-            echo "agent_definition<<EOF_AGENT"
-            cat "$AGENT_FILE"
-            echo "EOF_AGENT"
-          } >> $GITHUB_OUTPUT
-        else
-          echo "::warning::No agent definition found at $AGENT_FILE"
-          echo "Copilot CLI will use default behavior for agent '$AGENT'"
-          echo "agent_source=not_found" >> $GITHUB_OUTPUT
-          echo "agent_definition=" >> $GITHUB_OUTPUT
-        fi
-
     - name: Load prompt template
       id: prompt
       shell: bash
