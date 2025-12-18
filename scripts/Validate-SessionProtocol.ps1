@@ -41,7 +41,7 @@
     .\Validate-SessionProtocol.ps1 -Recent 3 -Format markdown
 #>
 
-[CmdletBinding(DefaultParameterSetName = 'Session')]
+[CmdletBinding(DefaultParameterSetName = 'Recent')]
 param(
     [Parameter(ParameterSetName = 'Session', Mandatory = $true)]
     [string]$SessionPath,
@@ -101,10 +101,10 @@ function Test-SessionLogExists {
     }
 
     $fileName = Split-Path -Leaf $FilePath
-    # Pattern: YYYY-MM-DD-session-NN.md
-    if ($fileName -notmatch '^\d{4}-\d{2}-\d{2}-session-\d{2}\.md$') {
+    # Pattern: YYYY-MM-DD-session-NN.md or YYYY-MM-DD-session-NN-description.md
+    if ($fileName -notmatch '^\d{4}-\d{2}-\d{2}-session-\d{2}(-.+)?\.md$') {
         $result.Passed = $false
-        $result.Issues += "Session log naming violation: $fileName (expected: YYYY-MM-DD-session-NN.md)"
+        $result.Issues += "Session log naming violation: $fileName (expected: YYYY-MM-DD-session-NN.md or YYYY-MM-DD-session-NN-description.md)"
     }
 
     return $result
@@ -185,8 +185,8 @@ function Test-MustRequirements {
     # Pattern: | MUST | description | [ ] | evidence |
     $tableMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\*?\*?\s*\|[^|]+\|\s*\[([x ])\]\s*\|')
     foreach ($match in $tableMatches) {
-        # Skip if already counted
-        if (-not $mustMatches.Success) {
+        # Skip if first regex already matched (avoid double-counting)
+        if ($mustMatches.Count -eq 0) {
             $result.Details.TotalMust++
             $isComplete = $match.Groups[1].Value -eq 'x'
             if (-not $isComplete) {
@@ -463,7 +463,7 @@ function Get-SessionLogs {
     }
 
     $sessions = Get-ChildItem -Path $sessionsPath -Filter "*.md" -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}-session-\d{2}\.md$' }
+        Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}-session-\d{2}(-.+)?\.md$' }
 
     if ($Days -gt 0) {
         $cutoffDate = (Get-Date).AddDays(-$Days)
