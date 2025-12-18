@@ -33,13 +33,13 @@ This is NON-NEGOTIABLE. Do not read files, do not search, do not answer question
 
 ```text
 START (before any work):
-□ Initialize Serena (see above)
-□ Read .agents/HANDOFF.md for context
+- Initialize Serena (see above)
+- Read .agents/HANDOFF.md for context
 
 END (before session closes):
-□ Update .agents/HANDOFF.md with what was done
-□ Run: npx markdownlint-cli2 --fix "**/*.md"
-□ Commit .agents/ files if changed
+- Update .agents/HANDOFF.md with what was done
+- Run: npx markdownlint-cli2 --fix "**/*.md"
+- Commit .agents/ files if changed
 ```
 
 **Why this matters**: You are an expert amnesiac. Without reading HANDOFF.md, you will repeat work or contradict prior decisions. Without updating it, the next session starts blind.
