@@ -319,4 +319,113 @@ Test content
             $result.Name | Should -Contain "complex-pattern"
         }
     }
+
+    Context "Exclusion patterns" {
+        It "Should exclude files matching exclude pattern" {
+            # Arrange - Create steering file with exclude pattern
+            $excludeContent = @"
+---
+name: Documentation with Exclusions
+applyTo: "**/*.md"
+exclude: "src/claude/**/*.md,.agents/steering/**"
+priority: 5
+version: 0.1.0
+status: test
+---
+# Documentation Steering
+Test content
+"@
+            Set-Content -Path (Join-Path $testSteeringPath "doc-with-exclude.md") -Value $excludeContent
+
+            # Files that should be excluded
+            $files = @("src/claude/analyst.md", ".agents/steering/security.md")
+
+            # Act
+            $result = Get-ApplicableSteering -Files $files -SteeringPath $testSteeringPath
+
+            # Assert - doc-with-exclude should NOT match these excluded files
+            if ($result) {
+                $result.Name | Should -Not -Contain "doc-with-exclude"
+            }
+        }
+
+        It "Should include files matching applyTo but not matching exclude" {
+            # Arrange - Using same steering file from previous test
+            # Files that match applyTo but NOT exclude
+            $files = @("README.md", "docs/guide.md", "CHANGELOG.md")
+
+            # Act
+            $result = Get-ApplicableSteering -Files $files -SteeringPath $testSteeringPath
+
+            # Assert - doc-with-exclude SHOULD match these files
+            $result | Should -Not -BeNullOrEmpty
+            $result.Name | Should -Contain "doc-with-exclude"
+        }
+
+        It "Should handle multiple exclude patterns" {
+            # Arrange
+            $multiExcludeContent = @"
+---
+name: Multi Exclude Test
+applyTo: "**/*.ps1"
+exclude: "**/*.Tests.ps1,**/build/**"
+priority: 5
+version: 0.1.0
+status: test
+---
+# Multi Exclude Steering
+Test content
+"@
+            Set-Content -Path (Join-Path $testSteeringPath "multi-exclude.md") -Value $multiExcludeContent
+
+            # Files matching different exclude patterns
+            $excludedFiles = @("src/Utils.Tests.ps1", "build/scripts/Deploy.ps1")
+
+            # Act
+            $result = Get-ApplicableSteering -Files $excludedFiles -SteeringPath $testSteeringPath
+
+            # Assert - Should not match excluded files
+            if ($result) {
+                $result.Name | Should -Not -Contain "multi-exclude"
+            }
+        }
+
+        It "Should work when exclude field is absent" {
+            # Arrange - Create steering without exclude field
+            $noExcludeContent = @"
+---
+name: No Exclude Test
+applyTo: "**/*.js"
+priority: 5
+version: 0.1.0
+status: test
+---
+# No Exclude Steering
+Test content
+"@
+            Set-Content -Path (Join-Path $testSteeringPath "no-exclude.md") -Value $noExcludeContent
+
+            $files = @("src/app.js", "src/utils/helper.js")
+
+            # Act
+            $result = Get-ApplicableSteering -Files $files -SteeringPath $testSteeringPath
+
+            # Assert - Should match since there's no exclude
+            $result | Should -Not -BeNullOrEmpty
+            $result.Name | Should -Contain "no-exclude"
+        }
+
+        It "Should include Exclude property in output when present" {
+            # Arrange - Using doc-with-exclude from earlier tests
+            $files = @("README.md")
+
+            # Act
+            $result = Get-ApplicableSteering -Files $files -SteeringPath $testSteeringPath
+
+            # Assert
+            $docSteering = $result | Where-Object { $_.Name -eq "doc-with-exclude" }
+            $docSteering.Exclude | Should -Not -BeNullOrEmpty
+            $docSteering.Exclude | Should -BeExactly "src/claude/**/*.md,.agents/steering/**"
+        }
+    }
 }

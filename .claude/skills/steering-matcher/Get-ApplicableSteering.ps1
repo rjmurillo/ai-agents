@@ -30,14 +30,54 @@ function Get-ApplicableSteering {
         [Parameter(Mandatory = $false)]
         [string]$SteeringPath = ".agents/steering"
     )
-    
+
+    # Helper function to convert glob pattern to regex
+    function ConvertTo-GlobRegex {
+        param([string]$Pattern)
+
+        $regexPattern = $Pattern -replace '\\', '/'
+        $regexPattern = $regexPattern -replace '\*\*/', '<!GLOBSTAR_SLASH!>'
+        $regexPattern = $regexPattern -replace '/\*\*', '<!SLASH_GLOBSTAR!>'
+        $regexPattern = $regexPattern -replace '^\*\*', '<!START_GLOBSTAR!>'
+        $regexPattern = $regexPattern -replace '\*\*$', '<!END_GLOBSTAR!>'
+        $regexPattern = $regexPattern -replace '\?', '<!QUESTION_WILDCARD!>'
+        $regexPattern = $regexPattern -replace '\*', '[^/]*'
+        $regexPattern = $regexPattern -replace '\.', '\.'
+        # Replace placeholders with actual regex
+        $regexPattern = $regexPattern -replace '<!GLOBSTAR_SLASH!>', '(?:.+/|)'
+        $regexPattern = $regexPattern -replace '<!SLASH_GLOBSTAR!>', '/.*'
+        $regexPattern = $regexPattern -replace '<!START_GLOBSTAR!>', '.*'
+        $regexPattern = $regexPattern -replace '<!END_GLOBSTAR!>', '.*'
+        $regexPattern = $regexPattern -replace '<!QUESTION_WILDCARD!>', '.'
+
+        return "^$regexPattern$"
+    }
+
+    # Helper function to test if file matches any pattern
+    function Test-FileMatchesPattern {
+        param(
+            [string]$File,
+            [string[]]$Patterns
+        )
+
+        $normalizedFile = $File -replace '\\', '/'
+        foreach ($pattern in $Patterns) {
+            $normalizedPattern = $pattern -replace '\\', '/'
+            $regexPattern = ConvertTo-GlobRegex -Pattern $normalizedPattern
+            if ($normalizedFile -match $regexPattern) {
+                return $true
+            }
+        }
+        return $false
+    }
+
     # Return empty array if no files provided
     if ($Files.Count -eq 0) {
         return @()
     }
 
     # Get all steering files
-    $steeringFiles = Get-ChildItem -Path $SteeringPath -Filter "*.md" -File | 
+    $steeringFiles = Get-ChildItem -Path $SteeringPath -Filter "*.md" -File |
         Where-Object { $_.Name -ne "README.md" -and $_.Name -ne "SKILL.md" }
 
     $applicableSteering = @()
@@ -50,53 +90,38 @@ function Get-ApplicableSteering {
         if ($content -match '(?s)^---\s*\n(.*?)\n---') {
             $frontMatter = $matches[1]
             
-            # Parse applyTo and priority
+            # Parse applyTo, exclude, and priority
             $applyTo = if ($frontMatter -match 'applyTo:\s*"([^"]+)"') { $matches[1] } else { $null }
+            $exclude = if ($frontMatter -match 'exclude:\s*"([^"]+)"') { $matches[1] } else { $null }
             $priority = if ($frontMatter -match 'priority:\s*(\d+)') { [int]$matches[1] } else { 5 }
 
             if ($applyTo) {
-                # Split applyTo if it contains multiple patterns
-                $patterns = $applyTo -split ',' | ForEach-Object { $_.Trim() }
-
-                # Check if any file matches any pattern
-                $matched = $false
-                foreach ($pattern in $patterns) {
-                    foreach ($file in $Files) {
-                        # Normalize paths
-                        $normalizedFile = $file -replace '\\', '/'
-                        $normalizedPattern = $pattern -replace '\\', '/'
-                        
-                        # Convert glob pattern to regex (use placeholders to avoid interference)
-                        $regexPattern = $normalizedPattern
-                        $regexPattern = $regexPattern -replace '\*\*/', '<!GLOBSTAR_SLASH!>'
-                        $regexPattern = $regexPattern -replace '/\*\*', '<!SLASH_GLOBSTAR!>'
-                        $regexPattern = $regexPattern -replace '^\*\*', '<!START_GLOBSTAR!>'
-                        $regexPattern = $regexPattern -replace '\*\*$', '<!END_GLOBSTAR!>'
-                        $regexPattern = $regexPattern -replace '\?', '<!QUESTION_WILDCARD!>'
-                        $regexPattern = $regexPattern -replace '\*', '[^/]*'
-                        $regexPattern = $regexPattern -replace '\.', '\.'
-                        # Replace placeholders with actual regex
-                        $regexPattern = $regexPattern -replace '<!GLOBSTAR_SLASH!>', '(?:.+/|)'
-                        $regexPattern = $regexPattern -replace '<!SLASH_GLOBSTAR!>', '/.*'
-                        $regexPattern = $regexPattern -replace '<!START_GLOBSTAR!>', '.*'
-                        $regexPattern = $regexPattern -replace '<!END_GLOBSTAR!>', '.*'
-                        $regexPattern = $regexPattern -replace '<!QUESTION_WILDCARD!>', '.'
-                        $regexPattern = "^$regexPattern$"
-
-                        if ($normalizedFile -match $regexPattern) {
-                            $matched = $true
-                            break
-                        }
-                    }
-                    if ($matched) { break }
+                # Split patterns
+                $includePatterns = $applyTo -split ',' | ForEach-Object { $_.Trim() }
+                $excludePatterns = if ($exclude) {
+                    $exclude -split ',' | ForEach-Object { $_.Trim() }
+                } else {
+                    @()
                 }
 
-                if ($matched) {
-                    $applicableSteering += [PSCustomObject]@{
-                        Name     = $steeringFile.BaseName
-                        Path     = $steeringFile.FullName
-                        ApplyTo  = $applyTo
-                        Priority = $priority
+                # Check if any file matches include patterns but not exclude patterns
+                foreach ($file in $Files) {
+                    $matchesInclude = Test-FileMatchesPattern -File $file -Patterns $includePatterns
+                    $matchesExclude = if ($excludePatterns.Count -gt 0) {
+                        Test-FileMatchesPattern -File $file -Patterns $excludePatterns
+                    } else {
+                        $false
+                    }
+
+                    if ($matchesInclude -and -not $matchesExclude) {
+                        $applicableSteering += [PSCustomObject]@{
+                            Name     = $steeringFile.BaseName
+                            Path     = $steeringFile.FullName
+                            ApplyTo  = $applyTo
+                            Exclude  = $exclude
+                            Priority = $priority
+                        }
+                        break  # Only need one file to match to include this steering file
                     }
                 }
             }

@@ -108,7 +108,7 @@ foreach ($path in $TestPath) {
     $fullPath = Join-Path $RepoRoot $cleanPath
     
     # Expand wildcards
-    if ($fullPath -like "*[*]*" -or $fullPath -like "*?*") {
+    if ($fullPath -like "*[*]*" -or $fullPath -like "*[?]*") {
         $expanded = Get-Item -Path $fullPath -ErrorAction SilentlyContinue
         if ($expanded) {
             $ResolvedTestPaths += $expanded.FullName
