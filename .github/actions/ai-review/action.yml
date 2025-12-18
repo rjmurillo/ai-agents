@@ -47,11 +47,14 @@ inputs:
     required: false
     default: ''
   copilot-agent:
-    description: 'Copilot CLI agent to use (e.g., orchestrator, coding-agent)'
+    description: 'Copilot CLI agent to use (e.g., orchestrator, qa, security, etc.)'
     required: false
     default: 'orchestrator'
   copilot-model:
-    description: 'AI model to use (e.g., claude-opus-4.5, gpt-4o)'
+    description: |
+      AI model to use (e.g., choices: "claude-sonnet-4.5", "claude-haiku-4.5", "claude-opus-4.5",
+      "claude-sonnet-4", "gpt-5", "gpt-5.1", "gpt-5.1-codex-mini", "gpt-5.1-codex-max",
+      "gpt-5.1-codex", "gpt-5-mini", "gpt-4.1", "gemini-3-pro-preview")'
     required: false
     default: 'claude-opus-4.5'
 
