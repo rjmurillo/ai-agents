@@ -445,10 +445,10 @@ The drift detection script compares sections by:
 
 ## References
 
-- [Ideation Research: Agent Templating System](D:\src\GitHub\rjmurillo\ai-agents\.agents\analysis\ideation-agent-templating.md)
-- [Critique: Agent Templating System](D:\src\GitHub\rjmurillo\ai-agents\.agents\critique\001-agent-templating-critique.md)
-- [Product Roadmap](D:\src\GitHub\rjmurillo\ai-agents\.agents\roadmap\product-roadmap.md)
-- [Agent Consolidation Process](D:\src\GitHub\rjmurillo\ai-agents\.agents\governance\agent-consolidation-process.md)
+- [Ideation Research: Agent Templating System](../analysis/ideation-agent-templating.md)
+- [Critique: Agent Templating System](../critique/001-agent-templating-critique.md)
+- [Product Roadmap](../roadmap/product-roadmap.md)
+- [Agent Consolidation Process](../governance/agent-consolidation-process.md)
 
 ---
 

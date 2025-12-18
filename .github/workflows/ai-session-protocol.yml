@@ -163,7 +163,7 @@ jobs:
         id: aggregate
         shell: pwsh
         run: |
-          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
 
           $overallVerdict = "PASS"
           $totalMustFailures = 0
@@ -208,7 +208,7 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
 
           $reportDir = Initialize-AIReview
           $reportFile = Join-Path $reportDir "session-compliance-report.md"

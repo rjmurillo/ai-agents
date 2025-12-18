@@ -136,9 +136,12 @@ function Get-FilesToScan {
         }
 
         # Check if path should be excluded
+        # Normalize path separators for cross-platform compatibility
         $relativePath = $file.FullName.Substring($RootPath.Length).TrimStart('\', '/')
+        $normalizedPath = $relativePath -replace '\\', '/'
         foreach ($exclude in $Excludes) {
-            if ($relativePath -like "*$exclude*") {
+            $normalizedExclude = $exclude -replace '\\', '/'
+            if ($normalizedPath -like "*$normalizedExclude*") {
                 return $false
             }
         }
@@ -163,11 +166,26 @@ function Test-FileForAbsolutePaths {
     }
 
     $lineNumber = 0
+    $inCodeBlock = $false
     foreach ($line in (Get-Content -Path $File.FullName)) {
         $lineNumber++
 
+        # Track fenced code blocks (``` or ~~~)
+        if ($line -match '^\s*(`{3,}|~{3,})') {
+            $inCodeBlock = -not $inCodeBlock
+            continue
+        }
+
+        # Skip lines inside code blocks - example paths are allowed there
+        if ($inCodeBlock) {
+            continue
+        }
+
+        # Skip inline code (content between backticks) by removing it before checking
+        $lineWithoutInlineCode = $line -replace '`[^`]+`', ''
+
         foreach ($pattern in $Patterns) {
-            if ($line -match $pattern.Pattern) {
+            if ($lineWithoutInlineCode -match $pattern.Pattern) {
                 $violations += @{
                     File        = $File.FullName
                     Line        = $lineNumber

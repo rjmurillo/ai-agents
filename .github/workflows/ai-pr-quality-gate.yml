@@ -59,7 +59,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
-          CHANGED_FILES=$(gh pr diff ${{ env.PR_NUMBER }} --name-only)
+          # Try to get changed files, fall back if diff is too large (>20000 lines)
+          if ! CHANGED_FILES=$(gh pr diff ${{ env.PR_NUMBER }} --name-only 2>&1); then
+            if echo "$CHANGED_FILES" | grep -q "too_large\|exceeded"; then
+              echo "PR diff too large, using gh pr view instead"
+              CHANGED_FILES=$(gh pr view ${{ env.PR_NUMBER }} --json files --jq '.files[].path')
+            else
+              echo "Error getting diff: $CHANGED_FILES"
+              # Default to not skipping on error
+              echo "skip_review=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
 
           # Check if only documentation files changed
           NON_DOC_FILES=$(echo "$CHANGED_FILES" | grep -vE '\.(md|txt|rst)$' | grep -v '^docs/' || true)
@@ -206,7 +217,7 @@ jobs:
         id: aggregate
         shell: pwsh
         run: |
-          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
 
           # Get verdicts from loaded results
           $securityVerdict = "${{ steps.load-results.outputs.security_verdict }}"
@@ -245,7 +256,7 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           SHA: ${{ github.sha }}
         run: |
-          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
 
           $reportDir = Initialize-AIReview
           $reportFile = Join-Path $reportDir "pr-quality-report.md"

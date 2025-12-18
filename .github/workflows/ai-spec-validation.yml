@@ -194,7 +194,7 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
         shell: pwsh
         run: |
-          Import-Module .github/scripts/AIReviewCommon.psm1 -Force
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
 
           $reportDir = Initialize-AIReview
           $reportFile = Join-Path $reportDir "spec-validation-report.md"
