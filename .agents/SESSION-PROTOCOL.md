@@ -245,8 +245,7 @@ Copy this checklist to each session log and verify completion:
 |-----|------|--------|----------|
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
 | MUST | Complete session log | [ ] | All sections filled |
-| MUST | Run markdown lint | [ ] | Output: `npx markdownlint-cli2 --fix "**/*.md"` |
-| MUST | Commit all changes | [ ] | Commit SHA: _______ |
+| MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
 | SHOULD | Verify clean git status | [ ] | `git status` output |
