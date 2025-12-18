@@ -72,14 +72,15 @@ function Get-ApplicableSteering {
                         $regexPattern = $regexPattern -replace '/\*\*', '<!SLASH_GLOBSTAR!>'
                         $regexPattern = $regexPattern -replace '^\*\*', '<!START_GLOBSTAR!>'
                         $regexPattern = $regexPattern -replace '\*\*$', '<!END_GLOBSTAR!>'
+                        $regexPattern = $regexPattern -replace '\?', '<!QUESTION_WILDCARD!>'
                         $regexPattern = $regexPattern -replace '\*', '[^/]*'
-                        $regexPattern = $regexPattern -replace '\?', '.'
                         $regexPattern = $regexPattern -replace '\.', '\.'
                         # Replace placeholders with actual regex
                         $regexPattern = $regexPattern -replace '<!GLOBSTAR_SLASH!>', '(?:.+/|)'
                         $regexPattern = $regexPattern -replace '<!SLASH_GLOBSTAR!>', '/.*'
                         $regexPattern = $regexPattern -replace '<!START_GLOBSTAR!>', '.*'
                         $regexPattern = $regexPattern -replace '<!END_GLOBSTAR!>', '.*'
+                        $regexPattern = $regexPattern -replace '<!QUESTION_WILDCARD!>', '.'
                         $regexPattern = "^$regexPattern$"
 
                         if ($normalizedFile -match $regexPattern) {

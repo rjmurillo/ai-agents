@@ -246,12 +246,77 @@ version: 0.1.0
         It "Should have valid file paths in results" {
             # Arrange
             $files = @("src/claude/analyst.md")
-            
+
             # Act
             $result = Get-ApplicableSteering -Files $files -SteeringPath $testSteeringPath
-            
+
             # Assert
             $result[0].Path | Should -Exist
+        }
+    }
+
+    Context "Glob pattern wildcards" {
+        It "Should match ? wildcard for single character" {
+            # Arrange - Create steering file with ? wildcard pattern
+            $questionWildcardContent = @"
+---
+name: Question Wildcard Test
+applyTo: "test?.md"
+priority: 5
+version: 0.1.0
+status: test
+---
+# Question Wildcard Steering
+Test content for ? wildcard
+"@
+            Set-Content -Path (Join-Path $testSteeringPath "question-wildcard.md") -Value $questionWildcardContent
+
+            $files = @("testA.md", "test1.md", "testX.md")
+
+            # Act
+            $result = Get-ApplicableSteering -Files $files -SteeringPath $testSteeringPath
+
+            # Assert
+            $result | Should -Not -BeNullOrEmpty
+            $result.Name | Should -Contain "question-wildcard"
+        }
+
+        It "Should not match ? wildcard against multiple characters" {
+            # Arrange - Using same steering file from previous test
+            $files = @("testAB.md", "test12.md", "test.md")
+
+            # Act
+            $result = Get-ApplicableSteering -Files $files -SteeringPath $testSteeringPath
+
+            # Assert - question-wildcard should NOT match these
+            if ($result) {
+                $result.Name | Should -Not -Contain "question-wildcard"
+            }
+        }
+
+        It "Should match ? wildcard in combination with other patterns" {
+            # Arrange - Create steering file with complex pattern
+            $complexPatternContent = @"
+---
+name: Complex Pattern Test
+applyTo: "src/*/test?.ts"
+priority: 5
+version: 0.1.0
+status: test
+---
+# Complex Pattern Steering
+Test content
+"@
+            Set-Content -Path (Join-Path $testSteeringPath "complex-pattern.md") -Value $complexPatternContent
+
+            $files = @("src/utils/testA.ts", "src/lib/test1.ts")
+
+            # Act
+            $result = Get-ApplicableSteering -Files $files -SteeringPath $testSteeringPath
+
+            # Assert
+            $result | Should -Not -BeNullOrEmpty
+            $result.Name | Should -Contain "complex-pattern"
         }
     }
 }
