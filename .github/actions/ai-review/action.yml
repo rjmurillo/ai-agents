@@ -46,6 +46,14 @@ inputs:
       If not provided, falls back to bot-pat (which may fail without Copilot permission).
     required: false
     default: ''
+  copilot-agent:
+    description: 'Copilot CLI agent to use (e.g., orchestrator, coding-agent)'
+    required: false
+    default: 'orchestrator'
+  copilot-model:
+    description: 'AI model to use (e.g., claude-opus-4.5, gpt-4o)'
+    required: false
+    default: 'claude-opus-4.5'
 
 outputs:
   verdict:
@@ -146,6 +154,8 @@ runs:
         # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
         GH_TOKEN: ${{ inputs.bot-pat }}
+        COPILOT_AGENT: ${{ inputs.copilot-agent }}
+        COPILOT_MODEL: ${{ inputs.copilot-model }}
       run: |
         echo "=== COPILOT CLI DIAGNOSTICS ==="
         echo ""
@@ -223,7 +233,8 @@ runs:
 
         # Run minimal test with very short timeout
         echo "   Running minimal test prompt (10s timeout)..."
-        timeout 10 copilot --prompt "Reply with only the word OK" --allow-all-tools > "$STDOUT_FILE" 2> "$STDERR_FILE"
+        echo "   Agent: $COPILOT_AGENT, Model: $COPILOT_MODEL"
+        timeout 10 copilot --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "Reply with only the word OK" > "$STDOUT_FILE" 2> "$STDERR_FILE"
         TEST_EXIT_CODE=$?
 
         COPILOT_TEST_OUTPUT=$(cat "$STDOUT_FILE")
@@ -455,6 +466,8 @@ runs:
         GH_TOKEN: ${{ inputs.bot-pat }}
         ADDITIONAL_CONTEXT: ${{ inputs.additional-context }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+        COPILOT_AGENT: ${{ inputs.copilot-agent }}
+        COPILOT_MODEL: ${{ inputs.copilot-model }}
       run: |
         # Assemble full prompt
         FULL_PROMPT=""
@@ -490,6 +503,7 @@ runs:
 
         # Invoke Copilot CLI with timeout
         echo "Invoking Copilot CLI (timeout: ${TIMEOUT_MINUTES}m)..."
+        echo "Agent: $COPILOT_AGENT, Model: $COPILOT_MODEL"
         echo "Prompt size: $(wc -c < /tmp/ai-review-full-prompt.md) bytes"
 
         # Create temp files for separate stdout/stderr capture
@@ -497,7 +511,7 @@ runs:
         STDERR_FILE=$(mktemp)
 
         set +e
-        timeout "$TIMEOUT_SECONDS" copilot --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+        timeout "$TIMEOUT_SECONDS" copilot --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
         EXIT_CODE=$?
 
         OUTPUT=$(cat "$STDOUT_FILE")
