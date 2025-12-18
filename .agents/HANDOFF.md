@@ -235,6 +235,50 @@ cat .agents/governance/consistency-protocol.md
 
 ## Recent Sessions
 
+### 2025-12-18: Component AGENTS.md Documentation
+
+**Session Log**: [Session 24](./sessions/2025-12-18-session-24-component-agents-docs.md)
+
+**Objective**: Generate AGENTS.md files for each logical component documenting all automated actors
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Scope**: Crawled repository, extracted knowledge from memories, generated documentation for 4 components
+
+**Outcome**: SUCCESS - 4 AGENTS.md files created
+
+**Files Created**:
+
+| File | Description |
+|------|-------------|
+| `templates/AGENTS.md` | Template system and 18 AI agent catalog |
+| `build/AGENTS.md` | Build automation scripts (Generate-Agents, Detect-AgentDrift, etc.) |
+| `scripts/AGENTS.md` | Installation and utility scripts |
+| `.github/AGENTS.md` | GitHub Actions workflows and composite actions |
+
+**Key Features**:
+
+- Mermaid architecture diagrams for each component
+- Agent catalog tables with inputs/outputs/triggers
+- Error handling and security considerations
+- Monitoring workflows and validation mechanisms
+- Cross-references between component documentation
+
+**Memories Consulted**:
+
+- `codebase-structure` - Repository layout
+- `project-overview` - Agent catalog and workflows
+- `code-style-conventions` - Documentation standards
+- `install-scripts-cva` - Installation patterns
+- `research-agent-templating-2025-12-15` - Template system
+- `epic-2-variant-consolidation` - Consolidation strategy
+
+**Status**: Complete
+
+---
+
 ### 2025-12-18: Skillbook Persistence from Parallel Implementation Retrospective
 
 **Session Log**: [Session 23](./sessions/2025-12-18-session-23-skillbook.md)
