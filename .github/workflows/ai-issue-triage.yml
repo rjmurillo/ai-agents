@@ -32,141 +32,77 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 'lts/*'
-
-      - name: Cache npm packages
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-copilot-cli-v1
-
-      - name: Install GitHub Copilot CLI
-        run: npm install -g @github/copilot
-
-      - name: Authenticate with GitHub
-        run: |
-          echo "${{ secrets.BOT_PAT }}" | gh auth login --with-token
-          gh auth status
-
-      - name: Load Roadmap Context
-        id: roadmap
-        run: |
-          ROADMAP_FILE=".agents/roadmap/product-roadmap.md"
-          if [ -f "$ROADMAP_FILE" ]; then
-            # Get first 30000 lines to keep context manageable
-            ROADMAP_CONTENT=$(head -30000 "$ROADMAP_FILE")
-          else
-            ROADMAP_CONTENT="No roadmap file found"
-          fi
-
-          # Save to file to handle multiline
-          echo "$ROADMAP_CONTENT" > /tmp/roadmap-context.txt
-          echo "roadmap_file=/tmp/roadmap-context.txt" >> $GITHUB_OUTPUT
-
-      - name: Get Issue Details
-        id: issue
-        run: |
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
-          ISSUE_TITLE="${{ github.event.issue.title }}"
-          ISSUE_BODY="${{ github.event.issue.body }}"
-          ISSUE_AUTHOR="${{ github.event.issue.user.login }}"
-
-          # Get current labels
-          CURRENT_LABELS=$(gh issue view "$ISSUE_NUMBER" --json labels -q '[.labels[].name] | join(",")' || echo "")
-
-          # Save issue details
-          cat > /tmp/issue-details.txt << EOF
-          Title: $ISSUE_TITLE
-          Author: $ISSUE_AUTHOR
-          Current Labels: $CURRENT_LABELS
-
-          Body:
-          $ISSUE_BODY
-          EOF
-
-          echo "issue_file=/tmp/issue-details.txt" >> $GITHUB_OUTPUT
-
-      - name: Categorize Issue
+      - name: 📊 Categorize Issue (Analyst Agent)
         id: categorize
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: issue
+          issue-number: ${{ github.event.issue.number }}
+          prompt-file: .github/prompts/issue-triage-categorize.md
+          timeout-minutes: 2
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Parse Categorization Results
+        id: parse-categorize
+        env:
+          RAW_OUTPUT: ${{ steps.categorize.outputs.findings }}
         run: |
-          source .github/scripts/ai-review-common.sh
+          # Save output for debugging
+          echo "$RAW_OUTPUT" > /tmp/categorize-output.txt
 
-          # Load agent definition
-          AGENT_DEF=""
-          if [ -f "src/copilot-cli/analyst.agent.md" ]; then
-            AGENT_DEF=$(cat "src/copilot-cli/analyst.agent.md")
+          # Parse labels from output (handles JSON or plain text)
+          LABELS=$(echo "$RAW_OUTPUT" | grep -oP '"labels"\s*:\s*\[\K[^\]]+' | tr -d '"' | tr ',' '\n' | xargs || echo "")
+          CATEGORY=$(echo "$RAW_OUTPUT" | grep -oP '"category"\s*:\s*"\K[^"]+' || echo "unknown")
+
+          # Also check for LABEL: format from composite action
+          if [ -z "$LABELS" ]; then
+            LABELS="${{ steps.categorize.outputs.labels }}"
           fi
-
-          # Load prompt template
-          PROMPT_TEMPLATE=$(cat ".github/prompts/issue-triage-categorize.md")
-
-          # Build full prompt
-          FULL_PROMPT="$AGENT_DEF"
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n---\n\n'
-          FULL_PROMPT="$FULL_PROMPT$PROMPT_TEMPLATE"
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n## Issue Details\n\n'
-          FULL_PROMPT="$FULL_PROMPT$(cat /tmp/issue-details.txt)"
-
-          # Invoke Copilot CLI
-          log "Categorizing issue..."
-          OUTPUT=$(timeout 120 copilot --prompt "$FULL_PROMPT" 2>&1 || echo '{"labels": [], "category": "unknown"}')
-
-          echo "$OUTPUT" > /tmp/categorize-output.txt
-          log "Categorization complete"
-
-          # Parse labels from output
-          LABELS=$(echo "$OUTPUT" | grep -oP '"labels"\s*:\s*\[\K[^\]]+' | tr -d '"' | tr ',' '\n' | xargs || echo "")
-          CATEGORY=$(echo "$OUTPUT" | grep -oP '"category"\s*:\s*"\K[^"]+' || echo "unknown")
 
           echo "labels=$LABELS" >> $GITHUB_OUTPUT
           echo "category=$CATEGORY" >> $GITHUB_OUTPUT
 
-      - name: Align to Roadmap
+      - name: 🗺️ Align to Roadmap (Roadmap Agent)
         id: align
-        run: |
-          source .github/scripts/ai-review-common.sh
+        uses: ./.github/actions/ai-review
+        with:
+          agent: roadmap
+          context-type: issue
+          issue-number: ${{ github.event.issue.number }}
+          prompt-file: .github/prompts/issue-triage-roadmap.md
+          timeout-minutes: 2
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-          # Load agent definition
-          AGENT_DEF=""
-          if [ -f "src/copilot-cli/roadmap.agent.md" ]; then
-            AGENT_DEF=$(cat "src/copilot-cli/roadmap.agent.md")
+      - name: Parse Roadmap Results
+        id: parse-align
+        env:
+          RAW_OUTPUT: ${{ steps.align.outputs.findings }}
+          MILESTONE_FROM_ACTION: ${{ steps.align.outputs.milestone }}
+        run: |
+          # Save output for debugging
+          echo "$RAW_OUTPUT" > /tmp/align-output.txt
+
+          # Parse milestone (from composite action output or raw parsing)
+          MILESTONE="$MILESTONE_FROM_ACTION"
+          if [ -z "$MILESTONE" ]; then
+            MILESTONE=$(echo "$RAW_OUTPUT" | grep -oP '"milestone"\s*:\s*"\K[^"]+' || echo "")
           fi
 
-          # Load prompt template
-          PROMPT_TEMPLATE=$(cat ".github/prompts/issue-triage-roadmap.md")
-
-          # Build full prompt
-          FULL_PROMPT="$AGENT_DEF"
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n---\n\n'
-          FULL_PROMPT="$FULL_PROMPT$PROMPT_TEMPLATE"
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n## Roadmap Context\n\n'
-          FULL_PROMPT="$FULL_PROMPT$(cat /tmp/roadmap-context.txt)"
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n## Issue Details\n\n'
-          FULL_PROMPT="$FULL_PROMPT$(cat /tmp/issue-details.txt)"
-
-          # Invoke Copilot CLI
-          log "Aligning to roadmap..."
-          OUTPUT=$(timeout 120 copilot --prompt "$FULL_PROMPT" 2>&1 || echo '{"milestone": "", "priority": "P2"}')
-
-          echo "$OUTPUT" > /tmp/align-output.txt
-          log "Alignment complete"
-
-          # Parse results
-          MILESTONE=$(echo "$OUTPUT" | grep -oP '"milestone"\s*:\s*"\K[^"]+' || echo "")
-          PRIORITY=$(echo "$OUTPUT" | grep -oP '"priority"\s*:\s*"\K[^"]+' || echo "P2")
+          # Parse priority
+          PRIORITY=$(echo "$RAW_OUTPUT" | grep -oP '"priority"\s*:\s*"\K[^"]+' || echo "P2")
 
           echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
           echo "priority=$PRIORITY" >> $GITHUB_OUTPUT
 
       - name: Apply Labels
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          LABELS: ${{ steps.parse-categorize.outputs.labels }}
+          PRIORITY: ${{ steps.parse-align.outputs.priority }}
         run: |
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
-          LABELS="${{ steps.categorize.outputs.labels }}"
-          PRIORITY="${{ steps.align.outputs.priority }}"
-
           # Apply category labels
           if [ -n "$LABELS" ]; then
             for label in $LABELS; do
@@ -192,13 +128,14 @@ jobs:
           fi
 
       - name: Assign Milestone
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          MILESTONE: ${{ steps.parse-align.outputs.milestone }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
-          MILESTONE="${{ steps.align.outputs.milestone }}"
-
           if [ -n "$MILESTONE" ] && [ "$MILESTONE" != "null" ]; then
             # Check if milestone exists
-            if gh api "repos/${{ github.repository }}/milestones" --jq '.[].title' | grep -q "^${MILESTONE}$"; then
+            if gh api "repos/$GITHUB_REPOSITORY/milestones" --jq '.[].title' | grep -q "^${MILESTONE}$"; then
               echo "Assigning milestone: $MILESTONE"
               gh issue edit "$ISSUE_NUMBER" --milestone "$MILESTONE" || true
             else
@@ -207,13 +144,16 @@ jobs:
           fi
 
       - name: Post Triage Summary
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CATEGORY: ${{ steps.parse-categorize.outputs.category }}
+          LABELS: ${{ steps.parse-categorize.outputs.labels }}
+          PRIORITY: ${{ steps.parse-align.outputs.priority }}
+          MILESTONE: ${{ steps.parse-align.outputs.milestone }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
         run: |
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
-          CATEGORY="${{ steps.categorize.outputs.category }}"
-          LABELS="${{ steps.categorize.outputs.labels }}"
-          PRIORITY="${{ steps.align.outputs.priority }}"
-          MILESTONE="${{ steps.align.outputs.milestone }}"
-
           # Get priority emoji
           get_priority_emoji() {
             case "$1" in
@@ -273,7 +213,7 @@ jobs:
 
           ---
 
-          <sub>🤖 Powered by [AI Issue Triage](https://github.com/${{ github.repository }}) · [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>
+          <sub>🤖 Powered by [AI Issue Triage](https://github.com/$GITHUB_REPOSITORY) · [View Workflow]($SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID)</sub>
           EOF
 
           source .github/scripts/ai-review-common.sh

@@ -22,140 +22,194 @@ env:
   GH_TOKEN: ${{ secrets.BOT_PAT }}
 
 jobs:
-  validate-sessions:
-    name: Validate Session Protocol
+  # Identify changed session files and build matrix
+  detect-changes:
+    name: Detect Changed Sessions
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+
+    outputs:
+      has_sessions: ${{ steps.changed.outputs.has_sessions }}
+      session_files: ${{ steps.changed.outputs.session_files }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 'lts/*'
-
-      - name: Cache npm packages
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-copilot-cli-v1
-
-      - name: Install GitHub Copilot CLI
-        run: npm install -g @github/copilot
-
-      - name: Authenticate with GitHub
-        run: |
-          echo "${{ secrets.BOT_PAT }}" | gh auth login --with-token
-          gh auth status
 
       - name: Identify Changed Session Files
         id: changed
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only | grep -E '^\.agents/sessions/.*\.md$' || true)
+          CHANGED_FILES=$(gh pr diff "$PR_NUMBER" --name-only | grep -E '^\.agents/sessions/.*\.md$' || true)
 
           if [ -z "$CHANGED_FILES" ]; then
             echo "No session files changed"
             echo "has_sessions=false" >> $GITHUB_OUTPUT
+            echo "session_files=[]" >> $GITHUB_OUTPUT
           else
             echo "Found changed session files:"
             echo "$CHANGED_FILES"
             echo "has_sessions=true" >> $GITHUB_OUTPUT
 
-            # Save to file
-            echo "$CHANGED_FILES" > /tmp/changed-sessions.txt
+            # Convert to JSON array for matrix
+            JSON_ARRAY=$(echo "$CHANGED_FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            echo "session_files=$JSON_ARRAY" >> $GITHUB_OUTPUT
           fi
 
-      - name: Load Protocol Requirements
-        if: steps.changed.outputs.has_sessions == 'true'
+  # Validate each session file in parallel using matrix strategy
+  validate:
+    name: Validate ${{ matrix.session_file }}
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_sessions == 'true'
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false # Don't cancel other validations if one fails
+      matrix:
+        session_file: ${{ fromJson(needs.detect-changes.outputs.session_files) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Load Protocol Context
         id: protocol
         run: |
           PROTOCOL_FILE=".agents/SESSION-PROTOCOL.md"
           if [ -f "$PROTOCOL_FILE" ]; then
-            cat "$PROTOCOL_FILE" > /tmp/protocol.md
-            echo "protocol_file=/tmp/protocol.md" >> $GITHUB_OUTPUT
+            PROTOCOL_CONTENT=$(cat "$PROTOCOL_FILE")
           else
-            echo "Warning: SESSION-PROTOCOL.md not found"
-            echo "# Session Protocol" > /tmp/protocol.md
-            echo "No protocol file found" >> /tmp/protocol.md
-            echo "protocol_file=/tmp/protocol.md" >> $GITHUB_OUTPUT
+            PROTOCOL_CONTENT="No protocol file found"
           fi
 
-      - name: Validate Session Files
-        if: steps.changed.outputs.has_sessions == 'true'
-        id: validate
+          # Save protocol context for the action
+          {
+            echo "protocol_context<<EOF_PROTOCOL"
+            echo "## Protocol Requirements"
+            echo ""
+            echo "$PROTOCOL_CONTENT"
+            echo "EOF_PROTOCOL"
+          } >> $GITHUB_OUTPUT
+
+      - name: 📋 Validate Session (QA Agent)
+        id: review
+        uses: ./.github/actions/ai-review
+        with:
+          agent: qa
+          context-type: session-log
+          context-path: ${{ matrix.session_file }}
+          additional-context: ${{ steps.protocol.outputs.protocol_context }}
+          prompt-file: .github/prompts/session-protocol-check.md
+          timeout-minutes: 2
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Save validation results
+        id: save-results
+        env:
+          SESSION_FILE: ${{ matrix.session_file }}
+          VERDICT: ${{ steps.review.outputs.verdict }}
+          FINDINGS: ${{ steps.review.outputs.findings }}
+        run: |
+          # Create output directory
+          mkdir -p validation-results
+
+          # Get safe filename
+          FILE_NAME=$(basename "$SESSION_FILE" .md)
+
+          # Write verdict and findings to files
+          echo "$VERDICT" > "validation-results/${FILE_NAME}-verdict.txt"
+          echo "$FINDINGS" > "validation-results/${FILE_NAME}-findings.txt"
+
+          # Check for MUST failures in findings
+          MUST_FAIL_COUNT=$(echo "$FINDINGS" | grep -c "MUST:.*FAIL" || echo "0")
+          echo "$MUST_FAIL_COUNT" > "validation-results/${FILE_NAME}-must-failures.txt"
+
+          echo "Saved validation results for $SESSION_FILE"
+          echo "  Verdict: $VERDICT"
+          echo "  MUST failures: $MUST_FAIL_COUNT"
+
+      - name: Upload validation results
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4
+        with:
+          name: validation-${{ hashFiles(matrix.session_file) }}
+          path: validation-results/
+          retention-days: 1
+
+  # Aggregate results and post comment
+  aggregate:
+    name: Aggregate Results
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate]
+    if: needs.detect-changes.outputs.has_sessions == 'true'
+
+    outputs:
+      final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Download all validation artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          pattern: validation-*
+          path: validation-results
+          merge-multiple: true
+
+      - name: Aggregate Verdicts
+        id: aggregate
         run: |
           source .github/scripts/ai-review-common.sh
 
-          # Load agent definition
-          AGENT_DEF=""
-          if [ -f "src/copilot-cli/qa.agent.md" ]; then
-            AGENT_DEF=$(cat "src/copilot-cli/qa.agent.md")
+          OVERALL_VERDICT="PASS"
+          TOTAL_MUST_FAILURES=0
+
+          # Process all verdict files
+          for verdict_file in validation-results/*-verdict.txt; do
+            if [ -f "$verdict_file" ]; then
+              VERDICT=$(cat "$verdict_file")
+              log "Found verdict: $VERDICT from $verdict_file"
+
+              if [ "$VERDICT" = "CRITICAL_FAIL" ] || [ "$VERDICT" = "REJECTED" ]; then
+                OVERALL_VERDICT="CRITICAL_FAIL"
+              elif [ "$VERDICT" = "WARN" ] && [ "$OVERALL_VERDICT" = "PASS" ]; then
+                OVERALL_VERDICT="WARN"
+              fi
+            fi
+          done
+
+          # Count MUST failures
+          for must_file in validation-results/*-must-failures.txt; do
+            if [ -f "$must_file" ]; then
+              COUNT=$(cat "$must_file" || echo "0")
+              TOTAL_MUST_FAILURES=$((TOTAL_MUST_FAILURES + COUNT))
+            fi
+          done
+
+          if [ "$TOTAL_MUST_FAILURES" -gt 0 ]; then
+            OVERALL_VERDICT="CRITICAL_FAIL"
           fi
 
-          # Load prompt template
-          PROMPT_TEMPLATE=$(cat ".github/prompts/session-protocol-check.md")
+          echo "final_verdict=$OVERALL_VERDICT" >> $GITHUB_OUTPUT
+          echo "must_failures=$TOTAL_MUST_FAILURES" >> $GITHUB_OUTPUT
 
-          # Load protocol
-          PROTOCOL=$(cat /tmp/protocol.md)
-
-          # Initialize results
-          mkdir -p /tmp/session-results
-          OVERALL_VERDICT="PASS"
-          MUST_FAILURES=0
-
-          # Validate each session file
-          while IFS= read -r session_file; do
-            if [ -z "$session_file" ] || [ ! -f "$session_file" ]; then
-              continue
-            fi
-
-            log "Validating: $session_file"
-            SESSION_CONTENT=$(cat "$session_file")
-            FILE_NAME=$(basename "$session_file")
-
-            # Build full prompt
-            FULL_PROMPT="$AGENT_DEF"
-            FULL_PROMPT="$FULL_PROMPT"$'\n\n---\n\n'
-            FULL_PROMPT="$FULL_PROMPT$PROMPT_TEMPLATE"
-            FULL_PROMPT="$FULL_PROMPT"$'\n\n## Protocol Requirements\n\n'
-            FULL_PROMPT="$FULL_PROMPT$PROTOCOL"
-            FULL_PROMPT="$FULL_PROMPT"$'\n\n## Session Log to Validate\n\n'
-            FULL_PROMPT="$FULL_PROMPT**File**: $session_file"
-            FULL_PROMPT="$FULL_PROMPT"$'\n\n```markdown\n'
-            FULL_PROMPT="$FULL_PROMPT$SESSION_CONTENT"
-            FULL_PROMPT="$FULL_PROMPT"$'\n```'
-
-            # Invoke Copilot CLI
-            OUTPUT=$(timeout 120 copilot --prompt "$FULL_PROMPT" 2>&1 || echo "MUST: Validation: FAIL - Timeout")
-            echo "$OUTPUT" > "/tmp/session-results/${FILE_NAME}.txt"
-
-            # Check for MUST failures
-            MUST_FAIL_COUNT=$(echo "$OUTPUT" | grep -c "MUST:.*FAIL" || echo "0")
-            if [ "$MUST_FAIL_COUNT" -gt 0 ]; then
-              log "Found $MUST_FAIL_COUNT MUST failures in $session_file"
-              MUST_FAILURES=$((MUST_FAILURES + MUST_FAIL_COUNT))
-              OVERALL_VERDICT="CRITICAL_FAIL"
-            fi
-
-          done < /tmp/changed-sessions.txt
-
-          echo "overall_verdict=$OVERALL_VERDICT" >> $GITHUB_OUTPUT
-          echo "must_failures=$MUST_FAILURES" >> $GITHUB_OUTPUT
-          echo "results_dir=/tmp/session-results" >> $GITHUB_OUTPUT
+          log "Final verdict: $OVERALL_VERDICT (MUST failures: $TOTAL_MUST_FAILURES)"
 
       - name: Generate Compliance Report
-        if: steps.changed.outputs.has_sessions == 'true'
         id: report
+        env:
+          OVERALL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
+          MUST_FAILURES: ${{ steps.aggregate.outputs.must_failures }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           source .github/scripts/ai-review-common.sh
 
-          REPORT_FILE="/tmp/session-compliance-report.md"
-          OVERALL_VERDICT="${{ steps.validate.outputs.overall_verdict }}"
-          MUST_FAILURES="${{ steps.validate.outputs.must_failures }}"
+          REPORT_FILE="$AI_REVIEW_DIR/session-compliance-report.md"
           ALERT_TYPE=$(get_verdict_alert_type "$OVERALL_VERDICT")
 
           # Helper function to get verdict emoji
@@ -169,12 +223,15 @@ jobs:
           }
           FINAL_EMOJI=$(get_verdict_emoji "$OVERALL_VERDICT")
 
-          # Build verdict message based on failures
+          # Build verdict message
           if [ "$MUST_FAILURES" -gt 0 ]; then
             VERDICT_MSG="$MUST_FAILURES MUST requirement(s) not met. These must be addressed before merge."
           else
             VERDICT_MSG="All session protocol requirements satisfied."
           fi
+
+          # Count files checked
+          FILES_CHECKED=$(find validation-results -name "*-verdict.txt" | wc -l)
 
           cat > "$REPORT_FILE" << EOF
           <!-- AI-SESSION-PROTOCOL -->
@@ -201,53 +258,35 @@ jobs:
 
           ### 📊 Compliance Summary
 
-          | Requirement | Level | Status |
-          |:------------|:------|:------:|
+          | Session File | Verdict | MUST Failures |
+          |:-------------|:--------|:-------------:|
           EOF
 
-          # Aggregate results from all session files
-          for result_file in /tmp/session-results/*.txt; do
-            if [ -f "$result_file" ]; then
-              FILE_NAME=$(basename "$result_file" .txt)
-              echo "" >> "$REPORT_FILE"
-              echo "### 📄 $FILE_NAME" >> "$REPORT_FILE"
-              echo "" >> "$REPORT_FILE"
+          # Add summary row for each session file
+          for verdict_file in validation-results/*-verdict.txt; do
+            if [ -f "$verdict_file" ]; then
+              FILE_NAME=$(basename "$verdict_file" -verdict.txt)
+              VERDICT=$(cat "$verdict_file")
+              MUST_FILE="validation-results/${FILE_NAME}-must-failures.txt"
+              MUST_COUNT=$(cat "$MUST_FILE" 2>/dev/null || echo "0")
+              EMOJI=$(get_verdict_emoji "$VERDICT")
 
-              # Extract MUST/SHOULD/MAY lines
-              while IFS= read -r line; do
-                if echo "$line" | grep -qE "^(MUST|SHOULD|MAY):"; then
-                  LEVEL=$(echo "$line" | cut -d: -f1)
-                  REQ=$(echo "$line" | cut -d: -f2)
-                  STATUS=$(echo "$line" | cut -d: -f3 | xargs)
-
-                  if [ "$STATUS" = "PASS" ]; then
-                    EMOJI="✅"
-                  elif [ "$STATUS" = "FAIL" ]; then
-                    EMOJI="❌"
-                  else
-                    EMOJI="⚠️"
-                  fi
-
-                  echo "| $REQ | \`$LEVEL\` | $EMOJI |" >> "$REPORT_FILE"
-                fi
-              done < "$result_file"
+              echo "| \`$FILE_NAME.md\` | $EMOJI $VERDICT | $MUST_COUNT |" >> "$REPORT_FILE"
             fi
           done
 
-          # Add details sections
+          # Add detailed findings
           echo "" >> "$REPORT_FILE"
           echo "### 🔍 Detailed Results" >> "$REPORT_FILE"
           echo "" >> "$REPORT_FILE"
 
-          for result_file in /tmp/session-results/*.txt; do
-            if [ -f "$result_file" ]; then
-              FILE_NAME=$(basename "$result_file" .txt)
+          for findings_file in validation-results/*-findings.txt; do
+            if [ -f "$findings_file" ]; then
+              FILE_NAME=$(basename "$findings_file" -findings.txt)
               echo "<details>" >> "$REPORT_FILE"
               echo "<summary>📄 $FILE_NAME</summary>" >> "$REPORT_FILE"
               echo "" >> "$REPORT_FILE"
-              echo '```' >> "$REPORT_FILE"
-              cat "$result_file" >> "$REPORT_FILE"
-              echo '```' >> "$REPORT_FILE"
+              cat "$findings_file" >> "$REPORT_FILE"
               echo "" >> "$REPORT_FILE"
               echo "</details>" >> "$REPORT_FILE"
               echo "" >> "$REPORT_FILE"
@@ -264,33 +303,36 @@ jobs:
 
           | Property | Value |
           |:---------|:------|
-          | **Run ID** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
-          | **Files Checked** | $(wc -l < /tmp/changed-sessions.txt 2>/dev/null || echo "N/A") |
+          | **Run ID** | [$RUN_ID]($SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID) |
+          | **Files Checked** | $FILES_CHECKED |
 
           </details>
 
-          <sub>🤖 Powered by [AI Session Protocol Validator](https://github.com/${{ github.repository }}) · [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>
+          <sub>🤖 Powered by [AI Session Protocol Validator](https://github.com/$GITHUB_REPOSITORY) · [View Workflow]($SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID)</sub>
           EOF
 
           echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
 
       - name: Post PR Comment
-        if: steps.changed.outputs.has_sessions == 'true'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
           source .github/scripts/ai-review-common.sh
-          post_pr_comment "${{ github.event.pull_request.number }}" "${{ steps.report.outputs.report_file }}" "AI-SESSION-PROTOCOL"
+          post_pr_comment "$PR_NUMBER" "$REPORT_FILE" "AI-SESSION-PROTOCOL"
 
       - name: Set Job Summary
-        if: steps.changed.outputs.has_sessions == 'true'
+        env:
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          cat "${{ steps.report.outputs.report_file }}" >> $GITHUB_STEP_SUMMARY
+          cat "$REPORT_FILE" >> $GITHUB_STEP_SUMMARY
 
       - name: Enforce MUST Requirements
-        if: steps.changed.outputs.has_sessions == 'true'
+        env:
+          MUST_FAILURES: ${{ steps.aggregate.outputs.must_failures }}
+          FINAL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
         run: |
-          MUST_FAILURES="${{ steps.validate.outputs.must_failures }}"
-
-          if [ "$MUST_FAILURES" -gt 0 ]; then
+          if [ "$FINAL_VERDICT" = "CRITICAL_FAIL" ] || [ "$MUST_FAILURES" -gt 0 ]; then
             echo "::error::Session protocol validation failed: $MUST_FAILURES MUST requirement(s) not met"
             exit 1
           fi

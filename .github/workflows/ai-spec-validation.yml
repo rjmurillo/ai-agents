@@ -36,31 +36,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 'lts/*'
-
-      - name: Cache npm packages
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-copilot-cli-v1
-
-      - name: Install GitHub Copilot CLI
-        run: npm install -g @github/copilot
-
-      - name: Authenticate with GitHub
-        run: |
-          echo "${{ secrets.BOT_PAT }}" | gh auth login --with-token
-          gh auth status
-
       - name: Extract Spec References
         id: spec-ref
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          PR_BODY="${{ github.event.pull_request.body }}"
-          PR_TITLE="${{ github.event.pull_request.title }}"
-
           # Look for spec references in PR body and title
           # Patterns: REQ-NNN, DESIGN-NNN, TASK-NNN, .agents/specs/..., #issue
           SPEC_REFS=""
@@ -95,10 +76,10 @@ jobs:
       - name: Load Spec Content
         if: steps.spec-ref.outputs.has_specs == 'true'
         id: load-spec
+        env:
+          SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
+          ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
         run: |
-          SPEC_REFS="${{ steps.spec-ref.outputs.spec_refs }}"
-          ISSUE_REFS="${{ steps.spec-ref.outputs.issue_refs }}"
-
           SPEC_CONTENT=""
 
           # Load from spec files
@@ -130,104 +111,75 @@ jobs:
             SPEC_CONTENT="No spec content found for references: $SPEC_REFS $ISSUE_REFS"
           fi
 
-          # Save to file
+          # Save to file for later steps
           echo "$SPEC_CONTENT" > /tmp/spec-content.md
           echo "spec_file=/tmp/spec-content.md" >> $GITHUB_OUTPUT
 
-      - name: Get PR Diff
-        id: diff
+      - name: Prepare Spec Context
+        if: steps.spec-ref.outputs.has_specs == 'true'
+        id: prepare-context
         run: |
-          # Get PR diff, limited to 500 lines for context management
-          gh pr diff ${{ github.event.pull_request.number }} | head -500 > /tmp/pr-diff.txt
-          echo "diff_file=/tmp/pr-diff.txt" >> $GITHUB_OUTPUT
+          # Create spec context string for additional-context input
+          if [ -f /tmp/spec-content.md ]; then
+            SPEC_CONTENT=$(cat /tmp/spec-content.md)
+            {
+              echo "spec_context<<EOF_SPEC"
+              echo "## Specification Content"
+              echo ""
+              echo "$SPEC_CONTENT"
+              echo "EOF_SPEC"
+            } >> $GITHUB_OUTPUT
+          else
+            echo "spec_context=No spec content loaded" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Requirements Traceability Check
+      - name: 🔗 Requirements Traceability Check (Analyst Agent)
         if: steps.spec-ref.outputs.has_specs == 'true'
         id: trace
-        run: |
-          source .github/scripts/ai-review-common.sh
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: pr-diff
+          pr-number: ${{ github.event.pull_request.number }}
+          additional-context: ${{ steps.prepare-context.outputs.spec_context }}
+          prompt-file: .github/prompts/spec-trace-requirements.md
+          timeout-minutes: 3
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-          # Load agent definition
-          AGENT_DEF=""
-          if [ -f "src/copilot-cli/analyst.agent.md" ]; then
-            AGENT_DEF=$(cat "src/copilot-cli/analyst.agent.md")
-          fi
-
-          # Load prompt template
-          PROMPT_TEMPLATE=$(cat ".github/prompts/spec-trace-requirements.md")
-
-          # Load spec and diff
-          SPEC_CONTENT=$(cat /tmp/spec-content.md)
-          DIFF_CONTENT=$(cat /tmp/pr-diff.txt)
-
-          # Build full prompt
-          FULL_PROMPT="$AGENT_DEF"
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n---\n\n'
-          FULL_PROMPT="$FULL_PROMPT$PROMPT_TEMPLATE"
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n## Specification Content\n\n'
-          FULL_PROMPT="$FULL_PROMPT$SPEC_CONTENT"
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n## Implementation Changes\n\n```diff\n'
-          FULL_PROMPT="$FULL_PROMPT$DIFF_CONTENT"
-          FULL_PROMPT="$FULL_PROMPT"$'\n```'
-
-          # Invoke Copilot CLI
-          log "Running requirements traceability check..."
-          OUTPUT=$(timeout 180 copilot --prompt "$FULL_PROMPT" 2>&1 || echo "VERDICT: WARN - Traceability check timed out")
-
-          echo "$OUTPUT" > /tmp/trace-output.txt
-          log "Traceability check complete"
-
-          # Parse verdict
-          VERDICT=$(echo "$OUTPUT" | grep -oP '(?<=VERDICT:\s*)[A-Z_]+' | head -1 || echo "WARN")
-          echo "verdict=$VERDICT" >> $GITHUB_OUTPUT
-
-      - name: Completeness Check
+      - name: ✅ Completeness Check (Critic Agent)
         if: steps.spec-ref.outputs.has_specs == 'true'
         id: completeness
-        run: |
-          source .github/scripts/ai-review-common.sh
-
-          # Load agent definition
-          AGENT_DEF=""
-          if [ -f "src/copilot-cli/critic.agent.md" ]; then
-            AGENT_DEF=$(cat "src/copilot-cli/critic.agent.md")
-          fi
-
-          # Load prompt template
-          PROMPT_TEMPLATE=$(cat ".github/prompts/spec-check-completeness.md")
-
-          # Load spec and diff
-          SPEC_CONTENT=$(cat /tmp/spec-content.md)
-          DIFF_CONTENT=$(cat /tmp/pr-diff.txt)
-
-          # Build full prompt
-          FULL_PROMPT="$AGENT_DEF"
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n---\n\n'
-          FULL_PROMPT="$FULL_PROMPT$PROMPT_TEMPLATE"
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n## Specification Content\n\n'
-          FULL_PROMPT="$FULL_PROMPT$SPEC_CONTENT"
-          FULL_PROMPT="$FULL_PROMPT"$'\n\n## Implementation Changes\n\n```diff\n'
-          FULL_PROMPT="$FULL_PROMPT$DIFF_CONTENT"
-          FULL_PROMPT="$FULL_PROMPT"$'\n```'
-
-          # Invoke Copilot CLI
-          log "Running completeness check..."
-          OUTPUT=$(timeout 180 copilot --prompt "$FULL_PROMPT" 2>&1 || echo "VERDICT: WARN - Completeness check timed out")
-
-          echo "$OUTPUT" > /tmp/completeness-output.txt
-          log "Completeness check complete"
-
-          # Parse verdict
-          VERDICT=$(echo "$OUTPUT" | grep -oP '(?<=VERDICT:\s*)[A-Z_]+' | head -1 || echo "WARN")
-          echo "verdict=$VERDICT" >> $GITHUB_OUTPUT
+        uses: ./.github/actions/ai-review
+        with:
+          agent: critic
+          context-type: pr-diff
+          pr-number: ${{ github.event.pull_request.number }}
+          additional-context: ${{ steps.prepare-context.outputs.spec_context }}
+          prompt-file: .github/prompts/spec-check-completeness.md
+          timeout-minutes: 3
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: Generate Validation Report
         id: report
+        env:
+          HAS_SPECS: ${{ steps.spec-ref.outputs.has_specs }}
+          SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
+          ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
+          TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
+          TRACE_FINDINGS: ${{ steps.trace.outputs.findings }}
+          COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
+          COMPLETENESS_FINDINGS: ${{ steps.completeness.outputs.findings }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           source .github/scripts/ai-review-common.sh
 
-          REPORT_FILE="/tmp/spec-validation-report.md"
-          HAS_SPECS="${{ steps.spec-ref.outputs.has_specs }}"
+          REPORT_FILE="$AI_REVIEW_DIR/spec-validation-report.md"
 
           # Helper function to get verdict emoji
           get_verdict_emoji() {
@@ -265,19 +217,16 @@ jobs:
 
           ---
 
-          <sub>🤖 Powered by [AI Spec Validator](https://github.com/${{ github.repository }}) · *Validation skipped - no specs found*</sub>
+          <sub>🤖 Powered by [AI Spec Validator](https://github.com/$GITHUB_REPOSITORY) · *Validation skipped - no specs found*</sub>
           EOF
           else
-            TRACE_VERDICT="${{ steps.trace.outputs.verdict }}"
-            COMPLETENESS_VERDICT="${{ steps.completeness.outputs.verdict }}"
-
             # Determine final verdict
-            if [ "$TRACE_VERDICT" = "FAIL" ] || [ "$COMPLETENESS_VERDICT" = "FAIL" ]; then
+            FINAL_VERDICT="PASS"
+            if [ "$TRACE_VERDICT" = "CRITICAL_FAIL" ] || [ "$TRACE_VERDICT" = "FAIL" ] || \
+               [ "$COMPLETENESS_VERDICT" = "CRITICAL_FAIL" ] || [ "$COMPLETENESS_VERDICT" = "FAIL" ]; then
               FINAL_VERDICT="FAIL"
             elif [ "$TRACE_VERDICT" = "WARN" ] || [ "$COMPLETENESS_VERDICT" = "WARN" ]; then
               FINAL_VERDICT="PARTIAL"
-            else
-              FINAL_VERDICT="PASS"
             fi
 
             ALERT_TYPE=$(get_verdict_alert_type "$FINAL_VERDICT")
@@ -314,8 +263,8 @@ jobs:
 
           | Type | References |
           |:-----|:-----------|
-          | 📄 **Specs** | ${{ steps.spec-ref.outputs.spec_refs || '*None*' }} |
-          | 🔗 **Issues** | ${{ steps.spec-ref.outputs.issue_refs || '*None*' }} |
+          | 📄 **Specs** | ${SPEC_REFS:-*None*} |
+          | 🔗 **Issues** | ${ISSUE_REFS:-*None*} |
 
           EOF
 
@@ -327,7 +276,11 @@ jobs:
 
           SECTION_EOF
             echo "" >> "$REPORT_FILE"
-            cat /tmp/trace-output.txt >> "$REPORT_FILE" 2>/dev/null || echo "No traceability output" >> "$REPORT_FILE"
+            if [ -n "$TRACE_FINDINGS" ]; then
+              echo "$TRACE_FINDINGS" >> "$REPORT_FILE"
+            else
+              echo "No traceability output" >> "$REPORT_FILE"
+            fi
             echo "" >> "$REPORT_FILE"
             echo "</details>" >> "$REPORT_FILE"
 
@@ -339,7 +292,11 @@ jobs:
 
           SECTION_EOF
             echo "" >> "$REPORT_FILE"
-            cat /tmp/completeness-output.txt >> "$REPORT_FILE" 2>/dev/null || echo "No completeness output" >> "$REPORT_FILE"
+            if [ -n "$COMPLETENESS_FINDINGS" ]; then
+              echo "$COMPLETENESS_FINDINGS" >> "$REPORT_FILE"
+            else
+              echo "No completeness output" >> "$REPORT_FILE"
+            fi
             echo "" >> "$REPORT_FILE"
             echo "</details>" >> "$REPORT_FILE"
 
@@ -353,33 +310,39 @@ jobs:
 
           | Property | Value |
           |:---------|:------|
-          | **Run ID** | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
-          | **Triggered by** | \`${{ github.event_name }}\` on \`${{ github.ref_name }}\` |
+          | **Run ID** | [$RUN_ID]($SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID) |
+          | **Triggered by** | \`$EVENT_NAME\` on \`$REF_NAME\` |
 
           </details>
 
-          <sub>🤖 Powered by [AI Spec Validator](https://github.com/${{ github.repository }}) · [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>
+          <sub>🤖 Powered by [AI Spec Validator](https://github.com/$GITHUB_REPOSITORY) · [View Workflow]($SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID)</sub>
           EOF
           fi
 
           echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
 
       - name: Post PR Comment
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
           source .github/scripts/ai-review-common.sh
-          post_pr_comment "${{ github.event.pull_request.number }}" "${{ steps.report.outputs.report_file }}" "AI-SPEC-VALIDATION"
+          post_pr_comment "$PR_NUMBER" "$REPORT_FILE" "AI-SPEC-VALIDATION"
 
       - name: Set Job Summary
+        env:
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          cat "${{ steps.report.outputs.report_file }}" >> $GITHUB_STEP_SUMMARY
+          cat "$REPORT_FILE" >> $GITHUB_STEP_SUMMARY
 
       - name: Check for Failures
         if: steps.spec-ref.outputs.has_specs == 'true'
+        env:
+          TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
+          COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
         run: |
-          TRACE_VERDICT="${{ steps.trace.outputs.verdict }}"
-          COMPLETENESS_VERDICT="${{ steps.completeness.outputs.verdict }}"
-
-          if [ "$TRACE_VERDICT" = "FAIL" ] || [ "$COMPLETENESS_VERDICT" = "FAIL" ]; then
+          if [ "$TRACE_VERDICT" = "CRITICAL_FAIL" ] || [ "$TRACE_VERDICT" = "FAIL" ] || \
+             [ "$COMPLETENESS_VERDICT" = "CRITICAL_FAIL" ] || [ "$COMPLETENESS_VERDICT" = "FAIL" ]; then
             echo "::error::Spec validation failed - implementation does not fully satisfy requirements"
             exit 1
           fi
