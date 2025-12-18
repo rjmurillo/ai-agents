@@ -1,0 +1,342 @@
+name: 'AI Review'
+description: 'Invoke GitHub Copilot CLI for AI-powered code review with structured verdict output'
+
+inputs:
+  agent:
+    description: 'Agent to invoke (security, qa, analyst, critic, roadmap, etc.)'
+    required: true
+  context-type:
+    description: 'Context type: pr-diff, issue, session-log, spec-file'
+    required: true
+  context-path:
+    description: 'Path to context file (for session-log, spec-file types)'
+    required: false
+    default: ''
+  pr-number:
+    description: 'PR number (for pr-diff context type)'
+    required: false
+    default: ''
+  issue-number:
+    description: 'Issue number (for issue context type)'
+    required: false
+    default: ''
+  additional-context:
+    description: 'Additional context to inject (text or JSON)'
+    required: false
+    default: ''
+  prompt-file:
+    description: 'Path to prompt template file (relative to repo root)'
+    required: false
+    default: ''
+  timeout-minutes:
+    description: 'Timeout in minutes for Copilot CLI invocation'
+    required: false
+    default: '5'
+  max-diff-lines:
+    description: 'Maximum diff lines before switching to summary mode'
+    required: false
+    default: '500'
+  bot-pat:
+    description: 'GitHub PAT for authentication (with Copilot access)'
+    required: true
+
+outputs:
+  verdict:
+    description: 'Review verdict (PASS, WARN, CRITICAL_FAIL, REJECTED, etc.)'
+    value: ${{ steps.parse.outputs.verdict }}
+  labels:
+    description: 'Labels to apply (JSON array)'
+    value: ${{ steps.parse.outputs.labels }}
+  milestone:
+    description: 'Milestone to assign'
+    value: ${{ steps.parse.outputs.milestone }}
+  findings:
+    description: 'Detailed findings (raw output)'
+    value: ${{ steps.invoke.outputs.raw_output }}
+  exit-code:
+    description: 'Exit code (0=pass, 1=fail)'
+    value: ${{ steps.parse.outputs.exit_code }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: 'lts/*'
+
+    - name: Cache npm packages
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+      with:
+        path: ~/.npm
+        key: ${{ runner.os }}-copilot-cli-v1
+        restore-keys: |
+          ${{ runner.os }}-copilot-cli-
+
+    - name: Install GitHub Copilot CLI
+      shell: bash
+      run: |
+        echo "Installing GitHub Copilot CLI..."
+        npm install -g @github/copilot
+        echo "Copilot CLI version:"
+        copilot --version || echo "Version check not supported"
+
+    - name: Authenticate with GitHub
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.bot-pat }}
+      run: |
+        echo "Authenticating with GitHub..."
+        echo "$GH_TOKEN" | gh auth login --with-token
+        gh auth status
+
+    - name: Build context
+      id: context
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.bot-pat }}
+        CONTEXT_TYPE: ${{ inputs.context-type }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        ISSUE_NUMBER: ${{ inputs.issue-number }}
+        CONTEXT_PATH: ${{ inputs.context-path }}
+        MAX_DIFF_LINES: ${{ inputs.max-diff-lines }}
+      run: |
+        CONTEXT=""
+        CONTEXT_MODE="full"
+
+        case "$CONTEXT_TYPE" in
+          pr-diff)
+            if [ -n "$PR_NUMBER" ]; then
+              LINE_COUNT=$(gh pr diff "$PR_NUMBER" 2>/dev/null | wc -l || echo "0")
+              echo "PR diff has $LINE_COUNT lines"
+
+              if [ "$LINE_COUNT" -gt "$MAX_DIFF_LINES" ]; then
+                CONTEXT_MODE="summary"
+                CONTEXT=$(gh pr diff "$PR_NUMBER" --stat 2>/dev/null || echo "Unable to get PR diff")
+                CONTEXT="[Large PR - $LINE_COUNT lines, showing summary only]"$'\n'"$CONTEXT"
+              else
+                CONTEXT=$(gh pr diff "$PR_NUMBER" 2>/dev/null || echo "Unable to get PR diff")
+              fi
+
+              # Also get PR description
+              PR_BODY=$(gh pr view "$PR_NUMBER" --json body,title -q '.title + "\n\n" + .body' 2>/dev/null || echo "")
+              if [ -n "$PR_BODY" ]; then
+                CONTEXT="## PR Description"$'\n'"$PR_BODY"$'\n\n'"## Changes"$'\n'"$CONTEXT"
+              fi
+            else
+              CONTEXT="No PR number provided"
+            fi
+            ;;
+
+          issue)
+            if [ -n "$ISSUE_NUMBER" ]; then
+              CONTEXT=$(gh issue view "$ISSUE_NUMBER" --json title,body,labels -q '"Title: " + .title + "\n\nBody:\n" + .body + "\n\nLabels: " + ([.labels[].name] | join(", "))' 2>/dev/null || echo "Unable to get issue")
+            else
+              CONTEXT="No issue number provided"
+            fi
+            ;;
+
+          session-log)
+            if [ -n "$CONTEXT_PATH" ] && [ -f "$CONTEXT_PATH" ]; then
+              CONTEXT=$(cat "$CONTEXT_PATH")
+            else
+              CONTEXT="Session log file not found: $CONTEXT_PATH"
+            fi
+            ;;
+
+          spec-file)
+            if [ -n "$CONTEXT_PATH" ] && [ -f "$CONTEXT_PATH" ]; then
+              CONTEXT=$(cat "$CONTEXT_PATH")
+              # If PR number also provided, append the diff
+              if [ -n "$PR_NUMBER" ]; then
+                PR_DIFF=$(gh pr diff "$PR_NUMBER" 2>/dev/null | head -500 || echo "")
+                CONTEXT="## Specification"$'\n'"$CONTEXT"$'\n\n'"## Implementation Changes"$'\n'"$PR_DIFF"
+              fi
+            else
+              CONTEXT="Spec file not found: $CONTEXT_PATH"
+            fi
+            ;;
+
+          *)
+            CONTEXT="Unknown context type: $CONTEXT_TYPE"
+            ;;
+        esac
+
+        # Save context to file (handles multiline safely)
+        echo "$CONTEXT" > /tmp/ai-review-context.txt
+        echo "context_mode=$CONTEXT_MODE" >> $GITHUB_OUTPUT
+        echo "context_file=/tmp/ai-review-context.txt" >> $GITHUB_OUTPUT
+
+    - name: Load agent definition
+      id: agent
+      shell: bash
+      env:
+        AGENT: ${{ inputs.agent }}
+      run: |
+        # Try multiple locations for agent definition
+        AGENT_FILE=""
+        for path in ".github/agents/${AGENT}.agent.md" "src/copilot-cli/${AGENT}.agent.md"; do
+          if [ -f "$path" ]; then
+            AGENT_FILE="$path"
+            break
+          fi
+        done
+
+        if [ -n "$AGENT_FILE" ]; then
+          echo "Found agent definition at: $AGENT_FILE"
+          cat "$AGENT_FILE" > /tmp/ai-review-agent.md
+        else
+          echo "Warning: No agent definition found for '$AGENT', using minimal prompt"
+          echo "You are a $AGENT agent. Analyze the provided context and give your assessment." > /tmp/ai-review-agent.md
+        fi
+        echo "agent_file=/tmp/ai-review-agent.md" >> $GITHUB_OUTPUT
+
+    - name: Load prompt template
+      id: prompt
+      shell: bash
+      env:
+        PROMPT_FILE: ${{ inputs.prompt-file }}
+      run: |
+        if [ -n "$PROMPT_FILE" ] && [ -f "$PROMPT_FILE" ]; then
+          echo "Using prompt template: $PROMPT_FILE"
+          cat "$PROMPT_FILE" > /tmp/ai-review-prompt.md
+        else
+          # Default prompt template
+          cat > /tmp/ai-review-prompt.md << 'PROMPT_EOF'
+## Task
+
+Analyze the provided context and give your assessment.
+
+## Required Output Format
+
+End your response with a verdict line in this exact format:
+
+```
+VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED]
+MESSAGE: [Brief explanation]
+```
+
+If labels should be applied, include lines like:
+```
+LABEL: label-name
+```
+
+If a milestone should be assigned, include:
+```
+MILESTONE: milestone-name
+```
+PROMPT_EOF
+        fi
+        echo "prompt_file=/tmp/ai-review-prompt.md" >> $GITHUB_OUTPUT
+
+    - name: Invoke Copilot CLI
+      id: invoke
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.bot-pat }}
+        ADDITIONAL_CONTEXT: ${{ inputs.additional-context }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+      run: |
+        # Assemble full prompt
+        FULL_PROMPT=""
+
+        # Add agent definition
+        if [ -f /tmp/ai-review-agent.md ]; then
+          FULL_PROMPT=$(cat /tmp/ai-review-agent.md)
+          FULL_PROMPT="$FULL_PROMPT"$'\n\n---\n\n'
+        fi
+
+        # Add prompt template
+        if [ -f /tmp/ai-review-prompt.md ]; then
+          FULL_PROMPT="$FULL_PROMPT$(cat /tmp/ai-review-prompt.md)"
+          FULL_PROMPT="$FULL_PROMPT"$'\n\n'
+        fi
+
+        # Add context
+        FULL_PROMPT="$FULL_PROMPT## Context"$'\n\n'
+        if [ -f /tmp/ai-review-context.txt ]; then
+          FULL_PROMPT="$FULL_PROMPT$(cat /tmp/ai-review-context.txt)"
+        fi
+
+        # Add additional context if provided
+        if [ -n "$ADDITIONAL_CONTEXT" ]; then
+          FULL_PROMPT="$FULL_PROMPT"$'\n\n'"## Additional Context"$'\n\n'"$ADDITIONAL_CONTEXT"
+        fi
+
+        # Save full prompt for debugging
+        echo "$FULL_PROMPT" > /tmp/ai-review-full-prompt.md
+
+        # Calculate timeout in seconds
+        TIMEOUT_SECONDS=$((TIMEOUT_MINUTES * 60))
+
+        # Invoke Copilot CLI with timeout
+        echo "Invoking Copilot CLI (timeout: ${TIMEOUT_MINUTES}m)..."
+
+        set +e
+        OUTPUT=$(timeout "$TIMEOUT_SECONDS" copilot --prompt "$FULL_PROMPT" 2>&1)
+        EXIT_CODE=$?
+        set -e
+
+        if [ $EXIT_CODE -eq 124 ]; then
+          echo "Warning: Copilot CLI timed out after ${TIMEOUT_MINUTES} minutes"
+          OUTPUT="VERDICT: WARN"$'\n'"MESSAGE: AI review timed out, manual review recommended"
+        elif [ $EXIT_CODE -ne 0 ]; then
+          echo "Warning: Copilot CLI exited with code $EXIT_CODE"
+          if [ -z "$OUTPUT" ]; then
+            OUTPUT="VERDICT: WARN"$'\n'"MESSAGE: AI review failed (exit code $EXIT_CODE), manual review recommended"
+          fi
+        fi
+
+        # Save output
+        echo "$OUTPUT" > /tmp/ai-review-output.txt
+
+        # Set output (escape for GitHub Actions)
+        {
+          echo "raw_output<<EOF_RAW"
+          echo "$OUTPUT"
+          echo "EOF_RAW"
+        } >> $GITHUB_OUTPUT
+
+    - name: Parse output
+      id: parse
+      shell: bash
+      run: |
+        OUTPUT=$(cat /tmp/ai-review-output.txt 2>/dev/null || echo "")
+
+        # Extract verdict
+        VERDICT=$(echo "$OUTPUT" | grep -oP '(?<=VERDICT:\s*)[A-Z_]+' | head -1 || echo "WARN")
+        if [ -z "$VERDICT" ]; then
+          # Try alternative patterns
+          if echo "$OUTPUT" | grep -qi "CRITICAL_FAIL\|critical failure\|severe"; then
+            VERDICT="CRITICAL_FAIL"
+          elif echo "$OUTPUT" | grep -qi "REJECTED\|reject\|must fix"; then
+            VERDICT="REJECTED"
+          elif echo "$OUTPUT" | grep -qi "PASS\|approved\|looks good"; then
+            VERDICT="PASS"
+          else
+            VERDICT="WARN"
+          fi
+        fi
+
+        # Extract labels
+        LABELS=$(echo "$OUTPUT" | grep -oP '(?<=LABEL:\s*)\S+' | jq -R -s -c 'split("\n") | map(select(length > 0))' || echo "[]")
+
+        # Extract milestone
+        MILESTONE=$(echo "$OUTPUT" | grep -oP '(?<=MILESTONE:\s*)\S+' | head -1 || echo "")
+
+        # Determine exit code
+        EXIT_CODE=0
+        if [ "$VERDICT" = "CRITICAL_FAIL" ] || [ "$VERDICT" = "REJECTED" ]; then
+          EXIT_CODE=1
+        fi
+
+        echo "verdict=$VERDICT" >> $GITHUB_OUTPUT
+        echo "labels=$LABELS" >> $GITHUB_OUTPUT
+        echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
+        echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+        echo "Parsed results:"
+        echo "  Verdict: $VERDICT"
+        echo "  Labels: $LABELS"
+        echo "  Milestone: $MILESTONE"
+        echo "  Exit Code: $EXIT_CODE"

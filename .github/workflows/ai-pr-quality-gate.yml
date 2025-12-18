@@ -1,0 +1,207 @@
+name: AI PR Quality Gate
+
+# AI-powered PR review using GitHub Copilot CLI
+# Invokes security, qa, and analyst agents to review PRs
+# Blocks merge if CRITICAL_FAIL detected
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'build/**'
+      - '.github/**'
+      - '.agents/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ai-quality-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ secrets.BOT_PAT }}
+
+jobs:
+  ai-quality-review:
+    name: AI Quality Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Skip for PRs from bots (avoid recursive reviews)
+    if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+
+    outputs:
+      final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
+      security-verdict: ${{ steps.security.outputs.verdict }}
+      qa-verdict: ${{ steps.qa.outputs.verdict }}
+      analyst-verdict: ${{ steps.analyst.outputs.verdict }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for docs-only changes
+        id: check-changes
+        run: |
+          CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only)
+
+          # Check if only documentation files changed
+          NON_DOC_FILES=$(echo "$CHANGED_FILES" | grep -vE '\.(md|txt|rst)$' | grep -v '^docs/' || true)
+
+          if [ -z "$NON_DOC_FILES" ]; then
+            echo "Only documentation files changed, skipping AI review"
+            echo "skip_review=true" >> $GITHUB_OUTPUT
+          else
+            echo "Code files changed, proceeding with AI review"
+            echo "skip_review=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Security Review
+        id: security
+        if: steps.check-changes.outputs.skip_review != 'true'
+        uses: ./.github/actions/ai-review
+        with:
+          agent: security
+          context-type: pr-diff
+          pr-number: ${{ github.event.pull_request.number }}
+          prompt-file: .github/prompts/pr-quality-gate-security.md
+          timeout-minutes: 5
+          bot-pat: ${{ secrets.BOT_PAT }}
+
+      - name: QA Review
+        id: qa
+        if: steps.check-changes.outputs.skip_review != 'true'
+        uses: ./.github/actions/ai-review
+        with:
+          agent: qa
+          context-type: pr-diff
+          pr-number: ${{ github.event.pull_request.number }}
+          prompt-file: .github/prompts/pr-quality-gate-qa.md
+          timeout-minutes: 5
+          bot-pat: ${{ secrets.BOT_PAT }}
+
+      - name: Analyst Review
+        id: analyst
+        if: steps.check-changes.outputs.skip_review != 'true'
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: pr-diff
+          pr-number: ${{ github.event.pull_request.number }}
+          prompt-file: .github/prompts/pr-quality-gate-analyst.md
+          timeout-minutes: 5
+          bot-pat: ${{ secrets.BOT_PAT }}
+
+      - name: Aggregate Verdicts
+        id: aggregate
+        if: steps.check-changes.outputs.skip_review != 'true'
+        run: |
+          source .github/scripts/ai-review-common.sh
+
+          SECURITY_VERDICT="${{ steps.security.outputs.verdict }}"
+          QA_VERDICT="${{ steps.qa.outputs.verdict }}"
+          ANALYST_VERDICT="${{ steps.analyst.outputs.verdict }}"
+
+          log "Security verdict: $SECURITY_VERDICT"
+          log "QA verdict: $QA_VERDICT"
+          log "Analyst verdict: $ANALYST_VERDICT"
+
+          FINAL=$(aggregate_verdicts "$SECURITY_VERDICT" "$QA_VERDICT" "$ANALYST_VERDICT")
+          log "Final verdict: $FINAL"
+
+          echo "final_verdict=$FINAL" >> $GITHUB_OUTPUT
+
+      - name: Generate Report
+        id: report
+        if: steps.check-changes.outputs.skip_review != 'true'
+        run: |
+          source .github/scripts/ai-review-common.sh
+
+          REPORT_FILE="$AI_REVIEW_DIR/pr-quality-report.md"
+
+          cat > "$REPORT_FILE" << EOF
+          ## AI Quality Gate Review
+
+          **Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          **Final Verdict**: \`${{ steps.aggregate.outputs.final_verdict }}\`
+
+          ### Summary
+
+          | Agent | Verdict |
+          |-------|---------|
+          | Security | ${{ steps.security.outputs.verdict }} |
+          | QA | ${{ steps.qa.outputs.verdict }} |
+          | Analyst | ${{ steps.analyst.outputs.verdict }} |
+
+          EOF
+
+          # Add security findings
+          if [ -n "${{ steps.security.outputs.findings }}" ]; then
+            cat >> "$REPORT_FILE" << 'SECTION_EOF'
+          ### Security Review
+
+          <details>
+          <summary>Click to expand</summary>
+
+          SECTION_EOF
+            echo "${{ steps.security.outputs.findings }}" >> "$REPORT_FILE"
+            echo -e "\n</details>\n" >> "$REPORT_FILE"
+          fi
+
+          # Add QA findings
+          if [ -n "${{ steps.qa.outputs.findings }}" ]; then
+            cat >> "$REPORT_FILE" << 'SECTION_EOF'
+          ### QA Review
+
+          <details>
+          <summary>Click to expand</summary>
+
+          SECTION_EOF
+            echo "${{ steps.qa.outputs.findings }}" >> "$REPORT_FILE"
+            echo -e "\n</details>\n" >> "$REPORT_FILE"
+          fi
+
+          # Add analyst findings
+          if [ -n "${{ steps.analyst.outputs.findings }}" ]; then
+            cat >> "$REPORT_FILE" << 'SECTION_EOF'
+          ### Analyst Review
+
+          <details>
+          <summary>Click to expand</summary>
+
+          SECTION_EOF
+            echo "${{ steps.analyst.outputs.findings }}" >> "$REPORT_FILE"
+            echo -e "\n</details>\n" >> "$REPORT_FILE"
+          fi
+
+          echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
+
+      - name: Post PR Comment
+        if: steps.check-changes.outputs.skip_review != 'true'
+        run: |
+          source .github/scripts/ai-review-common.sh
+          post_pr_comment "${{ github.event.pull_request.number }}" "${{ steps.report.outputs.report_file }}" "AI-PR-QUALITY-GATE"
+
+      - name: Set Job Summary
+        if: steps.check-changes.outputs.skip_review != 'true'
+        run: |
+          cat "${{ steps.report.outputs.report_file }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check for Critical Failures
+        if: steps.check-changes.outputs.skip_review != 'true'
+        run: |
+          FINAL_VERDICT="${{ steps.aggregate.outputs.final_verdict }}"
+
+          if [ "$FINAL_VERDICT" = "CRITICAL_FAIL" ] || [ "$FINAL_VERDICT" = "REJECTED" ]; then
+            echo "::error::AI Quality Gate found critical issues that must be addressed before merge"
+            exit 1
+          fi
+
+          echo "AI Quality Gate passed with verdict: $FINAL_VERDICT"

@@ -1,0 +1,243 @@
+name: Session Protocol Validation
+
+# AI-powered session log validation using GitHub Copilot CLI
+# Verifies session logs comply with RFC 2119 requirements in SESSION-PROTOCOL.md
+# Blocks merge if MUST requirements are not met
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.agents/sessions/*.md'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: session-protocol-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ secrets.BOT_PAT }}
+
+jobs:
+  validate-sessions:
+    name: Validate Session Protocol
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Cache npm packages
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-copilot-cli-v1
+
+      - name: Install GitHub Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Authenticate with GitHub
+        run: |
+          echo "${{ secrets.BOT_PAT }}" | gh auth login --with-token
+          gh auth status
+
+      - name: Identify Changed Session Files
+        id: changed
+        run: |
+          CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only | grep -E '^\.agents/sessions/.*\.md$' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No session files changed"
+            echo "has_sessions=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found changed session files:"
+            echo "$CHANGED_FILES"
+            echo "has_sessions=true" >> $GITHUB_OUTPUT
+
+            # Save to file
+            echo "$CHANGED_FILES" > /tmp/changed-sessions.txt
+          fi
+
+      - name: Load Protocol Requirements
+        if: steps.changed.outputs.has_sessions == 'true'
+        id: protocol
+        run: |
+          PROTOCOL_FILE=".agents/SESSION-PROTOCOL.md"
+          if [ -f "$PROTOCOL_FILE" ]; then
+            cat "$PROTOCOL_FILE" > /tmp/protocol.md
+            echo "protocol_file=/tmp/protocol.md" >> $GITHUB_OUTPUT
+          else
+            echo "Warning: SESSION-PROTOCOL.md not found"
+            echo "# Session Protocol" > /tmp/protocol.md
+            echo "No protocol file found" >> /tmp/protocol.md
+            echo "protocol_file=/tmp/protocol.md" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate Session Files
+        if: steps.changed.outputs.has_sessions == 'true'
+        id: validate
+        run: |
+          source .github/scripts/ai-review-common.sh
+
+          # Load agent definition
+          AGENT_DEF=""
+          if [ -f "src/copilot-cli/qa.agent.md" ]; then
+            AGENT_DEF=$(cat "src/copilot-cli/qa.agent.md")
+          fi
+
+          # Load prompt template
+          PROMPT_TEMPLATE=$(cat ".github/prompts/session-protocol-check.md")
+
+          # Load protocol
+          PROTOCOL=$(cat /tmp/protocol.md)
+
+          # Initialize results
+          mkdir -p /tmp/session-results
+          OVERALL_VERDICT="PASS"
+          MUST_FAILURES=0
+
+          # Validate each session file
+          while IFS= read -r session_file; do
+            if [ -z "$session_file" ] || [ ! -f "$session_file" ]; then
+              continue
+            fi
+
+            log "Validating: $session_file"
+            SESSION_CONTENT=$(cat "$session_file")
+            FILE_NAME=$(basename "$session_file")
+
+            # Build full prompt
+            FULL_PROMPT="$AGENT_DEF"
+            FULL_PROMPT="$FULL_PROMPT"$'\n\n---\n\n'
+            FULL_PROMPT="$FULL_PROMPT$PROMPT_TEMPLATE"
+            FULL_PROMPT="$FULL_PROMPT"$'\n\n## Protocol Requirements\n\n'
+            FULL_PROMPT="$FULL_PROMPT$PROTOCOL"
+            FULL_PROMPT="$FULL_PROMPT"$'\n\n## Session Log to Validate\n\n'
+            FULL_PROMPT="$FULL_PROMPT**File**: $session_file"
+            FULL_PROMPT="$FULL_PROMPT"$'\n\n```markdown\n'
+            FULL_PROMPT="$FULL_PROMPT$SESSION_CONTENT"
+            FULL_PROMPT="$FULL_PROMPT"$'\n```'
+
+            # Invoke Copilot CLI
+            OUTPUT=$(timeout 120 copilot --prompt "$FULL_PROMPT" 2>&1 || echo "MUST: Validation: FAIL - Timeout")
+            echo "$OUTPUT" > "/tmp/session-results/${FILE_NAME}.txt"
+
+            # Check for MUST failures
+            MUST_FAIL_COUNT=$(echo "$OUTPUT" | grep -c "MUST:.*FAIL" || echo "0")
+            if [ "$MUST_FAIL_COUNT" -gt 0 ]; then
+              log "Found $MUST_FAIL_COUNT MUST failures in $session_file"
+              MUST_FAILURES=$((MUST_FAILURES + MUST_FAIL_COUNT))
+              OVERALL_VERDICT="CRITICAL_FAIL"
+            fi
+
+          done < /tmp/changed-sessions.txt
+
+          echo "overall_verdict=$OVERALL_VERDICT" >> $GITHUB_OUTPUT
+          echo "must_failures=$MUST_FAILURES" >> $GITHUB_OUTPUT
+          echo "results_dir=/tmp/session-results" >> $GITHUB_OUTPUT
+
+      - name: Generate Compliance Report
+        if: steps.changed.outputs.has_sessions == 'true'
+        id: report
+        run: |
+          source .github/scripts/ai-review-common.sh
+
+          REPORT_FILE="/tmp/session-compliance-report.md"
+
+          cat > "$REPORT_FILE" << EOF
+          ## Session Protocol Compliance Report
+
+          **Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          **Overall Verdict**: \`${{ steps.validate.outputs.overall_verdict }}\`
+          **MUST Failures**: ${{ steps.validate.outputs.must_failures }}
+
+          ### Compliance Summary
+
+          | Requirement | Level | Status |
+          |-------------|-------|--------|
+          EOF
+
+          # Aggregate results from all session files
+          for result_file in /tmp/session-results/*.txt; do
+            if [ -f "$result_file" ]; then
+              FILE_NAME=$(basename "$result_file" .txt)
+              echo "" >> "$REPORT_FILE"
+              echo "### $FILE_NAME" >> "$REPORT_FILE"
+              echo "" >> "$REPORT_FILE"
+
+              # Extract MUST/SHOULD/MAY lines
+              while IFS= read -r line; do
+                if echo "$line" | grep -qE "^(MUST|SHOULD|MAY):"; then
+                  LEVEL=$(echo "$line" | cut -d: -f1)
+                  REQ=$(echo "$line" | cut -d: -f2)
+                  STATUS=$(echo "$line" | cut -d: -f3 | xargs)
+
+                  if [ "$STATUS" = "PASS" ]; then
+                    EMOJI="✅"
+                  elif [ "$STATUS" = "FAIL" ]; then
+                    EMOJI="❌"
+                  else
+                    EMOJI="⚠️"
+                  fi
+
+                  echo "| $REQ | $LEVEL | $EMOJI $STATUS |" >> "$REPORT_FILE"
+                fi
+              done < "$result_file"
+            fi
+          done
+
+          # Add details sections
+          echo "" >> "$REPORT_FILE"
+          echo "### Detailed Results" >> "$REPORT_FILE"
+          echo "" >> "$REPORT_FILE"
+
+          for result_file in /tmp/session-results/*.txt; do
+            if [ -f "$result_file" ]; then
+              FILE_NAME=$(basename "$result_file" .txt)
+              echo "<details>" >> "$REPORT_FILE"
+              echo "<summary>$FILE_NAME</summary>" >> "$REPORT_FILE"
+              echo "" >> "$REPORT_FILE"
+              echo '```' >> "$REPORT_FILE"
+              cat "$result_file" >> "$REPORT_FILE"
+              echo '```' >> "$REPORT_FILE"
+              echo "" >> "$REPORT_FILE"
+              echo "</details>" >> "$REPORT_FILE"
+              echo "" >> "$REPORT_FILE"
+            fi
+          done
+
+          echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
+
+      - name: Post PR Comment
+        if: steps.changed.outputs.has_sessions == 'true'
+        run: |
+          source .github/scripts/ai-review-common.sh
+          post_pr_comment "${{ github.event.pull_request.number }}" "${{ steps.report.outputs.report_file }}" "AI-SESSION-PROTOCOL"
+
+      - name: Set Job Summary
+        if: steps.changed.outputs.has_sessions == 'true'
+        run: |
+          cat "${{ steps.report.outputs.report_file }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Enforce MUST Requirements
+        if: steps.changed.outputs.has_sessions == 'true'
+        run: |
+          MUST_FAILURES="${{ steps.validate.outputs.must_failures }}"
+
+          if [ "$MUST_FAILURES" -gt 0 ]; then
+            echo "::error::Session protocol validation failed: $MUST_FAILURES MUST requirement(s) not met"
+            exit 1
+          fi
+
+          echo "Session protocol validation passed"
