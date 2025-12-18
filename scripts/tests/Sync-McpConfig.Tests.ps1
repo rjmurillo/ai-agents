@@ -305,6 +305,187 @@ Describe "Sync-McpConfig.ps1" {
         }
     }
 
+    Context "Serena Transformation" {
+        It "Transforms serena context from claude-code to ide" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $destPath = Join-Path $Script:TestDir "mcp.json"
+            $sourceContent = @{
+                mcpServers = @{
+                    serena = @{
+                        type = "stdio"
+                        command = "uvx"
+                        args = @("--from", "serena-mcp", "serena", "--context", "claude-code")
+                    }
+                }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # Act
+            & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath
+
+            # Assert
+            $destJson = Get-Content -Path $destPath -Raw | ConvertFrom-Json
+            $destJson.servers.serena.args | Should -Contain "ide"
+            $destJson.servers.serena.args | Should -Not -Contain "claude-code"
+        }
+
+        It "Transforms serena port from 24282 to 24283" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $destPath = Join-Path $Script:TestDir "mcp.json"
+            $sourceContent = @{
+                mcpServers = @{
+                    serena = @{
+                        type = "stdio"
+                        command = "uvx"
+                        args = @("--port", "24282", "serena")
+                    }
+                }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # Act
+            & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath
+
+            # Assert
+            $destJson = Get-Content -Path $destPath -Raw | ConvertFrom-Json
+            $destJson.servers.serena.args | Should -Contain "24283"
+            $destJson.servers.serena.args | Should -Not -Contain "24282"
+        }
+
+        It "Transforms both context and port in serena config" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $destPath = Join-Path $Script:TestDir "mcp.json"
+            $sourceContent = @{
+                mcpServers = @{
+                    serena = @{
+                        type = "stdio"
+                        command = "uvx"
+                        args = @("--from", "serena-mcp", "serena", "--context", "claude-code", "--port", "24282")
+                    }
+                }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # Act
+            & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath
+
+            # Assert
+            $destJson = Get-Content -Path $destPath -Raw | ConvertFrom-Json
+            $destJson.servers.serena.args | Should -Contain "ide"
+            $destJson.servers.serena.args | Should -Contain "24283"
+            $destJson.servers.serena.args | Should -Not -Contain "claude-code"
+            $destJson.servers.serena.args | Should -Not -Contain "24282"
+        }
+
+        It "Preserves other serena args unchanged" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $destPath = Join-Path $Script:TestDir "mcp.json"
+            $sourceContent = @{
+                mcpServers = @{
+                    serena = @{
+                        type = "stdio"
+                        command = "uvx"
+                        args = @("--from", "git+https://github.com/example/serena-mcp", "serena", "--context", "claude-code", "--verbose")
+                    }
+                }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # Act
+            & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath
+
+            # Assert
+            $destJson = Get-Content -Path $destPath -Raw | ConvertFrom-Json
+            $destJson.servers.serena.args | Should -Contain "--from"
+            $destJson.servers.serena.args | Should -Contain "git+https://github.com/example/serena-mcp"
+            $destJson.servers.serena.args | Should -Contain "serena"
+            $destJson.servers.serena.args | Should -Contain "--verbose"
+        }
+
+        It "Does not modify non-serena servers" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $destPath = Join-Path $Script:TestDir "mcp.json"
+            $sourceContent = @{
+                mcpServers = @{
+                    serena = @{
+                        type = "stdio"
+                        command = "uvx"
+                        args = @("--context", "claude-code")
+                    }
+                    other = @{
+                        type = "stdio"
+                        command = "node"
+                        args = @("--context", "claude-code", "--port", "24282")
+                    }
+                }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # Act
+            & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath
+
+            # Assert
+            $destJson = Get-Content -Path $destPath -Raw | ConvertFrom-Json
+            # Serena should be transformed
+            $destJson.servers.serena.args | Should -Contain "ide"
+            # Other server should NOT be transformed
+            $destJson.servers.other.args | Should -Contain "claude-code"
+            $destJson.servers.other.args | Should -Contain "24282"
+        }
+
+        It "Handles serena config without args gracefully" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $destPath = Join-Path $Script:TestDir "mcp.json"
+            $sourceContent = @{
+                mcpServers = @{
+                    serena = @{
+                        type = "http"
+                        url = "http://localhost:24282"
+                    }
+                }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # Act
+            & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath
+
+            # Assert - Should not throw and should preserve config
+            $destJson = Get-Content -Path $destPath -Raw | ConvertFrom-Json
+            $destJson.servers.serena.type | Should -Be "http"
+            $destJson.servers.serena.url | Should -Be "http://localhost:24282"
+        }
+
+        It "Does not modify source config (deep clone)" {
+            # Arrange
+            $sourcePath = Join-Path $Script:TestDir ".mcp.json"
+            $destPath = Join-Path $Script:TestDir "mcp.json"
+            $sourceContent = @{
+                mcpServers = @{
+                    serena = @{
+                        type = "stdio"
+                        command = "uvx"
+                        args = @("--context", "claude-code", "--port", "24282")
+                    }
+                }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
+
+            # Act
+            & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath
+
+            # Assert - Source file should be unchanged
+            $sourceJson = Get-Content -Path $sourcePath -Raw | ConvertFrom-Json
+            $sourceJson.mcpServers.serena.args | Should -Contain "claude-code"
+            $sourceJson.mcpServers.serena.args | Should -Contain "24282"
+        }
+    }
+
     Context "Output Format" {
         It "Produces valid JSON output" {
             # Arrange
