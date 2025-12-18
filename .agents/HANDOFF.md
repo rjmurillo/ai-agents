@@ -2,7 +2,7 @@
 
 **Project**: AI Agents Enhancement
 **Version**: 1.0
-**Last Updated**: 2025-12-18
+**Last Updated**: 2025-12-17
 **Current Phase**: Phase 0 - Foundation
 **Status**: ✅ Complete
 
@@ -128,7 +128,7 @@ Implement Kiro's 3-tier planning hierarchy with EARS format.
 
 ### Current Branch
 
-`copilot/setup-foundational-structure`
+`fix/copilot-mcp` (PR #59 pending review)
 
 ### Quick Start Commands
 
@@ -462,5 +462,35 @@ cat .agents/governance/consistency-protocol.md
 - `AGENTS.md`
 - `.agents/HANDOFF.md` (this file)
 
-**Status**: Complete - ready for markdown linting and commit
+**Status**: Complete - merged in PR #59
+
+---
+
+### 2025-12-17: Copilot Instructions Update and PR Creation
+
+**Objective**: Update `.github/copilot-instructions.md` to match CLAUDE.md RFC 2119 format and create PR.
+
+**Context**: User noted that CLAUDE.md was updated but `.github/copilot-instructions.md` was not.
+
+**Changes Made**:
+
+1. **Updated `.github/copilot-instructions.md`**:
+   - Replaced "⚠️ MANDATORY" labels with "BLOCKING GATE" heading
+   - Added RFC 2119 key words notice (MUST, SHOULD, MAY)
+   - Restructured into phases matching CLAUDE.md (Phase 1, 2, 3)
+   - Added verification requirements for each phase
+   - Added reference to canonical `SESSION-PROTOCOL.md`
+
+2. **Created PR #59**:
+   - Branch: `fix/copilot-mcp`
+   - URL: https://github.com/rjmurillo/ai-agents/pull/59
+   - Includes all MCP config fixes and session protocol enforcement
+
+**Commits in PR**:
+- `9b7a3f1` fix(mcp): correct VS Code MCP config path to .vscode/mcp.json
+- `7ae7844` docs(copilot): update with information about Copilot CLI behaviors
+- `ec0b6fe` feat(protocol): implement verification-based session protocol enforcement
+- `664363a` fix: update copilot-instructions.md to match CLAUDE.md RFC 2119 format
+
+**Status**: Complete - PR #59 created and ready for review
 
