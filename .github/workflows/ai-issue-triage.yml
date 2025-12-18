@@ -115,16 +115,25 @@ jobs:
           LABELS: ${{ steps.parse-categorize.outputs.labels }}
           PRIORITY: ${{ steps.parse-align.outputs.priority }}
         run: |
+          FAILED_LABELS=()
+          FAILED_CREATES=()
+
           # Apply category labels
           if [ -n "$LABELS" ]; then
             for label in $LABELS; do
               # Check if label exists, create if not
               if ! gh label list --search "$label" --json name -q '.[].name' | grep -q "^${label}$"; then
                 echo "Creating label: $label"
-                gh label create "$label" --description "Auto-created by AI triage" || true
+                if ! gh label create "$label" --description "Auto-created by AI triage" 2>&1; then
+                  echo "::warning::Failed to create label: $label"
+                  FAILED_CREATES+=("$label")
+                fi
               fi
               echo "Adding label: $label"
-              gh issue edit "$ISSUE_NUMBER" --add-label "$label" || true
+              if ! gh issue edit "$ISSUE_NUMBER" --add-label "$label" 2>&1; then
+                echo "::warning::Failed to add label '$label' to issue #$ISSUE_NUMBER"
+                FAILED_LABELS+=("$label")
+              fi
             done
           fi
 
@@ -133,10 +142,29 @@ jobs:
             PRIORITY_LABEL="priority:$PRIORITY"
             if ! gh label list --search "$PRIORITY_LABEL" --json name -q '.[].name' | grep -q "^${PRIORITY_LABEL}$"; then
               echo "Creating label: $PRIORITY_LABEL"
-              gh label create "$PRIORITY_LABEL" --description "Priority level" --color "FFA500" || true
+              if ! gh label create "$PRIORITY_LABEL" --description "Priority level" --color "FFA500" 2>&1; then
+                echo "::warning::Failed to create priority label: $PRIORITY_LABEL"
+                FAILED_CREATES+=("$PRIORITY_LABEL")
+              fi
             fi
             echo "Adding priority label: $PRIORITY_LABEL"
-            gh issue edit "$ISSUE_NUMBER" --add-label "$PRIORITY_LABEL" || true
+            if ! gh issue edit "$ISSUE_NUMBER" --add-label "$PRIORITY_LABEL" 2>&1; then
+              echo "::warning::Failed to add priority label '$PRIORITY_LABEL' to issue #$ISSUE_NUMBER"
+              FAILED_LABELS+=("$PRIORITY_LABEL")
+            fi
+          fi
+
+          # Report summary of failures (but don't fail the workflow)
+          if [ ${#FAILED_LABELS[@]} -gt 0 ] || [ ${#FAILED_CREATES[@]} -gt 0 ]; then
+            echo ""
+            echo "=== LABEL OPERATIONS SUMMARY ==="
+            if [ ${#FAILED_CREATES[@]} -gt 0 ]; then
+              echo "Failed to create labels: ${FAILED_CREATES[*]}"
+            fi
+            if [ ${#FAILED_LABELS[@]} -gt 0 ]; then
+              echo "Failed to apply labels: ${FAILED_LABELS[*]}"
+            fi
+            echo "==============================="
           fi
 
       - name: Assign Milestone
@@ -149,10 +177,14 @@ jobs:
             # Check if milestone exists
             if gh api "repos/$GITHUB_REPOSITORY/milestones" --jq '.[].title' | grep -q "^${MILESTONE}$"; then
               echo "Assigning milestone: $MILESTONE"
-              gh issue edit "$ISSUE_NUMBER" --milestone "$MILESTONE" || true
+              if ! gh issue edit "$ISSUE_NUMBER" --milestone "$MILESTONE" 2>&1; then
+                echo "::warning::Failed to assign milestone '$MILESTONE' to issue #$ISSUE_NUMBER"
+              fi
             else
-              echo "Milestone not found: $MILESTONE (skipping)"
+              echo "::notice::Milestone not found: $MILESTONE (skipping assignment)"
             fi
+          else
+            echo "No milestone to assign"
           fi
 
       - name: 📝 Generate PRD (Escalated Issues)

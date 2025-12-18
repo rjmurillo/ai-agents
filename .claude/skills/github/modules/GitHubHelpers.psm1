@@ -263,13 +263,25 @@ function Assert-GhAuthenticated {
 function Write-ErrorAndExit {
     <#
     .SYNOPSIS
-        Writes an error and exits with the specified code.
+        Writes an error and exits with the specified code (or throws in module context).
+
+    .DESCRIPTION
+        Context-aware error handling:
+        - When called from a script: exits with the specified code (for CLI compatibility)
+        - When called from a module/interactive: throws an exception (for proper error propagation)
+
+        This design prevents the module from terminating the PowerShell session when used
+        in module context while maintaining backward compatibility with script usage.
 
     .PARAMETER Message
         Error message to display.
 
     .PARAMETER ExitCode
-        Exit code to return.
+        Exit code to return (used in script context, embedded in exception in module context).
+
+    .NOTES
+        Part of PR #60 Phase 1 remediation - GAP-QUAL-001 fix.
+        Modules should not use `exit` as it terminates the session.
     #>
     [CmdletBinding()]
     param(
@@ -280,8 +292,26 @@ function Write-ErrorAndExit {
         [int]$ExitCode
     )
 
-    Write-Error $Message
-    exit $ExitCode
+    # Determine execution context
+    # $MyInvocation.ScriptName is empty when called interactively or from a module function
+    # but contains the script path when called from a .ps1 script
+    $callerInfo = (Get-PSCallStack)[1]
+    $isScriptContext = $callerInfo.ScriptName -and ($callerInfo.ScriptName -match '\.ps1$')
+
+    if ($isScriptContext) {
+        # Called from a script - use exit for proper CLI integration
+        Write-Error $Message
+        exit $ExitCode
+    }
+    else {
+        # Called from module/interactive - throw for proper error propagation
+        # Include exit code in exception for callers that need it
+        $exception = [System.Management.Automation.RuntimeException]::new(
+            "$Message (Exit code: $ExitCode)"
+        )
+        $exception.Data['ExitCode'] = $ExitCode
+        throw $exception
+    }
 }
 
 #endregion

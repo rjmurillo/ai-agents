@@ -133,8 +133,20 @@ runs:
       id: install
       shell: bash
       run: |
+        set -e  # Exit on any error
+
         echo "Installing GitHub Copilot CLI..."
-        npm install -g @github/copilot
+        if ! npm install -g @github/copilot; then
+          echo "::error::Failed to install GitHub Copilot CLI"
+          exit 1
+        fi
+
+        echo "Verifying installation..."
+        if ! command -v copilot &> /dev/null; then
+          echo "::error::copilot command not found after installation"
+          exit 1
+        fi
+
         echo "Copilot CLI version:"
         VERSION_FULL=$(copilot --version 2>&1 || echo "unknown")
         echo "$VERSION_FULL"
@@ -148,11 +160,23 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.bot-pat }}
       run: |
+        set -e  # Exit on any error
+
         echo "Verifying GitHub authentication..."
         # GH_TOKEN env var is automatically used by gh CLI - no explicit login needed
-        gh auth status || echo "Note: Using GH_TOKEN for authentication"
+        if ! gh auth status; then
+          echo "::error::GitHub CLI authentication failed"
+          echo "::error::Ensure bot-pat has valid token with required scopes"
+          exit 1
+        fi
+
         echo "Testing API access..."
-        gh api user -q '.login' || echo "Warning: Could not verify API access"
+        if ! gh api user -q '.login'; then
+          echo "::error::GitHub API access verification failed"
+          echo "::error::Ensure bot-pat has 'repo' scope for API access"
+          exit 1
+        fi
+        echo "Authentication verified successfully"
 
     - name: Diagnose Copilot CLI
       id: diagnose
