@@ -1,5 +1,26 @@
 # Using the Agents
 
+## ⚠️ MANDATORY: Initialize Serena FIRST
+
+**BEFORE doing ANY work**, you MUST call these Serena MCP tools in order:
+
+```text
+1. mcp__serena__activate_project  (with project path)
+2. mcp__serena__initial_instructions
+```
+
+This is NON-NEGOTIABLE. Do not read files, do not search, do not answer questions until Serena is initialized.
+
+**Why this matters**: Without Serena initialization, you lack access to:
+
+- Project memories containing past decisions and user preferences
+- Semantic code navigation tools
+- Historical context that prevents repeated mistakes
+
+**For VS Code/Copilot**: If Serena MCP tools are available, initialize them first. Check for tools prefixed with `mcp__serena__` or `serena/`.
+
+---
+
 ## Overview
 
 This repository provides a coordinated multi-agent system for software development, available for **VS Code (GitHub Copilot)**, **GitHub Copilot CLI**, and **Claude Code CLI**. Each agent focuses on a specific phase or concern with clear responsibilities, constraints, and handoffs.
