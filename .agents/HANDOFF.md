@@ -513,3 +513,64 @@ cat .agents/governance/consistency-protocol.md
 
 **Status**: Complete
 
+---
+
+### 2025-12-17: Copilot CLI De-Prioritization Decision
+
+**Session Log**: [Session 03](./sessions/2025-12-17-session-03-copilot-cli-limitations.md)
+
+**Objective**: Document Copilot CLI limitations and make strategic decision on platform prioritization.
+
+**Context**: Prior retrospective (`.agents/retrospective/2025-12-18-mcp-config.md`) recommended adding Copilot CLI sync to `Sync-McpConfig.ps1`. User declined this recommendation due to Copilot CLI's limited functionality.
+
+**Key Decisions**:
+
+1. **DECLINED**: Recommendation to add Copilot CLI sync to `Sync-McpConfig.ps1`
+   - Rationale: User-level config is a risk (modifies global state), not project-specific
+   - No team collaboration value since configs can't be version-controlled
+
+2. **DE-PRIORITIZED**: Copilot CLI to P2 (Nice to Have / Maintenance Only)
+   - RICE Score: 0.8 (vs Claude Code ~20+, VS Code ~10+)
+   - No new feature investment
+   - Bug fixes on as-needed basis only
+
+3. **PLATFORM PRIORITY HIERARCHY ESTABLISHED**:
+   - P0: Claude Code (full investment)
+   - P1: VS Code (active development)
+   - P2: Copilot CLI (maintenance only)
+
+4. **REMOVAL CRITERIA DEFINED**: Copilot CLI support will be evaluated for removal if:
+   - Maintenance burden exceeds 10% of total effort
+   - Zero feature requests in 90 days
+   - No GitHub improvements to critical gaps in 6 months
+   - >90% users on Claude Code or VS Code
+
+**Critical Limitations Documented**:
+
+| Limitation | Impact |
+|------------|--------|
+| User-level MCP config only | No project-level configs, no team sharing |
+| No Plan Mode | Cannot perform multi-step reasoning |
+| Limited context (8k-32k vs 200k+) | Cannot analyze large codebases |
+| No semantic code analysis | Text search only, no LSP |
+| No VS Code config reuse | Architecturally separate despite branding |
+| Known agent loading bugs | Reliability issues at user level |
+
+**Deliverables**:
+
+- `.agents/analysis/002-copilot-cli-limitations-assessment.md` - Comprehensive limitations analysis
+- `.agents/roadmap/product-roadmap.md` - Updated with platform hierarchy and de-prioritization
+- `.agents/sessions/2025-12-17-session-03-copilot-cli-limitations.md` - Session log
+
+**Roadmap Changes**:
+
+- Added "Platform Priority Hierarchy" section
+- Renamed epic "2-Variant Consolidation" to "VS Code Consolidation"
+- Excluded Copilot CLI from consolidation scope
+- Restructured success metrics by platform priority
+- Added removal evaluation criteria
+
+**Agents Involved**: orchestrator, roadmap
+
+**Status**: Complete
+
