@@ -296,10 +296,13 @@ Write-Host ""
 # Create destination directory
 Initialize-Destination -Path $DestDir -Description "agents" | Out-Null
 
-# Get agent files (excluding instruction files that may match the pattern)
+# Get agent files (excluding instruction and documentation files)
 $ExcludeFiles = @()
 if ($Config.InstructionsFile) {
     $ExcludeFiles += $Config.InstructionsFile
+}
+if ($Config.ExcludeFiles) {
+    $ExcludeFiles += $Config.ExcludeFiles
 }
 $AgentFiles = Get-AgentFiles -SourceDir $SourceDir -FilePattern $Config.FilePattern -ExcludeFiles $ExcludeFiles
 

@@ -29,9 +29,10 @@
     }
 
     Claude = @{
-        DisplayName = "Claude Code"
-        SourceDir   = "src/claude"
-        FilePattern = "*.md"
+        DisplayName  = "Claude Code"
+        SourceDir    = "src/claude"
+        FilePattern  = "*.md"
+        ExcludeFiles = @("AGENTS.md")  # Documentation files, not agent definitions
         # Skills directories (PowerShell modules with GitHub helpers, etc.)
         SkillsSourceDir = ".claude/skills"
         Skills          = @("github")  # List of skill directories to install
