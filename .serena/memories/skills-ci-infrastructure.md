@@ -147,9 +147,134 @@ jobs:
 
 ---
 
+---
+
+## Skill-CI-ANSI-Disable-001: Disable ANSI in CI Mode
+
+**Statement**: Disable ANSI codes in CI via NO_COLOR env var and PSStyle.OutputRendering PlainText
+
+**Context**: When PowerShell scripts with console color output are used in CI pipelines that generate XML or structured reports
+
+**Evidence**: CI run 20324607494: ANSI escape codes (0x1B) corrupted Pester XML report, causing test-reporter GitHub Action to fail
+
+**Atomicity**: 90%
+
+**Tag**: helpful
+
+**Impact**: 9/10
+
+**Pattern**:
+
+```powershell
+# In test runner (Invoke-PesterTests.ps1)
+if ($CI) {
+    $env:NO_COLOR = '1'
+    $env:TERM = 'dumb'
+    if ($PSVersionTable.PSVersion.Major -ge 7) {
+        $PSStyle.OutputRendering = 'PlainText'
+    }
+}
+```
+
+```powershell
+# In scripts that output colors (Validate-PathNormalization.ps1)
+$NoColor = $env:NO_COLOR -or $env:TERM -eq 'dumb' -or $env:CI
+
+if ($NoColor) {
+    $ColorRed = ""
+    $ColorGreen = ""
+    $ColorReset = ""
+} else {
+    $ColorRed = "`e[31m"
+    $ColorGreen = "`e[32m"
+    $ColorReset = "`e[0m"
+}
+
+function Write-ColorOutput {
+    param([string]$Message, [string]$Color = $ColorReset)
+    
+    if ($NoColor) {
+        Write-Host $Message
+    } else {
+        Write-Host "$Color$Message$ColorReset"
+    }
+}
+```
+
+**Why it matters**:
+
+- ANSI escape codes (0x1B) are invalid XML characters
+- XML parsers reject files with control characters
+- CI reporting infrastructure (test-reporter) requires valid XML
+- NO_COLOR is a standard environment variable for disabling colors
+
+**Standards Respected**:
+
+- [NO_COLOR](https://no-color.org/): Standard environment variable
+- TERM=dumb: Traditional Unix signal for non-interactive mode
+- PSStyle.OutputRendering: PowerShell 7+ native plain text mode
+
+---
+
+## Skill-CI-Environment-Testing-001: Local CI Simulation
+
+**Statement**: Test scripts locally with temp paths and no auth to catch CI environment failures
+
+**Context**: Before pushing PowerShell scripts that will run in GitHub Actions or other CI environments
+
+**Evidence**: CI run 20324607494: All 4 test failures passed locally but failed in CI due to Windows 8.3 paths, gh CLI unavailability, and XML output format
+
+**Atomicity**: 88%
+
+**Tag**: helpful
+
+**Impact**: 8/10
+
+**Pattern**:
+
+```powershell
+# Local CI simulation
+function Test-InCIMode {
+    # Simulate CI temp paths (Windows 8.3 short names)
+    $originalTemp = $env:TEMP
+    $env:TEMP = "C:\Users\RUNNER~1\AppData\Local\Temp"
+    
+    # Remove auth tokens
+    $originalGH = $env:GH_TOKEN
+    Remove-Item Env:\GH_TOKEN -ErrorAction SilentlyContinue
+    
+    try {
+        # Run tests in CI mode
+        Invoke-PesterTests -CI
+    }
+    finally {
+        # Restore environment
+        $env:TEMP = $originalTemp
+        if ($originalGH) { $env:GH_TOKEN = $originalGH }
+    }
+}
+```
+
+**Environment Differences to Simulate**:
+
+1. **Path normalization**: Windows 8.3 short names (RUNNER~1 vs full names)
+2. **External auth**: gh CLI, git credentials unavailable
+3. **Output format**: XML reports instead of console output
+4. **Environment variables**: CI=true, NO_COLOR=1, TERM=dumb
+
+**Pre-push Checklist**:
+
+- [ ] Run tests with `-CI` flag
+- [ ] Test with temp directory paths
+- [ ] Test without gh CLI authentication
+- [ ] Verify XML output is valid (no ANSI codes)
+
+---
+
 ## Related Files
 
 - Test Runner: `build/scripts/Invoke-PesterTests.ps1`
 - Pester Workflow: `.github/workflows/pester-tests.yml`
 - Copilot Setup: `.github/workflows/copilot-setup-steps.yml`
+- Retrospective: `.agents/retrospective/2025-12-17-ci-test-failures-xml-corruption.md`
 - Source: `.agents/retrospective/pr-feedback-remediation.md`

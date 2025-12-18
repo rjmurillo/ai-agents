@@ -172,6 +172,123 @@ if ($PSCmdlet.ShouldProcess(...)) {
 2. Write parameter combination tests (expect failures)
 3. Implement cmdlet to pass tests
 
+---
+
+## Skill-PowerShell-Path-Normalization-001: Relative Path Calculation
+
+**Statement**: Use Resolve-Path -Relative with Push-Location to calculate relative paths on Windows
+
+**Context**: When calculating relative paths from absolute paths in PowerShell scripts that may run in different Windows environments
+
+**Evidence**: CI run 20324607494: Windows 8.3 short name normalization (RUNNER~1 vs runneradmin) caused Substring($rootPath.Length) to fail with index out of range; Resolve-Path -Relative handles normalization correctly
+
+**Atomicity**: 94%
+
+**Tag**: helpful
+
+**Impact**: 9/10
+
+**Pattern**:
+
+```powershell
+# WRONG: Brittle string manipulation
+$relativePath = $fileGroup.Name.Substring($rootPath.Length).TrimStart('\', '/')
+
+# RIGHT: Robust path cmdlet with normalization
+Push-Location $rootPath
+try {
+    $relativePath = Resolve-Path -Path $fileGroup.Name -Relative
+    # Remove leading .\ or ./
+    $relativePath = $relativePath -replace '^\.[\\/]', ''
+}
+finally {
+    Pop-Location
+}
+```
+
+**Why it matters**:
+
+- Windows path normalization is inconsistent (8.3 short names vs full names)
+- CI environments use temp paths that may trigger 8.3 naming (RUNNER~1)
+- String operations like `Substring($rootPath.Length)` assume consistent representations
+- `Resolve-Path -Relative` handles all normalization cases correctly
+- `Push-Location` sets working directory for relative path calculation
+
+**Anti-Pattern**: Never use string Substring operations on file paths
+
+**Validated**: 1 (CI run 20324607494)
+
+---
+
+## Skill-Testing-Exit-Code-Order-001: Parameter Validation First
+
+**Statement**: Validate parameters before checking external tool availability for predictable exit codes
+
+**Context**: When writing PowerShell scripts with parameter validation and external tool dependencies (gh CLI, git, etc.) that will be tested
+
+**Evidence**: CI run 20324607494: Post-PRCommentReply.ps1 returned exit 4 (gh auth) instead of exit 1/2 (parameter validation) because gh CLI check ran first; reordering validation fixed 3 test failures
+
+**Atomicity**: 92%
+
+**Tag**: helpful
+
+**Impact**: 10/10
+
+**Pattern**:
+
+```powershell
+#region Validation
+
+# 1. FIRST: Validate parameters (pure logic, independent of environment)
+if (-not $Body -and -not $BodyFile) {
+    Write-ErrorAndExit "Either -Body or -BodyFile must be provided." 2
+}
+
+if ($BodyFile -and -not (Test-Path $BodyFile)) {
+    Write-ErrorAndExit "BodyFile not found: $BodyFile" 1
+}
+
+if ($CommentType -eq "review" -and -not $CommentId) {
+    Write-ErrorAndExit "CommentId required for review comments." 1
+}
+
+# 2. THEN: Check external tool availability (environment-dependent)
+if (-not (Test-GhAuthenticated)) {
+    Write-ErrorAndExit "gh CLI not authenticated. Run 'gh auth login'." 4
+}
+
+#endregion
+```
+
+**Reasoning**:
+
+- Parameter validation is pure logic and should be independent of environment state
+- External tool availability depends on environment (gh CLI installed, authenticated)
+- Tests can't control environment but expect specific exit codes for parameter errors
+- Exit code 1: Invalid file path
+- Exit code 2: Missing required parameter
+- Exit code 4: External tool unavailable
+
+**Test Pattern**:
+
+```powershell
+It "Returns exit code 1 when BodyFile does not exist" {
+    $result = Post-PRCommentReply -PullRequest 123 -BodyFile "nonexistent.txt"
+    $LASTEXITCODE | Should -Be 1
+}
+
+It "Returns exit code 2 when both Body and BodyFile are missing" {
+    $result = Post-PRCommentReply -PullRequest 123
+    $LASTEXITCODE | Should -Be 2
+}
+```
+
+**Anti-Pattern**: External tool checks before parameter validation return unpredictable exit codes
+
+**Validated**: 1 (CI run 20324607494, 3 tests fixed)
+
+---
+
 ## Related Skills
 
-- See above formal skills section for Skill-PowerShell-Testing-Combinations-001, Skill-PowerShell-Parameter-Patterns-001, Skill-PowerShell-Testing-Process-001
+- See above formal skills section for Skill-PowerShell-Testing-Combinations-001, Skill-PowerShell-Parameter-Patterns-001, Skill-PowerShell-Testing-Process-001, Skill-PowerShell-Path-Normalization-001, Skill-Testing-Exit-Code-Order-001
