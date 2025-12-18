@@ -235,6 +235,96 @@ cat .agents/governance/consistency-protocol.md
 
 ## Recent Sessions
 
+### 2025-12-18: Retrospective Auto-Handoff Implementation
+
+**Session Log**: [Session 17](./sessions/2025-12-18-session-17-retrospective-auto-handoff.md)
+
+**Objective**: Update retrospective agent to automatically hand off findings to orchestrator for downstream processing (skillbook, memory, git operations)
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Problem**: After each retrospective, users had to manually prompt for:
+
+1. Skills to be extracted and stored via skillbook
+2. Memories to be persisted via memory agent
+3. Git operations to commit memories from `.serena/memories/`
+
+**Solution**: Implemented automatic handoff protocol with structured output format.
+
+**Files Modified**:
+
+| File | Changes |
+|------|---------|
+| `src/claude/retrospective.md` | Added Structured Handoff Output section (~100 lines) |
+| `src/claude/orchestrator.md` | Added Post-Retrospective Workflow section (~180 lines) |
+
+**Key Features**:
+
+1. **Structured Output Format**: Machine-parseable tables (Skill Candidates, Memory Updates, Git Operations)
+2. **Automatic Routing**: Orchestrator detects `## Retrospective Handoff` and processes downstream
+3. **Conditional Processing**: Each step only executes if relevant data exists
+4. **Error Recovery**: Continue processing on partial failures
+
+**Commit**: `d7489ba` feat(agents): add automatic retrospective-to-orchestrator handoff
+
+**Status**: Complete
+
+---
+
+### 2025-12-18: Session 15 Retrospective (Five Whys Analysis)
+
+**Session Log**: [Session 15](./sessions/2025-12-18-session-15-pr-60-response.md)
+
+**Objective**: Run retrospective on Session 15 (PR #60 comment response) to extract learnings from repeated pattern violations.
+
+**Agent**: retrospective
+
+**Branch**: `feat/ai-agent-workflow`
+
+**Key Findings**:
+
+| Pattern Violation | Count | Root Cause |
+|-------------------|-------|------------|
+| Skill usage (raw `gh`) | 3+ | No BLOCKING gate for skill validation |
+| Language choice (bash/Python) | 2+ | No consolidated constraints document |
+| Non-atomic commits | 1 | No automated atomicity validation |
+| Skill duplication | 1 | Implement-before-verify pattern |
+
+**Root Cause (Five Whys)**: Missing BLOCKING gates requiring verification before implementation. Trust-based compliance is ineffective; verification-based enforcement is required.
+
+**Skills Extracted (7)**:
+
+| Skill ID | Atomicity |
+|----------|-----------|
+| Skill-Init-002 (BLOCKING gate for skill validation) | 95% |
+| Skill-Governance-001 (PROJECT-CONSTRAINTS.md) | 90% |
+| Skill-Git-002 (commit atomicity validation) | 88% |
+| Skill-Tools-001 (Check-SkillExists.ps1) | 92% |
+| Skill-Protocol-001 (verification-based gates) | 93% |
+| Anti-Pattern-003 (implement before verify) | 90% |
+| Anti-Pattern-004 (trust-based compliance) | 95% |
+
+**Priority Actions (ROI-ranked)**:
+
+| Priority | Action | ROI |
+|----------|--------|-----|
+| P0 | Create PROJECT-CONSTRAINTS.md | 10x |
+| P0 | Add Phase 1.5 BLOCKING gate to SESSION-PROTOCOL.md | 15x |
+| P0 | Create Check-SkillExists.ps1 | 8x |
+
+**Artifacts Created**:
+
+- `.agents/retrospective/2025-12-18-session-15-retrospective.md` - Full analysis (1152 lines)
+- `.serena/memories/retrospective-2025-12-18-session-15-pr-60.md` - Executive summary
+- `.serena/memories/skills-session-initialization.md` - Implementation roadmap
+- Updated `.serena/memories/skills-validation.md` - Added anti-patterns
+
+**Status**: Complete
+
+---
+
 ### 2025-12-18: Google Gemini Code Assist Configuration
 
 **Session Log**: [Session 16](./sessions/2025-12-18-session-16-gemini-code-assist-config.md)
