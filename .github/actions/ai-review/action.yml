@@ -287,8 +287,8 @@ runs:
       run: |
         OUTPUT=$(cat /tmp/ai-review-output.txt 2>/dev/null || echo "")
 
-        # Extract verdict
-        VERDICT=$(echo "$OUTPUT" | grep -oP '(?<=VERDICT:\s*)[A-Z_]+' | head -1 || echo "WARN")
+        # Extract verdict using sed (avoids lookbehind issues with GNU grep)
+        VERDICT=$(echo "$OUTPUT" | sed -n 's/.*VERDICT:[[:space:]]*\([A-Z_]*\).*/\1/p' | head -1)
         if [ -z "$VERDICT" ]; then
           # Try alternative patterns
           if echo "$OUTPUT" | grep -qi "CRITICAL_FAIL\|critical failure\|severe"; then
@@ -302,11 +302,16 @@ runs:
           fi
         fi
 
-        # Extract labels
-        LABELS=$(echo "$OUTPUT" | grep -oP '(?<=LABEL:\s*)\S+' | jq -R -s -c 'split("\n") | map(select(length > 0))' || echo "[]")
+        # Extract labels using sed (avoids lookbehind issues)
+        LABELS_RAW=$(echo "$OUTPUT" | sed -n 's/.*LABEL:[[:space:]]*\([^[:space:]]*\).*/\1/p' | tr '\n' ',' | sed 's/,$//')
+        if [ -n "$LABELS_RAW" ]; then
+          LABELS=$(echo "$LABELS_RAW" | jq -R -c 'split(",") | map(select(length > 0))')
+        else
+          LABELS="[]"
+        fi
 
-        # Extract milestone
-        MILESTONE=$(echo "$OUTPUT" | grep -oP '(?<=MILESTONE:\s*)\S+' | head -1 || echo "")
+        # Extract milestone using sed
+        MILESTONE=$(echo "$OUTPUT" | sed -n 's/.*MILESTONE:[[:space:]]*\([^[:space:]]*\).*/\1/p' | head -1)
 
         # Determine exit code
         EXIT_CODE=0
