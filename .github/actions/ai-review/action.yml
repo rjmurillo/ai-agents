@@ -214,7 +214,7 @@ runs:
 
         # Run minimal test with very short timeout
         echo "   Running minimal test prompt (10s timeout)..."
-        timeout 10 copilot --prompt "Reply with only the word OK" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+        timeout 10 copilot --prompt "Reply with only the word OK" --allow-all-tools > "$STDOUT_FILE" 2> "$STDERR_FILE"
         TEST_EXIT_CODE=$?
 
         COPILOT_TEST_OUTPUT=$(cat "$STDOUT_FILE")
