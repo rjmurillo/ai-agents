@@ -365,6 +365,28 @@ cat .agents/governance/consistency-protocol.md
 
 ---
 
-*Last Updated: 2025-12-17*
+*Last Updated: 2025-12-18*
 *Phase 0 Session: 2025-12-18-session-01-phase-0-foundation*
 *Next Phase: Phase 1 - Spec Layer*
+
+---
+
+### 2025-12-18: Retrospective - MCP Config Session
+
+**Objective**: Diagnose why GitHub Copilot CLI didn't load MCP servers from repo and recommend fixes.
+
+**Agent**: retrospective
+
+**Deliverables**:
+- Retrospective file: `.agents/retrospective/2025-12-18-mcp-config.md`
+
+**Key Findings**:
+- GitHub Copilot CLI uses user-level `~/.copilot/mcp-config.json` and does not load workspace `.vscode/mcp.json` or project `.mcp.json` by default.
+- The existing sync script syncs Claude `.mcp.json` -> VS Code `.vscode/mcp.json` but not to CLI home config.
+
+**Recommendations**:
+1. Update `scripts/Sync-McpConfig.ps1` to optionally sync to Copilot CLI (`%USERPROFILE%\\.copilot\\mcp-config.json`).
+2. Add documentation and tests for syncing to CLI home.
+
+**Status**: Complete - retrospective saved.
+
