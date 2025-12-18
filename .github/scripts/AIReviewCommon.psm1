@@ -706,6 +706,172 @@ function Get-VerdictEmoji {
 
 #endregion
 
+#region JSON Parsing Functions (Security Hardened)
+
+function Get-LabelsFromAIOutput {
+    <#
+    .SYNOPSIS
+        Parse labels from AI JSON output with security hardening.
+
+    .DESCRIPTION
+        Extracts labels from AI-generated JSON output (e.g., {"labels":["bug","enhancement"]}).
+        Uses hardened regex validation to prevent command injection attacks.
+
+        SECURITY: Validates each label against a strict pattern that:
+        - Allows alphanumeric characters, spaces, hyphens, underscores, and periods
+        - Requires alphanumeric start (no leading special chars)
+        - Limits length to 50 characters (GitHub label limit)
+        - Blocks shell metacharacters (; | ` $ ( ) \n etc.)
+
+    .PARAMETER Output
+        The AI output text containing JSON with a "labels" array.
+
+    .OUTPUTS
+        System.String[] - Array of validated label strings.
+
+    .EXAMPLE
+        $labels = Get-LabelsFromAIOutput -Output '{"labels":["bug","enhancement"]}'
+        # Returns: @('bug', 'enhancement')
+
+    .EXAMPLE
+        $labels = Get-LabelsFromAIOutput -Output '{"labels":["bug; rm -rf /"]}'
+        # Returns: @() - injection attempt rejected
+
+    .NOTES
+        Part of PR #60 remediation - Phase 1 security hardening.
+        See: .agents/planning/PR-60/002-pr-60-remediation-plan.md
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Output
+    )
+
+    $labels = @()
+
+    if ([string]::IsNullOrWhiteSpace($Output)) {
+        return $labels
+    }
+
+    try {
+        # Match JSON array pattern: "labels": ["value1", "value2"]
+        if ($Output -match '"labels"\s*:\s*\[([^\]]*)\]') {
+            $arrayContent = $Matches[1]
+
+            # Handle empty array
+            if ([string]::IsNullOrWhiteSpace($arrayContent)) {
+                return $labels
+            }
+
+            # Split by comma and process each label
+            $labels = $arrayContent -split ',' | ForEach-Object {
+                $label = $_.Trim().Trim('"').Trim("'")
+
+                # Skip empty strings
+                if ([string]::IsNullOrWhiteSpace($label)) {
+                    return
+                }
+
+                # HARDENED REGEX (Critic Condition C3 - Per Security Report)
+                # Pattern breakdown:
+                # ^[a-zA-Z0-9]        - Must start with alphanumeric
+                # [a-zA-Z0-9 _\-\.]{0,48}  - Middle: alphanumeric, space, underscore, hyphen, period (0-48 chars)
+                # [a-zA-Z0-9]?$      - Optional alphanumeric end (allows single-char labels)
+                # Total max length: 1 + 48 + 1 = 50 characters
+                if ($label -match '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$' -and $label.Length -le 50) {
+                    $label
+                }
+                else {
+                    Write-Warning "Skipped invalid label (potential injection attempt): $label"
+                }
+            }
+        }
+    }
+    catch {
+        Write-Warning "Failed to parse AI labels: $_"
+    }
+
+    return @($labels | Where-Object { $_ })
+}
+
+function Get-MilestoneFromAIOutput {
+    <#
+    .SYNOPSIS
+        Parse milestone from AI JSON output with security hardening.
+
+    .DESCRIPTION
+        Extracts milestone from AI-generated JSON output (e.g., {"milestone":"v1.2.0"}).
+        Uses hardened regex validation to prevent command injection attacks.
+
+        SECURITY: Validates the milestone against a strict pattern that:
+        - Allows alphanumeric characters, spaces, hyphens, underscores, and periods
+        - Requires alphanumeric start (no leading special chars)
+        - Limits length to 50 characters
+        - Blocks shell metacharacters (; | ` $ ( ) \n etc.)
+
+    .PARAMETER Output
+        The AI output text containing JSON with a "milestone" field.
+
+    .OUTPUTS
+        System.String - The validated milestone string, or $null if invalid/not found.
+
+    .EXAMPLE
+        $milestone = Get-MilestoneFromAIOutput -Output '{"milestone":"v1.2.0"}'
+        # Returns: 'v1.2.0'
+
+    .EXAMPLE
+        $milestone = Get-MilestoneFromAIOutput -Output '{"milestone":"v1; rm -rf /"}'
+        # Returns: $null - injection attempt rejected
+
+    .NOTES
+        Part of PR #60 remediation - Phase 1 security hardening.
+        See: .agents/planning/PR-60/002-pr-60-remediation-plan.md
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Output
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Output)) {
+        return $null
+    }
+
+    try {
+        # Match JSON pattern: "milestone": "value"
+        if ($Output -match '"milestone"\s*:\s*"([^"]*)"') {
+            $milestone = $Matches[1]
+
+            # Skip empty strings
+            if ([string]::IsNullOrWhiteSpace($milestone)) {
+                return $null
+            }
+
+            # HARDENED REGEX (same as labels - Critic Condition C3)
+            if ($milestone -match '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$' -and $milestone.Length -le 50) {
+                return $milestone
+            }
+            else {
+                Write-Warning "Invalid milestone from AI (potential injection attempt): $milestone"
+                return $null
+            }
+        }
+    }
+    catch {
+        Write-Warning "Failed to parse AI milestone: $_"
+    }
+
+    return $null
+}
+
+#endregion
+
 #region Module Initialization
 
 # Initialize on import
@@ -719,11 +885,14 @@ Export-ModuleMember -Function @(
     'Initialize-AIReview'
     # Retry logic
     'Invoke-WithRetry'
-    # AI output parsing
+    # AI output parsing (LABEL:/MILESTONE: format)
     'Get-Verdict'
     'Get-Labels'
     'Get-Milestone'
     'Merge-Verdicts'
+    # AI output parsing (JSON format - security hardened)
+    'Get-LabelsFromAIOutput'
+    'Get-MilestoneFromAIOutput'
     # Markdown formatting
     'Format-CollapsibleSection'
     'Format-VerdictAlert'
