@@ -58,6 +58,7 @@ critic -> implementer -> [CHECKPOINT 2] -> qa
 | **References** | Cross-references point to existing files | File existence check |
 | **Traceability** | No orphaned tasks | Each task traces to a requirement |
 | **Memory** | Entity observations are current | Check for stale observations (>30 days) |
+| **Spec Layer** | REQ→DESIGN→TASK chain complete | Validate 3-tier traceability (Phase 1+) |
 
 ### Post-Implementation Validation (Checkpoint 2)
 
@@ -166,6 +167,29 @@ When returning work for revision, use this format:
 **Detection**: Regex validation against naming-conventions.md.
 
 **Resolution**: Rename file to comply with convention.
+
+### Spec Layer Traceability Gaps
+
+**Symptom**: REQ/DESIGN/TASK artifacts missing cross-references (Phase 1+).
+
+**Detection**: Parse YAML front matter `related:` fields and validate chains.
+
+**Resolution**:
+1. Every TASK must link to at least one DESIGN
+2. Every DESIGN must link to at least one REQ
+3. Forward and backward references must match
+
+**Example**:
+```yaml
+# In TASK-001-*.md
+related:
+  - DESIGN-001  # Must exist and reference this task back
+
+# In DESIGN-001-*.md
+related:
+  - REQ-001     # Must exist
+  - TASK-001    # Optional forward reference
+```
 
 ---
 

@@ -85,6 +85,53 @@ These artifacts use sequential numbering for uniqueness and ordering.
 1. Numbers typically match the plan being critiqued
 2. Multiple critiques of same plan use suffixes: `001a`, `001b`
 
+### REQ-NNN Pattern (Requirements)
+
+**Used by**: spec-generator agent (Phase 1+)
+
+| Element | Format | Example |
+|---------|--------|---------|
+| Pattern | `REQ-NNN-[kebab-case-name].md` | `REQ-001-user-authentication.md` |
+| Reference | `REQ-NNN` | `REQ-001` |
+| Location | `.agents/specs/requirements/` | `.agents/specs/requirements/REQ-001-user-authentication.md` |
+
+**Numbering Rules:**
+
+1. Same as EPIC-NNN (sequential, no reuse, gaps OK, 3-digit padding)
+2. REQ numbers are global across the project
+
+**Format**: EARS (Easy Approach to Requirements Syntax) - WHEN/SHALL/SO THAT
+
+### DESIGN-NNN Pattern
+
+**Used by**: architect agent (for spec layer)
+
+| Element | Format | Example |
+|---------|--------|---------|
+| Pattern | `DESIGN-NNN-[kebab-case-name].md` | `DESIGN-001-oauth2-flow.md` |
+| Reference | `DESIGN-NNN` | `DESIGN-001` |
+| Location | `.agents/specs/design/` | `.agents/specs/design/DESIGN-001-oauth2-flow.md` |
+
+**Numbering Rules:**
+
+1. Same as EPIC-NNN (sequential, no reuse, gaps OK, 3-digit padding)
+2. DESIGN numbers are global across the project
+
+### TASK-NNN Pattern
+
+**Used by**: task-generator agent (for spec layer)
+
+| Element | Format | Example |
+|---------|--------|---------|
+| Pattern | `TASK-NNN-[kebab-case-name].md` | `TASK-001-implement-token-endpoint.md` |
+| Reference | `TASK-NNN` | `TASK-001` |
+| Location | `.agents/specs/tasks/` | `.agents/specs/tasks/TASK-001-implement-token-endpoint.md` |
+
+**Numbering Rules:**
+
+1. Same as EPIC-NNN (sequential, no reuse, gaps OK, 3-digit padding)
+2. TASK numbers are global across the project
+
 ---
 
 ## Type-Prefixed Patterns

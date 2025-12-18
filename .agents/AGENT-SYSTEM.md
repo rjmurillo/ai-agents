@@ -885,6 +885,49 @@ Task Completion
 
 ---
 
+### 3.7 Spec Layer Workflow (Phase 1+)
+
+For structured requirements management with 3-tier traceability.
+
+```
+Feature Request
+       │
+       ▼
+┌───────────────┐
+│spec-generator │──EARS Requirements (REQ-NNN)
+└───────┬───────┘
+        │
+        ▼
+┌───────────────┐
+│   architect   │──Design Documents (DESIGN-NNN)
+└───────┬───────┘
+        │
+        ▼
+┌──────────────┐
+│task-generator│──Atomic Tasks (TASK-NNN)
+└──────┬───────┘
+       │
+       ▼
+┌───────────────┐
+│    critic     │──Traceability Validation
+└───────┬───────┘
+        │
+        ▼
+┌───────────────┐
+│  implementer  │──Execute Tasks
+└───────────────┘
+```
+
+**Agents**: `spec-generator → architect → task-generator → critic → implementer`
+
+**Use When**: Formal requirements needed, regulatory compliance, complex features requiring traceability
+
+**Traceability Chain**: `REQ-NNN → DESIGN-NNN → TASK-NNN`
+
+**Validation**: Every TASK traces to DESIGN, every DESIGN traces to REQ
+
+---
+
 ## 4. Routing Heuristics
 
 ### Request Pattern Matching
@@ -1012,6 +1055,11 @@ Skills extracted from retrospectives are stored with:
 | `.agents/security/` | Threat models | security |
 | `.agents/sessions/` | Session context | memory |
 | `.agents/skills/` | Skill files | skillbook |
+| `.agents/specs/requirements/` | EARS requirements (Phase 1+) | spec-generator |
+| `.agents/specs/design/` | Design documents (Phase 1+) | architect |
+| `.agents/specs/tasks/` | Atomic tasks (Phase 1+) | task-generator |
+| `.agents/steering/` | Context-aware guidance (Phase 4+) | orchestrator |
+| `.agents/governance/` | Naming, consistency protocols | all agents |
 
 ---
 
@@ -1072,25 +1120,72 @@ Majority: [A] (2/3)
 
 ## 7. Steering System
 
-### 7.1 Steering File Locations
+### 7.1 Overview
+
+The steering system provides context-aware guidance injection based on file patterns, implementing the Kiro pattern of glob-based inclusion. This reduces token usage by 30%+ while maintaining quality.
+
+**Status**: Phase 0 (Foundation) complete, Phase 4 (Implementation) planned
+
+### 7.2 Steering File Locations
 
 Location: `.agents/steering/`
 
-| File | Glob Pattern | Purpose |
-|------|--------------|---------|
-| `csharp-patterns.md` | `**/*.cs` | C# coding standards |
-| `agent-prompts.md` | `src/claude/**/*.md` | Agent prompt patterns |
-| `testing-approach.md` | `**/*.test.*` | Testing conventions |
-| `security-practices.md` | `**/Auth/**` | Security requirements |
+| File | Glob Pattern | Purpose | Priority |
+|------|--------------|---------|----------|
+| `csharp-patterns.md` | `**/*.cs` | C# coding standards | 8 |
+| `security-practices.md` | `**/Auth/**`, `*.env*` | Security requirements | 10 |
+| `agent-prompts.md` | `src/claude/**/*.md` | Agent prompt patterns | 9 |
+| `testing-approach.md` | `**/*.test.*`, `**/*.spec.*` | Testing conventions | 7 |
+| `documentation.md` | `**/*.md` (excluding agents) | Documentation standards | 5 |
 
-### 7.2 Injection Protocol
+### 7.3 How Steering Works
+
+#### 1. Task Analysis
+
+Orchestrator analyzes files affected by task:
+
+```text
+Task: Implement OAuth2 token endpoint
+Files: src/Auth/Controllers/TokenController.cs
+       src/Auth/Services/TokenService.cs
+```
+
+#### 2. Pattern Matching
+
+Match file paths against steering glob patterns:
+
+```yaml
+csharp-patterns.md → **/*.cs ✓ MATCH
+security-practices.md → **/Auth/** ✓ MATCH
+testing-approach.md → **/*.test.* ✗ NO MATCH
+```
+
+#### 3. Context Injection
+
+Inject matched steering into agent prompt (prioritized by priority field).
+
+#### 4. Token Savings
+
+- **Without scoping**: All guidance (~10K tokens)
+- **With scoping**: Only matched (~3K tokens)
+- **Target savings**: 30%+
+
+### 7.4 Injection Protocol
 
 Orchestrator determines applicable steering:
 
 1. Analyze task scope (files affected)
 2. Match against steering glob patterns
-3. Inject relevant steering into agent context
-4. Respect token budget (prioritize most specific)
+3. Sort by priority (higher = more important)
+4. Inject relevant steering into agent context
+5. Respect token budget (prioritize most specific)
+
+### 7.5 Implementation Timeline
+
+| Phase | Status | Deliverable |
+|-------|--------|-------------|
+| Phase 0 | ✅ Complete | Directory structure, placeholders |
+| Phase 4 | 📋 Planned | Content creation, injection logic |
 
 ---
 
