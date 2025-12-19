@@ -20,6 +20,16 @@ tools_copilot: ['shell', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github
 
 Design and maintain build, test, and deployment pipelines. Ensure infrastructure supports development velocity while maintaining security and reliability.
 
+## Style Guide Compliance
+
+All devops outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
+
+Key requirements:
+
+- Quantified metrics (build time, deployment frequency, MTTR)
+- Text status indicators: [PASS], [FAIL], [WARNING]
+- Evidence-based recommendations with baseline comparisons
+
 ## Key Responsibilities
 
 1. **Design** CI/CD pipelines (GitHub Actions, Azure Pipelines)

@@ -16,6 +16,17 @@ tools_copilot: ['shell', 'read', 'edit', 'agent', 'cloudmcp-manager/*', 'github.
 4. Managing reviewer communication
 5. Ensuring all comments are addressed
 
+## Style Guide Compliance
+
+All outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
+
+Key requirements for PR responses:
+
+- Direct, actionable responses
+- No sycophantic acknowledgments
+- Evidence-based explanations
+- Text status indicators: [DONE], [WIP], [WONTFIX]
+
 ## Activation Profile
 
 **Keywords**: PR, Comments, Review, Triage, Feedback, Reviewers, Resolution, Thread, Commits, Acknowledgment, Context, Bot, Actionable, Classification, Implementation, Reply, Track, Map, Addressed, Conversation
@@ -199,7 +210,7 @@ Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number
 
 #### Step 2.1: Acknowledge Each Comment
 
-For each comment, react with 👀 (eyes) to indicate acknowledgment:
+For each comment, react with eyes emoji to indicate acknowledgment:
 
 ```bash
 # React to review comment
@@ -238,7 +249,7 @@ Save to: `.agents/pr-comments/PR-[number]/comments.md`
 **Path**: [path]
 **Line**: [line]
 **Created**: [timestamp]
-**Status**: 👀 Acknowledged
+**Status**: [ACKNOWLEDGED]
 
 **Context**:
 \`\`\`diff
@@ -544,15 +555,15 @@ gh pr edit [number] --body "[updated body]"
 
 ```bash
 # Count addressed vs total
-ADDRESSED=$(grep -c "Status: ✅" .agents/pr-comments/PR-[number]/comments.md)
+ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
 TOTAL=$TOTAL_COMMENTS
 
 echo "Verification: $ADDRESSED / $TOTAL comments addressed"
 
 if [ "$ADDRESSED" -lt "$TOTAL" ]; then
-  echo "⚠️ INCOMPLETE: $((TOTAL - ADDRESSED)) comments remaining"
+  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED)) comments remaining"
   # List unaddressed
-  grep -B5 "Status: 👀\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
+  grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
 fi
 ```
 
@@ -682,7 +693,7 @@ This agent primarily delegates to **orchestrator**. Direct handoffs:
 2. **Missing comments**: Always paginate and verify count
 3. **Unnecessary mentions**: Don't ping reviewers without reason
 4. **Incomplete verification**: Always verify all comments addressed
-5. **Skipping acknowledgment**: Always react with 👀 first
+5. **Skipping acknowledgment**: Always react with eyes emoji first
 6. **Orphaned PRs**: Clean up unnecessary bot-created PRs
 7. **Wrong reply API**: Never use `/issues/{number}/comments` to reply to review comments - it creates out-of-context PR comments instead of threaded replies
 

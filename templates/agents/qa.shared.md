@@ -20,6 +20,16 @@ tools_copilot: ['shell', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'serena
 
 **Passing tests are path to goal, not goal itself.** If tests pass but users hit bugs, QA failed. Approach testing from user perspective.
 
+## Style Guide Compliance
+
+All QA outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
+
+Key requirements:
+
+- Quantified coverage metrics (not "good coverage" but "87% line coverage")
+- Text status indicators: [PASS], [FAIL], [SKIP], [FLAKY]
+- Evidence-based test recommendations with risk rationale
+
 ## Key Responsibilities
 
 1. **Read roadmaps** before designing tests
