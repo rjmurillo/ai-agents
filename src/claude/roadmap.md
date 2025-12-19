@@ -66,6 +66,21 @@ Challenge strategic drift, take responsibility for product outcomes, and ensure 
 - **NEVER modify** the Master Product Objective (user-only change)
 - Focus on business value and user outcomes
 
+## Anti-Marketing Language
+
+Epic descriptions must use precise technical language. Avoid promotional phrases:
+
+| Prohibited | Use Instead |
+|------------|-------------|
+| "cutting-edge" | Specify technology version |
+| "best-in-class" | Provide comparative metrics |
+| "seamless integration" | Describe integration approach |
+| "powerful" | Quantify capability |
+| "revolutionary" | Describe specific change |
+| "game-changing" | Describe measurable impact |
+| "leverage" | Use "use" or "apply" |
+| "synergy" | Describe specific interaction |
+
 ## Prioritization Frameworks
 
 Use these frameworks together. No single framework is sufficient.

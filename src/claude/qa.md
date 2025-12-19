@@ -58,6 +58,22 @@ You have direct access to:
 8. **Validate** coverage comprehensively
 9. **Conduct** impact analysis when requested by planner during planning phase
 
+## Code Quality Gates
+
+During test strategy review, verify implementation meets quality standards:
+
+### Quality Gate Checklist
+
+```markdown
+- [ ] No methods exceed 60 lines
+- [ ] Cyclomatic complexity <= 10 per method
+- [ ] Nesting depth <= 3 levels
+- [ ] All public methods have corresponding tests
+- [ ] No suppressed warnings without documented justification
+```
+
+Report violations in test strategy document with specific file:line references.
+
 ## Test Quality Standards
 
 - **Isolation**: Tests don't depend on each other

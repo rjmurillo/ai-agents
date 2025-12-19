@@ -227,6 +227,22 @@ Before orchestrating, determine if orchestration is even needed:
 
 > **Weinberg's Law of the Hammer**: "The child who receives a hammer for Christmas will discover that everything needs pounding." Not every task needs every agent. The cheapest orchestration is the one that doesn't happen.
 
+### OODA Phase Classification
+
+When classifying tasks, identify the current OODA phase to guide agent selection:
+
+| OODA Phase | Description | Primary Agents |
+|------------|-------------|----------------|
+| **Observe** | Gather information, investigate | analyst, memory |
+| **Orient** | Analyze context, evaluate options | architect, roadmap, independent-thinker |
+| **Decide** | Choose approach, validate plan | high-level-advisor, critic, planner |
+| **Act** | Execute implementation | implementer, devops, qa |
+
+Include phase in task classification output:
+
+- "OODA Phase: Observe - routing to analyst for investigation"
+- "OODA Phase: Act - routing to implementer for execution"
+
 ### Clarification Gate (Before Routing)
 
 Before routing any task to an agent, assess whether clarification is needed. Ask questions rather than making assumptions.

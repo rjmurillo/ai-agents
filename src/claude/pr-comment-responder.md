@@ -28,6 +28,7 @@ Key requirements:
 - Short sentences (15-20 words), Grade 9 reading level
 
 **Agent-Specific Requirements**:
+
 - Direct, actionable responses
 - No sycophantic acknowledgments
 - Evidence-based explanations
