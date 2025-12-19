@@ -1,6 +1,6 @@
 # Plan Critique: PR #60 Remediation Plan (FINAL VALIDATION)
 
-> **Artifact**: `.agents/planning/PR-60/002-pr-60-remediation-plan.md`
+> **Artifact**: [`.agents/planning/PR-60/002-pr-60-remediation-plan.md`](../planning/PR-60/002-pr-60-remediation-plan.md)
 > **Critic**: critic agent (via orchestrator)
 > **Review Date**: 2025-12-18 (Final Re-Validation)
 > **Revision**: 2 (After 3 critical blocker fixes)
@@ -21,7 +21,7 @@ This is the **FINAL RE-VALIDATION** after orchestrator resolved all 3 critical b
 
 1. ✅ **Blocker 1 - Regex Pattern FIXED** (Line 82)
 2. ✅ **Blocker 2 - Effort Estimate FIXED** (Line 556)
-3. ✅ **Blocker 3 - Test File CREATED** (`.github/workflows/tests/ai-issue-triage.Tests.ps1`)
+3. ✅ **Blocker 3 - Test File CREATED** ([`.github/workflows/tests/ai-issue-triage.Tests.ps1`](../../.github/workflows/tests/ai-issue-triage.Tests.ps1))
 
 All specialist conditions (C1-C4, A1-A3, S1-S4, Q1-Q3) are properly integrated and verifiable in the plan.
 
