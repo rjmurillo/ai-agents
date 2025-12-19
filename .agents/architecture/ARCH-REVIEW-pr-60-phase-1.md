@@ -4,6 +4,7 @@
 **Date**: 2025-12-18
 **Status**: APPROVED WITH CONDITIONS
 **Subject**: Validation of Phase 1 architectural decisions
+**Related**: [PR #60 Remediation Plan](../planning/PR-60/002-pr-60-remediation-plan.md)
 
 ---
 
@@ -277,9 +278,11 @@ The extraction pattern scales well:
 
 ### Condition A1: Clarify Module Location (BLOCKING)
 
-The plan must explicitly state that `Get-LabelsFromAIOutput` and `Get-MilestoneFromAIOutput` go in `.github/scripts/AIReviewCommon.psm1` (existing module), NOT `.claude/skills/github/modules/AIReviewCommon.psm1` (new location mentioned in Task 1.1).
+The plan must clarify whether `Get-LabelsFromAIOutput` and `Get-MilestoneFromAIOutput` should go in [`.github/scripts/AIReviewCommon.psm1`](../../.github/scripts/AIReviewCommon.psm1) (existing workflow-specific module) or [`.claude/skills/github/`](../../.claude/skills/github/) (reusable Claude skills).
 
-**Why blocking**: Creating a new module would duplicate functionality and violate DRY.
+**Preference**: Push functionality into Claude skills where possible. If there's existing functionality in [`.claude/skills/github/`](../../.claude/skills/github/), use that. Where it's missing, add it there. We should avoid having two near-identical or identical copies of the same code.
+
+**Why blocking**: Need to determine the right location to avoid code duplication and ensure reusability across different contexts.
 
 ### Condition A2: Use Robust Context Detection (BLOCKING)
 
@@ -301,8 +304,8 @@ Update the plan to either:
 
 | Criterion | Status | Notes |
 |-----------|--------|-------|
-| Aligns with ADR-005 (PowerShell-only) | PASS | Explicit PowerShell conversion |
-| Aligns with ADR-006 (Thin workflows) | PASS | Extraction to testable module |
+| Aligns with [ADR-005](./ADR-005-powershell-only-scripting.md) (PowerShell-only) | PASS | Explicit PowerShell conversion |
+| Aligns with [ADR-006](./ADR-006-thin-workflows-testable-modules.md) (Thin workflows) | PASS | Extraction to testable module |
 | No circular dependencies | PASS | Modules are independent |
 | Single responsibility | PASS | Functions do one thing |
 | Backward compatible | PASS* | *Intentional breaking change improves design |

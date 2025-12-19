@@ -164,14 +164,14 @@ If a task genuinely cannot be done in PowerShell:
 
 1. **Existing bash in GitHub Actions**: GitHub Actions workflow syntax uses bash-like shell commands
    - **Clarification**: This ADR applies to **script files**, not YAML `run:` blocks
-   - Workflow `run:` blocks should be kept minimal (see ADR-006: Thin Workflows)
+   - Workflow `run:` blocks should be kept minimal (see [ADR-006: Thin Workflows](./ADR-006-thin-workflows-testable-modules.md))
    - Complex logic should be extracted to PowerShell modules
 
 ---
 
 ## Related Decisions
 
-- **ADR-006**: Thin Workflows, Testable Modules (companion to this ADR)
+- [ADR-006: Thin Workflows, Testable Modules](./ADR-006-thin-workflows-testable-modules.md) (companion to this ADR)
 - **Pattern**: Thin workflows (use `mcp__serena__read_memory` with `memory_file_name="pattern-thin-workflows"`)
 - **User Preference**: No bash/Python (use `mcp__serena__read_memory` with `memory_file_name="user-preference-no-bash-python"`)
 
@@ -179,11 +179,11 @@ If a task genuinely cannot be done in PowerShell:
 
 ## References
 
-- PR #60: 829 lines of bash code generated and then deleted
-- `.github/scripts/`: 100% PowerShell modules with Pester tests
-- `scripts/`: 100% PowerShell install scripts with Pester tests
-- `.claude/skills/github/`: 100% PowerShell skills with tests
-- Session log: `.agents/sessions/2025-12-18-session-15-pr-60-response.md`
+- [PR #60](https://github.com/rjmurillo/ai-agents/pull/60): 829 lines of bash code generated and then deleted
+- [`.github/scripts/`](../../.github/scripts/): 100% PowerShell modules with Pester tests
+- [`scripts/`](../../scripts/): 100% PowerShell install scripts with Pester tests
+- [`.claude/skills/github/`](../../.claude/skills/github/): 100% PowerShell skills with tests
+- [Session log](../sessions/2025-12-18-session-15-pr-60-response.md): `.agents/sessions/2025-12-18-session-15-pr-60-response.md`
 
 ---
 

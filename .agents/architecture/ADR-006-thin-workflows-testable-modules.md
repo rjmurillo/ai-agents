@@ -3,8 +3,8 @@
 **Status**: Accepted
 **Date**: 2025-12-18
 **Deciders**: User, High-Level-Advisor Agent
-**Context**: PR #60 AI workflow implementation
-**Related**: ADR-005 (PowerShell-Only Scripting)
+**Context**: [PR #60](https://github.com/rjmurillo/ai-agents/pull/60) AI workflow implementation
+**Related**: [ADR-005](./ADR-005-powershell-only-scripting.md) (PowerShell-Only Scripting), [PR #60 Remediation Plan](../planning/PR-60/002-pr-60-remediation-plan.md)
 
 ---
 
@@ -101,7 +101,7 @@ Pester Tests (.Tests.ps1) - Fast local feedback
 
 2. **Testability**: Business logic (verdict parsing, label extraction, formatting) requires tests. Pester tests caught 6+ bugs before CI.
 
-3. **DRY**: 4 workflows share comment posting logic. Single module (`AIReviewCommon.psm1`) serves all 4.
+3. **DRY**: 4 workflows share comment posting logic. Single module ([`AIReviewCommon.psm1`](../../.github/scripts/AIReviewCommon.psm1)) serves all 4.
 
 4. **Speed**: Local Pester runs in ~2 seconds. CI runs in ~3 minutes. 90x faster feedback loop.
 
@@ -221,18 +221,18 @@ Before merging workflow changes:
 
 ## Related Decisions
 
-- **ADR-005**: PowerShell-Only Scripting (all modules must be PowerShell)
+- [ADR-005: PowerShell-Only Scripting](./ADR-005-powershell-only-scripting.md) (all modules must be PowerShell)
 - **Pattern**: `pattern-thin-workflows` memory (use `mcp__serena__read_memory` with `memory_file_name="pattern-thin-workflows"`) - detailed pattern documentation
-- **Skill**: `.claude/skills/github/` (reusable GitHub operations)
+- **Skill**: [`.claude/skills/github/`](../../.claude/skills/github/) (reusable GitHub operations)
 
 ---
 
 ## References
 
-- PR #60: Workflows refactored from bash-in-YAML to PowerShell modules
-- `.github/scripts/AIReviewCommon.psm1`: 708 lines, 93 Pester tests
-- `.github/scripts/AIReviewCommon.Tests.ps1`: Comprehensive test suite
-- Session log: `.agents/sessions/2025-12-18-session-15-pr-60-response.md`
+- [PR #60](https://github.com/rjmurillo/ai-agents/pull/60): Workflows refactored from bash-in-YAML to PowerShell modules
+- [`.github/scripts/AIReviewCommon.psm1`](../../.github/scripts/AIReviewCommon.psm1): 708 lines, 93 Pester tests
+- [`.github/scripts/AIReviewCommon.Tests.ps1`](../../.github/scripts/AIReviewCommon.Tests.ps1): Comprehensive test suite
+- [Session log](../sessions/2025-12-18-session-15-pr-60-response.md): `.agents/sessions/2025-12-18-session-15-pr-60-response.md`
 
 ---
 

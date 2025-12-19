@@ -139,14 +139,6 @@ None currently documented. Add here if legacy code violates constraints but is a
 
 ---
 
-## Document History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2025-12-18 | Initial version per Analysis 002 recommendation |
-
----
-
 ## Related Documents
 
 - [SESSION-PROTOCOL.md](../SESSION-PROTOCOL.md) - Session start/end requirements
