@@ -28,6 +28,44 @@ The existing agent system consists of 18 specialized agents, each with defined r
 
 ---
 
+## Implementation Checklist
+
+Total Items: 20
+
+### Section 1: Personality Profile Integration
+
+- [x] OODA-001: Add OODA phase indicator to orchestrator (Section 1.1)
+- [x] AGENCY-001: Add reversibility assessment to critic (Section 1.2)
+- [x] AGENCY-002: Add vendor lock-in section to architect ADR template (Section 1.2)
+- [x] AGENCY-003: Add exit strategy to planner milestones (Section 1.2)
+- [x] AGENCY-004: Add dependency risk scoring to security (Section 1.2)
+
+### Section 2: Communication Rules
+
+- [x] COMM-001: Add audience mode to explainer (Section 2.1)
+- [x] COMM-003: Add clarification gate to orchestrator (Section 2.3)
+- [x] STYLE-001: Add anti-sycophancy directive - global (Section 2.4)
+- [x] COMM-005: Add verdict/conclusion to analyst (Section 2.5)
+- [x] COMM-006: Add first principles checklist to planner (Section 2.6)
+- [x] STYLE-002: Active voice requirement - global (Section 2.7)
+- [x] COMM-008: Mandate mermaid diagrams for ADRs (Section 2.8)
+- [x] COMM-009: Add user impact statement (Section 2.9)
+
+### Section 3: Formatting Constraints
+
+- [x] FORMAT-001: Anti-marketing language directive - explainer, roadmap (Section 3.1)
+- [x] FORMAT-002: Emoji-to-text replacement (Section 3.1)
+- [x] FORMAT-003: Evidence-based language - analyst, qa (Section 3.2)
+
+### Section 4-5: Structure and Technical
+
+- [x] STRUCT-001: Apply 9-section structure to analyst (Section 4)
+- [x] TECH-001: PowerShell preference for devops (Section 5.1)
+- [x] TECH-002: Add 12-factor principles to devops (Section 5.2)
+- [x] TECH-003: Code quality gates verification in qa (Section 5.3)
+
+---
+
 ## Section 1: Personality Profile Integration
 
 ### 1.1 OODA Loop (Observe, Orient, Decide, Act)
@@ -563,10 +601,10 @@ During test strategy review, verify:
 
 | Change | Priority | Effort |
 |--------|----------|--------|
-| Add OODA phase indicator to task classification | Medium | Low |
-| Add clarification gate before routing | High | Medium |
-| Replace emoji status indicators with text | Low | Low |
-| Add anti-sycophancy directive | Medium | Low |
+| Add OODA phase indicator to task classification (see Section 1.1) | Medium | Low |
+| Add clarification gate before routing (see Section 2.3) | High | Medium |
+| Replace emoji status indicators with text (see Section 3.1) | Low | Low |
+| Add anti-sycophancy directive (see Section 2.4) | Medium | Low |
 
 ### implementer.md
 
@@ -579,63 +617,63 @@ During test strategy review, verify:
 
 | Change | Priority | Effort |
 |--------|----------|--------|
-| Apply full document structure (Section 4) | High | Medium |
-| Add explicit verdict/conclusion requirement | High | Low |
-| Add PowerShell preference for examples | Low | Low |
-| Add evidence-based language requirement | Medium | Low |
+| Apply full document structure (see Section 4) | High | Medium |
+| Add explicit verdict/conclusion requirement (see Section 2.5) | High | Low |
+| Add PowerShell preference for examples (see Section 5.1) | Low | Low |
+| Add evidence-based language requirement (see Section 3.2) | Medium | Low |
 
 ### architect.md
 
 | Change | Priority | Effort |
 |--------|----------|--------|
-| Add reversibility assessment to review | High | Low |
-| Add vendor lock-in section to ADR template | High | Medium |
-| Mandate mermaid diagrams in ADRs | Medium | Low |
+| Add reversibility assessment to review (see Section 1.2) | High | Low |
+| Add vendor lock-in section to ADR template (see Section 1.2) | High | Medium |
+| Mandate mermaid diagrams in ADRs (see Section 2.8) | Medium | Low |
 
 ### planner.md
 
 | Change | Priority | Effort |
 |--------|----------|--------|
-| Add first principles checklist | Medium | Low |
-| Add exit strategy field to milestones | Medium | Low |
-| Add mermaid dependency diagrams for complex plans | Low | Low |
+| Add first principles checklist (see Section 2.6) | Medium | Low |
+| Add exit strategy field to milestones (see Section 1.2) | Medium | Low |
+| Add mermaid dependency diagrams for complex plans (see Section 2.8) | Low | Low |
 
 ### critic.md
 
 | Change | Priority | Effort |
 |--------|----------|--------|
-| Add reversibility assessment checklist | High | Low |
-| Add anti-sycophancy directive | Medium | Low |
+| Add reversibility assessment checklist (see Section 1.2) | High | Low |
+| Add anti-sycophancy directive (see Section 2.4) | Medium | Low |
 
 ### qa.md
 
 | Change | Priority | Effort |
 |--------|----------|--------|
-| Replace emoji indicators with text | Low | Low |
-| Add code quality gates verification | Medium | Low |
-| Add evidence-based language requirement | Low | Low |
+| Replace emoji indicators with text (see Section 3.1) | Low | Low |
+| Add code quality gates verification (see Section 5.3) | Medium | Low |
+| Add evidence-based language requirement (see Section 3.2) | Low | Low |
 
 ### security.md
 
 | Change | Priority | Effort |
 |--------|----------|--------|
-| Add dependency risk scoring | Medium | Medium |
+| Add vendor dependency risk scoring (see Section 1.2) | Medium | Medium |
 | Already has blast radius analysis | N/A | None |
 
 ### devops.md
 
 | Change | Priority | Effort |
 |--------|----------|--------|
-| Add PowerShell-first examples | Medium | Medium |
-| Add 12-factor principles reference | Medium | Low |
-| Add pipeline flow diagrams requirement | Low | Low |
+| Add PowerShell-first examples (see Section 5.1) | Medium | Medium |
+| Add 12-factor principles reference (see Section 5.2) | Medium | Low |
+| Add pipeline flow diagrams requirement (see Section 2.8) | Low | Low |
 
 ### explainer.md
 
 | Change | Priority | Effort |
 |--------|----------|--------|
-| Add audience mode parameter (expert/junior) | High | Medium |
-| Add anti-marketing language directive | Medium | Low |
+| Add audience mode parameter (expert/junior) (see Section 2.1) | High | Medium |
+| Add anti-marketing language directive (see Section 3.1) | Medium | Low |
 
 ### high-level-advisor.md
 
@@ -661,7 +699,7 @@ During test strategy review, verify:
 | Change | Priority | Effort |
 |--------|----------|--------|
 | Already implements all prioritization frameworks | N/A | None |
-| Add anti-marketing language for epic descriptions | Low | Low |
+| Add anti-marketing language for epic descriptions (see Section 3.1) | Medium | Low |
 
 ### skillbook.md
 
@@ -686,7 +724,7 @@ During test strategy review, verify:
 | Change | Priority | Effort |
 |--------|----------|--------|
 | Already uses PowerShell scripts | N/A | None |
-| Replace emoji acknowledgments with text | Low | Low |
+| Replace emoji acknowledgments with text (see Section 3.1) | Low | Low |
 
 ---
 
