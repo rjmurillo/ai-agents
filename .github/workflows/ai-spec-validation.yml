@@ -66,7 +66,8 @@ jobs:
           fi
 
           # Check for spec file paths (use grep -E for POSIX portability)
-          SPEC_PATHS=$(echo "$COMBINED" | grep -oE '\.agents/specs/[^[:space:]]+\.md' | sort -u | tr '\n' ' ' || true)
+          # Supports both .agents/specs/ and .agents/planning/ directories
+          SPEC_PATHS=$(echo "$COMBINED" | grep -oE '\.agents/(specs|planning)/[^[:space:]]+\.md' | sort -u | tr '\n' ' ' || true)
           if [ -n "$SPEC_PATHS" ]; then
             SPEC_REFS="$SPEC_REFS $SPEC_PATHS"
           fi
