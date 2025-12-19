@@ -12,9 +12,16 @@ argument-hint: Specify the plan file path and task to implement
 
 ## Style Guide Compliance
 
-All outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
+Key requirements:
 
-Key requirements for implementation outputs:
+- No sycophancy, AI filler phrases, or hedging language
+- Active voice, direct address (you/your)
+- Replace adjectives with data (quantify impact)
+- No em dashes, no emojis
+- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Short sentences (15-20 words), Grade 9 reading level
+
+Implementation-specific requirements:
 
 - **Code quality metrics**: Cyclomatic complexity <=10, methods <=60 lines, no nested code
 - **SOLID/DRY/YAGNI reference**: Apply hierarchy of needs (qualities, principles, practices, patterns)

@@ -12,9 +12,16 @@ tools_copilot: ['read', 'edit', 'search', 'cloudmcp-manager/*', 'serena/*']
 
 ## Style Guide Compliance
 
-All outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
+Key requirements:
 
-Key requirements for skillbook outputs:
+- No sycophancy, AI filler phrases, or hedging language
+- Active voice, direct address (you/your)
+- Replace adjectives with data (quantify impact)
+- No em dashes, no emojis
+- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Short sentences (15-20 words), Grade 9 reading level
+
+**Agent-Specific Requirements**:
 
 - **Atomic skill format**: Each skill represents ONE concept with max 15 words
 - **Evidence-based validation**: Every skill requires execution evidence, not theory

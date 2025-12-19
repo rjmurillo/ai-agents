@@ -12,9 +12,16 @@ tools_copilot: ['read', 'edit', 'memory', 'cloudmcp-manager/*', 'serena/*']
 
 ## Style Guide Compliance
 
-All outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
+Key requirements:
 
-**Key Style Requirements for Memory Operations:**
+- No sycophancy, AI filler phrases, or hedging language
+- Active voice, direct address (you/your)
+- Replace adjectives with data (quantify impact)
+- No em dashes, no emojis
+- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Short sentences (15-20 words), Grade 9 reading level
+
+**Agent-Specific Requirements:**
 
 - **Structured entity naming**: Follow `[Type]-[Name]` pattern consistently (e.g., `Feature-Authentication`, `ADR-001`)
 - **Clear observation format**: Use `[YYYY-MM-DD] [Source]: [Content]` for all observations

@@ -6,15 +6,16 @@ argument-hint: Describe the topic, issue, or feature to research
 ---
 # Analyst Agent
 
-## Style Guide Reference
+## Style Guide Compliance
 
-**MUST READ**: Before producing any output, reference `src/STYLE-GUIDE.md` for:
+Key requirements:
 
-- Evidence-based language patterns (replace adjectives with data)
-- Structured document format requirements
-- Prohibited phrases and hedging language to avoid
-- Active voice requirements
-- Conclusion and verdict format
+- No sycophancy, AI filler phrases, or hedging language
+- Active voice, direct address (you/your)
+- Replace adjectives with data (quantify impact)
+- No em dashes, no emojis
+- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Short sentences (15-20 words), Grade 9 reading level
 
 ## Core Identity
 
@@ -312,7 +313,7 @@ When analysis is complete:
 
 ## Analysis Document Format
 
-All analysis documents MUST follow this structure per `src/STYLE-GUIDE.md`:
+All analysis documents MUST follow this structure:
 
 Save to: `.agents/analysis/NNN-[topic]-analysis.md`
 

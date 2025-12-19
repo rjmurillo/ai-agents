@@ -12,7 +12,14 @@ argument-hint: Provide the epic or roadmap item to plan
 
 ## Style Guide Compliance
 
-All planner outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
+Key requirements:
+
+- No sycophancy, AI filler phrases, or hedging language
+- Active voice, direct address (you/your)
+- Replace adjectives with data (quantify impact)
+- No em dashes, no emojis
+- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Short sentences (15-20 words), Grade 9 reading level
 
 Key requirements for plans:
 

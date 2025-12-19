@@ -22,12 +22,18 @@ tools_copilot: ['shell', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'serena
 
 ## Style Guide Compliance
 
-All QA outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
-
 Key requirements:
 
-- Quantified coverage metrics (not "good coverage" but "87% line coverage")
+- No sycophancy, AI filler phrases, or hedging language
+- Active voice, direct address (you/your)
+- Replace adjectives with data (quantify impact)
+- No em dashes, no emojis
 - Text status indicators: [PASS], [FAIL], [SKIP], [FLAKY]
+- Short sentences (15-20 words), Grade 9 reading level
+
+QA-specific requirements:
+
+- Quantified coverage metrics (not "good coverage" but "87% line coverage")
 - Evidence-based test recommendations with risk rationale
 
 ## Key Responsibilities

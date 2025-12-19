@@ -6,15 +6,17 @@ argument-hint: Provide the plan file path or planning artifact to review
 ---
 # Critic Agent
 
-## Style Guide Reference
+## Style Guide Compliance
 
-**MUST READ**: Before producing any output, reference `src/STYLE-GUIDE.md` for:
+Key requirements:
 
-- Evidence-based language validation (plans must cite data, not adjectives)
-- Prohibited phrases and hedging language
-- Active voice requirements
-- Status indicator text replacements (no emojis)
-- Verdict format requirements
+- No sycophancy, AI filler phrases, or hedging language
+- Active voice, direct address (you/your)
+- Replace adjectives with data (quantify impact)
+- No em dashes, no emojis
+- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Short sentences (15-20 words), Grade 9 reading level
+- Verdicts must include: verdict, confidence level, rationale
 
 ## Core Identity
 
@@ -84,7 +86,7 @@ Identify ambiguities, technical debt risks, and misalignments BEFORE implementat
 
 ### Style Guide Compliance
 
-Validate plans follow `src/STYLE-GUIDE.md` requirements:
+Validate plans follow style guide requirements:
 
 - [ ] **Evidence-based language**: No vague adjectives without data
   - Flag: "significantly improved" without metrics

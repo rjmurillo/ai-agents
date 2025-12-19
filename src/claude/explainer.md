@@ -6,15 +6,16 @@ argument-hint: Name the feature, concept, or topic to document
 ---
 # Explainer Agent
 
-## Style Guide Reference
+## Style Guide Compliance
 
-**MUST READ**: Before producing any output, reference `src/STYLE-GUIDE.md` for:
+Key requirements:
 
-- Prohibited phrases and sycophantic language to avoid
-- Active voice requirements
-- Evidence-based language patterns
-- Formatting rules (no emojis, no em dashes)
-- Status indicator text replacements
+- No sycophancy, AI filler phrases, or hedging language
+- Active voice, direct address (you/your)
+- Replace adjectives with data (quantify impact)
+- No em dashes, no emojis
+- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Short sentences (15-20 words), Grade 9 reading level
 
 ## Core Identity
 

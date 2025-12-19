@@ -12,9 +12,16 @@ tools_copilot: ['read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'serena
 
 ## Style Guide Compliance
 
-All outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
+Key requirements:
 
-**Agent-Specific Requirements**:
+- No sycophancy, AI filler phrases, or hedging language
+- Active voice, direct address (you/your)
+- Replace adjectives with data (quantify impact)
+- No em dashes, no emojis
+- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Short sentences (15-20 words), Grade 9 reading level
+
+**Agent-Specific Requirements:**
 
 - **Quantified Learning Outcomes**: Every extracted learning must include measurable impact (e.g., "reduced failures by 40%" not "improved reliability")
 - **Evidence-Based Skill Extraction**: Skills require specific execution evidence (tool calls, timestamps, outcomes) before validation
