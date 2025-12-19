@@ -29,7 +29,7 @@
     .\Post-IssueComment.ps1 -Issue 123 -BodyFile triage.md -Marker "AI-TRIAGE"
 
 .NOTES
-    Exit Codes: 0=Success, 1=Invalid params, 2=File not found, 3=API error, 4=Not authenticated, 5=Marker exists
+    Exit Codes: 0=Success (including skip due to marker), 1=Invalid params, 2=File not found, 3=API error, 4=Not authenticated
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'BodyText')]
@@ -66,7 +66,7 @@ if ($Marker) {
         Write-Host "Comment with marker '$Marker' already exists. Skipping." -ForegroundColor Yellow
         $output = [PSCustomObject]@{ Success = $true; Issue = $Issue; Marker = $Marker; Skipped = $true }
         Write-Output $output
-        exit 5
+        exit 0  # Idempotent skip is a success
     }
 
     # Prepend marker if not in body
