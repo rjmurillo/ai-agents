@@ -9,7 +9,7 @@
         "serena",
         "start-mcp-server",
         "--project",
-        "ai-agents",
+        "${workspaceFolder:-.}",
         "--context",
         "claude-code",
         "--port",

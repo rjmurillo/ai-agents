@@ -695,26 +695,12 @@ Triage by priority and implement fixes.
 
 For simple, well-defined fixes that can be explained in one sentence.
 
-```
-User Request
-     │
-     ▼
-┌─────────────┐
-│ orchestrator│
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│ implementer │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│     qa      │
-└──────┬──────┘
-       │
-       ▼
-    Complete
+```mermaid
+flowchart TD
+    A[User Request] --> B[orchestrator]
+    B --> C[implementer]
+    C --> D[qa]
+    D --> E([Complete])
 ```
 
 **Agents**: `orchestrator → implementer → qa`
@@ -734,36 +720,14 @@ User Request
 
 For typical features requiring investigation and planning.
 
-```
-User Request
-     │
-     ▼
-┌─────────────┐
-│ orchestrator│
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   analyst   │──Investigate
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   planner   │──Create Plan
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│ implementer │──Execute
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│     qa      │──Validate
-└──────┬──────┘
-       │
-       ▼
-    Complete
+```mermaid
+flowchart TD
+    A[User Request] --> B[orchestrator]
+    B --> C[analyst]
+    C -->|Investigate| D[planner]
+    D -->|Create Plan| E[implementer]
+    E -->|Execute| F[qa]
+    F -->|Validate| G([Complete])
 ```
 
 **Agents**: `orchestrator → analyst → planner → implementer → qa`
@@ -794,28 +758,13 @@ User Request
 
 For decisions about WHETHER to do something (not HOW).
 
-```
-Decision Request
-       │
-       ▼
-┌─────────────┐
-│ orchestrator│
-└──────┬──────┘
-       │
-       ▼
-┌───────────────────┐
-│independent-thinker│──Challenge
-└────────┬──────────┘
-         │
-         ▼
-┌──────────────────┐
-│high-level-advisor│──Verdict
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────┐
-│task-generator│──Actions
-└──────────────┘
+```mermaid
+flowchart TD
+    A[Decision Request] --> B[orchestrator]
+    B --> C[independent-thinker]
+    C -->|Challenge| D[high-level-advisor]
+    D -->|Verdict| E[task-generator]
+    E -->|Actions| F([Complete])
 ```
 
 **Agents**: `orchestrator → independent-thinker → high-level-advisor → task-generator`
@@ -842,103 +791,49 @@ For exploring vague ideas and package requests.
 
 **Phase 1: Research & Discovery**
 
-```
-Vibe Prompt
-     │
-     ▼
-┌─────────────┐
-│ orchestrator│
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   analyst   │──Research (web search, docs, samples)
-└──────┬──────┘
-       │
-       └──→ `.agents/analysis/ideation-[topic].md`
+```mermaid
+flowchart TD
+    A[Vibe Prompt] --> B[orchestrator]
+    B --> C[analyst]
+    C -->|Research: web search, docs, samples| D[".agents/analysis/ideation-[topic].md"]
 ```
 
 **Phase 2: Validation & Consensus**
 
-```
-Research Output
-       │
-       ▼
-┌──────────────────┐
-│high-level-advisor│──Strategic fit?
-└────────┬─────────┘
-         │
-         ▼
-┌───────────────────┐
-│independent-thinker│──What could go wrong?
-└────────┬──────────┘
-         │
-         ▼
-┌─────────────┐
-│   critic    │──Analysis complete?
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   roadmap   │──Priority & wave?
-└──────┬──────┘
-       │
-       ├──→ Decision: Proceed / Defer / Reject
-       │
-       └──→ `.agents/analysis/ideation-[topic]-validation.md`
+```mermaid
+flowchart TD
+    A[Research Output] --> B[high-level-advisor]
+    B -->|Strategic fit?| C[independent-thinker]
+    C -->|What could go wrong?| D[critic]
+    D -->|Analysis complete?| E[roadmap]
+    E -->|Priority & wave?| F{Decision}
+    F --> G([Proceed])
+    F --> H([Defer])
+    F --> I([Reject])
+    E --> J[".agents/analysis/ideation-[topic]-validation.md"]
 ```
 
 **Phase 3: Epic & PRD Creation** (if Proceed)
 
-```
-Proceed Decision
-       │
-       ▼
-┌─────────────┐
-│   roadmap   │──Epic vision
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  explainer  │──PRD with requirements
-└──────┬──────┘
-       │
-       ▼
-┌──────────────┐
-│task-generator│──Work breakdown
-└──────┬───────┘
-       │
-       └──→ Ready for Phase 4: Plan Review
+```mermaid
+flowchart TD
+    A[Proceed Decision] --> B[roadmap]
+    B -->|Epic vision| C[explainer]
+    C -->|PRD with requirements| D[task-generator]
+    D -->|Work breakdown| E([Ready for Phase 4: Plan Review])
 ```
 
 **Phase 4: Plan Review** (all must approve)
 
-```
-Task Breakdown
-       │
-       ▼
-┌─────────────┐
-│  architect  │──Design review
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   devops    │──Infrastructure impact
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  security   │──Security review
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│     qa      │──Test strategy
-└──────┬──────┘
-       │
-       ├──→ All Approved?
-       │    └─ Yes → Implementation ready
-       │    └─ No → Back to planning
+```mermaid
+flowchart TD
+    A[Task Breakdown] --> B[architect]
+    B -->|Design review| C[devops]
+    C -->|Infrastructure impact| D[security]
+    D -->|Security review| E[qa]
+    E -->|Test strategy| F{All Approved?}
+    F -->|Yes| G([Implementation ready])
+    F -->|No| H([Back to planning])
 ```
 
 **Full Sequence**: `analyst → high-level-advisor → independent-thinker → critic → roadmap → explainer → task-generator → architect → devops → security → qa`
@@ -960,40 +855,23 @@ For multi-domain changes (3+ domains: code, architecture, security, ops, quality
 - Infrastructure changes (CI/CD, deployment)
 - High-risk changes (production-critical)
 
-```
-Multi-Domain Change
-       │
-       ▼
-┌─────────────┐
-│ orchestrator│
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   planner   │──Impact analysis plan
-└──────┬──────┘
-       │
-       └──→ Orchestrator invokes specialists (one at a time):
-              │
-              ├──→ implementer (code impact)
-              ├──→ architect (design impact)
-              ├──→ security (security impact)
-              ├──→ devops (operations impact)
-              └──→ qa (quality impact)
-                   │
-                   ▼
-              ┌─────────────┐
-              │ Orchestrator│──Aggregate findings
-              └──────┬──────┘
-                     │
-                     ▼
-              ┌─────────────┐
-              │   critic    │──Validate (handle conflicts)
-              └──────┬──────┘
-                     │
-                     ├──→ Disagreement? → high-level-advisor
-                     │
-                     └──→ Resolution → implementer
+```mermaid
+flowchart TD
+    A[Multi-Domain Change] --> B[orchestrator]
+    B --> C[planner]
+    C -->|Impact analysis plan| D{Orchestrator invokes specialists}
+    D --> E[implementer: code impact]
+    D --> F[architect: design impact]
+    D --> G[security: security impact]
+    D --> H[devops: operations impact]
+    D --> I[qa: quality impact]
+    E & F & G & H & I --> J[Orchestrator]
+    J -->|Aggregate findings| K[critic]
+    K -->|Validate| L{Disagreement?}
+    L -->|Yes| M[high-level-advisor]
+    M --> N[Resolution]
+    L -->|No| N
+    N --> O[implementer]
 ```
 
 **Note**: Orchestrator executes each consultation and aggregates (subagents cannot delegate to each other)
@@ -1010,18 +888,11 @@ Multi-Domain Change
 
 For capturing institutional knowledge.
 
-```
-Task Completion
-       │
-       ▼
-┌───────────────┐
-│ retrospective │──Analyze
-└───────┬───────┘
-        │
-        ▼
-┌───────────────┐
-│   skillbook   │──Persist
-└───────────────┘
+```mermaid
+flowchart TD
+    A[Task Completion] --> B[retrospective]
+    B -->|Analyze| C[skillbook]
+    C -->|Persist| D([Complete])
 ```
 
 **Agents**: `orchestrator → retrospective → skillbook`
@@ -1036,43 +907,16 @@ For structured requirements management with 3-tier traceability.
 
 **Note**: This workflow integrates with Standard Flow. Orchestrator coordinates all delegation. See `../../src/claude/orchestrator.md` for delegation patterns.
 
-```
-Feature Request
-       │
-       ▼
-┌─────────────┐
-│ orchestrator│
-└──────┬──────┘
-       │
-       ▼
-┌───────────────┐
-│spec-generator │──EARS Requirements (REQ-NNN)
-└───────┬───────┘
-        │
-        ▼
-┌───────────────┐
-│   architect   │──Design Documents (DESIGN-NNN)
-└───────┬───────┘
-        │
-        ▼
-┌──────────────┐
-│task-generator│──Atomic Tasks (TASK-NNN)
-└──────┬───────┘
-       │
-       ▼
-┌───────────────┐
-│    critic     │──Traceability Validation
-└───────┬───────┘
-        │
-        ▼
-┌───────────────┐
-│  implementer  │──Execute Tasks
-└───────┬───────┘
-        │
-        ▼
-┌───────────────┐
-│      qa       │──Validate
-└───────────────┘
+```mermaid
+flowchart TD
+    A[Feature Request] --> B[orchestrator]
+    B --> C[spec-generator]
+    C -->|EARS Requirements: REQ-NNN| D[architect]
+    D -->|Design Documents: DESIGN-NNN| E[task-generator]
+    E -->|Atomic Tasks: TASK-NNN| F[critic]
+    F -->|Traceability Validation| G[implementer]
+    G -->|Execute Tasks| H[qa]
+    H -->|Validate| I([Complete])
 ```
 
 **Agents**: `orchestrator → spec-generator → architect → task-generator → critic → implementer → qa`

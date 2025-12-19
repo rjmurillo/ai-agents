@@ -177,12 +177,12 @@ Classify task across dimensions:
 
 ## PR Comment Routing
 
-```text
-Is this about WHETHER to do something? (scope, priority)
-├─ YES → STRATEGIC: independent-thinker → high-level-advisor → task-generator
-└─ NO → Can you explain the fix in one sentence?
-    ├─ YES → QUICK FIX: implementer → qa
-    └─ NO → STANDARD: analyst → planner → implementer → qa
+```mermaid
+flowchart TB
+    A{Is this about WHETHER<br/>to do something?<br/>scope, priority} -->|YES| B[STRATEGIC:<br/>independent-thinker →<br/>high-level-advisor →<br/>task-generator]
+    A -->|NO| C{Can you explain the<br/>fix in one sentence?}
+    C -->|YES| D[QUICK FIX:<br/>implementer → qa]
+    C -->|NO| E[STANDARD:<br/>analyst → planner →<br/>implementer → qa]
 ```
 
 ## Impact Analysis

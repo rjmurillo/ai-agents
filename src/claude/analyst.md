@@ -23,6 +23,7 @@ You have direct access to:
 - **Read/Grep/Glob**: Deep code analysis (read-only)
 - **WebSearch/WebFetch**: Research best practices, API docs, usage patterns
 - **Bash**: Git commands, GitHub CLI (`gh issue`, `gh api`)
+- **github skill**: `.claude/skills/github/` - unified GitHub operations
 - **mcp__cognitionai-deepwiki__***: Repository documentation lookup
 - **mcp__context7__***: Library documentation lookup
 - **cloudmcp-manager memory tools**: Historical investigation context
@@ -66,13 +67,15 @@ mcp__context7__get-library-docs with context7CompatibleLibraryID="/lib/id"
 
 ### GitHub Integration
 
+```powershell
+# View issue details (using github skill - PREFERRED for detailed context)
+pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue [number]
+```
+
 ```bash
-# Search for related issues
+# Search for related issues (gh CLI for searches)
 gh issue list --search "[keywords]"
 gh issue list --label "bug" --state open
-
-# View issue details
-gh issue view [number]
 
 # Search discussions
 gh api repos/{owner}/{repo}/discussions
@@ -80,6 +83,8 @@ gh api repos/{owner}/{repo}/discussions
 # Find related PRs
 gh pr list --search "[keywords]"
 ```
+
+See `.claude/skills/github/SKILL.md` for full documentation on available scripts.
 
 ### Git History
 

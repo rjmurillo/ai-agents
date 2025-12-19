@@ -78,6 +78,9 @@ function Get-InstallConfig {
         CommandsDir      = $ScopeConfig.CommandsDir
         CommandFiles     = $ScopeConfig.CommandFiles
         PromptFiles      = $ScopeConfig.PromptFiles
+        SkillsSourceDir  = $EnvConfig.SkillsSourceDir
+        Skills           = $EnvConfig.Skills
+        SkillsDir        = $ScopeConfig.SkillsDir
         BeginMarker      = $Config._Common.BeginMarker
         EndMarker        = $Config._Common.EndMarker
         AgentsDirs       = $Config._Common.AgentsDirs
@@ -531,6 +534,97 @@ function Install-PromptFiles {
     return $Stats
 }
 
+function Install-SkillFiles {
+    <#
+    .SYNOPSIS
+        Installs Claude skill directories (PowerShell modules and scripts).
+
+    .DESCRIPTION
+        Recursively copies skill directories containing modules, scripts, and tests.
+        Skills are standalone tools (e.g., GitHub API helpers) that agents can invoke.
+
+    .PARAMETER SourceDir
+        Root directory containing skill source folders.
+
+    .PARAMETER SkillsDir
+        Destination directory for skills.
+
+    .PARAMETER Skills
+        Array of skill directory names to install.
+
+    .PARAMETER Force
+        Skip overwrite prompting.
+
+    .OUTPUTS
+        [hashtable] Statistics: Installed, Updated, Skipped counts.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$SourceDir,
+
+        [Parameter(Mandatory)]
+        [string]$SkillsDir,
+
+        [Parameter(Mandatory)]
+        [string[]]$Skills,
+
+        [switch]$Force
+    )
+
+    $Stats = @{
+        Installed = 0
+        Updated   = 0
+        Skipped   = 0
+    }
+
+    # Create skills directory if it doesn't exist
+    if (-not (Test-Path $SkillsDir)) {
+        Write-Host "Creating skills directory..." -ForegroundColor Yellow
+        New-Item -ItemType Directory -Path $SkillsDir -Force | Out-Null
+    }
+
+    foreach ($SkillName in $Skills) {
+        $SkillSourcePath = Join-Path $SourceDir $SkillName
+        $SkillDestPath = Join-Path $SkillsDir $SkillName
+
+        if (-not (Test-Path $SkillSourcePath -PathType Container)) {
+            Write-Warning "  Skill directory not found: $SkillName"
+            continue
+        }
+
+        $Exists = Test-Path $SkillDestPath
+
+        if ($Exists -and -not $Force) {
+            $Response = Read-Host "  Skill '$SkillName' exists. Overwrite? (y/N)"
+            if ($Response -ne 'y' -and $Response -ne 'Y') {
+                Write-Host "  Skipping skill: $SkillName" -ForegroundColor Yellow
+                $Stats.Skipped++
+                continue
+            }
+        }
+
+        # Remove existing skill directory if overwriting
+        if ($Exists) {
+            Remove-Item -Path $SkillDestPath -Recurse -Force
+        }
+
+        # Copy entire skill directory recursively
+        Copy-Item -Path $SkillSourcePath -Destination $SkillDestPath -Recurse -Force
+
+        $Status = if ($Exists) { "Updated" } else { "Installed" }
+        Write-Host "  $Status skill: $SkillName" -ForegroundColor Green
+
+        # Count files in the skill
+        $FileCount = (Get-ChildItem -Path $SkillDestPath -Recurse -File).Count
+        Write-Host "    ($FileCount files)" -ForegroundColor Gray
+
+        $Stats[$Status]++
+    }
+
+    return $Stats
+}
+
 function Install-InstructionsFile {
     <#
     .SYNOPSIS
@@ -725,8 +819,8 @@ function Write-InstallComplete {
 
         switch ($Environment) {
             "Claude" {
-                Write-Host "  git add .claude CLAUDE.md .agents" -ForegroundColor Gray
-                Write-Host "  git commit -m 'feat(agents): add Claude agent system'" -ForegroundColor Gray
+                Write-Host "  git add .claude CLAUDE.md .agents .github/scripts" -ForegroundColor Gray
+                Write-Host "  git commit -m 'feat(agents): add Claude agent system with skills'" -ForegroundColor Gray
             }
             "Copilot" {
                 Write-Host "  git add .github/agents .agents" -ForegroundColor Gray
@@ -756,6 +850,7 @@ Export-ModuleMember -Function @(
     'Copy-AgentFile'
     'Install-CommandFiles'
     'Install-PromptFiles'
+    'Install-SkillFiles'
     'Install-InstructionsFile'
     'Write-InstallHeader'
     'Write-InstallComplete'

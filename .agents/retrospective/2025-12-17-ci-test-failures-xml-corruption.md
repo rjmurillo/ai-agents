@@ -883,12 +883,12 @@ Fixed 4 pre-existing test failures in CI run 20324607494:
 
 - **Fixed Files:**
   - `build/scripts/Validate-PathNormalization.ps1`
-  - `.claude/skills/github-pr-reply/scripts/Post-PRCommentReply.ps1`
+  - `.claude/skills/github/scripts/pr/Post-PRCommentReply.ps1`
   - `build/scripts/Invoke-PesterTests.ps1`
 
 - **Test Files:**
   - `build/scripts/tests/Validate-PathNormalization.Tests.ps1`
-  - `.claude/skills/github-pr-reply/scripts/Post-PRCommentReply.Tests.ps1`
+  - `.claude/skills/github/tests/Post-PRCommentReply.Tests.ps1`
 
 - **Commit:** 9572abf - "fix(tests): resolve pre-existing Pester test failures and XML corruption"
 

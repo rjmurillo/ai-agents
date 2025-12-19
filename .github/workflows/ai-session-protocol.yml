@@ -1,0 +1,332 @@
+name: Session Protocol Validation
+
+# AI-powered session log validation using GitHub Copilot CLI
+# Verifies session logs comply with RFC 2119 requirements in SESSION-PROTOCOL.md
+# Blocks merge if MUST requirements are not met
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.agents/sessions/*.md'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: session-protocol-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ secrets.BOT_PAT }}
+
+jobs:
+  # Identify changed session files and build matrix
+  detect-changes:
+    name: Detect Changed Sessions
+    runs-on: ubuntu-latest
+    if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+
+    outputs:
+      has_sessions: ${{ steps.changed.outputs.has_sessions }}
+      session_files: ${{ steps.changed.outputs.session_files }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Identify Changed Session Files
+        id: changed
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          CHANGED_FILES=$(gh pr diff "$PR_NUMBER" --name-only | grep -E '^\.agents/sessions/.*\.md$' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No session files changed"
+            echo "has_sessions=false" >> $GITHUB_OUTPUT
+            echo "session_files=[]" >> $GITHUB_OUTPUT
+          else
+            echo "Found changed session files:"
+            echo "$CHANGED_FILES"
+            echo "has_sessions=true" >> $GITHUB_OUTPUT
+
+            # Convert to JSON array for matrix
+            JSON_ARRAY=$(echo "$CHANGED_FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            echo "session_files=$JSON_ARRAY" >> $GITHUB_OUTPUT
+          fi
+
+  # Validate each session file in parallel using matrix strategy
+  validate:
+    name: Validate ${{ matrix.session_file }}
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_sessions == 'true'
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false # Don't cancel other validations if one fails
+      matrix:
+        session_file: ${{ fromJson(needs.detect-changes.outputs.session_files) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Load Protocol Context
+        id: protocol
+        run: |
+          PROTOCOL_FILE=".agents/SESSION-PROTOCOL.md"
+          if [ -f "$PROTOCOL_FILE" ]; then
+            PROTOCOL_CONTENT=$(cat "$PROTOCOL_FILE")
+          else
+            PROTOCOL_CONTENT="No protocol file found"
+          fi
+
+          # Save protocol context for the action
+          {
+            echo "protocol_context<<EOF_PROTOCOL"
+            echo "## Protocol Requirements"
+            echo ""
+            echo "$PROTOCOL_CONTENT"
+            echo "EOF_PROTOCOL"
+          } >> $GITHUB_OUTPUT
+
+      - name: 📋 Validate Session (QA Agent)
+        id: review
+        uses: ./.github/actions/ai-review
+        with:
+          agent: qa
+          context-type: session-log
+          context-path: ${{ matrix.session_file }}
+          additional-context: ${{ steps.protocol.outputs.protocol_context }}
+          prompt-file: .github/prompts/session-protocol-check.md
+          timeout-minutes: 2
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Save validation results
+        id: save-results
+        env:
+          SESSION_FILE: ${{ matrix.session_file }}
+          VERDICT: ${{ steps.review.outputs.verdict }}
+          FINDINGS: ${{ steps.review.outputs.findings }}
+        run: |
+          # Create output directory
+          mkdir -p validation-results
+
+          # Get safe filename
+          FILE_NAME=$(basename "$SESSION_FILE" .md)
+
+          # Write verdict and findings to files
+          echo "$VERDICT" > "validation-results/${FILE_NAME}-verdict.txt"
+          echo "$FINDINGS" > "validation-results/${FILE_NAME}-findings.txt"
+
+          # Check for MUST failures in findings
+          MUST_FAIL_COUNT=$(echo "$FINDINGS" | grep -c "MUST:.*FAIL" || echo "0")
+          echo "$MUST_FAIL_COUNT" > "validation-results/${FILE_NAME}-must-failures.txt"
+
+          echo "Saved validation results for $SESSION_FILE"
+          echo "  Verdict: $VERDICT"
+          echo "  MUST failures: $MUST_FAIL_COUNT"
+
+      - name: Upload validation results
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4
+        with:
+          name: validation-${{ hashFiles(matrix.session_file) }}
+          path: validation-results/
+          retention-days: 1
+
+  # Aggregate results and post comment
+  aggregate:
+    name: Aggregate Results
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate]
+    if: needs.detect-changes.outputs.has_sessions == 'true'
+
+    outputs:
+      final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Download all validation artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          pattern: validation-*
+          path: validation-results
+          merge-multiple: true
+
+      - name: Aggregate Verdicts
+        id: aggregate
+        shell: pwsh
+        run: |
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
+
+          $overallVerdict = "PASS"
+          $totalMustFailures = 0
+
+          # Process all verdict files
+          $verdictFiles = Get-ChildItem -Path "validation-results/*-verdict.txt" -ErrorAction SilentlyContinue
+          foreach ($verdictFile in $verdictFiles) {
+            $verdict = Get-Content $verdictFile.FullName -Raw
+            $verdict = $verdict.Trim()
+            Write-Log "Found verdict: $verdict from $($verdictFile.Name)"
+
+            if ($verdict -in 'CRITICAL_FAIL', 'REJECTED') {
+              $overallVerdict = "CRITICAL_FAIL"
+            } elseif ($verdict -eq 'WARN' -and $overallVerdict -eq 'PASS') {
+              $overallVerdict = "WARN"
+            }
+          }
+
+          # Count MUST failures
+          $mustFiles = Get-ChildItem -Path "validation-results/*-must-failures.txt" -ErrorAction SilentlyContinue
+          foreach ($mustFile in $mustFiles) {
+            $count = [int](Get-Content $mustFile.FullName -Raw -ErrorAction SilentlyContinue)
+            $totalMustFailures += $count
+          }
+
+          if ($totalMustFailures -gt 0) {
+            $overallVerdict = "CRITICAL_FAIL"
+          }
+
+          "final_verdict=$overallVerdict" >> $env:GITHUB_OUTPUT
+          "must_failures=$totalMustFailures" >> $env:GITHUB_OUTPUT
+
+          Write-Log "Final verdict: $overallVerdict (MUST failures: $totalMustFailures)"
+
+      - name: Generate Compliance Report
+        id: report
+        shell: pwsh
+        env:
+          OVERALL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
+          MUST_FAILURES: ${{ steps.aggregate.outputs.must_failures }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
+
+          $reportDir = Initialize-AIReview
+          $reportFile = Join-Path $reportDir "session-compliance-report.md"
+          $alertType = Get-VerdictAlertType -Verdict $env:OVERALL_VERDICT
+          $finalEmoji = Get-VerdictEmoji -Verdict $env:OVERALL_VERDICT
+
+          # Build verdict message
+          $verdictMsg = if ([int]$env:MUST_FAILURES -gt 0) {
+            "$($env:MUST_FAILURES) MUST requirement(s) not met. These must be addressed before merge."
+          } else {
+            "All session protocol requirements satisfied."
+          }
+
+          # Count files checked
+          $filesChecked = (Get-ChildItem -Path "validation-results/*-verdict.txt" -ErrorAction SilentlyContinue).Count
+
+          $report = @"
+          <!-- AI-SESSION-PROTOCOL -->
+
+          ## Session Protocol Compliance Report
+
+          > [!$alertType]
+          > $finalEmoji **Overall Verdict: $($env:OVERALL_VERDICT)**
+          >
+          > $verdictMsg
+
+          <details>
+          <summary>What is Session Protocol?</summary>
+
+          Session logs document agent work sessions and must comply with RFC 2119 requirements:
+
+          - **MUST**: Required for compliance (blocking failures)
+          - **SHOULD**: Recommended practices (warnings)
+          - **MAY**: Optional enhancements
+
+          See [`.agents/SESSION-PROTOCOL.md`](.agents/SESSION-PROTOCOL.md) for full specification.
+
+          </details>
+
+          ### Compliance Summary
+
+          | Session File | Verdict | MUST Failures |
+          |:-------------|:--------|:-------------:|
+          "@
+
+          # Add summary row for each session file
+          $verdictFiles = Get-ChildItem -Path "validation-results/*-verdict.txt" -ErrorAction SilentlyContinue
+          foreach ($verdictFile in $verdictFiles) {
+            $fileName = $verdictFile.BaseName -replace '-verdict$', ''
+            $verdict = (Get-Content $verdictFile.FullName -Raw).Trim()
+            $mustFile = "validation-results/$fileName-must-failures.txt"
+            $mustCount = if (Test-Path $mustFile) { (Get-Content $mustFile -Raw).Trim() } else { "0" }
+            $emoji = Get-VerdictEmoji -Verdict $verdict
+
+            $report += "`n| ``$fileName.md`` | $emoji $verdict | $mustCount |"
+          }
+
+          # Add detailed findings
+          $report += "`n`n### Detailed Results`n"
+
+          $findingsFiles = Get-ChildItem -Path "validation-results/*-findings.txt" -ErrorAction SilentlyContinue
+          foreach ($findingsFile in $findingsFiles) {
+            $fileName = $findingsFile.BaseName -replace '-findings$', ''
+            $findings = Get-Content $findingsFile.FullName -Raw
+            $report += "`n<details>`n<summary>$fileName</summary>`n`n$findings`n</details>`n"
+          }
+
+          # Add footer
+          $report += @"
+
+          ---
+
+          <details>
+          <summary>Run Details</summary>
+
+          | Property | Value |
+          |:---------|:------|
+          | **Run ID** | [$($env:RUN_ID)]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID)) |
+          | **Files Checked** | $filesChecked |
+
+          </details>
+
+          <sub>Powered by [AI Session Protocol Validator](https://github.com/$($env:GITHUB_REPOSITORY)) - [View Workflow]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID))</sub>
+          "@
+
+          $report | Set-Content $reportFile -Encoding UTF8
+          "report_file=$reportFile" >> $env:GITHUB_OUTPUT
+
+      - name: Post PR Comment
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
+        run: |
+          # Use GitHub skill script for idempotent comment posting
+          # PRs are issues in GitHub API, so we use Post-IssueComment with marker
+          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
+            -Issue $env:PR_NUMBER `
+            -BodyFile $env:REPORT_FILE `
+            -Marker "AI-SESSION-PROTOCOL"
+
+      - name: Set Job Summary
+        shell: pwsh
+        env:
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
+        run: |
+          Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Enforce MUST Requirements
+        shell: pwsh
+        env:
+          MUST_FAILURES: ${{ steps.aggregate.outputs.must_failures }}
+          FINAL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
+        run: |
+          if ($env:FINAL_VERDICT -eq 'CRITICAL_FAIL' -or [int]$env:MUST_FAILURES -gt 0) {
+            Write-Output "::error::Session protocol validation failed: $($env:MUST_FAILURES) MUST requirement(s) not met"
+            exit 1
+          }
+
+          Write-Output "Session protocol validation passed"

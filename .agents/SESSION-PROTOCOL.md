@@ -1,7 +1,7 @@
 # Session Protocol
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2025-12-17
+> **Last Updated**: 2025-12-18
 > **RFC 2119**: This document uses RFC 2119 key words to indicate requirement levels.
 
 This document is the **single canonical source** for session protocol requirements. All other documents (CLAUDE.md, AGENTS.md, AGENT-INSTRUCTIONS.md) MUST reference this document rather than duplicate its content.
@@ -86,6 +86,32 @@ The agent MUST read context documents before starting work. This is a **blocking
 
 **Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions.
 
+### Phase 1.5: Skill Validation (BLOCKING)
+
+The agent MUST validate skill availability before starting work. This is a **blocking gate**.
+
+**Requirements:**
+
+1. The agent MUST verify `.claude/skills/` directory exists
+2. The agent MUST list available GitHub skill scripts:
+
+   ```powershell
+   Get-ChildItem -Path ".claude/skills/github/scripts" -Recurse -Filter "*.ps1" | Select-Object -ExpandProperty Name
+   ```
+
+3. The agent MUST read the skill-usage-mandatory memory using `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`
+  - If the serena MCP is not available, then the agent MUST read `.serena/memories/skill-usage-mandatory.md`
+4. The agent MUST read `.agents/governance/PROJECT-CONSTRAINTS.md`
+5. The agent MUST document available skills in session log under "Skill Inventory"
+
+**Verification:**
+
+- Directory listing output appears in session transcript
+- Memory content loaded in context
+- Session log contains Skill Inventory section
+
+**Rationale:** Session 15 had 5+ skill violations despite documentation. Trust-based compliance fails; verification-based enforcement (like Serena init) has 100% compliance.
+
 ### Phase 3: Session Log Creation (REQUIRED)
 
 The agent MUST create a session log early in the session.
@@ -140,9 +166,18 @@ Copy this checklist to each session log and verify completion:
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [ ] | Tool output present |
 | MUST | Read `.agents/HANDOFF.md` | [ ] | Content in context |
 | MUST | Create this session log | [ ] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Output documented below |
+| MUST | Read skill-usage-mandatory memory | [ ] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
 | SHOULD | Search relevant Serena memories | [ ] | Memory results present |
 | SHOULD | Verify git status | [ ] | Output documented below |
 | SHOULD | Note starting commit | [ ] | SHA documented below |
+
+### Skill Inventory
+
+Available GitHub skills:
+
+- [List from directory scan]
 
 ### Git State
 
@@ -277,9 +312,18 @@ Create at: `.agents/sessions/YYYY-MM-DD-session-NN.md`
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [ ] | Tool output present |
 | MUST | Read `.agents/HANDOFF.md` | [ ] | Content in context |
 | MUST | Create this session log | [ ] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Output documented below |
+| MUST | Read skill-usage-mandatory memory | [ ] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
 | SHOULD | Search relevant Serena memories | [ ] | Memory results present |
 | SHOULD | Verify git status | [ ] | Output documented below |
 | SHOULD | Note starting commit | [ ] | SHA documented below |
+
+### Skill Inventory
+
+Available GitHub skills:
+
+- [List from directory scan]
 
 ### Git State
 
@@ -448,6 +492,7 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.2 | 2025-12-18 | Added Phase 1.5 skill validation BLOCKING gate |
 | 1.1 | 2025-12-17 | Added requirement to link session log in HANDOFF.md |
 | 1.0 | 2025-12-17 | Initial canonical protocol with RFC 2119 requirements |
 

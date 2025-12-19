@@ -185,9 +185,47 @@ Context "Pattern Tests" {
 
 ---
 
+## Skill-Test-Pester-005: Test-First Development (95%)
+
+**Statement**: Create Pester tests during implementation (not after) to validate correctness before commit, achieving 100% pass rates
+
+**Context**: During implementation phase for PowerShell scripts/modules
+
+**Evidence**: Session 21 created 13 tests alongside Check-SkillExists.ps1 → 100% pass rate on first run → high confidence before commit
+
+**Atomicity**: 95%
+
+- Single concept (test-first timing) ✓
+- Specific approach (during, not after) ✓
+- Actionable (write tests alongside code) ✓
+- Measurable (100% pass rate) ✓
+- Length: 16 words (-5%)
+
+**Tag**: helpful
+
+**Impact**: 8/10 - Validates implementation correctness during development
+
+**Pattern**: Write test → Write code → Run test → Refactor → Commit (all tests passing)
+
+**Evidence Details**:
+
+- 13 Pester tests created alongside implementation
+- All operations tested: pr, issue, reactions, label, milestone
+- Parameters tested: -Operation, -Action, -ListAvailable
+- 100% pass rate on first run (13/13 passed, 0 failed)
+
+**Anti-Pattern**: Writing tests after implementation claims completion
+
+**Validation**: 1 (Session 21: Check-SkillExists.ps1)
+
+**Created**: 2025-12-18
+
+---
+
 ## Related Files
 
 - Test Files: `scripts/tests/*.Tests.ps1`
 - Test Runner: `build/scripts/Invoke-PesterTests.ps1`
 - CI Workflow: `.github/workflows/pester-tests.yml`
 - Retrospective: `.agents/retrospective/2025-12-15-install-scripts-session.md`
+- Retrospective: `.agents/retrospective/2025-12-18-parallel-implementation-retrospective.md`
