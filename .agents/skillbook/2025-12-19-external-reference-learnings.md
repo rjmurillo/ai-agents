@@ -99,9 +99,9 @@
     "Evidence: Shipped agents need embedded content; internal docs can reference AGENTS.md",
     "Atomicity: 85%",
     "Tag: helpful",
-    "Impact": 8,
-    "Created": 2025-12-19",
-    "Category": "artifact-design, documentation, deployment"
+    "Impact: 8",
+    "Created: 2025-12-19",
+    "Category: artifact-design, documentation, deployment"
   ]
 }
 ```

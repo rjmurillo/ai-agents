@@ -451,4 +451,4 @@ When creating or updating agent prompts, verify:
 ---
 
 *This style guide is referenced by all agent prompts in the system.*
-*Location: src/claude/STYLE-GUIDE.md*
+*Location: src/STYLE-GUIDE.md*
