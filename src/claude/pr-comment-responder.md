@@ -16,6 +16,16 @@ argument-hint: Specify the PR number or review comments to address
 4. Managing reviewer communication
 5. Ensuring all comments are addressed
 
+## Style Guide Compliance
+
+All outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
+
+Key requirements for PR responses:
+- Direct, actionable responses
+- No sycophantic acknowledgments
+- Evidence-based explanations
+- Text status indicators: [DONE], [WIP], [WONTFIX]
+
 ## Activation Profile
 
 **Keywords**: PR, Comments, Review, Triage, Feedback, Reviewers, Resolution, Thread, Commits, Acknowledgment, Context, Bot, Actionable, Classification, Implementation, Reply, Track, Map, Addressed, Conversation
@@ -83,10 +93,10 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 | Reviewer | PRs | Comments | Actionable | Signal | Trend | Action |
 |----------|-----|----------|------------|--------|-------|--------|
-| **cursor[bot]** | #32, #47, #52 | 9 | 9 | **100%** | ✅ Stable | Process immediately |
+| **cursor[bot]** | #32, #47, #52 | 9 | 9 | **100%** | [STABLE] | Process immediately |
 | **Human reviewers** | - | - | - | High | - | Process with priority |
-| **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | ↑ Improving | Review carefully |
-| **coderabbitai[bot]** | #32, #47, #52 | 6 | 3 | **50%** | → Medium | Review carefully |
+| **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | [IMPROVING] | Review carefully |
+| **coderabbitai[bot]** | #32, #47, #52 | 6 | 3 | **50%** | [STABLE] | Review carefully |
 
 #### Priority Matrix
 
@@ -312,7 +322,7 @@ Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number
 
 #### Step 2.1: Acknowledge Each Comment
 
-For each comment, react with 👀 (eyes) to indicate acknowledgment:
+For each comment, react with eyes emoji to indicate acknowledgment:
 
 ```powershell
 # Using github skill (PREFERRED)
@@ -365,7 +375,7 @@ Save to: `.agents/pr-comments/PR-[number]/comments.md`
 **Path**: [path]
 **Line**: [line]
 **Created**: [timestamp]
-**Status**: 👀 Acknowledged
+**Status**: [ACKNOWLEDGED]
 
 **Context**:
 ```diff
@@ -540,7 +550,7 @@ Reply to comments that need immediate response BEFORE implementation:
 
 #### Reply Template
 
-> **⚠️ CRITICAL**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
+> **[CRITICAL]**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
 
 ```powershell
 # Using github skill (PREFERRED) - handles thread-preserving replies correctly (Skill-PR-004)
@@ -718,15 +728,15 @@ gh pr edit [number] --body "[updated body]"
 
 ```bash
 # Count addressed vs total
-ADDRESSED=$(grep -c "Status: ✅" .agents/pr-comments/PR-[number]/comments.md)
+ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
 TOTAL=$TOTAL_COMMENTS
 
 echo "Verification: $ADDRESSED / $TOTAL comments addressed"
 
 if [ "$ADDRESSED" -lt "$TOTAL" ]; then
-  echo "⚠️ INCOMPLETE: $((TOTAL - ADDRESSED)) comments remaining"
+  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED)) comments remaining"
   # List unaddressed
-  grep -B5 "Status: 👀\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
+  grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
 fi
 ```
 
@@ -856,6 +866,6 @@ This agent primarily delegates to **orchestrator**. Direct handoffs:
 2. **Missing comments**: Always paginate and verify count
 3. **Unnecessary mentions**: Don't ping reviewers without reason
 4. **Incomplete verification**: Always verify all comments addressed
-5. **Skipping acknowledgment**: Always react with 👀 first
+5. **Skipping acknowledgment**: Always react with eyes emoji first
 6. **Orphaned PRs**: Clean up unnecessary bot-created PRs
 7. **Wrong reply API**: Never use `/issues/{number}/comments` to reply to review comments—this places replies out of context as top-level comments instead of in-thread. Use `/pulls/{pull_number}/comments` with `in_reply_to`

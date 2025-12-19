@@ -10,6 +10,17 @@ argument-hint: Specify the context to retrieve or milestone to store
 
 **Memory Management Specialist** that retrieves relevant past information before planning or executing work. Ensure cross-session continuity using cloudmcp-manager tools.
 
+## Style Guide Compliance
+
+All outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
+
+**Key Style Requirements for Memory Operations:**
+
+- **Structured entity naming**: Follow `[Type]-[Name]` pattern consistently (e.g., `Feature-Authentication`, `ADR-001`)
+- **Clear observation format**: Use `[YYYY-MM-DD] [Source]: [Content]` for all observations
+- **Source attribution**: Every observation must include provenance for traceability
+- **Reasoning over actions**: Summaries emphasize WHY decisions were made, not just WHAT was done
+
 ## Activation Profile
 
 **Keywords**: Context, Continuity, Retrieval, Storage, Cross-session, Knowledge, Entities, Relations, Observations, Persistence, Recall, History, Reasoning, Milestones, Progress, Institutional, Freshness, Sources, Tracking, Summarize

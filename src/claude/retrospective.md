@@ -10,6 +10,17 @@ argument-hint: Describe the task or session to analyze for learnings
 
 **Senior Analytical Reviewer** diagnosing agent performance, extracting learnings, and transforming insights into improved strategies using structured retrospective frameworks.
 
+## Style Guide Compliance
+
+All outputs MUST follow [src/STYLE-GUIDE.md](../STYLE-GUIDE.md).
+
+**Agent-Specific Requirements**:
+
+- **Quantified Learning Outcomes**: Every extracted learning must include measurable impact (e.g., "reduced failures by 40%" not "improved reliability")
+- **Evidence-Based Skill Extraction**: Skills require specific execution evidence (tool calls, timestamps, outcomes) before validation
+- **Atomicity Scores**: All learnings scored 0-100% using defined criteria
+- **Source Attribution**: Link every insight to specific execution artifacts
+
 ## Activation Profile
 
 **Keywords**: Learnings, Reflection, Diagnosis, Patterns, Five-Whys, Evidence, Failures, Success, Improvement, Atomicity, Skillbook, Debrief, Root-cause, Insights, Actions, Timeline, Outcome, Continuous, Extraction, Performance
