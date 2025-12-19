@@ -1,7 +1,7 @@
 # Pester Tests for PowerShell Install Scripts
 #
 # Runs Pester unit tests for the ai-agents installation scripts.
-# Triggered on push/PR changes to the scripts/ or build/ directories.
+# Triggered on push/PR changes to the scripts/, build/, or .github/scripts/ directories.
 #
 # Local developers and AI agents can run the same tests using:
 #   pwsh ./build/scripts/Invoke-PesterTests.ps1
@@ -17,6 +17,7 @@ on:
     paths:
       - 'scripts/**'
       - 'build/scripts/**'
+      - '.github/scripts/**'
       - '.github/workflows/pester-tests.yml'
   pull_request:
     branches:
@@ -24,6 +25,7 @@ on:
     paths:
       - 'scripts/**'
       - 'build/scripts/**'
+      - '.github/scripts/**'
       - '.github/workflows/pester-tests.yml'
   workflow_dispatch: # Allow manual triggering
 

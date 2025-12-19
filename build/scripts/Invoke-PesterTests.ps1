@@ -8,6 +8,7 @@
     - build/scripts/tests/ - Build script tests  
     - build/tests/ - Code generation tests
     - .claude/skills/*/tests/ - Claude skill tests
+    - .github/scripts/ - GitHub workflow script tests
     
     Supports both CI/CD and local development scenarios.
 
@@ -64,7 +65,7 @@
 [CmdletBinding()]
 param(
     [Parameter()]
-    [string[]]$TestPath = @("./scripts/tests", "./build/scripts/tests", "./build/tests", "./.claude/skills/*/tests"),
+    [string[]]$TestPath = @("./scripts/tests", "./build/scripts/tests", "./build/tests", "./.claude/skills/*/tests", "./.github/scripts"),
 
     [Parameter()]
     [string]$OutputPath = "./artifacts/pester-results.xml",
