@@ -162,6 +162,7 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 ```text
 .
 ├── src/                      # Agent source files
+│   ├── STYLE-GUIDE.md        # Global communication standards (all agents)
 │   ├── vs-code-agents/       # VS Code / GitHub Copilot agents
 │   │   └── *.agent.md
 │   ├── copilot-cli/          # GitHub Copilot CLI agents
@@ -962,6 +963,34 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 **Why it matters**: The manual provides critical context about efficient code reading strategies, symbolic navigation, and resource-efficient operations that optimize agent performance when working with large codebases.
 
 **Note**: If the Serena MCP is not available, memories can be read directly from `.serena/memories/`. However, when Serena is available, always use `mcp__serena__read_memory` with just the memory name (e.g., `memory_file_name="skill-usage-mandatory"`) rather than file paths.
+
+---
+
+## Communication Standards
+
+All agents MUST follow the global style guide for consistent, high-quality output.
+
+**Location**: [src/STYLE-GUIDE.md](src/STYLE-GUIDE.md)
+
+**Key Requirements**:
+
+| Category | Rule |
+|----------|------|
+| Tone | No sycophancy, no AI filler phrases, no hedging |
+| Voice | Active voice, direct address (you/your) |
+| Evidence | Replace adjectives with data |
+| Formatting | No em dashes, no emojis, text status indicators |
+| Structure | Short sentences (15-20 words), Grade 9 reading level |
+| Documents | Follow standard analysis structure (objective through conclusion) |
+| Diagrams | Mermaid format, max 15 nodes |
+
+**Status Indicators**:
+
+```text
+[PASS] [FAIL] [WARNING] [COMPLETE] [IN PROGRESS] [BLOCKED] [PENDING]
+```
+
+Agents violating these standards produce inconsistent, unprofessional output. Read the full guide before generating any artifacts.
 
 ---
 
