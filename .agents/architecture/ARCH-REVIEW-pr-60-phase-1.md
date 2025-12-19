@@ -278,9 +278,11 @@ The extraction pattern scales well:
 
 ### Condition A1: Clarify Module Location (BLOCKING)
 
-The plan must explicitly state that `Get-LabelsFromAIOutput` and `Get-MilestoneFromAIOutput` go in [`.github/scripts/AIReviewCommon.psm1`](../../.github/scripts/AIReviewCommon.psm1) (existing module), NOT `.claude/skills/github/modules/AIReviewCommon.psm1` (new location mentioned in Task 1.1).
+The plan must clarify whether `Get-LabelsFromAIOutput` and `Get-MilestoneFromAIOutput` should go in [`.github/scripts/AIReviewCommon.psm1`](../../.github/scripts/AIReviewCommon.psm1) (existing workflow-specific module) or [`.claude/skills/github/`](../../.claude/skills/github/) (reusable Claude skills).
 
-**Why blocking**: Creating a new module would duplicate functionality and violate DRY. The [`.claude/skills/github/`](../../.claude/skills/github/) directory should be used for reusable GitHub operations, but parsing logic for this specific workflow belongs in the workflow-specific module.
+**Preference**: Push functionality into Claude skills where possible. If there's existing functionality in [`.claude/skills/github/`](../../.claude/skills/github/), use that. Where it's missing, add it there. We should avoid having two near-identical or identical copies of the same code.
+
+**Why blocking**: Need to determine the right location to avoid code duplication and ensure reusability across different contexts.
 
 ### Condition A2: Use Robust Context Detection (BLOCKING)
 
