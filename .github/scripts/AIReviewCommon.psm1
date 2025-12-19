@@ -30,7 +30,9 @@ $ErrorActionPreference = 'Stop'
 
 #region Configuration
 
-$script:AIReviewDir = if ($env:AI_REVIEW_DIR) { $env:AI_REVIEW_DIR } else { Join-Path $env:TEMP 'ai-review' }
+# Determine temp directory cross-platform (TEMP on Windows, TMPDIR/tmp on Linux/macOS)
+$script:TempDir = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { '/tmp' }
+$script:AIReviewDir = if ($env:AI_REVIEW_DIR) { $env:AI_REVIEW_DIR } else { Join-Path $script:TempDir 'ai-review' }
 $script:MaxRetries = if ($env:MAX_RETRIES) { [int]$env:MAX_RETRIES } else { 3 }
 $script:RetryDelay = if ($env:RETRY_DELAY) { [int]$env:RETRY_DELAY } else { 30 }
 
