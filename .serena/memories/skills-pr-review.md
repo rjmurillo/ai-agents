@@ -133,7 +133,80 @@ mutation($threadId: ID!) {
 
 ---
 
+## Skill-PR-Review-003: API Selection for PR Replies
+
+**Statement**: Use REST API (`in_reply_to`) for simple replies with comment IDs; use GraphQL (`addPullRequestReviewThreadReply`) when you need to resolve threads or only have thread IDs.
+
+**Context**: GitHub PR comment/thread handling - choosing the right API
+
+**Evidence**: Session 2025-12-20 - both approaches work but serve different use cases
+
+**Atomicity**: 94%
+
+**Tag**: critical
+
+**Impact**: 8/10
+
+**Created**: 2025-12-20
+
+**Validated**: 1
+
+**ID Types**:
+
+| ID Type | Format | Source | Used With |
+|---------|--------|--------|-----------|
+| Comment ID | Numeric (e.g., `2616639895`) | `gh api repos/O/R/pulls/N/comments` | REST API `in_reply_to` |
+| Thread ID | `PRRT_...` (e.g., `PRRT_kwDOQoWRls5m3L76`) | GraphQL `reviewThreads` query | GraphQL mutations |
+
+**REST API Approach** (when you have comment IDs):
+
+```bash
+# Reply to a review comment (creates new comment in thread)
+gh api repos/{owner}/{repo}/pulls/{pr}/comments \
+  -X POST \
+  -F in_reply_to=COMMENT_ID \
+  -f body="Reply text"
+```
+
+**GraphQL Approach** (when you have thread IDs or need to resolve):
+
+```bash
+# Reply to a thread
+gh api graphql -f query='
+mutation($threadId: ID!, $body: String!) {
+  addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {
+    comment { id }
+  }
+}' -f threadId="PRRT_xxx" -f body="Reply text"
+
+# Resolve the thread (ONLY available via GraphQL)
+gh api graphql -f query='
+mutation($threadId: ID!) {
+  resolveReviewThread(input: {threadId: $threadId}) {
+    thread { isResolved }
+  }
+}' -f threadId="PRRT_xxx"
+```
+
+**Decision Matrix**:
+
+| Need | Use | Reason |
+|------|-----|--------|
+| Simple reply, have comment ID | REST | Simpler syntax |
+| Need to resolve thread | GraphQL | Only option |
+| Have thread ID only | GraphQL | REST needs comment ID |
+| Full PR review workflow | GraphQL | Get threads, reply, resolve in one flow |
+
+**Common Mistakes**:
+
+- Using comment ID with GraphQL mutation → Error: "Could not resolve to a node"
+- Using thread ID with REST API → Error: 404 Not Found
+- Assuming thread can be resolved via REST → No such endpoint exists
+
+---
+
 ## Related Skills
 
 - Skill-PR-Review-001: Conversation Resolution Requirement
 - Skill-PR-Review-002: Conversation Resolution Protocol
+- Skill-PR-Review-003: API Selection for PR Replies
