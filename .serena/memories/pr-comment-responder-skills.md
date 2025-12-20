@@ -54,9 +54,9 @@
 
 ---
 
-### Skill-PR-004: Review Reply Endpoint
+### Skill-PR-004: Review Reply Endpoint (REST API)
 
-**Statement**: Use `gh api repos/OWNER/REPO/pulls/PR/comments -X POST -F in_reply_to=ID -f body=TEXT` for thread replies
+**Statement**: Use `gh api repos/OWNER/REPO/pulls/PR/comments -X POST -F in_reply_to=COMMENT_ID -f body=TEXT` for thread replies when you have numeric comment IDs
 
 **Context**: When responding to specific review comment threads (not issue-level comments)
 
@@ -70,6 +70,18 @@
 **Validation Count**: 2
 
 **Tag**: helpful
+
+**Note**: This REST approach requires numeric comment IDs. For thread IDs (PRRT_...) or when you need to resolve threads, use GraphQL instead. See `skills-pr-review` (Skill-PR-Review-003) for the decision matrix.
+
+**GraphQL Alternative** (for thread IDs or resolving):
+
+```bash
+# Reply with thread ID
+gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $id, body: $body}) { comment { id } } }' -f id="PRRT_xxx" -f body="Reply"
+
+# Resolve thread (GraphQL only)
+gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id="PRRT_xxx"
+```
 
 ---
 
