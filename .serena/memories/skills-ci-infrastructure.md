@@ -1,7 +1,53 @@
 # CI Infrastructure Skills
 
 **Extracted**: 2025-12-15
+**Updated**: 2025-12-20 (added Skill-CI-Workflows-001)
 **Source**: ai-agents install scripts session - CI/CD setup
+
+## Skill-CI-Workflows-001: dorny/paths-filter Global Checkout Requirement
+
+**Statement**: dorny/paths-filter requires checkout in ALL jobs, not just the job using the filter
+
+**Context**: When using dorny/paths-filter action in GitHub Actions workflows with multiple jobs
+
+**Evidence**: PR #121 in rjmurillo/ai-agents - Initially added docs-only filter to skip-tests job without checkout. rjmurillo correction: "dorny/paths-filter requires checkout in ALL jobs". Unused filter removed because checkout requirement made it redundant.
+
+**Impact**: Without checkout, dorny/paths-filter cannot access git history to determine changed files, causing workflow to fail or produce incorrect results.
+
+**Atomicity**: 98%
+
+**Source**: Session 38 retrospective (2025-12-20)
+
+**Pattern**:
+```yaml
+jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4  # REQUIRED
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docs:
+              - '**/*.md'
+    outputs:
+      docs-only: ${{ steps.filter.outputs.docs == 'true' }}
+
+  skip-tests:
+    needs: check-changes
+    if: needs.check-changes.outputs.docs-only == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4  # STILL REQUIRED even though filter is in different job
+      - run: echo "Skipping tests for docs-only change"
+```
+
+**Common Mistake**: Assuming only the job using dorny/paths-filter needs checkout.
+
+**Related Skills**: None
+
+---
 
 ## Skill-CI-TestRunner-001: Reusable Test Runner Pattern
 
@@ -594,6 +640,81 @@ What this workflow does...
 
 ---
 
+## Skill-CI-PathsFilter-001: dorny/paths-filter Checkout Requirement (98%)
+
+**Statement**: dorny/paths-filter requires checkout step in ALL jobs, not just the job using the filter
+
+**Context**: GitHub Actions workflows using dorny/paths-filter for conditional job execution
+
+**Trigger**: Using dorny/paths-filter to skip jobs based on file changes
+
+**Evidence**: PR #121 in rjmurillo/ai-agents (2025-12-20): rjmurillo corrected Claude's assumption that only the filter-using job needed checkout. The filter compares HEAD against base branch, requiring git history in all consuming jobs.
+
+**Atomicity**: 98%
+
+**Impact**: Critical - Jobs fail silently or return incorrect results without checkout
+
+**Tag**: helpful
+
+**Created**: 2025-12-20
+
+**Pattern**:
+
+```yaml
+# WRONG: Checkout only in filter job
+check-changes:
+  runs-on: ubuntu-latest
+  outputs:
+    relevant: ${{ steps.filter.outputs.relevant }}
+  steps:
+    - uses: actions/checkout@v4  # ✓ Has checkout
+    - uses: dorny/paths-filter@v3
+      id: filter
+      with:
+        filters: |
+          relevant:
+            - 'src/**'
+
+# Consuming job WITHOUT checkout - will fail or return wrong results
+build:
+  needs: check-changes
+  if: needs.check-changes.outputs.relevant == 'true'
+  runs-on: ubuntu-latest
+  steps:
+    # Missing checkout! Will have empty working directory
+    - run: npm install  # Fails: no package.json
+```
+
+```yaml
+# RIGHT: Checkout in ALL jobs that need repo context
+check-changes:
+  runs-on: ubuntu-latest
+  outputs:
+    relevant: ${{ steps.filter.outputs.relevant }}
+  steps:
+    - uses: actions/checkout@v4
+    - uses: dorny/paths-filter@v3
+      id: filter
+      with:
+        filters: |
+          relevant:
+            - 'src/**'
+
+build:
+  needs: check-changes
+  if: needs.check-changes.outputs.relevant == 'true'
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4  # ✓ Required even though filter ran in previous job
+    - run: npm install
+```
+
+**Why this matters**: The filter action examines git history to determine what files changed. Downstream jobs that use the filter outputs still need the repository files to do their actual work. Each job starts with an empty workspace.
+
+**Related**: Skill-CI-Matrix-Output-001 (data passing between jobs)
+
+---
+
 ## Related Files
 
 - Test Runner: `build/scripts/Invoke-PesterTests.ps1`
@@ -606,4 +727,5 @@ What this workflow does...
 - Session 04: `.agents/sessions/2025-12-18-session-04-ai-workflow-debugging.md`
 - Session 07: `.agents/sessions/2025-12-18-session-07-qa-output-debug.md`
 - Session 08: `.agents/sessions/2025-12-18-session-08-vibrant-comments.md`
+- Session 38 Retrospective: `.agents/retrospective/2025-12-20-session-38-comprehensive.md`
 - Source: `.agents/retrospective/pr-feedback-remediation.md`
