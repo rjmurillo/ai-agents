@@ -232,7 +232,7 @@ jobs:
           |:--------|:----------|
           | Feature (``feat:``) | ✅ Required |
           | Bug fix (``fix:``) | Optional |
-          | Refactor | Optional |
+          | Refactor (``refactor:``) | Optional |
           | Documentation (``docs:``) | Not required |
 
           See PR template for full guidance.

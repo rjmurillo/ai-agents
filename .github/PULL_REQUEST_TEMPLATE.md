@@ -19,11 +19,11 @@
 
 | PR Type | Spec Required? | Guidance |
 |---------|----------------|----------|
-| **Feature** (`feat:`) | ✅ Required | Link issue, REQ-*, or spec file in `.agents/planning/` |
-| **Bug fix** (`fix:`) | Optional | Link issue if exists; explain root cause if complex |
-| **Refactor** | Optional | Explain rationale and scope in PR description |
+| **Feature** (`feat:`, `feat(scope):`) | ✅ Required | Link issue, REQ-*, or spec file in `.agents/planning/` |
+| **Bug fix** (`fix:`, `fix(scope):`) | Optional | Link issue if exists; explain root cause if complex |
+| **Refactor** (`refactor:`, `refactor(scope):`) | Optional | Explain rationale and scope in PR description |
 | **Documentation** (`docs:`) | Not required | N/A |
-| **Infrastructure** | Optional | Link ADR or design doc if architecture impacted |
+| **Infrastructure** (`ci:`, `build:`, `chore:`) | Optional | Link ADR or design doc if architecture impacted |
 
 <!--
 Supported reference formats:
