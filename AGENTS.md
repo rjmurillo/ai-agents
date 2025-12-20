@@ -1083,6 +1083,7 @@ Agents violating these standards produce inconsistent, unprofessional output. Re
 - Unresolved review threads (most common)
 - Failing CI checks
 - Missing required approvals
+
 ---
 
 ## Putting It All Together

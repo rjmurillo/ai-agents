@@ -10,13 +10,7 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
-    paths:
-      - 'src/**'
-      - 'scripts/**'
-      - 'build/**'
-      - '.github/**'
-      - '.agents/**'
-      - '.claude/skills/**'
+    # NO paths filter - use dorny/paths-filter internally to satisfy required checks
 
   workflow_dispatch:
     inputs:
@@ -41,7 +35,7 @@ env:
 
 jobs:
 
-# Quick check to see if we should skip AI review (docs-only changes)
+# Check if relevant files changed using paths-filter
 
   check-changes:
     name: Check Changes
@@ -49,39 +43,47 @@ jobs:
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
-      skip_review: ${{ steps.check.outputs.skip_review }}
+      # For workflow_dispatch, always run review; otherwise use paths-filter result
+      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
-      - name: Check for docs-only changes
-        id: check
-        env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+      - name: Check for relevant file changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        id: filter
+        # Skip paths-filter for workflow_dispatch as it may not have proper context
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            relevant:
+              - 'src/**'
+              - 'scripts/**'
+              - 'build/**'
+              - '.github/**'
+              - '.agents/**'
+              - '.claude/skills/**'
+
+      - name: Determine if review should run
+        id: determine
         run: |
-          # Try to get changed files, fall back if diff is too large (>20000 lines)
-          if ! CHANGED_FILES=$(gh pr diff ${{ env.PR_NUMBER }} --name-only 2>&1); then
-            if echo "$CHANGED_FILES" | grep -q "too_large\|exceeded"; then
-              echo "PR diff too large, using gh pr view instead"
-              CHANGED_FILES=$(gh pr view ${{ env.PR_NUMBER }} --json files --jq '.files[].path')
-            else
-              echo "Error getting diff: $CHANGED_FILES"
-              # Default to not skipping on error
-              echo "skip_review=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-          fi
-
-          # Check if only documentation files changed
-          NON_DOC_FILES=$(echo "$CHANGED_FILES" | grep -vE '\.(md|txt|rst)$' | grep -v '^docs/' || true)
-
-          if [ -z "$NON_DOC_FILES" ]; then
-            echo "Only documentation files changed, skipping AI review"
-            echo "skip_review=true" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should-run=true" >> $GITHUB_OUTPUT
+            echo "Decision: Run review (manual trigger)"
           else
-            echo "Code files changed, proceeding with AI review"
-            echo "skip_review=false" >> $GITHUB_OUTPUT
+            RELEVANT="${{ steps.filter.outputs.relevant }}"
+
+            echo "Relevant files changed: $RELEVANT"
+
+            # Run review if relevant files changed, skip otherwise
+            if [ "$RELEVANT" = "true" ]; then
+              echo "should-run=true" >> $GITHUB_OUTPUT
+              echo "Decision: Run review (relevant files changed)"
+            else
+              echo "should-run=false" >> $GITHUB_OUTPUT
+              echo "Decision: Skip review (no relevant files changed)"
+            fi
           fi
 
 # Run all three reviews in parallel using matrix strategy
@@ -90,7 +92,7 @@ jobs:
     name: ${{ matrix.agent }} Review
     runs-on: ubuntu-latest
     needs: check-changes
-    if: needs.check-changes.outputs.skip_review != 'true'
+    if: needs.check-changes.outputs.should-run == 'true'
     timeout-minutes: 10
 
     strategy:
@@ -122,7 +124,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
 
@@ -159,7 +161,7 @@ jobs:
           echo "  Findings: $(wc -c < ai-review-results/${AGENT}-findings.txt) bytes"
 
       - name: Upload review results
-        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: review-${{ matrix.agent }}
           path: ai-review-results/
@@ -171,17 +173,17 @@ jobs:
     name: Aggregate Results
     runs-on: ubuntu-latest
     needs: [check-changes, review]
-    if: needs.check-changes.outputs.skip_review != 'true'
+    if: needs.check-changes.outputs.should-run == 'true'
 
     outputs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Download all review artifacts
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: review-*
           path: ai-review-results
@@ -394,3 +396,35 @@ jobs:
           }
 
           Write-Output "AI Quality Gate passed with verdict: $finalVerdict"
+
+# Skip job that provides passing status when no relevant files changed
+
+  skip-review:
+    name: Aggregate Results
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Skip AI review (no relevant file changes)
+        run: |
+          echo "✅ AI Quality Gate skipped - no relevant file changes detected"
+          echo ""
+          echo "This PR only contains changes to files that don't require AI review:"
+          echo "  - Documentation files (*.md, *.txt, *.rst, docs/**)"
+          echo "  - Non-code files outside monitored paths"
+          echo ""
+          echo "Monitored paths that would trigger AI review:"
+          echo "  - src/**"
+          echo "  - scripts/**"
+          echo "  - build/**"
+          echo "  - .github/**"
+          echo "  - .agents/**"
+          echo "  - .claude/skills/**"
+          echo ""
+          echo "Status: PASS (skipped - no relevant changes)"
