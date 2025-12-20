@@ -94,6 +94,13 @@ jobs:
             exit 1
           }
 
+      - name: Remove copilot-ready label
+        if: success() && github.event_name != 'workflow_dispatch'
+        run: |
+          echo "Removing copilot-ready label to indicate successful processing..."
+          gh issue edit ${{ steps.issue.outputs.number }} --remove-label "copilot-ready"
+          echo "::notice::Removed copilot-ready label from issue #${{ steps.issue.outputs.number }}"
+
       - name: Summary
         if: success()
         run: |
@@ -105,5 +112,6 @@ jobs:
           echo "- Synthesized context from trusted sources" >> $GITHUB_STEP_SUMMARY
           echo "- Posted/updated synthesis comment with @copilot mention" >> $GITHUB_STEP_SUMMARY
           echo "- Assigned copilot-swe-agent to the issue" >> $GITHUB_STEP_SUMMARY
+          echo "- Removed copilot-ready label (processing complete)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Copilot will now create a PR based on the synthesized context." >> $GITHUB_STEP_SUMMARY
