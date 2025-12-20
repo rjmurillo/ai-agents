@@ -513,13 +513,26 @@ function Update-IssueComment {
         [string]$Body
     )
 
-    $result = gh api "repos/$Owner/$Repo/issues/comments/$CommentId" -X PATCH -f body=$Body 2>&1
+    # Use JSON payload via --input to handle large/complex bodies correctly
+    $payload = @{ body = $Body } | ConvertTo-Json -Compress
+    $tempFile = New-TemporaryFile
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-ErrorAndExit "Failed to update comment: $result" 3
+    try {
+        Set-Content -Path $tempFile.FullName -Value $payload -Encoding utf8
+
+        $result = gh api "repos/$Owner/$Repo/issues/comments/$CommentId" -X PATCH --input $tempFile.FullName 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-ErrorAndExit "Failed to update comment: $result" 3
+        }
+
+        return $result | ConvertFrom-Json
     }
-
-    return $result | ConvertFrom-Json
+    finally {
+        if (Test-Path -LiteralPath $tempFile.FullName) {
+            Remove-Item -LiteralPath $tempFile.FullName -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 function New-IssueComment {
@@ -558,13 +571,26 @@ function New-IssueComment {
         [string]$Body
     )
 
-    $result = gh api "repos/$Owner/$Repo/issues/$IssueNumber/comments" -X POST -f body=$Body 2>&1
+    # Use JSON payload via --input to handle large/complex bodies correctly
+    $payload = @{ body = $Body } | ConvertTo-Json -Compress
+    $tempFile = New-TemporaryFile
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-ErrorAndExit "Failed to post comment: $result" 3
+    try {
+        Set-Content -Path $tempFile.FullName -Value $payload -Encoding utf8
+
+        $result = gh api "repos/$Owner/$Repo/issues/$IssueNumber/comments" -X POST --input $tempFile.FullName 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-ErrorAndExit "Failed to post comment: $result" 3
+        }
+
+        return $result | ConvertFrom-Json
     }
-
-    return $result | ConvertFrom-Json
+    finally {
+        if (Test-Path -LiteralPath $tempFile.FullName) {
+            Remove-Item -LiteralPath $tempFile.FullName -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 #endregion

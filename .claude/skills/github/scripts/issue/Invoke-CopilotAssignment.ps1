@@ -104,7 +104,8 @@ function Get-SynthesisConfig {
     # Parse YAML-like config
     try {
         $content = Get-Content $ConfigPath -Raw
-        $config = $defaultConfig.Clone()
+        # Deep copy to avoid modifying defaultConfig (shallow Clone() would share nested refs)
+        $config = $defaultConfig | ConvertTo-Json -Depth 10 | ConvertFrom-Json -AsHashtable
 
         # Extract maintainers
         if ($content -match 'maintainers:\s*((?:\s+-\s+\S+)+)') {
@@ -204,14 +205,14 @@ function Get-CodeRabbitPlan {
             $plan.Implementation = $Matches[1].Trim()
         }
 
-        # Extract related issues using config pattern
+        # Extract related issues using config pattern (wrap in @() to ensure array)
         if ($body -match "$issuesPattern([\s\S]*?)(?=##|🔗|$)") {
-            $plan.RelatedIssues = [regex]::Matches($Matches[1], '#(\d+)') | ForEach-Object { "#$($_.Groups[1].Value)" }
+            $plan.RelatedIssues = @([regex]::Matches($Matches[1], '#(\d+)') | ForEach-Object { "#$($_.Groups[1].Value)" })
         }
 
-        # Extract related PRs using config pattern
+        # Extract related PRs using config pattern (wrap in @() to ensure array)
         if ($body -match "$prsPattern([\s\S]*?)(?=##|🔗|$)") {
-            $plan.RelatedPRs = [regex]::Matches($Matches[1], '#(\d+)') | ForEach-Object { "#$($_.Groups[1].Value)" }
+            $plan.RelatedPRs = @([regex]::Matches($Matches[1], '#(\d+)') | ForEach-Object { "#$($_.Groups[1].Value)" })
         }
     }
 
