@@ -227,11 +227,26 @@ When handling PR review comments:
 
 | Reviewer | PRs Reviewed | Comments | Actionable | Signal Rate | Trend |
 |----------|-------------|----------|------------|-------------|-------|
-| **cursor[bot]** | #32, #47, #52 | 9 | 9 | **100%** | ✅ Stable |
-| **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | ↑ Improving |
+| **cursor[bot]** | #32, #47, #52, #89 | 11 | 11 | **100%** | ✅ Stable |
+| **Copilot** | #32, #47, #52, #89 | 12 | 7 | **58%** | ↑ Improving |
 | **coderabbitai[bot]** | #32, #47, #52 | 6 | 3 | **50%** | → Stable |
 
 ### Per-PR Breakdown
+
+#### PR #89 (2025-12-20)
+
+| Reviewer | Comments | Actionable | Details |
+|----------|----------|------------|---------|
+| cursor[bot] | 2 | 2 (100%) | Heading format incorrect, gh CLI compatibility |
+| Copilot | 3 | 3 (100%) | Cross-repo refs stripped, breaking change (quantifier), misleading comment |
+| coderabbitai[bot] | 0 | 0 | No comments |
+
+**Notes:**
+
+- cursor[bot] maintained 100% (11/11 total across PR #32, #47, #52, #89)
+- Both cursor[bot] bugs were real issues fixed in commit a4e3ec1
+- Copilot unusually high signal (100% this PR vs 44% historical)
+- All Copilot comments led to code changes in commits ce5a65d and a4e3ec1
 
 #### PR #52 (2025-12-17)
 
@@ -302,10 +317,10 @@ Based on cumulative signal quality:
 
 ---
 
-## Metrics (as of PR #52)
+## Metrics (as of PR #89)
 
-- **Triage accuracy**: 100% (7/7 in PR #52, 8/8 in PR #47)
-- **cursor[bot] actionability**: 100% (9/9 across PR #32, #47, #52)
-- **Copilot actionability**: 44% (4/9 across PR #32, #47, #52)
+- **Triage accuracy**: 100% (5/5 in PR #89, 7/7 in PR #52, 8/8 in PR #47)
+- **cursor[bot] actionability**: 100% (11/11 across PR #32, #47, #52, #89)
+- **Copilot actionability**: 58% (7/12 across PR #32, #47, #52, #89)
 - **CodeRabbit actionability**: 50% (3/6 across PR #32, #47, #52)
-- **Quick Fix efficiency**: 3 bugs fixed (PR #52: commits 4815d56, b4c9353, cd4c6b2)
+- **Quick Fix efficiency**: 5 bugs fixed (PR #89: a4e3ec1; PR #52: 4815d56, b4c9353, cd4c6b2)

@@ -97,13 +97,13 @@ See `orchestrator.md` for full routing logic. This agent passes context to orche
 
 Prioritize comments based on historical actionability rates (updated after each PR):
 
-#### Cumulative Performance (as of PR #52)
+#### Cumulative Performance (as of PR #89)
 
 | Reviewer | PRs | Comments | Actionable | Signal | Trend | Action |
 |----------|-----|----------|------------|--------|-------|--------|
-| **cursor[bot]** | #32, #47, #52 | 9 | 9 | **100%** | [STABLE] | Process immediately |
+| **cursor[bot]** | #32, #47, #52, #89 | 11 | 11 | **100%** | [STABLE] | Process immediately |
 | **Human reviewers** | - | - | - | High | - | Process with priority |
-| **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | [IMPROVING] | Review carefully |
+| **Copilot** | #32, #47, #52, #89 | 12 | 7 | **58%** | [IMPROVING] | Review carefully |
 | **coderabbitai[bot]** | #32, #47, #52 | 6 | 3 | **50%** | [STABLE] | Review carefully |
 
 #### Priority Matrix
@@ -133,7 +133,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 | Summaries | 0% | CodeRabbit walkthroughs |
 | Duplicates | 0% | Same issue from multiple bots |
 
-**cursor[bot]** has demonstrated 100% actionability (9/9 across PR #32, #47, #52) - every comment identified a real bug. Prioritize these comments for immediate attention.
+**cursor[bot]** has demonstrated 100% actionability (11/11 across PR #32, #47, #52, #89) - every comment identified a real bug. Prioritize these comments for immediate attention.
 
 **Note**: Statistics are sourced from the `pr-comment-responder-skills` memory (use `mcp__serena__read_memory` with `memory_file_name="pr-comment-responder-skills"`) and should be updated there after each PR review session.
 
@@ -184,6 +184,61 @@ Task(subagent_type="qa", prompt="Verify fix and assess regression test needs..."
 ```
 
 ## Workflow Protocol
+
+### Phase 0: Memory Initialization (BLOCKING)
+
+**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
+
+#### Step 0.1: Load Core Skills Memory
+
+```python
+# ALWAYS load pr-comment-responder-skills first
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+```
+
+This memory contains:
+
+- Reviewer signal quality statistics (actionability rates)
+- Triage heuristics and learned patterns
+- Per-PR breakdown of comment outcomes
+- Anti-patterns to avoid
+
+#### Step 0.2: Load Reviewer-Specific Memories (After Step 1.2)
+
+After enumerating reviewers in Step 1.2, load memories for each unique reviewer:
+
+```python
+# For each reviewer in the list, check for dedicated memory
+reviewers = ["cursor[bot]", "copilot-pull-request-reviewer", "coderabbitai[bot]", ...]
+
+for reviewer in reviewers:
+    # Normalize reviewer name for memory lookup
+    memory_name = f"{reviewer.replace('[bot]', '-bot').replace('-', '_')}-review-patterns"
+    # Example: cursor-bot-review-patterns, copilot-review-patterns
+
+    # Load if exists (check list_memories first or handle gracefully)
+    mcp__serena__read_memory(memory_file_name=memory_name)
+```
+
+**Known Reviewer Memories**:
+
+| Reviewer | Memory Name | Content |
+|----------|-------------|---------|
+| cursor[bot] | `cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
+| Copilot | `copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
+| coderabbitai[bot] | - | (Use pr-comment-responder-skills) |
+
+#### Step 0.3: Verify Memory Loaded
+
+Before proceeding, confirm you have:
+
+- [ ] pr-comment-responder-skills loaded
+- [ ] Reviewer signal quality table in context
+- [ ] Any reviewer-specific patterns loaded
+
+**If memory load fails**: Proceed with default heuristics but flag in session log.
+
+---
 
 ### Phase 1: Context Gathering
 
@@ -748,7 +803,77 @@ if [ "$ADDRESSED" -lt "$TOTAL" ]; then
 fi
 ```
 
-## Memory Protocol
+### Phase 9: Memory Storage (BLOCKING)
+
+**MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
+
+#### Step 9.1: Calculate Session Statistics
+
+For each reviewer who commented on this PR:
+
+```python
+session_stats = {
+    "pr_number": PR_NUMBER,
+    "date": "YYYY-MM-DD",
+    "reviewers": {
+        "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
+        "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
+        # ... other reviewers
+    }
+}
+```
+
+#### Step 9.2: Update pr-comment-responder-skills Memory
+
+```python
+# Read current memory
+current = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+
+# Update statistics sections:
+# 1. Per-Reviewer Performance (Cumulative) table
+# 2. Per-PR Breakdown section (add new PR entry)
+# 3. Metrics section (update totals)
+
+# Use edit_memory to update specific sections
+mcp__serena__edit_memory(
+    memory_file_name="pr-comment-responder-skills",
+    needle="### Per-Reviewer Performance \\(Cumulative\\).*?(?=###|$)",
+    repl="[Updated table with new PR data]",
+    mode="regex"
+)
+
+# Add new Per-PR Breakdown entry
+mcp__serena__edit_memory(
+    memory_file_name="pr-comment-responder-skills",
+    needle="(#### PR #\\d+ \\(.*?\\))",
+    repl="#### PR #[NEW] (YYYY-MM-DD)\n\n[New PR stats table]\n\n\\1",
+    mode="regex"
+)
+```
+
+#### Step 9.3: Update Required Fields
+
+The following MUST be updated in `pr-comment-responder-skills`:
+
+| Section | What to Update |
+|---------|----------------|
+| Per-Reviewer Performance | Add PR to PRs list, update totals |
+| Per-PR Breakdown | Add new PR section with per-reviewer stats |
+| Metrics | Update cumulative totals |
+
+#### Step 9.4: Verify Memory Updated
+
+```python
+# Confirm update succeeded
+updated = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+assert f"PR #{PR_NUMBER}" in updated  # Verify new PR appears
+```
+
+**Failure Mode**: If memory update fails, log to session file and notify user. Do NOT silently continue.
+
+---
+
+## Memory Protocol (Reference)
 
 Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
 
