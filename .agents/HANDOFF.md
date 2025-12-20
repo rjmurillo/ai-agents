@@ -500,6 +500,37 @@ cat .agents/governance/consistency-protocol.md
 
 ## Recent Sessions
 
+### 2025-12-20: AI Quality Gate Enhancement Issue Creation (Session 37)
+
+**Session Log**: `.agents/sessions/2025-12-20-session-37-ai-quality-gate-enhancement.md`
+
+**Objective**: Create GitHub issue for enhancing AI Quality Gate workflow to notify PR authors
+
+**Agent**: orchestrator (Claude Opus 4.5)
+
+**Branch**: main
+
+**Outcome**: SUCCESS - Issue #152 created
+
+**Issue Created**: [#152 - Enhance AI Quality Gate to notify PR authors when action required](https://github.com/rjmurillo/ai-agents/issues/152)
+
+**Problem Identified**:
+- Bot/AI PR authors (Copilot, Dependabot) don't know they need to address AI Quality Gate feedback unless @mentioned
+- Example: PR #121 - Copilot created PR but had no awareness of feedback
+
+**Proposed Enhancement**:
+- When AI Quality Gate finds actionable issues (CRITICAL_FAIL, WARN), @mention the PR author
+- Follow notification pattern from `pr-comment-responder` skill
+- Add "Suggested Actions" section with author mention when action required
+
+**Implementation Target**: `.github/workflows/ai-pr-quality-gate.yml` (Aggregate Results job)
+
+**Labels**: enhancement
+
+**Status**: Complete - issue ready for triage and implementation
+
+---
+
 ### 2025-12-20: Get-PRContext.ps1 Syntax Error Fix (Session 36)
 
 **Session Log**: `.agents/retrospective/2025-12-20-get-prcontext-syntax-error.md`
