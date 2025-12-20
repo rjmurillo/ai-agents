@@ -3,6 +3,14 @@
 # Ensures documentation files use relative paths only.
 # Prevents environment-specific absolute paths from contaminating documentation.
 #
+# IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
+# but skips actual validation when no relevant files are changed.
+#
+# Relevant paths:
+# - All markdown files (**.md)
+# - Validation script (build/scripts/Validate-PathNormalization.ps1)
+# - This workflow file (.github/workflows/validate-paths.yml)
+#
 # Related: Issue rjmurillo/ai-agents#I3 (Environment Contamination)
 # CodeRabbit PR rjmurillo/ai-agents#43 finding
 
@@ -15,22 +23,47 @@ on:
       - 'feat/**'
       - 'fix/**'
       - 'copilot/**'
-    paths:
-      - '**.md'
-      - 'build/scripts/Validate-PathNormalization.ps1'
-      - '.github/workflows/validate-paths.yml'
   pull_request:
     branches:
       - main
-    paths:
-      - '**.md'
-      - 'build/scripts/Validate-PathNormalization.ps1'
-      - '.github/workflows/validate-paths.yml'
   workflow_dispatch: # Allow manual triggering
 
 jobs:
-  validate-paths:
+  check-paths:
+    name: Check Changed Paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      # For workflow_dispatch, always run validation; otherwise use paths-filter result
+      should-validate: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.paths }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Check for validatable file changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        id: filter
+        # Skip paths-filter for workflow_dispatch as it may not have proper context
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            paths:
+              - '**.md'
+              - 'build/scripts/Validate-PathNormalization.ps1'
+              - '.github/workflows/validate-paths.yml'
+
+      - name: Report path check result
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger - running validation"
+          else
+            echo "Validatable files changed: ${{ steps.filter.outputs.paths }}"
+          fi
+
+  validate:
     name: Validate Path Normalization
+    needs: check-paths
+    if: needs.check-paths.outputs.should-validate == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -60,3 +93,20 @@ jobs:
           Write-Host "  3. Use forward slashes (/) for cross-platform compatibility" -ForegroundColor White
           Write-Host "  4. See src/claude/explainer.md for path normalization guidelines" -ForegroundColor White
           Write-Host ""
+
+  skip-validation:
+    name: Validate Path Normalization
+    needs: check-paths
+    if: needs.check-paths.outputs.should-validate != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Skip validation (no relevant files changed)
+        run: |
+          echo "✅ No markdown files changed - skipping path validation"
+          echo ""
+          echo "Paths that would trigger validation:"
+          echo "  - **.md"
+          echo "  - build/scripts/Validate-PathNormalization.ps1"
+          echo "  - .github/workflows/validate-paths.yml"
