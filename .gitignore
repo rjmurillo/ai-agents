@@ -12,3 +12,4 @@ artifacts/
 
 # Agent PR scratch files
 .agents/pr-comments/
+.agents/scratch/
