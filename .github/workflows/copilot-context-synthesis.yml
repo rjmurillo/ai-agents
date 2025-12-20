@@ -1,0 +1,109 @@
+# =============================================================================
+# Copilot Context Synthesis Workflow
+# =============================================================================
+#
+# PURPOSE:
+# Automatically synthesizes context from issue comments and assigns GitHub
+# Copilot when the 'copilot-ready' label is added to an issue.
+#
+# HOW IT WORKS:
+# 1. Maintainer reviews issue and adds 'copilot-ready' label
+# 2. This workflow triggers on the 'labeled' event
+# 3. Fetches issue context (AI Triage, CodeRabbit, maintainer comments)
+# 4. Generates synthesis comment with @copilot mention
+# 5. Creates or updates synthesis comment (idempotent - ONE comment only)
+# 6. Assigns copilot-swe-agent to the issue
+# 7. Copilot creates PR with full context
+#
+# IDEMPOTENCY:
+# Re-adding the label or re-running the workflow updates the existing
+# synthesis comment rather than creating duplicates. Detection uses the
+# HTML marker: <!-- COPILOT-CONTEXT-SYNTHESIS -->
+#
+# RELATED:
+# - Issue #92: https://github.com/rjmurillo/ai-agents/issues/92
+# - Script: .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1
+# - Config: .claude/skills/github/copilot-synthesis.yml
+#
+# =============================================================================
+
+name: Copilot Context Synthesis
+
+on:
+  issues:
+    types: [labeled]
+
+  # Manual trigger for testing or re-running synthesis
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to synthesize context for"
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  synthesize-and-assign:
+    name: Synthesize Context and Assign Copilot
+    runs-on: ubuntu-latest
+
+    # Only run when copilot-ready label is added (for labeled trigger)
+    # Always run for workflow_dispatch
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'copilot-ready'
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Determine issue number
+        id: issue
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "number=${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Synthesize context and assign Copilot
+        shell: pwsh
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+        run: |
+          Write-Host "Starting context synthesis for issue #$env:ISSUE_NUMBER" -ForegroundColor Cyan
+
+          # Run the synthesis script
+          $result = & "./.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1" `
+            -IssueNumber $env:ISSUE_NUMBER
+
+          # Output result summary
+          if ($result.Success) {
+            Write-Host "::notice::$($result.Action) synthesis comment: $($result.CommentUrl)"
+            if ($result.Assigned) {
+              Write-Host "::notice::Assigned copilot-swe-agent to issue #$env:ISSUE_NUMBER"
+            }
+          } else {
+            Write-Host "::error::Failed to synthesize context for issue #$env:ISSUE_NUMBER"
+            exit 1
+          }
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "## Copilot Context Synthesis Complete :robot:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Issue**: #${{ steps.issue.outputs.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Actions Taken" >> $GITHUB_STEP_SUMMARY
+          echo "- Synthesized context from trusted sources" >> $GITHUB_STEP_SUMMARY
+          echo "- Posted/updated synthesis comment with @copilot mention" >> $GITHUB_STEP_SUMMARY
+          echo "- Assigned copilot-swe-agent to the issue" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Copilot will now create a PR based on the synthesized context." >> $GITHUB_STEP_SUMMARY

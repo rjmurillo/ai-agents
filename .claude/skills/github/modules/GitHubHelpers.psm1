@@ -619,11 +619,16 @@ function Get-TrustedSourceComments {
     [OutputType([array])]
     param(
         [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
         [array]$Comments,
 
         [Parameter(Mandatory)]
         [string[]]$TrustedUsers
     )
+
+    if ($Comments.Count -eq 0) {
+        return @()
+    }
 
     return $Comments | Where-Object {
         $TrustedUsers -contains $_.user.login

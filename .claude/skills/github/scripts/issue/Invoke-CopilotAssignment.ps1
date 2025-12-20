@@ -373,13 +373,13 @@ if ($LASTEXITCODE -ne 0) {
 $issue = $issueData | ConvertFrom-Json
 Write-Host "Issue: $($issue.title)" -ForegroundColor Gray
 
-# Fetch comments using shared module function
-$comments = Get-IssueComments -Owner $Owner -Repo $Repo -IssueNumber $IssueNumber
+# Fetch comments using shared module function (wrap in @() to ensure array even if empty)
+$comments = @(Get-IssueComments -Owner $Owner -Repo $Repo -IssueNumber $IssueNumber)
 Write-Host "Found $($comments.Count) comments" -ForegroundColor Gray
 
 # Build trusted users list and filter using shared module function
 $trustedUsers = @($config.trusted_sources.maintainers) + @($config.trusted_sources.ai_agents)
-$trustedComments = Get-TrustedSourceComments -Comments $comments -TrustedUsers $trustedUsers
+$trustedComments = @(Get-TrustedSourceComments -Comments $comments -TrustedUsers $trustedUsers)
 Write-Host "Found $($trustedComments.Count) comments from trusted sources" -ForegroundColor Gray
 
 # Extract context
