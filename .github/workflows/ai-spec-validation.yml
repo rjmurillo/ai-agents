@@ -1,7 +1,9 @@
 name: Spec-to-Implementation Validation
 
 # AI-powered requirements traceability using GitHub Copilot CLI
+
 # Verifies that PR changes implement requirements from linked specs
+
 # Warns if requirements are not covered by the implementation
 
 on:
@@ -14,7 +16,7 @@ on:
       - 'scripts/**'
       - 'build/**'
       - '.claude/skills/**'
-      
+
 permissions:
   contents: read
   pull-requests: write
@@ -34,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
 
@@ -238,6 +240,18 @@ jobs:
           | Reference requirements | ``Implements REQ-001`` |
           | Link issues | ``Closes #123`` |
           | Reference spec files | ``.agents/specs/requirements/...`` |
+
+          **Spec Requirement by PR Type:**
+
+          | PR Type | Required? |
+          |:--------|:----------|
+          | Feature (``feat:``) | ✅ Required |
+          | Bug fix (``fix:``) | Optional |
+          | Refactor (``refactor:``) | Optional |
+          | Documentation (``docs:``) | Not required |
+          | Infrastructure (``ci:``, ``build:``, ``chore:``) | Optional |
+
+          See PR template for full guidance.
 
           </details>
 
