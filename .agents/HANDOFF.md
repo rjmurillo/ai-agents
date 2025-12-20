@@ -525,17 +525,26 @@ cat .agents/governance/consistency-protocol.md
 | Cost Governance | Monthly targets and audit checklist | `.agents/governance/COST-GOVERNANCE.md` |
 | SESSION-PROTOCOL v1.3 | Memory requirements for tasks and agent handoffs | `.agents/SESSION-PROTOCOL.md` |
 | Issue #195 | P0 - GitHub Actions cost audit and optimization | [#195](https://github.com/rjmurillo/ai-agents/issues/195) |
+| SERENA-BEST-PRACTICES | Comprehensive Serena token efficiency guide | `.agents/governance/SERENA-BEST-PRACTICES.md` |
 
 **Cost Context**:
 - ARM runners: 37.5% cheaper than x64 ($0.005 vs $0.008/min)
 - Windows runners: 2x baseline cost ($0.016/min)
 - See COST-GOVERNANCE.md for full pricing reference
 
-**Protocol Enhancements (v1.2 → v1.3)**:
+**Protocol Enhancements (v1.2 → v1.4)**:
 - Added Task-Specific Memory Requirements table (10 task types)
 - Added Agent Handoff Memory Requirements table (9 agents)
 - Added Phase 4: Memory Persistence as REQUIRED gate
+- Added Phase 5: Cost Efficiency Awareness as REQUIRED gate
+- Added RFC 2119 enforcement to ADR-007 and ADR-008
 - Updated session end checklist with memory writes
+
+**Serena Best Practices** (researched via DeepWiki):
+- Global config: `default_max_tool_answer_chars` (default 150000, recommend 50000)
+- Token estimator: ANTHROPIC_CLAUDE_SONNET_4 for accurate tracking
+- 7 token-efficient patterns with MUST/SHOULD requirements
+- Two-tier caching system documentation
 
 **Status**: Complete - PR #194 ready for review
 
