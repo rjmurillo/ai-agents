@@ -33,6 +33,8 @@ jobs:
   check-paths:
     name: Check Changed Paths
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       should-run-tests: ${{ steps.filter.outputs.testable }}
     steps:
