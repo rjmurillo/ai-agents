@@ -415,7 +415,7 @@ Need to search codebase for pattern: `"\$[A-Za-z_][A-Za-z0-9_]*:[^:]"` (regex)
 | skills-powershell.md | CREATE | Add Skill-PowerShell-001 (variable interpolation safety) |
 | skills-ci-infrastructure.md | UPDATE | Add Skill-CI-001 (pre-commit syntax validation) |
 | skills-testing.md | UPDATE | Add Skill-Testing-003 (basic execution validation) |
-| retrospective-2025-12-20-get-prcontext.md | CREATE | This retrospective document |
+| 2025-12-20-get-prcontext-syntax-error.md | CREATE | This retrospective document |
 
 ### Git Operations
 
