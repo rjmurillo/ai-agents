@@ -56,7 +56,7 @@ $Repo = $resolved.Repo
 
 Write-Verbose "Fetching PR #$PullRequest from $Owner/$Repo"
 
-$jsonFields = "number,title,body,headRefName,baseRefName,state,author,labels,reviewRequests,commits,additions,deletions,changedFiles,mergeable,merged,mergedBy,createdAt,updatedAt"
+$jsonFields = "number,title,body,headRefName,baseRefName,state,author,labels,reviewRequests,commits,additions,deletions,changedFiles,mergeable,mergedAt,mergedBy,createdAt,updatedAt"
 $prData = gh pr view $PullRequest --repo "$Owner/$Repo" --json $jsonFields 2>&1
 
 if ($LASTEXITCODE -ne 0) {
@@ -81,7 +81,7 @@ $output = [PSCustomObject]@{
     Deletions    = $pr.deletions
     ChangedFiles = $pr.changedFiles
     Mergeable    = $pr.mergeable
-    Merged       = $pr.merged
+    Merged       = [bool]$pr.mergedAt
     MergedBy     = if ($pr.mergedBy) { $pr.mergedBy.login } else { $null }
     CreatedAt    = $pr.createdAt
     UpdatedAt    = $pr.updatedAt
