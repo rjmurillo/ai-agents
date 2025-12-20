@@ -594,6 +594,72 @@ What this workflow does...
 
 ---
 
+## Skill-CI-001: Pre-Commit Syntax Validation
+
+**Statement**: Run static syntax analysis (PSScriptAnalyzer for PowerShell) in pre-commit hook to catch syntax errors before commit.
+
+**Context**: PowerShell script development
+
+**Evidence**: PR #79 - Get-PRContext.ps1 committed with syntax error, caught only at runtime
+
+**Atomicity**: 92%
+
+**Tag**: helpful
+
+**Impact**: 8/10 - Prevents syntax errors from reaching repository
+
+**Created**: 2025-12-20
+
+**Pattern**:
+
+```powershell
+# .githooks/pre-commit
+# Validate PowerShell syntax before commit
+
+$errors = @()
+$changedFiles = git diff --cached --name-only --diff-filter=ACM | Where-Object { $_ -match '\.ps1$' }
+
+foreach ($file in $changedFiles) {
+    $result = Invoke-ScriptAnalyzer -Path $file -Severity Error
+    if ($result) {
+        $errors += $result
+        Write-Host "Syntax errors in $file" -ForegroundColor Red
+        $result | Format-Table -AutoSize
+    }
+}
+
+if ($errors.Count -gt 0) {
+    Write-Host "`nCommit aborted due to syntax errors." -ForegroundColor Red
+    exit 1
+}
+```
+
+**Installation**:
+
+```powershell
+# Install PSScriptAnalyzer
+Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+
+# Configure git hooks directory
+git config core.hooksPath .githooks
+```
+
+**Benefits**:
+
+- Catches syntax errors before they reach CI/CD
+- Provides immediate feedback to developers
+- Prevents broken commits in repository history
+- Complements CI/CD validation (defense in depth)
+
+**Related Skills**:
+
+- Skill-Testing-003: Basic execution validation (runtime check)
+- Skill-CI-Environment-Testing-001: Local CI simulation
+
+**Validation**: 1 (PR #79)
+
+---
+
 ## Related Files
 
 - Test Runner: `build/scripts/Invoke-PesterTests.ps1`
