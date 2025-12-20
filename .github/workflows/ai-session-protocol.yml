@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Identify Changed Session Files
         id: changed
@@ -72,7 +72,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Load Protocol Context
         id: protocol
@@ -132,7 +132,7 @@ jobs:
           echo "  MUST failures: $MUST_FAIL_COUNT"
 
       - name: Upload validation results
-        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b
         with:
           name: validation-${{ hashFiles(matrix.session_file) }}
           path: validation-results/
@@ -150,10 +150,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Download all validation artifacts
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
         with:
           pattern: validation-*
           path: validation-results
