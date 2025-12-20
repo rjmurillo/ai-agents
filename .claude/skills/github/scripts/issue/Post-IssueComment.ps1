@@ -65,6 +65,17 @@ if ($Marker) {
     if ($LASTEXITCODE -eq 0 -and $existingComments -match [regex]::Escape($markerHtml)) {
         Write-Host "Comment with marker '$Marker' already exists. Skipping." -ForegroundColor Yellow
         Write-Host "Success: True, Issue: $Issue, Marker: $Marker, Skipped: True"
+
+        # GitHub Actions outputs for programmatic consumption
+        if ($env:GITHUB_OUTPUT) {
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=true"
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
+            if ($Marker) {
+                Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
+            }
+        }
+
         exit 0  # Idempotent skip is a success
     }
 
