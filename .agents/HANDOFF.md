@@ -3,8 +3,8 @@
 **Project**: AI Agents Enhancement
 **Version**: 1.0
 **Last Updated**: 2025-12-20
-**Current Phase**: PR Comment Response and Protocol Enhancement (Session 38)
-**Status**: ✅ PR #87 threads resolved, SESSION-PROTOCOL.md enhancement in progress
+**Current Phase**: Issue Tracking and Backlog Management (Session 39)
+**Status**: ✅ 6 issues created from incomplete HANDOFF items, ready for Phase 1
 
 ---
 
@@ -365,18 +365,22 @@ Implement Kiro's 3-tier planning hierarchy with EARS format.
 
 | ID | Task | Complexity | Status |
 |----|------|------------|--------|
-| S-001 | Create EARS format template | S | 📋 Pending |
-| S-002 | Create spec-generator agent prompt | L | 📋 Pending |
-| S-003 | Create YAML schemas for requirements | S | 📋 Pending |
-| S-004 | Create YAML schemas for design | S | 📋 Pending |
-| S-005 | Create YAML schemas for tasks | S | 📋 Pending |
-| S-006 | Update orchestrator with spec workflow | M | 📋 Pending |
-| S-007 | Create sample specs (dogfood) | M | 📋 Pending |
-| S-008 | Document spec workflow | S | 📋 Pending |
+| S-001 | Create EARS format template | S | 📋 Tracked in [#193](https://github.com/rjmurillo/ai-agents/issues/193) |
+| S-002 | Create spec-generator agent prompt | L | 📋 Tracked in [#193](https://github.com/rjmurillo/ai-agents/issues/193) |
+| S-003 | Create YAML schemas for requirements | S | 📋 Tracked in [#193](https://github.com/rjmurillo/ai-agents/issues/193) |
+| S-004 | Create YAML schemas for design | S | 📋 Tracked in [#193](https://github.com/rjmurillo/ai-agents/issues/193) |
+| S-005 | Create YAML schemas for tasks | S | 📋 Tracked in [#193](https://github.com/rjmurillo/ai-agents/issues/193) |
+| S-006 | Update orchestrator with spec workflow | M | 📋 Tracked in [#193](https://github.com/rjmurillo/ai-agents/issues/193) |
+| S-007 | Create sample specs (dogfood) | M | 📋 Tracked in [#193](https://github.com/rjmurillo/ai-agents/issues/193) |
+| S-008 | Document spec workflow | S | 📋 Tracked in [#193](https://github.com/rjmurillo/ai-agents/issues/193) |
 
 ### Estimated Sessions
 
 2-3 sessions
+
+### GitHub Issue
+
+[#193 - epic: Phase 1 - Spec Layer Implementation](https://github.com/rjmurillo/ai-agents/issues/193)
 
 ---
 
@@ -500,6 +504,40 @@ cat .agents/governance/consistency-protocol.md
 
 ## Recent Sessions
 
+### 2025-12-20: HANDOFF.md Issue Tracking (Session 39)
+
+**Session Log**: `.agents/sessions/2025-12-20-session-39-handoff-issue-tracking.md`
+
+**Objective**: Review HANDOFF.md for incomplete items and create GitHub issues for actionable tracking
+
+**Agent**: analyst (Claude Opus 4.5)
+
+**Branch**: main
+
+**Outcome**: SUCCESS - 6 issues created from incomplete HANDOFF items
+
+**Issues Created**:
+
+| Issue # | Title | Priority | Source |
+|---------|-------|----------|--------|
+| [#188](https://github.com/rjmurillo/ai-agents/issues/188) | feat: Add PSScriptAnalyzer to pre-commit hook | P0 | Session 36 retrospective |
+| [#189](https://github.com/rjmurillo/ai-agents/issues/189) | feat: Add PowerShell syntax validation to CI pipeline | P1 | Session 36 retrospective |
+| [#190](https://github.com/rjmurillo/ai-agents/issues/190) | feat: Implement orchestrator HANDOFF coordination for parallel sessions | P1 | Session 22 retrospective |
+| [#191](https://github.com/rjmurillo/ai-agents/issues/191) | feat: Formalize parallel execution pattern in AGENT-SYSTEM.md | P1 | Session 22 retrospective |
+| [#192](https://github.com/rjmurillo/ai-agents/issues/192) | docs: Document PowerShell variable interpolation best practices | P2 | Session 36 retrospective |
+| [#193](https://github.com/rjmurillo/ai-agents/issues/193) | epic: Phase 1 - Spec Layer Implementation (EARS format + 3-tier hierarchy) | P1 | HANDOFF Phase 1 |
+
+**Key Actions**:
+- Verified issue #62 closed (PR #60 P2-P3 comments)
+- Checked 50 existing open issues to avoid duplicates
+- Created comprehensive issue descriptions with context and acceptance criteria
+- Updated HANDOFF.md with issue references
+- Excluded vague or conditional items (no premature issue creation)
+
+**Status**: Complete
+
+---
+
 ### 2025-12-20: PR #87 Comment Response (Session 38)
 
 **Session Log**: `.agents/sessions/2025-12-20-session-38-pr-87-comment-response.md`
@@ -593,11 +631,10 @@ Syntax error on line 64 of `.claude/skills/github/scripts/pr/Get-PRContext.ps1`:
    - Skill-CI-001: Pre-commit syntax validation (92%)
    - Skill-Testing-003: Basic execution validation (88%)
 
-3. **Action Items Identified**:
-   - P0: Add PSScriptAnalyzer to pre-commit hook (30 min)
-   - P1: Create basic test for Get-PRContext.ps1 (45 min)
-   - P1: Add PowerShell syntax validation to CI (60 min)
-   - P2: Document PowerShell interpolation best practices (30 min)
+3. **Action Items Identified** (Tracked in GitHub):
+   - P0: Add PSScriptAnalyzer to pre-commit hook → [#188](https://github.com/rjmurillo/ai-agents/issues/188)
+   - P1: Add PowerShell syntax validation to CI → [#189](https://github.com/rjmurillo/ai-agents/issues/189)
+   - P2: Document PowerShell interpolation best practices → [#192](https://github.com/rjmurillo/ai-agents/issues/192)
 
 **Files Modified**:
 - `.claude/skills/github/scripts/pr/Get-PRContext.ps1` - Fixed syntax error
@@ -954,12 +991,12 @@ Syntax error on line 64 of `.claude/skills/github/scripts/pr/Get-PRContext.ps1`:
 | Skill-Testing-002 | Create Pester tests during implementation (not after) for 100% pass rates | 95% |
 | Skill-Protocol-002 | Verification-based BLOCKING gates achieve 100% compliance vs trust-based guidance | 100% |
 
-**Recommendations**:
+**Recommendations** (Tracked in GitHub):
 
-1. Implement orchestrator HANDOFF coordination for parallel sessions
-2. Formalize parallel execution pattern in AGENT-SYSTEM.md
-3. Add test execution phase to SESSION-PROTOCOL.md (Phase 4)
-4. Extract skills to skillbook and update memories
+1. Implement orchestrator HANDOFF coordination → [#190](https://github.com/rjmurillo/ai-agents/issues/190)
+2. Formalize parallel execution pattern in AGENT-SYSTEM.md → [#191](https://github.com/rjmurillo/ai-agents/issues/191)
+3. Add test execution phase to SESSION-PROTOCOL.md (Phase 4) - Not yet scoped
+4. Extract skills to skillbook and update memories - ✅ Complete
 
 **Artifacts**:
 
