@@ -213,13 +213,26 @@ gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {thread
 
 When handling PR review comments:
 
+### Phase 1-2: Context and Acknowledgment
+
 1. [ ] Enumerate ALL reviewers before triaging (Skill-PR-001)
 2. [ ] Prioritize cursor[bot] comments first (Skill-PR-006)
 3. [ ] Parse each comment independently, not by file (Skill-PR-002)
-4. [ ] For atomic bugs, use Quick Fix path to implementer (Skill-Workflow-001)
-5. [ ] Always delegate to QA after implementer (Skill-QA-001)
-6. [ ] Use review reply endpoint: `gh api repos/OWNER/REPO/pulls/PR/comments -X POST -F in_reply_to=ID -f body=TEXT` (Skill-PR-004)
-7. [ ] Verify count before claiming done (Skill-PR-003)
+4. [ ] **BLOCKING**: Add eyes reaction to EACH comment (Skill-PR-Comment-001)
+5. [ ] **BLOCKING**: Verify eyes_count == comment_count via API before Phase 3 (Skill-PR-Comment-003)
+
+### Phase 3-5: Analysis and Response
+
+6. [ ] Track 'NEW this session' vs 'DONE prior sessions' (Skill-PR-Comment-002)
+7. [ ] For atomic bugs, use Quick Fix path to implementer (Skill-Workflow-001)
+8. [ ] Always delegate to QA after implementer (Skill-QA-001)
+9. [ ] Use review reply endpoint with `-CommentId` parameter (Skill-PR-004)
+10. [ ] **MANDATORY**: Add reply from THIS session (not rely on prior replies)
+
+### Phase 6-8: Implementation and Verification
+
+11. [ ] If PowerShell fails, use gh CLI fallback (Skill-PR-Comment-004)
+12. [ ] Verify addressed_count == total_comment_count before claiming done (Skill-PR-003)
 
 ## Reviewer Signal Quality Evaluation
 
@@ -299,6 +312,119 @@ Based on cumulative signal quality:
 2. **Check for duplicates** - CodeRabbit often echoes Copilot
 3. **Copilot improving** - Take seriously, but verify
 4. **Skip summaries** - No action needed on walkthrough comments
+
+---
+
+## Discovered: 2025-12-20 from PR #94 Retrospective
+
+### Skill-PR-Comment-001: Acknowledgment BLOCKING Gate
+
+**Statement**: Phase 3 BLOCKED until eyes reaction count equals comment count
+
+**Context**: pr-comment-responder Phase 2 completion gate
+
+**Evidence**: PR #94 - Comment 2636844102 had 0 eyes reactions despite agent declaring Phase 2 complete. User complaint required manual intervention.
+
+**Atomicity**: 100%
+
+**Tag**: critical
+
+**Validated**: 1 (PR #94)
+
+**Pattern**:
+
+```bash
+# Verify eyes reactions before Phase 3
+COMMENT_COUNT=$(gh api repos/OWNER/REPO/pulls/PR/comments --jq 'length')
+EYES_COUNT=$(gh api repos/OWNER/REPO/pulls/PR/comments --jq '[.[].reactions.eyes] | add')
+
+if [ "$EYES_COUNT" -lt "$COMMENT_COUNT" ]; then
+  echo "BLOCKED: $EYES_COUNT/$COMMENT_COUNT eyes reactions. Add missing reactions before Phase 3."
+  exit 1
+fi
+```
+
+---
+
+### Skill-PR-Comment-002: Session-Specific Work Tracking
+
+**Statement**: Session log tracks 'NEW this session' separately from 'DONE prior sessions'
+
+**Context**: pr-comment-responder session initialization
+
+**Evidence**: PR #94 - Agent saw 3 prior replies from rjmurillo-bot and assumed acknowledgment done. Did not distinguish between prior session work and current session requirements.
+
+**Atomicity**: 100%
+
+**Tag**: critical
+
+**Validated**: 1 (PR #94)
+
+**Anti-Pattern**: Conflating prior session replies with current session obligations
+
+**Correct Pattern**:
+
+```markdown
+## Session Work Tracking
+
+### DONE (Prior Sessions)
+- [x] Reply 2636893013 (rjmurillo-bot, 2025-12-20T07:38:12Z)
+- [x] Reply 2636924180 (rjmurillo-bot, 2025-12-20T08:04:50Z)
+
+### NEW (This Session - MANDATORY)
+- [ ] Add eyes reaction to 2636844102
+- [ ] Add reply from THIS session to 2636844102
+```
+
+---
+
+### Skill-PR-Comment-003: API Verification Before Phase Completion
+
+**Statement**: Verify mandatory step completion via API before marking phase complete
+
+**Context**: pr-comment-responder phase completion
+
+**Evidence**: PR #94 - Phase 2 marked complete without verifying reactions existed via API. Summary claimed "5/5 comments addressed" with 0/1 reactions added.
+
+**Atomicity**: 100%
+
+**Tag**: critical
+
+**Validated**: 1 (PR #94)
+
+**Verification Pattern**:
+
+```bash
+# Before marking Phase 2 complete
+gh api repos/OWNER/REPO/pulls/COMMENT_ID/reactions --jq '.[] | select(.content == "eyes")' | wc -l
+# Must return >= 1 for each comment
+```
+
+---
+
+### Skill-PR-Comment-004: PowerShell Fallback to gh CLI
+
+**Statement**: PowerShell script failure requires immediate gh CLI fallback attempt
+
+**Context**: GitHub operations with dual-path tooling
+
+**Evidence**: PR #94 - Add-CommentReaction.ps1 had parsing errors. No fallback to gh CLI was attempted. Eyes reaction never added until manual intervention.
+
+**Atomicity**: 100%
+
+**Tag**: helpful
+
+**Validated**: 1 (PR #94)
+
+**Pattern**:
+
+```bash
+# Try PowerShell first
+if ! pwsh .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId $ID -Reaction "eyes"; then
+  # Fallback to gh CLI
+  gh api repos/OWNER/REPO/pulls/comments/$ID/reactions -X POST -f content="eyes"
+fi
+```
 
 ---
 
