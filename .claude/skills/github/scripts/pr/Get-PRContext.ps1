@@ -61,7 +61,7 @@ $prData = gh pr view $PullRequest --repo "$Owner/$Repo" --json $jsonFields 2>&1
 
 if ($LASTEXITCODE -ne 0) {
     if ($prData -match "not found") { Write-ErrorAndExit "PR #$PullRequest not found in $Owner/$Repo" 2 }
-    Write-ErrorAndExit "Failed to get PR #$PullRequest: $prData" 3
+    Write-ErrorAndExit "Failed to get PR #$($PullRequest): $prData" 3
 }
 
 $pr = $prData | ConvertFrom-Json
