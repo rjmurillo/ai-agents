@@ -36,13 +36,16 @@ jobs:
     permissions:
       contents: read
     outputs:
-      should-run-tests: ${{ steps.filter.outputs.testable }}
+      # For workflow_dispatch, always run tests; otherwise use paths-filter result
+      should-run-tests: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.testable }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Check for testable file changes
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
         id: filter
+        # Skip paths-filter for workflow_dispatch as it may not have proper context
+        if: github.event_name != 'workflow_dispatch'
         with:
           filters: |
             testable:
@@ -55,7 +58,11 @@ jobs:
 
       - name: Report path check result
         run: |
-          echo "Testable files changed: ${{ steps.filter.outputs.testable }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger - running all tests"
+          else
+            echo "Testable files changed: ${{ steps.filter.outputs.testable }}"
+          fi
 
   test:
     name: Run Pester Tests
@@ -97,6 +104,7 @@ jobs:
     if: needs.check-paths.outputs.should-run-tests != 'true'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       checks: write
     steps:
       - name: Skip tests (no testable files changed)
@@ -107,6 +115,7 @@ jobs:
           echo "  - scripts/**"
           echo "  - build/**"
           echo "  - .github/scripts/**"
+          echo "  - .github/workflows/pester-tests.yml"
           echo "  - .claude/skills/**"
           echo "  - tests/**"
 
@@ -124,6 +133,7 @@ jobs:
 
       - name: Publish Test Report (skipped)
         uses: dorny/test-reporter@6c357194179c694acfcad2100dbf27c5b9b0d5e0 # v1.9.1
+        if: always()
         with:
           name: Pester Test Report
           path: ./artifacts/pester-results.xml
