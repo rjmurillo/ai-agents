@@ -122,9 +122,21 @@ jobs:
 
           # Load from linked issues
           for issue in $ISSUE_REFS; do
-            ISSUE_BODY=$(gh issue view "$issue" --json title,body -q '.title + "\n\n" + .body' 2>/dev/null || true)
+            # Parse cross-repo format (owner/repo#123) vs simple format (123)
+            if [[ "$issue" == *"/"* ]]; then
+              # Cross-repo: extract owner/repo and issue number
+              REPO=$(echo "$issue" | sed -E 's|^([^#]+)#.*|\1|')
+              ISSUE_NUM=$(echo "$issue" | sed -E 's|^[^#]+#([0-9]+)|\1|')
+              ISSUE_BODY=$(gh issue view "$ISSUE_NUM" --repo "$REPO" --json title,body -q '.title + "\n\n" + .body' 2>/dev/null || true)
+              ISSUE_REF="$issue"  # Already has # in format
+            else
+              # Simple ref: use default repo
+              ISSUE_BODY=$(gh issue view "$issue" --json title,body -q '.title + "\n\n" + .body' 2>/dev/null || true)
+              ISSUE_REF="#$issue"  # Add # for display
+            fi
+
             if [ -n "$ISSUE_BODY" ]; then
-              SPEC_CONTENT="$SPEC_CONTENT"$'\n\n'"## Issue #$issue"$'\n\n'"$ISSUE_BODY"
+              SPEC_CONTENT="$SPEC_CONTENT"$'\n\n'"## Issue $ISSUE_REF"$'\n\n'"$ISSUE_BODY"
             fi
           done
 
