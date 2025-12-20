@@ -42,18 +42,19 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 
 ### Capability 1: Static Analysis & Vulnerability Scanning
 
-Scan for common vulnerability patterns:
+Scan for the following security issues:
 
-- **CWE-78 (OS Command Injection)**: Shell execution without proper quoting, dangerous functions (Runtime.exec, os.system, Process.Start)
-- **CWE-79 (XSS)**: Direct output without encoding (innerHTML, @Html.Raw, dangerouslySetInnerHTML)
-- **CWE-89 (SQL Injection)**: String concatenation in queries, ExecuteNonQuery with string concat
-- **CWE-200 (Information Exposure)**: Logging sensitive data, verbose error messages, hardcoded secrets
-- **CWE-287 (Improper Authentication)**: Weak password hashing (MD5, SHA1), hardcoded credentials
-- **CWE-352 (CSRF)**: Missing anti-forgery tokens, state-changing GET requests
-- **CWE-611 (XXE)**: XML parsing without disabling external entities
-- OWASP Top 10 scanning
-- Vulnerable dependency detection
-- Code anti-pattern detection
+- **Common Vulnerability Patterns (CWEs)**:
+  - **CWE-78 (OS Command Injection)**: Shell execution without proper quoting, dangerous functions (Runtime.exec, os.system, Process.Start)
+  - **CWE-79 (XSS)**: Direct output without encoding (innerHTML, @Html.Raw, dangerouslySetInnerHTML)
+  - **CWE-89 (SQL Injection)**: String concatenation in queries, ExecuteNonQuery with string concat
+  - **CWE-200 (Information Exposure)**: Logging sensitive data, verbose error messages, hardcoded secrets
+  - **CWE-287 (Improper Authentication)**: Weak password hashing (MD5, SHA1), hardcoded credentials
+  - **CWE-352 (CSRF)**: Missing anti-forgery tokens, state-changing GET requests
+  - **CWE-611 (XXE)**: XML parsing without disabling external entities
+- **OWASP Top 10 vulnerabilities**
+- **Vulnerable dependencies**
+- **Code anti-patterns** with security implications
 
 ### Capability 2: Secret Detection & Environment Leak Scanning
 
