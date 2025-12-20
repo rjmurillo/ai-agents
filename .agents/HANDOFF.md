@@ -3,8 +3,8 @@
 **Project**: AI Agents Enhancement
 **Version**: 1.0
 **Last Updated**: 2025-12-20
-**Current Phase**: Get-PRContext.ps1 Syntax Error Fix (Session 36)
-**Status**: ✅ Fixed and retrospective complete
+**Current Phase**: PR #95 Session Protocol Investigation (Session 38)
+**Status**: ✅ Analysis complete
 
 ---
 
@@ -499,6 +499,56 @@ cat .agents/governance/consistency-protocol.md
 ---
 
 ## Recent Sessions
+
+### 2025-12-20: PR #95 Session Protocol Validation Failure Investigation (Session 38)
+
+**Session Log**: [Session 38](.agents/sessions/2025-12-20-session-38-pr95-investigation.md)
+
+**Objective**: Investigate why PR #95 failed session protocol validation with 4 MUST failures
+
+**Agent**: analyst (Claude Sonnet 4.5)
+
+**PR Context**: PR #95 ("docs: comprehensive GitHub CLI skills") triggered Session Protocol Validation workflow failure
+
+**Outcome**: SUCCESS - Root cause identified, recommendations provided
+
+**Key Findings**:
+
+1. **4 MUST Failures Identified**: All relate to Phase 1.5 Skill Validation
+   - Missing: List skill scripts checklist item
+   - Missing: Read skill-usage-mandatory memory checklist item
+   - Missing: Read PROJECT-CONSTRAINTS.md checklist item
+   - Missing: Skill Inventory section
+
+2. **Root Cause**: Session 37 used **outdated template** (pre-version 1.2 of SESSION-PROTOCOL.md)
+   - Phase 1.5 added: 2025-12-18
+   - Session 37 created: 2025-12-20 (2 days later)
+   - Template gap: Session template predates Phase 1.5 addition
+
+3. **Verdict**: **LEGITIMATE PROTOCOL VIOLATION** (but low impact)
+   - Not a false positive - validation script correctly detected missing requirements
+   - Impact is low - Session 37 reviewed documentation changes, not code
+   - First session after Phase 1.5 requirement added
+
+**Recommendations**:
+
+| Priority | Action | Impact |
+|----------|--------|--------|
+| P0 | Apply grandfather clause to Session 37 | Unblock PR #95 |
+| P0 | Create canonical template at `.agents/templates/session-log-template.md` | Prevent template drift |
+| P1 | Update agent prompts to reference canonical template | Ensure future compliance |
+| P1 | Add pre-commit hook for session validation | Catch violations before push |
+| P2 | Document template update process | Ensure protocol changes propagate |
+
+**Files Created**:
+- `.agents/analysis/003-pr95-session-protocol-failure.md` - Comprehensive investigation report
+- `.agents/sessions/2025-12-20-session-38-pr95-investigation.md` - Session log
+
+**Decision Required**: Apply grandfather clause to Session 37 to unblock PR #95
+
+**Status**: Complete - awaiting user decision on recommendations
+
+---
 
 ### 2025-12-20: Get-PRContext.ps1 Syntax Error Fix (Session 36)
 
