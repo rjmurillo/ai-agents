@@ -6,6 +6,11 @@
 # Automatically synthesizes context from issue comments and assigns GitHub
 # Copilot when the 'copilot-ready' label is added to an issue.
 #
+# TRIGGERS:
+# 1. issues:labeled  - Immediate processing when label is added
+# 2. schedule        - Hourly sweep to catch any missed issues
+# 3. workflow_dispatch - Manual trigger for testing
+#
 # HOW IT WORKS:
 # 1. Maintainer reviews issue and adds 'copilot-ready' label
 # 2. This workflow triggers on the 'labeled' event
@@ -13,12 +18,17 @@
 # 4. Generates synthesis comment with @copilot mention
 # 5. Creates or updates synthesis comment (idempotent - ONE comment only)
 # 6. Assigns copilot-swe-agent to the issue
-# 7. Copilot creates PR with full context
+# 7. Removes the copilot-ready label to indicate completion
+# 8. Copilot creates PR with full context
+#
+# EVENTUAL CONSISTENCY:
+# The scheduled sweep job runs hourly to process any issues that might have
+# been missed due to workflow failures, race conditions, or API issues.
+# This ensures all copilot-ready labeled issues are eventually processed.
 #
 # IDEMPOTENCY:
-# Re-adding the label or re-running the workflow updates the existing
-# synthesis comment rather than creating duplicates. Detection uses the
-# HTML marker: <!-- COPILOT-CONTEXT-SYNTHESIS -->
+# Re-processing an issue updates the existing synthesis comment rather than
+# creating duplicates. Detection uses HTML marker: <!-- COPILOT-CONTEXT-SYNTHESIS -->
 #
 # RELATED:
 # - Issue #92: https://github.com/rjmurillo/ai-agents/issues/92
@@ -33,12 +43,16 @@ on:
   issues:
     types: [labeled]
 
+  # Scheduled sweep for eventual consistency - runs hourly
+  schedule:
+    - cron: "0 * * * *"
+
   # Manual trigger for testing or re-running synthesis
   workflow_dispatch:
     inputs:
       issue_number:
-        description: "Issue number to synthesize context for"
-        required: true
+        description: "Issue number to synthesize context for (leave empty for sweep mode)"
+        required: false
         type: number
 
 permissions:
@@ -46,15 +60,19 @@ permissions:
   issues: write
 
 jobs:
-  synthesize-and-assign:
+  # ===========================================================================
+  # Job 1: Process Single Issue (label trigger or manual with issue number)
+  # ===========================================================================
+  synthesize-single:
     name: Synthesize Context and Assign Copilot
     runs-on: ubuntu-latest
 
-    # Only run when copilot-ready label is added (for labeled trigger)
-    # Always run for workflow_dispatch
+    # Run for:
+    # - Label trigger with copilot-ready label
+    # - Manual trigger with issue_number provided
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      github.event.label.name == 'copilot-ready'
+      (github.event_name == 'issues' && github.event.label.name == 'copilot-ready') ||
+      (github.event_name == 'workflow_dispatch' && inputs.issue_number != '')
 
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -95,7 +113,7 @@ jobs:
           }
 
       - name: Remove copilot-ready label
-        if: success() && github.event_name != 'workflow_dispatch'
+        if: success()
         run: |
           echo "Removing copilot-ready label to indicate successful processing..."
           gh issue edit ${{ steps.issue.outputs.number }} --remove-label "copilot-ready"
@@ -115,3 +133,110 @@ jobs:
           echo "- Removed copilot-ready label (processing complete)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Copilot will now create a PR based on the synthesized context." >> $GITHUB_STEP_SUMMARY
+
+  # ===========================================================================
+  # Job 2: Sweep for Missed Issues (scheduled or manual without issue number)
+  # ===========================================================================
+  sweep-missed:
+    name: Sweep Missed Issues
+    runs-on: ubuntu-latest
+
+    # Run for:
+    # - Scheduled trigger (cron)
+    # - Manual trigger WITHOUT issue_number (sweep mode)
+    if: |
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.issue_number == '')
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Find issues with copilot-ready label
+        id: find-issues
+        run: |
+          echo "Searching for issues with copilot-ready label..."
+          ISSUES=$(gh issue list --label "copilot-ready" --state open --json number --jq '.[].number' | tr '\n' ' ')
+          echo "issues=$ISSUES" >> $GITHUB_OUTPUT
+
+          if [ -z "$ISSUES" ]; then
+            echo "No issues found with copilot-ready label"
+            echo "count=0" >> $GITHUB_OUTPUT
+          else
+            COUNT=$(echo $ISSUES | wc -w)
+            echo "Found $COUNT issue(s) to process: $ISSUES"
+            echo "count=$COUNT" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Process each issue
+        if: steps.find-issues.outputs.count != '0'
+        shell: pwsh
+        env:
+          ISSUES: ${{ steps.find-issues.outputs.issues }}
+        run: |
+          $issues = $env:ISSUES.Trim() -split '\s+'
+          $results = @()
+          $failed = @()
+
+          Write-Host "Processing $($issues.Count) issue(s)..." -ForegroundColor Cyan
+
+          foreach ($issueNumber in $issues) {
+            if ([string]::IsNullOrWhiteSpace($issueNumber)) { continue }
+
+            Write-Host "`n=== Processing Issue #$issueNumber ===" -ForegroundColor Yellow
+
+            try {
+              # Run the synthesis script (same script as single-issue job - DRY!)
+              $result = & "./.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1" `
+                -IssueNumber $issueNumber
+
+              if ($result.Success) {
+                Write-Host "::notice::Issue #$issueNumber - $($result.Action) synthesis comment"
+
+                # Remove the label to indicate successful processing
+                gh issue edit $issueNumber --remove-label "copilot-ready"
+                Write-Host "::notice::Issue #$issueNumber - Removed copilot-ready label"
+
+                $results += [PSCustomObject]@{
+                  Issue = $issueNumber
+                  Status = "Success"
+                  Action = $result.Action
+                }
+              } else {
+                Write-Host "::warning::Issue #$issueNumber - Synthesis failed"
+                $failed += $issueNumber
+              }
+            }
+            catch {
+              Write-Host "::error::Issue #$issueNumber - Error: $_"
+              $failed += $issueNumber
+            }
+          }
+
+          # Summary
+          Write-Host "`n=== Sweep Complete ===" -ForegroundColor Cyan
+          Write-Host "Processed: $($results.Count) issue(s)"
+          if ($failed.Count -gt 0) {
+            Write-Host "Failed: $($failed.Count) issue(s): $($failed -join ', ')" -ForegroundColor Red
+            # Don't fail the job - we want to process as many as possible
+          }
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Copilot Context Synthesis Sweep :broom:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Issues Found**: ${{ steps.find-issues.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.find-issues.outputs.count }}" == "0" ]; then
+            echo "No issues with \`copilot-ready\` label found. All caught up! :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### Issues Processed" >> $GITHUB_STEP_SUMMARY
+            echo "Issues: ${{ steps.find-issues.outputs.issues }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Check the job logs for individual issue processing results." >> $GITHUB_STEP_SUMMARY
+          fi
