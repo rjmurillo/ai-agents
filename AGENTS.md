@@ -1060,6 +1060,29 @@ Agents violating these standards produce inconsistent, unprofessional output. Re
 
 **CI Runner Performance**: Prefer `ubuntu-latest` over `windows-latest` for GitHub Actions (much faster). Use Windows runners only when PowerShell Desktop or Windows-specific features required.
 
+### Repository Merge Policies
+
+**Branch Protection Requirements**: The `rjmurillo/ai-agents` repository has branch protection rules that MUST be satisfied before merge:
+
+| Requirement | Description |
+|-------------|-------------|
+| **Conversations Resolved** | ALL PR review conversations MUST be resolved before merge. Unresolved threads block the merge. |
+| **Required Checks** | CI checks must pass (CodeQL, Path Normalization, CodeRabbit) |
+| **Auto-Merge** | Use `gh pr merge --auto` when checks are pending; merge will complete when requirements are met |
+
+**PR Review Workflow**:
+
+1. Review all comments (bot and human)
+2. Address each comment with code changes or replies
+3. Mark conversations as resolved when addressed
+4. Verify all conversations show "Resolved" status
+5. Enable auto-merge or merge directly once all requirements met
+
+**Common Blockers**:
+
+- Unresolved review threads (most common)
+- Failing CI checks
+- Missing required approvals
 ---
 
 ## Putting It All Together
