@@ -230,6 +230,38 @@ The agent SHOULD verify git state before starting work.
 
 **Rationale:** Understanding git state prevents confusion about what changes belong to the current session vs. prior work.
 
+### Phase 5: Cost Efficiency Awareness (REQUIRED)
+
+The agent MUST apply cost-conscious practices throughout the session.
+
+**Requirements:**
+
+1. The agent MUST use Serena symbolic tools (`find_symbol`, `get_symbols_overview`) instead of reading entire files
+2. The agent MUST read task-specific memories before starting work (enables prompt caching)
+3. The agent SHOULD use Haiku model for quick, straightforward tasks via `model: "haiku"` parameter
+4. The agent MUST NOT read files larger than necessary - use `offset`/`limit` parameters
+5. For CI/CD changes, the agent MUST comply with:
+   - [ADR-007: GitHub Actions Runner Selection](.agents/architecture/ADR-007-github-actions-runner-selection.md)
+   - [ADR-008: Artifact Storage Minimization](.agents/architecture/ADR-008-artifact-storage-minimization.md)
+
+**Verification:**
+
+- Session transcript shows symbolic tool usage over file reads
+- Memories read before work begins (enables cache hits)
+- CI/CD changes include ADR-007/ADR-008 compliance comments
+
+**Rationale:** Token costs accumulate rapidly. Opus 4.5 input_no_cache costs $15/M tokens. A single 100M token uncached session costs $1,500. Symbolic reads reduce tokens by 80%+. Memory reads enable prompt caching ($1.50/M vs $15/M).
+
+**Cost Reference:**
+
+| Resource | Cost | Alternative | Savings |
+|----------|------|-------------|---------|
+| Opus input (no cache) | $15/M tokens | Cache read | 90% |
+| Opus input (cache read) | $1.50/M tokens | Haiku | 83% |
+| Haiku input | $0.25/M tokens | - | Baseline |
+| ubuntu-latest | $0.008/min | ubuntu-24.04-arm | 37.5% |
+| windows-latest | $0.016/min | ubuntu-24.04-arm | 69% |
+
 ---
 
 ## Session Start Checklist
@@ -253,6 +285,7 @@ Copy this checklist to each session log and verify completion:
 | SHOULD | Search relevant Serena memories | [ ] | Memory results present |
 | SHOULD | Verify git status | [ ] | Output documented below |
 | SHOULD | Note starting commit | [ ] | SHA documented below |
+| MUST | Apply cost efficiency practices (Phase 5) | [ ] | Symbolic tools used |
 
 ### Skill Inventory
 
@@ -442,6 +475,7 @@ Create at: `.agents/sessions/YYYY-MM-DD-session-NN.md`
 | SHOULD | Search relevant Serena memories | [ ] | Memory results present |
 | SHOULD | Verify git status | [ ] | Output documented below |
 | SHOULD | Note starting commit | [ ] | SHA documented below |
+| MUST | Apply cost efficiency practices (Phase 5) | [ ] | Symbolic tools used |
 
 ### Skill Inventory
 
@@ -616,6 +650,7 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.4 | 2025-12-20 | Added Phase 5 cost efficiency as REQUIRED; added cost reference table; ADR-007/ADR-008 compliance requirements |
 | 1.3 | 2025-12-20 | Added explicit memory requirements for tasks and agent handoffs; added Phase 4 memory persistence REQUIRED gate |
 | 1.2 | 2025-12-18 | Added Phase 1.5 skill validation BLOCKING gate |
 | 1.1 | 2025-12-17 | Added requirement to link session log in HANDOFF.md |

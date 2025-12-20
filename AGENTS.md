@@ -73,6 +73,60 @@ For complete protocol with:
 
 See: **[.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)**
 
+---
+
+## ⚠️ CRITICAL: Cost Efficiency Requirements
+
+> **Canonical Source**: [.agents/governance/COST-GOVERNANCE.md](.agents/governance/COST-GOVERNANCE.md)
+>
+> This section uses RFC 2119 key words. MUST = required, SHOULD = recommended, MAY = optional.
+
+**Cost efficiency is a first-class requirement, not an afterthought.** Both Claude API token costs and GitHub Actions runner costs directly impact sustainability. Inefficient sessions waste money.
+
+### Cost Impact Examples
+
+| Cost Source | Impact of Inefficiency |
+|-------------|----------------------|
+| **Claude API** | Opus 4.5 input_no_cache: $15/M tokens. A single uncached 100M token day = $1,500 |
+| **GitHub Actions** | Windows runners: 2x cost. macOS: 10x cost. Credits deplete fast |
+| **Artifact Storage** | Accumulates daily. 37,000 GB-hours = $12/month for ONE repo |
+
+### Token Efficiency Requirements (Claude API)
+
+| Req Level | Requirement | Rationale |
+|-----------|-------------|-----------|
+| **MUST** | Use Serena symbolic tools to read symbol bodies, not entire files | Reduces input tokens by 80%+ |
+| **MUST** | Read task-specific memories before work (enables cache hits) | Cache reads: $1.50/M vs $15/M |
+| **MUST** | Use Haiku for quick tasks (model selection) | Haiku: $0.25/M vs Opus: $15/M |
+| **SHOULD** | Limit file reads to necessary sections using offset/limit | Reduces context bloat |
+| **SHOULD** | Use `subagent_type="Explore"` for codebase exploration | Delegated agents have separate context |
+
+### GitHub Actions Cost Requirements
+
+| Req Level | Requirement | Reference |
+|-----------|-------------|-----------|
+| **MUST** | Use `ubuntu-24.04-arm` for new workflows (37.5% cheaper) | [ADR-007](.agents/architecture/ADR-007-github-actions-runner-selection.md) |
+| **MUST** | Justify any Windows/macOS runner usage with ADR-007 comment | Document exception |
+| **MUST** | Set artifact retention to minimum needed (1-7 days default) | [ADR-008](.agents/architecture/ADR-008-artifact-storage-minimization.md) |
+| **MUST** | Add path filters to prevent unnecessary workflow runs | Workflow template |
+| **SHOULD** | Use `concurrency` to cancel duplicate runs | Workflow template |
+| **SHOULD** | Upload debug artifacts only on failure (`if: failure()`) | Conditional upload |
+
+### Cost-Related ADRs
+
+All CI/CD changes MUST comply with these Architecture Decision Records:
+
+- **[ADR-007: GitHub Actions Runner Selection](.agents/architecture/ADR-007-github-actions-runner-selection.md)** - ARM-first policy
+- **[ADR-008: Artifact Storage Minimization](.agents/architecture/ADR-008-artifact-storage-minimization.md)** - No artifacts by default
+
+### Verification
+
+Cost efficiency is verified through:
+
+1. **Workflow reviews**: PR reviewers check for ADR-007/ADR-008 compliance
+2. **Monthly audits**: Review GitHub billing for cost creep
+3. **Session reviews**: Check token usage patterns in Claude API dashboard
+
 ### The Memory Bridge
 
 The combination of:

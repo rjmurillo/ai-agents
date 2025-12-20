@@ -8,6 +8,15 @@ Accepted
 
 2025-12-20
 
+## RFC 2119 Compliance
+
+This ADR uses RFC 2119 key words:
+
+- **MUST** / **REQUIRED** / **SHALL**: Absolute requirement; violation requires documented exception
+- **MUST NOT** / **SHALL NOT**: Absolute prohibition
+- **SHOULD** / **RECOMMENDED**: Strong recommendation; deviation requires justification
+- **MAY** / **OPTIONAL**: Truly optional
+
 ## Context
 
 GitHub Actions charges for artifact storage at $0.000336 per GB per day (approximately $0.01/GB/month). While individual artifacts may seem cheap, accumulated storage from frequent CI runs can add up:
@@ -30,11 +39,11 @@ Additionally, artifact upload/download times affect workflow duration, indirectl
 
 ## Decision
 
-We will minimize artifact storage through the following policies:
+All workflows MUST minimize artifact storage through the following policies:
 
-### 1. Default: No Artifacts
+### 1. Default: No Artifacts (MUST)
 
-New workflows MUST NOT upload artifacts unless explicitly justified.
+New workflows MUST NOT upload artifacts unless explicitly justified with an ADR-008 comment.
 
 ### 2. Justified Artifact Types
 
@@ -46,13 +55,23 @@ New workflows MUST NOT upload artifacts unless explicitly justified.
 | Debug logs | Only on failure | 3 days | 20 MB |
 | Binaries/packages | Only for release workflows | 30 days | 100 MB |
 
-### 3. Artifact Hygiene Rules
+### 3. Artifact Hygiene Rules (MUST)
 
-1. **Compression**: Always use compression for text-based artifacts
-2. **Selective Upload**: Upload only necessary files, not entire directories
-3. **Conditional Upload**: Use `if: failure()` for debug artifacts
-4. **Short Retention**: Default to minimum retention period needed
-5. **Cleanup**: Implement artifact deletion for superseded runs
+| Requirement | Level | Verification |
+|-------------|-------|--------------|
+| Every `upload-artifact` has ADR-008 justification comment | **MUST** | PR review |
+| Retention period is minimum needed (≤7 days default) | **MUST** | Workflow file |
+| Compression enabled for text artifacts | **MUST** | `compression-level: 9` |
+| Debug artifacts use `if: failure()` | **MUST** | Conditional check |
+| Upload specific files, not directories | **SHOULD** | Path patterns |
+
+**Hygiene Checklist:**
+
+1. **Compression (MUST)**: Always use `compression-level: 9` for text-based artifacts
+2. **Selective Upload (SHOULD)**: Upload only necessary files, not entire directories
+3. **Conditional Upload (MUST)**: Use `if: failure()` for debug artifacts
+4. **Short Retention (MUST)**: Default to minimum retention period needed (1-7 days)
+5. **Cleanup (SHOULD)**: Implement artifact deletion for superseded runs
 
 ## Rationale
 

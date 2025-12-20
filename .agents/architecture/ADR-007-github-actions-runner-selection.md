@@ -8,6 +8,15 @@ Accepted
 
 2025-12-20
 
+## RFC 2119 Compliance
+
+This ADR uses RFC 2119 key words:
+
+- **MUST** / **REQUIRED** / **SHALL**: Absolute requirement; violation requires documented exception
+- **MUST NOT** / **SHALL NOT**: Absolute prohibition
+- **SHOULD** / **RECOMMENDED**: Strong recommendation; deviation requires justification
+- **MAY** / **OPTIONAL**: Truly optional
+
 ## Context
 
 GitHub Actions charges per-minute for workflow execution, with costs varying significantly by runner type:
@@ -30,11 +39,20 @@ Our workflows run frequently (on every PR and push to main), accumulating signif
 
 ## Decision
 
-We will use the following runner selection hierarchy:
+All workflows MUST follow this runner selection hierarchy:
 
-1. **Default**: `ubuntu-24.04-arm` for all new workflows
-2. **Fallback**: `ubuntu-latest` only when ARM compatibility issues exist
-3. **Windows**: `windows-latest` only when Windows-specific testing is required
+1. **Default (MUST)**: New workflows MUST use `ubuntu-24.04-arm`
+2. **Fallback (SHOULD NOT)**: `ubuntu-latest` SHOULD NOT be used unless ARM compatibility issues are documented
+3. **Windows (MUST justify)**: `windows-latest` MUST NOT be used unless Windows-specific testing is required AND documented
+
+### Enforcement Requirements
+
+| Requirement | Level | Verification |
+|-------------|-------|--------------|
+| New workflows use ARM runner | **MUST** | PR review checklist |
+| Non-ARM runner has justification comment | **MUST** | Comment in workflow file |
+| Windows runner has Windows-only justification | **MUST** | ADR-007 exception documented |
+| macOS runner avoided unless required | **SHOULD** | Cost impact documented |
 
 ### Selection Criteria
 

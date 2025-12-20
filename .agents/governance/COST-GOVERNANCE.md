@@ -3,6 +3,24 @@
 > **Status**: Active
 > **Created**: 2025-12-20
 > **Purpose**: Establish cost-conscious practices for GitHub Actions usage
+> **RFC 2119**: This document uses RFC 2119 key words (MUST, SHOULD, MAY)
+
+## Enforcement Summary
+
+**Cost governance is CRITICAL, not optional.** All CI/CD changes MUST comply with:
+
+| Requirement | Level | Reference |
+|-------------|-------|-----------|
+| ARM runners for new workflows | **MUST** | [ADR-007](./architecture/ADR-007-github-actions-runner-selection.md) |
+| Justify non-ARM runner usage | **MUST** | ADR-007 comment in workflow |
+| No artifacts unless justified | **MUST** | [ADR-008](./architecture/ADR-008-artifact-storage-minimization.md) |
+| Retention ≤7 days for most artifacts | **MUST** | ADR-008 |
+| Path filters on workflows | **MUST** | Template below |
+| Concurrency to cancel duplicates | **SHOULD** | Template below |
+
+**Violations**: PR reviewers MUST block merges that violate ADR-007 or ADR-008 without documented exceptions.
+
+---
 
 ## GitHub Actions Pricing Reference
 
@@ -123,10 +141,35 @@ Configure spending alerts in GitHub Settings → Billing → Actions:
 - Review usage weekly during active development
 - Monthly review during maintenance periods
 
+---
+
+## Claude API Token Efficiency
+
+Token costs are the other major cost driver. Apply these practices:
+
+| Requirement | Level | Impact |
+|-------------|-------|--------|
+| Use Serena symbolic tools over file reads | **MUST** | 80%+ token reduction |
+| Read memories before work (enables caching) | **MUST** | Cache: $1.50/M vs $15/M |
+| Use Haiku for quick tasks | **SHOULD** | Haiku: $0.25/M vs Opus: $15/M |
+| Limit file reads with offset/limit | **SHOULD** | Reduces context bloat |
+
+### Token Cost Reference
+
+| Model | Input (no cache) | Input (cache read) | Output |
+|-------|-----------------|-------------------|--------|
+| Claude Opus 4.5 | $15/M | $1.50/M | $75/M |
+| Claude Sonnet 4.5 | $3/M | $0.30/M | $15/M |
+| Claude Haiku 4.5 | $0.25/M | $0.025/M | $1.25/M |
+
+**Key Insight**: A 100M token uncached Opus session costs $1,500. The same work with caching: ~$150. With Haiku where appropriate: ~$25.
+
+---
+
 ## Related ADRs
 
-- [ADR-007: GitHub Actions Runner Selection](./architecture/ADR-007-github-actions-runner-selection.md)
-- [ADR-008: Artifact Storage Minimization](./architecture/ADR-008-artifact-storage-minimization.md)
+- [ADR-007: GitHub Actions Runner Selection](./architecture/ADR-007-github-actions-runner-selection.md) - ARM-first runner policy
+- [ADR-008: Artifact Storage Minimization](./architecture/ADR-008-artifact-storage-minimization.md) - No artifacts by default
 
 ## References
 
