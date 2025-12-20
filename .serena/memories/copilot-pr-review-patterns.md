@@ -53,6 +53,14 @@ Copilot cross-references inlined content against source documentation files and 
 
 ---
 
+## CRITICAL: @mention Syntax
+
+When responding to Copilot on PRs:
+- **PR Author appears as**: `copilot-swe-agent`
+- **Correct @mention to use**: `@copilot` (NOT `@copilot-swe-agent`)
+
+This is confusing but confirmed behavior. Using `@copilot-swe-agent` will NOT notify Copilot.
+
 ## Response Templates
 
 **Accept suggestion**:
