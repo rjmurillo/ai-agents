@@ -283,11 +283,29 @@ pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./build/tests/Generate-Agen
 
 ## Pull Request Guidelines
 
-1. **Template changes**: Always include both template and generated files
-2. **Validation**: Run `pwsh build/Generate-Agents.ps1 -Validate` before submitting
-3. **Tests**: Ensure all tests pass
-4. **Documentation**: Update relevant docs if adding new agents
-5. **Commit messages**: Use conventional commit format (e.g., `feat(agent):`, `fix(template):`)
+1. **Spec references**: Feature PRs (`feat:`) require spec references (issue, REQ-*, or `.agents/planning/` files)
+2. **Template changes**: Always include both template and generated files
+3. **Validation**: Run `pwsh build/Generate-Agents.ps1 -Validate` before submitting
+4. **Tests**: Ensure all tests pass
+5. **Documentation**: Update relevant docs if adding new agents
+6. **Commit messages**: Use conventional commit format (e.g., `feat(agent):`, `fix(template):`)
+
+### Spec Reference Best Practices
+
+For traceability and AI-assisted validation:
+
+- **Features**: Always link to an issue or create a planning document in `.agents/planning/` before submitting
+- **Bug fixes**: Link to issue if it exists; for complex bugs, explain root cause
+- **Refactors**: Explain rationale and scope in PR description
+- **Documentation**: Spec references not required
+
+Supported reference formats:
+
+- Issue links: `Closes #123`, `Fixes #456`, `Implements #789`
+- Requirement IDs: `REQ-001`, `DESIGN-002`, `TASK-003`
+- Spec files: `.agents/specs/requirements/...`, `.agents/planning/...`
+
+The AI Spec Validation workflow will check for these references on all PRs.
 
 ## Questions?
 

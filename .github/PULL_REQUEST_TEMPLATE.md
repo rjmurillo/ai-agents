@@ -6,7 +6,7 @@
 
 ## Specification References
 
-<!-- REQUIRED: Enable AI spec-to-implementation traceability -->
+<!-- Enable AI spec-to-implementation traceability -->
 <!-- The ai-spec-validation workflow checks for these references -->
 
 | Type | Reference | Description |
@@ -15,13 +15,24 @@
 | **Spec** | `.agents/planning/...` | <!-- Planning document --> |
 | **Spec** | `.agents/specs/...` | <!-- Spec document (if applicable) --> |
 
+### Spec Requirement Guidelines
+
+| PR Type | Spec Required? | Guidance |
+|---------|----------------|----------|
+| **Feature** (`feat:`) | ✅ Required | Link issue, REQ-*, or spec file in `.agents/planning/` |
+| **Bug fix** (`fix:`) | Optional | Link issue if exists; explain root cause if complex |
+| **Refactor** | Optional | Explain rationale and scope in PR description |
+| **Documentation** (`docs:`) | Not required | N/A |
+| **Infrastructure** | Optional | Link ADR or design doc if architecture impacted |
+
 <!--
 Supported reference formats:
 - Issues: "Closes #123", "Fixes #456", "Implements #789"
 - Requirements: "REQ-001", "DESIGN-002", "TASK-003"
 - Spec files: ".agents/specs/requirements/...", ".agents/planning/..."
 
-If no specs exist, create one in .agents/planning/ before submitting.
+For feature PRs: Create spec in .agents/planning/ before submitting if none exists.
+For other PRs: Add references when traceability adds value.
 -->
 
 ## Changes
