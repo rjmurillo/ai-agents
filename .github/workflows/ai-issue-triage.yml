@@ -111,6 +111,7 @@ jobs:
 
       - name: Apply Labels
         env:
+          GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           LABELS: ${{ steps.parse-categorize.outputs.labels }}
           PRIORITY: ${{ steps.parse-align.outputs.priority }}
@@ -169,6 +170,7 @@ jobs:
 
       - name: Assign Milestone
         env:
+          GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           MILESTONE: ${{ steps.parse-align.outputs.milestone }}
           GITHUB_REPOSITORY: ${{ github.repository }}
