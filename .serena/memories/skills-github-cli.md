@@ -1387,6 +1387,436 @@ gh label clone org/label-template -R org/new-repo
 
 ---
 
+## Recommended Extensions for Maintainers
+
+The following community extensions significantly enhance maintainer productivity. Install with `gh extension install <repo>`.
+
+### Skill-GH-Ext-Dash-001: Interactive PR/Issue Dashboard
+
+**Extension**: `dlvhdr/gh-dash`
+
+**Statement**: Use `gh dash` for a keyboard-driven TUI to manage PRs and issues without leaving the terminal.
+
+**Installation**:
+
+```bash
+gh extension install dlvhdr/gh-dash
+```
+
+**Configuration** (`~/.config/gh-dash/config.yml`):
+
+```yaml
+prSections:
+  - title: My PRs
+    filters: is:open author:@me
+  - title: Needs Review
+    filters: is:open review-requested:@me
+  - title: Team PRs
+    filters: is:open org:myorg
+
+issuesSections:
+  - title: Assigned
+    filters: is:open assignee:@me
+  - title: High Priority
+    filters: is:open label:priority:high
+```
+
+**Pattern**:
+
+```bash
+# Launch dashboard
+gh dash
+
+# Key bindings (vim-style):
+# j/k - Navigate up/down
+# Enter - View details
+# d - View diff
+# c - Checkout branch
+# m - Merge PR
+# o - Open in browser
+# r - Refresh
+# q - Quit
+```
+
+**Use Case**: Monitor multiple repositories, triage PRs, and perform actions without context switching to browser.
+
+**Atomicity**: 94%
+
+---
+
+### Skill-GH-Ext-Combine-001: Batch Dependabot PRs
+
+**Extension**: `rnorth/gh-combine-prs`
+
+**Statement**: Use `gh combine-prs` to merge multiple PRs (especially Dependabot) into a single PR for cleaner history.
+
+**Prerequisites**: Requires `jq` installed.
+
+**Installation**:
+
+```bash
+gh extension install rnorth/gh-combine-prs
+```
+
+**Pattern**:
+
+```bash
+# Combine all Dependabot PRs
+gh combine-prs --query "author:app/dependabot"
+
+# Combine specific PRs by number
+gh combine-prs --query "author:app/dependabot" --selected-pr-numbers "12,34,56"
+
+# Limit number of PRs combined
+gh combine-prs --query "author:app/dependabot" --limit 10
+
+# Skip status checks (use with caution)
+gh combine-prs --query "author:app/dependabot" --skip-pr-check
+
+# Combine PRs by label
+gh combine-prs --query "label:dependencies"
+```
+
+**Important**: When merging the combined PR, use **Merge Commit** (not squash) so GitHub marks original PRs as merged.
+
+**Use Case**: Reduce PR noise from Dependabot by batching weekly dependency updates.
+
+**Atomicity**: 93%
+
+---
+
+### Skill-GH-Ext-Metrics-001: PR Analytics
+
+**Extension**: `hectcastro/gh-metrics`
+
+**Statement**: Use `gh metrics` to calculate PR review metrics for identifying bottlenecks and improving team velocity.
+
+**Installation**:
+
+```bash
+gh extension install hectcastro/gh-metrics
+```
+
+**Metrics Calculated**:
+
+- **Time to First Review**: PR creation → first review
+- **Feature Lead Time**: First commit → merge
+- **First to Last Review**: First → final approval
+- **First Approval to Merge**: Approval → merge
+
+**Pattern**:
+
+```bash
+# Default metrics (last 10 days)
+gh metrics --repo owner/repo
+
+# Custom date range
+gh metrics --repo owner/repo --start 2025-01-01 --end 2025-01-31
+
+# Filter by author
+gh metrics --repo owner/repo --query "author:username"
+
+# CSV export for analysis
+gh metrics --repo owner/repo --csv > metrics.csv
+
+# Multiple repos
+gh metrics --repo owner/repo1 --repo owner/repo2
+```
+
+**Use Case**: Track team health, identify slow reviewers, and benchmark sprint performance.
+
+**Atomicity**: 91%
+
+---
+
+### Skill-GH-Ext-Notify-001: Notification Management
+
+**Extension**: `meiji163/gh-notify`
+
+**Statement**: Use `gh notify` with fzf integration for interactive notification triage from CLI.
+
+**Prerequisites**: Optional but recommended: `fzf` for interactive mode.
+
+**Installation**:
+
+```bash
+gh extension install meiji163/gh-notify
+```
+
+**Pattern**:
+
+```bash
+# Interactive mode (requires fzf)
+gh notify
+
+# List all notifications
+gh notify -a
+
+# Only participating/mentioned
+gh notify -p
+
+# Filter by pattern (regex)
+gh notify -f "security"
+
+# Exclude pattern
+gh notify -e "dependabot"
+
+# Limit results
+gh notify -n 20
+
+# Mark all as read
+gh notify -r
+
+# Static mode (no interaction)
+gh notify -s
+
+# Enable preview window
+gh notify -w
+```
+
+**Interactive Key Bindings**:
+
+- `Enter` - View in pager
+- `Ctrl+A` - Mark all as read
+- `Ctrl+D` - View diff
+- `Ctrl+T` - Mark selected as read
+- `Ctrl+X` - Write comment
+- `Esc` - Exit
+
+**Use Case**: Triage notifications without browser, quickly dismiss noise, focus on important items.
+
+**Atomicity**: 92%
+
+---
+
+### Skill-GH-Ext-Milestone-001: Milestone Management
+
+**Extension**: `valeriobelli/gh-milestone`
+
+**Statement**: Use `gh milestone` for release planning with create/list/edit/delete operations.
+
+**Installation**:
+
+```bash
+gh extension install valeriobelli/gh-milestone
+```
+
+**Pattern**:
+
+```bash
+# Create milestone (interactive)
+gh milestone create
+
+# Create with flags
+gh milestone create --title "v2.0.0" --description "Major release" --due-date 2025-03-01
+
+# List milestones
+gh milestone list
+gh milestone ls  # Alias
+gh milestone list --state closed
+gh milestone list --state all
+
+# Filter and format
+gh milestone list --query "v2"
+gh milestone list --json id,title,progressPercentage
+
+# View milestone
+gh milestone view 1
+
+# Edit milestone
+gh milestone edit 1 --title "v2.0.0-rc1" --due-date 2025-02-15
+
+# Delete milestone (with confirmation)
+gh milestone delete 1
+
+# Delete without prompt
+gh milestone delete 1 --confirm
+
+# Target different repo
+gh milestone list --repo owner/repo
+```
+
+**Use Case**: Plan releases, track sprint progress, set deadlines for issue groupings.
+
+**Atomicity**: 93%
+
+---
+
+### Skill-GH-Ext-Hook-001: Webhook Management
+
+**Extension**: `lucasmelin/gh-hook`
+
+**Statement**: Use `gh hook` for interactive webhook setup and management.
+
+**Installation**:
+
+```bash
+gh extension install lucasmelin/gh-hook
+```
+
+**Pattern**:
+
+```bash
+# Create webhook (interactive TUI)
+gh hook create
+
+# Create from JSON file
+gh hook create --file webhook.json
+
+# List webhooks
+gh hook list
+
+# Delete webhook
+gh hook delete <webhook-id>
+```
+
+**JSON Configuration Format**:
+
+```json
+{
+  "active": true,
+  "events": ["push", "pull_request"],
+  "config": {
+    "url": "https://example.com/webhook",
+    "content_type": "json",
+    "insecure_ssl": "0",
+    "secret": "optional-secret"
+  }
+}
+```
+
+**Use Case**: Set up CI/CD integrations, Slack notifications, or external service triggers.
+
+**Atomicity**: 89%
+
+---
+
+### Skill-GH-Ext-GR-001: Multi-Repository Operations
+
+**Extension**: `sarumaj/gh-gr`
+
+**Statement**: Use `gh gr` to manage multiple repositories simultaneously: pull, push, and status across repos.
+
+**Installation**:
+
+```bash
+gh extension install sarumaj/gh-gr
+```
+
+**Pattern**:
+
+```bash
+# Initialize with directory
+gh gr init -d ~/projects
+
+# Initialize with concurrency limit
+gh gr init -d ~/projects -c 10
+
+# Exclude repos by pattern
+gh gr init -d ~/projects -e ".*-archive" -e "fork-.*"
+
+# Pull all repos
+gh gr pull
+
+# Check status of all repos
+gh gr status
+
+# Push all repos
+gh gr push
+
+# View configuration
+gh gr view
+
+# Export/import config
+gh gr export > config.json
+gh gr import < config.json
+
+# Cleanup untracked local repos
+gh gr cleanup
+```
+
+**Global Options**:
+
+- `-c, --concurrency N` - Parallel operations (default: 12)
+- `-t, --timeout DURATION` - Max time for operations (default: 10m)
+
+**Use Case**: Maintain multiple related repositories, sync forks, batch operations across org.
+
+**Atomicity**: 90%
+
+---
+
+### Skill-GH-Ext-Grep-001: Cross-Repository Code Search
+
+**Extension**: `k1LoW/gh-grep`
+
+**Statement**: Use `gh grep` to search code patterns across repositories via GitHub API.
+
+**Installation**:
+
+```bash
+gh extension install k1LoW/gh-grep
+```
+
+**Pattern**:
+
+```bash
+# Search in specific repo
+gh grep "TODO" --repo owner/repo
+
+# Search with owner scope (all repos)
+gh grep "deprecated" --owner myorg
+
+# Filter by file pattern (IMPORTANT for performance)
+gh grep "FROM.*alpine" --owner myorg --include "Dockerfile"
+
+# Exclude files
+gh grep "password" --repo owner/repo --exclude "*test*"
+
+# Case insensitive with line numbers
+gh grep -i -n "fixme" --repo owner/repo
+
+# Output with GitHub URLs
+gh grep "security" --repo owner/repo --url
+```
+
+**Performance Warning**: This tool is slow because it uses GitHub API. Always use `--include` to filter files.
+
+**Use Case**: Audit patterns across org (security, deprecated APIs, license headers).
+
+**Atomicity**: 88%
+
+---
+
+## Extension Maintenance
+
+### Update All Extensions
+
+```bash
+gh extension upgrade --all
+```
+
+### List Installed Extensions
+
+```bash
+gh extension list
+```
+
+### Remove Extension
+
+```bash
+gh extension remove extension-name
+```
+
+### Find New Extensions
+
+```bash
+gh extension search keyword
+gh extension browse  # Opens browser
+```
+
+---
+
 ## References
 
 - [GitHub CLI Manual](https://cli.github.com/manual/)
@@ -1394,3 +1824,4 @@ gh label clone org/label-template -R org/new-repo
 - [GitHub CLI Examples](https://cli.github.com/manual/examples)
 - [GitHub CLI Extensions](https://github.com/topics/gh-extension)
 - [GitHub Sub-Issues Documentation](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-sub-issues)
+- [Awesome gh CLI Extensions](https://github.com/kodepandai/awesome-gh-cli-extensions)
