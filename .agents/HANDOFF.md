@@ -527,11 +527,9 @@ cat .agents/governance/consistency-protocol.md
 | Issue #195 | P0 - GitHub Actions cost audit and optimization | [#195](https://github.com/rjmurillo/ai-agents/issues/195) |
 
 **Cost Context**:
-- Current metered usage: $243.55 (December 2025)
-- Projected monthly cost: $500+
-- Target: <$100/month
-- ARM runners: 37.5% cheaper than x64 ($0.005 vs $0.008/hr)
-- Windows runners: 2x baseline cost ($0.016/hr)
+- ARM runners: 37.5% cheaper than x64 ($0.005 vs $0.008/min)
+- Windows runners: 2x baseline cost ($0.016/min)
+- See COST-GOVERNANCE.md for full pricing reference
 
 **Protocol Enhancements (v1.2 → v1.3)**:
 - Added Task-Specific Memory Requirements table (10 task types)
