@@ -4,8 +4,8 @@
 
 Comprehensive collection of GitHub CLI (`gh`) command patterns, best practices, and common pitfalls. These skills enable effective automation of GitHub operations from the command line and in CI/CD pipelines.
 
-**Last Updated**: 2025-12-18
-**Source**: GitHub REST API Documentation and GitHub CLI Manual
+**Last Updated**: 2025-12-19
+**Source**: GitHub REST API Documentation, GitHub CLI Manual, and GitHub Copilot Integration
 
 ---
 
@@ -158,9 +158,11 @@ gh issue create --web
 # Use template
 gh issue create --template "Bug Report"
 
-# Assign to Copilot
-gh issue create --title "Analyze codebase" --assignee "@copilot"
+# Assign to GitHub Copilot (triggers automated resolution)
+gh issue create --title "Analyze codebase" --assignee "copilot-swe-agent"
 ```
+
+**Note**: Copilot assignee must be `copilot-swe-agent` (exact name). Using `@copilot`, `Copilot`, or `copilot` will fail. See Skill-GH-Copilot-001 for details.
 
 **Atomicity**: 94%
 
@@ -240,6 +242,63 @@ gh issue transfer 23 owner/other-repo
 ```
 
 **Atomicity**: 91%
+
+---
+
+## Skill-GH-Copilot-001: GitHub Copilot Assignment
+
+**Statement**: Assign issues to `copilot-swe-agent` (exact name) to trigger GitHub Copilot automated resolution.
+
+**Context**: When requesting GitHub Copilot to automatically analyze and resolve issues.
+
+**Pattern**:
+
+```bash
+# Correct: Trigger Copilot with exact assignee name
+gh issue edit 90 --add-assignee copilot-swe-agent
+
+# Create issue and assign to Copilot
+gh issue create --title "Analyze build failures" --assignee copilot-swe-agent
+
+# WRONG: These do NOT trigger Copilot to work on the issue
+gh issue comment 90 --body "@copilot please analyze"  # Mentions don't ASSIGN, but DO add context
+gh issue edit 90 --add-assignee Copilot               # Error: 'Copilot' not found
+gh issue edit 90 --add-assignee copilot               # Error: 'copilot' not found
+gh issue edit 90 --add-assignee @copilot              # Wrong format
+```
+
+**Critical Details**:
+
+- Assignee name must be exactly `copilot-swe-agent` (case-sensitive)
+- Assignment is the ONLY trigger mechanism for Copilot to START working
+- `@copilot` mentions in comments add context that Copilot reads when assigned
+- Common assignment mistakes: `Copilot`, `copilot`, `@copilot` all fail as assignee names
+
+**Context Injection Pattern**:
+```bash
+# Step 1: Post context-rich comment mentioning @copilot
+gh issue comment 90 --body "@copilot Use Option 1 from the issue description. 
+Focus on the 'Apply Labels' step. The workflow already has issues:write permission."
+
+# Step 2: Assign Copilot (this triggers work)
+gh issue edit 90 --add-assignee copilot-swe-agent
+```
+
+When Copilot is assigned, it reads ALL comments where @copilot is mentioned and incorporates them into its context.
+
+**Evidence**:
+
+- Issue #88: Successful pattern with `copilot-swe-agent`
+- Issue #90: Failed with "Copilot" and "copilot", succeeded with `copilot-swe-agent`
+- Error message: "failed to update: 'Copilot' not found"
+
+**Atomicity**: 98%
+
+**Impact**: 9/10
+
+**Tag**: helpful
+
+**Validated**: 2 (Issues #88, #90)
 
 ---
 
@@ -715,8 +774,623 @@ run: |
 - `skills-github-workflow-patterns.md` - GitHub Actions workflow patterns
 - `skills-ci-infrastructure.md` - CI/CD infrastructure skills
 
+---
+
+## Repository Management Skills
+
+### Skill-GH-Repo-001: Repository Settings Management
+
+**Statement**: Use `gh repo edit` with feature flags to enable/disable repo features; use `--visibility` with acknowledgment flag for visibility changes.
+
+**Pattern**:
+
+```bash
+# Enable/disable features
+gh repo edit --enable-discussions --enable-projects
+gh repo edit --enable-squash-merge --delete-branch-on-merge
+gh repo edit --enable-issues=false
+
+# Security features
+gh repo edit --enable-advanced-security
+gh repo edit --enable-secret-scanning --enable-secret-scanning-push-protection
+
+# Change visibility (requires acknowledgment)
+gh repo edit --visibility private --accept-visibility-change-consequences
+
+# Update metadata
+gh repo edit --description "New description" --homepage "https://example.com"
+gh repo edit --add-topic "ci,automation" --remove-topic "wip"
+
+# Set default branch
+gh repo edit --default-branch main
+
+# Make template repository
+gh repo edit --template
+```
+
+**Atomicity**: 94%
+
+---
+
+### Skill-GH-Repo-002: Fork Synchronization
+
+**Statement**: Use `gh repo sync` to keep forks current with upstream; `--force` for hard reset when fast-forward fails.
+
+**Pattern**:
+
+```bash
+# Sync local fork with parent (default)
+gh repo sync
+
+# Sync specific branch
+gh repo sync --branch v1
+
+# Sync remote fork
+gh repo sync owner/fork-repo
+
+# Force sync (hard reset - overwrites local changes)
+gh repo sync --force
+
+# Sync from different source
+gh repo sync owner/repo --source upstream/repo
+```
+
+**Atomicity**: 92%
+
+---
+
+### Skill-GH-Repo-003: Deploy Key Management
+
+**Statement**: Use `gh repo deploy-key` for CI/CD SSH key management; add with write permission for deployment workflows.
+
+**Pattern**:
+
+```bash
+# List deploy keys
+gh repo deploy-key list
+
+# Add deploy key with title
+gh repo deploy-key add ~/.ssh/deploy_key.pub --title "CI/CD Key"
+
+# Add with write permission (for pushing)
+gh repo deploy-key add key.pub --title "Deploy Key" --allow-write
+
+# Delete deploy key by ID
+gh repo deploy-key delete 12345
+
+# Target different repo
+gh repo deploy-key list -R owner/other-repo
+```
+
+**Atomicity**: 91%
+
+---
+
+### Skill-GH-Repo-004: Repository Lifecycle
+
+**Statement**: Use `gh repo archive` to deprecate repositories while preserving history; `gh repo unarchive` to reactivate.
+
+**Pattern**:
+
+```bash
+# Archive repository (read-only, preserves history)
+gh repo archive owner/repo
+
+# Unarchive repository (reactivate)
+gh repo unarchive owner/repo
+
+# Rename repository
+gh repo rename old-name new-name
+
+# Delete repository (DESTRUCTIVE - requires confirmation)
+gh repo delete owner/repo --yes
+
+# Set default repo for commands in current directory
+gh repo set-default owner/repo
+```
+
+**Anti-pattern**: Deleting repos instead of archiving loses history and breaks links.
+
+**Atomicity**: 90%
+
+---
+
+## Secret and Variable Management
+
+### Skill-GH-Secret-001: Secret Management
+
+**Statement**: Use `gh secret set` with `-f` for batch import from .env files; use `--visibility` for org-level access control.
+
+**Pattern**:
+
+```bash
+# Set repo secret (interactive prompt)
+gh secret set MY_SECRET
+
+# Set from value
+gh secret set API_KEY --body "secret-value"
+
+# Set from file (pipe stdin)
+gh secret set SSH_KEY < ~/.ssh/id_rsa
+
+# Batch import from .env file
+gh secret set -f .env.production
+
+# Environment-specific secret
+gh secret set DB_PASSWORD --env production
+
+# Org secret with visibility control
+gh secret set ORG_SECRET --org myorg --visibility all
+gh secret set ORG_SECRET --org myorg --visibility private
+gh secret set SHARED_SECRET --org myorg --repos repo1,repo2
+
+# Dependabot secret
+gh secret set NUGET_TOKEN --app dependabot
+
+# Codespaces secret
+gh secret set DEV_TOKEN --user
+
+# List secrets
+gh secret list
+gh secret list --org myorg
+gh secret list --env production
+
+# Delete secret
+gh secret delete MY_SECRET
+gh secret delete --env production DB_PASSWORD
+```
+
+**Security Note**: Values are locally encrypted before transmission to GitHub.
+
+**Atomicity**: 95%
+
+---
+
+### Skill-GH-Variable-001: Variable Management
+
+**Statement**: Use `gh variable` for non-sensitive config values; supports repo/env/org scopes like secrets.
+
+**Pattern**:
+
+```bash
+# Set variable
+gh variable set MY_VAR --body "value"
+
+# Get variable value
+gh variable get MY_VAR
+
+# List variables
+gh variable list
+
+# Environment-specific
+gh variable set DEBUG --env staging --body "true"
+
+# Organization variable
+gh variable set ORG_SETTING --org myorg --repos repo1,repo2
+
+# Delete variable
+gh variable delete MY_VAR
+```
+
+**Anti-pattern**: Using `gh variable` for sensitive data exposes values in logs. Always use `gh secret` for credentials.
+
+**Atomicity**: 93%
+
+---
+
+## Label Management
+
+### Skill-GH-Label-001: Label Creation and Editing
+
+**Statement**: Use `gh label create` with `--color` (hex) and `--description`; use `--force` to update existing labels.
+
+**Pattern**:
+
+```bash
+# Create label with color and description
+gh label create "bug" --color E99695 --description "Something isn't working"
+
+# Create priority labels
+gh label create "priority:critical" --color FF0000 --description "Critical priority"
+gh label create "priority:high" --color FFA500 --description "High priority"
+gh label create "priority:medium" --color FFFF00 --description "Medium priority"
+gh label create "priority:low" --color 00FF00 --description "Low priority"
+
+# Create type labels
+gh label create "type:feature" --color 0E8A16 --description "New feature request"
+gh label create "type:bug" --color D93F0B --description "Bug report"
+gh label create "type:docs" --color 0075CA --description "Documentation"
+
+# Update existing label (force flag)
+gh label create "bug" --color FF0000 --force
+
+# Edit label properties
+gh label edit "bug" --color FF0000 --description "Updated description"
+gh label edit "old-name" --name "new-name"
+
+# List all labels
+gh label list
+gh label list --json name,color,description
+
+# Delete label
+gh label delete "obsolete-label" --yes
+```
+
+**Note**: Color values require exactly 6 hexadecimal characters (no # prefix).
+
+**Atomicity**: 94%
+
+---
+
+### Skill-GH-Label-002: Label Cloning
+
+**Statement**: Use `gh label clone` to copy label sets between repositories; essential for standardizing labels across organizations.
+
+**Pattern**:
+
+```bash
+# Clone labels from source to current repo
+gh label clone source-owner/source-repo
+
+# Clone to specific target
+gh label clone source-owner/template-repo -R target-owner/target-repo
+
+# Overwrite existing labels
+gh label clone source-owner/template-repo --force
+```
+
+**Best Practice**: Maintain a template repository with standard labels and clone to new repos.
+
+**Atomicity**: 91%
+
+---
+
+## GitHub Actions Cache Management
+
+### Skill-GH-Cache-001: Actions Cache Management
+
+**Statement**: Use `gh cache list` to audit cache usage; `gh cache delete --all` to clear cache and reclaim storage.
+
+**Pattern**:
+
+```bash
+# List all caches
+gh cache list
+
+# List with details for scripting
+gh cache list --json id,key,sizeInBytes,createdAt
+
+# Sort by size (find largest caches)
+gh cache list --json key,sizeInBytes --jq 'sort_by(.sizeInBytes) | reverse | .[:5]'
+
+# Delete specific cache by key
+gh cache delete "npm-cache-ubuntu-abc123"
+
+# Delete all caches (reclaim storage)
+gh cache delete --all
+
+# Target different repo
+gh cache list -R owner/other-repo
+gh cache delete --all -R owner/other-repo
+```
+
+**Use Case**: Clear caches when builds are failing due to stale dependencies or to reduce storage costs.
+
+**Atomicity**: 90%
+
+---
+
+## Ruleset Management
+
+### Skill-GH-Ruleset-001: Ruleset Compliance
+
+**Statement**: Use `gh ruleset check` to validate branch compliance before pushing; `gh ruleset list` to audit governance rules.
+
+**Pattern**:
+
+```bash
+# Check if branch complies with rulesets
+gh ruleset check feature-branch
+gh ruleset check main
+
+# List all rulesets
+gh ruleset list
+
+# View specific ruleset details
+gh ruleset view
+gh ruleset view --web
+
+# Check ruleset for different repo
+gh ruleset list -R owner/repo
+gh ruleset check main -R owner/repo
+```
+
+**Alias**: `gh rs` (shorthand for ruleset commands)
+
+**Use Case**: Pre-flight check before force pushing or creating protected branch PRs.
+
+**Atomicity**: 89%
+
+---
+
+## Software Supply Chain Security
+
+### Skill-GH-Attestation-001: Artifact Verification
+
+**Statement**: Use `gh attestation verify` with `--owner` or `--repo` to validate artifact provenance; essential for secure deployments.
+
+**Pattern**:
+
+```bash
+# Verify artifact from repo
+gh attestation verify artifact.bin --repo owner/repo
+
+# Verify with organization scope
+gh attestation verify artifact.bin --owner myorg
+
+# Verify OCI container image
+gh attestation verify oci://ghcr.io/owner/image:tag --owner owner
+
+# Verify with specific workflow enforcement
+gh attestation verify artifact.bin --owner org --signer-workflow .github/workflows/build.yml
+
+# JSON output for CI integration
+gh attestation verify artifact.bin --repo owner/repo --format json
+
+# Offline verification with local attestation bundle
+gh attestation verify artifact.bin --bundle attestation.jsonl --owner owner
+
+# Download attestations for later verification
+gh attestation download artifact.bin --owner owner
+```
+
+**Alias**: `gh at` (shorthand for attestation commands)
+
+**Security Note**: Only signature.certificate and verifiedTimestamps are tamper-resistant. Predicate contents can be modified by workflow actors.
+
+**Atomicity**: 93%
+
+---
+
+## GitHub Projects (v2)
+
+### Skill-GH-Project-001: Project Management
+
+**Statement**: Use `gh project` for GitHub Projects (v2); requires `project` scope via `gh auth refresh -s project`.
+
+**Prerequisite**:
+```bash
+# Add project scope before using project commands
+gh auth refresh -s project
+gh auth status  # Verify scope added
+```
+
+**Pattern**:
+
+```bash
+# Create project
+gh project create --owner myorg --title "Q1 Roadmap"
+
+# List projects
+gh project list
+gh project list --owner myorg
+
+# View project (opens in browser)
+gh project view 1 --owner myorg --web
+
+# Edit project
+gh project edit 1 --owner myorg --title "Updated Title"
+
+# Close project
+gh project close 1 --owner myorg
+
+# Delete project
+gh project delete 1 --owner myorg
+
+# Copy project (template)
+gh project copy 1 --source-owner source-org --target-owner target-org --title "Copy"
+
+# Mark as template
+gh project mark-template 1 --owner myorg
+
+# Link repository to project
+gh project link 1 --owner myorg --repo myorg/myrepo
+
+# Unlink repository
+gh project unlink 1 --owner myorg --repo myorg/myrepo
+```
+
+**Atomicity**: 92%
+
+---
+
+### Skill-GH-Project-002: Project Item Management
+
+**Statement**: Use `gh project item-add` to add issues/PRs to projects; `gh project field-list` to manage custom fields.
+
+**Pattern**:
+
+```bash
+# Add issue/PR to project by URL
+gh project item-add 1 --owner myorg --url https://github.com/myorg/repo/issues/123
+
+# List project items
+gh project item-list 1 --owner myorg
+gh project item-list 1 --owner myorg --json id,title,status
+
+# Create draft item (no linked issue)
+gh project item-create 1 --owner myorg --title "New task" --body "Description"
+
+# Edit item field
+gh project item-edit --id ITEM_ID --field-id FIELD_ID --text "value"
+gh project item-edit --id ITEM_ID --field-id STATUS_FIELD_ID --single-select-option-id OPTION_ID
+
+# Archive item
+gh project item-archive 1 --owner myorg --id ITEM_ID
+
+# Delete item
+gh project item-delete 1 --owner myorg --id ITEM_ID
+
+# List custom fields
+gh project field-list 1 --owner myorg
+
+# Create custom field
+gh project field-create 1 --owner myorg --name "Priority" --data-type "SINGLE_SELECT"
+
+# Delete custom field
+gh project field-delete 1 --owner myorg --id FIELD_ID
+```
+
+**Atomicity**: 91%
+
+---
+
+## CLI Extensions
+
+### Skill-GH-Extension-001: Extension Management
+
+**Statement**: Use `gh extension` to install community tools that extend gh functionality; extensions are repos with `gh-` prefix.
+
+**Pattern**:
+
+```bash
+# Search for extensions
+gh extension search sub-issue
+gh extension search copilot
+
+# Browse extensions in browser
+gh extension browse
+
+# Install extension
+gh extension install owner/gh-extension-name
+gh extension install github/gh-copilot
+
+# List installed extensions
+gh extension list
+
+# Upgrade single extension
+gh extension upgrade extension-name
+
+# Upgrade all extensions
+gh extension upgrade --all
+
+# Remove extension
+gh extension remove extension-name
+
+# Run extension (useful for name conflicts)
+gh extension exec extension-name [args]
+
+# Create new extension (for development)
+gh extension create my-extension
+```
+
+**Extension Directory**: https://github.com/topics/gh-extension
+
+**Aliases**: `gh ext`, `gh extensions`
+
+**Atomicity**: 92%
+
+---
+
+### Skill-GH-Extension-002: Sub-Issue Management (via Extension)
+
+**Statement**: Install `gh-sub-issue` extension to manage hierarchical issue relationships from CLI.
+
+**Important**: Sub-issues are NOT in core gh CLI - requires community extension.
+
+**Installation**:
+```bash
+gh extension install yahsan2/gh-sub-issue
+```
+
+**Pattern**:
+
+```bash
+# Create new sub-issue linked to parent
+gh sub-issue create --parent 123 --title "Sub-task for parent issue"
+
+# Link existing issue as sub-issue
+gh sub-issue add 123 456  # 123=parent, 456=child
+
+# List sub-issues of a parent
+gh sub-issue list 123
+
+# Remove sub-issue link
+gh sub-issue remove 123 456
+
+# JSON output for scripting
+gh sub-issue list 123 --json
+```
+
+**Native Alternative**: Use GitHub REST API for sub-issues if extension not available:
+```bash
+# Add sub-issue via API
+gh api repos/{owner}/{repo}/issues/{parent}/sub_issues -f sub_issue_id={child_id}
+
+# List sub-issues via API
+gh api repos/{owner}/{repo}/issues/{parent}/sub_issues
+```
+
+**Note**: GitHub supports up to 8 levels of issue hierarchy.
+
+**Atomicity**: 90%
+
+---
+
+## Additional Anti-Patterns
+
+### Anti-Pattern-GH-006: Ignoring Ruleset Compliance
+
+**Problem**: Pushing without checking ruleset compliance causes CI failures and frustration.
+
+**Solution**: Run `gh ruleset check branch-name` before pushing to protected branches.
+
+```bash
+# Pre-push check
+gh ruleset check my-branch && git push origin my-branch
+```
+
+### Anti-Pattern-GH-007: Hardcoding Secrets in Variables
+
+**Problem**: Using `gh variable` for sensitive data exposes secrets in workflow logs and API responses.
+
+**Solution**: Always use `gh secret` for credentials, tokens, and sensitive values. Variables are for non-sensitive configuration only.
+
+```bash
+# WRONG: Exposes in logs
+gh variable set API_KEY --body "sk-secret123"
+
+# CORRECT: Encrypted and masked
+gh secret set API_KEY --body "sk-secret123"
+```
+
+### Anti-Pattern-GH-008: Missing Project Scope
+
+**Problem**: Project commands fail with 403 permission errors.
+
+**Solution**: Add project scope before using project commands:
+
+```bash
+gh auth refresh -s project
+```
+
+### Anti-Pattern-GH-009: Not Using Label Templates
+
+**Problem**: Manually creating labels in each repository leads to inconsistency.
+
+**Solution**: Maintain a template repository with standard labels and use `gh label clone`:
+
+```bash
+# Clone from template repo to new repo
+gh label clone org/label-template -R org/new-repo
+```
+
+---
+
 ## References
 
 - [GitHub CLI Manual](https://cli.github.com/manual/)
 - [GitHub REST API Documentation](https://docs.github.com/en/rest)
 - [GitHub CLI Examples](https://cli.github.com/manual/examples)
+- [GitHub CLI Extensions](https://github.com/topics/gh-extension)
+- [GitHub Sub-Issues Documentation](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-sub-issues)
