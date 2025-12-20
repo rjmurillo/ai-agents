@@ -24,13 +24,13 @@ Unified skill for GitHub CLI operations aligned with the GitHub REST API.
 │   │   ├── Get-IssueContext.ps1      # Issue metadata
 │   │   ├── Set-IssueLabels.ps1       # Apply labels with auto-create
 │   │   ├── Set-IssueMilestone.ps1    # Assign milestones
-│   │   └── Post-IssueComment.ps1     # Comments with idempotency
-│   ├── reactions/
-│   │   └── Add-CommentReaction.ps1   # Add emoji reactions
-│   └── copilot/
-│       └── Invoke-CopilotAssignment.ps1  # Context synthesis for Copilot
+│   │   ├── Post-IssueComment.ps1     # Comments with idempotency
+│   │   └── Invoke-CopilotAssignment.ps1  # Context synthesis for Copilot
+│   └── reactions/
+│       └── Add-CommentReaction.ps1   # Add emoji reactions
 ├── tests/
 │   └── (Pester tests)
+├── copilot-synthesis.yml             # Copilot context synthesis config
 └── SKILL.md
 ```
 
@@ -85,13 +85,13 @@ pwsh scripts/reactions/Add-CommentReaction.ps1 -CommentId 12345678 -CommentType 
 
 ```powershell
 # Synthesize context and assign Copilot to issue
-pwsh scripts/copilot/Invoke-CopilotAssignment.ps1 -IssueNumber 123
+pwsh scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123
 
 # Preview synthesis without posting (WhatIf)
-pwsh scripts/copilot/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
+pwsh scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
 
 # Use custom config
-pwsh scripts/copilot/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -ConfigPath ".github/copilot-synthesis.yml"
+pwsh scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -ConfigPath "copilot-synthesis.yml"
 ```
 
 ## Shared Module
@@ -106,6 +106,10 @@ All scripts import `modules/GitHubHelpers.psm1` which provides:
 | `Assert-GhAuthenticated` | Exit if not authenticated |
 | `Write-ErrorAndExit` | Consistent error handling |
 | `Invoke-GhApiPaginated` | Fetch all pages from API |
+| `Get-IssueComments` | Fetch all comments for an issue |
+| `Update-IssueComment` | Update an existing comment |
+| `New-IssueComment` | Create a new issue comment |
+| `Get-TrustedSourceComments` | Filter comments by trusted users |
 | `Get-PriorityEmoji` | P0-P3 to emoji mapping |
 | `Get-ReactionEmoji` | Reaction type to emoji |
 

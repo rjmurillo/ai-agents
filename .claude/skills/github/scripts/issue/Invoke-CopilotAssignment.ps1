@@ -19,7 +19,7 @@
     Repository name. Inferred from git remote if not provided.
 
 .PARAMETER ConfigPath
-    Path to copilot-synthesis.yml config file. Defaults to .github/copilot-synthesis.yml.
+    Path to copilot-synthesis.yml config file. Defaults to .claude/skills/github/copilot-synthesis.yml.
 
 .PARAMETER WhatIf
     Preview the synthesis comment without posting or assigning.
@@ -51,8 +51,8 @@ param(
     [string]$ConfigPath
 )
 
-# Import shared helpers
-$modulePath = Join-Path $PSScriptRoot ".." ".." "modules" "GitHubHelpers.psm1"
+# Import shared helpers - reuse existing functions (DRY)
+$modulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
 Import-Module $modulePath -Force
 
 #region Configuration
@@ -68,71 +68,56 @@ function Get-SynthesisConfig {
         [string]$ConfigPath
     )
 
+    # Default configuration (used if config file not found)
+    $defaultConfig = @{
+        trusted_sources = @{
+            maintainers = @("rjmurillo", "rjmurillo-bot")
+            ai_agents   = @("coderabbitai", "github-actions")
+        }
+        extraction_patterns = @{
+            coderabbit = @{
+                implementation_plan = "## Implementation"
+                related_issues      = "🔗 Similar Issues"
+                related_prs         = "�� Related PRs"
+            }
+            ai_triage = @{
+                marker   = "<!-- AI-ISSUE-TRIAGE -->"
+            }
+        }
+        synthesis = @{
+            marker = "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
+        }
+    }
+
     if (-not $ConfigPath) {
-        # Default to .github/copilot-synthesis.yml relative to repo root
+        # Default to .claude/skills/github/copilot-synthesis.yml relative to repo root
         $repoRoot = git rev-parse --show-toplevel 2>$null
         if ($repoRoot) {
-            $ConfigPath = Join-Path $repoRoot ".github" "copilot-synthesis.yml"
+            $ConfigPath = Join-Path $repoRoot ".claude" "skills" "github" "copilot-synthesis.yml"
         }
     }
 
     if (-not $ConfigPath -or -not (Test-Path $ConfigPath)) {
-        # Return default configuration
-        return @{
-            trusted_sources = @{
-                maintainers = @("rjmurillo", "rjmurillo-bot")
-                ai_agents   = @("coderabbitai", "github-actions")
-            }
-            extraction_patterns = @{
-                coderabbit = @{
-                    implementation_plan = "## Implementation"
-                    related_issues      = "🔗 Similar Issues"
-                    related_prs         = "🔗 Related PRs"
-                }
-                ai_triage = @{
-                    marker   = "<!-- AI-ISSUE-TRIAGE -->"
-                    priority = "Priority"
-                    category = "Category"
-                }
-            }
-            synthesis = @{
-                marker = "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
-            }
-        }
+        return $defaultConfig
     }
 
-    # Parse YAML (PowerShell-YAML module or manual parsing)
+    # Parse YAML-like config
     try {
         $content = Get-Content $ConfigPath -Raw
-        # Simple YAML-like parsing for our flat structure
-        $config = @{
-            trusted_sources = @{
-                maintainers = @()
-                ai_agents   = @()
-            }
-            extraction_patterns = @{
-                coderabbit = @{}
-                ai_triage  = @{}
-            }
-            synthesis = @{
-                marker = "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
-            }
-        }
+        $config = $defaultConfig.Clone()
 
         # Extract maintainers
         if ($content -match 'maintainers:\s*((?:\s+-\s+\S+)+)') {
-            $maintainerLines = $Matches[1] -split "`n" | Where-Object { $_ -match '^\s+-\s+(\S+)' }
-            $config.trusted_sources.maintainers = $maintainerLines | ForEach-Object {
+            $config.trusted_sources.maintainers = $Matches[1] -split "`n" | ForEach-Object {
                 if ($_ -match '^\s+-\s+(\S+)') { $Matches[1] }
-            }
+            } | Where-Object { $_ }
         }
 
         # Extract ai_agents
         if ($content -match 'ai_agents:\s*((?:\s+-\s+\S+)+)') {
-            $agentLines = $Matches[1] -split "`n" | Where-Object { $_ -match '^\s+-\s+(\S+)' }
-            $config.trusted_sources.ai_agents = $agentLines | ForEach-Object {
+            $config.trusted_sources.ai_agents = $Matches[1] -split "`n" | ForEach-Object {
                 if ($_ -match '^\s+-\s+(\S+)') { $Matches[1] }
-            }
+            } | Where-Object { $_ }
         }
 
         # Extract synthesis marker
@@ -144,87 +129,13 @@ function Get-SynthesisConfig {
     }
     catch {
         Write-Warning "Failed to parse config, using defaults: $_"
-        return Get-SynthesisConfig -ConfigPath $null
+        return $defaultConfig
     }
 }
 
 #endregion
 
-#region Issue Context Extraction
-
-function Get-IssueComments {
-    <#
-    .SYNOPSIS
-        Fetches all comments for an issue.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Owner,
-
-        [Parameter(Mandatory)]
-        [string]$Repo,
-
-        [Parameter(Mandatory)]
-        [int]$IssueNumber
-    )
-
-    $comments = Invoke-GhApiPaginated -Endpoint "repos/$Owner/$Repo/issues/$IssueNumber/comments"
-    return $comments
-}
-
-function Get-IssueDetails {
-    <#
-    .SYNOPSIS
-        Fetches issue details including body.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Owner,
-
-        [Parameter(Mandatory)]
-        [string]$Repo,
-
-        [Parameter(Mandatory)]
-        [int]$IssueNumber
-    )
-
-    $result = gh api "repos/$Owner/$Repo/issues/$IssueNumber" 2>&1
-
-    if ($LASTEXITCODE -ne 0) {
-        if ($result -match "Not Found") {
-            Write-ErrorAndExit "Issue #$IssueNumber not found in $Owner/$Repo" 2
-        }
-        Write-ErrorAndExit "Failed to get issue: $result" 3
-    }
-
-    return $result | ConvertFrom-Json
-}
-
-function Get-TrustedSourceComments {
-    <#
-    .SYNOPSIS
-        Filters comments to those from trusted sources.
-    #>
-    [CmdletBinding()]
-    param(
-        [array]$Comments,
-
-        [hashtable]$Config
-    )
-
-    $trustedUsers = @()
-    $trustedUsers += $Config.trusted_sources.maintainers
-    $trustedUsers += $Config.trusted_sources.ai_agents
-
-    $filtered = $Comments | Where-Object {
-        $author = $_.user.login
-        $trustedUsers -contains $author
-    }
-
-    return $filtered
-}
+#region Context Extraction (script-specific logic)
 
 function Get-MaintainerGuidance {
     <#
@@ -234,12 +145,11 @@ function Get-MaintainerGuidance {
     [CmdletBinding()]
     param(
         [array]$Comments,
-
-        [hashtable]$Config
+        [string[]]$Maintainers
     )
 
     $maintainerComments = $Comments | Where-Object {
-        $Config.trusted_sources.maintainers -contains $_.user.login
+        $Maintainers -contains $_.user.login
     }
 
     if ($maintainerComments.Count -eq 0) {
@@ -248,16 +158,13 @@ function Get-MaintainerGuidance {
 
     $guidance = @()
     foreach ($comment in $maintainerComments) {
-        # Extract bullet points and numbered items
-        $body = $comment.body
-        $lines = $body -split "`n"
-
+        $lines = $comment.body -split "`n"
         foreach ($line in $lines) {
             $trimmed = $line.Trim()
             # Match numbered items (1. xxx) or bullet points (- xxx, * xxx)
-            if ($trimmed -match '^[\d]+\.\s+(.+)$' -or $trimmed -match '^[-*]\s+(.+)$') {
+            if ($trimmed -match '^\d+\.\s+(.+)$' -or $trimmed -match '^[-*]\s+(.+)$') {
                 $item = $Matches[1]
-                # Skip if it's a checkbox item or too short
+                # Skip checkbox items or too short
                 if ($item.Length -gt 10 -and $item -notmatch '^\[[ x]\]') {
                     $guidance += $item
                 }
@@ -276,44 +183,35 @@ function Get-CodeRabbitPlan {
     [CmdletBinding()]
     param(
         [array]$Comments,
-
-        [hashtable]$Config
+        [hashtable]$Patterns
     )
 
-    $rabbitComments = $Comments | Where-Object {
-        $_.user.login -eq "coderabbitai"
-    }
+    $rabbitComments = $Comments | Where-Object { $_.user.login -eq "coderabbitai" }
+    if ($rabbitComments.Count -eq 0) { return $null }
 
-    if ($rabbitComments.Count -eq 0) {
-        return $null
-    }
+    $plan = @{ Implementation = $null; RelatedIssues = @(); RelatedPRs = @() }
 
-    $plan = @{
-        Implementation = $null
-        RelatedIssues  = @()
-        RelatedPRs     = @()
-    }
+    # Use patterns from config
+    $implPattern = [regex]::Escape($Patterns.implementation_plan)
+    $issuesPattern = [regex]::Escape($Patterns.related_issues)
+    $prsPattern = [regex]::Escape($Patterns.related_prs)
 
     foreach ($comment in $rabbitComments) {
         $body = $comment.body
 
-        # Extract Implementation section
-        if ($body -match '## Implementation([\s\S]*?)(?=##|$)') {
+        # Extract Implementation section using config pattern
+        if ($body -match "$implPattern([\s\S]*?)(?=##|$)") {
             $plan.Implementation = $Matches[1].Trim()
         }
 
-        # Extract related issues
-        if ($body -match '🔗 Similar Issues([\s\S]*?)(?=##|🔗|$)') {
-            $issueSection = $Matches[1]
-            $issueMatches = [regex]::Matches($issueSection, '#(\d+)')
-            $plan.RelatedIssues = $issueMatches | ForEach-Object { "#$($_.Groups[1].Value)" }
+        # Extract related issues using config pattern
+        if ($body -match "$issuesPattern([\s\S]*?)(?=##|🔗|$)") {
+            $plan.RelatedIssues = [regex]::Matches($Matches[1], '#(\d+)') | ForEach-Object { "#$($_.Groups[1].Value)" }
         }
 
-        # Extract related PRs
-        if ($body -match '🔗 Related PRs([\s\S]*?)(?=##|🔗|$)') {
-            $prSection = $Matches[1]
-            $prMatches = [regex]::Matches($prSection, '#(\d+)')
-            $plan.RelatedPRs = $prMatches | ForEach-Object { "#$($_.Groups[1].Value)" }
+        # Extract related PRs using config pattern
+        if ($body -match "$prsPattern([\s\S]*?)(?=##|🔗|$)") {
+            $plan.RelatedPRs = [regex]::Matches($Matches[1], '#(\d+)') | ForEach-Object { "#$($_.Groups[1].Value)" }
         }
     }
 
@@ -328,36 +226,20 @@ function Get-AITriageInfo {
     [CmdletBinding()]
     param(
         [array]$Comments,
-
-        [hashtable]$Config
+        [string]$TriageMarker
     )
 
-    $triageMarker = $Config.extraction_patterns.ai_triage.marker
-
     $triageComment = $Comments | Where-Object {
-        $_.body -match [regex]::Escape($triageMarker)
+        $_.body -match [regex]::Escape($TriageMarker)
     } | Select-Object -First 1
 
-    if (-not $triageComment) {
-        return $null
-    }
+    if (-not $triageComment) { return $null }
 
-    $triage = @{
-        Priority = $null
-        Category = $null
-    }
-
+    $triage = @{ Priority = $null; Category = $null }
     $body = $triageComment.body
 
-    # Extract Priority
-    if ($body -match 'Priority[:\s]+(\S+)') {
-        $triage.Priority = $Matches[1]
-    }
-
-    # Extract Category
-    if ($body -match 'Category[:\s]+(\S+)') {
-        $triage.Category = $Matches[1]
-    }
+    if ($body -match 'Priority[:\s]+(\S+)') { $triage.Priority = $Matches[1] }
+    if ($body -match 'Category[:\s]+(\S+)') { $triage.Category = $Matches[1] }
 
     return $triage
 }
@@ -373,22 +255,16 @@ function New-SynthesisComment {
     #>
     [CmdletBinding()]
     param(
-        [hashtable]$Config,
-
+        [string]$Marker,
         [array]$MaintainerGuidance,
-
         [hashtable]$CodeRabbitPlan,
-
-        [hashtable]$AITriage,
-
-        [string]$IssueTitle
+        [hashtable]$AITriage
     )
 
-    $marker = $Config.synthesis.marker
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
+    $timestamp = Get-Date -AsUTC -Format "yyyy-MM-dd HH:mm:ss UTC"
 
     $body = @"
-$marker
+$Marker
 
 @copilot Here is synthesized context for this issue:
 
@@ -396,11 +272,7 @@ $marker
 
     # Maintainer Guidance section
     if ($MaintainerGuidance -and $MaintainerGuidance.Count -gt 0) {
-        $body += @"
-
-## Maintainer Guidance
-
-"@
+        $body += "`n## Maintainer Guidance`n`n"
         foreach ($item in $MaintainerGuidance | Select-Object -First 10) {
             $body += "- $item`n"
         }
@@ -410,19 +282,11 @@ $marker
     $hasAIContent = ($CodeRabbitPlan -and ($CodeRabbitPlan.Implementation -or $CodeRabbitPlan.RelatedIssues.Count -gt 0)) -or $AITriage
 
     if ($hasAIContent) {
-        $body += @"
-
-## AI Agent Recommendations
-
-"@
+        $body += "`n## AI Agent Recommendations`n`n"
 
         if ($AITriage) {
-            if ($AITriage.Priority) {
-                $body += "- **Priority**: $($AITriage.Priority)`n"
-            }
-            if ($AITriage.Category) {
-                $body += "- **Category**: $($AITriage.Category)`n"
-            }
+            if ($AITriage.Priority) { $body += "- **Priority**: $($AITriage.Priority)`n" }
+            if ($AITriage.Category) { $body += "- **Category**: $($AITriage.Category)`n" }
         }
 
         if ($CodeRabbitPlan) {
@@ -438,19 +302,9 @@ $marker
         }
     }
 
-    # Add timestamp footer
-    $body += @"
-
----
-*Generated: $timestamp*
-"@
-
+    $body += "`n---`n*Generated: $timestamp*"
     return $body
 }
-
-#endregion
-
-#region Idempotent Operations
 
 function Find-ExistingSynthesis {
     <#
@@ -460,75 +314,12 @@ function Find-ExistingSynthesis {
     [CmdletBinding()]
     param(
         [array]$Comments,
-
-        [hashtable]$Config
+        [string]$Marker
     )
 
-    $marker = $Config.synthesis.marker
-
-    $existing = $Comments | Where-Object {
-        $_.body -match [regex]::Escape($marker)
+    return $Comments | Where-Object {
+        $_.body -match [regex]::Escape($Marker)
     } | Select-Object -First 1
-
-    return $existing
-}
-
-function Update-IssueComment {
-    <#
-    .SYNOPSIS
-        Updates an existing issue comment.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Owner,
-
-        [Parameter(Mandatory)]
-        [string]$Repo,
-
-        [Parameter(Mandatory)]
-        [long]$CommentId,
-
-        [Parameter(Mandatory)]
-        [string]$Body
-    )
-
-    $result = gh api "repos/$Owner/$Repo/issues/comments/$CommentId" -X PATCH -f body=$Body 2>&1
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-ErrorAndExit "Failed to update comment: $result" 3
-    }
-
-    return $result | ConvertFrom-Json
-}
-
-function New-IssueComment {
-    <#
-    .SYNOPSIS
-        Creates a new issue comment.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Owner,
-
-        [Parameter(Mandatory)]
-        [string]$Repo,
-
-        [Parameter(Mandatory)]
-        [int]$IssueNumber,
-
-        [Parameter(Mandatory)]
-        [string]$Body
-    )
-
-    $result = gh api "repos/$Owner/$Repo/issues/$IssueNumber/comments" -X POST -f body=$Body 2>&1
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-ErrorAndExit "Failed to post comment: $result" 3
-    }
-
-    return $result | ConvertFrom-Json
 }
 
 function Set-CopilotAssignee {
@@ -540,10 +331,8 @@ function Set-CopilotAssignee {
     param(
         [Parameter(Mandatory)]
         [string]$Owner,
-
         [Parameter(Mandatory)]
         [string]$Repo,
-
         [Parameter(Mandatory)]
         [int]$IssueNumber
     )
@@ -554,7 +343,6 @@ function Set-CopilotAssignee {
         Write-Warning "Failed to assign copilot-swe-agent: $result"
         return $false
     }
-
     return $true
 }
 
@@ -575,42 +363,48 @@ Write-Host "Processing issue #$IssueNumber in $Owner/$Repo" -ForegroundColor Cya
 # Load configuration
 $config = Get-SynthesisConfig -ConfigPath $ConfigPath
 
-# Fetch issue details
-$issue = Get-IssueDetails -Owner $Owner -Repo $Repo -IssueNumber $IssueNumber
+# Fetch issue details (for title display)
+$issueData = gh api "repos/$Owner/$Repo/issues/$IssueNumber" 2>&1
+if ($LASTEXITCODE -ne 0) {
+    if ($issueData -match "Not Found") { Write-ErrorAndExit "Issue #$IssueNumber not found in $Owner/$Repo" 2 }
+    Write-ErrorAndExit "Failed to get issue: $issueData" 3
+}
+$issue = $issueData | ConvertFrom-Json
 Write-Host "Issue: $($issue.title)" -ForegroundColor Gray
 
-# Fetch comments
+# Fetch comments using shared module function
 $comments = Get-IssueComments -Owner $Owner -Repo $Repo -IssueNumber $IssueNumber
 Write-Host "Found $($comments.Count) comments" -ForegroundColor Gray
 
-# Extract context from trusted sources
-$trustedComments = Get-TrustedSourceComments -Comments $comments -Config $config
+# Build trusted users list and filter using shared module function
+$trustedUsers = @($config.trusted_sources.maintainers) + @($config.trusted_sources.ai_agents)
+$trustedComments = Get-TrustedSourceComments -Comments $comments -TrustedUsers $trustedUsers
 Write-Host "Found $($trustedComments.Count) comments from trusted sources" -ForegroundColor Gray
 
-$maintainerGuidance = Get-MaintainerGuidance -Comments $trustedComments -Config $config
-$codeRabbitPlan = Get-CodeRabbitPlan -Comments $trustedComments -Config $config
-$aiTriage = Get-AITriageInfo -Comments $trustedComments -Config $config
+# Extract context
+$maintainerGuidance = Get-MaintainerGuidance -Comments $trustedComments -Maintainers $config.trusted_sources.maintainers
+$codeRabbitPlan = Get-CodeRabbitPlan -Comments $trustedComments -Patterns $config.extraction_patterns.coderabbit
+$aiTriage = Get-AITriageInfo -Comments $trustedComments -TriageMarker $config.extraction_patterns.ai_triage.marker
 
 # Generate synthesis
 $synthesisBody = New-SynthesisComment `
-    -Config $config `
+    -Marker $config.synthesis.marker `
     -MaintainerGuidance $maintainerGuidance `
     -CodeRabbitPlan $codeRabbitPlan `
-    -AITriage $aiTriage `
-    -IssueTitle $issue.title
+    -AITriage $aiTriage
 
 # Check for existing synthesis comment (idempotency)
-$existingSynthesis = Find-ExistingSynthesis -Comments $comments -Config $config
+$existingSynthesis = Find-ExistingSynthesis -Comments $comments -Marker $config.synthesis.marker
 
 if ($PSCmdlet.ShouldProcess("Issue #$IssueNumber", "Post synthesis comment and assign Copilot")) {
     if ($existingSynthesis) {
-        # Update existing comment
+        # Update existing using shared module function
         Write-Host "Updating existing synthesis comment (ID: $($existingSynthesis.id))" -ForegroundColor Yellow
         $response = Update-IssueComment -Owner $Owner -Repo $Repo -CommentId $existingSynthesis.id -Body $synthesisBody
         $action = "Updated"
     }
     else {
-        # Create new comment
+        # Create new using shared module function
         Write-Host "Creating new synthesis comment" -ForegroundColor Green
         $response = New-IssueComment -Owner $Owner -Repo $Repo -IssueNumber $IssueNumber -Body $synthesisBody
         $action = "Created"
@@ -621,7 +415,7 @@ if ($PSCmdlet.ShouldProcess("Issue #$IssueNumber", "Post synthesis comment and a
     $assigned = Set-CopilotAssignee -Owner $Owner -Repo $Repo -IssueNumber $IssueNumber
 
     # Output result
-    $output = [PSCustomObject]@{
+    [PSCustomObject]@{
         Success      = $true
         Action       = $action
         IssueNumber  = $IssueNumber
@@ -631,14 +425,11 @@ if ($PSCmdlet.ShouldProcess("Issue #$IssueNumber", "Post synthesis comment and a
         Marker       = $config.synthesis.marker
     }
 
-    Write-Output $output
     Write-Host "$action synthesis comment: $($response.html_url)" -ForegroundColor Green
-    if ($assigned) {
-        Write-Host "Assigned copilot-swe-agent to issue #$IssueNumber" -ForegroundColor Green
-    }
+    if ($assigned) { Write-Host "Assigned copilot-swe-agent to issue #$IssueNumber" -ForegroundColor Green }
 }
 else {
-    # WhatIf mode - show what would be done
+    # WhatIf mode
     Write-Host "`n=== SYNTHESIS PREVIEW ===" -ForegroundColor Cyan
     Write-Host $synthesisBody
     Write-Host "=== END PREVIEW ===" -ForegroundColor Cyan

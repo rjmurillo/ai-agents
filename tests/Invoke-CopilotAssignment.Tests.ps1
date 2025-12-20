@@ -14,11 +14,11 @@
 #>
 
 BeforeAll {
-    # tests/ is at repo root, script is at .claude/skills/github/scripts/copilot/
+    # tests/ is at repo root, script is at .claude/skills/github/scripts/issue/
     $repoRoot = Join-Path $PSScriptRoot ".."
-    $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "copilot" "Invoke-CopilotAssignment.ps1"
+    $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
     $modulePath = Join-Path $repoRoot ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
-    $configPath = Join-Path $repoRoot ".github" "copilot-synthesis.yml"
+    $configPath = Join-Path $repoRoot ".claude" "skills" "github" "copilot-synthesis.yml"
 
     # Load script content for pattern-based testing
     $scriptContent = Get-Content $scriptPath -Raw
@@ -63,8 +63,12 @@ Describe "Invoke-CopilotAssignment Script Structure" {
             $scriptContent | Should -Match 'Resolve-RepoParams'
         }
 
-        It "Uses Invoke-GhApiPaginated" {
-            $scriptContent | Should -Match 'Invoke-GhApiPaginated'
+        It "Uses Get-IssueComments from module" {
+            $scriptContent | Should -Match 'Get-IssueComments'
+        }
+
+        It "Uses Get-TrustedSourceComments from module" {
+            $scriptContent | Should -Match 'Get-TrustedSourceComments'
         }
     }
 
@@ -77,12 +81,12 @@ Describe "Invoke-CopilotAssignment Script Structure" {
             $scriptContent | Should -Match 'function Find-ExistingSynthesis'
         }
 
-        It "Has Update-IssueComment function" {
-            $scriptContent | Should -Match 'function Update-IssueComment'
+        It "Uses Update-IssueComment from module" {
+            $scriptContent | Should -Match 'Update-IssueComment'
         }
 
-        It "Has New-IssueComment function" {
-            $scriptContent | Should -Match 'function New-IssueComment'
+        It "Uses New-IssueComment from module" {
+            $scriptContent | Should -Match 'New-IssueComment'
         }
 
         It "Checks for existing synthesis before creating" {
@@ -118,8 +122,8 @@ Describe "Invoke-CopilotAssignment Script Structure" {
     }
 
     Context "Trusted Sources Extraction" {
-        It "Has Get-TrustedSourceComments function" {
-            $scriptContent | Should -Match 'function Get-TrustedSourceComments'
+        It "Uses Get-TrustedSourceComments from module" {
+            $scriptContent | Should -Match 'Get-TrustedSourceComments'
         }
 
         It "Has Get-MaintainerGuidance function" {
@@ -185,7 +189,7 @@ Describe "Configuration File" {
     BeforeAll {
         # Use the configPath from the top-level BeforeAll
         $repoRoot = Join-Path $PSScriptRoot ".."
-        $configPath = Join-Path $repoRoot ".github" "copilot-synthesis.yml"
+        $configPath = Join-Path $repoRoot ".claude" "skills" "github" "copilot-synthesis.yml"
         $configContent = Get-Content $configPath -Raw
     }
 
@@ -333,7 +337,7 @@ Describe "WhatIf Behavior" {
 
     BeforeAll {
         $repoRoot = Join-Path $PSScriptRoot ".."
-        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "copilot" "Invoke-CopilotAssignment.ps1"
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
         $scriptContent = Get-Content $scriptPath -Raw
     }
 
