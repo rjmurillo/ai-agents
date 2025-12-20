@@ -319,6 +319,10 @@ Summary complete.
         It "Should return CRITICAL_FAIL for single CRITICAL_FAIL" {
             Merge-Verdicts -Verdicts @('CRITICAL_FAIL') | Should -Be 'CRITICAL_FAIL'
         }
+
+        It "Should return CRITICAL_FAIL if any FAIL present" {
+            Merge-Verdicts -Verdicts @('PASS', 'FAIL', 'WARN') | Should -Be 'CRITICAL_FAIL'
+        }
     }
 
     Context "Format-CollapsibleSection" {

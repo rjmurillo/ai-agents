@@ -269,7 +269,7 @@ function Merge-Verdicts {
 
     .DESCRIPTION
         Combines multiple verdict values following priority rules:
-        CRITICAL_FAIL/REJECTED > WARN > PASS
+        CRITICAL_FAIL/REJECTED/FAIL > WARN > PASS
 
     .PARAMETER Verdicts
         Array of verdict strings to aggregate.
@@ -301,7 +301,7 @@ function Merge-Verdicts {
 
     foreach ($verdict in $Verdicts) {
         switch ($verdict) {
-            { $_ -in 'CRITICAL_FAIL', 'REJECTED' } {
+            { $_ -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL' } {
                 return 'CRITICAL_FAIL'
             }
             'WARN' {
@@ -451,6 +451,8 @@ function Get-VerdictExitCode {
 
     .DESCRIPTION
         Returns appropriate exit code for CI pipeline integration.
+        Returns 1 for CRITICAL_FAIL, REJECTED, or FAIL verdicts.
+        Returns 0 for all other verdicts.
 
     .PARAMETER Verdict
         The verdict value.

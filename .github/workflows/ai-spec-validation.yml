@@ -232,7 +232,7 @@ jobs:
           "@
           } else {
             # Determine final verdict
-            # PARTIAL completeness means incomplete implementation - this should FAIL (block merge)
+            # PARTIAL completeness verdict should cause the check to FAIL (block merge)
             # WARN means minor gaps acceptable for merge with follow-up
             $finalVerdict = 'PASS'
             if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL') {

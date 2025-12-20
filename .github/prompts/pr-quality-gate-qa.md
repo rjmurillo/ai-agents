@@ -72,6 +72,8 @@ For each input parameter, verify tests exist for:
 
 ### Test Coverage Assessment (REQUIRED)
 
+Provide a summary table of test coverage verification results:
+
 | Area | Status | Evidence | Files Checked |
 |------|--------|----------|---------------|
 | Unit tests | Adequate/Missing/Partial | [test file:line or "NONE"] | [source files] |
@@ -120,6 +122,7 @@ Use `CRITICAL_FAIL` if ANY of these are true:
 
 Use `WARN` if:
 
+- One or more HIGH severity issues are found
 - 1-2 edge case categories missing (but happy path tested)
 - Some error paths tested but not all
 - Minor code quality issues (complexity 10-15, some duplication)
@@ -141,7 +144,7 @@ Use `PASS` only if:
 Your verdict MUST include:
 
 ```text
-VERDICT: [PASS|WARN|CRITICAL_FAIL]
+VERDICT: [PASS|WARN|FAIL|CRITICAL_FAIL]
 MESSAGE: [One sentence summary]
 
 EVIDENCE:
