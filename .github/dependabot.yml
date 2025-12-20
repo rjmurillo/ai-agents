@@ -1,16 +1,42 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# Dependabot Configuration
+#
+# Manages automated dependency updates for this repository.
+# Currently tracks GitHub Actions only (no package.json, requirements.txt, etc.)
+#
+# Documentation: https://docs.github.com/code-security/dependabot/dependabot-version-updates
 
 version: 2
 updates:
-  # Maintain dependencies for GitHub Actions
+  # GitHub Actions - update workflow dependencies
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+
+    # Use conventional commit format to match repository standards
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+    # Group all actions together to reduce PR noise
     groups:
-      actions:
+      github-actions:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+    # Keep major updates separate for careful review
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+    # Open PRs against main branch
+    target-branch: "main"
+
+    # Limit concurrent PRs to avoid overwhelming reviewers
+    open-pull-requests-limit: 5
