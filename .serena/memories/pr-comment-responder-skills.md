@@ -428,6 +428,87 @@ fi
 
 ---
 
+## Discovered: 2025-12-20 from PR #162 Implementation
+
+### Skill-PR-Copilot-001: Follow-Up PR Pattern Detection
+
+**Statement**: Detect and categorize Copilot follow-up PRs using branch pattern `copilot/sub-pr-{original}` and verify with Copilot announcement comment
+
+**Context**: When handling PR review comments that trigger Copilot responses and follow-up PR creation
+
+**Evidence**:
+- PR #32 → PR #33 (copilot/sub-pr-32): Duplicate fix, closed successfully
+- PR #156 → PR #162 (copilot/sub-pr-156): Supplemental changes, requires evaluation
+- Pattern: Copilot creates PR after user replies to review comments
+- Announcement: Issue comment "I've opened a new pull request, #{number}"
+
+**Atomicity**: 96%
+
+**Tag**: helpful (prevents wasted effort on duplicate PR reviews)
+
+**Implementation**:
+
+Two detection scripts (PowerShell + bash fallback):
+- `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1`
+- `.claude/skills/github/scripts/pr/detect-copilot-followup.sh`
+
+**Output Structure**:
+
+```json
+{
+  "found": boolean,
+  "originalPRNumber": number,
+  "followUpPRCount": number,
+  "announcement": object|null,
+  "analysis": [
+    {
+      "followUpPRNumber": number,
+      "category": "DUPLICATE|SUPPLEMENTAL|INDEPENDENT",
+      "similarity": 0-100,
+      "reason": "string",
+      "recommendation": "CLOSE_AS_DUPLICATE|REVIEW_THEN_CLOSE|EVALUATE_FOR_MERGE|MANUAL_REVIEW"
+    }
+  ],
+  "recommendation": "string",
+  "timestamp": "ISO-8601"
+}
+```
+
+**Categories**:
+
+| Category | Indicator | Action |
+|----------|-----------|--------|
+| **DUPLICATE** | Follow-up has no/minimal changes | Close with commit reference |
+| **SUPPLEMENTAL** | Follow-up addresses additional issues | Evaluate for merge or request changes |
+| **INDEPENDENT** | Follow-up unrelated to original review | Close with explanation |
+
+**Detection Logic**:
+
+1. Query for follow-up PR with branch pattern `copilot/sub-pr-{original_pr}`
+2. Verify Copilot announcement comment exists on original PR
+3. Get follow-up PR diff and compare file count
+4. Categorize based on: empty diff (100% DUPLICATE), 1 file (85% DUPLICATE), multiple files (40% SUPPLEMENTAL)
+5. Return structured analysis with recommendation
+
+**Verification Before Phase 5**:
+
+```bash
+# Must be BLOCKING GATE in Phase 4 workflow
+if [ $(Detect-CopilotFollowUpPR -PRNumber $PR | jq '.found') = "true" ]; then
+  # Process follow-ups
+  # Close duplicates, evaluate supplements
+  # Update session log with results
+  # Continue to Phase 5 only after handling
+fi
+```
+
+**Related Skills**:
+- Skill-PR-Comment-001 (eyes reaction gate)
+- Skill-PR-Comment-004 (PowerShell fallback)
+- Skill-Workflow-001 (Quick Fix path)
+
+---
+
 ## Metrics (as of PR #52)
 
 - **Triage accuracy**: 100% (7/7 in PR #52, 8/8 in PR #47)

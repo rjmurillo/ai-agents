@@ -123,6 +123,126 @@ When running in environments with PowerShell support (Windows, PowerShell Core o
 
 The bash examples below work cross-platform; use skill scripts when PowerShell is available.
 
+## Verification Gates (BLOCKING)
+
+These gates implement RFC 2119 MUST requirements. Proceeding without passing causes artifact drift.
+
+### Gate 0: Session Log Creation
+
+**Before any work**: Create session log with protocol compliance checklist.
+
+```bash
+# Create session log
+SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
+cat > "$SESSION_FILE" << 'EOF'
+# PR Comment Responder Session
+
+## Protocol Compliance Checklist
+
+- [ ] Gate 0: Session log created
+- [ ] Gate 1: Eyes reactions = comment count
+- [ ] Gate 2: Artifact files created
+- [ ] Gate 3: All tasks tracked in tasks.md
+- [ ] Gate 4: Artifact state matches API state
+- [ ] Gate 5: All threads resolved
+EOF
+```
+
+**Evidence required**: Session log file exists with checkboxes.
+
+### Gate 1: Acknowledgment Verification
+
+**After Phase 2**: Verify eyes reaction count equals total comment count.
+
+```bash
+# Count reactions added vs comments
+REACTIONS_ADDED=$(cat .agents/pr-comments/PR-[number]/session.log | grep -c "reaction.*eyes")
+COMMENT_COUNT=$TOTAL_COMMENTS
+
+if [ "$REACTIONS_ADDED" -ne "$COMMENT_COUNT" ]; then
+  echo "[BLOCKED] Reactions: $REACTIONS_ADDED != Comments: $COMMENT_COUNT"
+  exit 1
+fi
+```
+
+**Evidence required**: Log shows equal counts.
+
+### Gate 2: Artifact Creation Verification
+
+**After generating comment map and task list**: Verify files exist and contain expected counts.
+
+```bash
+# Verify artifacts exist
+test -f ".agents/pr-comments/PR-[number]/comments.md" || exit 1
+test -f ".agents/pr-comments/PR-[number]/tasks.md" || exit 1
+
+# Verify comment count matches
+ARTIFACT_COUNT=$(grep -c "^| [0-9]" .agents/pr-comments/PR-[number]/comments.md)
+if [ "$ARTIFACT_COUNT" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Artifact count: $ARTIFACT_COUNT != API count: $TOTAL_COMMENTS"
+  exit 1
+fi
+```
+
+**Evidence required**: Files exist with correct counts.
+
+### Gate 3: Artifact Update After Fix
+
+**After EVERY fix commit**: Update artifact status atomically.
+
+```bash
+# IMMEDIATELY after git commit, update artifact
+sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... [COMPLETE]/" \
+  .agents/pr-comments/PR-[number]/tasks.md
+
+# Verify update applied
+grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || exit 1
+```
+
+**Evidence required**: Task marked complete in artifact file.
+
+### Gate 4: State Synchronization Before Resolution
+
+**Before Phase 8 (thread resolution)**: Verify artifact state matches intended API state.
+
+```bash
+# Count completed tasks in artifact
+COMPLETED=$(grep -c "\[COMPLETE\]" .agents/pr-comments/PR-[number]/tasks.md)
+TOTAL=$(grep -c "^- \[ \]\|^\[x\]" .agents/pr-comments/PR-[number]/tasks.md)
+
+# Count threads to resolve
+UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Verify alignment
+if [ "$COMPLETED" -ne "$((TOTAL - UNRESOLVED_API))" ]; then
+  echo "[BLOCKED] Artifact COMPLETED ($COMPLETED) != API resolved ($((TOTAL - UNRESOLVED_API)))"
+  exit 1
+fi
+```
+
+**Evidence required**: Counts match before proceeding.
+
+### Gate 5: Final Verification
+
+**After Phase 8**: Verify all threads resolved AND artifacts updated.
+
+```bash
+# API state
+REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Artifact state
+PENDING=$(grep -c "Status: pending\|Status: \[ACKNOWLEDGED\]" .agents/pr-comments/PR-[number]/comments.md)
+
+if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
+  exit 1
+fi
+
+echo "[PASS] All gates cleared"
+```
+
+**Evidence required**: Both counts are zero.
+
 ## Workflow Protocol
 
 ### Phase 1: Context Gathering
@@ -392,6 +512,140 @@ These comments require immediate response before implementation:
 ## Dependency Graph
 
 [If tasks have dependencies, document here]
+```
+
+### Phase 4: Copilot Follow-Up Handling
+
+**BLOCKING GATE**: Must complete before Phase 5 begins
+
+This phase detects and handles Copilot's follow-up PR creation pattern. When you reply to Copilot's review comments, Copilot often creates a new PR targeting the original PR's branch.
+
+#### Detection Pattern
+
+Copilot follow-up PRs match:
+
+- **Branch**: `copilot/sub-pr-{original_pr_number}`
+- **Target**: Original PR's base branch (not main)
+- **Announcement**: Issue comment from `app/copilot-swe-agent` containing "I've opened a new pull request"
+
+**Example**: PR #32 → Follow-up PR #33 (copilot/sub-pr-32)
+
+#### Step 4.1: Query for Follow-Up PRs
+
+```bash
+# Search for follow-up PR matching pattern
+FOLLOW_UP=$(gh pr list --state=open \
+  --search="head:copilot/sub-pr-${PR_NUMBER}" \
+  --json=number,title,body,headRefName,baseRefName,state,author)
+
+if [ -z "$FOLLOW_UP" ] || [ "$(echo "$FOLLOW_UP" | jq 'length')" -eq 0 ]; then
+  echo "No follow-up PRs found. Proceed to Phase 5."
+  exit 0
+fi
+```
+
+#### Step 4.2: Verify Copilot Announcement
+
+```bash
+# Check for Copilot announcement comment on original PR
+ANNOUNCEMENT=$(gh api repos/OWNER/REPO/issues/${PR_NUMBER}/comments \
+  --jq '.[] | select(.user.login == "app/copilot-swe-agent" and .body | contains("opened a new pull request"))')
+
+if [ -z "$ANNOUNCEMENT" ]; then
+  echo "WARNING: Follow-up PR found but no Copilot announcement. May not be official follow-up."
+fi
+```
+
+#### Step 4.3: Categorize Follow-Up Intent
+
+Analyze the follow-up PR content to determine intent:
+
+**DUPLICATE**: Follow-up contains same changes as fixes already applied
+
+- Example: PR #32/#33 (both address same 5 comments)
+- Action: Close with explanation linking to original commits
+
+**SUPPLEMENTAL**: Follow-up addresses different/additional issues
+
+- Example: Extra changes needed after initial reply
+- Action: Evaluate for merge or request changes
+
+**INDEPENDENT**: Follow-up unrelated to original review
+
+- Example: Copilot misunderstood context
+- Action: Close with note
+
+```bash
+# Get follow-up PR content
+FOLLOW_UP_PR=$(echo "$FOLLOW_UP" | jq -r '.[0].number')
+FOLLOW_UP_DIFF=$(gh pr diff ${FOLLOW_UP_PR})
+
+# Compare to commits in original PR
+ORIGINAL_COMMITS=$(git log --oneline ${BASE}..${HEAD})
+
+# Analyze similarity (pseudo-code - implement logic based on diff)
+if [ $(echo "$FOLLOW_UP_DIFF" | wc -l) -eq 0 ]; then
+  CATEGORY="DUPLICATE"
+elif [ ... similar analysis ... ]; then
+  CATEGORY="SUPPLEMENTAL"
+else
+  CATEGORY="INDEPENDENT"
+fi
+```
+
+#### Step 4.4: Execute Decision
+
+**DUPLICATE Decision**:
+
+```bash
+# Close with explanation
+gh pr close ${FOLLOW_UP_PR} --comment "Closing: This follow-up PR duplicates changes already applied in the original PR.
+
+Applied fixes:
+- Commit [hash1]: [description]
+- Commit [hash2]: [description]
+
+See PR #${PR_NUMBER} for details."
+```
+
+**SUPPLEMENTAL Decision**:
+
+```bash
+# Evaluate for merge or request changes
+# Option A: Merge if changes are valid and address new issues
+gh pr merge ${FOLLOW_UP_PR} --auto --squash --delete-branch
+
+# Option B: Leave open for review
+# Post comment on original PR documenting supplemental follow-up
+```
+
+**INDEPENDENT Decision**:
+
+```bash
+# Close with note
+gh pr close ${FOLLOW_UP_PR} --comment "Closing: This PR addresses concerns that were already resolved in PR #${PR_NUMBER}. No action needed."
+```
+
+#### Step 4.5: Document in Session Log
+
+Update your session log with follow-up PR analysis:
+
+```markdown
+## Phase 4: Copilot Follow-Up Detection
+
+- [ ] Query for follow-up PRs (copilot/sub-pr-*)
+- [ ] Verify Copilot announcement comment
+- [ ] Analyze follow-up content
+- [ ] Categorize intent (DUPLICATE/SUPPLEMENTAL/INDEPENDENT)
+- [ ] Execute closure or merge decision
+
+### Results
+
+| Follow-Up PR | Original PR | Status | Decision | Action |
+|---|---|---|---|---|
+| #[N] | #[M] | OPEN | DUPLICATE | Closed: fix already applied (commit hash) |
+
+**Summary**: [N] follow-up PRs detected, [X] closed as duplicates, [Y] pending review
 ```
 
 ### Phase 5: Immediate Replies
