@@ -52,43 +52,61 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 
 ### Capability 1: Static Analysis & Vulnerability Scanning
 
-- CWE detection (CWE-78 shell injection, CWE-79 XSS, CWE-89 SQL injection)
+Scan for common vulnerability patterns:
+
+- **CWE-78 (OS Command Injection)**: Shell execution without proper quoting, dangerous functions (Runtime.exec, os.system, Process.Start)
+- **CWE-79 (XSS)**: Direct output without encoding (innerHTML, @Html.Raw, dangerouslySetInnerHTML)
+- **CWE-89 (SQL Injection)**: String concatenation in queries, ExecuteNonQuery with string concat
+- **CWE-200 (Information Exposure)**: Logging sensitive data, verbose error messages, hardcoded secrets
+- **CWE-287 (Improper Authentication)**: Weak password hashing (MD5, SHA1), hardcoded credentials
+- **CWE-352 (CSRF)**: Missing anti-forgery tokens, state-changing GET requests
+- **CWE-611 (XXE)**: XML parsing without disabling external entities
 - OWASP Top 10 scanning
 - Vulnerable dependency detection
 - Code anti-pattern detection
-- See: [Static Analysis Checklist](../.agents/security/static-analysis-checklist.md)
 
 ### Capability 2: Secret Detection & Environment Leak Scanning
 
-- Hardcoded API keys, tokens, passwords
-- Environment variable leaks
-- .env file exposure patterns
-- Credential pattern matching
-- See: [Secret Detection Patterns](../.agents/security/secret-detection-patterns.md)
+Detect hardcoded secrets and credentials:
+
+- **API Keys**: Generic patterns (api_key, apikey), cloud provider keys (AWS AKIA*, Azure storage keys, GCP service accounts)
+- **Authentication Credentials**: Passwords in code, connection strings with passwords, private keys (RSA, SSH, PGP)
+- **Tokens**: JWT tokens, bearer tokens, OAuth client secrets
+- **Database Credentials**: Connection strings (SQL Server, PostgreSQL, MySQL, MongoDB)
+- **Encryption Keys**: Hardcoded encryption/signing keys, AES keys
+- **Environment Variable Leaks**: Exposed process.env or os.environ references
+
+**High-Risk Files**: `*.env*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `appsettings*.json`, `config.json`, `credentials*`, `secrets*`
 
 ### Capability 3: Code Quality Audit (Security Perspective)
 
-- Flag files > 500 lines (testing burden)
-- Identify overly complex functions
-- Detect tight coupling (environment, dependencies)
-- Module boundary violations
-- See: [Code Quality Security Guide](../.agents/security/code-quality-security.md)
+Identify code quality issues with security implications:
+
+- **File-Level**: Flag files > 500 LOC (hard to review), cyclomatic complexity > 20, excessive dependencies (> 15 imports)
+- **Function-Level**: Functions > 50 LOC, parameters > 5, nesting depth > 4, cyclomatic complexity > 10
+- **Tight Coupling**: Static dependencies on security services, hardcoded URLs/paths, environment-based security bypasses
+- **Module Boundary Violations**: Security code reaching into other modules, mixed concerns (auth + business logic)
+- **Testing Burden**: Security-critical code must be testable (minimum 90% coverage for auth/authz, 85% for input validation)
 
 ### Capability 4: Architecture & Boundary Security Audit
 
-- Privilege boundary analysis
-- Attack surface mapping
-- Trust boundary identification
-- Sensitive data flow analysis
-- See: [Architecture Security Template](../.agents/security/architecture-security-template.md)
+Evaluate system architecture for security:
+
+- **Privilege Boundaries**: Identify privilege levels (anonymous, authenticated, privileged, system), detect escalation paths
+- **Trust Boundaries**: Map trust zones (untrusted, DMZ, trusted, highly trusted), verify boundary controls (input validation, authentication, authorization)
+- **Attack Surface**: Analyze external entry points (public API, admin API, webhooks), internal surfaces (service-to-service, database, message queue)
+- **Sensitive Data Flow**: Classify data (critical, sensitive, internal), trace data flows, identify encryption requirements (at rest, in transit)
+- **Dependency Security**: Assess third-party dependencies for known CVEs, outdated versions, license compliance
 
 ### Capability 5: Best Practices Enforcement
 
-- Input validation enforcement
-- Error handling adequacy
-- Logging of sensitive operations
-- Cryptography usage correctness
-- See: [Security Best Practices](../.agents/security/security-best-practices.md)
+Enforce secure coding practices:
+
+- **Input Validation**: Use allowlist validation (not denylist), validate server-side, enforce length/range/format limits
+- **Error Handling**: Generic error messages to users, detailed logging internally, no stack traces in production responses
+- **Logging**: Log security events (auth attempts, admin actions), never log passwords/tokens/keys, use structured logging with correlation IDs
+- **Cryptography**: Use bcrypt/Argon2 for passwords, AES-256-GCM for encryption, TLS 1.2+ for transport, no custom crypto algorithms
+- **Testing**: 95% coverage for auth/authz, 90% for input validation, test positive and negative cases, include boundary tests
 
 ### Capability 6: Impact Analysis (Planning Phase)
 
