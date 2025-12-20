@@ -52,7 +52,7 @@ param(
 )
 
 # Import shared helpers - reuse existing functions (DRY)
-$modulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
+$modulePath = Join-Path $PSScriptRoot ".." ".." "modules" "GitHubHelpers.psm1"
 Import-Module $modulePath -Force
 
 #region Configuration
@@ -78,7 +78,7 @@ function Get-SynthesisConfig {
             coderabbit = @{
                 implementation_plan = "## Implementation"
                 related_issues      = "🔗 Similar Issues"
-                related_prs         = "�� Related PRs"
+                related_prs         = "🔗 Related PRs"
             }
             ai_triage = @{
                 marker   = "<!-- AI-ISSUE-TRIAGE -->"
