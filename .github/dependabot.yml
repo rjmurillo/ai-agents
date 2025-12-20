@@ -21,6 +21,14 @@ updates:
       prefix: "chore(deps)"
       include: "scope"
 
+    # Add labels for filtering and automation
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+    # Automatically rebase PRs when they become outdated
+    rebase-strategy: "auto"
+
     # Group all actions together to reduce PR noise
     groups:
       github-actions:
