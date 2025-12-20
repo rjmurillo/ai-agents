@@ -84,4 +84,4 @@ $output = [PSCustomObject]@{
 }
 
 Write-Output $output
-Write-Host "PR #$PullRequest: $($output.TotalComments) review comments" -ForegroundColor Cyan
+Write-Host "PR #$($PullRequest): $($output.TotalComments) review comments" -ForegroundColor Cyan
