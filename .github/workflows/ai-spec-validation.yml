@@ -75,7 +75,8 @@ jobs:
           fi
 
           # Check for linked issues (use grep -E for POSIX portability)
-          ISSUE_REFS=$(echo "$COMBINED" | grep -oE '(Closes|Fixes|Resolves|Implements)[[:space:]]*#[0-9]+' | grep -oE '[0-9]+' | sort -u | tr '\n' ' ' || true)
+          # Supports both simple (#123) and cross-repo (owner/repo#123) issue references
+          ISSUE_REFS=$(echo "$COMBINED" | grep -oE '(Closes|Fixes|Resolves|Implements)[[:space:]]+([[:alnum:]_-]+/[[:alnum:]_-]+)?#[0-9]+' | grep -oE '[0-9]+' | sort -u | tr '\n' ' ' || true)
 
           echo "spec_refs=$SPEC_REFS" >> $GITHUB_OUTPUT
           echo "issue_refs=$ISSUE_REFS" >> $GITHUB_OUTPUT
