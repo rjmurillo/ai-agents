@@ -79,6 +79,8 @@ GitHub is reducing rates for many runners:
 | Migrate to ARM runners | 35-40% on runner costs | P0 | ADR-007 |
 | Reduce artifact retention | 60-80% on storage | P0 | ADR-008 |
 | Add path filters to workflows | 40-60% fewer runs | P0 | - |
+| **Use DRAFT PRs until ready** | **80% fewer bot runs** | **P0** | - |
+| **Batch commits, push once** | **5x fewer CI triggers** | **P0** | - |
 | Consolidate redundant workflows | 20-30% fewer runs | P1 | - |
 | Cancel duplicate runs | 10-20% reduction | P1 | - |
 
@@ -119,6 +121,47 @@ Prevent duplicate runs on same branch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+```
+
+## PR Workflow (MUST)
+
+Each push to a non-draft PR triggers multiple bots (Copilot, CodeRabbit, Gemini, CI/CD).
+
+**Requirements:**
+
+| Requirement | Level | Rationale |
+|-------------|-------|-----------|
+| Create PRs as DRAFT | **MUST** | Avoids bot triggers until ready |
+| Batch commits locally | **MUST** | Single push = single bot trigger |
+| Push only when ready | **MUST** | 5 pushes = 5x cost |
+| Convert to ready-for-review at end | **MUST** | Single review cycle |
+
+**Correct Pattern:**
+
+```bash
+# Work locally, batch commits
+git commit -m "feat: part 1"
+git commit -m "feat: part 2"
+git commit -m "test: add tests"
+
+# Push once when ready
+git push
+
+# Create as DRAFT
+gh pr create --draft --title "feat: my feature"
+
+# Only mark ready when seeking review
+gh pr ready
+```
+
+**Anti-Pattern (AVOID):**
+
+```bash
+# DON'T: Commit → Push → Commit → Push (triggers bots each time)
+git commit -m "wip" && git push  # Bot run #1
+git commit -m "fix" && git push  # Bot run #2
+git commit -m "done" && git push # Bot run #3
+# Result: 3x the cost
 ```
 
 ## Monitoring
