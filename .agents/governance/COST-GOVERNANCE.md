@@ -166,10 +166,11 @@ Token costs are the other major cost driver. Apply these practices:
 
 ---
 
-## Related ADRs
+## Related Documents
 
 - [ADR-007: GitHub Actions Runner Selection](./architecture/ADR-007-github-actions-runner-selection.md) - ARM-first runner policy
 - [ADR-008: Artifact Storage Minimization](./architecture/ADR-008-artifact-storage-minimization.md) - No artifacts by default
+- [SERENA-BEST-PRACTICES.md](./SERENA-BEST-PRACTICES.md) - Token-efficient Serena usage
 
 ## References
 
