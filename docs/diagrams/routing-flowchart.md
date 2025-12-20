@@ -8,403 +8,225 @@ This document provides a visual representation of the orchestrator routing algor
 
 ## Main Routing Flow
 
-```text
-                              +-------------------+
-                              |   RECEIVE TASK    |
-                              +-------------------+
-                                       |
-                                       v
-                          +------------------------+
-                          |  PHASE 1: CLASSIFY     |
-                          +------------------------+
-                                       |
-           +---------------------------+---------------------------+
-           |                           |                           |
-           v                           v                           v
-   +--------------+           +--------------+            +--------------+
-   | Identify     |           | Assess       |            | Determine    |
-   | Task Type    |           | Complexity   |            | Risk Level   |
-   +--------------+           +--------------+            +--------------+
-           |                           |                           |
-           +---------------------------+---------------------------+
-                                       |
-                                       v
-                          +------------------------+
-                          |  PHASE 2: SELECT       |
-                          +------------------------+
-                                       |
-           +---------------------------+---------------------------+
-           |                           |                           |
-           v                           v                           v
-   +--------------+           +--------------+            +--------------+
-   | Select       |           | Build Agent  |            | Add Mandatory|
-   | Primary      |           | Sequence     |            | Agents       |
-   +--------------+           +--------------+            +--------------+
-                                       |
-                                       v
-                          +------------------------+
-                          |  PHASE 3: EXECUTE      |
-                          +------------------------+
-                                       |
-                                       v
-                          +------------------------+
-                          | Determine Serial vs    |
-                          | Parallel Execution     |
-                          +------------------------+
-                                       |
-              +------------------------+------------------------+
-              |                                                 |
-              v                                                 v
-    +------------------+                              +------------------+
-    | SERIAL GROUP     |                              | PARALLEL GROUP   |
-    | Execute one by   |                              | Execute agents   |
-    | one, passing     |                              | concurrently     |
-    | outputs forward  |                              +------------------+
-    +------------------+                                        |
-              |                                                 |
-              +------------------------+------------------------+
-                                       |
-                                       v
-                          +------------------------+
-                          |  PHASE 4: SYNTHESIZE   |
-                          +------------------------+
-                                       |
-           +---------------------------+---------------------------+
-           |                           |                           |
-           v                           v                           v
-   +--------------+           +--------------+            +--------------+
-   | Collect      |           | Detect       |            | Resolve      |
-   | Outputs      |           | Conflicts    |            | Conflicts    |
-   +--------------+           +--------------+            +--------------+
-                                       |
-                                       v
-                              +----------------+
-                              | DELIVER RESULT |
-                              +----------------+
+```mermaid
+flowchart TB
+    subgraph Phase1["PHASE 1: CLASSIFY"]
+        RECEIVE[RECEIVE TASK]
+        CLASSIFY[PHASE 1: CLASSIFY]
+        RECEIVE --> CLASSIFY
+        CLASSIFY --> IDENTIFY & ASSESS & DETERMINE
+        IDENTIFY[Identify<br/>Task Type]
+        ASSESS[Assess<br/>Complexity]
+        DETERMINE[Determine<br/>Risk Level]
+    end
+
+    subgraph Phase2["PHASE 2: SELECT"]
+        SELECT[PHASE 2: SELECT]
+        IDENTIFY & ASSESS & DETERMINE --> SELECT
+        SELECT --> PRIMARY & SEQUENCE & MANDATORY
+        PRIMARY[Select<br/>Primary]
+        SEQUENCE[Build Agent<br/>Sequence]
+        MANDATORY[Add Mandatory<br/>Agents]
+    end
+
+    subgraph Phase3["PHASE 3: EXECUTE"]
+        EXECUTE[PHASE 3: EXECUTE]
+        SEQUENCE --> EXECUTE
+        EXECUTE --> SERIAL_PARALLEL[Determine Serial vs<br/>Parallel Execution]
+        SERIAL_PARALLEL --> SERIAL & PARALLEL
+        SERIAL[SERIAL GROUP<br/>Execute one by<br/>one, passing<br/>outputs forward]
+        PARALLEL[PARALLEL GROUP<br/>Execute agents<br/>concurrently]
+    end
+
+    subgraph Phase4["PHASE 4: SYNTHESIZE"]
+        SYNTHESIZE[PHASE 4: SYNTHESIZE]
+        SERIAL & PARALLEL --> SYNTHESIZE
+        SYNTHESIZE --> COLLECT & DETECT & RESOLVE
+        COLLECT[Collect<br/>Outputs]
+        DETECT[Detect<br/>Conflicts]
+        RESOLVE[Resolve<br/>Conflicts]
+        DETECT --> DELIVER
+        DELIVER[DELIVER RESULT]
+    end
 ```
 
 ---
 
 ## Task Type Classification Flow
 
-```text
-                         +------------------+
-                         |  ANALYZE TASK    |
-                         +------------------+
-                                  |
-                                  v
-                    +---------------------------+
-                    | Contains security         |
-                    | keywords or file patterns?|
-                    +---------------------------+
-                           |           |
-                          YES          NO
-                           |           |
-                           v           v
-                    +----------+  +---------------------------+
-                    | SECURITY |  | Contains infrastructure   |
-                    +----------+  | file patterns?            |
-                                  +---------------------------+
-                                       |           |
-                                      YES          NO
-                                       |           |
-                                       v           v
-                            +----------------+  +---------------------------+
-                            | INFRASTRUCTURE |  | Question format?          |
-                            +----------------+  | ("Why/How does X...?")    |
-                                                +---------------------------+
-                                                     |           |
-                                                    YES          NO
-                                                     |           |
-                                                     v           v
-                                            +----------+  +---------------------------+
-                                            | RESEARCH |  | Contains bug indicators?  |
-                                            +----------+  +---------------------------+
-                                                               |           |
-                                                              YES          NO
-                                                               |           |
-                                                               v           v
-                                                        +----------+  +---------------------------+
-                                                        | BUG_FIX  |  | Contains feature          |
-                                                        +----------+  | indicators?               |
-                                                                      +---------------------------+
-                                                                           |           |
-                                                                          YES          NO
-                                                                           |           |
-                                                                           v           v
-                                                                    +----------+  +----------+
-                                                                    | FEATURE  |  | UNKNOWN  |
-                                                                    +----------+  +----------+
+```mermaid
+flowchart TB
+    ANALYZE[ANALYZE TASK]
+    ANALYZE --> SECURITY_CHECK{Contains security<br/>keywords or file patterns?}
+
+    SECURITY_CHECK -->|YES| SECURITY[SECURITY]
+    SECURITY_CHECK -->|NO| INFRA_CHECK{Contains infrastructure<br/>file patterns?}
+
+    INFRA_CHECK -->|YES| INFRASTRUCTURE[INFRASTRUCTURE]
+    INFRA_CHECK -->|NO| QUESTION_CHECK{Question format?<br/>Why/How does X...?}
+
+    QUESTION_CHECK -->|YES| RESEARCH[RESEARCH]
+    QUESTION_CHECK -->|NO| BUG_CHECK{Contains bug indicators?}
+
+    BUG_CHECK -->|YES| BUG_FIX[BUG_FIX]
+    BUG_CHECK -->|NO| FEATURE_CHECK{Contains feature<br/>indicators?}
+
+    FEATURE_CHECK -->|YES| FEATURE[FEATURE]
+    FEATURE_CHECK -->|NO| UNKNOWN[UNKNOWN]
 ```
 
 ---
 
 ## Complexity Assessment Flow
 
-```text
-                      +-------------------+
-                      |   COUNT DOMAINS   |
-                      +-------------------+
-                               |
-                               v
-              +--------------------------------+
-              | Domains affected > 2?          |
-              +--------------------------------+
-                     |                |
-                    YES               NO
-                     |                |
-                     v                v
-            +--------------+  +--------------------------------+
-            | MULTI_DOMAIN |  | Files affected > 3?            |
-            +--------------+  +--------------------------------+
-                                     |                |
-                                    YES               NO
-                                     |                |
-                                     v                v
-                            +--------------+  +--------------------------------+
-                            | MULTI_STEP   |  | Agents required > 1?           |
-                            +--------------+  +--------------------------------+
-                                                     |                |
-                                                    YES               NO
-                                                     |                |
-                                                     v                v
-                                            +--------------+  +--------------+
-                                            | MULTI_STEP   |  | SIMPLE       |
-                                            +--------------+  +--------------+
+```mermaid
+flowchart TB
+    COUNT[COUNT DOMAINS]
+    COUNT --> DOMAINS_CHECK{Domains affected > 2?}
+
+    DOMAINS_CHECK -->|YES| MULTI_DOMAIN[MULTI_DOMAIN]
+    DOMAINS_CHECK -->|NO| FILES_CHECK{Files affected > 3?}
+
+    FILES_CHECK -->|YES| MULTI_STEP1[MULTI_STEP]
+    FILES_CHECK -->|NO| AGENTS_CHECK{Agents required > 1?}
+
+    AGENTS_CHECK -->|YES| MULTI_STEP2[MULTI_STEP]
+    AGENTS_CHECK -->|NO| SIMPLE[SIMPLE]
 ```
 
 ---
 
 ## Risk Level Flow
 
-```text
-                      +-------------------+
-                      |  CHECK PATTERNS   |
-                      +-------------------+
-                               |
-                               v
-              +--------------------------------+
-              | Matches critical patterns?     |
-              | (**/Auth/**, .githooks/*, etc)|
-              +--------------------------------+
-                     |                |
-                    YES               NO
-                     |                |
-                     v                v
-            +--------------+  +--------------------------------+
-            | CRITICAL     |  | Task type security or infra?   |
-            +--------------+  +--------------------------------+
-                                     |                |
-                                    YES               NO
-                                     |                |
-                                     v                v
-                            +--------------+  +--------------------------------+
-                            | HIGH         |  | Matches high-risk patterns?    |
-                            +--------------+  +--------------------------------+
-                                                     |                |
-                                                    YES               NO
-                                                     |                |
-                                                     v                v
-                                            +--------------+  +--------------+
-                                            | HIGH         |  | MEDIUM/LOW   |
-                                            +--------------+  +--------------+
+```mermaid
+flowchart TB
+    CHECK[CHECK PATTERNS]
+    CHECK --> CRITICAL_CHECK{Matches critical patterns?<br/>**/Auth/**, .githooks/*, etc}
+
+    CRITICAL_CHECK -->|YES| CRITICAL[CRITICAL]
+    CRITICAL_CHECK -->|NO| TYPE_CHECK{Task type security or infra?}
+
+    TYPE_CHECK -->|YES| HIGH1[HIGH]
+    TYPE_CHECK -->|NO| HIGH_RISK_CHECK{Matches high-risk patterns?}
+
+    HIGH_RISK_CHECK -->|YES| HIGH2[HIGH]
+    HIGH_RISK_CHECK -->|NO| MEDIUM_LOW[MEDIUM/LOW]
 ```
 
 ---
 
 ## Agent Selection Flow
 
-```text
-                      +-------------------+
-                      |   TASK TYPE +     |
-                      |   COMPLEXITY +    |
-                      |   RISK LEVEL      |
-                      +-------------------+
-                               |
-                               v
-              +--------------------------------+
-              |   LOOKUP IN SEQUENCE MAP       |
-              +--------------------------------+
-                               |
-              +----------------+----------------+
-              |                                 |
-              v                                 v
-      +---------------+                 +---------------+
-      | EXACT MATCH   |                 | NO MATCH      |
-      | Use sequence  |                 | Use fallback  |
-      +---------------+                 +---------------+
-              |                                 |
-              +----------------+----------------+
-                               |
-                               v
-              +--------------------------------+
-              | Risk = Critical or High?       |
-              +--------------------------------+
-                     |                |
-                    YES               NO
-                     |                |
-                     v                |
-      +----------------------------+  |
-      | Insert SECURITY agent      |  |
-      | if not present             |  |
-      +----------------------------+  |
-              |                       |
-              +----------+------------+
-                         |
-                         v
-              +--------------------------------+
-              | IMPLEMENTER in sequence?       |
-              +--------------------------------+
-                     |                |
-                    YES               NO
-                     |                |
-                     v                |
-      +----------------------------+  |
-      | Ensure QA follows          |  |
-      | implementer                |  |
-      +----------------------------+  |
-              |                       |
-              +----------+------------+
-                         |
-                         v
-              +-------------------+
-              |  FINAL SEQUENCE   |
-              +-------------------+
+```mermaid
+flowchart TB
+    INPUT[TASK TYPE +<br/>COMPLEXITY +<br/>RISK LEVEL]
+    INPUT --> LOOKUP[LOOKUP IN SEQUENCE MAP]
+
+    LOOKUP --> EXACT[EXACT MATCH<br/>Use sequence]
+    LOOKUP --> NO_MATCH[NO MATCH<br/>Use fallback]
+
+    EXACT --> RISK_CHECK
+    NO_MATCH --> RISK_CHECK
+
+    RISK_CHECK{Risk = Critical or High?}
+    RISK_CHECK -->|YES| INSERT_SECURITY[Insert SECURITY agent<br/>if not present]
+    RISK_CHECK -->|NO| IMPL_CHECK
+    INSERT_SECURITY --> IMPL_CHECK
+
+    IMPL_CHECK{IMPLEMENTER in sequence?}
+    IMPL_CHECK -->|YES| ENSURE_QA[Ensure QA follows<br/>implementer]
+    IMPL_CHECK -->|NO| FINAL
+    ENSURE_QA --> FINAL
+
+    FINAL[FINAL SEQUENCE]
 ```
 
 ---
 
 ## Execution Strategy Flow
 
-```text
-              +-------------------+
-              |   AGENT SEQUENCE  |
-              +-------------------+
-                       |
-                       v
-         +---------------------------+
-         | For each pair of agents   |
-         +---------------------------+
-                       |
-                       v
-         +---------------------------+
-         | Are they parallel-        |
-         | compatible?               |
-         +---------------------------+
-                |           |
-               YES          NO
-                |           |
-                v           v
-         +------------+ +------------+
-         | Add to     | | Add to     |
-         | PARALLEL   | | SERIAL     |
-         | group      | | queue      |
-         +------------+ +------------+
-                |           |
-                +-----+-----+
-                      |
-                      v
-         +---------------------------+
-         | Execute groups in order   |
-         +---------------------------+
-                      |
-         +------------+------------+
-         |                         |
-         v                         v
-  +-------------+           +-------------+
-  | PARALLEL    |           | SERIAL      |
-  | Run all     |           | Run one     |
-  | concurrently|           | at a time   |
-  +-------------+           +-------------+
-         |                         |
-         +------------+------------+
-                      |
-                      v
-         +---------------------------+
-         | Merge results and proceed |
-         +---------------------------+
+```mermaid
+flowchart TB
+    AGENT_SEQ[AGENT SEQUENCE]
+    AGENT_SEQ --> FOR_EACH[For each pair of agents]
+    FOR_EACH --> COMPATIBLE{Are they parallel-<br/>compatible?}
+
+    COMPATIBLE -->|YES| PARALLEL_GROUP[Add to<br/>PARALLEL<br/>group]
+    COMPATIBLE -->|NO| SERIAL_QUEUE[Add to<br/>SERIAL<br/>queue]
+
+    PARALLEL_GROUP --> EXECUTE_GROUPS
+    SERIAL_QUEUE --> EXECUTE_GROUPS
+
+    EXECUTE_GROUPS[Execute groups in order]
+    EXECUTE_GROUPS --> PARALLEL_EXEC & SERIAL_EXEC
+
+    PARALLEL_EXEC[PARALLEL<br/>Run all<br/>concurrently]
+    SERIAL_EXEC[SERIAL<br/>Run one<br/>at a time]
+
+    PARALLEL_EXEC --> MERGE
+    SERIAL_EXEC --> MERGE
+    MERGE[Merge results and proceed]
 ```
 
 ---
 
 ## Conflict Resolution Flow
 
-```text
-              +-------------------+
-              |   CONFLICT        |
-              |   DETECTED        |
-              +-------------------+
-                       |
-                       v
-         +---------------------------+
-         | Is one agent SECURITY?    |
-         +---------------------------+
-                |           |
-               YES          NO
-                |           |
-                v           v
-         +------------+ +---------------------------+
-         | SECURITY   | | Is one agent ARCHITECT?   |
-         | WINS       | +---------------------------+
-         +------------+          |           |
-                                YES          NO
-                                 |           |
-                                 v           v
-                         +------------+ +---------------------------+
-                         | ARCHITECT  | | Is one agent CRITIC?      |
-                         | WINS       | +---------------------------+
-                         +------------+          |           |
-                                                YES          NO
-                                                 |           |
-                                                 v           v
-                                         +------------+ +------------+
-                                         | CRITIC     | | ESCALATE   |
-                                         | WINS       | | to ARCH    |
-                                         +------------+ +------------+
+```mermaid
+flowchart TB
+    CONFLICT[CONFLICT<br/>DETECTED]
+    CONFLICT --> SECURITY_Q{Is one agent SECURITY?}
+
+    SECURITY_Q -->|YES| SECURITY_WINS[SECURITY<br/>WINS]
+    SECURITY_Q -->|NO| ARCHITECT_Q{Is one agent ARCHITECT?}
+
+    ARCHITECT_Q -->|YES| ARCHITECT_WINS[ARCHITECT<br/>WINS]
+    ARCHITECT_Q -->|NO| CRITIC_Q{Is one agent CRITIC?}
+
+    CRITIC_Q -->|YES| CRITIC_WINS[CRITIC<br/>WINS]
+    CRITIC_Q -->|NO| ESCALATE[ESCALATE<br/>to ARCH]
 ```
 
 ---
 
 ## Example: CWE-78 Routing
 
-```text
-TASK: "Fix shell injection vulnerability in .githooks/pre-commit"
+```mermaid
+flowchart TB
+    subgraph Task["TASK"]
+        TASK_DESC["Fix shell injection vulnerability in .githooks/pre-commit"]
+    end
 
-PHASE 1: CLASSIFY
-+----------------+     +----------------+     +----------------+
-| Type:          |     | Complexity:    |     | Risk:          |
-| SECURITY       |     | MULTI_DOMAIN   |     | CRITICAL       |
-| (injection,    |     | (security +    |     | (.githooks/*   |
-|  vulnerability)|     |  infra + code) |     |  pattern)      |
-+----------------+     +----------------+     +----------------+
+    subgraph Phase1["PHASE 1: CLASSIFY"]
+        TYPE[Type:<br/>SECURITY<br/>injection,<br/>vulnerability]
+        COMPLEXITY[Complexity:<br/>MULTI_DOMAIN<br/>security +<br/>infra + code]
+        RISK[Risk:<br/>CRITICAL<br/>.githooks/*<br/>pattern]
+    end
 
-PHASE 2: SELECT
-+---------------------------------------------------------------+
-| Base Sequence: [analyst, security, devops, critic, impl, qa]  |
-| Mandatory Additions: Security already present                  |
-| Final Sequence: [analyst, security, devops, critic, impl, qa] |
-+---------------------------------------------------------------+
+    subgraph Phase2["PHASE 2: SELECT"]
+        BASE["Base Sequence: analyst, security, devops, critic, impl, qa"]
+        ADDITIONS["Mandatory Additions: Security already present"]
+        FINAL["Final Sequence: analyst, security, devops, critic, impl, qa"]
+    end
 
-PHASE 3: EXECUTE
-+-------------+     +-------------+     +-------------+
-| analyst     | --> | security    | --> | devops      | -->
-| Research    |     | Assess      |     | Validate    |
-| CWE-78      |     | severity    |     | hook context|
-+-------------+     +-------------+     +-------------+
-                                               |
-                                               v
-+-------------+     +-------------+     +-------------+
-| qa          | <-- | implementer | <-- | critic      |
-| Test fix    |     | Apply fix   |     | Verify      |
-| completeness|     |             |     | approach    |
-+-------------+     +-------------+     +-------------+
+    subgraph Phase3["PHASE 3: EXECUTE"]
+        ANALYST[analyst<br/>Research<br/>CWE-78] --> SECURITY_AGENT[security<br/>Assess<br/>severity]
+        SECURITY_AGENT --> DEVOPS[devops<br/>Validate<br/>hook context]
+        DEVOPS --> CRITIC[critic<br/>Verify<br/>approach]
+        CRITIC --> IMPLEMENTER[implementer<br/>Apply fix]
+        IMPLEMENTER --> QA[qa<br/>Test fix<br/>completeness]
+    end
 
-PHASE 4: SYNTHESIZE
-+---------------------------------------------------------------+
-| Collect: Security report, code changes, test results          |
-| Conflicts: None expected (clear remediation path)              |
-| Result: Vulnerability fixed with quoted expansion              |
-+---------------------------------------------------------------+
+    subgraph Phase4["PHASE 4: SYNTHESIZE"]
+        COLLECT_P4["Collect: Security report, code changes, test results"]
+        CONFLICTS["Conflicts: None expected (clear remediation path)"]
+        RESULT["Result: Vulnerability fixed with quoted expansion"]
+    end
+
+    Task --> Phase1
+    Phase1 --> Phase2
+    Phase2 --> Phase3
+    Phase3 --> Phase4
 ```
 
 ---
@@ -417,6 +239,7 @@ PHASE 4: SYNTHESIZE
 
 ---
 
-*Diagram Version: 1.0*
+*Diagram Version: 1.1*
 *Created: 2025-12-13*
+*Updated: 2025-12-18 - Converted ASCII diagrams to Mermaid*
 *GitHub Issue: #5*

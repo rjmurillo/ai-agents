@@ -4,6 +4,26 @@
 
 <!-- Brief description of changes -->
 
+## Specification References
+
+<!-- REQUIRED: Enable AI spec-to-implementation traceability -->
+<!-- The ai-spec-validation workflow checks for these references -->
+
+| Type | Reference | Description |
+|------|-----------|-------------|
+| **Issue** | Closes #<!-- issue number --> | <!-- Issue title --> |
+| **Spec** | `.agents/planning/...` | <!-- Planning document --> |
+| **Spec** | `.agents/specs/...` | <!-- Spec document (if applicable) --> |
+
+<!--
+Supported reference formats:
+- Issues: "Closes #123", "Fixes #456", "Implements #789"
+- Requirements: "REQ-001", "DESIGN-002", "TASK-003"
+- Spec files: ".agents/specs/requirements/...", ".agents/planning/..."
+
+If no specs exist, create one in .agents/planning/ before submitting.
+-->
+
 ## Changes
 
 <!-- Bulleted list of changes -->

@@ -29,18 +29,36 @@
     }
 
     Claude = @{
-        DisplayName = "Claude Code"
-        SourceDir   = "src/claude"
-        FilePattern = "*.md"
+        DisplayName  = "Claude Code"
+        SourceDir    = "src/claude"
+        FilePattern  = "*.md"
+        ExcludeFiles = @("AGENTS.md")  # Documentation files, not agent definitions
+        # Skills directories (PowerShell modules with GitHub helpers, etc.)
+        SkillsSourceDir = ".claude/skills"
+        Skills          = @("github")  # List of skill directories to install
         Global      = @{
             DestDir          = '$HOME/.claude/agents'
             InstructionsFile = "CLAUDE.md"
             InstructionsDest = '$HOME/.claude'
+            # Claude commands (slash commands)
+            CommandsDir      = '$HOME/.claude/commands'
+            CommandFiles     = @(
+                "pr-comment-responder.md"
+            )
+            # Skills destination
+            SkillsDir        = '$HOME/.claude/skills'
         }
         Repo        = @{
             DestDir          = '.claude/agents'
             InstructionsFile = "CLAUDE.md"
             InstructionsDest = ''  # Root of repo
+            # Claude commands for repo scope
+            CommandsDir      = '.claude/commands'
+            CommandFiles     = @(
+                "pr-comment-responder.md"
+            )
+            # Skills destination
+            SkillsDir        = '.claude/skills'
         }
     }
 
@@ -58,11 +76,19 @@
             DestDir          = '$HOME/.copilot/agents'
             InstructionsFile = $null  # No global instructions file
             InstructionsDest = $null
+            # Prompt files (copied alongside agents with .prompt.md extension)
+            PromptFiles      = @(
+                "pr-comment-responder.agent.md"
+            )
         }
         Repo        = @{
             DestDir          = '.github/agents'
             InstructionsFile = "copilot-instructions.md"
             InstructionsDest = '.github'
+            # Prompt files (copied alongside agents with .prompt.md extension)
+            PromptFiles      = @(
+                "pr-comment-responder.agent.md"
+            )
         }
     }
 
@@ -75,11 +101,19 @@
             DestDir          = '$env:APPDATA/Code/User/prompts'
             InstructionsFile = "copilot-instructions.md"
             InstructionsDest = '$env:APPDATA/Code/User/prompts'
+            # Prompt files (copied alongside agents with .prompt.md extension)
+            PromptFiles      = @(
+                "pr-comment-responder.agent.md"
+            )
         }
         Repo        = @{
             DestDir          = '.github/agents'
             InstructionsFile = "copilot-instructions.md"
             InstructionsDest = '.github'
+            # Prompt files (copied alongside agents with .prompt.md extension)
+            PromptFiles      = @(
+                "pr-comment-responder.agent.md"
+            )
         }
     }
 }

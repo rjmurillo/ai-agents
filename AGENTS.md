@@ -1,5 +1,90 @@
 # Using the Agents
 
+## ⚠️ MANDATORY: Initialize Serena FIRST
+
+**BEFORE doing ANY work**, you MUST call these Serena MCP tools in order:
+
+```text
+1. mcp__serena__activate_project  (with project path)
+2. mcp__serena__initial_instructions
+```
+
+This is NON-NEGOTIABLE. Do not read files, do not search, do not answer questions until Serena is initialized.
+
+**Why this matters**: Without Serena initialization, you lack access to:
+
+- Project memories containing past decisions and user preferences
+- Semantic code navigation tools
+- Historical context that prevents repeated mistakes
+
+**For VS Code/Copilot**: If Serena MCP tools are available, initialize them first. Check for tools prefixed with `mcp__serena__` or `serena/`.
+
+---
+
+## BLOCKING GATE: Session Protocol
+
+> **Canonical Source**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
+>
+> This section uses RFC 2119 key words. MUST = required, SHOULD = recommended, MAY = optional.
+
+**Agents are experts, but amnesiacs.** Each agent session starts with zero context from previous work. The session protocol ensures continuity between sessions through **verification-based enforcement** - technical controls that make violations impossible, not just discouraged.
+
+### Why This Matters
+
+Without following the session protocol:
+
+- You will repeat work already completed
+- You will make decisions that contradict earlier agreements
+- You will lose learnings that should inform future work
+- The user will have to re-explain context every session
+
+### Session Start Requirements (BLOCKING)
+
+These requirements MUST be completed before ANY other work. Work is blocked until verification succeeds.
+
+| Req Level | Step | Verification |
+|-----------|------|--------------|
+| **MUST** | Initialize Serena (`mcp__serena__activate_project`, `mcp__serena__initial_instructions`) | Tool output in transcript |
+| **MUST** | Read `.agents/HANDOFF.md` | Content in context |
+| **MUST** | Create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
+| **SHOULD** | Search relevant Serena memories | Memory results present |
+| **SHOULD** | Verify git status and note starting commit | Output documented |
+
+### Session End Requirements (BLOCKING)
+
+These requirements MUST be completed before session closes.
+
+| Req Level | Step | Verification |
+|-----------|------|--------------|
+| **MUST** | Update `.agents/HANDOFF.md` | File modified timestamp |
+| **MUST** | Run `npx markdownlint-cli2 --fix "**/*.md"` | Lint passes |
+| **MUST** | Commit all changes including `.agents/` | Commit SHA exists |
+| **SHOULD** | Update PROJECT-PLAN.md task checkboxes | Tasks marked complete |
+| **SHOULD** | Invoke retrospective (significant sessions) | Doc created |
+
+### Full Protocol Documentation
+
+For complete protocol with:
+
+- RFC 2119 requirement levels
+- Verification mechanisms
+- Session log template
+- Violation handling
+
+See: **[.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)**
+
+### The Memory Bridge
+
+The combination of:
+
+1. **Serena memories** (`.serena/memories/`) - Technical patterns and skills
+2. **Session handoffs** (`.agents/HANDOFF.md`) - Workflow state and context
+3. **Session logs** (`.agents/sessions/`) - Decision history
+
+...creates continuity that compensates for agent amnesia. Use ALL of them.
+
+---
+
 ## Overview
 
 This repository provides a coordinated multi-agent system for software development, available for **VS Code (GitHub Copilot)**, **GitHub Copilot CLI**, and **Claude Code CLI**. Each agent focuses on a specific phase or concern with clear responsibilities, constraints, and handoffs.
@@ -77,6 +162,7 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 ```text
 .
 ├── src/                      # Agent source files
+│   ├── STYLE-GUIDE.md        # Global communication standards (all agents)
 │   ├── vs-code-agents/       # VS Code / GitHub Copilot agents
 │   │   └── *.agent.md
 │   ├── copilot-cli/          # GitHub Copilot CLI agents
@@ -265,6 +351,15 @@ In GitHub Copilot Chat:
 | Global | `~/.config/Code/User/prompts/` (Linux/Mac) |
 | Per-repo | `.github/agents/` |
 
+### VS Code File Types
+
+The installer copies both agent files and prompt files:
+
+| File Type | Pattern | Purpose |
+|-----------|---------|---------|
+| Agent files | `*.agent.md` | Full agent definitions with tools and instructions |
+| Prompt files | `*.prompt.md` | Reusable prompts (auto-generated from selected agents) |
+
 ### More Information
 
 See the official documentation: <https://code.visualstudio.com/docs/copilot/copilot-agents>
@@ -297,6 +392,15 @@ copilot
 | Per-repo | `.github/agents/` | **Works** |
 | Global | `~/.copilot/agents/` | Known bug (#452) |
 
+### Copilot CLI File Types
+
+The installer copies both agent files and prompt files:
+
+| File Type | Pattern | Purpose |
+|-----------|---------|---------|
+| Agent files | `*.agent.md` | Full agent definitions with tools and instructions |
+| Prompt files | `*.prompt.md` | Reusable prompts (auto-generated from selected agents) |
+
 ### CLI Notes
 
 - Use per-repository installation until global agent loading is fixed
@@ -321,16 +425,26 @@ Task(subagent_type="critic", prompt="Validate plan at .agents/planning/...")
 
 ### Claude Installation Locations
 
-| Type | Location |
-|------|----------|
-| Global | `~/.claude/agents/` |
-| Per-repo | `.claude/agents/` |
+| Type | Agents | Commands |
+|------|--------|----------|
+| Global | `~/.claude/agents/` | `~/.claude/commands/` |
+| Per-repo | `.claude/agents/` | `.claude/commands/` |
+
+### Claude File Types
+
+The installer copies both agent files and slash command files:
+
+| File Type | Pattern | Location | Purpose |
+|-----------|---------|----------|---------|
+| Agent files | `*.md` | `agents/` | Full agent definitions for Task tool |
+| Command files | `*.md` | `commands/` | Slash commands (e.g., `/pr-comment-responder`) |
 
 ### Claude Notes
 
 - Restart Claude Code after installing new agents
 - Use `/agents` command to view available agents
-- Project-level agents override global agents
+- Use `/` to see available slash commands
+- Project-level agents and commands override global ones
 
 ---
 
@@ -406,7 +520,7 @@ The VS Code `memory` tool provides proprietary file-based storage at `/memories/
 
 **Memory-First Principle**: Retrieve relevant context BEFORE multi-step reasoning. Don't operate in a vacuum.
 
-#### When to Use Memory (MANDATORY)
+#### When to Use Memory (MUST)
 
 | Phase | Action | Serena (preferred) | cloudmcp-manager | VS Code `memory` (last resort) |
 |-------|--------|-------------------|------------------|-------------------------------|
@@ -459,6 +573,41 @@ Example: "Skill-Build" or "Pattern-retry"
 | Forgetting to link entities | Isolated knowledge | Use `memory-create_relations` for connected concepts |
 | Storing mid-task only | Lost final learnings | Always store at milestones AND completion |
 | Duplicate entities | Fragmented knowledge | Search before create; update existing entities |
+
+#### Memory Reference Requirements (RFC 2119)
+
+When documenting or instructing agents to access Serena memories, the following requirements apply:
+
+| Req Level | Requirement |
+|-----------|-------------|
+| **MUST** | Use `mcp__serena__read_memory` with `memory_file_name` parameter (not file paths) in instructive documentation |
+| **MUST** | Include fallback clause for when Serena MCP is unavailable |
+| **MUST NOT** | Reference memories by file path (e.g., `.serena/memories/foo.md`) in agent instructions |
+| **SHOULD** | Use consistent syntax: `read [name] memory using mcp__serena__read_memory with memory_file_name="[name]"` |
+| **MAY** | Reference file paths in informational contexts (tables showing storage locations, git commands) |
+
+**Reference Type Taxonomy:**
+
+| Type | Definition | Action |
+|------|------------|--------|
+| **Instructive** | Tells agent what to read/do | MUST use tool call syntax |
+| **Informational** | Describes where files are stored | MAY use file paths |
+| **Operational** | Used in git/shell commands | MUST use file paths |
+
+**Correct Pattern:**
+
+```markdown
+Read the `skill-usage-mandatory` memory using `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`
+- If Serena MCP is unavailable, read `.serena/memories/skill-usage-mandatory.md`
+```
+
+**Incorrect Pattern:**
+
+```markdown
+Read `.serena/memories/skill-usage-mandatory.md`
+```
+
+**Rationale:** Tool calls abstract the file system, enabling future storage changes without documentation updates. Fallback clauses ensure graceful degradation when Serena MCP is unavailable.
 
 #### Memory Protocol by Agent Type
 
@@ -674,10 +823,12 @@ analyst → high-level-advisor → independent-thinker → critic → roadmap �
 
 The agent system includes a continuous improvement loop:
 
-```text
-Execution → Reflection → Skill Update → Improved Execution
-    ↑                                          ↓
-    └──────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    A[Execution] --> B[Reflection]
+    B --> C[Skill Update]
+    C --> D[Improved Execution]
+    D --> A
 ```
 
 ### Skill Citation Protocol
@@ -811,7 +962,35 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 
 **Why it matters**: The manual provides critical context about efficient code reading strategies, symbolic navigation, and resource-efficient operations that optimize agent performance when working with large codebases.
 
-**Note**: If the Serena MCP is not available, memories can be found in `.serena/memories`.
+**Note**: If the Serena MCP is not available, memories can be read directly from `.serena/memories/`. However, when Serena is available, always use `mcp__serena__read_memory` with just the memory name (e.g., `memory_file_name="skill-usage-mandatory"`) rather than file paths.
+
+---
+
+## Communication Standards
+
+All agents MUST follow the global style guide for consistent, high-quality output.
+
+**Location**: [src/STYLE-GUIDE.md](src/STYLE-GUIDE.md)
+
+**Key Requirements**:
+
+| Category | Rule |
+|----------|------|
+| Tone | No sycophancy, no AI filler phrases, no hedging |
+| Voice | Active voice, direct address (you/your) |
+| Evidence | Replace adjectives with data |
+| Formatting | No em dashes, no emojis, text status indicators |
+| Structure | Short sentences (15-20 words), Grade 9 reading level |
+| Documents | Follow standard analysis structure (objective through conclusion) |
+| Diagrams | Mermaid format, max 15 nodes |
+
+**Status Indicators**:
+
+```text
+[PASS] [FAIL] [WARNING] [COMPLETE] [IN PROGRESS] [BLOCKED] [PENDING]
+```
+
+Agents violating these standards produce inconsistent, unprofessional output. Read the full guide before generating any artifacts.
 
 ---
 
@@ -847,6 +1026,27 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 
 **Consistency Validation**: Run `scripts/Validate-Consistency.ps1` to automatically validate naming conventions, cross-references, and requirement coverage.
 
+### Agent Generation System
+
+**Three-Platform Architecture**: The agent system generates files for three platforms with different maintenance models.
+
+| Platform | Directory | Maintenance | Generation |
+|----------|-----------|-------------|------------|
+| Claude Code | `src/claude/` | Manual | N/A |
+| VS Code | `src/vs-code-agents/` | Auto | `build/Generate-Agents.ps1` |
+| Copilot CLI | `src/copilot-cli/` | Auto | `build/Generate-Agents.ps1` |
+
+**Key Differences** (Claude vs Templates):
+
+- Frontmatter: Claude uses `name`/`model`, templates use `description`/`tools_*`
+- Handoff syntax: Claude uses `Task(subagent_type=...)`, templates use `runSubagent(...)`
+- Memory prefix: Claude uses `mcp__cloudmcp-manager__*`, templates use `cloudmcp-manager/`
+
+**Related Memories**:
+
+- Serena: Use `mcp__serena__read_memory` with `memory_file_name="pattern-agent-generation-three-platforms"`
+- Analysis: `.agents/analysis/claude-vs-template-differences.md`
+
 ### Process Improvements
 
 **Validation-Driven Standards**: When establishing new standards:
@@ -860,9 +1060,56 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 
 **CI Runner Performance**: Prefer `ubuntu-latest` over `windows-latest` for GitHub Actions (much faster). Use Windows runners only when PowerShell Desktop or Windows-specific features required.
 
+### Repository Merge Policies
+
+**Branch Protection Requirements**: The `rjmurillo/ai-agents` repository has branch protection rules that MUST be satisfied before merge:
+
+| Requirement | Description |
+|-------------|-------------|
+| **Conversations Resolved** | ALL PR review conversations MUST be resolved before merge. Unresolved threads block the merge. |
+| **Required Checks** | CI checks must pass (CodeQL, Path Normalization, CodeRabbit) |
+| **Auto-Merge** | Use `gh pr merge --auto` when checks are pending; merge will complete when requirements are met |
+
+**PR Review Workflow**:
+
+1. Review all comments (bot and human)
+2. Address each comment with code changes or replies
+3. Mark conversations as resolved when addressed
+4. Verify all conversations show "Resolved" status
+5. Enable auto-merge or merge directly once all requirements met
+
+**Common Blockers**:
+
+- Unresolved review threads (most common)
+- Failing CI checks
+- Missing required approvals
 ---
 
 ## Putting It All Together
+
+### Every Session (BLOCKING - RFC 2119)
+
+> **Full Protocol**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
+
+```text
+SESSION START (BLOCKING - MUST complete before work):
+1. MUST: Initialize Serena (mcp__serena__activate_project, mcp__serena__initial_instructions)
+2. MUST: Read .agents/HANDOFF.md for previous session context
+3. MUST: Create session log at .agents/sessions/YYYY-MM-DD-session-NN.md
+4. SHOULD: Search relevant Serena memories
+5. SHOULD: Verify git status and note starting commit
+
+[... do your work ...]
+
+SESSION END (BLOCKING - MUST complete before closing):
+6. MUST: Update .agents/HANDOFF.md with session summary
+7. MUST: Run npx markdownlint-cli2 --fix "**/*.md"
+8. MUST: Commit all changes (including .agents/ files)
+9. SHOULD: Check off completed tasks in PROJECT-PLAN.md
+10. SHOULD: Invoke retrospective agent (for significant sessions)
+```
+
+### Agent Workflow
 
 1. Start with **Orchestrator** for task classification and routing
 2. Use **Analyst** for research and unknowns
@@ -872,3 +1119,17 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 6. **QA** for technical quality
 7. **Retrospective** and **Skillbook** for continuous improvement
 8. **Memory** throughout to keep context across sessions
+
+### The Expert Amnesiac Problem
+
+Agents have deep expertise but zero memory between sessions. The session protocol solves this:
+
+| Problem | Solution |
+|---------|----------|
+| "What was decided before?" | Read `HANDOFF.md` |
+| "What's the current task?" | Read `PROJECT-PLAN.md` |
+| "How should I format commits?" | Read `AGENT-INSTRUCTIONS.md` |
+| "What patterns work here?" | Query Serena memories |
+| "What happened last session?" | Read session logs |
+
+**If you skip these reads, you WILL waste tokens rediscovering context that already exists.**

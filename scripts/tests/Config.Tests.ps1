@@ -132,6 +132,20 @@ Describe "Claude Configuration" {
         It "Has InstructionsDest" {
             $Script:ClaudeConfig.Global.InstructionsDest | Should -Not -BeNullOrEmpty
         }
+
+        It "Has CommandsDir" {
+            $Script:ClaudeConfig.Global.CommandsDir | Should -Not -BeNullOrEmpty
+            $Script:ClaudeConfig.Global.CommandsDir | Should -Match "\.claude.*commands"
+        }
+
+        It "Has CommandFiles array" {
+            $Script:ClaudeConfig.Global.CommandFiles | Should -Not -BeNullOrEmpty
+            @($Script:ClaudeConfig.Global.CommandFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "CommandFiles contains pr-comment-responder.md" {
+            $Script:ClaudeConfig.Global.CommandFiles | Should -Contain "pr-comment-responder.md"
+        }
     }
 
     Context "Repo Scope" {
@@ -146,6 +160,19 @@ Describe "Claude Configuration" {
         It "Has InstructionsDest defined (empty string valid for repo root)" {
             # Empty string is valid - means repo root
             $Script:ClaudeConfig.Repo.Keys | Should -Contain "InstructionsDest"
+        }
+
+        It "Has CommandsDir" {
+            $Script:ClaudeConfig.Repo.CommandsDir | Should -Be ".claude/commands"
+        }
+
+        It "Has CommandFiles array" {
+            $Script:ClaudeConfig.Repo.CommandFiles | Should -Not -BeNullOrEmpty
+            @($Script:ClaudeConfig.Repo.CommandFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "CommandFiles contains pr-comment-responder.md" {
+            $Script:ClaudeConfig.Repo.CommandFiles | Should -Contain "pr-comment-responder.md"
         }
     }
 }
@@ -198,6 +225,15 @@ Describe "Copilot Configuration" {
             # Copilot CLI doesn't support global instructions file
             $Script:CopilotConfig.Global.InstructionsFile | Should -BeNullOrEmpty
         }
+
+        It "Has PromptFiles array" {
+            $Script:CopilotConfig.Global.PromptFiles | Should -Not -BeNullOrEmpty
+            @($Script:CopilotConfig.Global.PromptFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "PromptFiles contains pr-comment-responder.agent.md" {
+            $Script:CopilotConfig.Global.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
+        }
     }
 
     Context "Repo Scope" {
@@ -211,6 +247,15 @@ Describe "Copilot Configuration" {
 
         It "Has InstructionsDest" {
             $Script:CopilotConfig.Repo.InstructionsDest | Should -Be ".github"
+        }
+
+        It "Has PromptFiles array" {
+            $Script:CopilotConfig.Repo.PromptFiles | Should -Not -BeNullOrEmpty
+            @($Script:CopilotConfig.Repo.PromptFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "PromptFiles contains pr-comment-responder.agent.md" {
+            $Script:CopilotConfig.Repo.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
         }
     }
 }
@@ -246,6 +291,15 @@ Describe "VSCode Configuration" {
         It "Has InstructionsDest" {
             $Script:VSCodeConfig.Global.InstructionsDest | Should -Not -BeNullOrEmpty
         }
+
+        It "Has PromptFiles array" {
+            $Script:VSCodeConfig.Global.PromptFiles | Should -Not -BeNullOrEmpty
+            @($Script:VSCodeConfig.Global.PromptFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "PromptFiles contains pr-comment-responder.agent.md" {
+            $Script:VSCodeConfig.Global.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
+        }
     }
 
     Context "Repo Scope" {
@@ -259,6 +313,15 @@ Describe "VSCode Configuration" {
 
         It "Has InstructionsDest" {
             $Script:VSCodeConfig.Repo.InstructionsDest | Should -Be ".github"
+        }
+
+        It "Has PromptFiles array" {
+            $Script:VSCodeConfig.Repo.PromptFiles | Should -Not -BeNullOrEmpty
+            @($Script:VSCodeConfig.Repo.PromptFiles).Count | Should -BeGreaterThan 0
+        }
+
+        It "PromptFiles contains pr-comment-responder.agent.md" {
+            $Script:VSCodeConfig.Repo.PromptFiles | Should -Contain "pr-comment-responder.agent.md"
         }
     }
 }

@@ -1,5 +1,52 @@
 # GitHub Copilot Instructions
 
+## BLOCKING GATE: Session Protocol
+
+> **Canonical Source**: [.agents/SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md)
+>
+> This file uses RFC 2119 key words. MUST = required, SHOULD = recommended, MAY = optional.
+
+### Phase 1: Serena Initialization (BLOCKING)
+
+If Serena MCP tools are available, you MUST NOT proceed to any other action until both calls succeed:
+
+```text
+1. serena/activate_project  (with project path)
+2. serena/initial_instructions
+```
+
+**Verification**: Tool output appears in session transcript.
+
+**If skipped**: You lack project memories, semantic code tools, and historical context.
+
+**Check for Serena**: Look for tools prefixed with `serena/` or `mcp__serena__`.
+
+### Phase 2: Context Retrieval (BLOCKING)
+
+You MUST read `.agents/HANDOFF.md` before starting work.
+
+**Verification**: Content appears in session context; you reference prior decisions.
+
+**If skipped**: You will repeat completed work or contradict prior decisions.
+
+### Phase 3: Session Log (REQUIRED)
+
+You MUST create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` early in session.
+
+**Verification**: File exists with Protocol Compliance section.
+
+### Session End (REQUIRED)
+
+Before closing, you MUST:
+
+1. Update `.agents/HANDOFF.md` with session summary
+2. Run `npx markdownlint-cli2 --fix "**/*.md"`
+3. Commit all changes including `.agents/` files
+
+**Full protocol with RFC 2119 requirements**: [.agents/SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md)
+
+---
+
 Refer to [AGENTS.md](../AGENTS.md) for complete project instructions.
 
 This file exists for GitHub Copilot's repo-level custom instructions. All canonical agent documentation is maintained in `AGENTS.md` to follow the DRY principle.

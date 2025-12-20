@@ -80,19 +80,19 @@ Individual scripts are still available for each environment/scope combination:
 
 ### Global Installation Paths
 
-| Environment | Windows Path | macOS/Linux Path |
-|-------------|--------------|------------------|
-| Claude Code | `~/.claude/agents` | `~/.claude/agents` |
-| Copilot CLI | `~/.copilot/agents` | `~/.copilot/agents` |
-| VS Code | `%APPDATA%/Code/User/prompts` | `~/.config/Code/User/prompts` |
+| Environment | Agents | Commands/Prompts |
+|-------------|--------|------------------|
+| Claude Code | `~/.claude/agents/` | `~/.claude/commands/` |
+| Copilot CLI | `~/.copilot/agents/` | (same directory as agents) |
+| VS Code | `%APPDATA%/Code/User/prompts/` | (same directory as agents) |
 
 ### Repository Installation Paths
 
-| Environment | Agent Files | Instructions File |
-|-------------|-------------|-------------------|
-| Claude Code | `.claude/agents/` | `CLAUDE.md` (repo root) |
-| Copilot CLI | `.github/agents/` | `.github/copilot-instructions.md` |
-| VS Code | `.github/agents/` | `.github/copilot-instructions.md` |
+| Environment | Agent Files | Commands/Prompts | Instructions File |
+|-------------|-------------|------------------|-------------------|
+| Claude Code | `.claude/agents/` | `.claude/commands/` | `CLAUDE.md` (repo root) |
+| Copilot CLI | `.github/agents/` | (same directory) | `.github/copilot-instructions.md` |
+| VS Code | `.github/agents/` | (same directory) | `.github/copilot-instructions.md` |
 
 ### .agents Directory (Repository Only)
 
@@ -111,6 +111,26 @@ Repository installations also create the `.agents/` artifact directory:
 ├── security/        # Security reviews
 └── sessions/        # Session logs
 ```
+
+### What Gets Installed
+
+The installer copies different file types depending on the environment:
+
+**Claude Code:**
+
+| File Type | Extension | Location | Purpose |
+|-----------|-----------|----------|---------|
+| Agent files | `*.md` | `agents/` | Full agent definitions for Task tool invocation |
+| Command files | `*.md` | `commands/` | Slash commands (e.g., `/pr-comment-responder`) |
+
+**VS Code / Copilot CLI:**
+
+| File Type | Extension | Location | Purpose |
+|-----------|-----------|----------|---------|
+| Agent files | `*.agent.md` | `agents/` or `prompts/` | Full agent definitions with tools |
+| Prompt files | `*.prompt.md` | Same as agents | Reusable prompts for quick actions |
+
+**Note**: Prompt files are auto-generated from selected agent files during installation (e.g., `pr-comment-responder.agent.md` → `pr-comment-responder.prompt.md`).
 
 ## Upgrade Process
 
@@ -235,7 +255,7 @@ git add .claude CLAUDE.md .agents
 git commit -m "feat: add Claude agent system"
 
 # Copilot CLI / VS Code
-git add .github/agents .agents
+git add .github/agents .github/copilot-instructions.md .agents
 git commit -m "feat: add Copilot agent system"
 ```
 
@@ -248,6 +268,7 @@ To remove the agent system, delete the installed files:
 ```powershell
 # Claude Code
 Remove-Item -Recurse -Force "~/.claude/agents"
+Remove-Item -Recurse -Force "~/.claude/commands"
 
 # Copilot CLI
 Remove-Item -Recurse -Force "~/.copilot/agents"
@@ -260,8 +281,8 @@ Remove-Item -Recurse -Force "$env:APPDATA/Code/User/prompts"
 
 ```bash
 # Remove agent files and artifacts
-git rm -r .claude/agents .agents  # For Claude
-git rm -r .github/agents .agents  # For Copilot/VSCode
+git rm -r .claude/agents .claude/commands .agents  # For Claude
+git rm -r .github/agents .agents                    # For Copilot/VSCode
 git commit -m "chore: remove agent system"
 ```
 

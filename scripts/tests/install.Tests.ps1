@@ -185,6 +185,42 @@ Describe "Script Content Analysis" {
         }
     }
 
+    Context "Command Installation" {
+        It "Uses Install-CommandFiles function" {
+            $Script:Content | Should -Match "Install-CommandFiles"
+        }
+
+        It "Checks for CommandsDir configuration" {
+            $Script:Content | Should -Match '\$Config\.CommandsDir'
+        }
+
+        It "Checks for CommandFiles configuration" {
+            $Script:Content | Should -Match '\$Config\.CommandFiles'
+        }
+
+        It "Resolves CommandsDir path" {
+            $Script:Content | Should -Match "Resolve-DestinationPath.*CommandsDir"
+        }
+    }
+
+    Context "Prompt Installation" {
+        It "Uses Install-PromptFiles function" {
+            $Script:Content | Should -Match "Install-PromptFiles"
+        }
+
+        It "Checks for PromptFiles configuration" {
+            $Script:Content | Should -Match '\$Config\.PromptFiles'
+        }
+
+        It "Displays prompt installation message" {
+            $Script:Content | Should -Match "Installing prompt files"
+        }
+
+        It "Displays prompt statistics" {
+            $Script:Content | Should -Match "Prompts:.*installed.*updated.*skipped"
+        }
+    }
+
     Context "Error Handling" {
         It "Sets ErrorActionPreference to Stop" {
             $Script:Content | Should -Match '\$ErrorActionPreference\s*=\s*"Stop"'

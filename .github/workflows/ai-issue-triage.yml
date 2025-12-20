@@ -1,0 +1,394 @@
+name: AI Issue Triage
+
+# AI-powered issue categorization and labeling using GitHub Copilot CLI
+# Invokes analyst and roadmap agents to classify issues
+# Applies labels and assigns milestones automatically
+
+on:
+  issues:
+    types: [opened, reopened, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ secrets.BOT_PAT }}
+
+jobs:
+  ai-issue-triage:
+    name: AI Issue Triage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Skip for bots and non-substantive edits (title-only changes)
+    # For 'edited' events, only run if the body changed (not just title)
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      github.actor != 'github-actions[bot]' &&
+      (github.event.action != 'edited' || github.event.changes.body != null)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: 📊 Categorize Issue (Analyst Agent)
+        id: categorize
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: issue
+          issue-number: ${{ github.event.issue.number }}
+          prompt-file: .github/prompts/issue-triage-categorize.md
+          timeout-minutes: 2
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Parse Categorization Results
+        id: parse-categorize
+        env:
+          RAW_OUTPUT: ${{ steps.categorize.outputs.findings }}
+        run: |
+          # Save output for debugging
+          echo "$RAW_OUTPUT" > /tmp/categorize-output.txt
+
+          # Parse labels from output (handles JSON or plain text)
+          LABELS=$(echo "$RAW_OUTPUT" | grep -oP '"labels"\s*:\s*\[\K[^\]]+' | tr -d '"' | tr ',' '\n' | xargs || echo "")
+          CATEGORY=$(echo "$RAW_OUTPUT" | grep -oP '"category"\s*:\s*"\K[^"]+' || echo "unknown")
+
+          # Also check for LABEL: format from composite action
+          if [ -z "$LABELS" ]; then
+            LABELS="${{ steps.categorize.outputs.labels }}"
+          fi
+
+          echo "labels=$LABELS" >> $GITHUB_OUTPUT
+          echo "category=$CATEGORY" >> $GITHUB_OUTPUT
+
+      - name: 🗺️ Align to Roadmap (Roadmap Agent)
+        id: align
+        uses: ./.github/actions/ai-review
+        with:
+          agent: roadmap
+          context-type: issue
+          issue-number: ${{ github.event.issue.number }}
+          prompt-file: .github/prompts/issue-triage-roadmap.md
+          timeout-minutes: 2
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Parse Roadmap Results
+        id: parse-align
+        env:
+          RAW_OUTPUT: ${{ steps.align.outputs.findings }}
+          MILESTONE_FROM_ACTION: ${{ steps.align.outputs.milestone }}
+        run: |
+          # Save output for debugging
+          echo "$RAW_OUTPUT" > /tmp/align-output.txt
+
+          # Parse milestone (from composite action output or raw parsing)
+          MILESTONE="$MILESTONE_FROM_ACTION"
+          if [ -z "$MILESTONE" ]; then
+            MILESTONE=$(echo "$RAW_OUTPUT" | grep -oP '"milestone"\s*:\s*"\K[^"]+' || echo "")
+          fi
+
+          # Parse priority
+          PRIORITY=$(echo "$RAW_OUTPUT" | grep -oP '"priority"\s*:\s*"\K[^"]+' || echo "P2")
+
+          # Parse escalation fields (new fields from updated prompt)
+          ESCALATE_TO_PRD=$(echo "$RAW_OUTPUT" | grep -oP '"escalate_to_prd"\s*:\s*\K(true|false)' || echo "false")
+          COMPLEXITY_SCORE=$(echo "$RAW_OUTPUT" | grep -oP '"complexity_score"\s*:\s*\K[0-9]+' || echo "0")
+          ESCALATION_CRITERIA=$(echo "$RAW_OUTPUT" | grep -oP '"escalation_criteria"\s*:\s*\[\K[^\]]+' | tr -d '"' || echo "")
+
+          echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
+          echo "priority=$PRIORITY" >> $GITHUB_OUTPUT
+          echo "escalate_to_prd=$ESCALATE_TO_PRD" >> $GITHUB_OUTPUT
+          echo "complexity_score=$COMPLEXITY_SCORE" >> $GITHUB_OUTPUT
+          echo "escalation_criteria=$ESCALATION_CRITERIA" >> $GITHUB_OUTPUT
+
+      - name: Apply Labels
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          LABELS: ${{ steps.parse-categorize.outputs.labels }}
+          PRIORITY: ${{ steps.parse-align.outputs.priority }}
+        run: |
+          FAILED_LABELS=()
+          FAILED_CREATES=()
+
+          # Apply category labels
+          if [ -n "$LABELS" ]; then
+            for label in $LABELS; do
+              # Check if label exists, create if not
+              if ! gh label list --search "$label" --json name -q '.[].name' | grep -q "^${label}$"; then
+                echo "Creating label: $label"
+                if ! gh label create "$label" --description "Auto-created by AI triage" 2>&1; then
+                  echo "::warning::Failed to create label: $label"
+                  FAILED_CREATES+=("$label")
+                fi
+              fi
+              echo "Adding label: $label"
+              if ! gh issue edit "$ISSUE_NUMBER" --add-label "$label" 2>&1; then
+                echo "::warning::Failed to add label '$label' to issue #$ISSUE_NUMBER"
+                FAILED_LABELS+=("$label")
+              fi
+            done
+          fi
+
+          # Apply priority label
+          if [ -n "$PRIORITY" ]; then
+            PRIORITY_LABEL="priority:$PRIORITY"
+            if ! gh label list --search "$PRIORITY_LABEL" --json name -q '.[].name' | grep -q "^${PRIORITY_LABEL}$"; then
+              echo "Creating label: $PRIORITY_LABEL"
+              if ! gh label create "$PRIORITY_LABEL" --description "Priority level" --color "FFA500" 2>&1; then
+                echo "::warning::Failed to create priority label: $PRIORITY_LABEL"
+                FAILED_CREATES+=("$PRIORITY_LABEL")
+              fi
+            fi
+            echo "Adding priority label: $PRIORITY_LABEL"
+            if ! gh issue edit "$ISSUE_NUMBER" --add-label "$PRIORITY_LABEL" 2>&1; then
+              echo "::warning::Failed to add priority label '$PRIORITY_LABEL' to issue #$ISSUE_NUMBER"
+              FAILED_LABELS+=("$PRIORITY_LABEL")
+            fi
+          fi
+
+          # Report summary of failures (but don't fail the workflow)
+          if [ ${#FAILED_LABELS[@]} -gt 0 ] || [ ${#FAILED_CREATES[@]} -gt 0 ]; then
+            echo ""
+            echo "=== LABEL OPERATIONS SUMMARY ==="
+            if [ ${#FAILED_CREATES[@]} -gt 0 ]; then
+              echo "Failed to create labels: ${FAILED_CREATES[*]}"
+            fi
+            if [ ${#FAILED_LABELS[@]} -gt 0 ]; then
+              echo "Failed to apply labels: ${FAILED_LABELS[*]}"
+            fi
+            echo "==============================="
+          fi
+
+      - name: Assign Milestone
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          MILESTONE: ${{ steps.parse-align.outputs.milestone }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ -n "$MILESTONE" ] && [ "$MILESTONE" != "null" ]; then
+            # Check if milestone exists
+            if gh api "repos/$GITHUB_REPOSITORY/milestones" --jq '.[].title' | grep -q "^${MILESTONE}$"; then
+              echo "Assigning milestone: $MILESTONE"
+              if ! gh issue edit "$ISSUE_NUMBER" --milestone "$MILESTONE" 2>&1; then
+                echo "::warning::Failed to assign milestone '$MILESTONE' to issue #$ISSUE_NUMBER"
+              fi
+            else
+              echo "::notice::Milestone not found: $MILESTONE (skipping assignment)"
+            fi
+          else
+            echo "No milestone to assign"
+          fi
+
+      - name: 📝 Generate PRD (Escalated Issues)
+        id: generate-prd
+        if: steps.parse-align.outputs.escalate_to_prd == 'true'
+        uses: ./.github/actions/ai-review
+        with:
+          agent: explainer
+          context-type: issue
+          issue-number: ${{ github.event.issue.number }}
+          prompt-file: .github/prompts/issue-prd-generation.md
+          timeout-minutes: 5
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Post PRD Comment
+        if: steps.parse-align.outputs.escalate_to_prd == 'true' && steps.generate-prd.outputs.findings != ''
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PRD_CONTENT: ${{ steps.generate-prd.outputs.findings }}
+          COMPLEXITY_SCORE: ${{ steps.parse-align.outputs.complexity_score }}
+          ESCALATION_CRITERIA: ${{ steps.parse-align.outputs.escalation_criteria }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          # Determine PRD depth based on complexity score
+          if [ "$COMPLEXITY_SCORE" -ge 10 ]; then
+            PRD_DEPTH="Comprehensive"
+          elif [ "$COMPLEXITY_SCORE" -ge 7 ]; then
+            PRD_DEPTH="Detailed"
+          else
+            PRD_DEPTH="Standard"
+          fi
+
+          cat > /tmp/prd-comment.md << 'EOF'
+          <!-- AI-PRD-GENERATION -->
+
+          ## 📋 Product Requirements Document
+
+          > [!IMPORTANT]
+          > This PRD was automatically generated based on issue triage escalation.
+          > **Complexity Score**: COMPLEXITY_SCORE_PLACEHOLDER/12 (PRD_DEPTH_PLACEHOLDER)
+          > **Escalation Criteria**: ESCALATION_CRITERIA_PLACEHOLDER
+
+          <details>
+          <summary>📖 About this PRD</summary>
+
+          This PRD was generated by the **Explainer Agent** after the issue was flagged
+          for detailed analysis. The document is designed to be self-contained - it can
+          be passed to a separate AI agent instance for implementation without additional
+          context.
+
+          **PRD Depth Levels**:
+          - **Standard** (4-6): Brief analysis, clear requirements
+          - **Detailed** (7-9): Research section, blocking questions
+          - **Comprehensive** (10-12): Phased implementation, risk analysis
+
+          </details>
+
+          ---
+
+          EOF
+
+          # Append the actual PRD content
+          echo "$PRD_CONTENT" >> /tmp/prd-comment.md
+
+          # Add footer
+          cat >> /tmp/prd-comment.md << 'EOF'
+
+          ---
+
+          <sub>📋 Generated by [AI PRD Generation](https://github.com/GITHUB_REPOSITORY_PLACEHOLDER) · [View Workflow](SERVER_URL_PLACEHOLDER/GITHUB_REPOSITORY_PLACEHOLDER/actions/runs/RUN_ID_PLACEHOLDER)</sub>
+          EOF
+
+      - name: Post PRD Comment (PowerShell)
+        if: steps.parse-align.outputs.escalate_to_prd == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMPLEXITY_SCORE: ${{ steps.parse-align.outputs.complexity_score }}
+          PRD_DEPTH: ${{ steps.parse-align.outputs.prd_depth }}
+          ESCALATION_CRITERIA: ${{ steps.parse-align.outputs.escalation_criteria }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          # Replace placeholders in PRD comment
+          $prdContent = Get-Content /tmp/prd-comment.md -Raw
+          $prdContent = $prdContent -replace 'COMPLEXITY_SCORE_PLACEHOLDER', $env:COMPLEXITY_SCORE
+          $prdContent = $prdContent -replace 'PRD_DEPTH_PLACEHOLDER', $env:PRD_DEPTH
+          $prdContent = $prdContent -replace 'ESCALATION_CRITERIA_PLACEHOLDER', $env:ESCALATION_CRITERIA
+          $prdContent = $prdContent -replace 'GITHUB_REPOSITORY_PLACEHOLDER', $env:GITHUB_REPOSITORY
+          $prdContent = $prdContent -replace 'SERVER_URL_PLACEHOLDER', $env:SERVER_URL
+          $prdContent = $prdContent -replace 'RUN_ID_PLACEHOLDER', $env:RUN_ID
+          $prdContent | Set-Content /tmp/prd-comment.md -Encoding UTF8
+
+          # Use GitHub skill script for idempotent comment posting
+          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
+            -Issue $env:ISSUE_NUMBER `
+            -BodyFile "/tmp/prd-comment.md" `
+            -Marker "AI-PRD-GENERATION"
+
+      - name: Post Triage Summary
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CATEGORY: ${{ steps.parse-categorize.outputs.category }}
+          LABELS: ${{ steps.parse-categorize.outputs.labels }}
+          PRIORITY: ${{ steps.parse-align.outputs.priority }}
+          MILESTONE: ${{ steps.parse-align.outputs.milestone }}
+          ESCALATE_TO_PRD: ${{ steps.parse-align.outputs.escalate_to_prd }}
+          COMPLEXITY_SCORE: ${{ steps.parse-align.outputs.complexity_score }}
+          ESCALATION_CRITERIA: ${{ steps.parse-align.outputs.escalation_criteria }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          # Get priority emoji
+          $priorityEmoji = switch ($env:PRIORITY) {
+            'P0' { '' }
+            'P1' { '' }
+            'P2' { '' }
+            'P3' { '' }
+            default { '' }
+          }
+
+          # Determine PRD status
+          $prdRow = if ($env:ESCALATE_TO_PRD -eq 'true') {
+            "| **PRD Escalation** | Generated (see below) |"
+          } else {
+            ""
+          }
+
+          # Get analysis outputs
+          $categorizeOutput = if (Test-Path /tmp/categorize-output.txt) {
+            Get-Content /tmp/categorize-output.txt -Raw
+          } else { "N/A" }
+
+          $alignOutput = if (Test-Path /tmp/align-output.txt) {
+            Get-Content /tmp/align-output.txt -Raw
+          } else { "N/A" }
+
+          $labelsDisplay = if ($env:LABELS) { $env:LABELS } else { "*None assigned*" }
+          $milestoneDisplay = if ($env:MILESTONE) { $env:MILESTONE } else { "*Not assigned*" }
+
+          $triageComment = @"
+          <!-- AI-ISSUE-TRIAGE -->
+
+          ## AI Triage Summary
+
+          > [!NOTE]
+          > This issue has been automatically triaged by AI agents
+
+          <details>
+          <summary>What is AI Triage?</summary>
+
+          This issue was analyzed by AI agents:
+
+          - **Analyst Agent**: Categorizes the issue and suggests appropriate labels
+          - **Roadmap Agent**: Aligns the issue with project milestones and priorities
+          - **Explainer Agent** (if escalated): Generates comprehensive PRD
+
+          </details>
+
+          ### Triage Results
+
+          | Property | Value |
+          |:---------|:------|
+          | **Category** | ``$($env:CATEGORY)`` |
+          | **Labels** | $labelsDisplay |
+          | $priorityEmoji **Priority** | ``$($env:PRIORITY)`` |
+          | **Milestone** | $milestoneDisplay |
+          $prdRow
+
+          <details>
+          <summary>Categorization Analysis</summary>
+
+          ``````json
+          $categorizeOutput
+          ``````
+
+          </details>
+
+          <details>
+          <summary>Roadmap Alignment</summary>
+
+          ``````json
+          $alignOutput
+          ``````
+
+          </details>
+
+          ---
+
+          <sub>Powered by [AI Issue Triage](https://github.com/$($env:GITHUB_REPOSITORY)) - [View Workflow]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID))</sub>
+          "@
+
+          $triageComment | Set-Content /tmp/triage-comment.md -Encoding UTF8
+
+          # Use GitHub skill script for idempotent comment posting
+          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
+            -Issue $env:ISSUE_NUMBER `
+            -BodyFile "/tmp/triage-comment.md" `
+            -Marker "AI-ISSUE-TRIAGE"
