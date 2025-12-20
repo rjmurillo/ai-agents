@@ -234,6 +234,7 @@ jobs:
           | Bug fix (``fix:``) | Optional |
           | Refactor (``refactor:``) | Optional |
           | Documentation (``docs:``) | Not required |
+          | Infrastructure (``ci:``, ``build:``, ``chore:``) | Optional |
 
           See PR template for full guidance.
 

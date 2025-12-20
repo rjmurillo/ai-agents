@@ -294,10 +294,11 @@ pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./build/tests/Generate-Agen
 
 For traceability and AI-assisted validation:
 
-- **Features**: Always link to an issue or create a planning document in `.agents/planning/` before submitting
-- **Bug fixes**: Link to issue if it exists; for complex bugs, explain root cause
-- **Refactors**: Explain rationale and scope in PR description
-- **Documentation**: Spec references not required
+- **Features (`feat:`)**: Always link to an issue or create a planning document in `.agents/planning/` before submitting
+- **Bug fixes (`fix:`)**: Link to issue if it exists; for complex bugs, explain root cause
+- **Refactors (`refactor:`)**: Explain rationale and scope in PR description
+- **Documentation (`docs:`)**: Spec references not required
+- **Infrastructure (`ci:`, `build:`, `chore:`)**: Link to related infra/CI/tooling issue or spec; call out operational risk and rollback plan if applicable
 
 Supported reference formats:
 
