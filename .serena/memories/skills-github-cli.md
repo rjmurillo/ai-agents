@@ -162,7 +162,7 @@ gh issue create --template "Bug Report"
 gh issue create --title "Analyze codebase" --assignee "copilot-swe-agent"
 ```
 
-**Note**: Copilot assignee must be `copilot-swe-agent` (exact name). Using `@copilot`, `Copilot`, or `copilot` will fail. See Skill-GH-Copilot-001 for details.
+**Note**: Copilot assignee must be `copilot-swe-agent` (exact name). Using `@copilot`, `Copilot`, or `copilot` will fail. See Skill-GH-Copilot-001 below for details.
 
 **Atomicity**: 94%
 
@@ -271,14 +271,13 @@ gh issue edit 90 --add-assignee @copilot              # Wrong format
 
 - Assignee name must be exactly `copilot-swe-agent` (case-sensitive)
 - Assignment is the ONLY trigger mechanism for Copilot to START working
-- `@copilot` mentions in comments add context that Copilot reads when assigned
-- Common assignment mistakes: `Copilot`, `copilot`, `@copilot` all fail as assignee names
+- Use `@copilot` only in comment bodies to mention Copilot; these mentions add context but do **not** assign the issue
+- Common assignee-name mistakes (these FAIL when used with `--assignee` / `--add-assignee`): `Copilot`, `copilot`, `@copilot`
 
 **Context Injection Pattern**:
 ```bash
 # Step 1: Post context-rich comment mentioning @copilot
-gh issue comment 90 --body "@copilot Use Option 1 from the issue description. 
-Focus on the 'Apply Labels' step. The workflow already has issues:write permission."
+gh issue comment 90 --body "@copilot Use Option 1 from the issue description. Focus on the Apply Labels step. The workflow already has issues:write permission."
 
 # Step 2: Assign Copilot (this triggers work)
 gh issue edit 90 --add-assignee copilot-swe-agent
