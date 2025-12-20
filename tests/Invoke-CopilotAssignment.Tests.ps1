@@ -6,7 +6,9 @@
 
 .DESCRIPTION
     Tests the Copilot context synthesis system including:
+    - Pattern-based structure validation
     - Configuration loading
+    - Functional tests with behavior verification
     - Trusted source extraction
     - Synthesis comment generation
     - Idempotent marker detection
@@ -351,3 +353,385 @@ Describe "WhatIf Behavior" {
         }
     }
 }
+
+#region Functional Tests with Mocked Dependencies
+
+Describe "Get-MaintainerGuidance Function" {
+
+    BeforeAll {
+        # Load script to get access to functions
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
+
+        # Parse script to extract the function
+        $scriptContent = Get-Content $scriptPath -Raw
+
+        # Extract and define the Get-MaintainerGuidance function for testing
+        if ($scriptContent -match 'function Get-MaintainerGuidance \{[\s\S]*?(?=\nfunction|\n#endregion)') {
+            $functionDef = $Matches[0]
+            Invoke-Expression $functionDef
+        }
+    }
+
+    Context "Empty Input" {
+        It "Returns null for empty comments array" {
+            $result = Get-MaintainerGuidance -Comments @() -Maintainers @("rjmurillo")
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Returns null when no maintainer comments exist" {
+            $comments = @(
+                @{ user = @{ login = "someuser" }; body = "Just a comment" }
+            )
+            $result = Get-MaintainerGuidance -Comments $comments -Maintainers @("rjmurillo")
+            $result | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Bullet Point Extraction" {
+        It "Extracts bullet points from maintainer comments" {
+            $comments = @(
+                @{
+                    user = @{ login = "rjmurillo" }
+                    body = "Here are my notes:`n- This is an important decision about architecture`n- Another key point about implementation"
+                }
+            )
+            $result = Get-MaintainerGuidance -Comments $comments -Maintainers @("rjmurillo")
+            $result | Should -Not -BeNullOrEmpty
+            $result.Count | Should -BeGreaterThan 0
+        }
+
+        It "Extracts numbered items from maintainer comments" {
+            $comments = @(
+                @{
+                    user = @{ login = "rjmurillo" }
+                    body = "Steps to follow:`n1. First do this important thing`n2. Then do that other thing"
+                }
+            )
+            $result = Get-MaintainerGuidance -Comments $comments -Maintainers @("rjmurillo")
+            $result | Should -Not -BeNullOrEmpty
+            $result[0] | Should -Match "First do this"
+        }
+
+        It "Skips checkbox items" {
+            $comments = @(
+                @{
+                    user = @{ login = "rjmurillo" }
+                    body = "- [x] This is a completed checkbox item`n- This is a regular bullet point item"
+                }
+            )
+            $result = Get-MaintainerGuidance -Comments $comments -Maintainers @("rjmurillo")
+            # Should only get the regular bullet point, not the checkbox
+            $result | Should -Not -Match '\[x\]'
+        }
+
+        It "Skips items that are too short" {
+            $comments = @(
+                @{
+                    user = @{ login = "rjmurillo" }
+                    body = "- Short`n- This is a longer item that should be included"
+                }
+            )
+            $result = Get-MaintainerGuidance -Comments $comments -Maintainers @("rjmurillo")
+            # Short items (< 10 chars) should be filtered out
+            $result | ForEach-Object { $_.Length | Should -BeGreaterThan 10 }
+        }
+    }
+
+    Context "Multiple Maintainers" {
+        It "Extracts guidance from multiple maintainers" {
+            $comments = @(
+                @{
+                    user = @{ login = "rjmurillo" }
+                    body = "- First maintainer's guidance here"
+                },
+                @{
+                    user = @{ login = "rjmurillo-bot" }
+                    body = "- Second maintainer's guidance here"
+                }
+            )
+            $result = Get-MaintainerGuidance -Comments $comments -Maintainers @("rjmurillo", "rjmurillo-bot")
+            $result | Should -Not -BeNullOrEmpty
+            $result.Count | Should -Be 2
+        }
+    }
+}
+
+Describe "Get-CodeRabbitPlan Function" {
+
+    BeforeAll {
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
+        $scriptContent = Get-Content $scriptPath -Raw
+
+        # Extract and define the Get-CodeRabbitPlan function
+        if ($scriptContent -match 'function Get-CodeRabbitPlan \{[\s\S]*?(?=\nfunction|\n#endregion)') {
+            $functionDef = $Matches[0]
+            Invoke-Expression $functionDef
+        }
+
+        $testPatterns = @{
+            implementation_plan = "## Implementation"
+            related_issues      = "🔗 Similar Issues"
+            related_prs         = "🔗 Related PRs"
+        }
+    }
+
+    Context "Empty Input" {
+        It "Returns null for empty comments array" {
+            $result = Get-CodeRabbitPlan -Comments @() -Patterns $testPatterns
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Returns null when no coderabbitai comments exist" {
+            $comments = @(
+                @{ user = @{ login = "someuser" }; body = "Not from CodeRabbit" }
+            )
+            $result = Get-CodeRabbitPlan -Comments $comments -Patterns $testPatterns
+            $result | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Implementation Extraction" {
+        It "Extracts implementation section from CodeRabbit comment" {
+            $comments = @(
+                @{
+                    user = @{ login = "coderabbitai" }
+                    body = "## Implementation`nHere is the implementation plan.`n`n## Other Section"
+                }
+            )
+            $result = Get-CodeRabbitPlan -Comments $comments -Patterns $testPatterns
+            $result | Should -Not -BeNullOrEmpty
+            $result.Implementation | Should -Match "implementation plan"
+        }
+    }
+
+    Context "Related Issues Extraction" {
+        It "Extracts related issue references" {
+            $comments = @(
+                @{
+                    user = @{ login = "coderabbitai" }
+                    body = "🔗 Similar Issues`n- #123 Similar problem`n- #456 Related issue"
+                }
+            )
+            $result = Get-CodeRabbitPlan -Comments $comments -Patterns $testPatterns
+            $result | Should -Not -BeNullOrEmpty
+            $result.RelatedIssues | Should -Contain "#123"
+            $result.RelatedIssues | Should -Contain "#456"
+        }
+    }
+}
+
+Describe "Get-AITriageInfo Function" {
+
+    BeforeAll {
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
+        $scriptContent = Get-Content $scriptPath -Raw
+
+        # Extract and define the Get-AITriageInfo function
+        if ($scriptContent -match 'function Get-AITriageInfo \{[\s\S]*?(?=\nfunction|\n#endregion)') {
+            $functionDef = $Matches[0]
+            Invoke-Expression $functionDef
+        }
+
+        $testMarker = "<!-- AI-ISSUE-TRIAGE -->"
+    }
+
+    Context "Empty Input" {
+        It "Returns null for empty comments array" {
+            $result = Get-AITriageInfo -Comments @() -TriageMarker $testMarker
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Returns null when no triage comment exists" {
+            $comments = @(
+                @{ user = @{ login = "someuser" }; body = "No triage marker here" }
+            )
+            $result = Get-AITriageInfo -Comments $comments -TriageMarker $testMarker
+            $result | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Priority Extraction" {
+        It "Extracts priority from triage comment" {
+            $comments = @(
+                @{
+                    user = @{ login = "github-actions" }
+                    body = "<!-- AI-ISSUE-TRIAGE -->`nPriority: P1`nCategory: bug"
+                }
+            )
+            $result = Get-AITriageInfo -Comments $comments -TriageMarker $testMarker
+            $result | Should -Not -BeNullOrEmpty
+            $result.Priority | Should -Be "P1"
+        }
+
+        It "Extracts category from triage comment" {
+            $comments = @(
+                @{
+                    user = @{ login = "github-actions" }
+                    body = "<!-- AI-ISSUE-TRIAGE -->`nPriority: P2`nCategory: feature"
+                }
+            )
+            $result = Get-AITriageInfo -Comments $comments -TriageMarker $testMarker
+            $result.Category | Should -Be "feature"
+        }
+    }
+}
+
+Describe "Find-ExistingSynthesis Function" {
+
+    BeforeAll {
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
+        $scriptContent = Get-Content $scriptPath -Raw
+
+        # Extract and define the Find-ExistingSynthesis function
+        if ($scriptContent -match 'function Find-ExistingSynthesis \{[\s\S]*?(?=\nfunction|\n#endregion)') {
+            $functionDef = $Matches[0]
+            Invoke-Expression $functionDef
+        }
+
+        $testMarker = "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
+    }
+
+    Context "Idempotency Detection" {
+        It "Returns null when no synthesis comment exists" {
+            $comments = @(
+                @{ id = 1; body = "Regular comment" },
+                @{ id = 2; body = "Another comment" }
+            )
+            $result = Find-ExistingSynthesis -Comments $comments -Marker $testMarker
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Finds existing synthesis comment by marker" {
+            $comments = @(
+                @{ id = 1; body = "Regular comment" },
+                @{ id = 2; body = "<!-- COPILOT-CONTEXT-SYNTHESIS -->`n@copilot Here is context" },
+                @{ id = 3; body = "Another comment" }
+            )
+            $result = Find-ExistingSynthesis -Comments $comments -Marker $testMarker
+            $result | Should -Not -BeNullOrEmpty
+            $result.id | Should -Be 2
+        }
+
+        It "Returns first match when multiple synthesis comments exist" {
+            $comments = @(
+                @{ id = 1; body = "<!-- COPILOT-CONTEXT-SYNTHESIS -->`nFirst synthesis" },
+                @{ id = 2; body = "<!-- COPILOT-CONTEXT-SYNTHESIS -->`nSecond synthesis" }
+            )
+            $result = Find-ExistingSynthesis -Comments $comments -Marker $testMarker
+            $result.id | Should -Be 1
+        }
+
+        It "Does not match similar but different markers" {
+            $comments = @(
+                @{ id = 1; body = "<!-- AI-ISSUE-TRIAGE -->`nTriage comment" }
+            )
+            $result = Find-ExistingSynthesis -Comments $comments -Marker $testMarker
+            $result | Should -BeNullOrEmpty
+        }
+    }
+}
+
+Describe "New-SynthesisComment Function" {
+
+    BeforeAll {
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
+        $scriptContent = Get-Content $scriptPath -Raw
+
+        # Extract and define the New-SynthesisComment function
+        if ($scriptContent -match 'function New-SynthesisComment \{[\s\S]*?(?=\nfunction|\n#endregion)') {
+            $functionDef = $Matches[0]
+            Invoke-Expression $functionDef
+        }
+
+        $testMarker = "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
+    }
+
+    Context "Comment Generation" {
+        It "Includes the marker at the beginning" {
+            $result = New-SynthesisComment -Marker $testMarker -MaintainerGuidance @() -CodeRabbitPlan $null -AITriage $null
+            $result | Should -Match '^<!-- COPILOT-CONTEXT-SYNTHESIS -->'
+        }
+
+        It "Includes @copilot mention" {
+            $result = New-SynthesisComment -Marker $testMarker -MaintainerGuidance @() -CodeRabbitPlan $null -AITriage $null
+            $result | Should -Match '@copilot'
+        }
+
+        It "Includes timestamp footer" {
+            $result = New-SynthesisComment -Marker $testMarker -MaintainerGuidance @() -CodeRabbitPlan $null -AITriage $null
+            $result | Should -Match 'Generated:.*UTC'
+        }
+
+        It "Includes maintainer guidance when provided" {
+            $guidance = @("First guidance item here", "Second guidance item here")
+            $result = New-SynthesisComment -Marker $testMarker -MaintainerGuidance $guidance -CodeRabbitPlan $null -AITriage $null
+            $result | Should -Match '## Maintainer Guidance'
+            $result | Should -Match 'First guidance item'
+        }
+
+        It "Includes AI triage info when provided" {
+            $triage = @{ Priority = "P1"; Category = "bug" }
+            $result = New-SynthesisComment -Marker $testMarker -MaintainerGuidance @() -CodeRabbitPlan $null -AITriage $triage
+            $result | Should -Match '## AI Agent Recommendations'
+            $result | Should -Match 'Priority.*P1'
+        }
+    }
+}
+
+Describe "Get-SynthesisConfig YAML Parsing" {
+
+    BeforeAll {
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
+        $configPath = Join-Path $repoRoot ".claude" "skills" "github" "copilot-synthesis.yml"
+        $scriptContent = Get-Content $scriptPath -Raw
+
+        # Extract and define the Get-SynthesisConfig function
+        if ($scriptContent -match 'function Get-SynthesisConfig \{[\s\S]*?(?=\n#endregion)') {
+            $functionDef = $Matches[0]
+            Invoke-Expression $functionDef
+        }
+    }
+
+    Context "Marker Extraction" {
+        It "Extracts synthesis marker correctly (not ai_triage marker)" {
+            $result = Get-SynthesisConfig -ConfigPath $configPath
+            $result.synthesis.marker | Should -Be "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
+        }
+
+        It "Returns correct marker even when ai_triage marker exists" {
+            $result = Get-SynthesisConfig -ConfigPath $configPath
+            # The synthesis marker should NOT be the AI triage marker
+            $result.synthesis.marker | Should -Not -Be "<!-- AI-ISSUE-TRIAGE -->"
+        }
+    }
+
+    Context "Trusted Sources Extraction" {
+        It "Extracts maintainers list" {
+            $result = Get-SynthesisConfig -ConfigPath $configPath
+            $result.trusted_sources.maintainers | Should -Contain "rjmurillo"
+            $result.trusted_sources.maintainers | Should -Contain "rjmurillo-bot"
+        }
+
+        It "Extracts ai_agents list" {
+            $result = Get-SynthesisConfig -ConfigPath $configPath
+            $result.trusted_sources.ai_agents | Should -Contain "coderabbitai"
+            $result.trusted_sources.ai_agents | Should -Contain "github-actions"
+        }
+    }
+
+    Context "Default Config Fallback" {
+        It "Returns default config when file not found" {
+            $result = Get-SynthesisConfig -ConfigPath "/nonexistent/path.yml"
+            $result | Should -Not -BeNullOrEmpty
+            $result.synthesis.marker | Should -Be "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
+        }
+    }
+}
+
+#endregion

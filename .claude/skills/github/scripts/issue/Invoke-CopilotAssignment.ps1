@@ -120,8 +120,8 @@ function Get-SynthesisConfig {
             } | Where-Object { $_ }
         }
 
-        # Extract synthesis marker
-        if ($content -match 'marker:\s*"([^"]+)"') {
+        # Extract synthesis marker (specifically from synthesis section, not ai_triage)
+        if ($content -match 'synthesis:\s*\r?\n\s*marker:\s*"([^"]+)"') {
             $config.synthesis.marker = $Matches[1]
         }
 
