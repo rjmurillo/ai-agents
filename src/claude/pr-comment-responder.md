@@ -748,6 +748,15 @@ if [ "$ADDRESSED" -lt "$TOTAL" ]; then
 fi
 ```
 
+### Phase 9: Cleanup
+
+```bash
+# Remove temporary files
+if [ -d ".agents/temp" ]; then
+  rm -rf .agents/temp/*
+fi
+```
+
 ## Memory Protocol
 
 Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.

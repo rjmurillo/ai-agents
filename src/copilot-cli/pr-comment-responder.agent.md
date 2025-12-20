@@ -574,6 +574,15 @@ if [ "$ADDRESSED" -lt "$TOTAL" ]; then
 fi
 ```
 
+### Phase 9: Cleanup
+
+```bash
+# Remove temporary files
+if [ -d ".agents/temp" ]; then
+  rm -rf .agents/temp/*
+fi
+```
+
 ## Bot-Specific Handling
 
 ### Copilot Behavior
