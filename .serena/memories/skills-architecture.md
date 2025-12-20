@@ -121,6 +121,7 @@ runs:
 **Trigger**: Updating agent handoff protocols or output formats
 
 **Evidence**: Session 17 (2025-12-18): Retrospective auto-handoff feature required coordinated updates:
+
 - Producer: `retrospective.md` - Added structured handoff output format (tables with skill/memory/git sections)
 - Consumer: `orchestrator.md` - Added post-retrospective workflow to parse and process those tables
 

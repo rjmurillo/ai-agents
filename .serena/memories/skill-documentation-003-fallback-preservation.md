@@ -29,11 +29,13 @@ Session 26 (2025-12-18): 5 fallback clauses added during Serena memory reference
 ## Fallback Pattern
 
 **Before (direct file access only)**:
+
 ```markdown
 The agent MUST read .serena/memories/skill-usage-mandatory.md before proceeding.
 ```
 
 **After (tool call with fallback)**:
+
 ```markdown
 The agent MUST read the skill-usage-mandatory memory using `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`.
   - If the Serena MCP is not available, then the agent MUST read `.serena/memories/skill-usage-mandatory.md`
@@ -58,6 +60,7 @@ The agent MUST read the skill-usage-mandatory memory using `mcp__serena__read_me
 ## Anti-Pattern
 
 Tool-only reference without fallback:
+
 ```markdown
 Use mcp__serena__read_memory to access skills
 ```

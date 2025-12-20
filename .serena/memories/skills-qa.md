@@ -60,6 +60,7 @@
 **Validated**: 1 (Serena transformation pattern)
 
 **Definition of "Comprehensive"**:
+
 - Coverage >80%
 - Multiple test cases per function
 - Edge cases included
@@ -67,11 +68,13 @@
 - Error handling verified
 
 **When to Skip QA Agent** (exceptions to workflow):
+
 - Tests are comprehensive (per definition above)
 - All tests passing
 - Change is trivial (docs, comments, formatting)
 
 **When QA Agent is MANDATORY**:
+
 - New features
 - Complex logic
 - Cross-platform concerns

@@ -85,16 +85,19 @@ gh pr view <PR_NUMBER> --json reviewThreads  # ERROR: Unknown JSON field
 For each unresolved conversation, reply with ONE of:
 
 1. **Fix applied**: Link to commit SHA that addresses the feedback
+
    ```
    Fixed in commit abc1234. [Brief description of change]
    ```
 
 2. **Won't fix with explanation**: Clear rationale why the suggestion wasn't applied
+
    ```
    Won't fix: [Detailed explanation why this approach was chosen instead]
    ```
 
 3. **Action required from reviewer**: @ mention the reviewer with specific ask
+
    ```
    @reviewer-username Could you clarify [specific question]? I need more context to address this.
    ```

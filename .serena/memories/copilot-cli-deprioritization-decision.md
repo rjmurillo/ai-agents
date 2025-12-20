@@ -40,6 +40,7 @@ GitHub Copilot CLI de-prioritized to P2 (Nice to Have / Maintenance Only).
 ## Removal Criteria
 
 Copilot CLI support will be evaluated for removal if:
+
 - Maintenance burden > 10% of total development effort
 - Zero user requests in 90 days
 - No GitHub improvements to critical gaps in 6 months

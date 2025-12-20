@@ -30,6 +30,7 @@ Session 26 (2025-12-18): Grep search identified 16 files with .serena/memories/ 
 ## Search Pattern
 
 **Step 1: Define search pattern**
+
 ```bash
 # Example: Search for file path pattern
 grep -r ".serena/memories/" --include="*.md"
@@ -39,11 +40,13 @@ grep -r "mcp__cloudmcp-manager__" --include="*.md"
 ```
 
 **Step 2: Analyze scope**
+
 - Count files found
 - Categorize by file type (docs, agents, configs)
 - Identify edge cases
 
 **Step 3: Create migration checklist**
+
 - List all files to modify
 - Note special cases (git commands, historical logs)
 - Define replacement pattern
@@ -51,6 +54,7 @@ grep -r "mcp__cloudmcp-manager__" --include="*.md"
 ## Anti-Pattern
 
 Starting migration without comprehensive search:
+
 - Updating files one by one as you find them
 - Relying on memory of where pattern exists
 - Missing files because search was too narrow

@@ -81,8 +81,8 @@
 **Validated**: 1 (AI Workflow Implementation session)
 
 **CRITICAL CAVEAT (Added 2025-12-18 from hyper-critical retrospective)**:
-> Planning does NOT replace validation. Plan quality correlates with design clarity, 
-> not implementation correctness. Session 03 had excellent planning but terrible 
+> Planning does NOT replace validation. Plan quality correlates with design clarity,
+> not implementation correctness. Session 03 had excellent planning but terrible
 > implementation due to untested assumptions. The code required 24+ fix commits.
 > See: `.agents/retrospective/2025-12-18-hyper-critical-ai-workflow.md`
 
@@ -96,11 +96,11 @@
 
 **Trigger**: Implementation plan spans ≥3 files OR involves infrastructure (CI/CD, workflows, config)
 
-**Evidence**: Session 03 (2025-12-18): User approved architecture for 14-file change (2,189 LOC). 
+**Evidence**: Session 03 (2025-12-18): User approved architecture for 14-file change (2,189 LOC).
 
-**CORRECTION (2025-12-18)**: Original claim of "zero implementation bugs" was FALSE. 
-Reality: 6+ critical bugs, 24+ fix commits required. The approval checkpoint is still 
-valuable for preventing wasted effort on wrong architecture, but approval does NOT 
+**CORRECTION (2025-12-18)**: Original claim of "zero implementation bugs" was FALSE.
+Reality: 6+ critical bugs, 24+ fix commits required. The approval checkpoint is still
+valuable for preventing wasted effort on wrong architecture, but approval does NOT
 guarantee bug-free implementation. Validation in target environment still required.
 
 **Atomicity**: 100%

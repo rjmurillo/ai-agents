@@ -42,6 +42,7 @@
 **Trigger**: Tests found before implementation starts
 
 **Evidence**: Serena transformation (2025-12-17): Three test cases in `Sync-McpConfig.Tests.ps1` under "Serena Transformation" context showed exact transformations needed:
+
 - Transform `--context "claude-code"` to `"ide"`
 - Transform `--port "24282"` to `"24283"`
 - Transform both together
@@ -79,6 +80,7 @@ Running these tests first would have provided complete requirements specificatio
 **Why Extended**: Original was too narrow (agent docs only). Serena transformation showed tests also need verification during pre-implementation phase.
 
 **Pattern**: Use both skills together:
+
 1. Skill-Implementation-001: Discover if tests exist
 2. Skill-Implementation-002: Run tests to understand requirements
 3. Skill-AgentWorkflow-004: Check templates need updates too

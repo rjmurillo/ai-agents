@@ -22,11 +22,13 @@ Specifically:
 #### Creating Issues
 
 ❌ **WRONG**:
+
 ```bash
 gh issue create --title "..." --body "..." --label "enhancement"
 ```
 
 ✅ **CORRECT**:
+
 ```powershell
 # Check .claude/skills/github/scripts/issue/ for available scripts
 # If capability missing, ADD to skill, don't write inline
@@ -35,11 +37,13 @@ gh issue create --title "..." --body "..." --label "enhancement"
 #### Posting PR Comments
 
 ❌ **WRONG**:
+
 ```bash
 gh pr comment $PR_NUMBER --body "$COMMENT"
 ```
 
 ✅ **CORRECT**:
+
 ```powershell
 & .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest $PR_NUMBER -Body $COMMENT
 ```
@@ -47,11 +51,13 @@ gh pr comment $PR_NUMBER --body "$COMMENT"
 #### Getting PR Context
 
 ❌ **WRONG**:
+
 ```bash
 gh pr view $PR_NUMBER --json title,body,files
 ```
 
 ✅ **CORRECT**:
+
 ```powershell
 & .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest $PR_NUMBER -IncludeChangedFiles
 ```
@@ -67,9 +73,10 @@ gh pr view $PR_NUMBER --json title,body,files
 
 ## The Process
 
-### Before Writing ANY GitHub Operation:
+### Before Writing ANY GitHub Operation
 
 1. **CHECK**: Does `.claude/skills/github/` have this capability?
+
    ```powershell
    ls .claude/skills/github/scripts/**/*.ps1
    ```
@@ -82,13 +89,13 @@ gh pr view $PR_NUMBER --json title,body,files
    - Update skill documentation
    - Then use it
 
-### This Applies To:
+### This Applies To
 
 - ✅ GitHub operations (`gh` command)
 - ✅ File operations (if skill exists)
 - ✅ Any operation where a tested, validated skill exists
 
-### This Does NOT Apply To:
+### This Does NOT Apply To
 
 - ❌ Git operations (`git` commands) - no skill for this yet
 - ❌ Build operations (npm, pwsh for build scripts)
@@ -97,6 +104,7 @@ gh pr view $PR_NUMBER --json title,body,files
 ## Enforcement
 
 **User will reject PRs/commits that:**
+
 - Use raw `gh` commands when skill exists
 - Write inline scripts duplicating skill functionality
 - Ignore this guidance after being corrected
@@ -128,6 +136,7 @@ gh pr view $PR_NUMBER --json title,body,files
 ## Before Every GitHub Operation
 
 **Ask yourself**:
+
 1. Is this a GitHub operation? (PR, issue, comment, label, etc.)
 2. Does `.claude/skills/github/` have this? (CHECK FIRST!)
 3. If yes → Use skill

@@ -34,6 +34,7 @@ Session 15 retrospective: Trust-based guidance ("agent should remember") had 5+ 
 ### Verification-Based BLOCKING Gate (100% Compliance)
 
 **Pattern**:
+
 ```markdown
 ## Phase 1: Serena Initialization (BLOCKING)
 
@@ -46,6 +47,7 @@ You MUST NOT proceed to any other action until both calls succeed:
 ```
 
 **Why it works**:
+
 - Clear requirement: "MUST NOT proceed"
 - Verifiable: Tool output visible
 - Blocking: Cannot continue without completing
@@ -54,6 +56,7 @@ You MUST NOT proceed to any other action until both calls succeed:
 ### Trust-Based Guidance (Low Compliance)
 
 **Pattern**:
+
 ```markdown
 ## Session Context
 
@@ -61,6 +64,7 @@ Agents should read HANDOFF.md to understand prior work.
 ```
 
 **Why it fails**:
+
 - Vague requirement: "should" not "MUST"
 - Not verifiable: No evidence in transcript
 - Not blocking: Can skip without consequence
@@ -114,6 +118,7 @@ You MUST [action] before [next step]:
 ## Anti-Pattern: Trust-Based Requirements
 
 **Before (Session 15 had 5+ violations)**:
+
 ```markdown
 Agents should remember to:
 - Read skill-usage-mandatory
@@ -122,6 +127,7 @@ Agents should remember to:
 ```
 
 **After (Phase 1.5 added - BLOCKING)**:
+
 ```markdown
 ## Phase 1.5: Skill Validation (BLOCKING)
 

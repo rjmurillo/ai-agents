@@ -7,6 +7,7 @@
 ## Problem
 
 GitHub Actions workflows cannot be tested locally. The OODA loop is:
+
 1. Edit workflow YAML
 2. Commit and push
 3. Wait for CI to run (1-5 minutes)
@@ -53,15 +54,19 @@ Pester Tests (.Tests.ps1)
 ## Location Hierarchy
 
 ### Workflow-Specific Logic
+
 Location: `.github/scripts/*.psm1`
 
 Examples:
+
 - `AIReviewCommon.psm1` - AI workflow parsing, formatting, retry logic
 
 ### Reusable GitHub Operations
+
 Location: `.claude/skills/github/scripts/`
 
 Examples:
+
 - `pr/Post-PRCommentReply.ps1` - Post/reply to PR comments
 - `issue/Post-IssueComment.ps1` - Post idempotent issue comments
 - `issue/Set-IssueLabels.ps1` - Manage issue labels
@@ -158,6 +163,7 @@ function Send-IssueComment { ... 50 lines ... }
 ## Validation Checklist
 
 Before merging workflow changes:
+
 - [ ] All logic is in `.psm1` or Claude skills
 - [ ] Pester tests exist for all functions
 - [ ] Workflow YAML is <100 lines (orchestration only)

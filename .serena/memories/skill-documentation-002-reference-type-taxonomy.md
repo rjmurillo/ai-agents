@@ -35,6 +35,7 @@ Session 26 (2025-12-18): Type distinction prevented inappropriate updates to git
 **Pattern**: Imperative language, protocol requirements
 
 **Examples**:
+
 ```markdown
 The agent MUST read .serena/memories/skill-usage-mandatory.md
 → UPDATE TO: Use mcp__serena__read_memory with memory_file_name="skill-usage-mandatory"
@@ -50,6 +51,7 @@ Before proceeding, reference .serena/memories/skills-design.md
 **Pattern**: Explanatory language, documentation of structure
 
 **Examples**:
+
 ```markdown
 Memories can be found in `.serena/memories/`
 → SKIP: Describes location, not instruction
@@ -65,6 +67,7 @@ The skillbook is stored at .serena/memories/skills-*.md
 **Pattern**: Git commands, file system operations
 
 **Examples**:
+
 ```markdown
 git add .serena/memories/
 → SKIP: Git requires actual path

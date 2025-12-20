@@ -1,7 +1,7 @@
 # Skill: Google Gemini Code Assist Configuration
 
 **Last Updated**: 2025-12-18
-**Documentation Source**: https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github
+**Documentation Source**: <https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github>
 **Status**: Complete Configuration Schema Extracted
 
 ## Overview
@@ -134,6 +134,7 @@ ignore_patterns: []
 **Glob Pattern Syntax**: Uses [VS Code glob patterns](https://code.visualstudio.com/docs/editor/glob-patterns)
 
 **Examples**:
+
 ```yaml
 ignore_patterns:
   - ".agents/**"
@@ -145,6 +146,7 @@ ignore_patterns:
 ```
 
 **Common Exclusion Patterns**:
+
 - `**/*.{ext}` - All files with extension anywhere
 - `**/folder/**` - Entire directory tree
 - `folder/*` - Direct children only
@@ -247,9 +249,11 @@ ignore_patterns:
 ```
 
 ### Avoid
+
 ```language
 [Example of anti-pattern]
 ```
+
 ```
 
 #### Interaction with Standard Reviews
@@ -318,6 +322,7 @@ memory_config:
 ### Recommended `.gemini/styleguide.md` for ai-agents Project
 
 Should include:
+
 - PowerShell scripting standards (PascalCase functions, approved verbs)
 - Markdown linting requirements (markdownlint-cli2)
 - Agent protocol patterns (handoff format, memory usage)
@@ -330,6 +335,7 @@ Should include:
 ### Path Exclusions
 
 **Do Exclude**:
+
 - Generated files (`**/*.generated.*`)
 - Build outputs (`**/bin/**`, `**/obj/**`)
 - Agent artifacts (`.agents/**`)
@@ -338,6 +344,7 @@ Should include:
 - Minified files (`**/*.min.js`)
 
 **Don't Exclude**:
+
 - Core source code
 - Test files (unless intentionally)
 - Configuration files that should be reviewed
@@ -346,26 +353,31 @@ Should include:
 ### Code Review Settings
 
 **Enable Reviews When**:
+
 - Team wants automated feedback
 - Consistent style enforcement needed
 - Security vulnerability detection desired
 
 **Disable Summaries When**:
+
 - PR titles/descriptions are sufficient
 - Reducing comment noise is priority
 - Team prefers human-written summaries
 
 **Include Drafts When**:
+
 - Early feedback is valuable
 - Iterative review process preferred
 
 **Exclude Drafts When**:
+
 - Draft PRs are exploratory/incomplete
 - Review noise should be minimized
 
 ### Style Guide Content
 
 **Effective Style Guides**:
+
 - Specific and actionable rules
 - Code examples for clarity
 - Rationale for non-obvious rules
@@ -373,6 +385,7 @@ Should include:
 - Concise (avoid wall of text)
 
 **Avoid**:
+
 - Restating language defaults without deviation
 - Vague principles without concrete rules
 - Overly prescriptive micro-management
@@ -383,6 +396,7 @@ Should include:
 ### Configuration Anti-Patterns
 
 **Don't**:
+
 - Set `max_review_comments: 0` (use `code_review.disable: true` instead)
 - Use `ignore_patterns` for temporary exclusions (use PR-level settings)
 - Enable `have_fun` in professional repositories
@@ -391,6 +405,7 @@ Should include:
 ### Style Guide Anti-Patterns
 
 **Don't**:
+
 - Copy-paste entire language style guides (link instead)
 - Write style guides longer than actual code
 - Contradict linter/formatter rules
@@ -399,17 +414,20 @@ Should include:
 ## Troubleshooting
 
 ### Reviews Not Appearing
+
 - Check `code_review.disable` is `false`
 - Verify `pull_request_opened.code_review` is `true`
 - Confirm PR is not on excluded paths
 - Check `include_drafts` setting for draft PRs
 
 ### Too Many Comments
+
 - Increase `comment_severity_threshold` to HIGH or CRITICAL
 - Set `max_review_comments` to lower value
 - Refine `ignore_patterns` to exclude more files
 
 ### Custom Rules Ignored
+
 - Verify `styleguide.md` is in `.gemini/` folder
 - Check Markdown syntax is valid
 - Ensure rules are specific and actionable
@@ -417,9 +435,9 @@ Should include:
 
 ## References
 
-- **Official Documentation**: https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github
-- **Glob Pattern Syntax**: https://code.visualstudio.com/docs/editor/glob-patterns
-- **JSON Schema Draft 07**: http://json-schema.org/draft-07/schema#
+- **Official Documentation**: <https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github>
+- **Glob Pattern Syntax**: <https://code.visualstudio.com/docs/editor/glob-patterns>
+- **JSON Schema Draft 07**: <http://json-schema.org/draft-07/schema#>
 
 ## Change Log
 

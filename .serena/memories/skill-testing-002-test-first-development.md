@@ -31,6 +31,7 @@ Session 21 (2025-12-18): Created 13 tests alongside Check-SkillExists.ps1 → 10
 ### Pattern: Write Test → Write Code → Run Test → Refactor → Commit
 
 **Step 1: Write Test**
+
 ```powershell
 # tests/Check-SkillExists.Tests.ps1
 Describe 'Check-SkillExists' {
@@ -42,6 +43,7 @@ Describe 'Check-SkillExists' {
 ```
 
 **Step 2: Write Code (minimal to pass)**
+
 ```powershell
 # scripts/Check-SkillExists.ps1
 function Check-SkillExists {
@@ -52,12 +54,14 @@ function Check-SkillExists {
 ```
 
 **Step 3: Run Test**
+
 ```powershell
 Invoke-Pester -Path tests/Check-SkillExists.Tests.ps1
 # Expected: 1 passed, 0 failed
 ```
 
 **Step 4: Refactor (add real logic)**
+
 ```powershell
 function Check-SkillExists {
     param([string]$Operation, [string]$Action)
@@ -68,6 +72,7 @@ function Check-SkillExists {
 ```
 
 **Step 5: Commit (all tests passing)**
+
 ```bash
 git add scripts/Check-SkillExists.ps1 tests/Check-SkillExists.Tests.ps1
 git commit -m "feat(tools): add Check-SkillExists.ps1 for skill validation"
@@ -85,6 +90,7 @@ git commit -m "feat(tools): add Check-SkillExists.ps1 for skill validation"
 ## Anti-Pattern: Test-After Development
 
 **Problematic sequence**:
+
 1. Write all implementation code
 2. Commit code
 3. (Maybe) write tests later
@@ -106,6 +112,7 @@ git commit -m "feat(tools): add Check-SkillExists.ps1 for skill validation"
 **Tests**: Check-SkillExists.Tests.ps1 (13 tests)
 
 **Tests created alongside implementation**:
+
 - Test 1: Basic operation check (pr-create)
 - Test 2: Different operation (issue-comment)
 - Test 3-7: All five operations validated

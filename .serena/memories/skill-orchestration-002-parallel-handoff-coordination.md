@@ -38,12 +38,14 @@ SESSION-PROTOCOL.md requires all agents to update HANDOFF.md at session end with
 ## Recommended Solution: Orchestrator Aggregation
 
 **Step 1**: Parallel agents skip HANDOFF.md update
+
 ```markdown
 # In parallel subagent session logs
 - Session End: Update HANDOFF.md → SKIP (orchestrator will aggregate)
 ```
 
 **Step 2**: Orchestrator collects summaries
+
 ```markdown
 # After all parallel sessions complete
 Session 19 summary: Created PROJECT-CONSTRAINTS.md
@@ -52,6 +54,7 @@ Session 21 summary: Created Check-SkillExists.ps1 with 13 tests
 ```
 
 **Step 3**: Orchestrator updates HANDOFF.md once
+
 ```markdown
 # Single update with all summaries
 ## Recent Work
@@ -66,12 +69,14 @@ Session 21 summary: Created Check-SkillExists.ps1 with 13 tests
 ## Alternative Solutions
 
 ### Option B: Session-Specific Sections
+
 Each agent updates its own section (e.g., ## Session 19, ## Session 20)
 
 **Pros**: Agents follow protocol independently
 **Cons**: Still risk of staging conflicts, HANDOFF becomes unwieldy
 
 ### Option C: Sequential Commit Phase
+
 Agents finish work in parallel, commit sequentially
 
 **Pros**: Simple coordination
@@ -80,6 +85,7 @@ Agents finish work in parallel, commit sequentially
 ## Implementation Guidance
 
 **Orchestrator dispatch**:
+
 ```markdown
 When dispatching parallel agents:
 1. Note: Parallel execution - HANDOFF coordination required

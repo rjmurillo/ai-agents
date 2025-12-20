@@ -17,6 +17,7 @@ Session 15 successfully delivered P0-P1 security fixes and high-quality ADRs, bu
 **Problem**: Agent used raw `gh` commands despite `.claude/skills/github/` containing tested implementations.
 
 **Five Whys Analysis**:
+
 1. Why use raw `gh`? → Didn't check for skills first
 2. Why didn't check? → No "check skills first" in workflow
 3. Why not in workflow? → Memory exists but not enforced
@@ -26,6 +27,7 @@ Session 15 successfully delivered P0-P1 security fixes and high-quality ADRs, bu
 **Root Cause**: Missing BLOCKING gate for skill validation before GitHub operations.
 
 **Fix**: Add Phase 1.5 to SESSION-PROTOCOL.md requiring:
+
 - MUST run `Check-SkillExists.ps1` (tool output required)
 - MUST read PROJECT-CONSTRAINTS.md (verification-based)
 - MUST list `.claude/skills/github/scripts/` (proof of structure)
@@ -35,6 +37,7 @@ Session 15 successfully delivered P0-P1 security fixes and high-quality ADRs, bu
 **Problem**: Created bash scripts and tests despite `user-preference-no-bash-python` memory.
 
 **Five Whys Analysis**:
+
 1. Why create bash? → Implemented GitHub Actions defaults
 2. Why not check preference? → Didn't read user preference memory
 3. Why not read memory? → No mandatory preference check step
@@ -52,6 +55,7 @@ Session 15 successfully delivered P0-P1 security fixes and high-quality ADRs, bu
 **User Feedback**: "amateur and unprofessional"
 
 **Five Whys Analysis**:
+
 1. Why 16 files? → Staged all modified without filtering
 2. Why not filter? → Didn't apply atomic commit discipline
 3. Why not apply? → Didn't verify atomicity before commit
@@ -77,12 +81,14 @@ Session 15 successfully delivered P0-P1 security fixes and high-quality ADRs, bu
 **Current State**: Agent implements first, gets corrected, then fixes (repeatedly).
 
 **Driving Forces** (16/20):
+
 - User frustration (4/5)
 - Documentation exists (3/5)
 - Session protocol BLOCKING gate pattern exists (5/5)
 - Pre-commit hooks in use (4/5)
 
 **Restraining Forces** (21/25):
+
 - No BLOCKING gate for skill checks (5/5)
 - Agent defaults to implement-then-check (4/5)
 - Scattered documentation (3/5)

@@ -38,6 +38,7 @@
 **Implementation**:
 
 1. Create `Check-SkillExists.ps1` tool:
+
    ```powershell
    param(
        [ValidateSet('pr','issue','reaction','label','milestone')]
@@ -123,7 +124,8 @@ Reference: code-style-conventions
 
 **Context**: When designing protocol enforcement mechanisms in SESSION-PROTOCOL.md or agent workflows
 
-**Evidence**: 
+**Evidence**:
+
 - Phase 1 (Serena init) has BLOCKING gate with tool output requirement → 100% compliance (never violated)
 - Session 15: Trust-based skill checks had 0% compliance → 5+ violations
 - Sessions 19-21: All agents followed BLOCKING gates correctly (Phase 1, Phase 2, Phase 3)
@@ -163,11 +165,13 @@ Add Phase 1.5 (BLOCKING) to SESSION-PROTOCOL.md:
 **Force Field Analysis**:
 
 Before verification gates:
+
 - Restraining forces: 21/25 (trust-based ineffective, no gates, scattered docs)
 - Driving forces: 16/20 (documentation exists, user frustration)
 - Net: -5 (favors violations)
 
 After verification gates:
+
 - Restraining forces: 4/25 (gates added, docs consolidated, verification enforced)
 - Driving forces: 20/20 (all documentation accessible, gates prevent violations)
 - Net: +16 (prevents violations)

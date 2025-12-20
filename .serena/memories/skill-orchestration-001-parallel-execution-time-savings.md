@@ -29,12 +29,14 @@ Sessions 19-21 (2025-12-18): Parallel implementation completed in ~20 minutes vs
 ## When to Use Parallel Execution
 
 **Good candidates**:
+
 - Multiple analysis tasks on independent topics
 - Implementation of separate, non-conflicting features
 - Research/exploration of different approaches
 - Testing on different platforms
 
 **Poor candidates**:
+
 - Tasks with dependencies (A must complete before B)
 - Tasks modifying same files (staging conflicts)
 - Tasks requiring sequential context (learning from previous)
@@ -55,6 +57,7 @@ Example (Sessions 19-21):
 ## Coordination Overhead
 
 Expected overhead: 10-20% of parallel time
+
 - Orchestrator dispatch
 - Staging conflict resolution
 - HANDOFF aggregation

@@ -37,6 +37,7 @@ Read [memory-name] memory using `mcp__serena__read_memory` with `memory_file_nam
 ```
 
 **Applied consistently**:
+
 - SESSION-PROTOCOL.md: skill-usage-mandatory
 - AGENTS.md: skills-design, skills-implementation
 - ADRs: pattern-*, skill-*
@@ -52,16 +53,19 @@ Read [memory-name] memory using `mcp__serena__read_memory` with `memory_file_nam
 ## Pattern Variations to Avoid
 
 **Inconsistent phrasing**:
+
 - "Use mcp__serena__read_memory to read..."
 - "Read using mcp__serena__read_memory..."
 - "Access via mcp__serena__read_memory..."
 
 **Inconsistent parameter syntax**:
+
 - `memory_file_name="skill-name"`
 - `memory_file_name='skill-name'`
 - `memory_file_name=skill-name`
 
 **Inconsistent fallback**:
+
 - "If Serena MCP not available..."
 - "If the Serena MCP is unavailable..."
 - "When Serena unavailable..."
@@ -69,6 +73,7 @@ Read [memory-name] memory using `mcp__serena__read_memory` with `memory_file_nam
 ## Implementation Strategy
 
 **Step 1: Define canonical pattern**
+
 ```markdown
 # Create template with ALL variants accounted for
 TEMPLATE: Read {name} memory using `mcp__serena__read_memory` with `memory_file_name="{name}"`
@@ -76,11 +81,13 @@ TEMPLATE: Read {name} memory using `mcp__serena__read_memory` with `memory_file_
 ```
 
 **Step 2: Apply template systematically**
+
 - Use find-replace with template
 - Verify each instance matches template exactly
 - Document any intentional deviations
 
 **Step 3: Verify consistency**
+
 ```bash
 # Search for pattern
 grep -r "mcp__serena__read_memory" --include="*.md"
