@@ -64,11 +64,6 @@ jobs:
               - '.github/**'
               - '.agents/**'
               - '.claude/skills/**'
-            docs-only:
-              - '**/*.md'
-              - '**/*.txt'
-              - '**/*.rst'
-              - 'docs/**'
 
       - name: Determine if review should run
         id: determine
@@ -78,13 +73,10 @@ jobs:
             echo "Decision: Run review (manual trigger)"
           else
             RELEVANT="${{ steps.filter.outputs.relevant }}"
-            DOCS_ONLY="${{ steps.filter.outputs.docs-only }}"
 
             echo "Relevant files changed: $RELEVANT"
-            echo "Docs files changed: $DOCS_ONLY"
 
-            # Run review if relevant files changed, even if docs also changed
-            # Skip if ONLY docs changed (docs-only=true AND relevant=false)
+            # Run review if relevant files changed, skip otherwise
             if [ "$RELEVANT" = "true" ]; then
               echo "should-run=true" >> $GITHUB_OUTPUT
               echo "Decision: Run review (relevant files changed)"
