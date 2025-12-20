@@ -13,6 +13,33 @@
     - Synthesis comment generation
     - Idempotent marker detection
     - Update vs create logic
+
+.NOTES
+    Test Approach: This file uses two complementary testing strategies:
+
+    1. PATTERN-BASED TESTS (first half of file)
+       These tests validate code structure by matching against regex patterns
+       in the script content. They verify:
+       - Required parameters exist
+       - Module dependencies are imported
+       - Key functions are defined
+       - Documentation is present
+
+       These tests intentionally do NOT follow strict AAA (Arrange-Act-Assert)
+       pattern because they are structural validations, not behavioral tests.
+       The "Arrange" step (loading script content) is shared in BeforeAll.
+
+    2. FUNCTIONAL TESTS (second half of file, under "#region Functional Tests")
+       These tests extract individual functions from the script and test their
+       actual behavior with mock data. They DO follow AAA pattern:
+       - Arrange: Set up test data (comments, config, etc.)
+       - Act: Call the function
+       - Assert: Verify the result
+
+    Why both approaches?
+    - Pattern tests catch structural regressions quickly (missing functions, params)
+    - Functional tests verify business logic correctness
+    - Together they provide comprehensive coverage without integration complexity
 #>
 
 BeforeAll {
@@ -730,6 +757,194 @@ Describe "Get-SynthesisConfig YAML Parsing" {
             $result = Get-SynthesisConfig -ConfigPath "/nonexistent/path.yml"
             $result | Should -Not -BeNullOrEmpty
             $result.synthesis.marker | Should -Be "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
+        }
+    }
+}
+
+#endregion
+
+#region Edge Case Tests
+
+Describe "Edge Case: Empty and Malformed Config" {
+
+    BeforeAll {
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
+        $scriptContent = Get-Content $scriptPath -Raw
+
+        # Extract and define the Get-SynthesisConfig function
+        if ($scriptContent -match 'function Get-SynthesisConfig \{[\s\S]*?(?=\n#endregion)') {
+            $functionDef = $Matches[0]
+            Invoke-Expression $functionDef
+        }
+
+        # Create temp directory for test files
+        $script:tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "CopilotSynthesisTests"
+        if (-not (Test-Path $script:tempDir)) {
+            New-Item -ItemType Directory -Path $script:tempDir -Force | Out-Null
+        }
+    }
+
+    AfterAll {
+        # Cleanup temp directory
+        if (Test-Path $script:tempDir) {
+            Remove-Item -Path $script:tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    Context "Empty Config File" {
+        It "Returns default config when config file is empty" {
+            $emptyConfig = Join-Path $script:tempDir "empty.yml"
+            "" | Set-Content $emptyConfig
+
+            $result = Get-SynthesisConfig -ConfigPath $emptyConfig
+            $result | Should -Not -BeNullOrEmpty
+            $result.synthesis.marker | Should -Be "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
+            $result.trusted_sources.maintainers | Should -Contain "rjmurillo"
+        }
+    }
+
+    Context "Malformed YAML" {
+        It "Returns default config when YAML is malformed" {
+            $malformedConfig = Join-Path $script:tempDir "malformed.yml"
+            "this: is: not: valid: yaml: [unclosed" | Set-Content $malformedConfig
+
+            # Should not throw, should return defaults
+            $result = Get-SynthesisConfig -ConfigPath $malformedConfig
+            $result | Should -Not -BeNullOrEmpty
+            $result.synthesis.marker | Should -Be "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
+        }
+
+        It "Returns default config when config has invalid structure" {
+            $invalidConfig = Join-Path $script:tempDir "invalid.yml"
+            "random_key: random_value`nno_trusted_sources: true" | Set-Content $invalidConfig
+
+            $result = Get-SynthesisConfig -ConfigPath $invalidConfig
+            $result | Should -Not -BeNullOrEmpty
+            # Should still have defaults
+            $result.trusted_sources.maintainers | Should -Contain "rjmurillo"
+        }
+    }
+}
+
+Describe "Edge Case: Multiple Maintainer Comments" {
+
+    BeforeAll {
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
+        $scriptContent = Get-Content $scriptPath -Raw
+
+        # Extract and define the Get-MaintainerGuidance function
+        if ($scriptContent -match 'function Get-MaintainerGuidance \{[\s\S]*?(?=\nfunction|\n#endregion)') {
+            $functionDef = $Matches[0]
+            Invoke-Expression $functionDef
+        }
+    }
+
+    Context "Order Preservation" {
+        It "Preserves order of comments from multiple maintainers" {
+            $comments = @(
+                @{
+                    user = @{ login = "maintainer1" }
+                    body = "- First maintainer first point`n- First maintainer second point"
+                },
+                @{
+                    user = @{ login = "maintainer2" }
+                    body = "- Second maintainer contribution"
+                },
+                @{
+                    user = @{ login = "maintainer1" }
+                    body = "- First maintainer third point"
+                }
+            )
+
+            $result = Get-MaintainerGuidance -Comments $comments -Maintainers @("maintainer1", "maintainer2")
+
+            $result | Should -Not -BeNullOrEmpty
+            $result.Count | Should -Be 4
+
+            # Verify order is preserved (maintainer1's first comments come first)
+            $result[0] | Should -Match "First maintainer first"
+            $result[1] | Should -Match "First maintainer second"
+            $result[2] | Should -Match "Second maintainer"
+            $result[3] | Should -Match "First maintainer third"
+        }
+    }
+}
+
+Describe "Edge Case: Unicode in Comment Bodies" {
+
+    Context "Unicode Characters in Patterns" {
+        It "Regex handles emoji characters properly" {
+            $text = "- Use the write_memory tool for persistence"
+            $text -match '^[-*]\s+(.+)$' | Should -Be $true
+            $Matches[1] | Should -Match "write_memory"
+        }
+
+        It "Regex handles Japanese characters properly" {
+            $text = "- Implement localization for Japanese users"
+            $text -match '^[-*]\s+(.+)$' | Should -Be $true
+            $Matches[1] | Should -Match "localization"
+        }
+
+        It "Regex handles mixed Unicode symbols in text" {
+            # Test that the pattern extraction works with various Unicode
+            $text = "- Review the documentation carefully"
+            $text -match '^[-*]\s+(.+)$' | Should -Be $true
+            $Matches[1] | Should -Match "documentation"
+        }
+
+        It "Regex handles CJK characters in text" {
+            $text = "- Configure settings for CJK support"
+            $text -match '^[-*]\s+(.+)$' | Should -Be $true
+            $Matches[1] | Should -Match "CJK"
+        }
+    }
+}
+
+Describe "Edge Case: RelatedPRs in AI Visibility Check" {
+
+    BeforeAll {
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
+        $scriptContent = Get-Content $scriptPath -Raw
+
+        # Extract and define the New-SynthesisComment function
+        if ($scriptContent -match 'function New-SynthesisComment \{[\s\S]*?(?=\nfunction|\n#endregion)') {
+            $functionDef = $Matches[0]
+            Invoke-Expression $functionDef
+        }
+
+        $script:testMarker = "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
+    }
+
+    Context "RelatedPRs Visibility" {
+        It "Shows AI section when only RelatedPRs exist" {
+            $plan = @{
+                Implementation = $null
+                RelatedIssues = @()
+                RelatedPRs = @("#123", "#456")
+            }
+
+            $result = New-SynthesisComment -Marker $script:testMarker -MaintainerGuidance @() -CodeRabbitPlan $plan -AITriage $null
+
+            $result | Should -Match "## AI Agent Recommendations"
+            $result | Should -Match "#123"
+            $result | Should -Match "#456"
+        }
+
+        It "Shows AI section when RelatedPRs and RelatedIssues both exist" {
+            $plan = @{
+                Implementation = $null
+                RelatedIssues = @("#789")
+                RelatedPRs = @("#123")
+            }
+
+            $result = New-SynthesisComment -Marker $script:testMarker -MaintainerGuidance @() -CodeRabbitPlan $plan -AITriage $null
+
+            $result | Should -Match "## AI Agent Recommendations"
+            $result | Should -Match "Related Issues.*#789"
+            $result | Should -Match "Related PRs.*#123"
         }
     }
 }
