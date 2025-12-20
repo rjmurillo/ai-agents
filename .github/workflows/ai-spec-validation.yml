@@ -230,11 +230,13 @@ jobs:
           "@
           } else {
             # Determine final verdict
+            # PARTIAL completeness means incomplete implementation - this should FAIL (block merge)
+            # WARN means minor gaps acceptable for merge with follow-up
             $finalVerdict = 'PASS'
-            if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL') {
+            if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL') {
               $finalVerdict = 'FAIL'
             } elseif ($env:TRACE_VERDICT -eq 'WARN' -or $env:COMPLETENESS_VERDICT -eq 'WARN') {
-              $finalVerdict = 'PARTIAL'
+              $finalVerdict = 'WARN'
             }
 
             $alertType = Get-VerdictAlertType -Verdict $finalVerdict
@@ -340,7 +342,9 @@ jobs:
           TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
         run: |
-          if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL') {
+          # PARTIAL completeness = incomplete implementation = FAIL (blocks merge)
+          # WARN = minor gaps = acceptable for merge with follow-up
+          if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL') {
             Write-Output "::error::Spec validation failed - implementation does not fully satisfy requirements"
             exit 1
           }

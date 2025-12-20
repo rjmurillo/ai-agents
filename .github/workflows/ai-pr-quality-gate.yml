@@ -387,7 +387,7 @@ jobs:
         run: |
           $finalVerdict = "${{ steps.aggregate.outputs.final_verdict }}"
 
-          if ($finalVerdict -in 'CRITICAL_FAIL', 'REJECTED') {
+          if ($finalVerdict -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL') {
             Write-Output "::error::AI Quality Gate found critical issues that must be addressed before merge"
             exit 1
           }

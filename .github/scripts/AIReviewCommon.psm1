@@ -469,7 +469,7 @@ function Get-VerdictExitCode {
     )
 
     switch ($Verdict) {
-        { $_ -in 'CRITICAL_FAIL', 'REJECTED' } { return 1 }
+        { $_ -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL' } { return 1 }
         default { return 0 }
     }
 }
