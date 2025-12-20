@@ -409,7 +409,7 @@
 | Finding | Proposed Skill ID | Statement |
 |---------|-------------------|-----------|
 | GraphQL for thread resolution | Skill-GitHub-GraphQL-001 | GitHub review thread resolution requires GraphQL API; REST API is read-only |
-| Bot @mention protocol | Skill-PR-Automation-001 | Bot PR authors need @mention to trigger action on feedback; use `@{{ github.event.pull_request.user.login }}` |
+| Bot @mention protocol | Skill-PR-Automation-001 | Bot PR authors need @mention to trigger action on feedback; use `${{ github.event.pull_request.user.login }}` |
 | dorny/paths-filter checkout | Skill-CI-Workflows-001 | dorny/paths-filter requires checkout step in ALL jobs, not just the job using the filter |
 | Infrastructure health check | Skill-Agent-Infra-001 | Verify agent infrastructure (Copilot CLI, MCP) before invocation; separate environment errors from quality findings |
 | Homework scanning pattern | Skill-Maintenance-002 | Search merged PRs for "Deferred to follow-up", "TODO", "future improvement"; 20% hit rate justifies automation |
@@ -442,7 +442,7 @@
 
 #### Proposed Skill 2: Bot @mention Protocol
 
-**Statement**: Bot PR authors need @mention to trigger action on feedback; use `@{{ github.event.pull_request.user.login }}`
+**Statement**: Bot PR authors need @mention to trigger action on feedback; use `${{ github.event.pull_request.user.login }}`
 
 **Validation**:
 
@@ -547,7 +547,7 @@
 
 #### Learning 2: Bot Author @mention Protocol
 
-**Statement**: Bot PR authors need @mention to trigger action; use `@{{ github.event.pull_request.user.login }}`
+**Statement**: Bot PR authors need @mention to trigger action; use `${{ github.event.pull_request.user.login }}`
 
 **Scoring**:
 - Compound statements: 1 ("need" + "use") (-15%)
@@ -560,7 +560,7 @@
 
 **Refinement**: Split into two statements
 - Statement A: "Bot PR authors need @mention to detect feedback requiring action"
-- Statement B: "Use `@{{ github.event.pull_request.user.login }}` to notify PR author in workflow comments"
+- Statement B: "Use `${{ github.event.pull_request.user.login }}` to notify PR author in workflow comments"
 
 **Refined Score**: 95% (Statement A), 92% (Statement B)
 
@@ -681,7 +681,7 @@
 
 ### Learning 2B: Bot Notification Syntax
 
-- **Statement**: Use `@{{ github.event.pull_request.user.login }}` to notify PR author in workflow comments
+- **Statement**: Use `${{ github.event.pull_request.user.login }}` to notify PR author in workflow comments
 - **Atomicity Score**: 92%
 - **Evidence**: Issue #152 implementation guidance
 - **Skill Operation**: ADD
@@ -751,7 +751,7 @@
   },
   {
     "skill_id": "Skill-PR-Automation-002",
-    "statement": "Use @{{ github.event.pull_request.user.login }} to notify PR author in workflow comments",
+    "statement": "Use ${{ github.event.pull_request.user.login }} to notify PR author in workflow comments",
     "context": "When posting workflow feedback requiring author action",
     "evidence": "Issue #152 implementation guidance for AI Quality Gate enhancement",
     "atomicity": 92
@@ -890,7 +890,7 @@
 |----------|-----------|-----------|-----------|--------|
 | Skill-GitHub-GraphQL-001 | GitHub review thread resolution requires GraphQL API; REST API is read-only | 100% | ADD | - |
 | Skill-PR-Automation-001 | Bot PR authors need @mention to detect feedback requiring action | 95% | ADD | - |
-| Skill-PR-Automation-002 | Use @{{ github.event.pull_request.user.login }} to notify PR author in workflow comments | 92% | ADD | - |
+| Skill-PR-Automation-002 | Use ${{ github.event.pull_request.user.login }} to notify PR author in workflow comments | 92% | ADD | - |
 | Skill-CI-Workflows-001 | dorny/paths-filter requires checkout in ALL jobs, not just the job using the filter | 98% | ADD | - |
 | Skill-Agent-Infra-001 | Check Copilot CLI availability before invoking architect agent; exit code 1 may indicate infrastructure failure | 88% | ADD | - |
 | Skill-Agent-Diagnosis-001 | Distinguish agent execution errors (environment) from agent findings (code quality) | 90% | ADD | - |
