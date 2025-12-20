@@ -43,7 +43,8 @@ jobs:
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
-      should-run: ${{ steps.determine.outputs.should-run }}
+      # For workflow_dispatch, always run review; otherwise use paths-filter result
+      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run }}
 
     steps:
       - name: Checkout repository
@@ -52,6 +53,8 @@ jobs:
       - name: Check for relevant file changes
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
         id: filter
+        # Skip paths-filter for workflow_dispatch as it may not have proper context
+        if: github.event_name != 'workflow_dispatch'
         with:
           filters: |
             relevant:
@@ -70,20 +73,25 @@ jobs:
       - name: Determine if review should run
         id: determine
         run: |
-          RELEVANT="${{ steps.filter.outputs.relevant }}"
-          DOCS_ONLY="${{ steps.filter.outputs.docs-only }}"
-
-          echo "Relevant files changed: $RELEVANT"
-          echo "Docs files changed: $DOCS_ONLY"
-
-          # Run review if relevant files changed, even if docs also changed
-          # Skip if ONLY docs changed (docs-only=true AND relevant=false)
-          if [ "$RELEVANT" = "true" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "should-run=true" >> $GITHUB_OUTPUT
-            echo "Decision: Run review (relevant files changed)"
+            echo "Decision: Run review (manual trigger)"
           else
-            echo "should-run=false" >> $GITHUB_OUTPUT
-            echo "Decision: Skip review (no relevant files changed)"
+            RELEVANT="${{ steps.filter.outputs.relevant }}"
+            DOCS_ONLY="${{ steps.filter.outputs.docs-only }}"
+
+            echo "Relevant files changed: $RELEVANT"
+            echo "Docs files changed: $DOCS_ONLY"
+
+            # Run review if relevant files changed, even if docs also changed
+            # Skip if ONLY docs changed (docs-only=true AND relevant=false)
+            if [ "$RELEVANT" = "true" ]; then
+              echo "should-run=true" >> $GITHUB_OUTPUT
+              echo "Decision: Run review (relevant files changed)"
+            else
+              echo "should-run=false" >> $GITHUB_OUTPUT
+              echo "Decision: Skip review (no relevant files changed)"
+            fi
           fi
 
 # Run all three reviews in parallel using matrix strategy
