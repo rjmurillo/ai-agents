@@ -1362,16 +1362,14 @@ gh sub-issue remove 123 456
 gh sub-issue list 123 --json
 ```
 
-**Native Alternative**: Use GitHub REST API for sub-issues if extension not available:
-```bash
-# Add sub-issue via API
-gh api repos/{owner}/{repo}/issues/{parent}/sub_issues -f sub_issue_id={child_id}
+**API Note**: GitHub does not expose a dedicated REST API endpoint for sub-issues.
 
-# List sub-issues via API
-gh api repos/{owner}/{repo}/issues/{parent}/sub_issues
-```
+For automation without the extension:
+- Use **GraphQL** via `gh api graphql` with the Issues/Tasklists mutations
+- Use **task lists** in issue body (markdown checkboxes with issue references)
+- See [GitHub Tasklists documentation](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-tasklists)
 
-**Note**: GitHub supports up to 8 levels of issue hierarchy.
+**Note**: GitHub supports up to 8 levels of issue hierarchy via Tasklists.
 
 **Atomicity**: 90%
 
