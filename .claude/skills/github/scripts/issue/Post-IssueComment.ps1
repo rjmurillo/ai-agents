@@ -71,9 +71,7 @@ if ($Marker) {
             Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
             Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=true"
             Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
-            if ($Marker) {
-                Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
-            }
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
         }
 
         exit 0  # Idempotent skip is a success
@@ -92,16 +90,19 @@ if ($LASTEXITCODE -ne 0) { Write-ErrorAndExit "Failed to post comment: $result" 
 
 $response = $result | ConvertFrom-Json
 
-$output = [PSCustomObject]@{
-    Success   = $true
-    CommentId = $response.id
-    HtmlUrl   = $response.html_url
-    Issue     = $Issue
-    Marker    = $Marker
-    Skipped   = $false
-    CreatedAt = $response.created_at
-}
-
-Write-Output $output
 Write-Host "Posted comment to issue #$Issue" -ForegroundColor Green
-Write-Host "  URL: $($output.HtmlUrl)" -ForegroundColor Cyan
+Write-Host "  URL: $($response.html_url)" -ForegroundColor Cyan
+Write-Host "Success: True, Issue: $Issue, CommentId: $($response.id), Skipped: False"
+
+# GitHub Actions outputs for programmatic consumption
+if ($env:GITHUB_OUTPUT) {
+    Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
+    Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=false"
+    Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
+    Add-Content -Path $env:GITHUB_OUTPUT -Value "comment_id=$($response.id)"
+    Add-Content -Path $env:GITHUB_OUTPUT -Value "html_url=$($response.html_url)"
+    Add-Content -Path $env:GITHUB_OUTPUT -Value "created_at=$($response.created_at)"
+    if ($Marker) {
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
+    }
+}
