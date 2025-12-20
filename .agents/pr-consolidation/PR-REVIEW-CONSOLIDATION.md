@@ -223,7 +223,7 @@ Copilot identified 3 groups of duplicate content:
 
 **Branch**: `copilot/add-pester-tests-get-prcontext` → `main`
 **Status**: ✅ READY TO MERGE (1 action item completed)
-**Comments**: 12 total (6 top-level + 5 replies + 1 implementation)
+**Comments**: 11 total (6 top-level + 5 replies)
 **Reviewers**: Copilot (6), rjmurillo-bot (5 replies)
 
 ### Comments Analysis

@@ -215,6 +215,71 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 
 ---
 
+## PR Comment Responder: Copilot Follow-Up PR Handling (Phase 4)
+
+The pr-comment-responder agent includes a Phase 4 workflow for detecting and managing Copilot's follow-up PR creation pattern.
+
+### Pattern Recognition
+
+When Copilot receives replies to its PR review comments, it often creates a follow-up PR:
+
+- **Branch**: `copilot/sub-pr-{original_pr_number}`
+- **Target**: Original PR's branch (not main)
+- **Announcement**: Issue comment from `app/copilot-swe-agent` containing "I've opened a new pull request"
+
+### Phase 4 Workflow
+
+**Trigger**: After Phase 3 (replies posted), before Phase 5 (immediate replies)
+
+**Steps**:
+
+1. **Query** for follow-up PRs matching branch pattern `copilot/sub-pr-{original_pr}`
+2. **Verify** Copilot announcement comment exists on original PR
+3. **Analyze** follow-up PR content (diff, file count, changes)
+4. **Categorize** follow-up intent:
+   - **DUPLICATE**: Follow-up contains same/redundant changes → Close with commit reference
+   - **SUPPLEMENTAL**: Follow-up addresses different issues → Evaluate for merge
+   - **INDEPENDENT**: Follow-up unrelated to original review → Close with note
+5. **Execute** appropriate action (close or merge)
+6. **Document** results in session log
+
+### Detection Scripts
+
+Two detection implementations (PowerShell + bash fallback):
+
+- `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1` (PowerShell)
+- `.claude/skills/github/scripts/pr/detect-copilot-followup.sh` (Bash)
+
+Both return structured JSON with:
+
+- `found`: boolean indicating follow-up PRs detected
+- `analysis`: array of follow-up categorizations with recommendations
+- `recommendation`: overall action (CLOSE_AS_DUPLICATE, EVALUATE_FOR_MERGE, etc.)
+
+### Related Memory
+
+Skill-PR-Copilot-001 in `.serena/memories/pr-comment-responder-skills.md` documents:
+
+- Detection logic and branch pattern matching
+- Category indicators and decision matrix
+- Integration verification checkpoints
+
+### Examples
+
+**PR #32 → PR #33**: Duplicate (closed successfully)
+
+- Original: 5 Copilot review comments
+- Follow-up: copilot/sub-pr-32 with identical changes
+- Decision: Closed as duplicate, fix already applied
+
+**PR #156 → PR #162**: Supplemental (closed, syntax fix verified)
+
+- Original: Session retrospective PR
+- Follow-up: copilot/sub-pr-156 targeting PR #156's branch
+- Decision: Syntax fix applied, no code changes in follow-up
+
+---
+
 ## Orchestrator: Task Classification & Domain Identification
 
 The orchestrator uses a formal classification process to properly route tasks to the right agent sequences.
