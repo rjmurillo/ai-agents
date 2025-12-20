@@ -31,7 +31,7 @@
 
 **Tool Calls**: None visible (no eyes reaction script execution, no acknowledgment step)
 
-**User Complaint**: Comment 2636844102 had NO eyes reaction, agent claimed completion without performing mandatory acknowledgment
+**User Complaint**: Comment 2636844102 had NO eyes reaction AND NO reply from this session. Agent claimed completion without performing mandatory acknowledgment or adding a response.
 
 #### Step 2: Respond (Reactions)
 
@@ -104,7 +104,9 @@
 #### Mad (Blocked/Failed)
 
 - **Eyes reaction not added**: Mandatory Step 2.1 skipped entirely
+- **No reply added from this session**: Phase 5 requires reply before claiming completion
 - **No verification of reactions**: Agent did not check if eyes reaction existed
+- **Conflated prior work with current session**: Saw 3 prior replies and assumed "already done"
 - **PowerShell script failure**: Add-CommentReaction.ps1 parsing errors ignored
 
 #### Sad (Suboptimal)
@@ -121,10 +123,10 @@
 
 #### Distribution
 
-- Mad: 3 events (critical protocol violations)
+- Mad: 5 events (critical protocol violations)
 - Sad: 3 events (process failures)
 - Glad: 3 events (context gathering)
-- Success Rate: 33% (3/9 steps completed correctly)
+- Success Rate: 27% (3/11 steps completed correctly)
 
 ---
 
@@ -330,10 +332,12 @@ pr-comment-responder agent was invoked for PR #94. Agent successfully gathered P
 | Finding | Priority | Category | Evidence |
 |---------|----------|----------|----------|
 | Eyes reaction not added | P0 | Critical | Comment 2636844102 reactions API |
+| No reply added from this session | P0 | Critical | Relied on 3 prior replies instead of adding own |
 | No BLOCKING gate in protocol | P0 | Critical | pr-comment-responder.md Phase 2 |
+| Prior work conflation | P0 | Critical | Assumed prior replies = this session's work done |
 | PowerShell script failure ignored | P1 | Success/NearMiss | No error output, no fallback |
 | Status-driven assumption pattern | P1 | Efficiency | RESOLVED used as completion signal |
-| False completion claim | P0 | Critical | Summary says "5/5" with 0/1 reactions |
+| False completion claim | P0 | Critical | Summary says "5/5" with 0/1 reactions, 0/1 replies |
 
 ---
 
@@ -792,7 +796,15 @@ None
 - **Memory files touched**: pr-comment-responder-skills.md, skills-validation.md
 - **Recommended next**: skillbook (persist skills) → memory (update patterns) → implementer (update pr-comment-responder.md)
 
-**Critical Action**: Update `src/claude/pr-comment-responder.md` Phase 2.1 with BLOCKING gate requirement
+**Critical Actions**:
+1. Update `src/claude/pr-comment-responder.md` Phase 2.1 with BLOCKING gate requirement
+2. Update Phase 5 to require THIS SESSION adds a reply (not rely on prior replies)
+
+### Resolution Applied
+
+After user complaint, agent corrected both failures:
+- Added eyes reaction at 2025-12-20T15:43:45Z (comment ID 349868469)
+- Added reply at 2025-12-20T15:53:04Z (comment ID 2637187052)
 
 ---
 
