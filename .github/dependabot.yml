@@ -6,11 +6,28 @@
 version: 2
 updates:
   # Maintain dependencies for GitHub Actions
-    - package-ecosystem: "github-actions"
-        directory: "/"
-            schedule:
-                  interval: "weekly"
-                      groups:
-                            actions:
-                                    patterns:
-                                              - "*"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    # Group all GitHub Actions updates into a single PR
+    groups:
+      actions:
+        patterns:
+          - "*"
+    # Add labels to PRs for better organization
+    labels:
+      - "dependencies"
+      - "github-actions"
+    # Automatically rebase PRs when they become outdated
+    rebase-strategy: "auto"
+    # Limit the number of open PRs
+    open-pull-requests-limit: 5
+    # Add commit message prefix for conventional commits
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
