@@ -3,8 +3,8 @@
 **Project**: AI Agents Enhancement
 **Version**: 1.0
 **Last Updated**: 2025-12-20
-**Current Phase**: PR #147 QA Validation (Session 43)
-**Status**: ✅ QA validation complete, all tests passing, ready for PR creation
+**Current Phase**: Security Remediation Complete (Session 44)
+**Status**: ✅ CWE-20/CWE-78 vulnerabilities fixed in ai-issue-triage.yml, validated by QA and DevOps
 
 ---
 
@@ -55,12 +55,52 @@
 ### Session History (Last 5)
 
 | Session | Date | Type | PR | Outcome |
-|---------|------|------|----|-|
-| **Session 43** | **2025-12-20** | **QA Validation** | **#147** | **All tests passing, artifacts verified, ready for PR** |
-| **Session 41** | **2025-12-20** | **PR Review Consolidation** | **#94, #95, #76, #93** | **25 comments analyzed, 24 resolved, all ready to merge** |
+|---------|------|------|----|---------|
+| **Session 44** | **2025-12-20** | **Security Remediation** | **#211** | **CWE-20/CWE-78 fixed, QA+DevOps validated** |
+| Session 43 | 2025-12-20 | QA Validation | #147 | All tests passing, artifacts verified, ready for PR |
+| Session 41 | 2025-12-20 | PR Review Consolidation | #94, #95, #76, #93 | 25 comments analyzed, 24 resolved, all ready to merge |
 | Session 40 | 2025-12-20 | Feature Implementation | #162 | Phase 4 Copilot Follow-Up Handling complete |
 | Session 39 | 2025-12-20 | PR Comment Response | #147 | Mechanical success, artifact tracking failed |
-| Session 38 | 2025-12-20 | PR Review | #89 | Protocol review initiated |
+
+### Key Learnings from Session 44 (Security Remediation)
+
+**Incident**: AI Quality Gate detected CWE-20/CWE-78 vulnerabilities in `ai-issue-triage.yml`
+
+**Root Cause**: Bash parsing (`grep/tr/xargs`) was used instead of existing hardened PowerShell functions in `AIReviewCommon.psm1`.
+
+**What Worked:**
+
+- AI Quality Gate caught the vulnerability post-merge
+- Existing `Get-LabelsFromAIOutput` and `Get-MilestoneFromAIOutput` functions already had proper validation
+- Security agent provided detailed threat analysis with specific attack vectors
+- QA and DevOps agents validated remediation in parallel
+- Defense-in-depth pattern: validation at both parse and apply stages
+
+**Remediation Applied:**
+
+- Replaced 4 bash steps with PowerShell using `shell: pwsh`
+- Hardened regex: `^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$`
+- JSON array output for safe downstream consumption
+- All shell metacharacters blocked
+
+**Artifacts:**
+
+- Security report: `.agents/security/SR-001-ai-issue-triage-remediation.md`
+- QA report: `.agents/qa/211-ai-issue-triage-security-remediation-report.md`
+- Session log: `.agents/sessions/2025-12-20-session-44-security-remediation.md`
+- DevOps validation: `.agents/sessions/2025-12-20-session-44-devops-validation.md`
+
+**Process Gaps Identified:**
+
+- No pre-merge security scanning for workflow files
+- Bash parsing bypassed existing PowerShell hardening
+- Needed: CI gate to detect bash in workflows with env variable interpolation
+
+**Skills to Extract:** (Retrospective pending)
+
+- Always use PowerShell over bash in GitHub Actions when handling AI output
+- Defense-in-depth: validate at both parse point and execution point
+- AI Quality Gate as effective security backstop
 
 ### Key Learnings from Session 40 (PR #162)
 

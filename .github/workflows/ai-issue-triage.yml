@@ -1,7 +1,9 @@
 name: AI Issue Triage
 
 # AI-powered issue categorization and labeling using GitHub Copilot CLI
+
 # Invokes analyst and roadmap agents to classify issues
+
 # Applies labels and assigns milestones automatically
 
 on:
@@ -48,25 +50,44 @@ jobs:
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
+      # SEC-FIX: Replaced bash parsing with PowerShell to prevent CWE-20/CWE-78 (Issue #211)
       - name: Parse Categorization Results
         id: parse-categorize
+        shell: pwsh
         env:
           RAW_OUTPUT: ${{ steps.categorize.outputs.findings }}
+          FALLBACK_LABELS: ${{ steps.categorize.outputs.labels }}
         run: |
+          Import-Module .github/scripts/AIReviewCommon.psm1
+
           # Save output for debugging
-          echo "$RAW_OUTPUT" > /tmp/categorize-output.txt
+          $env:RAW_OUTPUT | Set-Content /tmp/categorize-output.txt -Encoding UTF8
 
-          # Parse labels from output (handles JSON or plain text)
-          LABELS=$(echo "$RAW_OUTPUT" | grep -oP '"labels"\s*:\s*\[\K[^\]]+' | tr -d '"' | tr ',' '\n' | xargs || echo "")
-          CATEGORY=$(echo "$RAW_OUTPUT" | grep -oP '"category"\s*:\s*"\K[^"]+' || echo "unknown")
+          # Parse with hardened function (rejects shell metacharacters)
+          $labels = Get-LabelsFromAIOutput -Output $env:RAW_OUTPUT
 
-          # Also check for LABEL: format from composite action
-          if [ -z "$LABELS" ]; then
-            LABELS="${{ steps.categorize.outputs.labels }}"
-          fi
+          # Fallback to composite action output if needed
+          if ($labels.Count -eq 0 -and $env:FALLBACK_LABELS) {
+              $fallbackLabels = $env:FALLBACK_LABELS -split ',' | ForEach-Object { $_.Trim() }
+              # Validate fallback labels with same regex
+              $labels = $fallbackLabels | Where-Object {
+                  $_ -match '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$'
+              }
+          }
 
-          echo "labels=$LABELS" >> $GITHUB_OUTPUT
-          echo "category=$CATEGORY" >> $GITHUB_OUTPUT
+          # Parse category with validation (alphanumeric, underscore, hyphen only)
+          $category = 'unknown'
+          if ($env:RAW_OUTPUT -match '"category"\s*:\s*"([a-zA-Z0-9_-]+)"') {
+              $category = $Matches[1]
+          }
+
+          # Output as JSON array for safe consumption
+          $labelsJson = $labels | ConvertTo-Json -Compress
+          if ($labels.Count -eq 0) { $labelsJson = '[]' }
+          if ($labels.Count -eq 1) { $labelsJson = "[$labelsJson]" }
+
+          "labels=$labelsJson" >> $env:GITHUB_OUTPUT
+          "category=$category" >> $env:GITHUB_OUTPUT
 
       - name: 🗺️ Align to Roadmap (Roadmap Agent)
         id: align
@@ -80,112 +101,177 @@ jobs:
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
+      # SEC-FIX: Replaced bash parsing with PowerShell to prevent CWE-20/CWE-78 (Issue #211)
       - name: Parse Roadmap Results
         id: parse-align
+        shell: pwsh
         env:
           RAW_OUTPUT: ${{ steps.align.outputs.findings }}
           MILESTONE_FROM_ACTION: ${{ steps.align.outputs.milestone }}
         run: |
+          Import-Module .github/scripts/AIReviewCommon.psm1
+
           # Save output for debugging
-          echo "$RAW_OUTPUT" > /tmp/align-output.txt
+          $env:RAW_OUTPUT | Set-Content /tmp/align-output.txt -Encoding UTF8
 
-          # Parse milestone (from composite action output or raw parsing)
-          MILESTONE="$MILESTONE_FROM_ACTION"
-          if [ -z "$MILESTONE" ]; then
-            MILESTONE=$(echo "$RAW_OUTPUT" | grep -oP '"milestone"\s*:\s*"\K[^"]+' || echo "")
-          fi
+          # Parse milestone with hardened function
+          $milestone = Get-MilestoneFromAIOutput -Output $env:RAW_OUTPUT
+          if (-not $milestone -and $env:MILESTONE_FROM_ACTION) {
+              # Validate fallback milestone with same regex
+              if ($env:MILESTONE_FROM_ACTION -match '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$') {
+                  $milestone = $env:MILESTONE_FROM_ACTION
+              }
+          }
 
-          # Parse priority
-          PRIORITY=$(echo "$RAW_OUTPUT" | grep -oP '"priority"\s*:\s*"\K[^"]+' || echo "P2")
+          # Parse priority with strict validation (P0-P4 only)
+          $priority = 'P2'
+          if ($env:RAW_OUTPUT -match '"priority"\s*:\s*"(P[0-4])"') {
+              $priority = $Matches[1]
+          }
 
-          # Parse escalation fields (new fields from updated prompt)
-          ESCALATE_TO_PRD=$(echo "$RAW_OUTPUT" | grep -oP '"escalate_to_prd"\s*:\s*\K(true|false)' || echo "false")
-          COMPLEXITY_SCORE=$(echo "$RAW_OUTPUT" | grep -oP '"complexity_score"\s*:\s*\K[0-9]+' || echo "0")
-          ESCALATION_CRITERIA=$(echo "$RAW_OUTPUT" | grep -oP '"escalation_criteria"\s*:\s*\[\K[^\]]+' | tr -d '"' || echo "")
+          # Parse escalation fields with validation
+          $escalateToPrd = 'false'
+          if ($env:RAW_OUTPUT -match '"escalate_to_prd"\s*:\s*(true|false)') {
+              $escalateToPrd = $Matches[1]
+          }
 
-          echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
-          echo "priority=$PRIORITY" >> $GITHUB_OUTPUT
-          echo "escalate_to_prd=$ESCALATE_TO_PRD" >> $GITHUB_OUTPUT
-          echo "complexity_score=$COMPLEXITY_SCORE" >> $GITHUB_OUTPUT
-          echo "escalation_criteria=$ESCALATION_CRITERIA" >> $GITHUB_OUTPUT
+          $complexityScore = 0
+          if ($env:RAW_OUTPUT -match '"complexity_score"\s*:\s*(\d{1,2})') {
+              $complexityScore = [int]$Matches[1]
+              if ($complexityScore -gt 12) { $complexityScore = 12 }
+          }
 
+          # Parse escalation criteria with hardened regex (reject shell metacharacters)
+          $escalationCriteria = ''
+          if ($env:RAW_OUTPUT -match '"escalation_criteria"\s*:\s*\[([^\]]*)\]') {
+              $criteria = $Matches[1] -split ',' | ForEach-Object {
+                  $_.Trim().Trim('"').Trim("'")
+              } | Where-Object {
+                  $_ -match '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$'
+              }
+              $escalationCriteria = $criteria -join ','
+          }
+
+          "milestone=$milestone" >> $env:GITHUB_OUTPUT
+          "priority=$priority" >> $env:GITHUB_OUTPUT
+          "escalate_to_prd=$escalateToPrd" >> $env:GITHUB_OUTPUT
+          "complexity_score=$complexityScore" >> $env:GITHUB_OUTPUT
+          "escalation_criteria=$escalationCriteria" >> $env:GITHUB_OUTPUT
+
+      # SEC-FIX: Replaced bash iteration with PowerShell to prevent CWE-78 (Issue #211)
       - name: Apply Labels
+        shell: pwsh
         env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          LABELS: ${{ steps.parse-categorize.outputs.labels }}
+          LABELS_JSON: ${{ steps.parse-categorize.outputs.labels }}
           PRIORITY: ${{ steps.parse-align.outputs.priority }}
         run: |
-          FAILED_LABELS=()
-          FAILED_CREATES=()
+          $failedLabels = @()
+          $failedCreates = @()
 
-          # Apply category labels
-          if [ -n "$LABELS" ]; then
-            for label in $LABELS; do
-              # Check if label exists, create if not
-              if ! gh label list --search "$label" --json name -q '.[].name' | grep -q "^${label}$"; then
-                echo "Creating label: $label"
-                if ! gh label create "$label" --description "Auto-created by AI triage" 2>&1; then
-                  echo "::warning::Failed to create label: $label"
-                  FAILED_CREATES+=("$label")
-                fi
-              fi
-              echo "Adding label: $label"
-              if ! gh issue edit "$ISSUE_NUMBER" --add-label "$label" 2>&1; then
-                echo "::warning::Failed to add label '$label' to issue #$ISSUE_NUMBER"
-                FAILED_LABELS+=("$label")
-              fi
-            done
-          fi
+          # Parse labels from JSON array (already validated by Parse Categorization Results)
+          $labels = @()
+          if ($env:LABELS_JSON -and $env:LABELS_JSON -ne '[]') {
+              try {
+                  $labels = $env:LABELS_JSON | ConvertFrom-Json
+              } catch {
+                  Write-Warning "Failed to parse labels JSON: $_"
+              }
+          }
 
-          # Apply priority label
-          if [ -n "$PRIORITY" ]; then
-            PRIORITY_LABEL="priority:$PRIORITY"
-            if ! gh label list --search "$PRIORITY_LABEL" --json name -q '.[].name' | grep -q "^${PRIORITY_LABEL}$"; then
-              echo "Creating label: $PRIORITY_LABEL"
-              if ! gh label create "$PRIORITY_LABEL" --description "Priority level" --color "FFA500" 2>&1; then
-                echo "::warning::Failed to create priority label: $PRIORITY_LABEL"
-                FAILED_CREATES+=("$PRIORITY_LABEL")
-              fi
-            fi
-            echo "Adding priority label: $PRIORITY_LABEL"
-            if ! gh issue edit "$ISSUE_NUMBER" --add-label "$PRIORITY_LABEL" 2>&1; then
-              echo "::warning::Failed to add priority label '$PRIORITY_LABEL' to issue #$ISSUE_NUMBER"
-              FAILED_LABELS+=("$PRIORITY_LABEL")
-            fi
-          fi
+          # Apply category labels with proper quoting
+          foreach ($label in $labels) {
+              # Defense in depth: validate label one more time
+              if ($label -notmatch '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$') {
+                  Write-Warning "Skipping invalid label: $label"
+                  continue
+              }
 
-          # Report summary of failures (but don't fail the workflow)
-          if [ ${#FAILED_LABELS[@]} -gt 0 ] || [ ${#FAILED_CREATES[@]} -gt 0 ]; then
-            echo ""
-            echo "=== LABEL OPERATIONS SUMMARY ==="
-            if [ ${#FAILED_CREATES[@]} -gt 0 ]; then
-              echo "Failed to create labels: ${FAILED_CREATES[*]}"
-            fi
-            if [ ${#FAILED_LABELS[@]} -gt 0 ]; then
-              echo "Failed to apply labels: ${FAILED_LABELS[*]}"
-            fi
-            echo "==============================="
-          fi
+              # Check if label exists
+              $existing = gh label list --search $label --json name -q '.[].name' 2>$null
+              if ($existing -notcontains $label) {
+                  Write-Host "Creating label: $label"
+                  $result = gh label create $label --description "Auto-created by AI triage" 2>&1
+                  if ($LASTEXITCODE -ne 0) {
+                      Write-Warning "Failed to create label: $label"
+                      $failedCreates += $label
+                  }
+              }
 
+              Write-Host "Adding label: $label"
+              $result = gh issue edit $env:ISSUE_NUMBER --add-label $label 2>&1
+              if ($LASTEXITCODE -ne 0) {
+                  Write-Warning "Failed to add label '$label' to issue #$($env:ISSUE_NUMBER)"
+                  $failedLabels += $label
+              }
+          }
+
+          # Apply priority label with validation
+          if ($env:PRIORITY -match '^P[0-4]$') {
+              $priorityLabel = "priority:$($env:PRIORITY)"
+
+              $existing = gh label list --search $priorityLabel --json name -q '.[].name' 2>$null
+              if ($existing -notcontains $priorityLabel) {
+                  Write-Host "Creating label: $priorityLabel"
+                  $result = gh label create $priorityLabel --description "Priority level" --color "FFA500" 2>&1
+                  if ($LASTEXITCODE -ne 0) {
+                      Write-Warning "Failed to create priority label: $priorityLabel"
+                      $failedCreates += $priorityLabel
+                  }
+              }
+
+              Write-Host "Adding priority label: $priorityLabel"
+              $result = gh issue edit $env:ISSUE_NUMBER --add-label $priorityLabel 2>&1
+              if ($LASTEXITCODE -ne 0) {
+                  Write-Warning "Failed to add priority label '$priorityLabel'"
+                  $failedLabels += $priorityLabel
+              }
+          }
+
+          # Report summary
+          if ($failedLabels.Count -gt 0 -or $failedCreates.Count -gt 0) {
+              Write-Host ""
+              Write-Host "=== LABEL OPERATIONS SUMMARY ==="
+              if ($failedCreates.Count -gt 0) {
+                  Write-Host "Failed to create labels: $($failedCreates -join ', ')"
+              }
+              if ($failedLabels.Count -gt 0) {
+                  Write-Host "Failed to apply labels: $($failedLabels -join ', ')"
+              }
+              Write-Host "==============================="
+          }
+
+      # SEC-FIX: Replaced bash with PowerShell to prevent CWE-78 (Issue #211)
       - name: Assign Milestone
+        shell: pwsh
         env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           MILESTONE: ${{ steps.parse-align.outputs.milestone }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          if [ -n "$MILESTONE" ] && [ "$MILESTONE" != "null" ]; then
-            # Check if milestone exists
-            if gh api "repos/$GITHUB_REPOSITORY/milestones" --jq '.[].title' | grep -q "^${MILESTONE}$"; then
-              echo "Assigning milestone: $MILESTONE"
-              if ! gh issue edit "$ISSUE_NUMBER" --milestone "$MILESTONE" 2>&1; then
-                echo "::warning::Failed to assign milestone '$MILESTONE' to issue #$ISSUE_NUMBER"
-              fi
-            else
-              echo "::notice::Milestone not found: $MILESTONE (skipping assignment)"
-            fi
-          else
-            echo "No milestone to assign"
-          fi
+          if ($env:MILESTONE -and $env:MILESTONE -ne 'null') {
+              # Defense in depth: validate milestone format (already validated in parse step)
+              if ($env:MILESTONE -notmatch '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$') {
+                  Write-Warning "Invalid milestone format: $($env:MILESTONE)"
+                  exit 0
+              }
+
+              # Check if milestone exists
+              $milestones = gh api "repos/$($env:GITHUB_REPOSITORY)/milestones" --jq '.[].title' 2>$null
+              if ($milestones -contains $env:MILESTONE) {
+                  Write-Host "Assigning milestone: $($env:MILESTONE)"
+                  $result = gh issue edit $env:ISSUE_NUMBER --milestone $env:MILESTONE 2>&1
+                  if ($LASTEXITCODE -ne 0) {
+                      Write-Warning "Failed to assign milestone '$($env:MILESTONE)' to issue #$($env:ISSUE_NUMBER)"
+                  }
+              } else {
+                  Write-Host "::notice::Milestone not found: $($env:MILESTONE) (skipping assignment)"
+              }
+          } else {
+              Write-Host "No milestone to assign"
+          }
 
       - name: 📝 Generate PRD (Escalated Issues)
         id: generate-prd
