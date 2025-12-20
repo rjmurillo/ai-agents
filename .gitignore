@@ -10,5 +10,15 @@
 # Build artifacts
 artifacts/
 
-# Agent PR scratch files
+# Agent working files (scratch, temp, PR comments)
 .agents/pr-comments/
+.agents/scratch/
+.agents/temp/
+
+# IDE settings
+.idea/
+*.DotSettings.user
+
+# Temporary files
+*.tmp
+*.temp
