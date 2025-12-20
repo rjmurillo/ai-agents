@@ -29,5 +29,4 @@ updates:
     # Add commit message prefix for conventional commits
     commit-message:
       prefix: "chore"
-      prefix-development: "chore"
       include: "scope"
