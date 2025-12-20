@@ -680,7 +680,48 @@ gh pr list -L 100
 gh api --paginate repos/{owner}/{repo}/issues
 ```
 
-### Anti-Pattern-GH-005: Direct Token Storage
+### Anti-Pattern-GH-005: Using gh pr view for Review Threads
+
+**Problem**: `gh pr view --json reviewThreads` fails with "Unknown JSON field".
+
+**Cause**: The `gh pr view` command does not support the `reviewThreads` field, even though it's part of the GitHub API.
+
+**Solution**: Use GraphQL API for review thread operations:
+
+```bash
+# Query review threads (only way to get them)
+gh api graphql -f query='
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) {
+        nodes {
+          id
+          isResolved
+          path
+          comments(first: 3) { nodes { id body author { login } } }
+        }
+      }
+    }
+  }
+}' -f owner=OWNER -f repo=REPO -F number=PR_NUMBER
+
+# Reply to thread (GraphQL only)
+gh api graphql -f query='mutation($id: ID!, $body: String!) {
+  addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $id, body: $body}) {
+    comment { id }
+  }
+}' -f id="PRRT_xxx" -f body="Reply"
+
+# Resolve thread (GraphQL only - no REST equivalent)
+gh api graphql -f query='mutation($id: ID!) {
+  resolveReviewThread(input: {threadId: $id}) { thread { isResolved } }
+}' -f id="PRRT_xxx"
+```
+
+**Note**: See `skills-pr-review` for the complete PR review workflow.
+
+### Anti-Pattern-GH-006: Direct Token Storage
 
 **Problem**: Storing PATs in plain text (.env, .Renviron, scripts).
 
