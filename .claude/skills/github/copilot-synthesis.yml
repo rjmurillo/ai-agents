@@ -11,6 +11,8 @@ trusted_sources:
     - rjmurillo-bot
   ai_agents:
     - coderabbitai
+    - Copilot
+    - cursor[bot]
     - github-actions
 
 extraction_patterns:
