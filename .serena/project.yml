@@ -33,7 +33,11 @@ ignore_all_files_in_gitignore: true
 # same syntax as gitignore, so you can use * and **
 # Was previously called `ignored_dirs`, please update your config if you are using that.
 # Added (renamed) on 2025-04-07
-ignored_paths: []
+# Ignore scratch/temp directories to reduce indexing overhead
+ignored_paths:
+  - ".agents/scratch/**"
+  - ".agents/temp/**"
+  - "**/*.log"
 
 # whether the project is in read-only mode
 # If set to true, all editing tools will be disabled and attempts to use them will result in an error
@@ -83,7 +87,14 @@ excluded_tools: []
 
 # initial prompt for the project. It will always be given to the LLM upon activating the project
 # (contrary to the memories, which are loaded on demand).
-initial_prompt: ""
+# Cost efficiency reminder - loaded on every activation
+initial_prompt: |
+  RFC 2119 COST EFFICIENCY REQUIREMENTS:
+  - You MUST use symbolic tools (get_symbols_overview, find_symbol) before reading files
+  - You MUST read relevant memories FIRST to enable LLM prompt caching (90% savings)
+  - You SHOULD use relative_path parameter to restrict search scope
+  - You SHOULD use max_answer_chars parameter for large codebases
+  Reference: skill-serena-index, skill-cost-summary-reference
 
 project_name: "ai-agents"
 included_optional_tools: []
