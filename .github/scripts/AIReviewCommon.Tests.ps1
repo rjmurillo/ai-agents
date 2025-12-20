@@ -421,6 +421,10 @@ Summary complete.
             Get-VerdictExitCode -Verdict 'REJECTED' | Should -Be 1
         }
 
+        It "Should return 1 for FAIL" {
+            Get-VerdictExitCode -Verdict 'FAIL' | Should -Be 1
+        }
+
         It "Should return 0 for unknown verdict" {
             Get-VerdictExitCode -Verdict 'UNKNOWN' | Should -Be 0
         }
