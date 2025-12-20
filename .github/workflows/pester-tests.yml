@@ -1,7 +1,17 @@
-# Pester Tests for PowerShell Install Scripts
+# Pester Tests for PowerShell Scripts
 #
-# Runs Pester unit tests for the ai-agents installation scripts.
-# Triggered on push/PR changes to the scripts/, build/, or .github/scripts/ directories.
+# Runs Pester unit tests for all PowerShell scripts in the repository.
+# Uses dorste/paths-filter to determine if tests should run or be skipped.
+#
+# IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
+# but skips actual test execution when no testable files are changed.
+#
+# Testable paths:
+# - Installation scripts (scripts/)
+# - Build automation (build/)
+# - GitHub Actions helpers (.github/scripts/)
+# - Claude skills (.claude/skills/)
+# - Root-level tests (tests/)
 #
 # Local developers and AI agents can run the same tests using:
 #   pwsh ./build/scripts/Invoke-PesterTests.ps1
@@ -14,24 +24,41 @@ on:
       - main
       - 'feat/**'
       - 'fix/**'
-    paths:
-      - 'scripts/**'
-      - 'build/scripts/**'
-      - '.github/scripts/**'
-      - '.github/workflows/pester-tests.yml'
   pull_request:
     branches:
       - main
-    paths:
-      - 'scripts/**'
-      - 'build/scripts/**'
-      - '.github/scripts/**'
-      - '.github/workflows/pester-tests.yml'
   workflow_dispatch: # Allow manual triggering
 
 jobs:
+  check-paths:
+    name: Check Changed Paths
+    runs-on: ubuntu-latest
+    outputs:
+      should-run-tests: ${{ steps.filter.outputs.testable }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for testable file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            testable:
+              - 'scripts/**'
+              - 'build/**'
+              - '.github/scripts/**'
+              - '.github/workflows/pester-tests.yml'
+              - '.claude/skills/**'
+              - 'tests/**'
+
+      - name: Report path check result
+        run: |
+          echo "Testable files changed: ${{ steps.filter.outputs.testable }}"
+
   test:
     name: Run Pester Tests
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run-tests == 'true'
     runs-on: windows-latest
     permissions:
       contents: read
@@ -61,3 +88,42 @@ jobs:
           path: ./artifacts/pester-results.xml
           reporter: java-junit
           fail-on-error: true
+
+  skip-tests:
+    name: Run Pester Tests
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run-tests != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+    steps:
+      - name: Skip tests (no testable files changed)
+        run: |
+          echo "✅ No testable PowerShell files changed - skipping Pester tests"
+          echo ""
+          echo "Testable paths that would trigger tests:"
+          echo "  - scripts/**"
+          echo "  - build/**"
+          echo "  - .github/scripts/**"
+          echo "  - .claude/skills/**"
+          echo "  - tests/**"
+
+      - name: Create empty test result for required check
+        run: |
+          mkdir -p ./artifacts
+          cat > ./artifacts/pester-results.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <testsuites tests="0" failures="0" errors="0" time="0">
+            <testsuite name="Pester Tests (Skipped)" tests="0" failures="0" errors="0" time="0">
+              <!-- No testable files changed - tests skipped -->
+            </testsuite>
+          </testsuites>
+          EOF
+
+      - name: Publish Test Report (skipped)
+        uses: dorny/test-reporter@v1
+        with:
+          name: Pester Test Report
+          path: ./artifacts/pester-results.xml
+          reporter: java-junit
+          fail-on-error: false
