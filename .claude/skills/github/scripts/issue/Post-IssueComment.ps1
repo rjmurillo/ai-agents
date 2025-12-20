@@ -64,8 +64,7 @@ if ($Marker) {
 
     if ($LASTEXITCODE -eq 0 -and $existingComments -match [regex]::Escape($markerHtml)) {
         Write-Host "Comment with marker '$Marker' already exists. Skipping." -ForegroundColor Yellow
-        $output = [PSCustomObject]@{ Success = $true; Issue = $Issue; Marker = $Marker; Skipped = $true }
-        Write-Output $output
+        Write-Host "Success: True, Issue: $Issue, Marker: $Marker, Skipped: True"
         exit 0  # Idempotent skip is a success
     }
 
