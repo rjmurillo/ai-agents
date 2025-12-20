@@ -71,8 +71,8 @@ function Get-SynthesisConfig {
     # Default configuration (used if config file not found)
     $defaultConfig = @{
         trusted_sources = @{
-            maintainers = @("rjmurillo", "rjmurillo-bot")
-            ai_agents   = @("coderabbitai", "Copilot", "cursor[bot]", "github-actions")
+            maintainers = @("rjmurillo")
+            ai_agents   = @("rjmurillo-bot", "coderabbitai", "Copilot", "cursor[bot]", "github-actions")
         }
         extraction_patterns = @{
             coderabbit = @{

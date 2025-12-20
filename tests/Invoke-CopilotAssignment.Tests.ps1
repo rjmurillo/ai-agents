@@ -715,11 +715,11 @@ Describe "Get-SynthesisConfig YAML Parsing" {
         It "Extracts maintainers list" {
             $result = Get-SynthesisConfig -ConfigPath $configPath
             $result.trusted_sources.maintainers | Should -Contain "rjmurillo"
-            $result.trusted_sources.maintainers | Should -Contain "rjmurillo-bot"
         }
 
         It "Extracts ai_agents list" {
             $result = Get-SynthesisConfig -ConfigPath $configPath
+            $result.trusted_sources.ai_agents | Should -Contain "rjmurillo-bot"
             $result.trusted_sources.ai_agents | Should -Contain "coderabbitai"
             $result.trusted_sources.ai_agents | Should -Contain "github-actions"
         }

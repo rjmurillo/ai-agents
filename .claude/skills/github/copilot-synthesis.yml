@@ -81,7 +81,6 @@ trusted_sources:
   #
   maintainers:
     - rjmurillo
-    - rjmurillo-bot
 
   # ---------------------------------------------------------------------------
   # AI AGENTS
@@ -119,6 +118,7 @@ trusted_sources:
   # 3. Optionally add extraction_patterns if the agent has structured output
   #
   ai_agents:
+    - rjmurillo-bot
     - coderabbitai
     - Copilot
     - cursor[bot]
