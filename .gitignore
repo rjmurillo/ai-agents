@@ -10,5 +10,8 @@
 # Build artifacts
 artifacts/
 
-# Agent PR scratch files
+# Agent temporary files (cleaned after workflow completion)
+.agents/temp/
+
+# Agent PR scratch files (persistent during PR review)
 .agents/pr-comments/
