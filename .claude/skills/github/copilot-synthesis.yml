@@ -1,29 +1,272 @@
+# =============================================================================
 # Copilot Context Synthesis Configuration
+# =============================================================================
 #
-# Defines trusted sources and extraction patterns for context synthesis
-# when assigning issues to GitHub Copilot.
+# This configuration file controls how the Invoke-CopilotAssignment.ps1 script
+# synthesizes context from issue comments before assigning GitHub Copilot to
+# work on an issue.
 #
-# See: https://github.com/rjmurillo/ai-agents/issues/92
+# PURPOSE
+# -------
+# When assigning Copilot to an issue, raw issue comments can be noisy and
+# unstructured. This system:
+#   1. Filters comments to trusted sources only (maintainers, known AI agents)
+#   2. Extracts structured information (implementation plans, related issues)
+#   3. Generates a synthesis comment that gives Copilot clear, actionable context
+#   4. Assigns the copilot-swe-agent to the issue
+#
+# The synthesis comment is idempotent - if one already exists (detected by
+# marker), it updates rather than duplicates.
+#
+# USAGE
+# -----
+# This file is consumed by:
+#   .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1
+#
+# Example invocation:
+#   pwsh .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123
+#   pwsh .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
+#
+# The script automatically locates this config at:
+#   <repo-root>/.claude/skills/github/copilot-synthesis.yml
+#
+# Or specify explicitly:
+#   -ConfigPath "/path/to/custom-config.yml"
+#
+# RELATED
+# -------
+# - Issue: https://github.com/rjmurillo/ai-agents/issues/92
+# - Script: .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1
+# - Module: .claude/skills/github/modules/GitHubHelpers.psm1
+#
+# =============================================================================
 
+# -----------------------------------------------------------------------------
+# TRUSTED SOURCES
+# -----------------------------------------------------------------------------
+# Comments from these users are included in the synthesis. All other comments
+# are filtered out to reduce noise and ensure Copilot receives high-quality
+# context from authoritative sources.
+#
+# WHY FILTER?
+# - Issue threads can contain dozens of comments
+# - Many comments are conversational, not actionable
+# - Trusted sources provide structured, relevant information
+# - Reduces token usage and improves Copilot's focus
+#
+# HOW IT WORKS:
+# The script calls Get-TrustedSourceComments (from GitHubHelpers.psm1) which
+# filters issue comments to only those where comment.user.login matches an
+# entry in either maintainers or ai_agents lists.
+#
 trusted_sources:
+
+  # ---------------------------------------------------------------------------
+  # MAINTAINERS
+  # ---------------------------------------------------------------------------
+  # Human users with authority to provide guidance on issues.
+  # Their comments are extracted for "Maintainer Guidance" section.
+  #
+  # What gets extracted from maintainer comments:
+  #   - Bullet points (- item or * item)
+  #   - Numbered lists (1. item, 2. item)
+  #   - Key decisions and direction
+  #
+  # Items that are SKIPPED:
+  #   - Checkbox items (- [ ] task) - these are task lists, not guidance
+  #   - Very short items (< 10 chars) - likely not meaningful
+  #
+  # TO ADD A MAINTAINER:
+  # Add their exact GitHub login (case-sensitive) to this list.
+  #
   maintainers:
     - rjmurillo
     - rjmurillo-bot
+
+  # ---------------------------------------------------------------------------
+  # AI AGENTS
+  # ---------------------------------------------------------------------------
+  # Bot accounts that provide structured analysis on issues.
+  # Their comments are parsed for specific patterns (see extraction_patterns).
+  #
+  # KNOWN AI AGENTS AND THEIR CONTRIBUTIONS:
+  #
+  # coderabbitai
+  #   - Provides implementation plans (## Implementation section)
+  #   - Links to similar issues (🔗 Similar Issues)
+  #   - Links to related PRs (🔗 Related PRs)
+  #   - High signal-to-noise ratio for technical context
+  #
+  # Copilot
+  #   - GitHub Copilot's own comments when it responds to @copilot mentions
+  #   - May contain clarifying questions or status updates
+  #   - Login is "Copilot" (not "copilot" - case matters)
+  #
+  # cursor[bot]
+  #   - Cursor's Bugbot code reviewer
+  #   - Exceptionally high actionability (100% in our metrics)
+  #   - Identifies real bugs with specific line references
+  #   - Comments include severity badges and fix suggestions
+  #
+  # github-actions
+  #   - GitHub Actions bot comments
+  #   - May include AI triage results (priority, category)
+  #   - Workflow status updates
+  #
+  # TO ADD AN AI AGENT:
+  # 1. Find the exact login name from GitHub API or comment author
+  # 2. Add to this list (case-sensitive, include [bot] suffix if present)
+  # 3. Optionally add extraction_patterns if the agent has structured output
+  #
   ai_agents:
     - coderabbitai
     - Copilot
     - cursor[bot]
     - github-actions
 
+# -----------------------------------------------------------------------------
+# EXTRACTION PATTERNS
+# -----------------------------------------------------------------------------
+# Defines how to parse structured content from AI agent comments.
+# Each agent may have its own output format; patterns help extract key info.
+#
+# HOW PATTERNS ARE USED:
+# The Get-CodeRabbitPlan and Get-AITriageInfo functions in the script use
+# these patterns to locate and extract specific sections from comments.
+#
 extraction_patterns:
+
+  # ---------------------------------------------------------------------------
+  # CODERABBIT PATTERNS
+  # ---------------------------------------------------------------------------
+  # CodeRabbit (coderabbitai) posts structured analysis comments with:
+  #   - Implementation plans
+  #   - Links to similar issues
+  #   - Links to related PRs
+  #
+  # The script searches for these exact header strings in CodeRabbit comments
+  # and extracts the content that follows.
+  #
+  # PATTERN FORMAT:
+  # These are literal strings (not regex) that mark the start of a section.
+  # Content is extracted from the pattern until the next heading or EOF.
+  #
   coderabbit:
+    # Header that precedes implementation plan details
+    # Example in comment:
+    #   ## Implementation
+    #   1. Create new endpoint in /api/users
+    #   2. Add validation for email field
+    #   3. Update tests
     implementation_plan: "## Implementation"
+
+    # Header for similar issues section (uses link emoji)
+    # Example in comment:
+    #   🔗 Similar Issues
+    #   - #45: User authentication refactor
+    #   - #67: API endpoint restructuring
     related_issues: "🔗 Similar Issues"
+
+    # Header for related PRs section (uses link emoji)
+    # Example in comment:
+    #   🔗 Related PRs
+    #   - #89: Added user validation
+    #   - #92: API endpoint updates
     related_prs: "🔗 Related PRs"
+
+  # ---------------------------------------------------------------------------
+  # AI TRIAGE PATTERNS
+  # ---------------------------------------------------------------------------
+  # AI-powered issue triage (via GitHub Actions workflow) adds structured
+  # metadata to issues. These patterns locate that information.
+  #
+  # The triage comment is identified by its HTML marker, then priority and
+  # category are extracted from labeled lines.
+  #
   ai_triage:
+    # HTML comment marker that identifies a triage comment
+    # This ensures we parse the right comment (not random mentions of "Priority")
+    # The marker is invisible when rendered but detectable via API
     marker: "<!-- AI-ISSUE-TRIAGE -->"
+
+    # Label prefix for priority line
+    # Example: "Priority: High" or "Priority: P1"
     priority: "Priority"
+
+    # Label prefix for category line
+    # Example: "Category: Bug" or "Category: Enhancement"
     category: "Category"
 
+# -----------------------------------------------------------------------------
+# SYNTHESIS OUTPUT
+# -----------------------------------------------------------------------------
+# Controls the format of the generated synthesis comment.
+#
 synthesis:
+
+  # ---------------------------------------------------------------------------
+  # SYNTHESIS MARKER
+  # ---------------------------------------------------------------------------
+  # HTML comment that identifies a synthesis comment for idempotency.
+  #
+  # PURPOSE:
+  # When Invoke-CopilotAssignment runs, it first searches existing issue
+  # comments for this marker. If found, it UPDATES that comment instead of
+  # creating a duplicate. This prevents comment spam on repeated runs.
+  #
+  # HOW IT WORKS:
+  # 1. Script calls Find-ExistingSynthesis to search for marker
+  # 2. If found: Update-IssueComment modifies existing comment
+  # 3. If not found: New-IssueComment creates new comment
+  #
+  # The marker is placed at the very beginning of the synthesis comment,
+  # invisible when rendered but detectable via the GitHub API.
+  #
+  # GENERATED COMMENT STRUCTURE:
+  # <!-- COPILOT-CONTEXT-SYNTHESIS -->
+  # @copilot Please review the synthesized context below...
+  #
+  # ## Maintainer Guidance
+  # [Extracted bullet points from maintainer comments]
+  #
+  # ## AI Agent Recommendations
+  # [Implementation plans, related issues/PRs from AI agents]
+  #
+  # ---
+  # *Synthesized at 2025-12-20 12:00:00 UTC*
+  #
+  # IMPORTANT: Do not change this marker without updating:
+  # - Invoke-CopilotAssignment.ps1 (default config)
+  # - Any existing synthesis comments in issues (they won't be detected)
+  #
   marker: "<!-- COPILOT-CONTEXT-SYNTHESIS -->"
+
+# =============================================================================
+# EXTENDING THIS CONFIGURATION
+# =============================================================================
+#
+# ADDING A NEW MAINTAINER
+# -----------------------
+# 1. Add their GitHub login to trusted_sources.maintainers
+# 2. No code changes required
+#
+# ADDING A NEW AI AGENT
+# ---------------------
+# 1. Add their GitHub login to trusted_sources.ai_agents
+# 2. If they have structured output, add extraction_patterns
+# 3. Optionally update script to parse their specific format
+#
+# ADDING NEW EXTRACTION PATTERNS
+# ------------------------------
+# 1. Add new section under extraction_patterns
+# 2. Define patterns as key-value pairs
+# 3. Update Invoke-CopilotAssignment.ps1 to use new patterns
+# 4. Add tests in tests/Invoke-CopilotAssignment.Tests.ps1
+#
+# CHANGING THE SYNTHESIS FORMAT
+# -----------------------------
+# 1. Modify New-SynthesisComment function in script
+# 2. Update marker here if needed
+# 3. Test with -WhatIf to preview changes
+#
+# =============================================================================
