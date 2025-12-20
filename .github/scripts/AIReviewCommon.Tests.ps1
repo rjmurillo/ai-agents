@@ -319,6 +319,10 @@ Summary complete.
         It "Should return CRITICAL_FAIL for single CRITICAL_FAIL" {
             Merge-Verdicts -Verdicts @('CRITICAL_FAIL') | Should -Be 'CRITICAL_FAIL'
         }
+
+        It "Should return CRITICAL_FAIL if any FAIL present" {
+            Merge-Verdicts -Verdicts @('PASS', 'FAIL', 'WARN') | Should -Be 'CRITICAL_FAIL'
+        }
     }
 
     Context "Format-CollapsibleSection" {
@@ -419,6 +423,10 @@ Summary complete.
 
         It "Should return 1 for REJECTED" {
             Get-VerdictExitCode -Verdict 'REJECTED' | Should -Be 1
+        }
+
+        It "Should return 1 for FAIL" {
+            Get-VerdictExitCode -Verdict 'FAIL' | Should -Be 1
         }
 
         It "Should return 0 for unknown verdict" {
