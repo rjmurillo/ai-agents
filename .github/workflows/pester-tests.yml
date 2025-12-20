@@ -1,7 +1,7 @@
 # Pester Tests for PowerShell Scripts
 #
 # Runs Pester unit tests for all PowerShell scripts in the repository.
-# Uses dorste/paths-filter to determine if tests should run or be skipped.
+# Uses dorny/paths-filter to determine if tests should run or be skipped.
 #
 # IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
 # but skips actual test execution when no testable files are changed.
@@ -36,10 +36,10 @@ jobs:
     outputs:
       should-run-tests: ${{ steps.filter.outputs.testable }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Check for testable file changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
         id: filter
         with:
           filters: |
@@ -66,14 +66,14 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Run Pester Tests
         shell: pwsh
         run: ./build/scripts/Invoke-PesterTests.ps1 -CI
 
       - name: Upload Test Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4
         if: always()
         with:
           name: pester-test-results
@@ -81,7 +81,7 @@ jobs:
           retention-days: 30
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@6c357194179c694acfcad2100dbf27c5b9b0d5e0 # v1.9.1
         if: always()
         with:
           name: Pester Test Report
@@ -121,7 +121,7 @@ jobs:
           EOF
 
       - name: Publish Test Report (skipped)
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@6c357194179c694acfcad2100dbf27c5b9b0d5e0 # v1.9.1
         with:
           name: Pester Test Report
           path: ./artifacts/pester-results.xml
