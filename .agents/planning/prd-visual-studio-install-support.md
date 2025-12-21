@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-This PRD defines requirements for adding Visual Studio 2022/2026 support to the ai-agents installer. The **primary request** is for **user-level (global) installation** - a single installation that makes agents available across ALL Visual Studio workspaces without per-repository setup. Repository-level installation is a secondary nice-to-have.
+This PRD defines requirements for adding Visual Studio 2026 support to the ai-agents installer. The **primary request** is for **user-level (global) installation** - a single installation that makes agents available across ALL Visual Studio workspaces without per-repository setup. Repository-level installation is a secondary nice-to-have.
 
 Visual Studio 2022 17.14+ and Visual Studio 2026 support GitHub Copilot agent mode with custom `.agent.md` files at the repository level. However, **Microsoft's documentation does not specify a user-level (global) path** for custom agents in Visual Studio, unlike VS Code which has clear user profile support.
 
@@ -36,7 +36,7 @@ The ai-agents repository provides a multi-agent system for software development 
 | Claude Code | `~/.claude/agents/` | `.claude/agents/` | ✅ Supported |
 | GitHub Copilot CLI | `~/.copilot/agents/` | `.github/agents/` | ✅ Supported (global has known bug) |
 | VS Code / Copilot Chat | `%APPDATA%\Code\User\prompts\` | `.github/agents/` | ✅ Supported |
-| **Visual Studio 2022/2026** | ❓ Unknown | `.github/agents/` | ❌ **Not Supported** |
+| **Visual Studio 2026** | ❓ Unknown | `.github/agents/` | ❌ **Not Supported** |
 
 ### Gap Analysis
 
@@ -90,7 +90,7 @@ Visual Studio 2026 (and VS 2022 v17.14+) **fully supports** custom agents via:
 | `%USERPROFILE%\.github\agents\` | Low | Cross-IDE sharing |
 | Shared with VS Code (`%APPDATA%\Code\User\prompts\`) | Low | Same Copilot backend |
 
-**Related Configuration**: Visual Studio reads Model Context Protocol (MCP) server configs from `%USERPROFILE%\.mcp.json` globally, suggesting a similar pattern *may* exist for agents.
+**Related Configuration**: Visual Studio reads MCP (Model Context Protocol) server configs from `%USERPROFILE%\.mcp.json` globally, suggesting a similar pattern *may* exist for agents.
 
 #### Instructions File Support (CONFIRMED)
 
@@ -115,7 +115,7 @@ Implement repository-level installation for Visual Studio using the **same desti
 ```powershell
 # Config.psd1 addition
 VisualStudio = @{
-    DisplayName = "Visual Studio 2022/2026"
+    DisplayName = "Visual Studio 2026"
     SourceDir   = "src/vs-code-agents"  # Reuse VS Code agents
     FilePattern = "*.agent.md"
     Repo        = @{
@@ -175,7 +175,7 @@ function Find-VisualStudioAgentPath {
 
 | ID | Requirement | Acceptance Criteria |
 |----|-------------|---------------------|
-| FR-1.1 | Add "VisualStudio" environment to `install.ps1` | Interactive mode shows "Visual Studio 2022/2026" as option |
+| FR-1.1 | Add "VisualStudio" environment to `install.ps1` | Interactive mode shows "Visual Studio 2026" as option |
 | FR-1.2 | Deploy agents to `.github/agents/` | All `*.agent.md` files copied to destination |
 | FR-1.3 | Deploy instructions to `.github/` | `copilot-instructions.md` installed with content markers |
 | FR-1.4 | Create `.agents/` directory structure | Standard agent output directories created |
@@ -230,7 +230,7 @@ function Find-VisualStudioAgentPath {
 
 ```powershell
 VisualStudio = @{
-    DisplayName = "Visual Studio 2022/2026"
+    DisplayName = "Visual Studio 2026"
     SourceDir   = "src/vs-code-agents"
     FilePattern = "*.agent.md"
     Global      = @{
@@ -255,7 +255,7 @@ VisualStudio = @{
 [string]$Environment
 
 # Update interactive menu
-Write-Host "  4. Visual Studio 2022/2026"
+Write-Host "  4. Visual Studio 2026"
 ```
 
 ### Write-InstallComplete Changes
