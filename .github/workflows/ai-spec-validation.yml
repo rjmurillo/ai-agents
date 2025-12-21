@@ -1,7 +1,9 @@
 name: Spec-to-Implementation Validation
 
 # AI-powered requirements traceability using GitHub Copilot CLI
+
 # Verifies that PR changes implement requirements from linked specs
+
 # Warns if requirements are not covered by the implementation
 
 on:
@@ -14,7 +16,7 @@ on:
       - 'scripts/**'
       - 'build/**'
       - '.claude/skills/**'
-      
+
 permissions:
   contents: read
   pull-requests: write
@@ -34,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
 
@@ -75,7 +77,10 @@ jobs:
           fi
 
           # Check for linked issues (use grep -E for POSIX portability)
-          ISSUE_REFS=$(echo "$COMBINED" | grep -oE '(Closes|Fixes|Resolves|Implements)[[:space:]]*#[0-9]+' | grep -oE '[0-9]+' | sort -u | tr '\n' ' ' || true)
+          # Matches both simple (#123) and cross-repo (owner/repo#123) issue references
+          # Preserves full format for cross-repo refs (needed by gh issue view)
+          # Note: Requires space after keyword (GitHub standard format: "Fixes #123")
+          ISSUE_REFS=$(echo "$COMBINED" | grep -oE '(Closes|Fixes|Resolves|Implements)[[:space:]]+([[:alnum:]_-]+/[[:alnum:]_-]+)?#[0-9]+' | sed -E 's/^(Closes|Fixes|Resolves|Implements)[[:space:]]+//; s/^#//' | sort -u | tr '\n' ' ' || true)
 
           echo "spec_refs=$SPEC_REFS" >> $GITHUB_OUTPUT
           echo "issue_refs=$ISSUE_REFS" >> $GITHUB_OUTPUT
@@ -119,9 +124,21 @@ jobs:
 
           # Load from linked issues
           for issue in $ISSUE_REFS; do
-            ISSUE_BODY=$(gh issue view "$issue" --json title,body -q '.title + "\n\n" + .body' 2>/dev/null || true)
+            # Parse cross-repo format (owner/repo#123) vs simple format (123)
+            if [[ "$issue" == *"/"* ]]; then
+              # Cross-repo: extract owner/repo and issue number
+              REPO=$(echo "$issue" | sed -E 's|^([^#]+)#.*|\1|')
+              ISSUE_NUM=$(echo "$issue" | sed -E 's|^[^#]+#([0-9]+)|\1|')
+              ISSUE_BODY=$(gh issue view "$ISSUE_NUM" --repo "$REPO" --json title,body -q '.title + "\n\n" + .body' 2>/dev/null || true)
+              ISSUE_REF="$issue"  # Already has # in format
+            else
+              # Simple ref: use default repo
+              ISSUE_BODY=$(gh issue view "$issue" --json title,body -q '.title + "\n\n" + .body' 2>/dev/null || true)
+              ISSUE_REF="#$issue"  # Add # for display
+            fi
+
             if [ -n "$ISSUE_BODY" ]; then
-              SPEC_CONTENT="$SPEC_CONTENT"$'\n\n'"## Issue #$issue"$'\n\n'"$ISSUE_BODY"
+              SPEC_CONTENT="$SPEC_CONTENT"$'\n\n'"## Issue $ISSUE_REF"$'\n\n'"$ISSUE_BODY"
             fi
           done
 
@@ -223,6 +240,18 @@ jobs:
           | Reference requirements | ``Implements REQ-001`` |
           | Link issues | ``Closes #123`` |
           | Reference spec files | ``.agents/specs/requirements/...`` |
+
+          **Spec Requirement by PR Type:**
+
+          | PR Type | Required? |
+          |:--------|:----------|
+          | Feature (``feat:``) | ✅ Required |
+          | Bug fix (``fix:``) | Optional |
+          | Refactor (``refactor:``) | Optional |
+          | Documentation (``docs:``) | Not required |
+          | Infrastructure (``ci:``, ``build:``, ``chore:``) | Optional |
+
+          See PR template for full guidance.
 
           </details>
 

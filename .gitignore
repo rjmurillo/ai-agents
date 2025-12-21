@@ -18,3 +18,8 @@ artifacts/
 # IDE settings
 .idea/
 *.DotSettings.user
+
+# Git worktrees (isolated development branches)
+.work-*/
+worktree-*/
+worktree--/

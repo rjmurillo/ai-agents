@@ -442,6 +442,201 @@ function Get-ReactionEmoji {
 
 #endregion
 
+#region Issue Comment Functions
+
+function Get-IssueComments {
+    <#
+    .SYNOPSIS
+        Fetches all comments for a GitHub issue with pagination support.
+
+    .PARAMETER Owner
+        Repository owner.
+
+    .PARAMETER Repo
+        Repository name.
+
+    .PARAMETER IssueNumber
+        The issue number.
+
+    .OUTPUTS
+        Array of comment objects.
+    #>
+    [CmdletBinding()]
+    [OutputType([array])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [int]$IssueNumber
+    )
+
+    return Invoke-GhApiPaginated -Endpoint "repos/$Owner/$Repo/issues/$IssueNumber/comments"
+}
+
+function Update-IssueComment {
+    <#
+    .SYNOPSIS
+        Updates an existing GitHub issue comment.
+
+    .PARAMETER Owner
+        Repository owner.
+
+    .PARAMETER Repo
+        Repository name.
+
+    .PARAMETER CommentId
+        The comment ID to update.
+
+    .PARAMETER Body
+        The new comment body.
+
+    .OUTPUTS
+        Updated comment object.
+    #>
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [long]$CommentId,
+
+        [Parameter(Mandatory)]
+        [string]$Body
+    )
+
+    # Use JSON payload via --input to handle large/complex bodies correctly
+    $payload = @{ body = $Body } | ConvertTo-Json -Compress
+    $tempFile = New-TemporaryFile
+
+    try {
+        Set-Content -Path $tempFile.FullName -Value $payload -Encoding utf8
+
+        $result = gh api "repos/$Owner/$Repo/issues/comments/$CommentId" -X PATCH --input $tempFile.FullName 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-ErrorAndExit "Failed to update comment: $result" 3
+        }
+
+        return $result | ConvertFrom-Json
+    }
+    finally {
+        if (Test-Path -LiteralPath $tempFile.FullName) {
+            Remove-Item -LiteralPath $tempFile.FullName -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function New-IssueComment {
+    <#
+    .SYNOPSIS
+        Creates a new GitHub issue comment.
+
+    .PARAMETER Owner
+        Repository owner.
+
+    .PARAMETER Repo
+        Repository name.
+
+    .PARAMETER IssueNumber
+        The issue number.
+
+    .PARAMETER Body
+        The comment body.
+
+    .OUTPUTS
+        Created comment object.
+    #>
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [int]$IssueNumber,
+
+        [Parameter(Mandatory)]
+        [string]$Body
+    )
+
+    # Use JSON payload via --input to handle large/complex bodies correctly
+    $payload = @{ body = $Body } | ConvertTo-Json -Compress
+    $tempFile = New-TemporaryFile
+
+    try {
+        Set-Content -Path $tempFile.FullName -Value $payload -Encoding utf8
+
+        $result = gh api "repos/$Owner/$Repo/issues/$IssueNumber/comments" -X POST --input $tempFile.FullName 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-ErrorAndExit "Failed to post comment: $result" 3
+        }
+
+        return $result | ConvertFrom-Json
+    }
+    finally {
+        if (Test-Path -LiteralPath $tempFile.FullName) {
+            Remove-Item -LiteralPath $tempFile.FullName -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+#endregion
+
+#region Trusted Source Functions
+
+function Get-TrustedSourceComments {
+    <#
+    .SYNOPSIS
+        Filters comments to those from trusted sources.
+
+    .DESCRIPTION
+        Useful for extracting reliable information from maintainers and trusted AI agents.
+        See pr-comment-responder for usage context.
+
+    .PARAMETER Comments
+        Array of comment objects with user.login property.
+
+    .PARAMETER TrustedUsers
+        Array of trusted usernames to filter by.
+
+    .OUTPUTS
+        Filtered array of comments from trusted sources.
+    #>
+    [CmdletBinding()]
+    [OutputType([array])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [array]$Comments,
+
+        [Parameter(Mandatory)]
+        [string[]]$TrustedUsers
+    )
+
+    if ($Comments.Count -eq 0) {
+        return @()
+    }
+
+    return $Comments | Where-Object {
+        $TrustedUsers -contains $_.user.login
+    }
+}
+
+#endregion
+
 #region Exit Codes
 
 <#
@@ -472,6 +667,12 @@ Export-ModuleMember -Function @(
     'Write-ErrorAndExit'
     # API helpers
     'Invoke-GhApiPaginated'
+    # Issue comments
+    'Get-IssueComments'
+    'Update-IssueComment'
+    'New-IssueComment'
+    # Trusted sources
+    'Get-TrustedSourceComments'
     # Formatting
     'Get-PriorityEmoji'
     'Get-ReactionEmoji'

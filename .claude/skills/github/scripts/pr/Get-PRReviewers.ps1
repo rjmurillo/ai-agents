@@ -102,4 +102,4 @@ $output = [PSCustomObject]@{
 }
 
 Write-Output $output
-Write-Host "PR #$PullRequest: $($output.TotalReviewers) reviewers (Humans: $($output.HumanCount), Bots: $($output.BotCount))" -ForegroundColor Cyan
+Write-Host "PR #$($PullRequest): $($output.TotalReviewers) reviewers (Humans: $($output.HumanCount), Bots: $($output.BotCount))" -ForegroundColor Cyan
