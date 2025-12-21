@@ -43,7 +43,7 @@ Executed pr-comment-responder workflow for PR #199 in the rjmurillo/ai-agents re
 
 2. Enumerated all reviewers via `Get-PRReviewers.ps1`
    - Total reviewers: 1 (copilot-pull-request-reviewer)
-   - Humans: 1, Bots: 0
+   - Humans: 0, Bots: 1
 
 3. Retrieved all comments via `Get-PRReviewComments.ps1`
    - Total review comments: 0

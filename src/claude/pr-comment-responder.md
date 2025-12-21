@@ -250,7 +250,9 @@ This memory contains:
 - Per-PR breakdown of comment outcomes
 - Anti-patterns to avoid
 
-#### Step 0.2: Load Reviewer-Specific Memories (After Step 1.2)
+#### Step 0.2: Load Reviewer-Specific Memories (Deferred Until After Step 1.2)
+
+**Note**: This step is executed AFTER Step 1.2 (reviewer enumeration) completes. It is documented in Phase 0 for logical grouping but executes later in the workflow.
 
 After enumerating reviewers in Step 1.2, load memories for each unique reviewer:
 
@@ -884,6 +886,9 @@ current = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills
 # 3. Metrics section (update totals)
 
 # Use edit_memory to update specific sections
+# Note: Regex uses lookahead (?=###|$) for section boundaries
+# If Serena MCP doesn't support lookaheads, use alternative:
+#   needle="### Per-Reviewer Performance \\(Cumulative\\)[^#]*"
 mcp__serena__edit_memory(
     memory_file_name="pr-comment-responder-skills",
     needle="### Per-Reviewer Performance \\(Cumulative\\).*?(?=###|$)",
@@ -911,6 +916,23 @@ The following MUST be updated in `pr-comment-responder-skills`:
 | Metrics | Update cumulative totals |
 
 #### Step 9.4: Verify Memory Updated
+
+Confirm that the `pr-comment-responder-skills` memory reflects the new PR:
+
+- [ ] In **Per-Reviewer Performance (Cumulative)**, the PR appears in each relevant reviewer's PR list and their totals are updated
+- [ ] In **Per-PR Breakdown**, a new section for this PR exists with per-reviewer stats populated
+- [ ] In **Metrics**, cumulative totals (PR counts, comment counts, resolution stats) include this PR
+
+**Verification Command**:
+
+```bash
+# Read updated memory and verify new PR data appears
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+```
+
+---
+
+## Memory Protocol (MANDATORY)
 
 Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
 
