@@ -76,15 +76,17 @@ Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
 - [x] Commit changes to fix/ai-triage branch
 - [x] Post summary comment on PR #222
 
-## Session End Checklist
+## Session End (COMPLETE ALL before closing)
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| All tasks completed | ✅ PASS | All 5 objectives met |
-| Changes committed | ✅ PASS | Commit SHA: 3dd33ba |
-| HANDOFF.md updated | ✅ PASS | Updated with session summary |
-| Linting passed | ✅ PASS | 0 errors |
-| Session log complete | ✅ PASS | This file |
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified, PR #222 added, session summary in history |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | 0 errors |
+| MUST | Route to qa agent (feature implementation) | N/A | Documentation fix only |
+| MUST | Commit all changes | [x] | Commit SHA: 5899b99 |
+| SHOULD | Update PROJECT-PLAN.md | N/A | Not applicable for PR review response |
+| SHOULD | Invoke retrospective (significant sessions) | N/A | Simple review response |
 
 ## Outcomes
 
