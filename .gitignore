@@ -12,3 +12,9 @@ artifacts/
 
 # Agent PR scratch files
 .agents/pr-comments/
+.agents/scratch/
+
+# Git worktrees (isolated development branches)
+.work-*/
+worktree-*/
+worktree--/

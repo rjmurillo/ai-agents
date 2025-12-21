@@ -1,5 +1,45 @@
 # Process and Workflow Gap Skills
 
+## Skill-Process-001: Validate Process Changes Before Implementation
+
+**Statement**: Consult critic, devops, or architect agents before implementing process changes that affect developer workflow.
+
+**Context**: When retrospective or analysis recommends automation, hooks, or workflow changes.
+
+**Evidence**: PR #212 - Implemented pre-commit warning without agent review; immediately reverted due to devex concerns (warning fatigue, noise, maintenance burden).
+
+**Atomicity**: 96%
+
+**Tag**: helpful (prevents wasted effort)
+
+**Impact**: 8/10 (avoids implement-then-revert cycles)
+
+**Created**: 2025-12-20
+
+**Problem**:
+
+```text
+Retrospective says: "Add pre-commit hook for X"
+Agent implements immediately without validation
+User: "This is annoying, revert it"
+```
+
+**Solution**:
+
+```text
+Before implementing workflow/process changes:
+1. Ask: "Will this fire on every commit/save/action?"
+2. If yes, consult devops/critic for alternatives
+3. Consider: CI check (once per PR) vs pre-commit (every commit)
+4. Consider: Warning vs blocking vs documentation-only
+```
+
+**Why It Matters**:
+
+Per-commit warnings become noise that developers ignore. CI-level checks run once per PR and are more appropriate for policy enforcement. Documentation + agent awareness may be sufficient without automation.
+
+**Validation**: 1 (PR #212 pre-commit revert)
+
 Learned from PR #41 CI fix analysis (2025-12-15).
 
 ## Skill-Process-InfraDetection-001

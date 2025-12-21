@@ -67,21 +67,39 @@
 
 **Atomicity**: 96%
 
-**Validation Count**: 2
+**Validation Count**: 3
 
 **Tag**: helpful
 
-**Note**: This REST approach requires numeric comment IDs. For thread IDs (PRRT_...) or when you need to resolve threads, use GraphQL instead. See `skills-pr-review` (Skill-PR-Review-003) for the decision matrix.
+**Note**: This REST approach requires numeric comment IDs. For thread IDs (PRRT_...) or when you need to resolve threads, use GraphQL instead.
 
 **GraphQL Alternative** (for thread IDs or resolving):
 
-```bash
-# Reply with thread ID
-gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $id, body: $body}) { comment { id } } }' -f id="PRRT_xxx" -f body="Reply"
+GraphQL provides both reply and resolution in single operation, validated in PR #212 with 20 thread resolutions.
 
-# Resolve thread (GraphQL only)
+```bash
+# Reply to thread (single-line format required)
+gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $id, body: $body}) { comment { id } } }' -f id="PRRT_xxx" -f body="Reply text"
+
+# Resolve thread (GraphQL only - no REST endpoint)
 gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id="PRRT_xxx"
+
+# Combined: Reply and resolve in one call
+gh api graphql -f query='mutation($threadId: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) { comment { id } } resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }' -f threadId="PRRT_xxx" -f body="Reply text"
 ```
+
+**When to use GraphQL:**
+
+- Thread IDs (PRRT_xxx format)
+- Need to resolve threads after replying
+- Batch reply+resolve operations (more efficient)
+
+**When to use REST:**
+
+- Have numeric comment IDs
+- Simple reply without resolution
+
+**See also**: Skill-GraphQL-001 for single-line format requirement
 
 ---
 
@@ -122,7 +140,7 @@ gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {thread
 
 ### Skill-PR-006: cursor[bot] Signal Quality (Review-Bot-Signal-Quality-001)
 
-**Statement**: Prioritize cursor[bot] review comments; 100% actionability rate
+**Statement**: Prioritize cursor[bot] review comments; verify before implementing (trust but verify until n=30)
 
 **Context**: During PR comment triage, when multiple reviewers present
 
@@ -143,7 +161,7 @@ gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {thread
 
 **Tag**: helpful (triage prioritization)
 
-**Validated**: 3 (PR #32, #47, #52)
+**Validated**: 5 (PR #32, #47, #52, #94, #212)
 
 **See also**: Memory `cursor-bot-review-patterns` for detailed patterns
 
@@ -213,13 +231,26 @@ gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {thread
 
 When handling PR review comments:
 
+### Phase 1-2: Context and Acknowledgment
+
 1. [ ] Enumerate ALL reviewers before triaging (Skill-PR-001)
 2. [ ] Prioritize cursor[bot] comments first (Skill-PR-006)
 3. [ ] Parse each comment independently, not by file (Skill-PR-002)
-4. [ ] For atomic bugs, use Quick Fix path to implementer (Skill-Workflow-001)
-5. [ ] Always delegate to QA after implementer (Skill-QA-001)
-6. [ ] Use review reply endpoint: `gh api repos/OWNER/REPO/pulls/PR/comments -X POST -F in_reply_to=ID -f body=TEXT` (Skill-PR-004)
-7. [ ] Verify count before claiming done (Skill-PR-003)
+4. [ ] **BLOCKING**: Add eyes reaction to EACH comment (Skill-PR-Comment-001)
+5. [ ] **BLOCKING**: Verify eyes_count == comment_count via API before Phase 3 (Skill-PR-Comment-003)
+
+### Phase 3-5: Analysis and Response
+
+6. [ ] Track 'NEW this session' vs 'DONE prior sessions' (Skill-PR-Comment-002)
+7. [ ] For atomic bugs, use Quick Fix path to implementer (Skill-Workflow-001)
+8. [ ] Always delegate to QA after implementer (Skill-QA-001)
+9. [ ] Use review reply endpoint with `-CommentId` parameter (Skill-PR-004)
+10. [ ] **MANDATORY**: Add reply from THIS session (not rely on prior replies)
+
+### Phase 6-8: Implementation and Verification
+
+11. [ ] If PowerShell fails, use gh CLI fallback (Skill-PR-Comment-004)
+12. [ ] Verify addressed_count == total_comment_count before claiming done (Skill-PR-003)
 
 ## Reviewer Signal Quality Evaluation
 
@@ -227,26 +258,11 @@ When handling PR review comments:
 
 | Reviewer | PRs Reviewed | Comments | Actionable | Signal Rate | Trend |
 |----------|-------------|----------|------------|-------------|-------|
-| **cursor[bot]** | #32, #47, #52, #89 | 11 | 11 | **100%** | ✅ Stable |
-| **Copilot** | #32, #47, #52, #89 | 12 | 7 | **58%** | ↑ Improving |
+| **cursor[bot]** | #32, #47, #52 | 9 | 9 | **100%** | ✅ Stable |
+| **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | ↑ Improving |
 | **coderabbitai[bot]** | #32, #47, #52 | 6 | 3 | **50%** | → Stable |
 
 ### Per-PR Breakdown
-
-#### PR #89 (2025-12-20)
-
-| Reviewer | Comments | Actionable | Details |
-|----------|----------|------------|---------|
-| cursor[bot] | 2 | 2 (100%) | Heading format incorrect, gh CLI compatibility |
-| Copilot | 3 | 3 (100%) | Cross-repo refs stripped, breaking change (quantifier), misleading comment |
-| coderabbitai[bot] | 0 | 0 | No comments |
-
-**Notes:**
-
-- cursor[bot] maintained 100% (11/11 total across PR #32, #47, #52, #89)
-- Both cursor[bot] bugs were real issues fixed in commit a4e3ec1
-- Copilot unusually high signal (100% this PR vs 44% historical)
-- All Copilot comments led to code changes in commits ce5a65d and a4e3ec1
 
 #### PR #52 (2025-12-17)
 
@@ -285,7 +301,7 @@ Based on cumulative signal quality:
 
 | Priority | Reviewer | Action | Rationale |
 |----------|----------|--------|-----------|
-| **P0** | cursor[bot] | Process immediately | 100% actionable, finds CRITICAL bugs |
+| **P0** | cursor[bot] | Verify then fix | 100% actionable (n=12), trust-but-verify until n=30 |
 | **P1** | Human reviewers | Process with priority | Domain expertise, context |
 | **P2** | Copilot | Review carefully | ~44% signal, improving trend |
 | **P3** | coderabbitai[bot] | Skim for real issues | ~17% signal, often duplicates |
@@ -317,10 +333,208 @@ Based on cumulative signal quality:
 
 ---
 
-## Metrics (as of PR #89)
+## Discovered: 2025-12-20 from PR #94 Retrospective
 
-- **Triage accuracy**: 100% (5/5 in PR #89, 7/7 in PR #52, 8/8 in PR #47)
-- **cursor[bot] actionability**: 100% (11/11 across PR #32, #47, #52, #89)
-- **Copilot actionability**: 58% (7/12 across PR #32, #47, #52, #89)
+### Skill-PR-Comment-001: Acknowledgment BLOCKING Gate
+
+**Statement**: Phase 3 BLOCKED until eyes reaction count equals comment count
+
+**Context**: pr-comment-responder Phase 2 completion gate
+
+**Evidence**: PR #94 - Comment 2636844102 had 0 eyes reactions despite agent declaring Phase 2 complete. User complaint required manual intervention.
+
+**Atomicity**: 100%
+
+**Tag**: critical
+
+**Validated**: 1 (PR #94)
+
+**Pattern**:
+
+```bash
+# Verify eyes reactions before Phase 3
+COMMENT_COUNT=$(gh api repos/OWNER/REPO/pulls/PR/comments --jq 'length')
+EYES_COUNT=$(gh api repos/OWNER/REPO/pulls/PR/comments --jq '[.[].reactions.eyes] | add')
+
+if [ "$EYES_COUNT" -lt "$COMMENT_COUNT" ]; then
+  echo "BLOCKED: $EYES_COUNT/$COMMENT_COUNT eyes reactions. Add missing reactions before Phase 3."
+  exit 1
+fi
+```
+
+---
+
+### Skill-PR-Comment-002: Session-Specific Work Tracking
+
+**Statement**: Session log tracks 'NEW this session' separately from 'DONE prior sessions'
+
+**Context**: pr-comment-responder session initialization
+
+**Evidence**: PR #94 - Agent saw 3 prior replies from rjmurillo-bot and assumed acknowledgment done. Did not distinguish between prior session work and current session requirements.
+
+**Atomicity**: 100%
+
+**Tag**: critical
+
+**Validated**: 1 (PR #94)
+
+**Anti-Pattern**: Conflating prior session replies with current session obligations
+
+**Correct Pattern**:
+
+```markdown
+## Session Work Tracking
+
+### DONE (Prior Sessions)
+- [x] Reply 2636893013 (rjmurillo-bot, 2025-12-20T07:38:12Z)
+- [x] Reply 2636924180 (rjmurillo-bot, 2025-12-20T08:04:50Z)
+
+### NEW (This Session - MANDATORY)
+- [ ] Add eyes reaction to 2636844102
+- [ ] Add reply from THIS session to 2636844102
+```
+
+---
+
+### Skill-PR-Comment-003: API Verification Before Phase Completion
+
+**Statement**: Verify mandatory step completion via API before marking phase complete
+
+**Context**: pr-comment-responder phase completion
+
+**Evidence**: PR #94 - Phase 2 marked complete without verifying reactions existed via API. Summary claimed "5/5 comments addressed" with 0/1 reactions added.
+
+**Atomicity**: 100%
+
+**Tag**: critical
+
+**Validated**: 1 (PR #94)
+
+**Verification Pattern**:
+
+```bash
+# Before marking Phase 2 complete
+gh api repos/OWNER/REPO/pulls/COMMENT_ID/reactions --jq '.[] | select(.content == "eyes")' | wc -l
+# Must return >= 1 for each comment
+```
+
+---
+
+### Skill-PR-Comment-004: PowerShell Fallback to gh CLI
+
+**Statement**: PowerShell script failure requires immediate gh CLI fallback attempt
+
+**Context**: GitHub operations with dual-path tooling
+
+**Evidence**: PR #94 - Add-CommentReaction.ps1 had parsing errors. No fallback to gh CLI was attempted. Eyes reaction never added until manual intervention.
+
+**Atomicity**: 100%
+
+**Tag**: helpful
+
+**Validated**: 1 (PR #94)
+
+**Pattern**:
+
+```bash
+# Try PowerShell first
+if ! pwsh .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId $ID -Reaction "eyes"; then
+  # Fallback to gh CLI
+  gh api repos/OWNER/REPO/pulls/comments/$ID/reactions -X POST -f content="eyes"
+fi
+```
+
+---
+
+## Discovered: 2025-12-20 from PR #162 Implementation
+
+### Skill-PR-Copilot-001: Follow-Up PR Pattern Detection
+
+**Statement**: Detect and categorize Copilot follow-up PRs using branch pattern `copilot/sub-pr-{original}` and verify with Copilot announcement comment
+
+**Context**: When handling PR review comments that trigger Copilot responses and follow-up PR creation
+
+**Evidence**:
+
+- PR #32 → PR #33 (copilot/sub-pr-32): Duplicate fix, closed successfully
+- PR #156 → PR #162 (copilot/sub-pr-156): Supplemental changes, requires evaluation
+- Pattern: Copilot creates PR after user replies to review comments
+- Announcement: Issue comment "I've opened a new pull request, #{number}"
+
+**Atomicity**: 96%
+
+**Tag**: helpful (prevents wasted effort on duplicate PR reviews)
+
+**Implementation**:
+
+Two detection scripts (PowerShell + bash fallback):
+
+- `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1`
+- `.claude/skills/github/scripts/pr/detect-copilot-followup.sh`
+
+**Output Structure**:
+
+```json
+{
+  "found": boolean,
+  "originalPRNumber": number,
+  "followUpPRCount": number,
+  "announcement": object|null,
+  "analysis": [
+    {
+      "followUpPRNumber": number,
+      "category": "DUPLICATE|SUPPLEMENTAL|INDEPENDENT",
+      "similarity": 0-100,
+      "reason": "string",
+      "recommendation": "CLOSE_AS_DUPLICATE|REVIEW_THEN_CLOSE|EVALUATE_FOR_MERGE|MANUAL_REVIEW"
+    }
+  ],
+  "recommendation": "string",
+  "timestamp": "ISO-8601"
+}
+```
+
+**Categories**:
+
+| Category | Indicator | Action |
+|----------|-----------|--------|
+| **DUPLICATE** | Follow-up has no/minimal changes | Close with commit reference |
+| **SUPPLEMENTAL** | Follow-up addresses additional issues | Evaluate for merge or request changes |
+| **INDEPENDENT** | Follow-up unrelated to original review | Close with explanation |
+
+**Detection Logic**:
+
+1. Query for follow-up PR with branch pattern `copilot/sub-pr-{original_pr}`
+2. Verify Copilot announcement comment exists on original PR
+3. Get follow-up PR diff and compare file count
+4. Categorize based on: empty diff (100% DUPLICATE), 1 file (85% DUPLICATE), multiple files (40% SUPPLEMENTAL)
+5. Return structured analysis with recommendation
+
+**Verification Before Phase 5**:
+
+```bash
+# Must be BLOCKING GATE in Phase 4 workflow
+if [ $(Detect-CopilotFollowUpPR -PRNumber $PR | jq '.found') = "true" ]; then
+  # Process follow-ups
+  # Close duplicates, evaluate supplements
+  # Update session log with results
+  # Continue to Phase 5 only after handling
+fi
+```
+
+**Related Skills**:
+
+- Skill-PR-Comment-001 (eyes reaction gate)
+- Skill-PR-Comment-004 (PowerShell fallback)
+- Skill-Workflow-001 (Quick Fix path)
+
+---
+
+## Metrics (as of PR #212)
+
+- **Triage accuracy**: 100% (20/20 in PR #212, 7/7 in PR #52, 8/8 in PR #47)
+- **cursor[bot] actionability**: 100% (10/10 across PR #32, #47, #52, #212)
+- **Copilot actionability**: ~50% (5/10 across PR #32, #47, #52, #212)
 - **CodeRabbit actionability**: 50% (3/6 across PR #32, #47, #52)
-- **Quick Fix efficiency**: 5 bugs fixed (PR #89: a4e3ec1; PR #52: 4815d56, b4c9353, cd4c6b2)
+- **Quick Fix efficiency**: 4 bugs fixed (PR #212: null-safety fix in ai-issue-triage.yml)
+- **GraphQL thread resolution**: 20/20 threads resolved via single-line mutations (PR #212)

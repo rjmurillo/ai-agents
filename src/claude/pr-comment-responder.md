@@ -97,14 +97,14 @@ See `orchestrator.md` for full routing logic. This agent passes context to orche
 
 Prioritize comments based on historical actionability rates (updated after each PR):
 
-#### Cumulative Performance (as of PR #89)
+#### Cumulative Performance
 
-| Reviewer | PRs | Comments | Actionable | Signal | Trend | Action |
-|----------|-----|----------|------------|--------|-------|--------|
-| **cursor[bot]** | #32, #47, #52, #89 | 11 | 11 | **100%** | [STABLE] | Process immediately |
-| **Human reviewers** | - | - | - | High | - | Process with priority |
-| **Copilot** | #32, #47, #52, #89 | 12 | 7 | **58%** | [IMPROVING] | Review carefully |
-| **coderabbitai[bot]** | #32, #47, #52 | 6 | 3 | **50%** | [STABLE] | Review carefully |
+| Reviewer | Comments | Actionable | Signal | Trend | Action |
+|----------|----------|------------|--------|-------|--------|
+| **cursor[bot]** | 9 | 9 | **100%** | [STABLE] | Process immediately |
+| **Human reviewers** | - | - | High | - | Process with priority |
+| **Copilot** | 9 | 4 | **44%** | [IMPROVING] | Review carefully |
+| **coderabbitai[bot]** | 6 | 3 | **50%** | [STABLE] | Review carefully |
 
 #### Priority Matrix
 
@@ -133,7 +133,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 | Summaries | 0% | CodeRabbit walkthroughs |
 | Duplicates | 0% | Same issue from multiple bots |
 
-**cursor[bot]** has demonstrated 100% actionability (11/11 across PR #32, #47, #52, #89) - every comment identified a real bug. Prioritize these comments for immediate attention.
+**cursor[bot]** has demonstrated 100% actionability (9/9 comments) - every comment identified a real bug. Prioritize these comments for immediate attention.
 
 **Note**: Statistics are sourced from the `pr-comment-responder-skills` memory (use `mcp__serena__read_memory` with `memory_file_name="pr-comment-responder-skills"`) and should be updated there after each PR review session.
 
@@ -144,6 +144,53 @@ After completing each PR comment response session, update this section and the `
 1. Per-reviewer comment counts and actionability
 2. Any trend changes (improving/declining signal)
 3. New patterns observed (e.g., duplicate detection)
+
+### Comment Triage Priority
+
+**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+
+#### Priority Adjustment by Domain
+
+| Comment Domain | Keywords | Priority Adjustment | Rationale |
+|----------------|----------|---------------------|-----------|
+| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage if missed during review |
+| **Bug** | error, crash, exception, fail, null, undefined, race condition | No change | Standard priority based on reviewer signal |
+| **Style** | formatting, naming, indentation, whitespace, convention | No change | Standard priority based on reviewer signal |
+
+#### Processing Order
+
+1. **Security-domain comments**: Process ALL security comments BEFORE any other category, regardless of reviewer
+2. **Bug-domain comments**: Process after security, using reviewer signal quality
+3. **Style-domain comments**: Process last, deprioritize if time-constrained
+
+#### Security Keyword Detection
+
+Scan each comment body for these patterns (case-insensitive):
+
+```text
+CWE-\d+          # CWE identifier (e.g., CWE-20, CWE-78)
+vulnerability    # General security issue
+injection        # SQL, command, code injection
+XSS              # Cross-site scripting
+SQL              # SQL-related (often injection)
+CSRF             # Cross-site request forgery
+auth             # Authentication or authorization
+authentication
+authorization
+secrets?         # Secret/secrets exposure
+credentials?     # Credential exposure
+TOCTOU           # Time-of-check-time-of-use
+symlink          # Symlink attacks
+traversal        # Path traversal
+sanitiz          # Input sanitization
+escap            # Output escaping
+```
+
+#### Evidence
+
+Security vulnerabilities like CWE-20/CWE-78 can be introduced and merged when security-domain comments are not prioritized. Similarly, symlink TOCTOU comments can be dismissed as style suggestions when they should be flagged as security-domain.
+
+**Skill Reference**: Skill-PR-Review-Security-001 (atomicity: 94%)
 
 ### Quick Fix Path Criteria
 
@@ -172,11 +219,11 @@ Task(subagent_type="orchestrator", prompt="Analyze and implement...")
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
-| Quick Fix | Yes | May need regression tests (PR #47 PathInfo example) |
+| Quick Fix | Yes | May need regression tests even for simple fixes |
 | Standard | Yes | Full test coverage verification |
 | Strategic | Yes | Architectural impact assessment |
 
-Evidence: In PR #47, QA agent added a regression test for a "simple" PathInfo bug that would have otherwise gone untested.
+Even "simple" bug fixes often need regression tests that would otherwise go untested.
 
 ```python
 # After implementer completes ANY fix
@@ -184,61 +231,6 @@ Task(subagent_type="qa", prompt="Verify fix and assess regression test needs..."
 ```
 
 ## Workflow Protocol
-
-### Phase 0: Memory Initialization (BLOCKING)
-
-**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
-
-#### Step 0.1: Load Core Skills Memory
-
-```python
-# ALWAYS load pr-comment-responder-skills first
-mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
-```
-
-This memory contains:
-
-- Reviewer signal quality statistics (actionability rates)
-- Triage heuristics and learned patterns
-- Per-PR breakdown of comment outcomes
-- Anti-patterns to avoid
-
-#### Step 0.2: Load Reviewer-Specific Memories (After Step 1.2)
-
-After enumerating reviewers in Step 1.2, load memories for each unique reviewer:
-
-```python
-# For each reviewer in the list, check for dedicated memory
-reviewers = ["cursor[bot]", "copilot-pull-request-reviewer", "coderabbitai[bot]", ...]
-
-for reviewer in reviewers:
-    # Normalize reviewer name for memory lookup
-    memory_name = f"{reviewer.replace('[bot]', '-bot').replace('-', '_')}-review-patterns"
-    # Example: cursor-bot-review-patterns, copilot-review-patterns
-
-    # Load if exists (check list_memories first or handle gracefully)
-    mcp__serena__read_memory(memory_file_name=memory_name)
-```
-
-**Known Reviewer Memories**:
-
-| Reviewer | Memory Name | Content |
-|----------|-------------|---------|
-| cursor[bot] | `cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
-| Copilot | `copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
-| coderabbitai[bot] | - | (Use pr-comment-responder-skills) |
-
-#### Step 0.3: Verify Memory Loaded
-
-Before proceeding, confirm you have:
-
-- [ ] pr-comment-responder-skills loaded
-- [ ] Reviewer signal quality table in context
-- [ ] Any reviewer-specific patterns loaded
-
-**If memory load fails**: Proceed with default heuristics but flag in session log.
-
----
 
 ### Phase 1: Context Gathering
 
@@ -803,77 +795,7 @@ if [ "$ADDRESSED" -lt "$TOTAL" ]; then
 fi
 ```
 
-### Phase 9: Memory Storage (BLOCKING)
-
-**MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
-
-#### Step 9.1: Calculate Session Statistics
-
-For each reviewer who commented on this PR:
-
-```python
-session_stats = {
-    "pr_number": PR_NUMBER,
-    "date": "YYYY-MM-DD",
-    "reviewers": {
-        "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
-        "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
-        # ... other reviewers
-    }
-}
-```
-
-#### Step 9.2: Update pr-comment-responder-skills Memory
-
-```python
-# Read current memory
-current = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
-
-# Update statistics sections:
-# 1. Per-Reviewer Performance (Cumulative) table
-# 2. Per-PR Breakdown section (add new PR entry)
-# 3. Metrics section (update totals)
-
-# Use edit_memory to update specific sections
-mcp__serena__edit_memory(
-    memory_file_name="pr-comment-responder-skills",
-    needle="### Per-Reviewer Performance \\(Cumulative\\).*?(?=###|$)",
-    repl="[Updated table with new PR data]",
-    mode="regex"
-)
-
-# Add new Per-PR Breakdown entry
-mcp__serena__edit_memory(
-    memory_file_name="pr-comment-responder-skills",
-    needle="(#### PR #\\d+ \\(.*?\\))",
-    repl="#### PR #[NEW] (YYYY-MM-DD)\n\n[New PR stats table]\n\n\\1",
-    mode="regex"
-)
-```
-
-#### Step 9.3: Update Required Fields
-
-The following MUST be updated in `pr-comment-responder-skills`:
-
-| Section | What to Update |
-|---------|----------------|
-| Per-Reviewer Performance | Add PR to PRs list, update totals |
-| Per-PR Breakdown | Add new PR section with per-reviewer stats |
-| Metrics | Update cumulative totals |
-
-#### Step 9.4: Verify Memory Updated
-
-```python
-# Confirm update succeeded
-updated = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
-assert f"PR #{PR_NUMBER}" in updated  # Verify new PR appears
-```
-
-**Failure Mode**: If memory update fails, log to session file and notify user. Do NOT silently continue.
-
----
-
-## Memory Protocol (Reference)
+## Memory Protocol
 
 Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
 

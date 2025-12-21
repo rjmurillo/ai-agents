@@ -1,121 +1,117 @@
 # Documentation Skills
 
-Category: Documentation Generation and Maintenance
-Source: `.agents/skills/documentation.md`
-Migrated: 2025-12-13
+**Created**: 2025-12-20
+**Sources**: Various retrospectives and PR reviews
 
-## High-Impact Skills (90%+ Atomicity)
+## Skill-Documentation-005: User-Facing Content Restrictions
 
-### Skill-Doc-001: Code Block Language Identifiers (95%)
+**Statement**: Exclude internal PR/Issue/Session references from src/ and templates/ directories
 
-- **Statement**: Always specify language identifiers on fenced code blocks for syntax highlighting
-- **Evidence**: 2025-12-13 - 286 code blocks missing language identifiers fixed
-- **Impact**: Enables proper syntax highlighting across GitHub, IDEs, and documentation tools
+**Context**: When creating or updating user-facing documentation
 
-### Skill-Doc-002: Blank Line Spacing Protocol (92%)
+**Evidence**: PR #212 - User policy request, 6 files updated to remove internal references
 
-- **Statement**: Add blank lines before and after code blocks, lists, and headings
-- **Rules**: MD022 (headings), MD031 (code blocks), MD032 (lists)
-- **Evidence**: 350+ spacing violations auto-fixed with markdownlint
+**Atomicity**: 92%
 
-### Skill-Doc-005: ADR Documentation Pattern (90%)
+**Tag**: critical (user experience)
 
-- **Statement**: Create ADR documents for significant technical decisions
-- **Template Sections**: Status, Context, Decision, Consequences (Positive/Negative/Mitigations)
-- **Evidence**: ADR-001-markdown-linting.md created with full justification
+**Impact**: 9/10 (maintains professional external documentation)
 
-### Skill-Doc-007: Commit Message Scoping (90%)
+**Created**: 2025-12-20
 
-- **Statement**: Use directory-based scopes in conventional commits for multi-directory fixes
-- **Pattern**: `fix(claude):`, `fix(vs-code):`, `fix(copilot-cli):`, `fix(docs):`
-- **Impact**: Enables targeted review and selective rollback
+**Scope**:
 
-### Skill-Doc-011: Markdown Fence Closing Fix Pattern (92%)
+This policy applies to all files distributed to end-users:
 
-- **Statement**: Detect and repair malformed code fence closings where closing fences have language identifiers
-- **Problem**: ` ` `text ...` ` `text (wrong) vs ` ` `text ...` ` ` (correct)
-- **Solution**: Use fix-fences.ps1 or fix_fences.py utility
-- **Impact**: Prevents linting failures and token waste from repeated fixes
+- `src/claude/` - Claude agent definitions
+- `src/copilot-cli/` - Copilot CLI agent definitions
+- `src/vs-code-agents/` - VS Code agent definitions
+- `templates/agents/` - Agent templates
 
-## Medium-Impact Skills (85-90% Atomicity)
+**Prohibited Content**:
 
-### Skill-Doc-003: Agent Template Structure (88%)
+### 1. Internal PR References
 
-- **Statement**: Maintain consistent structure across agent templates
-- **Sections**: Frontmatter, Core Identity, Protocol, Memory Protocol, Execution, Handoff Protocol
+- **Prohibited**: `PR #60`, `PR #211`, `PR #212`, or any internal PR numbers
+- **Rationale**: End-users do not know or care about issues internal to our repository
+- **Alternative**: Describe the pattern generically without referencing specific internal PRs
 
-### Skill-Doc-004: Platform Parity Documentation (85%)
+**Example Fix:**
 
-- **Statement**: Keep parallel implementations across platforms synchronized
-- **Approach**: Make changes to Claude first, apply to VS Code and Copilot CLI, verify consistency
+```markdown
+<!-- WRONG -->
+Security issues can cause critical damage; CWE-20/CWE-78 introduced in PR #60 went undetected until PR #211
 
-### Skill-Doc-006: Requirements Document Structure (88%)
+<!-- CORRECT -->
+Security issues can cause critical damage if missed during review
+```
 
-- **Sections**: Purpose, Configuration, Required Rules, Disabled Rules, Common Patterns, Troubleshooting, References
+### 2. Internal Issue References
 
-### Skill-Doc-008: Violation Analysis Before Fixes (87%)
+- **Prohibited**: `Issue #16`, `Issue #183`, or any internal issue numbers
+- **Rationale**: Same as above - internal tracking is meaningless to users
 
-- **Statement**: Analyze and categorize all violations before starting fixes
-- **Output**: Rule, Description, Count, Severity, Auto-fixable table
+### 3. Session References
 
-### Skill-Doc-009: Pre-implementation Plan Validation (85%)
+- **Prohibited**: `Session 44`, `Session 15`, or any session identifiers
+- **Rationale**: These are internal implementation details
 
-- **Statement**: Validate implementation plans with critic review before execution
-- **Checklist**: Requirements addressed, Technical approach sound, Scope appropriate, Risks identified
+### 4. Internal File Paths
 
-### Skill-Doc-010: QA Verification Pattern (88%)
+- **Prohibited**: References to `.agents/`, `.serena/`, or other internal directories
+- **Rationale**: Users may not have the same directory structure
 
-- **Statement**: Verify documentation changes with before/after metrics and explicit pass/fail status
-- **Template**: Before count, After count, Reduction %, Test table with Status
+**Permitted Content**:
 
-## Documentation Maintenance Skills (Migration-Specific)
+- Generic descriptions of patterns and behaviors
+- Security vulnerability identifiers (CWE-20, CWE-78, etc.) - these are public standards
+- Best practice recommendations without internal context
+- Public references (RFC numbers, standard specifications)
 
-### Skill-Documentation-Maintenance-001: Pattern Migration Search Protocol (95%)
+**Validation**:
 
-- **Statement**: Search entire codebase for pattern before migration to identify all references
-- **Context**: When migrating documentation patterns or memory references
-- **Evidence**: 2025-12-18 - Grep search for memory pattern identified 16 files; prevented missing references during Serena migration
-- **Impact**: Ensures comprehensive migration without orphaned references
-- **Validation**: 1 successful execution
+Before committing changes to user-facing directories, verify no internal references are present.
 
-### Skill-Documentation-Maintenance-002: Reference Categorization Before Migration (95%)
+**Pattern**:
 
-- **Statement**: Categorize references as instructive (update), informational (skip), or operational (skip) before migration
-- **Context**: When migrating patterns that appear in different contexts
-- **Evidence**: 2025-12-18 - Type distinction (instructive vs informational vs operational) prevented inappropriate updates during Serena migration
-- **Impact**: Prevents over-updating content that shouldn't change
-- **Validation**: 1 successful execution
+```bash
+# Scan for internal references before commit
+grep -r "PR #\|Issue #\|Session \d\+\|\.agents/\|\.serena/" src/ templates/
+# Should return no matches in user-facing files
+```
 
-### Skill-Documentation-Maintenance-003: Fallback Clause for Tool Migration (96%)
+**Anti-Pattern**:
 
-- **Statement**: Include fallback clause when migrating to tool calls for graceful degradation
-- **Context**: When replacing text patterns with tool invocations in documentation
-- **Evidence**: 2025-12-18 - Added 5 fallback clauses ("with Serena fallback") during migration; ensures clarity about alternative approaches
-- **Impact**: Documents graceful degradation paths when tools are unavailable
-- **Validation**: 1 successful execution
+Including internal tracking numbers or file paths in templates that users will copy.
 
-### Skill-Documentation-Maintenance-004: Consistent Migration Syntax (96%)
+**Validation**: 1 (PR #212, 6 files updated)
 
-- **Statement**: Use identical syntax for all instances when migrating patterns to maintain consistency
-- **Context**: When applying pattern replacements across multiple files
-- **Evidence**: 2025-12-18 - Applied same format across 16 files during Serena migration; maintained documentation coherence
-- **Impact**: Ensures predictable, maintainable documentation structure
-- **Validation**: 1 successful execution
+**Related Memory**: `user-facing-content-restrictions` (policy reference)
 
-## Anti-Patterns
+---
 
-### Anti-Doc-001: Inconsistent Platform Updates
+## Application Checklist
 
-- Avoid updating one platform without updating parallel implementations
-- **Prevention**: Always update Claude, VS Code, and Copilot CLI together
+When creating/updating user-facing documentation:
 
-### Anti-Doc-002: Undocumented Rule Changes
+1. [ ] Remove all `PR #XXX` references
+2. [ ] Remove all `Issue #XXX` references
+3. [ ] Remove all `Session XX` references
+4. [ ] Remove all `.agents/` and `.serena/` path references
+5. [ ] Replace specific examples with generic patterns
+6. [ ] Keep public standard references (CWE, RFC, etc.)
+7. [ ] Verify no internal tracking numbers remain
 
-- Never disable or modify linting rules without documenting rationale
+---
 
-## Metrics
+## Related Skills
 
-- Agent Templates Updated: 52
-- Documentation Files Created: 2
-- ADRs Created: 1
-- Platforms Synchronized: 3
+- Skill-Documentation-001: Systematic migration search
+- Skill-Documentation-002: Reference type taxonomy
+- Skill-Documentation-003: Fallback preservation
+- Skill-Documentation-004: Pattern consistency
+
+## References
+
+- PR #212: User policy creation
+- Memory: `user-facing-content-restrictions`

@@ -563,6 +563,7 @@ What this workflow does...
 **Trigger**: Any new CI/CD workflow, GitHub Action, or build script
 
 **Evidence**: Session 03-07 (2025-12-18): All these issues were documented behaviors that could have been researched:
+
 - Matrix output limitation (GitHub Community Discussion #17245)
 - GH_TOKEN auto-authentication (GitHub CLI docs)
 - grep lookbehind requirements (GNU grep documentation)
@@ -591,6 +592,108 @@ What this workflow does...
 2. **GH_TOKEN**: Auto-authenticates when env var set - don't call `gh auth login`
 3. **Lookbehinds**: GNU grep requires fixed-length - use sed for variable patterns
 4. **YAML heredocs**: Zero-indent lines parsed as YAML keys - use consistent indentation
+
+---
+
+## Skill-CI-001: Pre-Commit Syntax Validation
+
+**Statement**: Run static syntax analysis (PSScriptAnalyzer for PowerShell) in pre-commit hook to catch syntax errors before commit.
+
+**Context**: PowerShell script development
+
+**Evidence**: PR #79 - Get-PRContext.ps1 committed with syntax error, caught only at runtime
+
+**Atomicity**: 92%
+
+**Tag**: helpful
+
+**Impact**: 8/10 - Prevents syntax errors from reaching repository
+
+**Created**: 2025-12-20
+
+**Pattern**:
+
+```powershell
+# .githooks/pre-commit
+# Validate PowerShell syntax before commit
+
+$errors = @()
+$changedFiles = git diff --cached --name-only --diff-filter=ACM | Where-Object { $_ -match '\.ps1$' }
+
+foreach ($file in $changedFiles) {
+    $result = Invoke-ScriptAnalyzer -Path $file -Severity Error
+    if ($result) {
+        $errors += $result
+        Write-Host "Syntax errors in $file" -ForegroundColor Red
+        $result | Format-Table -AutoSize
+    }
+}
+
+if ($errors.Count -gt 0) {
+    Write-Host "`nCommit aborted due to syntax errors." -ForegroundColor Red
+    exit 1
+}
+```
+
+**Installation**:
+
+```powershell
+# Install PSScriptAnalyzer
+Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+
+# Configure git hooks directory
+git config core.hooksPath .githooks
+```
+
+**Benefits**:
+
+- Catches syntax errors before they reach CI/CD
+- Provides immediate feedback to developers
+- Prevents broken commits in repository history
+- Complements CI/CD validation (defense in depth)
+
+**Related Skills**:
+
+- Skill-Testing-003: Basic execution validation (runtime check)
+- Skill-CI-Environment-Testing-001: Local CI simulation
+
+**Validation**: 1 (PR #79)
+
+---
+
+## Skill-CI-Infrastructure-003: Quality Gate as Required Check (92%)
+
+**Statement**: Make AI Quality Gate a required GitHub branch protection check, not manual trigger
+
+**Context**: When configuring CI/CD pipelines and branch protection
+
+**Evidence**: PR #60 merged without Quality Gate, PR #211 manual trigger caught vulnerability
+
+**Atomicity**: 92%
+
+**Tag**: helpful
+
+**Impact**: 10/10
+
+**Created**: 2025-12-20
+
+**Pattern**:
+
+```yaml
+# .github/workflows/quality-gate.yml
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Branch protection settings (GitHub UI or API)
+required_status_checks:
+  - "AI Quality Gate / security"
+  - "AI Quality Gate / qa"
+```
+
+**Anti-Pattern**: Optional quality gates that can be skipped
+
+**Source**: `.agents/retrospective/2025-12-20-pr-211-security-miss.md`
 
 ---
 
