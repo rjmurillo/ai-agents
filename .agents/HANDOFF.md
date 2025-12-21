@@ -3,8 +3,8 @@
 **Project**: AI Agents Enhancement
 **Version**: 1.0
 **Last Updated**: 2025-12-20
-**Current Phase**: Security Skills Implemented (Session 44-45)
-**Status**: ✅ PR #212 ready for merge - security fix + 3 prevention skills implemented
+**Current Phase**: Skills Index Registry PRD Created (Session 46)
+**Status**: ✅ PRD complete - Skills governance foundation established
 
 ---
 
@@ -57,11 +57,11 @@
 
 | Session | Date | Type | PR | Outcome |
 |---------|------|------|----|---------|
-| **Session 45** | **2025-12-20** | **Retrospective + Implementation** | **#212** | **7 skills extracted, 3 implemented (pre-commit, QA gate, triage)** |
+| **Session 46** | **2025-12-20** | **PRD Creation** | **N/A** | **Skills Index Registry PRD created (450+ lines, 10 FRs)** |
+| Session 45 | 2025-12-20 | Retrospective + Implementation | #212 | 7 skills extracted, 3 implemented (pre-commit, QA gate, triage) |
 | Session 44 | 2025-12-20 | Security Remediation | #211 | CWE-20/CWE-78 fixed, QA+DevOps validated |
 | Session 43 | 2025-12-20 | QA Validation | #147 | All tests passing, artifacts verified, ready for PR |
 | Session 41 | 2025-12-20 | PR Review Consolidation | #94, #95, #76, #93 | 25 comments analyzed, 24 resolved, all ready to merge |
-| Session 40 | 2025-12-20 | Feature Implementation | #162 | Phase 4 Copilot Follow-Up Handling complete |
 
 ### Key Learnings from Session 45 (Retrospective - Security Miss)
 
@@ -110,6 +110,56 @@
 | Skill-PR-Review-Security-001 | `src/*/pr-comment-responder.*` - security +50% triage | `d898e0d` |
 
 **PR #212**: https://github.com/rjmurillo/ai-agents/pull/212 - Ready for merge
+
+---
+
+### Session 46 Summary (Skills Index Registry PRD)
+
+**Type**: PRD Creation (Explainer Agent)
+**Scope**: Define Skills Index Registry to address skill discovery inefficiency
+
+**Problem Identified:**
+
+- 65+ skill files in `.serena/memories/` with no central registry
+- O(n) discovery: `list_memories` (100+ items) + multiple `read_memory` calls
+- 4 different skill ID naming patterns coexisting (collisions detected)
+- No governance for skill lifecycle (creation → validation → deprecation)
+
+**PRD Deliverables:**
+
+1. **10 Functional Requirements** (FR-1 through FR-10):
+   - FR-1: Index location (`.serena/memories/skills-index.md`)
+   - FR-2: Quick reference table (5 columns: ID, Domain, Statement, File, Status)
+   - FR-3: Domain grouping with markdown headings
+   - FR-4: Deprecated skills section with replacement references
+   - FR-5: Skill ID naming convention (`Skill-{Domain}-{Number}`)
+   - FR-6: Lifecycle states (Draft → Active → Deprecated)
+   - FR-7: Skill creation process (check index, assign ID, update)
+   - FR-8: Skill deprecation process (preserve file, add replacement)
+   - FR-9: Collection files handling (separate from atomic skills)
+   - FR-10: Index maintenance (manual for v1)
+
+2. **Naming Convention Defined**: `Skill-{Domain}-{Number}`
+   - CamelCase domain (e.g., Analysis, Documentation, Architecture)
+   - 3-digit zero-padded number (e.g., 001, 002, 010)
+   - Globally unique across all domains
+
+3. **Performance Target**: 68% faster skill discovery (350ms → 110ms)
+
+4. **Scalability**: Supports 500+ skills without performance degradation
+
+5. **Example Index Structure**: Full appendix with sample implementation
+
+**Artifacts:**
+
+- PRD: `.agents/planning/PRD-skills-index-registry.md` (450+ lines)
+- Session log: `.agents/sessions/2025-12-20-session-46-skills-index-prd.md`
+
+**Next Steps:**
+
+- Route to analyst for options analysis (manual vs automated index generation)
+- Route to critic for PRD validation
+- Route to implementer for index creation
 
 ---
 
