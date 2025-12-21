@@ -147,7 +147,7 @@ Task(
     prompt="""Analyze the following PR comments and determine root cause...
     
     Context:
-    - PR #46 on rjmurillo/ai-agents
+    - PR under review
     - Comments reference memory protocol inconsistencies
     
     Required Output:

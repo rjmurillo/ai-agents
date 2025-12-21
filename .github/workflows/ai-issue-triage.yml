@@ -192,7 +192,7 @@ jobs:
 
               # Check if label exists (case-insensitive)
               $existingRaw = gh label list --search $label --json name -q '.[].name' 2>$null
-              $existing = @($existingRaw)
+              $existing = @($existingRaw) | Where-Object { $_ }
               $existingLower = $existing | ForEach-Object { $_.ToLowerInvariant() }
               if ($existingLower -notcontains $label.ToLowerInvariant()) {
                   Write-Host "Creating label: $label"
@@ -216,7 +216,7 @@ jobs:
               $priorityLabel = "priority:$($env:PRIORITY)"
 
               $existingRaw = gh label list --search $priorityLabel --json name -q '.[].name' 2>$null
-              $existing = @($existingRaw)
+              $existing = @($existingRaw) | Where-Object { $_ }
               $existingLower = $existing | ForEach-Object { $_.ToLowerInvariant() }
               if ($existingLower -notcontains $priorityLabel.ToLowerInvariant()) {
                   Write-Host "Creating label: $priorityLabel"
@@ -267,7 +267,7 @@ jobs:
               # Check if milestone exists
               # Ensure $milestones is always an array (fixes single-milestone edge case)
               $milestonesRaw = gh api "repos/$($env:GITHUB_REPOSITORY)/milestones" --jq '.[].title' 2>$null
-              $milestones = @($milestonesRaw)
+              $milestones = @($milestonesRaw) | Where-Object { $_ }
               # Case-insensitive comparison for milestone matching
               $milestonesLower = $milestones | ForEach-Object { $_.ToLowerInvariant() }
               if ($milestonesLower -contains $env:MILESTONE.ToLowerInvariant()) {

@@ -302,7 +302,7 @@ cloudmcp-manager/memory-create_entities
     "observations": [
       "Statement: Use /m:1 /nodeReuse:false for CI builds to avoid file locking",
       "Context: Windows multi-framework builds",
-      "Evidence: Session 39 - fixed CI failures",
+      "Evidence: Fixed CI build failures",
       "Atomicity: 88%",
       "Tag: helpful",
       "Impact: 9"
@@ -319,7 +319,7 @@ cloudmcp-manager/memory-add_observations
   "observations": [{
     "entityName": "Skill-Build-001",
     "contents": [
-      "Validation: 2025-01-20 - prevented build failure in PR #47",
+      "Validation: 2025-01-20 - prevented build failure",
       "Validation Count: 4"
     ]
   }]

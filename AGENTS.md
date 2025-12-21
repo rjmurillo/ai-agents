@@ -183,6 +183,23 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 
 ---
 
+## User-Facing Content Restrictions (MUST)
+
+> **Memory Reference**: `user-facing-content-restrictions` - Read this memory for full details.
+
+Files distributed to end-users (`src/claude/`, `src/copilot-cli/`, `src/vs-code-agents/`, `templates/agents/`) MUST NOT contain internal repository references:
+
+| PROHIBITED | Example | Reason |
+|------------|---------|--------|
+| Internal PR numbers | `PR #60`, `PR #211` | Users don't know/care about our PRs |
+| Internal issue numbers | `Issue #16`, `Issue #183` | Internal tracking is meaningless to users |
+| Session identifiers | `Session 44`, `Session 15` | Internal implementation details |
+| Internal file paths | `.agents/`, `.serena/` | Users may not have same structure |
+
+**PERMITTED**: CWE identifiers (CWE-20, CWE-78), generic pattern descriptions, best practice recommendations.
+
+---
+
 ## Agent Catalog
 
 ### Primary Workflow Agents

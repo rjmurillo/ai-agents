@@ -97,14 +97,14 @@ See `orchestrator.md` for full routing logic. This agent passes context to orche
 
 Prioritize comments based on historical actionability rates (updated after each PR):
 
-#### Cumulative Performance (as of PR #52)
+#### Cumulative Performance
 
-| Reviewer | PRs | Comments | Actionable | Signal | Trend | Action |
-|----------|-----|----------|------------|--------|-------|--------|
-| **cursor[bot]** | #32, #47, #52 | 9 | 9 | **100%** | [STABLE] | Process immediately |
-| **Human reviewers** | - | - | - | High | - | Process with priority |
-| **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | [IMPROVING] | Review carefully |
-| **coderabbitai[bot]** | #32, #47, #52 | 6 | 3 | **50%** | [STABLE] | Review carefully |
+| Reviewer | Comments | Actionable | Signal | Trend | Action |
+|----------|----------|------------|--------|-------|--------|
+| **cursor[bot]** | 9 | 9 | **100%** | [STABLE] | Process immediately |
+| **Human reviewers** | - | - | High | - | Process with priority |
+| **Copilot** | 9 | 4 | **44%** | [IMPROVING] | Review carefully |
+| **coderabbitai[bot]** | 6 | 3 | **50%** | [STABLE] | Review carefully |
 
 #### Priority Matrix
 
@@ -133,7 +133,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 | Summaries | 0% | CodeRabbit walkthroughs |
 | Duplicates | 0% | Same issue from multiple bots |
 
-**cursor[bot]** has demonstrated 100% actionability (9/9 across PR #32, #47, #52) - every comment identified a real bug. Prioritize these comments for immediate attention.
+**cursor[bot]** has demonstrated 100% actionability (9/9 comments) - every comment identified a real bug. Prioritize these comments for immediate attention.
 
 **Note**: Statistics are sourced from the `pr-comment-responder-skills` memory (use `mcp__serena__read_memory` with `memory_file_name="pr-comment-responder-skills"`) and should be updated there after each PR review session.
 
@@ -153,7 +153,7 @@ After completing each PR comment response session, update this section and the `
 
 | Comment Domain | Keywords | Priority Adjustment | Rationale |
 |----------------|----------|---------------------|-----------|
-| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage; CWE-20/CWE-78 introduced in PR #60 went undetected until PR #211 quality gate |
+| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage if missed during review |
 | **Bug** | error, crash, exception, fail, null, undefined, race condition | No change | Standard priority based on reviewer signal |
 | **Style** | formatting, naming, indentation, whitespace, convention | No change | Standard priority based on reviewer signal |
 
@@ -188,8 +188,7 @@ escap            # Output escaping
 
 #### Evidence
 
-- **PR #60**: Security vulnerability (CWE-20/CWE-78) introduced and merged because security-domain comments were not prioritized. Detected post-merge by AI Quality Gate, required emergency remediation in Session 44.
-- **PR #52**: Symlink TOCTOU comment initially dismissed as style suggestion. Correct prioritization would have flagged it as security-domain.
+Security vulnerabilities like CWE-20/CWE-78 can be introduced and merged when security-domain comments are not prioritized. Similarly, symlink TOCTOU comments can be dismissed as style suggestions when they should be flagged as security-domain.
 
 **Skill Reference**: Skill-PR-Review-Security-001 (atomicity: 94%)
 
@@ -220,11 +219,11 @@ Task(subagent_type="orchestrator", prompt="Analyze and implement...")
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
-| Quick Fix | Yes | May need regression tests (PR #47 PathInfo example) |
+| Quick Fix | Yes | May need regression tests even for simple fixes |
 | Standard | Yes | Full test coverage verification |
 | Strategic | Yes | Architectural impact assessment |
 
-Evidence: In PR #47, QA agent added a regression test for a "simple" PathInfo bug that would have otherwise gone untested.
+Even "simple" bug fixes often need regression tests that would otherwise go untested.
 
 ```python
 # After implementer completes ANY fix

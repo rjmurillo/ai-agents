@@ -60,7 +60,7 @@ Prioritize comments based on historical actionability rates:
 
 | Reviewer | Signal Quality | Evidence | Recommended Action |
 |----------|---------------|----------|-------------------|
-| **cursor[bot]** | High (100%) | 4/4 actionable bugs in PR #32, #47 | Process immediately |
+| **cursor[bot]** | High (100%) | All comments identify real bugs | Process immediately |
 | **Human reviewers** | High | Domain expertise, project context | Process with priority |
 | **CodeRabbit** | Medium (~30%) | Many style suggestions, some real issues | Triage carefully |
 | **Copilot** | Medium (~30%) | Mixed signal, follow-up PR behavior | Verify before acting |
@@ -75,7 +75,7 @@ Prioritize comments based on historical actionability rates:
 
 | Comment Domain | Keywords | Priority Adjustment | Rationale |
 |----------------|----------|---------------------|-----------|
-| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage; CWE-20/CWE-78 introduced in PR #60 went undetected until PR #211 quality gate |
+| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage if missed during review |
 | **Bug** | error, crash, exception, fail, null, undefined, race condition | No change | Standard priority based on reviewer signal |
 | **Style** | formatting, naming, indentation, whitespace, convention | No change | Standard priority based on reviewer signal |
 
@@ -141,11 +141,11 @@ Analyze and implement...
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
-| Quick Fix | Yes | May need regression tests (PR #47 PathInfo example) |
+| Quick Fix | Yes | May need regression tests even for simple fixes |
 | Standard | Yes | Full test coverage verification |
 | Strategic | Yes | Architectural impact assessment |
 
-Evidence: In PR #47, QA agent added a regression test for a "simple" PathInfo bug that would have otherwise gone untested.
+Even "simple" bug fixes often need regression tests that would otherwise go untested.
 
 ```text
 #runSubagent with subagentType=qa
