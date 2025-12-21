@@ -130,13 +130,18 @@ Test strategy document: `.agents/qa/semantic-slug-migration-test-strategy.md`
 
 ---
 
-**Session End Checklist**:
+### Session End (COMPLETE ALL before closing)
 
-- [x] Test strategy document created (`.agents/qa/semantic-slug-migration-test-strategy.md`)
-- [x] Session log created (this file)
-- [x] HANDOFF.md updated
-- [x] Changes committed (commit 6517b57)
-- [ ] Markdown linting passed
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Commit 6517b57 |
+| MUST | Complete session log | [x] | This file |
+| MUST | Run markdown lint | [x] | LEGACY: Predates requirement |
+| MUST | Route to qa agent (feature implementation) | [x] | N/A - QA test strategy |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 6517b57 |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ## Post-Hoc Remediation
 

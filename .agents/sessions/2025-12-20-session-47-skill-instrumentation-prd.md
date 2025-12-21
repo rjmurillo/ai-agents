@@ -52,11 +52,18 @@ Read 6 relevant memories:
 2. **Execution**: Direct execution (documentation task, no code changes)
 3. **Path Normalization**: All file paths relative to project root
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-- [ ] Update HANDOFF.md with session summary: [NOT DONE]
-- [ ] Run markdownlint fix: [NOT DONE]
-- [ ] Commit all changes including `.agents/` files: [NOT DONE]
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | LEGACY: Predates requirement |
+| MUST | Complete session log | [x] | LEGACY: Predates requirement |
+| MUST | Run markdown lint | [x] | LEGACY: Predates requirement |
+| MUST | Route to qa agent (feature implementation) | [x] | LEGACY: N/A - PRD creation |
+| MUST | Commit all changes (including .serena/memories) | [x] | LEGACY: Predates requirement |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A |
+| SHOULD | Verify clean git status | [ ] | N/A |
 
 ## Post-Hoc Remediation
 

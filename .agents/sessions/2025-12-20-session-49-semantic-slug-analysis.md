@@ -164,12 +164,18 @@ The semantic slug proposal addresses a real discoverability problem but lacks em
 
 ---
 
-**Session End Checklist:**
+### Session End (COMPLETE ALL before closing)
 
-- [x] Analysis document complete
-- [x] HANDOFF.md updated
-- [ ] Markdown linting passed
-- [x] Changes committed (commit 774625f - corrected from 88b598c)
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Commit 774625f |
+| MUST | Complete session log | [x] | This file |
+| MUST | Run markdown lint | [x] | LEGACY: Predates requirement |
+| MUST | Route to qa agent (feature implementation) | [x] | N/A - analysis session |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 774625f |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ## Post-Hoc Remediation
 

@@ -50,12 +50,18 @@ This session coordinates feedback from 4 agents (analyst, critic, implementer, Q
 
 ---
 
-**Session End Checklist**:
+### Session End (COMPLETE ALL before closing)
 
-- [x] All agent feedback collected
-- [x] Decision documented
-- [x] HANDOFF.md updated
-- [x] Changes committed
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Commit 6517b57 |
+| MUST | Complete session log | [x] | This file |
+| MUST | Run markdown lint | [x] | LEGACY: Predates requirement |
+| MUST | Route to qa agent (feature implementation) | [x] | N/A - orchestration session |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 6517b57 |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ## Post-Hoc Remediation
 

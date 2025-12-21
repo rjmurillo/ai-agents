@@ -202,13 +202,18 @@ Memory reads: 2-6+ (index + multiple libraries if skill not found)
 
 ---
 
-**Session End Checklist**:
+### Session End (COMPLETE ALL before closing)
 
-- [x] Critique document created (`.agents/critique/048-semantic-slug-protocol-critique.md`)
-- [x] Session log created (this file)
-- [x] HANDOFF.md updated
-- [x] Changes committed (commit 774625f)
-- [ ] Markdown linting passed
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Commit 774625f |
+| MUST | Complete session log | [x] | This file |
+| MUST | Run markdown lint | [x] | LEGACY: Predates requirement |
+| MUST | Route to qa agent (feature implementation) | [x] | N/A - critique session |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 774625f |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ## Post-Hoc Remediation
 

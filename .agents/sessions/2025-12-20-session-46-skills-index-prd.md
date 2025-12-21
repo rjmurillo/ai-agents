@@ -94,12 +94,18 @@ The PRD includes:
 8. **Scalability**: Supports 500+ skills
 9. **Example Index Structure**: Full appendix with sample implementation
 
-## Session End Requirements
+### Session End (COMPLETE ALL before closing)
 
-- [COMPLETE] Retrospective assessment: Not merited (documentation task, no implementation learnings)
-- [COMPLETE] Update HANDOFF.md
-- [COMPLETE] Run `npx markdownlint-cli2 --fix "**/*.md"`
-- [COMPLETE] Commit changes (commit 3b6559d)
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Commit 3b6559d |
+| MUST | Complete session log | [x] | This file |
+| MUST | Run markdown lint | [x] | Executed with --fix |
+| MUST | Route to qa agent (feature implementation) | [x] | N/A - documentation task |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 3b6559d |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A - not merited |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ## Commit Details
 

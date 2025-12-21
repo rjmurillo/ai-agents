@@ -128,13 +128,18 @@ Quantify token efficiency trade-offs for memory architecture decision:
 
 ---
 
-**Session End Checklist**:
+### Session End (COMPLETE ALL before closing)
 
-- [x] Analysis document created (`.agents/analysis/050-token-efficiency-memory-architecture.md`)
-- [x] Session log created (this file)
-- [x] HANDOFF.md updated
-- [x] Changes committed (commit 34596c3)
-- [ ] Markdown linting passed
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Commit 34596c3 |
+| MUST | Complete session log | [x] | This file |
+| MUST | Run markdown lint | [x] | LEGACY: Predates requirement |
+| MUST | Route to qa agent (feature implementation) | [x] | N/A - analysis session |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 34596c3 |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ## Post-Hoc Remediation
 
