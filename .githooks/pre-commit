@@ -358,6 +358,57 @@ elif [ -f "$SECURITY_DETECTION_SCRIPT" ]; then
 fi
 
 #
+# Bash Detection (BLOCKING)
+#
+# Enforces ADR-005: PowerShell-Only Scripting Standard
+# Rejects bash usage in GitHub workflow files and script files.
+# Uses pwsh (PowerShell) as the approved alternative.
+#
+# Security: Prevents bash code from bypassing PowerShell hardening (CWE-20/CWE-78)
+# Related: ADR-005, Skill-Security-010
+#
+
+# Check staged workflow files for shell: bash
+STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|scripts)/.*\.(yml|yaml)$' || true)
+
+if [ -n "$STAGED_WORKFLOW_FILES" ]; then
+    echo_info "Checking for bash usage in workflow files (ADR-005)..."
+
+    # Check the staged diff for shell: bash declarations
+    if git diff --cached -- $STAGED_WORKFLOW_FILES | grep -E '^\+.*shell:\s*bash' > /dev/null 2>&1; then
+        echo_error "Bash not allowed in workflow files (ADR-005)."
+        echo_info "  Use PowerShell instead: shell: pwsh"
+        echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
+        EXIT_STATUS=1
+    else
+        echo_success "No bash usage in workflow YAML files."
+    fi
+fi
+
+# Check staged script files for bash shebangs
+STAGED_SCRIPT_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/scripts/.*\.(sh|bash)$' || true)
+
+if [ -n "$STAGED_SCRIPT_FILES" ]; then
+    echo_error "Bash scripts (.sh, .bash) not allowed in .github/scripts/ (ADR-005)."
+    echo_info "  Use PowerShell (.ps1, .psm1) instead."
+    echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
+    EXIT_STATUS=1
+fi
+
+# Check for bash shebangs in any staged files under .github/scripts/
+STAGED_GITHUB_SCRIPT_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/scripts/' || true)
+
+if [ -n "$STAGED_GITHUB_SCRIPT_FILES" ]; then
+    # Check staged content for bash shebangs
+    if git diff --cached -- $STAGED_GITHUB_SCRIPT_FILES | grep -E '^\+#!.*(bin/bash|env bash)' > /dev/null 2>&1; then
+        echo_error "Bash shebang not allowed in .github/scripts/ files (ADR-005)."
+        echo_info "  Use PowerShell instead. Scripts should be .ps1 files."
+        echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
+        EXIT_STATUS=1
+    fi
+fi
+
+#
 # Final Summary
 #
 echo ""
