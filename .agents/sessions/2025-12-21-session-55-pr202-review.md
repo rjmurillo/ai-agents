@@ -116,7 +116,7 @@
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | 0 errors |
 | MUST | Route to qa agent (feature implementation) | [x] | .agents/qa/pr-202-copilot-followup-detection-validation.md (documentation-only changes; QA completed in prior session) |
-| MUST | Commit all changes (including .serena/memories) | [x] | Main: 33ce0aa, 84cb0ad; PR worktree: 6cb7b43 |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 6cb7b43 (PR worktree); Main commits: 33ce0aa, 84cb0ad |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - no tasks to update |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A - straightforward PR review |
 | SHOULD | Verify clean git status | [x] | Clean after final commit |
