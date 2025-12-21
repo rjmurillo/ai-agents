@@ -2,11 +2,24 @@
 
 ## Statement
 
-Memory file names and index statements MUST contain dense, high-signal keywords because agents select memories based on word frequency matching, not semantic similarity.
+Memory file names and index statements MUST contain dense, high-signal keywords (activation vocabulary) because LLMs map tokens into vector space where association patterns - not symbolic logic - drive selection.
 
 ## Context
 
 When designing memory file naming or index entries for the Serena memory system.
+
+## Core Insight: Activation Vocabulary
+
+Imagine generating a list of 5 words that describe a specific skill or memory. That list is **gold** - it's your activation vocabulary.
+
+LLMs break language into tokens and map them into a **vector space**. That space represents **association, not symbolic logic**. Think of it as a word cloud. To optimize memory discovery:
+
+1. **Identify the 5 most associated words** for each memory
+2. **Include those words** in file names and index statements
+3. **Precision matters** - vague words activate too many associations
+4. **Match training data patterns** - use terms from common documentation, not invented jargon
+
+This is "good enough" until we move to a vector database solution with embeddings.
 
 ## Evidence
 

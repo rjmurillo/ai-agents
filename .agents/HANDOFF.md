@@ -3,8 +3,8 @@
 **Project**: AI Agents Enhancement
 **Version**: 1.0
 **Last Updated**: 2025-12-20
-**Current Phase**: Token Efficiency Analysis Complete (Session 50)
-**Status**: ✅ Quantitative analysis complete - Defer consolidation, implement Skills Index Registry
+**Current Phase**: Token Efficiency Debate Complete (Session 51)
+**Status**: ✅ 10-agent consensus + activation vocabulary insight - PR 212 ready to merge
 
 ---
 
@@ -57,11 +57,48 @@
 
 | Session | Date | Type | PR | Outcome |
 |---------|------|------|----|---------|
-| **Session 50** | **2025-12-20** | **Analysis** | **N/A** | **Token efficiency analysis: Atomic wins at current scale (29 files), defer consolidation until 400+ files** |
+| **Session 51** | **2025-12-20** | **Debate** | **#212** | **10-agent consensus on token efficiency, activation vocabulary insight, PR 212 ready to merge** |
+| Session 50 | 2025-12-20 | Analysis | N/A | Token efficiency analysis: Atomic wins at current scale (29 files), defer consolidation until 400+ files |
 | Session 49 | 2025-12-20 | Critique | N/A | Semantic slug proposal BLOCKED (4 fatal flaws, PRD approved) |
 | Session 48 | 2025-12-20 | Orchestration | N/A | Semantic slug feedback coordination (4 agents) |
 | Session 46 | 2025-12-20 | PRD Creation | N/A | Skills Index Registry PRD created (450+ lines, 10 FRs) |
-| Session 45 | 2025-12-20 | Retrospective + Implementation | #212 | 7 skills extracted, 3 implemented (pre-commit, QA gate, triage) |
+
+### Key Learnings from Session 51 (Debate - Token Efficiency)
+
+**Debate Scope**: 10-agent stress test of token efficiency principle (steel man, straw man, quantify, critique, strategic).
+
+**Verdict**: **APPROVED** - Numeric IDs with Index Registry (10-agent consensus)
+
+**What Worked:**
+
+- **Multi-perspective debate**: 5 agents challenged, 5 agents defended - comprehensive stress test
+- **User insight integration**: "Activation vocabulary" concept refined the theoretical basis
+- **Disagree and commit**: Clear resolution despite strong opposing arguments
+
+**Key Insight: Activation Vocabulary**
+
+> "Imagine we generated a list of 5 words that would describe a [specific skill or memory]. That list is gold; it's your activation vocabulary. LLMs break language into tokens and map them into a vector space. That space represents association, not symbolic logic."
+
+**10-Agent Verdict Summary:**
+
+| Position | Agents | Key Argument |
+|----------|--------|--------------|
+| APPROVE Index | 9/10 | Serena MCP abstracts file names; index provides O(1) lookup |
+| NEUTRAL | 1/10 (QA) | Test strategy defined for either approach |
+
+**Strategic Priority** (High-Level Advisor):
+
+- **P0**: Instrument retrieval before optimizing further
+- **P1**: Implement Skills Index Registry (2-3 hours)
+- **P2**: Measure skill "hit rate" before consolidation discussion
+
+**Artifacts:**
+
+- PRD: `.agents/planning/PRD-skills-index-registry.md` (updated with 10-agent consensus section)
+- Memory: `.serena/memories/skill-memory-token-efficiency.md` (updated with activation vocabulary)
+- Session: [Session 51](./sessions/2025-12-20-session-51-token-efficiency-debate.md)
+
+---
 
 ### Key Learnings from Session 50 (Analysis - Token Efficiency)
 
