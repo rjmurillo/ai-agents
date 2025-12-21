@@ -172,6 +172,75 @@ Output a summary table:
 /pr-review 194 --parallel --cleanup=false
 ```
 
+## Critical Constraints (MUST)
+
+When using `--parallel` with worktrees, the following constraints are **BLOCKING**:
+
+### 1. Worktree Isolation (MUST)
+
+**ALL changes MUST be contained within the assigned worktree.**
+
+- Agents MUST NOT write files to the main repository directory
+- Agents MUST NOT write files to other PR worktrees
+- Agents MUST NOT modify shared resources outside their worktree
+
+**Violation consequence**: Work leaks between PRs, potential data corruption, merge conflicts.
+
+### 2. Working Directory (MUST)
+
+**Agents MUST set working directory to their worktree before any file operations.**
+
+```bash
+# CORRECT: Work inside worktree
+cd ../worktree-pr-{number}
+# All file operations happen here
+
+# WRONG: Working from main repo
+cd /path/to/main/repo
+# Writing to ../worktree-pr-{number}/file.md  # VIOLATION - path traversal
+```
+
+### 3. Path Validation (MUST)
+
+**All file paths MUST be relative to the worktree root or use absolute paths within the worktree.**
+
+```python
+# CORRECT
+worktree_root = "../worktree-pr-{number}"
+file_path = f"{worktree_root}/.agents/sessions/session.md"
+
+# WRONG - writes to main repo
+file_path = ".agents/sessions/session.md"  # VIOLATION
+```
+
+### 4. Git Operations (MUST)
+
+**Git commands MUST be executed from within the worktree directory.**
+
+```bash
+# CORRECT
+cd ../worktree-pr-{number}
+git add .
+git commit -m "message"
+git push
+
+# WRONG - operates on main repo
+git -C ../worktree-pr-{number} add .  # Risky - easy to forget -C flag
+```
+
+### 5. Verification Gate (MUST)
+
+**Before cleanup, verify no files were written outside worktrees:**
+
+```bash
+# Check main repo for unexpected changes
+cd {main_repo}
+git status --short
+
+# If output is non-empty, HALT and investigate
+# Changes in main repo during parallel execution = constraint violation
+```
+
 ## Prerequisites
 
 1. **GitHub CLI**: `gh auth status` must show authenticated
