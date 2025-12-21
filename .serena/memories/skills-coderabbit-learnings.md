@@ -7,7 +7,7 @@ Import Method: Bulk import from CSV with atomicity validation
 ## Summary
 
 - **Total Learnings Imported**: 12
-- **Valid Skills Created**: 7
+- **Valid Skills Created**: 8
 - **Duplicates Identified**: 4 (already in skills-linting)
 - **Partial Duplicates**: 1 (merged with existing)
 
@@ -49,7 +49,7 @@ Import Method: Bulk import from CSV with atomicity validation
 
 ### Skill-CodeRabbit-005: MCP Tool Naming with Duplicated Segments (92%)
 
-- **Statement**: In MCP tool naming, the pattern `mcp__[server]__[tool-id]` may result in seemingly duplicated segments (e.g., `mcp__cloudmcp-manager__commicrosoftmicrosoft-learn-mcp-...`) which are intentional per the MCP server's tool identifier convention.
+- **Statement**: In MCP tool naming, the pattern `mcp__[server]__[tool-id]` uses double underscores to separate the server and tool-id segments. For example, in the identifier `mcp__cloudmcp-manager__commicrosoftmicrosoft-learn-mcp-search`, `cloudmcp-manager` is the `[server]` value and `commicrosoftmicrosoft-learn-mcp-search` is the `[tool-id]` value, and the repeated `microsoft` segment is intentional per the MCP server's tool identifier convention.
 - **Context**: Code review on agent files using MCP tool references
 - **Evidence**: PR #32 (ai-agents), direct link: https://github.com/rjmurillo/ai-agents/pull/32
 - **Impact**: Prevents false positive comments on MCP tool identifier formatting
@@ -104,7 +104,7 @@ This learning about 4-backtick outer fences for nested code blocks is partially 
 
 ### Skill-CodeRabbit-008: Nested Code Fence Syntax (88%)
 
-- **Statement**: When nesting code fences inside a code block, the outer fence must use more backticks than the inner fence. A 4-backtick outer fence (` ``` `markdown) is correct when it contains a 3-backtick code fence.
+- **Statement**: When nesting code fences inside a code block, the outer fence must use more backticks than the inner fence. For example, an outer fence written with four backticks and the language identifier `markdown` is correct when it contains a standard three-backtick code fence inside.
 - **Context**: Markdown documentation with code block examples
 - **Evidence**: PR #43 (ai-agents), CodeRabbit review on `templates/agents/roadmap.shared.md`
 - **Impact**: Prevents false positive comments on correct CommonMark nested fence syntax
