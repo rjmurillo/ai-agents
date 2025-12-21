@@ -153,7 +153,7 @@ After completing each PR comment response session, update this section and the `
 
 | Comment Domain | Keywords | Priority Adjustment | Rationale |
 |----------------|----------|---------------------|-----------|
-| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage; missed security comments led to CWE-20/CWE-78 in PR #60 |
+| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage; CWE-20/CWE-78 introduced in PR #60 went undetected until PR #211 quality gate |
 | **Bug** | error, crash, exception, fail, null, undefined, race condition | No change | Standard priority based on reviewer signal |
 | **Style** | formatting, naming, indentation, whitespace, convention | No change | Standard priority based on reviewer signal |
 

@@ -70,8 +70,9 @@ jobs:
           if ($labels.Count -eq 0 -and $env:FALLBACK_LABELS) {
               $fallbackLabels = $env:FALLBACK_LABELS -split ',' | ForEach-Object { $_.Trim() }
               # Validate fallback labels with same regex
+              # Regex: single alphanumeric OR alphanumeric + middle + alphanumeric (prevents trailing special chars)
               $labels = $fallbackLabels | Where-Object {
-                  $_ -match '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$'
+                  $_ -match '^[a-zA-Z0-9]([a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9])?$'
               }
           }
 
@@ -117,8 +118,8 @@ jobs:
           # Parse milestone with hardened function
           $milestone = Get-MilestoneFromAIOutput -Output $env:RAW_OUTPUT
           if (-not $milestone -and $env:MILESTONE_FROM_ACTION) {
-              # Validate fallback milestone with same regex
-              if ($env:MILESTONE_FROM_ACTION -match '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$') {
+              # Validate fallback milestone with same regex (prevents trailing special chars)
+              if ($env:MILESTONE_FROM_ACTION -match '^[a-zA-Z0-9]([a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9])?$') {
                   $milestone = $env:MILESTONE_FROM_ACTION
               }
           }
@@ -147,7 +148,8 @@ jobs:
               $criteria = $Matches[1] -split ',' | ForEach-Object {
                   $_.Trim().Trim('"').Trim("'")
               } | Where-Object {
-                  $_ -match '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$'
+                  # Regex: single alphanumeric OR alphanumeric + middle + alphanumeric (prevents trailing special chars)
+                  $_ -match '^[a-zA-Z0-9]([a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9])?$'
               }
               $escalationCriteria = $criteria -join ','
           }
@@ -182,15 +184,17 @@ jobs:
 
           # Apply category labels with proper quoting
           foreach ($label in $labels) {
-              # Defense in depth: validate label one more time
-              if ($label -notmatch '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$') {
+              # Defense in depth: validate label one more time (prevents trailing special chars)
+              if ($label -notmatch '^[a-zA-Z0-9]([a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9])?$') {
                   Write-Warning "Skipping invalid label: $label"
                   continue
               }
 
-              # Check if label exists
-              $existing = gh label list --search $label --json name -q '.[].name' 2>$null
-              if ($existing -notcontains $label) {
+              # Check if label exists (case-insensitive)
+              $existingRaw = gh label list --search $label --json name -q '.[].name' 2>$null
+              $existing = @($existingRaw)
+              $existingLower = $existing | ForEach-Object { $_.ToLowerInvariant() }
+              if ($existingLower -notcontains $label.ToLowerInvariant()) {
                   Write-Host "Creating label: $label"
                   $result = gh label create $label --description "Auto-created by AI triage" 2>&1
                   if ($LASTEXITCODE -ne 0) {
@@ -211,8 +215,10 @@ jobs:
           if ($env:PRIORITY -match '^P[0-4]$') {
               $priorityLabel = "priority:$($env:PRIORITY)"
 
-              $existing = gh label list --search $priorityLabel --json name -q '.[].name' 2>$null
-              if ($existing -notcontains $priorityLabel) {
+              $existingRaw = gh label list --search $priorityLabel --json name -q '.[].name' 2>$null
+              $existing = @($existingRaw)
+              $existingLower = $existing | ForEach-Object { $_.ToLowerInvariant() }
+              if ($existingLower -notcontains $priorityLabel.ToLowerInvariant()) {
                   Write-Host "Creating label: $priorityLabel"
                   $result = gh label create $priorityLabel --description "Priority level" --color "FFA500" 2>&1
                   if ($LASTEXITCODE -ne 0) {
@@ -252,15 +258,19 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           if ($env:MILESTONE -and $env:MILESTONE -ne 'null') {
-              # Defense in depth: validate milestone format (already validated in parse step)
-              if ($env:MILESTONE -notmatch '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$') {
+              # Defense in depth: validate milestone format (prevents trailing special chars)
+              if ($env:MILESTONE -notmatch '^[a-zA-Z0-9]([a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9])?$') {
                   Write-Warning "Invalid milestone format: $($env:MILESTONE)"
                   exit 0
               }
 
               # Check if milestone exists
-              $milestones = gh api "repos/$($env:GITHUB_REPOSITORY)/milestones" --jq '.[].title' 2>$null
-              if ($milestones -contains $env:MILESTONE) {
+              # Ensure $milestones is always an array (fixes single-milestone edge case)
+              $milestonesRaw = gh api "repos/$($env:GITHUB_REPOSITORY)/milestones" --jq '.[].title' 2>$null
+              $milestones = @($milestonesRaw)
+              # Case-insensitive comparison for milestone matching
+              $milestonesLower = $milestones | ForEach-Object { $_.ToLowerInvariant() }
+              if ($milestonesLower -contains $env:MILESTONE.ToLowerInvariant()) {
                   Write-Host "Assigning milestone: $($env:MILESTONE)"
                   $result = gh issue edit $env:ISSUE_NUMBER --milestone $env:MILESTONE 2>&1
                   if ($LASTEXITCODE -ne 0) {

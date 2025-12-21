@@ -40,7 +40,7 @@ PowerShell interprets `$var:` as a scope qualifier (like `$global:var` or `$scri
 
 ## Skill-PowerShell-Security-001: Hardened Regex for AI Output (96%)
 
-**Statement**: Use regex `^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$` for AI-generated label/milestone parsing
+**Statement**: Use regex `^[a-zA-Z0-9]([a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9])?$` for AI-generated label/milestone parsing (prevents trailing special chars)
 
 **Context**: When parsing AI-generated structured output (labels, milestones, tags)
 
