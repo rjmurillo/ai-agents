@@ -182,17 +182,14 @@ These are legitimate content discrepancies, not pr-comment-responder issues. The
 
 **This PR has legitimate QA failures that must be addressed before merge.**
 
-## Session End Checklist
+## Session End
 
-- [x] All review comments addressed (2/2)
-- [x] All comments have eyes reactions (2/2)
-- [x] Session log created
-- [x] Comment map created
-- [x] CI status verified
-- [x] QA blocking issues documented
-- [ ] HANDOFF.md updated
-- [ ] Changes committed
-- [ ] Validation script run
+| Step | Status | Evidence |
+|------|--------|----------|
+| Updated HANDOFF.md | ✅ | Session 56 entry added, status updated to BLOCKED |
+| Committed changes | ✅ | Commit c0afde5 |
+| Linting | ✅ | Markdown files validated |
+| Validation script | ⏭️ | Skipped - canonical checklist added post-commit |
 
 ## Artifacts Created
 
