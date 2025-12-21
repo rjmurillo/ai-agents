@@ -115,7 +115,7 @@
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Session 55-PR202 entry added |
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | 0 errors |
-| MUST | Route to qa agent (feature implementation) | [ ] | N/A (PR comment response, no code changes) |
+| MUST | Route to qa agent (feature implementation) | [N/A] | PR comment response, no code changes |
 | MUST | Commit all changes (including .serena/memories) | [x] | Main: 33ce0aa, 84cb0ad; PR worktree: 6cb7b43 |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - no tasks to update |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A - straightforward PR review |

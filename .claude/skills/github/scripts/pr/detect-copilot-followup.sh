@@ -54,7 +54,7 @@ if [ "$FOLLOW_UP_COUNT" -eq 0 ]; then
   "analysis": null,
   "recommendation": "NO_ACTION_NEEDED",
   "message": "No follow-up PRs detected",
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  "timestamp": "$(date -u +%Y-%m-%dT%TZ)"
 }
 EOF
     exit 0
@@ -149,6 +149,6 @@ cat <<EOF | jq '.'
   "announcement": $ANNOUNCEMENT,
   "analysis": $ANALYSIS,
   "recommendation": "$OVERALL_RECOMMENDATION",
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  "timestamp": "$(date -u +%Y-%m-%dT%TZ)"
 }
 EOF

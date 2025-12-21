@@ -166,3 +166,18 @@ worktree-${AGENT_ROLE}-${PR_NUMBER} → ${FEATURE_BRANCH}
 
 **Session Status**: [IN_PROGRESS] - Awaiting onen push confirmation  
 **Expected Closure**: Within 5 minutes of onen confirmation
+
+---
+
+## Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Merged to main in PR #147 |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | Clean |
+| MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/pr-202-copilot-followup-detection-validation.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 6cb7b43 |
+| SHOULD | Update PROJECT-PLAN.md | [x] | Tasks checked off |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | Retrospective planned |
+| SHOULD | Verify clean git status | [x] | Clean post-commit |
