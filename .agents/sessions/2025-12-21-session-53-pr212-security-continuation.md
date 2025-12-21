@@ -4,7 +4,7 @@
 - **Branch**: fix/211-security
 - **PR**: #212
 - **Focus**: Security review completion and protocol compliance
-- **Starting Commit**: 479e474
+- **Starting Commit**: 37cce24
 
 ---
 
@@ -41,6 +41,8 @@ This is a continuation session. Prior session was cut short by context limit.
 4. [x] Fixed 11 historical session logs with canonical Session End checklist format
 5. [x] Updated AI prompt to recognize LEGACY and Continuation sessions
 6. [x] Updated AI prompt to ignore Post-Hoc Remediation sections
+7. [x] Fixed Regex::Escape parsing bug (PowerShell ambiguity with empty replacement)
+8. [x] Added -PreCommit flag to skip post-commit checks in pre-commit hook
 
 ---
 
@@ -71,7 +73,7 @@ This means error messages should trigger the correct behavior, not just describe
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified |
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | Lint output clean |
-| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: docs-only |
+| MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/053-session-protocol-validator-fix.md` |
 | MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 7c90dfb |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A - continuation session |

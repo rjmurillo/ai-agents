@@ -32,7 +32,9 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$SessionLogPath,
 
-  [switch]$FixMarkdown
+  [switch]$FixMarkdown,
+
+  [switch]$PreCommit
 )
 
 Set-StrictMode -Version Latest
@@ -246,7 +248,7 @@ if (-not (Test-Path -LiteralPath $handoffPath)) { Fail 'E_HANDOFF_MISSING' "Miss
 $handoff = Read-AllText $handoffPath
 
 # Accept either [Session NN](./sessions/...) or raw path.
-if ($handoff -notmatch [Regex]::Escape($sessionRel -replace '^\.agents/','')) {
+if ($handoff -notmatch [Regex]::Escape(($sessionRel -replace '^\.agents/',''))) {
   # The typical link omits ".agents/" prefix (because HANDOFF lives in .agents/)
   $relFromHandoff = $sessionRel -replace '^\.agents/',''
   if ($handoff -notmatch [Regex]::Escape($relFromHandoff)) {
@@ -254,37 +256,41 @@ if ($handoff -notmatch [Regex]::Escape($sessionRel -replace '^\.agents/','')) {
   }
 }
 
-# --- Verify git is clean
-$porcelain = (& git -C $repoRoot status --porcelain)
-if ($porcelain -and $porcelain.Trim().Length -gt 0) {
-  Fail 'E_DIRTY_WORKTREE' "git status is not clean. Stage + commit all changes (including .agents/*)."
+# --- Verify git is clean (skip during pre-commit, which runs before commit)
+if (-not $PreCommit) {
+  $porcelain = (& git -C $repoRoot status --porcelain)
+  if ($porcelain -and $porcelain.Trim().Length -gt 0) {
+    Fail 'E_DIRTY_WORKTREE' "git status is not clean. Stage + commit all changes (including .agents/*)."
+  }
 }
 
-# --- Verify at least one commit since Starting Commit (if present)
-if ($startingCommit) {
+# --- Verify at least one commit since Starting Commit (skip during pre-commit)
+if (-not $PreCommit -and $startingCommit) {
   $head = (& git -C $repoRoot rev-parse HEAD).Trim()
   if ($head.StartsWith($startingCommit)) {
     Fail 'E_NO_COMMITS_SINCE_START' "No commits since Starting Commit ($startingCommit)."
   }
 }
 
-# --- Verify Commit SHA evidence exists and is valid
-$commitRow = $mustRows | Where-Object { (Normalize-Step $_.Step) -match 'Commit all changes' } | Select-Object -First 1
-if (-not $commitRow) { Fail 'E_COMMIT_ROW_MISSING' "Could not find 'Commit all changes' row in MUST checklist." }
+# --- Verify Commit SHA evidence exists and is valid (skip during pre-commit)
+if (-not $PreCommit) {
+  $commitRow = $mustRows | Where-Object { (Normalize-Step $_.Step) -match 'Commit all changes' } | Select-Object -First 1
+  if (-not $commitRow) { Fail 'E_COMMIT_ROW_MISSING' "Could not find 'Commit all changes' row in MUST checklist." }
 
-$sha = $null
-if ($commitRow.Evidence -match '(?i)Commit\s+SHA:\s*`?([0-9a-f]{7,40})`?') { $sha = $Matches[1] }
-if (-not $sha) { Fail 'E_COMMIT_SHA_MISSING' "Commit row checked but Evidence missing 'Commit SHA: <sha>'." }
+  $sha = $null
+  if ($commitRow.Evidence -match '(?i)Commit\s+SHA:\s*`?([0-9a-f]{7,40})`?') { $sha = $Matches[1] }
+  if (-not $sha) { Fail 'E_COMMIT_SHA_MISSING' "Commit row checked but Evidence missing 'Commit SHA: <sha>'." }
 
-# Validate commit exists
-& git -C $repoRoot cat-file -e "$sha^{commit}" 2>$null
-if ($LASTEXITCODE -ne 0) { Fail 'E_COMMIT_SHA_INVALID' "Commit SHA not found in git history: $sha" }
+  # Validate commit exists
+  & git -C $repoRoot cat-file -e "$sha^{commit}" 2>$null
+  if ($LASTEXITCODE -ne 0) { Fail 'E_COMMIT_SHA_INVALID' "Commit SHA not found in git history: $sha" }
 
-# Ensure session + handoff changed since Starting Commit (stronger than single-commit containment)
-if ($startingCommit) {
-  $changed = (& git -C $repoRoot diff --name-only "$startingCommit..HEAD") -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' } | ForEach-Object { $_.Trim() }
-  if ($changed -notcontains ".agents/HANDOFF.md") { Fail 'E_HANDOFF_NOT_UPDATED' "HANDOFF.md was not changed since Starting Commit ($startingCommit)." }
-  if ($changed -notcontains $sessionRel) { Fail 'E_SESSION_NOT_UPDATED' "Session log was not changed since Starting Commit ($startingCommit): $sessionRel" }
+  # Ensure session + handoff changed since Starting Commit (stronger than single-commit containment)
+  if ($startingCommit) {
+    $changed = (& git -C $repoRoot diff --name-only "$startingCommit..HEAD") -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' } | ForEach-Object { $_.Trim() }
+    if ($changed -notcontains ".agents/HANDOFF.md") { Fail 'E_HANDOFF_NOT_UPDATED' "HANDOFF.md was not changed since Starting Commit ($startingCommit)." }
+    if ($changed -notcontains $sessionRel) { Fail 'E_SESSION_NOT_UPDATED' "Session log was not changed since Starting Commit ($startingCommit): $sessionRel" }
+  }
 }
 
 # --- Markdown lint
@@ -301,5 +307,5 @@ if ($LASTEXITCODE -ne 0) {
 Write-Output "OK: Session End validation passed"
 Write-Output "Session: $sessionRel"
 if ($startingCommit) { Write-Output "StartingCommit: $startingCommit" }
-Write-Output "Commit: $sha"
+if (-not $PreCommit -and $sha) { Write-Output "Commit: $sha" }
 exit 0

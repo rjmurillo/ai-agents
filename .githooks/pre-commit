@@ -471,7 +471,7 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
             if command -v pwsh &> /dev/null; then
                 echo_info "Running Validate-SessionEnd.ps1..."
                 # SECURITY: Use -- separator and quote path to prevent injection
-                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_END_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" 2>&1; then
+                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_END_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
                     echo_error "Session End validation FAILED."
                     echo_info "  Review errors above and fix session log."
                     echo_info "  Run manually: pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
