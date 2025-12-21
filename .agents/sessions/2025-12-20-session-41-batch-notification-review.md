@@ -160,3 +160,16 @@ After this session, update:
 
 Session completed: 2025-12-20 12:55 UTC  
 Status: [COMPLETE]
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified 2025-12-20 |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/session-41-pr-consolidation-test-report.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: c5d3e29 |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A (batch notification review) |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | Not needed (routine review) |
+| SHOULD | Verify clean git status | [x] | `git status` clean after commit |
