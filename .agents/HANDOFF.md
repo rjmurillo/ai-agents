@@ -3042,7 +3042,7 @@ Added serena-specific transformation to `scripts/Sync-McpConfig.ps1`:
 - 6 comments fixed in commit 1da29cc (function naming, YAML syntax, import paths)
 - 3 gemini comments declined (style-only table alignment suggestions)
 
-**Key Finding**: Copilot performed exceptionally well (86% actionable) identifying real consistency issues between ADR-007 and planning documents. Well above historical 50% average.
+**Key Finding**: Copilot performed exceptionally well (86% actionable) identifying real consistency issues between ADR-011 (feature request review) and planning documents. Well above historical 50% average.
 
 **Workflow Adaptation**: Standard 8-phase pr-comment-responder workflow adapted for planning-only PR. No implementer/QA delegation needed, simple Won't Fix decision made directly.
 
