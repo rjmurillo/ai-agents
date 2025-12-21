@@ -373,7 +373,7 @@ jobs:
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | No linting errors in our files |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/056-retrospective-skill-extraction.md` |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 4a262c0 |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: b638e20 |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - retrospective task |
 | SHOULD | Invoke retrospective (significant sessions) | [x] | This session IS retrospective |
 | SHOULD | Verify clean git status | [x] | All changes committed |
