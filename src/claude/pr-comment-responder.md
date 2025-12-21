@@ -261,12 +261,16 @@ After enumerating reviewers in Step 1.2, load memories for each unique reviewer:
 reviewers = ["cursor[bot]", "copilot-pull-request-reviewer", "coderabbitai[bot]", ...]
 
 for reviewer in reviewers:
-    # Normalize reviewer name for memory lookup
-    memory_name = f"{reviewer.replace('[bot]', '-bot').replace('-', '_')}-review-patterns"
-    # Example: cursor-bot-review-patterns, copilot-review-patterns
+    # Check against known reviewer memories (see table below)
+    # Note: Actual memory names follow project conventions, not algorithmic transformation
+    # The mapping is maintained manually in the table below
 
-    # Load if exists (check list_memories first or handle gracefully)
-    mcp__serena__read_memory(memory_file_name=memory_name)
+    # Example lookup logic:
+    if reviewer == "cursor[bot]":
+        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
+    elif reviewer == "copilot-pull-request-reviewer":
+        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
+    # Or use a mapping dict for cleaner code
 ```
 
 **Known Reviewer Memories**:

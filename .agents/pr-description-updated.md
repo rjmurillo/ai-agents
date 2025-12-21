@@ -50,11 +50,11 @@ This session restored Phase 0/9 on top of main's current protocol while preservi
 
 | Reviewer | PRs | Comments | Actionable | Signal |
 |----------|-----|----------|------------|--------|
-| cursor[bot] | 5 | 10 | 10 | **100%** |
-| Copilot | 5 | 10 | 5 | **50%** |
-| coderabbitai | 4 | 6 | 3 | **50%** |
+| cursor[bot] | 4 | 11 | 11 | **100%** |
+| Copilot | 4 | 12 | 7 | **58%** |
+| coderabbitai | 3 | 6 | 3 | **50%** |
 
-*Note: Statistics reflect main's current data (through PR #212), not this PR's original commit.*
+*Note: Statistics from pr-comment-responder-skills memory after main merge (PRs #32, #47, #52, #89).*
 
 ## Test Plan
 
