@@ -108,16 +108,18 @@ Based on Skill-PR-006, Copilot has 44% signal quality. Will analyze each comment
 
 - 6 author replies already present (rjmurillo-bot prior responses)
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-| Task | Status | Evidence |
-|------|--------|----------|
-| Create session log | ✅ | This file |
-| Complete all phases | ✅ | All 8 phases verified complete |
-| Update HANDOFF.md | ✅ | Session 56 summary added |
-| Run markdownlint | ✅ | 0 errors (138 files) |
-| Commit changes | ✅ | Commit 3bd5aa0 |
-| Validation script | ✅ | Will run post-commit |
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Session 56 summary added |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | 0 errors (138 files) |
+| MUST | Route to qa agent (feature implementation) | N/A | Verification only, no implementation |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 6d9307a |
+| SHOULD | Update PROJECT-PLAN.md | N/A | No project plan tasks |
+| SHOULD | Invoke retrospective (significant sessions) | N/A | Verification session (trivial) |
+| SHOULD | Verify clean git status | [x] | Clean after push |
 
 ## Completion Summary
 
