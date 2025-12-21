@@ -86,7 +86,7 @@
 
 Retrieved PR context, reviewers, and comments:
 - 6 total review comments
-- 3 NEW comments requiring action (2638064487, 2638064489)
+- 2 NEW comments requiring action (2638064487, 2638064489)
 - 1 already resolved (2638064485 with reply 2638088264)
 
 ### Phase 2: Comment Map Generation ✅

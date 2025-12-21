@@ -9,7 +9,7 @@ Import Method: Bulk import from CSV with atomicity validation
 - **Total Learnings Imported**: 12
 - **Valid Skills Created**: 8
 - **Duplicates Identified**: 4 (already in skills-linting)
-- **Partial Duplicates**: 1 (merged with existing)
+- **Partial Duplicates**: 1 (incorporated into Skill-CodeRabbit-008; not counted separately)
 
 ---
 
