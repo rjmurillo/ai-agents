@@ -1,9 +1,10 @@
 # PRD: Skills Index Registry
 
-**Version**: 1.1
+**Version**: 1.2
 **Created**: 2025-12-20
 **Status**: Approved (10-Agent Consensus)
 **Approved Date**: 2025-12-20
+**Updated**: 2025-12-20 (Session 51 - Added Activation Vocabulary principle)
 **Target Audience**: Junior developers
 
 ## Introduction/Overview
@@ -293,15 +294,38 @@ The memory system operates without embeddings or vector databases. This creates 
 
 **Current architecture** (atomic files + index) optimizes for:
 
-1. **Word frequency density**: File names and index statements contain high-signal keywords that agents recognize during discovery
+1. **Activation vocabulary**: File names and index statements contain high-signal keywords that activate LLM attention patterns
 2. **Focused reads**: Each `read_memory` returns only relevant content (no scanning through consolidated libraries)
 3. **No embedding overhead**: Purely lexical matching via file names and index summaries
+
+### Activation Vocabulary Principle
+
+LLMs break language into tokens and map them into a **vector space**. That space represents **association, not symbolic logic** - think of it as a word cloud.
+
+For each skill or memory, imagine generating a list of **5 words** that describe it. That list is **gold** - it's your activation vocabulary.
+
+**Design Guidelines**:
+
+1. **Identify 5 activation words** per skill (the most strongly associated terms)
+2. **Include activation words** in file names and index statements
+3. **Precision matters** - vague words activate too many associations
+4. **Match training data patterns** - use terms from common documentation, not invented jargon
+
+**Example**:
+
+```text
+Skill: PowerShell null safety with -contains operator
+
+Activation words: powershell, null, contains, array, coercion
+File name: skill-powershell-null-safety-contains-operator.md
+Index statement: "Use @() array coercion before -contains on potentially single items"
+```
 
 **Why this matters**:
 
 - Agents must "want to choose" a memory based on its name before reading it
-- Dense, descriptive names increase the probability of selection
-- The index adds a second layer of discoverability (one-line statements)
+- Activation vocabulary increases selection probability by matching LLM association patterns
+- The index adds a second layer of discoverability (statement-level activation)
 
 **Future evolution** (out of scope for v1):
 
