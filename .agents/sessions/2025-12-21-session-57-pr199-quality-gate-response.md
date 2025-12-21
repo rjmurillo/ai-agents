@@ -188,12 +188,12 @@ These phases are NOT in main branch (only has Phases 1-8).
 | HANDOFF.md Read | [x] | Content in context |
 | Session Log Early | [x] | Created at start of session |
 | Memory Search | [x] | pr-comment-responder-skills reviewed |
-| Git State Documented | [x] | Starting commit 628eaa0 |
+| Git State Documented | [x] | Starting commit 628eaa0, ending commit aeb6284 (Session 58) |
 | Clear Work Log | [x] | Phases 1-3 documented |
 | QA Routing | SKIP | Analysis-only (no code changes in this session) |
-| HANDOFF.md Updated | [x] | Session 58 will update with implementation results |
-| Markdown Lint | [x] | Will be run in Session 58 Phase 5 |
-| Changes Committed | [x] | Session 58 commits restoration changes |
+| HANDOFF.md Updated | [x] | Session 58 updated this log with decision and handoff |
+| Markdown Lint | [x] | Session 58 ran lint: 0 errors on 138 files |
+| Changes Committed | [x] | Session 58 commit aeb6284 includes this log completion |
 
 ---
 
