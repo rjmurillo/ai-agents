@@ -55,7 +55,7 @@ skip-review:
 
 - `pester-tests.yml` - Reference implementation with check-paths + skip-tests jobs
 - `ai-pr-quality-gate.yml` - Uses same pattern for check-changes + skip-review jobs
-- `ai-spec-validation.yml` - May need similar pattern
+- `ai-spec-validation.yml` - Candidate workflow for future adoption of this pattern (currently does not use `dorny/paths-filter`)
 
 ## Applies To
 
