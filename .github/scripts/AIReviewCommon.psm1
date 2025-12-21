@@ -781,11 +781,12 @@ function Get-LabelsFromAIOutput {
 
                 # HARDENED REGEX (Critic Condition C3 - Per Security Report)
                 # Pattern breakdown:
-                # ^[a-zA-Z0-9]        - Must start with alphanumeric
-                # [a-zA-Z0-9 _\-\.]{0,48}  - Middle: alphanumeric, space, underscore, hyphen, period (0-48 chars)
-                # [a-zA-Z0-9]?$      - Optional alphanumeric end (allows single-char labels)
-                # Total max length: 1 + 48 + 1 = 50 characters
-                if ($label -match '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$' -and $label.Length -le 50) {
+                # ^(?=.{1,50}$)       - Lookahead: total length 1-50 characters
+                # [A-Za-z0-9]         - Must start with alphanumeric
+                # (?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?  - Optional: middle chars + alphanumeric end
+                # This prevents trailing special chars like "bug-" by requiring alphanumeric end
+                # when middle characters are present
+                if ($label -match '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$') {
                     $label
                 }
                 else {
@@ -858,7 +859,8 @@ function Get-MilestoneFromAIOutput {
             }
 
             # HARDENED REGEX (same as labels - Critic Condition C3)
-            if ($milestone -match '^[a-zA-Z0-9][a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9]?$' -and $milestone.Length -le 50) {
+            # Pattern prevents trailing special chars like "v1.0-" by requiring alphanumeric end
+            if ($milestone -match '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$') {
                 return $milestone
             }
             else {

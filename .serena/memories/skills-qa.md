@@ -44,22 +44,20 @@
 
 **Atomicity**: 85%
 
-- Routing decision concept ✓
-- Clear timing (after implementation) ✓
-- Length: 12 words ✓
-- Slightly vague "comprehensive" (-10%)
-
-**Impact**: 7/10 - Ensures process consistency, clarifies when qa adds value
-
-**Category**: QA Workflow
+**Impact**: 7/10
 
 **Tag**: helpful
 
 **Created**: 2025-12-17
 
-**Validated**: 1 (Serena transformation pattern)
+**Updated**: 2025-12-20
+
+**Status**: SUPERSEDED by Skill-QA-003 (strengthens SHOULD → MUST with BLOCKING gate)
+
+**Validated**: 2 (Serena transformation, PR #60 violation)
 
 **Definition of "Comprehensive"**:
+
 - Coverage >80%
 - Multiple test cases per function
 - Edge cases included
@@ -67,16 +65,56 @@
 - Error handling verified
 
 **When to Skip QA Agent** (exceptions to workflow):
+
 - Tests are comprehensive (per definition above)
 - All tests passing
 - Change is trivial (docs, comments, formatting)
 
 **When QA Agent is MANDATORY**:
+
 - New features
 - Complex logic
 - Cross-platform concerns
 - Security-sensitive code
 - Breaking changes
+
+---
+
+## Skill-QA-003: QA Routing BLOCKING Gate (90%)
+
+**Statement**: Add BLOCKING gate to SESSION-PROTOCOL.md: MUST route to qa after feature implementation before commit
+
+**Context**: After feature implementation, before git commit
+
+**Evidence**: PR #60 skipped qa (Skill-QA-002 violation), vulnerability not caught until PR #211
+
+**Atomicity**: 90%
+
+**Tag**: helpful
+
+**Impact**: 8/10
+
+**Created**: 2025-12-20
+
+**Pattern**:
+
+```markdown
+## Phase X: QA Validation (BLOCKING)
+
+You MUST route to qa agent after feature implementation:
+
+Task(subagent_type="qa", prompt="Validate [feature]")
+
+**Verification**: QA report exists in `.agents/qa/`
+
+**If skipped**: Untested code may contain bugs or vulnerabilities
+```
+
+**Anti-Pattern**: Skipping qa because "tests look good" (subjective)
+
+**Source**: `.agents/retrospective/2025-12-20-pr-211-security-miss.md`
+
+**Note**: This supersedes Skill-QA-002 by strengthening SHOULD → MUST
 
 ---
 

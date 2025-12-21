@@ -52,20 +52,112 @@ This agent delegates to orchestrator, which uses these canonical workflow paths:
 
 See `orchestrator.md` for full routing logic. This agent passes context to orchestrator; orchestrator determines the path.
 
+## GitHub Skill (Cross-Platform Note)
+
+When running in environments with PowerShell support (Windows, PowerShell Core on Linux/macOS), the unified github skill at `.claude/skills/github/` provides tested scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
+
+| Operation | Skill Script | Bash Fallback |
+|-----------|--------------|---------------|
+| PR metadata | `Get-PRContext.ps1` | `gh pr view` |
+| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
+| Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq` |
+| Reply to comment | `Post-PRCommentReply.ps1` | `gh api -X POST` |
+| Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
+
+The bash examples below work cross-platform; use skill scripts when PowerShell is available.
+
 ## Triage Heuristics
 
 ### Reviewer Signal Quality
 
-Prioritize comments based on historical actionability rates:
+Prioritize comments based on historical actionability rates (updated after each PR):
 
-| Reviewer | Signal Quality | Evidence | Recommended Action |
-|----------|---------------|----------|-------------------|
-| **cursor[bot]** | High (100%) | 4/4 actionable bugs in PR #32, #47 | Process immediately |
-| **Human reviewers** | High | Domain expertise, project context | Process with priority |
-| **CodeRabbit** | Medium (~30%) | Many style suggestions, some real issues | Triage carefully |
-| **Copilot** | Medium (~30%) | Mixed signal, follow-up PR behavior | Verify before acting |
+#### Cumulative Performance
 
-**cursor[bot]** has demonstrated 100% actionability - every comment identified a real bug. Prioritize these comments for immediate attention.
+| Reviewer | Comments | Actionable | Signal | Trend | Action |
+|----------|----------|------------|--------|-------|--------|
+| **cursor[bot]** | 9 | 9 | **100%** | [STABLE] | Process immediately |
+| **Human reviewers** | - | - | High | - | Process with priority |
+| **Copilot** | 9 | 4 | **44%** | [IMPROVING] | Review carefully |
+| **coderabbitai[bot]** | 6 | 3 | **50%** | [STABLE] | Review carefully |
+
+#### Priority Matrix
+
+| Priority | Reviewer | Rationale |
+|----------|----------|-----------|
+| **P0** | cursor[bot] | 100% actionable, finds CRITICAL bugs |
+| **P1** | Human reviewers | Domain expertise, project context |
+| **P2** | coderabbitai[bot] | ~50% signal, medium quality |
+| **P2** | Copilot | ~44% signal, improving trend |
+
+#### Signal Quality Thresholds
+
+| Quality | Range | Action |
+|---------|-------|--------|
+| **High** | >80% | Process all comments immediately |
+| **Medium** | 30-80% | Triage carefully, verify before acting |
+| **Low** | <30% | Quick scan, focus on non-duplicate content |
+
+#### Comment Type Analysis
+
+| Type | Actionability | Examples |
+|------|---------------|----------|
+| Bug reports | ~90% | cursor[bot] bugs, type errors |
+| Missing coverage | ~70% | Test gaps, edge cases |
+| Style suggestions | ~20% | Formatting, naming |
+| Summaries | 0% | CodeRabbit walkthroughs |
+| Duplicates | 0% | Same issue from multiple bots |
+
+**cursor[bot]** has demonstrated 100% actionability (9/9 comments) - every comment identified a real bug. Prioritize these comments for immediate attention.
+
+**Note**: Statistics are sourced from the `pr-comment-responder-skills` memory and should be updated after each PR review session.
+
+### Comment Triage Priority
+
+**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+
+#### Priority Adjustment by Domain
+
+| Comment Domain | Keywords | Priority Adjustment | Rationale |
+|----------------|----------|---------------------|-----------|
+| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage if missed during review |
+| **Bug** | error, crash, exception, fail, null, undefined, race condition | No change | Standard priority based on reviewer signal |
+| **Style** | formatting, naming, indentation, whitespace, convention | No change | Standard priority based on reviewer signal |
+
+#### Processing Order
+
+1. **Security-domain comments**: Process ALL security comments BEFORE any other category, regardless of reviewer
+2. **Bug-domain comments**: Process after security, using reviewer signal quality
+3. **Style-domain comments**: Process last, deprioritize if time-constrained
+
+#### Security Keyword Detection
+
+Scan each comment body for these patterns (case-insensitive):
+
+```text
+CWE-\d+          # CWE identifier (e.g., CWE-20, CWE-78)
+vulnerability    # General security issue
+injection        # SQL, command, code injection
+XSS              # Cross-site scripting
+SQL              # SQL-related (often injection)
+CSRF             # Cross-site request forgery
+auth             # Authentication or authorization
+authentication
+authorization
+secrets?         # Secret/secrets exposure
+credentials?     # Credential exposure
+TOCTOU           # Time-of-check-time-of-use
+symlink          # Symlink attacks
+traversal        # Path traversal
+sanitiz          # Input sanitization
+escap            # Output escaping
+```
+
+#### Evidence
+
+Security vulnerabilities like CWE-20/CWE-78 can be introduced and merged when security-domain comments are not prioritized. Similarly, symlink TOCTOU comments can be dismissed as style suggestions when they should be flagged as security-domain.
+
+**Skill Reference**: Skill-PR-Review-Security-001 (atomicity: 94%)
 
 ### Quick Fix Path Criteria
 
@@ -108,20 +200,6 @@ Evidence: In PR #47, QA agent added a regression test for a "simple" PathInfo bu
 #runSubagent with subagentType=qa
 Verify fix and assess regression test needs...
 ```
-
-## GitHub Skill (Cross-Platform Note)
-
-When running in environments with PowerShell support (Windows, PowerShell Core on Linux/macOS), the unified github skill at `.claude/skills/github/` provides tested scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
-
-| Operation | Skill Script | Bash Fallback |
-|-----------|--------------|---------------|
-| PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
-| Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq` |
-| Reply to comment | `Post-PRCommentReply.ps1` | `gh api -X POST` |
-| Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
-
-The bash examples below work cross-platform; use skill scripts when PowerShell is available.
 
 ## Verification Gates (BLOCKING)
 
@@ -514,7 +592,7 @@ These comments require immediate response before implementation:
 [If tasks have dependencies, document here]
 ```
 
-### Phase 4: Copilot Follow-Up Handling
+### Phase 4.5: Copilot Follow-Up Handling
 
 **BLOCKING GATE**: Must complete before Phase 5 begins
 
@@ -530,7 +608,7 @@ Copilot follow-up PRs match:
 
 **Example**: PR #32 → Follow-up PR #33 (copilot/sub-pr-32)
 
-#### Step 4.1: Query for Follow-Up PRs
+#### Step 4.5.1: Query for Follow-Up PRs
 
 ```bash
 # Search for follow-up PR matching pattern
@@ -544,7 +622,7 @@ if [ -z "$FOLLOW_UP" ] || [ "$(echo "$FOLLOW_UP" | jq 'length')" -eq 0 ]; then
 fi
 ```
 
-#### Step 4.2: Verify Copilot Announcement
+#### Step 4.5.2: Verify Copilot Announcement
 
 ```bash
 # Check for Copilot announcement comment on original PR
@@ -556,7 +634,7 @@ if [ -z "$ANNOUNCEMENT" ]; then
 fi
 ```
 
-#### Step 4.3: Categorize Follow-Up Intent
+#### Step 4.5.3: Categorize Follow-Up Intent
 
 Analyze the follow-up PR content to determine intent:
 
@@ -575,25 +653,7 @@ Analyze the follow-up PR content to determine intent:
 - Example: Copilot misunderstood context
 - Action: Close with note
 
-```bash
-# Get follow-up PR content
-FOLLOW_UP_PR=$(echo "$FOLLOW_UP" | jq -r '.[0].number')
-FOLLOW_UP_DIFF=$(gh pr diff ${FOLLOW_UP_PR})
-
-# Compare to commits in original PR
-ORIGINAL_COMMITS=$(git log --oneline ${BASE}..${HEAD})
-
-# Analyze similarity (pseudo-code - implement logic based on diff)
-if [ $(echo "$FOLLOW_UP_DIFF" | wc -l) -eq 0 ]; then
-  CATEGORY="DUPLICATE"
-elif [ ... similar analysis ... ]; then
-  CATEGORY="SUPPLEMENTAL"
-else
-  CATEGORY="INDEPENDENT"
-fi
-```
-
-#### Step 4.4: Execute Decision
+#### Step 4.5.4: Execute Decision
 
 **DUPLICATE Decision**:
 
@@ -624,28 +684,6 @@ gh pr merge ${FOLLOW_UP_PR} --auto --squash --delete-branch
 ```bash
 # Close with note
 gh pr close ${FOLLOW_UP_PR} --comment "Closing: This PR addresses concerns that were already resolved in PR #${PR_NUMBER}. No action needed."
-```
-
-#### Step 4.5: Document in Session Log
-
-Update your session log with follow-up PR analysis:
-
-```markdown
-## Phase 4: Copilot Follow-Up Detection
-
-- [ ] Query for follow-up PRs (copilot/sub-pr-*)
-- [ ] Verify Copilot announcement comment
-- [ ] Analyze follow-up content
-- [ ] Categorize intent (DUPLICATE/SUPPLEMENTAL/INDEPENDENT)
-- [ ] Execute closure or merge decision
-
-### Results
-
-| Follow-Up PR | Original PR | Status | Decision | Action |
-|---|---|---|---|---|
-| #[N] | #[M] | OPEN | DUPLICATE | Closed: fix already applied (commit hash) |
-
-**Summary**: [N] follow-up PRs detected, [X] closed as duplicates, [Y] pending review
 ```
 
 ### Phase 5: Immediate Replies
@@ -957,12 +995,3 @@ This agent primarily delegates to **orchestrator**. Direct handoffs:
 5. **Skipping acknowledgment**: Always react with eyes emoji first
 6. **Orphaned PRs**: Clean up unnecessary bot-created PRs
 7. **Wrong reply API**: Never use `/issues/{number}/comments` to reply to review comments - it creates out-of-context PR comments instead of threaded replies
-
-## Handoff Protocol
-
-This agent primarily delegates to **orchestrator**. Direct handoffs:
-
-| Target | When | Purpose |
-|--------|------|---------|  
-| **orchestrator** | Each comment analysis | Full workflow determination |
-| **orchestrator** | Each implementation | Code changes |

@@ -275,6 +275,7 @@ gh issue edit 90 --add-assignee @copilot              # Wrong format
 - Common assignee-name mistakes (these FAIL when used with `--assignee` / `--add-assignee`): `Copilot`, `copilot`, `@copilot`
 
 **Context Injection Pattern**:
+
 ```bash
 # Step 1: Post context-rich comment mentioning @copilot
 gh issue comment 90 --body "@copilot Use Option 1 from the issue description. Focus on the Apply Labels step. The workflow already has issues:write permission."
@@ -679,6 +680,72 @@ gh pr list -L 100
 # Get all results (API commands)
 gh api --paginate repos/{owner}/{repo}/issues
 ```
+
+### Skill-GH-GraphQL-001: Single-Line Mutation Format
+
+**Statement**: Use single-line query format (no newlines) when passing GraphQL mutations to `gh api graphql`.
+
+**Context**: When using `gh api graphql` for mutations like thread replies, thread resolution, or any write operation.
+
+**Evidence**: PR #212 - Multi-line formatted mutations caused parsing errors; single-line format succeeded consistently.
+
+**Atomicity**: 97%
+
+**Tag**: helpful (prevents GraphQL parsing failures)
+
+**Impact**: 9/10 (critical for automation reliability)
+
+**Created**: 2025-12-20
+
+**Problem**:
+
+```bash
+# WRONG - Multi-line format causes parsing errors
+gh api graphql -f query='
+mutation($id: ID!, $body: String!) {
+  addPullRequestReviewThreadReply(input: {
+    pullRequestReviewThreadId: $id,
+    body: $body
+  }) {
+    comment { id }
+  }
+}'
+```
+
+**Solution**:
+
+```bash
+# CORRECT - Single-line format with escaped quotes
+gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $id, body: $body}) { comment { id } } }' -f id="PRRT_xxx" -f body="Reply text"
+```
+
+**Why It Matters**:
+
+The `gh api graphql` command has shell escaping issues with multi-line queries, especially when variables contain special characters. Single-line format avoids these parsing ambiguities and ensures consistent behavior across shells.
+
+**Pattern**:
+
+```bash
+# Reply to review thread
+gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $id, body: $body}) { comment { id } } }' -f id="$THREAD_ID" -f body="$REPLY_TEXT"
+
+# Resolve review thread
+gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id="$THREAD_ID"
+```
+
+**Anti-Pattern**:
+
+```bash
+# Multi-line with heredocs - fragile
+gh api graphql -f query="$(cat <<'EOF'
+mutation { ... }
+EOF
+)"
+```
+
+**Validation**: 1 (PR #212 - 20 threads resolved using single-line format)
+
+---
 
 ### Anti-Pattern-GH-005: Using gh pr view for Review Threads
 
@@ -1199,6 +1266,7 @@ gh attestation download artifact.bin --owner owner
 **Statement**: Use `gh project` for GitHub Projects (v2); requires `project` scope via `gh auth refresh -s project`.
 
 **Prerequisite**:
+
 ```bash
 # Add project scope before using project commands
 gh auth refresh -s project
@@ -1324,7 +1392,7 @@ gh extension exec extension-name [args]
 gh extension create my-extension
 ```
 
-**Extension Directory**: https://github.com/topics/gh-extension
+**Extension Directory**: <https://github.com/topics/gh-extension>
 
 **Aliases**: `gh ext`, `gh extensions`
 
@@ -1339,6 +1407,7 @@ gh extension create my-extension
 **Important**: Sub-issues are NOT in core gh CLI - requires community extension.
 
 **Installation**:
+
 ```bash
 gh extension install yahsan2/gh-sub-issue
 ```
@@ -1365,6 +1434,7 @@ gh sub-issue list 123 --json
 **API Note**: GitHub does not expose a dedicated REST API endpoint for sub-issues.
 
 For automation without the extension:
+
 - Use **GraphQL** via `gh api graphql` with the Issues/Tasklists mutations
 - Use **task lists** in issue body (markdown checkboxes with issue references)
 - See [GitHub Tasklists documentation](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-tasklists)
