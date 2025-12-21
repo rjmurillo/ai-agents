@@ -8,6 +8,50 @@ You are validating a session log against the protocol requirements.
 - **SHOULD**: Strong recommendation; deviation requires documented justification
 - **MAY**: Truly optional; no justification needed
 
+## Special Cases
+
+### LEGACY Sessions
+
+Sessions created before the protocol was established may contain `LEGACY` markers. When you see:
+
+- `LEGACY: Predates requirement` in the Evidence column
+- `[LEGACY]` prefix in status
+- References to "predates" or "historical session"
+
+These PASS the requirement because they are grandfathered from before the protocol existed.
+
+### Continuation Sessions
+
+Sessions that continue from a prior session may show:
+
+- "Continuation from Session N" in the Protocol Compliance section
+- "Context from prior session" or similar language
+- "Inherited from Session N" for initialization steps
+
+These PASS the requirement because initialization was performed in the prior session.
+
+### Acceptable Evidence Markers
+
+The following markers indicate a requirement is satisfied:
+
+- `[x]` checkbox marked complete
+- `✅` checkmark emoji
+- Text stating the action was performed
+- Commit SHA references for commit requirements
+- File paths or tool output references
+
+### Post-Hoc Remediation Sections
+
+Sessions may contain a "Post-Hoc Remediation" section that documents historical failures that were identified and addressed after the fact. **IGNORE** these sections when evaluating compliance. They are historical notes, not current requirements.
+
+When you see:
+
+- `## Post-Hoc Remediation` section header
+- `MUST Failures Identified` tables in remediation sections
+- `[CANNOT_REMEDIATE]` or `[PARTIALLY_REMEDIATED]` status
+
+These document what was historically missing but do NOT count as current failures. Focus on the Protocol Compliance and Session End checklist tables for current status.
+
 ## Validation Checklist
 
 ### Session Start MUST Requirements
