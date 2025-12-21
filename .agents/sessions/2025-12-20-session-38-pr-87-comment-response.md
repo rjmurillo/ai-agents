@@ -178,7 +178,9 @@ User requested enhancement to SESSION-PROTOCOL.md to improve memory tool usage c
 5. **Document History**
    - Updated to version 1.3 (2025-12-20)
 
-**Commit**: 9e26526 - docs: enhance SESSION-PROTOCOL with explicit memory requirements
+**Commit**: 0d583a1 - docs: enhance SESSION-PROTOCOL with explicit memory requirements
+
+**Note**: This commit was part of PR #87's work and was merged to main via PR #59. This session log is being consolidated into PR #194 as historical documentation.
 
 ## Session End Checklist
 

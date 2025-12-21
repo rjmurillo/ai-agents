@@ -136,21 +136,47 @@ Each push to a non-draft PR triggers multiple bots (Copilot, CodeRabbit, Gemini,
 | Push only when ready | **MUST** | 5 pushes = 5x cost |
 | Convert to ready-for-review at end | **MUST** | Single review cycle |
 
-**Correct Pattern:**
+**Correct Pattern (Zero-CI approach):**
 
 ```bash
-# Work locally, batch commits
+# 1) Create feature branch locally
+git switch -c feature/my-feature
+
+# 2) Push empty branch to remote (enables draft PR creation)
+git push --set-upstream origin feature/my-feature
+
+# 3) Create DRAFT PR immediately (before any work pushes)
+gh pr create --draft --title "feat: my feature"
+
+# 4) Work locally, batch commits
 git commit -m "feat: part 1"
 git commit -m "feat: part 2"
 git commit -m "test: add tests"
 
-# Push once when ready
+# 5) Push when ready (already draft - no CI waste)
 git push
 
-# Create as DRAFT
-gh pr create --draft --title "feat: my feature"
+# 6) Only mark ready when seeking review
+gh pr ready
+```
 
-# Only mark ready when seeking review
+**Alternative Pattern (Minimal-CI approach):**
+
+```bash
+# 1) Create branch and work locally
+git switch -c feature/my-feature
+git commit -m "feat: part 1"
+git commit -m "feat: part 2"
+
+# 2) Push and immediately create draft (minimize CI window)
+git push --set-upstream origin feature/my-feature
+gh pr create --draft --title "feat: my feature"  # Create within seconds
+
+# 3) Continue work and push (now draft)
+git commit -m "test: add tests"
+git push
+
+# 4) Mark ready when seeking review
 gh pr ready
 ```
 
