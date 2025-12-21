@@ -233,6 +233,30 @@ The agent MUST run quality checks before ending.
 - Markdownlint output shows no errors
 - Validation scripts pass or issues documented
 
+### Phase 2.5: QA Validation (BLOCKING)
+
+The agent MUST route to the qa agent after feature implementation. This is a **blocking gate**.
+
+**Requirements:**
+
+1. The agent MUST invoke the qa agent after completing feature implementation:
+
+   ```python
+   Task(subagent_type="qa", prompt="Validate [feature name]")
+   ```
+
+2. The agent MUST wait for QA validation to complete
+3. The agent MUST NOT commit feature code without QA validation
+4. The agent MAY skip QA validation only when all modified files are documentation files (e.g., Markdown), and changes are strictly editorial (spelling, grammar, or formatting) with no changes to code, configuration, tests, workflows, or code blocks of any kind
+
+**Verification:**
+
+- QA report exists in `.agents/qa/`
+- QA agent confirms validation passed
+- No critical issues remain unaddressed
+
+**Rationale:** Untested code may contain bugs or security vulnerabilities. QA validation catches issues before they are committed to the repository.
+
 ### Phase 3: Git Operations (REQUIRED)
 
 The agent MUST commit changes before ending.
@@ -280,6 +304,8 @@ Copy this checklist to each session log and verify completion:
 |-----|------|--------|----------|
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
 | MUST | Complete session log | [ ] | All sections filled |
+| MUST | Run markdown lint | [ ] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
@@ -364,6 +390,7 @@ All MUST requirements above are marked complete.
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
 | MUST | Complete session log | [ ] | All sections filled |
 | MUST | Run markdown lint | [ ] | Output below |
+| MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` |
 | MUST | Commit all changes | [ ] | Commit SHA: _______ |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
@@ -449,6 +476,7 @@ The `Validate-SessionProtocol.ps1` script checks session protocol compliance:
 | Session log exists | File at expected path | Critical |
 | Protocol Compliance section | Contains start/end checklists | Critical |
 | MUST items checked | All MUST requirements marked complete | Critical |
+| QA validation ran | QA report exists in `.agents/qa/` (feature sessions) | Critical |
 | HANDOFF.md updated | Modified within session timeframe | Warning |
 | Git commit exists | Commit with matching date | Warning |
 | Lint ran | Evidence of markdownlint execution | Warning |
@@ -492,6 +520,7 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.3 | 2025-12-20 | Added Phase 2.5 QA Validation BLOCKING gate |
 | 1.2 | 2025-12-18 | Added Phase 1.5 skill validation BLOCKING gate |
 | 1.1 | 2025-12-17 | Added requirement to link session log in HANDOFF.md |
 | 1.0 | 2025-12-17 | Initial canonical protocol with RFC 2119 requirements |

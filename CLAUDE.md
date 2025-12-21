@@ -33,13 +33,25 @@ You MUST create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` early
 
 **Verification**: File exists with Protocol Compliance section.
 
-### Session End (REQUIRED)
+### Session End (BLOCKING)
 
-Before closing, you MUST:
+You CANNOT claim session completion until validation PASSES:
 
-1. Update `.agents/HANDOFF.md` with session summary
-2. Run `npx markdownlint-cli2 --fix "**/*.md"`
-3. Commit all changes including `.agents/` files
+```bash
+pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+```
+
+Before running validator, you MUST:
+
+1. Complete Session End checklist in session log (all `[x]` checked)
+2. Update `.agents/HANDOFF.md` with session summary and session log link
+3. Run `npx markdownlint-cli2 --fix "**/*.md"`
+4. Commit all changes including `.agents/` files
+5. Record commit SHA in Session End checklist Evidence column
+
+**Verification**: Validator exits with code 0 (PASS).
+
+**If validation fails**: Fix violations and re-run validator. Do NOT claim completion.
 
 **Full protocol with RFC 2119 requirements**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
 
