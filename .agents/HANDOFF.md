@@ -57,12 +57,11 @@
 
 | Session | Date | Type | PR | Outcome |
 |---------|------|------|----|---------|
+| [Session 58](./sessions/2025-12-21-session-58-pr-53-review-thread-resolution.md) | 2025-12-21 | Thread Resolution | #53 | Resolved all 10 review threads; PR ready for merge |
 | **Session 54** | **2025-12-21** | **QA Validation** | **#212** | **Validated Session 53 Validate-SessionEnd.ps1 fix (array wrapping)** |
 | [Session 53-cont-3](./sessions/2025-12-21-session-53-pr212-security-continuation.md) | 2025-12-21 | CI Fix | #212 | Fixed Regex::Escape bug + -PreCommit flag; CI now passing |
 | Session 53-cont-2 | 2025-12-20 | CI Fix | #212 | Fixed 11 historical session logs with canonical Session End checklist |
 | Session 53-cont | 2025-12-21 | Security/Protocol | #212 | Error messages → activation prompts; security review committed |
-| Session 53 | 2025-12-20 | Retrospective | N/A | CRITICAL: 95.8% Session End failure, validation tool created |
-| Session 51 | 2025-12-20 | Debate | #212 | 10-agent consensus on token efficiency, activation vocabulary insight |
 
 ### Key Learnings from Session 51 (Debate - Token Efficiency)
 
