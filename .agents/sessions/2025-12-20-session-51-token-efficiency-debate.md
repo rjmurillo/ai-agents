@@ -88,7 +88,8 @@ This session is a context continuation from Session 50. Serena and HANDOFF.md we
 ### Commits This Session
 
 - `32eaa82` - docs(planning): approve Skills Index Registry PRD with 10-agent consensus
-- `[pending]` - docs(session): finalize Session 51 with activation vocabulary insight
+- `6517b57` - docs(session): finalize Session 51 with 10-agent debate and activation vocabulary
+- `82b0069` - docs(planning): add Activation Vocabulary principle to Skills Index Registry PRD
 
 ## Notes for Next Session
 
