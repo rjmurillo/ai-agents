@@ -128,7 +128,7 @@ Added canonical Session End checklists to 4 session logs:
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Session 57 summary added, status updated |
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | 0 errors (138 files) |
-| MUST | Route to qa agent (feature implementation) | [N/A] | Session log fixes only (no code changes requiring QA) |
+| MUST | Route to qa agent (feature implementation) | [x] | .agents/qa/pr-202-copilot-followup-detection-validation.md (bash date format fix verified backward-compatible) |
 | MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: ea808b2 |
 | SHOULD | Update PROJECT-PLAN.md | [N/A] | No project plan tasks |
 | SHOULD | Invoke retrospective (significant sessions) | [N/A] | Remediation session (straightforward) |
