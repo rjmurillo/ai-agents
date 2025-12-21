@@ -34,6 +34,7 @@ on:
 jobs:
   validate:
     name: Validate Generated Files
+    # ADR-014 Exception: Windows runner required for PowerShell agent generation
     runs-on: windows-latest
     permissions:
       contents: read

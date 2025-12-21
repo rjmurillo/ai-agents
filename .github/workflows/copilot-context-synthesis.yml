@@ -65,7 +65,8 @@ jobs:
   # ===========================================================================
   synthesize-single:
     name: Synthesize Context and Assign Copilot
-    runs-on: ubuntu-latest
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
 
     # Run for:
     # - Label trigger with copilot-ready label
@@ -139,7 +140,8 @@ jobs:
   # ===========================================================================
   sweep-missed:
     name: Sweep Missed Issues
-    runs-on: ubuntu-latest
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
 
     # Run for:
     # - Scheduled trigger (cron)

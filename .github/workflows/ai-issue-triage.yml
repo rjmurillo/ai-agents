@@ -24,7 +24,8 @@ env:
 jobs:
   ai-issue-triage:
     name: AI Issue Triage
-    runs-on: ubuntu-latest
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
 
     # Skip for bots and non-substantive edits (title-only changes)

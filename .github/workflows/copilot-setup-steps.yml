@@ -31,7 +31,8 @@ jobs:
   # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
   copilot-setup-steps:
     name: Configure Git Hooks and Linting Tools
-    runs-on: ubuntu-latest
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
 
     env:
       # Enable GitHub CLI for GitHub agents or scripts
