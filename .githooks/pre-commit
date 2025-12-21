@@ -358,6 +358,139 @@ elif [ -f "$SECURITY_DETECTION_SCRIPT" ]; then
 fi
 
 #
+# Bash Detection (BLOCKING)
+#
+# Enforces ADR-005: PowerShell-Only Scripting Standard
+# Rejects bash usage in GitHub workflow files and script files.
+# Uses pwsh (PowerShell) as the approved alternative.
+#
+# Security: Prevents bash code from bypassing PowerShell hardening (CWE-20/CWE-78)
+# Related: ADR-005, Skill-Security-010
+#
+
+# Check staged workflow files for shell: bash
+STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|scripts)/.*\.(yml|yaml)$' || true)
+
+if [ -n "$STAGED_WORKFLOW_FILES" ]; then
+    echo_info "Checking for bash usage in workflow files (ADR-005)..."
+
+    # SECURITY: Use mapfile to safely convert newline-separated file list to array
+    # This prevents command injection via malicious filenames containing shell metacharacters
+    mapfile -t WORKFLOW_FILES_ARRAY <<< "$STAGED_WORKFLOW_FILES"
+
+    # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
+    # Use -- separator to prevent filenames starting with - from being interpreted as options
+    if git diff --cached -- "${WORKFLOW_FILES_ARRAY[@]}" | grep -E '^\+.*shell:\s*bash' > /dev/null 2>&1; then
+        echo_error "Bash not allowed in workflow files (ADR-005)."
+        echo_info "  Use PowerShell instead: shell: pwsh"
+        echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
+        EXIT_STATUS=1
+    else
+        echo_success "No bash usage in workflow YAML files."
+    fi
+fi
+
+# Check staged script files for bash shebangs
+STAGED_SCRIPT_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/scripts/.*\.(sh|bash)$' || true)
+
+if [ -n "$STAGED_SCRIPT_FILES" ]; then
+    echo_error "Bash scripts (.sh, .bash) not allowed in .github/scripts/ (ADR-005)."
+    echo_info "  Use PowerShell (.ps1, .psm1) instead."
+    echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
+    EXIT_STATUS=1
+fi
+
+# Check for bash shebangs in any staged files under .github/scripts/
+STAGED_GITHUB_SCRIPT_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/scripts/' || true)
+
+if [ -n "$STAGED_GITHUB_SCRIPT_FILES" ]; then
+    # SECURITY: Use mapfile to safely convert newline-separated file list to array
+    # This prevents command injection via malicious filenames containing shell metacharacters
+    mapfile -t GITHUB_SCRIPT_FILES_ARRAY <<< "$STAGED_GITHUB_SCRIPT_FILES"
+
+    # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
+    # Use -- separator to prevent filenames starting with - from being interpreted as options
+    if git diff --cached -- "${GITHUB_SCRIPT_FILES_ARRAY[@]}" | grep -E '^\+#!.*(bin/bash|env bash)' > /dev/null 2>&1; then
+        echo_error "Bash shebang not allowed in .github/scripts/ files (ADR-005)."
+        echo_info "  Use PowerShell instead. Scripts should be .ps1 files."
+        echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
+        EXIT_STATUS=1
+    fi
+fi
+
+#
+# Session End Validation (BLOCKING)
+#
+# Enforces Session Protocol compliance for agent sessions.
+# When .agents/ files are staged (indicating an agent session), requires:
+# - HANDOFF.md staged with session reference
+# - Session log staged under .agents/sessions/
+# - Validate-SessionEnd.ps1 PASS
+#
+# Security: Fail-closed - if validation fails or cannot run, commit is blocked
+# Related: SESSION-PROTOCOL.md, Skill-Protocol-002, Skill-Validation-006
+#
+SESSION_END_SCRIPT="$REPO_ROOT/scripts/Validate-SessionEnd.ps1"
+
+# Check if any .agents/ files are staged (indicating an active session)
+STAGED_AGENTS_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/' || true)
+
+if [ -n "$STAGED_AGENTS_FILES" ]; then
+    echo_info "Checking Session End protocol compliance..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SESSION_END_SCRIPT" ]; then
+        echo_error "Session End validation blocked: script path is a symlink"
+        EXIT_STATUS=1
+    elif [ ! -f "$SESSION_END_SCRIPT" ]; then
+        echo_error "Session End validation blocked: script not found at $SESSION_END_SCRIPT"
+        EXIT_STATUS=1
+    else
+        # Require HANDOFF.md staged
+        STAGED_HANDOFF=$(echo "$STAGED_FILES" | grep -E '^\.agents/HANDOFF\.md$' || true)
+        if [ -z "$STAGED_HANDOFF" ]; then
+            # Activation prompt: 5-word cloud to trigger correct behavior
+            echo_error "BLOCKED: Update HANDOFF.md NOW"
+            echo_info "  → git add .agents/HANDOFF.md"
+            echo_info "  Protocol: Session log links HANDOFF"
+            EXIT_STATUS=1
+        fi
+
+        # Require a staged session log
+        STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.md$' | tail -n 1)
+        if [ -z "$STAGED_SESSION_LOG" ]; then
+            # Activation prompt: 5-word cloud to trigger correct behavior
+            echo_error "BLOCKED: Create session log NOW"
+            echo_info "  → git add .agents/sessions/YYYY-MM-DD-session-NN.md"
+            echo_info "  Protocol: Log → Handoff → Commit"
+            EXIT_STATUS=1
+        fi
+
+        # Only run validation if both prerequisites are met
+        if [ -n "$STAGED_HANDOFF" ] && [ -n "$STAGED_SESSION_LOG" ]; then
+            if command -v pwsh &> /dev/null; then
+                echo_info "Running Validate-SessionEnd.ps1..."
+                # SECURITY: Use -- separator and quote path to prevent injection
+                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_END_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
+                    echo_error "Session End validation FAILED."
+                    echo_info "  Review errors above and fix session log."
+                    echo_info "  Run manually: pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
+                    EXIT_STATUS=1
+                else
+                    echo_success "Session End validation: PASS"
+                fi
+            else
+                echo_error "Session End validation blocked: PowerShell not available."
+                echo_info "  Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+                EXIT_STATUS=1
+            fi
+        fi
+    fi
+else
+    echo_info "No .agents/ files staged. Skipping Session End validation."
+fi
+
+#
 # Final Summary
 #
 echo ""

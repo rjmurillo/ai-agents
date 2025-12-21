@@ -67,21 +67,39 @@
 
 **Atomicity**: 96%
 
-**Validation Count**: 2
+**Validation Count**: 3
 
 **Tag**: helpful
 
-**Note**: This REST approach requires numeric comment IDs. For thread IDs (PRRT_...) or when you need to resolve threads, use GraphQL instead. See `skills-pr-review` (Skill-PR-Review-003) for the decision matrix.
+**Note**: This REST approach requires numeric comment IDs. For thread IDs (PRRT_...) or when you need to resolve threads, use GraphQL instead.
 
 **GraphQL Alternative** (for thread IDs or resolving):
 
-```bash
-# Reply with thread ID
-gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $id, body: $body}) { comment { id } } }' -f id="PRRT_xxx" -f body="Reply"
+GraphQL provides both reply and resolution in single operation, validated in PR #212 with 20 thread resolutions.
 
-# Resolve thread (GraphQL only)
+```bash
+# Reply to thread (single-line format required)
+gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $id, body: $body}) { comment { id } } }' -f id="PRRT_xxx" -f body="Reply text"
+
+# Resolve thread (GraphQL only - no REST endpoint)
 gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id="PRRT_xxx"
+
+# Combined: Reply and resolve in one call
+gh api graphql -f query='mutation($threadId: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) { comment { id } } resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }' -f threadId="PRRT_xxx" -f body="Reply text"
 ```
+
+**When to use GraphQL:**
+
+- Thread IDs (PRRT_xxx format)
+- Need to resolve threads after replying
+- Batch reply+resolve operations (more efficient)
+
+**When to use REST:**
+
+- Have numeric comment IDs
+- Simple reply without resolution
+
+**See also**: Skill-GraphQL-001 for single-line format requirement
 
 ---
 
@@ -122,7 +140,7 @@ gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {thread
 
 ### Skill-PR-006: cursor[bot] Signal Quality (Review-Bot-Signal-Quality-001)
 
-**Statement**: Prioritize cursor[bot] review comments; 100% actionability rate
+**Statement**: Prioritize cursor[bot] review comments; verify before implementing (trust but verify until n=30)
 
 **Context**: During PR comment triage, when multiple reviewers present
 
@@ -143,7 +161,7 @@ gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {thread
 
 **Tag**: helpful (triage prioritization)
 
-**Validated**: 3 (PR #32, #47, #52)
+**Validated**: 5 (PR #32, #47, #52, #94, #212)
 
 **See also**: Memory `cursor-bot-review-patterns` for detailed patterns
 
@@ -283,7 +301,7 @@ Based on cumulative signal quality:
 
 | Priority | Reviewer | Action | Rationale |
 |----------|----------|--------|-----------|
-| **P0** | cursor[bot] | Process immediately | 100% actionable, finds CRITICAL bugs |
+| **P0** | cursor[bot] | Verify then fix | 100% actionable (n=12), trust-but-verify until n=30 |
 | **P1** | Human reviewers | Process with priority | Domain expertise, context |
 | **P2** | Copilot | Review carefully | ~44% signal, improving trend |
 | **P3** | coderabbitai[bot] | Skim for real issues | ~17% signal, often duplicates |
@@ -437,6 +455,7 @@ fi
 **Context**: When handling PR review comments that trigger Copilot responses and follow-up PR creation
 
 **Evidence**:
+
 - PR #32 → PR #33 (copilot/sub-pr-32): Duplicate fix, closed successfully
 - PR #156 → PR #162 (copilot/sub-pr-156): Supplemental changes, requires evaluation
 - Pattern: Copilot creates PR after user replies to review comments
@@ -449,6 +468,7 @@ fi
 **Implementation**:
 
 Two detection scripts (PowerShell + bash fallback):
+
 - `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1`
 - `.claude/skills/github/scripts/pr/detect-copilot-followup.sh`
 
@@ -503,16 +523,18 @@ fi
 ```
 
 **Related Skills**:
+
 - Skill-PR-Comment-001 (eyes reaction gate)
 - Skill-PR-Comment-004 (PowerShell fallback)
 - Skill-Workflow-001 (Quick Fix path)
 
 ---
 
-## Metrics (as of PR #52)
+## Metrics (as of PR #212)
 
-- **Triage accuracy**: 100% (7/7 in PR #52, 8/8 in PR #47)
-- **cursor[bot] actionability**: 100% (9/9 across PR #32, #47, #52)
-- **Copilot actionability**: 44% (4/9 across PR #32, #47, #52)
+- **Triage accuracy**: 100% (20/20 in PR #212, 7/7 in PR #52, 8/8 in PR #47)
+- **cursor[bot] actionability**: 100% (10/10 across PR #32, #47, #52, #212)
+- **Copilot actionability**: ~50% (5/10 across PR #32, #47, #52, #212)
 - **CodeRabbit actionability**: 50% (3/6 across PR #32, #47, #52)
-- **Quick Fix efficiency**: 3 bugs fixed (PR #52: commits 4815d56, b4c9353, cd4c6b2)
+- **Quick Fix efficiency**: 4 bugs fixed (PR #212: null-safety fix in ai-issue-triage.yml)
+- **GraphQL thread resolution**: 20/20 threads resolved via single-line mutations (PR #212)

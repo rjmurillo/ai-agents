@@ -84,7 +84,7 @@ Identify ambiguities, technical debt risks, and misalignments BEFORE implementat
 - [ ] Acceptance criteria are measurable
 - [ ] Test strategy is clear
 
-### Style Guide Compliance
+### Plan Style Compliance
 
 Validate plans follow style guide requirements:
 

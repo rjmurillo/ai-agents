@@ -85,17 +85,20 @@ gh pr view <PR_NUMBER> --json reviewThreads  # ERROR: Unknown JSON field
 For each unresolved conversation, reply with ONE of:
 
 1. **Fix applied**: Link to commit SHA that addresses the feedback
-   ```
+
+   ```text
    Fixed in commit abc1234. [Brief description of change]
    ```
 
 2. **Won't fix with explanation**: Clear rationale why the suggestion wasn't applied
-   ```
+
+   ```text
    Won't fix: [Detailed explanation why this approach was chosen instead]
    ```
 
 3. **Action required from reviewer**: @ mention the reviewer with specific ask
-   ```
+
+   ```text
    @reviewer-username Could you clarify [specific question]? I need more context to address this.
    ```
 
@@ -202,6 +205,38 @@ mutation($threadId: ID!) {
 - Using comment ID with GraphQL mutation → Error: "Could not resolve to a node"
 - Using thread ID with REST API → Error: 404 Not Found
 - Assuming thread can be resolved via REST → No such endpoint exists
+
+---
+
+## Skill-PR-Review-Security-001: Security Comment Triage Priority (94%)
+
+**Statement**: Security-domain review comments (CWE, vulnerability, injection) receive +50% triage priority over style suggestions
+
+**Context**: When triaging bot review comments on PRs
+
+**Evidence**: PR #60 had 30 bot comments, security signal buried in noise
+
+**Atomicity**: 94%
+
+**Tag**: helpful
+
+**Impact**: 7/10
+
+**Created**: 2025-12-20
+
+**Pattern**:
+
+| Comment Domain | Keywords | Base Signal | Adjustment | Final Priority |
+|----------------|----------|-------------|------------|----------------|
+| Security | CWE, vulnerability, injection, XSS, SQL | Varies | +50% | Always investigate |
+| Bug | error, crash, exception | Varies | No change | Use base |
+| Style | formatting, naming, indentation | Varies | No change | Use base |
+
+**Anti-Pattern**: Treating all bot comments equally, security buried in noise
+
+**Source**: `.agents/retrospective/2025-12-20-pr-211-security-miss.md`
+
+**Relation to Existing Skills**: Extends Skill-Security-009 (domain-adjusted signal quality) with specific triage priority adjustment
 
 ---
 
