@@ -148,9 +148,9 @@ PR #206 has no actionable review comments. All issue comments are informational 
 | Task | Status | Evidence |
 |------|--------|----------|
 | Update HANDOFF.md | [x] | Not needed - no changes to hand off (verification-only session) |
-| Run markdown lint | [x] | Will run before commit |
-| Commit all changes | [x] | Session log + updated HANDOFF.md (if needed) |
-| Record commit SHA | [ ] | Pending commit |
+| Run markdown lint | [x] | `npx markdownlint-cli2 --fix` - 0 errors |
+| Commit all changes | [x] | Session log committed to worktree |
+| Record commit SHA | [x] | 2644d32 |
 
 ## Next Actions
 
