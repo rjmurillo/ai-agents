@@ -70,9 +70,10 @@ jobs:
           if ($labels.Count -eq 0 -and $env:FALLBACK_LABELS) {
               $fallbackLabels = $env:FALLBACK_LABELS -split ',' | ForEach-Object { $_.Trim() }
               # Validate fallback labels with same regex
-              # Regex: single alphanumeric OR alphanumeric + middle + alphanumeric (prevents trailing special chars)
+              # Regex: length lookahead + alphanumeric start + optional (middle chars + alphanumeric end)
+              # Prevents trailing special chars like "bug-" by requiring alphanumeric end when middle chars present
               $labels = $fallbackLabels | Where-Object {
-                  $_ -match '^[a-zA-Z0-9]([a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9])?$'
+                  $_ -match '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$'
               }
           }
 
@@ -118,8 +119,9 @@ jobs:
           # Parse milestone with hardened function
           $milestone = Get-MilestoneFromAIOutput -Output $env:RAW_OUTPUT
           if (-not $milestone -and $env:MILESTONE_FROM_ACTION) {
-              # Validate fallback milestone with same regex (prevents trailing special chars)
-              if ($env:MILESTONE_FROM_ACTION -match '^[a-zA-Z0-9]([a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9])?$') {
+              # Validate fallback milestone with same regex
+              # Prevents trailing special chars like "v1.0-" by requiring alphanumeric end when middle chars present
+              if ($env:MILESTONE_FROM_ACTION -match '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$') {
                   $milestone = $env:MILESTONE_FROM_ACTION
               }
           }
@@ -148,8 +150,9 @@ jobs:
               $criteria = $Matches[1] -split ',' | ForEach-Object {
                   $_.Trim().Trim('"').Trim("'")
               } | Where-Object {
-                  # Regex: single alphanumeric OR alphanumeric + middle + alphanumeric (prevents trailing special chars)
-                  $_ -match '^[a-zA-Z0-9]([a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9])?$'
+                  # Regex: length lookahead + alphanumeric start + optional (middle chars + alphanumeric end)
+                  # Prevents trailing special chars like "criteria-" by requiring alphanumeric end
+                  $_ -match '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$'
               }
               $escalationCriteria = $criteria -join ','
           }
@@ -184,8 +187,9 @@ jobs:
 
           # Apply category labels with proper quoting
           foreach ($label in $labels) {
-              # Defense in depth: validate label one more time (prevents trailing special chars)
-              if ($label -notmatch '^[a-zA-Z0-9]([a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9])?$') {
+              # Defense in depth: validate label one more time
+              # Prevents trailing special chars like "bug-" by requiring alphanumeric end
+              if ($label -notmatch '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$') {
                   Write-Warning "Skipping invalid label: $label"
                   continue
               }
@@ -258,8 +262,9 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           if ($env:MILESTONE -and $env:MILESTONE -ne 'null') {
-              # Defense in depth: validate milestone format (prevents trailing special chars)
-              if ($env:MILESTONE -notmatch '^[a-zA-Z0-9]([a-zA-Z0-9 _\-\.]{0,48}[a-zA-Z0-9])?$') {
+              # Defense in depth: validate milestone format
+              # Prevents trailing special chars like "v1.0-" by requiring alphanumeric end
+              if ($env:MILESTONE -notmatch '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$') {
                   Write-Warning "Invalid milestone format: $($env:MILESTONE)"
                   exit 0
               }

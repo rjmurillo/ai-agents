@@ -198,4 +198,72 @@ Session logs must contain tool call sections showing `mcp__serena__read_memory` 
 
 ```xml
 <invoke name="mcp__serena__read_memory">
-<parameter name="memory_file_name">skill-init-001-serena-mandatory
+<parameter name="memory_file_name">skill-init-001-serena-mandatory</parameter>
+</invoke>
+```
+
+The script must handle variations in XML formatting (with or without whitespace).
+
+### Edge Cases
+
+1. **No session logs exist**: Script should report zero retrievals, not fail
+2. **Skill file renamed**: Old skill name appears in logs but file no longer exists (mark as "archived")
+3. **Multiple calls to same skill in one session**: Count each call (agent may reference skill multiple times)
+4. **Malformed session log**: Skip file and log warning, continue processing other files
+
+## Success Metrics
+
+1. **Retrieval Coverage**: Percentage of skill files retrieved at least once in 30 days (target: 60%)
+2. **Cold Skill Ratio**: Number of skills with zero retrievals / total skills (target: less than 40%)
+3. **Report Generation Success**: Percentage of weekly reports generated without error (target: 100%)
+4. **Correlation Insight**: At least one actionable insight from correlation data within 60 days
+
+## Milestones
+
+### Milestone 1: Session Log Parser (Week 1)
+
+- [ ] Create `Measure-SkillRetrieval.ps1` script
+- [ ] Add Pester tests for parsing logic
+- [ ] Validate against 10+ existing session logs
+- [ ] Document script usage in `scripts/README.md`
+
+### Milestone 2: Weekly Report Generation (Week 2)
+
+- [ ] Create GitHub Actions workflow for scheduled execution
+- [ ] Define report markdown format
+- [ ] Test automated commit of report
+- [ ] Add report template to `.agents/metrics/`
+
+### Milestone 3: Cold Skill Detection (Week 3)
+
+- [ ] Implement 30-day threshold detection
+- [ ] Add skill creation date lookup
+- [ ] Generate cold skill list in weekly report
+- [ ] Document archival process for cold skills
+
+### Milestone 4: Correlation Analysis (Week 4)
+
+- [ ] Export retrieval data to CSV
+- [ ] Document correlation analysis methodology
+- [ ] Produce first correlation report
+- [ ] Identify initial insights
+
+## Open Questions
+
+1. Should skill retrieval be a mandatory session initialization step? (Dependent on correlation results)
+2. What is the archival policy for cold skills - delete, move to archive folder, or mark deprecated?
+3. Should hot skills be surfaced to agents proactively at session start?
+
+## Appendix
+
+### Related Documents
+
+- SESSION-PROTOCOL.md (defines session log requirements)
+- skill-memory-token-efficiency.md (token cost analysis for memory operations)
+- PRD-skills-index-registry.md (defines skill naming convention)
+
+### Glossary
+
+- **Hot Skill**: Skill retrieved 5+ times in 7 days
+- **Cold Skill**: Skill with zero retrievals in 30 days
+- **Retrieval Rate**: Number of skill retrievals / number of sessions
