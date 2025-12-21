@@ -446,13 +446,17 @@ jobs:
             ""
           }
 
-          # Get analysis outputs
+          # Get analysis outputs and strip any existing code fences (AI may include them)
           $categorizeOutput = if (Test-Path /tmp/categorize-output.txt) {
-            Get-Content /tmp/categorize-output.txt -Raw
+            $raw = Get-Content /tmp/categorize-output.txt -Raw
+            # Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+            $raw -replace '^\s*```(?:json)?\s*\n?', '' -replace '\n?\s*```\s*$', ''
           } else { "N/A" }
 
           $alignOutput = if (Test-Path /tmp/align-output.txt) {
-            Get-Content /tmp/align-output.txt -Raw
+            $raw = Get-Content /tmp/align-output.txt -Raw
+            # Strip markdown code fences if present
+            $raw -replace '^\s*```(?:json)?\s*\n?', '' -replace '\n?\s*```\s*$', ''
           } else { "N/A" }
 
           $labelsDisplay = if ($env:LABELS) { $env:LABELS } else { "*None assigned*" }
