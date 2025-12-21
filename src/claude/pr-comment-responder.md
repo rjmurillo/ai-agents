@@ -99,12 +99,12 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 #### Cumulative Performance
 
-| Reviewer | Comments | Actionable | Signal | Trend | Action |
-|----------|----------|------------|--------|-------|--------|
-| **cursor[bot]** | 9 | 9 | **100%** | [STABLE] | Process immediately |
-| **Human reviewers** | - | - | High | - | Process with priority |
-| **Copilot** | 9 | 4 | **44%** | [IMPROVING] | Review carefully |
-| **coderabbitai[bot]** | 6 | 3 | **50%** | [STABLE] | Review carefully |
+| Reviewer | PRs | Comments | Actionable | Signal | Trend | Action |
+|----------|-----|----------|------------|--------|-------|--------|
+| **cursor[bot]** | 4 | 11 | 11 | **100%** | [STABLE] | Process immediately |
+| **Human reviewers** | - | - | - | High | - | Process with priority |
+| **Copilot** | 4 | 12 | 7 | **58%** | [IMPROVING] | Review carefully |
+| **coderabbitai[bot]** | 2 | 6 | 3 | **50%** | [STABLE] | Review carefully |
 
 #### Priority Matrix
 
@@ -133,7 +133,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 | Summaries | 0% | CodeRabbit walkthroughs |
 | Duplicates | 0% | Same issue from multiple bots |
 
-**cursor[bot]** has demonstrated 100% actionability (9/9 comments) - every comment identified a real bug. Prioritize these comments for immediate attention.
+**cursor[bot]** has demonstrated 100% actionability (11/11 comments across 4 PRs) - every comment identified a real bug. Prioritize these comments for immediate attention.
 
 **Note**: Statistics are sourced from the `pr-comment-responder-skills` memory (use `mcp__serena__read_memory` with `memory_file_name="pr-comment-responder-skills"`) and should be updated there after each PR review session.
 
@@ -231,6 +231,54 @@ Task(subagent_type="qa", prompt="Verify fix and assess regression test needs..."
 ```
 
 ## Workflow Protocol
+
+### Phase 0: Memory Initialization (BLOCKING)
+
+**BLOCKING GATE**: You MUST complete ALL memory loading steps before proceeding to Phase 1. Workflow is BLOCKED until verification passes.
+
+This phase ensures the agent has access to historical patterns, reviewer signal quality data, and learned skills from prior PR review sessions.
+
+#### Step 0.1: Load Reviewer Signal Quality Statistics
+
+```python
+# MANDATORY: Read cumulative reviewer statistics
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+
+# Extract key metrics for triage prioritization:
+# - cursor[bot]: 100% signal (11/11 across PRs #32, #47, #52, #89)
+# - Copilot: 58% signal (7/12 across PRs #32, #47, #52, #89)
+# - coderabbitai[bot]: 50% signal (3/6 across PRs #32, #47, #52)
+```
+
+#### Step 0.2: Load Bot-Specific Pattern Memories
+
+```python
+# MANDATORY: Load cursor[bot] patterns (highest signal reviewer)
+mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
+
+# MANDATORY: Load Copilot patterns (follow-up PR detection)
+mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
+```
+
+#### Step 0.3: Verification Gate
+
+Before proceeding to Phase 1, verify all memory loads completed:
+
+| Memory | Required Content | Verification |
+|--------|------------------|--------------|
+| `pr-comment-responder-skills` | Reviewer signal stats, skills list | Non-empty response |
+| `cursor-bot-review-patterns` | Bug detection patterns | Non-empty response |
+| `copilot-pr-review-patterns` | Follow-up PR patterns | Non-empty response |
+
+**Proceed to Phase 1 ONLY when all three memory reads return valid content.**
+
+If any memory read fails:
+
+1. Log the failure in session log
+2. Use fallback heuristics (all reviewers at P2 priority)
+3. Continue with reduced confidence
+
+---
 
 ### Phase 1: Context Gathering
 
@@ -794,6 +842,94 @@ if [ "$ADDRESSED" -lt "$TOTAL" ]; then
   grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
 fi
 ```
+
+### Phase 9: Memory Storage (REQUIRED)
+
+**REQUIRED**: You MUST complete memory updates before workflow completion. This ensures learnings from this PR review session persist for future sessions.
+
+#### Step 9.1: Update Reviewer Statistics
+
+For each reviewer who commented on this PR, update their cumulative statistics:
+
+```python
+# Read current statistics
+current_stats = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+
+# Calculate new statistics for this PR
+# - Total comments per reviewer
+# - Actionable comments (bugs, valid issues)
+# - Signal rate = actionable / total
+# - Trend direction (improving, stable, declining)
+
+# Update the "Per-Reviewer Performance (Cumulative)" section
+# Update the "Per-PR Breakdown" section with new PR entry
+```
+
+#### Step 9.2: Store Session Metrics
+
+Write cumulative metrics to memory:
+
+```python
+mcp__serena__edit_memory(
+    memory_file_name="pr-comment-responder-skills",
+    needle="### Per-Reviewer Performance \\(Cumulative\\).*?(?=### Per-PR Breakdown)",
+    repl="""### Per-Reviewer Performance (Cumulative)
+
+| Reviewer | PRs Reviewed | Comments | Actionable | Signal Rate | Trend |
+|----------|-------------|----------|------------|-------------|-------|
+| **cursor[bot]** | [updated list] | [N] | [N] | **[X]%** | [trend] |
+| **Copilot** | [updated list] | [N] | [N] | **[X]%** | [trend] |
+| **coderabbitai[bot]** | [updated list] | [N] | [N] | **[X]%** | [trend] |
+
+### Per-PR Breakdown
+""",
+    mode="regex"
+)
+```
+
+#### Step 9.3: Add New PR Entry
+
+Add this PR's breakdown to the Per-PR Breakdown section:
+
+```python
+mcp__serena__edit_memory(
+    memory_file_name="pr-comment-responder-skills",
+    needle="### Per-PR Breakdown\n",
+    repl="""### Per-PR Breakdown
+
+#### PR #[number] ([date])
+
+| Reviewer | Comments | Actionable | Details |
+|----------|----------|------------|---------|
+| [reviewer] | [N] | [N] ([X]%) | [brief description] |
+
+""",
+    mode="literal"
+)
+```
+
+#### Step 9.4: Update Protocol Statistics
+
+If this session discovered new patterns or skills, update the protocol file's statistics table:
+
+```python
+# Update the cumulative statistics in pr-comment-responder.md
+# Located in "Triage Heuristics > Reviewer Signal Quality > Cumulative Performance" section
+```
+
+#### Step 9.5: Verification
+
+Before marking workflow complete, verify memory updates succeeded:
+
+| Update | Location | Verification |
+|--------|----------|--------------|
+| Reviewer stats | `pr-comment-responder-skills` | `mcp__serena__read_memory` returns updated counts |
+| PR breakdown | `pr-comment-responder-skills` | New PR entry visible |
+| Protocol stats | `pr-comment-responder.md` | Cumulative table updated |
+
+**Proceed to Output Format ONLY when all three verifications pass.**
+
+---
 
 ## Memory Protocol
 

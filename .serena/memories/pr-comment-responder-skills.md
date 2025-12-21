@@ -258,11 +258,24 @@ When handling PR review comments:
 
 | Reviewer | PRs Reviewed | Comments | Actionable | Signal Rate | Trend |
 |----------|-------------|----------|------------|-------------|-------|
-| **cursor[bot]** | #32, #47, #52 | 9 | 9 | **100%** | ✅ Stable |
-| **Copilot** | #32, #47, #52 | 9 | 4 | **44%** | ↑ Improving |
+| **cursor[bot]** | #32, #47, #52, #89 | 11 | 11 | **100%** | ✅ Stable |
+| **Copilot** | #32, #47, #52, #89 | 12 | 7 | **58%** | ↑ Improving |
 | **coderabbitai[bot]** | #32, #47, #52 | 6 | 3 | **50%** | → Stable |
 
 ### Per-PR Breakdown
+
+#### PR #89 (2025-12-21)
+
+| Reviewer | Comments | Actionable | Details |
+|----------|----------|------------|---------|
+| cursor[bot] | 2 | 2 (100%) | Protocol compliance issues, memory initialization gaps |
+| Copilot | 3 | 3 (100%) | Follow-up PR pattern, consistency checks |
+
+**Notes:**
+
+- cursor[bot] maintained 100% signal (11/11 total across PRs #32, #47, #52, #89)
+- Copilot showed improved signal quality (100% in this PR vs historical ~44%)
+- No coderabbitai[bot] comments on this PR
 
 #### PR #52 (2025-12-17)
 
@@ -301,10 +314,10 @@ Based on cumulative signal quality:
 
 | Priority | Reviewer | Action | Rationale |
 |----------|----------|--------|-----------|
-| **P0** | cursor[bot] | Verify then fix | 100% actionable (n=12), trust-but-verify until n=30 |
+| **P0** | cursor[bot] | Verify then fix | 100% actionable (n=11), trust-but-verify until n=30 |
 | **P1** | Human reviewers | Process with priority | Domain expertise, context |
-| **P2** | Copilot | Review carefully | ~44% signal, improving trend |
-| **P3** | coderabbitai[bot] | Skim for real issues | ~17% signal, often duplicates |
+| **P2** | Copilot | Review carefully | ~58% signal, improving trend |
+| **P3** | coderabbitai[bot] | Skim for real issues | ~50% signal, often duplicates |
 
 ### Signal Quality Thresholds
 
