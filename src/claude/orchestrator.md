@@ -1342,6 +1342,69 @@ When an agent chain fails:
 - [ ] CONTINUE: Resume original orchestration
 ```
 
+## SESSION END GATE (BLOCKING)
+
+**This gate MUST pass before claiming session completion. No exceptions.**
+
+You CANNOT claim "session complete", "done", "finished", or any completion language unless ALL of the following are TRUE:
+
+### Verification Requirements
+
+| Requirement | Evidence | Validator |
+|-------------|----------|-----------|
+| Session log exists | `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
+| Session End checklist complete | All MUST items checked with `[x]` | `Validate-SessionEnd.ps1` |
+| HANDOFF.md updated | References current session log | `Validate-SessionEnd.ps1` |
+| Git worktree clean | No uncommitted changes | `git status --porcelain` |
+| Markdown lint passes | No errors | `npx markdownlint-cli2 **/*.md` |
+| Commit SHA recorded | Valid SHA in Evidence column | `Validate-SessionEnd.ps1` |
+
+### Validation Command
+
+Before claiming completion, run:
+
+```bash
+pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+```
+
+### Gate Outcomes
+
+| Validator Exit Code | Meaning | Action |
+|---------------------|---------|--------|
+| 0 | PASS | May claim completion |
+| 1 | FAIL (protocol violation) | Fix violations, re-run validator |
+| 2 | FAIL (usage/environment) | Fix environment issue, re-run validator |
+
+### Completion Language Requirements
+
+**Valid completion claims** (only after PASS):
+
+```text
+Session end validation: [PASS]
+Commit SHA: abc123d
+
+Session complete. All protocol requirements verified.
+```
+
+**Invalid completion claims** (rejected by pre-commit hook):
+
+```text
+❌ "Done! Let me know if you need anything else."
+❌ "I've completed all the tasks."
+❌ "Session finished. HANDOFF updated."
+❌ Any completion claim without validator PASS output
+```
+
+### Fail-Closed Principle
+
+If the validator cannot run (PowerShell unavailable, script missing, environment error):
+
+- **DO NOT claim completion**
+- Report the environment issue to the user
+- The session is NOT complete until validation passes
+
+This is NOT a trust-based system. Self-attestation of completion is meaningless. Evidence must be machine-verifiable.
+
 ## Completion Criteria
 
 Mark orchestration complete only when:
@@ -1351,6 +1414,7 @@ Mark orchestration complete only when:
 - Conventional commits made (if code changes)
 - Memory updated with learnings
 - No outstanding decisions require input
+- **SESSION END GATE: PASS** (see above)
 
 ## Output Format
 

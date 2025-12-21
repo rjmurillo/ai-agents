@@ -419,6 +419,76 @@ if [ -n "$STAGED_GITHUB_SCRIPT_FILES" ]; then
 fi
 
 #
+# Session End Validation (BLOCKING)
+#
+# Enforces Session Protocol compliance for agent sessions.
+# When .agents/ files are staged (indicating an agent session), requires:
+# - HANDOFF.md staged with session reference
+# - Session log staged under .agents/sessions/
+# - Validate-SessionEnd.ps1 PASS
+#
+# Security: Fail-closed - if validation fails or cannot run, commit is blocked
+# Related: SESSION-PROTOCOL.md, Skill-Protocol-002, Skill-Validation-006
+#
+SESSION_END_SCRIPT="$REPO_ROOT/scripts/Validate-SessionEnd.ps1"
+
+# Check if any .agents/ files are staged (indicating an active session)
+STAGED_AGENTS_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/' || true)
+
+if [ -n "$STAGED_AGENTS_FILES" ]; then
+    echo_info "Checking Session End protocol compliance..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SESSION_END_SCRIPT" ]; then
+        echo_error "Session End validation blocked: script path is a symlink"
+        EXIT_STATUS=1
+    elif [ ! -f "$SESSION_END_SCRIPT" ]; then
+        echo_error "Session End validation blocked: script not found at $SESSION_END_SCRIPT"
+        EXIT_STATUS=1
+    else
+        # Require HANDOFF.md staged
+        STAGED_HANDOFF=$(echo "$STAGED_FILES" | grep -E '^\.agents/HANDOFF\.md$' || true)
+        if [ -z "$STAGED_HANDOFF" ]; then
+            echo_error "Session End validation failed: .agents/HANDOFF.md is not staged."
+            echo_info "  Fix: git add .agents/HANDOFF.md"
+            echo_info "  Why: HANDOFF.md must reference this session for continuity."
+            EXIT_STATUS=1
+        fi
+
+        # Require a staged session log
+        STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.md$' | tail -n 1)
+        if [ -z "$STAGED_SESSION_LOG" ]; then
+            echo_error "Session End validation failed: No session log staged under .agents/sessions/"
+            echo_info "  Fix: git add .agents/sessions/YYYY-MM-DD-session-NN.md"
+            echo_info "  Why: Session log must exist with completed checklist."
+            EXIT_STATUS=1
+        fi
+
+        # Only run validation if both prerequisites are met
+        if [ -n "$STAGED_HANDOFF" ] && [ -n "$STAGED_SESSION_LOG" ]; then
+            if command -v pwsh &> /dev/null; then
+                echo_info "Running Validate-SessionEnd.ps1..."
+                # SECURITY: Use -- separator and quote path to prevent injection
+                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_END_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" 2>&1; then
+                    echo_error "Session End validation FAILED."
+                    echo_info "  Review errors above and fix session log."
+                    echo_info "  Run manually: pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
+                    EXIT_STATUS=1
+                else
+                    echo_success "Session End validation: PASS"
+                fi
+            else
+                echo_error "Session End validation blocked: PowerShell not available."
+                echo_info "  Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+                EXIT_STATUS=1
+            fi
+        fi
+    fi
+else
+    echo_info "No .agents/ files staged. Skipping Session End validation."
+fi
+
+#
 # Final Summary
 #
 echo ""

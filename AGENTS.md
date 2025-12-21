@@ -52,15 +52,25 @@ These requirements MUST be completed before ANY other work. Work is blocked unti
 
 ### Session End Requirements (BLOCKING)
 
-These requirements MUST be completed before session closes.
+You CANNOT claim session completion until validation PASSES. These requirements MUST be completed before session closes.
 
 | Req Level | Step | Verification |
 |-----------|------|--------------|
-| **MUST** | Update `.agents/HANDOFF.md` | File modified timestamp |
+| **MUST** | Complete Session End checklist in session log | All `[x]` checked |
+| **MUST** | Update `.agents/HANDOFF.md` with session log link | File modified, link exists |
 | **MUST** | Run `npx markdownlint-cli2 --fix "**/*.md"` | Lint passes |
-| **MUST** | Commit all changes including `.agents/` | Commit SHA exists |
+| **MUST** | Commit all changes including `.agents/` | Commit SHA in Evidence column |
+| **MUST** | Run `Validate-SessionEnd.ps1` | Exit code 0 (PASS) |
 | **SHOULD** | Update PROJECT-PLAN.md task checkboxes | Tasks marked complete |
 | **SHOULD** | Invoke retrospective (significant sessions) | Doc created |
+
+**Validation Command**:
+
+```bash
+pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+```
+
+**If validation fails**: Fix violations and re-run. Do NOT claim completion until PASS.
 
 ### Full Protocol Documentation
 
@@ -1185,11 +1195,13 @@ SESSION START (BLOCKING - MUST complete before work):
 [... do your work ...]
 
 SESSION END (BLOCKING - MUST complete before closing):
-6. MUST: Update .agents/HANDOFF.md with session summary
-7. MUST: Run npx markdownlint-cli2 --fix "**/*.md"
-8. MUST: Commit all changes (including .agents/ files)
-9. SHOULD: Check off completed tasks in PROJECT-PLAN.md
-10. SHOULD: Invoke retrospective agent (for significant sessions)
+6. MUST: Complete Session End checklist in session log (all [x] checked)
+7. MUST: Update .agents/HANDOFF.md with session summary and session log link
+8. MUST: Run npx markdownlint-cli2 --fix "**/*.md"
+9. MUST: Commit all changes (record SHA in Evidence column)
+10. MUST: Run Validate-SessionEnd.ps1 - PASS required before claiming completion
+11. SHOULD: Check off completed tasks in PROJECT-PLAN.md
+12. SHOULD: Invoke retrospective agent (for significant sessions)
 ```
 
 ### Agent Workflow
