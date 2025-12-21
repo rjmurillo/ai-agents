@@ -13,6 +13,8 @@ When using the `dorny/paths-filter` action to implement conditional workflow exe
 
 ## Why This Matters
 
+**User Impact**: Without proper checkout setup in all jobs using the dorny/paths-filter pattern, workflows may fail unexpectedly or produce incorrect results when attempting to skip based on file changes.
+
 From PR #100 analysis:
 - `dorny/paths-filter` compares changes against a base ref
 - Without checkout, the action cannot read repository contents
