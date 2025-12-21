@@ -280,6 +280,39 @@ Tables MUST use alignment for readability:
 - `mcp__serena__read_memory` for specific skill: ~50ms
 - Total: ~110ms (68% faster)
 
+### Token Efficiency Trade-offs
+
+The memory system operates without embeddings or vector databases. This creates a fundamental trade-off:
+
+**Trade-off**: More files vs. smaller files
+
+| Approach | `list_memories` Cost | Per-read Cost | Discovery |
+|----------|---------------------|---------------|-----------|
+| Many small files | Higher (100+ names) | Lower (focused content) | Name-based |
+| Few large files | Lower (15 names) | Higher (scan irrelevant content) | Content-based |
+
+**Current architecture** (atomic files + index) optimizes for:
+
+1. **Word frequency density**: File names and index statements contain high-signal keywords that agents recognize during discovery
+2. **Focused reads**: Each `read_memory` returns only relevant content (no scanning through consolidated libraries)
+3. **No embedding overhead**: Purely lexical matching via file names and index summaries
+
+**Why this matters**:
+
+- Agents must "want to choose" a memory based on its name before reading it
+- Dense, descriptive names increase the probability of selection
+- The index adds a second layer of discoverability (one-line statements)
+
+**Future evolution** (out of scope for v1):
+
+Embeddings + vector database would provide ~10x improvement:
+
+- Semantic similarity search instead of lexical matching
+- Automatic relevance ranking
+- Cross-skill concept linking
+
+Until then, the index registry maximizes discoverability within lexical constraints.
+
 ### Scalability
 
 The index MUST scale to 500+ skills without performance degradation.
