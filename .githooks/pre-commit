@@ -449,18 +449,20 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
         # Require HANDOFF.md staged
         STAGED_HANDOFF=$(echo "$STAGED_FILES" | grep -E '^\.agents/HANDOFF\.md$' || true)
         if [ -z "$STAGED_HANDOFF" ]; then
-            echo_error "Session End validation failed: .agents/HANDOFF.md is not staged."
-            echo_info "  Fix: git add .agents/HANDOFF.md"
-            echo_info "  Why: HANDOFF.md must reference this session for continuity."
+            # Activation prompt: 5-word cloud to trigger correct behavior
+            echo_error "BLOCKED: Update HANDOFF.md NOW"
+            echo_info "  → git add .agents/HANDOFF.md"
+            echo_info "  Protocol: Session log links HANDOFF"
             EXIT_STATUS=1
         fi
 
         # Require a staged session log
         STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.md$' | tail -n 1)
         if [ -z "$STAGED_SESSION_LOG" ]; then
-            echo_error "Session End validation failed: No session log staged under .agents/sessions/"
-            echo_info "  Fix: git add .agents/sessions/YYYY-MM-DD-session-NN.md"
-            echo_info "  Why: Session log must exist with completed checklist."
+            # Activation prompt: 5-word cloud to trigger correct behavior
+            echo_error "BLOCKED: Create session log NOW"
+            echo_info "  → git add .agents/sessions/YYYY-MM-DD-session-NN.md"
+            echo_info "  Protocol: Log → Handoff → Commit"
             EXIT_STATUS=1
         fi
 

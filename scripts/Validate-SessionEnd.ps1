@@ -39,7 +39,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function Fail([string]$Code, [string]$Message) {
-  Write-Error "$Code: $Message"
+  Write-Error "${Code}: $Message"
   exit 1
 }
 
