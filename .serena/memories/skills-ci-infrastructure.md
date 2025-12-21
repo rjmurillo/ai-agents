@@ -563,6 +563,7 @@ What this workflow does...
 **Trigger**: Any new CI/CD workflow, GitHub Action, or build script
 
 **Evidence**: Session 03-07 (2025-12-18): All these issues were documented behaviors that could have been researched:
+
 - Matrix output limitation (GitHub Community Discussion #17245)
 - GH_TOKEN auto-authentication (GitHub CLI docs)
 - grep lookbehind requirements (GNU grep documentation)
@@ -657,6 +658,42 @@ git config core.hooksPath .githooks
 - Skill-CI-Environment-Testing-001: Local CI simulation
 
 **Validation**: 1 (PR #79)
+
+---
+
+## Skill-CI-Infrastructure-003: Quality Gate as Required Check (92%)
+
+**Statement**: Make AI Quality Gate a required GitHub branch protection check, not manual trigger
+
+**Context**: When configuring CI/CD pipelines and branch protection
+
+**Evidence**: PR #60 merged without Quality Gate, PR #211 manual trigger caught vulnerability
+
+**Atomicity**: 92%
+
+**Tag**: helpful
+
+**Impact**: 10/10
+
+**Created**: 2025-12-20
+
+**Pattern**:
+
+```yaml
+# .github/workflows/quality-gate.yml
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Branch protection settings (GitHub UI or API)
+required_status_checks:
+  - "AI Quality Gate / security"
+  - "AI Quality Gate / qa"
+```
+
+**Anti-Pattern**: Optional quality gates that can be skipped
+
+**Source**: `.agents/retrospective/2025-12-20-pr-211-security-miss.md`
 
 ---
 
