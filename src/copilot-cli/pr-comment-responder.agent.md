@@ -67,6 +67,49 @@ Prioritize comments based on historical actionability rates:
 
 **cursor[bot]** has demonstrated 100% actionability - every comment identified a real bug. Prioritize these comments for immediate attention.
 
+### Comment Triage Priority
+
+**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+
+#### Priority Adjustment by Domain
+
+| Comment Domain | Keywords | Priority Adjustment | Rationale |
+|----------------|----------|---------------------|-----------|
+| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage; missed security comments led to CWE-20/CWE-78 in PR #60 |
+| **Bug** | error, crash, exception, fail, null, undefined, race condition | No change | Standard priority based on reviewer signal |
+| **Style** | formatting, naming, indentation, whitespace, convention | No change | Standard priority based on reviewer signal |
+
+#### Processing Order
+
+1. **Security-domain comments**: Process ALL security comments BEFORE any other category, regardless of reviewer
+2. **Bug-domain comments**: Process after security, using reviewer signal quality
+3. **Style-domain comments**: Process last, deprioritize if time-constrained
+
+#### Security Keyword Detection
+
+Scan each comment body for these patterns (case-insensitive):
+
+```text
+CWE-\d+          # CWE identifier (e.g., CWE-20, CWE-78)
+vulnerability    # General security issue
+injection        # SQL, command, code injection
+XSS              # Cross-site scripting
+SQL              # SQL-related (often injection)
+CSRF             # Cross-site request forgery
+auth             # Authentication or authorization
+authentication
+authorization
+secrets?         # Secret/secrets exposure
+credentials?     # Credential exposure
+TOCTOU           # Time-of-check-time-of-use
+symlink          # Symlink attacks
+traversal        # Path traversal
+sanitiz          # Input sanitization
+escap            # Output escaping
+```
+
+**Skill Reference**: Skill-PR-Review-Security-001 (atomicity: 94%)
+
 ### Quick Fix Path Criteria
 
 For atomic bugs that meet ALL of these criteria, delegate directly to `implementer` (bypassing orchestrator) for efficiency:
