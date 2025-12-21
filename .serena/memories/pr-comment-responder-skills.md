@@ -161,7 +161,7 @@ gh api graphql -f query='mutation($threadId: ID!, $body: String!) { addPullReque
 
 **Tag**: helpful (triage prioritization)
 
-**Validated**: 4 (PR #32, #47, #52, #212)
+**Validated**: 5 (PR #32, #47, #52, #94, #212)
 
 **See also**: Memory `cursor-bot-review-patterns` for detailed patterns
 
@@ -530,10 +530,11 @@ fi
 
 ---
 
-## Metrics (as of PR #52)
+## Metrics (as of PR #212)
 
-- **Triage accuracy**: 100% (7/7 in PR #52, 8/8 in PR #47)
-- **cursor[bot] actionability**: 100% (9/9 across PR #32, #47, #52)
-- **Copilot actionability**: 44% (4/9 across PR #32, #47, #52)
+- **Triage accuracy**: 100% (20/20 in PR #212, 7/7 in PR #52, 8/8 in PR #47)
+- **cursor[bot] actionability**: 100% (10/10 across PR #32, #47, #52, #212)
+- **Copilot actionability**: ~50% (5/10 across PR #32, #47, #52, #212)
 - **CodeRabbit actionability**: 50% (3/6 across PR #32, #47, #52)
-- **Quick Fix efficiency**: 3 bugs fixed (PR #52: commits 4815d56, b4c9353, cd4c6b2)
+- **Quick Fix efficiency**: 4 bugs fixed (PR #212: null-safety fix in ai-issue-triage.yml)
+- **GraphQL thread resolution**: 20/20 threads resolved via single-line mutations (PR #212)

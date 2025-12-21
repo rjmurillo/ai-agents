@@ -111,4 +111,6 @@ The `git diff --quiet` check doesn't detect untracked files...
 - PR #32: Documentation consistency
 - PR #47: PathInfo type bug, test coverage
 - PR #52: Git staging, status messages, grep patterns
+- PR #212: PowerShell null-safety issues (array coercion, null filtering)
 - Memory: `pattern-git-hooks-grep-patterns` (PR #52 specific learnings)
+- Memory: `skills-powershell` (Skill-PowerShell-002, 003, 004 from PR #212)
