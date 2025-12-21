@@ -736,6 +736,32 @@ Describe "Get-SynthesisConfig YAML Parsing" {
             # The synthesis marker should NOT be the AI triage marker
             $result.synthesis.marker | Should -Not -Be "<!-- AI-ISSUE-TRIAGE -->"
         }
+
+        It "Extracts custom marker when YAML has comments between synthesis and marker" {
+            # Arrange - Create config with comments between synthesis: and marker:
+            $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "CopilotSynthesisTests"
+            if (-not (Test-Path $tempDir)) {
+                New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+            }
+            $customConfig = Join-Path $tempDir "custom-marker.yml"
+            @"
+# Comments before synthesis section
+synthesis:
+  # This is a comment that should be skipped
+  # Multiple lines of comments here
+  # The regex should handle this correctly
+  marker: "<!-- CUSTOM-TEST-MARKER -->"
+"@ | Set-Content $customConfig
+
+            # Act
+            $result = Get-SynthesisConfig -ConfigPath $customConfig
+
+            # Assert - Should extract the custom marker, not default
+            $result.synthesis.marker | Should -Be "<!-- CUSTOM-TEST-MARKER -->"
+
+            # Cleanup
+            Remove-Item $customConfig -Force -ErrorAction SilentlyContinue
+        }
     }
 
     Context "Trusted Sources Extraction" {

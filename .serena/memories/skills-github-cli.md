@@ -4,8 +4,8 @@
 
 Comprehensive collection of GitHub CLI (`gh`) command patterns, best practices, and common pitfalls. These skills enable effective automation of GitHub operations from the command line and in CI/CD pipelines.
 
-**Last Updated**: 2025-12-18
-**Source**: GitHub REST API Documentation and GitHub CLI Manual
+**Last Updated**: 2025-12-19
+**Source**: GitHub REST API Documentation, GitHub CLI Manual, and GitHub Copilot Integration
 
 ---
 
@@ -158,9 +158,11 @@ gh issue create --web
 # Use template
 gh issue create --template "Bug Report"
 
-# Assign to Copilot
-gh issue create --title "Analyze codebase" --assignee "@copilot"
+# Assign to GitHub Copilot (triggers automated resolution)
+gh issue create --title "Analyze codebase" --assignee "copilot-swe-agent"
 ```
+
+**Note**: Copilot assignee must be `copilot-swe-agent` (exact name). Using `@copilot`, `Copilot`, or `copilot` will fail. See Skill-GH-Copilot-001 below for details.
 
 **Atomicity**: 94%
 
@@ -240,6 +242,63 @@ gh issue transfer 23 owner/other-repo
 ```
 
 **Atomicity**: 91%
+
+---
+
+## Skill-GH-Copilot-001: GitHub Copilot Assignment
+
+**Statement**: Assign issues to `copilot-swe-agent` (exact name) to trigger GitHub Copilot automated resolution.
+
+**Context**: When requesting GitHub Copilot to automatically analyze and resolve issues.
+
+**Pattern**:
+
+```bash
+# Correct: Trigger Copilot with exact assignee name
+gh issue edit 90 --add-assignee copilot-swe-agent
+
+# Create issue and assign to Copilot
+gh issue create --title "Analyze build failures" --assignee copilot-swe-agent
+
+# WRONG: These do NOT trigger Copilot to work on the issue
+gh issue comment 90 --body "@copilot please analyze"  # Mentions don't ASSIGN, but DO add context
+gh issue edit 90 --add-assignee Copilot               # Error: 'Copilot' not found
+gh issue edit 90 --add-assignee copilot               # Error: 'copilot' not found
+gh issue edit 90 --add-assignee @copilot              # Wrong format
+```
+
+**Critical Details**:
+
+- Assignee name must be exactly `copilot-swe-agent` (case-sensitive)
+- Assignment is the ONLY trigger mechanism for Copilot to START working
+- Use `@copilot` only in comment bodies to mention Copilot; these mentions add context but do **not** assign the issue
+- Common assignee-name mistakes (these FAIL when used with `--assignee` / `--add-assignee`): `Copilot`, `copilot`, `@copilot`
+
+**Context Injection Pattern**:
+
+```bash
+# Step 1: Post context-rich comment mentioning @copilot
+gh issue comment 90 --body "@copilot Use Option 1 from the issue description. Focus on the Apply Labels step. The workflow already has issues:write permission."
+
+# Step 2: Assign Copilot (this triggers work)
+gh issue edit 90 --add-assignee copilot-swe-agent
+```
+
+When Copilot is assigned, it reads ALL comments where @copilot is mentioned and incorporates them into its context.
+
+**Evidence**:
+
+- Issue #88: Successful pattern with `copilot-swe-agent`
+- Issue #90: Failed with "Copilot" and "copilot", succeeded with `copilot-swe-agent`
+- Error message: "failed to update: 'Copilot' not found"
+
+**Atomicity**: 98%
+
+**Impact**: 9/10
+
+**Tag**: helpful
+
+**Validated**: 2 (Issues #88, #90)
 
 ---
 
@@ -622,6 +681,72 @@ gh pr list -L 100
 gh api --paginate repos/{owner}/{repo}/issues
 ```
 
+### Skill-GH-GraphQL-001: Single-Line Mutation Format
+
+**Statement**: Use single-line query format (no newlines) when passing GraphQL mutations to `gh api graphql`.
+
+**Context**: When using `gh api graphql` for mutations like thread replies, thread resolution, or any write operation.
+
+**Evidence**: PR #212 - Multi-line formatted mutations caused parsing errors; single-line format succeeded consistently.
+
+**Atomicity**: 97%
+
+**Tag**: helpful (prevents GraphQL parsing failures)
+
+**Impact**: 9/10 (critical for automation reliability)
+
+**Created**: 2025-12-20
+
+**Problem**:
+
+```bash
+# WRONG - Multi-line format causes parsing errors
+gh api graphql -f query='
+mutation($id: ID!, $body: String!) {
+  addPullRequestReviewThreadReply(input: {
+    pullRequestReviewThreadId: $id,
+    body: $body
+  }) {
+    comment { id }
+  }
+}'
+```
+
+**Solution**:
+
+```bash
+# CORRECT - Single-line format with escaped quotes
+gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $id, body: $body}) { comment { id } } }' -f id="PRRT_xxx" -f body="Reply text"
+```
+
+**Why It Matters**:
+
+The `gh api graphql` command has shell escaping issues with multi-line queries, especially when variables contain special characters. Single-line format avoids these parsing ambiguities and ensures consistent behavior across shells.
+
+**Pattern**:
+
+```bash
+# Reply to review thread
+gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $id, body: $body}) { comment { id } } }' -f id="$THREAD_ID" -f body="$REPLY_TEXT"
+
+# Resolve review thread
+gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id="$THREAD_ID"
+```
+
+**Anti-Pattern**:
+
+```bash
+# Multi-line with heredocs - fragile
+gh api graphql -f query="$(cat <<'EOF'
+mutation { ... }
+EOF
+)"
+```
+
+**Validation**: 1 (PR #212 - 20 threads resolved using single-line format)
+
+---
+
 ### Anti-Pattern-GH-005: Using gh pr view for Review Threads
 
 **Problem**: `gh pr view --json reviewThreads` fails with "Unknown JSON field".
@@ -756,8 +881,1055 @@ run: |
 - `skills-github-workflow-patterns.md` - GitHub Actions workflow patterns
 - `skills-ci-infrastructure.md` - CI/CD infrastructure skills
 
+---
+
+## Repository Management Skills
+
+### Skill-GH-Repo-001: Repository Settings Management
+
+**Statement**: Use `gh repo edit` with feature flags to enable/disable repo features; use `--visibility` with acknowledgment flag for visibility changes.
+
+**Pattern**:
+
+```bash
+# Enable/disable features
+gh repo edit --enable-discussions --enable-projects
+gh repo edit --enable-squash-merge --delete-branch-on-merge
+gh repo edit --enable-issues=false
+
+# Security features
+gh repo edit --enable-advanced-security
+gh repo edit --enable-secret-scanning --enable-secret-scanning-push-protection
+
+# Change visibility (requires acknowledgment)
+gh repo edit --visibility private --accept-visibility-change-consequences
+
+# Update metadata
+gh repo edit --description "New description" --homepage "https://example.com"
+gh repo edit --add-topic "ci,automation" --remove-topic "wip"
+
+# Set default branch
+gh repo edit --default-branch main
+
+# Make template repository
+gh repo edit --template
+```
+
+**Atomicity**: 94%
+
+---
+
+### Skill-GH-Repo-002: Fork Synchronization
+
+**Statement**: Use `gh repo sync` to keep forks current with upstream; `--force` for hard reset when fast-forward fails.
+
+**Pattern**:
+
+```bash
+# Sync local fork with parent (default)
+gh repo sync
+
+# Sync specific branch
+gh repo sync --branch v1
+
+# Sync remote fork
+gh repo sync owner/fork-repo
+
+# Force sync (hard reset - overwrites local changes)
+gh repo sync --force
+
+# Sync from different source
+gh repo sync owner/repo --source upstream/repo
+```
+
+**Atomicity**: 92%
+
+---
+
+### Skill-GH-Repo-003: Deploy Key Management
+
+**Statement**: Use `gh repo deploy-key` for CI/CD SSH key management; add with write permission for deployment workflows.
+
+**Pattern**:
+
+```bash
+# List deploy keys
+gh repo deploy-key list
+
+# Add deploy key with title
+gh repo deploy-key add ~/.ssh/deploy_key.pub --title "CI/CD Key"
+
+# Add with write permission (for pushing)
+gh repo deploy-key add key.pub --title "Deploy Key" --allow-write
+
+# Delete deploy key by ID
+gh repo deploy-key delete 12345
+
+# Target different repo
+gh repo deploy-key list -R owner/other-repo
+```
+
+**Atomicity**: 91%
+
+---
+
+### Skill-GH-Repo-004: Repository Lifecycle
+
+**Statement**: Use `gh repo archive` to deprecate repositories while preserving history; `gh repo unarchive` to reactivate.
+
+**Pattern**:
+
+```bash
+# Archive repository (read-only, preserves history)
+gh repo archive owner/repo
+
+# Unarchive repository (reactivate)
+gh repo unarchive owner/repo
+
+# Rename repository
+gh repo rename old-name new-name
+
+# Delete repository (DESTRUCTIVE - requires confirmation)
+gh repo delete owner/repo --yes
+
+# Set default repo for commands in current directory
+gh repo set-default owner/repo
+```
+
+**Anti-pattern**: Deleting repos instead of archiving loses history and breaks links.
+
+**Atomicity**: 90%
+
+---
+
+## Secret and Variable Management
+
+### Skill-GH-Secret-001: Secret Management
+
+**Statement**: Use `gh secret set` with `-f` for batch import from .env files; use `--visibility` for org-level access control.
+
+**Pattern**:
+
+```bash
+# Set repo secret (interactive prompt)
+gh secret set MY_SECRET
+
+# Set from value
+gh secret set API_KEY --body "secret-value"
+
+# Set from file (pipe stdin)
+gh secret set SSH_KEY < ~/.ssh/id_rsa
+
+# Batch import from .env file
+gh secret set -f .env.production
+
+# Environment-specific secret
+gh secret set DB_PASSWORD --env production
+
+# Org secret with visibility control
+gh secret set ORG_SECRET --org myorg --visibility all
+gh secret set ORG_SECRET --org myorg --visibility private
+gh secret set SHARED_SECRET --org myorg --repos repo1,repo2
+
+# Dependabot secret
+gh secret set NUGET_TOKEN --app dependabot
+
+# Codespaces secret
+gh secret set DEV_TOKEN --user
+
+# List secrets
+gh secret list
+gh secret list --org myorg
+gh secret list --env production
+
+# Delete secret
+gh secret delete MY_SECRET
+gh secret delete --env production DB_PASSWORD
+```
+
+**Security Note**: Values are locally encrypted before transmission to GitHub.
+
+**Atomicity**: 95%
+
+---
+
+### Skill-GH-Variable-001: Variable Management
+
+**Statement**: Use `gh variable` for non-sensitive config values; supports repo/env/org scopes like secrets.
+
+**Pattern**:
+
+```bash
+# Set variable
+gh variable set MY_VAR --body "value"
+
+# Get variable value
+gh variable get MY_VAR
+
+# List variables
+gh variable list
+
+# Environment-specific
+gh variable set DEBUG --env staging --body "true"
+
+# Organization variable
+gh variable set ORG_SETTING --org myorg --repos repo1,repo2
+
+# Delete variable
+gh variable delete MY_VAR
+```
+
+**Anti-pattern**: Using `gh variable` for sensitive data exposes values in logs. Always use `gh secret` for credentials.
+
+**Atomicity**: 93%
+
+---
+
+## Label Management
+
+### Skill-GH-Label-001: Label Creation and Editing
+
+**Statement**: Use `gh label create` with `--color` (hex) and `--description`; use `--force` to update existing labels.
+
+**Pattern**:
+
+```bash
+# Create label with color and description
+gh label create "bug" --color E99695 --description "Something isn't working"
+
+# Create priority labels
+gh label create "priority:critical" --color FF0000 --description "Critical priority"
+gh label create "priority:high" --color FFA500 --description "High priority"
+gh label create "priority:medium" --color FFFF00 --description "Medium priority"
+gh label create "priority:low" --color 00FF00 --description "Low priority"
+
+# Create type labels
+gh label create "type:feature" --color 0E8A16 --description "New feature request"
+gh label create "type:bug" --color D93F0B --description "Bug report"
+gh label create "type:docs" --color 0075CA --description "Documentation"
+
+# Update existing label (force flag)
+gh label create "bug" --color FF0000 --force
+
+# Edit label properties
+gh label edit "bug" --color FF0000 --description "Updated description"
+gh label edit "old-name" --name "new-name"
+
+# List all labels
+gh label list
+gh label list --json name,color,description
+
+# Delete label
+gh label delete "obsolete-label" --yes
+```
+
+**Note**: Color values require exactly 6 hexadecimal characters (no # prefix).
+
+**Atomicity**: 94%
+
+---
+
+### Skill-GH-Label-002: Label Cloning
+
+**Statement**: Use `gh label clone` to copy label sets between repositories; essential for standardizing labels across organizations.
+
+**Pattern**:
+
+```bash
+# Clone labels from source to current repo
+gh label clone source-owner/source-repo
+
+# Clone to specific target
+gh label clone source-owner/template-repo -R target-owner/target-repo
+
+# Overwrite existing labels
+gh label clone source-owner/template-repo --force
+```
+
+**Best Practice**: Maintain a template repository with standard labels and clone to new repos.
+
+**Atomicity**: 91%
+
+---
+
+## GitHub Actions Cache Management
+
+### Skill-GH-Cache-001: Actions Cache Management
+
+**Statement**: Use `gh cache list` to audit cache usage; `gh cache delete --all` to clear cache and reclaim storage.
+
+**Pattern**:
+
+```bash
+# List all caches
+gh cache list
+
+# List with details for scripting
+gh cache list --json id,key,sizeInBytes,createdAt
+
+# Sort by size (find largest caches)
+gh cache list --json key,sizeInBytes --jq 'sort_by(.sizeInBytes) | reverse | .[:5]'
+
+# Delete specific cache by key
+gh cache delete "npm-cache-ubuntu-abc123"
+
+# Delete all caches (reclaim storage)
+gh cache delete --all
+
+# Target different repo
+gh cache list -R owner/other-repo
+gh cache delete --all -R owner/other-repo
+```
+
+**Use Case**: Clear caches when builds are failing due to stale dependencies or to reduce storage costs.
+
+**Atomicity**: 90%
+
+---
+
+## Ruleset Management
+
+### Skill-GH-Ruleset-001: Ruleset Compliance
+
+**Statement**: Use `gh ruleset check` to validate branch compliance before pushing; `gh ruleset list` to audit governance rules.
+
+**Pattern**:
+
+```bash
+# Check if branch complies with rulesets
+gh ruleset check feature-branch
+gh ruleset check main
+
+# List all rulesets
+gh ruleset list
+
+# View specific ruleset details
+gh ruleset view
+gh ruleset view --web
+
+# Check ruleset for different repo
+gh ruleset list -R owner/repo
+gh ruleset check main -R owner/repo
+```
+
+**Alias**: `gh rs` (shorthand for ruleset commands)
+
+**Use Case**: Pre-flight check before force pushing or creating protected branch PRs.
+
+**Atomicity**: 89%
+
+---
+
+## Software Supply Chain Security
+
+### Skill-GH-Attestation-001: Artifact Verification
+
+**Statement**: Use `gh attestation verify` with `--owner` or `--repo` to validate artifact provenance; essential for secure deployments.
+
+**Pattern**:
+
+```bash
+# Verify artifact from repo
+gh attestation verify artifact.bin --repo owner/repo
+
+# Verify with organization scope
+gh attestation verify artifact.bin --owner myorg
+
+# Verify OCI container image
+gh attestation verify oci://ghcr.io/owner/image:tag --owner owner
+
+# Verify with specific workflow enforcement
+gh attestation verify artifact.bin --owner org --signer-workflow .github/workflows/build.yml
+
+# JSON output for CI integration
+gh attestation verify artifact.bin --repo owner/repo --format json
+
+# Offline verification with local attestation bundle
+gh attestation verify artifact.bin --bundle attestation.jsonl --owner owner
+
+# Download attestations for later verification
+gh attestation download artifact.bin --owner owner
+```
+
+**Alias**: `gh at` (shorthand for attestation commands)
+
+**Security Note**: Only signature.certificate and verifiedTimestamps are tamper-resistant. Predicate contents can be modified by workflow actors.
+
+**Atomicity**: 93%
+
+---
+
+## GitHub Projects (v2)
+
+### Skill-GH-Project-001: Project Management
+
+**Statement**: Use `gh project` for GitHub Projects (v2); requires `project` scope via `gh auth refresh -s project`.
+
+**Prerequisite**:
+
+```bash
+# Add project scope before using project commands
+gh auth refresh -s project
+gh auth status  # Verify scope added
+```
+
+**Pattern**:
+
+```bash
+# Create project
+gh project create --owner myorg --title "Q1 Roadmap"
+
+# List projects
+gh project list
+gh project list --owner myorg
+
+# View project (opens in browser)
+gh project view 1 --owner myorg --web
+
+# Edit project
+gh project edit 1 --owner myorg --title "Updated Title"
+
+# Close project
+gh project close 1 --owner myorg
+
+# Delete project
+gh project delete 1 --owner myorg
+
+# Copy project (template)
+gh project copy 1 --source-owner source-org --target-owner target-org --title "Copy"
+
+# Mark as template
+gh project mark-template 1 --owner myorg
+
+# Link repository to project
+gh project link 1 --owner myorg --repo myorg/myrepo
+
+# Unlink repository
+gh project unlink 1 --owner myorg --repo myorg/myrepo
+```
+
+**Atomicity**: 92%
+
+---
+
+### Skill-GH-Project-002: Project Item Management
+
+**Statement**: Use `gh project item-add` to add issues/PRs to projects; `gh project field-list` to manage custom fields.
+
+**Pattern**:
+
+```bash
+# Add issue/PR to project by URL
+gh project item-add 1 --owner myorg --url https://github.com/myorg/repo/issues/123
+
+# List project items
+gh project item-list 1 --owner myorg
+gh project item-list 1 --owner myorg --json id,title,status
+
+# Create draft item (no linked issue)
+gh project item-create 1 --owner myorg --title "New task" --body "Description"
+
+# Edit item field
+gh project item-edit --id ITEM_ID --field-id FIELD_ID --text "value"
+gh project item-edit --id ITEM_ID --field-id STATUS_FIELD_ID --single-select-option-id OPTION_ID
+
+# Archive item
+gh project item-archive 1 --owner myorg --id ITEM_ID
+
+# Delete item
+gh project item-delete 1 --owner myorg --id ITEM_ID
+
+# List custom fields
+gh project field-list 1 --owner myorg
+
+# Create custom field
+gh project field-create 1 --owner myorg --name "Priority" --data-type "SINGLE_SELECT"
+
+# Delete custom field
+gh project field-delete 1 --owner myorg --id FIELD_ID
+```
+
+**Atomicity**: 91%
+
+---
+
+## CLI Extensions
+
+### Skill-GH-Extension-001: Extension Management
+
+**Statement**: Use `gh extension` to install community tools that extend gh functionality; extensions are repos with `gh-` prefix.
+
+**Pattern**:
+
+```bash
+# Search for extensions
+gh extension search sub-issue
+gh extension search copilot
+
+# Browse extensions in browser
+gh extension browse
+
+# Install extension
+gh extension install owner/gh-extension-name
+gh extension install github/gh-copilot
+
+# List installed extensions
+gh extension list
+
+# Upgrade single extension
+gh extension upgrade extension-name
+
+# Upgrade all extensions
+gh extension upgrade --all
+
+# Remove extension
+gh extension remove extension-name
+
+# Run extension (useful for name conflicts)
+gh extension exec extension-name [args]
+
+# Create new extension (for development)
+gh extension create my-extension
+```
+
+**Extension Directory**: <https://github.com/topics/gh-extension>
+
+**Aliases**: `gh ext`, `gh extensions`
+
+**Atomicity**: 92%
+
+---
+
+### Skill-GH-Extension-002: Sub-Issue Management (via Extension)
+
+**Statement**: Install `gh-sub-issue` extension to manage hierarchical issue relationships from CLI.
+
+**Important**: Sub-issues are NOT in core gh CLI - requires community extension.
+
+**Installation**:
+
+```bash
+gh extension install yahsan2/gh-sub-issue
+```
+
+**Pattern**:
+
+```bash
+# Create new sub-issue linked to parent
+gh sub-issue create --parent 123 --title "Sub-task for parent issue"
+
+# Link existing issue as sub-issue
+gh sub-issue add 123 456  # 123=parent, 456=child
+
+# List sub-issues of a parent
+gh sub-issue list 123
+
+# Remove sub-issue link
+gh sub-issue remove 123 456
+
+# JSON output for scripting
+gh sub-issue list 123 --json
+```
+
+**API Note**: GitHub does not expose a dedicated REST API endpoint for sub-issues.
+
+For automation without the extension:
+
+- Use **GraphQL** via `gh api graphql` with the Issues/Tasklists mutations
+- Use **task lists** in issue body (markdown checkboxes with issue references)
+- See [GitHub Tasklists documentation](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-tasklists)
+
+**Note**: GitHub supports up to 8 levels of issue hierarchy via Tasklists.
+
+**Atomicity**: 90%
+
+---
+
+## Additional Anti-Patterns
+
+### Anti-Pattern-GH-006: Ignoring Ruleset Compliance
+
+**Problem**: Pushing without checking ruleset compliance causes CI failures and frustration.
+
+**Solution**: Run `gh ruleset check branch-name` before pushing to protected branches.
+
+```bash
+# Pre-push check
+gh ruleset check my-branch && git push origin my-branch
+```
+
+### Anti-Pattern-GH-007: Hardcoding Secrets in Variables
+
+**Problem**: Using `gh variable` for sensitive data exposes secrets in workflow logs and API responses.
+
+**Solution**: Always use `gh secret` for credentials, tokens, and sensitive values. Variables are for non-sensitive configuration only.
+
+```bash
+# WRONG: Exposes in logs
+gh variable set API_KEY --body "sk-secret123"
+
+# CORRECT: Encrypted and masked
+gh secret set API_KEY --body "sk-secret123"
+```
+
+### Anti-Pattern-GH-008: Missing Project Scope
+
+**Problem**: Project commands fail with 403 permission errors.
+
+**Solution**: Add project scope before using project commands:
+
+```bash
+gh auth refresh -s project
+```
+
+### Anti-Pattern-GH-009: Not Using Label Templates
+
+**Problem**: Manually creating labels in each repository leads to inconsistency.
+
+**Solution**: Maintain a template repository with standard labels and use `gh label clone`:
+
+```bash
+# Clone from template repo to new repo
+gh label clone org/label-template -R org/new-repo
+```
+
+---
+
+## Recommended Extensions for Maintainers
+
+The following community extensions significantly enhance maintainer productivity. Install with `gh extension install <repo>`.
+
+### Skill-GH-Ext-Dash-001: Interactive PR/Issue Dashboard
+
+**Extension**: `dlvhdr/gh-dash`
+
+**Statement**: Use `gh dash` for a keyboard-driven TUI to manage PRs and issues without leaving the terminal.
+
+**Installation**:
+
+```bash
+gh extension install dlvhdr/gh-dash
+```
+
+**Configuration** (`~/.config/gh-dash/config.yml`):
+
+```yaml
+prSections:
+  - title: My PRs
+    filters: is:open author:@me
+  - title: Needs Review
+    filters: is:open review-requested:@me
+  - title: Team PRs
+    filters: is:open org:myorg
+
+issuesSections:
+  - title: Assigned
+    filters: is:open assignee:@me
+  - title: High Priority
+    filters: is:open label:priority:high
+```
+
+**Pattern**:
+
+```bash
+# Launch dashboard
+gh dash
+
+# Key bindings (vim-style):
+# j/k - Navigate up/down
+# Enter - View details
+# d - View diff
+# c - Checkout branch
+# m - Merge PR
+# o - Open in browser
+# r - Refresh
+# q - Quit
+```
+
+**Use Case**: Monitor multiple repositories, triage PRs, and perform actions without context switching to browser.
+
+**Atomicity**: 94%
+
+---
+
+### Skill-GH-Ext-Combine-001: Batch Dependabot PRs
+
+**Extension**: `rnorth/gh-combine-prs`
+
+**Statement**: Use `gh combine-prs` to merge multiple PRs (especially Dependabot) into a single PR for cleaner history.
+
+**Prerequisites**: Requires `jq` installed.
+
+**Installation**:
+
+```bash
+gh extension install rnorth/gh-combine-prs
+```
+
+**Pattern**:
+
+```bash
+# Combine all Dependabot PRs
+gh combine-prs --query "author:app/dependabot"
+
+# Combine specific PRs by number
+gh combine-prs --query "author:app/dependabot" --selected-pr-numbers "12,34,56"
+
+# Limit number of PRs combined
+gh combine-prs --query "author:app/dependabot" --limit 10
+
+# Skip status checks (use with caution)
+gh combine-prs --query "author:app/dependabot" --skip-pr-check
+
+# Combine PRs by label
+gh combine-prs --query "label:dependencies"
+```
+
+**Important**: When merging the combined PR, use **Merge Commit** (not squash) so GitHub marks original PRs as merged.
+
+**Use Case**: Reduce PR noise from Dependabot by batching weekly dependency updates.
+
+**Atomicity**: 93%
+
+---
+
+### Skill-GH-Ext-Metrics-001: PR Analytics
+
+**Extension**: `hectcastro/gh-metrics`
+
+**Statement**: Use `gh metrics` to calculate PR review metrics for identifying bottlenecks and improving team velocity.
+
+**Installation**:
+
+```bash
+gh extension install hectcastro/gh-metrics
+```
+
+**Metrics Calculated**:
+
+- **Time to First Review**: PR creation → first review
+- **Feature Lead Time**: First commit → merge
+- **First to Last Review**: First → final approval
+- **First Approval to Merge**: Approval → merge
+
+**Pattern**:
+
+```bash
+# Default metrics (last 10 days)
+gh metrics --repo owner/repo
+
+# Custom date range
+gh metrics --repo owner/repo --start 2025-01-01 --end 2025-01-31
+
+# Filter by author
+gh metrics --repo owner/repo --query "author:username"
+
+# CSV export for analysis
+gh metrics --repo owner/repo --csv > metrics.csv
+
+# Multiple repos
+gh metrics --repo owner/repo1 --repo owner/repo2
+```
+
+**Use Case**: Track team health, identify slow reviewers, and benchmark sprint performance.
+
+**Atomicity**: 91%
+
+---
+
+### Skill-GH-Ext-Notify-001: Notification Management
+
+**Extension**: `meiji163/gh-notify`
+
+**Statement**: Use `gh notify` with fzf integration for interactive notification triage from CLI.
+
+**Prerequisites**: Optional but recommended: `fzf` for interactive mode.
+
+**Installation**:
+
+```bash
+gh extension install meiji163/gh-notify
+```
+
+**Pattern**:
+
+```bash
+# Interactive mode (requires fzf)
+gh notify
+
+# List all notifications
+gh notify -a
+
+# Only participating/mentioned
+gh notify -p
+
+# Filter by pattern (regex)
+gh notify -f "security"
+
+# Exclude pattern
+gh notify -e "dependabot"
+
+# Limit results
+gh notify -n 20
+
+# Mark all as read
+gh notify -r
+
+# Static mode (no interaction)
+gh notify -s
+
+# Enable preview window
+gh notify -w
+```
+
+**Interactive Key Bindings**:
+
+- `Enter` - View in pager
+- `Ctrl+A` - Mark all as read
+- `Ctrl+D` - View diff
+- `Ctrl+T` - Mark selected as read
+- `Ctrl+X` - Write comment
+- `Esc` - Exit
+
+**Use Case**: Triage notifications without browser, quickly dismiss noise, focus on important items.
+
+**Atomicity**: 92%
+
+---
+
+### Skill-GH-Ext-Milestone-001: Milestone Management
+
+**Extension**: `valeriobelli/gh-milestone`
+
+**Statement**: Use `gh milestone` for release planning with create/list/edit/delete operations.
+
+**Installation**:
+
+```bash
+gh extension install valeriobelli/gh-milestone
+```
+
+**Pattern**:
+
+```bash
+# Create milestone (interactive)
+gh milestone create
+
+# Create with flags
+gh milestone create --title "v2.0.0" --description "Major release" --due-date 2025-03-01
+
+# List milestones
+gh milestone list
+gh milestone ls  # Alias
+gh milestone list --state closed
+gh milestone list --state all
+
+# Filter and format
+gh milestone list --query "v2"
+gh milestone list --json id,title,progressPercentage
+
+# View milestone
+gh milestone view 1
+
+# Edit milestone
+gh milestone edit 1 --title "v2.0.0-rc1" --due-date 2025-02-15
+
+# Delete milestone (with confirmation)
+gh milestone delete 1
+
+# Delete without prompt
+gh milestone delete 1 --confirm
+
+# Target different repo
+gh milestone list --repo owner/repo
+```
+
+**Use Case**: Plan releases, track sprint progress, set deadlines for issue groupings.
+
+**Atomicity**: 93%
+
+---
+
+### Skill-GH-Ext-Hook-001: Webhook Management
+
+**Extension**: `lucasmelin/gh-hook`
+
+**Statement**: Use `gh hook` for interactive webhook setup and management.
+
+**Installation**:
+
+```bash
+gh extension install lucasmelin/gh-hook
+```
+
+**Pattern**:
+
+```bash
+# Create webhook (interactive TUI)
+gh hook create
+
+# Create from JSON file
+gh hook create --file webhook.json
+
+# List webhooks
+gh hook list
+
+# Delete webhook
+gh hook delete <webhook-id>
+```
+
+**JSON Configuration Format**:
+
+```json
+{
+  "active": true,
+  "events": ["push", "pull_request"],
+  "config": {
+    "url": "https://example.com/webhook",
+    "content_type": "json",
+    "insecure_ssl": "0",
+    "secret": "optional-secret"
+  }
+}
+```
+
+**Use Case**: Set up CI/CD integrations, Slack notifications, or external service triggers.
+
+**Atomicity**: 89%
+
+---
+
+### Skill-GH-Ext-GR-001: Multi-Repository Operations
+
+**Extension**: `sarumaj/gh-gr`
+
+**Statement**: Use `gh gr` to manage multiple repositories simultaneously: pull, push, and status across repos.
+
+**Installation**:
+
+```bash
+gh extension install sarumaj/gh-gr
+```
+
+**Pattern**:
+
+```bash
+# Initialize with directory
+gh gr init -d ~/projects
+
+# Initialize with concurrency limit
+gh gr init -d ~/projects -c 10
+
+# Exclude repos by pattern
+gh gr init -d ~/projects -e ".*-archive" -e "fork-.*"
+
+# Pull all repos
+gh gr pull
+
+# Check status of all repos
+gh gr status
+
+# Push all repos
+gh gr push
+
+# View configuration
+gh gr view
+
+# Export/import config
+gh gr export > config.json
+gh gr import < config.json
+
+# Cleanup untracked local repos
+gh gr cleanup
+```
+
+**Global Options**:
+
+- `-c, --concurrency N` - Parallel operations (default: 12)
+- `-t, --timeout DURATION` - Max time for operations (default: 10m)
+
+**Use Case**: Maintain multiple related repositories, sync forks, batch operations across org.
+
+**Atomicity**: 90%
+
+---
+
+### Skill-GH-Ext-Grep-001: Cross-Repository Code Search
+
+**Extension**: `k1LoW/gh-grep`
+
+**Statement**: Use `gh grep` to search code patterns across repositories via GitHub API.
+
+**Installation**:
+
+```bash
+gh extension install k1LoW/gh-grep
+```
+
+**Pattern**:
+
+```bash
+# Search in specific repo
+gh grep "TODO" --repo owner/repo
+
+# Search with owner scope (all repos)
+gh grep "deprecated" --owner myorg
+
+# Filter by file pattern (IMPORTANT for performance)
+gh grep "FROM.*alpine" --owner myorg --include "Dockerfile"
+
+# Exclude files
+gh grep "password" --repo owner/repo --exclude "*test*"
+
+# Case insensitive with line numbers
+gh grep -i -n "fixme" --repo owner/repo
+
+# Output with GitHub URLs
+gh grep "security" --repo owner/repo --url
+```
+
+**Performance Warning**: This tool is slow because it uses GitHub API. Always use `--include` to filter files.
+
+**Use Case**: Audit patterns across org (security, deprecated APIs, license headers).
+
+**Atomicity**: 88%
+
+---
+
+## Extension Maintenance
+
+### Update All Extensions
+
+```bash
+gh extension upgrade --all
+```
+
+### List Installed Extensions
+
+```bash
+gh extension list
+```
+
+### Remove Extension
+
+```bash
+gh extension remove extension-name
+```
+
+### Find New Extensions
+
+```bash
+gh extension search keyword
+gh extension browse  # Opens browser
+```
+
+---
+
 ## References
 
 - [GitHub CLI Manual](https://cli.github.com/manual/)
 - [GitHub REST API Documentation](https://docs.github.com/en/rest)
 - [GitHub CLI Examples](https://cli.github.com/manual/examples)
+- [GitHub CLI Extensions](https://github.com/topics/gh-extension)
+- [GitHub Sub-Issues Documentation](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-sub-issues)
+- [Awesome gh CLI Extensions](https://github.com/kodepandai/awesome-gh-cli-extensions)

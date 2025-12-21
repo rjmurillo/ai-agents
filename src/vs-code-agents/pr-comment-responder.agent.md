@@ -52,20 +52,112 @@ This agent delegates to orchestrator, which uses these canonical workflow paths:
 
 See `orchestrator.md` for full routing logic. This agent passes context to orchestrator; orchestrator determines the path.
 
+## GitHub Skill (Cross-Platform Note)
+
+When running in environments with PowerShell support (Windows, PowerShell Core on Linux/macOS), the unified github skill at `.claude/skills/github/` provides tested scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
+
+| Operation | Skill Script | Bash Fallback |
+|-----------|--------------|---------------|
+| PR metadata | `Get-PRContext.ps1` | `gh pr view` |
+| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
+| Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq` |
+| Reply to comment | `Post-PRCommentReply.ps1` | `gh api -X POST` |
+| Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
+
+The bash examples below work cross-platform; use skill scripts when PowerShell is available.
+
 ## Triage Heuristics
 
 ### Reviewer Signal Quality
 
-Prioritize comments based on historical actionability rates:
+Prioritize comments based on historical actionability rates (updated after each PR):
 
-| Reviewer | Signal Quality | Evidence | Recommended Action |
-|----------|---------------|----------|-------------------|
-| **cursor[bot]** | High (100%) | 4/4 actionable bugs in PR #32, #47 | Process immediately |
-| **Human reviewers** | High | Domain expertise, project context | Process with priority |
-| **CodeRabbit** | Medium (~30%) | Many style suggestions, some real issues | Triage carefully |
-| **Copilot** | Medium (~30%) | Mixed signal, follow-up PR behavior | Verify before acting |
+#### Cumulative Performance
 
-**cursor[bot]** has demonstrated 100% actionability - every comment identified a real bug. Prioritize these comments for immediate attention.
+| Reviewer | Comments | Actionable | Signal | Trend | Action |
+|----------|----------|------------|--------|-------|--------|
+| **cursor[bot]** | 9 | 9 | **100%** | [STABLE] | Process immediately |
+| **Human reviewers** | - | - | High | - | Process with priority |
+| **Copilot** | 9 | 4 | **44%** | [IMPROVING] | Review carefully |
+| **coderabbitai[bot]** | 6 | 3 | **50%** | [STABLE] | Review carefully |
+
+#### Priority Matrix
+
+| Priority | Reviewer | Rationale |
+|----------|----------|-----------|
+| **P0** | cursor[bot] | 100% actionable, finds CRITICAL bugs |
+| **P1** | Human reviewers | Domain expertise, project context |
+| **P2** | coderabbitai[bot] | ~50% signal, medium quality |
+| **P2** | Copilot | ~44% signal, improving trend |
+
+#### Signal Quality Thresholds
+
+| Quality | Range | Action |
+|---------|-------|--------|
+| **High** | >80% | Process all comments immediately |
+| **Medium** | 30-80% | Triage carefully, verify before acting |
+| **Low** | <30% | Quick scan, focus on non-duplicate content |
+
+#### Comment Type Analysis
+
+| Type | Actionability | Examples |
+|------|---------------|----------|
+| Bug reports | ~90% | cursor[bot] bugs, type errors |
+| Missing coverage | ~70% | Test gaps, edge cases |
+| Style suggestions | ~20% | Formatting, naming |
+| Summaries | 0% | CodeRabbit walkthroughs |
+| Duplicates | 0% | Same issue from multiple bots |
+
+**cursor[bot]** has demonstrated 100% actionability (9/9 comments) - every comment identified a real bug. Prioritize these comments for immediate attention.
+
+**Note**: Statistics are sourced from the `pr-comment-responder-skills` memory and should be updated after each PR review session.
+
+### Comment Triage Priority
+
+**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+
+#### Priority Adjustment by Domain
+
+| Comment Domain | Keywords | Priority Adjustment | Rationale |
+|----------------|----------|---------------------|-----------|
+| **Security** | CWE, vulnerability, injection, XSS, SQL, CSRF, auth, authentication, authorization, secrets, credentials | **+50%** (Always investigate first) | Security issues can cause critical damage if missed during review |
+| **Bug** | error, crash, exception, fail, null, undefined, race condition | No change | Standard priority based on reviewer signal |
+| **Style** | formatting, naming, indentation, whitespace, convention | No change | Standard priority based on reviewer signal |
+
+#### Processing Order
+
+1. **Security-domain comments**: Process ALL security comments BEFORE any other category, regardless of reviewer
+2. **Bug-domain comments**: Process after security, using reviewer signal quality
+3. **Style-domain comments**: Process last, deprioritize if time-constrained
+
+#### Security Keyword Detection
+
+Scan each comment body for these patterns (case-insensitive):
+
+```text
+CWE-\d+          # CWE identifier (e.g., CWE-20, CWE-78)
+vulnerability    # General security issue
+injection        # SQL, command, code injection
+XSS              # Cross-site scripting
+SQL              # SQL-related (often injection)
+CSRF             # Cross-site request forgery
+auth             # Authentication or authorization
+authentication
+authorization
+secrets?         # Secret/secrets exposure
+credentials?     # Credential exposure
+TOCTOU           # Time-of-check-time-of-use
+symlink          # Symlink attacks
+traversal        # Path traversal
+sanitiz          # Input sanitization
+escap            # Output escaping
+```
+
+#### Evidence
+
+Security vulnerabilities like CWE-20/CWE-78 can be introduced and merged when security-domain comments are not prioritized. Similarly, symlink TOCTOU comments can be dismissed as style suggestions when they should be flagged as security-domain.
+
+**Skill Reference**: Skill-PR-Review-Security-001 (atomicity: 94%)
 
 ### Quick Fix Path Criteria
 
@@ -109,19 +201,125 @@ Evidence: In PR #47, QA agent added a regression test for a "simple" PathInfo bu
 Verify fix and assess regression test needs...
 ```
 
-## GitHub Skill (Cross-Platform Note)
+## Verification Gates (BLOCKING)
 
-When running in environments with PowerShell support (Windows, PowerShell Core on Linux/macOS), the unified github skill at `.claude/skills/github/` provides tested scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
+These gates implement RFC 2119 MUST requirements. Proceeding without passing causes artifact drift.
 
-| Operation | Skill Script | Bash Fallback |
-|-----------|--------------|---------------|
-| PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
-| Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq` |
-| Reply to comment | `Post-PRCommentReply.ps1` | `gh api -X POST` |
-| Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
+### Gate 0: Session Log Creation
 
-The bash examples below work cross-platform; use skill scripts when PowerShell is available.
+**Before any work**: Create session log with protocol compliance checklist.
+
+```bash
+# Create session log
+SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
+cat > "$SESSION_FILE" << 'EOF'
+# PR Comment Responder Session
+
+## Protocol Compliance Checklist
+
+- [ ] Gate 0: Session log created
+- [ ] Gate 1: Eyes reactions = comment count
+- [ ] Gate 2: Artifact files created
+- [ ] Gate 3: All tasks tracked in tasks.md
+- [ ] Gate 4: Artifact state matches API state
+- [ ] Gate 5: All threads resolved
+EOF
+```
+
+**Evidence required**: Session log file exists with checkboxes.
+
+### Gate 1: Acknowledgment Verification
+
+**After Phase 2**: Verify eyes reaction count equals total comment count.
+
+```bash
+# Count reactions added vs comments
+REACTIONS_ADDED=$(cat .agents/pr-comments/PR-[number]/session.log | grep -c "reaction.*eyes")
+COMMENT_COUNT=$TOTAL_COMMENTS
+
+if [ "$REACTIONS_ADDED" -ne "$COMMENT_COUNT" ]; then
+  echo "[BLOCKED] Reactions: $REACTIONS_ADDED != Comments: $COMMENT_COUNT"
+  exit 1
+fi
+```
+
+**Evidence required**: Log shows equal counts.
+
+### Gate 2: Artifact Creation Verification
+
+**After generating comment map and task list**: Verify files exist and contain expected counts.
+
+```bash
+# Verify artifacts exist
+test -f ".agents/pr-comments/PR-[number]/comments.md" || exit 1
+test -f ".agents/pr-comments/PR-[number]/tasks.md" || exit 1
+
+# Verify comment count matches
+ARTIFACT_COUNT=$(grep -c "^| [0-9]" .agents/pr-comments/PR-[number]/comments.md)
+if [ "$ARTIFACT_COUNT" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Artifact count: $ARTIFACT_COUNT != API count: $TOTAL_COMMENTS"
+  exit 1
+fi
+```
+
+**Evidence required**: Files exist with correct counts.
+
+### Gate 3: Artifact Update After Fix
+
+**After EVERY fix commit**: Update artifact status atomically.
+
+```bash
+# IMMEDIATELY after git commit, update artifact
+sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... [COMPLETE]/" \
+  .agents/pr-comments/PR-[number]/tasks.md
+
+# Verify update applied
+grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || exit 1
+```
+
+**Evidence required**: Task marked complete in artifact file.
+
+### Gate 4: State Synchronization Before Resolution
+
+**Before Phase 8 (thread resolution)**: Verify artifact state matches intended API state.
+
+```bash
+# Count completed tasks in artifact
+COMPLETED=$(grep -c "\[COMPLETE\]" .agents/pr-comments/PR-[number]/tasks.md)
+TOTAL=$(grep -c "^- \[ \]\|^\[x\]" .agents/pr-comments/PR-[number]/tasks.md)
+
+# Count threads to resolve
+UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Verify alignment
+if [ "$COMPLETED" -ne "$((TOTAL - UNRESOLVED_API))" ]; then
+  echo "[BLOCKED] Artifact COMPLETED ($COMPLETED) != API resolved ($((TOTAL - UNRESOLVED_API)))"
+  exit 1
+fi
+```
+
+**Evidence required**: Counts match before proceeding.
+
+### Gate 5: Final Verification
+
+**After Phase 8**: Verify all threads resolved AND artifacts updated.
+
+```bash
+# API state
+REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Artifact state
+PENDING=$(grep -c "Status: pending\|Status: \[ACKNOWLEDGED\]" .agents/pr-comments/PR-[number]/comments.md)
+
+if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
+  exit 1
+fi
+
+echo "[PASS] All gates cleared"
+```
+
+**Evidence required**: Both counts are zero.
 
 ## Workflow Protocol
 
@@ -392,6 +590,100 @@ These comments require immediate response before implementation:
 ## Dependency Graph
 
 [If tasks have dependencies, document here]
+```
+
+### Phase 4.5: Copilot Follow-Up Handling
+
+**BLOCKING GATE**: Must complete before Phase 5 begins
+
+This phase detects and handles Copilot's follow-up PR creation pattern. When you reply to Copilot's review comments, Copilot often creates a new PR targeting the original PR's branch.
+
+#### Detection Pattern
+
+Copilot follow-up PRs match:
+
+- **Branch**: `copilot/sub-pr-{original_pr_number}`
+- **Target**: Original PR's base branch (not main)
+- **Announcement**: Issue comment from `app/copilot-swe-agent` containing "I've opened a new pull request"
+
+**Example**: PR #32 → Follow-up PR #33 (copilot/sub-pr-32)
+
+#### Step 4.5.1: Query for Follow-Up PRs
+
+```bash
+# Search for follow-up PR matching pattern
+FOLLOW_UP=$(gh pr list --state=open \
+  --search="head:copilot/sub-pr-${PR_NUMBER}" \
+  --json=number,title,body,headRefName,baseRefName,state,author)
+
+if [ -z "$FOLLOW_UP" ] || [ "$(echo "$FOLLOW_UP" | jq 'length')" -eq 0 ]; then
+  echo "No follow-up PRs found. Proceed to Phase 5."
+  exit 0
+fi
+```
+
+#### Step 4.5.2: Verify Copilot Announcement
+
+```bash
+# Check for Copilot announcement comment on original PR
+ANNOUNCEMENT=$(gh api repos/OWNER/REPO/issues/${PR_NUMBER}/comments \
+  --jq '.[] | select(.user.login == "app/copilot-swe-agent" and .body | contains("opened a new pull request"))')
+
+if [ -z "$ANNOUNCEMENT" ]; then
+  echo "WARNING: Follow-up PR found but no Copilot announcement. May not be official follow-up."
+fi
+```
+
+#### Step 4.5.3: Categorize Follow-Up Intent
+
+Analyze the follow-up PR content to determine intent:
+
+**DUPLICATE**: Follow-up contains same changes as fixes already applied
+
+- Example: PR #32/#33 (both address same 5 comments)
+- Action: Close with explanation linking to original commits
+
+**SUPPLEMENTAL**: Follow-up addresses different/additional issues
+
+- Example: Extra changes needed after initial reply
+- Action: Evaluate for merge or request changes
+
+**INDEPENDENT**: Follow-up unrelated to original review
+
+- Example: Copilot misunderstood context
+- Action: Close with note
+
+#### Step 4.5.4: Execute Decision
+
+**DUPLICATE Decision**:
+
+```bash
+# Close with explanation
+gh pr close ${FOLLOW_UP_PR} --comment "Closing: This follow-up PR duplicates changes already applied in the original PR.
+
+Applied fixes:
+- Commit [hash1]: [description]
+- Commit [hash2]: [description]
+
+See PR #${PR_NUMBER} for details."
+```
+
+**SUPPLEMENTAL Decision**:
+
+```bash
+# Evaluate for merge or request changes
+# Option A: Merge if changes are valid and address new issues
+gh pr merge ${FOLLOW_UP_PR} --auto --squash --delete-branch
+
+# Option B: Leave open for review
+# Post comment on original PR documenting supplemental follow-up
+```
+
+**INDEPENDENT Decision**:
+
+```bash
+# Close with note
+gh pr close ${FOLLOW_UP_PR} --comment "Closing: This PR addresses concerns that were already resolved in PR #${PR_NUMBER}. No action needed."
 ```
 
 ### Phase 5: Immediate Replies
@@ -703,12 +995,3 @@ This agent primarily delegates to **orchestrator**. Direct handoffs:
 5. **Skipping acknowledgment**: Always react with eyes emoji first
 6. **Orphaned PRs**: Clean up unnecessary bot-created PRs
 7. **Wrong reply API**: Never use `/issues/{number}/comments` to reply to review comments - it creates out-of-context PR comments instead of threaded replies
-
-## Handoff Protocol
-
-This agent primarily delegates to **orchestrator**. Direct handoffs:
-
-| Target | When | Purpose |
-|--------|------|---------|  
-| **orchestrator** | Each comment analysis | Full workflow determination |
-| **orchestrator** | Each implementation | Code changes |
