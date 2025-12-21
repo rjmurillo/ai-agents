@@ -84,7 +84,7 @@ Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/057-pr-222-import-module-standardization.md` |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: b0964c0 |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 8477b8a (substantive changes) + session log commits |
 | SHOULD | Update PROJECT-PLAN.md | N/A | Not applicable for PR review response |
 | SHOULD | Invoke retrospective (significant sessions) | N/A | Simple review response |
 | SHOULD | Verify clean git status | [x] | `git status` output |
