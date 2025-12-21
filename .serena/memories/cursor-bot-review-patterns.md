@@ -11,7 +11,8 @@ cursor[bot] (Cursor Bugbot) is an AI code reviewer that has demonstrated excepti
 | #32 | 1 | 1 | 100% | Documentation consistency (devops sequence) |
 | #47 | 4 | 4 | 100% | PathInfo bugs, test coverage gaps |
 | #52 | 5 | 5 | 100% | Git staging, status messages, grep patterns, SKIP_AUTOFIX ignored, PassThru exit codes |
-| **Total** | **10** | **10** | **100%** | All comments identified real bugs |
+| #212 | 2 | 2 | 100% | Milestone single-item check, null method call on empty results |
+| **Total** | **12** | **12** | **100%** | All comments identified real bugs |
 
 ## Pattern: Bug Detection Focus
 
@@ -47,6 +48,12 @@ cursor[bot] excels at detecting:
 
 - Missing environment variable checks (PR #52: SKIP_AUTOFIX ignored)
 - Inconsistent code patterns in same file
+
+### 7. PowerShell Null-Safety Issues (NEW from PR #212)
+
+- `-contains` operator on single strings without array coercion (PR #212: milestone single-item check)
+- Null method calls on potentially empty arrays (PR #212: `@($null)` array creation)
+- Missing null filtering with `Where-Object { $_ }` pattern
 
 ## Handling Recommendations
 
