@@ -312,6 +312,33 @@ function Test-HasSynthesizableContent {
     <#
     .SYNOPSIS
         Checks if there's any content worth synthesizing.
+
+    .DESCRIPTION
+        Evaluates extracted issue context to determine if a synthesis comment
+        should be created. Returns true if any of the following exist:
+        - Maintainer guidance from comments
+        - AI triage information (priority, category)
+        - CodeRabbit plan (implementation details, related issues/PRs)
+
+        If no content exists, synthesis should be skipped to avoid empty comments.
+
+    .PARAMETER MaintainerGuidance
+        Array of guidance items extracted from maintainer comments.
+
+    .PARAMETER CodeRabbitPlan
+        Hashtable containing CodeRabbit analysis (Implementation, RelatedIssues, RelatedPRs).
+
+    .PARAMETER AITriage
+        Hashtable containing AI triage metadata (Priority, Category).
+
+    .EXAMPLE
+        $hasContent = Test-HasSynthesizableContent -MaintainerGuidance @() -CodeRabbitPlan $null -AITriage $null
+        # Returns: $false (no content to synthesize)
+
+    .EXAMPLE
+        $triage = @{ Priority = "P1"; Category = "bug" }
+        $hasContent = Test-HasSynthesizableContent -MaintainerGuidance @() -CodeRabbitPlan $null -AITriage $triage
+        # Returns: $true (triage info exists)
     #>
     [CmdletBinding()]
     [OutputType([bool])]
@@ -471,8 +498,8 @@ if ($PSCmdlet.ShouldProcess("Issue #$IssueNumber", "Post synthesis comment and a
         Success      = $true
         Action       = $action
         IssueNumber  = $IssueNumber
-        CommentId    = if ($response) { $response.id } else { $null }
-        CommentUrl   = if ($response) { $response.html_url } else { $null }
+        CommentId    = & { if ($response) { $response.id } else { $null } }
+        CommentUrl   = & { if ($response) { $response.html_url } else { $null } }
         Assigned     = $assigned
         Marker       = $config.synthesis.marker
     }
