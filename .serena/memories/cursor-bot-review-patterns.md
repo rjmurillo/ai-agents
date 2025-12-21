@@ -57,20 +57,31 @@ cursor[bot] excels at detecting:
 
 ## Handling Recommendations
 
-### Priority: IMMEDIATE
+### Priority: HIGH (Trust But Verify)
 
-cursor[bot] comments should be processed immediately without extensive analysis:
+cursor[bot] comments should be prioritized but verified before implementation:
 
 ```python
 # Recommended triage for cursor[bot]
 if comment.author == "cursor[bot]":
-    # High confidence - skip analysis, go straight to fix
-    Task(subagent_type="implementer", prompt="Fix: [comment summary]...")
+    # High priority - but verify before fixing (sample size n=12, need n=30 for "skip analysis")
+    # 1. Read the comment and understand the bug claim
+    # 2. Verify the bug exists in the code
+    # 3. Then implement fix
+    Task(subagent_type="implementer", prompt="Verify and fix if confirmed: [comment summary]...")
 ```
 
-### No False Positive History
+### Sample Size Limitation
 
-As of December 2025, cursor[bot] has produced zero false positives. Every comment has required a code change.
+**Current sample**: n=12 comments across 4 PRs (100% actionable)
+
+**Statistical note**: With 12 samples and 0 failures, the 95% confidence interval for true actionability is approximately 77-100%. This is impressive but not sufficient for "skip analysis" handling.
+
+**Threshold for "skip analysis"**: When sample reaches n=30 with continued 100% rate, upgrade to skip-analysis handling.
+
+### Track Record
+
+As of December 2025, cursor[bot] has produced zero false positives. Every comment has required a code change. However, the first false positive will be blindly implemented if we skip verification.
 
 ### Comment Format
 

@@ -140,7 +140,7 @@ gh api graphql -f query='mutation($threadId: ID!, $body: String!) { addPullReque
 
 ### Skill-PR-006: cursor[bot] Signal Quality (Review-Bot-Signal-Quality-001)
 
-**Statement**: Prioritize cursor[bot] review comments; 100% actionability rate
+**Statement**: Prioritize cursor[bot] review comments; verify before implementing (trust but verify until n=30)
 
 **Context**: During PR comment triage, when multiple reviewers present
 
@@ -301,7 +301,7 @@ Based on cumulative signal quality:
 
 | Priority | Reviewer | Action | Rationale |
 |----------|----------|--------|-----------|
-| **P0** | cursor[bot] | Process immediately | 100% actionable, finds CRITICAL bugs |
+| **P0** | cursor[bot] | Verify then fix | 100% actionable (n=12), trust-but-verify until n=30 |
 | **P1** | Human reviewers | Process with priority | Domain expertise, context |
 | **P2** | Copilot | Review carefully | ~44% signal, improving trend |
 | **P3** | coderabbitai[bot] | Skim for real issues | ~17% signal, often duplicates |
