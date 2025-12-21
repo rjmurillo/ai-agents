@@ -74,98 +74,17 @@ The agent MUST read context documents before starting work. This is a **blocking
 **Requirements:**
 
 1. The agent MUST read `.agents/HANDOFF.md` for previous session context
-2. The agent MUST read task-specific memories before starting ANY task (see Task-Specific Memory Requirements below)
-3. The agent MUST read relevant memories before agent handoffs (see Agent Handoff Memory Requirements below)
-4. The agent SHOULD read `.agents/planning/enhancement-PROJECT-PLAN.md` if working on enhancement project
-5. The agent MAY read additional context files based on task requirements
+2. The agent SHOULD read relevant Serena memories based on task topic
+3. The agent SHOULD read `.agents/planning/enhancement-PROJECT-PLAN.md` if working on enhancement project
+4. The agent MAY read additional context files based on task requirements
 
 **Verification:**
 
 - File contents appear in session context
 - Agent references prior decisions from HANDOFF.md
 - Agent does not ask questions answered in HANDOFF.md
-- Task-specific memories loaded in context before work begins
-- Handoff memories loaded before delegating to specialist agent
 
-**Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md and relevant memories, they will repeat completed work, contradict prior decisions, and ignore established patterns.
-
-#### Task-Specific Memory Requirements
-
-The agent MUST read these memories based on task type **before** starting work:
-
-| Task Type | REQUIRED Memories | When to Read |
-|-----------|------------------|--------------|
-| **PR comment response** | `skill-usage-mandatory`, `pr-comment-responder-skills`, `skills-pr-review` | Before fetching PR context |
-| **GitHub operations** | `skill-usage-mandatory`, `skills-github-cli` | Before any `gh` command or GitHub skill usage |
-| **PowerShell scripting** | `skills-pester-testing`, `powershell-testing-patterns` (if tests), `user-preference-no-bash-python` | Before writing PowerShell code |
-| **Git hook work** | `git-hook-patterns`, `pattern-git-hooks-grep-patterns`, `pre-commit-hook-design` | Before modifying hooks |
-| **CI/CD workflow** | `pattern-thin-workflows`, `skills-github-workflow-patterns` | Before editing `.github/workflows/` |
-| **Security review** | `skills-security`, `pr-52-symlink-retrospective` | Before reviewing security-sensitive code |
-| **Codebase architecture** | `codebase-structure`, `code-style-conventions` | Before proposing architectural changes |
-| **Agent implementation** | `pattern-agent-generation-three-platforms` | Before creating/modifying agent definitions |
-| **Planning tasks** | `skills-planning`, `skill-planning-001-checkbox-manifest` | Before creating PRDs or plans |
-| **Documentation** | `skills-documentation`, `user-preference-no-auto-headers` | Before writing markdown docs |
-
-**Verification:**
-
-- Memory content appears in session context BEFORE task execution
-- Agent cites specific skills/patterns from memories in reasoning
-- Agent does not violate patterns documented in memories
-
-**Example (PR Comment Response)**:
-
-```markdown
-### Phase 2 Completion Evidence
-
-Memories loaded:
-- ✅ `skill-usage-mandatory` - Read at [timestamp]
-- ✅ `pr-comment-responder-skills` - Read at [timestamp]
-- ✅ `skills-pr-review` - Read at [timestamp]
-
-Key patterns identified:
-- Skill-PR-001: Enumerate reviewers before triage
-- Skill-PR-Review-003: Use GraphQL for thread resolution
-```
-
-#### Agent Handoff Memory Requirements
-
-When delegating to a specialist agent, the delegating agent MUST read these memories **before** the handoff:
-
-| Target Agent | REQUIRED Memories | Purpose |
-|-------------|------------------|---------|
-| **implementer** | `skills-implementation`, `code-style-conventions`, `codebase-structure` | Ensure code follows project patterns |
-| **analyst** | `skills-analysis`, `skills-github-cli` (if GitHub research) | Provide research strategy context |
-| **qa** | `skills-qa`, `skills-pester-testing`, `powershell-testing-patterns` | Ensure test coverage expectations |
-| **planner** | `skills-planning`, `skill-planning-001-checkbox-manifest` | Provide planning structure requirements |
-| **critic** | `skills-critique` | Ensure plan review criteria known |
-| **architect** | `skills-architecture`, `codebase-structure` | Provide architectural constraints |
-| **security** | `skills-security`, `pr-52-symlink-retrospective` | Provide known vulnerability patterns |
-| **devops** | `skills-ci-infrastructure`, `pattern-thin-workflows` | Ensure CI/CD best practices |
-| **pr-comment-responder** | `skill-usage-mandatory`, `pr-comment-responder-skills`, `skills-pr-review` | Provide PR review workflow |
-
-**Verification:**
-
-- Memory reads occur BEFORE Task tool call with subagent_type
-- Handoff prompt includes relevant constraints from memories
-- No repeated violations of patterns documented in memories
-
-**Example (Handoff to implementer)**:
-
-```markdown
-### Handoff Preparation
-
-Target agent: implementer
-
-Memories loaded before handoff:
-- ✅ `skills-implementation` - Key constraint: Test-first development (Skill-Testing-002)
-- ✅ `code-style-conventions` - Style: No auto-generated comment headers
-- ✅ `codebase-structure` - Project uses Serena semantic tools
-
-Handoff prompt includes:
-- Test-first requirement
-- Style guide reference
-- Available tooling context
-```
+**Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions.
 
 ### Phase 1.5: Skill Validation (BLOCKING)
 
@@ -230,38 +149,6 @@ The agent SHOULD verify git state before starting work.
 
 **Rationale:** Understanding git state prevents confusion about what changes belong to the current session vs. prior work.
 
-### Phase 5: Cost Efficiency Awareness (REQUIRED)
-
-The agent MUST apply cost-conscious practices throughout the session.
-
-**Requirements:**
-
-1. The agent MUST use Serena symbolic tools (`find_symbol`, `get_symbols_overview`) instead of reading entire files
-2. The agent MUST read task-specific memories before starting work (enables prompt caching)
-3. The agent SHOULD use Haiku model for quick, straightforward tasks via `model: "haiku"` parameter
-4. The agent MUST NOT read files larger than necessary - use `offset`/`limit` parameters
-5. For CI/CD changes, the agent MUST comply with:
-   - [ADR-007: GitHub Actions Runner Selection](.agents/architecture/ADR-007-github-actions-runner-selection.md)
-   - [ADR-008: Artifact Storage Minimization](.agents/architecture/ADR-008-artifact-storage-minimization.md)
-
-**Verification:**
-
-- Session transcript shows symbolic tool usage over file reads
-- Memories read before work begins (enables cache hits)
-- CI/CD changes include ADR-007/ADR-008 compliance comments
-
-**Rationale:** Token costs accumulate rapidly. Opus 4.5 input_no_cache costs $15/M tokens. A single 100M token uncached session costs $1,500. Symbolic reads reduce tokens by 80%+. Memory reads enable prompt caching ($1.50/M vs $15/M).
-
-**Cost Reference:**
-
-| Resource | Cost | Alternative | Savings |
-|----------|------|-------------|---------|
-| Opus input (no cache) | $15/M tokens | Cache read | 90% |
-| Opus input (cache read) | $1.50/M tokens | Haiku | 83% |
-| Haiku input | $0.25/M tokens | - | Baseline |
-| ubuntu-latest | $0.008/min | ubuntu-24.04-arm | 37.5% |
-| windows-latest | $0.016/min | ubuntu-24.04-arm | 69% |
-
 ---
 
 ## Session Start Checklist
@@ -285,7 +172,6 @@ Copy this checklist to each session log and verify completion:
 | SHOULD | Search relevant Serena memories | [ ] | Memory results present |
 | SHOULD | Verify git status | [ ] | Output documented below |
 | SHOULD | Note starting commit | [ ] | SHA documented below |
-| MUST | Apply cost efficiency practices (Phase 5) | [ ] | Symbolic tools used |
 
 ### Skill Inventory
 
@@ -347,6 +233,30 @@ The agent MUST run quality checks before ending.
 - Markdownlint output shows no errors
 - Validation scripts pass or issues documented
 
+### Phase 2.5: QA Validation (BLOCKING)
+
+The agent MUST route to the qa agent after feature implementation. This is a **blocking gate**.
+
+**Requirements:**
+
+1. The agent MUST invoke the qa agent after completing feature implementation:
+
+   ```python
+   Task(subagent_type="qa", prompt="Validate [feature name]")
+   ```
+
+2. The agent MUST wait for QA validation to complete
+3. The agent MUST NOT commit feature code without QA validation
+4. The agent MAY skip QA validation only when all modified files are documentation files (e.g., Markdown), and changes are strictly editorial (spelling, grammar, or formatting) with no changes to code, configuration, tests, workflows, or code blocks of any kind
+
+**Verification:**
+
+- QA report exists in `.agents/qa/`
+- QA agent confirms validation passed
+- No critical issues remain unaddressed
+
+**Rationale:** Untested code may contain bugs or security vulnerabilities. QA validation catches issues before they are committed to the repository.
+
 ### Phase 3: Git Operations (REQUIRED)
 
 The agent MUST commit changes before ending.
@@ -363,48 +273,7 @@ The agent MUST commit changes before ending.
 - `git status` shows clean state (or intentionally dirty with explanation)
 - Commit exists with conventional format
 
-### Phase 4: Memory Persistence (REQUIRED)
-
-The agent MUST write learnings to memory before ending the session.
-
-**Requirements:**
-
-1. The agent MUST review session log for learnings to persist
-2. The agent MUST write new memories or update existing memories using `mcp__serena__write_memory` or `mcp__serena__edit_memory`
-3. The agent MUST persist learnings in these categories:
-   - **Skills**: Proven strategies (95%+ atomicity, 2+ validations)
-   - **Patterns**: Recurring solutions or anti-patterns
-   - **Constraints**: New project constraints discovered
-   - **Retrospectives**: Session-specific learnings
-4. The agent SHOULD use task-specific memory naming:
-   - PR review learnings → `pr-comment-responder-skills` or `skills-pr-review`
-   - GitHub operations → `skills-github-cli`
-   - PowerShell patterns → `powershell-testing-patterns`
-   - Planning insights → `skills-planning`
-
-**Verification:**
-
-- Memory write tool calls appear in session transcript
-- Session log documents which memories were updated
-- Learnings are actionable and specific (not vague summaries)
-
-**Rationale:** Without memory persistence, agents will repeat the same mistakes and rediscover the same solutions. Memory writes ensure continuous improvement across sessions.
-
-**Example**:
-
-```markdown
-### Memories Written This Session
-
-1. `pr-comment-responder-skills` (UPDATED)
-   - Added Skill-PR-007: Always resolve threads after posting replies
-   - Validation: Session 38 (PR #87)
-
-2. `skills-github-cli` (CREATED)
-   - PowerShell variable interpolation pattern for `gh` output parsing
-   - Atomicity: 94%
-```
-
-### Phase 5: Retrospective (RECOMMENDED)
+### Phase 4: Retrospective (RECOMMENDED)
 
 The agent SHOULD invoke retrospective for significant sessions.
 
@@ -435,8 +304,8 @@ Copy this checklist to each session log and verify completion:
 |-----|------|--------|----------|
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
 | MUST | Complete session log | [ ] | All sections filled |
-| MUST | Write/update memories with learnings | [ ] | Memory files listed below |
-| MUST | Run markdown lint | [ ] | Output below |
+| MUST | Run markdown lint | [ ] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
@@ -475,7 +344,6 @@ Create at: `.agents/sessions/YYYY-MM-DD-session-NN.md`
 | SHOULD | Search relevant Serena memories | [ ] | Memory results present |
 | SHOULD | Verify git status | [ ] | Output documented below |
 | SHOULD | Note starting commit | [ ] | SHA documented below |
-| MUST | Apply cost efficiency practices (Phase 5) | [ ] | Symbolic tools used |
 
 ### Skill Inventory
 
@@ -522,6 +390,7 @@ All MUST requirements above are marked complete.
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
 | MUST | Complete session log | [ ] | All sections filled |
 | MUST | Run markdown lint | [ ] | Output below |
+| MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` |
 | MUST | Commit all changes | [ ] | Commit SHA: _______ |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
@@ -607,6 +476,7 @@ The `Validate-SessionProtocol.ps1` script checks session protocol compliance:
 | Session log exists | File at expected path | Critical |
 | Protocol Compliance section | Contains start/end checklists | Critical |
 | MUST items checked | All MUST requirements marked complete | Critical |
+| QA validation ran | QA report exists in `.agents/qa/` (feature sessions) | Critical |
 | HANDOFF.md updated | Modified within session timeframe | Warning |
 | Git commit exists | Commit with matching date | Warning |
 | Lint ran | Evidence of markdownlint execution | Warning |
@@ -650,8 +520,7 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 1.4 | 2025-12-20 | Added Phase 5 cost efficiency as REQUIRED; added cost reference table; ADR-007/ADR-008 compliance requirements |
-| 1.3 | 2025-12-20 | Added explicit memory requirements for tasks and agent handoffs; added Phase 4 memory persistence REQUIRED gate |
+| 1.3 | 2025-12-20 | Added Phase 2.5 QA Validation BLOCKING gate |
 | 1.2 | 2025-12-18 | Added Phase 1.5 skill validation BLOCKING gate |
 | 1.1 | 2025-12-17 | Added requirement to link session log in HANDOFF.md |
 | 1.0 | 2025-12-17 | Initial canonical protocol with RFC 2119 requirements |

@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Identify Changed Session Files
         id: changed
@@ -72,7 +72,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Load Protocol Context
         id: protocol
@@ -132,7 +132,7 @@ jobs:
           echo "  MUST failures: $MUST_FAIL_COUNT"
 
       - name: Upload validation results
-        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: validation-${{ hashFiles(matrix.session_file) }}
           path: validation-results/
@@ -150,10 +150,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Download all validation artifacts
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: validation-*
           path: validation-results
@@ -185,8 +185,12 @@ jobs:
           # Count MUST failures
           $mustFiles = Get-ChildItem -Path "validation-results/*-must-failures.txt" -ErrorAction SilentlyContinue
           foreach ($mustFile in $mustFiles) {
-            $count = [int](Get-Content $mustFile.FullName -Raw -ErrorAction SilentlyContinue)
-            $totalMustFailures += $count
+            $content = (Get-Content $mustFile.FullName -Raw -ErrorAction SilentlyContinue).Trim()
+            # Handle potential multi-value strings from race conditions
+            if ($content -match '^(\d+)') {
+              $count = [int]$Matches[1]
+              $totalMustFailures += $count
+            }
           }
 
           if ($totalMustFailures -gt 0) {

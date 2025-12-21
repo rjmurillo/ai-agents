@@ -85,17 +85,20 @@ gh pr view <PR_NUMBER> --json reviewThreads  # ERROR: Unknown JSON field
 For each unresolved conversation, reply with ONE of:
 
 1. **Fix applied**: Link to commit SHA that addresses the feedback
-   ```
+
+   ```text
    Fixed in commit abc1234. [Brief description of change]
    ```
 
 2. **Won't fix with explanation**: Clear rationale why the suggestion wasn't applied
-   ```
+
+   ```text
    Won't fix: [Detailed explanation why this approach was chosen instead]
    ```
 
 3. **Action required from reviewer**: @ mention the reviewer with specific ask
-   ```
+
+   ```text
    @reviewer-username Could you clarify [specific question]? I need more context to address this.
    ```
 
@@ -205,48 +208,35 @@ mutation($threadId: ID!) {
 
 ---
 
----
+## Skill-PR-Review-Security-001: Security Comment Triage Priority (94%)
 
-## Skill-PR-Review-004: Thread Resolution Must Follow Reply
+**Statement**: Security-domain review comments (CWE, vulnerability, injection) receive +50% triage priority over style suggestions
 
-**Statement**: After posting replies to review comments, ALWAYS resolve the thread using GraphQL mutation. Replies alone do not resolve threads.
+**Context**: When triaging bot review comments on PRs
 
-**Context**: GitHub PR review workflow - completing the review cycle
+**Evidence**: PR #60 had 30 bot comments, security signal buried in noise
 
-**Evidence**: Session 38 (PR #87) - rjmurillo-bot posted 3 replies in commit 9f77df3 but threads remained unresolved until GraphQL `resolveReviewThread` mutation was called
+**Atomicity**: 94%
 
-**Atomicity**: 97%
+**Tag**: helpful
 
-**Tag**: critical
-
-**Impact**: 10/10 (unresolved threads block PR merge due to branch protection)
+**Impact**: 7/10
 
 **Created**: 2025-12-20
 
-**Validated**: 2 (Session 37 PR #75, Session 38 PR #87)
-
 **Pattern**:
 
-```bash
-# 1. Verify reply exists (from prior work or new reply)
-# 2. Resolve the thread
-gh api graphql -f query='
-mutation($threadId: ID!) {
-  resolveReviewThread(input: {threadId: $threadId}) {
-    thread { id isResolved }
-  }
-}' -f threadId="PRRT_xxx"
-```
+| Comment Domain | Keywords | Base Signal | Adjustment | Final Priority |
+|----------------|----------|-------------|------------|----------------|
+| Security | CWE, vulnerability, injection, XSS, SQL | Varies | +50% | Always investigate |
+| Bug | error, crash, exception | Varies | No change | Use base |
+| Style | formatting, naming, indentation | Varies | No change | Use base |
 
-**Common Mistakes**:
-- Posting reply and assuming thread auto-resolves → Thread stays unresolved
-- Only resolving without reply → Reviewer doesn't know how feedback was addressed
-- Forgetting to resolve after batch replies → PR blocked from merge
+**Anti-Pattern**: Treating all bot comments equally, security buried in noise
 
-**Notes**:
-- This completes the workflow from Skill-PR-Review-002 (reply + resolve)
-- Thread IDs obtained via GraphQL query (Skill-PR-Review-001)
-- Resolution requires thread ID, not comment ID (Skill-PR-Review-003)
+**Source**: `.agents/retrospective/2025-12-20-pr-211-security-miss.md`
+
+**Relation to Existing Skills**: Extends Skill-Security-009 (domain-adjusted signal quality) with specific triage priority adjustment
 
 ---
 
@@ -255,4 +245,3 @@ mutation($threadId: ID!) {
 - Skill-PR-Review-001: Conversation Resolution Requirement
 - Skill-PR-Review-002: Conversation Resolution Protocol
 - Skill-PR-Review-003: API Selection for PR Replies
-- Skill-PR-Review-004: Thread Resolution Must Follow Reply

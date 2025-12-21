@@ -3,21 +3,45 @@
 **Extracted**: 2025-12-16
 **Source**: `.agents/retrospective/phase1-remediation-pr43.md`
 
-## Skill-Security-001: Two-Phase Security Review
+## Skill-Security-001: Multi-Agent Security Validation Chain
 
-**Statement**: Security review requires TWO phases: pre-implementation (threat model, controls) and post-implementation (verification, actual code review)
+**Statement**: Security findings require three-agent validation: security analysis → qa verification → devops compatibility check
 
-**Context**: Any feature with security implications
+**Context**: When remediating security vulnerabilities
 
-**Evidence**: Issue #I7 - security script not re-reviewed after implementation; implementer is best positioned to flag security-relevant changes during coding
+**Evidence**: Session 44 used Security → QA → DevOps chain, all passed, remediation successful
 
-**Atomicity**: 94%
+**Atomicity**: 88%
 
 **Tag**: helpful
 
-**Impact**: 10/10
+**Impact**: 9/10
+
+**Updated**: 2025-12-20 (expanded from two-phase to three-agent validation)
 
 **Pattern**:
+
+```text
+Security Agent:
+  - Threat analysis
+  - Remediation plan (SR-XXX report)
+  ↓
+QA Agent:
+  - Syntax validation
+  - Acceptance criteria verification
+  - QA report
+  ↓
+DevOps Agent:
+  - CI compatibility check
+  - Build time impact assessment
+  - Platform availability verification
+  ↓
+Implementer:
+  - Apply remediation
+  - Commit with all three reports
+```
+
+**Original Two-Phase Pattern** (still valid for planning):
 
 ```text
 Phase 1 (Pre-Implementation):
@@ -35,6 +59,7 @@ Phase 3 (Post-Implementation):
 - Single security review at planning time only
 - Security not re-engaged after implementation
 - No handoff from implementer back to security
+- Single-agent security review without downstream validation
 
 ---
 
@@ -260,6 +285,40 @@ if ((Get-Item $Path).LinkType) { throw "symlink" }
 | .githooks file | +50% | ASSERTIVE ENFORCEMENT required |
 
 **Source**: `.agents/retrospective/pr-52-symlink-retrospective.md`
+
+---
+
+## Skill-Security-010: Pre-Commit Bash Detection (95%)
+
+**Statement**: Enforce ADR-005 with pre-commit hook rejecting bash in `.github/workflows/` and `.github/scripts/`
+
+**Context**: When implementing or reviewing workflow files
+
+**Evidence**: PR #60 bash code caused CWE-20/CWE-78, would have been caught by grep-based hook
+
+**Atomicity**: 95%
+
+**Tag**: helpful (security)
+
+**Impact**: 9/10
+
+**Created**: 2025-12-20
+
+**Pattern**:
+
+```bash
+# Pre-commit hook (.githooks/pre-commit)
+if git diff --cached --name-only | grep -E '^\.github/(workflows|scripts)/.*\.(yml|yaml)$'; then
+    if git diff --cached | grep -E '^\+.*shell: bash'; then
+        echo "ERROR: Bash not allowed in workflows (ADR-005). Use PowerShell (pwsh)."
+        exit 1
+    fi
+fi
+```
+
+**Anti-Pattern**: Trusting manual review to catch ADR violations
+
+**Source**: `.agents/retrospective/2025-12-20-pr-211-security-miss.md`
 
 ---
 

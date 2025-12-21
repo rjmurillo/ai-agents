@@ -18,7 +18,8 @@ languages:
 - yaml
 - python
 - markdown
-# Note: powershell is not in Serena's supported language list
+- powershell
+
 # Note: csharp requires a .sln file which this project doesn't have
 
 # the encoding used by text files in the project

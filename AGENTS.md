@@ -52,15 +52,25 @@ These requirements MUST be completed before ANY other work. Work is blocked unti
 
 ### Session End Requirements (BLOCKING)
 
-These requirements MUST be completed before session closes.
+You CANNOT claim session completion until validation PASSES. These requirements MUST be completed before session closes.
 
 | Req Level | Step | Verification |
 |-----------|------|--------------|
-| **MUST** | Update `.agents/HANDOFF.md` | File modified timestamp |
+| **MUST** | Complete Session End checklist in session log | All `[x]` checked |
+| **MUST** | Update `.agents/HANDOFF.md` with session log link | File modified, link exists |
 | **MUST** | Run `npx markdownlint-cli2 --fix "**/*.md"` | Lint passes |
-| **MUST** | Commit all changes including `.agents/` | Commit SHA exists |
+| **MUST** | Commit all changes including `.agents/` | Commit SHA in Evidence column |
+| **MUST** | Run `Validate-SessionEnd.ps1` | Exit code 0 (PASS) |
 | **SHOULD** | Update PROJECT-PLAN.md task checkboxes | Tasks marked complete |
 | **SHOULD** | Invoke retrospective (significant sessions) | Doc created |
+
+**Validation Command**:
+
+```bash
+pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+```
+
+**If validation fails**: Fix violations and re-run. Do NOT claim completion until PASS.
 
 ### Full Protocol Documentation
 
@@ -237,6 +247,23 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 
 ---
 
+## User-Facing Content Restrictions (MUST)
+
+> **Memory Reference**: `user-facing-content-restrictions` - Read this memory for full details.
+
+Files distributed to end-users (`src/claude/`, `src/copilot-cli/`, `src/vs-code-agents/`, `templates/agents/`) MUST NOT contain internal repository references:
+
+| PROHIBITED | Example | Reason |
+|------------|---------|--------|
+| Internal PR numbers | `PR #60`, `PR #211` | Users don't know/care about our PRs |
+| Internal issue numbers | `Issue #16`, `Issue #183` | Internal tracking is meaningless to users |
+| Session identifiers | `Session 44`, `Session 15` | Internal implementation details |
+| Internal file paths | `.agents/`, `.serena/` | Users may not have same structure |
+
+**PERMITTED**: CWE identifiers (CWE-20, CWE-78), generic pattern descriptions, best practice recommendations.
+
+---
+
 ## Agent Catalog
 
 ### Primary Workflow Agents
@@ -266,6 +293,71 @@ The Memory agent provides long-running context across sessions using `cloudmcp-m
 | **explainer** | Documentation | PRDs, technical specs |
 | **task-generator** | Task decomposition | Breaking epics into tasks |
 | **pr-comment-responder** | PR review handler | Addressing bot/human review comments |
+
+---
+
+## PR Comment Responder: Copilot Follow-Up PR Handling (Phase 4)
+
+The pr-comment-responder agent includes a Phase 4 workflow for detecting and managing Copilot's follow-up PR creation pattern.
+
+### Pattern Recognition
+
+When Copilot receives replies to its PR review comments, it often creates a follow-up PR:
+
+- **Branch**: `copilot/sub-pr-{original_pr_number}`
+- **Target**: Original PR's branch (not main)
+- **Announcement**: Issue comment from `app/copilot-swe-agent` containing "I've opened a new pull request"
+
+### Phase 4 Workflow
+
+**Trigger**: After Phase 3 (replies posted), before Phase 5 (immediate replies)
+
+**Steps**:
+
+1. **Query** for follow-up PRs matching branch pattern `copilot/sub-pr-{original_pr}`
+2. **Verify** Copilot announcement comment exists on original PR
+3. **Analyze** follow-up PR content (diff, file count, changes)
+4. **Categorize** follow-up intent:
+   - **DUPLICATE**: Follow-up contains same/redundant changes → Close with commit reference
+   - **SUPPLEMENTAL**: Follow-up addresses different issues → Evaluate for merge
+   - **INDEPENDENT**: Follow-up unrelated to original review → Close with note
+5. **Execute** appropriate action (close or merge)
+6. **Document** results in session log
+
+### Detection Scripts
+
+Two detection implementations (PowerShell + bash fallback):
+
+- `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1` (PowerShell)
+- `.claude/skills/github/scripts/pr/detect-copilot-followup.sh` (Bash)
+
+Both return structured JSON with:
+
+- `found`: boolean indicating follow-up PRs detected
+- `analysis`: array of follow-up categorizations with recommendations
+- `recommendation`: overall action (CLOSE_AS_DUPLICATE, EVALUATE_FOR_MERGE, etc.)
+
+### Related Memory
+
+Skill-PR-Copilot-001 in `.serena/memories/pr-comment-responder-skills.md` documents:
+
+- Detection logic and branch pattern matching
+- Category indicators and decision matrix
+- Integration verification checkpoints
+
+### Examples
+
+**PR #32 → PR #33**: Duplicate (closed successfully)
+
+- Original: 5 Copilot review comments
+- Follow-up: copilot/sub-pr-32 with identical changes
+- Decision: Closed as duplicate, fix already applied
+
+**PR #156 → PR #162**: Supplemental (closed, syntax fix verified)
+
+- Original: Session retrospective PR
+- Follow-up: copilot/sub-pr-156 targeting PR #156's branch
+- Decision: Syntax fix applied, no code changes in follow-up
 
 ---
 
@@ -1157,11 +1249,13 @@ SESSION START (BLOCKING - MUST complete before work):
 [... do your work ...]
 
 SESSION END (BLOCKING - MUST complete before closing):
-6. MUST: Update .agents/HANDOFF.md with session summary
-7. MUST: Run npx markdownlint-cli2 --fix "**/*.md"
-8. MUST: Commit all changes (including .agents/ files)
-9. SHOULD: Check off completed tasks in PROJECT-PLAN.md
-10. SHOULD: Invoke retrospective agent (for significant sessions)
+6. MUST: Complete Session End checklist in session log (all [x] checked)
+7. MUST: Update .agents/HANDOFF.md with session summary and session log link
+8. MUST: Run npx markdownlint-cli2 --fix "**/*.md"
+9. MUST: Commit all changes (record SHA in Evidence column)
+10. MUST: Run Validate-SessionEnd.ps1 - PASS required before claiming completion
+11. SHOULD: Check off completed tasks in PROJECT-PLAN.md
+12. SHOULD: Invoke retrospective agent (for significant sessions)
 ```
 
 ### Agent Workflow
