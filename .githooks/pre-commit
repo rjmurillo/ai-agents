@@ -374,8 +374,13 @@ STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|scr
 if [ -n "$STAGED_WORKFLOW_FILES" ]; then
     echo_info "Checking for bash usage in workflow files (ADR-005)..."
 
-    # Check the staged diff for shell: bash declarations
-    if git diff --cached -- $STAGED_WORKFLOW_FILES | grep -E '^\+.*shell:\s*bash' > /dev/null 2>&1; then
+    # SECURITY: Use mapfile to safely convert newline-separated file list to array
+    # This prevents command injection via malicious filenames containing shell metacharacters
+    mapfile -t WORKFLOW_FILES_ARRAY <<< "$STAGED_WORKFLOW_FILES"
+
+    # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
+    # Use -- separator to prevent filenames starting with - from being interpreted as options
+    if git diff --cached -- "${WORKFLOW_FILES_ARRAY[@]}" | grep -E '^\+.*shell:\s*bash' > /dev/null 2>&1; then
         echo_error "Bash not allowed in workflow files (ADR-005)."
         echo_info "  Use PowerShell instead: shell: pwsh"
         echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
@@ -399,8 +404,13 @@ fi
 STAGED_GITHUB_SCRIPT_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/scripts/' || true)
 
 if [ -n "$STAGED_GITHUB_SCRIPT_FILES" ]; then
-    # Check staged content for bash shebangs
-    if git diff --cached -- $STAGED_GITHUB_SCRIPT_FILES | grep -E '^\+#!.*(bin/bash|env bash)' > /dev/null 2>&1; then
+    # SECURITY: Use mapfile to safely convert newline-separated file list to array
+    # This prevents command injection via malicious filenames containing shell metacharacters
+    mapfile -t GITHUB_SCRIPT_FILES_ARRAY <<< "$STAGED_GITHUB_SCRIPT_FILES"
+
+    # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
+    # Use -- separator to prevent filenames starting with - from being interpreted as options
+    if git diff --cached -- "${GITHUB_SCRIPT_FILES_ARRAY[@]}" | grep -E '^\+#!.*(bin/bash|env bash)' > /dev/null 2>&1; then
         echo_error "Bash shebang not allowed in .github/scripts/ files (ADR-005)."
         echo_info "  Use PowerShell instead. Scripts should be .ps1 files."
         echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
