@@ -58,7 +58,7 @@ jobs:
           RAW_OUTPUT: ${{ steps.categorize.outputs.findings }}
           FALLBACK_LABELS: ${{ steps.categorize.outputs.labels }}
         run: |
-          Import-Module .github/scripts/AIReviewCommon.psm1
+          Import-Module ./.github/scripts/AIReviewCommon.psm1
 
           # Save output for debugging
           $env:RAW_OUTPUT | Set-Content /tmp/categorize-output.txt -Encoding UTF8
@@ -111,7 +111,7 @@ jobs:
           RAW_OUTPUT: ${{ steps.align.outputs.findings }}
           MILESTONE_FROM_ACTION: ${{ steps.align.outputs.milestone }}
         run: |
-          Import-Module .github/scripts/AIReviewCommon.psm1
+          Import-Module ./.github/scripts/AIReviewCommon.psm1
 
           # Save output for debugging
           $env:RAW_OUTPUT | Set-Content /tmp/align-output.txt -Encoding UTF8
