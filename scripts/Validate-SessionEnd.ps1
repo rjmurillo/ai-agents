@@ -188,7 +188,8 @@ if ($sessionText -match '(?m)^\s*-\s*\*\*Starting Commit\*\*\s*:\s*`?([0-9a-f]{7
 $changedFiles = @()
 if ($startingCommit) {
   try {
-    $changedFiles = (& git -C $repoRoot diff --name-only "$startingCommit..HEAD") -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' }
+    # Wrap in @() to ensure result is always an array (fixes Count property error when single file)
+    $changedFiles = @((& git -C $repoRoot diff --name-only "$startingCommit..HEAD") -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' })
   } catch {
     Fail 'E_GIT_DIFF_FAIL' "Could not compute changed files from Starting Commit $startingCommit. Ensure Starting Commit is valid."
   }

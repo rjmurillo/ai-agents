@@ -70,7 +70,7 @@ This means error messages should trigger the correct behavior, not just describe
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: docs-only |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: f7378bd |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 7c90dfb |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A - continuation session |
 | SHOULD | Verify clean git status | [ ] | Pending |
