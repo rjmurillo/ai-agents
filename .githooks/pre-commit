@@ -409,6 +409,76 @@ if [ -n "$STAGED_GITHUB_SCRIPT_FILES" ]; then
 fi
 
 #
+# User-Facing Content Restrictions (Non-blocking warning)
+#
+# Detects internal repository references in user-facing files.
+# These references are meaningless to end-users who consume our agents.
+#
+# Prohibited patterns in src/claude/, src/copilot-cli/, src/vs-code-agents/, templates/agents/:
+#   - Internal PR references (PR #NNN, #NNN)
+#   - Internal issue references (Issue #NNN)
+#   - Internal session references (Session NNN)
+#   - Internal directory references (.agents/, .serena/)
+#
+# Related: Memory user-facing-content-restrictions, AGENTS.md policy
+#
+
+# Check if any user-facing files are staged
+STAGED_USER_FACING_FILES=$(echo "$STAGED_FILES" | grep -E '^(src/(claude|copilot-cli|vs-code-agents)/|templates/agents/).*\.md$' || true)
+
+if [ -n "$STAGED_USER_FACING_FILES" ]; then
+    echo_info "Checking for internal references in user-facing files..."
+
+    # Patterns that should not appear in user-facing content
+    # Note: These check the staged diff (new content only) to avoid false positives on existing content
+    INTERNAL_REFS_FOUND=0
+
+    # Check for PR references (PR #NNN or just #NNN in context of PRs)
+    if git diff --cached -- $STAGED_USER_FACING_FILES | grep -E '^\+.*PR #[0-9]+' > /dev/null 2>&1; then
+        echo_warning "Internal PR references found in user-facing files."
+        echo_info "  Example: 'PR #123' should be removed or generalized."
+        INTERNAL_REFS_FOUND=1
+    fi
+
+    # Check for Issue references
+    if git diff --cached -- $STAGED_USER_FACING_FILES | grep -E '^\+.*Issue #[0-9]+' > /dev/null 2>&1; then
+        echo_warning "Internal Issue references found in user-facing files."
+        echo_info "  Example: 'Issue #123' should be removed or generalized."
+        INTERNAL_REFS_FOUND=1
+    fi
+
+    # Check for Session references
+    if git diff --cached -- $STAGED_USER_FACING_FILES | grep -E '^\+.*Session [0-9]+' > /dev/null 2>&1; then
+        echo_warning "Internal Session references found in user-facing files."
+        echo_info "  Example: 'Session 44' should be removed."
+        INTERNAL_REFS_FOUND=1
+    fi
+
+    # Check for .agents/ directory references (except in documentation about the directory structure)
+    if git diff --cached -- $STAGED_USER_FACING_FILES | grep -E '^\+.*\.agents/' > /dev/null 2>&1; then
+        echo_warning "Internal .agents/ directory references found in user-facing files."
+        echo_info "  Users may not have the same directory structure."
+        INTERNAL_REFS_FOUND=1
+    fi
+
+    # Check for .serena/ directory references
+    if git diff --cached -- $STAGED_USER_FACING_FILES | grep -E '^\+.*\.serena/' > /dev/null 2>&1; then
+        echo_warning "Internal .serena/ directory references found in user-facing files."
+        echo_info "  Users may not have the same memory structure."
+        INTERNAL_REFS_FOUND=1
+    fi
+
+    if [ "$INTERNAL_REFS_FOUND" = "1" ]; then
+        echo_info "  See: Memory user-facing-content-restrictions"
+        echo_info "  See: AGENTS.md 'User-Facing Content Restrictions' section"
+        # Non-blocking: just warn, don't fail the commit
+        # To make blocking, uncomment: EXIT_STATUS=1
+    else
+        echo_success "No internal references in user-facing files."
+    fi
+fi
+
+#
 # Final Summary
 #
 echo ""
