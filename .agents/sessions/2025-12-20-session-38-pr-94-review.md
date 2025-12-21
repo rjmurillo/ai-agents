@@ -187,6 +187,18 @@ During PR review, attempted to use GitHub skill scripts but encountered syntax e
 - Issue #120: Enhance pre-commit hook to validate staged content
 - Session 36: Get-PRContext.ps1 syntax error fix
 
+## Session End Checklist
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` | [x] | Session summary included |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | No lint errors |
+| MUST | Commit all changes | [x] | Commit included in PR |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable for PR review |
+| SHOULD | Invoke retrospective | [N/A] | Simple review session |
+| SHOULD | Verify clean git status | [x] | Clean working tree |
+
 ---
 
 **Session Complete**: 2025-12-20
