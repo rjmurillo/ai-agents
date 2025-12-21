@@ -1,9 +1,9 @@
 ---
 status: proposed
 date: 2025-12-19
-decision-makers: architect, user
-consulted: analyst, roadmap
-informed: implementer, devops
+decision-makers: ["architect", "user"]
+consulted: ["analyst", "roadmap"]
+informed: ["implementer", "devops"]
 ---
 
 # ADR-007: Feature Request Review Step in Issue Triage Workflow
@@ -184,9 +184,19 @@ Add after `Parse Categorization Results` step:
     RAW_OUTPUT: ${{ steps.review-feature.outputs.findings }}
   run: |
     Import-Module .github/scripts/AIReviewCommon.psm1
-    $result = Get-FeatureReviewFromOutput -Output $env:RAW_OUTPUT
-    echo "recommendation=$($result.Recommendation)" >> $env:GITHUB_OUTPUT
-    echo "assignees=$($result.Assignees -join ',')" >> $env:GITHUB_OUTPUT
+
+    # Parse recommendation
+    $recommendation = Get-FeatureReviewRecommendation -Output $env:RAW_OUTPUT
+
+    # Parse suggested assignees (comma-separated)
+    $assignees = Get-FeatureReviewAssignees -Output $env:RAW_OUTPUT
+
+    # Parse suggested labels
+    $labels = Get-FeatureReviewLabels -Output $env:RAW_OUTPUT
+
+    echo "recommendation=$recommendation" >> $env:GITHUB_OUTPUT
+    echo "assignees=$assignees" >> $env:GITHUB_OUTPUT
+    echo "labels=$labels" >> $env:GITHUB_OUTPUT
 ```
 
 ### Prompt File Location
@@ -199,19 +209,31 @@ Location follows existing pattern (all prompts in `.github/prompts/`).
 
 File: `.github/scripts/AIReviewCommon.psm1`
 
-Add function:
+Add functions:
 
 ```powershell
-function Get-FeatureReviewFromOutput {
+function Get-FeatureReviewRecommendation {
     [CmdletBinding()]
     param([string]$Output)
-    # Parse recommendation, assignees, etc.
+    # Parse recommendation from output
+}
+
+function Get-FeatureReviewAssignees {
+    [CmdletBinding()]
+    param([string]$Output)
+    # Parse assignees from output (returns comma-separated string)
+}
+
+function Get-FeatureReviewLabels {
+    [CmdletBinding()]
+    param([string]$Output)
+    # Parse labels from output (returns comma-separated string)
 }
 ```
 
 File: `.github/scripts/AIReviewCommon.Tests.ps1`
 
-Add Pester tests for `Get-FeatureReviewFromOutput`.
+Add Pester tests for `Get-FeatureReviewRecommendation`, `Get-FeatureReviewAssignees`, and `Get-FeatureReviewLabels`.
 
 ## Prompt Adaptation for Copilot CLI
 

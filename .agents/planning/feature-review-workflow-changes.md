@@ -274,7 +274,7 @@ Export-ModuleMember -Function @(
 ```powershell
 Describe 'Get-FeatureReviewRecommendation' {
     BeforeAll {
-        Import-Module "$PSScriptRoot/../scripts/AIReviewCommon.psm1" -Force
+        Import-Module "$PSScriptRoot/AIReviewCommon.psm1" -Force
     }
 
     Context 'When output contains explicit RECOMMENDATION' {
@@ -334,7 +334,7 @@ Describe 'Get-FeatureReviewRecommendation' {
 
 Describe 'Get-FeatureReviewAssignees' {
     BeforeAll {
-        Import-Module "$PSScriptRoot/../scripts/AIReviewCommon.psm1" -Force
+        Import-Module "$PSScriptRoot/AIReviewCommon.psm1" -Force
     }
 
     Context 'When assignees are specified' {
@@ -368,7 +368,7 @@ Describe 'Get-FeatureReviewAssignees' {
 
 Describe 'Get-FeatureReviewLabels' {
     BeforeAll {
-        Import-Module "$PSScriptRoot/../scripts/AIReviewCommon.psm1" -Force
+        Import-Module "$PSScriptRoot/AIReviewCommon.psm1" -Force
     }
 
     Context 'When labels are specified' {
