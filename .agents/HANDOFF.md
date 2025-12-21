@@ -56,11 +56,51 @@
 
 | Session | Date | Type | PR | Outcome |
 |---------|------|------|----|---------|
-| **Session 44** | **2025-12-20** | **Security Remediation** | **#211** | **CWE-20/CWE-78 fixed, QA+DevOps validated** |
+| **Session 45** | **2025-12-20** | **Retrospective** | **#211** | **7 skills extracted, root cause identified (ADR-005 not enforced)** |
+| Session 44 | 2025-12-20 | Security Remediation | #211 | CWE-20/CWE-78 fixed, QA+DevOps validated |
 | Session 43 | 2025-12-20 | QA Validation | #147 | All tests passing, artifacts verified, ready for PR |
 | Session 41 | 2025-12-20 | PR Review Consolidation | #94, #95, #76, #93 | 25 comments analyzed, 24 resolved, all ready to merge |
 | Session 40 | 2025-12-20 | Feature Implementation | #162 | Phase 4 Copilot Follow-Up Handling complete |
-| Session 39 | 2025-12-20 | PR Comment Response | #147 | Mechanical success, artifact tracking failed |
+
+### Key Learnings from Session 45 (Retrospective - Security Miss)
+
+**Retrospective Scope**: Analysis of security vulnerability introduced in PR #60, detected in PR #211, remediated in Session 44
+
+**Root Cause**: Process gap - ADR-005 (PowerShell-only policy) existed but had no enforcement mechanism (no pre-commit hook, no required Quality Gate check, no BLOCKING gate for QA routing)
+
+**What Worked:**
+
+- AI Quality Gate detected vulnerability when triggered (security agent thorough and actionable)
+- Multi-agent validation chain (Security → QA → DevOps) provided robust verification
+- PowerShell hardened functions (`AIReviewCommon.psm1`) enabled same-day remediation
+- Structured retrospective (Five Whys, Fishbone) identified root cause and prevention measures
+
+**Skills Extracted** (7 total, atomicity 88-96%):
+
+1. **Skill-Security-010**: Pre-commit hook rejecting bash in workflows (95%)
+2. **Skill-CI-Infrastructure-003**: Quality Gate as required check, not manual (92%)
+3. **Skill-QA-003**: BLOCKING gate for qa routing after features (90%)
+4. **Skill-PR-Review-Security-001**: Security comments +50% triage priority (94%)
+5. **Skill-PowerShell-Security-001**: Hardened regex for AI output parsing (96%)
+6. **Skill-Security-001** (updated): Multi-agent validation chain pattern (88%)
+7. **Skill-QA-002** (updated): Superseded by Skill-QA-003 (MUST vs SHOULD)
+
+**Prevention Measures Identified:**
+
+- Add pre-commit hook to detect bash in `.github/workflows/` and `.github/scripts/`
+- Make AI Quality Gate a required branch protection check
+- Add QA BLOCKING gate to SESSION-PROTOCOL.md
+- Add security-domain triage priority to bot comment processing
+
+**Artifacts:**
+
+- Retrospective document: `.agents/retrospective/2025-12-20-pr-211-security-miss.md`
+- Session log: `.agents/sessions/2025-12-20-session-45-retrospective-security-miss.md`
+- Memory updates: 5 skill files (security, ci-infrastructure, qa, pr-review, powershell)
+
+**Outcome**: High-quality skill extraction (ROTI: 3/4). Cost: 2 days vulnerability exposure. Gain: 7 permanent process improvements.
+
+---
 
 ### Key Learnings from Session 44 (Security Remediation)
 
