@@ -43,7 +43,6 @@ pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 ```
 
 Verify:
-
 - PR exists
 - PR is open (state != MERGED, CLOSED)
 - PR has the current repo as target
