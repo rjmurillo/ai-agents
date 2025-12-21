@@ -52,8 +52,46 @@ Read 6 relevant memories:
 2. **Execution**: Direct execution (documentation task, no code changes)
 3. **Path Normalization**: All file paths relative to project root
 
-## Session End Requirements
+## Session End Checklist
 
-- [ ] Update HANDOFF.md with session summary
-- [ ] Run markdownlint fix
-- [ ] Commit all changes including `.agents/` files
+- [ ] Update HANDOFF.md with session summary: [NOT DONE]
+- [ ] Run markdownlint fix: [NOT DONE]
+- [ ] Commit all changes including `.agents/` files: [NOT DONE]
+
+## Post-Hoc Remediation
+
+**Date Remediated**: 2025-12-20
+**Remediation Agent**: orchestrator
+
+### MUST Failures Identified
+
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| Phase 1: Serena initialization | [PASS] | Log shows `initial_instructions` and project activated |
+| Phase 2: Context retrieval | [PASS] | HANDOFF.md read (offset 2500-2769) |
+| Phase 3: Session log | [PASS] | Session log created |
+| Session End: HANDOFF.md update | [NOT DONE] | Deliverables show [PENDING] |
+| Session End: markdownlint fix | [NOT DONE] | Deliverables show [PENDING] |
+| Session End: Commit all changes | [NOT DONE] | Deliverables show [PENDING] |
+
+### Git History Analysis
+
+Searched commits from 2025-12-20 for Session 47 artifacts:
+- No commit found referencing "session-47" or "Session 47"
+- PRD file `.agents/planning/PRD-skill-retrieval-instrumentation.md` referenced but no dedicated commit
+
+**Related commits from same topic (Skill Instrumentation)**:
+- No direct commits found for Session 47 deliverables
+- Session appears to have ended without committing artifacts
+
+**Note**: The session log explicitly shows [PENDING] status for all Session End Requirements, confirming the session ended prematurely without completing closure.
+
+### Remediation Status
+
+| Item | Status | Notes |
+|------|--------|-------|
+| HANDOFF.md update | [CANNOT_REMEDIATE] | Session context lost - cannot reconstruct full summary |
+| Markdownlint fix | [REMEDIATED] | Lint run as part of current session |
+| Commit session artifacts | [CANNOT_REMEDIATE] | Session ended without commit; PRD may exist uncommitted |
+
+**Overall Status**: [PARTIALLY_REMEDIATED] - Session explicitly documented pending closure items. HANDOFF update and commit cannot be retroactively completed. Lint remediated now.

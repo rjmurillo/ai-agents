@@ -307,3 +307,50 @@ gh api repos/{owner}/{repo}/branches/main/protection \
 ---
 
 **Outcome**: PR #212 implementations are SOUND. One critical gap identified (Quality Gate not required).
+
+## Session End Checklist
+
+- [ ] Update HANDOFF.md with session summary: [NOT DONE]
+- [ ] Run markdownlint fix: [NOT DONE]
+- [ ] Commit all changes including `.agents/` files: [PARTIAL - session log committed later]
+
+## Post-Hoc Remediation
+
+**Date Remediated**: 2025-12-20
+**Remediation Agent**: orchestrator
+
+### MUST Failures Identified
+
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| Phase 1: Serena initialization | [PASS] | Log shows `initial_instructions` and memory read |
+| Phase 2: Context retrieval | [PASS] | HANDOFF.md read (lines 1-100) |
+| Phase 3: Session log | [PASS] | Session log created |
+| Session End: HANDOFF.md update | [NOT DONE] | No Session 46 specific entry in HANDOFF.md |
+| Session End: markdownlint fix | [NOT DONE] | No evidence of lint execution |
+| Session End: Commit all changes | [PARTIAL] | Session log was committed in `f1512ce` |
+
+### Git History Analysis
+
+Searched commits from 2025-12-20 for Session 46 artifacts:
+- `f1512ce` (18:11:44): `docs(session): finalize Session 46 log`
+- `3b6559d` (18:10:58): `docs(planning): create Skills Index Registry PRD`
+
+**Commit `f1512ce` analysis**:
+- This commit explicitly finalizes Session 46 log
+- Session log was committed but HANDOFF.md not updated in same commit
+- No lint execution evidence
+
+**Related commits from session work**:
+- `3d4d487` (18:16:32): `feat: implement agent feedback - trust-but-verify and PRDs`
+- `32eaa82` (18:37:21): `docs(planning): approve Skills Index Registry PRD with 10-agent consensus`
+
+### Remediation Status
+
+| Item | Status | Notes |
+|------|--------|-------|
+| HANDOFF.md update | [CANNOT_REMEDIATE] | Session context lost - cannot reconstruct full summary |
+| Markdownlint fix | [REMEDIATED] | Lint run as part of current session |
+| Commit session artifacts | [ALREADY_DONE] | Commit `f1512ce` captured session log |
+
+**Overall Status**: [PARTIALLY_REMEDIATED] - Session log was committed (f1512ce), but HANDOFF.md update and lint were missed. Lint remediated now; HANDOFF cannot be retroactively updated.

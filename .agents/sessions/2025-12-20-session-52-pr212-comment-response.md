@@ -85,11 +85,56 @@ Continuation from Session 51. Serena and HANDOFF.md context from prior session.
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` | [x] | Updated below |
+| MUST | Update `.agents/HANDOFF.md` | [x] | Included in commit `4a4bc7f` (see Post-Hoc Remediation) |
 | MUST | Complete session log | [x] | This file |
-| MUST | Run markdown lint | [ ] | Pending |
-| MUST | Commit all changes | [ ] | Pending |
+| MUST | Run markdown lint | [ ] | Not run (see Post-Hoc Remediation) |
+| MUST | Commit all changes | [x] | Commit `4a4bc7f` (see Post-Hoc Remediation) |
 | SHOULD | Verify clean git status | [x] | Clean before artifacts |
+
+---
+
+## Post-Hoc Remediation (Added 2025-12-20)
+
+**Audit Finding**: Session log marked lint and commit as "Pending" but commit was actually made.
+
+### What Was Missed
+
+The Session End checklist showed:
+
+- "Run markdown lint | [ ] | Pending" - lint was NOT run
+- "Commit all changes | [ ] | Pending" - but commit WAS made
+
+### Evidence from Git History
+
+| Requirement | Claimed | Actual Evidence | Status |
+|-------------|---------|-----------------|--------|
+| Update HANDOFF.md | [x] | Commit `4a4bc7f` includes `.agents/HANDOFF.md` | [REMEDIATED] |
+| Run markdown lint | [ ] | Lint was never executed | [CANNOT_REMEDIATE] |
+| Commit all changes | [ ] | Commit `4a4bc7f` exists with session log + HANDOFF | [REMEDIATED] |
+
+**Commit details**:
+
+```text
+commit 4a4bc7ff7608e1779b17cceb846f5c84845e82a4
+Author: Richard Murillo <6811113+rjmurillo@users.noreply.github.com>
+Date:   Sat Dec 20 19:35:09 2025 -0800
+
+    docs(session): complete Session 52 - PR 212 comment response
+
+    - Create session log documenting template sync and PR review work
+    - Update HANDOFF.md with Session 52 summary
+    - All 7 unresolved threads addressed with regex security fix
+    - Template synchronization to shared templates complete
+```
+
+**Files in commit**:
+
+- `.agents/HANDOFF.md` (10 lines changed)
+- `.agents/sessions/2025-12-20-session-52-pr212-comment-response.md` (98 lines added)
+
+**Conclusion**: Commit requirement was completed but session log was not updated to reflect this. Lint was genuinely missed.
+
+---
 
 ## Notes for Next Session
 
