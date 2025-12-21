@@ -185,8 +185,12 @@ jobs:
           # Count MUST failures
           $mustFiles = Get-ChildItem -Path "validation-results/*-must-failures.txt" -ErrorAction SilentlyContinue
           foreach ($mustFile in $mustFiles) {
-            $count = [int](Get-Content $mustFile.FullName -Raw -ErrorAction SilentlyContinue)
-            $totalMustFailures += $count
+            $content = (Get-Content $mustFile.FullName -Raw -ErrorAction SilentlyContinue).Trim()
+            # Handle potential multi-value strings from race conditions
+            if ($content -match '^(\d+)') {
+              $count = [int]$Matches[1]
+              $totalMustFailures += $count
+            }
           }
 
           if ($totalMustFailures -gt 0) {
