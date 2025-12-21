@@ -11,7 +11,8 @@ cursor[bot] (Cursor Bugbot) is an AI code reviewer that has demonstrated excepti
 | #32 | 1 | 1 | 100% | Documentation consistency (devops sequence) |
 | #47 | 4 | 4 | 100% | PathInfo bugs, test coverage gaps |
 | #52 | 5 | 5 | 100% | Git staging, status messages, grep patterns, SKIP_AUTOFIX ignored, PassThru exit codes |
-| **Total** | **10** | **10** | **100%** | All comments identified real bugs |
+| #212 | 2 | 2 | 100% | Milestone single-item check, null method call on empty results |
+| **Total** | **12** | **12** | **100%** | All comments identified real bugs |
 
 ## Pattern: Bug Detection Focus
 
@@ -48,22 +49,39 @@ cursor[bot] excels at detecting:
 - Missing environment variable checks (PR #52: SKIP_AUTOFIX ignored)
 - Inconsistent code patterns in same file
 
+### 7. PowerShell Null-Safety Issues (NEW from PR #212)
+
+- `-contains` operator on single strings without array coercion (PR #212: milestone single-item check)
+- Null method calls on potentially empty arrays (PR #212: `@($null)` array creation)
+- Missing null filtering with `Where-Object { $_ }` pattern
+
 ## Handling Recommendations
 
-### Priority: IMMEDIATE
+### Priority: HIGH (Trust But Verify)
 
-cursor[bot] comments should be processed immediately without extensive analysis:
+cursor[bot] comments should be prioritized but verified before implementation:
 
 ```python
 # Recommended triage for cursor[bot]
 if comment.author == "cursor[bot]":
-    # High confidence - skip analysis, go straight to fix
-    Task(subagent_type="implementer", prompt="Fix: [comment summary]...")
+    # High priority - but verify before fixing (sample size n=12, need n=30 for "skip analysis")
+    # 1. Read the comment and understand the bug claim
+    # 2. Verify the bug exists in the code
+    # 3. Then implement fix
+    Task(subagent_type="implementer", prompt="Verify and fix if confirmed: [comment summary]...")
 ```
 
-### No False Positive History
+### Sample Size Limitation
 
-As of December 2025, cursor[bot] has produced zero false positives. Every comment has required a code change.
+**Current sample**: n=12 comments across 4 PRs (100% actionable)
+
+**Statistical note**: With 12 samples and 0 failures, the 95% confidence interval for true actionability is approximately 77-100%. This is impressive but not sufficient for "skip analysis" handling.
+
+**Threshold for "skip analysis"**: When sample reaches n=30 with continued 100% rate, upgrade to skip-analysis handling.
+
+### Track Record
+
+As of December 2025, cursor[bot] has produced zero false positives. Every comment has required a code change. However, the first false positive will be blindly implemented if we skip verification.
 
 ### Comment Format
 
@@ -104,4 +122,6 @@ The `git diff --quiet` check doesn't detect untracked files...
 - PR #32: Documentation consistency
 - PR #47: PathInfo type bug, test coverage
 - PR #52: Git staging, status messages, grep patterns
+- PR #212: PowerShell null-safety issues (array coercion, null filtering)
 - Memory: `pattern-git-hooks-grep-patterns` (PR #52 specific learnings)
+- Memory: `skills-powershell` (Skill-PowerShell-002, 003, 004 from PR #212)
