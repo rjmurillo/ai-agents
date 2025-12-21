@@ -1,8 +1,9 @@
 # PRD: Skills Index Registry
 
-**Version**: 1.0
+**Version**: 1.1
 **Created**: 2025-12-20
-**Status**: Draft
+**Status**: Approved (10-Agent Consensus)
+**Approved Date**: 2025-12-20
 **Target Audience**: Junior developers
 
 ## Introduction/Overview
@@ -317,6 +318,66 @@ Existing skill files MUST remain unchanged. Agents not using the index continue 
 - [ ] Deprecated skills section exists (even if empty initially)
 - [ ] Naming convention documented in index header
 - [ ] At least one agent successfully uses index to find skill
+
+## Agent Discussion: Semantic Slug Protocol Review
+
+### Context
+
+On 2025-12-20, a "Semantic Slug Protocol" was proposed as an alternative to the numeric ID approach in this PRD. The proposal suggested:
+
+1. Rename files to semantic slugs (e.g., `skill-powershell-null-safety-contains-operator.md`)
+2. Consolidate 65 files into 15 domain libraries
+3. Use `000-memory-index.md` as master index
+
+**Rationale cited**: "LLMs are relevance engines - numeric tokens carry zero semantic weight"
+
+### 10-Agent Review
+
+The following agents were consulted in parallel:
+
+| Agent | Verdict | Key Insight |
+|-------|---------|-------------|
+| **Critic** | APPROVE Index | Core premise false - Serena MCP abstracts file names |
+| **Analyst** | APPROVE Hybrid | Pilot semantic slugs for 5 new skills only |
+| **Implementer** | APPROVE Index | 87% cost reduction (2-3h vs 16-23h) |
+| **QA** | NEUTRAL | Test strategy defined for either approach |
+| **Orchestrator** | SYNTHESIZE | Consolidated all feedback |
+| **Retrospective** | APPROVE Index | File names invisible to agent workflow |
+| **Skillbook** | APPROVE Index | Deduplication requires atomicity |
+| **Memory** | APPROVE Index | O(1) index lookup vs O(n) library scan |
+| **DevOps** | APPROVE Index | 67 cross-references would break |
+| **Security** | APPROVE Index | Consolidation increases blast radius 3x |
+
+### Unanimous Findings
+
+1. **Serena MCP abstracts file names** - Agents call `read_memory(memory_file_name)`, not file paths
+2. **Index registry solves the real problem** - O(n) → O(1) discovery
+3. **Consolidation degrades performance** - 65 atomic files → 15 libraries is architecture regression
+4. **67 cross-references would break** - No migration plan defined for semantic slugs
+5. **Numeric IDs are stable** - Sequential numbering prevents collisions
+
+### Decision: APPROVED (Disagree and Commit)
+
+**Status**: APPROVED - Numeric IDs with Index Registry (this PRD)
+
+**Rejected Alternative**: Semantic Slug Protocol
+
+- **Premise false**: Serena MCP abstraction makes file names invisible to agents
+- **Architecture regression**: O(n) library scanning degrades performance
+- **Migration undefined**: 67 cross-references, no rollback plan, no validation tooling
+
+**Extracted for Future Work** (Phase 2):
+
+- Prefix taxonomy for non-skill memories (`retrospective-`, `pattern-`, `context-`)
+- This is ALREADY the current pattern - no implementation needed
+
+### Security Recommendations (from Security Agent)
+
+The following controls SHOULD be added:
+
+1. **Skill ID Validation Gate**: Pre-commit hook rejects skill files not listed in index
+2. **Index Integrity Check**: Periodic validation that all skill files have index entries
+3. **Write Access Patterns**: Document which agents can create/deprecate skills
 
 ## Open Questions
 
