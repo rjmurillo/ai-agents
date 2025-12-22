@@ -1,206 +1,144 @@
 ---
 name: github
-description: GitHub CLI operations for PRs, Issues, Labels, Milestones, Comments, and Reactions. Unified skill with shared helpers for DRY code.
+description: |
+  GitHub CLI operations for PRs, Issues, Labels, Milestones, Comments, and Reactions.
+  Use when Claude needs to: (1) Get PR context, diff, or changed files, (2) Reply to
+  PR review comments preserving threads, (3) Post idempotent issue comments, (4) Apply
+  or create labels, (5) Assign milestones, (6) Add reactions to comments, (7) Close or
+  merge PRs, (8) Resolve review threads, (9) Synthesize context for Copilot assignment.
 allowed-tools: Bash(pwsh:*), Bash(gh api:*), Bash(gh pr:*), Bash(gh issue:*), Read, Write, Grep, Glob
 ---
 
 # GitHub Skill
 
-Unified skill for GitHub CLI operations aligned with the GitHub REST API.
+Use these scripts instead of raw `gh` commands for consistent error handling and structured output.
 
-## Structure
+## Decision Tree
 
 ```text
-.claude/skills/github/
-├── modules/
-│   └── GitHubHelpers.psm1    # Shared helper functions (DRY)
-├── scripts/
-│   ├── pr/
-│   │   ├── Get-PRContext.ps1         # PR metadata, diff, files
-│   │   ├── Get-PRReviewComments.ps1  # Paginated review comments
-│   │   ├── Get-PRReviewers.ps1       # Enumerate unique reviewers
-│   │   └── Post-PRCommentReply.ps1   # Thread-preserving replies
-│   ├── issue/
-│   │   ├── Get-IssueContext.ps1      # Issue metadata
-│   │   ├── Set-IssueLabels.ps1       # Apply labels with auto-create
-│   │   ├── Set-IssueMilestone.ps1    # Assign milestones
-│   │   ├── Post-IssueComment.ps1     # Comments with idempotency
-│   │   └── Invoke-CopilotAssignment.ps1  # Context synthesis for Copilot
-│   └── reactions/
-│       └── Add-CommentReaction.ps1   # Add emoji reactions
-├── tests/
-│   └── (Pester tests)
-├── copilot-synthesis.yml             # Copilot context synthesis config
-└── SKILL.md
+Need GitHub data?
+├─ PR info/diff → Get-PRContext.ps1
+├─ Review comments → Get-PRReviewComments.ps1
+├─ Review threads → Get-PRReviewThreads.ps1
+├─ Unique reviewers → Get-PRReviewers.ps1
+├─ Issue info → Get-IssueContext.ps1
+└─ Need to take action?
+   ├─ Reply to review → Post-PRCommentReply.ps1
+   ├─ Comment on issue → Post-IssueComment.ps1
+   ├─ Add reaction → Add-CommentReaction.ps1
+   ├─ Apply labels → Set-IssueLabels.ps1
+   ├─ Set milestone → Set-IssueMilestone.ps1
+   ├─ Resolve threads → Resolve-PRReviewThread.ps1
+   ├─ Close PR → Close-PR.ps1
+   └─ Merge PR → Merge-PR.ps1
 ```
 
-## Quick Reference
+## Script Reference
 
-### PR Operations
+### PR Operations (`scripts/pr/`)
+
+| Script | Purpose | Key Parameters |
+|--------|---------|----------------|
+| `Get-PRContext.ps1` | PR metadata, diff, files | `-PullRequest`, `-IncludeChangedFiles`, `-IncludeDiff` |
+| `Get-PRReviewComments.ps1` | Paginated review comments | `-PullRequest` |
+| `Get-PRReviewThreads.ps1` | Thread-level review data | `-PullRequest`, `-UnresolvedOnly` |
+| `Get-PRReviewers.ps1` | Enumerate unique reviewers | `-PullRequest`, `-ExcludeBots` |
+| `Post-PRCommentReply.ps1` | Thread-preserving replies | `-PullRequest`, `-CommentId`, `-Body` |
+| `Resolve-PRReviewThread.ps1` | Mark threads resolved | `-ThreadId` or `-PullRequest -All` |
+| `Close-PR.ps1` | Close PR with comment | `-PullRequest`, `-Comment` |
+| `Merge-PR.ps1` | Merge with strategy | `-PullRequest`, `-Strategy`, `-DeleteBranch`, `-Auto` |
+
+### Issue Operations (`scripts/issue/`)
+
+| Script | Purpose | Key Parameters |
+|--------|---------|----------------|
+| `Get-IssueContext.ps1` | Issue metadata | `-Issue` |
+| `Set-IssueLabels.ps1` | Apply labels (auto-create) | `-Issue`, `-Labels`, `-Priority` |
+| `Set-IssueMilestone.ps1` | Assign milestone | `-Issue`, `-Milestone` |
+| `Post-IssueComment.ps1` | Comments with idempotency | `-Issue`, `-Body`, `-Marker` |
+| `Invoke-CopilotAssignment.ps1` | Synthesize context for Copilot | `-IssueNumber`, `-WhatIf` |
+
+### Reactions (`scripts/reactions/`)
+
+| Script | Purpose | Key Parameters |
+|--------|---------|----------------|
+| `Add-CommentReaction.ps1` | Add emoji reactions | `-CommentId`, `-Reaction`, `-CommentType` |
+
+## Quick Examples
 
 ```powershell
-# Get PR context with changed files
+# Get PR with changed files
 pwsh scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFiles
 
-# Get all review comments (handles pagination)
-pwsh scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50
+# Reply to review comment (thread-preserving)
+pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123456 -Body "Fixed."
 
-# Enumerate reviewers (prevents single-bot blindness per Skill-PR-001)
-pwsh scripts/pr/Get-PRReviewers.ps1 -PullRequest 50 -ExcludeBots
+# Resolve all unresolved review threads
+pwsh scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest 50 -All
 
-# Reply to review comment (thread-preserving per Skill-PR-004)
-pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123456 -Body "Fixed in abc1234."
+# Close PR with comment
+pwsh scripts/pr/Close-PR.ps1 -PullRequest 50 -Comment "Superseded by #51"
 
-# Post top-level PR comment
-pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -Body "All comments addressed."
-```
+# Merge PR with squash
+pwsh scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
 
-### Issue Operations
+# Post idempotent comment (prevents duplicates)
+pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
 
-```powershell
-# Get issue context
-pwsh scripts/issue/Get-IssueContext.ps1 -Issue 123
-
-# Apply labels with auto-creation
-pwsh scripts/issue/Set-IssueLabels.ps1 -Issue 123 -Labels @("bug", "needs-review") -Priority "P1"
-
-# Assign milestone
-pwsh scripts/issue/Set-IssueMilestone.ps1 -Issue 123 -Milestone "v1.0.0"
-
-# Post comment with idempotency marker
-pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -BodyFile triage.md -Marker "AI-TRIAGE"
-```
-
-### Reactions
-
-```powershell
-# Acknowledge review comment with eyes
+# Add reaction
 pwsh scripts/reactions/Add-CommentReaction.ps1 -CommentId 12345678 -Reaction "eyes"
-
-# Add thumbs up to issue comment
-pwsh scripts/reactions/Add-CommentReaction.ps1 -CommentId 12345678 -CommentType "issue" -Reaction "+1"
 ```
-
-### Copilot Assignment
-
-```powershell
-# Synthesize context and assign Copilot to issue
-pwsh scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123
-
-# Preview synthesis without posting (WhatIf)
-pwsh scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
-
-# Use custom config
-pwsh scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -ConfigPath "copilot-synthesis.yml"
-```
-
-## Shared Module
-
-All scripts import `modules/GitHubHelpers.psm1` which provides:
-
-| Function | Purpose |
-|----------|---------|
-| `Get-RepoInfo` | Infer owner/repo from git remote |
-| `Resolve-RepoParams` | Resolve or error on owner/repo |
-| `Test-GhAuthenticated` | Check gh CLI auth status |
-| `Assert-GhAuthenticated` | Exit if not authenticated |
-| `Write-ErrorAndExit` | Consistent error handling |
-| `Invoke-GhApiPaginated` | Fetch all pages from API |
-| `Get-IssueComments` | Fetch all comments for an issue |
-| `Update-IssueComment` | Update an existing comment |
-| `New-IssueComment` | Create a new issue comment |
-| `Get-TrustedSourceComments` | Filter comments by trusted users |
-| `Get-PriorityEmoji` | P0-P3 to emoji mapping |
-| `Get-ReactionEmoji` | Reaction type to emoji |
-
-## Exit Codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Invalid parameters |
-| 2 | Resource not found (PR, issue, milestone, label) |
-| 3 | GitHub API error |
-| 4 | gh CLI not found or not authenticated |
-| 5 | Idempotency skip (marker already exists) |
-
-## Skills Applied
-
-| Skill ID | Description | Script |
-|----------|-------------|--------|
-| Skill-PR-001 | Enumerate all reviewers before triaging | `Get-PRReviewers.ps1` |
-| Skill-PR-004 | Use `in_reply_to` for thread replies | `Post-PRCommentReply.ps1` |
 
 ## Common Patterns
 
 ### Owner/Repo Inference
 
-All scripts support optional `-Owner` and `-Repo` parameters. If omitted, they infer from `git remote get-url origin`.
-
-```powershell
-# From within git repo - auto-infers
-pwsh scripts/pr/Get-PRContext.ps1 -PullRequest 50
-
-# Explicit - when running outside repo or for different repo
-pwsh scripts/pr/Get-PRContext.ps1 -Owner "octocat" -Repo "hello-world" -PullRequest 50
-```
+All scripts auto-infer from `git remote` when `-Owner` and `-Repo` are omitted.
 
 ### Idempotency with Markers
 
-Use `-Marker` parameter to prevent duplicate comments:
+Use `-Marker` to prevent duplicate comments:
 
 ```powershell
 # First call - posts comment with <!-- AI-TRIAGE --> marker
-pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
+pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "..." -Marker "AI-TRIAGE"
 
-# Second call - detects marker, exits with code 5
-pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
+# Second call - exits with code 5 (already exists)
 ```
 
 ### Body from File
 
-For multi-line content, use `-BodyFile` to avoid escaping issues:
+For multi-line content, use `-BodyFile` to avoid escaping issues.
+
+### Thread Management Workflow
 
 ```powershell
-pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123 -BodyFile reply.md
-pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -BodyFile triage-summary.md
+# 1. Get unresolved threads
+$threads = pwsh scripts/pr/Get-PRReviewThreads.ps1 -PullRequest 50 -UnresolvedOnly | ConvertFrom-Json
+
+# 2. Reply to each thread
+foreach ($t in $threads.Threads) {
+    pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId $t.FirstCommentId -Body "Fixed."
+}
+
+# 3. Resolve all threads
+pwsh scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest 50 -All
+
+# 4. Merge
+pwsh scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
 ```
 
-## API Endpoints Used
+## Output Format
 
-| Script | Endpoint |
-|--------|----------|
-| `Get-PRContext` | `gh pr view --json ...` |
-| `Get-PRReviewComments` | `repos/{owner}/{repo}/pulls/{pr}/comments` |
-| `Get-PRReviewers` | Multiple: pulls/comments, issues/comments, pr view |
-| `Post-PRCommentReply` | `repos/{owner}/{repo}/pulls/{pr}/comments` (with in_reply_to) |
-| `Get-IssueContext` | `gh issue view --json ...` |
-| `Set-IssueLabels` | `repos/{owner}/{repo}/labels`, `gh issue edit --add-label` |
-| `Set-IssueMilestone` | `gh issue edit --milestone` |
-| `Post-IssueComment` | `repos/{owner}/{repo}/issues/{issue}/comments` |
-| `Add-CommentReaction` | `repos/{owner}/{repo}/pulls/comments/{id}/reactions` or `issues/comments/{id}/reactions` |
-| `Invoke-CopilotAssignment` | `repos/{owner}/{repo}/issues/{issue}/comments`, `gh issue edit --add-assignee` |
+All scripts output structured JSON with `Success` boolean:
 
-## Troubleshooting
+```powershell
+$result = pwsh scripts/pr/Get-PRContext.ps1 -PullRequest 50 | ConvertFrom-Json
+if ($result.Success) { ... }
+```
 
-### "Could not infer repository info"
+## See Also
 
-Run from within a git repository, or provide `-Owner` and `-Repo` explicitly.
-
-### "gh CLI not authenticated"
-
-Run `gh auth login` and authenticate with GitHub.
-
-### Exit code 5
-
-Expected when using `-Marker` and comment already exists. This is idempotency working correctly.
-
-### "Milestone not found"
-
-The milestone must already exist in the repository. Create it via GitHub UI or `gh api`.
-
-## Related
-
-- **Agent**: `pr-comment-responder` - Full PR comment handling workflow
-- **Workflow**: `.github/workflows/ai-issue-triage.yml` - Uses issue scripts
-- **Module**: `.github/scripts/AIReviewCommon.psm1` - Simple wrappers for workflows
+- `references/api-reference.md` - Exit codes, API endpoints, troubleshooting
+- `references/copilot-synthesis-guide.md` - Copilot context synthesis documentation
+- `modules/GitHubHelpers.psm1` - Shared helper functions

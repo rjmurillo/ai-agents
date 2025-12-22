@@ -1,0 +1,87 @@
+---
+name: github
+description: |
+  GitHub CLI operations for PRs, Issues, Labels, Milestones, Comments, and Reactions.
+
+  Use this skill when you need to:
+  - Get PR context, diff, changed files, or review threads
+  - Reply to PR review comments (preserves thread structure)
+  - Close or merge PRs
+  - Resolve PR review threads
+  - Post idempotent issue comments (prevents duplicates)
+  - Apply or auto-create labels
+  - Assign milestones
+  - Add emoji reactions to comments
+  - Synthesize context for Copilot assignment
+
+  IMPORTANT: Always use these scripts instead of raw `gh` commands.
+allowed-tools: Bash(pwsh:*), Bash(gh api:*), Bash(gh pr:*), Bash(gh issue:*), Read, Write, Grep, Glob
+---
+
+# GitHub Skill
+
+Unified skill for GitHub CLI operations. See SKILL.md for full documentation.
+
+## Script Lookup Table
+
+| Task | Script |
+|------|--------|
+| Get PR info/diff | `scripts/pr/Get-PRContext.ps1` |
+| Get review comments | `scripts/pr/Get-PRReviewComments.ps1` |
+| Get review threads | `scripts/pr/Get-PRReviewThreads.ps1` |
+| Get unique reviewers | `scripts/pr/Get-PRReviewers.ps1` |
+| Reply to review | `scripts/pr/Post-PRCommentReply.ps1` |
+| Resolve threads | `scripts/pr/Resolve-PRReviewThread.ps1` |
+| Close PR | `scripts/pr/Close-PR.ps1` |
+| Merge PR | `scripts/pr/Merge-PR.ps1` |
+| Get issue info | `scripts/issue/Get-IssueContext.ps1` |
+| Apply labels | `scripts/issue/Set-IssueLabels.ps1` |
+| Set milestone | `scripts/issue/Set-IssueMilestone.ps1` |
+| Post issue comment | `scripts/issue/Post-IssueComment.ps1` |
+| Assign Copilot | `scripts/issue/Invoke-CopilotAssignment.ps1` |
+| Add reaction | `scripts/reactions/Add-CommentReaction.ps1` |
+
+## Quick Examples
+
+```powershell
+# Get PR with changed files
+pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFiles
+
+# Reply to review comment (thread-preserving)
+pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123456 -Body "Fixed."
+
+# Close PR with comment
+pwsh .claude/skills/github/scripts/pr/Close-PR.ps1 -PullRequest 50 -Comment "Superseded by #51"
+
+# Merge PR with squash
+pwsh .claude/skills/github/scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
+
+# Post idempotent comment
+pwsh .claude/skills/github/scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
+
+# Add reaction
+pwsh .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId 12345678 -Reaction "eyes"
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success - parse JSON output |
+| 1 | Invalid parameters |
+| 2 | Resource not found |
+| 3 | GitHub API error |
+| 4 | gh CLI not authenticated |
+| 5 | Idempotency skip (expected) |
+| 6 | Not mergeable |
+
+## Output Format
+
+All scripts output structured JSON:
+
+```powershell
+$result = pwsh scripts/pr/Get-PRContext.ps1 -PullRequest 50 | ConvertFrom-Json
+if ($result.Success) {
+    # Process result
+}
+```
