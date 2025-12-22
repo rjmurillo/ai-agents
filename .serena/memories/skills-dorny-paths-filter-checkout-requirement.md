@@ -16,6 +16,7 @@ When using the `dorny/paths-filter` action to implement conditional workflow exe
 **User Impact**: Without proper checkout setup in all jobs using the dorny/paths-filter pattern, workflows may fail unexpectedly or produce incorrect results when attempting to skip based on file changes.
 
 From PR #100 analysis:
+
 - `dorny/paths-filter` compares changes against a base ref
 - Without checkout, the action cannot read repository contents
 - The pattern of "run on all PRs, filter internally" requires consistent setup across jobs
@@ -41,7 +42,7 @@ skip-review:
   if: needs.check-changes.outputs.should-run != 'true'
   runs-on: ubuntu-latest
   steps:
-    - uses: actions/checkout@v4  # Required for dorny/paths-filter pattern
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # Required for dorny/paths-filter pattern
     
     - name: Skip message
       run: echo "Skipped"
@@ -62,6 +63,7 @@ skip-review:
 ## Applies To
 
 Any workflow using the "paths-filter internal filtering" pattern where:
+
 1. Workflow triggers on ALL PRs (no `paths:` filter at trigger level)
 2. `dorny/paths-filter` used internally to detect relevant changes
 3. Skip job satisfies required status checks when no relevant files changed
