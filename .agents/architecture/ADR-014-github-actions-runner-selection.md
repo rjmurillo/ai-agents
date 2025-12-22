@@ -59,7 +59,8 @@ Workflows requiring Windows:
 ```yaml
 jobs:
   job-name:
-    # ADR-014 Exception: Windows runner required for PowerShell/Windows-specific tooling
+    # ADR-014 Exception: Windows runner required for [specific reason]
+    # Issue: [Link to tracking issue or upstream limitation]
     runs-on: windows-latest
 ```
 
@@ -136,7 +137,7 @@ Modern tooling supports ARM64:
 For each workflow:
 
 1. Identify current runner configuration
-2. Test on `ubuntu-24.04-arm` (if not Windows-specific)
+2. Test on `ubuntu-24.04-arm`
 3. Add ADR-014 compliance comment
 4. Update `runs-on:` line
 5. Commit with rationale
@@ -175,9 +176,3 @@ If ARM compatibility issues arise:
 - [GitHub Actions Pricing](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions)
 - [ARM64 Ubuntu Support](https://ubuntu.com/download/server/arm)
 - [PowerShell on ARM Linux](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux)
-
----
-
-*Template Version: 1.0*
-*Created: 2025-12-21*
-*GitHub Issue: TBD*

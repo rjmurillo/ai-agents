@@ -24,7 +24,7 @@ This document outlines cost optimization policies and practices for the AI Agent
 
 ### Current Implementation Status
 
-**Migrated to ARM (21 jobs)**:
+**Migrated to ARM (23 jobs)**:
 
 - agent-metrics.yml (2 jobs)
 - ai-issue-triage.yml (1 job)
@@ -34,14 +34,12 @@ This document outlines cost optimization policies and practices for the AI Agent
 - copilot-context-synthesis.yml (2 jobs)
 - copilot-setup-steps.yml (1 job)
 - drift-detection.yml (1 job)
-- pester-tests.yml (2 jobs: check-paths, skip-tests)
+- pester-tests.yml (3 jobs: check-paths, test, skip-tests)
+- validate-generated-agents.yml (1 job)
 - validate-paths.yml (3 jobs)
 - validate-planning-artifacts.yml (1 job)
 
-**Windows Exceptions (2 jobs)**:
-
-- pester-tests.yml (test job) - PowerShell Pester tests require Windows
-- validate-generated-agents.yml (validate job) - PowerShell agent generation requires Windows
+**Windows Exceptions**: None (PowerShell Core supports ARM Linux)
 
 ### Compliance Requirements
 
@@ -56,12 +54,11 @@ jobs:
     runs-on: ubuntu-24.04-arm
 ```
 
-Windows exceptions:
-
 ```yaml
 jobs:
   job-name:
     # ADR-014 Exception: Windows runner required for [specific reason]
+    # Issue: [Link to tracking issue or upstream limitation]
     runs-on: windows-latest
 ```
 
@@ -153,8 +150,3 @@ Before migrating to ARM:
 - [ADR-014: GitHub Actions Runner Selection](../architecture/ADR-014-github-actions-runner-selection.md)
 - [GitHub Actions Pricing](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions)
 - [GitHub ARM Runners Documentation](https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories)
-
----
-
-*Last Updated: 2025-12-21*
-*Policy Owner: DevOps / Infrastructure*
