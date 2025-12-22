@@ -55,7 +55,7 @@
 ### Files Modified in Prior Sessions
 
 - **Commit 1da29cc**: Fixed 6 Copilot issues (function naming, YAML arrays, import paths)
-- **Commit f556d3c**: Fixed 4 Copilot issues (ADR renumbering collision ADR-007 → ADR-011)
+- **Commit f556d3c**: Fixed 4 Copilot issues (ADR renumbering collision ADR-007 → ADR-014)
 
 ## Cleanup Actions
 

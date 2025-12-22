@@ -1,7 +1,7 @@
 # Feature Review Workflow Changes
 
 **Date**: 2025-12-19
-**ADR**: ADR-011-feature-request-review-step.md
+**ADR**: ADR-014-feature-request-review-step.md
 **Status**: Draft - Pending Review
 
 ## Summary
@@ -394,7 +394,7 @@ Describe 'Get-FeatureReviewLabels' {
 
 ## Implementation Checklist
 
-- [ ] ADR-011 reviewed and accepted
+- [ ] ADR-014 reviewed and accepted
 - [ ] Prompt file created: `.github/prompts/issue-feature-review.md`
 - [ ] PowerShell functions added to `AIReviewCommon.psm1`
 - [ ] Pester tests added to `AIReviewCommon.Tests.ps1`

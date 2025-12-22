@@ -25,19 +25,19 @@
 
 | # | Comment ID | File | Issue | Resolution |
 |---|------------|------|-------|------------|
-| 1 | 2638174198 | ADR-011-feature-request-review-step.md | Missing shell directive | FIXED in 3acb9fb |
-| 2 | 2638174215 | ADR-011-feature-request-review-step.md | YAML array syntax incorrect | FIXED in 3acb9fb |
+| 1 | 2638174198 | ADR-014-feature-request-review-step.md | Missing shell directive | FIXED in 3acb9fb |
+| 2 | 2638174215 | ADR-014-feature-request-review-step.md | YAML array syntax incorrect | FIXED in 3acb9fb |
 | 3 | 2638174218 | feature-review-workflow-changes.md | Missing shell directive | Already present (line 32) |
 | 4 | 2638174207 | issue-feature-review.md | Table header inconsistency | DECLINED - intentional design |
 | 5 | 2638174210 | session-56-verification.md | Table alignment | DECLINED - content over formatting |
 
 ### Fixes Applied
 
-1. **YAML Array Syntax** (ADR-011):
+1. **YAML Array Syntax** (ADR-014):
    - Changed `decision-makers: ["architect", "user"]` to `decision-makers: [architect, user]`
    - Same for `consulted` and `informed` fields
 
-2. **Shell Directive** (ADR-011):
+2. **Shell Directive** (ADR-014):
    - Added `shell: pwsh` to Parse Feature Review Results run block
 
 ### Declined with Rationale
@@ -69,7 +69,7 @@
 
 | SHA | Description |
 |-----|-------------|
-| 3acb9fb | fix: address PR #143 review comments for ADR-011 |
+| 3acb9fb | fix: address PR #143 review comments for ADR-014 |
 | 62d43be | Merge origin/main, resolve HANDOFF.md conflict |
 | e08893a | feat: extract skillbook learnings and update Serena memories |
 | 8087848 | fix: session-56 lint evidence and HANDOFF session references |

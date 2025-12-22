@@ -66,7 +66,7 @@
 | [Session 57](./sessions/2025-12-21-session-57-pr-222-review-response.md) | 2025-12-21 | PR Review Response | #222 | Addressed 3 Copilot comments: standardized Import-Module pattern |
 | [Session 56-PR143](./sessions/2025-12-21-session-56-pr-143-verification.md) | 2025-12-21 | PR Verification | #143 | Verified all 14 comments addressed, cleanup |
 | [Session 55-PR143](./sessions/2025-12-21-session-55-pr-143.md) | 2025-12-21 | PR Comment Response | #143 | Won't Fix 1 new comment (memory file reference) |
-| [Session 55-PR143-Init](./sessions/2025-12-21-session-55-pr143-comment-response.md) | 2025-12-21 | PR Comment Response | #143 | ADR-007→ADR-011 renumbering, 4 threads resolved |
+| [Session 55-PR143-Init](./sessions/2025-12-21-session-55-pr143-comment-response.md) | 2025-12-21 | PR Comment Response | #143 | ADR-007→ADR-014 renumbering, 4 threads resolved |
 | [Session 55](./sessions/2025-12-21-session-55-mcp-prd-planning.md) | 2025-12-21 | MCP PRD Planning | N/A | 5-agent consensus workflow: Three-MCP milestone plan |
 
 ### Key Learnings from Session 51 (Debate - Token Efficiency)
@@ -3046,7 +3046,7 @@ Added serena-specific transformation to `scripts/Sync-McpConfig.ps1`:
 - 6 comments fixed in commit 1da29cc (function naming, YAML syntax, import paths)
 - 3 gemini comments declined (style-only table alignment suggestions)
 
-**Key Finding**: Copilot performed exceptionally well (86% actionable) identifying real consistency issues between ADR-011 (feature request review) and planning documents. Well above historical 50% average.
+**Key Finding**: Copilot performed exceptionally well (86% actionable) identifying real consistency issues between ADR-014 (feature request review) and planning documents. Well above historical 50% average.
 
 **Workflow Adaptation**: Standard 8-phase pr-comment-responder workflow adapted for planning-only PR. No implementer/QA delegation needed, simple Won't Fix decision made directly.
 

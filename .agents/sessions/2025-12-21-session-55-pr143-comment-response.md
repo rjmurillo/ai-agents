@@ -168,9 +168,9 @@ Execute pr-comment-responder workflow for PR #143:
 - No orchestrator delegation needed (straightforward fix)
 
 **Phase 5-6: Implementation** [COMPLETE]
-- Renamed ADR-007-feature-request-review-step.md to ADR-011
+- Renamed ADR-007-feature-request-review-step.md to ADR-011 (later renamed to ADR-014 due to collision with Session State MCP ADR)
 - Updated references in 3 files:
-  - `.agents/architecture/ADR-011-feature-request-review-step.md` (title)
+  - `.agents/architecture/ADR-014-feature-request-review-step.md` (title, renumbered from ADR-011)
   - `.agents/planning/feature-review-workflow-changes.md` (2 references)
   - `.agents/HANDOFF.md` (1 reference with clarification)
 - Committed fix: f556d3c
