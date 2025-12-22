@@ -63,7 +63,7 @@ jobs:
        github.actor != 'dependabot[bot]' &&
        github.actor != 'github-actions[bot]' &&
        (github.event.action != 'edited' || github.event.changes.body != null)) ||
-      (github.event_name == 'workflow_dispatch' && inputs.issue_number != '')
+      (github.event_name == 'workflow_dispatch' && inputs.issue_number)
 
     steps:
       - name: Checkout repository
@@ -535,7 +535,7 @@ jobs:
     # - Manual trigger WITHOUT issue_number (sweep mode)
     if: |
       github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.issue_number == '')
+      (github.event_name == 'workflow_dispatch' && !inputs.issue_number)
 
     env:
       GH_TOKEN: ${{ secrets.BOT_PAT }}
@@ -550,19 +550,25 @@ jobs:
         run: |
           Write-Host "Searching for open issues without AI-ISSUE-TRIAGE marker..." -ForegroundColor Cyan
 
-          # Get all open issues
-          $issues = gh issue list --state open --json number,title --limit 100 | ConvertFrom-Json
+          # Get all open issues using pagination (gh api --paginate handles all pages)
+          # This ensures we don't miss issues beyond --limit 100
+          $issueNumbers = gh api "repos/${{ github.repository }}/issues" --paginate -X GET -f state=open -f per_page=100 --jq '.[].number' 2>$null
+          $issues = @($issueNumbers) | Where-Object { $_ }
+
+          Write-Host "Found $($issues.Count) total open issues" -ForegroundColor Cyan
 
           $untriagedIssues = @()
 
-          foreach ($issue in $issues) {
+          foreach ($issueNumber in $issues) {
             # Check if issue has triage comment
-            $comments = gh api "repos/${{ github.repository }}/issues/$($issue.number)/comments" --jq '.[].body' 2>$null
+            $comments = gh api "repos/${{ github.repository }}/issues/$issueNumber/comments" --jq '.[].body' 2>$null
             $hasTriageMarker = $comments | Where-Object { $_ -match 'AI-ISSUE-TRIAGE' }
 
             if (-not $hasTriageMarker) {
-              Write-Host "  Issue #$($issue.number): $($issue.title) - NOT TRIAGED" -ForegroundColor Yellow
-              $untriagedIssues += $issue.number
+              # Get issue title for logging
+              $issueTitle = gh issue view $issueNumber --json title --jq '.title' 2>$null
+              Write-Host "  Issue #$issueNumber: $issueTitle - NOT TRIAGED" -ForegroundColor Yellow
+              $untriagedIssues += $issueNumber
             }
           }
 
@@ -581,6 +587,7 @@ jobs:
         run: |
           $issues = $env:ISSUES.Trim() -split '\s+'
           $triggered = 0
+          $failed = @()
 
           Write-Host "Triggering triage for $($issues.Count) issues..." -ForegroundColor Cyan
 
@@ -588,9 +595,14 @@ jobs:
             if ([string]::IsNullOrWhiteSpace($issueNumber)) { continue }
 
             Write-Host "Triggering workflow for issue #$issueNumber"
-            gh workflow run ai-issue-triage.yml --field issue_number=$issueNumber
+            $result = gh workflow run ai-issue-triage.yml --field issue_number=$issueNumber 2>&1
 
-            $triggered++
+            if ($LASTEXITCODE -ne 0) {
+              Write-Warning "Failed to trigger triage for issue #$issueNumber : $result"
+              $failed += $issueNumber
+            } else {
+              $triggered++
+            }
 
             # Rate limiting: wait 5 seconds between triggers to avoid overwhelming the API
             if ($triggered -lt $issues.Count) {
@@ -600,6 +612,10 @@ jobs:
 
           Write-Host ""
           Write-Host "::notice::Triggered triage for $triggered issues"
+
+          if ($failed.Count -gt 0) {
+            Write-Host "::warning::Failed to trigger triage for issues: $($failed -join ', ')"
+          }
 
       - name: Summary
         if: always()
