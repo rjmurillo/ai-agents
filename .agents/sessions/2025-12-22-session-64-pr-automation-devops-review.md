@@ -95,7 +95,7 @@ Design GitHub Actions workflow for hourly runs.
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Session 64 added to history |
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | 0 errors |
-| MUST | Route to qa agent (feature implementation) | [ ] | N/A (DevOps review, no feature code) |
+| MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/pr-automation-workflow-validation.md` |
 | MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: b2ebd7a |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A (no project plan for this task) |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | No retrospective needed (review task) |
