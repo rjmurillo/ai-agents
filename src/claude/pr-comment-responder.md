@@ -784,7 +784,12 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
 
 #### Step 6.4: Resolve Conversation Thread
 
-**MANDATORY**: After replying with resolution, mark the thread as resolved. This is required for PRs with branch protection rules that require all conversations to be resolved before merging.
+After replying with resolution, mark the thread as resolved. This is required for PRs with branch protection rules that require all conversations to be resolved before merging.
+
+**Exception**: Do NOT auto-resolve when:
+
+1. The reviewer is human (let them resolve after verifying)
+2. You need a response from the reviewer (human or bot)
 
 ```powershell
 # Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
@@ -855,6 +860,8 @@ fi
 #### Phase 8.2: Verify Conversation Resolution
 
 **BLOCKING**: All conversations MUST be resolved for the PR to be mergeable with branch protection rules.
+
+**Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
 
 ```powershell
 # Run bulk resolution to ensure all threads are resolved
