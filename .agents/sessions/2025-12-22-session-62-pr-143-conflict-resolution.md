@@ -74,6 +74,7 @@
 | e08893a | feat: extract skillbook learnings and update Serena memories |
 | 8087848 | fix: session-56 lint evidence and HANDOFF session references |
 | 8add528 | docs: update session 62 with final CI status |
+| 2b436a0 | fix: rename ADR-011 to ADR-014 to resolve collision with Session State MCP |
 
 ### Session End (COMPLETE ALL before closing)
 
@@ -83,7 +84,7 @@
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | 0 errors |
 | MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/pr-143-issue-feature-review-prompt.md` |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 8add528 |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 2b436a0 |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A |
 | SHOULD | Verify clean git status | [x] | Clean after push |
