@@ -249,18 +249,25 @@ function Test-RateLimitSafe {
 
             $remaining = [int]$resource.remaining
             $limit = [int]$resource.limit
-            
+            $resetEpoch = [int]$resource.reset
+
             if ($remaining -lt $threshold) {
-                $violations += "$resourceName: $remaining/$limit (threshold: $threshold)"
+                # Calculate reset time for smarter scheduling
+                $resetTime = [DateTimeOffset]::FromUnixTimeSeconds($resetEpoch).LocalDateTime
+                $timeUntilReset = $resetTime - (Get-Date)
+                $violations += "${resourceName}: $remaining/$limit (threshold: $threshold, resets in $([int]$timeUntilReset.TotalMinutes) minutes)"
                 $allResourcesSafe = $false
             }
             else {
-                Write-Log "Rate limit OK for $resourceName: $remaining/$limit remaining" -Level INFO
+                Write-Log "Rate limit OK for ${resourceName}: $remaining/$limit remaining" -Level INFO
             }
         }
 
         if (-not $allResourcesSafe) {
             Write-Log "API rate limit too low for: $($violations -join ', ')" -Level WARN
+            # Log next available run time for scheduling
+            $coreReset = [DateTimeOffset]::FromUnixTimeSeconds([int]$rateLimit.resources.core.reset).UtcDateTime
+            Write-Log "Rate limit resets at: $($coreReset.ToString('yyyy-MM-dd HH:mm:ss')) UTC" -Level INFO
             return $false
         }
 
@@ -479,6 +486,7 @@ function Resolve-PRConflicts {
         [string]$Repo,
         [long]$PRNumber,  # ADR-015 Fix 4: Int64
         [string]$BranchName,
+        [string]$TargetBranch = 'main',  # PR target branch (baseRefName)
         [switch]$DryRun
     )
 
@@ -511,9 +519,9 @@ function Resolve-PRConflicts {
 
         Push-Location $worktreePath
 
-        # Fetch and merge main
-        git fetch origin main 2>&1 | Out-Null
-        $mergeResult = git merge origin/main 2>&1
+        # Fetch and merge target branch (not hardcoded main)
+        git fetch origin $TargetBranch 2>&1 | Out-Null
+        $mergeResult = git merge "origin/$TargetBranch" 2>&1
 
         if ($LASTEXITCODE -ne 0) {
             # Check if conflicts are in HANDOFF.md only (accept theirs)
@@ -538,11 +546,14 @@ function Resolve-PRConflicts {
             }
 
             # Complete merge
-            git commit -m "Merge main into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1 | Out-Null
+            git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1 | Out-Null
         }
 
-        # Push
-        git push origin $BranchName 2>&1 | Out-Null
+        # Push (check exit code to detect failures)
+        $pushOutput = git push origin $BranchName 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Git push failed: $pushOutput"
+        }
 
         Write-Log "Successfully resolved conflicts for PR #$PRNumber" -Level SUCCESS
         return $true
@@ -690,7 +701,7 @@ function Invoke-PRMaintenance {
             # Check and resolve merge conflicts
             if ($pr.mergeable -eq 'CONFLICTING') {
                 Write-Log "PR #$($pr.number) has merge conflicts - attempting resolution" -Level ACTION
-                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.head -DryRun:$DryRun
+                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.head -TargetBranch $pr.base -DryRun:$DryRun
                 if ($resolved) {
                     $results.ConflictsResolved++
                 }
@@ -748,11 +759,16 @@ try {
             if (-not $Repo) { $Repo = $repoInfo.Repo }
         }
 
-        # Safety check: ensure we're not on a protected branch
+        # Safety check: ensure we're not on a protected branch (unless in CI)
+        # In GitHub Actions scheduled runs, we checkout main but only READ PR data via API
         $currentBranch = git branch --show-current
-        if ($currentBranch -in $script:Config.ProtectedBranches) {
-            Write-Log "ERROR: Cannot run on protected branch '$currentBranch'" -Level ERROR
+        $isCI = $env:GITHUB_ACTIONS -eq 'true'
+        if ($currentBranch -in $script:Config.ProtectedBranches -and -not $isCI) {
+            Write-Log "ERROR: Cannot run on protected branch '$currentBranch' outside CI" -Level ERROR
             exit 2
+        }
+        if ($currentBranch -in $script:Config.ProtectedBranches -and $isCI) {
+            Write-Log "Running on protected branch '$currentBranch' in CI mode (read-only operations via API)" -Level INFO
         }
 
         # Run maintenance

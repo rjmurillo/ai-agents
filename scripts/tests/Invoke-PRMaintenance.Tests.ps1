@@ -397,7 +397,10 @@ Describe "Invoke-PRMaintenance.ps1" {
                 }
                 if ($Args -contains "add") { return "" }
                 if ($Args -contains "commit") { return "" }
-                if ($Args -contains "push") { return "" }
+                if ($Args -contains "push") {
+                    $global:LASTEXITCODE = 0  # Push succeeds
+                    return ""
+                }
 
                 return ""
             }
@@ -628,7 +631,10 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
 
         It "Uses try/finally for cleanup in Resolve-PRConflicts" {
-            $Script:ScriptContent | Should -Match 'function Resolve-PRConflicts.*try.*finally'
+            # Check for try and finally blocks separately (regex .* doesn't span newlines)
+            $Script:ScriptContent | Should -Match 'function Resolve-PRConflicts'
+            $Script:ScriptContent | Should -Match 'try\s*\{'
+            $Script:ScriptContent | Should -Match 'finally\s*\{'
         }
 
         It "Never hardcodes repository paths" {
@@ -1013,34 +1019,67 @@ Describe "Invoke-PRMaintenance.ps1" {
     }
 
     Context "Test-RateLimitSafe - API Response Handling" {
-        It "Returns true when remaining > minimum" {
+        BeforeAll {
+            # Helper to create rate limit response with all resources
+            $Script:CreateRateLimitResponse = {
+                param(
+                    [int]$CoreRemaining = 500,
+                    [int]$SearchRemaining = 20,
+                    [int]$CodeSearchRemaining = 10,
+                    [int]$GraphqlRemaining = 500
+                )
+                $reset = [int]([DateTimeOffset]::UtcNow.AddHours(1).ToUnixTimeSeconds())
+                return @"
+{
+    "resources": {
+        "core": { "remaining": $CoreRemaining, "limit": 5000, "reset": $reset },
+        "search": { "remaining": $SearchRemaining, "limit": 30, "reset": $reset },
+        "code_search": { "remaining": $CodeSearchRemaining, "limit": 10, "reset": $reset },
+        "graphql": { "remaining": $GraphqlRemaining, "limit": 5000, "reset": $reset }
+    }
+}
+"@
+            }
+        }
+
+        It "Returns true when all resources above thresholds" {
             Mock gh {
                 $global:LASTEXITCODE = 0
-                return '{"remaining": 500, "limit": 5000}'
+                return & $Script:CreateRateLimitResponse -CoreRemaining 500 -SearchRemaining 20 -CodeSearchRemaining 10 -GraphqlRemaining 500
             }
 
-            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result = Test-RateLimitSafe
             $result | Should -Be $true
         }
 
-        It "Returns false when remaining < minimum" {
+        It "Returns false when core remaining < threshold" {
             Mock gh {
                 $global:LASTEXITCODE = 0
-                return '{"remaining": 100, "limit": 5000}'
+                return & $Script:CreateRateLimitResponse -CoreRemaining 50 -SearchRemaining 20 -CodeSearchRemaining 10 -GraphqlRemaining 500
             }
 
-            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result = Test-RateLimitSafe
             $result | Should -Be $false
         }
 
-        It "Returns true when remaining = minimum (uses strict less-than)" {
-            # Function uses -lt, so 200 < 200 is false, meaning rate limit is OK
+        It "Returns false when search remaining < threshold" {
             Mock gh {
                 $global:LASTEXITCODE = 0
-                return '{"remaining": 200, "limit": 5000}'
+                return & $Script:CreateRateLimitResponse -CoreRemaining 500 -SearchRemaining 10 -CodeSearchRemaining 10 -GraphqlRemaining 500
             }
 
-            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result = Test-RateLimitSafe
+            $result | Should -Be $false
+        }
+
+        It "Returns true when remaining = threshold (uses strict less-than)" {
+            # Function uses -lt, so 100 < 100 is false, meaning rate limit is OK
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return & $Script:CreateRateLimitResponse -CoreRemaining 100 -SearchRemaining 15 -CodeSearchRemaining 5 -GraphqlRemaining 100
+            }
+
+            $result = Test-RateLimitSafe
             $result | Should -Be $true
         }
 
@@ -1050,7 +1089,7 @@ Describe "Invoke-PRMaintenance.ps1" {
                 return "Error: API error"
             }
 
-            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result = Test-RateLimitSafe
             $result | Should -Be $true
         }
 
@@ -1060,18 +1099,19 @@ Describe "Invoke-PRMaintenance.ps1" {
                 return "INVALID JSON"
             }
 
-            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result = Test-RateLimitSafe
             $result | Should -Be $true
         }
 
-        It "Uses default minimum of 200" {
+        It "Accepts custom resource thresholds" {
             Mock gh {
                 $global:LASTEXITCODE = 0
-                return '{"remaining": 199, "limit": 5000}'
+                return & $Script:CreateRateLimitResponse -CoreRemaining 500 -SearchRemaining 20 -CodeSearchRemaining 10 -GraphqlRemaining 500
             }
 
-            $result = Test-RateLimitSafe
-            $result | Should -Be $false
+            # Custom thresholds should still pass
+            $result = Test-RateLimitSafe -ResourceThresholds @{ 'core' = 200 }
+            $result | Should -Be $true
         }
     }
 
