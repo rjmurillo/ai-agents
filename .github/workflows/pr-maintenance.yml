@@ -125,7 +125,9 @@ jobs:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
         shell: pwsh
         run: |
-          $dryRun = if ('${{ inputs.dry_run }}' -eq 'true') { $true } else { $false }
+          # For scheduled runs, inputs.dry_run is empty - default to true for safety (ADR-015)
+          $inputValue = '${{ inputs.dry_run }}'
+          $dryRun = if ($inputValue -eq 'false') { $false } else { $true }
           $maxPRs = [int]'${{ env.PR_MAX_PRS }}'
 
           Write-Host "Running PR maintenance (DryRun: $dryRun, MaxPRs: $maxPRs)"
