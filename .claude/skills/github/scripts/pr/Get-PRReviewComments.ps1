@@ -84,7 +84,7 @@ if ($IncludeIssueComments) {
     Write-Verbose "Fetching issue comments for PR #$PullRequest"
     $issueComments = Invoke-GhApiPaginated -Endpoint "repos/$Owner/$Repo/issues/$PullRequest/comments"
 
-    $processedIssueComments = foreach ($comment in $issueComments) {
+    $processedIssueComments = @(foreach ($comment in $issueComments) {
         if ($Author -and $comment.user.login -ne $Author) { continue }
 
         [PSCustomObject]@{
@@ -104,14 +104,14 @@ if ($IncludeIssueComments) {
             HtmlUrl     = $comment.html_url
             CommitId    = $null
         }
-    }
+    })
 }
 
 # Combine all comments
 $allProcessedComments = @($processedReviewComments) + @($processedIssueComments)
 
 # Sort by creation date
-$allProcessedComments = @($allProcessedComments) | Sort-Object -Property CreatedAt
+$allProcessedComments = $allProcessedComments | Sort-Object -Property CreatedAt
 
 $authorGroups = @($allProcessedComments) | Group-Object -Property Author
 
@@ -134,9 +134,10 @@ $output = [PSCustomObject]@{
 
 Write-Output $output
 
-$commentSummary = "PR #$($PullRequest): $reviewCount review"
+$reviewText = if ($reviewCount -eq 1) { "review comment" } else { "review comments" }
+$commentSummary = "PR #$($PullRequest): $reviewCount $reviewText"
 if ($IncludeIssueComments) {
-    $commentSummary += " + $issueCount issue"
+    $issueText = if ($issueCount -eq 1) { "issue comment" } else { "issue comments" }
+    $commentSummary += " + $issueCount $issueText"
 }
-$commentSummary += " comments"
 Write-Host $commentSummary -ForegroundColor Cyan
