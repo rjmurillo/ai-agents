@@ -547,6 +547,10 @@ Summary complete.
             Get-VerdictEmoji -Verdict 'WARN' | Should -Be '⚠️'
         }
 
+        It "Should return warning for PARTIAL" {
+            Get-VerdictEmoji -Verdict 'PARTIAL' | Should -Be '⚠️'
+        }
+
         It "Should return X for CRITICAL_FAIL" {
             Get-VerdictEmoji -Verdict 'CRITICAL_FAIL' | Should -Be '❌'
         }

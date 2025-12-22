@@ -436,12 +436,20 @@ function Get-VerdictAlertType {
         [string]$Verdict
     )
 
-    switch ($Verdict) {
-        { $_ -in 'PASS', 'COMPLIANT' } { return 'TIP' }
-        { $_ -in 'WARN', 'PARTIAL' } { return 'WARNING' }
-        { $_ -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL' } { return 'CAUTION' }
-        default { return 'NOTE' }
+    $alertTypeMap = @{
+        'PASS'          = 'TIP'
+        'COMPLIANT'     = 'TIP'
+        'WARN'          = 'WARNING'
+        'PARTIAL'       = 'WARNING'
+        'CRITICAL_FAIL' = 'CAUTION'
+        'REJECTED'      = 'CAUTION'
+        'FAIL'          = 'CAUTION'
     }
+
+    if ($alertTypeMap.ContainsKey($Verdict)) {
+        return $alertTypeMap[$Verdict]
+    }
+    return 'NOTE'
 }
 
 function Get-VerdictExitCode {
@@ -700,12 +708,20 @@ function Get-VerdictEmoji {
         [string]$Verdict
     )
 
-    switch ($Verdict) {
-        { $_ -in 'PASS', 'COMPLIANT' } { return '✅' }
-        'WARN' { return '⚠️' }
-        { $_ -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL' } { return '❌' }
-        default { return '❔' }
+    $emojiMap = @{
+        'PASS'          = '✅'
+        'COMPLIANT'     = '✅'
+        'WARN'          = '⚠️'
+        'PARTIAL'       = '⚠️'
+        'CRITICAL_FAIL' = '❌'
+        'REJECTED'      = '❌'
+        'FAIL'          = '❌'
     }
+
+    if ($emojiMap.ContainsKey($Verdict)) {
+        return $emojiMap[$Verdict]
+    }
+    return '❔'
 }
 
 #endregion
