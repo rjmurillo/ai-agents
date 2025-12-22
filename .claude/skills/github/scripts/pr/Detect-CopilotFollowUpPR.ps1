@@ -66,7 +66,7 @@ function Get-CopilotAnnouncement {
     )
 
     $comments = gh api repos/$script:Owner/$script:Repo/issues/$PRNumber/comments `
-        --jq '.[] | select(.user.login == "app/copilot-swe-agent" and (.body | contains("opened a new pull request"))) | {id: .id, body: .body, created_at: .created_at}' 2>/dev/null
+        --jq '.[] | select(.user.login == "app/copilot-swe-agent" and (.body | contains("opened a new pull request"))) | {id: .id, body: .body, created_at: .created_at}' 2>$null
 
     if ($null -eq $comments -or $comments -eq '') {
         return $null
@@ -86,7 +86,7 @@ function Get-FollowUpPRDiff {
         [int]$FollowUpPRNumber
     )
 
-    $diff = gh pr diff $FollowUpPRNumber --no-merges 2>/dev/null
+    $diff = gh pr diff $FollowUpPRNumber --no-merges 2>$null
     return $diff
 }
 
@@ -100,7 +100,7 @@ function Get-OriginalPRCommits {
         [int]$PRNumber
     )
 
-    $pr = gh pr view $PRNumber --json commits --jq '.' 2>/dev/null | ConvertFrom-Json
+    $pr = gh pr view $PRNumber --json commits --jq '.' 2>$null | ConvertFrom-Json
 
     if ($null -eq $pr) {
         return @()
@@ -109,7 +109,7 @@ function Get-OriginalPRCommits {
     $commits = @()
     try {
         $commitData = gh api repos/$script:Owner/$script:Repo/commits `
-            --jq ".[] | select(.commit.message | contains(\"PR $PRNumber\") or contains(\"Comment-ID\"))" 2>/dev/null
+            --jq ".[] | select(.commit.message | contains(\"PR $PRNumber\") or contains(\"Comment-ID\"))" 2>$null
         if ($commitData) {
             $commits = @($commitData | ConvertFrom-Json -ErrorAction SilentlyContinue)
         }
@@ -171,7 +171,7 @@ function Invoke-FollowUpDetection {
 
     $followUpPRs = @()
     try {
-        $prData = gh pr list --state=open --search $followUpPRQuery --json=number,title,body,headRefName,baseRefName,state,author,createdAt 2>/dev/null | ConvertFrom-Json
+        $prData = gh pr list --state=open --search $followUpPRQuery --json=number,title,body,headRefName,baseRefName,state,author,createdAt 2>$null | ConvertFrom-Json
         if ($prData -is [array]) {
             $followUpPRs = @($prData)
         }
