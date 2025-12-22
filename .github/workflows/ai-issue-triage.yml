@@ -591,7 +591,9 @@ jobs:
 
           Write-Host "Triggering triage for $($issues.Count) issues..." -ForegroundColor Cyan
 
+          $index = 0
           foreach ($issueNumber in $issues) {
+            $index++
             if ([string]::IsNullOrWhiteSpace($issueNumber)) { continue }
 
             Write-Host "Triggering workflow for issue #$issueNumber"
@@ -605,7 +607,8 @@ jobs:
             }
 
             # Rate limiting: wait 5 seconds between triggers to avoid overwhelming the API
-            if ($triggered -lt $issues.Count) {
+            # Use index-based check to ensure consistent sleep regardless of success/failure
+            if ($index -lt $issues.Count) {
               Start-Sleep -Seconds 5
             }
           }

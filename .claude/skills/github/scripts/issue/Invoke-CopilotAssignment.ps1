@@ -321,6 +321,8 @@ function Test-HasSynthesizableContent {
         - CodeRabbit plan (implementation details, related issues/PRs)
 
         If no content exists, synthesis should be skipped to avoid empty comments.
+        For this purpose, $null, empty strings (""), and whitespace-only strings
+        are all treated as "no content" and do not cause synthesis to run.
 
     .PARAMETER MaintainerGuidance
         Array of guidance items extracted from maintainer comments.
@@ -353,16 +355,19 @@ function Test-HasSynthesizableContent {
         return $true
     }
 
-    # Check AI triage
-    if ($AITriage -and ($AITriage.Priority -or $AITriage.Category)) {
+    # Check AI triage (use IsNullOrWhiteSpace to properly handle empty strings)
+    if ($AITriage -and (
+            -not [string]::IsNullOrWhiteSpace([string]$AITriage.Priority) -or
+            -not [string]::IsNullOrWhiteSpace([string]$AITriage.Category)
+        )) {
         return $true
     }
 
-    # Check CodeRabbit plan
+    # Check CodeRabbit plan (add null checks before accessing Count for strict mode safety)
     if ($CodeRabbitPlan) {
         if ($CodeRabbitPlan.Implementation -or
-            $CodeRabbitPlan.RelatedIssues.Count -gt 0 -or
-            $CodeRabbitPlan.RelatedPRs.Count -gt 0) {
+            ($CodeRabbitPlan.RelatedIssues -and $CodeRabbitPlan.RelatedIssues.Count -gt 0) -or
+            ($CodeRabbitPlan.RelatedPRs -and $CodeRabbitPlan.RelatedPRs.Count -gt 0)) {
             return $true
         }
     }
