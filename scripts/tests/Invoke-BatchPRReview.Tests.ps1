@@ -8,7 +8,7 @@
 
 .NOTES
     Requires Pester 5.x or later.
-# >
+#>
 
 BeforeAll {
     $Script:ScriptPath = Join-Path $PSScriptRoot "..\Invoke-BatchPRReview.ps1"
