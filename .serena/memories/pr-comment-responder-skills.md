@@ -259,10 +259,10 @@ When handling PR review comments:
 
 | Reviewer | PRs Reviewed | Total Comments | Verified Actionable | Signal Rate | Trend |
 |----------|-------------|----------------|---------------------|-------------|-------|
-| **cursor[bot]** | 14 PRs (#32-#249) | 45 | 28/30 verified | **~95%** | ✅ Stable |
-| **Copilot** | 46+ PRs | 445 | ~153 est. | **~34%** | ↓ Declining |
-| **coderabbitai[bot]** | 12 PRs | 163 | ~80 est. | **~50%** | → Stable |
-| **gemini-code-assist[bot]** | 16 PRs | 54 | ~13 est. | **~24%** | → Stable |
+| **cursor[bot]** | 14 PRs (#32-#249) | 45 | 28/28 verified | **100%** | ✅ Stable (n=28/30 to skip-analysis) |
+| **Copilot** | 47+ PRs | 459 | ~156 est. | **~34%** | ↓ Declining to 21% |
+| **coderabbitai[bot]** | 13 PRs | 164 | ~80 est. | **~49%** | → Stable |
+| **gemini-code-assist[bot]** | 17 PRs | 59 | ~14 est. | **~24%** | → Stable |
 
 ### Per-PR Breakdown
 
@@ -365,7 +365,7 @@ Based on cumulative signal quality (53 PRs, 683 bot comments):
 
 | Priority | Reviewer | Action | Rationale |
 |----------|----------|--------|-----------|
-| **P0** | cursor[bot] | Verify then fix | ~95% actionable (n=37), near trust threshold |
+| **P0** | cursor[bot] | Verify then fix | 100% actionable (n=28), 93% to skip-analysis |
 | **P1** | Human reviewers | Process with priority | Domain expertise, context |
 | **P2** | coderabbitai[bot] | Review carefully | ~50% signal (n=163), stable trend |
 | **P3** | Copilot | Skim for real issues | ~35% signal (n=431), declining trend, high volume |
@@ -598,8 +598,8 @@ fi
 ## Metrics (as of PR #229)
 
 - **Triage accuracy**: 100% (8/8 in PR #229, 20/20 in PR #212, 7/7 in PR #52, 8/8 in PR #47)
-- **cursor[bot] actionability**: ~95% (20+/37 verified across 13 PRs)
-- **Copilot actionability**: ~35% (estimated from 431 total comments) - DECLINING
+- **cursor[bot] actionability**: 100% (28/28 verified across 14 PRs)
+- **Copilot actionability**: ~34% (estimated from 459 total comments) - DECLINING to 21%
 - **CodeRabbit actionability**: ~50% (estimated from 163 total comments)
 - **gemini-code-assist[bot] actionability**: ~25% (estimated from 49 total comments)
 - **Quick Fix efficiency**: 7 bugs fixed (PR #229: 2 cursor[bot] bugs + 1 Copilot doc fix)
@@ -614,9 +614,9 @@ fi
 
 | Reviewer | Total Comments | PRs with Comments | Est. Actionability |
 |----------|----------------|-------------------|-------------------|
-| **cursor[bot]** | 37 | 13 PRs | ~95% |
-| **Copilot** | 431 | 45+ PRs | ~35% |
-| **coderabbitai[bot]** | 163 | 12 PRs | ~50% |
+| **cursor[bot]** | 45 | 14 PRs | 100% |
+| **Copilot** | 459 | 47+ PRs | ~34% |
+| **coderabbitai[bot]** | 164 | 13 PRs | ~49% |
 | **gemini-code-assist[bot]** | 49 | 15 PRs | ~25% |
 | **github-advanced-security[bot]** | 3 | 2 PRs | 100% (security) |
 

@@ -13,7 +13,8 @@ cursor[bot] (Cursor Bugbot) is an AI code reviewer that has demonstrated excepti
 | #52 | 5 | 5 | 100% | Git staging, status messages, grep patterns, SKIP_AUTOFIX ignored, PassThru exit codes |
 | #212 | 2 | 2 | 100% | Milestone single-item check, null method call on empty results |
 | #249 | 8 | 8 | 100% | Hardcoded branch, DryRun bypass, CI blocking, missing env var, exit codes, test drift |
-| **Total** | **20** | **20** | **100%** | All comments identified real bugs |
+| #249 | 8 | 8 | 100% | Hardcoded branch, DryRun bypass, CI blocking, missing env var, exit codes, test drift |
+| **Total** | **28** | **28** | **100%** | All comments identified real bugs |
 
 ## Pattern: Bug Detection Focus
 
@@ -68,6 +69,13 @@ cursor[bot] excels at detecting:
 - Hardcoded values instead of parameterized inputs (PR #249: 'main' branch hardcoded)
 - Test-implementation drift when parameters change (PR #249: -MinimumRemaining vs $ResourceThresholds)
 
+### 10. Pre-PR Validation Gaps (NEW from PR #249)
+
+- Cross-cutting concerns not tested (branch names, CI environment, env var propagation)
+- Fail-safe vs fail-open logic inversions (scheduled triggers bypassing safety)
+- Test-implementation synchronization drift (parameter name changes)
+- Logging gaps in error paths (rate limit reset time not captured)
+
 ## Handling Recommendations
 
 ### Priority: HIGH (Trust But Verify)
@@ -86,11 +94,11 @@ if comment.author == "cursor[bot]":
 
 ### Sample Size Limitation
 
-**Current sample**: n=20 comments across 5 PRs (100% actionable)
+**Current sample**: n=28 comments across 6 PRs (100% actionable)
 
-**Statistical note**: With 20 samples and 0 failures, the 95% confidence interval for true actionability is approximately 84-100%. Approaching "skip analysis" threshold.
+**Statistical note**: With 28 samples and 0 failures, the 95% confidence interval for true actionability is approximately 88-100%. Approaching "skip analysis" threshold.
 
-**Threshold for "skip analysis"**: When sample reaches n=30 with continued 100% rate, upgrade to skip-analysis handling. Currently at 20/30 (67% to threshold).
+**Threshold for "skip analysis"**: When sample reaches n=30 with continued 100% rate, upgrade to skip-analysis handling. Currently at 28/30 (93% to threshold).
 
 ### Track Record
 

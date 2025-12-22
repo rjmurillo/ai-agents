@@ -99,6 +99,20 @@ Copilot cross-references inlined content against source documentation files and 
 
 ---
 
+---
+
+## Actionability Trend
+
+| Metric | Historical | PR #249 | Trend |
+|--------|-----------|---------|-------|
+| Signal Quality | ~35% | 21% | ↓ DECLINING |
+| False Positives | ~10% | 64% | ↑ INCREASING |
+| Duplicates of cursor[bot] | ~5% | 14% | → STABLE |
+
+**Recommendation**: Copilot signal quality declining. Increase verification rigor. Prioritize cursor[bot] comments first.
+
+---
+
 ## Response Templates
 
 **Accept suggestion**:
