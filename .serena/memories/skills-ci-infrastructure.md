@@ -697,6 +697,107 @@ required_status_checks:
 
 ---
 
+## Skill-CI-Integration-Test-001: Workflow Integration Testing (88%)
+
+**Statement**: Test GitHub Actions workflows in dry-run mode or separate test environment before merging changes
+
+**Context**: When modifying GitHub Actions workflows, especially those with external dependencies or script imports
+
+**Trigger**: Changes to `.github/workflows/*.yml`, `.github/actions/**`, or `.github/scripts/**`
+
+**Evidence**: PR #212: Workflow changed to use PowerShell Import-Module. No pre-merge test triggered workflow. First failure occurred 5 hours post-merge on real issue creation (#219, #220). 51 bot reviews didn't execute workflow code.
+
+**Atomicity**: 88%
+
+**Tag**: helpful (prevents production failures)
+
+**Impact**: 8/10
+
+**Created**: 2025-12-21
+
+**Problem**:
+
+- Static analysis (linting, syntax check) doesn't catch runtime errors
+- Bot reviews analyze code but don't execute in CI context
+- Workflow only tested in production when triggered by real events
+- Environment-specific issues (paths, modules, auth) slip through
+
+**Solution**:
+
+```yaml
+# .github/workflows/workflow-validation.yml
+name: Workflow Validation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+      - '.github/scripts/**'
+
+jobs:
+  validate-workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Syntax validation (built-in)
+      - name: Validate workflow syntax
+        run: |
+          for workflow in .github/workflows/*.yml; do
+            echo "Validating $workflow"
+            gh workflow view "$(basename $workflow)" || exit 1
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # Test PowerShell scripts in isolation
+      - name: Test PowerShell modules
+        shell: pwsh
+        run: |
+          # Test module import (catches path issues)
+          Import-Module ./.github/scripts/AIReviewCommon.psm1
+
+          # Test exported functions exist
+          Get-Command -Module AIReviewCommon
+
+      # Dry-run workflow with test data
+      - name: Test AI triage workflow (dry-run)
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: issue
+          issue-number: 1  # Test issue
+          prompt-file: .github/prompts/issue-triage-categorize.md
+          timeout-minutes: 1
+```
+
+**Alternative: Manual testing checklist**:
+
+```markdown
+## Pre-merge Workflow Testing
+
+- [ ] Workflow syntax validates (`gh workflow view`)
+- [ ] PowerShell modules import successfully
+- [ ] Scripts execute in CI environment (ubuntu-latest)
+- [ ] Dry-run with test data completes
+- [ ] No hard-coded paths or assumptions
+```
+
+**Why It Matters**:
+
+Workflows are production code but often not tested pre-merge. Runtime errors only caught when workflow triggers (could be hours/days later). Failed workflows break user-facing functionality. Integration tests catch environment-specific issues (paths, modules, auth).
+
+**Anti-pattern**:
+
+- Merging workflow changes without execution test
+- Relying solely on bot reviews for workflow validation
+- Assuming syntax validation catches runtime errors
+
+**Validation**: 1 (PR #212 failure, 5-hour production outage)
+
+---
+
 ## Related Files
 
 - Test Runner: `build/scripts/Invoke-PesterTests.ps1`

@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Label PR
+
+# Automatically applies labels to PRs based on file paths and branch names
+# Uses static configuration from .github/labeler.yml instead of AI analysis
+#
+# SECURITY NOTE: This workflow uses pull_request_target intentionally.
+# The actions/labeler action only reads file paths from the PR diff metadata
+# and does not execute any code from the PR branch, making this safe for fork PRs.
+# See: https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    name: Apply Labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    # Skip for bot PRs (Dependabot, GitHub Actions)
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      github.actor != 'github-actions[bot]'
+
+    steps:
+      - name: Apply labels based on file changes
+        uses: actions/labeler@8558fd74291d67161a8a78ce36a881fa63b766a9 # v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+          sync-labels: false
