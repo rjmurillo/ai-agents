@@ -100,14 +100,11 @@ function Get-OriginalPRCommits {
         [int]$PRNumber
     )
 
-    $pr = gh pr view $PRNumber --json commits,baseRefName,headRefName --jq '.' 2>/dev/null | ConvertFrom-Json
+    $pr = gh pr view $PRNumber --json commits --jq '.' 2>/dev/null | ConvertFrom-Json
 
     if ($null -eq $pr) {
         return @()
     }
-
-    $baseRef = $pr.baseRefName
-    $headRef = $pr.headRefName
 
     $commits = @()
     try {
