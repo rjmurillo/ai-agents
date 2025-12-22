@@ -461,33 +461,33 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
-    Context "Test-PRSuperseded Function" {
-        It "Returns Superseded=false when no similar PRs" {
+    Context "Get-SimilarPRs Function" {
+        It "Returns empty array when no similar PRs" {
             Mock gh {
                 return "[]"
             }
 
-            $result = Test-PRSuperseded -Owner "test" -Repo "repo" -PRNumber 123 -Title "feat: unique feature"
-            $result.Superseded | Should -Be $false
+            $result = Get-SimilarPRs -Owner "test" -Repo "repo" -PRNumber 123 -Title "feat: unique feature"
+            $result.Count | Should -Be 0
         }
 
-        It "Returns Superseded=true when merged PR has matching title" {
+        It "Returns similar PRs when merged PR has matching title" {
             Mock gh {
                 return ($Script:Fixtures.MergedPRs | ConvertTo-Json)
             }
 
-            $result = Test-PRSuperseded -Owner "test" -Repo "repo" -PRNumber 123 -Title "feat: add feature X"
-            $result.Superseded | Should -Be $true
-            $result.SupersededBy | Should -Be 789
+            $result = Get-SimilarPRs -Owner "test" -Repo "repo" -PRNumber 123 -Title "feat: add feature X"
+            $result.Count | Should -BeGreaterThan 0
+            $result[0].Number | Should -Be 789
         }
 
-        It "Returns Superseded=false for same PR number" {
+        It "Excludes same PR number from results" {
             Mock gh {
                 return ($Script:Fixtures.MergedPRs | ConvertTo-Json)
             }
 
-            $result = Test-PRSuperseded -Owner "test" -Repo "repo" -PRNumber 789 -Title "feat: add feature X v2"
-            $result.Superseded | Should -Be $false
+            $result = Get-SimilarPRs -Owner "test" -Repo "repo" -PRNumber 789 -Title "feat: add feature X v2"
+            $result.Count | Should -Be 0
         }
 
         It "Handles titles without colons" {
@@ -495,56 +495,25 @@ Describe "Invoke-PRMaintenance.ps1" {
                 return '[{"number": 800, "title": "No colon title"}]'
             }
 
-            { Test-PRSuperseded -Owner "test" -Repo "repo" -PRNumber 123 -Title "No colon title" } | Should -Not -Throw
+            { Get-SimilarPRs -Owner "test" -Repo "repo" -PRNumber 123 -Title "No colon title" } | Should -Not -Throw
         }
     }
 
-    Context "Close-SupersededPR Function" {
-        It "Returns true on successful close" {
-            Mock gh {
-                return ""
-            }
-
-            $result = Close-SupersededPR -Owner "test" -Repo "repo" -PRNumber 123 -SupersededBy 456
-            $result | Should -Be $true
+    Context "Test-IsGitHubRunner Function" {
+        It "Returns true when GITHUB_ACTIONS environment variable is set" {
+            $env:GITHUB_ACTIONS = "true"
+            
+            Test-IsGitHubRunner | Should -Be $true
+            
+            Remove-Item env:GITHUB_ACTIONS
         }
 
-        It "Returns true when DryRun mode enabled" {
-            $result = Close-SupersededPR -Owner "test" -Repo "repo" -PRNumber 123 -SupersededBy 456 -DryRun
-            $result | Should -Be $true
-        }
-
-        It "Posts comment before closing" {
-            $script:CommentPosted = $false
-            $script:PRClosed = $false
-
-            Mock gh {
-                param([Parameter(ValueFromRemainingArguments)]$Args)
-                if ($Args -contains "comment") {
-                    $script:CommentPosted = $true
-                    if ($script:PRClosed) {
-                        throw "Comment posted after close"
-                    }
-                }
-                if ($Args -contains "close") {
-                    $script:PRClosed = $true
-                }
-                return ""
+        It "Returns false when GITHUB_ACTIONS environment variable is not set" {
+            if (Test-Path env:GITHUB_ACTIONS) {
+                Remove-Item env:GITHUB_ACTIONS
             }
-
-            Close-SupersededPR -Owner "test" -Repo "repo" -PRNumber 123 -SupersededBy 456
-
-            $script:CommentPosted | Should -Be $true
-            $script:PRClosed | Should -Be $true
-        }
-
-        It "Returns false on gh CLI failure" {
-            Mock gh {
-                throw "API Error"
-            }
-
-            $result = Close-SupersededPR -Owner "test" -Repo "repo" -PRNumber 123 -SupersededBy 456
-            $result | Should -Be $false
+            
+            Test-IsGitHubRunner | Should -Be $false
         }
     }
 
@@ -1013,34 +982,60 @@ Describe "Invoke-PRMaintenance.ps1" {
     }
 
     Context "Test-RateLimitSafe - API Response Handling" {
-        It "Returns true when remaining > minimum" {
+        It "Returns true when all resources above thresholds" {
             Mock gh {
                 $global:LASTEXITCODE = 0
-                return '{"remaining": 500, "limit": 5000}'
+                return @'
+{
+  "resources": {
+    "core": { "remaining": 500, "limit": 5000 },
+    "search": { "remaining": 30, "limit": 30 },
+    "code_search": { "remaining": 10, "limit": 10 },
+    "graphql": { "remaining": 500, "limit": 5000 }
+  }
+}
+'@
             }
 
-            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result = Test-RateLimitSafe
             $result | Should -Be $true
         }
 
-        It "Returns false when remaining < minimum" {
+        It "Returns false when any resource below threshold" {
             Mock gh {
                 $global:LASTEXITCODE = 0
-                return '{"remaining": 100, "limit": 5000}'
+                return @'
+{
+  "resources": {
+    "core": { "remaining": 50, "limit": 5000 },
+    "search": { "remaining": 30, "limit": 30 },
+    "code_search": { "remaining": 10, "limit": 10 },
+    "graphql": { "remaining": 500, "limit": 5000 }
+  }
+}
+'@
             }
 
-            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result = Test-RateLimitSafe
             $result | Should -Be $false
         }
 
-        It "Returns true when remaining = minimum (uses strict less-than)" {
-            # Function uses -lt, so 200 < 200 is false, meaning rate limit is OK
+        It "Returns true when at threshold (uses strict less-than)" {
             Mock gh {
                 $global:LASTEXITCODE = 0
-                return '{"remaining": 200, "limit": 5000}'
+                return @'
+{
+  "resources": {
+    "core": { "remaining": 100, "limit": 5000 },
+    "search": { "remaining": 15, "limit": 30 },
+    "code_search": { "remaining": 5, "limit": 10 },
+    "graphql": { "remaining": 100, "limit": 5000 }
+  }
+}
+'@
             }
 
-            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result = Test-RateLimitSafe
             $result | Should -Be $true
         }
 
@@ -1050,7 +1045,7 @@ Describe "Invoke-PRMaintenance.ps1" {
                 return "Error: API error"
             }
 
-            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result = Test-RateLimitSafe
             $result | Should -Be $true
         }
 
@@ -1060,14 +1055,23 @@ Describe "Invoke-PRMaintenance.ps1" {
                 return "INVALID JSON"
             }
 
-            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result = Test-RateLimitSafe
             $result | Should -Be $true
         }
 
-        It "Uses default minimum of 200" {
+        It "Uses default thresholds" {
             Mock gh {
                 $global:LASTEXITCODE = 0
-                return '{"remaining": 199, "limit": 5000}'
+                return @'
+{
+  "resources": {
+    "core": { "remaining": 99, "limit": 5000 },
+    "search": { "remaining": 30, "limit": 30 },
+    "code_search": { "remaining": 10, "limit": 10 },
+    "graphql": { "remaining": 500, "limit": 5000 }
+  }
+}
+'@
             }
 
             $result = Test-RateLimitSafe
