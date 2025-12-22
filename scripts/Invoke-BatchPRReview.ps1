@@ -87,12 +87,29 @@ function New-PRWorktree {
         return $true
     }
 
-    Write-Host "Creating worktree for PR #$PRNumber on branch '$branch'..." -ForegroundColor Cyan
+    # Fetch the branch from remote to ensure we have the latest
+    # This is equivalent to what 'gh pr checkout' does internally
+    Write-Host "PR #${PRNumber}: Fetching branch '$branch' from origin..." -ForegroundColor Cyan
+    git fetch origin "${branch}:${branch}" 2>&1 | Out-Null
+
+    # If fetch fails (branch doesn't exist locally), try fetching without creating local branch
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "PR #${PRNumber}: Branch not found locally, fetching from remote..." -ForegroundColor Yellow
+        git fetch origin $branch 2>&1 | Out-Null
+    }
+
+    Write-Host "PR #${PRNumber}: Creating worktree on branch '$branch'..." -ForegroundColor Cyan
     git worktree add $worktreePath $branch 2>&1
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to create worktree for PR #$PRNumber"
-        return $false
+        # Try with origin/ prefix if direct branch reference failed
+        Write-Host "PR #${PRNumber}: Retrying with origin/${branch}..." -ForegroundColor Yellow
+        git worktree add $worktreePath "origin/${branch}" 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to create worktree for PR #$PRNumber"
+            return $false
+        }
     }
 
     Write-Host "Created: $worktreePath" -ForegroundColor Green

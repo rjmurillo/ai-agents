@@ -76,15 +76,42 @@ Verify:
 
 ### Step 3: Create Worktrees (if --parallel)
 
-For parallel execution, create isolated worktrees:
+For parallel execution, create isolated worktrees with fetched branches:
 
 ```bash
 # Get PR branch name
 branch=$(gh pr view {number} --json headRefName -q '.headRefName')
 
+# Fetch the branch from remote (equivalent to what 'gh pr checkout' does)
+git fetch origin "${branch}:${branch}" || git fetch origin "${branch}"
+
 # Create worktree in parent directory
 git worktree add ../worktree-pr-{number} {branch}
+
+# If branch ref fails, try origin/ prefix
+if [ $? -ne 0 ]; then
+    git worktree add ../worktree-pr-{number} "origin/${branch}"
+fi
 ```
+
+> **Note**: For worktrees, we explicitly fetch the branch since `git worktree add`
+> doesn't fetch like `gh pr checkout` does. The PowerShell helper script
+> `Invoke-BatchPRReview.ps1` handles this automatically.
+
+### Step 3.5: Branch Checkout (MUST for sequential mode)
+
+For non-parallel processing, checkout the PR branch before launching agents:
+
+```bash
+# Checkout the PR branch (handles fetch + branch switch)
+gh pr checkout {number}
+```
+
+This ensures:
+
+- The correct branch is checked out
+- Remote changes are fetched
+- Branch tracking is configured
 
 ### Step 4: Launch Agents
 
@@ -92,6 +119,8 @@ git worktree add ../worktree-pr-{number} {branch}
 
 ```python
 for pr in pr_numbers:
+    # Checkout PR branch first (MUST)
+    Bash(f"gh pr checkout {pr}")
     Skill(skill="pr-comment-responder", args=str(pr))
 ```
 
