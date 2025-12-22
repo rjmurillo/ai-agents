@@ -141,7 +141,7 @@ Analyst finding:
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/001-session-67-guardrails-synthesis.md` |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: `a2abc4a` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: `99ad4ce` |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - No project plan updates |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Deferred - synthesis complete |
 | SHOULD | Verify clean git status | [x] | Clean after commit |
