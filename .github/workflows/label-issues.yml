@@ -20,7 +20,7 @@ concurrency:
 jobs:
   label:
     name: Apply Labels
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 2
 
     # Skip for bots and non-substantive edits
