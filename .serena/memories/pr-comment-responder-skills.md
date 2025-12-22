@@ -259,12 +259,29 @@ When handling PR review comments:
 
 | Reviewer | PRs Reviewed | Total Comments | Verified Actionable | Signal Rate | Trend |
 |----------|-------------|----------------|---------------------|-------------|-------|
-| **cursor[bot]** | 13 PRs (#32-#229) | 37 | 20/22 verified | **~95%** | ✅ Stable |
-| **Copilot** | 45+ PRs | 431 | ~150 est. | **~35%** | ↓ Declining |
+| **cursor[bot]** | 14 PRs (#32-#249) | 45 | 28/30 verified | **~95%** | ✅ Stable |
+| **Copilot** | 46+ PRs | 445 | ~153 est. | **~34%** | ↓ Declining |
 | **coderabbitai[bot]** | 12 PRs | 163 | ~80 est. | **~50%** | → Stable |
-| **gemini-code-assist[bot]** | 15 PRs | 49 | ~12 est. | **~25%** | ? New |
+| **gemini-code-assist[bot]** | 16 PRs | 54 | ~13 est. | **~24%** | → Stable |
 
 ### Per-PR Breakdown
+
+#### PR #249 (2025-12-22) - PR Maintenance Automation
+
+| Reviewer | Comments | Actionable | Details |
+|----------|----------|------------|---------|
+| cursor[bot] | 8 | 8 (100%) | Hardcoded branch, DryRun bypass, CI blocking, missing GH_TOKEN, exit codes (2), test drift (2) |
+| Copilot | 14 | 3 (21%) | File lock redundancy, merge comment clarity, exit code check (rest duplicates/false positives) |
+| gemini-code-assist[bot] | 5 | 1 (20%) | Unused $jq variable (rest style/documentation) |
+| rjmurillo | 42 | N/A | 41 @copilot directives, 1 direct feedback |
+
+**Notes:**
+- cursor[bot] achieved 100% actionability with 8/8 real bugs
+- All 7 P0-P1 issues fixed in commit 52ce873 were from cursor[bot]
+- Copilot duplicated cursor findings; unique signal was 21%
+- gemini false positives on PowerShell escape sequences
+
+---
 
 #### PR #229 (2025-12-21)
 
@@ -620,8 +637,9 @@ fi
 | #212 | 3 | 3/3 (100%) | Memory |
 | #225 | 1 | TBD | Pending |
 | #229 | 3 | 2/2 (100%) | This session |
+| #249 | 8 | 8/8 (100%) | Retrospective session 72 |
 
-**Verified cursor[bot] actionability**: 20/22 = 91% (remaining ~15 comments pending verification)
+**Verified cursor[bot] actionability**: 28/30 = 93% (remaining ~15 comments pending verification)
 
 ### Copilot Comment Analysis
 
