@@ -14,7 +14,7 @@
 
 .NOTES
     Import this module in workflow scripts:
-    Import-Module .github/scripts/AIReviewCommon.psm1
+    Import-Module ./.github/scripts/AIReviewCommon.psm1
 
     For GitHub operations, use the skill scripts directly:
     - .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1
