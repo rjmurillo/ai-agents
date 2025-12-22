@@ -33,11 +33,13 @@ pwsh .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumb
 Human users with authority to provide guidance. Their comments are extracted for the "Maintainer Guidance" section.
 
 **Extracted content:**
+
 - Bullet points (`- item` or `* item`)
 - Numbered lists (`1. item`)
 - Key decisions and direction
 
 **Skipped content:**
+
 - Checkbox items (`- [ ] task`) - task lists, not guidance
 - Very short items (< 10 chars)
 
@@ -46,6 +48,7 @@ Human users with authority to provide guidance. Their comments are extracted for
 Bot accounts that provide structured analysis. Their comments are parsed using `extraction_patterns`.
 
 **Known agents:**
+
 - `coderabbitai` - Implementation plans, similar issues, related PRs
 - `Copilot` - Clarifying questions, status updates
 - `cursor[bot]` - Bug detection with line references
@@ -75,11 +78,12 @@ Patterns for AI triage comments:
 
 HTML comment that identifies a synthesis comment for idempotency:
 
-```
+```html
 <!-- COPILOT-CONTEXT-SYNTHESIS -->
 ```
 
 The marker enables update-in-place behavior:
+
 1. Script searches for marker in existing comments
 2. If found: updates existing comment
 3. If not found: creates new comment
@@ -130,4 +134,4 @@ The marker enables update-in-place behavior:
 
 - Script: `.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1`
 - Module: `.claude/skills/github/modules/GitHubHelpers.psm1`
-- Issue: https://github.com/rjmurillo/ai-agents/issues/92
+- Issue: <https://github.com/rjmurillo/ai-agents/issues/92>
