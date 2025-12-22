@@ -107,7 +107,7 @@ function New-PRWorktree {
         git worktree add $worktreePath "origin/${branch}" 2>&1
 
         if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to create worktree for PR #$PRNumber"
+            Write-Warning "Failed to create worktree for PR #$PRNumber. Continuing with remaining PRs."
             return $false
         }
     }
@@ -192,7 +192,7 @@ function Remove-PRWorktree {
     git @removeArgs 2>&1
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to remove worktree for PR #$PRNumber"
+        Write-Warning "Failed to remove worktree for PR #$PRNumber. Continuing with remaining PRs."
         return $false
     }
 
@@ -241,7 +241,7 @@ function Push-WorktreeChanges {
         return $true
     }
     catch {
-        Write-Error "PR #${PRNumber}: Failed to sync - $_"
+        Write-Warning "PR #${PRNumber}: Failed to sync - $_. Continuing with remaining PRs."
         return $false
     }
     finally {

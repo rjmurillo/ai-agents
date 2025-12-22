@@ -108,6 +108,17 @@ Describe "Invoke-BatchPRReview.ps1" {
             $scriptContent | Should -Match "gh auth status"
             $scriptContent | Should -Match "not accessible"
         }
+
+        It "Uses Write-Warning for recoverable errors to allow batch continuation" {
+            $scriptContent = Get-Content -Path $Script:ScriptPath -Raw
+
+            # With $ErrorActionPreference = 'Stop', Write-Error would terminate.
+            # Recoverable failures in batch operations should use Write-Warning
+            # to allow processing of remaining items.
+            $scriptContent | Should -Match "Write-Warning.*Failed to create worktree"
+            $scriptContent | Should -Match "Write-Warning.*Failed to remove worktree"
+            $scriptContent | Should -Match "Write-Warning.*Failed to sync"
+        }
     }
 
     Context "Parameter Combinations" {
