@@ -146,6 +146,7 @@ Get-ChildItem -Path ".claude/skills/github/scripts" -Recurse -Filter "*.ps1"
 ```
 
 **Skill locations**:
+
 - PR operations: `.claude/skills/github/scripts/pr/`
 - Issue operations: `.claude/skills/github/scripts/issue/`
 - Reactions: `.claude/skills/github/scripts/reactions/`
