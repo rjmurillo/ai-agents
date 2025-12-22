@@ -274,7 +274,7 @@ When handling PR review comments:
 **Notes:**
 
 - cursor[bot] maintained 100% signal (11/11 total across PRs #32, #47, #52, #89)
-- Copilot showed improved signal quality (100% in this PR vs historical ~44%)
+- Copilot showed improved signal quality in this PR (3/3 = 100%) compared to its prior historical rate of ~44% (4/9 before this PR; now 7/12 = 58% overall)
 - No coderabbitai[bot] comments on this PR
 
 #### PR #52 (2025-12-17)
