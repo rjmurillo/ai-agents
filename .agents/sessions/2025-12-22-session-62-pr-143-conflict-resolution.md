@@ -72,14 +72,18 @@
 | 3acb9fb | fix: address PR #143 review comments for ADR-011 |
 | (merge) | Merge origin/main, resolve HANDOFF.md conflict |
 
-## Session End
+### Session End (COMPLETE ALL before closing)
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` | [x] | Session 62 added, conflict resolved |
-| MUST | Complete session log | [x] | This file |
-| MUST | Run markdown lint | [ ] | Pending |
-| MUST | Commit all changes | [ ] | Pending |
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Session 62 added, conflict resolved |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | Lint run with fix |
+| MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/pr-143-issue-feature-review-prompt.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 62d43be |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A |
+| SHOULD | Verify clean git status | [x] | Clean after merge |
 
 ## CI Status
 

@@ -136,16 +136,18 @@ Execute pr-comment-responder workflow for PR #143:
 - Repository: rjmurillo/ai-agents
 - PR branch: docs/planning-and-architecture → main
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-- [ ] All PR comments acknowledged (eyes emoji)
-- [ ] All actionable comments implemented or replied to
-- [ ] All tasks in task list marked complete
-- [ ] Session summary added to HANDOFF.md
-- [ ] Markdown linting passed (`npx markdownlint-cli2 --fix`)
-- [ ] All changes committed (including `.agents/` files)
-- [ ] Commit SHA recorded
-- [ ] Session end validator passed (`pwsh scripts/Validate-SessionEnd.ps1`)
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/pr-143-issue-feature-review-prompt.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: f556d3c |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ## Session Summary
 

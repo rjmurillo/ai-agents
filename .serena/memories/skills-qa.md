@@ -118,9 +118,56 @@ Task(subagent_type="qa", prompt="Validate [feature]")
 
 ---
 
+## Skill-QA-004: Prompt Files Require QA Validation (95%)
+
+**Statement**: Files in `.github/prompts/` drive AI workflows and require QA validation like production code
+
+**Context**: When assessing QA requirements for docs-only sessions or markdown-heavy PRs
+
+**Evidence**: PR #143 - `.github/prompts/` changes are NOT just documentation, they control automated AI behavior and must be validated
+
+**Atomicity**: 95%
+
+**Tag**: helpful
+
+**Impact**: 8/10
+
+**Created**: 2025-12-22
+
+**Validated**: 1 (PR #143)
+
+**File Type Classification**:
+
+| Path Pattern | Type | QA Required | Rationale |
+|--------------|------|-------------|-----------|
+| `**/*.md` (general) | Documentation | ❌ No | Content only, no execution |
+| `.github/prompts/**/*.md` | AI Configuration | ✅ YES | Controls automated behavior |
+| `.github/prompts/**/*.yaml` | AI Metadata | ✅ YES | Structured AI inputs |
+| `.github/workflows/**/*.yml` | CI/CD Code | ✅ YES | Executable automation |
+
+**Why Prompt Files Are Code**:
+
+1. **Behavioral Control**: Define how AI agents operate
+2. **Execution Context**: Consumed by automation (not humans)
+3. **Breaking Changes**: Invalid prompts = failed workflows
+4. **Integration Testing**: Require validation like APIs
+
+**QA Requirements for Prompt Files**:
+
+- [ ] Syntax validation (YAML/Markdown lint)
+- [ ] Schema compliance (if applicable)
+- [ ] Integration test (does workflow consume correctly?)
+- [ ] Regression test (existing workflows still work?)
+- [ ] Documentation (explain prompt purpose/usage)
+
+**Source**: PR #143 review, `.agents/skills/pr143-session-validation-merge-commits.md`
+
+---
+
 ## Related Documents
 
 - Source: `.agents/qa/001-agent-consolidation-test-strategy-review.md`
 - Source: `.agents/retrospective/2025-12-17-serena-transformation-implementation.md`
+- Source: `.agents/skills/pr143-session-validation-merge-commits.md`
 - Related: skills-validation (validation quality patterns)
 - Related: skills-implementation (test discovery workflow)

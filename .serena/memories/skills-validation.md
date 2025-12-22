@@ -290,9 +290,48 @@ ERROR: Incorrect path reference at explainer.md:45
 
 ---
 
+## Skill-Validation-007: Merge Commit Session Validation Limitation (92%)
+
+**Statement**: Session validator docs-only detection fails when PR merges main with unrelated code changes
+
+**Context**: When validating session logs after PR merges main branch, git diff from session start commit includes all main branch changes (not just PR changes)
+
+**Evidence**: PR #143 - Session log validated as requiring QA because `git diff [start-commit]..HEAD` included unrelated main branch code (from merge) despite PR being docs-only
+
+**Atomicity**: 92%
+
+**Tag**: helpful
+
+**Impact**: 7/10
+
+**Created**: 2025-12-22
+
+**Validated**: 1 (PR #143)
+
+**Root Cause**: Validator uses `git diff [session-start-commit]..HEAD` which includes all changes since session start, not just PR changes. When PR merges main, this includes unrelated main branch work.
+
+**Validation Logic Fix** (for future validator enhancement):
+
+```powershell
+# Current (incorrect for merge commits)
+$changes = git diff $SessionStart..HEAD --name-only
+
+# Corrected (handles merge commits)
+$changes = git diff $SessionStart...HEAD --name-only
+# Three dots = symmetric difference (excludes common ancestor)
+```
+
+**Workaround**: Use three-dot diff syntax to show only PR changes, excluding merge base.
+
+**Source**: PR #143 review, `.agents/skills/pr143-session-validation-merge-commits.md`
+
+---
+
 ## Related Documents
 
 - Source: `.agents/retrospective/phase1-remediation-pr43.md`
 - Source: `.agents/retrospective/2025-12-18-session-15-retrospective.md`
+- Source: `.agents/skills/pr143-session-validation-merge-commits.md`
 - Related: skills-linting (Skill-Lint-002 false positives)
 - Related: retrospective-2025-12-18-session-15-pr-60 (session summary)
+- Related: skill-protocol-005-template-enforcement (Session End template compliance)

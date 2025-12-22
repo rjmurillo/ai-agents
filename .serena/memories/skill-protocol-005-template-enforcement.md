@@ -71,6 +71,22 @@ Commit SHA: [abc123d]
 - Skill-Git-001 (Pre-Commit Validation)
 - Skill-Logging-002 (Session Log Early Creation)
 
+## Row Count Requirement
+
+Session End checklist MUST have exactly 8 rows (5 MUST + 3 SHOULD):
+
+| Row Type | Count | Description |
+|----------|-------|-------------|
+| Protocol Compliance (MUST) | 4 | Serena init, instructions, HANDOFF read, session start |
+| Session End (MUST) | 1 | Retrospective assessment |
+| Deliverables (SHOULD) | 3 | HANDOFF update, lint, commit |
+| **Total** | **8** | **Enforced by validator** |
+
+Using different row count triggers E_TEMPLATE_DRIFT error.
+
+Reference: Skill-Protocol-007 (Session End Checklist Row Count Enforcement)
+
 ## Source
 
-`.agents/retrospective/2025-12-20-session-protocol-mass-failure.md` (Learning 2, lines 660-678)
+- `.agents/retrospective/2025-12-20-session-protocol-mass-failure.md` (Learning 2, lines 660-678)
+- `.agents/skills/pr143-session-validation-merge-commits.md` (Skill-Protocol-007)
