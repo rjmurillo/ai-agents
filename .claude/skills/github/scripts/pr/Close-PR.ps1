@@ -48,7 +48,7 @@ $Repo = $resolved.Repo
 
 # Post comment if provided
 if (-not [string]::IsNullOrWhiteSpace($Comment)) {
-    Write-Verbose "Posting comment before closing PR #$PullRequest"
+    Write-Verbose "Posting comment before closing PR #${PullRequest}"
     
     # Use existing Post-PRCommentReply.ps1 for consistent comment handling
     $commentScript = Join-Path $PSScriptRoot "Post-PRCommentReply.ps1"
@@ -72,12 +72,12 @@ $result = & gh @ghArgs 2>&1
 
 if ($LASTEXITCODE -ne 0) {
     if ($result -match "not found") {
-        Write-ErrorAndExit "PR #$PullRequest not found in $Owner/$Repo" 2
+        Write-ErrorAndExit "PR #${PullRequest} not found in ${Owner}/${Repo}" 2
     }
     Write-ErrorAndExit "Failed to close PR: $result" 3
 }
 
-Write-Host "Closed PR #$PullRequest" -ForegroundColor Green
+Write-Host "Closed PR #${PullRequest}" -ForegroundColor Green
 
 if ($DeleteBranch) {
     Write-Host "  Head branch deleted" -ForegroundColor Cyan
