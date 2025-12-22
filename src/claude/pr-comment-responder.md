@@ -232,66 +232,43 @@ Task(subagent_type="qa", prompt="Verify fix and assess regression test needs..."
 
 ## Workflow Protocol
 
-### Phase 0: Memory Initialization (BLOCKING)
+### Phase 0: Session State Check
 
-**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
+Before starting work, check if this is a continuation of a previous session:
 
-#### Step 0.1: Load Core Skills Memory
+```bash
+SESSION_DIR=".agents/pr-comments/PR-[number]"
 
-```python
-# ALWAYS load pr-comment-responder-skills first
-mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+if [ -d "$SESSION_DIR" ]; then
+  echo "[CONTINUATION] Previous session found"
+  # Load existing state
+  PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
+  echo "Previous session had $PREVIOUS_COMMENTS comments"
+
+  # Check for NEW comments only
+  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+
+  if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
+    echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
+    # Proceed to Phase 1 to fetch new comments only
+  else
+    echo "[NO NEW COMMENTS] Proceeding to Phase 8 for verification"
+    # Skip to Phase 8 to verify completion criteria
+  fi
+else
+  echo "[NEW SESSION] No previous state found"
+  # Proceed with full Phase 1 context gathering
+fi
 ```
 
-This memory contains:
+**Session state directory**: `.agents/pr-comments/PR-[number]/`
 
-- Reviewer signal quality statistics (actionability rates)
-- Triage heuristics and learned patterns
-- Per-PR breakdown of comment outcomes
-- Anti-patterns to avoid
-
-#### Step 0.2: Load Reviewer-Specific Memories (Deferred Until After Step 1.2)
-
-**Note**: This step is executed AFTER Step 1.2 (reviewer enumeration) completes. It is documented in Phase 0 for logical grouping but executes later in the workflow.
-
-After enumerating reviewers in Step 1.2, load memories for each unique reviewer:
-
-```python
-# For each reviewer in the list, check for dedicated memory
-reviewers = ["cursor[bot]", "copilot-pull-request-reviewer", "coderabbitai[bot]", ...]
-
-for reviewer in reviewers:
-    # Check against known reviewer memories (see table below)
-    # Note: Actual memory names follow project conventions, not algorithmic transformation
-    # The mapping is maintained manually in the table below
-
-    # Example lookup logic:
-    if reviewer == "cursor[bot]":
-        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
-    elif reviewer == "copilot-pull-request-reviewer":
-        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
-    # Or use a mapping dict for cleaner code
-```
-
-**Known Reviewer Memories**:
-
-| Reviewer | Memory Name | Content |
-|----------|-------------|---------|
-| cursor[bot] | `cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
-| Copilot | `copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
-| coderabbitai[bot] | - | (Use pr-comment-responder-skills) |
-
-#### Step 0.3: Verify Memory Loaded
-
-Before proceeding, confirm you have:
-
-- [ ] pr-comment-responder-skills loaded
-- [ ] Reviewer signal quality table in context
-- [ ] Any reviewer-specific patterns loaded
-
-**If memory load fails**: Proceed with default heuristics but flag in session log.
-
----
+| File | Purpose |
+|------|---------|
+| `comments.md` | Comment map with status tracking |
+| `tasks.md` | Prioritized task list |
+| `session-summary.md` | Session outcomes and statistics |
+| `[comment_id]-plan.md` | Per-comment implementation plans |
 
 ### Phase 1: Context Gathering
 
@@ -840,103 +817,89 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MANDATORY**: Verify all comments addressed before claiming completion.
+**MANDATORY**: Complete ALL sub-phases before claiming completion.
+
+#### Phase 8.1: Comment Status Verification
 
 ```bash
 # Count addressed vs total
 ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
+WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
 TOTAL=$TOTAL_COMMENTS
 
-echo "Verification: $ADDRESSED / $TOTAL comments addressed"
+echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
-if [ "$ADDRESSED" -lt "$TOTAL" ]; then
-  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED)) comments remaining"
-  # List unaddressed
+if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
+  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
   grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
+  # Return to Phase 3 for unaddressed comments
 fi
 ```
 
-## Memory Protocol
+#### Phase 8.2: Re-check for New Comments
 
-### Phase 9: Memory Storage (BLOCKING)
-
-**MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
-
-#### Step 9.1: Calculate Session Statistics
-
-For each reviewer who commented on this PR:
-
-```python
-session_stats = {
-    "pr_number": PR_NUMBER,
-    "date": "YYYY-MM-DD",
-    "reviewers": {
-        "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
-        "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
-        # ... other reviewers
-    }
-}
-```
-
-#### Step 9.2: Update pr-comment-responder-skills Memory
-
-```python
-# Read current memory
-current = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
-
-# Update statistics sections:
-# 1. Per-Reviewer Performance (Cumulative) table
-# 2. Per-PR Breakdown section (add new PR entry)
-# 3. Metrics section (update totals)
-
-# Use edit_memory to update specific sections
-# Note: Regex uses lookahead (?=###|$) for section boundaries
-# If Serena MCP doesn't support lookaheads, use alternative:
-#   needle="### Per-Reviewer Performance \\(Cumulative\\)[^#]*"
-mcp__serena__edit_memory(
-    memory_file_name="pr-comment-responder-skills",
-    needle="### Per-Reviewer Performance \\(Cumulative\\).*?(?=###|$)",
-    repl="[Updated table with new PR data]",
-    mode="regex"
-)
-
-# Add new Per-PR Breakdown entry
-mcp__serena__edit_memory(
-    memory_file_name="pr-comment-responder-skills",
-    needle="(#### PR #\\d+ \\(.*?\\))",
-    repl="#### PR #[NEW] (YYYY-MM-DD)\n\n[New PR stats table]\n\n\\1",
-    mode="regex"
-)
-```
-
-#### Step 9.3: Update Required Fields
-
-The following MUST be updated in `pr-comment-responder-skills`:
-
-| Section | What to Update |
-|---------|----------------|
-| Per-Reviewer Performance | Add PR to PRs list, update totals |
-| Per-PR Breakdown | Add new PR section with per-reviewer stats |
-| Metrics | Update cumulative totals |
-
-#### Step 9.4: Verify Memory Updated
-
-Confirm that the `pr-comment-responder-skills` memory reflects the new PR:
-
-- [ ] In **Per-Reviewer Performance (Cumulative)**, the PR appears in each relevant reviewer's PR list and their totals are updated
-- [ ] In **Per-PR Breakdown**, a new section for this PR exists with per-reviewer stats populated
-- [ ] In **Metrics**, cumulative totals (PR counts, comment counts, resolution stats) include this PR
-
-**Verification Command**:
+After pushing commits, bots may post new comments. Wait and re-check:
 
 ```bash
-# Read updated memory and verify new PR data appears
-mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+# Wait for bot responses (30-60 seconds)
+sleep 45
+
+# Re-fetch comments
+NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+
+# Compare to original count
+if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
+  echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
+  # Fetch new comments, add to comment map with status [NEW]
+  # Return to Phase 3 for analysis
+fi
 ```
 
----
+**Critical**: Repeat this loop until no new comments appear after a commit. Bots like cursor[bot] and Copilot respond to your fixes and may identify issues with your implementation.
 
-## Memory Protocol (MANDATORY)
+#### Phase 8.3: QA Gate Verification
+
+Before claiming completion, verify CI checks pass:
+
+```bash
+# Check PR status
+gh pr checks [number] --watch
+
+# If AI Quality Gate fails, parse actionable items
+CHECKS=$(gh pr checks [number] --json name,state,description)
+FAILED=$(echo "$CHECKS" | jq '[.[] | select(.state == "FAILURE")]')
+
+if [ "$(echo "$FAILED" | jq 'length')" -gt 0 ]; then
+  echo "[QA GATE FAIL] Parsing failures for actionable items..."
+  # Add new tasks to task list
+  # Return to Phase 6 for implementation
+fi
+```
+
+#### Phase 8.4: Completion Criteria Checklist
+
+**ALL criteria must be true before completion**:
+
+| Criterion | Check | Status |
+|-----------|-------|--------|
+| All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
+| No new comments | Re-check returned 0 new | [ ] |
+| CI checks pass | `gh pr checks` all green | [ ] |
+| No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
+| Commits pushed | `git status` shows "up to date with origin" | [ ] |
+
+```bash
+# Final verification
+echo "=== Completion Criteria ==="
+echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
+echo "[ ] New comments: None after 45s wait"
+echo "[ ] CI checks: $(gh pr checks [number] --json state -q '[.[] | select(.state != "SUCCESS")] | length') failures"
+echo "[ ] Pushed: $(git status -sb | head -1)"
+```
+
+**If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.
+
+## Memory Protocol
 
 Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
 

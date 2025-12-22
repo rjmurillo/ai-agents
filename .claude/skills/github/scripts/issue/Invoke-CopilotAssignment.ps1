@@ -308,6 +308,73 @@ $Marker
     return $body
 }
 
+function Test-HasSynthesizableContent {
+    <#
+    .SYNOPSIS
+        Checks if there's any content worth synthesizing.
+
+    .DESCRIPTION
+        Evaluates extracted issue context to determine if a synthesis comment
+        should be created. Returns true if any of the following exist:
+        - Maintainer guidance from comments
+        - AI triage information (priority, category)
+        - CodeRabbit plan (implementation details, related issues/PRs)
+
+        If no content exists, synthesis should be skipped to avoid empty comments.
+        For this purpose, $null, empty strings (""), and whitespace-only strings
+        are all treated as "no content" and do not cause synthesis to run.
+
+    .PARAMETER MaintainerGuidance
+        Array of guidance items extracted from maintainer comments.
+
+    .PARAMETER CodeRabbitPlan
+        Hashtable containing CodeRabbit analysis (Implementation, RelatedIssues, RelatedPRs).
+
+    .PARAMETER AITriage
+        Hashtable containing AI triage metadata (Priority, Category).
+
+    .EXAMPLE
+        $hasContent = Test-HasSynthesizableContent -MaintainerGuidance @() -CodeRabbitPlan $null -AITriage $null
+        # Returns: $false (no content to synthesize)
+
+    .EXAMPLE
+        $triage = @{ Priority = "P1"; Category = "bug" }
+        $hasContent = Test-HasSynthesizableContent -MaintainerGuidance @() -CodeRabbitPlan $null -AITriage $triage
+        # Returns: $true (triage info exists)
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [array]$MaintainerGuidance,
+        [hashtable]$CodeRabbitPlan,
+        [hashtable]$AITriage
+    )
+
+    # Check maintainer guidance
+    if ($MaintainerGuidance -and $MaintainerGuidance.Count -gt 0) {
+        return $true
+    }
+
+    # Check AI triage (use IsNullOrWhiteSpace to properly handle empty strings)
+    if ($AITriage -and (
+            -not [string]::IsNullOrWhiteSpace([string]$AITriage.Priority) -or
+            -not [string]::IsNullOrWhiteSpace([string]$AITriage.Category)
+        )) {
+        return $true
+    }
+
+    # Check CodeRabbit plan (add null checks before accessing Count for strict mode safety)
+    if ($CodeRabbitPlan) {
+        if ($CodeRabbitPlan.Implementation -or
+            ($CodeRabbitPlan.RelatedIssues -and $CodeRabbitPlan.RelatedIssues.Count -gt 0) -or
+            ($CodeRabbitPlan.RelatedPRs -and $CodeRabbitPlan.RelatedPRs.Count -gt 0)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Find-ExistingSynthesis {
     <#
     .SYNOPSIS
@@ -388,9 +455,8 @@ $maintainerGuidance = Get-MaintainerGuidance -Comments $trustedComments -Maintai
 $codeRabbitPlan = Get-CodeRabbitPlan -Comments $trustedComments -Patterns $config.extraction_patterns.coderabbit
 $aiTriage = Get-AITriageInfo -Comments $trustedComments -TriageMarker $config.extraction_patterns.ai_triage.marker
 
-# Generate synthesis
-$synthesisBody = New-SynthesisComment `
-    -Marker $config.synthesis.marker `
+# Check if there's any content to synthesize
+$hasContent = Test-HasSynthesizableContent `
     -MaintainerGuidance $maintainerGuidance `
     -CodeRabbitPlan $codeRabbitPlan `
     -AITriage $aiTriage
@@ -399,20 +465,36 @@ $synthesisBody = New-SynthesisComment `
 $existingSynthesis = Find-ExistingSynthesis -Comments $comments -Marker $config.synthesis.marker
 
 if ($PSCmdlet.ShouldProcess("Issue #$IssueNumber", "Post synthesis comment and assign Copilot")) {
-    if ($existingSynthesis) {
-        # Update existing using shared module function
-        Write-Host "Updating existing synthesis comment (ID: $($existingSynthesis.id))" -ForegroundColor Yellow
-        $response = Update-IssueComment -Owner $Owner -Repo $Repo -CommentId $existingSynthesis.id -Body $synthesisBody
-        $action = "Updated"
+    $response = $null
+    $action = "Skipped"
+
+    if ($hasContent) {
+        # Generate synthesis only if there's content
+        $synthesisBody = New-SynthesisComment `
+            -Marker $config.synthesis.marker `
+            -MaintainerGuidance $maintainerGuidance `
+            -CodeRabbitPlan $codeRabbitPlan `
+            -AITriage $aiTriage
+
+        if ($existingSynthesis) {
+            # Update existing using shared module function
+            Write-Host "Updating existing synthesis comment (ID: $($existingSynthesis.id))" -ForegroundColor Yellow
+            $response = Update-IssueComment -Owner $Owner -Repo $Repo -CommentId $existingSynthesis.id -Body $synthesisBody
+            $action = "Updated"
+        }
+        else {
+            # Create new using shared module function
+            Write-Host "Creating new synthesis comment" -ForegroundColor Green
+            $response = New-IssueComment -Owner $Owner -Repo $Repo -IssueNumber $IssueNumber -Body $synthesisBody
+            $action = "Created"
+        }
+        Write-Host "$action synthesis comment: $($response.html_url)" -ForegroundColor Green
     }
     else {
-        # Create new using shared module function
-        Write-Host "Creating new synthesis comment" -ForegroundColor Green
-        $response = New-IssueComment -Owner $Owner -Repo $Repo -IssueNumber $IssueNumber -Body $synthesisBody
-        $action = "Created"
+        Write-Host "No synthesizable content found - skipping synthesis comment" -ForegroundColor Yellow
     }
 
-    # Assign Copilot
+    # Assign Copilot (always try, even if no synthesis)
     Write-Host "Assigning copilot-swe-agent..." -ForegroundColor Cyan
     $assigned = Set-CopilotAssignee -Owner $Owner -Repo $Repo -IssueNumber $IssueNumber
 
@@ -421,26 +503,39 @@ if ($PSCmdlet.ShouldProcess("Issue #$IssueNumber", "Post synthesis comment and a
         Success      = $true
         Action       = $action
         IssueNumber  = $IssueNumber
-        CommentId    = $response.id
-        CommentUrl   = $response.html_url
+        CommentId    = & { if ($response) { $response.id } else { $null } }
+        CommentUrl   = & { if ($response) { $response.html_url } else { $null } }
         Assigned     = $assigned
         Marker       = $config.synthesis.marker
     }
 
-    Write-Host "$action synthesis comment: $($response.html_url)" -ForegroundColor Green
     if ($assigned) { Write-Host "Assigned copilot-swe-agent to issue #$IssueNumber" -ForegroundColor Green }
+
+    # Explicit exit 0 to clear any lingering $LASTEXITCODE from failed native commands (e.g., gh issue edit)
+    exit 0
 }
 else {
     # WhatIf mode
-    Write-Host "`n=== SYNTHESIS PREVIEW ===" -ForegroundColor Cyan
-    Write-Host $synthesisBody
-    Write-Host "=== END PREVIEW ===" -ForegroundColor Cyan
+    if ($hasContent) {
+        $synthesisBody = New-SynthesisComment `
+            -Marker $config.synthesis.marker `
+            -MaintainerGuidance $maintainerGuidance `
+            -CodeRabbitPlan $codeRabbitPlan `
+            -AITriage $aiTriage
 
-    if ($existingSynthesis) {
-        Write-Host "`nWould UPDATE existing comment (ID: $($existingSynthesis.id))" -ForegroundColor Yellow
+        Write-Host "`n=== SYNTHESIS PREVIEW ===" -ForegroundColor Cyan
+        Write-Host $synthesisBody
+        Write-Host "=== END PREVIEW ===" -ForegroundColor Cyan
+
+        if ($existingSynthesis) {
+            Write-Host "`nWould UPDATE existing comment (ID: $($existingSynthesis.id))" -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "`nWould CREATE new synthesis comment" -ForegroundColor Green
+        }
     }
     else {
-        Write-Host "`nWould CREATE new synthesis comment" -ForegroundColor Green
+        Write-Host "`nNo synthesizable content found - would SKIP synthesis comment" -ForegroundColor Yellow
     }
     Write-Host "Would ASSIGN copilot-swe-agent to issue #$IssueNumber" -ForegroundColor Cyan
 }
