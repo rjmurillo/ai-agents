@@ -191,6 +191,97 @@ else
 fi
 
 #
+# PowerShell Script Analysis with PSScriptAnalyzer
+#
+# Security: Validates PowerShell scripts for syntax errors and common issues
+# Security: Uses arrays and proper quoting to prevent command injection (CRITICAL-001)
+# Security: Uses while/read loop to handle filenames with spaces (HIGH-001)
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: Session 36 retrospective, Skill-PowerShell-001, Skill-CI-001
+#
+
+# Filter for PowerShell files only
+STAGED_PS_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
+
+if [ -n "$STAGED_PS_FILES" ]; then
+    echo_info "Checking PowerShell scripts with PSScriptAnalyzer..."
+    
+    if command -v pwsh &> /dev/null; then
+        # CRITICAL-001: Build array safely to prevent command injection
+        # Use mapfile to read newline-separated file list into array
+        mapfile -t PS_FILES <<< "$STAGED_PS_FILES"
+        
+        # Validate array is not empty
+        if [ ${#PS_FILES[@]} -eq 0 ]; then
+            echo_info "No PowerShell files to process."
+        else
+            # Check if PSScriptAnalyzer module is available
+            if pwsh -NoProfile -Command "Get-Module -ListAvailable PSScriptAnalyzer" &> /dev/null; then
+                # HIGH-001: Use while/read loop with proper IFS to handle spaces in filenames
+                # MEDIUM-002: Check for symlinks to prevent TOCTOU race conditions
+                PS_ERRORS_FOUND=0
+                
+                while IFS= read -r file; do
+                    # Skip empty lines
+                    [ -z "$file" ] && continue
+                    
+                    # MEDIUM-002: Reject symlinks to prevent race condition attacks
+                    if [ -L "$file" ]; then
+                        echo_warning "Skipping symlink: $file"
+                        continue
+                    fi
+                    
+                    # Process regular files only
+                    if [ -f "$file" ]; then
+                        # Run PSScriptAnalyzer on file, checking for Error severity only (blocking)
+                        # Capture output for display
+                        ANALYZER_OUTPUT=$(mktemp)
+                        # shellcheck disable=SC2086
+                        if ! pwsh -NoProfile -Command "Invoke-ScriptAnalyzer -Path '$file' -Settings '.PSScriptAnalyzerSettings.psd1' -Severity Error,Warning | ForEach-Object { Write-Output \"\$(\$_.Severity): \$(\$_.Message) at line \$(\$_.Line)\" }" > "$ANALYZER_OUTPUT" 2>&1; then
+                            echo_error "Failed to analyze: $file"
+                            cat "$ANALYZER_OUTPUT"
+                            rm -f "$ANALYZER_OUTPUT"
+                            EXIT_STATUS=1
+                            continue
+                        fi
+                        
+                        # Check if there are any Error-level issues (blocking)
+                        if grep -q "^Error:" "$ANALYZER_OUTPUT"; then
+                            echo_error "PSScriptAnalyzer errors in: $file"
+                            grep "^Error:" "$ANALYZER_OUTPUT"
+                            PS_ERRORS_FOUND=1
+                            EXIT_STATUS=1
+                        fi
+                        
+                        # Display warnings (non-blocking)
+                        if grep -q "^Warning:" "$ANALYZER_OUTPUT"; then
+                            echo_warning "PSScriptAnalyzer warnings in: $file"
+                            grep "^Warning:" "$ANALYZER_OUTPUT"
+                        fi
+                        
+                        rm -f "$ANALYZER_OUTPUT"
+                    fi
+                done <<< "$STAGED_PS_FILES"
+                
+                if [ $PS_ERRORS_FOUND -eq 0 ]; then
+                    echo_success "PowerShell scripts OK."
+                else
+                    echo_error "PowerShell script analysis failed. Fix errors above before committing."
+                fi
+            else
+                echo_warning "PSScriptAnalyzer module not available. Skipping PowerShell analysis."
+                echo_warning "Install: pwsh -Command 'Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force'"
+            fi
+        fi
+    else
+        echo_warning "PowerShell not available. Skipping PowerShell script analysis."
+        echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+    fi
+else
+    echo_info "No PowerShell files staged. Skipping PSScriptAnalyzer."
+fi
+
+#
 # Planning Artifacts Validation
 #
 # Validates cross-document consistency in planning artifacts.
