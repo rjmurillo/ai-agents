@@ -59,7 +59,7 @@ When running in environments with PowerShell support (Windows, PowerShell Core o
 | Operation | Skill Script | Bash Fallback |
 |-----------|--------------|---------------|
 | PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
+| Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
 | Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq` |
 | Reply to comment | `Post-PRCommentReply.ps1` | `gh api -X POST` |
 | Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
