@@ -744,7 +744,43 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
 
 </details>
 
-#### Step 6.4: Update Task List
+#### Step 6.4: Resolve Conversation Thread
+
+**MANDATORY**: After replying with resolution, mark the thread as resolved. Unresolved threads block PR merge due to branch protection rules.
+
+```powershell
+# Resolve all unresolved threads on the PR (PREFERRED)
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+
+# Or resolve a single thread by ID
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_xxx"
+```
+
+<details>
+<summary>Alternative: Raw GraphQL (when PowerShell unavailable)</summary>
+
+```bash
+# Get thread IDs first
+gh api graphql -f query='
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) {
+        nodes { id isResolved }
+      }
+    }
+  }
+}' -f owner=OWNER -f repo=REPO -F number=PR_NUMBER
+
+# Resolve each unresolved thread (single-line format required)
+gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id="PRRT_xxx"
+```
+
+</details>
+
+**Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
+
+#### Step 6.5: Update Task List
 
 Mark task as complete in `.agents/pr-comments/PR-[number]/tasks.md`.
 
@@ -779,7 +815,9 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MANDATORY**: Verify all comments addressed before claiming completion.
+**MANDATORY**: Verify all comments addressed AND all conversations resolved before claiming completion.
+
+#### Step 8.1: Verify Comment Resolution
 
 ```bash
 # Count addressed vs total
@@ -794,6 +832,49 @@ if [ "$ADDRESSED" -lt "$TOTAL" ]; then
   grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
 fi
 ```
+
+#### Step 8.2: Verify Conversation Resolution (BLOCKING)
+
+**CRITICAL**: All conversations must be resolved for PR to be mergeable.
+
+```powershell
+# Check and resolve any remaining unresolved threads
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+```
+
+<details>
+<summary>Alternative: GraphQL verification</summary>
+
+```bash
+# Query unresolved thread count
+UNRESOLVED=$(gh api graphql -f query='
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) {
+        nodes { isResolved }
+      }
+    }
+  }
+}' -f owner=OWNER -f repo=REPO -F number=PR_NUMBER \
+  --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')
+
+if [ "$UNRESOLVED" -gt 0 ]; then
+  echo "[BLOCKED] $UNRESOLVED unresolved conversation(s) - PR cannot be merged"
+  exit 1
+fi
+echo "[PASS] All conversations resolved - PR is mergeable"
+```
+
+</details>
+
+**Completion Criteria**:
+
+- [ ] All comments have eyes reaction (Phase 2 gate)
+- [ ] All comments have reply or resolution status
+- [ ] All conversations are RESOLVED (this step)
+- [ ] PR description updated if needed (Phase 7)
+- [ ] All artifacts committed to git
 
 ## Memory Protocol
 
