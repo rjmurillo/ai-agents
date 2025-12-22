@@ -189,10 +189,10 @@ function Remove-PRWorktree {
     $removeArgs = @('worktree', 'remove', $status.Path)
     if ($Force) { $removeArgs += '--force' }
 
-    git @removeArgs 2>&1
+    $output = git @removeArgs 2>&1
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to remove worktree for PR #$PRNumber. Continuing with remaining PRs."
+        Write-Warning "Failed to remove worktree for PR #$PRNumber. Error: $output. Continuing with remaining PRs."
         return $false
     }
 
