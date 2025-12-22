@@ -92,8 +92,7 @@ All skills start at validation count 1 (Session 65 workflow demonstration).
 
 | SHA | Type | Description |
 |-----|------|-------------|
-| TBD | chore | Add retrospective process meta-skills (5 skills + index) |
-| TBD | docs | Complete session 66 log |
+| `02c88a9` | chore | Add retrospective process meta-skills (5 skills + index) |
 
 ---
 
