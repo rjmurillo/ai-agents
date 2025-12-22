@@ -325,7 +325,7 @@ echo "[PASS] All gates cleared"
 
 ### Phase 0: Memory Initialization (BLOCKING)
 
-**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
+**MUST**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
 
 #### Step 0.1: Load Core Skills Memory
 
