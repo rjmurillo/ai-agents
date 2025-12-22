@@ -1,6 +1,7 @@
 Describe "New-ValidatedPR" {
   BeforeAll {
     $script:scriptPath = Join-Path $PSScriptRoot ".." "New-ValidatedPR.ps1"
+    $script:skillPath = Join-Path $PSScriptRoot ".." ".." ".claude" "skills" "github" "scripts" "pr" "New-PR.ps1"
   }
   
   Context "When creating a validated PR" {
@@ -32,9 +33,15 @@ Describe "New-ValidatedPR" {
       $params.ContainsKey('BodyFile') | Should -Be $true
     }
     
-    It "Should accept -Force parameter" {
+    It "Should accept -SkipValidation parameter (not Force)" {
       $params = (Get-Command $script:scriptPath).Parameters
-      $params.ContainsKey('Force') | Should -Be $true
+      $params.ContainsKey('SkipValidation') | Should -Be $true
+      $params.ContainsKey('Force') | Should -Be $false
+    }
+    
+    It "Should accept -AuditReason parameter" {
+      $params = (Get-Command $script:scriptPath).Parameters
+      $params.ContainsKey('AuditReason') | Should -Be $true
     }
     
     It "Should accept -Web parameter" {
@@ -58,13 +65,40 @@ Describe "New-ValidatedPR" {
     }
   }
   
-  Context "When Force flag is used" {
-    It "Should create audit trail" {
-      # This test would require mocking gh CLI and git commands
-      # For now, just verify the script structure
-      $content = Get-Content $script:scriptPath -Raw
-      $content | Should -Match "Force MODE.*audit"
-      $content | Should -Match "\.agents/audit"
+  Context "When validating skill delegation" {
+    It "Skill script should exist" {
+      Test-Path $script:skillPath | Should -Be $true
+    }
+    
+    It "Skill should have valid PowerShell syntax" {
+      { 
+        $null = [System.Management.Automation.PSParser]::Tokenize(
+          (Get-Content $script:skillPath -Raw), 
+          [ref]$null
+        )
+      } | Should -Not -Throw
+    }
+    
+    It "Skill should test conventional commit format" {
+      $content = Get-Content $script:skillPath -Raw
+      $content | Should -Match "Test-ConventionalCommit"
+    }
+    
+    It "Skill should document exit codes" {
+      $content = Get-Content $script:skillPath -Raw
+      $content | Should -Match "Exit codes:"
+      $content | Should -Match "0 = Success"
+      $content | Should -Match "1 = Validation failure"
+      $content | Should -Match "2 = Usage/environment error"
+    }
+  }
+  
+  Context "When SkipValidation is used" {
+    It "Should require audit trail with AuditReason" {
+      # This test validates the skill logic
+      $content = Get-Content $script:skillPath -Raw
+      $content | Should -Match "SkipValidation.*AuditReason"
+      $content | Should -Match "Write-AuditLog"
     }
   }
 }

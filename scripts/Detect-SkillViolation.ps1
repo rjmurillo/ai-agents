@@ -108,19 +108,36 @@ foreach ($file in $filesToCheck) {
 if ($violations.Count -gt 0) {
   Write-Host ""
   Write-Warning "Detected raw 'gh' command usage (skill violations)"
-  Write-Host "  Use GitHub skill scripts instead: .claude/skills/github/"
+  Write-Host "  These commands indicate missing GitHub skill capabilities."
+  Write-Host "  Use .claude/skills/github/ scripts instead, or file an issue to add the capability."
   Write-Host ""
+  
+  # Track violations for capability improvement
+  $capabilityGaps = @()
   
   foreach ($v in $violations) {
     Write-Host "  $($v.File):$($v.Line) - matches '$($v.Pattern)'"
+    
+    # Extract the specific command for capability tracking
+    $pattern = $v.Pattern
+    if ($pattern -match 'gh\s+(\w+)\s+') {
+      $command = $Matches[1]
+      if ($capabilityGaps -notcontains $command) {
+        $capabilityGaps += $command
+      }
+    }
   }
   
   Write-Host ""
-  Write-Host "Available GitHub skills:"
-  Get-ChildItem -Path $skillsDir -Recurse -Filter "*.ps1" | ForEach-Object {
-    Write-Host "  - $($_.Name)"
+  Write-Host "Missing skill capabilities detected:"
+  foreach ($gap in $capabilityGaps) {
+    Write-Host "  - gh $gap (consider adding to .claude/skills/github/)"
   }
   
+  Write-Host ""
+  Write-Host "REMINDER: Use GitHub skills for better error handling, consistency, and auditability."
+  Write-Host "  Before using raw 'gh' commands, check: Get-ChildItem .claude/skills/github/scripts -Recurse"
+  Write-Host "  If the capability you need doesn't exist, create a skill script or file an issue."
   Write-Host ""
   Write-Host "See: .serena/memories/skill-usage-mandatory.md"
   

@@ -52,23 +52,19 @@ gh api /repos/owner/repo
       Set-Content -Path $script:tempFile -Value $content
       
       # Stage the file
-      Push-Location $PSScriptRoot
-      git add $script:tempFile 2>$null | Out-Null
+      git -C $PSScriptRoot add $script:tempFile 2>$null | Out-Null
     }
     
     AfterAll {
       # Clean up
       if ($script:tempFile -and (Test-Path $script:tempFile)) {
-        Pop-Location
-        git reset HEAD $script:tempFile 2>$null | Out-Null
+        git -C $PSScriptRoot reset HEAD $script:tempFile 2>$null | Out-Null
         Remove-Item $script:tempFile -Force -ErrorAction SilentlyContinue
       }
     }
     
     It "Should detect gh pr create" {
-      Push-Location (Split-Path $PSScriptRoot -Parent)
       $output = & pwsh -NoProfile -File $script:scriptPath -StagedOnly 2>&1 | Out-String
-      Pop-Location
       # Should either warn about violations or show no files (depending on git state)
       # The script exits 0 for warnings, so we just verify it runs
       $LASTEXITCODE | Should -Be 0

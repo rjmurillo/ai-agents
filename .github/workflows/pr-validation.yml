@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
 
       - name: Setup PowerShell
         shell: pwsh
@@ -83,24 +83,20 @@ jobs:
           $reviews = gh api "/repos/${{ github.repository }}/pulls/$env:PR_NUMBER/reviews" | ConvertFrom-Json
           $comments = gh api "/repos/${{ github.repository }}/pulls/$env:PR_NUMBER/comments" | ConvertFrom-Json
           
-          # Count unresolved threads
-          $unresolvedCount = 0
+          # Count security-related unresolved comments
           $securityUnresolved = 0
           
           foreach ($comment in $comments) {
-            # Check if comment is part of a resolved conversation
-            # GitHub API doesn't directly expose "resolved" status, so we check for replies
+            # Check for security-related keywords that are not marked as "won't fix"
             if ($comment.body -match '\b(security|vulnerability|CVE|injection|XSS)\b' -and 
                 -not ($comment.body -match '\bwon''t fix\b|\bWONT_FIX\b')) {
               $securityUnresolved++
             }
           }
           
-          "unresolved_count=$unresolvedCount" >> $env:GITHUB_OUTPUT
           "security_unresolved=$securityUnresolved" >> $env:GITHUB_OUTPUT
           
           Write-Host "Review comment status:"
-          Write-Host "  Unresolved threads: $unresolvedCount"
           Write-Host "  Security-related unresolved: $securityUnresolved"
 
       - name: Check QA Report Exists
