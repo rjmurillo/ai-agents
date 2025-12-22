@@ -142,6 +142,7 @@ Describe "Invoke-PRMaintenance.ps1" {
     Context "Get-OpenPRs Function" {
         It "Returns empty array when no PRs" {
             Mock gh {
+                $global:LASTEXITCODE = 0
                 return "[]"
             }
 
@@ -152,6 +153,7 @@ Describe "Invoke-PRMaintenance.ps1" {
 
         It "Returns PR objects with required properties" {
             Mock gh {
+                $global:LASTEXITCODE = 0
                 return ($Script:Fixtures.OpenPRs | ConvertTo-Json -Depth 5)
             }
 
@@ -467,6 +469,7 @@ Describe "Invoke-PRMaintenance.ps1" {
     Context "Get-SimilarPRs Function" {
         It "Returns empty array when no similar PRs" {
             Mock gh {
+                $global:LASTEXITCODE = 0
                 return "[]"
             }
 
@@ -476,6 +479,7 @@ Describe "Invoke-PRMaintenance.ps1" {
 
         It "Returns similar PRs when merged PR has matching title" {
             Mock gh {
+                $global:LASTEXITCODE = 0
                 return ($Script:Fixtures.MergedPRs | ConvertTo-Json)
             }
 
@@ -486,6 +490,7 @@ Describe "Invoke-PRMaintenance.ps1" {
 
         It "Excludes same PR number from results" {
             Mock gh {
+                $global:LASTEXITCODE = 0
                 return ($Script:Fixtures.MergedPRs | ConvertTo-Json)
             }
 
@@ -495,10 +500,22 @@ Describe "Invoke-PRMaintenance.ps1" {
 
         It "Handles titles without colons" {
             Mock gh {
+                $global:LASTEXITCODE = 0
                 return '[{"number": 800, "title": "No colon title"}]'
             }
 
             { Get-SimilarPRs -Owner "test" -Repo "repo" -PRNumber 123 -Title "No colon title" } | Should -Not -Throw
+        }
+
+        It "Returns empty array on gh CLI failure" {
+            Mock gh {
+                $global:LASTEXITCODE = 1
+                return "Error: Not authenticated"
+            }
+
+            $result = Get-SimilarPRs -Owner "test" -Repo "repo" -PRNumber 123 -Title "feat: test"
+            # PowerShell unwraps empty arrays to $null, so check for null or empty count
+            ($result -eq $null -or $result.Count -eq 0) | Should -Be $true
         }
     }
 
@@ -906,83 +923,32 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
-    Context "Enter-ScriptLock and Exit-ScriptLock - Basic Functionality" {
-        BeforeAll {
-            # The lock file path is computed within the functions using $PSScriptRoot
-            # For testing, we need to work with the actual lock location or mock properly
-            $Script:ActualLockFile = Join-Path $PSScriptRoot '..' '..' '.agents' 'logs' 'pr-maintenance.lock'
-        }
+    Context "Enter-ScriptLock and Exit-ScriptLock - ADR-015 No-Op Compliance" {
+        # ADR-015 Decision 1 rejects file-based locking in favor of GitHub Actions concurrency groups.
+        # These functions are now no-ops that always succeed for compatibility with existing call sites.
 
-        BeforeEach {
-            # Clean up any existing lock before each test
-            if (Test-Path $Script:ActualLockFile) {
-                Remove-Item $Script:ActualLockFile -Force -ErrorAction SilentlyContinue
-            }
-        }
-
-        AfterEach {
-            # Ensure cleanup after each test
-            if (Test-Path $Script:ActualLockFile) {
-                Remove-Item $Script:ActualLockFile -Force -ErrorAction SilentlyContinue
-            }
-        }
-
-        It "Enter-ScriptLock returns true when no lock exists" {
+        It "Enter-ScriptLock always returns true (no-op per ADR-015)" {
+            # ADR-015: File-based locks deprecated; function is a no-op that always succeeds
             $result = Enter-ScriptLock
             $result | Should -Be $true
-
-            # Cleanup: release the lock we just acquired
-            Exit-ScriptLock
         }
 
-        It "Enter-ScriptLock returns false when recent lock exists" {
-            # First, acquire a lock
-            Enter-ScriptLock | Out-Null
-
-            # Try to acquire again - should fail
-            $result = Enter-ScriptLock
-            $result | Should -Be $false
-
-            # Cleanup
-            Exit-ScriptLock
+        It "Enter-ScriptLock returns true on repeated calls (no lock contention)" {
+            # ADR-015: No actual locking, so repeated calls always succeed
+            $result1 = Enter-ScriptLock
+            $result2 = Enter-ScriptLock
+            $result1 | Should -Be $true
+            $result2 | Should -Be $true
         }
 
-        It "Enter-ScriptLock removes stale lock (>15 min)" {
-            # Create the lock directory and file
-            $lockDir = Split-Path $Script:ActualLockFile -Parent
-            if (-not (Test-Path $lockDir)) {
-                New-Item -ItemType Directory -Path $lockDir -Force | Out-Null
-            }
-            New-Item -ItemType File -Path $Script:ActualLockFile -Force | Out-Null
-
-            # Backdate the lock file to simulate stale lock
-            (Get-Item $Script:ActualLockFile).LastWriteTime = (Get-Date).AddMinutes(-20)
-
-            # Should succeed because the lock is stale
-            $result = Enter-ScriptLock
-            $result | Should -Be $true
-
-            # Cleanup
-            Exit-ScriptLock
+        It "Exit-ScriptLock does not throw" {
+            # ADR-015: No-op function should never throw
+            { Exit-ScriptLock } | Should -Not -Throw
         }
 
-        It "Exit-ScriptLock removes lock file" {
-            # First acquire a lock
-            Enter-ScriptLock | Out-Null
-
-            # Now release it
-            Exit-ScriptLock
-
-            # Lock should be gone
-            Test-Path $Script:ActualLockFile | Should -Be $false
-        }
-
-        It "Exit-ScriptLock does not throw when no lock exists" {
-            # Ensure no lock exists
-            if (Test-Path $Script:ActualLockFile) {
-                Remove-Item $Script:ActualLockFile -Force
-            }
-
+        It "Exit-ScriptLock can be called multiple times without error" {
+            # ADR-015: No state to release, so multiple calls are safe
+            { Exit-ScriptLock } | Should -Not -Throw
             { Exit-ScriptLock } | Should -Not -Throw
         }
     }

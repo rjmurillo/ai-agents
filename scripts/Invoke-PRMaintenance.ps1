@@ -169,44 +169,31 @@ function Get-SafeWorktreePath {
 
 <#
 .SYNOPSIS
-    Acquires a script-level lock to prevent concurrent execution.
+    No-op script-level lock retained for compatibility.
 .DESCRIPTION
-    Creates a lock file to prevent multiple instances from running simultaneously.
-    Stale locks (>15 min) are automatically removed.
-    ADR-015 Fix 3: Concurrency Lock (Security HIGH)
+    ADR-015 Decision 1 explicitly rejects file-based locking in favor of
+    GitHub Actions concurrency groups on ephemeral runners because:
+      - File-based locks add complexity without meaningful benefit
+      - Runners are isolated per job, so cross-job file locks are ineffective
+
+    This function is retained as a thin shim so existing call sites continue
+    to work, but it does NOT implement any file-based locking. Concurrency
+    protection is provided exclusively by the workflow's concurrency group.
 #>
 function Enter-ScriptLock {
-    $lockFile = Join-Path $PSScriptRoot '..' '.agents' 'logs' 'pr-maintenance.lock'
-
-    # Ensure directory exists
-    $lockDir = Split-Path $lockFile -Parent
-    if (-not (Test-Path $lockDir)) {
-        New-Item -ItemType Directory -Path $lockDir -Force | Out-Null
-    }
-
-    if (Test-Path $lockFile) {
-        $lockAge = (Get-Date) - (Get-Item $lockFile).LastWriteTime
-        if ($lockAge.TotalMinutes -lt 15) {
-            Write-Log "Another instance is running (lock age: $([math]::Round($lockAge.TotalMinutes, 1))m)" -Level WARN
-            return $false
-        }
-        Write-Log "Stale lock detected (age: $([math]::Round($lockAge.TotalMinutes, 1))m) - removing" -Level WARN
-        Remove-Item $lockFile -Force
-    }
-
-    New-Item $lockFile -ItemType File -Force | Out-Null
-    Write-Log "Script lock acquired" -Level INFO
+    Write-Log "Enter-ScriptLock: no-op (ADR-015: rely on GitHub Actions concurrency group, not file-based locks)" -Level INFO
     return $true
 }
 
 <#
 .SYNOPSIS
-    Releases the script-level lock.
+    No-op release for the script-level lock.
+.DESCRIPTION
+    Kept for compatibility with existing call sites. Does not modify any
+    filesystem state because file-based locks were deprecated by ADR-015.
 #>
 function Exit-ScriptLock {
-    $lockFile = Join-Path $PSScriptRoot '..' '.agents' 'logs' 'pr-maintenance.lock'
-    Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
-    Write-Log "Script lock released" -Level INFO
+    Write-Log "Exit-ScriptLock: no-op (ADR-015: file-based locks deprecated)" -Level INFO
 }
 
 <#
@@ -584,7 +571,7 @@ function Resolve-PRConflicts {
             return $true
         }
         catch {
-            Write-Log "Failed to resolve conflicts for PR #$PRNumber: $_" -Level ERROR
+            Write-Log "Failed to resolve conflicts for PR #${PRNumber}: $_" -Level ERROR
             return $false
         }
     }
@@ -597,7 +584,7 @@ function Resolve-PRConflicts {
             $worktreePath = Get-SafeWorktreePath -BasePath $script:Config.WorktreeBasePath -PRNumber $PRNumber
         }
         catch {
-            Write-Log "Failed to get safe worktree path for PR #$PRNumber: $_" -Level ERROR
+            Write-Log "Failed to get safe worktree path for PR #${PRNumber}: $_" -Level ERROR
             return $false
         }
 
@@ -648,7 +635,7 @@ function Resolve-PRConflicts {
             return $true
         }
         catch {
-            Write-Log "Failed to resolve conflicts for PR #$PRNumber: $_" -Level ERROR
+            Write-Log "Failed to resolve conflicts for PR #${PRNumber}: $_" -Level ERROR
             return $false
         }
         finally {
@@ -679,7 +666,12 @@ function Get-SimilarPRs {
     )
 
     # Check if there's a merged PR with very similar title
-    $mergedPRs = gh pr list --repo "$Owner/$Repo" --state merged --limit 20 --json number,title 2>&1 | ConvertFrom-Json
+    $output = gh pr list --repo "$Owner/$Repo" --state merged --limit 20 --json number,title 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "Failed to query merged PRs: $output" -Level WARN
+        return @()
+    }
+    $mergedPRs = $output | ConvertFrom-Json
 
     $similar = @()
     foreach ($merged in $mergedPRs) {
