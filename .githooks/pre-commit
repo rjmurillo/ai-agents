@@ -216,35 +216,38 @@ if [ -n "$STAGED_PS_FILES" ]; then
             echo_info "No PowerShell files to process."
         else
             # Check if PSScriptAnalyzer module is available
-            if pwsh -NoProfile -Command "Get-Module -ListAvailable PSScriptAnalyzer" &> /dev/null; then
-                # HIGH-001: Use while/read loop with proper IFS to handle spaces in filenames
+            # Use -ErrorAction Stop and check for actual module output (Get-Module returns $null when not found)
+            if pwsh -NoProfile -Command 'if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) { exit 1 }'; then
                 # MEDIUM-002: Check for symlinks to prevent TOCTOU race conditions
+                # Use PS_FILES array with for loop for safe filename handling
                 PS_ERRORS_FOUND=0
                 
-                while IFS= read -r file; do
-                    # Skip empty lines
+                # Use PS_FILES array populated from mapfile (line 212)
+                for file in "${PS_FILES[@]}"; do
+                    # Skip empty entries
                     [ -z "$file" ] && continue
-                    
+
                     # MEDIUM-002: Reject symlinks to prevent race condition attacks
                     if [ -L "$file" ]; then
                         echo_warning "Skipping symlink: $file"
                         continue
                     fi
-                    
+
                     # Process regular files only
                     if [ -f "$file" ]; then
-                        # Run PSScriptAnalyzer on file, checking for Error severity only (blocking)
+                        # Run PSScriptAnalyzer on file, checking for Error and Warning severity
                         # Capture output for display
                         ANALYZER_OUTPUT=$(mktemp)
-                        # shellcheck disable=SC2086
-                        if ! pwsh -NoProfile -Command "Invoke-ScriptAnalyzer -Path '$file' -Settings '.PSScriptAnalyzerSettings.psd1' -Severity Error,Warning | ForEach-Object { Write-Output \"\$(\$_.Severity): \$(\$_.Message) at line \$(\$_.Line)\" }" > "$ANALYZER_OUTPUT" 2>&1; then
+                        # CRITICAL-001: Pass file path via environment variable to prevent command injection
+                        # Single quotes in filenames cannot escape when using $env: variable
+                        if ! PSANALYZER_FILE="$file" pwsh -NoProfile -Command 'Invoke-ScriptAnalyzer -Path $env:PSANALYZER_FILE -Settings ".PSScriptAnalyzerSettings.psd1" -Severity Error,Warning | ForEach-Object { Write-Output "$($_.Severity): $($_.Message) at line $($_.Line)" }' > "$ANALYZER_OUTPUT" 2>&1; then
                             echo_error "Failed to analyze: $file"
                             cat "$ANALYZER_OUTPUT"
                             rm -f "$ANALYZER_OUTPUT"
                             EXIT_STATUS=1
                             continue
                         fi
-                        
+
                         # Check if there are any Error-level issues (blocking)
                         if grep -q "^Error:" "$ANALYZER_OUTPUT"; then
                             echo_error "PSScriptAnalyzer errors in: $file"
@@ -252,16 +255,16 @@ if [ -n "$STAGED_PS_FILES" ]; then
                             PS_ERRORS_FOUND=1
                             EXIT_STATUS=1
                         fi
-                        
+
                         # Display warnings (non-blocking)
                         if grep -q "^Warning:" "$ANALYZER_OUTPUT"; then
                             echo_warning "PSScriptAnalyzer warnings in: $file"
                             grep "^Warning:" "$ANALYZER_OUTPUT"
                         fi
-                        
+
                         rm -f "$ANALYZER_OUTPUT"
                     fi
-                done <<< "$STAGED_PS_FILES"
+                done
                 
                 if [ $PS_ERRORS_FOUND -eq 0 ]; then
                     echo_success "PowerShell scripts OK."
