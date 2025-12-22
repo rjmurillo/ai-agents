@@ -65,7 +65,7 @@ function Get-CopilotAnnouncement {
         [int]$PRNumber
     )
 
-    $comments = gh api repos/$Owner/$Repo/issues/$PRNumber/comments `
+    $comments = gh api repos/$script:Owner/$script:Repo/issues/$PRNumber/comments `
         --jq '.[] | select(.user.login == "app/copilot-swe-agent")' 2>/dev/null
 
     if ($null -eq $comments -or $comments -eq '') {
@@ -108,7 +108,7 @@ function Get-OriginalPRCommits {
 
     $commits = @()
     try {
-        $commitData = gh api repos/$Owner/$Repo/commits `
+        $commitData = gh api repos/$script:Owner/$script:Repo/commits `
             --jq ".[] | select(.commit.message | contains(\"PR $PRNumber\") or contains(\"Comment-ID\"))" 2>/dev/null
         if ($commitData) {
             $commits = @($commitData | ConvertFrom-Json -ErrorAction SilentlyContinue)
