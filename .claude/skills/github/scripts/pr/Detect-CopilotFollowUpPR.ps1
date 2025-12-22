@@ -66,14 +66,14 @@ function Get-CopilotAnnouncement {
     )
 
     $comments = gh api repos/$script:Owner/$script:Repo/issues/$PRNumber/comments `
-        --jq '.[] | select(.user.login == "app/copilot-swe-agent")' 2>/dev/null
+        --jq '.[] | select(.user.login == "app/copilot-swe-agent" and (.body | contains("opened a new pull request"))) | {id: .id, body: .body, created_at: .created_at}' 2>/dev/null
 
     if ($null -eq $comments -or $comments -eq '') {
         return $null
     }
 
-    # Parse each comment and check for follow-up PR announcement
-    $comments | jq -r 'select(.body | contains("opened a new pull request")) | {id: .id, body: .body, created_at: .created_at}' 2>/dev/null
+    # Return matching Copilot announcement comments as JSON-formatted text
+    return $comments
 }
 
 function Get-FollowUpPRDiff {

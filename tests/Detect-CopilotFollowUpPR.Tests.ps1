@@ -34,18 +34,9 @@ Describe "Detect-CopilotFollowUpPR" {
     }
 
     Context "Script Execution" {
-        BeforeAll {
-            # Mock gh commands to avoid network calls
-            Mock -CommandName gh -MockWith {
-                param($args)
-                # Return empty JSON for PR list
-                if ($args -contains "pr" -and $args -contains "list") {
-                    return "[]"
-                }
-                # Return empty for API calls
-                return ""
-            } -ModuleName Microsoft.PowerShell.Management
-        }
+        # Note: These tests validate script presence and syntax only.
+        # The script is not executed here, so external tools like `gh`
+        # are not invoked and do not need to be mocked.
 
         It "Script file exists at expected path" {
             Test-Path $scriptPath | Should -Be $true
