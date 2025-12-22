@@ -694,6 +694,12 @@ function Invoke-PRMaintenance {
 
 #region Entry Point
 
+# Guard: Only execute main logic when run directly, not when dot-sourced for testing
+if ($MyInvocation.InvocationName -eq '.') {
+    # Script is being dot-sourced - functions are now available but don't execute main logic
+    return
+}
+
 try {
     # ADR-015 Fix 3: Acquire script lock to prevent concurrent execution
     if (-not (Enter-ScriptLock)) {

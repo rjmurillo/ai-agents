@@ -636,4 +636,493 @@ Describe "Invoke-PRMaintenance.ps1" {
             $Script:ScriptContent | Should -Not -Match '/Users/.*?/github'
         }
     }
+
+    #region ADR-015 P0 Security Validation Tests
+
+    Context "Test-SafeBranchName - Empty and Whitespace" {
+        It "Throws for null (mandatory parameter)" {
+            # The [Parameter(Mandatory)] attribute prevents null values
+            { Test-SafeBranchName -BranchName $null } | Should -Throw
+        }
+
+        It "Throws for empty string (mandatory parameter)" {
+            # The [Parameter(Mandatory)] attribute prevents empty strings
+            { Test-SafeBranchName -BranchName "" } | Should -Throw
+        }
+
+        It "Returns false for whitespace only" {
+            $result = Test-SafeBranchName -BranchName "   "
+            $result | Should -Be $false
+        }
+
+        It "Returns false for tab only" {
+            $result = Test-SafeBranchName -BranchName "`t"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for newline only" {
+            $result = Test-SafeBranchName -BranchName "`n"
+            $result | Should -Be $false
+        }
+    }
+
+    Context "Test-SafeBranchName - Hyphen Prefix (Git Option Injection)" {
+        It "Returns false for single hyphen prefix" {
+            $result = Test-SafeBranchName -BranchName "-branch"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for double hyphen prefix" {
+            $result = Test-SafeBranchName -BranchName "--branch"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for --version attempt" {
+            $result = Test-SafeBranchName -BranchName "--version"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for -h attempt" {
+            $result = Test-SafeBranchName -BranchName "-h"
+            $result | Should -Be $false
+        }
+
+        It "Returns true for hyphen in middle" {
+            $result = Test-SafeBranchName -BranchName "feature-branch"
+            $result | Should -Be $true
+        }
+
+        It "Returns true for trailing hyphen" {
+            $result = Test-SafeBranchName -BranchName "feature-"
+            $result | Should -Be $true
+        }
+    }
+
+    Context "Test-SafeBranchName - Path Traversal Prevention" {
+        It "Returns false for double dot" {
+            $result = Test-SafeBranchName -BranchName ".."
+            $result | Should -Be $false
+        }
+
+        It "Returns false for path with double dot" {
+            $result = Test-SafeBranchName -BranchName "feature/../main"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for leading double dot" {
+            $result = Test-SafeBranchName -BranchName "../escape"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for trailing double dot" {
+            $result = Test-SafeBranchName -BranchName "branch/.."
+            $result | Should -Be $false
+        }
+
+        It "Returns true for single dot" {
+            # Single dots are allowed in git branch names
+            $result = Test-SafeBranchName -BranchName "v1.0.0"
+            $result | Should -Be $true
+        }
+    }
+
+    Context "Test-SafeBranchName - Control Characters" {
+        It "Returns false for null character" {
+            $result = Test-SafeBranchName -BranchName "branch`0name"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for bell character" {
+            $result = Test-SafeBranchName -BranchName "branch`aname"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for backspace" {
+            $result = Test-SafeBranchName -BranchName "branch`bname"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for carriage return" {
+            $result = Test-SafeBranchName -BranchName "branch`rname"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for tab character" {
+            $result = Test-SafeBranchName -BranchName "branch`tname"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for escape character" {
+            $result = Test-SafeBranchName -BranchName "branch`ename"
+            $result | Should -Be $false
+        }
+    }
+
+    Context "Test-SafeBranchName - Git Special Characters" {
+        It "Returns false for tilde" {
+            $result = Test-SafeBranchName -BranchName "branch~1"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for caret" {
+            $result = Test-SafeBranchName -BranchName "branch^1"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for colon" {
+            $result = Test-SafeBranchName -BranchName "branch:name"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for question mark" {
+            $result = Test-SafeBranchName -BranchName "branch?name"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for asterisk" {
+            $result = Test-SafeBranchName -BranchName "branch*name"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for open bracket" {
+            $result = Test-SafeBranchName -BranchName "branch[name"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for close bracket" {
+            $result = Test-SafeBranchName -BranchName "branch]name"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for backslash" {
+            $result = Test-SafeBranchName -BranchName "branch\name"
+            $result | Should -Be $false
+        }
+    }
+
+    Context "Test-SafeBranchName - Shell Metacharacters" {
+        It "Returns false for backtick" {
+            $result = Test-SafeBranchName -BranchName "branch``command``"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for dollar sign" {
+            $result = Test-SafeBranchName -BranchName 'branch$var'
+            $result | Should -Be $false
+        }
+
+        It "Returns false for semicolon" {
+            $result = Test-SafeBranchName -BranchName "branch;rm -rf"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for ampersand" {
+            $result = Test-SafeBranchName -BranchName "branch&command"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for pipe" {
+            $result = Test-SafeBranchName -BranchName "branch|command"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for less than" {
+            $result = Test-SafeBranchName -BranchName "branch<file"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for greater than" {
+            $result = Test-SafeBranchName -BranchName "branch>file"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for open paren" {
+            $result = Test-SafeBranchName -BranchName "branch(sub"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for close paren" {
+            $result = Test-SafeBranchName -BranchName "branch)sub"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for open brace" {
+            $result = Test-SafeBranchName -BranchName "branch{sub"
+            $result | Should -Be $false
+        }
+
+        It "Returns false for close brace" {
+            $result = Test-SafeBranchName -BranchName "branch}sub"
+            $result | Should -Be $false
+        }
+    }
+
+    Context "Test-SafeBranchName - Valid Branch Names" {
+        It "Returns true for simple feature branch" {
+            $result = Test-SafeBranchName -BranchName "feature/add-login"
+            $result | Should -Be $true
+        }
+
+        It "Returns true for fix branch" {
+            $result = Test-SafeBranchName -BranchName "fix/bug-123"
+            $result | Should -Be $true
+        }
+
+        It "Returns true for copilot branch" {
+            $result = Test-SafeBranchName -BranchName "copilot/add-context-synthesis"
+            $result | Should -Be $true
+        }
+
+        It "Returns true for version branch" {
+            $result = Test-SafeBranchName -BranchName "release/v2.1.0"
+            $result | Should -Be $true
+        }
+
+        It "Returns true for underscore branch" {
+            $result = Test-SafeBranchName -BranchName "feature_branch_name"
+            $result | Should -Be $true
+        }
+
+        It "Returns true for numeric branch" {
+            $result = Test-SafeBranchName -BranchName "pr-12345"
+            $result | Should -Be $true
+        }
+
+        It "Returns true for at-sign branch (dependabot)" {
+            $result = Test-SafeBranchName -BranchName "dependabot/npm_and_yarn/lodash-4.17.21"
+            $result | Should -Be $true
+        }
+    }
+
+    Context "Get-SafeWorktreePath - Input Validation" {
+        It "Throws for zero PR number" {
+            { Get-SafeWorktreePath -BasePath $TestDrive -PRNumber 0 } | Should -Throw "*Invalid PR number*"
+        }
+
+        It "Throws for negative PR number" {
+            { Get-SafeWorktreePath -BasePath $TestDrive -PRNumber -1 } | Should -Throw "*Invalid PR number*"
+        }
+
+        It "Throws for non-existent base path" {
+            { Get-SafeWorktreePath -BasePath "Z:\NonExistentPath" -PRNumber 123 } | Should -Throw
+        }
+
+        It "Returns valid path for positive PR number" {
+            $result = Get-SafeWorktreePath -BasePath $TestDrive -PRNumber 123
+            $result | Should -Match "ai-agents-pr-123$"
+        }
+
+        It "Returns valid path for large PR number (Int64)" {
+            $result = Get-SafeWorktreePath -BasePath $TestDrive -PRNumber 2147483648
+            $result | Should -Match "ai-agents-pr-2147483648$"
+        }
+    }
+
+    Context "Get-SafeWorktreePath - Path Traversal Prevention" {
+        It "Returns path within base directory" {
+            $result = Get-SafeWorktreePath -BasePath $TestDrive -PRNumber 123
+            $result | Should -BeLike "$TestDrive*"
+        }
+
+        It "Generates predictable worktree name" {
+            $result = Get-SafeWorktreePath -BasePath $TestDrive -PRNumber 456
+            $result | Should -Match "ai-agents-pr-456$"
+        }
+    }
+
+    Context "Enter-ScriptLock and Exit-ScriptLock - Basic Functionality" {
+        BeforeAll {
+            # The lock file path is computed within the functions using $PSScriptRoot
+            # For testing, we need to work with the actual lock location or mock properly
+            $Script:ActualLockFile = Join-Path $PSScriptRoot '..' '..' '.agents' 'logs' 'pr-maintenance.lock'
+        }
+
+        BeforeEach {
+            # Clean up any existing lock before each test
+            if (Test-Path $Script:ActualLockFile) {
+                Remove-Item $Script:ActualLockFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        AfterEach {
+            # Ensure cleanup after each test
+            if (Test-Path $Script:ActualLockFile) {
+                Remove-Item $Script:ActualLockFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Enter-ScriptLock returns true when no lock exists" {
+            $result = Enter-ScriptLock
+            $result | Should -Be $true
+
+            # Cleanup: release the lock we just acquired
+            Exit-ScriptLock
+        }
+
+        It "Enter-ScriptLock returns false when recent lock exists" {
+            # First, acquire a lock
+            Enter-ScriptLock | Out-Null
+
+            # Try to acquire again - should fail
+            $result = Enter-ScriptLock
+            $result | Should -Be $false
+
+            # Cleanup
+            Exit-ScriptLock
+        }
+
+        It "Enter-ScriptLock removes stale lock (>15 min)" {
+            # Create the lock directory and file
+            $lockDir = Split-Path $Script:ActualLockFile -Parent
+            if (-not (Test-Path $lockDir)) {
+                New-Item -ItemType Directory -Path $lockDir -Force | Out-Null
+            }
+            New-Item -ItemType File -Path $Script:ActualLockFile -Force | Out-Null
+
+            # Backdate the lock file to simulate stale lock
+            (Get-Item $Script:ActualLockFile).LastWriteTime = (Get-Date).AddMinutes(-20)
+
+            # Should succeed because the lock is stale
+            $result = Enter-ScriptLock
+            $result | Should -Be $true
+
+            # Cleanup
+            Exit-ScriptLock
+        }
+
+        It "Exit-ScriptLock removes lock file" {
+            # First acquire a lock
+            Enter-ScriptLock | Out-Null
+
+            # Now release it
+            Exit-ScriptLock
+
+            # Lock should be gone
+            Test-Path $Script:ActualLockFile | Should -Be $false
+        }
+
+        It "Exit-ScriptLock does not throw when no lock exists" {
+            # Ensure no lock exists
+            if (Test-Path $Script:ActualLockFile) {
+                Remove-Item $Script:ActualLockFile -Force
+            }
+
+            { Exit-ScriptLock } | Should -Not -Throw
+        }
+    }
+
+    Context "Test-RateLimitSafe - API Response Handling" {
+        It "Returns true when remaining > minimum" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return '{"remaining": 500, "limit": 5000}'
+            }
+
+            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result | Should -Be $true
+        }
+
+        It "Returns false when remaining < minimum" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return '{"remaining": 100, "limit": 5000}'
+            }
+
+            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result | Should -Be $false
+        }
+
+        It "Returns true when remaining = minimum (uses strict less-than)" {
+            # Function uses -lt, so 200 < 200 is false, meaning rate limit is OK
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return '{"remaining": 200, "limit": 5000}'
+            }
+
+            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result | Should -Be $true
+        }
+
+        It "Returns true on API failure (fail-open)" {
+            Mock gh {
+                $global:LASTEXITCODE = 1
+                return "Error: API error"
+            }
+
+            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result | Should -Be $true
+        }
+
+        It "Returns true on invalid JSON (fail-open)" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return "INVALID JSON"
+            }
+
+            $result = Test-RateLimitSafe -MinimumRemaining 200
+            $result | Should -Be $true
+        }
+
+        It "Uses default minimum of 200" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return '{"remaining": 199, "limit": 5000}'
+            }
+
+            $result = Test-RateLimitSafe
+            $result | Should -Be $false
+        }
+    }
+
+    Context "Add-CommentReaction - Int64 CommentId Support (ADR-015 Fix 4)" {
+        It "Accepts Int64 CommentId without overflow" {
+            Mock Invoke-GhApi { return '{"id": 1}' }
+
+            # This value exceeds Int32.MaxValue (2,147,483,647)
+            $largeCommentId = 2616639886
+
+            { Add-CommentReaction -Owner "test" -Repo "repo" -CommentId $largeCommentId } | Should -Not -Throw
+        }
+
+        It "Accepts very large Int64 CommentId" {
+            Mock Invoke-GhApi { return '{"id": 1}' }
+
+            # Near Int64.MaxValue
+            $veryLargeId = [long]9223372036854775800
+
+            { Add-CommentReaction -Owner "test" -Repo "repo" -CommentId $veryLargeId } | Should -Not -Throw
+        }
+    }
+
+    Context "Resolve-PRConflicts - Branch Validation Integration" {
+        It "Rejects unsafe branch name before git operations" {
+            Mock git { throw "Should not be called" }
+
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "--version"
+            $result | Should -Be $false
+        }
+
+        It "Rejects branch with shell injection" {
+            Mock git { throw "Should not be called" }
+
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "branch;rm -rf /"
+            $result | Should -Be $false
+        }
+
+        It "Allows valid branch name" {
+            Mock git {
+                param([Parameter(ValueFromRemainingArguments)]$Args)
+                if ($Args -contains "rev-parse") { return $TestDrive }
+                return ""
+            }
+            Mock Push-Location {}
+            Mock Pop-Location {}
+
+            # DryRun mode to avoid full execution
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "feature/safe-branch" -DryRun
+            $result | Should -Be $true
+        }
+    }
+
+    #endregion ADR-015 P0 Security Validation Tests
 }
