@@ -216,13 +216,41 @@ nothing to commit, working tree clean
 
 ### Commits This Session
 
-- `6bbacc4` - docs(session): add Session 58 pr-comment-responder workflow for PR #206
+- `1449d6d` - docs(session): add Session 58 pr-comment-responder workflow for PR #206
+- `5f5f7b6` - Merge main into fix/session-41-cleanup (resolved HANDOFF.md conflict)
+
+---
+
+## Merge Conflict Resolution
+
+**Resolved**: 2025-12-22
+
+### Conflict Details
+
+- **File**: `.agents/HANDOFF.md`
+- **Cause**: Session History table had divergent entries
+- **Resolution**: Combined both session histories, kept all entries
+
+### Session ID Collision
+
+Main branch and this branch both had Session 55-58. Resolution:
+
+- Renamed this branch's Session 58 to `Session 58-PR206` to disambiguate
+- Preserved main branch Sessions 55-61
+
+### Skill Extracted
+
+Created `Skill-Coordination-002: HANDOFF.md High-Conflict Risk` documenting:
+
+- HANDOFF.md is high-incursion risk (modified every session)
+- Defensive strategies for long-lived branches
+- Resolution protocol for session history conflicts
 
 ---
 
 ## Notes for Next Session
 
-- PR #206 has merge conflicts that must be resolved
+- PR #206 is now MERGEABLE (conflicts resolved)
 - Historical session debt (Sessions 36-39) is documented but not fixable without falsifying records
 - Session Protocol validator is working correctly - it identifies the historical debt
-- Consider closing PR #206 and creating fresh PR if conflicts are complex
+- New skill stored: `.serena/memories/skill-coordination-002-handoff-conflict-risk.md`
