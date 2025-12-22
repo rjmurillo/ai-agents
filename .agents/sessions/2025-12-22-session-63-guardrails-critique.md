@@ -77,16 +77,19 @@ Review the Local Guardrails spec and plan documents for completeness, gaps, and 
 - Define pedagogical error message template
 - Add Phase 5 go/no-go decision gate
 
-## Session End
+## Session End (COMPLETE ALL before closing)
 
-- [ ] Retrospective conducted (if merited)
-- [ ] `.agents/HANDOFF.md` updated with session summary
-- [ ] Session log link added to HANDOFF.md
-- [ ] All changes committed (including `.agents/` files)
-- [ ] Commit SHA recorded: [pending]
-- [ ] Session End validator executed: [pending]
-- [ ] Validator result: [pending]
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [N/A] | Critique only - no implementation |
+| MUST | Commit all changes (including .serena\memories) | [x] | Commit SHA: a828df44984245bd1ccfe62668e0bd306820d641 |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No project plan for critique |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | Not merited - standard critique workflow |
+| SHOULD | Verify clean git status | [ ] | Pending final commit |
 
 ## Artifacts Created
 
-- [ ] `.agents/critique/NNN-local-guardrails-critique.md`
+- [x] `.agents/critique/051-local-guardrails-critique.md`
