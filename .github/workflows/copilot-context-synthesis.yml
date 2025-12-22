@@ -103,10 +103,16 @@ jobs:
 
           # Output result summary
           if ($result.Success) {
-            Write-Host "::notice::$($result.Action) synthesis comment: $($result.CommentUrl)"
+            if ($result.Action -eq "Skipped") {
+              Write-Host "::notice::No synthesizable content - skipped synthesis comment for issue #$env:ISSUE_NUMBER"
+            } else {
+              Write-Host "::notice::$($result.Action) synthesis comment: $($result.CommentUrl)"
+            }
             if ($result.Assigned) {
               Write-Host "::notice::Assigned copilot-swe-agent to issue #$env:ISSUE_NUMBER"
             }
+            # Explicit exit 0 ensures success even if assignment failed (synthesis is the primary goal)
+            exit 0
           } else {
             Write-Host "::error::Failed to synthesize context for issue #$env:ISSUE_NUMBER"
             exit 1
