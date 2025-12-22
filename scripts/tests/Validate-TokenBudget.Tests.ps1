@@ -22,8 +22,8 @@ BeforeAll {
     # Extract the Get-ApproxTokenCount function for unit testing
     $scriptContent = Get-Content -Path $scriptPath -Raw
     
-    # Extract function definition
-    $functionPattern = '(?ms)(function\s+Get-ApproxTokenCount\s*\{.*?\n\}(?=\n\n|\nSet-StrictMode|\n#|\z))'
+    # Extract function definition (handle both LF and CRLF line endings)
+    $functionPattern = '(?ms)(function\s+Get-ApproxTokenCount\s*\{.*?\r?\n\}(?=\r?\n\r?\n|\r?\nSet-StrictMode|\r?\n#|\z))'
     $match = [regex]::Match($scriptContent, $functionPattern)
     
     if ($match.Success) {
