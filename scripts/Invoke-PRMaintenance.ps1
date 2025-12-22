@@ -663,7 +663,7 @@ function Invoke-PRMaintenance {
             # Check and resolve merge conflicts
             if ($pr.mergeable -eq 'CONFLICTING') {
                 Write-Log "PR #$($pr.number) has merge conflicts - attempting resolution" -Level ACTION
-                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.head -DryRun:$DryRun
+                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.headRefName -DryRun:$DryRun
                 if ($resolved) {
                     $results.ConflictsResolved++
                 }
@@ -732,7 +732,7 @@ try {
         $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -DryRun:$DryRun -MaxPRs $MaxPRs
 
         # Summary
-        Write-Log "" -Level INFO
+        Write-Log "---" -Level INFO
         Write-Log "=== PR Maintenance Summary ===" -Level INFO
         Write-Log "PRs Processed: $($results.Processed)" -Level INFO
         Write-Log "Comments Acknowledged: $($results.CommentsAcknowledged)" -Level SUCCESS
@@ -740,7 +740,7 @@ try {
         Write-Log "PRs Closed (Superseded): $($results.PRsClosed)" -Level SUCCESS
 
         if ($results.Blocked.Count -gt 0) {
-            Write-Log "" -Level INFO
+            Write-Log "---" -Level INFO
             Write-Log "Blocked PRs (require human action):" -Level WARN
             foreach ($blocked in $results.Blocked) {
                 Write-Log "  PR #$($blocked.PR): $($blocked.Reason) - $($blocked.Title)" -Level WARN
@@ -748,7 +748,7 @@ try {
         }
 
         if ($results.Errors.Count -gt 0) {
-            Write-Log "" -Level INFO
+            Write-Log "---" -Level INFO
             Write-Log "Errors:" -Level ERROR
             foreach ($err in $results.Errors) {
                 Write-Log "  PR #$($err.PR): $($err.Error)" -Level ERROR
@@ -756,7 +756,7 @@ try {
         }
 
         $duration = (Get-Date) - $script:StartTime
-        Write-Log "" -Level INFO
+        Write-Log "---" -Level INFO
         Write-Log "Completed in $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
 
         # Save log
