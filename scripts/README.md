@@ -136,6 +136,118 @@ Invoke-Pester -Path .\scripts\tests -Output Detailed
 
 Tests run automatically on PR/push to `scripts/**` via `.github/workflows/pester-tests.yml`.
 
+## Validation Scripts
+
+The repository includes validation scripts for enforcing protocol compliance and code quality. These implement the technical guardrails from Issue #230.
+
+### Session Protocol Validation
+
+#### Validate-SessionEnd.ps1
+
+Validates Session End protocol compliance for a single session log.
+
+**Usage**:
+
+```powershell
+.\scripts\Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/2025-12-22-session-01.md"
+```
+
+**Called By**: Pre-commit hook, orchestrator, CI
+
+#### Validate-SessionProtocol.ps1
+
+Validates session protocol compliance across multiple sessions.
+
+**Usage**:
+
+```powershell
+# Validate specific session
+.\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.md"
+
+# Validate all recent sessions
+.\scripts\Validate-SessionProtocol.ps1 -All
+
+# CI mode
+.\scripts\Validate-SessionProtocol.ps1 -All -CI
+```
+
+### PR and Code Quality
+
+#### Validate-PRDescription.ps1
+
+Validates PR description matches actual code changes (prevents Analyst CRITICAL_FAIL).
+
+**Usage**:
+
+```powershell
+.\scripts\Validate-PRDescription.ps1 -PRNumber 226 -CI
+```
+
+**Called By**: CI workflow (`.github/workflows/pr-validation.yml`)
+
+#### Detect-SkillViolation.ps1
+
+Detects raw `gh` command usage when GitHub skills exist (WARNING, non-blocking).
+
+**Usage**:
+
+```powershell
+# Check staged files
+.\scripts\Detect-SkillViolation.ps1 -StagedOnly
+
+# Check entire repo
+.\scripts\Detect-SkillViolation.ps1
+```
+
+**Called By**: Pre-commit hook
+
+#### Detect-TestCoverageGaps.ps1
+
+Detects PowerShell files without corresponding test files (WARNING, non-blocking).
+
+**Usage**:
+
+```powershell
+# Check staged files
+.\scripts\Detect-TestCoverageGaps.ps1 -StagedOnly
+
+# Check with ignore file
+.\scripts\Detect-TestCoverageGaps.ps1 -IgnoreFile ".testignore"
+```
+
+**Called By**: Pre-commit hook
+
+### PR Creation
+
+#### New-ValidatedPR.ps1
+
+Creates a PR with all guardrails enforced.
+
+**Usage**:
+
+```powershell
+# Normal PR (runs validations)
+.\scripts\New-ValidatedPR.ps1 -Title "feat: Add feature" -Body "Description"
+
+# Draft PR
+.\scripts\New-ValidatedPR.ps1 -Title "WIP: Feature" -Draft
+
+# Force mode (creates audit trail)
+.\scripts\New-ValidatedPR.ps1 -Title "hotfix" -Force
+
+# Interactive mode
+.\scripts\New-ValidatedPR.ps1 -Web
+```
+
+### Other Validation Scripts
+
+- `Validate-Consistency.ps1` - Cross-document consistency
+- `Sync-McpConfig.ps1` - MCP configuration sync
+- `Check-SkillExists.ps1` - Skill availability check
+- `Invoke-BatchPRReview.ps1` - Batch PR review automation
+
+See [docs/technical-guardrails.md](../docs/technical-guardrails.md) for complete validation documentation.
+
 ## Full Documentation
 
 See [docs/installation.md](../docs/installation.md) for complete installation documentation including:
@@ -144,3 +256,5 @@ See [docs/installation.md](../docs/installation.md) for complete installation do
 - Upgrade process
 - Troubleshooting guide
 - Known issues
+
+See [docs/technical-guardrails.md](../docs/technical-guardrails.md) for validation and guardrail documentation.

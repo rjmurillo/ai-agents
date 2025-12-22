@@ -50,6 +50,11 @@ Describe "Detect-TestCoverageGaps" {
       $script:tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "test-coverage-$(Get-Random)"
       New-Item -ItemType Directory -Path $script:tempDir -Force | Out-Null
       
+      # Initialize as git repo (required by script)
+      Push-Location $script:tempDir
+      git init | Out-Null
+      Pop-Location
+      
       $script:tempFile = Join-Path $script:tempDir "TestScript.ps1"
       Set-Content -Path $script:tempFile -Value "# Test script`nWrite-Host 'Hello'"
     }
