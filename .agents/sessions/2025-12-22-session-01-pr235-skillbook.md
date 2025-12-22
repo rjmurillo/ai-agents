@@ -68,18 +68,35 @@ All skills meet acceptance criteria:
 - [x] Evidence from execution (PR #235, PR #233)
 - [x] Actionable guidance (code examples provided)
 
-## Session End
+## Session End (COMPLETE ALL before closing)
 
-### Completion Checklist
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified, session summary added |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | Output below (0 errors) |
+| MUST | Route to qa agent (feature implementation) | N/A | Skillbook update (no feature impl) |
+| MUST | Commit all changes | [x] | Commit SHA: 29fd93b |
+| SHOULD | Update PROJECT-PLAN.md | N/A | No project plan tracking |
+| SHOULD | Invoke retrospective (significant sessions) | N/A | Routine skill extraction |
+| SHOULD | Verify clean git status | [x] | Output below |
 
-| Item | Status | Evidence |
-|------|--------|----------|
-| Session log created early | [x] | This file created at 12:30 |
-| HANDOFF.md updated | [x] | Session summary added to Recent Sessions |
-| Markdown linted | [x] | 0 errors |
-| All changes committed | [x] | Commit 29fd93b |
-| Commit SHA recorded | [x] | 29fd93b |
-| Validator passed | [ ] | Pending |
+### Lint Output
+
+```text
+markdownlint-cli2 v0.20.0 (markdownlint v0.40.0)
+Finding: **/*.md
+Linting: 139 file(s)
+Summary: 0 error(s)
+```
+
+### Final Git Status
+
+```text
+On branch fix/fetch-issue-comments
+Your branch is ahead of 'origin/main' by 2 commits.
+nothing to commit, working tree clean
+```
 
 ### Summary
 
