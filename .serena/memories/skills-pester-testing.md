@@ -222,6 +222,150 @@ Context "Pattern Tests" {
 
 ---
 
+## Skill-Test-Pester-006: Static Analysis Tests for PowerShell Scripts
+
+**Statement**: Use regex-based Pester tests to validate PowerShell script structure (syntax, parameters, API patterns, outputs) without making API calls
+
+**Context**: When testing PowerShell scripts that interact with external APIs where live API testing is slow or impractical
+
+**Evidence**: PR #235 - 49 Pester tests validate Get-PRReviewComments.ps1 structure in 1.4s without GitHub API calls, catching regressions early
+
+**Atomicity**: 96%
+
+**Tag**: helpful (fast testing)
+
+**Impact**: 9/10 (enables CI validation)
+
+**Created**: 2025-12-22
+
+**Problem**:
+
+```powershell
+# WRONG - Tests require live API calls (slow, flaky, rate-limited)
+Describe "Get-PRReviewComments" {
+    It "should fetch comments" {
+        $result = Get-PRReviewComments -PullRequest 123 -Owner "org" -Repo "repo"
+        $result.Count | Should -BeGreaterThan 0  # Requires live GitHub API
+    }
+}
+# Problems: Slow (network latency), flaky (rate limits), requires auth
+```
+
+**Solution**:
+
+```powershell
+# CORRECT - Static analysis validates structure without API calls
+Describe "Get-PRReviewComments.ps1 - Static Analysis" {
+    BeforeAll {
+        $ScriptPath = "$PSScriptRoot/../Get-PRReviewComments.ps1"
+        $ScriptContent = Get-Content $ScriptPath -Raw
+    }
+    
+    Context "Syntax Validation" {
+        It "should have valid PowerShell syntax" {
+            $errors = $null
+            [System.Management.Automation.PSParser]::Tokenize($ScriptContent, [ref]$errors)
+            $errors.Count | Should -Be 0
+        }
+    }
+    
+    Context "Parameter Declarations" {
+        It "should have mandatory -PullRequest parameter" {
+            $ScriptContent | Should -Match 'param\s*\([^)]*\[Parameter\(Mandatory\)\][^)]*\$PullRequest'
+        }
+        
+        It "should have optional -IncludeIssueComments switch" {
+            $ScriptContent | Should -Match '\[switch\]\$IncludeIssueComments'
+        }
+    }
+    
+    Context "API Endpoint Patterns" {
+        It "should call review comments endpoint" {
+            $ScriptContent | Should -Match 'repos/\$Owner/\$Repo/pulls/\$PullRequest/comments'
+        }
+        
+        It "should conditionally call issue comments endpoint" {
+            $ScriptContent | Should -Match 'if\s*\(\$IncludeIssueComments\)'
+            $ScriptContent | Should -Match 'repos/\$Owner/\$Repo/issues/\$PullRequest/comments'
+        }
+    }
+    
+    Context "Output Structure" {
+        It "should add CommentType discriminator field" {
+            $ScriptContent | Should -Match 'Add-Member.*CommentType.*Review'
+            $ScriptContent | Should -Match 'Add-Member.*CommentType.*Issue'
+        }
+    }
+    
+    Context "Help Documentation" {
+        It "should have synopsis" {
+            $ScriptContent | Should -Match '\.SYNOPSIS'
+        }
+        
+        It "should document -IncludeIssueComments parameter" {
+            $ScriptContent | Should -Match '\.PARAMETER\s+IncludeIssueComments'
+        }
+    }
+}
+```
+
+**Why It Matters**:
+
+Static analysis tests provide:
+- **Speed** - Complete in seconds (49 tests in 1.4s vs minutes for live API)
+- **Reliability** - No network dependency, rate limits, or auth issues
+- **Early detection** - Catch structural regressions in CI before deployment
+- **Comprehensive coverage** - Validate all code paths without complex mocking
+
+**What to Test**:
+
+| Category | Pattern | Example Regex |
+|----------|---------|---------------|
+| **Syntax** | Valid PowerShell | `PSParser::Tokenize` with zero errors |
+| **Parameters** | Declarations | `\[Parameter\(Mandatory\)\].*\$ParamName` |
+| **API Calls** | Endpoint patterns | `gh api repos/.*/pulls/` |
+| **Conditionals** | Feature flags | `if\s*\(\$SwitchParam\)` |
+| **Output** | Field additions | `Add-Member.*FieldName.*Value` |
+| **Documentation** | Help blocks | `\.SYNOPSIS`, `\.PARAMETER` |
+
+**Pattern**:
+
+```powershell
+# General static analysis test template
+Describe "Script.ps1 - Static Analysis" {
+    BeforeAll {
+        $ScriptContent = Get-Content $PSScriptRoot/../Script.ps1 -Raw
+    }
+    
+    It "should have valid syntax" {
+        $errors = $null
+        [System.Management.Automation.PSParser]::Tokenize($ScriptContent, [ref]$errors)
+        $errors.Count | Should -Be 0
+    }
+    
+    It "should declare expected parameters" {
+        $ScriptContent | Should -Match '\$ParamName'
+    }
+    
+    It "should call expected API endpoints" {
+        $ScriptContent | Should -Match 'api-endpoint-pattern'
+    }
+}
+```
+
+**Anti-Pattern**:
+
+```powershell
+# Over-mocking live API calls (brittle, complex)
+Mock Invoke-RestMethod { return @{ id = 1 } }
+Mock ConvertFrom-Json { ... }
+# Mocking is useful but shouldn't be the ONLY testing approach
+```
+
+**Validation**: 1 (PR #235 - 49 tests, 1.4s execution)
+
+---
+
 ## Related Files
 
 - Test Files: `scripts/tests/*.Tests.ps1`

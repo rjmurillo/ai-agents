@@ -1931,6 +1931,79 @@ gh extension browse  # Opens browser
 
 ---
 
+## Skill-GH-API-002: Dual Comment Endpoints for PRs
+
+**Statement**: Query BOTH `/repos/{owner}/{repo}/pulls/{n}/comments` AND `/repos/{owner}/{repo}/issues/{n}/comments` for complete PR comment data
+
+**Context**: When fetching all comments for a GitHub Pull Request (review comments + top-level comments)
+
+**Evidence**: PR #235 - `Get-PRReviewComments.ps1` missed 3 issue comments (AI Quality Gate, CodeRabbit summaries) by querying only review comments endpoint. PR #233 had 26 review comments + 3 issue comments.
+
+**Atomicity**: 97%
+
+**Tag**: helpful (prevents missing comments)
+
+**Impact**: 9/10 (critical for complete PR analysis)
+
+**Created**: 2025-12-22
+
+**Problem**:
+
+```bash
+# WRONG - Only fetches review comments (line-level comments on code)
+gh api repos/{owner}/{repo}/pulls/123/comments
+# Returns: Review comments only (comments attached to specific code lines)
+```
+
+**Solution**:
+
+```bash
+# CORRECT - Fetch both comment types
+# Review comments (code-level)
+gh api repos/{owner}/{repo}/pulls/123/comments --paginate > review_comments.json
+
+# Issue comments (top-level PR comments)
+gh api repos/{owner}/{repo}/issues/123/comments --paginate > issue_comments.json
+
+# Combine both arrays
+jq -s 'add' review_comments.json issue_comments.json > all_comments.json
+```
+
+**Why It Matters**:
+
+GitHub has TWO separate comment systems for PRs:
+
+1. **Review Comments** (`/pulls/{n}/comments`) - Comments attached to specific code lines during review
+2. **Issue Comments** (`/issues/{n}/comments`) - Top-level comments on the PR conversation thread
+
+Bot comments (AI Quality Gate, CodeRabbit, Copilot) typically post as **issue comments**, not review comments. Fetching only review comments misses these critical bot summaries and approvals.
+
+**Pattern**:
+
+```bash
+# PowerShell example from Get-PRReviewComments.ps1
+$reviewComments = gh api "repos/$Owner/$Repo/pulls/$PullRequest/comments" --paginate | ConvertFrom-Json
+$issueComments = gh api "repos/$Owner/$Repo/issues/$PullRequest/comments" --paginate | ConvertFrom-Json
+
+# Add discriminator field to identify source
+$reviewComments | ForEach-Object { Add-Member -InputObject $_ -NotePropertyName "CommentType" -NotePropertyValue "Review" }
+$issueComments | ForEach-Object { Add-Member -InputObject $_ -NotePropertyName "CommentType" -NotePropertyValue "Issue" }
+
+# Combine
+$allComments = @($reviewComments) + @($issueComments)
+```
+
+**Anti-Pattern**:
+
+```bash
+# Assuming gh pr view --comments includes issue comments (it doesn't always)
+gh pr view 123 --comments  # May miss top-level bot comments
+```
+
+**Validation**: 1 (PR #235)
+
+---
+
 ## References
 
 - [GitHub CLI Manual](https://cli.github.com/manual/)

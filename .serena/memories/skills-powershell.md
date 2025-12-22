@@ -320,6 +320,101 @@ PowerShell distinguishes "module names" from "file paths". Without `./`, the arg
 
 ---
 
+## Skill-PowerShell-006: Backward-Compatible Feature Addition via Switch Parameters
+
+**Statement**: Use switch parameters with default `$false` to add new functionality while preserving existing script behavior for current callers
+
+**Context**: When adding functionality that increases API calls, changes output structure, or alters performance characteristics
+
+**Evidence**: PR #235 - Added `-IncludeIssueComments` switch to Get-PRReviewComments.ps1 to preserve backward compatibility; existing callers unaffected
+
+**Atomicity**: 96%
+
+**Tag**: helpful (backward compatibility)
+
+**Impact**: 9/10 (prevents breaking changes)
+
+**Created**: 2025-12-22
+
+**Problem**:
+
+```powershell
+# WRONG - Unconditionally adds new behavior (breaking change)
+function Get-PRReviewComments {
+    param([int]$PullRequest)
+    
+    # Always fetches both types (doubles API calls, changes output)
+    $reviewComments = Invoke-GitHubAPI "/pulls/$PullRequest/comments"
+    $issueComments = Invoke-GitHubAPI "/issues/$PullRequest/comments"
+    
+    return $reviewComments + $issueComments  # Existing callers get unexpected data
+}
+```
+
+**Solution**:
+
+```powershell
+# CORRECT - Switch parameter opts in to new behavior
+function Get-PRReviewComments {
+    param(
+        [Parameter(Mandatory)]
+        [int]$PullRequest,
+        
+        [Parameter()]
+        [switch]$IncludeIssueComments = $false  # Default preserves old behavior
+    )
+    
+    # Default behavior unchanged
+    $reviewComments = Invoke-GitHubAPI "/pulls/$PullRequest/comments"
+    
+    # New behavior requires explicit opt-in
+    if ($IncludeIssueComments) {
+        $issueComments = Invoke-GitHubAPI "/issues/$PullRequest/comments"
+        return $reviewComments + $issueComments
+    }
+    
+    return $reviewComments
+}
+
+# Existing callers continue to work unchanged
+Get-PRReviewComments -PullRequest 123  # Returns review comments only
+
+# New callers opt in to enhanced functionality
+Get-PRReviewComments -PullRequest 123 -IncludeIssueComments  # Returns both types
+```
+
+**Why It Matters**:
+
+Backward compatibility prevents breaking existing automation:
+- **No surprise API call increases** - Callers explicitly opt in to additional API calls
+- **No output structure changes** - Default output format unchanged
+- **No performance regression** - Default performance characteristics preserved
+- **Gradual adoption** - Callers migrate at their own pace
+
+**When to Use**:
+
+Use switch parameters when new functionality:
+- Increases API calls or network requests
+- Changes output data structure or format
+- Alters performance characteristics (slower/faster)
+- Adds dependencies or prerequisites
+- Changes error handling behavior
+
+**Anti-Pattern**:
+
+```powershell
+# Adding required parameter (breaks all existing callers)
+param(
+    [int]$PullRequest,
+    [Parameter(Mandatory)]  # BREAKING CHANGE
+    [bool]$IncludeIssueComments
+)
+```
+
+**Validation**: 1 (PR #235)
+
+---
+
 ## Related Files
 
 - Get-PRContext.ps1 - Original syntax error

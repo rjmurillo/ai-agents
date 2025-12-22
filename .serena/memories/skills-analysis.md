@@ -153,6 +153,84 @@ gh pr view 212
 
 ---
 
+## Skill-Diagnosis-001: Evidence-Based Diagnosis with Specific PR Data
+
+**Statement**: Compare actual API response counts against expected counts from a real example PR to prove diagnostic gaps exist
+
+**Context**: When diagnosing "missing data" bugs in API integrations or data fetching logic
+
+**Evidence**: PR #235 - Used PR #233 as test case (26 review + 3 issue comments) to prove Get-PRReviewComments.ps1 only fetched 26, confirming gap
+
+**Atomicity**: 95%
+
+**Tag**: helpful (diagnostic validation)
+
+**Impact**: 8/10 (validates diagnosis before fix)
+
+**Created**: 2025-12-22
+
+**Problem**:
+
+```text
+# WRONG - Vague suspicion without proof
+"The script might be missing some comments, I think the API call is incomplete"
+```
+
+**Solution**:
+
+```text
+# CORRECT - Concrete evidence from real PR
+"PR #233 has 29 total comments (verified in GitHub UI):
+- 26 review comments (confirmed by API endpoint /pulls/233/comments)
+- 3 issue comments (AI Quality Gate, CodeRabbit summary, confirmed by API endpoint /issues/233/comments)
+
+Current script returns only 26 comments.
+Gap confirmed: Missing 3 issue comments (100% reproducible)"
+```
+
+**Why It Matters**:
+
+Evidence-based diagnosis transforms vague suspicions into concrete, reproducible bug reports:
+- **Proves** the gap exists (not assumption)
+- **Quantifies** the missing data (3 comments, not "some")
+- **Identifies** the root cause (missing endpoint)
+- **Validates** the fix (29 comments after fix = PASS)
+
+**Pattern**:
+
+```bash
+# Step 1: Select a real test case PR
+PR_NUMBER=233
+
+# Step 2: Count expected items manually (GitHub UI, or sum API endpoints)
+# Expected: 26 review + 3 issue = 29 total
+
+# Step 3: Run current implementation
+./Get-PRReviewComments.ps1 -PullRequest $PR_NUMBER | ConvertFrom-Json | Measure-Object
+# Output: Count = 26
+
+# Step 4: Document the gap
+echo "Expected: 29, Actual: 26, Gap: 3 (10.3% missing)"
+
+# Step 5: Identify missing items
+gh api repos/owner/repo/issues/$PR_NUMBER/comments --jq '.[].user.login'
+# Output: github-actions[bot], coderabbit[bot], user-commenter
+
+# Step 6: Root cause confirmed - missing /issues/{n}/comments endpoint
+```
+
+**Anti-Pattern**:
+
+```bash
+# Hypothetical testing without real data
+"Let's add the issue comments endpoint just in case"
+# (No evidence gap exists, may be unnecessary change)
+```
+
+**Validation**: 1 (PR #235)
+
+---
+
 ## Related Documents
 
 - Source: `.agents/analysis/pr43-agent-capability-gap-analysis.md`

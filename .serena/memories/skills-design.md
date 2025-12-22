@@ -136,6 +136,94 @@
 
 ---
 
+## Skill-API-Design-001: Type Discriminator Fields for Merged Data Sources
+
+**Statement**: Add discriminator field to objects when combining data from multiple API endpoints into single collection for source identification
+
+**Context**: When merging results from multiple API endpoints that return similar but distinct object types
+
+**Evidence**: PR #235 - Added `CommentType` field ("Review" or "Issue") to distinguish /pulls/{n}/comments from /issues/{n}/comments when combined
+
+**Atomicity**: 97%
+
+**Tag**: helpful (data modeling)
+
+**Impact**: 8/10 (enables filtering and source tracking)
+
+**Created**: 2025-12-22
+
+**Problem**:
+
+```powershell
+# WRONG - No way to identify source after merge
+$reviewComments = Invoke-API "/pulls/$PR/comments"
+$issueComments = Invoke-API "/issues/$PR/comments"
+
+$allComments = $reviewComments + $issueComments
+# Caller cannot determine which comments are review vs issue type
+```
+
+**Solution**:
+
+```powershell
+# CORRECT - Add discriminator field before merge
+$reviewComments = Invoke-API "/pulls/$PR/comments"
+$reviewComments | ForEach-Object {
+    Add-Member -InputObject $_ -NotePropertyName "CommentType" -NotePropertyValue "Review"
+}
+
+$issueComments = Invoke-API "/issues/$PR/comments"
+$issueComments | ForEach-Object {
+    Add-Member -InputObject $_ -NotePropertyName "CommentType" -NotePropertyValue "Issue"
+}
+
+$allComments = $reviewComments + $issueComments
+
+# Callers can now filter by source
+$allComments | Where-Object { $_.CommentType -eq "Issue" }  # Bot summaries only
+$allComments | Where-Object { $_.CommentType -eq "Review" }  # Code-level comments only
+```
+
+**Why It Matters**:
+
+Discriminator fields enable:
+- **Source tracking** - Identify which endpoint each object came from
+- **Filtering** - Callers can separate objects by source type
+- **Debugging** - Easily verify expected counts from each source
+- **Type-specific handling** - Different processing logic per source
+
+**When to Use**:
+
+Use discriminator fields when:
+- Combining results from 2+ API endpoints
+- Merging similar but distinct object types
+- Output will be consumed by callers needing to distinguish sources
+- Different processing logic applies to different sources
+
+**Field Naming Pattern**:
+
+```powershell
+# Discriminator field name patterns
+CommentType: "Review" | "Issue"
+SourceType: "Local" | "Remote"
+EventKind: "Push" | "PullRequest" | "Issue"
+DataSource: "Cache" | "API" | "Database"
+```
+
+**Anti-Pattern**:
+
+```powershell
+# Using separate output parameters (fragile, caller must track both)
+function Get-Comments {
+    param([ref]$ReviewComments, [ref]$IssueComments)
+    # Forces caller to manage two collections
+}
+```
+
+**Validation**: 1 (PR #235)
+
+---
+
 ## Related Documents
 
 - Source: `.agents/governance/agent-design-principles.md`
