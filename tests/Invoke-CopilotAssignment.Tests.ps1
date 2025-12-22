@@ -975,4 +975,138 @@ Describe "Edge Case: RelatedPRs in AI Visibility Check" {
     }
 }
 
+Describe "Test-HasSynthesizableContent Function" {
+
+    BeforeAll {
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
+        $scriptContent = Get-Content $scriptPath -Raw
+
+        # Extract and define the Test-HasSynthesizableContent function
+        if ($scriptContent -match 'function Test-HasSynthesizableContent \{[\s\S]*?(?=\nfunction|\n#endregion)') {
+            $functionDef = $Matches[0]
+            Invoke-Expression $functionDef
+        }
+    }
+
+    Context "Empty Inputs" {
+        It "Returns false when all inputs are null" {
+            $result = Test-HasSynthesizableContent -MaintainerGuidance $null -CodeRabbitPlan $null -AITriage $null
+            $result | Should -Be $false
+        }
+
+        It "Returns false when all inputs are empty" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @() `
+                -CodeRabbitPlan @{ Implementation = $null; RelatedIssues = @(); RelatedPRs = @() } `
+                -AITriage @{ Priority = $null; Category = $null }
+            $result | Should -Be $false
+        }
+
+        It "Returns false with empty arrays for all fields" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @() `
+                -CodeRabbitPlan @{ Implementation = ""; RelatedIssues = @(); RelatedPRs = @() } `
+                -AITriage @{ Priority = ""; Category = "" }
+            $result | Should -Be $false
+        }
+    }
+
+    Context "MaintainerGuidance Content" {
+        It "Returns true when MaintainerGuidance has one item" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @("Important guidance") `
+                -CodeRabbitPlan $null `
+                -AITriage $null
+            $result | Should -Be $true
+        }
+
+        It "Returns true when MaintainerGuidance has multiple items" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @("First guidance", "Second guidance") `
+                -CodeRabbitPlan $null `
+                -AITriage $null
+            $result | Should -Be $true
+        }
+    }
+
+    Context "AITriage Content" {
+        It "Returns true when AITriage.Priority is set" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @() `
+                -CodeRabbitPlan $null `
+                -AITriage @{ Priority = "P1"; Category = $null }
+            $result | Should -Be $true
+        }
+
+        It "Returns true when AITriage.Category is set" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @() `
+                -CodeRabbitPlan $null `
+                -AITriage @{ Priority = $null; Category = "bug" }
+            $result | Should -Be $true
+        }
+
+        It "Returns true when both AITriage fields are set" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @() `
+                -CodeRabbitPlan $null `
+                -AITriage @{ Priority = "P2"; Category = "feature" }
+            $result | Should -Be $true
+        }
+    }
+
+    Context "CodeRabbitPlan Content" {
+        It "Returns true when CodeRabbitPlan.Implementation is set" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @() `
+                -CodeRabbitPlan @{ Implementation = "Some implementation plan"; RelatedIssues = @(); RelatedPRs = @() } `
+                -AITriage $null
+            $result | Should -Be $true
+        }
+
+        It "Returns true when CodeRabbitPlan.RelatedIssues has items" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @() `
+                -CodeRabbitPlan @{ Implementation = $null; RelatedIssues = @("#123"); RelatedPRs = @() } `
+                -AITriage $null
+            $result | Should -Be $true
+        }
+
+        It "Returns true when CodeRabbitPlan.RelatedPRs has items" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @() `
+                -CodeRabbitPlan @{ Implementation = $null; RelatedIssues = @(); RelatedPRs = @("#456") } `
+                -AITriage $null
+            $result | Should -Be $true
+        }
+
+        It "Returns true when CodeRabbitPlan has multiple fields populated" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @() `
+                -CodeRabbitPlan @{ Implementation = "Plan"; RelatedIssues = @("#1", "#2"); RelatedPRs = @("#3") } `
+                -AITriage $null
+            $result | Should -Be $true
+        }
+    }
+
+    Context "Combined Inputs" {
+        It "Returns true when multiple sources have content" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @("Guidance") `
+                -CodeRabbitPlan @{ Implementation = "Plan"; RelatedIssues = @(); RelatedPRs = @() } `
+                -AITriage @{ Priority = "P1"; Category = "bug" }
+            $result | Should -Be $true
+        }
+
+        It "Returns true with first matching source (MaintainerGuidance)" {
+            $result = Test-HasSynthesizableContent `
+                -MaintainerGuidance @("First") `
+                -CodeRabbitPlan @{ Implementation = $null; RelatedIssues = @(); RelatedPRs = @() } `
+                -AITriage @{ Priority = $null; Category = $null }
+            $result | Should -Be $true
+        }
+    }
+}
+
 #endregion
