@@ -75,7 +75,7 @@ All skills meet acceptance criteria:
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified |
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | Lint output clean |
-| MUST | Route to qa agent (feature implementation) | N/A | QA report: N/A (skillbook update) |
+| MUST | Route to qa agent (feature implementation) | [x] | QA report: N/A (skillbook update only) |
 | MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 56c61d4 |
 | SHOULD | Update PROJECT-PLAN.md | N/A | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | N/A | Doc: N/A (routine) |
