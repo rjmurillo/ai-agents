@@ -60,7 +60,7 @@ You have direct access to:
 | Operation | Script | Replaces |
 |-----------|--------|----------|
 | PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
+| Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
 | Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq unique` |
 | Reply to comment | `Post-PRCommentReply.ps1` | `gh api ... -X POST` |
 | Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
@@ -289,8 +289,8 @@ if [ -d "$SESSION_DIR" ]; then
   PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
   echo "Previous session had $PREVIOUS_COMMENTS comments"
 
-  # Check for NEW comments only
-  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+  # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)
+  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
@@ -387,9 +387,10 @@ for reviewer in ALL_REVIEWERS:
 
 ```powershell
 # Using github skill (PREFERRED) - handles pagination automatically
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number]
+# IMPORTANT: Use -IncludeIssueComments to capture AI Quality Gate, CodeRabbit summaries, etc.
+pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments
 
-# Returns all review comments with: id, author, path, line, body, diff_hunk, created_at, in_reply_to_id
+# Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
 ```
 
 <details>
@@ -432,13 +433,16 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 The `Get-PRReviewComments.ps1` script returns full comment details including:
 
 - `id`: Comment ID for reactions and replies
+- `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
 - `author`: Reviewer username
-- `path`: File path
-- `line`: Line number (or original_line for outdated)
+- `path`: File path (null for issue comments)
+- `line`: Line number (null for issue comments)
 - `body`: Comment text
-- `diff_hunk`: Surrounding code context
+- `diff_hunk`: Surrounding code context (null for issue comments)
 - `created_at`: Timestamp
-- `in_reply_to_id`: Parent comment for threads
+- `in_reply_to_id`: Parent comment for threads (null for issue comments)
+
+**Note**: Issue comments include AI Quality Gate reviews, spec validation, and CodeRabbit summaries that would otherwise be missed.
 
 <details>
 <summary>Alternative: Raw gh CLI extraction</summary>
@@ -948,8 +952,8 @@ After pushing commits, bots may post new comments. Wait and re-check:
 # Wait for bot responses (30-60 seconds)
 sleep 45
 
-# Re-fetch comments
-NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+# Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
+NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
 
 # Compare to original count
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
