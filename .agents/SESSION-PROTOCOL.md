@@ -1,7 +1,7 @@
 # Session Protocol
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2025-12-18
+> **Last Updated**: 2025-12-21
 > **RFC 2119**: This document uses RFC 2119 key words to indicate requirement levels.
 
 This document is the **single canonical source** for session protocol requirements. All other documents (CLAUDE.md, AGENTS.md, AGENT-INSTRUCTIONS.md) MUST reference this document rather than duplicate its content.
@@ -71,20 +71,27 @@ The agent MUST complete Serena initialization before any other action. This is a
 
 The agent MUST read context documents before starting work. This is a **blocking gate**.
 
+> **📋 Context Retrieval Change (Effective 2025-12-21)**
+>
+> Primary context source is now Serena memory + session logs.
+> HANDOFF.md is read-only legacy context (will be archived to ~5K token dashboard).
+> See Issue #227 and ADR-014 for the distributed handoff architecture.
+
 **Requirements:**
 
-1. The agent MUST read `.agents/HANDOFF.md` for previous session context
-2. The agent SHOULD read relevant Serena memories based on task topic
-3. The agent SHOULD read `.agents/planning/enhancement-PROJECT-PLAN.md` if working on enhancement project
-4. The agent MAY read additional context files based on task requirements
+1. The agent MUST read relevant Serena memories based on task topic using `mcp__serena__list_memories` and `mcp__serena__read_memory`
+2. The agent SHOULD read recent session logs from `.agents/sessions/` for prior context
+3. The agent MAY read `.agents/HANDOFF.md` for legacy historical context (read-only)
+4. The agent SHOULD read `.agents/planning/enhancement-PROJECT-PLAN.md` if working on enhancement project
+5. The agent MAY read additional context files based on task requirements
 
 **Verification:**
 
-- File contents appear in session context
-- Agent references prior decisions from HANDOFF.md
-- Agent does not ask questions answered in HANDOFF.md
+- Serena memories read and context incorporated
+- Recent session logs consulted for relevant decisions
+- Agent does not repeat work documented in session logs
 
-**Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions.
+**Rationale:** Agents are expert amnesiacs. Serena memory + session logs provide distributed, conflict-free context without the token overflow and merge conflicts of a monolithic HANDOFF.md file.
 
 ### Phase 1.5: Skill Validation (BLOCKING)
 
@@ -164,7 +171,7 @@ Copy this checklist to each session log and verify completion:
 |-----|------|--------|----------|
 | MUST | Initialize Serena: `mcp__serena__activate_project` | [ ] | Tool output present |
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [ ] | Tool output present |
-| MUST | Read `.agents/HANDOFF.md` | [ ] | Content in context |
+| MUST | Read Serena memories (list + read relevant) | [ ] | Memory content in context |
 | MUST | Create this session log | [ ] | This file exists |
 | MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Output documented below |
 | MUST | Read skill-usage-mandatory memory | [ ] | Content in context |
@@ -198,24 +205,35 @@ All MUST requirements above are marked complete.
 
 The agent MUST update documentation before ending.
 
+> **⚠️ HANDOFF.md Deprecation Notice (Effective 2025-12-21)**
+>
+> HANDOFF.md has been deprecated as the primary coordination mechanism due to:
+>
+> - Token limit overflow (122KB / ~35K tokens exceeds model context)
+> - 80%+ merge conflict rate causing PR logjams
+> - Exponential AI review costs on every rebase
+>
+> Session context now goes to session logs and Serena memory only.
+> See Issue #227 and ADR-014 for the distributed handoff architecture.
+
 **Requirements:**
 
-1. The agent MUST update `.agents/HANDOFF.md` with:
-   - Link to session log (e.g., `[Session NN](./sessions/YYYY-MM-DD-session-NN.md)`)
-   - What was completed this session
-   - What should happen next session
-   - Any blockers or concerns
-   - Files changed
+1. The agent MUST NOT update `.agents/HANDOFF.md` directly with session summaries
+   - Session summaries go ONLY to the session log at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+   - Cross-session context goes to Serena memory via `mcp__serena__write_memory`
 2. The agent MUST complete the session log with:
    - Tasks attempted and outcomes
    - Decisions made with rationale
    - Challenges encountered and resolutions
+   - Link to relevant Serena memories created
 3. The agent SHOULD update PROJECT-PLAN.md if tasks were completed
+4. The agent MAY read `.agents/HANDOFF.md` for historical context (read-only)
 
 **Verification:**
 
-- HANDOFF.md modified timestamp is current
 - Session log contains complete information
+- Serena memories created for cross-session context
+- HANDOFF.md NOT modified (unless updating dashboard metrics only)
 - PROJECT-PLAN.md checkboxes updated if applicable
 
 ### Phase 2: Quality Checks (REQUIRED)
@@ -302,14 +320,15 @@ Copy this checklist to each session log and verify completion:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
-| MUST | Complete session log | [ ] | All sections filled |
+| MUST | Complete session log (all sections filled) | [ ] | This file complete |
+| MUST | Write Serena memory for cross-session context | [ ] | Memory name: _______ |
 | MUST | Run markdown lint | [ ] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
 | SHOULD | Verify clean git status | [ ] | `git status` output |
+| MUST NOT | Update HANDOFF.md directly | [x] | Not modified |
 ```
 
 ---
@@ -336,7 +355,7 @@ Create at: `.agents/sessions/YYYY-MM-DD-session-NN.md`
 |-----|------|--------|----------|
 | MUST | Initialize Serena: `mcp__serena__activate_project` | [ ] | Tool output present |
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [ ] | Tool output present |
-| MUST | Read `.agents/HANDOFF.md` | [ ] | Content in context |
+| MUST | Read Serena memories (list + read relevant) | [ ] | Memory content in context |
 | MUST | Create this session log | [ ] | This file exists |
 | MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Output documented below |
 | MUST | Read skill-usage-mandatory memory | [ ] | Content in context |
@@ -387,14 +406,15 @@ All MUST requirements above are marked complete.
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
-| MUST | Complete session log | [ ] | All sections filled |
+| MUST | Complete session log (all sections filled) | [ ] | This file complete |
+| MUST | Write Serena memory for cross-session context | [ ] | Memory name: _______ |
 | MUST | Run markdown lint | [ ] | Output below |
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` |
 | MUST | Commit all changes | [ ] | Commit SHA: _______ |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
 | SHOULD | Verify clean git status | [ ] | Output below |
+| MUST NOT | Update HANDOFF.md directly | [x] | Not modified |
 
 ### Lint Output
 
@@ -477,7 +497,8 @@ The `Validate-SessionProtocol.ps1` script checks session protocol compliance:
 | Protocol Compliance section | Contains start/end checklists | Critical |
 | MUST items checked | All MUST requirements marked complete | Critical |
 | QA validation ran | QA report exists in `.agents/qa/` (feature sessions) | Critical |
-| HANDOFF.md updated | Modified within session timeframe | Warning |
+| HANDOFF.md NOT modified | File unchanged (deprecated as of v2.0) | Critical |
+| Serena memory created | Cross-session context stored in Serena | Warning |
 | Git commit exists | Commit with matching date | Warning |
 | Lint ran | Evidence of markdownlint execution | Warning |
 
@@ -520,6 +541,7 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.0 | 2025-12-21 | **BREAKING**: HANDOFF.md deprecated; session context to logs + Serena memory only (Issue #227) |
 | 1.3 | 2025-12-20 | Added Phase 2.5 QA Validation BLOCKING gate |
 | 1.2 | 2025-12-18 | Added Phase 1.5 skill validation BLOCKING gate |
 | 1.1 | 2025-12-17 | Added requirement to link session log in HANDOFF.md |
