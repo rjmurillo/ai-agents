@@ -13,8 +13,14 @@ artifacts/
 # Agent PR scratch files
 .agents/pr-comments/
 .agents/scratch/
+.agents/temp/
+
+# IDE settings
+.idea/
+*.DotSettings.user
 
 # Git worktrees (isolated development branches)
 .work-*/
 worktree-*/
 worktree--/
+.flowbaby/
