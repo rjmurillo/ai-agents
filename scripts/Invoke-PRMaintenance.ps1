@@ -252,14 +252,14 @@ function Test-RateLimitSafe {
             $resetEpoch = [int]$resource.reset
 
             if ($remaining -lt $threshold) {
-                # Calculate reset time for smarter scheduling
+                # Calculate reset time for smarter scheduling (P1 fix from PR #249)
                 $resetTime = [DateTimeOffset]::FromUnixTimeSeconds($resetEpoch).LocalDateTime
                 $timeUntilReset = $resetTime - (Get-Date)
-                $violations += "${resourceName}: $remaining/$limit (threshold: $threshold, resets in $([int]$timeUntilReset.TotalMinutes) minutes)"
+                $violations += "${resourceName}: ${remaining}/${limit} (threshold: ${threshold}, resets in $([int]$timeUntilReset.TotalMinutes) minutes)"
                 $allResourcesSafe = $false
             }
             else {
-                Write-Log "Rate limit OK for ${resourceName}: $remaining/$limit remaining" -Level INFO
+                Write-Log "Rate limit OK for ${resourceName}: ${remaining}/${limit} remaining" -Level INFO
             }
         }
 
@@ -409,6 +409,13 @@ function Get-OpenPRs {
 }
 
 function Get-PRComments {
+    <#
+    .SYNOPSIS
+        Gets all comments for a PR.
+    .DESCRIPTION
+        Retrieves PR review comments using the GitHub API.
+        Part of the PR comment acknowledgment workflow.
+    #>
     param(
         [string]$Owner,
         [string]$Repo,
@@ -422,6 +429,18 @@ function Get-PRComments {
 }
 
 function Get-UnacknowledgedComments {
+    <#
+    .SYNOPSIS
+        Gets bot comments that haven't been acknowledged with an eyes reaction.
+    .DESCRIPTION
+        Filters PR review comments to find bot-generated comments without acknowledgment.
+        Works in conjunction with Get-PRComments and Add-CommentReaction to form
+        the complete acknowledgment workflow.
+        
+        NOTE: Bot author list should ideally reference the agent configuration files
+        (.claude/commands/pr-review.md, src/claude/pr-comment-responder.md) to avoid
+        duplication and drift. Current implementation uses environment-configured list.
+    #>
     param(
         [string]$Owner,
         [string]$Repo,
@@ -480,6 +499,17 @@ function Test-PRNeedsOwnerAction {
     return $pr -eq 'CHANGES_REQUESTED'
 }
 
+function Test-IsGitHubRunner {
+    <#
+    .SYNOPSIS
+        Detects if the script is running in a GitHub Actions runner environment.
+    .DESCRIPTION
+        GitHub Actions runners set several environment variables that can be used for detection.
+        This avoids unnecessary worktree setup when running in CI where the workspace is already isolated.
+    #>
+    return $null -ne $env:GITHUB_ACTIONS
+}
+
 function Resolve-PRConflicts {
     param(
         [string]$Owner,
@@ -501,78 +531,146 @@ function Resolve-PRConflicts {
         return $true
     }
 
-    $repoRoot = git rev-parse --show-toplevel
+    # Detect GitHub Actions runner - worktrees not needed there as workspace is already isolated
+    $isGitHubRunner = Test-IsGitHubRunner
 
-    # ADR-015 Fix 2: Validate worktree path for path traversal prevention
-    try {
-        $worktreePath = Get-SafeWorktreePath -BasePath $script:Config.WorktreeBasePath -PRNumber $PRNumber
-    }
-    catch {
-        Write-Log "Failed to get safe worktree path for PR #$PRNumber`: $_" -Level ERROR
-        return $false
-    }
+    if ($isGitHubRunner) {
+        Write-Log "Running in GitHub Actions - using direct merge without worktree" -Level INFO
 
-    try {
-        # Create worktree
-        Write-Log "Creating worktree for PR #$PRNumber at $worktreePath" -Level ACTION
-        git worktree add $worktreePath $BranchName 2>&1 | Out-Null
+        try {
+            # Fetch PR branch and target branch (P0 fix from PR #249: not hardcoded main)
+            git fetch origin $BranchName 2>&1 | Out-Null
+            git fetch origin $TargetBranch 2>&1 | Out-Null
 
-        Push-Location $worktreePath
+            # Checkout PR branch
+            git checkout $BranchName 2>&1 | Out-Null
 
-        # Fetch and merge target branch (not hardcoded main)
-        git fetch origin $TargetBranch 2>&1 | Out-Null
-        $mergeResult = git merge "origin/$TargetBranch" 2>&1
+            # Attempt merge with target branch
+            $mergeResult = git merge "origin/$TargetBranch" 2>&1
 
-        if ($LASTEXITCODE -ne 0) {
-            # Check if conflicts are in HANDOFF.md only (accept theirs)
-            $conflicts = git diff --name-only --diff-filter=U
+            if ($LASTEXITCODE -ne 0) {
+                # Check if conflicts are in HANDOFF.md only (accept theirs)
+                $conflicts = git diff --name-only --diff-filter=U
 
-            $canAutoResolve = $true
-            foreach ($file in $conflicts) {
-                if ($file -eq '.agents/HANDOFF.md' -or $file -like '.agents/sessions/*') {
-                    # Accept main's version for these files
-                    git checkout --theirs $file 2>&1 | Out-Null
-                    git add $file 2>&1 | Out-Null
+                $canAutoResolve = $true
+                foreach ($file in $conflicts) {
+                    if ($file -eq '.agents/HANDOFF.md' -or $file -like '.agents/sessions/*') {
+                        # Accept target branch's version for these files
+                        git checkout --theirs $file 2>&1 | Out-Null
+                        git add $file 2>&1 | Out-Null
+                    }
+                    else {
+                        $canAutoResolve = $false
+                        Write-Log "Cannot auto-resolve conflict in: $file" -Level WARN
+                    }
                 }
-                else {
-                    $canAutoResolve = $false
-                    Write-Log "Cannot auto-resolve conflict in: $file" -Level WARN
+
+                if (-not $canAutoResolve) {
+                    git merge --abort 2>&1 | Out-Null
+                    throw "Conflicts in non-auto-resolvable files"
                 }
+
+                # Complete merge
+                git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1 | Out-Null
             }
 
-            if (-not $canAutoResolve) {
-                git merge --abort 2>&1 | Out-Null
-                throw "Conflicts in non-auto-resolvable files"
+            # Push (P1 fix from PR #249: check exit code to detect failures)
+            $pushOutput = git push origin $BranchName 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Git push failed: $pushOutput"
             }
 
-            # Complete merge
-            git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1 | Out-Null
+            Write-Log "Successfully resolved conflicts for PR #$PRNumber" -Level SUCCESS
+            return $true
+        }
+        catch {
+            Write-Log "Failed to resolve conflicts for PR #$PRNumber: $_" -Level ERROR
+            return $false
+        }
+    }
+    else {
+        # Local execution - use worktree for isolation
+        $repoRoot = git rev-parse --show-toplevel
+
+        # ADR-015 Fix 2: Validate worktree path for path traversal prevention
+        try {
+            $worktreePath = Get-SafeWorktreePath -BasePath $script:Config.WorktreeBasePath -PRNumber $PRNumber
+        }
+        catch {
+            Write-Log "Failed to get safe worktree path for PR #$PRNumber: $_" -Level ERROR
+            return $false
         }
 
-        # Push (check exit code to detect failures)
-        $pushOutput = git push origin $BranchName 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            throw "Git push failed: $pushOutput"
+        try {
+            # Create worktree
+            Write-Log "Creating worktree for PR #$PRNumber at $worktreePath" -Level ACTION
+            git worktree add $worktreePath $BranchName 2>&1 | Out-Null
+
+            Push-Location $worktreePath
+
+            # Fetch and merge target branch (P0 fix from PR #249: not hardcoded main)
+            git fetch origin $TargetBranch 2>&1 | Out-Null
+            $mergeResult = git merge "origin/$TargetBranch" 2>&1
+
+            if ($LASTEXITCODE -ne 0) {
+                # Check if conflicts are in HANDOFF.md only (accept theirs)
+                $conflicts = git diff --name-only --diff-filter=U
+
+                $canAutoResolve = $true
+                foreach ($file in $conflicts) {
+                    if ($file -eq '.agents/HANDOFF.md' -or $file -like '.agents/sessions/*') {
+                        # Accept target branch's version for these files
+                        git checkout --theirs $file 2>&1 | Out-Null
+                        git add $file 2>&1 | Out-Null
+                    }
+                    else {
+                        $canAutoResolve = $false
+                        Write-Log "Cannot auto-resolve conflict in: $file" -Level WARN
+                    }
+                }
+
+                if (-not $canAutoResolve) {
+                    git merge --abort 2>&1 | Out-Null
+                    throw "Conflicts in non-auto-resolvable files"
+                }
+
+                # Complete merge
+                git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1 | Out-Null
+            }
+
+            # Push (P1 fix from PR #249: check exit code to detect failures)
+            $pushOutput = git push origin $BranchName 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Git push failed: $pushOutput"
+            }
+
+            Write-Log "Successfully resolved conflicts for PR #$PRNumber" -Level SUCCESS
+            return $true
         }
+        catch {
+            Write-Log "Failed to resolve conflicts for PR #$PRNumber: $_" -Level ERROR
+            return $false
+        }
+        finally {
+            Pop-Location -ErrorAction SilentlyContinue
 
-        Write-Log "Successfully resolved conflicts for PR #$PRNumber" -Level SUCCESS
-        return $true
-    }
-    catch {
-        Write-Log "Failed to resolve conflicts for PR #$PRNumber`: $_" -Level ERROR
-        return $false
-    }
-    finally {
-        Pop-Location -ErrorAction SilentlyContinue
-
-        # Clean up worktree
-        if (Test-Path $worktreePath) {
-            git -C $repoRoot worktree remove $worktreePath --force 2>&1 | Out-Null
+            # Clean up worktree
+            if (Test-Path $worktreePath) {
+                git -C $repoRoot worktree remove $worktreePath --force 2>&1 | Out-Null
+            }
         }
     }
 }
 
-function Test-PRSuperseded {
+function Get-SimilarPRs {
+    <#
+    .SYNOPSIS
+        Finds merged PRs with similar titles to help identify potential duplicates.
+    .DESCRIPTION
+        Returns a list of recently merged PRs that have similar title patterns.
+        Does not auto-close - just provides information for human review.
+        Similar to CodeRabbit's approach on Issue enrichment.
+    #>
     param(
         [string]$Owner,
         [string]$Repo,
@@ -583,6 +681,7 @@ function Test-PRSuperseded {
     # Check if there's a merged PR with very similar title
     $mergedPRs = gh pr list --repo "$Owner/$Repo" --state merged --limit 20 --json number,title 2>&1 | ConvertFrom-Json
 
+    $similar = @()
     foreach ($merged in $mergedPRs) {
         if ($merged.number -eq $PRNumber) { continue }
 
@@ -591,40 +690,14 @@ function Test-PRSuperseded {
         $mergedPrefix = ($merged.title -split ':')[0]
 
         if ($thisPrefix -eq $mergedPrefix -and $Title -like "*$($merged.title.Substring(0, [Math]::Min(30, $merged.title.Length)))*") {
-            return @{
-                Superseded = $true
-                SupersededBy = $merged.number
+            $similar += @{
+                Number = $merged.number
+                Title = $merged.title
             }
         }
     }
 
-    return @{ Superseded = $false }
-}
-
-function Close-SupersededPR {
-    param(
-        [string]$Owner,
-        [string]$Repo,
-        [int]$PRNumber,
-        [int]$SupersededBy,
-        [switch]$DryRun
-    )
-
-    if ($DryRun) {
-        Write-Log "[DRY RUN] Would close PR #$PRNumber as superseded by #$SupersededBy" -Level ACTION
-        return $true
-    }
-
-    try {
-        gh pr comment $PRNumber --repo "$Owner/$Repo" --body "Closing as superseded by PR #$SupersededBy which has been merged." 2>&1 | Out-Null
-        gh pr close $PRNumber --repo "$Owner/$Repo" 2>&1 | Out-Null
-        Write-Log "Closed PR #$PRNumber as superseded by #$SupersededBy" -Level SUCCESS
-        return $true
-    }
-    catch {
-        Write-Log "Failed to close PR #$PRNumber`: $_" -Level ERROR
-        return $false
-    }
+    return $similar
 }
 
 #endregion
@@ -643,7 +716,6 @@ function Invoke-PRMaintenance {
         Processed = 0
         CommentsAcknowledged = 0
         ConflictsResolved = 0
-        PRsClosed = 0
         Blocked = [System.Collections.ArrayList]::new()
         Errors = [System.Collections.ArrayList]::new()
     }
@@ -672,14 +744,13 @@ function Invoke-PRMaintenance {
                 continue
             }
 
-            # Check if PR is superseded by a merged PR
-            $superseded = Test-PRSuperseded -Owner $Owner -Repo $Repo -PRNumber $pr.number -Title $pr.title
-            if ($superseded.Superseded) {
-                $closed = Close-SupersededPR -Owner $Owner -Repo $Repo -PRNumber $pr.number -SupersededBy $superseded.SupersededBy -DryRun:$DryRun
-                if ($closed) {
-                    $results.PRsClosed++
+            # Check for similar merged PRs (informational only - no auto-close)
+            $similarPRs = Get-SimilarPRs -Owner $Owner -Repo $Repo -PRNumber $pr.number -Title $pr.title
+            if ($similarPRs.Count -gt 0) {
+                Write-Log "PR #$($pr.number) has similar merged PRs - review recommended:" -Level INFO
+                foreach ($similar in $similarPRs) {
+                    Write-Log "  - PR #$($similar.Number): $($similar.Title)" -Level INFO
                 }
-                continue
             }
 
             # Acknowledge unacknowledged bot comments
@@ -780,7 +851,6 @@ try {
         Write-Log "PRs Processed: $($results.Processed)" -Level INFO
         Write-Log "Comments Acknowledged: $($results.CommentsAcknowledged)" -Level SUCCESS
         Write-Log "Conflicts Resolved: $($results.ConflictsResolved)" -Level SUCCESS
-        Write-Log "PRs Closed (Superseded): $($results.PRsClosed)" -Level SUCCESS
 
         if ($results.Blocked.Count -gt 0) {
             Write-Log "---" -Level INFO
