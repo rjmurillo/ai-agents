@@ -81,8 +81,8 @@ if ($LASTEXITCODE -ne 0) {
     Write-ErrorAndExit "Failed to create issue: $result" 3
 }
 
-# Parse issue URL to extract issue number
-if ($result -match '#(\d+)') {
+# Parse issue URL to extract issue number (gh issue create outputs URL format: https://github.com/owner/repo/issues/123)
+if ($result -match 'issues/(\d+)') {
     $issueNumber = [int]$Matches[1]
 }
 else {
