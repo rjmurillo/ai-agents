@@ -330,7 +330,7 @@ gh run view 12345678
 # View with logs
 gh run view 12345678 --log
 
-# View only failed logs (best for debugging)
+# View only failed logs (FASTEST debugging method)
 gh run view 12345678 --log-failed
 
 # Watch running workflow
@@ -344,7 +344,13 @@ gh run download 12345678
 gh run download 12345678 -n artifact-name
 ```
 
+**Best Practice**: Always use `--log-failed` first when debugging failures. It shows only the failed job logs, skipping successful steps, dramatically speeding diagnosis.
+
+**Evidence**: Session 56 (2025-12-21): Used `gh run view 20416311554 --log-failed` to immediately identify Import-Module path error without scrolling through successful job logs.
+
 **Atomicity**: 94%
+
+**Validation**: 1 (Session 56)
 
 ---
 
