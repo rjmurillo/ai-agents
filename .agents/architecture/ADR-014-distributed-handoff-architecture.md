@@ -102,7 +102,7 @@ Implement a **three-tier distributed handoff architecture** that eliminates cent
 
 ### Phase 1: Immediate (P0) - COMPLETED
 
-**Goal**: Stop the bleeding. Zero code changes to agent behavior initially.
+**Goal**: Stop the bleeding. Zero agent prompt changes initially.
 
 **Changes**:
 
@@ -247,13 +247,27 @@ If distributed approach fails (10-minute rollback):
 
 **Validation period**: 2 weeks (20 PRs minimum)
 
-**Success criteria**:
+**Success criteria** (with operational definitions):
 
 - ✅ Zero HANDOFF.md merge conflicts
+  - *Definition*: No merge conflict markers in HANDOFF.md across 20-PR validation period
 - ✅ Token budget maintained <5K
+  - *Definition*: `scripts/Validate-TokenBudget.ps1` returns exit code 0
 - ✅ Pre-commit hook blocks violations
+  - *Definition*: Attempting to commit HANDOFF.md changes on feature branch fails with ADR-014 error
+- ✅ CI backstop blocks bypass attempts
+  - *Definition*: PR with HANDOFF.md changes fails `validate-handoff-readonly` workflow
 - ✅ No agent confusion about protocol
+  - *Definition*: Zero protocol compliance failures in session logs (Phase 1/2 gates pass on first attempt)
+  - *Measurement*: Audit 10 consecutive session logs for "Protocol Compliance: PASS" entries
 - ✅ Session logs contain complete context
+  - *Definition*: Session logs include all 5 required sections per ADR-014:
+    1. Session metadata (date, branch, commit, objective)
+    2. Protocol compliance checklist
+    3. Work log (tasks, decisions, challenges)
+    4. Cross-references (sessions, artifacts, PRs)
+    5. Next session notes
+  - *Measurement*: Automated linter validates session log structure (future: Session State MCP)
 
 ---
 
