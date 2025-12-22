@@ -570,10 +570,9 @@ fi
 
 **Implementation**:
 
-Two detection scripts (PowerShell + bash fallback):
+PowerShell detection script:
 
 - `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1`
-- `.claude/skills/github/scripts/pr/detect-copilot-followup.sh`
 
 **Output Structure**:
 

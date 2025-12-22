@@ -461,10 +461,9 @@
 - Protocol compliance maintained (session log, artifact tracking)
 
 **Artifacts Delivered:**
-- Phase 4 section in pr-comment-responder template (8 steps, bash examples)
+- Phase 4 section in pr-comment-responder template (8 steps)
 - Skill-PR-Copilot-001 documented with 96% atomicity
-- Detect-CopilotFollowUpPR.ps1 PowerShell script (fully featured)
-- detect-copilot-followup.sh bash fallback (full feature parity)
+- Detect-CopilotFollowUpPR.ps1 PowerShell script (fully featured, cross-platform)
 - Session log created with protocol checklist (Phase 1-6)
 - AGENTS.md documentation with pattern recognition and examples
 

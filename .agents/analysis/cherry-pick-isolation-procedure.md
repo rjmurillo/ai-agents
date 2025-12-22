@@ -59,7 +59,6 @@ Implements cross-repo issue linking detection for Copilot follow-up PR pattern.
 
 Files:
 - .claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1
-- .claude/skills/github/scripts/pr/detect-copilot-followup.sh
 
 Quality:
 - All validations PASS

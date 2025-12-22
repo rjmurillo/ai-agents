@@ -9,7 +9,6 @@
 
 Validation of Copilot follow-up PR detection implementation from Session 40:
 - PowerShell script: `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1`
-- Bash fallback: `.claude/skills/github/scripts/pr/detect-copilot-followup.sh`
 - Template integration: `templates/agents/pr-comment-responder.shared.md`
 - Documentation: `.serena/memories/pr-comment-responder-skills.md`, `AGENTS.md`
 

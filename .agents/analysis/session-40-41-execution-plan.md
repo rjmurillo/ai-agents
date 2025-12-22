@@ -12,7 +12,7 @@
 
 **Steps**:
 1. Verify branch: `git branch --show-current` (should show copilot/add-copilot-context-synthesis)
-2. Stage artifacts: Add Detect-CopilotFollowUpPR.ps1 and detect-copilot-followup.sh
+2. Stage artifacts: Add Detect-CopilotFollowUpPR.ps1
 3. Commit with message including Phase 4 documentation reference
 4. Push to origin
 

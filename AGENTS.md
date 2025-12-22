@@ -270,14 +270,13 @@ When Copilot receives replies to its PR review comments, it often creates a foll
 5. **Execute** appropriate action (close or merge)
 6. **Document** results in session log
 
-### Detection Scripts
+### Detection Script
 
-Two detection implementations (PowerShell + bash fallback):
+PowerShell implementation for cross-platform detection:
 
-- `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1` (PowerShell)
-- `.claude/skills/github/scripts/pr/detect-copilot-followup.sh` (Bash)
+- `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1`
 
-Both return structured JSON with:
+Returns structured JSON with:
 
 - `found`: boolean indicating follow-up PRs detected
 - `analysis`: array of follow-up categorizations with recommendations

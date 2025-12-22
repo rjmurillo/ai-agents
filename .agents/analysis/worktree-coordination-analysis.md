@@ -109,7 +109,7 @@ git add .agents/scripts/pr/detect-copilot-followup.*
 git commit -m "feat(pr-162): add Copilot follow-up detection scripts
 
 Implements Phase 4 detection capabilities for cross-repo issue linking.
-Scripts: Detect-CopilotFollowUpPR.ps1, detect-copilot-followup.sh
+Scripts: Detect-CopilotFollowUpPR.ps1
 
 Session 40 work on shared coordination branch (copilot/add-copilot-context-synthesis).
 Part of multi-task mega-PR consolidating Sessions 40-41 artifacts.
