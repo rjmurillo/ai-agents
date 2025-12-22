@@ -1,7 +1,7 @@
 ---
-description: Respond to PR review comments using the pr-comment-responder workflow
+allowed-tools: Bash(git:*), Bash(gh:*), Bash(pwsh:*), Task, Skill, Read, Write, Edit, Glob, Grep
 argument-hint: <PR_NUMBERS> [--parallel] [--cleanup]
-allowed-tools: Bash(gh:*), Bash(git:*), Bash(pwsh:*), Task, Skill
+description: Respond to PR review comments for the specified pull request(s)
 ---
 
 # PR Review Command
