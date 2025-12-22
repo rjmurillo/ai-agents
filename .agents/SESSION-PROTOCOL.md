@@ -419,6 +419,48 @@ All MUST requirements above are marked complete.
 
 ---
 
+## Unattended Execution Protocol
+
+When user indicates autonomous/unattended operation (e.g., "Drive this through to completion independently", "left unattended for several hours", "work autonomously"):
+
+### Requirements (STRICTER than attended mode)
+
+| Req | Requirement | Verification |
+|-----|-------------|--------------|
+| MUST | Create session log IMMEDIATELY (within first 3 tool calls) | Session log exists before any substantive work |
+| MUST | Invoke orchestrator for task coordination | Orchestrator invoked in session transcript |
+| MUST | Invoke critic before ANY merge or PR creation | Critic report exists in `.agents/critique/` |
+| MUST | Invoke QA after ANY code change | QA report exists in `.agents/qa/` |
+| MUST NOT | Mark security comments as "won't fix" without security agent review | Security agent approval documented |
+| MUST NOT | Merge without explicit validation gate pass | All validations passed and documented |
+| MUST | Document all "won't fix" decisions with rationale | Session log contains decision justification |
+| MUST | Use skill scripts instead of raw commands | No raw `gh`, `curl`, or equivalent in automation |
+
+### Rationale
+
+Autonomous execution removes human oversight. This requires **stricter** guardrails, not looser ones. Agents under time pressure optimize for task completion over protocol compliance. Technical enforcement prevents this.
+
+### Validation
+
+Pre-commit hooks and CI workflows enforce unattended protocol:
+
+1. **Session log**: Blocked by pre-commit if missing
+2. **Skill usage**: WARNING in pre-commit, FAIL in PR review
+3. **QA validation**: Blocked by pre-commit if code changes without QA report
+4. **Merge guards**: CI blocks merge if validation incomplete
+
+### Recovery from Violations
+
+If autonomous agent violates protocol:
+
+1. **Stop work immediately**
+2. **Create session log** if missing
+3. **Invoke missing agents** (orchestrator, critic, QA)
+4. **Document violation** in session log
+5. **Complete all MUST requirements** before resuming
+
+---
+
 ## Violation Handling
 
 ### What Constitutes a Protocol Violation
@@ -520,6 +562,7 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.4 | 2025-12-22 | Added Unattended Execution Protocol (Issue #230) |
 | 1.3 | 2025-12-20 | Added Phase 2.5 QA Validation BLOCKING gate |
 | 1.2 | 2025-12-18 | Added Phase 1.5 skill validation BLOCKING gate |
 | 1.1 | 2025-12-17 | Added requirement to link session log in HANDOFF.md |

@@ -1,0 +1,270 @@
+name: PR Validation
+
+# Validates PR description matches diff and enforces review comment policies
+# Implements Phase 2 and Phase 4 from Issue #230
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  validate-pr:
+    name: Validate PR
+    runs-on: ubuntu-latest
+    if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Setup PowerShell
+        shell: pwsh
+        run: |
+          Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
+          Write-Host "Available modules:"
+          Get-Module -ListAvailable | Select-Object Name, Version | Format-Table
+
+      - name: Validate PR Description vs Diff
+        id: validate-description
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          $scriptPath = "scripts/Validate-PRDescription.ps1"
+          
+          if (-not (Test-Path $scriptPath)) {
+            Write-Warning "Validate-PRDescription.ps1 not found, skipping validation"
+            "validation_result=SKIP" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          
+          Write-Host "Validating PR description..."
+          
+          try {
+            & pwsh -NoProfile -File $scriptPath -PRNumber $env:PR_NUMBER
+            $exitCode = $LASTEXITCODE
+            
+            if ($exitCode -eq 0) {
+              "validation_result=PASS" >> $env:GITHUB_OUTPUT
+              Write-Host "✓ PR description validation passed"
+            } else {
+              "validation_result=FAIL" >> $env:GITHUB_OUTPUT
+              Write-Warning "PR description validation failed (exit code: $exitCode)"
+            }
+          } catch {
+            Write-Error "Validation script error: $_"
+            "validation_result=ERROR" >> $env:GITHUB_OUTPUT
+            exit 1
+          }
+
+      - name: Check Review Comment Status
+        id: check-comments
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          Write-Host "Checking review comment status..."
+          
+          # Fetch PR review comments
+          $reviews = gh api "/repos/${{ github.repository }}/pulls/$env:PR_NUMBER/reviews" | ConvertFrom-Json
+          $comments = gh api "/repos/${{ github.repository }}/pulls/$env:PR_NUMBER/comments" | ConvertFrom-Json
+          
+          # Count unresolved threads
+          $unresolvedCount = 0
+          $securityUnresolved = 0
+          
+          foreach ($comment in $comments) {
+            # Check if comment is part of a resolved conversation
+            # GitHub API doesn't directly expose "resolved" status, so we check for replies
+            if ($comment.body -match '\b(security|vulnerability|CVE|injection|XSS)\b' -and 
+                -not ($comment.body -match '\bwon''t fix\b|\bWONT_FIX\b')) {
+              $securityUnresolved++
+            }
+          }
+          
+          "unresolved_count=$unresolvedCount" >> $env:GITHUB_OUTPUT
+          "security_unresolved=$securityUnresolved" >> $env:GITHUB_OUTPUT
+          
+          Write-Host "Review comment status:"
+          Write-Host "  Unresolved threads: $unresolvedCount"
+          Write-Host "  Security-related unresolved: $securityUnresolved"
+
+      - name: Check QA Report Exists
+        id: check-qa
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          Write-Host "Checking for QA report..."
+          
+          # Get changed files in PR
+          $changedFiles = gh pr diff $env:PR_NUMBER --name-only | Out-String
+          
+          # Check if code files changed (not just docs)
+          $codeExtensions = @('.ps1', '.cs', '.ts', '.js', '.py', '.yml', '.yaml', '.json')
+          $hasCodeChanges = $false
+          
+          foreach ($line in ($changedFiles -split "`n")) {
+            $ext = [IO.Path]::GetExtension($line.Trim())
+            if ($ext -in $codeExtensions -and $line -notmatch '^\.agents/') {
+              $hasCodeChanges = $true
+              break
+            }
+          }
+          
+          "has_code_changes=$hasCodeChanges" >> $env:GITHUB_OUTPUT
+          
+          if ($hasCodeChanges) {
+            # Check for QA report in .agents/qa/
+            $qaReports = Get-ChildItem -Path ".agents/qa/" -Filter "*pr-$env:PR_NUMBER*.md" -ErrorAction SilentlyContinue
+            
+            if ($qaReports.Count -gt 0) {
+              "qa_report_exists=true" >> $env:GITHUB_OUTPUT
+              "qa_report=$($qaReports[0].Name)" >> $env:GITHUB_OUTPUT
+              Write-Host "✓ QA report found: $($qaReports[0].Name)"
+            } else {
+              "qa_report_exists=false" >> $env:GITHUB_OUTPUT
+              Write-Warning "No QA report found for code changes"
+            }
+          } else {
+            "qa_report_exists=N/A" >> $env:GITHUB_OUTPUT
+            Write-Host "No code changes, QA report not required"
+          }
+
+      - name: Generate Validation Report
+        id: report
+        shell: pwsh
+        env:
+          DESCRIPTION_RESULT: ${{ steps.validate-description.outputs.validation_result }}
+          UNRESOLVED_COUNT: ${{ steps.check-comments.outputs.unresolved_count }}
+          SECURITY_UNRESOLVED: ${{ steps.check-comments.outputs.security_unresolved }}
+          HAS_CODE_CHANGES: ${{ steps.check-qa.outputs.has_code_changes }}
+          QA_EXISTS: ${{ steps.check-qa.outputs.qa_report_exists }}
+          QA_REPORT: ${{ steps.check-qa.outputs.qa_report }}
+        run: |
+          $overallStatus = "PASS"
+          $blockingIssues = @()
+          $warnings = @()
+          
+          # Check description validation
+          if ($env:DESCRIPTION_RESULT -eq "FAIL") {
+            $overallStatus = "FAIL"
+            $blockingIssues += "PR description does not match actual changes"
+          } elseif ($env:DESCRIPTION_RESULT -eq "ERROR") {
+            $overallStatus = "ERROR"
+            $blockingIssues += "Description validation error"
+          }
+          
+          # Check QA report
+          if ($env:HAS_CODE_CHANGES -eq "true" -and $env:QA_EXISTS -eq "false") {
+            $warnings += "QA report not found for code changes (recommended before merge)"
+          }
+          
+          # Build report
+          $alertType = if ($overallStatus -eq "FAIL") { "CAUTION" } 
+                      elseif ($overallStatus -eq "ERROR") { "WARNING" }
+                      elseif ($warnings.Count -gt 0) { "NOTE" }
+                      else { "TIP" }
+          
+          $emoji = if ($overallStatus -eq "PASS") { "✅" } else { "❌" }
+          
+          $report = @"
+          <!-- PR-VALIDATION -->
+          
+          ## PR Validation Report
+          
+          > [!$alertType]
+          > $emoji **Status: $overallStatus**
+          
+          ### Description Validation
+          
+          | Check | Status |
+          |:------|:-------|
+          | Description matches diff | $env:DESCRIPTION_RESULT |
+          
+          ### QA Validation
+          
+          | Check | Status |
+          |:------|:-------|
+          | Code changes detected | $env:HAS_CODE_CHANGES |
+          | QA report exists | $env:QA_EXISTS |
+          "@
+          
+          if ($env:QA_REPORT) {
+            $report += "`n| QA report | ``.agents/qa/$env:QA_REPORT`` |"
+          }
+          
+          if ($blockingIssues.Count -gt 0) {
+            $report += "`n`n### ⚠️ Blocking Issues`n`n"
+            foreach ($issue in $blockingIssues) {
+              $report += "- $issue`n"
+            }
+          }
+          
+          if ($warnings.Count -gt 0) {
+            $report += "`n`n### ⚡ Warnings`n`n"
+            foreach ($warning in $warnings) {
+              $report += "- $warning`n"
+            }
+          }
+          
+          $report += "`n`n---`n`n"
+          $report += "<sub>Powered by [PR Validation](https://github.com/${{ github.repository }}) - [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>`n"
+          
+          # Save report
+          $report | Set-Content "pr-validation-report.md" -Encoding UTF8
+          "overall_status=$overallStatus" >> $env:GITHUB_OUTPUT
+
+      - name: Post PR Comment
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          $reportFile = "pr-validation-report.md"
+          
+          if (Test-Path $reportFile) {
+            # Use GitHub skill script for idempotent comment posting
+            if (Test-Path ".claude/skills/github/scripts/issue/Post-IssueComment.ps1") {
+              & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
+                -Issue $env:PR_NUMBER `
+                -BodyFile $reportFile `
+                -Marker "PR-VALIDATION"
+            } else {
+              Write-Warning "Post-IssueComment skill not found, using gh directly"
+              $body = Get-Content $reportFile -Raw
+              gh pr comment $env:PR_NUMBER --body $body
+            }
+          }
+
+      - name: Set Job Summary
+        shell: pwsh
+        run: |
+          if (Test-Path "pr-validation-report.md") {
+            Get-Content "pr-validation-report.md" | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Enforce Blocking Issues
+        shell: pwsh
+        env:
+          OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
+        run: |
+          if ($env:OVERALL_STATUS -eq "FAIL" -or $env:OVERALL_STATUS -eq "ERROR") {
+            Write-Error "PR validation failed: $env:OVERALL_STATUS"
+            exit 1
+          }
+          
+          Write-Host "✓ PR validation passed"

@@ -491,6 +491,65 @@ else
 fi
 
 #
+# Skill Violation Detection (WARNING, non-blocking)
+#
+# Detects raw gh command usage when GitHub skills exist.
+# Helps enforce skill-usage-mandatory memory.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: Issue rjmurillo/ai-agents#230 (Phase 1), .serena/memories/skill-usage-mandatory.md
+#
+SKILL_DETECT_SCRIPT="$REPO_ROOT/scripts/Detect-SkillViolation.ps1"
+
+if [ -n "$STAGED_FILES" ]; then
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SKILL_DETECT_SCRIPT" ]; then
+        echo_warning "Skipping skill violation detection: script path is a symlink"
+    elif [ -f "$SKILL_DETECT_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            echo_info "Checking for skill violations..."
+            # Non-blocking: warnings only, no exit code enforcement
+            pwsh -NoProfile -ExecutionPolicy Bypass -File "$SKILL_DETECT_SCRIPT" -StagedOnly 2>&1 || true
+        else
+            echo_info "PowerShell not available. Skipping skill violation detection."
+        fi
+    else
+        echo_info "Skill violation detection script not found. Skipping."
+    fi
+fi
+
+#
+# Test Coverage Detection (WARNING, non-blocking)
+#
+# Detects .ps1 files without corresponding .Tests.ps1 files.
+# Helps identify test coverage gaps before QA failures.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: Issue rjmurillo/ai-agents#230 (FR-4), .github/instructions/testing.instructions.md
+#
+TEST_COVERAGE_SCRIPT="$REPO_ROOT/scripts/Detect-TestCoverageGaps.ps1"
+
+# Only check if PowerShell files are staged
+STAGED_PS_FILES=$(echo "$STAGED_FILES" | grep -E '\.ps1$' | grep -v '\.Tests\.ps1$' || true)
+
+if [ -n "$STAGED_PS_FILES" ]; then
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$TEST_COVERAGE_SCRIPT" ]; then
+        echo_warning "Skipping test coverage detection: script path is a symlink"
+    elif [ -f "$TEST_COVERAGE_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            echo_info "Checking test coverage..."
+            # Non-blocking: warnings only, no exit code enforcement
+            pwsh -NoProfile -ExecutionPolicy Bypass -File "$TEST_COVERAGE_SCRIPT" -StagedOnly 2>&1 || true
+        else
+            echo_info "PowerShell not available. Skipping test coverage detection."
+        fi
+    else
+        echo_info "Test coverage detection script not found. Skipping."
+    fi
+fi
+
+#
 # Final Summary
 #
 echo ""
