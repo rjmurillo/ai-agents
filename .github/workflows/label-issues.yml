@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Label Issues
+
+# Automatically applies labels to issues based on content keywords
+# Triggers on open, reopen, or substantive edits (title/body changes)
+
+on:
+  issues:
+    types: [opened, reopened, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-labeler-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    name: Apply Labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    # Skip for bots and non-substantive edits
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      github.actor != 'github-actions[bot]' &&
+      (github.event.action != 'edited' ||
+       github.event.changes.title != null ||
+       github.event.changes.body != null)
+
+    steps:
+      - name: Apply labels based on content
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+            const title = (issue.title || '').toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+            const content = `${title} ${body}`;
+
+            const labelsToAdd = [];
+
+            // Agent-related keywords
+            const agentPatterns = {
+              'agent-orchestrator': /\borchestrator\b/,
+              'agent-analyst': /\banalyst\b/,
+              'agent-architect': /\barchitect\b/,
+              'agent-implementer': /\bimplementer\b/,
+              'agent-planner': /\bplanner\b/,
+              'agent-critic': /\bcritic\b/,
+              'agent-qa': /\bqa\b|\bquality assurance\b/,
+              'agent-security': /\bsecurity\b|\bthreat model\b/,
+              'agent-devops': /\bdevops\b|\bci\/cd\b|\bpipeline\b/,
+              'agent-roadmap': /\broadmap\b|\bepic\b/,
+              'agent-explainer': /\bexplainer\b|\bprd\b/,
+              'agent-memory': /\bmemory\b|\bcontext persistence\b/,
+              'agent-retrospective': /\bretrospective\b|\blearning extraction\b/
+            };
+
+            for (const [label, pattern] of Object.entries(agentPatterns)) {
+              if (pattern.test(content)) {
+                labelsToAdd.push(label);
+              }
+            }
+
+            // Area keywords
+            if (/\bworkflow[s]?\b|\bgithub action[s]?\b/.test(content)) {
+              labelsToAdd.push('area-workflows');
+            }
+            if (/\bprompt[s]?\b/.test(content)) {
+              labelsToAdd.push('area-prompts');
+            }
+            if (/\binstall(ation)?\b|\bsetup\b/.test(content)) {
+              labelsToAdd.push('area-installation');
+            }
+            if (/\binfrastructure\b|\bbuild\b|\bconfig(uration)?\b/.test(content)) {
+              labelsToAdd.push('area-infrastructure');
+            }
+            if (/\bskill[s]?\b|\bskillbook\b/.test(content)) {
+              labelsToAdd.push('area-skills');
+            }
+
+            // Content type keywords
+            if (/\bdoc(s|umentation)?\b|\breadme\b/.test(content)) {
+              labelsToAdd.push('documentation');
+            }
+            if (/\btest(s|ing)?\b|\bcoverage\b|\bpester\b/.test(content)) {
+              labelsToAdd.push('agent-qa');
+            }
+
+            // Issue type from title patterns
+            if (/^\[?bug\]?:?|\bbug\b|\bbroken\b|\bfail(s|ing|ed)?\b|\berror\b/.test(content)) {
+              labelsToAdd.push('bug');
+            }
+            if (/^\[?feat(ure)?\]?:?|\bfeature\b|\benhance(ment)?\b|\badd\b|\bnew\b/.test(content)) {
+              labelsToAdd.push('enhancement');
+            }
+            if (/\bquestion\b|\bhow (do|to|can)\b|\bwhat is\b/.test(content)) {
+              labelsToAdd.push('question');
+            }
+            if (/\bdiscuss(ion)?\b|\bthoughts\b|\bopinion\b|\brfc\b/.test(content)) {
+              labelsToAdd.push('discussion');
+            }
+
+            // Remove duplicates
+            const uniqueLabels = [...new Set(labelsToAdd)];
+
+            if (uniqueLabels.length > 0) {
+              console.log(`Adding labels: ${uniqueLabels.join(', ')}`);
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: uniqueLabels
+              });
+            } else {
+              console.log('No matching labels found for this issue');
+            }

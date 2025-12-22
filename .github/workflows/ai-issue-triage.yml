@@ -1,42 +1,82 @@
 name: AI Issue Triage
 
+# =============================================================================
 # AI-powered issue categorization and labeling using GitHub Copilot CLI
-
-# Invokes analyst and roadmap agents to classify issues
-
-# Applies labels and assigns milestones automatically
+# =============================================================================
+#
+# PURPOSE:
+# Invokes analyst and roadmap agents to classify issues and applies labels
+# and milestones automatically.
+#
+# TRIGGERS:
+# 1. issues:opened/reopened/edited - Immediate processing on issue events
+# 2. schedule - Hourly sweep to catch any missed issues (rate limiting resilience)
+# 3. workflow_dispatch - Manual trigger for testing or re-running triage
+#
+# IDEMPOTENCY:
+# Uses AI-ISSUE-TRIAGE marker to detect existing triage comments. Issues already
+# triaged are skipped during sweep to avoid duplicate processing.
+#
+# =============================================================================
 
 on:
   issues:
     types: [opened, reopened, edited]
+
+  # Scheduled sweep for eventual consistency - runs hourly
+  schedule:
+    - cron: "30 * * * *"
+
+  # Manual trigger for testing or re-running triage
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to triage (leave empty for sweep mode)"
+        required: false
+        type: number
 
 permissions:
   contents: read
   issues: write
 
 concurrency:
-  group: issue-triage-${{ github.event.issue.number }}
+  group: issue-triage-${{ github.event.issue.number || inputs.issue_number || 'sweep' }}
   cancel-in-progress: false
 
 env:
   GH_TOKEN: ${{ secrets.BOT_PAT }}
 
 jobs:
+  # ===========================================================================
+  # Job 1: Triage Single Issue (issue event or manual with issue_number)
+  # ===========================================================================
   ai-issue-triage:
     name: AI Issue Triage
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    # Skip for bots and non-substantive edits (title-only changes)
-    # For 'edited' events, only run if the body changed (not just title)
+    # Run for:
+    # - Issue events (opened, reopened, edited)
+    # - Manual trigger with issue_number provided
     if: |
-      github.actor != 'dependabot[bot]' &&
-      github.actor != 'github-actions[bot]' &&
-      (github.event.action != 'edited' || github.event.changes.body != null)
+      (github.event_name == 'issues' &&
+       github.actor != 'dependabot[bot]' &&
+       github.actor != 'github-actions[bot]' &&
+       (github.event.action != 'edited' || github.event.changes.body != null)) ||
+      (github.event_name == 'workflow_dispatch' && inputs.issue_number)
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Determine issue number
+        id: issue
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "number=${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          fi
 
       - name: 📊 Categorize Issue (Analyst Agent)
         id: categorize
@@ -44,7 +84,7 @@ jobs:
         with:
           agent: analyst
           context-type: issue
-          issue-number: ${{ github.event.issue.number }}
+          issue-number: ${{ steps.issue.outputs.number }}
           prompt-file: .github/prompts/issue-triage-categorize.md
           timeout-minutes: 2
           bot-pat: ${{ secrets.BOT_PAT }}
@@ -97,7 +137,7 @@ jobs:
         with:
           agent: roadmap
           context-type: issue
-          issue-number: ${{ github.event.issue.number }}
+          issue-number: ${{ steps.issue.outputs.number }}
           prompt-file: .github/prompts/issue-triage-roadmap.md
           timeout-minutes: 2
           bot-pat: ${{ secrets.BOT_PAT }}
@@ -168,7 +208,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           LABELS_JSON: ${{ steps.parse-categorize.outputs.labels }}
           PRIORITY: ${{ steps.parse-align.outputs.priority }}
         run: |
@@ -257,7 +297,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           MILESTONE: ${{ steps.parse-align.outputs.milestone }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
@@ -295,7 +335,7 @@ jobs:
         with:
           agent: explainer
           context-type: issue
-          issue-number: ${{ github.event.issue.number }}
+          issue-number: ${{ steps.issue.outputs.number }}
           prompt-file: .github/prompts/issue-prd-generation.md
           timeout-minutes: 5
           bot-pat: ${{ secrets.BOT_PAT }}
@@ -308,7 +348,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           PRD_CONTENT: ${{ steps.generate-prd.outputs.findings }}
           COMPLEXITY_SCORE: ${{ steps.parse-align.outputs.complexity_score }}
           ESCALATION_CRITERIA: ${{ steps.parse-align.outputs.escalation_criteria }}
@@ -378,7 +418,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           CATEGORY: ${{ steps.parse-categorize.outputs.category }}
           LABELS: ${{ steps.parse-categorize.outputs.labels }}
           PRIORITY: ${{ steps.parse-align.outputs.priority }}
@@ -406,13 +446,17 @@ jobs:
             ""
           }
 
-          # Get analysis outputs
+          # Get analysis outputs and strip any existing code fences (AI may include them)
           $categorizeOutput = if (Test-Path /tmp/categorize-output.txt) {
-            Get-Content /tmp/categorize-output.txt -Raw
+            $raw = Get-Content /tmp/categorize-output.txt -Raw
+            # Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+            $raw -replace '^\s*```(?:json)?\s*\n?', '' -replace '\n?\s*```\s*$', ''
           } else { "N/A" }
 
           $alignOutput = if (Test-Path /tmp/align-output.txt) {
-            Get-Content /tmp/align-output.txt -Raw
+            $raw = Get-Content /tmp/align-output.txt -Raw
+            # Strip markdown code fences if present
+            $raw -replace '^\s*```(?:json)?\s*\n?', '' -replace '\n?\s*```\s*$', ''
           } else { "N/A" }
 
           $labelsDisplay = if ($env:LABELS) { $env:LABELS } else { "*None assigned*" }
@@ -477,3 +521,118 @@ jobs:
             -Issue $env:ISSUE_NUMBER `
             -BodyFile "/tmp/triage-comment.md" `
             -Marker "AI-ISSUE-TRIAGE"
+
+  # ===========================================================================
+  # Job 2: Sweep for Untriaged Issues (scheduled or manual without issue_number)
+  # ===========================================================================
+  sweep-untriaged:
+    name: Sweep Untriaged Issues
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Run for:
+    # - Scheduled trigger (cron)
+    # - Manual trigger WITHOUT issue_number (sweep mode)
+    if: |
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && !inputs.issue_number)
+
+    env:
+      GH_TOKEN: ${{ secrets.BOT_PAT }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Find untriaged issues
+        id: find-issues
+        shell: pwsh
+        run: |
+          Write-Host "Searching for open issues without AI-ISSUE-TRIAGE marker..." -ForegroundColor Cyan
+
+          # Get all open issues using pagination (gh api --paginate handles all pages)
+          # This ensures we don't miss issues beyond --limit 100
+          $issueNumbers = gh api "repos/${{ github.repository }}/issues" --paginate -X GET -f state=open -f per_page=100 --jq '.[].number' 2>$null
+          $issues = @($issueNumbers) | Where-Object { $_ }
+
+          Write-Host "Found $($issues.Count) total open issues" -ForegroundColor Cyan
+
+          $untriagedIssues = @()
+
+          foreach ($issueNumber in $issues) {
+            # Check if issue has triage comment
+            $comments = gh api "repos/${{ github.repository }}/issues/$issueNumber/comments" --jq '.[].body' 2>$null
+            $hasTriageMarker = $comments | Where-Object { $_ -match 'AI-ISSUE-TRIAGE' }
+
+            if (-not $hasTriageMarker) {
+              # Get issue title for logging
+              $issueTitle = gh issue view $issueNumber --json title --jq '.title' 2>$null
+              Write-Host "  Issue #$issueNumber: $issueTitle - NOT TRIAGED" -ForegroundColor Yellow
+              $untriagedIssues += $issueNumber
+            }
+          }
+
+          Write-Host ""
+          Write-Host "Found $($untriagedIssues.Count) untriaged issues" -ForegroundColor Cyan
+
+          $issuesList = $untriagedIssues -join ' '
+          "issues=$issuesList" >> $env:GITHUB_OUTPUT
+          "count=$($untriagedIssues.Count)" >> $env:GITHUB_OUTPUT
+
+      - name: Trigger triage for each issue
+        if: steps.find-issues.outputs.count != '0'
+        shell: pwsh
+        env:
+          ISSUES: ${{ steps.find-issues.outputs.issues }}
+        run: |
+          $issues = $env:ISSUES.Trim() -split '\s+'
+          $triggered = 0
+          $failed = @()
+
+          Write-Host "Triggering triage for $($issues.Count) issues..." -ForegroundColor Cyan
+
+          $index = 0
+          foreach ($issueNumber in $issues) {
+            $index++
+            if ([string]::IsNullOrWhiteSpace($issueNumber)) { continue }
+
+            Write-Host "Triggering workflow for issue #$issueNumber"
+            $result = gh workflow run ai-issue-triage.yml --field issue_number=$issueNumber 2>&1
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Warning "Failed to trigger triage for issue #$issueNumber : $result"
+              $failed += $issueNumber
+            } else {
+              $triggered++
+            }
+
+            # Rate limiting: wait 5 seconds between triggers to avoid overwhelming the API
+            # Use index-based check to ensure consistent sleep regardless of success/failure
+            if ($index -lt $issues.Count) {
+              Start-Sleep -Seconds 5
+            }
+          }
+
+          Write-Host ""
+          Write-Host "::notice::Triggered triage for $triggered issues"
+
+          if ($failed.Count -gt 0) {
+            Write-Host "::warning::Failed to trigger triage for issues: $($failed -join ', ')"
+          }
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## AI Issue Triage Sweep :broom:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Untriaged Issues Found**: ${{ steps.find-issues.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.find-issues.outputs.count }}" == "0" ]; then
+            echo "All open issues have been triaged. All caught up! :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### Issues to Triage" >> $GITHUB_STEP_SUMMARY
+            echo "Issues: ${{ steps.find-issues.outputs.issues }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Workflows have been triggered for each issue. Check the Actions tab for progress." >> $GITHUB_STEP_SUMMARY
+          fi
