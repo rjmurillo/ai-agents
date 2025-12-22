@@ -383,6 +383,10 @@ Summary complete.
             Get-VerdictAlertType -Verdict 'PASS' | Should -Be 'TIP'
         }
 
+        It "Should return TIP for COMPLIANT" {
+            Get-VerdictAlertType -Verdict 'COMPLIANT' | Should -Be 'TIP'
+        }
+
         It "Should return WARNING for WARN" {
             Get-VerdictAlertType -Verdict 'WARN' | Should -Be 'WARNING'
         }
@@ -533,6 +537,10 @@ Summary complete.
     Context "Get-VerdictEmoji" {
         It "Should return check mark for PASS" {
             Get-VerdictEmoji -Verdict 'PASS' | Should -Be '✅'
+        }
+
+        It "Should return check mark for COMPLIANT" {
+            Get-VerdictEmoji -Verdict 'COMPLIANT' | Should -Be '✅'
         }
 
         It "Should return warning for WARN" {

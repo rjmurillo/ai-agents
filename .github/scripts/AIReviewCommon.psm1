@@ -437,7 +437,7 @@ function Get-VerdictAlertType {
     )
 
     switch ($Verdict) {
-        'PASS' { return 'TIP' }
+        { $_ -in 'PASS', 'COMPLIANT' } { return 'TIP' }
         { $_ -in 'WARN', 'PARTIAL' } { return 'WARNING' }
         { $_ -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL' } { return 'CAUTION' }
         default { return 'NOTE' }
@@ -701,7 +701,7 @@ function Get-VerdictEmoji {
     )
 
     switch ($Verdict) {
-        'PASS' { return '✅' }
+        { $_ -in 'PASS', 'COMPLIANT' } { return '✅' }
         'WARN' { return '⚠️' }
         { $_ -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL' } { return '❌' }
         default { return '❔' }
