@@ -214,30 +214,57 @@ function Exit-ScriptLock {
     Checks GitHub API rate limit before processing.
 .DESCRIPTION
     Prevents script from running when API rate limit is too low.
-    ADR-015 Fix 6: Rate Limit Pre-flight Check (DevOps/HLA P0)
+    Checks multiple resource types with resource-specific thresholds.
+    ADR-015 Fix 6: Multi-Resource Rate Limit Check (DevOps/HLA P0)
 #>
 function Test-RateLimitSafe {
     param(
-        [int]$MinimumRemaining = 200
+        [hashtable]$ResourceThresholds = @{
+            'core' = 100           # General API calls
+            'search' = 15          # 50% of 30 limit
+            'code_search' = 5      # 50% of 10 limit
+            'graphql' = 100        # 50% of 5000 limit (low because we use REST mostly)
+        }
     )
 
     try {
-        $rateLimitJson = gh api rate_limit --jq '.rate' 2>&1
+        $rateLimitJson = gh api rate_limit 2>&1
         if ($LASTEXITCODE -ne 0) {
             Write-Log "Failed to check rate limit: $rateLimitJson" -Level WARN
             return $true  # Proceed on error - don't block if we can't check
         }
 
         $rateLimit = $rateLimitJson | ConvertFrom-Json
-        $remaining = [int]$rateLimit.remaining
-        $limit = [int]$rateLimit.limit
+        $allResourcesSafe = $true
+        $violations = @()
 
-        if ($remaining -lt $MinimumRemaining) {
-            Write-Log "API rate limit too low: $remaining/$limit (minimum: $MinimumRemaining)" -Level WARN
+        foreach ($resourceName in $ResourceThresholds.Keys) {
+            $threshold = $ResourceThresholds[$resourceName]
+            $resource = $rateLimit.resources.$resourceName
+            
+            if ($null -eq $resource) {
+                Write-Log "Resource '$resourceName' not found in rate limit response" -Level WARN
+                continue
+            }
+
+            $remaining = [int]$resource.remaining
+            $limit = [int]$resource.limit
+            
+            if ($remaining -lt $threshold) {
+                $violations += "$resourceName: $remaining/$limit (threshold: $threshold)"
+                $allResourcesSafe = $false
+            }
+            else {
+                Write-Log "Rate limit OK for $resourceName: $remaining/$limit remaining" -Level INFO
+            }
+        }
+
+        if (-not $allResourcesSafe) {
+            Write-Log "API rate limit too low for: $($violations -join ', ')" -Level WARN
             return $false
         }
 
-        Write-Log "API rate limit OK: $remaining/$limit remaining" -Level INFO
+        Write-Log "All API rate limits OK" -Level INFO
         return $true
     }
     catch {
@@ -663,7 +690,7 @@ function Invoke-PRMaintenance {
             # Check and resolve merge conflicts
             if ($pr.mergeable -eq 'CONFLICTING') {
                 Write-Log "PR #$($pr.number) has merge conflicts - attempting resolution" -Level ACTION
-                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.headRefName -DryRun:$DryRun
+                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.head -DryRun:$DryRun
                 if ($resolved) {
                     $results.ConflictsResolved++
                 }
@@ -708,8 +735,8 @@ try {
     }
 
     try {
-        # ADR-015 Fix 6: Check API rate limit before processing
-        if (-not (Test-RateLimitSafe -MinimumRemaining 200)) {
+        # ADR-015 Fix 6: Check API rate limit before processing (multi-resource)
+        if (-not (Test-RateLimitSafe)) {
             Write-Log "Exiting: API rate limit too low" -Level WARN
             exit 0
         }

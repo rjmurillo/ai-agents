@@ -1,8 +1,5 @@
 # PR Maintenance Script Rollback Procedure
 
-**Document**: ADR-015 Rollback Procedure
-**Version**: 1.0
-**Date**: 2025-12-22
 **Target**: `scripts/Invoke-PRMaintenance.ps1` and `.github/workflows/pr-maintenance.yml`
 
 ## Overview
@@ -258,7 +255,8 @@ If rollback procedures don't resolve the issue:
 - **Repository Owner**: @rjmurillo
 - **Automation Owner**: AI Agent System
 
----
+## References
 
-**Last Updated**: 2025-12-22
-**ADR Reference**: ADR-015
+- **ADR**: [ADR-015: PR Automation Concurrency and Safety Controls](../architecture/ADR-015-pr-automation-concurrency-and-safety.md)
+- **Security Review**: [SR-002: PR Automation Security Review](../security/SR-002-pr-automation-security-review.md)
+- **Implementation Plan**: [PR Automation Implementation Plan](../planning/pr-automation-implementation-plan.md)
