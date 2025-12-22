@@ -50,13 +50,21 @@ area-skills:
 # ============================================================================
 
 documentation:
+  # Match markdown files but exclude agent/memory working directories
+  - all:
+      - changed-files:
+          - any-glob-to-any-file:
+              - "**/*.md"
+      - changed-files:
+          - all-globs-to-all-files:
+              - "!.agents/**/*.md"
+              - "!.serena/memories/**/*.md"
+              - "!src/**/*.md"
+  # Always match docs directory
   - changed-files:
       - any-glob-to-any-file:
           - "docs/**/*"
-          - "**/*.md"
-          - "!.agents/**/*.md"
-          - "!.serena/memories/**/*.md"
-          - "!src/**/*.md"
+  # Match docs branches
   - head-branch:
       - "^docs[/-]"
 

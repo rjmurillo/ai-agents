@@ -83,3 +83,10 @@ Migrated: 2025-12-13
 - Final Violations: 3 (known false positives)
 - Reduction: 99.8%
 - Auto-fix Rate: ~60% of violations
+
+---
+
+## Related Skills
+
+- **skills-coderabbit-learnings**: Contains Skill-CodeRabbit-008 (Nested Code Fence Syntax) which supplements Skill-Lint-006
+- **coderabbit-noise-reduction-research**: CodeRabbit configuration to reduce markdown lint noise
