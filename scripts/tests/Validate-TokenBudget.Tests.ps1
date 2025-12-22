@@ -14,7 +14,7 @@
     - Edge cases (empty files, missing files, non-ASCII content)
     - Heuristic adjustments (code-like text, multilingual, digit-heavy)
     - Exit code behavior (CI mode)
-# >
+#>
 
 BeforeAll {
     $scriptPath = Join-Path $PSScriptRoot ".." "Validate-TokenBudget.ps1"
