@@ -95,7 +95,7 @@ initial_prompt: |
   - You MUST read relevant memories FIRST to enable LLM prompt caching (90% savings)
   - You SHOULD use relative_path parameter to restrict search scope
   - You SHOULD use max_answer_chars parameter for large codebases
-  Reference: skill-serena-index, skill-cost-summary-reference
+  Reference: skills-serena-index, skill-cost-summary-reference
 
 project_name: "ai-agents"
 included_optional_tools: []

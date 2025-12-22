@@ -2,8 +2,21 @@
 
 > **Status**: Active
 > **Created**: 2025-12-20
+> **Updated**: 2025-12-21
 > **Purpose**: Establish cost-conscious practices for GitHub Actions usage
 > **RFC 2119**: This document uses RFC 2119 key words (MUST, SHOULD, MAY)
+
+## Public Repository Note (IMPORTANT)
+
+**This repository is PUBLIC.** GitHub provides **FREE unlimited usage** of standard GitHub-hosted runners (Linux, Windows, macOS) for public repositories.
+
+**Key Implication**: Runner architecture (ARM vs x64) has **NO cost impact** for this repository. [ADR-007](../architecture/ADR-007-github-actions-runner-selection.md) was rejected because it was based on incorrect cost assumptions.
+
+For public repos, focus cost optimization efforts on:
+
+1. **Token costs** (Claude API) - see Token Efficiency section below
+2. **Artifact storage** (still billed per GB)
+3. **Workflow efficiency** (reduce bot noise, not runner costs)
 
 ## Enforcement Summary
 
@@ -11,29 +24,38 @@
 
 | Requirement | Level | Reference |
 |-------------|-------|-----------|
-| ARM runners for new workflows | **MUST** | [ADR-007](./architecture/ADR-007-github-actions-runner-selection.md) |
-| Justify non-ARM runner usage | **MUST** | ADR-007 comment in workflow |
-| No artifacts unless justified | **MUST** | [ADR-008](./architecture/ADR-008-artifact-storage-minimization.md) |
+| ~~ARM runners for new workflows~~ | ~~MUST~~ | ~~ADR-007~~ **REJECTED** |
+| No artifacts unless justified | **MUST** | [ADR-008](../architecture/ADR-008-artifact-storage-minimization.md) |
 | Retention ≤7 days for most artifacts | **MUST** | ADR-008 |
-| Path filters on workflows | **MUST** | Template below |
+| Path filters on workflows | **SHOULD** | Template below |
 | Concurrency to cancel duplicates | **SHOULD** | Template below |
+| DRAFT PRs until ready | **MUST** | Reduces bot noise |
 
-**Violations**: PR reviewers MUST block merges that violate ADR-007 or ADR-008 without documented exceptions.
+**Note**: ADR-007 (ARM runners) was rejected on 2025-12-21 because runner costs are **FREE** for public repositories.
 
 ---
 
 ## GitHub Actions Pricing Reference
 
-### Runner Per-Minute Rates (as of December 2025)
+### Public Repositories (This Repo)
+
+| Runner Type | Cost | Notes |
+|-------------|------|-------|
+| All standard runners | **FREE** | Unlimited for public repos |
+| Linux (`ubuntu-latest`, `ubuntu-24.04-arm`) | **FREE** | No cost difference |
+| Windows (`windows-latest`) | **FREE** | No cost difference |
+| macOS (`macos-latest`) | **FREE** | No cost difference |
+
+### Private Repository Rates (For Reference Only)
 
 | Runner Type | Per-Minute Rate | Relative Cost | Notes |
 |-------------|-----------------|---------------|-------|
-| Linux 2-core (`ubuntu-latest`) | $0.008 | 1x (baseline) | Standard for most workflows |
-| Linux 2-core ARM (`ubuntu-24.04-arm`) | $0.005 | 0.625x | **37.5% cheaper** - preferred |
-| Windows 2-core (`windows-latest`) | $0.016 | 2x | Use only when required |
-| macOS 3-core (`macos-latest`) | $0.080 | 10x | Avoid unless necessary |
+| Linux 2-core (`ubuntu-latest`) | $0.008 | 1x (baseline) | Only applies to private repos |
+| Linux 2-core ARM (`ubuntu-24.04-arm`) | $0.005 | 0.625x | Only applies to private repos |
+| Windows 2-core (`windows-latest`) | $0.016 | 2x | Only applies to private repos |
+| macOS 3-core (`macos-latest`) | $0.080 | 10x | Only applies to private repos |
 
-### Price Changes (January 1, 2026)
+### Price Changes (January 1, 2026) - Private Repos Only
 
 GitHub is reducing rates for many runners:
 
@@ -76,24 +98,24 @@ GitHub is reducing rates for many runners:
 
 | Action | Expected Savings | Priority | ADR |
 |--------|------------------|----------|-----|
-| Migrate to ARM runners | 35-40% on runner costs | P0 | ADR-007 |
+| ~~Migrate to ARM runners~~ | ~~35-40%~~ | ~~P0~~ | **REJECTED** (no cost impact for public repos) |
 | Reduce artifact retention | 60-80% on storage | P0 | ADR-008 |
-| Add path filters to workflows | 40-60% fewer runs | P0 | - |
+| Add path filters to workflows | Reduce noise | P1 | - |
 | **Use DRAFT PRs until ready** | **80% fewer bot runs** | **P0** | - |
 | **Batch commits, push once** | **5x fewer CI triggers** | **P0** | - |
-| Consolidate redundant workflows | 20-30% fewer runs | P1 | - |
-| Cancel duplicate runs | 10-20% reduction | P1 | - |
+| Consolidate redundant workflows | Reduce noise | P1 | - |
+| Cancel duplicate runs | Reduce noise | P1 | - |
 
 ## Workflow Audit Checklist
 
 For each workflow, verify:
 
-- [ ] Uses `ubuntu-24.04-arm` unless documented exception
-- [ ] Has path filters to prevent unnecessary runs
+- [ ] Has path filters to reduce noise (SHOULD)
 - [ ] Artifacts have minimal retention (1-7 days)
-- [ ] Uses `concurrency` to cancel duplicate runs
-- [ ] No Windows runner unless absolutely required
+- [ ] Uses `concurrency` to cancel duplicate runs (SHOULD)
 - [ ] Debug artifacts conditional on failure only
+
+**Note**: Runner selection (`ubuntu-latest` vs `ubuntu-24.04-arm`) has **no cost impact** for public repos.
 
 ## Path Filter Template
 
@@ -237,8 +259,8 @@ Token costs are the other major cost driver. Apply these practices:
 
 ## Related Documents
 
-- [ADR-007: GitHub Actions Runner Selection](./architecture/ADR-007-github-actions-runner-selection.md) - ARM-first runner policy
-- [ADR-008: Artifact Storage Minimization](./architecture/ADR-008-artifact-storage-minimization.md) - No artifacts by default
+- [ADR-007: GitHub Actions Runner Selection](../architecture/ADR-007-github-actions-runner-selection.md) - **REJECTED** (no cost impact for public repos)
+- [ADR-008: Artifact Storage Minimization](../architecture/ADR-008-artifact-storage-minimization.md) - No artifacts by default
 - [SERENA-BEST-PRACTICES.md](./SERENA-BEST-PRACTICES.md) - Token-efficient Serena usage
 
 ## References

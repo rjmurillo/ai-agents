@@ -2,11 +2,17 @@
 
 ## Status
 
-Accepted
+**REJECTED**
+
+> **Rejection Reason**: The cost analysis is based on incorrect assumptions. This public repository has **FREE** GitHub Actions usage for standard runners (both x64 and ARM). There is no cost benefit to switching architectures.
 
 ## Date
 
 2025-12-20
+
+## Rejection Date
+
+2025-12-21
 
 ## RFC 2119 Compliance
 
@@ -21,132 +27,83 @@ This ADR uses RFC 2119 key words:
 
 GitHub Actions charges per-minute for workflow execution, with costs varying significantly by runner type:
 
-| Runner | Cost/Minute | Cost/Hour | Relative Cost |
-|--------|-------------|-----------|---------------|
-| `ubuntu-latest` | $0.000133 | $0.008 | 1x (baseline) |
-| `ubuntu-24.04-arm` | $0.000083 | $0.005 | 0.625x |
-| `windows-latest` | $0.000267 | $0.016 | 2x |
+| Runner | Cost/Minute (Private Repos) | Public Repos |
+|--------|-------------|-----------|
+| `ubuntu-latest` | $0.008 | **FREE** |
+| `ubuntu-24.04-arm` | $0.005 | **FREE** |
+| `windows-latest` | $0.016 | **FREE** |
 
-Our workflows run frequently (on every PR and push to main), accumulating significant costs over time. We need a consistent policy for runner selection that balances cost, performance, and compatibility.
+> **CRITICAL**: As of January 2025, [Linux arm64 hosted runners are FREE for public repositories](https://github.blog/changelog/2025-01-16-linux-arm64-hosted-runners-now-available-for-free-in-public-repositories-public-preview/). The ai-agents repository is **PUBLIC**, so there is **NO cost difference** between runner architectures.
 
-### Forces
+### Original Forces (Corrected)
 
-1. **Cost Efficiency**: ARM runners are 37.5% cheaper than x64 Linux runners
-2. **Compatibility**: Some tools may not have ARM builds or have different behavior
-3. **Performance**: ARM runners may have different performance characteristics
-4. **Ecosystem Support**: PowerShell Core runs on all three platforms
-5. **Maintainability**: Consistent runner selection reduces cognitive overhead
+1. ~~**Cost Efficiency**: ARM runners are 37.5% cheaper than x64 Linux runners~~ → **FALSE for public repos**
+2. **Compatibility**: Some tools may not have ARM builds or have different behavior → **TRUE, risk remains**
+3. **Performance**: ARM Cobalt 100 processors offer up to 40% better CPU performance → **TRUE, potential benefit**
+4. **Ecosystem Support**: PowerShell Core runs on all three platforms → **TRUE**
+5. **Maintainability**: Consistent runner selection reduces cognitive overhead → **TRUE**
 
 ## Decision
 
-All workflows MUST follow this runner selection hierarchy:
+**This ADR is REJECTED.** The cost-based justification is invalid for this public repository.
 
-1. **Default (MUST)**: New workflows MUST use `ubuntu-24.04-arm`
-2. **Fallback (SHOULD NOT)**: `ubuntu-latest` SHOULD NOT be used unless ARM compatibility issues are documented
-3. **Windows (MUST justify)**: `windows-latest` MUST NOT be used unless Windows-specific testing is required AND documented
+### Recommended Alternative
 
-### Enforcement Requirements
+For this public repository, runner selection SHOULD be based on:
 
-| Requirement | Level | Verification |
-|-------------|-------|--------------|
-| New workflows use ARM runner | **MUST** | PR review checklist |
-| Non-ARM runner has justification comment | **MUST** | Comment in workflow file |
-| Windows runner has Windows-only justification | **MUST** | ADR-007 exception documented |
-| macOS runner avoided unless required | **SHOULD** | Cost impact documented |
+1. **Compatibility First (MUST)**: Use the runner that has the widest tool support (`ubuntu-latest`)
+2. **Performance Second (MAY)**: Switch to ARM only when performance testing confirms benefits AND all tools are ARM-compatible
+3. **Windows When Required (MUST justify)**: `windows-latest` only for Windows-specific testing
 
-### Selection Criteria
+### Why Not ARM by Default
 
-| Criterion | Use ARM (`ubuntu-24.04-arm`) | Use x64 (`ubuntu-latest`) | Use Windows |
-|-----------|------------------------------|---------------------------|-------------|
-| PowerShell scripts | ✅ | If ARM issues | For Windows-only features |
-| Node.js/npm | ✅ | If ARM issues | ❌ |
-| Python tools | ✅ | If ARM issues | ❌ |
-| Docker builds | Check base image | ✅ multi-arch | ❌ |
-| .NET builds | ✅ | If ARM issues | For Windows-specific |
-| Shell scripts | ✅ | ❌ | ❌ |
-| Windows-only tools | ❌ | ❌ | ✅ |
+| Factor | Weight | ARM Impact |
+|--------|--------|------------|
+| Cost savings | ~~High~~ **Zero** | No benefit for public repos |
+| Compatibility risk | Medium | Potential breakage |
+| Performance gain | Low-Medium | ~40% faster CPU (unvalidated for our workloads) |
+| Migration effort | Medium | Testing, potential debugging |
 
-## Rationale
+**Net Value**: The migration risk is not justified by zero cost savings.
+
+## Original Rationale (Invalidated)
 
 ### Alternatives Considered
 
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
-| Always use `ubuntu-latest` | Maximum compatibility, familiar | 60% more expensive than ARM | Cost inefficient |
-| Always use Windows | PowerShell native support | 2x cost of Linux, slower startup | Far too expensive |
+| Always use `ubuntu-latest` | Maximum compatibility, familiar | ~~60% more expensive than ARM~~ **Same cost (free)** | **Now preferred** |
+| Always use Windows | PowerShell native support | Slower startup, compatibility | Unnecessary |
 | Mixed without policy | Flexibility | Inconsistent, hard to maintain | No governance |
 | Self-hosted runners | Full control, potentially free | Maintenance burden, security risk | Out of scope |
 
-### Trade-offs
-
-- **ARM First**: Saves 37.5% on most workflow runs, but may require occasional fallback for compatibility
-- **Explicit Windows**: Only used when genuinely needed, prevents accidental 2x cost increases
-- **Documentation Requirement**: Every deviation from ARM must be documented in workflow comments
-
-## Consequences
+## Consequences of Rejection
 
 ### Positive
 
-- Reduced CI/CD costs by approximately 35-40%
-- Consistent runner selection across workflows
-- Clear decision framework for new workflows
-- ARM runners often have faster cold-start times
+- Avoid unnecessary migration effort
+- Maintain maximum compatibility with existing tools
+- No risk of ARM-related breakage
 
 ### Negative
 
-- May encounter occasional ARM compatibility issues
-- Need to maintain awareness of tool ARM support
-- Slight cognitive overhead for migration
+- Miss potential ~40% CPU performance improvement (unvalidated)
 
-### Neutral
+### Action Items
 
-- Existing workflows need gradual migration
-- No impact on workflow logic, only runner selection
-
-## Implementation Notes
-
-### Workflow Template
-
-```yaml
-jobs:
-  build:
-    # ADR-007: Use ARM runner for cost efficiency (37.5% savings)
-    runs-on: ubuntu-24.04-arm
-
-    steps:
-      # ... workflow steps
-```
-
-### When Fallback is Needed
-
-```yaml
-jobs:
-  build:
-    # ADR-007: Using x64 due to [specific tool] ARM incompatibility
-    # TODO: Re-evaluate when [tool] adds ARM support
-    runs-on: ubuntu-latest
-```
-
-### Migration Checklist
-
-- [ ] Audit existing workflows for runner usage
-- [ ] Create tracking issue for ARM migration
-- [ ] Test each workflow on ARM runner
-- [ ] Document any compatibility issues
-- [ ] Update workflows with ADR-007 comments
-
-## Related Decisions
-
-- ADR-008: Artifact Storage Minimization (cost-related)
-- ADR-006: Thin Workflows, Testable Modules (workflow architecture)
+1. **Keep existing workflows on `ubuntu-latest`** - no migration needed
+2. **Evaluate ARM for performance** - if workflow runtime is a bottleneck, test ARM on a per-workflow basis
+3. **Document any ARM experiments** - track compatibility issues if ARM is tested
 
 ## References
 
 - [GitHub Actions Pricing](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions)
-- [ARM Runner Announcement](https://github.blog/changelog/2024-06-03-github-actions-arm-based-linux-and-windows-runners-are-now-in-public-beta/)
+- [ARM Runner Free for Public Repos (Jan 2025)](https://github.blog/changelog/2025-01-16-linux-arm64-hosted-runners-now-available-for-free-in-public-repositories-public-preview/)
+- [ARM Runner GA (Aug 2025)](https://github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/)
 - Session 38: Cost optimization discussion
 
 ---
 
 *Template Version: 1.0*
 *Created: 2025-12-20*
+*Rejected: 2025-12-21*

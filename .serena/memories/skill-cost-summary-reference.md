@@ -2,26 +2,39 @@
 
 Reference document linking all cost avoidance skills with quick comparison.
 
+> **IMPORTANT (2025-12-21)**: This repository is **PUBLIC**. GitHub Actions runners are **FREE**.
+> Skills related to runner architecture (ARM, Windows) have **NO cost impact** here.
+> Focus on: Token costs (Claude API), Artifact storage, Workflow efficiency.
+
 ## Skills Index
 
-| Skill ID | Focus Area | Savings % | Impact | RFC Level |
-|----------|-----------|-----------|--------|-----------|
-| Skill-Cost-001 | ARM Runners | 37.5% | 9/10 | MUST |
-| Skill-Cost-002 | No Artifacts Default | 60-80% | 8/10 | MUST |
-| Skill-Cost-003 | Path Filters | 40-60% | 9/10 | MUST |
-| Skill-Cost-004 | Concurrency Cancel | 10-20% | 7/10 | SHOULD |
-| Skill-Cost-005 | Serena Symbolic | 80%+ | 10/10 | MUST |
-| Skill-Cost-006 | Memory Caching | 90% | 10/10 | MUST |
-| Skill-Cost-007 | Haiku Quick Tasks | 98% | 9/10 | SHOULD |
-| Skill-Cost-008 | Artifact Compression | 70-90% | 7/10 | MUST |
-| Skill-Cost-009 | Debug on Failure | 90% | 8/10 | MUST |
-| Skill-Cost-010 | Avoid Windows | 69% | 9/10 | MUST NOT |
-| Skill-Cost-011 | Retention Minimum | 93% | 8/10 | MUST |
-| Skill-Cost-012 | Offset/Limit Reads | 99% | 7/10 | SHOULD |
+| Skill ID | Focus Area | Savings % | Impact | RFC Level | Notes |
+|----------|-----------|-----------|--------|-----------|-------|
+| ~~Skill-Cost-001~~ | ~~ARM Runners~~ | ~~37.5%~~ | ~~9/10~~ | ~~MUST~~ | **N/A for public repos** |
+| Skill-Cost-002 | No Artifacts Default | 60-80% | 8/10 | MUST | ✅ Still applies |
+| Skill-Cost-003 | Path Filters | Reduce noise | 7/10 | SHOULD | ✅ Reduces bot runs |
+| Skill-Cost-004 | Concurrency Cancel | Reduce noise | 6/10 | SHOULD | ✅ Reduces bot runs |
+| Skill-Cost-005 | Serena Symbolic | 80%+ | 10/10 | MUST | ✅ Token savings |
+| Skill-Cost-006 | Memory Caching | 90% | 10/10 | MUST | ✅ Token savings |
+| Skill-Cost-007 | Haiku Quick Tasks | 98% | 9/10 | SHOULD | ✅ Token savings |
+| Skill-Cost-008 | Artifact Compression | 70-90% | 7/10 | MUST | ✅ Still applies |
+| Skill-Cost-009 | Debug on Failure | 90% | 8/10 | MUST | ✅ Still applies |
+| ~~Skill-Cost-010~~ | ~~Avoid Windows~~ | ~~69%~~ | ~~9/10~~ | ~~MUST NOT~~ | **N/A for public repos** |
+| Skill-Cost-011 | Retention Minimum | 93% | 8/10 | MUST | ✅ Still applies |
+| Skill-Cost-012 | Offset/Limit Reads | 99% | 7/10 | SHOULD | ✅ Token savings |
 
 ## Cost Reference Table
 
-### GitHub Actions Runners
+### GitHub Actions Runners (PUBLIC REPOS)
+
+| Runner | Cost | Notes |
+|--------|------|-------|
+| All standard runners | **FREE** | Public repos only |
+| ubuntu-latest | FREE | Use for compatibility |
+| ubuntu-24.04-arm | FREE | Use for performance testing |
+| windows-latest | FREE | Use when needed |
+
+### GitHub Actions Runners (PRIVATE REPOS - for reference)
 
 | Runner | Cost/Min | Monthly (100h) | vs ARM |
 |--------|----------|----------------|--------|
@@ -48,49 +61,55 @@ Reference document linking all cost avoidance skills with quick comparison.
 
 ## High-Impact Quick Wins
 
-**Immediate Actions** (Can implement in minutes):
+**Token Cost Savings** (Highest ROI for this repo):
 
-1. **Add path filters** (Skill-Cost-003)
-   - Add 4 lines to workflow file
-   - 40-60% fewer runs
-
-2. **Add concurrency** (Skill-Cost-004)
-   - Add 3 lines to workflow file
-   - 10-20% reduction
-
-3. **Use Serena tools** (Skill-Cost-005)
+1. **Use Serena tools** (Skill-Cost-005)
    - Replace Read with find_symbol
    - 80%+ token reduction
 
-4. **Read memories first** (Skill-Cost-006)
+2. **Read memories first** (Skill-Cost-006)
    - Call before work starts
    - 90% cache savings
 
-**Medium Effort** (Requires testing):
+3. **Use Haiku for quick tasks** (Skill-Cost-007)
+   - 98% cheaper than Opus
+   - Good for simple queries
 
-5. **Migrate to ARM** (Skill-Cost-001)
-   - Change runs-on line
-   - Test compatibility
-   - 37.5% savings
+**Artifact Cost Savings**:
 
-6. **Audit artifacts** (Skill-Cost-002, 008, 009, 011)
+4. **Audit artifacts** (Skill-Cost-002, 008, 009, 011)
    - Review each upload
    - Add justifications
    - Set short retention
    - 60-80% storage savings
 
+**Workflow Efficiency** (Reduces bot noise, not costs):
+
+5. **Add path filters** (Skill-Cost-003)
+   - Add 4 lines to workflow file
+   - Fewer unnecessary runs
+
+6. **Add concurrency** (Skill-Cost-004)
+   - Add 3 lines to workflow file
+   - Cancel duplicate runs
+
+**NOT Applicable for Public Repos**:
+
+- ~~Migrate to ARM (Skill-Cost-001)~~ - No cost impact
+- ~~Avoid Windows (Skill-Cost-010)~~ - No cost impact
+
 ## Enforcement Checklist
 
 **For Workflow Changes**:
 
-- [ ] Uses `ubuntu-24.04-arm` (Skill-Cost-001)
-- [ ] Has path filters (Skill-Cost-003)
-- [ ] Has concurrency block (Skill-Cost-004)
+- [ ] Has path filters (Skill-Cost-003) - SHOULD
+- [ ] Has concurrency block (Skill-Cost-004) - SHOULD
 - [ ] No artifacts OR justified with ADR-008 (Skill-Cost-002)
 - [ ] Artifacts use compression-level: 9 (Skill-Cost-008)
 - [ ] Debug artifacts use if: failure() (Skill-Cost-009)
 - [ ] Retention ≤7 days (Skill-Cost-011)
-- [ ] No Windows runner unless justified (Skill-Cost-010)
+- ~~[ ] Uses `ubuntu-24.04-arm` (Skill-Cost-001)~~ - N/A for public repos
+- ~~[ ] No Windows runner unless justified (Skill-Cost-010)~~ - N/A for public repos
 
 **For Agent Sessions**:
 
@@ -109,5 +128,6 @@ Reference document linking all cost avoidance skills with quick comparison.
 ## Version
 
 - **Created**: 2025-12-20
-- **Skills Count**: 12
-- **Total Potential Savings**: 60-80% on CI/CD, 80-90% on tokens
+- **Updated**: 2025-12-21 (Marked Skill-Cost-001, 010 as N/A for public repos)
+- **Skills Count**: 12 (10 applicable for public repos)
+- **Total Potential Savings**: Token costs (80-90%), Artifact storage (60-80%). Runner costs: N/A (free for public repos)
