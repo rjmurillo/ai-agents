@@ -76,6 +76,178 @@ $script:Config = @{
 
 #endregion
 
+#region Security Validation (P0 Fixes - ADR-015)
+
+<#
+.SYNOPSIS
+    Validates branch name for command injection prevention.
+.DESCRIPTION
+    Rejects branch names that could be used for command injection or path traversal.
+    ADR-015 Fix 1: Branch Name Validation (Security HIGH)
+#>
+function Test-SafeBranchName {
+    param(
+        [Parameter(Mandatory)]
+        [string]$BranchName
+    )
+
+    # Empty or whitespace
+    if ([string]::IsNullOrWhiteSpace($BranchName)) {
+        Write-Log "Invalid branch name: empty or whitespace" -Level WARN
+        return $false
+    }
+
+    # Starts with hyphen (could be interpreted as git option)
+    if ($BranchName.StartsWith('-')) {
+        Write-Log "Invalid branch name: starts with hyphen" -Level WARN
+        return $false
+    }
+
+    # Contains path traversal
+    if ($BranchName.Contains('..')) {
+        Write-Log "Invalid branch name: contains path traversal" -Level WARN
+        return $false
+    }
+
+    # Control characters
+    if ($BranchName -match '[\x00-\x1f\x7f]') {
+        Write-Log "Invalid branch name: contains control characters" -Level WARN
+        return $false
+    }
+
+    # Git special characters that could cause issues
+    if ($BranchName -match '[~^:?*\[\]\\]') {
+        Write-Log "Invalid branch name: contains git special characters" -Level WARN
+        return $false
+    }
+
+    # Shell metacharacters
+    if ($BranchName -match '[`$;&|<>(){}]') {
+        Write-Log "Invalid branch name: contains shell metacharacters" -Level WARN
+        return $false
+    }
+
+    return $true
+}
+
+<#
+.SYNOPSIS
+    Gets a validated worktree path that cannot escape the base directory.
+.DESCRIPTION
+    Ensures worktree path is within allowed base directory to prevent path traversal.
+    ADR-015 Fix 2: Worktree Path Validation (Security HIGH)
+#>
+function Get-SafeWorktreePath {
+    param(
+        [Parameter(Mandatory)]
+        [string]$BasePath,
+
+        [Parameter(Mandatory)]
+        [long]$PRNumber
+    )
+
+    # Validate PR number is positive
+    if ($PRNumber -le 0) {
+        throw "Invalid PR number: $PRNumber"
+    }
+
+    # Resolve base path to absolute
+    $base = Resolve-Path $BasePath -ErrorAction Stop
+
+    # Construct worktree path (PR number is safe - validated as positive long)
+    $worktreeName = "ai-agents-pr-$PRNumber"
+    $worktreePath = Join-Path $base.Path $worktreeName
+
+    # Get full path and verify it's within base
+    $resolved = [System.IO.Path]::GetFullPath($worktreePath)
+    if (-not $resolved.StartsWith($base.Path)) {
+        throw "Worktree path escapes base directory: $worktreePath"
+    }
+
+    return $resolved
+}
+
+<#
+.SYNOPSIS
+    Acquires a script-level lock to prevent concurrent execution.
+.DESCRIPTION
+    Creates a lock file to prevent multiple instances from running simultaneously.
+    Stale locks (>15 min) are automatically removed.
+    ADR-015 Fix 3: Concurrency Lock (Security HIGH)
+#>
+function Enter-ScriptLock {
+    $lockFile = Join-Path $PSScriptRoot '..' '.agents' 'logs' 'pr-maintenance.lock'
+
+    # Ensure directory exists
+    $lockDir = Split-Path $lockFile -Parent
+    if (-not (Test-Path $lockDir)) {
+        New-Item -ItemType Directory -Path $lockDir -Force | Out-Null
+    }
+
+    if (Test-Path $lockFile) {
+        $lockAge = (Get-Date) - (Get-Item $lockFile).LastWriteTime
+        if ($lockAge.TotalMinutes -lt 15) {
+            Write-Log "Another instance is running (lock age: $([math]::Round($lockAge.TotalMinutes, 1))m)" -Level WARN
+            return $false
+        }
+        Write-Log "Stale lock detected (age: $([math]::Round($lockAge.TotalMinutes, 1))m) - removing" -Level WARN
+        Remove-Item $lockFile -Force
+    }
+
+    New-Item $lockFile -ItemType File -Force | Out-Null
+    Write-Log "Script lock acquired" -Level INFO
+    return $true
+}
+
+<#
+.SYNOPSIS
+    Releases the script-level lock.
+#>
+function Exit-ScriptLock {
+    $lockFile = Join-Path $PSScriptRoot '..' '.agents' 'logs' 'pr-maintenance.lock'
+    Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
+    Write-Log "Script lock released" -Level INFO
+}
+
+<#
+.SYNOPSIS
+    Checks GitHub API rate limit before processing.
+.DESCRIPTION
+    Prevents script from running when API rate limit is too low.
+    ADR-015 Fix 6: Rate Limit Pre-flight Check (DevOps/HLA P0)
+#>
+function Test-RateLimitSafe {
+    param(
+        [int]$MinimumRemaining = 200
+    )
+
+    try {
+        $rateLimitJson = gh api rate_limit --jq '.rate' 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "Failed to check rate limit: $rateLimitJson" -Level WARN
+            return $true  # Proceed on error - don't block if we can't check
+        }
+
+        $rateLimit = $rateLimitJson | ConvertFrom-Json
+        $remaining = [int]$rateLimit.remaining
+        $limit = [int]$rateLimit.limit
+
+        if ($remaining -lt $MinimumRemaining) {
+            Write-Log "API rate limit too low: $remaining/$limit (minimum: $MinimumRemaining)" -Level WARN
+            return $false
+        }
+
+        Write-Log "API rate limit OK: $remaining/$limit remaining" -Level INFO
+        return $true
+    }
+    catch {
+        Write-Log "Rate limit check failed: $_" -Level WARN
+        return $true  # Proceed on error
+    }
+}
+
+#endregion
+
 #region Logging
 
 $script:LogEntries = [System.Collections.ArrayList]::new()
@@ -236,7 +408,7 @@ function Add-CommentReaction {
     param(
         [string]$Owner,
         [string]$Repo,
-        [int]$CommentId,
+        [long]$CommentId,  # ADR-015 Fix 4: Int64 to prevent overflow (GitHub IDs exceed Int32.MaxValue)
         [string]$Reaction = 'eyes'
     )
 
@@ -278,10 +450,16 @@ function Resolve-PRConflicts {
     param(
         [string]$Owner,
         [string]$Repo,
-        [int]$PRNumber,
+        [long]$PRNumber,  # ADR-015 Fix 4: Int64
         [string]$BranchName,
         [switch]$DryRun
     )
+
+    # ADR-015 Fix 1: Validate branch name for command injection prevention
+    if (-not (Test-SafeBranchName -BranchName $BranchName)) {
+        Write-Log "Rejecting PR #$PRNumber due to unsafe branch name: $BranchName" -Level ERROR
+        return $false
+    }
 
     if ($DryRun) {
         Write-Log "[DRY RUN] Would resolve conflicts for PR #$PRNumber" -Level ACTION
@@ -289,7 +467,15 @@ function Resolve-PRConflicts {
     }
 
     $repoRoot = git rev-parse --show-toplevel
-    $worktreePath = Join-Path $script:Config.WorktreeBasePath "ai-agents-pr-$PRNumber"
+
+    # ADR-015 Fix 2: Validate worktree path for path traversal prevention
+    try {
+        $worktreePath = Get-SafeWorktreePath -BasePath $script:Config.WorktreeBasePath -PRNumber $PRNumber
+    }
+    catch {
+        Write-Log "Failed to get safe worktree path for PR #$PRNumber`: $_" -Level ERROR
+        return $false
+    }
 
     try {
         # Create worktree
@@ -509,69 +695,90 @@ function Invoke-PRMaintenance {
 #region Entry Point
 
 try {
-    # Resolve repo info
-    if (-not $Owner -or -not $Repo) {
-        $repoInfo = Get-RepoInfo
-        if (-not $Owner) { $Owner = $repoInfo.Owner }
-        if (-not $Repo) { $Repo = $repoInfo.Repo }
-    }
-
-    # Safety check: ensure we're not on a protected branch
-    $currentBranch = git branch --show-current
-    if ($currentBranch -in $script:Config.ProtectedBranches) {
-        Write-Log "ERROR: Cannot run on protected branch '$currentBranch'" -Level ERROR
-        exit 2
-    }
-
-    # Run maintenance
-    $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -DryRun:$DryRun -MaxPRs $MaxPRs
-
-    # Summary
-    Write-Log "" -Level INFO
-    Write-Log "=== PR Maintenance Summary ===" -Level INFO
-    Write-Log "PRs Processed: $($results.Processed)" -Level INFO
-    Write-Log "Comments Acknowledged: $($results.CommentsAcknowledged)" -Level SUCCESS
-    Write-Log "Conflicts Resolved: $($results.ConflictsResolved)" -Level SUCCESS
-    Write-Log "PRs Closed (Superseded): $($results.PRsClosed)" -Level SUCCESS
-
-    if ($results.Blocked.Count -gt 0) {
-        Write-Log "" -Level INFO
-        Write-Log "Blocked PRs (require human action):" -Level WARN
-        foreach ($blocked in $results.Blocked) {
-            Write-Log "  PR #$($blocked.PR): $($blocked.Reason) - $($blocked.Title)" -Level WARN
-        }
-    }
-
-    if ($results.Errors.Count -gt 0) {
-        Write-Log "" -Level INFO
-        Write-Log "Errors:" -Level ERROR
-        foreach ($err in $results.Errors) {
-            Write-Log "  PR #$($err.PR): $($err.Error)" -Level ERROR
-        }
-    }
-
-    $duration = (Get-Date) - $script:StartTime
-    Write-Log "" -Level INFO
-    Write-Log "Completed in $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
-
-    # Save log
-    Save-Log -Path $LogPath
-
-    # Exit code
-    if ($results.Errors.Count -gt 0) {
-        exit 2
-    }
-    elseif ($results.Blocked.Count -gt 0) {
-        exit 1
-    }
-    else {
+    # ADR-015 Fix 3: Acquire script lock to prevent concurrent execution
+    if (-not (Enter-ScriptLock)) {
+        Write-Log "Exiting: another instance is running" -Level WARN
         exit 0
     }
+
+    try {
+        # ADR-015 Fix 6: Check API rate limit before processing
+        if (-not (Test-RateLimitSafe -MinimumRemaining 200)) {
+            Write-Log "Exiting: API rate limit too low" -Level WARN
+            exit 0
+        }
+
+        # Resolve repo info
+        if (-not $Owner -or -not $Repo) {
+            $repoInfo = Get-RepoInfo
+            if (-not $Owner) { $Owner = $repoInfo.Owner }
+            if (-not $Repo) { $Repo = $repoInfo.Repo }
+        }
+
+        # Safety check: ensure we're not on a protected branch
+        $currentBranch = git branch --show-current
+        if ($currentBranch -in $script:Config.ProtectedBranches) {
+            Write-Log "ERROR: Cannot run on protected branch '$currentBranch'" -Level ERROR
+            exit 2
+        }
+
+        # Run maintenance
+        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -DryRun:$DryRun -MaxPRs $MaxPRs
+
+        # Summary
+        Write-Log "" -Level INFO
+        Write-Log "=== PR Maintenance Summary ===" -Level INFO
+        Write-Log "PRs Processed: $($results.Processed)" -Level INFO
+        Write-Log "Comments Acknowledged: $($results.CommentsAcknowledged)" -Level SUCCESS
+        Write-Log "Conflicts Resolved: $($results.ConflictsResolved)" -Level SUCCESS
+        Write-Log "PRs Closed (Superseded): $($results.PRsClosed)" -Level SUCCESS
+
+        if ($results.Blocked.Count -gt 0) {
+            Write-Log "" -Level INFO
+            Write-Log "Blocked PRs (require human action):" -Level WARN
+            foreach ($blocked in $results.Blocked) {
+                Write-Log "  PR #$($blocked.PR): $($blocked.Reason) - $($blocked.Title)" -Level WARN
+            }
+        }
+
+        if ($results.Errors.Count -gt 0) {
+            Write-Log "" -Level INFO
+            Write-Log "Errors:" -Level ERROR
+            foreach ($err in $results.Errors) {
+                Write-Log "  PR #$($err.PR): $($err.Error)" -Level ERROR
+            }
+        }
+
+        $duration = (Get-Date) - $script:StartTime
+        Write-Log "" -Level INFO
+        Write-Log "Completed in $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
+
+        # Save log
+        Save-Log -Path $LogPath
+
+        # Determine exit code
+        $exitCode = 0
+        if ($results.Errors.Count -gt 0) {
+            $exitCode = 2
+        }
+        elseif ($results.Blocked.Count -gt 0) {
+            $exitCode = 1
+        }
+    }
+    finally {
+        # ADR-015 Fix 3: Always release lock in finally block
+        Exit-ScriptLock
+    }
+
+    exit $exitCode
 }
 catch {
     Write-Log "Fatal error: $_" -Level ERROR
     Write-Log $_.ScriptStackTrace -Level ERROR
     Save-Log -Path $LogPath
+
+    # ADR-015 Fix 3: Release lock on fatal error
+    Exit-ScriptLock
     exit 2
 }
 
