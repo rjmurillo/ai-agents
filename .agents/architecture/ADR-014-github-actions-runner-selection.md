@@ -4,10 +4,6 @@
 
 Accepted
 
-## Date
-
-2025-12-21
-
 ## Context
 
 GitHub Actions offers multiple runner types with varying costs and capabilities. Public repositories receive free minutes for x64 runners but incur costs for ARM runners. However, ARM runners offer significant cost savings through improved price per minute and better performance per dollar.
@@ -54,14 +50,14 @@ jobs:
     runs-on: ubuntu-24.04-arm
 ```
 
-Workflows requiring Windows:
+Workflows requiring Windows or macOS:
 
 ```yaml
 jobs:
   job-name:
-    # ADR-014 Exception: Windows runner required for [specific reason]
+    # ADR-014 Exception: Windows/macOS runner required for [specific reason]
     # Issue: [Link to tracking issue or upstream limitation]
-    runs-on: windows-latest
+    runs-on: windows-latest  # or macos-latest
 ```
 
 Workflows with ARM compatibility issues (if any):

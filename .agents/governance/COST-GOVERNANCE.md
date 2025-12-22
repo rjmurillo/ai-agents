@@ -135,9 +135,9 @@ Before migrating to ARM:
 
 ### Completed Initiatives
 
-| Initiative | Date | Impact | Status |
-|------------|------|--------|--------|
-| ARM Runner Migration | 2025-12-21 | 37.5% reduction on Linux workflows | ✅ Complete |
+| Initiative | Impact | Status |
+|------------|--------|--------|
+| ARM Runner Migration | 37.5% reduction on Linux workflows | ✅ Complete |
 
 ### Planned Initiatives
 
