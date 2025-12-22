@@ -6,11 +6,51 @@ Accepted
 
 ## Context
 
-GitHub Actions offers multiple runner types with varying costs and capabilities. Public repositories receive free minutes for x64 runners but incur costs for ARM runners. However, ARM runners offer significant cost savings through improved price per minute and better performance per dollar.
+GitHub Actions offers multiple runner types with varying costs and capabilities. ARM runners provide significant advantages beyond cost optimization: native architecture performance, faster build cycles, true multi-arch support, ecosystem alignment, and improved power efficiency.
 
 ### Current State
 
-All workflows use `ubuntu-latest` (x64) or `windows-latest` runners without cost optimization consideration.
+All workflows use `ubuntu-latest` (x64) or `windows-latest` runners without optimization consideration.
+
+### Benefits of ARM Runners
+
+**1. Cost Optimization**
+
+ARM runners offer 37.5% cost savings ($0.008 → $0.005 per minute).
+
+For a project with 1000 minutes/month of Linux CI:
+- x64 cost: $8.00/month
+- ARM cost: $5.00/month
+- **Savings: $3.00/month (37.5%)**
+
+**2. Native Architecture Performance**
+
+For projects targeting ARM platforms (cloud, edge, IoT, mobile, Apple Silicon, multi-arch containers), running CI on native ARM hardware eliminates cross-compilation overhead and QEMU emulation that x64 runners would require. This produces faster builds and more accurate test results for ARM binaries.
+
+**3. Faster Build/Test Cycles**
+
+Real-world benchmarks show significant speedups for ARM workloads compared to x64 runners, with some builds reducing from 30+ minutes to ~4 minutes ([GitHub Actions ARM64 announcement](https://github.blog/changelog/2024-09-03-github-actions-arm64-linux-and-windows-runners-are-now-generally-available/)).
+
+**4. True Multi-Arch CI/CD Support**
+
+For products supporting multiple architectures (e.g., `linux/amd64` and `linux/arm64`), having both ARM and x64 runners enables:
+- Parallel execution for each architecture
+- Native build and validation per target platform
+- Detection of subtle issues that only appear on real ARM execution (cross-compile + test on x64 alone can miss these)
+
+**5. Ecosystem Alignment**
+
+ARM is pervasive across modern infrastructure:
+- Apple Silicon (macOS development)
+- Edge/IoT hardware
+- Cloud ARM servers (AWS Graviton, Azure Cobalt, Google Axion)
+- Mobile devices
+
+Using ARM runners aligns CI with where code actually runs in production.
+
+**6. Power Efficiency and Sustainability**
+
+ARM hardware typically consumes less power for similar workloads. While cost-per-minute may not be the deciding factor for public repositories (free minutes), power-to-performance ratio and reduced energy footprint support corporate sustainability goals.
 
 ### Runner Pricing (Public Repositories)
 
@@ -19,15 +59,6 @@ All workflows use `ubuntu-latest` (x64) or `windows-latest` runners without cost
 | `ubuntu-latest` (x64) | $0.008 | Baseline | Default x64 workflows |
 | `ubuntu-24.04-arm` | $0.005 | Better price/performance | ARM-compatible workloads |
 | `windows-latest` | $0.016 | Required for Windows | Windows-specific needs |
-
-### Cost Impact
-
-Migrating ubuntu-latest workflows to ARM provides **37.5% cost savings** ($0.008 to $0.005 per minute).
-
-For a project with 1000 minutes/month of Linux CI:
-- x64 cost: $8.00/month
-- ARM cost: $5.00/month
-- **Savings: $3.00/month (37.5%)**
 
 ## Decision
 

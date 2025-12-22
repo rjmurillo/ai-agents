@@ -55,6 +55,8 @@ jobs:
     runs-on: ubuntu-24.04-arm
 ```
 
+Windows exceptions:
+
 ```yaml
 jobs:
   job-name:
