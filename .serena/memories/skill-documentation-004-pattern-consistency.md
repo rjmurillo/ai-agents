@@ -26,6 +26,24 @@ Session 26 (2025-12-18): All tool call references use same format across 16 file
 - Skill-Documentation-001 (Systematic Migration Search)
 - Skill-Documentation-002 (Reference Type Taxonomy)
 - Skill-Documentation-003 (Fallback Preservation)
+- Skill-Creator-001 (Frontmatter Trigger Specification)
+
+## Frontmatter Pattern (PR #255)
+
+PR #255 (2025-12-22) demonstrated consistency for skill frontmatter:
+
+**Canonical trigger format**:
+
+```yaml
+description: |
+  [Capability summary - one sentence]
+  Use when Claude needs to: (1) [trigger 1], (2) [trigger 2], (3) [trigger 3]...
+```
+
+This extends the consistency principle to frontmatter descriptions:
+- Same "Use when Claude needs to:" phrase
+- Numbered trigger list format
+- Activation vocabulary in triggers
 
 ## Consistency Pattern
 
