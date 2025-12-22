@@ -228,6 +228,61 @@ gh api graphql -f query='mutation($threadId: ID!, $body: String!) { addPullReque
 
 ---
 
+### Skill-PR-Backlog-001: Create Backlog Issues for Deferred Enhancements
+
+**Statement**: When responding to review comments with "will consider for enhancement" or "future follow-up" language, MUST create a GitHub issue immediately to track the work in the backlog.
+
+**Context**: During PR comment response when acknowledging valid suggestions without immediate implementation.
+
+**Evidence**:
+- PR #202 Session 63 - 3 enhancement suggestions initially replied with "will consider for enhancement"
+- User feedback: "need to put that in the backlog so it doesn't get lost. Our backlog is the GitHub issue list."
+- Corrective action: Created issues #236, #237, #238 and updated comment replies with issue references
+- Pattern confirmed: Origin (PR/comment) -> Current Behavior -> Enhancement -> Rationale -> Acceptance Criteria
+
+**Atomicity**: 100%
+
+**Tag**: critical (prevents lost work)
+
+**Validated**: 1 (PR #202)
+
+**Pattern**:
+```bash
+# Step 1: Reply acknowledges the suggestion
+gh api repos/OWNER/REPO/pulls/PR/comments -X POST \
+  -F in_reply_to=COMMENT_ID \
+  -f body="Acknowledged. Will consider for future enhancement."
+
+# Step 2: Create GitHub issue with structured template
+gh issue create \
+  --title "Enhancement: [concise description]" \
+  --body "## Origin
+PR #XXX comment [COMMENT_ID or reviewer name]
+
+## Current Behavior
+[Brief description of current state]
+
+## Enhancement
+[Proposed improvement from review comment]
+
+## Rationale
+[Why this enhancement would be valuable]
+
+## Acceptance Criteria
+- [ ] [Specific outcome 1]
+- [ ] [Specific outcome 2]" \
+  --label "enhancement"
+
+# Step 3: Add follow-up reply referencing the issue number
+gh api repos/OWNER/REPO/pulls/PR/comments -X POST \
+  -F in_reply_to=COMMENT_ID \
+  -f body="Backlog issue created: #NNN"
+```
+
+**Anti-Pattern**: Replying with "will consider" or "future follow-up" without creating a tracking issue leads to lost work.
+
+---
+
 ## Application Checklist
 
 When handling PR review comments:
