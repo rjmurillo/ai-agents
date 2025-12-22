@@ -419,16 +419,84 @@ if [ -n "$STAGED_GITHUB_SCRIPT_FILES" ]; then
 fi
 
 #
+# HANDOFF.md Protection (BLOCKING)
+#
+# Enforces ADR-014: Distributed Handoff Architecture
+# HANDOFF.md is now read-only. Agents must NOT update it during sessions.
+# Session context goes to:
+#   1. Session logs (.agents/sessions/)
+#   2. Serena memory (cross-session context)
+#   3. Branch handoffs (.agents/handoffs/{branch}/)
+#
+# Security: Fail-closed - blocks direct HANDOFF.md modifications on feature branches
+# Related: ADR-014, SESSION-PROTOCOL.md v1.4, Issue #190
+#
+CURRENT_BRANCH=$(git branch --show-current)
+STAGED_HANDOFF=$(echo "$STAGED_FILES" | grep -E '^\.agents/HANDOFF\.md$' || true)
+
+if [ -n "$STAGED_HANDOFF" ]; then
+    # Allow HANDOFF.md updates only on main branch
+    if [ "$CURRENT_BRANCH" != "main" ]; then
+        echo_error "BLOCKED: HANDOFF.md is read-only on feature branches"
+        echo_info "  Branch: $CURRENT_BRANCH"
+        echo_info "  Protocol: Do NOT update HANDOFF.md directly"
+        echo_info ""
+        echo_info "Session context goes to:"
+        echo_info "  1. Session log: .agents/sessions/YYYY-MM-DD-session-NN.md"
+        echo_info "  2. Serena memory: Use mcp__serena__write_memory"
+        echo_info "  3. Branch handoff (optional): .agents/handoffs/$CURRENT_BRANCH/"
+        echo_info ""
+        echo_info "See: .agents/architecture/ADR-014-distributed-handoff-architecture.md"
+        echo_info "See: .agents/SESSION-PROTOCOL.md v1.4"
+        EXIT_STATUS=1
+    fi
+fi
+
+#
+# Token Budget Validation (BLOCKING)
+#
+# Validates that HANDOFF.md stays within 5K token budget.
+# Prevents context limit overflow that causes merge conflicts.
+#
+# Related: Issue #190 (HANDOFF.md merge conflicts), ADR-014
+#
+TOKEN_BUDGET_SCRIPT="$REPO_ROOT/scripts/Validate-TokenBudget.ps1"
+
+if [ -n "$STAGED_HANDOFF" ]; then
+    echo_info "Checking HANDOFF.md token budget..."
+    
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$TOKEN_BUDGET_SCRIPT" ]; then
+        echo_warning "Skipping token budget validation: script path is a symlink"
+    elif [ -f "$TOKEN_BUDGET_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run token budget validation in CI mode
+            if ! pwsh -NoProfile -File "$TOKEN_BUDGET_SCRIPT" -Path "$REPO_ROOT" -CI 2>&1; then
+                echo_error "Token budget validation FAILED."
+                echo_info "  HANDOFF.md exceeds 5K token limit."
+                EXIT_STATUS=1
+            else
+                echo_success "Token budget validation: PASS"
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping token budget validation."
+        fi
+    else
+        echo_info "Token budget script not found. Skipping."
+    fi
+fi
+
+#
 # Session End Validation (BLOCKING)
 #
 # Enforces Session Protocol compliance for agent sessions.
 # When .agents/ files are staged (indicating an agent session), requires:
-# - HANDOFF.md staged with session reference
 # - Session log staged under .agents/sessions/
 # - Validate-SessionEnd.ps1 PASS
+# - HANDOFF.md must NOT be staged (unless on main branch)
 #
 # Security: Fail-closed - if validation fails or cannot run, commit is blocked
-# Related: SESSION-PROTOCOL.md, Skill-Protocol-002, Skill-Validation-006
+# Related: SESSION-PROTOCOL.md v1.4, Skill-Protocol-002, Skill-Validation-006
 #
 SESSION_END_SCRIPT="$REPO_ROOT/scripts/Validate-SessionEnd.ps1"
 
@@ -446,28 +514,18 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
         echo_error "Session End validation blocked: script not found at $SESSION_END_SCRIPT"
         EXIT_STATUS=1
     else
-        # Require HANDOFF.md staged
-        STAGED_HANDOFF=$(echo "$STAGED_FILES" | grep -E '^\.agents/HANDOFF\.md$' || true)
-        if [ -z "$STAGED_HANDOFF" ]; then
-            # Activation prompt: 5-word cloud to trigger correct behavior
-            echo_error "BLOCKED: Update HANDOFF.md NOW"
-            echo_info "  → git add .agents/HANDOFF.md"
-            echo_info "  Protocol: Session log links HANDOFF"
-            EXIT_STATUS=1
-        fi
-
         # Require a staged session log
         STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.md$' | tail -n 1)
         if [ -z "$STAGED_SESSION_LOG" ]; then
             # Activation prompt: 5-word cloud to trigger correct behavior
             echo_error "BLOCKED: Create session log NOW"
             echo_info "  → git add .agents/sessions/YYYY-MM-DD-session-NN.md"
-            echo_info "  Protocol: Log → Handoff → Commit"
+            echo_info "  Protocol: Session log required for all agent sessions"
             EXIT_STATUS=1
         fi
 
-        # Only run validation if both prerequisites are met
-        if [ -n "$STAGED_HANDOFF" ] && [ -n "$STAGED_SESSION_LOG" ]; then
+        # Only run validation if session log is present
+        if [ -n "$STAGED_SESSION_LOG" ]; then
             if command -v pwsh &> /dev/null; then
                 echo_info "Running Validate-SessionEnd.ps1..."
                 # SECURITY: Use -- separator and quote path to prevent injection
