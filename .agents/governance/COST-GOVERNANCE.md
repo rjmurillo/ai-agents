@@ -24,7 +24,7 @@ This document outlines cost optimization policies and practices for the AI Agent
 
 ### Current Implementation Status
 
-**Migrated to ARM (23 jobs)**:
+**Migrated to ARM (22 jobs)**:
 
 - agent-metrics.yml (2 jobs)
 - ai-issue-triage.yml (1 job)
@@ -32,14 +32,15 @@ This document outlines cost optimization policies and practices for the AI Agent
 - ai-session-protocol.yml (3 jobs)
 - ai-spec-validation.yml (1 job)
 - copilot-context-synthesis.yml (2 jobs)
-- copilot-setup-steps.yml (1 job)
 - drift-detection.yml (1 job)
 - pester-tests.yml (3 jobs: check-paths, test, skip-tests)
 - validate-generated-agents.yml (1 job)
 - validate-paths.yml (3 jobs)
 - validate-planning-artifacts.yml (1 job)
 
-**Windows Exceptions**: None (PowerShell Core supports ARM Linux)
+**x64 Exceptions (1 job)**:
+
+- copilot-setup-steps.yml (copilot-setup-steps job) - Must match Copilot agent architecture (x64) for dependency compatibility
 
 ### Compliance Requirements
 
