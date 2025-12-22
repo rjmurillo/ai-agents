@@ -1,9 +1,9 @@
 ---
 status: proposed
 date: 2025-12-19
-decision-makers: ["architect", "user"]
-consulted: ["analyst", "roadmap"]
-informed: ["implementer", "devops"]
+decision-makers: [architect, user]
+consulted: [analyst, roadmap]
+informed: [implementer, devops]
 ---
 
 # ADR-011: Feature Request Review Step in Issue Triage Workflow
@@ -180,6 +180,7 @@ Add after `Parse Categorization Results` step:
 - name: Parse Feature Review Results
   id: parse-review
   if: steps.review-feature.outcome == 'success'
+  shell: pwsh
   env:
     RAW_OUTPUT: ${{ steps.review-feature.outputs.findings }}
   run: |
