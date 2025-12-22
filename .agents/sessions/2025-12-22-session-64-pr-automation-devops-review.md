@@ -44,7 +44,7 @@ Design GitHub Actions workflow for hourly runs.
 - [x] Run markdownlint
 - [x] Update HANDOFF.md
 - [x] Commit changes
-- [ ] Run session end validation
+- [x] Run session end validation
 
 ## Memories Reviewed
 
