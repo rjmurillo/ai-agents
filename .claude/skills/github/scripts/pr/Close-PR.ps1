@@ -49,10 +49,14 @@ $Repo = $resolved.Repo
 # Post comment if provided
 if (-not [string]::IsNullOrWhiteSpace($Comment)) {
     Write-Verbose "Posting comment before closing PR #$PullRequest"
-    $commentResult = gh pr comment $PullRequest --repo "$Owner/$Repo" --body $Comment 2>&1
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to post comment: $commentResult"
+    
+    # Use existing Post-PRCommentReply.ps1 for consistent comment handling
+    $commentScript = Join-Path $PSScriptRoot "Post-PRCommentReply.ps1"
+    try {
+        & $commentScript -Owner $Owner -Repo $Repo -PullRequest $PullRequest -Body $Comment -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Failed to post comment: $_"
         # Continue anyway - closing is more important
     }
 }

@@ -402,6 +402,13 @@ function Get-OpenPRs {
 }
 
 function Get-PRComments {
+    <#
+    .SYNOPSIS
+        Gets all comments for a PR.
+    .DESCRIPTION
+        Retrieves PR review comments using the GitHub API.
+        Part of the PR comment acknowledgment workflow.
+    #>
     param(
         [string]$Owner,
         [string]$Repo,
@@ -420,6 +427,8 @@ function Get-UnacknowledgedComments {
         Gets bot comments that haven't been acknowledged with an eyes reaction.
     .DESCRIPTION
         Filters PR review comments to find bot-generated comments without acknowledgment.
+        Works in conjunction with Get-PRComments and Add-CommentReaction to form
+        the complete acknowledgment workflow.
         
         NOTE: Bot author list should ideally reference the agent configuration files
         (.claude/commands/pr-review.md, src/claude/pr-comment-responder.md) to avoid
