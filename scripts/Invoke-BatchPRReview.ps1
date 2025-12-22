@@ -83,10 +83,10 @@ function New-PRWorktree {
     }
 
     Write-Host "Creating worktree for PR #$PRNumber on branch '$branch'..." -ForegroundColor Cyan
-    git worktree add $worktreePath $branch 2>&1
+    $output = git worktree add $worktreePath $branch 2>&1
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to create worktree for PR #$PRNumber"
+        Write-Error "Failed to create worktree for PR #$PRNumber: $output"
         return $false
     }
 
@@ -161,10 +161,10 @@ function Remove-PRWorktree {
     $removeArgs = @('worktree', 'remove', $status.Path)
     if ($Force) { $removeArgs += '--force' }
 
-    git @removeArgs 2>&1
+    $output = git @removeArgs 2>&1
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to remove worktree for PR #$PRNumber"
+        Write-Error "Failed to remove worktree for PR #$PRNumber: $output"
         return $false
     }
 

@@ -92,11 +92,12 @@ jobs:
               labelsToAdd.push('agent-qa');
             }
 
-            // Issue type from title patterns
-            if (/^\[?bug\]?:?|\bbug\b|\bbroken\b|\bfail(s|ing|ed)?\b|\berror\b/.test(content)) {
+            // Issue type from title prefix patterns (check title separately for prefix matches)
+            // and content patterns (check full content for keyword matches)
+            if (/^\[?bug\]?:?/i.test(title) || /\bbug\b|\bbroken\b|\bfail(s|ing|ed)?\b|\berror\b/.test(content)) {
               labelsToAdd.push('bug');
             }
-            if (/^\[?feat(ure)?\]?:?|\bfeature\b|\benhance(ment)?\b|\badd\b|\bnew\b/.test(content)) {
+            if (/^\[?feat(ure)?\]?:?/i.test(title) || /\bfeature\b|\benhance(ment)?\b/.test(content)) {
               labelsToAdd.push('enhancement');
             }
             if (/\bquestion\b|\bhow (do|to|can)\b|\bwhat is\b/.test(content)) {

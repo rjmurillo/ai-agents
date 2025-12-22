@@ -4,6 +4,11 @@ name: Label PR
 
 # Automatically applies labels to PRs based on file paths and branch names
 # Uses static configuration from .github/labeler.yml instead of AI analysis
+#
+# SECURITY NOTE: This workflow uses pull_request_target intentionally.
+# The actions/labeler action only reads file paths from the PR diff metadata
+# and does not execute any code from the PR branch, making this safe for fork PRs.
+# See: https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
 
 on:
   pull_request_target:

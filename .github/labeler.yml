@@ -51,12 +51,14 @@ area-skills:
 
 documentation:
   - changed-files:
-      - any-glob-to-any-file:
-          - "docs/**/*"
+      - all-globs-to-all-files:
           - "**/*.md"
           - "!.agents/**/*.md"
           - "!.serena/memories/**/*.md"
           - "!src/**/*.md"
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**/*"
   - head-branch:
       - "^docs[/-]"
 
