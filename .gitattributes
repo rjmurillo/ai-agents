@@ -1,9 +1,111 @@
 # Git Attributes for AI Agents Repository
 
-# Custom merge driver for branch-specific handoff files
-# Aggregates handoff files on merge to prevent conflicts
-.agents/handoffs/*.md merge=handoff-aggregate
+# ============================================================================
 
-# HANDOFF.md uses ours strategy on feature branches (main wins)
-# This prevents feature branch modifications from creating conflicts
+# HANDOFF.md Merge Strategy: 'ours' (main branch always wins)
+
+# ============================================================================
+
+#
+
+# WHY?
+
+# HANDOFF.md is now a READ-ONLY dashboard. Feature branches should NEVER
+
+# modify it. The pre-commit hook blocks modifications, but if a feature
+
+# branch somehow has changes, we want main's version to win on merge
+
+#
+
+# HOW?
+
+# Git's 'ours' merge strategy discards changes from the incoming branch
+
+# (feature) and keeps the current branch's version (main). This prevents
+
+# merge conflicts even if feature branches violate the read-only rule
+
+#
+
+# WHAT?
+
+# When merging feature → main, if both branches modified HANDOFF.md
+
+# - Normal merge: CONFLICT (requires manual resolution)
+
+# - With 'ours': main's version kept, feature's changes discarded (no conflict)
+
+#
+
+# TRADE-OFF
+
+# Feature branch HANDOFF.md changes are silently dropped. This is DESIRED
+
+# behavior since agents should use session logs + Serena memory instead
+
+#
+
 .agents/HANDOFF.md merge=ours
+
+# ============================================================================
+
+# Branch Handoffs: 'handoff-aggregate' (custom merge driver)
+
+# ============================================================================
+
+#
+
+# WHY?
+
+# Branch handoffs (.agents/handoffs/{branch}/*.md) coordinate multi-session
+
+# work on the same feature branch. When branches are merged or rebased
+
+# these files need intelligent aggregation, not conflict resolution
+
+#
+
+# HOW?
+
+# Custom merge driver (scripts/Merge-Handoff.ps1) aggregates content from
+
+# both branches, preserving session metadata and deduplicating entries
+
+# Configured in .git/config
+
+# [merge "handoff-aggregate"]
+
+# name = Aggregate branch handoff files
+
+# driver = pwsh scripts/Merge-Handoff.ps1 %O %A %B %P
+
+#
+
+# WHAT?
+
+# When merging branches with different handoff files
+
+# - Normal merge: CONFLICT (manual resolution needed)
+
+# - With 'handoff-aggregate': Automatic aggregation (no conflict)
+
+#
+
+# STATUS
+
+# FUTURE WORK (P2) - Driver script not yet implemented. Declarative now
+
+# so merges fall back to normal conflict resolution until driver exists
+
+#
+
+# TRADE-OFF
+
+# Requires PowerShell and custom script. If missing, git falls back to
+
+# normal conflict resolution (safe degradation)
+
+#
+
+.agents/handoffs/*.md merge=handoff-aggregate
