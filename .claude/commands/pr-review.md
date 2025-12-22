@@ -128,7 +128,7 @@ Output:
 | PR not found | Log warning, skip PR, continue |
 | Branch conflict | Log error, skip PR, continue |
 | Agent timeout | Log partial status, force cleanup |
-| Push rejection | Retry with `--force-with-lease`, report if fails |
+| Push rejection | Detect concurrent updates (fetch and compare remote). If no concurrent changes, retry with `--force-with-lease`; otherwise, log rejection and require manual resolution (do not force push in parallel scenarios). |
 | Merge conflict | Log conflict, skip cleanup, report for manual resolution |
 
 ## Critical Constraints (MUST)

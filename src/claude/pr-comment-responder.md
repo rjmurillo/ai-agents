@@ -744,7 +744,23 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
 
 </details>
 
-#### Step 6.4: Update Task List
+#### Step 6.4: Resolve Conversation Thread
+
+**MANDATORY**: After replying with resolution, mark the thread as resolved. This is required for PRs with branch protection rules that require all conversations to be resolved before merging.
+
+```powershell
+# Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+
+# Or resolve a single thread by ID
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_kwDOQoWRls5m7ln8"
+```
+
+**Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
+
+**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`-All`) automatically discovers and resolves all unresolved threads.
+
+#### Step 6.5: Update Task List
 
 Mark task as complete in `.agents/pr-comments/PR-[number]/tasks.md`.
 
@@ -779,7 +795,9 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MANDATORY**: Verify all comments addressed before claiming completion.
+**MANDATORY**: Verify all comments addressed AND all conversations resolved before claiming completion.
+
+#### Step 8.1: Verify Comment Resolution
 
 ```bash
 # Count addressed vs total
@@ -794,6 +812,29 @@ if [ "$ADDRESSED" -lt "$TOTAL" ]; then
   grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
 fi
 ```
+
+#### Step 8.2: Verify Conversation Resolution
+
+**BLOCKING**: All conversations MUST be resolved for the PR to be mergeable with branch protection rules.
+
+```powershell
+# Run bulk resolution to ensure all threads are resolved
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+```
+
+The script will:
+
+1. Query all review threads on the PR
+2. Identify any unresolved threads
+3. Resolve each one via GraphQL API
+4. Report summary: `N resolved, M failed`
+
+**Exit codes**:
+
+- `0`: All threads resolved (or already resolved)
+- `1`: One or more threads failed to resolve
+
+If any threads fail to resolve, investigate and retry before claiming completion.
 
 ## Memory Protocol
 
