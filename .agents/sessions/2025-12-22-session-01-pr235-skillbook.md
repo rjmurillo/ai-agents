@@ -76,9 +76,9 @@ All skills meet acceptance criteria:
 |------|--------|----------|
 | Session log created early | [x] | This file created at 12:30 |
 | HANDOFF.md updated | [x] | Session summary added to Recent Sessions |
-| Markdown linted | [ ] | Pending |
-| All changes committed | [ ] | Pending |
-| Commit SHA recorded | [ ] | Pending |
+| Markdown linted | [x] | 0 errors |
+| All changes committed | [x] | Commit 29fd93b |
+| Commit SHA recorded | [x] | 29fd93b |
 | Validator passed | [ ] | Pending |
 
 ### Summary
