@@ -8,7 +8,7 @@ on:
       dry_run:
         description: 'Dry run (no changes)'
         type: boolean
-        default: false
+        default: true
       max_prs:
         description: 'Max PRs to process'
         type: number
@@ -32,7 +32,7 @@ env:
 jobs:
   pr-maintenance:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -57,37 +57,72 @@ jobs:
       - name: Check API rate limit
         id: ratelimit
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
-          REMAINING=$(gh api rate_limit --jq '.rate.remaining')
-          LIMIT=$(gh api rate_limit --jq '.rate.limit')
-          RESET=$(gh api rate_limit --jq '.rate.reset')
-
-          echo "remaining=$REMAINING" >> $GITHUB_OUTPUT
-          echo "limit=$LIMIT" >> $GITHUB_OUTPUT
-
-          echo "### API Rate Limit" >> $GITHUB_STEP_SUMMARY
-          echo "- Remaining: $REMAINING / $LIMIT" >> $GITHUB_STEP_SUMMARY
-          echo "- Reset: $(date -d @$RESET)" >> $GITHUB_STEP_SUMMARY
-
-          if [ $REMAINING -lt 200 ]; then
-            echo "::error::GitHub API rate limit low: $REMAINING/$LIMIT remaining"
+          # Check multiple resource types with appropriate thresholds
+          RATE_DATA=$(gh api rate_limit)
+          
+          # Define thresholds (50% of limit for most resources)
+          CORE_THRESHOLD=100
+          SEARCH_THRESHOLD=15
+          CODE_SEARCH_THRESHOLD=5
+          GRAPHQL_THRESHOLD=100
+          
+          # Extract values
+          CORE_REMAINING=$(echo "$RATE_DATA" | jq '.resources.core.remaining')
+          SEARCH_REMAINING=$(echo "$RATE_DATA" | jq '.resources.search.remaining')
+          CODE_SEARCH_REMAINING=$(echo "$RATE_DATA" | jq '.resources.code_search.remaining')
+          GRAPHQL_REMAINING=$(echo "$RATE_DATA" | jq '.resources.graphql.remaining')
+          
+          # Store for summary
+          echo "core_remaining=$CORE_REMAINING" >> $GITHUB_OUTPUT
+          
+          echo "### API Rate Limit Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Remaining | Threshold | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-----------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Check each resource
+          FAILED=0
+          
+          if [ "$CORE_REMAINING" -lt "$CORE_THRESHOLD" ]; then
+            echo "| core | $CORE_REMAINING | $CORE_THRESHOLD | ❌ TOO LOW |" >> $GITHUB_STEP_SUMMARY
+            FAILED=1
+          else
+            echo "| core | $CORE_REMAINING | $CORE_THRESHOLD | ✅ OK |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "$SEARCH_REMAINING" -lt "$SEARCH_THRESHOLD" ]; then
+            echo "| search | $SEARCH_REMAINING | $SEARCH_THRESHOLD | ❌ TOO LOW |" >> $GITHUB_STEP_SUMMARY
+            FAILED=1
+          else
+            echo "| search | $SEARCH_REMAINING | $SEARCH_THRESHOLD | ✅ OK |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "$CODE_SEARCH_REMAINING" -lt "$CODE_SEARCH_THRESHOLD" ]; then
+            echo "| code_search | $CODE_SEARCH_REMAINING | $CODE_SEARCH_THRESHOLD | ❌ TOO LOW |" >> $GITHUB_STEP_SUMMARY
+            FAILED=1
+          else
+            echo "| code_search | $CODE_SEARCH_REMAINING | $CODE_SEARCH_THRESHOLD | ✅ OK |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "$GRAPHQL_REMAINING" -lt "$GRAPHQL_THRESHOLD" ]; then
+            echo "| graphql | $GRAPHQL_REMAINING | $GRAPHQL_THRESHOLD | ❌ TOO LOW |" >> $GITHUB_STEP_SUMMARY
+            FAILED=1
+          else
+            echo "| graphql | $GRAPHQL_REMAINING | $GRAPHQL_THRESHOLD | ✅ OK |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "$FAILED" -eq 1 ]; then
+            echo "::error::One or more API rate limits too low"
             exit 1
           fi
 
-      - name: Cleanup stale worktrees
-        run: |
-          # Remove stale worktrees from previous runs
-          git worktree list --porcelain |
-            grep '^worktree' |
-            awk '{print $2}' |
-            grep -E 'ai-agents-pr-[0-9]+' |
-            xargs -I {} git worktree remove {} --force || true
 
       - name: Run PR maintenance
         id: maintenance
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
         shell: pwsh
         run: |
           $dryRun = if ('${{ inputs.dry_run }}' -eq 'true') { $true } else { $false }
@@ -185,7 +220,7 @@ jobs:
 
           ### Rate Limit After Run
 
-          - Remaining: $(gh api rate_limit --jq '.rate.remaining') / ${{ steps.ratelimit.outputs.limit }}
+          - Core API: $(gh api rate_limit --jq '.resources.core.remaining') remaining
 
           ---
           [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
@@ -196,7 +231,7 @@ jobs:
       - name: Create alert issue for blocked PRs
         if: steps.results.outputs.has_blocked == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
           BLOCKED_LIST=$(cat blocked-prs.txt)
 
@@ -218,15 +253,6 @@ jobs:
           ---
           🤖 Auto-generated by PR Maintenance workflow"
 
-      - name: Cleanup worktrees (final)
-        if: always()
-        run: |
-          git worktree list --porcelain |
-            grep '^worktree' |
-            awk '{print $2}' |
-            grep -E 'ai-agents-pr-[0-9]+' |
-            xargs -I {} git worktree remove {} --force || true
-
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4
@@ -238,7 +264,7 @@ jobs:
       - name: Notify on failure
         if: failure()
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
           gh issue create \
             --title "[ALERT] PR Maintenance Workflow Failed" \
