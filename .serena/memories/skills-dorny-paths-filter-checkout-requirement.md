@@ -41,7 +41,7 @@ skip-review:
   if: needs.check-changes.outputs.should-run != 'true'
   runs-on: ubuntu-latest
   steps:
-    - uses: actions/checkout@v4  # Required for dorny/paths-filter pattern
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # Required for dorny/paths-filter pattern
     
     - name: Skip message
       run: echo "Skipped"
