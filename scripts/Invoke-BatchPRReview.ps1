@@ -61,7 +61,9 @@ function Get-PRBranch {
 
     $prInfo = gh pr view $PRNumber --json headRefName 2>$null | ConvertFrom-Json
     if (-not $prInfo) {
-        Write-Warning "PR #$PRNumber not found or not accessible"
+        Write-Warning ("PR #$PRNumber not found or not accessible. " +
+                       "Verify that the PR number is correct, that you are in the correct repository, " +
+                       "and that the GitHub CLI is authenticated with sufficient permissions (try 'gh auth status').")
         return $null
     }
     return $prInfo.headRefName
@@ -190,12 +192,21 @@ function Push-WorktreeChanges {
         if (-not $status.Clean) {
             Write-Host "PR #$PRNumber: Committing changes..." -ForegroundColor Cyan
             git add .
+            if ($LASTEXITCODE -ne 0) {
+                throw "PR #$PRNumber: 'git add .' failed with exit code $LASTEXITCODE"
+            }
             git commit -m "chore(pr-$PRNumber): finalize review response session"
+            if ($LASTEXITCODE -ne 0) {
+                throw "PR #$PRNumber: 'git commit' failed with exit code $LASTEXITCODE"
+            }
         }
 
         if ($status.Unpushed -or -not $status.Clean) {
             Write-Host "PR #$PRNumber: Pushing to remote..." -ForegroundColor Cyan
-            git push origin $status.Branch
+            git push
+            if ($LASTEXITCODE -ne 0) {
+                throw "PR #$PRNumber: 'git push' failed with exit code $LASTEXITCODE"
+            }
         }
 
         Write-Host "PR #$PRNumber: Synced" -ForegroundColor Green

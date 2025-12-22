@@ -4,7 +4,7 @@ Respond to PR review comments using the pr-comment-responder workflow with optio
 
 ## Usage
 
-```
+```text
 /pr-review <PR_NUMBERS> [--parallel] [--cleanup]
 ```
 
@@ -43,6 +43,7 @@ pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 ```
 
 Verify:
+
 - PR exists
 - PR is open (state != MERGED, CLOSED)
 - PR has the current repo as target
@@ -246,10 +247,10 @@ git status --short
 1. **GitHub CLI**: `gh auth status` must show authenticated
 2. **Git**: Push access to repository
 3. **PowerShell**: Required for GitHub skill scripts
-4. **pr-comment-responder skill**: Must be available at `.claude/skills/`
+4. **pr-comment-responder skill** (optional): If you use the companion `pr-comment-responder` workflow for detailed single-PR review, ensure the skill is available (provided separately)
 
 ## Related Commands
 
-- `/pr-comment-responder {PR}` - Single PR detailed review
+- `pr-comment-responder` skill: Single PR detailed review (optional, provided separately)
 - `/commit` - Commit changes with conventional format
 - `/github` - GitHub CLI operations skill
