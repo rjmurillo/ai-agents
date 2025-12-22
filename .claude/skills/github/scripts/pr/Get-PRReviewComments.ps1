@@ -56,7 +56,7 @@ Write-Verbose "Fetching review comments for PR #$PullRequest"
 # Fetch review comments (code-level comments on specific lines/files)
 $reviewComments = Invoke-GhApiPaginated -Endpoint "repos/$Owner/$Repo/pulls/$PullRequest/comments"
 
-$processedReviewComments = foreach ($comment in $reviewComments) {
+$processedReviewComments = @(foreach ($comment in $reviewComments) {
     if ($Author -and $comment.user.login -ne $Author) { continue }
 
     [PSCustomObject]@{
@@ -76,7 +76,7 @@ $processedReviewComments = foreach ($comment in $reviewComments) {
         HtmlUrl     = $comment.html_url
         CommitId    = $comment.commit_id
     }
-}
+})
 
 # Fetch issue comments (top-level PR comments) if requested
 $processedIssueComments = @()
