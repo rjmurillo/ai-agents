@@ -201,6 +201,54 @@ npx markdownlint-cli2 "directory/**/*.md"
 
 ---
 
+## Skill-Workflow-011: HANDOFF.md Session History Merge
+
+- **Statement**: Merge session histories chronologically when resolving HANDOFF.md conflicts, preserving parallel work streams
+- **Context**: Merging feature branches with parallel session history
+- **Atomicity**: 92%
+- **Evidence**: 2025-12-21 PR #201 - initial conflict resolution discarded feature branch sessions 57-55, corrected by merging and sorting chronologically
+- **Impact**: Preserves complete project history across parallel development streams
+- **Tags**: helpful, merge-resolution
+
+**Merge Protocol**:
+
+1. **Identify Conflict**: Session History table has conflicts from parallel work
+2. **Combine Sessions**: Include ALL sessions from both main and feature branches
+3. **Sort Chronologically**: Descending by session number (most recent first)
+4. **Preserve Parallel Work**: Sessions with same number but different PRs (e.g., Session 57 for #222 AND Session 57-PR201 for #201) are BOTH kept
+5. **Expand Scope**: If needed, expand "Last 5" to "Last 10" to capture full parallel context
+
+**Anti-Pattern**:
+
+Discarding feature branch session history during merge conflict resolution loses important project context. HANDOFF.md tracks project-wide state - parallel work streams must be merged, not replaced.
+
+**Example**:
+
+```markdown
+# WRONG: Taking only main's sessions
+| Session | Date | Summary | PR/Issue |
+|---------|------|---------|----------|
+| Session 61 | 2025-12-21 | ... | #223 |
+| Session 60 | 2025-12-20 | ... | #53 |
+| Session 59 | 2025-12-19 | ... | #222 |
+# Feature branch sessions 57-55 for PR #201 LOST
+
+# CORRECT: Merged and sorted chronologically
+| Session | Date | Summary | PR/Issue |
+|---------|------|---------|----------|
+| Session 61 | 2025-12-21 | ... | #223 |
+| Session 60 | 2025-12-20 | ... | #53 |
+| Session 59 | 2025-12-19 | ... | #222 |
+| Session 57-PR201 | 2025-12-18 | ... | #201 |
+| Session 57 | 2025-12-18 | ... | #222 |
+| Session 56-PR201 | 2025-12-17 | ... | #201 |
+| Session 56 | 2025-12-17 | ... | #222 |
+| Session 55-PR201 | 2025-12-16 | ... | #201 |
+# Both streams preserved, sorted chronologically
+```
+
+---
+
 ## Anti-Patterns
 
 ### Anti-Workflow-001: Skipping Critic Validation

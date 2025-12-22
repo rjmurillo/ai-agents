@@ -232,6 +232,44 @@ Task(subagent_type="qa", prompt="Verify fix and assess regression test needs..."
 
 ## Workflow Protocol
 
+### Phase 0: Session State Check
+
+Before starting work, check if this is a continuation of a previous session:
+
+```bash
+SESSION_DIR=".agents/pr-comments/PR-[number]"
+
+if [ -d "$SESSION_DIR" ]; then
+  echo "[CONTINUATION] Previous session found"
+  # Load existing state
+  PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
+  echo "Previous session had $PREVIOUS_COMMENTS comments"
+
+  # Check for NEW comments only
+  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+
+  if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
+    echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
+    # Proceed to Phase 1 to fetch new comments only
+  else
+    echo "[NO NEW COMMENTS] Proceeding to Phase 8 for verification"
+    # Skip to Phase 8 to verify completion criteria
+  fi
+else
+  echo "[NEW SESSION] No previous state found"
+  # Proceed with full Phase 1 context gathering
+fi
+```
+
+**Session state directory**: `.agents/pr-comments/PR-[number]/`
+
+| File | Purpose |
+|------|---------|
+| `comments.md` | Comment map with status tracking |
+| `tasks.md` | Prioritized task list |
+| `session-summary.md` | Session outcomes and statistics |
+| `[comment_id]-plan.md` | Per-comment implementation plans |
+
 ### Phase 1: Context Gathering
 
 **CRITICAL**: Enumerate ALL reviewers and count ALL comments before proceeding. Missing comments wastes tokens on repeated prompts. Missed comments lead to incomplete PR handling and waste tokens on repeated prompts. Replying to incorrect comment threads creates noise and causes confusion.
@@ -828,25 +866,26 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MANDATORY**: Verify all comments addressed AND all conversations resolved before claiming completion.
+**MANDATORY**: Complete ALL sub-phases before claiming completion.
 
-#### Step 8.1: Verify Comment Resolution
+#### Phase 8.1: Comment Status Verification
 
 ```bash
 # Count addressed vs total
 ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
+WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
 TOTAL=$TOTAL_COMMENTS
 
-echo "Verification: $ADDRESSED / $TOTAL comments addressed"
+echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
-if [ "$ADDRESSED" -lt "$TOTAL" ]; then
-  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED)) comments remaining"
-  # List unaddressed
+if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
+  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
   grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
+  # Return to Phase 3 for unaddressed comments
 fi
 ```
 
-#### Step 8.2: Verify Conversation Resolution (BLOCKING)
+#### Phase 8.2: Verify Conversation Resolution (BLOCKING)
 
 **CRITICAL**: All conversations must be resolved for PR to be mergeable.
 
@@ -856,7 +895,7 @@ pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [n
 ```
 
 <details>
-<summary>Alternative: GraphQL verification</summary>
+<summary>Alternative: GraphQL verification with pagination</summary>
 
 ```bash
 # Query unresolved thread count with pagination
@@ -893,13 +932,68 @@ echo "[PASS] All conversations resolved - PR is mergeable"
 
 </details>
 
-**Completion Criteria**:
+#### Phase 8.3: Re-check for New Comments
 
-- [ ] All comments have eyes reaction (Phase 2 gate)
-- [ ] All comments have reply or resolution status
-- [ ] All conversations are RESOLVED (this step)
-- [ ] PR description updated if needed (Phase 7)
-- [ ] All artifacts committed to git
+After pushing commits, bots may post new comments. Wait and re-check:
+
+```bash
+# Wait for bot responses (30-60 seconds)
+sleep 45
+
+# Re-fetch comments
+NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+
+# Compare to original count
+if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
+  echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
+  # Fetch new comments, add to comment map with status [NEW]
+  # Return to Phase 3 for analysis
+fi
+```
+
+**Critical**: Repeat this loop until no new comments appear after a commit. Bots like cursor[bot] and Copilot respond to your fixes and may identify issues with your implementation.
+
+#### Phase 8.4: QA Gate Verification
+
+Before claiming completion, verify CI checks pass:
+
+```bash
+# Check PR status
+gh pr checks [number] --watch
+
+# If AI Quality Gate fails, parse actionable items
+CHECKS=$(gh pr checks [number] --json name,state,description)
+FAILED=$(echo "$CHECKS" | jq '[.[] | select(.state == "FAILURE")]')
+
+if [ "$(echo "$FAILED" | jq 'length')" -gt 0 ]; then
+  echo "[QA GATE FAIL] Parsing failures for actionable items..."
+  # Add new tasks to task list
+  # Return to Phase 6 for implementation
+fi
+```
+
+#### Phase 8.5: Completion Criteria Checklist
+
+**ALL criteria must be true before completion**:
+
+| Criterion | Check | Status |
+|-----------|-------|--------|
+| All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
+| No new comments | Re-check returned 0 new | [ ] |
+| CI checks pass | `gh pr checks` all green | [ ] |
+| No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
+| Commits pushed | `git status` shows "up to date with origin" | [ ] |
+
+```bash
+# Final verification
+echo "=== Completion Criteria ==="
+echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
+echo "[ ] New comments: None after 45s wait"
+echo "[ ] CI checks: $(gh pr checks [number] --json state -q '[.[] | select(.state != "SUCCESS")] | length') failures"
+echo "[ ] Pushed: $(git status -sb | head -1)"
+```
+
+**If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.
 
 ## Memory Protocol
 
