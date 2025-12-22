@@ -2,9 +2,9 @@
 
 **Project**: AI Agents Enhancement
 **Version**: 1.0
-**Last Updated**: 2025-12-21
-**Current Phase**: PR Review Response (Session 57)
-**Status**: 🟢 ACTIVE - PR #201 review comments in progress, merge conflict resolved
+**Last Updated**: 2025-12-22
+**Current Phase**: Skill Extraction (Session 01)
+**Status**: 🟢 ACTIVE - PR #235 learnings extracted and skillbook updated
 
 ---
 
@@ -945,6 +945,38 @@ cat .agents/governance/consistency-protocol.md
 ---
 
 ## Recent Sessions
+
+### 2025-12-22: PR #235 Skill Extraction (Session 01)
+
+**Objective**: Extract learnings from PR #235 (Get-PRReviewComments dual endpoint fix) and create skillbook entries
+
+**Agent**: skillbook (Skillbook Manager)
+
+**PR**: [#235](https://github.com/rjmurillo/ai-agents/pull/235)
+
+**Outcome**: SUCCESS - 5 atomic skills created with 95-97% atomicity scores
+
+**Skills Created**:
+
+| Skill ID | Memory | Atomicity | Impact | Focus |
+|----------|--------|-----------|--------|-------|
+| Skill-GH-API-002 | skills-github-cli | 97% | 9/10 | Dual comment endpoints (review + issue) |
+| Skill-Diagnosis-001 | skills-analysis | 95% | 8/10 | Evidence-based diagnosis with PR data |
+| Skill-PowerShell-006 | skills-powershell | 96% | 9/10 | Backward-compatible switch parameters |
+| Skill-API-Design-001 | skills-design | 97% | 8/10 | Type discriminator fields |
+| Skill-Test-Pester-006 | skills-pester-testing | 96% | 9/10 | Static analysis tests |
+
+**Key Patterns**:
+
+1. **GitHub API Dual Endpoints**: MUST query both `/pulls/{n}/comments` AND `/issues/{n}/comments` for complete PR comment data (bot summaries are issue comments)
+2. **Evidence-Based Diagnosis**: Compare API response counts against real PR data to prove gaps exist before fixing
+3. **Backward Compatibility**: Use switch parameters with default `$false` to add new functionality without breaking existing callers
+4. **Data Source Tracking**: Add discriminator field when merging data from multiple API endpoints
+5. **Fast Testing**: Use regex-based static analysis to validate PowerShell script structure without API calls
+
+**Session Log**: [.agents/sessions/2025-12-22-session-01-pr235-skillbook.md](.agents/sessions/2025-12-22-session-01-pr235-skillbook.md)
+
+---
 
 ### 2025-12-20: PR #147 Comment Response (Session 39)
 
