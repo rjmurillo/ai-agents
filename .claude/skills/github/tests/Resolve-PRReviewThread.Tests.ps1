@@ -104,7 +104,7 @@ Describe 'Resolve-PRReviewThread.ps1' {
             $ScriptContent | Should -Match 'Write-Warning'
         }
 
-        It 'Should return boolean from Resolve-SingleThread' {
+        It 'Should return boolean from Resolve-ReviewThread' {
             $ScriptContent | Should -Match 'return\s+\$true'
             $ScriptContent | Should -Match 'return\s+\$false'
         }
@@ -144,20 +144,20 @@ Describe 'Resolve-PRReviewThread.ps1' {
     }
 
     Context 'Function Definitions' {
-        It 'Should define Resolve-SingleThread function' {
-            $ScriptContent | Should -Match 'function\s+Resolve-SingleThread'
+        It 'Should define Resolve-ReviewThread function' {
+            $ScriptContent | Should -Match 'function\s+Resolve-ReviewThread'
         }
 
-        It 'Should define Get-UnresolvedThreads function' {
-            $ScriptContent | Should -Match 'function\s+Get-UnresolvedThreads'
+        It 'Should define Get-UnresolvedReviewThreads function' {
+            $ScriptContent | Should -Match 'function\s+Get-UnresolvedReviewThreads'
         }
 
-        It 'Should have proper parameter in Resolve-SingleThread' {
-            $ScriptContent | Should -Match 'Resolve-SingleThread\s*\{[\s\S]*?param\s*\(\s*\[string\]\s*\$Id\s*\)'
+        It 'Should have proper parameter in Resolve-ReviewThread' {
+            $ScriptContent | Should -Match 'Resolve-ReviewThread\s*\{[\s\S]*?param\s*\(\s*\[string\]\s*\$Id\s*\)'
         }
 
-        It 'Should have proper parameter in Get-UnresolvedThreads' {
-            $ScriptContent | Should -Match 'Get-UnresolvedThreads\s*\{[\s\S]*?param\s*\(\s*\[int\]\s*\$PR\s*\)'
+        It 'Should have proper parameter in Get-UnresolvedReviewThreads' {
+            $ScriptContent | Should -Match 'Get-UnresolvedReviewThreads\s*\{[\s\S]*?param\s*\(\s*\[int\]\s*\$PR\s*\)'
         }
     }
 

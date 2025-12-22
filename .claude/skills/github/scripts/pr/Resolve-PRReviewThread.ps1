@@ -35,7 +35,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-function Resolve-SingleThread {
+function Resolve-ReviewThread {
     param([string]$Id)
 
     $mutation = @"
@@ -55,17 +55,23 @@ mutation {
         return $false
     }
 
-    $parsed = $result | ConvertFrom-Json
-    if ($parsed.data.resolveReviewThread.thread.isResolved) {
-        Write-Host "Resolved thread: $Id" -ForegroundColor Green
-        return $true
-    } else {
-        Write-Warning "Thread $Id may not have been resolved"
+    try {
+        $parsed = $result | ConvertFrom-Json
+        if ($parsed.data.resolveReviewThread.thread.isResolved) {
+            Write-Host "Resolved thread: $Id" -ForegroundColor Green
+            return $true
+        } else {
+            Write-Warning "Thread $Id may not have been resolved. Response: $result"
+            return $false
+        }
+    }
+    catch {
+        Write-Warning "Failed to parse GraphQL response for thread $Id. Raw response: $result"
         return $false
     }
 }
 
-function Get-UnresolvedThreads {
+function Get-UnresolvedReviewThreads {
     param([int]$PR)
 
     # Get repo info
@@ -79,12 +85,11 @@ function Get-UnresolvedThreads {
 query {
     repository(owner: "$($repo.owner.login)", name: "$($repo.name)") {
         pullRequest(number: $PR) {
+            # Note: first: 100 handles most PRs; pagination not implemented for edge cases with 100+ threads
             reviewThreads(first: 100) {
-                totalCount
                 nodes {
                     id
                     isResolved
-                    isOutdated
                     comments(first: 1) {
                         nodes {
                             databaseId
@@ -103,7 +108,12 @@ query {
         throw "Failed to query threads: $result"
     }
 
-    $parsed = $result | ConvertFrom-Json
+    try {
+        $parsed = $result | ConvertFrom-Json
+    }
+    catch {
+        throw "Failed to parse GraphQL response when querying threads. Raw response: $result"
+    }
     $threads = $parsed.data.repository.pullRequest.reviewThreads.nodes
 
     return $threads | Where-Object { -not $_.isResolved }
@@ -111,14 +121,14 @@ query {
 
 # Main execution
 if ($PSCmdlet.ParameterSetName -eq 'Single') {
-    $success = Resolve-SingleThread -Id $ThreadId
+    $success = Resolve-ReviewThread -Id $ThreadId
     exit ($success ? 0 : 1)
 }
 else {
     # Resolve all unresolved threads
-    $unresolvedThreads = Get-UnresolvedThreads -PR $PullRequest
+    $unresolvedThreads = Get-UnresolvedReviewThreads -PR $PullRequest
 
-    if ($unresolvedThreads.Count -eq 0) {
+    if (-not $unresolvedThreads) {
         Write-Host "All threads on PR #${PullRequest} are already resolved" -ForegroundColor Green
         exit 0
     }
@@ -129,11 +139,25 @@ else {
     $failed = 0
 
     foreach ($thread in $unresolvedThreads) {
-        $author = $thread.comments.nodes[0].author.login
-        $commentId = $thread.comments.nodes[0].databaseId
+        # Safely derive author and comment ID; threads may exist without comments
+        $author = "<unknown>"
+        $commentId = "<unknown>"
+
+        if ($thread.comments -and $thread.comments.nodes -and $thread.comments.nodes.Count -gt 0 -and $thread.comments.nodes[0]) {
+            $firstComment = $thread.comments.nodes[0]
+
+            if ($firstComment.author -and $firstComment.author.login) {
+                $author = $firstComment.author.login
+            }
+
+            if ($firstComment.databaseId) {
+                $commentId = $firstComment.databaseId
+            }
+        }
+
         Write-Host "  Resolving thread $($thread.id) (comment $commentId by @$author)..." -ForegroundColor Yellow
 
-        if (Resolve-SingleThread -Id $thread.id) {
+        if (Resolve-ReviewThread -Id $thread.id) {
             $resolved++
         } else {
             $failed++
