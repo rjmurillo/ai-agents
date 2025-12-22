@@ -57,7 +57,7 @@ For parallel execution, create isolated worktrees:
 branch=$(gh pr view {number} --json headRefName -q '.headRefName')
 
 # Create worktree in parent directory
-git worktree add ../worktree-pr-{number} {branch}
+git worktree add ../worktree-pr-{number} "{branch}"
 ```
 
 ### Step 4: Launch Agents
@@ -94,10 +94,10 @@ For each worktree:
 cd ../worktree-pr-{number}
 
 # Check for uncommitted changes
-if [[ -n $(git status --short) ]]; then
+if [[ -n "$(git status --short)" ]]; then
     git add .
     git commit -m "chore(pr-{number}): finalize review response session"
-    git push origin {branch}
+    git push origin "{branch}"
 fi
 
 # Verify pushed
@@ -113,12 +113,12 @@ for pr in pr_numbers:
     # Verify worktree is clean and pushed
     worktree_path="../worktree-pr-{pr}"
 
-    cd $worktree_path
-    status=$(git status --short)
+    cd "$worktree_path"
+    status="$(git status --short)"
 
     if [[ -z "$status" ]]; then
         cd {main_repo}
-        git worktree remove $worktree_path
+        git worktree remove "$worktree_path"
     else
         echo "WARNING: worktree-pr-{pr} has uncommitted changes"
     fi

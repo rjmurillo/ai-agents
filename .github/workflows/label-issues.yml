@@ -35,7 +35,7 @@ jobs:
       - name: Apply labels based on content
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.BOT_PAT }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const issue = context.payload.issue;
             const title = (issue.title || '').toLowerCase();
