@@ -663,7 +663,7 @@ function Invoke-PRMaintenance {
             # Check and resolve merge conflicts
             if ($pr.mergeable -eq 'CONFLICTING') {
                 Write-Log "PR #$($pr.number) has merge conflicts - attempting resolution" -Level ACTION
-                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.headRefName -DryRun:$DryRun
+                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.head -DryRun:$DryRun
                 if ($resolved) {
                     $results.ConflictsResolved++
                 }

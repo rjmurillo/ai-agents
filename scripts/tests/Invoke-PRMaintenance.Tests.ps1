@@ -733,6 +733,7 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
 
         It "Returns false for bell character" {
+            # Note: `a is the PowerShell escape sequence for the bell character (0x07)
             $result = Test-SafeBranchName -BranchName "branch`aname"
             $result | Should -Be $false
         }
