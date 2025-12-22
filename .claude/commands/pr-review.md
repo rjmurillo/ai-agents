@@ -1,14 +1,22 @@
+---
+description: Respond to PR review comments using the pr-comment-responder workflow
+argument-hint: <PR_NUMBERS> [--parallel] [--cleanup]
+allowed-tools: Bash(gh:*), Bash(git:*), Bash(pwsh:*), Task, Skill
+---
+
 # PR Review Command
 
-Respond to PR review comments using the pr-comment-responder workflow with optional parallel execution via git worktrees.
+Respond to PR review comments for the specified pull request(s): $ARGUMENTS
 
-## Usage
+## Context
 
-```text
-/pr-review <PR_NUMBERS> [--parallel] [--cleanup]
-```
+- Current branch: !`git branch --show-current`
+- Repository: !`gh repo view --json nameWithOwner -q '.nameWithOwner'`
+- Authenticated as: !`gh api user -q '.login'`
 
 ## Arguments
+
+Parse the input: `$ARGUMENTS`
 
 | Argument | Description | Default |
 |----------|-------------|---------|
@@ -16,51 +24,30 @@ Respond to PR review comments using the pr-comment-responder workflow with optio
 | `--parallel` | Use git worktrees for parallel execution | false |
 | `--cleanup` | Clean up worktrees after completion | true |
 
-## Execution Steps
+## Workflow
 
-When invoked, execute the following workflow:
+### Step 1: Parse and Validate PRs
 
-### Step 1: Parse Input
+For `all-open`, query: `gh pr list --state open --json number,reviewDecision`
 
-Extract PR numbers from the argument:
-
-```python
-# If "all-open", query GitHub for open PRs with review comments
-if pr_arg == "all-open":
-    # Use: gh pr list --state open --json number,reviewDecision
-    # Filter to PRs needing review response
-    pass
-else:
-    pr_numbers = [int(n.strip()) for n in pr_arg.split(",")]
-```
-
-### Step 2: Validate PRs
-
-For each PR number:
+For each PR number, validate using:
 
 ```powershell
 pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 ```
 
-Verify:
+Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
 
-- PR exists
-- PR is open (state != MERGED, CLOSED)
-- PR has the current repo as target
+### Step 2: Create Worktrees (if --parallel)
 
-### Step 3: Create Worktrees (if --parallel)
-
-For parallel execution, create isolated worktrees:
+For parallel execution:
 
 ```bash
-# Get PR branch name
 branch=$(gh pr view {number} --json headRefName -q '.headRefName')
-
-# Create worktree in parent directory
-git worktree add ../worktree-pr-{number} "{branch}"
+git worktree add "../worktree-pr-{number}" "$branch"
 ```
 
-### Step 4: Launch Agents
+### Step 3: Launch Agents
 
 **Sequential (default):**
 
@@ -81,52 +68,43 @@ for pr in pr_numbers:
     )
     agents.append(agent)
 
-# Wait for all agents
 for agent_id in agents:
     TaskOutput(task_id=agent_id, block=True, timeout=600000)
 ```
 
-### Step 5: Verify and Push
+### Step 4: Verify and Push
 
 For each worktree:
 
 ```bash
-cd ../worktree-pr-{number}
-
-# Check for uncommitted changes
+cd "../worktree-pr-{number}"
 if [[ -n "$(git status --short)" ]]; then
     git add .
     git commit -m "chore(pr-{number}): finalize review response session"
-    git push origin "{branch}"
+    git push origin "$branch"
 fi
-
-# Verify pushed
-git status
 ```
 
-### Step 6: Cleanup Worktrees (if --cleanup)
+### Step 5: Cleanup Worktrees (if --cleanup)
 
 ```bash
-cd {main_repo}
-
-for pr in pr_numbers:
-    # Verify worktree is clean and pushed
-    worktree_path="../worktree-pr-{pr}"
-
+cd "{main_repo}"
+for pr in pr_numbers; do
+    worktree_path="../worktree-pr-${pr}"
     cd "$worktree_path"
     status="$(git status --short)"
-
     if [[ -z "$status" ]]; then
-        cd {main_repo}
+        cd "{main_repo}"
         git worktree remove "$worktree_path"
     else
-        echo "WARNING: worktree-pr-{pr} has uncommitted changes"
+        echo "WARNING: worktree-pr-${pr} has uncommitted changes"
     fi
+done
 ```
 
-### Step 7: Generate Summary
+### Step 6: Generate Summary
 
-Output a summary table:
+Output:
 
 ```markdown
 ## PR Review Summary
@@ -134,14 +112,13 @@ Output a summary table:
 | PR | Branch | Comments | Acknowledged | Implemented | Commit | Status |
 |----|--------|----------|--------------|-------------|--------|--------|
 | #53 | feat/xyz | 4 | 4 | 3 | abc1234 | COMPLETE |
-| #141 | fix/abc | 2 | 2 | 2 | def5678 | COMPLETE |
 
 ### Statistics
-- **PRs Processed**: 2
-- **Comments Reviewed**: 6
-- **Fixes Implemented**: 5
-- **Commits Pushed**: 2
-- **Worktrees Cleaned**: 2
+- **PRs Processed**: N
+- **Comments Reviewed**: N
+- **Fixes Implemented**: N
+- **Commits Pushed**: N
+- **Worktrees Cleaned**: N
 ```
 
 ## Error Recovery
@@ -154,103 +131,22 @@ Output a summary table:
 | Push rejection | Retry with `--force-with-lease`, report if fails |
 | Merge conflict | Log conflict, skip cleanup, report for manual resolution |
 
+## Critical Constraints (MUST)
+
+When using `--parallel` with worktrees:
+
+1. **Worktree Isolation**: ALL changes MUST be contained within the assigned worktree
+2. **Working Directory**: Agents MUST set working directory to their worktree before file operations
+3. **Path Validation**: All file paths MUST be relative to worktree root
+4. **Git Operations**: Git commands MUST be executed from within the worktree directory
+5. **Verification Gate**: Before cleanup, verify no files were written outside worktrees
+
 ## Examples
 
 ```bash
-# Single PR
-/pr-review 194
-
-# Multiple PRs sequentially
-/pr-review 53,141,143
-
-# Multiple PRs in parallel with worktrees
-/pr-review 53,141,143,194,199,201,202,206 --parallel
-
-# All open PRs needing review
-/pr-review all-open --parallel
-
-# Skip cleanup (keep worktrees for inspection)
-/pr-review 194 --parallel --cleanup=false
+/pr-review 194                              # Single PR
+/pr-review 53,141,143                       # Multiple PRs sequentially
+/pr-review 53,141,143 --parallel            # Multiple PRs in parallel
+/pr-review all-open --parallel              # All open PRs needing review
+/pr-review 194 --parallel --cleanup=false   # Skip cleanup
 ```
-
-## Critical Constraints (MUST)
-
-When using `--parallel` with worktrees, the following constraints are **BLOCKING**:
-
-### 1. Worktree Isolation (MUST)
-
-**ALL changes MUST be contained within the assigned worktree.**
-
-- Agents MUST NOT write files to the main repository directory
-- Agents MUST NOT write files to other PR worktrees
-- Agents MUST NOT modify shared resources outside their worktree
-
-**Violation consequence**: Work leaks between PRs, potential data corruption, merge conflicts.
-
-### 2. Working Directory (MUST)
-
-**Agents MUST set working directory to their worktree before any file operations.**
-
-```bash
-# CORRECT: Work inside worktree
-cd ../worktree-pr-{number}
-# All file operations happen here
-
-# WRONG: Working from main repo
-cd /path/to/main/repo
-# Writing to ../worktree-pr-{number}/file.md  # VIOLATION - path traversal
-```
-
-### 3. Path Validation (MUST)
-
-**All file paths MUST be relative to the worktree root or use absolute paths within the worktree.**
-
-```python
-# CORRECT
-worktree_root = "../worktree-pr-{number}"
-file_path = f"{worktree_root}/.agents/sessions/session.md"
-
-# WRONG - writes to main repo
-file_path = ".agents/sessions/session.md"  # VIOLATION
-```
-
-### 4. Git Operations (MUST)
-
-**Git commands MUST be executed from within the worktree directory.**
-
-```bash
-# CORRECT
-cd ../worktree-pr-{number}
-git add .
-git commit -m "message"
-git push
-
-# WRONG - operates on main repo
-git -C ../worktree-pr-{number} add .  # Risky - easy to forget -C flag
-```
-
-### 5. Verification Gate (MUST)
-
-**Before cleanup, verify no files were written outside worktrees:**
-
-```bash
-# Check main repo for unexpected changes
-cd {main_repo}
-git status --short
-
-# If output is non-empty, HALT and investigate
-# Changes in main repo during parallel execution = constraint violation
-```
-
-## Prerequisites
-
-1. **GitHub CLI**: `gh auth status` must show authenticated
-2. **Git**: Push access to repository
-3. **PowerShell**: Required for GitHub skill scripts
-4. **pr-comment-responder skill** (optional): If you use the companion `pr-comment-responder` workflow for detailed single-PR review, ensure the skill is available (provided separately)
-
-## Related Commands
-
-- `pr-comment-responder` skill: Single PR detailed review (optional, provided separately)
-- `/commit` - Commit changes with conventional format
-- `/github` - GitHub CLI operations skill
