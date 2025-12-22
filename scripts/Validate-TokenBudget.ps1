@@ -32,7 +32,7 @@
 .NOTES
     Token estimation algorithm based on GPT tokenizer heuristics.
     Related: Issue #190 (HANDOFF.md merge conflicts)
-# >
+#>
 
 [CmdletBinding()]
 param(
