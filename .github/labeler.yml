@@ -51,7 +51,7 @@ area-skills:
 
 documentation:
   - changed-files:
-      - all-globs-to-all-files:
+      - any-glob-to-any-file:
           - "**/*.md"
           - "!.agents/**/*.md"
           - "!.serena/memories/**/*.md"
