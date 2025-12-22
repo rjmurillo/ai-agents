@@ -2,6 +2,8 @@
 
 Respond to PR review comments using the pr-comment-responder workflow with optional parallel execution via git worktrees.
 
+> **Protocol**: This command follows [SESSION-PROTOCOL.md](../../.agents/SESSION-PROTOCOL.md). All MUST requirements apply.
+
 ## Usage
 
 ```text
@@ -19,6 +21,30 @@ Respond to PR review comments using the pr-comment-responder workflow with optio
 ## Execution Steps
 
 When invoked, execute the following workflow:
+
+### Step 0: Session Initialization (BLOCKING)
+
+Before any PR work, complete the session protocol requirements:
+
+```python
+# Phase 1: Serena Initialization (MUST)
+mcp__serena__activate_project(project_path)
+mcp__serena__initial_instructions()
+
+# Phase 2: Context Retrieval (MUST)
+Read(".agents/HANDOFF.md")
+
+# Phase 1.5: Skill Validation (MUST)
+Bash("Get-ChildItem -Path '.claude/skills/github/scripts' -Recurse -Filter '*.ps1'")
+mcp__serena__read_memory(memory_file_name="skill-usage-mandatory")
+Read(".agents/governance/PROJECT-CONSTRAINTS.md")
+
+# Phase 3: Session Log (MUST)
+# Create session log at .agents/sessions/YYYY-MM-DD-session-NN.md
+# Include Protocol Compliance section from SESSION-PROTOCOL.md template
+```
+
+**Work is BLOCKED until all Phase 1, 1.5, 2, and 3 requirements are complete.**
 
 ### Step 1: Parse Input
 
@@ -126,7 +152,7 @@ for pr in pr_numbers:
 
 ### Step 7: Generate Summary
 
-Output a summary table:
+Output a summary table and complete session requirements:
 
 ```markdown
 ## PR Review Summary
@@ -137,12 +163,39 @@ Output a summary table:
 | #141 | fix/abc | 2 | 2 | 2 | def5678 | COMPLETE |
 
 ### Statistics
+
 - **PRs Processed**: 2
 - **Comments Reviewed**: 6
 - **Fixes Implemented**: 5
 - **Commits Pushed**: 2
 - **Worktrees Cleaned**: 2
 ```
+
+### Step 8: Session End Protocol (BLOCKING)
+
+Complete session protocol requirements before closing:
+
+```python
+# Phase 1: Documentation Update (MUST)
+# Update .agents/HANDOFF.md with session summary and session log link
+# Complete session log with tasks, decisions, challenges
+
+# Phase 2: Quality Checks (MUST)
+Bash("npx markdownlint-cli2 --fix '**/*.md'")
+
+# Phase 2.5: QA Validation (MUST for feature changes)
+# If code was modified (not just documentation):
+Task(subagent_type="qa", prompt="Validate PR review changes")
+
+# Phase 3: Git Operations (MUST)
+Bash("git add . && git commit -m 'chore: complete PR review session'")
+
+# Phase 4: Retrospective (SHOULD for significant sessions)
+# If multiple PRs processed or significant challenges:
+Task(subagent_type="retrospective", prompt="Extract learnings from PR review session")
+```
+
+**Session is NOT complete until all MUST requirements are verified.**
 
 ## Error Recovery
 
