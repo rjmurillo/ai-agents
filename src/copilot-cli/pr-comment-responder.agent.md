@@ -929,7 +929,7 @@ fi
 
 ### Phase 9: Memory Storage (BLOCKING)
 
-**MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
+**MUST**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
 
 #### Step 9.1: Calculate Session Statistics
 
