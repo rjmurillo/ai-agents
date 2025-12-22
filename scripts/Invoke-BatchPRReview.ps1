@@ -59,11 +59,16 @@ if (-not $WorktreeRoot) {
 function Get-PRBranch {
     param([int]$PRNumber)
 
-    $prInfo = gh pr view $PRNumber --json headRefName 2>$null | ConvertFrom-Json
-    if (-not $prInfo) {
+    $rawOutput = gh pr view $PRNumber --json headRefName 2>&1
+    if ($LASTEXITCODE -ne 0) {
         Write-Warning ("PR #$PRNumber not found or not accessible. " +
                        "Verify that the PR number is correct, that you are in the correct repository, " +
                        "and that the GitHub CLI is authenticated with sufficient permissions (try 'gh auth status').")
+        return $null
+    }
+    $prInfo = $rawOutput | ConvertFrom-Json
+    if (-not $prInfo -or -not $prInfo.headRefName) {
+        Write-Warning "PR #${PRNumber}: Unable to parse branch information."
         return $null
     }
     return $prInfo.headRefName
@@ -116,7 +121,13 @@ function Get-WorktreeStatus {
         $status = git status --short 2>$null
         $branch = git branch --show-current 2>$null
         $commit = git log -1 --format='%h' 2>$null
-        $unpushed = git log "@{u}.." --oneline 2>$null
+        # Check if upstream exists before querying unpushed commits
+        $hasUpstream = git rev-parse --abbrev-ref '@{u}' 2>$null
+        $unpushed = if ($LASTEXITCODE -eq 0 -and $hasUpstream) {
+            git log "@{u}.." --oneline 2>$null
+        } else {
+            $null
+        }
 
         return [PSCustomObject]@{
             PR         = $PRNumber
@@ -183,37 +194,37 @@ function Push-WorktreeChanges {
     }
 
     if ($status.Clean -and -not $status.Unpushed) {
-        Write-Host "PR #$PRNumber: Already clean and pushed" -ForegroundColor Green
+        Write-Host "PR #${PRNumber}: Already clean and pushed" -ForegroundColor Green
         return $true
     }
 
     Push-Location $status.Path
     try {
         if (-not $status.Clean) {
-            Write-Host "PR #$PRNumber: Committing changes..." -ForegroundColor Cyan
+            Write-Host "PR #${PRNumber}: Committing changes..." -ForegroundColor Cyan
             git add .
             if ($LASTEXITCODE -ne 0) {
-                throw "PR #$PRNumber: 'git add .' failed with exit code $LASTEXITCODE"
+                throw "PR #${PRNumber}: 'git add .' failed with exit code $LASTEXITCODE"
             }
             git commit -m "chore(pr-$PRNumber): finalize review response session"
             if ($LASTEXITCODE -ne 0) {
-                throw "PR #$PRNumber: 'git commit' failed with exit code $LASTEXITCODE"
+                throw "PR #${PRNumber}: 'git commit' failed with exit code $LASTEXITCODE"
             }
         }
 
         if ($status.Unpushed -or -not $status.Clean) {
-            Write-Host "PR #$PRNumber: Pushing to remote..." -ForegroundColor Cyan
+            Write-Host "PR #${PRNumber}: Pushing to remote..." -ForegroundColor Cyan
             git push
             if ($LASTEXITCODE -ne 0) {
-                throw "PR #$PRNumber: 'git push' failed with exit code $LASTEXITCODE"
+                throw "PR #${PRNumber}: 'git push' failed with exit code $LASTEXITCODE"
             }
         }
 
-        Write-Host "PR #$PRNumber: Synced" -ForegroundColor Green
+        Write-Host "PR #${PRNumber}: Synced" -ForegroundColor Green
         return $true
     }
     catch {
-        Write-Error "PR #$PRNumber: Failed to sync - $_"
+        Write-Error "PR #${PRNumber}: Failed to sync - $_"
         return $false
     }
     finally {
