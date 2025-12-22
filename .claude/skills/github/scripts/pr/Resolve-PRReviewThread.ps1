@@ -75,12 +75,23 @@ function Get-UnresolvedThreads {
     }
     $repo = $repoJson | ConvertFrom-Json
 
-    $query = @"
+    $allThreads = @()
+    $hasNextPage = $true
+    $cursor = $null
+
+    while ($hasNextPage) {
+        $cursorArg = if ($cursor) { ", after: \`"$cursor\`"" } else { "" }
+
+        $query = @"
 query {
     repository(owner: "$($repo.owner.login)", name: "$($repo.name)") {
         pullRequest(number: $PR) {
-            reviewThreads(first: 100) {
+            reviewThreads(first: 100$cursorArg) {
                 totalCount
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
                 nodes {
                     id
                     isResolved
@@ -98,15 +109,25 @@ query {
 }
 "@
 
-    $result = gh api graphql -f query=$query 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to query threads: $result"
+        $result = gh api graphql -f query=$query 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to query threads: $result"
+        }
+
+        $parsed = $result | ConvertFrom-Json
+        $reviewThreads = $parsed.data.repository.pullRequest.reviewThreads
+        $allThreads += $reviewThreads.nodes
+
+        $hasNextPage = $reviewThreads.pageInfo.hasNextPage
+        $cursor = $reviewThreads.pageInfo.endCursor
+
+        if ($hasNextPage) {
+            Write-Verbose "Fetching next page of threads (cursor: $cursor)"
+        }
     }
 
-    $parsed = $result | ConvertFrom-Json
-    $threads = $parsed.data.repository.pullRequest.reviewThreads.nodes
-
-    return $threads | Where-Object { -not $_.isResolved }
+    Write-Verbose "Retrieved $($allThreads.Count) total threads"
+    return $allThreads | Where-Object { -not $_.isResolved }
 }
 
 # Main execution
@@ -129,8 +150,25 @@ else {
     $failed = 0
 
     foreach ($thread in $unresolvedThreads) {
-        $author = $thread.comments.nodes[0].author.login
-        $commentId = $thread.comments.nodes[0].databaseId
+        $firstComment = $null
+        if ($thread.comments -and $thread.comments.nodes -and $thread.comments.nodes.Count -gt 0) {
+            $firstComment = $thread.comments.nodes[0]
+        }
+
+        if ($firstComment -and $firstComment.author -and $firstComment.author.login) {
+            $author = $firstComment.author.login
+        }
+        else {
+            $author = 'unknown'
+        }
+
+        if ($firstComment -and $firstComment.databaseId) {
+            $commentId = $firstComment.databaseId
+        }
+        else {
+            $commentId = 'unknown'
+        }
+
         Write-Host "  Resolving thread $($thread.id) (comment $commentId by @$author)..." -ForegroundColor Yellow
 
         if (Resolve-SingleThread -Id $thread.id) {
@@ -141,7 +179,7 @@ else {
     }
 
     Write-Host ""
-    Write-Host "Summary: $resolved resolved, $failed failed" -ForegroundColor $(if ($failed -eq 0) { 'Green' } else { 'Yellow' })
+    Write-Host "Summary: $resolved resolved, $failed failed" -ForegroundColor (& { if ($failed -eq 0) { 'Green' } else { 'Yellow' } })
 
     # Return results as JSON for parsing
     [PSCustomObject]@{

@@ -89,7 +89,7 @@ fi
 
 ```bash
 cd "{main_repo}"
-for pr in pr_numbers; do
+for pr in $pr_numbers; do
     worktree_path="../worktree-pr-${pr}"
     cd "$worktree_path"
     status="$(git status --short)"

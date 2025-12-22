@@ -760,17 +760,30 @@ pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT
 <summary>Alternative: Raw GraphQL (when PowerShell unavailable)</summary>
 
 ```bash
-# Get thread IDs first
-gh api graphql -f query='
-query($owner: String!, $repo: String!, $number: Int!) {
-  repository(owner: $owner, name: $repo) {
-    pullRequest(number: $number) {
-      reviewThreads(first: 100) {
-        nodes { id isResolved }
+# Get thread IDs with pagination
+CURSOR=""
+ALL_THREADS="[]"
+while true; do
+  CURSOR_ARG=$([ -n "$CURSOR" ] && echo ", after: \\\"$CURSOR\\\"" || echo "")
+  RESULT=$(gh api graphql -f query="
+  query(\$owner: String!, \$repo: String!, \$number: Int!) {
+    repository(owner: \$owner, name: \$repo) {
+      pullRequest(number: \$number) {
+        reviewThreads(first: 100$CURSOR_ARG) {
+          pageInfo { hasNextPage endCursor }
+          nodes { id isResolved }
+        }
       }
     }
-  }
-}' -f owner=OWNER -f repo=REPO -F number=PR_NUMBER
+  }" -f owner=OWNER -f repo=REPO -F number=PR_NUMBER)
+
+  THREADS=$(echo "$RESULT" | jq -r '.data.repository.pullRequest.reviewThreads.nodes')
+  ALL_THREADS=$(echo "$ALL_THREADS $THREADS" | jq -s 'add')
+
+  HAS_NEXT=$(echo "$RESULT" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')
+  [ "$HAS_NEXT" = "false" ] && break
+  CURSOR=$(echo "$RESULT" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')
+done
 
 # Resolve each unresolved thread (single-line format required)
 gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id="PRRT_xxx"
@@ -846,21 +859,33 @@ pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [n
 <summary>Alternative: GraphQL verification</summary>
 
 ```bash
-# Query unresolved thread count
-UNRESOLVED=$(gh api graphql -f query='
-query($owner: String!, $repo: String!, $number: Int!) {
-  repository(owner: $owner, name: $repo) {
-    pullRequest(number: $number) {
-      reviewThreads(first: 100) {
-        nodes { isResolved }
+# Query unresolved thread count with pagination
+CURSOR=""
+UNRESOLVED_COUNT=0
+while true; do
+  CURSOR_ARG=$([ -n "$CURSOR" ] && echo ", after: \\\"$CURSOR\\\"" || echo "")
+  RESULT=$(gh api graphql -f query="
+  query(\$owner: String!, \$repo: String!, \$number: Int!) {
+    repository(owner: \$owner, name: \$repo) {
+      pullRequest(number: \$number) {
+        reviewThreads(first: 100$CURSOR_ARG) {
+          pageInfo { hasNextPage endCursor }
+          nodes { isResolved }
+        }
       }
     }
-  }
-}' -f owner=OWNER -f repo=REPO -F number=PR_NUMBER \
-  --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')
+  }" -f owner=OWNER -f repo=REPO -F number=PR_NUMBER)
 
-if [ "$UNRESOLVED" -gt 0 ]; then
-  echo "[BLOCKED] $UNRESOLVED unresolved conversation(s) - PR cannot be merged"
+  BATCH_UNRESOLVED=$(echo "$RESULT" | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')
+  UNRESOLVED_COUNT=$((UNRESOLVED_COUNT + BATCH_UNRESOLVED))
+
+  HAS_NEXT=$(echo "$RESULT" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')
+  [ "$HAS_NEXT" = "false" ] && break
+  CURSOR=$(echo "$RESULT" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')
+done
+
+if [ "$UNRESOLVED_COUNT" -gt 0 ]; then
+  echo "[BLOCKED] $UNRESOLVED_COUNT unresolved conversation(s) - PR cannot be merged"
   exit 1
 fi
 echo "[PASS] All conversations resolved - PR is mergeable"
