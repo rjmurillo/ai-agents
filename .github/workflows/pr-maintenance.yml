@@ -1,0 +1,257 @@
+name: PR Maintenance
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Hourly at minute 0 (UTC)
+  workflow_dispatch:     # Manual trigger
+    inputs:
+      dry_run:
+        description: 'Dry run (no changes)'
+        type: boolean
+        default: false
+      max_prs:
+        description: 'Max PRs to process'
+        type: number
+        default: 20
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-maintenance
+  cancel-in-progress: false  # Queue runs, don't cancel
+
+env:
+  PR_PROTECTED_BRANCHES: "main,master,develop"
+  PR_BOT_AUTHORS: "Copilot,coderabbitai[bot],gemini-code-assist[bot],cursor[bot]"
+  PR_ACK_REACTION: "eyes"
+  PR_MAX_PRS: ${{ inputs.max_prs || 20 }}
+
+jobs:
+  pr-maintenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+        with:
+          fetch-depth: 0  # Full history for git operations
+
+      - name: Validate environment
+        run: |
+          echo "### Environment Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          PWSH_VERSION=$(pwsh --version | grep -oP '\d+\.\d+')
+          echo "- PowerShell: $PWSH_VERSION" >> $GITHUB_STEP_SUMMARY
+
+          GH_VERSION=$(gh --version | head -1 | grep -oP '\d+\.\d+\.\d+')
+          echo "- gh CLI: $GH_VERSION" >> $GITHUB_STEP_SUMMARY
+
+          GIT_VERSION=$(git --version | grep -oP '\d+\.\d+')
+          echo "- git: $GIT_VERSION" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check API rate limit
+        id: ratelimit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REMAINING=$(gh api rate_limit --jq '.rate.remaining')
+          LIMIT=$(gh api rate_limit --jq '.rate.limit')
+          RESET=$(gh api rate_limit --jq '.rate.reset')
+
+          echo "remaining=$REMAINING" >> $GITHUB_OUTPUT
+          echo "limit=$LIMIT" >> $GITHUB_OUTPUT
+
+          echo "### API Rate Limit" >> $GITHUB_STEP_SUMMARY
+          echo "- Remaining: $REMAINING / $LIMIT" >> $GITHUB_STEP_SUMMARY
+          echo "- Reset: $(date -d @$RESET)" >> $GITHUB_STEP_SUMMARY
+
+          if [ $REMAINING -lt 200 ]; then
+            echo "::error::GitHub API rate limit low: $REMAINING/$LIMIT remaining"
+            exit 1
+          fi
+
+      - name: Cleanup stale worktrees
+        run: |
+          # Remove stale worktrees from previous runs
+          git worktree list --porcelain |
+            grep '^worktree' |
+            awk '{print $2}' |
+            grep -E 'ai-agents-pr-[0-9]+' |
+            xargs -I {} git worktree remove {} --force || true
+
+      - name: Run PR maintenance
+        id: maintenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $dryRun = if ('${{ inputs.dry_run }}' -eq 'true') { $true } else { $false }
+          $maxPRs = [int]'${{ env.PR_MAX_PRS }}'
+
+          Write-Host "Running PR maintenance (DryRun: $dryRun, MaxPRs: $maxPRs)"
+
+          $params = @{
+            MaxPRs = $maxPRs
+            LogPath = '.agents/logs/pr-maintenance.log'
+          }
+
+          if ($dryRun) {
+            $params['DryRun'] = $true
+          }
+
+          ./scripts/Invoke-PRMaintenance.ps1 @params
+
+      - name: Parse results
+        id: results
+        if: always()
+        shell: pwsh
+        run: |
+          # Extract summary from log
+          $log = Get-Content .agents/logs/pr-maintenance.log -Raw
+
+          # Parse metrics
+          if ($log -match 'PRs Processed: (\d+)') {
+            $processed = $Matches[1]
+            echo "processed=$processed" >> $env:GITHUB_OUTPUT
+          }
+
+          if ($log -match 'Comments Acknowledged: (\d+)') {
+            $acknowledged = $Matches[1]
+            echo "acknowledged=$acknowledged" >> $env:GITHUB_OUTPUT
+          }
+
+          if ($log -match 'Conflicts Resolved: (\d+)') {
+            $resolved = $Matches[1]
+            echo "resolved=$resolved" >> $env:GITHUB_OUTPUT
+          }
+
+          if ($log -match 'PRs Closed \(Superseded\): (\d+)') {
+            $closed = $Matches[1]
+            echo "closed=$closed" >> $env:GITHUB_OUTPUT
+          }
+
+          # Extract blocked PRs
+          $blockedSection = $log -split 'Blocked PRs \(require human action\):' | Select-Object -Last 1
+          $blockedList = $blockedSection -split '\n' |
+            Where-Object { $_ -match 'PR #' } |
+            ForEach-Object { $_.Trim() } |
+            Out-String
+
+          if ($blockedList) {
+            # Save to file (multi-line output)
+            $blockedList | Out-File -FilePath blocked-prs.txt
+            echo "has_blocked=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "has_blocked=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Post summary
+        if: always()
+        shell: pwsh
+        run: |
+          $summary = @"
+          ## PR Maintenance Summary
+
+          **Run Time**: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+          **Dry Run**: ${{ inputs.dry_run }}
+
+          | Metric | Value |
+          |--------|-------|
+          | PRs Processed | ${{ steps.results.outputs.processed || 'N/A' }} |
+          | Comments Acknowledged | ${{ steps.results.outputs.acknowledged || '0' }} |
+          | Conflicts Resolved | ${{ steps.results.outputs.resolved || '0' }} |
+          | PRs Closed (Superseded) | ${{ steps.results.outputs.closed || '0' }} |
+
+          "@
+
+          if ('${{ steps.results.outputs.has_blocked }}' -eq 'true') {
+            $blockedList = Get-Content blocked-prs.txt -Raw
+            $summary += @"
+
+          ### Blocked PRs (Require Human Action)
+
+          ``````
+          $blockedList
+          ``````
+          "@
+          }
+
+          $summary += @"
+
+          ### Rate Limit After Run
+
+          - Remaining: $(gh api rate_limit --jq '.rate.remaining') / ${{ steps.ratelimit.outputs.limit }}
+
+          ---
+          [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          "@
+
+          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - name: Create alert issue for blocked PRs
+        if: steps.results.outputs.has_blocked == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BLOCKED_LIST=$(cat blocked-prs.txt)
+
+          gh issue create \
+            --title "[PR Maintenance] Blocked PRs Require Human Action" \
+            --label "automation,needs-triage" \
+            --body "## Blocked PRs
+
+          The automated PR maintenance workflow encountered PRs that require human action:
+
+          \`\`\`
+          $BLOCKED_LIST
+          \`\`\`
+
+          **Action Required**: Review the listed PRs and address blocking issues.
+
+          **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ---
+          🤖 Auto-generated by PR Maintenance workflow"
+
+      - name: Cleanup worktrees (final)
+        if: always()
+        run: |
+          git worktree list --porcelain |
+            grep '^worktree' |
+            awk '{print $2}' |
+            grep -E 'ai-agents-pr-[0-9]+' |
+            xargs -I {} git worktree remove {} --force || true
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4
+        with:
+          name: pr-maintenance-logs
+          path: .agents/logs/pr-maintenance*.log
+          retention-days: 30
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "[ALERT] PR Maintenance Workflow Failed" \
+            --label "automation,P1" \
+            --body "## Workflow Failure
+
+          The PR maintenance workflow failed during execution.
+
+          **Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          **Trigger**: ${{ github.event_name }}
+          **Time**: $(date -u)
+
+          **Action Required**: Investigate workflow logs and resolve the issue.
+
+          ---
+          🤖 Auto-generated by PR Maintenance workflow"
