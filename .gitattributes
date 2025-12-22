@@ -1,0 +1,9 @@
+# Git Attributes for AI Agents Repository
+
+# Custom merge driver for branch-specific handoff files
+# Aggregates handoff files on merge to prevent conflicts
+.agents/handoffs/*.md merge=handoff-aggregate
+
+# HANDOFF.md uses ours strategy on feature branches (main wins)
+# This prevents feature branch modifications from creating conflicts
+.agents/HANDOFF.md merge=ours
