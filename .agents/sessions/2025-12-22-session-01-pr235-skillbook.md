@@ -72,14 +72,14 @@ All skills meet acceptance criteria:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified, session summary added |
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified |
 | MUST | Complete session log | [x] | All sections filled |
-| MUST | Run markdown lint | [x] | Output below (0 errors) |
-| MUST | Route to qa agent (feature implementation) | N/A | Skillbook update (no feature impl) |
-| MUST | Commit all changes | [x] | Commit SHA: 29fd93b |
-| SHOULD | Update PROJECT-PLAN.md | N/A | No project plan tracking |
-| SHOULD | Invoke retrospective (significant sessions) | N/A | Routine skill extraction |
-| SHOULD | Verify clean git status | [x] | Output below |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | N/A | QA report: N/A (skillbook update) |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 56c61d4 |
+| SHOULD | Update PROJECT-PLAN.md | N/A | Tasks checked off |
+| SHOULD | Invoke retrospective (significant sessions) | N/A | Doc: N/A (routine) |
+| SHOULD | Verify clean git status | [x] | `git status` output |
 
 ### Lint Output
 
