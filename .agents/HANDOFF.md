@@ -58,6 +58,7 @@
 
 | Session | Date | Type | PR | Outcome |
 |---------|------|------|----|---------|
+| [Session 67](./sessions/2025-12-22-session-67-guardrails-synthesis.md) | 2025-12-22 | Synthesis | #230 | 14-agent review synthesized: CONSOLIDATED into Issue #230 |
 | [Session 63](./sessions/2025-12-22-session-63-guardrails-critique.md) | 2025-12-22 | Critique | N/A | Local Guardrails spec/plan review: APPROVED WITH CONCERNS (85% confidence) |
 | [Session 62](./sessions/2025-12-22-session-62-pr199-validation-fix.md) | 2025-12-22 | CI Fix | #199 | Fixed Session Protocol validation failure (HANDOFF.md evidence) |
 | [Session 58-PR199](./sessions/2025-12-21-session-58-pr199-implementation.md) | 2025-12-21 | PR Implementation | #199 | Restored Phase 0/9 to pr-comment-responder template, fixed CI |
