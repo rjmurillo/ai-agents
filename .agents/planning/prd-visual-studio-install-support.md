@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-This PRD defines requirements for adding Visual Studio 2022/2026 support to the ai-agents installer. The **primary request** is for **user-level (global) installation** - a single installation that makes agents available across ALL Visual Studio workspaces without per-repository setup. Repository-level installation is a secondary nice-to-have.
+This PRD defines requirements for adding Visual Studio 2026 support to the ai-agents installer. The **primary request** is for **user-level (global) installation** - a single installation that makes agents available across ALL Visual Studio workspaces without per-repository setup. Repository-level installation is a secondary nice-to-have.
 
 Visual Studio 2022 17.14+ and Visual Studio 2026 support GitHub Copilot agent mode with custom `.agent.md` files at the repository level. However, **Microsoft's documentation does not specify a user-level (global) path** for custom agents in Visual Studio, unlike VS Code which has clear user profile support.
 
@@ -36,7 +36,7 @@ The ai-agents repository provides a multi-agent system for software development 
 | Claude Code | `~/.claude/agents/` | `.claude/agents/` | ✅ Supported |
 | GitHub Copilot CLI | `~/.copilot/agents/` | `.github/agents/` | ✅ Supported (global has known bug) |
 | VS Code / Copilot Chat | `%APPDATA%\Code\User\prompts\` | `.github/agents/` | ✅ Supported |
-| **Visual Studio 2022/2026** | ❓ Unknown | `.github/agents/` | ❌ **Not Supported** |
+| **Visual Studio 2026** | ❓ Unknown | `.github/agents/` | ❌ **Not Supported** |
 
 ### Gap Analysis
 
@@ -90,7 +90,7 @@ Visual Studio 2026 (and VS 2022 v17.14+) **fully supports** custom agents via:
 | `%USERPROFILE%\.github\agents\` | Low | Cross-IDE sharing |
 | Shared with VS Code (`%APPDATA%\Code\User\prompts\`) | Low | Same Copilot backend |
 
-**Related Configuration**: Visual Studio reads MCP server configs from `%USERPROFILE%\.mcp.json` globally, suggesting a similar pattern *may* exist for agents.
+**Related Configuration**: Visual Studio reads MCP (Model Context Protocol) server configs from `%USERPROFILE%\.mcp.json` globally, suggesting a similar pattern *may* exist for agents.
 
 #### Instructions File Support (CONFIRMED)
 
@@ -235,7 +235,7 @@ VisualStudio = @{
     FilePattern = "*.agent.md"
     Global      = @{
         # Phase 2 - TBD after discovery
-        DestDir          = '$env:LOCALAPPDATA/Microsoft/VisualStudio/Copilot/agents'  # Placeholder
+        DestDir          = "$env:LOCALAPPDATA\Microsoft\VisualStudio\Copilot\agents"  # Placeholder
         InstructionsFile = $null
         InstructionsDest = $null
     }
