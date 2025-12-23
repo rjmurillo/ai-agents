@@ -529,17 +529,24 @@ Return PIV verdict: APPROVED, CONDITIONAL, or REJECTED
 Only create PR if ALL validations pass:
 
 - QA: APPROVED
-- Security: APPROVED or CONDITIONAL or N/A (not security-relevant)
+- Security: APPROVED, CONDITIONAL, or N/A (not security-relevant)
+
+**Security verdict handling**:
+
+- **APPROVED**: No security concerns. Proceed to PR.
+- **CONDITIONAL**: Security considerations documented. Proceed to PR but include security notes in PR description for reviewer awareness.
+- **REJECTED**: Security issues must be fixed. Do NOT create PR.
+- **N/A**: Change is not security-relevant. Skip security validation.
 
 If BLOCKED or REJECTED, return to implementer with specific issues.
 
 #### Failure Mode Prevention
 
-This phase prevents:
+This phase prevents issues identified in retrospective analysis (see GitHub PR rjmurillo/ai-agents#249):
 
-- **Premature PR opening** (43% rework in PR #249)
-- **Preventable bugs in review** (7 P0-P1 bugs in PR #249)
-- **Multiple review cycles** (97 comments in PR #249)
+- **Premature PR opening** (43% rework)
+- **Preventable bugs in review** (7 P0-P1 bugs)
+- **Multiple review cycles** (97 comments)
 
 ## Agent Capability Matrix
 
