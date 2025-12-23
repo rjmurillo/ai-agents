@@ -120,7 +120,9 @@ jobs:
           timeout-minutes: '3'
 
       - name: Post synthesis comment
-        if: steps.synthesize.outputs.verdict == 'PASS'
+        # Post if PASS verdict OR if we have findings (successful AI output) regardless of verdict
+        # This ensures synthesis comments are posted even if verdict parsing fails
+        if: steps.synthesize.outputs.verdict == 'PASS' || (steps.synthesize.outputs.findings != '' && steps.synthesize.outputs['copilot-exit-code'] == '0')
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -152,7 +154,8 @@ jobs:
           }
 
       - name: Assign copilot-swe-agent
-        if: success() && steps.synthesize.outputs.verdict == 'PASS'
+        # Assign if PASS verdict OR if we have findings (successful AI output) regardless of verdict
+        if: success() && (steps.synthesize.outputs.verdict == 'PASS' || (steps.synthesize.outputs.findings != '' && steps.synthesize.outputs['copilot-exit-code'] == '0'))
         shell: pwsh
         env:
           # COPILOT_GITHUB_TOKEN is a PAT from a Copilot-enabled user

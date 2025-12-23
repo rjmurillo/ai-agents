@@ -94,5 +94,14 @@ Generate a markdown comment in this exact structure:
 2. **Preserve decisions** - If a maintainer said "use X not Y", that's a constraint.
 3. **Don't invent requirements** - Only include what's explicitly stated or clearly implied.
 4. **Keep it actionable** - Every section should help Copilot understand what to do.
+5. **Always end with VERDICT** - Your response MUST end with `VERDICT: PASS` on its own line.
 
+## Response Format
+
+After generating the synthesis content, you MUST end your response with:
+
+```text
 VERDICT: PASS
+```
+
+This signals successful synthesis completion.
