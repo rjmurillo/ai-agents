@@ -259,13 +259,84 @@ PowerShell automatically unwraps single-element arrays when passing to functions
 - [build/tests/Generate-Skills.Tests.ps1](../../build/tests/Generate-Skills.Tests.ps1) (new test file)
 - [Session 67](2025-12-22-session-67-generate-skills-refactoring.md) (prior refactoring work)
 
+## Additional Work: Code Coverage Output and Baseline Checking
+
+**User Request**: "Update @build/scripts/Invoke-PesterTests.ps1 so that it outputs coverage information to artifacts/TestResults/. Either one file for all tests, or individual files, one for each test it runs with an appropriate name."
+
+**Follow-up Request**: "Write a mechanism to checkpoint that code coverage number so we know when we regress. Only baseline your new test"
+
+### Implementation
+
+1. **Code Coverage Output** (Added to Invoke-PesterTests.ps1)
+   - Added `-EnableCodeCoverage` switch parameter
+   - Added `-CoverageOutputPath` parameter (defaults to `./artifacts/TestResults/coverage.xml`)
+   - Added `-CoverageFormat` parameter (JaCoCo or CoverageGutters)
+   - Implemented intelligent source file discovery:
+     - For `build/tests/Foo.Tests.ps1` → finds `build/Foo.ps1`
+     - For `scripts/tests/Foo.Tests.ps1` → finds `scripts/Foo.ps1`
+     - For `.claude/skills/*/tests/Foo.Tests.ps1` → finds `.claude/skills/*/scripts/Foo.ps1`
+   - Coverage summary displays:
+     - Commands Analyzed
+     - Commands Executed
+     - Commands Missed
+     - Coverage Percentage (color-coded: >=80% green, >=60% yellow, <60% red)
+
+2. **Coverage Baseline Mechanism**
+   - Created `.baseline/coverage-thresholds.json` with schema
+   - Schema defines structure for per-test coverage thresholds
+   - Added baseline for Generate-Skills.Tests.ps1 (69.72% minimum)
+   - Added `-CheckCoverageThreshold` switch parameter
+   - Threshold checking logic:
+     - Reads thresholds from `.baseline/coverage-thresholds.json`
+     - Compares actual coverage against minimum required
+     - Displays PASSED/FAILED status with surplus/deficit
+     - Exits with error code 1 if coverage drops below threshold
+     - Provides actionable remediation steps
+
+### Testing Results
+
+```
+=== Code Coverage Summary ===
+Commands Analyzed: 218
+Commands Executed: 152
+Commands Missed: 66
+Coverage: 69.72%
+
+=== Coverage Threshold Check ===
+Test: build/tests/Generate-Skills.Tests.ps1
+  Minimum Required: 69.72%
+  Actual Coverage: 69.72%
+  Status: PASSED
+
+All coverage thresholds met
+```
+
+### Files Created/Modified
+
+**New Files:**
+- `.baseline/coverage-thresholds.json` (coverage thresholds configuration)
+- `.baseline/coverage-thresholds.schema.json` (JSON schema for validation)
+- `.serena/memories/skill-testing-003-script-execution-isolation.md` (Serena memory)
+- `.serena/memories/skill-testing-004-coverage-pragmatism.md` (Serena memory)
+
+**Modified Files:**
+- `build/scripts/Invoke-PesterTests.ps1` (added coverage and threshold checking)
+
+### Git Commits
+
+1. **a526626**: test(generate-skills): add comprehensive Pester tests with 69.72% coverage
+2. **f1e669c**: docs(session): add session 68 log for Generate-Skills testing
+3. **[pending]**: feat(pester): add code coverage output and baseline checking
+
 ## Session End Checklist
 
 - [x] Tests created and passing (60/62)
 - [x] Code coverage achieved (69.72%)
 - [x] Test file committed (a526626)
-- [x] Session log created
-- [ ] Update Serena memory with learnings
+- [x] Session log created and updated
+- [x] Update Serena memory with learnings (2 new memories)
+- [x] Code coverage output implemented
+- [x] Coverage baseline mechanism implemented
 - [ ] Run markdownlint
 - [ ] Final commit
 
@@ -275,3 +346,4 @@ PowerShell automatically unwraps single-element arrays when passing to functions
 2. Fix the 2 skipped ArrayList tests if possible
 3. Add tests for verbose logging paths
 4. Add tests for additional error handling branches
+5. Add more tests to `.baseline/coverage-thresholds.json` as they achieve stable coverage
