@@ -22,7 +22,11 @@ Implement memory automation to reduce cognitive load:
 - [x] Consolidated user preferences (2→1)
 - [x] Consolidated session init skills (2→1)
 - [x] Consolidated PR review memories (3→1)
-- [ ] Additional skill consolidation (deferred)
+- [x] Consolidated skill-documentation-* (4→1)
+- [x] Consolidated skill-planning-* (3→1)
+- [x] Consolidated skill-orchestration-* (3→1)
+- [x] Consolidated skill-protocol-* (4→1) - NEW collection
+- [ ] Additional skill consolidation (more opportunities exist)
 - [ ] Artifact quality gate (deferred)
 
 ## Related Memories
