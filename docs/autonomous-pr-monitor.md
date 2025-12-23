@@ -277,6 +277,7 @@ gh notify -s
 ## Example Session Output
 
 The agent tracks progress using TodoWrite:
+
 - Check CI status on all PRs
 - Fix PR #224 Pester test syntax error
 - Fix PR #255 cross-platform temp path issue
