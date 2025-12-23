@@ -222,8 +222,9 @@ Memories that may need verification:
 | 2025-12-23 | Retrospective 12-18 | 3 | 1 | `retrospective-2025-12-18` |
 | 2025-12-23 | Git Hooks | 4 | 1 | `skills-git-hooks` (6 parts) |
 | 2025-12-23 | CodeRabbit | 3 | 1 | `skills-coderabbit` (12 skills) |
+| 2025-12-23 | Copilot | 3 | 1 | `skills-copilot` (8 skills) |
 
-**Total memories removed**: 27 (115 → ~88)
+**Total memories removed**: 29 (115 → ~86)
 
 ---
 
