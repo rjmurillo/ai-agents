@@ -57,7 +57,7 @@ $Repo = $resolved.Repo
 Write-Verbose "Fetching review threads for PR #$PullRequest in $Owner/$Repo"
 
 # GraphQL query to get review threads
-$commentsLimit = if ($IncludeComments) { 50 } else { 1 }
+$commentsLimit = & { if ($IncludeComments) { 50 } else { 1 } }
 
 $query = @"
 query {

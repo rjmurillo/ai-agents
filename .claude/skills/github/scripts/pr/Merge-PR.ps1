@@ -122,15 +122,15 @@ if ($LASTEXITCODE -ne 0) {
     Write-ErrorAndExit "Failed to merge PR #$($PullRequest): $result" 3
 }
 
-$action = if ($Auto) { "auto-merge-enabled" } else { "merged" }
+$action = & { if ($Auto) { "auto-merge-enabled" } else { "merged" } }
 Write-Host "PR #$PullRequest $action with $Strategy strategy" -ForegroundColor Green
 
 [PSCustomObject]@{
     Success = $true
     Number = $PullRequest
-    State = if ($Auto) { "PENDING" } else { "MERGED" }
+    State = & { if ($Auto) { "PENDING" } else { "MERGED" } }
     Action = $action
     Strategy = $Strategy
     BranchDeleted = [bool]$DeleteBranch
-    Message = if ($Auto) { "Auto-merge enabled" } else { "PR merged successfully" }
+    Message = & { if ($Auto) { "Auto-merge enabled" } else { "PR merged successfully" } }
 } | ConvertTo-Json

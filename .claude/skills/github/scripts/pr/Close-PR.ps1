@@ -83,7 +83,7 @@ if ($state -eq "CLOSED" -or $state -eq "MERGED") {
 # Post comment if provided
 if ($Comment) {
     Write-Verbose "Posting close comment"
-    $result = gh pr comment $PullRequest --repo "$Owner/$Repo" --body $Comment 2>&1
+    $result = gh pr comment $PullRequest --repo "$Owner/$Repo" --body "$Comment" 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Failed to post comment: $result"
     }
