@@ -488,6 +488,10 @@ function Test-PRHasConflicts {
     )
 
     $pr = gh pr view $PRNumber --repo "$Owner/$Repo" --json mergeable --jq '.mergeable' 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "Failed to check PR #$PRNumber mergeable status: $pr" -Level WARN
+        return $false  # Fail-safe: assume no conflicts if we can't check
+    }
     return $pr -eq 'CONFLICTING'
 }
 
@@ -499,6 +503,10 @@ function Test-PRNeedsOwnerAction {
     )
 
     $pr = gh pr view $PRNumber --repo "$Owner/$Repo" --json reviewDecision --jq '.reviewDecision' 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "Failed to check PR #$PRNumber review decision: $pr" -Level WARN
+        return $false  # Fail-safe: assume no action needed if we can't check
+    }
     return $pr -eq 'CHANGES_REQUESTED'
 }
 
@@ -542,25 +550,41 @@ function Resolve-PRConflicts {
 
         try {
             # Fetch PR branch and target branch (P0 fix from PR #249: not hardcoded main)
-            git fetch origin $BranchName 2>&1 | Out-Null
-            git fetch origin $TargetBranch 2>&1 | Out-Null
+            $null = git fetch origin $BranchName 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to fetch branch $BranchName"
+            }
+            $null = git fetch origin $TargetBranch 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to fetch target branch $TargetBranch"
+            }
 
             # Checkout PR branch
-            git checkout $BranchName 2>&1 | Out-Null
+            $null = git checkout $BranchName 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to checkout branch $BranchName"
+            }
 
             # Attempt merge with target branch
             $mergeResult = git merge "origin/$TargetBranch" 2>&1
 
             if ($LASTEXITCODE -ne 0) {
-                # Check if conflicts are in HANDOFF.md only (accept theirs)
+                # Check if conflicts are in auto-resolvable files only
                 $conflicts = git diff --name-only --diff-filter=U
 
                 $canAutoResolve = $true
                 foreach ($file in $conflicts) {
                     if ($file -eq '.agents/HANDOFF.md' -or $file -like '.agents/sessions/*') {
-                        # Accept target branch's version for these files
-                        git checkout --theirs $file 2>&1 | Out-Null
-                        git add $file 2>&1 | Out-Null
+                        # Accept target branch's version (--theirs refers to the branch being merged FROM,
+                        # which is origin/$TargetBranch when merging target into feature branch)
+                        $null = git checkout --theirs $file 2>&1
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "Failed to checkout --theirs for $file"
+                        }
+                        $null = git add $file 2>&1
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "Failed to git add $file"
+                        }
                     }
                     else {
                         $canAutoResolve = $false
@@ -569,12 +593,15 @@ function Resolve-PRConflicts {
                 }
 
                 if (-not $canAutoResolve) {
-                    git merge --abort 2>&1 | Out-Null
+                    $null = git merge --abort 2>&1
                     throw "Conflicts in non-auto-resolvable files"
                 }
 
                 # Complete merge
-                git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1 | Out-Null
+                $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Failed to commit merge"
+                }
             }
 
             # Push (P1 fix from PR #249: check exit code to detect failures)
@@ -607,24 +634,37 @@ function Resolve-PRConflicts {
         try {
             # Create worktree
             Write-Log "Creating worktree for PR #$PRNumber at $worktreePath" -Level ACTION
-            git worktree add $worktreePath $BranchName 2>&1 | Out-Null
+            $null = git worktree add $worktreePath $BranchName 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to create worktree for $BranchName"
+            }
 
             Push-Location $worktreePath
 
             # Fetch and merge target branch (P0 fix from PR #249: not hardcoded main)
-            git fetch origin $TargetBranch 2>&1 | Out-Null
+            $null = git fetch origin $TargetBranch 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to fetch target branch $TargetBranch"
+            }
             $mergeResult = git merge "origin/$TargetBranch" 2>&1
 
             if ($LASTEXITCODE -ne 0) {
-                # Check if conflicts are in HANDOFF.md only (accept theirs)
+                # Check if conflicts are in auto-resolvable files only
                 $conflicts = git diff --name-only --diff-filter=U
 
                 $canAutoResolve = $true
                 foreach ($file in $conflicts) {
                     if ($file -eq '.agents/HANDOFF.md' -or $file -like '.agents/sessions/*') {
-                        # Accept target branch's version for these files
-                        git checkout --theirs $file 2>&1 | Out-Null
-                        git add $file 2>&1 | Out-Null
+                        # Accept target branch's version (--theirs refers to the branch being merged FROM,
+                        # which is origin/$TargetBranch when merging target into feature branch)
+                        $null = git checkout --theirs $file 2>&1
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "Failed to checkout --theirs for $file"
+                        }
+                        $null = git add $file 2>&1
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "Failed to git add $file"
+                        }
                     }
                     else {
                         $canAutoResolve = $false
@@ -633,12 +673,15 @@ function Resolve-PRConflicts {
                 }
 
                 if (-not $canAutoResolve) {
-                    git merge --abort 2>&1 | Out-Null
+                    $null = git merge --abort 2>&1
                     throw "Conflicts in non-auto-resolvable files"
                 }
 
                 # Complete merge
-                git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1 | Out-Null
+                $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Failed to commit merge"
+                }
             }
 
             # Push (P1 fix from PR #249: check exit code to detect failures)
@@ -807,7 +850,7 @@ function Invoke-PRMaintenance {
             # Check and resolve merge conflicts
             if ($pr.mergeable -eq 'CONFLICTING') {
                 Write-Log "PR #$($pr.number) has merge conflicts - attempting resolution" -Level ACTION
-                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.head -TargetBranch $pr.base -DryRun:$DryRun
+                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.headRefName -TargetBranch $pr.baseRefName -DryRun:$DryRun
                 if ($resolved) {
                     $results.ConflictsResolved++
                 }

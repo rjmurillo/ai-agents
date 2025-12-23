@@ -44,7 +44,7 @@ on:
 - GitHub Actions cron runs on UTC (not repository timezone)
 - Minimum resolution: 1 hour
 - Actual execution may lag 3-10 minutes (queue delays)
-- For faster response, consider `pull_request` trigger with filters
+- Note: `pull_request` trigger is not recommended as the script follows up after reviewers and bots leave comments
 
 ## 2. CI/CD Integration
 
@@ -66,7 +66,7 @@ Workflow (YAML)
 
 | Requirement | Implementation | Validation |
 |-------------|----------------|------------|
-| GitHub token | `${{ secrets.GITHUB_TOKEN }}` | Scopes: `repo`, `workflow` |
+| GitHub token | `${{ secrets.BOT_PAT }}` | Scopes: `repo`, `workflow` (runs as rjmurillo-bot) |
 | PowerShell Core | `ubuntu-latest` (pwsh 7.4+) | `pwsh --version` |
 | gh CLI | Pre-installed on runners | `gh --version` |
 | Git | Pre-installed | `git --version` |
@@ -77,9 +77,9 @@ Workflow (YAML)
 |-------|--------|---------|------------|
 | Checkout | <5s | 10s | `actions/checkout` metrics |
 | Pre-flight | <10s | 20s | Command timing |
-| Script execution | <90s | 180s | Exit before 3min timeout |
+| Script execution | 20-40min | 45min | Variable based on PR count and comments |
 | Log upload | <5s | 10s | Artifact size <1MB |
-| **Total** | **<2min** | **3min** | Fail if >3min |
+| **Total** | **<45min** | **59min** | GitHub runner timeout |
 
 ## 3. Monitoring and Alerting
 
@@ -169,17 +169,35 @@ $metrics | ConvertTo-Json | Out-File '.agents/logs/pr-maintenance-metrics.json'
 
 ```yaml
 - name: Check rate limit
+  env:
+    GH_TOKEN: ${{ secrets.BOT_PAT }}
+  shell: pwsh
   run: |
-    REMAINING=$(gh api rate_limit --jq '.rate.remaining')
-    if [ $REMAINING -lt 100 ]; then
-      echo "::warning::GitHub API rate limit low: $REMAINING remaining"
-    fi
+    # Check multiple rate limit resources with resource-specific thresholds
+    # GitHub API has different buckets: core (5000), search (30), graphql (5000), etc.
+    $rateData = gh api rate_limit | ConvertFrom-Json
+    $thresholds = @{
+      'core' = 100       # 2% of 5000
+      'search' = 15      # 50% of 30
+      'graphql' = 100    # 2% of 5000
+      'code_search' = 5  # 50% of 10
+    }
+    foreach ($resource in $thresholds.Keys) {
+      $remaining = $rateData.resources.$resource.remaining
+      $threshold = $thresholds[$resource]
+      if ($remaining -lt $threshold) {
+        Write-Warning "Rate limit low for $resource: $remaining remaining (threshold: $threshold)"
+      }
+    }
 ```
 
-**Limits**:
+**Limits** (per resource, per hour):
 
-- GitHub Actions: 1000 requests/hour/repository
-- GITHUB_TOKEN: Shared across all workflows
+- core: 5000 requests
+- search: 30 requests (very low)
+- graphql: 5000 requests
+- code_search: 10 requests (very low)
+- Note: BOT_PAT token limits are separate from GITHUB_TOKEN
 
 ## 4. Logging and Observability
 
@@ -299,6 +317,9 @@ Get-ChildItem $logDir -Filter "pr-maintenance-*.log" |
 ```powershell
 $script:Config = @{
     ProtectedBranches = @('main', 'master', 'develop')
+    # Note: Bot list should ideally be populated dynamically from repo config
+    # or retrieved from another job to avoid staleness and sync issues with
+    # .claude/commands/pr-review.md and src/claude/pr-comment-responder.md
     BotAuthors = @('Copilot', 'coderabbitai[bot]', 'gemini-code-assist[bot]', 'cursor[bot]')
     AcknowledgeReaction = 'eyes'
     WorktreeBasePath = '..'
@@ -308,6 +329,8 @@ $script:Config = @{
 
 **Gaps**:
 
+- Bot author list hardcoded (consider dynamic population from repo config)
+- All reviewers (human and bot) should be acknowledged, not just known bots
 - No environment-specific config (dev/staging/prod)
 - No override mechanism
 - Bot list will grow stale
@@ -568,7 +591,10 @@ $comments = Invoke-WithRetry {
 
 **Problem**: If script crashes, worktrees persist.
 
-**Solution**: Cleanup script + workflow step.
+**Note**: This is NOT an issue on GitHub Action runners since they are ephemeral.
+Worktree cleanup is only relevant when running on persistent VMs (local development, self-hosted runners).
+
+**Solution** (for persistent VMs only): Cleanup script + workflow step.
 
 ```powershell
 # scripts/Cleanup-Worktrees.ps1
