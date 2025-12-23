@@ -259,6 +259,20 @@ Before finalizing ANY artifact intended for future consumption, ask:
 | **PRDs** | Are acceptance criteria unambiguous? Can an implementer start without questions? |
 | **Task Breakdowns** | Is each task atomic? Is done-criteria measurable? Are dependencies explicit? |
 | **Operational Prompts** | What resources are consumed? What are failure modes? (See Skill-Documentation-006) |
+| **GitHub Workflows** | Does this use shared credentials (BOT_PAT, COPILOT_GITHUB_TOKEN)? What's the API impact? |
+
+**Shared Resource Questions** (for artifacts using bot credentials):
+
+When an artifact uses shared credentials (`BOT_PAT`, `COPILOT_GITHUB_TOKEN`, etc.), also ask:
+
+4. "What resources am I consuming? Who else uses them?"
+5. "What happens if this runs frequently/forever? Is it sustainable?"
+
+These questions apply to:
+- **Operational prompts** (autonomous monitoring loops)
+- **GitHub Actions workflows** (scheduled, on-push, or triggered workflows)
+- **Scripts** that make API calls with shared tokens
+- **Automation** that runs on behalf of a bot account
 
 **Anti-Patterns**:
 
@@ -273,6 +287,18 @@ Implement user authentication. Should be secure.
 1. Build the API
 2. Build the UI
 3. Deploy
+
+# BAD: Workflow with unthrottled API usage
+on:
+  push:
+    branches: [main]
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          # No rate limit check, runs on every push
+          gh api repos/$REPO/issues --paginate | process_all
 ```
 
 **Patterns**:
@@ -297,6 +323,27 @@ Implement user authentication:
 3. [Depends: 2] Build login UI components
 4. [Depends: 2, 3] Integration test auth flow
 5. [Depends: 4] Deploy to staging
+
+# GOOD: Workflow with rate limit awareness
+on:
+  schedule:
+    - cron: '0 */4 * * *'  # Every 4 hours, not every push
+  workflow_dispatch:       # Manual trigger available
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # Concurrency prevents overlapping runs
+    concurrency:
+      group: pr-maintenance
+      cancel-in-progress: false
+    steps:
+      - name: Check rate limit before proceeding
+        run: |
+          REMAINING=$(gh api rate_limit --jq '.resources.core.remaining')
+          if [ "$REMAINING" -lt 500 ]; then
+            echo "::warning::Rate limit low ($REMAINING), skipping"
+            exit 0
+          fi
 ```
 
 **Validation**: 1 (PR #301, user feedback on generalizing Skill-Documentation-006)
