@@ -252,12 +252,12 @@ jobs:
           GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SYNTHESIZED: ${{ steps.synthesize.outputs.synthesized }}
         run: |
-          for issue in $SYNTHESIZED; do
-            echo "Assigning copilot-swe-agent to issue #$issue..."
-            if gh issue edit "$issue" --add-assignee "copilot-swe-agent"; then
-              echo "::notice::Assigned copilot-swe-agent to issue #$issue"
+          for issue in ${SYNTHESIZED}; do
+            echo "Assigning copilot-swe-agent to issue #${issue}..."
+            if gh issue edit "${issue}" --add-assignee "copilot-swe-agent"; then
+              echo "::notice::Assigned copilot-swe-agent to issue #${issue}"
             else
-              echo "::warning::Failed to assign copilot-swe-agent to issue #$issue"
+              echo "::warning::Failed to assign copilot-swe-agent to issue #${issue}"
             fi
           done
 
@@ -266,10 +266,10 @@ jobs:
         env:
           SYNTHESIZED: ${{ steps.synthesize.outputs.synthesized }}
         run: |
-          for issue in $SYNTHESIZED; do
-            echo "Removing copilot-ready label from issue #$issue..."
-            gh issue edit "$issue" --remove-label "copilot-ready"
-            echo "::notice::Removed copilot-ready label from issue #$issue"
+          for issue in ${SYNTHESIZED}; do
+            echo "Removing copilot-ready label from issue #${issue}..."
+            gh issue edit "${issue}" --remove-label "copilot-ready"
+            echo "::notice::Removed copilot-ready label from issue #${issue}"
           done
 
       - name: Summary
