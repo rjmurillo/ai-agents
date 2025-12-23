@@ -585,9 +585,9 @@ Describe "Performance" {
 Use mcp__cloudmcp-manager__memory-search_nodes for search.
 Use mcp__cognitionai-deepwiki__ask_question for docs.
 Use `#runSubagent with subagentType=analyst` for research.
-```bash
+``````bash
 echo hello
-```
+``````
 "@
             $measure = Measure-Command {
                 for ($i = 0; $i -lt 1000; $i++) {
