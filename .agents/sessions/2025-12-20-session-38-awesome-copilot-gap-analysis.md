@@ -129,7 +129,7 @@ Awaiting user approval to implement P0 recommendations:
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Session preserved in PR #206 |
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | Lint executed (preserved session) |
-| MUST | Route to qa agent (feature implementation) | [ ] | N/A - Analysis and issue creation only |
+| MUST | Route to qa agent (feature implementation) | [x] | N/A - Analysis and issue creation only |
 | MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: a1009c3 |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Analysis serves as retrospective |
