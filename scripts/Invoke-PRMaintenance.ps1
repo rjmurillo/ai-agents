@@ -86,6 +86,7 @@ $script:Config = @{
     ADR-015 Fix 1: Branch Name Validation (Security HIGH)
 #>
 function Test-SafeBranchName {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [string]$BranchName
@@ -138,6 +139,7 @@ function Test-SafeBranchName {
     ADR-015 Fix 2: Worktree Path Validation (Security HIGH)
 #>
 function Get-SafeWorktreePath {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [string]$BasePath,
@@ -181,6 +183,8 @@ function Get-SafeWorktreePath {
     protection is provided exclusively by the workflow's concurrency group.
 #>
 function Enter-ScriptLock {
+    [CmdletBinding()]
+    param()
     Write-Log "Enter-ScriptLock: no-op (ADR-015: rely on GitHub Actions concurrency group, not file-based locks)" -Level INFO
     return $true
 }
@@ -193,6 +197,8 @@ function Enter-ScriptLock {
     filesystem state because file-based locks were deprecated by ADR-015.
 #>
 function Exit-ScriptLock {
+    [CmdletBinding()]
+    param()
     Write-Log "Exit-ScriptLock: no-op (ADR-015: file-based locks deprecated)" -Level INFO
 }
 
@@ -205,6 +211,7 @@ function Exit-ScriptLock {
     ADR-015 Fix 6: Multi-Resource Rate Limit Check (DevOps/HLA P0)
 #>
 function Test-RateLimitSafe {
+    [CmdletBinding()]
     param(
         [hashtable]$ResourceThresholds = @{
             'core' = 100           # General API calls
@@ -275,6 +282,7 @@ $script:LogEntries = [System.Collections.ArrayList]::new()
 $script:StartTime = Get-Date
 
 function Write-Log {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [string]$Message,
@@ -301,6 +309,7 @@ function Write-Log {
 }
 
 function Save-Log {
+    [CmdletBinding()]
     param([string]$Path)
 
     if (-not $Path) {
@@ -321,6 +330,7 @@ function Save-Log {
 #region GitHub API Helpers
 
 function Invoke-GhApi {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [string]$Endpoint,
@@ -358,6 +368,8 @@ function Invoke-GhApi {
 }
 
 function Get-RepoInfo {
+    [CmdletBinding()]
+    param()
     $remote = git remote get-url origin 2>$null
     if (-not $remote) {
         throw "Not in a git repository or no origin remote"
@@ -378,6 +390,7 @@ function Get-RepoInfo {
 #region PR Processing Functions
 
 function Get-OpenPRs {
+    [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
@@ -408,6 +421,7 @@ function Get-PRComments {
         Retrieves PR review comments using the GitHub API.
         Part of the PR comment acknowledgment workflow.
     #>
+    [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
@@ -439,6 +453,7 @@ function Get-UnacknowledgedComments {
         (.claude/commands/pr-review.md, src/claude/pr-comment-responder.md) to avoid
         duplication and drift. Current implementation uses environment-configured list.
     #>
+    [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
@@ -461,6 +476,7 @@ function Get-UnacknowledgedComments {
 }
 
 function Add-CommentReaction {
+    [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
@@ -481,6 +497,7 @@ function Add-CommentReaction {
 }
 
 function Test-PRHasConflicts {
+    [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
@@ -496,6 +513,7 @@ function Test-PRHasConflicts {
 }
 
 function Test-PRNeedsOwnerAction {
+    [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
@@ -518,10 +536,13 @@ function Test-IsGitHubRunner {
         GitHub Actions runners set several environment variables that can be used for detection.
         This avoids unnecessary worktree setup when running in CI where the workspace is already isolated.
     #>
+    [CmdletBinding()]
+    param()
     return $null -ne $env:GITHUB_ACTIONS
 }
 
 function Resolve-PRConflicts {
+    [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
@@ -717,6 +738,7 @@ function Get-SimilarPRs {
         Does not auto-close - just provides information for human review.
         Similar to CodeRabbit's approach on Issue enrichment.
     #>
+    [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
