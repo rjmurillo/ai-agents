@@ -2,7 +2,7 @@
 
 **Created**: 2025-12-23
 **Purpose**: Quick reference to find relevant memories by topic
-**Total Memories**: ~93 (reduced from 115 via consolidation)
+**Total Memories**: ~90 (reduced from 115 via consolidation)
 **Related Issue**: #307
 
 ---
@@ -220,8 +220,9 @@ Memories that may need verification:
 | 2025-12-23 | Protocol | 4 | 1 | `skills-protocol` (4 skills) |
 | 2025-12-23 | Retrospective 12-17 | 3 | 1 | `retrospective-2025-12-17` |
 | 2025-12-23 | Retrospective 12-18 | 3 | 1 | `retrospective-2025-12-18` |
+| 2025-12-23 | Git Hooks | 4 | 1 | `skills-git-hooks` (6 parts) |
 
-**Total memories removed**: 22 (115 → ~93)
+**Total memories removed**: 25 (115 → ~90)
 
 ---
 
