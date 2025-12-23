@@ -604,6 +604,64 @@ Describe "Get-AITriageInfo Function" {
             $result.Category | Should -Be "feature"
         }
     }
+
+    Context "Markdown Table Format Extraction" {
+        It "Extracts priority from Markdown table format" {
+            $comments = @(
+                @{
+                    user = @{ login = "github-actions" }
+                    body = @"
+<!-- AI-ISSUE-TRIAGE -->
+| Property | Value |
+|:---------|:------|
+| **Priority** | ``P1`` |
+| **Category** | ``enhancement`` |
+"@
+                }
+            )
+            $result = Get-AITriageInfo -Comments $comments -TriageMarker $testMarker
+            $result | Should -Not -BeNullOrEmpty
+            $result.Priority | Should -Be "P1"
+        }
+
+        It "Extracts category from Markdown table format" {
+            $comments = @(
+                @{
+                    user = @{ login = "github-actions" }
+                    body = @"
+<!-- AI-ISSUE-TRIAGE -->
+| Property | Value |
+|:---------|:------|
+| **Priority** | ``P2`` |
+| **Category** | ``bug`` |
+"@
+                }
+            )
+            $result = Get-AITriageInfo -Comments $comments -TriageMarker $testMarker
+            $result.Category | Should -Be "bug"
+        }
+
+        It "Extracts both priority and category from Markdown table format" {
+            $comments = @(
+                @{
+                    user = @{ login = "github-actions" }
+                    body = @"
+<!-- AI-ISSUE-TRIAGE -->
+### Triage Results
+
+| Property | Value |
+|:---------|:------|
+| **Category** | ``enhancement`` |
+|  **Priority** | ``P1`` |
+| **Milestone** | v1.1 |
+"@
+                }
+            )
+            $result = Get-AITriageInfo -Comments $comments -TriageMarker $testMarker
+            $result.Priority | Should -Be "P1"
+            $result.Category | Should -Be "enhancement"
+        }
+    }
 }
 
 Describe "Find-ExistingSynthesis Function" {

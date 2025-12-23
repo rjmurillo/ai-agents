@@ -21,11 +21,18 @@
 .PARAMETER ConfigPath
     Path to copilot-synthesis.yml config file. Defaults to .claude/skills/github/copilot-synthesis.yml.
 
+.PARAMETER SkipAssignment
+    Skip the copilot-swe-agent assignment. Use when assignment is handled
+    separately with a COPILOT_GITHUB_TOKEN (workflow pattern).
+
 .PARAMETER WhatIf
     Preview the synthesis comment without posting or assigning.
 
 .EXAMPLE
     .\Invoke-CopilotAssignment.ps1 -IssueNumber 123
+
+.EXAMPLE
+    .\Invoke-CopilotAssignment.ps1 -IssueNumber 123 -SkipAssignment
 
 .EXAMPLE
     .\Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
@@ -48,7 +55,9 @@ param(
 
     [string]$Repo,
 
-    [string]$ConfigPath
+    [string]$ConfigPath,
+
+    [switch]$SkipAssignment
 )
 
 # Import shared helpers - reuse existing functions (DRY)
@@ -224,6 +233,21 @@ function Get-AITriageInfo {
     <#
     .SYNOPSIS
         Extracts triage information from AI Triage comments.
+
+    .DESCRIPTION
+        Parses AI Triage comments to extract Priority and Category.
+        Supports two formats:
+        - Markdown table: | **Priority** | `P1` |
+        - Plain text: Priority: P1
+
+    .PARAMETER Comments
+        An array of issue comment objects from the GitHub API.
+
+    .PARAMETER TriageMarker
+        The HTML comment marker used to identify AI Triage comments.
+
+    .EXAMPLE
+        $triageInfo = Get-AITriageInfo -Comments $issueComments -TriageMarker "<!-- AI-ISSUE-TRIAGE -->"
     #>
     [CmdletBinding()]
     param(
@@ -240,8 +264,17 @@ function Get-AITriageInfo {
     $triage = @{ Priority = $null; Category = $null }
     $body = $triageComment.body
 
-    if ($body -match 'Priority[:\s]+(\S+)') { $triage.Priority = $Matches[1] }
-    if ($body -match 'Category[:\s]+(\S+)') { $triage.Category = $Matches[1] }
+    # Extract Priority and Category using shared logic (DRY)
+    foreach ($field in @('Priority', 'Category')) {
+        # Match Markdown table format: | **Priority** | `P1` |
+        if ($body -match "\*\*$field\*\*[^``]*``([^``]+)``") {
+            $triage[$field] = $Matches[1]
+        }
+        # Fallback to plain text format: Priority: P1
+        elseif ($body -match "$field[:\s]+(\S+)") {
+            $triage[$field] = $Matches[1]
+        }
+    }
 
     return $triage
 }
@@ -494,9 +527,16 @@ if ($PSCmdlet.ShouldProcess("Issue #$IssueNumber", "Post synthesis comment and a
         Write-Host "No synthesizable content found - skipping synthesis comment" -ForegroundColor Yellow
     }
 
-    # Assign Copilot (always try, even if no synthesis)
-    Write-Host "Assigning copilot-swe-agent..." -ForegroundColor Cyan
-    $assigned = Set-CopilotAssignee -Owner $Owner -Repo $Repo -IssueNumber $IssueNumber
+    # Assign Copilot (skip if -SkipAssignment is set - workflow handles it with COPILOT_GITHUB_TOKEN)
+    $assigned = $false
+    if (-not $SkipAssignment) {
+        Write-Host "Assigning copilot-swe-agent..." -ForegroundColor Cyan
+        $assigned = Set-CopilotAssignee -Owner $Owner -Repo $Repo -IssueNumber $IssueNumber
+        if ($assigned) { Write-Host "Assigned copilot-swe-agent to issue #$IssueNumber" -ForegroundColor Green }
+    }
+    else {
+        Write-Host "Skipping assignment (handled by workflow with COPILOT_GITHUB_TOKEN)" -ForegroundColor Gray
+    }
 
     # Output result
     [PSCustomObject]@{
@@ -508,8 +548,6 @@ if ($PSCmdlet.ShouldProcess("Issue #$IssueNumber", "Post synthesis comment and a
         Assigned     = $assigned
         Marker       = $config.synthesis.marker
     }
-
-    if ($assigned) { Write-Host "Assigned copilot-swe-agent to issue #$IssueNumber" -ForegroundColor Green }
 
     # Explicit exit 0 to clear any lingering $LASTEXITCODE from failed native commands (e.g., gh issue edit)
     exit 0
