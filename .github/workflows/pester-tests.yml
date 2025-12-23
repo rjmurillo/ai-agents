@@ -80,6 +80,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
+      - name: Diagnose ARM Runner Environment
+        shell: pwsh
+        run: |
+          Write-Host "=== ARM Runner Diagnostics ==="
+          Write-Host "PowerShell Version:"
+          $PSVersionTable | Format-List
+          Write-Host "`nPester Module:"
+          Get-Module -ListAvailable Pester | Format-List
+          Write-Host "`nArchitecture:"
+          uname -m
+          Write-Host "`nOS Info:"
+          cat /etc/os-release
+          Write-Host "==========================="
+
       - name: Run Pester Tests
         shell: pwsh
         run: ./build/scripts/Invoke-PesterTests.ps1 -CI
