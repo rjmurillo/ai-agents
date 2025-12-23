@@ -114,7 +114,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 ### Comment Triage Priority
 
-**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+**MUST**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
 
 #### Priority Adjustment by Domain
 
@@ -186,7 +186,7 @@ Analyze and implement...
 
 ### QA Integration Requirement
 
-**MANDATORY**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
+**MUST**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
@@ -871,7 +871,7 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MANDATORY**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
+**MUST**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
 
 #### Phase 8.1: Comment Status Verification
 
@@ -1000,7 +1000,7 @@ Use sparingly. Only resolve after actually addressing issues.
 
 Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
 
-**At start (MANDATORY):**
+**At start (MUST):**
 
 ```text
 mcp__cloudmcp-manager__memory-search_nodes
