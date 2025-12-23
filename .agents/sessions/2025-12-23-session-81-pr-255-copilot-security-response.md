@@ -105,6 +105,8 @@ nothing to commit, working tree clean
 ### Commits This Session
 
 - `1791fd9` - docs: PR #255 Copilot security comment response
+- `e4b790f` - docs: Update session log with final commit SHA
+- `6a4cffe` - docs: Add Session 81 to HANDOFF.md recent sessions
 
 ### Task Evidence
 
