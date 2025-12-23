@@ -239,6 +239,15 @@ function Get-AITriageInfo {
         Supports two formats:
         - Markdown table: | **Priority** | `P1` |
         - Plain text: Priority: P1
+
+    .PARAMETER Comments
+        An array of issue comment objects from the GitHub API.
+
+    .PARAMETER TriageMarker
+        The HTML comment marker used to identify AI Triage comments.
+
+    .EXAMPLE
+        $triageInfo = Get-AITriageInfo -Comments $issueComments -TriageMarker "<!-- AI-ISSUE-TRIAGE -->"
     #>
     [CmdletBinding()]
     param(
@@ -255,20 +264,16 @@ function Get-AITriageInfo {
     $triage = @{ Priority = $null; Category = $null }
     $body = $triageComment.body
 
-    # Match Markdown table format: | **Priority** | `P1` |
-    # Or plain text format: Priority: P1
-    if ($body -match '\*\*Priority\*\*[^`]*`([^`]+)`') {
-        $triage.Priority = $Matches[1]
-    }
-    elseif ($body -match 'Priority[:\s]+(\S+)') {
-        $triage.Priority = $Matches[1]
-    }
-
-    if ($body -match '\*\*Category\*\*[^`]*`([^`]+)`') {
-        $triage.Category = $Matches[1]
-    }
-    elseif ($body -match 'Category[:\s]+(\S+)') {
-        $triage.Category = $Matches[1]
+    # Extract Priority and Category using shared logic (DRY)
+    foreach ($field in @('Priority', 'Category')) {
+        # Match Markdown table format: | **Priority** | `P1` |
+        if ($body -match "\*\*$field\*\*[^``]*``([^``]+)``") {
+            $triage[$field] = $Matches[1]
+        }
+        # Fallback to plain text format: Priority: P1
+        elseif ($body -match "$field[:\s]+(\S+)") {
+            $triage[$field] = $Matches[1]
+        }
     }
 
     return $triage
