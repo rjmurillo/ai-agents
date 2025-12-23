@@ -62,7 +62,7 @@ Quantitative verification of ADR-017 (Tiered Memory Index Architecture) numerica
 | MUST | Update Serena memory (cross-session context) | [x] | adr-017-quantitative-analysis |
 | MUST | Run markdown lint | [x] | 0 errors |
 | MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: docs-only |
-| MUST | Commit all changes (including .serena/memories) | [x] | d43d923 |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: e964834 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | Added session to Recent Sessions table per validator requirement |
 | SHOULD | Update PROJECT-PLAN.md | N/A | No project plan |
 | SHOULD | Invoke retrospective (significant sessions) | N/A | Analysis only |
