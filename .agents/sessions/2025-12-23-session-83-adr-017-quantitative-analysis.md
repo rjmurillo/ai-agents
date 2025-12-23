@@ -52,14 +52,19 @@ Quantitative verification of ADR-017 (Tiered Memory Index Architecture) numerica
 | Read HANDOFF.md | ✅ PASS | Lines 1-117 loaded |
 | Create session log | ✅ PASS | This file |
 
-### Session End
+### Session End (COMPLETE ALL before closing)
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| Complete checklist | ✅ PASS | All phases complete |
-| Run markdownlint | ✅ PASS | 0 errors |
-| Commit changes | ✅ PASS | 873f21d |
-| Validation script | ⏳ PENDING | Next step |
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | adr-017-quantitative-analysis |
+| MUST | Run markdown lint | [x] | 0 errors |
+| MUST | Route to qa agent (feature implementation) | N/A | Analysis task |
+| MUST | Commit all changes (including .serena/memories) | [x] | 9b45743 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | N/A | No project plan |
+| SHOULD | Invoke retrospective (significant sessions) | N/A | Analysis only |
+| SHOULD | Verify clean git status | [x] | Session log updated |
 
 ---
 
