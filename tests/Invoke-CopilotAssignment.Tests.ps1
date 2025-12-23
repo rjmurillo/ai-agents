@@ -46,8 +46,6 @@ BeforeAll {
     # tests/ is at repo root, script is at .claude/skills/github/scripts/issue/
     $repoRoot = Join-Path $PSScriptRoot ".."
     $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
-    $modulePath = Join-Path $repoRoot ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
-    $configPath = Join-Path $repoRoot ".claude" "skills" "github" "copilot-synthesis.yml"
 
     # Load script content for pattern-based testing
     $scriptContent = Get-Content $scriptPath -Raw
@@ -334,16 +332,16 @@ Describe "Pattern Matching" {
     Context "Issue/PR Reference Extraction" {
         It "Matches issue references" {
             $text = "Related to #123 and #456"
-            $matches = [regex]::Matches($text, '#(\d+)')
-            $matches.Count | Should -Be 2
-            $matches[0].Groups[1].Value | Should -Be "123"
+            $regexMatches = [regex]::Matches($text, '#(\d+)')
+            $regexMatches.Count | Should -Be 2
+            $regexMatches[0].Groups[1].Value | Should -Be "123"
         }
 
         It "Matches PR references in text" {
             $text = "See PR #789 for details"
-            $matches = [regex]::Matches($text, '#(\d+)')
-            $matches.Count | Should -Be 1
-            $matches[0].Groups[1].Value | Should -Be "789"
+            $regexMatches = [regex]::Matches($text, '#(\d+)')
+            $regexMatches.Count | Should -Be 1
+            $regexMatches[0].Groups[1].Value | Should -Be "789"
         }
     }
 
