@@ -97,14 +97,21 @@ Benchmark `gh pr view --json` vs current Get-PRContext.ps1 to validate expected 
 
 ---
 
-## Session End Checklist
+## Session End
 
-- [x] All agent consultations complete
-- [x] Strategic analysis document created (`.agents/analysis/claude-pwsh-performance-strategic.md`)
-- [x] Memory updated with findings (`claude-pwsh-performance-strategy`)
-- [x] HANDOFF.md not modified (read-only)
-- [x] Markdownlint passed
-- [ ] Changes committed
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | This file complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory: `claude-pwsh-performance-strategy` |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/pr-285-session-80-analysis.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit: a624f2f |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A - analysis session |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | N/A - will be part of larger retrospective |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ---
 

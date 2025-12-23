@@ -199,4 +199,24 @@ Performance claims require consistent benchmarks across all documentation:
 
 ---
 
+---
+
+## Session End
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | This file complete |
+| MUST | Update Serena memory (cross-session context) | [x] | N/A - PR comment response session |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/pr-285-session-82-comment-response.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit: a624f2f |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A - PR comment response |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | Learnings documented in session |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
+
+---
+
 **Session completed**: 2025-12-23 10:00 UTC

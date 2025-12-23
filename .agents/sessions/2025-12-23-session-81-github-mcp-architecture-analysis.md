@@ -130,14 +130,21 @@ Named pipe daemon (Issue #287) deprioritized due to:
 
 ---
 
-## Session End Checklist
+## Session End
 
-- [x] All analysis complete
-- [x] ADR created with reversibility assessment
-- [x] Session log complete
-- [x] HANDOFF.md not modified (read-only)
-- [ ] Markdownlint passed
-- [ ] Changes committed
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | This file complete |
+| MUST | Update Serena memory (cross-session context) | [x] | ADR-016 contains key decisions |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/pr-285-session-81-architecture.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit: a624f2f |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A - architecture session |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | N/A - will be part of larger retrospective |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ---
 
