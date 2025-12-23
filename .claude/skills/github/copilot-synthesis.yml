@@ -151,6 +151,10 @@ extraction_patterns:
   # Content is extracted from the pattern until the next heading or EOF.
   #
   coderabbit:
+    # GitHub username for CodeRabbit bot (used to filter comments)
+    # IMPORTANT: Must match exactly what GitHub API returns (includes [bot] suffix)
+    username: "coderabbitai[bot]"
+
     # Header that precedes implementation plan details
     # Example in comment:
     #   ## Implementation

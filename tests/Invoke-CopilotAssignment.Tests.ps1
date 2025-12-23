@@ -498,6 +498,7 @@ Describe "Get-CodeRabbitPlan Function" {
         }
 
         $testPatterns = @{
+            username            = "coderabbitai[bot]"
             implementation_plan = "## Implementation"
             related_issues      = "🔗 Similar Issues"
             related_prs         = "🔗 Related PRs"

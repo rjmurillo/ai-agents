@@ -85,6 +85,7 @@ function Get-SynthesisConfig {
         }
         extraction_patterns = @{
             coderabbit = @{
+                username            = "coderabbitai[bot]"
                 implementation_plan = "## Implementation"
                 related_issues      = "🔗 Similar Issues"
                 related_prs         = "🔗 Related PRs"
@@ -197,7 +198,7 @@ function Get-CodeRabbitPlan {
         [hashtable]$Patterns
     )
 
-    $rabbitComments = $Comments | Where-Object { $_.user.login -eq "coderabbitai[bot]" }
+    $rabbitComments = $Comments | Where-Object { $_.user.login -eq $Patterns.username }
     if ($rabbitComments.Count -eq 0) { return $null }
 
     $plan = @{ Implementation = $null; RelatedIssues = @(); RelatedPRs = @() }
