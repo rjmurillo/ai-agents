@@ -462,23 +462,23 @@ Validate:
 3. Test-implementation alignment
 4. Code coverage meets threshold
 
-Return validation verdict: APPROVED or BLOCKED
+Return validation verdict: PASS | FAIL | NEEDS WORK
 """
 )
 ```
 
 #### Step 2: Evaluate QA Verdict
 
-**If QA returns APPROVED**:
+**If QA returns PASS**:
 
-- Proceed to PR creation
-- Include validation evidence in PR description
+- Proceed to Step 3: Security Validation (if applicable), then continue through Step 4 before creating a PR
+- When PR creation is authorized, include QA validation evidence in the PR description
 
-**If QA returns BLOCKED**:
+**If QA returns FAIL or NEEDS WORK**:
 
 - Route back to implementer with blocking issues
 - Do NOT create PR
-- Wait for fixes, then retry validation
+- After implementer completes fixes and reports back, automatically repeat Step 1: Post-Implementation QA Validation
 
 #### Step 3: Security Validation (Conditional)
 
@@ -514,9 +514,9 @@ Return PIV verdict: APPROVED, CONDITIONAL, or REJECTED
 ```markdown
 ## Pre-PR Validation Summary
 
-- **QA Validation**: [APPROVED / BLOCKED]
+- **QA Validation**: [PASS / FAIL / NEEDS WORK]
 - **Security PIV**: [APPROVED / CONDITIONAL / REJECTED / N/A]
-- **Blocking Issues**: [N]
+- **Blocking Issues**: [count]
 
 ### Verdict
 
@@ -528,15 +528,17 @@ Return PIV verdict: APPROVED, CONDITIONAL, or REJECTED
 
 Only create PR if ALL validations pass:
 
-- QA: APPROVED
-- Security: APPROVED, CONDITIONAL, or N/A (not security-relevant)
+- QA: PASS
+- Security (if triggered): APPROVED or CONDITIONAL
+- If the change is not security-relevant, the orchestrator MUST treat security status as **N/A** (security validation not triggered) and MUST NOT route to the security agent.
 
-**Security verdict handling**:
+**Security verdict handling** (security agent outputs only):
 
 - **APPROVED**: No security concerns. Proceed to PR.
-- **CONDITIONAL**: Security considerations documented. Proceed to PR but include security notes in PR description for reviewer awareness.
-- **REJECTED**: Security issues must be fixed. Do NOT create PR.
-- **N/A**: Change is not security-relevant. Skip security validation.
+- **CONDITIONAL**: Approved with minor, non-blocking security considerations that are fully documented. Proceed to PR and include security notes in the PR description so reviewers can track or schedule any follow-up work; this documents concerns but does not block PR creation (blocking is reserved for REJECTED).
+- **REJECTED**: Security issues must be fixed before proceeding. Do NOT create PR.
+
+**N/A is not a security agent verdict.** It means the orchestrator determined the change is not security-relevant and therefore did not trigger security validation.
 
 If BLOCKED or REJECTED, return to implementer with specific issues.
 
