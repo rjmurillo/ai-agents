@@ -197,15 +197,20 @@ function Get-CodeRabbitPlan {
         [hashtable]$Patterns
     )
 
-    $rabbitComments = $Comments | Where-Object { $_.user.login -eq "coderabbitai" }
+    $rabbitComments = $Comments | Where-Object { $_.user.login -eq "coderabbitai[bot]" }
     if ($rabbitComments.Count -eq 0) { return $null }
 
     $plan = @{ Implementation = $null; RelatedIssues = @(); RelatedPRs = @() }
 
-    # Use patterns from config
+    # Use patterns from config - wrap in optional HTML tags for flexibility
+    # CodeRabbit may use formats like: "🔗 Similar Issues" or "<b>🔗 Similar Issues</b>"
     $implPattern = [regex]::Escape($Patterns.implementation_plan)
-    $issuesPattern = [regex]::Escape($Patterns.related_issues)
-    $prsPattern = [regex]::Escape($Patterns.related_prs)
+    $issuesPatternRaw = [regex]::Escape($Patterns.related_issues)
+    $prsPatternRaw = [regex]::Escape($Patterns.related_prs)
+
+    # Create flexible patterns that allow optional <b> tags around the content
+    $issuesPattern = "(?:<b>)?$issuesPatternRaw(?:</b>)?"
+    $prsPattern = "(?:<b>)?$prsPatternRaw(?:</b>)?"
 
     foreach ($comment in $rabbitComments) {
         $body = $comment.body
@@ -215,14 +220,23 @@ function Get-CodeRabbitPlan {
             $plan.Implementation = $Matches[1].Trim()
         }
 
-        # Extract related issues using config pattern (wrap in @() to ensure array)
-        if ($body -match "$issuesPattern([\s\S]*?)(?=##|🔗|$)") {
-            $plan.RelatedIssues = @([regex]::Matches($Matches[1], '#(\d+)') | ForEach-Object { "#$($_.Groups[1].Value)" })
+        # Extract related issues using flexible pattern (handles <details> blocks)
+        # Match until next section marker or end of details block
+        if ($body -match "$issuesPattern([\s\S]*?)(?=</details>|<details>|##|🔗|$)") {
+            $issueMatches = [regex]::Matches($Matches[1], '/issues/(\d+)|#(\d+)')
+            $plan.RelatedIssues = @($issueMatches | ForEach-Object {
+                if ($_.Groups[1].Success) { "#$($_.Groups[1].Value)" }
+                elseif ($_.Groups[2].Success) { "#$($_.Groups[2].Value)" }
+            } | Select-Object -Unique)
         }
 
-        # Extract related PRs using config pattern (wrap in @() to ensure array)
-        if ($body -match "$prsPattern([\s\S]*?)(?=##|🔗|$)") {
-            $plan.RelatedPRs = @([regex]::Matches($Matches[1], '#(\d+)') | ForEach-Object { "#$($_.Groups[1].Value)" })
+        # Extract related PRs using flexible pattern (handles <details> blocks)
+        if ($body -match "$prsPattern([\s\S]*?)(?=</details>|<details>|##|🔗|$)") {
+            $prMatches = [regex]::Matches($Matches[1], '/pull/(\d+)|#(\d+)')
+            $plan.RelatedPRs = @($prMatches | ForEach-Object {
+                if ($_.Groups[1].Success) { "#$($_.Groups[1].Value)" }
+                elseif ($_.Groups[2].Success) { "#$($_.Groups[2].Value)" }
+            } | Select-Object -Unique)
         }
     }
 

@@ -523,7 +523,7 @@ Describe "Get-CodeRabbitPlan Function" {
         It "Extracts implementation section from CodeRabbit comment" {
             $comments = @(
                 @{
-                    user = @{ login = "coderabbitai" }
+                    user = @{ login = "coderabbitai[bot]" }
                     body = "## Implementation`nHere is the implementation plan.`n`n## Other Section"
                 }
             )
@@ -537,7 +537,7 @@ Describe "Get-CodeRabbitPlan Function" {
         It "Extracts related issue references" {
             $comments = @(
                 @{
-                    user = @{ login = "coderabbitai" }
+                    user = @{ login = "coderabbitai[bot]" }
                     body = "🔗 Similar Issues`n- #123 Similar problem`n- #456 Related issue"
                 }
             )
