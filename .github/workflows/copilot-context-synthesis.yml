@@ -90,16 +90,17 @@ jobs:
             echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Synthesize context and assign Copilot
+      - name: Synthesize context
         shell: pwsh
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           Write-Host "Starting context synthesis for issue #$env:ISSUE_NUMBER" -ForegroundColor Cyan
 
-          # Run the synthesis script
+          # Run the synthesis script (assignment handled separately with COPILOT_GITHUB_TOKEN)
           $result = & "./.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1" `
-            -IssueNumber $env:ISSUE_NUMBER
+            -IssueNumber $env:ISSUE_NUMBER `
+            -SkipAssignment
 
           # Output result summary
           if ($result.Success) {
@@ -108,15 +109,27 @@ jobs:
             } else {
               Write-Host "::notice::$($result.Action) synthesis comment: $($result.CommentUrl)"
             }
-            if ($result.Assigned) {
-              Write-Host "::notice::Assigned copilot-swe-agent to issue #$env:ISSUE_NUMBER"
-            }
-            # Explicit exit 0 ensures success even if assignment failed (synthesis is the primary goal)
+            # Note: Assignment is handled in a separate step with COPILOT_GITHUB_TOKEN
             exit 0
           } else {
             Write-Host "::error::Failed to synthesize context for issue #$env:ISSUE_NUMBER"
             exit 1
           }
+
+      - name: Assign copilot-swe-agent
+        if: success()
+        env:
+          # COPILOT_GITHUB_TOKEN is a PAT from a Copilot-enabled user
+          # Required for copilot-swe-agent assignment per GitHub API requirements
+          # See: https://github.blog/changelog/2025-12-03-assign-issues-to-copilot-using-the-api/
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          echo "Assigning copilot-swe-agent to issue #${{ steps.issue.outputs.number }}..."
+          if gh issue edit ${{ steps.issue.outputs.number }} --add-assignee "copilot-swe-agent"; then
+            echo "::notice::Assigned copilot-swe-agent to issue #${{ steps.issue.outputs.number }}"
+          else
+            echo "::warning::Failed to assign copilot-swe-agent - Copilot may not be enabled for this repository"
+          fi
 
       - name: Remove copilot-ready label
         if: success()
@@ -177,7 +190,8 @@ jobs:
             echo "count=$COUNT" >> $GITHUB_OUTPUT
           fi
 
-      - name: Process each issue
+      - name: Synthesize context for each issue
+        id: synthesize
         if: steps.find-issues.outputs.count != '0'
         shell: pwsh
         env:
@@ -186,6 +200,7 @@ jobs:
           $issues = $env:ISSUES.Trim() -split '\s+'
           $results = @()
           $failed = @()
+          $synthesized = @()
 
           Write-Host "Processing $($issues.Count) issue(s)..." -ForegroundColor Cyan
 
@@ -195,16 +210,14 @@ jobs:
             Write-Host "`n=== Processing Issue #$issueNumber ===" -ForegroundColor Yellow
 
             try {
-              # Run the synthesis script (same script as single-issue job - DRY!)
+              # Run the synthesis script (assignment handled separately with COPILOT_GITHUB_TOKEN)
               $result = & "./.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1" `
-                -IssueNumber $issueNumber
+                -IssueNumber $issueNumber `
+                -SkipAssignment
 
               if ($result.Success) {
                 Write-Host "::notice::Issue #$issueNumber - $($result.Action) synthesis comment"
-
-                # Remove the label to indicate successful processing
-                gh issue edit $issueNumber --remove-label "copilot-ready"
-                Write-Host "::notice::Issue #$issueNumber - Removed copilot-ready label"
+                $synthesized += $issueNumber
 
                 $results += [PSCustomObject]@{
                   Issue = $issueNumber
@@ -222,13 +235,42 @@ jobs:
             }
           }
 
+          # Output synthesized issues for the assignment step
+          "synthesized=$($synthesized -join ' ')" >> $env:GITHUB_OUTPUT
+
           # Summary
-          Write-Host "`n=== Sweep Complete ===" -ForegroundColor Cyan
+          Write-Host "`n=== Synthesis Complete ===" -ForegroundColor Cyan
           Write-Host "Processed: $($results.Count) issue(s)"
           if ($failed.Count -gt 0) {
             Write-Host "Failed: $($failed.Count) issue(s): $($failed -join ', ')" -ForegroundColor Red
-            # Don't fail the job - we want to process as many as possible
           }
+
+      - name: Assign copilot-swe-agent to synthesized issues
+        if: steps.find-issues.outputs.count != '0' && steps.synthesize.outputs.synthesized != ''
+        env:
+          # COPILOT_GITHUB_TOKEN is a PAT from a Copilot-enabled user
+          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SYNTHESIZED: ${{ steps.synthesize.outputs.synthesized }}
+        run: |
+          for issue in $SYNTHESIZED; do
+            echo "Assigning copilot-swe-agent to issue #$issue..."
+            if gh issue edit "$issue" --add-assignee "copilot-swe-agent"; then
+              echo "::notice::Assigned copilot-swe-agent to issue #$issue"
+            else
+              echo "::warning::Failed to assign copilot-swe-agent to issue #$issue"
+            fi
+          done
+
+      - name: Remove copilot-ready labels
+        if: steps.find-issues.outputs.count != '0' && steps.synthesize.outputs.synthesized != ''
+        env:
+          SYNTHESIZED: ${{ steps.synthesize.outputs.synthesized }}
+        run: |
+          for issue in $SYNTHESIZED; do
+            echo "Removing copilot-ready label from issue #$issue..."
+            gh issue edit "$issue" --remove-label "copilot-ready"
+            echo "::notice::Removed copilot-ready label from issue #$issue"
+          done
 
       - name: Summary
         if: always()
