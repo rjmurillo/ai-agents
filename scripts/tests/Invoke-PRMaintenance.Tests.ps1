@@ -328,6 +328,7 @@ Describe "Invoke-PRMaintenance.ps1" {
     Context "Test-PRNeedsOwnerAction Function" {
         It "Returns true when reviewDecision = CHANGES_REQUESTED" {
             Mock gh {
+                $global:LASTEXITCODE = 0
                 return "CHANGES_REQUESTED"
             }
 
@@ -337,6 +338,7 @@ Describe "Invoke-PRMaintenance.ps1" {
 
         It "Returns false when reviewDecision = APPROVED" {
             Mock gh {
+                $global:LASTEXITCODE = 0
                 return "APPROVED"
             }
 
@@ -346,6 +348,7 @@ Describe "Invoke-PRMaintenance.ps1" {
 
         It "Returns false when reviewDecision is null" {
             Mock gh {
+                $global:LASTEXITCODE = 0
                 return ""
             }
 
@@ -366,11 +369,14 @@ Describe "Invoke-PRMaintenance.ps1" {
             Mock git {
                 param([Parameter(ValueFromRemainingArguments)]$Args)
                 if ($Args -contains "rev-parse") {
+                    $global:LASTEXITCODE = 0
                     return "D:\repo"
                 }
                 if ($Args -contains "worktree" -and $Args -contains "add") {
+                    $global:LASTEXITCODE = 0
                     $script:WorktreePath = $Args[-2]
                 }
+                $global:LASTEXITCODE = 0
                 return ""
             }
 
@@ -388,26 +394,44 @@ Describe "Invoke-PRMaintenance.ps1" {
             Mock git {
                 param([Parameter(ValueFromRemainingArguments)]$Args)
 
-                if ($Args -contains "rev-parse") { return "D:\repo" }
-                if ($Args -contains "worktree") { return "" }
-                if ($Args -contains "fetch") { return "" }
+                if ($Args -contains "rev-parse") {
+                    $global:LASTEXITCODE = 0
+                    return "D:\repo"
+                }
+                if ($Args -contains "worktree") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "fetch") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
                 if ($Args -contains "merge") {
                     $global:LASTEXITCODE = 1
                     return "CONFLICT"
                 }
                 if ($Args -contains "diff" -and $Args -contains "--name-only") {
+                    $global:LASTEXITCODE = 0
                     return ".agents/HANDOFF.md"
                 }
                 if ($Args -contains "checkout" -and $Args -contains "--theirs") {
+                    $global:LASTEXITCODE = 0
                     return ""
                 }
-                if ($Args -contains "add") { return "" }
-                if ($Args -contains "commit") { return "" }
+                if ($Args -contains "add") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "commit") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
                 if ($Args -contains "push") {
-                    $global:LASTEXITCODE = 0  # Push succeeds
+                    $global:LASTEXITCODE = 0
                     return ""
                 }
 
+                $global:LASTEXITCODE = 0
                 return ""
             }
 
@@ -423,20 +447,32 @@ Describe "Invoke-PRMaintenance.ps1" {
             Mock git {
                 param([Parameter(ValueFromRemainingArguments)]$Args)
 
-                if ($Args -contains "rev-parse") { return "D:\repo" }
-                if ($Args -contains "worktree") { return "" }
-                if ($Args -contains "fetch") { return "" }
+                if ($Args -contains "rev-parse") {
+                    $global:LASTEXITCODE = 0
+                    return "D:\repo"
+                }
+                if ($Args -contains "worktree") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "fetch") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
                 if ($Args -contains "merge") {
                     $global:LASTEXITCODE = 1
                     return "CONFLICT"
                 }
                 if ($Args -contains "diff" -and $Args -contains "--name-only") {
+                    $global:LASTEXITCODE = 0
                     return "src/Program.cs"
                 }
                 if ($Args -contains "merge" -and $Args -contains "--abort") {
+                    $global:LASTEXITCODE = 0
                     return ""
                 }
 
+                $global:LASTEXITCODE = 0
                 return ""
             }
 
@@ -453,10 +489,15 @@ Describe "Invoke-PRMaintenance.ps1" {
             Mock Test-IsGitHubRunner { return $false }
             Mock git {
                 param([Parameter(ValueFromRemainingArguments)]$Args)
-                if ($Args -contains "rev-parse") { return "D:\repo" }
+                if ($Args -contains "rev-parse") {
+                    $global:LASTEXITCODE = 0
+                    return "D:\repo"
+                }
                 if ($Args -contains "worktree" -and $Args -contains "remove") {
+                    $global:LASTEXITCODE = 0
                     $script:WorktreeRemoved = $true
                 }
+                $global:LASTEXITCODE = 0
                 return ""
             }
 
