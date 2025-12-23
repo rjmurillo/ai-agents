@@ -2,6 +2,25 @@
 
 PowerShell scripts for installing the AI Agents system to Claude Code, GitHub Copilot CLI, and VS Code.
 
+## Script Organization
+
+Scripts are organized by **intended audience and execution context**:
+
+- **`scripts/`** - Developer-facing utilities (manual + pre-commit hooks)
+- **`.github/scripts/`** - CI/CD automation (GitHub Actions only, not for direct use)
+- **`build/scripts/`** - Build system automation
+- **`.claude/skills/`** - AI agent skills (internal implementation, wrapped for developer use)
+- **`tests/`** - Pester test files (root-level, not under scripts/)
+
+**When to use each location**:
+
+- Creating a tool for developers to run? → `scripts/`
+- Building a GitHub Actions workflow helper? → `.github/scripts/`
+- Adding AI agent capability? → `.claude/skills/` (with wrapper in `scripts/` if needed)
+- Writing tests? → `tests/`
+
+See [ADR-017](../.agents/architecture/ADR-017-script-organization.md) for detailed rationale and guidelines.
+
 ## Overview
 
 The installation system provides:
