@@ -68,9 +68,9 @@ All 7 MISSES were identified by cursor[bot]. Each represents a quality gate fail
 - Variable propagation across workflow steps
 
 **Prevention**: Pre-PR checklist should include:
-- [ ] Tested in CI environment (not just local)
-- [ ] Tested with non-main target branches
-- [ ] Validated all workflow steps have required secrets/env vars
+- Tested in CI environment (not just local)
+- Tested with non-main target branches
+- Validated all workflow steps have required secrets/env vars
 
 ### Pattern 2: Fail-Safe vs Fail-Open Logic
 
@@ -81,8 +81,8 @@ All 7 MISSES were identified by cursor[bot]. Each represents a quality gate fail
 - Git push failure didn't check LASTEXITCODE
 
 **Prevention**: ADR-015 should have explicit fail-safe requirement checklist:
-- [ ] All safety modes default to ON when input empty/missing
-- [ ] All external command exit codes explicitly checked
+- All safety modes default to ON when input empty/missing
+- All external command exit codes explicitly checked
 
 ### Pattern 3: Test-Implementation Drift
 

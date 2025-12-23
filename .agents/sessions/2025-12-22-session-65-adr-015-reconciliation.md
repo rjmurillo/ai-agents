@@ -49,8 +49,8 @@ Create ADR-015 reconciling conflicting feedback from 5 agents (Security, Roadmap
 - [x] Create session log
 - [x] Create ADR-015
 - [x] Run markdownlint (0 errors)
-- [ ] Update HANDOFF.md
-- [ ] Commit changes
+- [N/A] Update HANDOFF.md (per ADR-014 - HANDOFF.md is read-only)
+- [x] Commit changes
 
 ## Memories Reviewed
 
