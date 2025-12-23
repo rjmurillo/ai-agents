@@ -1,8 +1,9 @@
 # Memory Index
 
 **Created**: 2025-12-23
+**Updated**: 2025-12-23
 **Purpose**: Quick reference to find relevant memories by topic
-**Total Memories**: 111 (reduced from 115 via consolidation)
+**Total Memories**: ~97 (reduced from 115 via consolidation)
 **Related Issue**: #307
 
 ---
@@ -24,6 +25,7 @@
 |------------|--------|---------|
 | ✅ ESSENTIAL | `project-overview` | Project purpose, tech stack, agent catalog |
 | ✅ ESSENTIAL | `codebase-structure` | Directory layout, key files |
+| ✅ ESSENTIAL | `skills-protocol` | BLOCKING gates, RFC 2119 evidence, templates |
 | ⚠️ CHECK | `user-preference-*` | User's coding preferences |
 
 ### Working with GitHub (PRs, Issues, CLI)
@@ -31,7 +33,7 @@
 | Read First | Memory | Summary |
 |------------|--------|---------|
 | ✅ ESSENTIAL | `skills-github-cli` | Comprehensive gh CLI patterns (API, GraphQL, extensions) |
-| ✅ ESSENTIAL | `skills-pr-review` | PR conversation resolution protocol |
+| ✅ ESSENTIAL | `skills-pr-review` | PR workflow, bot triage, acknowledgment protocol |
 | Related | `skills-github-workflow-patterns` | Workflow YAML patterns |
 
 ### Writing PowerShell Code
@@ -64,7 +66,7 @@
 
 | Read First | Memory | Summary |
 |------------|--------|---------|
-| ✅ ESSENTIAL | `skills-planning` | Task descriptions with file paths, parallel exploration |
+| ✅ ESSENTIAL | `skills-planning` | 7 skills: file paths, self-contained tasks, parallel explore, multi-platform scope |
 | ✅ ESSENTIAL | `skills-architecture` | Role-specific tools, model selection, composite actions |
 | Related | `skills-design` | Agent design principles |
 | Related | `skills-critique` | Conflict escalation protocol |
@@ -81,14 +83,14 @@
 
 | Read First | Memory | Summary |
 |------------|--------|---------|
-| ✅ ESSENTIAL | `skills-orchestration` | Parallel execution savings, HANDOFF coordination |
+| ✅ ESSENTIAL | `skills-orchestration` | 4 skills: parallel execution, HANDOFF coordination, validation gate |
 | Related | `skills-collaboration-patterns` | User additions as learning signals |
 
 ### Documentation
 
 | Read First | Memory | Summary |
 |------------|--------|---------|
-| ✅ ESSENTIAL | `skills-documentation` | Doc005-007: User-facing restrictions, self-contained artifacts |
+| ✅ ESSENTIAL | `skills-documentation` | 7 skills: migration search, taxonomy, fallbacks, user-facing, self-contained |
 | Related | `user-facing-content-restrictions` | No internal refs in src/ |
 
 ### Validation & Quality
@@ -97,6 +99,13 @@
 |------------|--------|---------|
 | ✅ ESSENTIAL | `skills-validation` | False positive handling, PR feedback gates |
 | ✅ ESSENTIAL | `skills-linting` | Autofix first, configuration before fixes |
+
+### Protocol Compliance
+
+| Read First | Memory | Summary |
+|------------|--------|---------|
+| ✅ ESSENTIAL | `skills-protocol` | 4 skills: BLOCKING gates, RFC 2119 evidence, template enforcement, legacy |
+| Related | `skill-init-001-session-initialization` | Session start requirements |
 
 ### CI/CD & DevOps
 
@@ -123,30 +132,37 @@
 | `skills-collaboration-patterns` | 1 | User additions as learning signals |
 | `skills-workflow` | 10 | Full pipeline, atomic commits, batch verification |
 | `skills-testing` | 3 | Basic execution validation |
-| `skills-documentation` | 7 | User-facing restrictions, self-contained artifacts |
+| `skills-documentation` | 7 | Migration search, taxonomy, fallbacks, user-facing, self-contained |
 | `skills-architecture` | 4 | Role-specific tools, composite actions |
-| `skills-planning` | 4 | Task descriptions, parallel exploration |
+| `skills-planning` | 7 | File paths, self-contained tasks, parallel explore, multi-platform |
 | `skills-implementation` | 5 | Test discovery, proactive linting, additive features |
 | `skills-execution` | 2 | Scope discipline, ship MVP |
 | `skills-analysis` | 3 | Gap template, comprehensive analysis, git blame |
 | `skills-powershell` | 8 | Variable interpolation, null safety, Import-Module |
 | `skills-github-cli` | 30+ | Comprehensive gh CLI reference |
-| `skills-orchestration` | 4 | Parallel execution, HANDOFF coordination |
+| `skills-orchestration` | 4 | Parallel execution, HANDOFF coordination, validation gate |
 | `skills-critique` | 1 | Conflict escalation |
-| `skills-pr-review` | 6 parts | Conversation resolution, bot triage, acknowledgment protocol, false positives |
+| `skills-pr-review` | 6 parts | Conversation resolution, bot triage, acknowledgment, false positives |
+| `skills-protocol` | 4 | **NEW**: BLOCKING gates, RFC 2119 evidence, templates, legacy |
 
-### skill-* (Atomic Individual Skills)
+### skill-* (Remaining Atomic Skills)
+
+> **Note**: Most atomic skills have been consolidated into `skills-*` collections.
 
 | Memory | Topic |
 |--------|-------|
-| `skill-init-001-*` | Session initialization requirements |
-| `skill-documentation-*` | Documentation patterns |
-| `skill-planning-*` | Planning patterns |
-| `skill-testing-*` | Testing patterns |
+| `skill-init-001-session-initialization` | Session initialization requirements |
+| `skill-testing-002-test-first-development` | Test-first patterns |
 | `skill-architecture-*` | Architecture patterns |
-| `skill-orchestration-*` | Agent coordination |
-| `skill-protocol-*` | Protocol enforcement |
 | `skill-verification-*` | Verification patterns |
+| `skill-deployment-*` | Deployment patterns |
+| `skill-coordination-*` | Coordination patterns |
+
+> **Consolidated** (2025-12-23):
+> - `skill-documentation-*` → `skills-documentation`
+> - `skill-planning-*` → `skills-planning`
+> - `skill-orchestration-*` → `skills-orchestration`
+> - `skill-protocol-*` → `skills-protocol`
 
 ### pattern-* (Architectural Patterns)
 
@@ -184,8 +200,6 @@
 |--------|---------|
 | `pr-52-*` | Symlink security retrospective |
 
-> **Note**: `pr-comment-responder-skills` and `pr-review-noise-skills` were consolidated into `skills-pr-review` (2025-12-23)
-
 ### research-* (Research Findings)
 
 | Memory | Summary |
@@ -196,26 +210,19 @@
 
 ---
 
-## Staleness Indicators
+## Consolidation Log
 
-Memories that may need verification:
+| Date | Group | Before | After | Result |
+|------|-------|--------|-------|--------|
+| 2025-12-23 | User Prefs | 2 | 1 | `user-preference-no-auto-headers` |
+| 2025-12-23 | Session Init | 2 | 1 | `skill-init-001-session-initialization` |
+| 2025-12-23 | PR Review | 3 | 1 | `skills-pr-review` (6 parts) |
+| 2025-12-23 | Documentation | 4 | 1 | `skills-documentation` (7 skills) |
+| 2025-12-23 | Planning | 3 | 1 | `skills-planning` (7 skills) |
+| 2025-12-23 | Orchestration | 3 | 1 | `skills-orchestration` (4 skills) |
+| 2025-12-23 | Protocol | 4 | 1 | `skills-protocol` (4 skills) **NEW** |
 
-| Memory | Last Updated | Status |
-|--------|--------------|--------|
-| `user-preference-no-auto-headers` | 2025-12-23 | ✅ Consolidated |
-| `copilot-cli-deprioritization-decision` | 2025-12-15 | Check if still valid |
-
----
-
-## Consolidation Opportunities
-
-These memories have overlapping content and should be merged:
-
-| Group | Memories | Action |
-|-------|----------|--------|
-| ✅ User Prefs | `user-preference-no-auto-headers` | **DONE** - Merged and deleted duplicate |
-| ✅ Session Init | `skill-init-001-session-initialization` | **DONE** - Merged and deleted duplicate |
-| ✅ PR Review | `skills-pr-review` | **DONE** (3→1) - Merged bot triage + noise patterns |
+**Total removed**: 18 duplicate memories
 
 ---
 
@@ -229,23 +236,24 @@ For any session, these memories provide the most value:
 4. `pattern-thin-workflows` - Architecture pattern
 5. `skills-powershell` - PowerShell gotchas
 6. `skills-github-cli` - GitHub operations
-7. `skills-documentation` - Self-contained artifacts
-8. `skills-validation` - Quality patterns
-9. `skills-orchestration` - Multi-agent coordination
-10. `skills-pr-review` - PR workflow
+7. `skills-documentation` - Self-contained artifacts (7 skills)
+8. `skills-protocol` - Session compliance (4 skills) **NEW**
+9. `skills-orchestration` - Multi-agent coordination (4 skills)
+10. `skills-pr-review` - PR workflow (6 parts)
 
 ---
 
 ## Maintenance Notes
 
 - **Last indexed**: 2025-12-23
+- **Last consolidation**: 2025-12-23 (115 → ~97 memories)
 - **Index author**: Claude Opus 4.5
-- **Next review**: When memory count exceeds 130
+- **Next review**: When memory count exceeds 120
 
 ### Adding New Memories
 
 When creating new memories:
 1. Check this index for existing coverage
-2. Add to appropriate category
+2. Prefer adding to existing `skills-*` collection over new atomic file
 3. Update this index with 1-line summary
-4. Consider consolidation if overlapping
+4. Consider consolidation if topic overlaps
