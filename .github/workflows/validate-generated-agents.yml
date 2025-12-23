@@ -43,14 +43,14 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Regenerate and validate agent files
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Write-Host "Running agent generation in validation mode..."
           ./build/Generate-Agents.ps1 -Validate
 
       - name: Show diff on failure
         if: failure()
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Write-Host ""
           Write-Host "=== Files that differ from generated output ===" -ForegroundColor Red

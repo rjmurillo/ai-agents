@@ -327,16 +327,16 @@ PowerShell distinguishes "module names" from "file paths". Without `./`, the arg
 - Source: PR #79 retrospective
 - Source: `.agents/sessions/2025-12-21-session-56-ai-triage-retrospective.md`
 
-## Skill-Perf-001: PowerShell -NoProfile for Non-Interactive Scripts (98%)
+## Skill-Perf-001: PowerShell -NoProfile for Non-Interactive Scripts
 
 **Statement**: ALWAYS use `pwsh -NoProfile` when invoking PowerShell scripts from Claude Code Bash tool, CI/CD workflows, or any non-interactive automation
 
 **Context**: When Claude Code uses Bash tool to invoke PowerShell scripts, or when spawning PowerShell processes from automation
 
-**Evidence**: 
-- PR #268 testing: 1,199ms → 316ms per spawn (73.6% reduction)
-- Profile overhead: 883ms from PSReadLine loading
-- Claude session impact: 10 calls = 12s → 3.2s (8.8s saved per session)
+**Evidence**:
+- Benchmark testing: 1,044ms → 183ms per spawn (82.4% faster)
+- Profile overhead: 861ms from PSReadLine and prompt customization
+- Claude session impact: 10 calls = 10.4s → 1.8s (8.6s saved per session)
 
 **Atomicity**: 98%
 
@@ -360,29 +360,29 @@ Bash(command="pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1
 **Anti-Pattern**:
 
 ```python
-# WRONG - Claude Code wasting 883ms per call
+# WRONG - Claude Code wasting 861ms per call
 Bash(command="pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 268")
 
-# WRONG - CI/CD wasting 883ms per spawn
+# WRONG - CI/CD wasting 861ms per spawn
 - name: Run script
   run: pwsh ./.github/scripts/MyScript.ps1
 ```
 
 **Why It Matters**:
 
-User profiles load interactive modules (PSReadLine, prompt customization) that add 883ms overhead per spawn. Non-interactive automation doesn't need these. `-NoProfile` skips profile loading entirely.
+User profiles load interactive modules (PSReadLine, prompt customization) that add 861ms overhead per spawn. Non-interactive automation doesn't need these. `-NoProfile` skips profile loading entirely.
 
 **Claude Code Specific Impact**:
 
 Every `Bash(command="pwsh ...")` call in a Claude session spawns a new process. Without `-NoProfile`:
-- Single call: 1,199ms (user waits)
-- 10 calls: 12 seconds wasted
-- 20 calls: 24 seconds wasted
+- Single call: 1,044ms (user waits)
+- 10 calls: 10.4 seconds wasted
+- 20 calls: 20.9 seconds wasted
 
 With `-NoProfile`:
-- Single call: 316ms
-- 10 calls: 3.2 seconds
-- 20 calls: 6.4 seconds
+- Single call: 183ms
+- 10 calls: 1.8 seconds
+- 20 calls: 3.7 seconds
 
 **Validation**: Measured 2025-12-23 (test-noprofile.ps1)
 

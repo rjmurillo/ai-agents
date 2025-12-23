@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Claude Code suffers from systemic performance issues when invoking PowerShell skills. Each Bash tool call spawns a new `pwsh` process, incurring 183-416ms overhead even with `-NoProfile`. This analysis explores architectural solutions to eliminate per-call overhead entirely.
+Claude Code suffers from systemic performance issues when invoking PowerShell skills. Each Bash tool call spawns a new `pwsh` process, incurring ~183ms overhead even with `-NoProfile`. This analysis explores architectural solutions to eliminate per-call overhead entirely.
 
 ---
 
@@ -26,9 +26,9 @@ Claude Code's Bash tool creates a **new shell process for every command**. This 
 | PowerShell engine init | ~100-150 | 24-36% |
 | Module discovery | ~50-100 | 12-24% |
 | Script execution | Variable | N/A |
-| Profile loading | ~1,114 | Eliminated by -NoProfile |
+| Profile loading | ~861 | Eliminated by -NoProfile |
 
-**Key Insight**: Even after eliminating profile loading with `-NoProfile`, we still pay 183-416ms per spawn for process creation and engine initialization.
+**Key Insight**: Even after eliminating profile loading with `-NoProfile`, we still pay ~183ms per spawn for process creation and engine initialization.
 
 ### 1.2 Architectural Constraints
 
@@ -378,20 +378,19 @@ User preference states PowerShell is required. However, let's challenge this:
 
 ```powershell
 # Measured on Windows 11, PowerShell 7.4
-Measure-Command { pwsh -NoProfile -Command "Write-Output test" }
-# Result: 415ms
-
-Measure-Command { pwsh -Command "Write-Output test" }
-# Result: 1,529ms (profile adds 1,114ms)
+# Benchmark: shell-benchmark-oh-my-posh-pwsh.json
+# Average: 183ms with -NoProfile (10 iterations, oh-my-posh environment)
+# Average: 1,044ms without -NoProfile
+# Profile overhead: 861ms (82.4% reduction)
 ```
 
 ### Skill Call Breakdown
 
 | Skill | pwsh Overhead | gh CLI Time | Total |
 |-------|---------------|-------------|-------|
-| Get-PRContext | 400ms | 200-500ms | 600-900ms |
-| Set-IssueLabels | 400ms | 100-200ms | 500-600ms |
-| Post-IssueComment | 400ms | 100-200ms | 500-600ms |
+| Get-PRContext | 183ms | 200-500ms | 383-683ms |
+| Set-IssueLabels | 183ms | 100-200ms | 283-383ms |
+| Post-IssueComment | 183ms | 100-200ms | 283-383ms |
 
 ### Projected Performance After gh CLI Rewrite
 

@@ -7,8 +7,8 @@
 ## Problem Summary
 
 Claude Code's Bash tool spawns a new pwsh process for each command:
-- Without -NoProfile: 1,044-1,530ms per call
-- With -NoProfile: 183-416ms per call (82.4% faster, but still significant)
+- Without -NoProfile: 1,044ms per call
+- With -NoProfile: 183ms per call (82.4% faster, but still significant)
 - PR #285 implemented -NoProfile (done)
 - Issue #283 batching papers over the problem
 

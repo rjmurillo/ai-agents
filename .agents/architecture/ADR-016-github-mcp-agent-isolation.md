@@ -12,8 +12,8 @@ informed: Implementer, DevOps, Orchestrator
 
 Claude Code's interaction with GitHub currently uses PowerShell wrapper scripts that suffer from significant latency overhead. Each `pwsh` invocation from the Bash tool spawns a new process:
 
-- **Without -NoProfile**: 1,044-1,530ms per call
-- **With -NoProfile** (PR #285): 183-416ms per call
+- **Without -NoProfile**: 1,044ms per call
+- **With -NoProfile** (PR #285): 183ms per call
 
 For PR review workflows that require 5-10 GitHub API calls, this adds 1-4 seconds of latency per interaction. The question is: what architecture best addresses this performance problem while maintaining code quality, security, and maintainability?
 
