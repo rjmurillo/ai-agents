@@ -2,7 +2,8 @@
 
 **Issue**: https://github.com/rjmurillo/ai-agents/issues/307
 **Created**: 2025-12-23
-**Status**: Open
+**Status**: PR #308 created
+**PR**: https://github.com/rjmurillo/ai-agents/pull/308
 
 ## Scope
 
@@ -18,8 +19,11 @@ Implement memory automation to reduce cognitive load:
 - [x] Created issue #307
 - [x] Created `automation-priorities-2025-12` memory with analysis
 - [x] Memory index with summaries (`memory-index`)
-- [ ] Skill catalog (deferred)
-- [ ] Consolidation plan (deferred)
+- [x] Consolidated user preferences (2→1)
+- [x] Consolidated session init skills (2→1)
+- [x] Consolidated PR review memories (3→1)
+- [ ] Additional skill consolidation (deferred)
+- [ ] Artifact quality gate (deferred)
 
 ## Related Memories
 
