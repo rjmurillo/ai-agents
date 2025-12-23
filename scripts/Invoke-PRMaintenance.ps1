@@ -391,13 +391,13 @@ function Get-OpenPRs {
     }
 
     # Skill-PowerShell-002: Return @() not $null for empty results
-    # Note: Use Write-Output -NoEnumerate to prevent array unwrapping
-    $parsed = $result | ConvertFrom-Json
-    if ($null -eq $parsed) {
-        Write-Output -NoEnumerate @()
-        return
+    # Wrap in @() to ensure empty JSON array "[]" becomes empty PowerShell array, not $null
+    # Use comma operator to prevent array unwrapping on return
+    $parsed = @($result | ConvertFrom-Json)
+    if ($parsed.Count -eq 0) {
+        return , @()
     }
-    Write-Output -NoEnumerate @($parsed)
+    return , $parsed
 }
 
 function Get-PRComments {
@@ -705,10 +705,24 @@ function Get-SimilarPRs {
         $thisPrefix = ($Title -split ':')[0]
         $mergedPrefix = ($merged.title -split ':')[0]
 
-        if ($thisPrefix -eq $mergedPrefix -and $Title -like "*$($merged.title.Substring(0, [Math]::Min(30, $merged.title.Length)))*") {
-            $similar += @{
-                Number = $merged.number
-                Title = $merged.title
+        # Two PRs are similar if they have the same type prefix (feat, fix, etc.)
+        # AND one title contains a significant portion of the other (handles "v2" suffixes)
+        if ($thisPrefix -eq $mergedPrefix) {
+            # Extract the description part after the colon (if any)
+            $thisDesc = if ($Title -match '^[^:]+:\s*(.+)$') { $Matches[1] } else { $Title }
+            $mergedDesc = if ($merged.title -match '^[^:]+:\s*(.+)$') { $Matches[1] } else { $merged.title }
+
+            # Check if descriptions are similar (one contains the other or share significant overlap)
+            $minLen = [Math]::Min($thisDesc.Length, $mergedDesc.Length)
+            $compareLen = [Math]::Max(10, [Math]::Min(30, $minLen))
+            $thisCompare = $thisDesc.Substring(0, [Math]::Min($compareLen, $thisDesc.Length))
+            $mergedCompare = $mergedDesc.Substring(0, [Math]::Min($compareLen, $mergedDesc.Length))
+
+            if ($thisCompare -eq $mergedCompare -or $thisDesc -like "*$mergedCompare*" -or $mergedDesc -like "*$thisCompare*") {
+                $similar += @{
+                    Number = $merged.number
+                    Title = $merged.title
+                }
             }
         }
     }
