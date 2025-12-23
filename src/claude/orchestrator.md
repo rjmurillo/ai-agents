@@ -441,6 +441,106 @@ Before spawning multiple agents, verify the investment is justified:
 - [ ] Continue until ALL requirements satisfied
 ```
 
+### Phase 4: Validate Before Review (MANDATORY)
+
+**Trigger**: Implementation complete, before PR creation
+
+**Purpose**: Prevent premature PR opening by validating quality gates.
+
+#### Step 1: Route to QA for Pre-PR Validation
+
+When implementer completes work and requests PR creation:
+
+```python
+Task(
+    subagent_type="qa",
+    prompt="""Run pre-PR quality validation for [feature].
+
+Validate:
+1. CI environment tests pass
+2. Fail-safe patterns present
+3. Test-implementation alignment
+4. Code coverage meets threshold
+
+Return validation verdict: APPROVED or BLOCKED
+"""
+)
+```
+
+#### Step 2: Evaluate QA Verdict
+
+**If QA returns APPROVED**:
+
+- Proceed to PR creation
+- Include validation evidence in PR description
+
+**If QA returns BLOCKED**:
+
+- Route back to implementer with blocking issues
+- Do NOT create PR
+- Wait for fixes, then retry validation
+
+#### Step 3: Security Validation (Conditional)
+
+For changes affecting:
+
+- Authentication/authorization
+- Data protection
+- Input handling
+- External interfaces
+- File system operations
+- Environment variables
+
+Route to security agent for Post-Implementation Verification (PIV):
+
+```python
+Task(
+    subagent_type="security",
+    prompt="""Run Post-Implementation Verification for [feature].
+
+Verify:
+1. Security controls implemented correctly
+2. No new vulnerabilities introduced
+3. Secrets not hardcoded
+4. Input validation enforced
+
+Return PIV verdict: APPROVED, CONDITIONAL, or REJECTED
+"""
+)
+```
+
+#### Step 4: Aggregate Validation Results
+
+```markdown
+## Pre-PR Validation Summary
+
+- **QA Validation**: [APPROVED / BLOCKED]
+- **Security PIV**: [APPROVED / CONDITIONAL / REJECTED / N/A]
+- **Blocking Issues**: [N]
+
+### Verdict
+
+[APPROVED] Safe to create PR
+[BLOCKED] Fix issues before PR creation
+```
+
+#### PR Creation Authorization
+
+Only create PR if ALL validations pass:
+
+- QA: APPROVED
+- Security: APPROVED or CONDITIONAL or N/A (not security-relevant)
+
+If BLOCKED or REJECTED, return to implementer with specific issues.
+
+#### Failure Mode Prevention
+
+This phase prevents:
+
+- **Premature PR opening** (43% rework in PR #249)
+- **Preventable bugs in review** (7 P0-P1 bugs in PR #249)
+- **Multiple review cycles** (97 comments in PR #249)
+
 ## Agent Capability Matrix
 
 | Agent | Primary Function | Best For | Limitations |
