@@ -42,6 +42,7 @@ name: Copilot Context Synthesis
 on:
   issues:
     types: [labeled]
+
   # Scheduled sweep for eventual consistency - runs hourly
   schedule:
     - cron: "0 * * * *"
@@ -58,16 +59,13 @@ permissions:
   contents: read
   issues: write
 
-concurrency:
-  group: copilot-synthesis-${{ github.event.issue.number || inputs.issue_number || 'sweep' }}
-  cancel-in-progress: false
-
 jobs:
   # ===========================================================================
   # Job 1: Process Single Issue (label trigger or manual with issue number)
   # ===========================================================================
   synthesize-single:
     name: Synthesize Context and Assign Copilot
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
 
     # Run for:
@@ -82,135 +80,67 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Determine issue number
         id: issue
-        shell: pwsh
         run: |
-          $issueNumber = if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            "${{ inputs.issue_number }}"
-          } else {
-            "${{ github.event.issue.number }}"
-          }
-          "number=$issueNumber" | Add-Content -Path $env:GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "number=${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Prepare context for AI synthesis
-        id: prepare
+      - name: Synthesize context and assign Copilot
         shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
-          Write-Host "Preparing context for issue #${{ steps.issue.outputs.number }}" -ForegroundColor Cyan
-          & "./.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1" `
-            -IssueNumber "${{ steps.issue.outputs.number }}" `
-            -PrepareContextOnly
+          Write-Host "Starting context synthesis for issue #$env:ISSUE_NUMBER" -ForegroundColor Cyan
 
-      - name: AI-powered synthesis
-        id: synthesize
-        uses: ./.github/actions/ai-review
-        with:
-          agent: explainer
-          context-type: spec-file
-          context-path: ${{ steps.prepare.outputs.context_file }}
-          prompt-file: .github/prompts/copilot-synthesis.md
-          bot-pat: ${{ secrets.BOT_PAT }}
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          copilot-model: claude-sonnet-4
-          timeout-minutes: '3'
+          # Run the synthesis script
+          $result = & "./.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1" `
+            -IssueNumber $env:ISSUE_NUMBER
 
-      - name: Post synthesis comment
-        # Post if PASS verdict OR if we have findings (successful AI output) regardless of verdict
-        # This ensures synthesis comments are posted even if verdict parsing fails
-        if: steps.synthesize.outputs.verdict == 'PASS' || (steps.synthesize.outputs.findings != '' && steps.synthesize.outputs['copilot-exit-code'] == '0')
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SYNTHESIS_FINDINGS: ${{ steps.synthesize.outputs.findings }}
-        run: |
-          Import-Module "./.claude/skills/github/modules/GitHubHelpers.psm1" -Force
-
-          $marker = "${{ steps.prepare.outputs.marker }}"
-          $existingId = "${{ steps.prepare.outputs.existing_synthesis_id }}"
-          # Use environment variable to avoid PowerShell here-string interpolation issues
-          $synthesis = $env:SYNTHESIS_FINDINGS
-
-          # Prepare comment body with marker
-          $body = "$marker`n`n$synthesis"
-
-          $resolved = Resolve-RepoParams
-          $owner = $resolved.Owner
-          $repo = $resolved.Repo
-          $issueNumber = "${{ steps.issue.outputs.number }}"
-
-          if ($existingId) {
-            Write-Host "Updating existing synthesis comment (ID: $existingId)" -ForegroundColor Yellow
-            $result = Update-IssueComment -Owner $owner -Repo $repo -CommentId $existingId -Body $body
-            Write-Host "::notice::Updated synthesis comment: $($result.html_url)"
+          # Output result summary
+          if ($result.Success) {
+            Write-Host "::notice::$($result.Action) synthesis comment: $($result.CommentUrl)"
+            if ($result.Assigned) {
+              Write-Host "::notice::Assigned copilot-swe-agent to issue #$env:ISSUE_NUMBER"
+            }
           } else {
-            Write-Host "Creating new synthesis comment" -ForegroundColor Green
-            $result = New-IssueComment -Owner $owner -Repo $repo -IssueNumber $issueNumber -Body $body
-            Write-Host "::notice::Created synthesis comment: $($result.html_url)"
-          }
-
-      - name: Assign copilot-swe-agent
-        # Assign if PASS verdict OR if we have findings (successful AI output) regardless of verdict
-        if: success() && (steps.synthesize.outputs.verdict == 'PASS' || (steps.synthesize.outputs.findings != '' && steps.synthesize.outputs['copilot-exit-code'] == '0'))
-        shell: pwsh
-        env:
-          # COPILOT_GITHUB_TOKEN is a PAT from a Copilot-enabled user
-          # Required for copilot-swe-agent assignment per GitHub API requirements
-          # See: https://github.blog/changelog/2025-12-03-assign-issues-to-copilot-using-the-api/
-          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-        run: |
-          $issueNumber = "${{ steps.issue.outputs.number }}"
-          Write-Host "Assigning copilot-swe-agent to issue #$issueNumber..." -ForegroundColor Cyan
-          $result = gh issue edit $issueNumber --add-assignee "copilot-swe-agent" 2>&1
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "::notice::Assigned copilot-swe-agent to issue #$issueNumber"
-          } else {
-            Write-Host "::warning::Failed to assign copilot-swe-agent - $result"
+            Write-Host "::error::Failed to synthesize context for issue #$env:ISSUE_NUMBER"
+            exit 1
           }
 
       - name: Remove copilot-ready label
         if: success()
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $issueNumber = "${{ steps.issue.outputs.number }}"
-          Write-Host "Removing copilot-ready label..." -ForegroundColor Cyan
-          $result = gh issue edit $issueNumber --remove-label "copilot-ready" 2>&1
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "::notice::Removed copilot-ready label from issue #$issueNumber"
-          } else {
-            Write-Host "::warning::Failed to remove copilot-ready label from issue #$issueNumber. Error: $result"
-          }
+          echo "Removing copilot-ready label to indicate successful processing..."
+          gh issue edit ${{ steps.issue.outputs.number }} --remove-label "copilot-ready"
+          echo "::notice::Removed copilot-ready label from issue #${{ steps.issue.outputs.number }}"
 
       - name: Summary
         if: success()
-        shell: pwsh
         run: |
-          $issueNumber = "${{ steps.issue.outputs.number }}"
-          @"
-          ## Copilot Context Synthesis Complete :robot:
-
-          **Issue**: #$issueNumber
-
-          ### Actions Taken
-          - Synthesized context from trusted sources using AI
-          - Posted/updated synthesis comment with @copilot mention
-          - Assigned copilot-swe-agent to the issue
-          - Removed copilot-ready label (processing complete)
-
-          Copilot will now create a PR based on the synthesized context.
-          "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          echo "## Copilot Context Synthesis Complete :robot:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Issue**: #${{ steps.issue.outputs.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Actions Taken" >> $GITHUB_STEP_SUMMARY
+          echo "- Synthesized context from trusted sources" >> $GITHUB_STEP_SUMMARY
+          echo "- Posted/updated synthesis comment with @copilot mention" >> $GITHUB_STEP_SUMMARY
+          echo "- Assigned copilot-swe-agent to the issue" >> $GITHUB_STEP_SUMMARY
+          echo "- Removed copilot-ready label (processing complete)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Copilot will now create a PR based on the synthesized context." >> $GITHUB_STEP_SUMMARY
 
   # ===========================================================================
   # Job 2: Sweep for Missed Issues (scheduled or manual without issue number)
   # ===========================================================================
   sweep-missed:
     name: Sweep Missed Issues
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
 
     # Run for:
@@ -225,36 +155,25 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Find issues with copilot-ready label
         id: find-issues
-        shell: pwsh
         run: |
-          Write-Host "Searching for issues with copilot-ready label..." -ForegroundColor Cyan
-          $issuesJson = gh issue list --label "copilot-ready" --state open --json number 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "::error::Failed to list issues: $issuesJson"
-            exit 1
-          }
-          $issues = ($issuesJson | ConvertFrom-Json).number
-          if ($issues.Count -eq 0) {
-            Write-Host "No issues found with copilot-ready label"
-            "count=0" | Add-Content -Path $env:GITHUB_OUTPUT
-            "issues=" | Add-Content -Path $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "Found $($issues.Count) issue(s) to process: $($issues -join ', ')"
-            "count=$($issues.Count)" | Add-Content -Path $env:GITHUB_OUTPUT
-            "issues=$($issues -join ' ')" | Add-Content -Path $env:GITHUB_OUTPUT
-          }
+          echo "Searching for issues with copilot-ready label..."
+          ISSUES=$(gh issue list --label "copilot-ready" --state open --json number --jq '.[].number' | tr '\n' ' ')
+          echo "issues=$ISSUES" >> $GITHUB_OUTPUT
 
-      # NOTE: Both synthesize-single and sweep-missed use the same regex-based
-      # extraction (Get-CodeRabbitPlan / Get-AITriageInfo) in the PowerShell script.
-      # Only the synthesize-single job adds AI-powered synthesis via the ai-review
-      # action when triggered by the copilot-ready label; sweep runs extraction
-      # in batch mode (with -SkipAssignment) for eventual consistency.
-      - name: Synthesize context for each issue
-        id: synthesize
+          if [ -z "$ISSUES" ]; then
+            echo "No issues found with copilot-ready label"
+            echo "count=0" >> $GITHUB_OUTPUT
+          else
+            COUNT=$(echo $ISSUES | wc -w)
+            echo "Found $COUNT issue(s) to process: $ISSUES"
+            echo "count=$COUNT" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Process each issue
         if: steps.find-issues.outputs.count != '0'
         shell: pwsh
         env:
@@ -263,7 +182,6 @@ jobs:
           $issues = $env:ISSUES.Trim() -split '\s+'
           $results = @()
           $failed = @()
-          $synthesized = @()
 
           Write-Host "Processing $($issues.Count) issue(s)..." -ForegroundColor Cyan
 
@@ -273,14 +191,16 @@ jobs:
             Write-Host "`n=== Processing Issue #$issueNumber ===" -ForegroundColor Yellow
 
             try {
-              # Run the synthesis script (assignment handled separately with COPILOT_GITHUB_TOKEN)
+              # Run the synthesis script (same script as single-issue job - DRY!)
               $result = & "./.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1" `
-                -IssueNumber $issueNumber `
-                -SkipAssignment
+                -IssueNumber $issueNumber
 
               if ($result.Success) {
                 Write-Host "::notice::Issue #$issueNumber - $($result.Action) synthesis comment"
-                $synthesized += $issueNumber
+
+                # Remove the label to indicate successful processing
+                gh issue edit $issueNumber --remove-label "copilot-ready"
+                Write-Host "::notice::Issue #$issueNumber - Removed copilot-ready label"
 
                 $results += [PSCustomObject]@{
                   Issue = $issueNumber
@@ -298,72 +218,27 @@ jobs:
             }
           }
 
-          # Output synthesized issues for the assignment step
-          "synthesized=$($synthesized -join ' ')" | Add-Content -Path $env:GITHUB_OUTPUT
-
           # Summary
-          Write-Host "`n=== Synthesis Complete ===" -ForegroundColor Cyan
+          Write-Host "`n=== Sweep Complete ===" -ForegroundColor Cyan
           Write-Host "Processed: $($results.Count) issue(s)"
           if ($failed.Count -gt 0) {
             Write-Host "Failed: $($failed.Count) issue(s): $($failed -join ', ')" -ForegroundColor Red
-          }
-
-      - name: Assign copilot-swe-agent to synthesized issues
-        if: steps.find-issues.outputs.count != '0' && steps.synthesize.outputs.synthesized != ''
-        shell: pwsh
-        env:
-          # COPILOT_GITHUB_TOKEN is a PAT from a Copilot-enabled user
-          GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-        run: |
-          $issues = "${{ steps.synthesize.outputs.synthesized }}".Trim() -split '\s+'
-          foreach ($issue in $issues) {
-            if ([string]::IsNullOrWhiteSpace($issue)) { continue }
-            Write-Host "Assigning copilot-swe-agent to issue #$issue..." -ForegroundColor Cyan
-            $result = gh issue edit $issue --add-assignee "copilot-swe-agent" 2>&1
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "::notice::Assigned copilot-swe-agent to issue #$issue"
-            } else {
-              Write-Host "::warning::Failed to assign copilot-swe-agent to issue #$issue - $result"
-            }
-          }
-
-      - name: Remove copilot-ready labels
-        if: steps.find-issues.outputs.count != '0' && steps.synthesize.outputs.synthesized != ''
-        shell: pwsh
-        run: |
-          $issues = "${{ steps.synthesize.outputs.synthesized }}".Trim() -split '\s+'
-          foreach ($issue in $issues) {
-            if ([string]::IsNullOrWhiteSpace($issue)) { continue }
-            Write-Host "Removing copilot-ready label from issue #$issue..." -ForegroundColor Cyan
-            gh issue edit $issue --remove-label "copilot-ready"
-            Write-Host "::notice::Removed copilot-ready label from issue #$issue"
+            # Don't fail the job - we want to process as many as possible
           }
 
       - name: Summary
         if: always()
-        shell: pwsh
         run: |
-          $count = "${{ steps.find-issues.outputs.count }}"
-          $issues = "${{ steps.find-issues.outputs.issues }}"
-          if ($count -eq "0") {
-            @"
-          ## Copilot Context Synthesis Sweep :broom:
-
-          **Trigger**: ${{ github.event_name }}
-          **Issues Found**: 0
-
-          No issues with ``copilot-ready`` label found. All caught up! :white_check_mark:
-          "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY
-          } else {
-            @"
-          ## Copilot Context Synthesis Sweep :broom:
-
-          **Trigger**: ${{ github.event_name }}
-          **Issues Found**: $count
-
-          ### Issues Processed
-          Issues: $issues
-
-          Check the job logs for individual issue processing results.
-          "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY
-          }
+          echo "## Copilot Context Synthesis Sweep :broom:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Issues Found**: ${{ steps.find-issues.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.find-issues.outputs.count }}" == "0" ]; then
+            echo "No issues with \`copilot-ready\` label found. All caught up! :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### Issues Processed" >> $GITHUB_STEP_SUMMARY
+            echo "Issues: ${{ steps.find-issues.outputs.issues }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Check the job logs for individual issue processing results." >> $GITHUB_STEP_SUMMARY
+          fi

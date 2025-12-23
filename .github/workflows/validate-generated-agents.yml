@@ -38,7 +38,9 @@ concurrency:
 jobs:
   validate:
     name: Validate Generated Files
-    runs-on: windows-latest
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # PowerShell Core (pwsh) is cross-platform and works on ARM Linux
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
 
