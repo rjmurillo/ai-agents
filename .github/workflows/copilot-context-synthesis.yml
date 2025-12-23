@@ -42,7 +42,6 @@ name: Copilot Context Synthesis
 on:
   issues:
     types: [labeled]
-
   # Scheduled sweep for eventual consistency - runs hourly
   schedule:
     - cron: "0 * * * *"
@@ -59,13 +58,17 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: copilot-synthesis-${{ github.event.issue.number || inputs.issue_number || 'sweep' }}
+  cancel-in-progress: false
+
 jobs:
   # ===========================================================================
   # Job 1: Process Single Issue (label trigger or manual with issue number)
   # ===========================================================================
   synthesize-single:
     name: Synthesize Context and Assign Copilot
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     # Run for:
     # - Label trigger with copilot-ready label
@@ -205,7 +208,7 @@ jobs:
   # ===========================================================================
   sweep-missed:
     name: Sweep Missed Issues
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     # Run for:
     # - Scheduled trigger (cron)
