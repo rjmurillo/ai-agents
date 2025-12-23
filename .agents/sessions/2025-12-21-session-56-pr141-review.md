@@ -7,6 +7,8 @@
 
 ## Protocol Compliance
 
+**NOTE**: This session was executed under SESSION-PROTOCOL v1.3 (before PR #242). The HANDOFF.md update requirement below is grandfathered and no longer applies to new sessions.
+
 - [x] Phase 1: Serena initialization completed
 - [x] Phase 2: HANDOFF.md read (session 55 context loaded)
 - [x] Phase 3: Session log created
