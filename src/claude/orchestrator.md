@@ -542,11 +542,11 @@ If BLOCKED or REJECTED, return to implementer with specific issues.
 
 #### Failure Mode Prevention
 
-This phase prevents issues identified in retrospective analysis (see GitHub PR rjmurillo/ai-agents#249):
+This phase prevents common issues from skipping pre-PR validation:
 
-- **Premature PR opening** (43% rework)
-- **Preventable bugs in review** (7 P0-P1 bugs)
-- **Multiple review cycles** (97 comments)
+- **Premature PR opening** leading to significant rework
+- **Preventable bugs discovered in review** instead of pre-review
+- **Multiple review cycles** from incomplete validation
 
 ## Agent Capability Matrix
 
