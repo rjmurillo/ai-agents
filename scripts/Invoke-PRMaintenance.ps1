@@ -384,15 +384,20 @@ function Get-OpenPRs {
         [int]$Limit
     )
 
-    $jq = '.[] | {number, title, state, head: .headRefName, base: .baseRefName, mergeable: .mergeable, reviewDecision: .reviewDecision, author: .author.login}'
-
     $result = gh pr list --repo "$Owner/$Repo" --state open --limit $Limit --json number,title,state,headRefName,baseRefName,mergeable,reviewDecision,author 2>&1
 
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to list PRs: $result"
     }
 
-    return $result | ConvertFrom-Json
+    # Skill-PowerShell-002: Return @() not $null for empty results
+    # Note: Use Write-Output -NoEnumerate to prevent array unwrapping
+    $parsed = $result | ConvertFrom-Json
+    if ($null -eq $parsed) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+    Write-Output -NoEnumerate @($parsed)
 }
 
 function Get-PRComments {
@@ -412,7 +417,13 @@ function Get-PRComments {
     $endpoint = "repos/$Owner/$Repo/pulls/$PRNumber/comments"
     $result = Invoke-GhApi -Endpoint $endpoint
 
-    return $result | ConvertFrom-Json
+    # Skill-PowerShell-002: Return @() not $null for empty results
+    $parsed = $result | ConvertFrom-Json
+    if ($null -eq $parsed) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+    Write-Output -NoEnumerate @($parsed)
 }
 
 function Get-UnacknowledgedComments {
@@ -423,7 +434,7 @@ function Get-UnacknowledgedComments {
         Filters PR review comments to find bot-generated comments without acknowledgment.
         Works in conjunction with Get-PRComments and Add-CommentReaction to form
         the complete acknowledgment workflow.
-        
+
         NOTE: Bot author list should ideally reference the agent configuration files
         (.claude/commands/pr-review.md, src/claude/pr-comment-responder.md) to avoid
         duplication and drift. Current implementation uses environment-configured list.
@@ -436,12 +447,17 @@ function Get-UnacknowledgedComments {
 
     $comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber
 
-    $unacked = $comments | Where-Object {
+    # Skill-PowerShell-002: Return @() not $null for empty results
+    # Filter comments and ensure array return
+    $unacked = @($comments | Where-Object {
         $_.user.type -eq 'Bot' -and
         $_.reactions.eyes -eq 0
+    })
+    if ($null -eq $unacked -or $unacked.Count -eq 0) {
+        Write-Output -NoEnumerate @()
+        return
     }
-
-    return $unacked
+    Write-Output -NoEnumerate $unacked
 }
 
 function Add-CommentReaction {
@@ -669,9 +685,17 @@ function Get-SimilarPRs {
     $output = gh pr list --repo "$Owner/$Repo" --state merged --limit 20 --json number,title 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Log "Failed to query merged PRs: $output" -Level WARN
-        return @()
+        Write-Output -NoEnumerate @()
+        return
     }
-    $mergedPRs = $output | ConvertFrom-Json
+
+    # Skill-PowerShell-002: Ensure $mergedPRs is always array, not $null
+    $parsed = $output | ConvertFrom-Json
+    if ($null -eq $parsed) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+    $mergedPRs = @($parsed)
 
     $similar = @()
     foreach ($merged in $mergedPRs) {
@@ -689,7 +713,12 @@ function Get-SimilarPRs {
         }
     }
 
-    return $similar
+    # Skill-PowerShell-002: Ensure return is always array, not $null
+    if ($similar.Count -eq 0) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+    Write-Output -NoEnumerate $similar
 }
 
 #endregion
