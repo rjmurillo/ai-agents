@@ -1,7 +1,7 @@
 # Feature Review Workflow Changes
 
 **Date**: 2025-12-19
-**ADR**: ADR-014-feature-request-review-step.md
+**ADR**: ADR-020-feature-request-review-step.md
 **Status**: Draft - Pending Review
 
 ## Summary

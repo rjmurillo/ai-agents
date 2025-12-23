@@ -6,7 +6,7 @@ consulted: [analyst, roadmap]
 informed: [implementer, devops]
 ---
 
-# ADR-014: Feature Request Review Step in Issue Triage Workflow
+# ADR-020: Feature Request Review Step in Issue Triage Workflow
 
 ## Context and Problem Statement
 
