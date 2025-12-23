@@ -186,13 +186,22 @@
 
 > **Note**: `pr-comment-responder-skills` and `pr-review-noise-skills` were consolidated into `skills-pr-review` (2025-12-23)
 
+### Tiered Domain Indices (PILOT)
+
+Token-efficient hierarchical lookup: Top Index → Domain Index → Atomic Skill
+
+| Domain Index | Atomic Skills | Activation Words |
+|--------------|---------------|------------------|
+| `skills-copilot-index` | 3 skills | ~12 words each |
+
+**Flow**: `memory-index` → `skills-copilot-index` → `copilot-{specific-skill}`
+
 ### research-* (Research Findings)
 
 | Memory | Summary |
 |--------|---------|
 | `research-agent-templating-*` | Agent templating approaches |
 | `coderabbit-*` | CodeRabbit configuration research |
-| `copilot-*` | Copilot patterns and decisions |
 
 ---
 
@@ -203,7 +212,6 @@ Memories that may need verification:
 | Memory | Last Updated | Status |
 |--------|--------------|--------|
 | `user-preference-no-auto-headers` | 2025-12-23 | ✅ Consolidated |
-| `copilot-cli-deprioritization-decision` | 2025-12-15 | Check if still valid |
 
 ---
 
@@ -223,8 +231,11 @@ Memories that may need verification:
 | 2025-12-23 | Git Hooks | 4 | 1 | `skills-git-hooks` (6 parts) |
 | 2025-12-23 | CodeRabbit | 3 | 1 | `skills-coderabbit` (12 skills) |
 | 2025-12-23 | Copilot | 3 | 1 | `skills-copilot` (8 skills) |
+| 2025-12-23 | Copilot (TIERED) | 1 | 4 | `skills-copilot-index` + 3 atomic (PILOT) |
 
-**Total memories removed**: 29 (115 → ~86)
+**Total memories**: ~89 (tiered adds 3, removes 1)
+
+**Tiered Index Pilot**: Copilot domain restructured to test token efficiency
 
 ---
 
