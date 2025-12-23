@@ -12,3 +12,17 @@ reviews:
   tools:
     markdownlint:
       enabled: false
+  path_instructions:
+    - path: "src/claude/**/*.md"
+      instructions: |
+        ## Agent Prompt Review Criteria
+        ### P0 (Must Fix)
+        - Missing required Front Matter
+        - Model assignment violating ADR-002
+        - Absolute paths in documentation
+        ### P1 (Should Fix)
+        - Missing Core Identity section
+        - Drift from VS Code/Copilot CLI versions
+        Prefix all comments with: [P0] or [P1]
+
+
