@@ -1,4 +1,4 @@
-# Skill Memory Decomposition Analysis
+# Skill-Memory-Size-001: Decomposition Thresholds
 
 **Date**: 2025-12-22
 **Issue**: #239
@@ -78,8 +78,8 @@ When a memory exceeds these thresholds, decompose into focused files.
 
 ## Evidence
 
-- Issue #239 created to track this work
-- PR #235 skillbook update added `Skill-GH-API-002` to already-large file
+- Issue [#239](https://github.com/rjmurillo/ai-agents/issues/239) created to track this work
+- PR [#235](https://github.com/rjmurillo/ai-agents/pull/235) skillbook update added `Skill-GH-API-002` to already-large file
 - Token cost measured at ~9,500 for full memory read
 
 ## Next Actions
