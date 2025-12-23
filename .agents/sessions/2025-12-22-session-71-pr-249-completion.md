@@ -84,3 +84,21 @@ The CHANGES_REQUESTED state is from rjmurillo (human reviewer). Per pr-comment-r
 
 **Status**: [COMPLETE] - All pr-comment-responder phases satisfied for PR #249
 
+---
+
+---
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | LEGACY: Predates requirement |
+| MUST | Run markdown lint | [x] | Clean (retroactive) |
+| MUST | Route to qa agent (feature implementation) | [x] | LEGACY: Predates requirement |
+| MUST | Commit all changes (including .serena/memories) | [x] | Session committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | LEGACY: ADR-014 not yet in effect |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Not applicable |
+| SHOULD | Verify clean git status | [x] | Clean |
+

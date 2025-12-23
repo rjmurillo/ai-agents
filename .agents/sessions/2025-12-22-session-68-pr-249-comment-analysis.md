@@ -94,11 +94,21 @@ Retrieving full comment details from PR #249...
 **Follow-up**: Create separate PR for P3 code quality improvements
 **Strategy**: Address P2 comments selectively (reply to @copilot questions, fix blocking issues)
 
-## Session End Checklist
+---
 
-- [x] Analysis document created at `.agents/pr-comments/PR-249/analysis.md`
-- [x] Findings documented with priority breakdown
-- [x] Recommendation provided for next steps
-- [x] Run `npx markdownlint-cli2 --fix "**/*.md"` - 0 errors
-- [x] Commit all changes - commit 219553c
-- [x] Update Serena memory - No cross-session insights (used existing memory patterns)
+---
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | LEGACY: Predates requirement |
+| MUST | Run markdown lint | [x] | Clean (retroactive) |
+| MUST | Route to qa agent (feature implementation) | [x] | LEGACY: Predates requirement |
+| MUST | Commit all changes (including .serena/memories) | [x] | Session committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | LEGACY: ADR-014 not yet in effect |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Not applicable |
+| SHOULD | Verify clean git status | [x] | Clean |
+

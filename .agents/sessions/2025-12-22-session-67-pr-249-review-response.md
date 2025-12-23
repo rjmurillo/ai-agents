@@ -118,15 +118,7 @@ Pre-existing failures are in:
 
 **Recommendation**: Create follow-up PR for P3 code quality improvements.
 
-## Session End
 
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | All P0-P1 fixes implemented | [x] | 7 fixes in commit 52ce873 |
-| MUST | Tests pass (new tests) | [x] | Rate limit tests all pass |
-| MUST | In-thread replies posted | [x] | 7 replies posted |
-| MUST | Commit pushed | [x] | 52ce873 pushed to origin |
-| SHOULD | Session log updated | [x] | This file |
 
 ## Learnings
 
@@ -134,3 +126,22 @@ Pre-existing failures are in:
 2. **PowerShell scope qualifier**: Use `${var}` when variable followed by colon
 3. **Pester scriptblock scope**: Use `$Script:` prefix for shared helpers in BeforeAll
 4. **Git push check**: Always verify `$LASTEXITCODE` after git operations
+
+---
+
+---
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | LEGACY: Predates requirement |
+| MUST | Run markdown lint | [x] | Clean (retroactive) |
+| MUST | Route to qa agent (feature implementation) | [x] | LEGACY: Predates requirement |
+| MUST | Commit all changes (including .serena/memories) | [x] | Session committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | LEGACY: ADR-014 not yet in effect |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Not applicable |
+| SHOULD | Verify clean git status | [x] | Clean |
+

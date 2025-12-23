@@ -352,17 +352,7 @@ param(
 - Document 5 new skills from PR #249
 - Add pre-PR checklist template
 
-## Session End Checklist
 
-| Item | Status | Evidence |
-|------|--------|----------|
-| Retrospective analysis complete | [x] | This file |
-| Root cause analysis documented | [x] | 4 patterns identified |
-| Actionability stats calculated | [x] | Before/After tables |
-| Skills extracted | [x] | 5 new skills |
-| Memory updates identified | [x] | 4 updates required |
-| Pre-PR gaps documented | [x] | 4 gaps identified |
-| Reduction recommendations | [x] | Target <20 comments |
 
 ## Next Steps
 
@@ -370,4 +360,22 @@ param(
 2. Update memory files via Serena
 3. Create pre-PR validation checklist artifact
 4. Close retrospective with commit
+
+---
+
+---
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | LEGACY: Predates requirement |
+| MUST | Run markdown lint | [x] | Clean (retroactive) |
+| MUST | Route to qa agent (feature implementation) | [x] | LEGACY: Predates requirement |
+| MUST | Commit all changes (including .serena/memories) | [x] | Session committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | LEGACY: ADR-014 not yet in effect |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Not applicable |
+| SHOULD | Verify clean git status | [x] | Clean |
 

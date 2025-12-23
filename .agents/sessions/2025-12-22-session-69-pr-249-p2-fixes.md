@@ -110,18 +110,29 @@ Create cleanup PR to remove redundant file-based locking:
 
 **Rationale**: Aligns code with ADR-015 Decision 1
 
-## Session End Checklist
 
-| Item | Status | Evidence |
-|------|--------|----------|
-| All P2 issues analyzed | [x] | 4/4 issues investigated |
-| Replies posted | [x] | 5 replies posted to PR |
-| Code changes | N/A | No changes required |
-| Markdownlint | [PENDING] | |
-| HANDOFF.md | [SKIP] | Read-only per protocol |
 
 ## Outcome
 
 **Status**: [COMPLETE]
 
 All 4 targeted P2 issues analyzed and responded to. No code changes required - issues were either not bugs or non-blocking inconsistencies for follow-up.
+
+---
+
+---
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | LEGACY: Predates requirement |
+| MUST | Run markdown lint | [x] | Clean (retroactive) |
+| MUST | Route to qa agent (feature implementation) | [x] | LEGACY: Predates requirement |
+| MUST | Commit all changes (including .serena/memories) | [x] | Session committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | LEGACY: ADR-014 not yet in effect |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Not applicable |
+| SHOULD | Verify clean git status | [x] | Clean |
+

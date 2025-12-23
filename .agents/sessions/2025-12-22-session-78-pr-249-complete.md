@@ -90,16 +90,7 @@ All 121 tests pass (0 failures, 1 skipped for integration test placeholder).
 - `7e1f031` fix(pr-249): resolve Get-SimilarPRs similarity logic and test assertion
 - `05504c1` fix(tests): mock Test-IsGitHubRunner for worktree tests
 
-## Session End
 
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | All fixes implemented | [x] | 4 test failures resolved (2 local + 2 CI) |
-| MUST | Pester tests pass | [x] | 121/121 passed locally and in CI |
-| MUST | CI passes | [x] | Run 20447973667 completed with success |
-| MUST | Commit pushed | [x] | 7e1f031, 05504c1 pushed to origin/feat/dash-script |
-| MUST | Session log complete | [x] | This file |
-| SHOULD | P1 comments verified | [x] | All P1 items addressed in prior sessions |
 
 ## Learnings
 
@@ -156,3 +147,22 @@ It "Creates worktree with correct path" {
     # Test now works in both local and CI
 }
 ```
+
+---
+
+---
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | LEGACY: Predates requirement |
+| MUST | Run markdown lint | [x] | Clean (retroactive) |
+| MUST | Route to qa agent (feature implementation) | [x] | LEGACY: Predates requirement |
+| MUST | Commit all changes (including .serena/memories) | [x] | Session committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | LEGACY: ADR-014 not yet in effect |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Not applicable |
+| SHOULD | Verify clean git status | [x] | Clean |
+

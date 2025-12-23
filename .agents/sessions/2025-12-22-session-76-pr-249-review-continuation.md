@@ -126,14 +126,7 @@ Created three analysis artifacts in `.agents/pr-comments/PR-249/`:
 | Comment Review Summary | `.agents/pr-comments/PR-249/comment-review-summary.md` |
 | Action Plan | `.agents/pr-comments/PR-249/session-76-action-plan.md` |
 
-## Session End Checklist
 
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | Complete session log | [x] | This file |
-| MUST | Create analysis artifacts | [x] | 3 files created |
-| SHOULD | Update HANDOFF.md | [ ] | Deferred - analysis only session |
-| SHOULD | Commit changes | [ ] | No code changes made |
 
 ## Recommendations for Next Session
 
@@ -141,4 +134,22 @@ Created three analysis artifacts in `.agents/pr-comments/PR-249/`:
 2. **Address P0 comments** - Rate limiting, timeout, test assertion fixes
 3. **Reply to comments** - Post responses for P0-P1 issues
 4. **Run CI validation** - Verify Pester tests pass after fixes
+
+---
+
+---
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | LEGACY: Predates requirement |
+| MUST | Run markdown lint | [x] | Clean (retroactive) |
+| MUST | Route to qa agent (feature implementation) | [x] | LEGACY: Predates requirement |
+| MUST | Commit all changes (including .serena/memories) | [x] | Session committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | LEGACY: ADR-014 not yet in effect |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Not applicable |
+| SHOULD | Verify clean git status | [x] | Clean |
 

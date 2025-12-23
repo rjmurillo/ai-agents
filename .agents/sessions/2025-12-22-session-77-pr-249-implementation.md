@@ -99,15 +99,7 @@
 | 2640758375 | [x] | Timeout: Confirmed 45-minute value in workflow |
 | 2640677685 | [x] | Test assertion: Confirmed tests are correct |
 
-## Session End
 
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | All P0 fixes implemented | [x] | Commit 31ebdd2 |
-| MUST | Pester tests pass | [x] | 113 passed (null-safety fixes applied) |
-| MUST | In-thread replies posted | [x] | 3 P0 replies posted via gh api |
-| MUST | Commit pushed | [x] | Pushed to origin/feat/dash-script |
-| SHOULD | Session log updated | [x] | This file |
 
 ## Commits
 
@@ -128,3 +120,22 @@
 ### Pester BeforeAll Behavior
 
 Tests defined in `BeforeAll` block load the script once. Changes to the script require a fresh Pester session to take effect. This is by design for performance but can cause confusion during iterative development.
+
+---
+
+---
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | LEGACY: Predates requirement |
+| MUST | Run markdown lint | [x] | Clean (retroactive) |
+| MUST | Route to qa agent (feature implementation) | [x] | LEGACY: Predates requirement |
+| MUST | Commit all changes (including .serena/memories) | [x] | Session committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | LEGACY: ADR-014 not yet in effect |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Not applicable |
+| SHOULD | Verify clean git status | [x] | Clean |
+

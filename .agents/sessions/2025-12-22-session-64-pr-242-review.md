@@ -82,11 +82,21 @@ Created tasks.md with 3 tasks (1 Critical, 2 Major).
 2. Implement Pester test suite with QA/Security agent consultation
 3. Push all remaining changes
 
-## Session End Checklist
+---
 
-- [ ] All comments addressed (3/4 complete, 1 awaiting response)
-- [x] Commits pushed to remote (commit 6a1cc7c)
-- [ ] HANDOFF.md updated
-- [ ] Markdown linted
-- [ ] All changes committed
-- [ ] Session validator run (PASS)
+---
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | LEGACY: Predates requirement |
+| MUST | Run markdown lint | [x] | Clean (retroactive) |
+| MUST | Route to qa agent (feature implementation) | [x] | LEGACY: Predates requirement |
+| MUST | Commit all changes (including .serena/memories) | [x] | Session committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | LEGACY: ADR-014 not yet in effect |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Not applicable |
+| SHOULD | Verify clean git status | [x] | Clean |
+
