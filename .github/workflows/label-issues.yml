@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: issue-labeler-${{ github.event.issue.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false  # Issue workflows: avoid race conditions per ADR-016
 
 jobs:
   label:

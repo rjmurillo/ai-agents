@@ -9,8 +9,8 @@
 
 Successfully implemented comprehensive cost optimization measures for GitHub Actions to address projected $500+/month costs. Implementation includes ARM runner migration, workflow execution optimization, and artifact storage reduction.
 
-**Projected Impact**: 60% cost reduction ($2,350/year savings)
-**Target Monthly Cost**: $90-110 (within <$100 budget)
+**Projected Impact**: ~50% cost reduction ($2,350/year savings from $4,800/year baseline)
+**Target Monthly Cost**: ~$200 (reduced from projected $400+/month baseline)
 
 ## Problem Statement
 
@@ -104,7 +104,6 @@ runs-on: ubuntu-24.04-arm
 - ai-session-protocol.yml: `session-protocol-${{ pr }}`
 - copilot-setup-steps.yml: `copilot-setup-${{ github.ref }}`
 - drift-detection.yml: `drift-detection-${{ github.ref }}`
-- label-issues.yml: `issue-labeler-${{ issue }}`
 - label-pr.yml: `pr-labeler-${{ pr }}`
 - pester-tests.yml: `pester-tests-${{ github.ref }}`
 - validate-generated-agents.yml: `validate-agents-${{ github.ref }}`
@@ -114,6 +113,7 @@ runs-on: ubuntu-24.04-arm
 **cancel-in-progress: false** (issue workflows - avoid race conditions):
 - ai-issue-triage.yml: `issue-triage-${{ issue }}`
 - copilot-context-synthesis.yml: `copilot-synthesis-${{ issue }}`
+- label-issues.yml: `issue-labeler-${{ issue }}`
 
 ### 3. Artifact Storage Minimization (ADR-015)
 
@@ -176,9 +176,14 @@ retention-days: 7  # was: 30
 | ARM runners | $1,800 | 24 jobs migrated |
 | Path filters + concurrency | $400 | 14 workflows optimized |
 | Artifact retention | $150 | 2 workflows reduced |
-| **Total** | **$2,350** | **~60% reduction** |
+| **Total** | **$2,350** | **~50% reduction** |
 
-**Monthly Cost Projection**: $90-110 (within <$100 target)
+**Note on Savings Calculation**: The 50% reduction is calculated against a projected $4,800/year baseline ($400/month) based on current growth trajectory. Actual savings percentage depends on baseline usage:
+- If baseline is $400/month ($4,800/year): ~50% reduction
+- If baseline is $500/month ($6,000/year): ~39% reduction
+- If baseline is $243/month ($2,922/year, current): ~80% reduction
+
+**Monthly Cost Projection**: ~$200 (down from projected $400+)
 
 ## Validation Plan
 

@@ -22,9 +22,6 @@ name: AI Issue Triage
 on:
   issues:
     types: [opened, reopened, edited]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
   # Scheduled sweep for eventual consistency - runs hourly
   schedule:
     - cron: "30 * * * *"
