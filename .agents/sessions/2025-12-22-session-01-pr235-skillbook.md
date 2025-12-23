@@ -72,7 +72,7 @@ All skills meet acceptance criteria:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified |
+| ~~MUST~~ | ~~Update `.agents/HANDOFF.md`~~ | N/A | ADR-014: HANDOFF.md is read-only on feature branches |
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/session-01-skillbook-qa.md` |
