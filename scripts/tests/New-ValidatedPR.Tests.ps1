@@ -100,5 +100,14 @@ Describe "New-ValidatedPR" {
       $content | Should -Match "SkipValidation.*AuditReason"
       $content | Should -Match "Write-AuditLog"
     }
+
+    It "Should use cross-platform username in audit log" {
+      # Verify fix for cursor[bot] issue #2640305975
+      $content = Get-Content $script:skillPath -Raw
+      # Should check both env:USERNAME (Windows) and env:USER (Linux/macOS)
+      $content | Should -Match '\$env:USERNAME.*\$env:USER'
+      # Should have fallback to whoami
+      $content | Should -Match 'whoami'
+    }
   }
 }

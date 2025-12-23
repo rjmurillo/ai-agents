@@ -158,11 +158,18 @@ function Write-AuditLog {
     New-Item -ItemType Directory -Path $auditDir -Force | Out-Null
   }
   
+  # Cross-platform username detection (Windows: USERNAME, Linux/macOS: USER)
+  $username = if ($env:USERNAME) { $env:USERNAME } else { $env:USER }
+  if (-not $username) {
+    # Fallback to whoami if env vars not set
+    $username = (whoami 2>$null) -replace '.*[/\\]', ''
+  }
+
   $auditEntry = @"
 Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
 Branch: $Head → $Base
 Title: $Title
-User: $env:USERNAME
+User: $username
 Validation: SKIPPED
 Reason: $Reason
 "@
