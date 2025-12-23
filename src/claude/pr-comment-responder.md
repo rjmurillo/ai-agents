@@ -232,9 +232,72 @@ Task(subagent_type="qa", prompt="Verify fix and assess regression test needs..."
 
 ## Workflow Protocol
 
-### Phase 0: Session State Check
+### Phase 0: Memory Initialization (BLOCKING)
 
-Before starting work, check if this is a continuation of a previous session:
+**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
+
+#### Step 0.1: Load Core Skills Memory
+
+```python
+# ALWAYS load pr-comment-responder-skills first
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+```
+
+This memory contains:
+
+- Reviewer signal quality statistics (actionability rates)
+- Triage heuristics and learned patterns
+- Per-PR breakdown of comment outcomes
+- Anti-patterns to avoid
+
+#### Step 0.2: Load Reviewer-Specific Memories (Deferred Until After Step 1.2)
+
+**Note**: This step is executed AFTER Step 1.2 (reviewer enumeration) completes. It is documented in Phase 0 for logical grouping but executes later in the workflow.
+
+After enumerating reviewers in Step 1.2, load memories for each unique reviewer:
+
+```python
+# For each reviewer in the list, check for dedicated memory
+reviewers = ["cursor[bot]", "copilot-pull-request-reviewer", "coderabbitai[bot]", ...]
+
+for reviewer in reviewers:
+    # Check against known reviewer memories (see table below)
+    # Note: Actual memory names follow project conventions, not algorithmic transformation
+    # The mapping is maintained manually in the table below
+
+    # Example lookup logic:
+    if reviewer == "cursor[bot]":
+        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
+    elif reviewer == "copilot-pull-request-reviewer":
+        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
+    # Or use a mapping dict for cleaner code
+```
+
+**Known Reviewer Memories**:
+
+| Reviewer | Memory Name | Content |
+|----------|-------------|---------|
+| cursor[bot] | `cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
+| Copilot | `copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
+| coderabbitai[bot] | - | (Use pr-comment-responder-skills) |
+
+#### Step 0.3: Verify Memory Loaded
+
+Before proceeding, confirm you have:
+
+- [ ] pr-comment-responder-skills loaded
+- [ ] Reviewer signal quality table in context
+- [ ] Any reviewer-specific patterns loaded
+
+**If memory load fails**: Proceed with default heuristics but flag in session log.
+
+---
+
+### Phase 1: Context Gathering
+
+#### Step 1.0: Session State Check
+
+Before fetching new data, check if this is a continuation of a previous session:
 
 ```bash
 SESSION_DIR=".agents/pr-comments/PR-[number]"
@@ -250,7 +313,7 @@ if [ -d "$SESSION_DIR" ]; then
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
-    # Proceed to Phase 1 to fetch new comments only
+    # Proceed to Step 1.1 to fetch new comments only
   else
     echo "[NO NEW COMMENTS] Proceeding to Phase 8 for verification"
     # Skip to Phase 8 to verify completion criteria
@@ -269,8 +332,6 @@ fi
 | `tasks.md` | Prioritized task list |
 | `session-summary.md` | Session outcomes and statistics |
 | `[comment_id]-plan.md` | Per-comment implementation plans |
-
-### Phase 1: Context Gathering
 
 **CRITICAL**: Enumerate ALL reviewers and count ALL comments before proceeding. Missing comments wastes tokens on repeated prompts. Missed comments lead to incomplete PR handling and waste tokens on repeated prompts. Replying to incorrect comment threads creates noise and causes confusion.
 
@@ -898,6 +959,83 @@ echo "[ ] Pushed: $(git status -sb | head -1)"
 ```
 
 **If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.
+
+---
+
+### Phase 9: Memory Storage (BLOCKING)
+
+**MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
+
+#### Step 9.1: Calculate Session Statistics
+
+For each reviewer who commented on this PR:
+
+```python
+session_stats = {
+    "pr_number": PR_NUMBER,
+    "date": "YYYY-MM-DD",
+    "reviewers": {
+        "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
+        "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
+        # ... other reviewers
+    }
+}
+```
+
+#### Step 9.2: Update pr-comment-responder-skills Memory
+
+```python
+# Read current memory
+current = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+
+# Update statistics sections:
+# 1. Per-Reviewer Performance (Cumulative) table
+# 2. Per-PR Breakdown section (add new PR entry)
+# 3. Metrics section (update totals)
+
+# Use edit_memory to update specific sections
+mcp__serena__edit_memory(
+    memory_file_name="pr-comment-responder-skills",
+    needle="### Per-Reviewer Performance \\(Cumulative\\)",
+    repl="[Updated section with new PR data]",
+    mode="regex"
+)
+
+# Add new Per-PR Breakdown entry
+mcp__serena__edit_memory(
+    memory_file_name="pr-comment-responder-skills",
+    needle="### Per-PR Breakdown",
+    repl="### Per-PR Breakdown\n\n#### PR #[NEW] (YYYY-MM-DD)\n\n[New PR stats table]\n\n",
+    mode="literal"
+)
+```
+
+#### Step 9.3: Update Required Fields
+
+The following MUST be updated in `pr-comment-responder-skills`:
+
+| Section | What to Update |
+|---------|----------------|
+| Per-Reviewer Performance | Add PR to PRs list, update totals |
+| Per-PR Breakdown | Add new PR section with per-reviewer stats |
+| Metrics | Update cumulative totals |
+
+#### Step 9.4: Verify Memory Updated
+
+Confirm that the `pr-comment-responder-skills` memory reflects the new PR:
+
+- [ ] In **Per-Reviewer Performance (Cumulative)**, the PR appears in each relevant reviewer's PR list and their totals are updated
+- [ ] In **Per-PR Breakdown**, a new section for this PR exists with per-reviewer stats populated
+- [ ] In **Metrics**, cumulative totals (PR counts, comment counts, resolution stats) include this PR
+
+**Verification Command**:
+
+```bash
+# Read updated memory and verify new PR data appears
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+```
+
+---
 
 ## Memory Protocol
 
