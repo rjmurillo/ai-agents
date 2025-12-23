@@ -53,6 +53,66 @@ Copilot cross-references inlined content against source documentation files and 
 
 ---
 
+## PR #249 Analysis (2025-12-22)
+
+### Comment Breakdown
+
+| Comment ID | Classification | Actionable? | Notes |
+|------------|----------------|-------------|-------|
+| 2640682358 | Property naming | NO | Intentional jq aliasing |
+| 2640682374 | Escape char typo | NO | Valid PowerShell escape |
+| 2640682389 | Permission read | NO | Write already present |
+| 2641167380 | Fail-open warning | PARTIAL | Valid concern, not blocking |
+| 2641167401 | Permission write | NO | Contradicts previous comment |
+| 2641167417 | File lock vs ADR | YES | Valid - redundant code |
+| 2641373384 | Exit code checks | YES | Valid duplicate of cursor |
+| 2641373392 | Merge direction | YES | Valid - confusing comment |
+| 2641373403 | LASTEXITCODE | PARTIAL | Valid - covered by P1-4 |
+| 2641451839 | Test escape | NO | Misunderstanding |
+| 2641451871 | Int64 range | NO | Intentional edge case test |
+| 2641451887 | Permission scope | NO | Misunderstanding workflow |
+| 2641451904 | DryRun logic | YES | Duplicate of cursor P0-2 |
+| 2641451915 | Bell char test | NO | Misunderstanding |
+
+**Statistics**:
+- Unique actionable: 3/14 = 21%
+- Duplicates of cursor[bot]: 2/14 = 14%
+- False positives: 9/14 = 64%
+- Trend: Declining from historical 35%
+
+### New Patterns Identified
+
+**Pattern: Contradictory Comments**
+- Comment 2640682389 said "contents: read" insufficient
+- Comment 2641167401 said "contents: write" contradicts security
+- Both cannot be valid; indicates contextual confusion
+
+**Pattern: PowerShell Escape Misunderstanding**
+- Multiple comments misunderstood backtick escapes
+- `\`a` (bell), `\`n` (newline) incorrectly flagged as typos
+- Recommendation: Skip PowerShell escape false positives
+
+**Pattern: Duplicate Detection**
+- 2641451904 (DryRun logic) duplicated cursor[bot] 2641162128
+- 2641373384 (exit codes) duplicated cursor[bot] 2641162135
+- Copilot often echoes cursor[bot] findings later
+
+---
+
+---
+
+## Actionability Trend
+
+| Metric | Historical | PR #249 | Trend |
+|--------|-----------|---------|-------|
+| Signal Quality | ~35% | 21% | ↓ DECLINING |
+| False Positives | ~10% | 64% | ↑ INCREASING |
+| Duplicates of cursor[bot] | ~5% | 14% | → STABLE |
+
+**Recommendation**: Copilot signal quality declining. Increase verification rigor. Prioritize cursor[bot] comments first.
+
+---
+
 ## Response Templates
 
 **Accept suggestion**:

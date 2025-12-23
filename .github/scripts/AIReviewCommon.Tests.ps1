@@ -383,6 +383,10 @@ Summary complete.
             Get-VerdictAlertType -Verdict 'PASS' | Should -Be 'TIP'
         }
 
+        It "Should return TIP for COMPLIANT" {
+            Get-VerdictAlertType -Verdict 'COMPLIANT' | Should -Be 'TIP'
+        }
+
         It "Should return WARNING for WARN" {
             Get-VerdictAlertType -Verdict 'WARN' | Should -Be 'WARNING'
         }
@@ -535,8 +539,16 @@ Summary complete.
             Get-VerdictEmoji -Verdict 'PASS' | Should -Be '✅'
         }
 
+        It "Should return check mark for COMPLIANT" {
+            Get-VerdictEmoji -Verdict 'COMPLIANT' | Should -Be '✅'
+        }
+
         It "Should return warning for WARN" {
             Get-VerdictEmoji -Verdict 'WARN' | Should -Be '⚠️'
+        }
+
+        It "Should return warning for PARTIAL" {
+            Get-VerdictEmoji -Verdict 'PARTIAL' | Should -Be '⚠️'
         }
 
         It "Should return X for CRITICAL_FAIL" {

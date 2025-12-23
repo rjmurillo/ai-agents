@@ -30,10 +30,14 @@ on:
       - '.github/workflows/validate-planning-artifacts.yml'
   workflow_dispatch: # Allow manual triggering
 
+concurrency:
+  group: validate-planning-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-planning:
     name: Validate Planning Artifacts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
 

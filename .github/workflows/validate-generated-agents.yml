@@ -31,6 +31,10 @@ on:
       - '.github/workflows/validate-generated-agents.yml'
   workflow_dispatch: # Allow manual triggering
 
+concurrency:
+  group: validate-agents-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     name: Validate Generated Files

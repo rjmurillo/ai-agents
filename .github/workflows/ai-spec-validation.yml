@@ -31,7 +31,7 @@ env:
 jobs:
   validate-spec:
     name: Validate Spec Coverage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
 
     steps:

@@ -13,6 +13,10 @@ name: Copilot Workspace Setup
 # - workflow_call: Can be called from other workflows or Copilot Workspace creation scripts
 
 on:
+  push:
+    paths:
+      - '.githooks/**'
+      - '.github/workflows/copilot-setup-steps.yml'
   workflow_dispatch:
     inputs:
       reason:
@@ -27,11 +31,15 @@ permissions:
   actions: read
   pull-requests: read
 
+concurrency:
+  group: copilot-setup-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
   copilot-setup-steps:
     name: Configure Git Hooks and Linting Tools
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     env:
       # Enable GitHub CLI for GitHub agents or scripts

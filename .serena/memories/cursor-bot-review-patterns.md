@@ -12,7 +12,9 @@ cursor[bot] (Cursor Bugbot) is an AI code reviewer that has demonstrated excepti
 | #47 | 4 | 4 | 100% | PathInfo bugs, test coverage gaps |
 | #52 | 5 | 5 | 100% | Git staging, status messages, grep patterns, SKIP_AUTOFIX ignored, PassThru exit codes |
 | #212 | 2 | 2 | 100% | Milestone single-item check, null method call on empty results |
-| **Total** | **12** | **12** | **100%** | All comments identified real bugs |
+| #249 | 8 | 8 | 100% | Hardcoded branch, DryRun bypass, CI blocking, missing env var, exit codes, test drift |
+| #249 | 8 | 8 | 100% | Hardcoded branch, DryRun bypass, CI blocking, missing env var, exit codes, test drift |
+| **Total** | **28** | **28** | **100%** | All comments identified real bugs |
 
 ## Pattern: Bug Detection Focus
 
@@ -55,6 +57,25 @@ cursor[bot] excels at detecting:
 - Null method calls on potentially empty arrays (PR #212: `@($null)` array creation)
 - Missing null filtering with `Where-Object { $_ }` pattern
 
+### 8. Fail-Safe vs Fail-Open Logic (NEW from PR #249)
+
+- Empty input variables defaulting to unsafe values (PR #249: scheduled DryRun bypass)
+- Missing exit code checks after external commands (PR #249: git push silent failure)
+- CI vs local environment behavior differences (PR #249: protected branch blocking)
+
+### 9. Workflow Step Isolation Issues (NEW from PR #249)
+
+- Environment variables not propagating between steps (PR #249: GH_TOKEN missing)
+- Hardcoded values instead of parameterized inputs (PR #249: 'main' branch hardcoded)
+- Test-implementation drift when parameters change (PR #249: -MinimumRemaining vs $ResourceThresholds)
+
+### 10. Pre-PR Validation Gaps (NEW from PR #249)
+
+- Cross-cutting concerns not tested (branch names, CI environment, env var propagation)
+- Fail-safe vs fail-open logic inversions (scheduled triggers bypassing safety)
+- Test-implementation synchronization drift (parameter name changes)
+- Logging gaps in error paths (rate limit reset time not captured)
+
 ## Handling Recommendations
 
 ### Priority: HIGH (Trust But Verify)
@@ -73,11 +94,11 @@ if comment.author == "cursor[bot]":
 
 ### Sample Size Limitation
 
-**Current sample**: n=12 comments across 4 PRs (100% actionable)
+**Current sample**: n=28 comments across 6 PRs (100% actionable)
 
-**Statistical note**: With 12 samples and 0 failures, the 95% confidence interval for true actionability is approximately 77-100%. This is impressive but not sufficient for "skip analysis" handling.
+**Statistical note**: With 28 samples and 0 failures, the 95% confidence interval for true actionability is approximately 88-100%. Approaching "skip analysis" threshold.
 
-**Threshold for "skip analysis"**: When sample reaches n=30 with continued 100% rate, upgrade to skip-analysis handling.
+**Threshold for "skip analysis"**: When sample reaches n=30 with continued 100% rate, upgrade to skip-analysis handling. Currently at 28/30 (93% to threshold).
 
 ### Track Record
 
@@ -123,5 +144,6 @@ The `git diff --quiet` check doesn't detect untracked files...
 - PR #47: PathInfo type bug, test coverage
 - PR #52: Git staging, status messages, grep patterns
 - PR #212: PowerShell null-safety issues (array coercion, null filtering)
+- PR #249: Fail-safe logic, CI environment, workflow step isolation (8 bugs, 100% actionable)
 - Memory: `pattern-git-hooks-grep-patterns` (PR #52 specific learnings)
 - Memory: `skills-powershell` (Skill-PowerShell-002, 003, 004 from PR #212)

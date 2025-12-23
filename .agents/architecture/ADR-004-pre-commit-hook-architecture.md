@@ -13,10 +13,13 @@ Accepted
 As the ai-agents repository has evolved, the `.githooks/pre-commit` hook has accumulated multiple validation responsibilities:
 
 1. **Markdown linting** (auto-fix enabled) - Since initial setup
-2. **Planning artifact validation** - Cross-document consistency for `.agents/planning/` files
-3. **Consistency validation** - Scope alignment, requirement coverage, naming conventions
-4. **Security detection** - Infrastructure and security-critical file change detection
-5. **MCP configuration sync** - Transform Claude's `.mcp.json` to VS Code's `mcp.json` format
+2. **PowerShell script analysis** - PSScriptAnalyzer for syntax errors and best practices (Added 2025-12-22)
+3. **Planning artifact validation** - Cross-document consistency for `.agents/planning/` files
+4. **Consistency validation** - Scope alignment, requirement coverage, naming conventions
+5. **Security detection** - Infrastructure and security-critical file change detection
+6. **MCP configuration sync** - Transform Claude's `.mcp.json` to VS Code's `mcp.json` format
+7. **Bash detection** - Enforce ADR-005 PowerShell-only scripting standard
+8. **Session End validation** - Enforce Session Protocol compliance
 
 This accumulation raises questions about:
 
@@ -97,10 +100,13 @@ Each validation in the hook follows these principles:
 ```text
 .githooks/pre-commit
 ├── Markdown Linting        # BLOCKING: Critical syntax errors
+├── PowerShell Analysis     # BLOCKING: Error-level issues, WARNING: Best practices
 ├── Planning Validation     # WARNING: Consistency issues
 ├── Consistency Validation  # WARNING: Cross-document issues
 ├── MCP Config Sync         # AUTO-FIX: Transform and stage
-└── Security Detection      # WARNING: Infrastructure changes
+├── Security Detection      # WARNING: Infrastructure changes
+├── Bash Detection          # BLOCKING: ADR-005 enforcement
+└── Session End Validation  # BLOCKING: Protocol compliance
 ```
 
 ### Guidelines for New Validations
@@ -132,14 +138,28 @@ git commit --no-verify
 SKIP_AUTOFIX=1 git commit
 ```
 
+### PowerShell Script Analysis Configuration
+
+PSScriptAnalyzer settings are defined in `.PSScriptAnalyzerSettings.psd1` at repository root:
+
+- **Default rules**: All enabled (Error, Warning, Information severity)
+- **Custom rules**: PSAvoidUsingCmdletAliases, PSAvoidUsingPositionalParameters, PSAvoidUsingInvokeExpression, PSUseConsistentIndentation, PSUseConsistentWhitespace
+- **Blocking behavior**: Error-level issues block commit
+- **Warning behavior**: Displayed but allow commit to proceed
+- **Performance**: ~1.8s for typical PowerShell file (<5s requirement)
+
+**Rationale**: Added after Session 36 incident where variable interpolation bug (`$PullRequest:` instead of `$($PullRequest):`) was committed without detection. While PSScriptAnalyzer won't catch all syntax variations, it prevents common security issues (plaintext credentials, Invoke-Expression abuse) and enforces coding standards.
+
 ## Related Decisions
 
 - [ADR-001: Markdown Linting](ADR-001-markdown-linting.md) - Established the auto-fix pattern
+- [ADR-005: PowerShell-Only Scripting](ADR-005-powershell-only-scripting.md) - Why PowerShell is preferred
 - Issue #I2, #I4: Cross-document consistency requirements
 
 ## References
 
 - [Git Hooks Documentation](https://git-scm.com/docs/githooks)
+- [PSScriptAnalyzer Documentation](https://github.com/PowerShell/PSScriptAnalyzer)
 - [VS Code MCP Configuration](https://code.visualstudio.com/docs/copilot/customization/mcp-servers)
 - [Claude Code MCP Configuration](https://docs.anthropic.com/claude-code/docs/mcp)
 - OWASP guidelines for secure shell scripting

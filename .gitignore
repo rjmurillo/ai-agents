@@ -14,6 +14,7 @@ artifacts/
 .agents/pr-comments/
 .agents/scratch/
 .agents/temp/
+.agents/logs/
 
 # IDE settings
 .idea/
