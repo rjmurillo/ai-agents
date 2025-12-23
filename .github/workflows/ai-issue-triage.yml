@@ -566,7 +566,7 @@ jobs:
             if (-not $hasTriageMarker) {
               # Get issue title for logging
               $issueTitle = gh issue view $issueNumber --json title --jq '.title' 2>$null
-              Write-Host "  Issue #$issueNumber: $issueTitle - NOT TRIAGED" -ForegroundColor Yellow
+              Write-Host "  Issue #${issueNumber}: $issueTitle - NOT TRIAGED" -ForegroundColor Yellow
               $untriagedIssues += $issueNumber
             }
           }
