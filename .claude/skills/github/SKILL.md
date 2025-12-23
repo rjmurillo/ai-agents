@@ -7,7 +7,18 @@ description: |
   or create labels, (5) Assign milestones, (6) Add reactions to comments, (7) Close or
   merge PRs, (8) Resolve review threads, (9) Synthesize context for Copilot assignment.
 allowed-tools: Bash(pwsh:*), Bash(gh api:*), Bash(gh pr:*), Bash(gh issue:*), Read, Write, Grep, Glob
+keep_headings:
+  - Decision Tree
+  - Script Reference
+  - Quick Examples
+  - Common Patterns
+  - Output Format
+  - See Also
 ---
+
+<!-- CANONICAL SOURCE - DO NOT EDIT github.skill DIRECTLY -->
+<!-- github.skill is generated from this file via Generate-Skills.ps1 -->
+<!-- Only sections listed in keep_headings (above) appear in github.skill -->
 
 # GitHub Skill
 
