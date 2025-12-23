@@ -59,11 +59,11 @@
 
 | Session | Date | PR | Outcome |
 |---------|------|----|---------|
+| [Session 83](./sessions/2025-12-23-session-83-adr-017-quantitative-analysis.md) | 2025-12-23 | N/A | Quantitative verification of ADR-017 |
 | [Session 61](./sessions/2025-12-21-session-61-slash-command-skills.md) | 2025-12-21 | N/A | Created 8 atomic slash command skills |
 | [Session 60](./sessions/2025-12-21-session-60-pr-53-follow-up-acknowledgments.md) | 2025-12-21 | #53 | Added reactions to follow-up comments |
 | [Session 59](./sessions/2025-12-21-session-59-pr-53-merge-resolution.md) | 2025-12-21 | #53 | Resolved HANDOFF.md merge conflict |
 | [Session 58](./sessions/2025-12-21-session-58-pr-53-review-thread-resolution.md) | 2025-12-21 | #53 | Resolved 10 review threads |
-| [Session 57](./sessions/2025-12-21-session-57-pr-222-review-response.md) | 2025-12-21 | #222 | Addressed 3 Copilot comments |
 
 ---
 
