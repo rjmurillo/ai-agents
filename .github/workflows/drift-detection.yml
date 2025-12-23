@@ -5,7 +5,7 @@
 # Creates a GitHub issue when drift is detected.
 #
 # Local developers and AI agents can run the same detection using:
-#   pwsh ./build/scripts/Detect-AgentDrift.ps1
+#   pwsh -NoProfile ./build/scripts/Detect-AgentDrift.ps1
 
 name: Agent Drift Detection
 
@@ -143,10 +143,10 @@ jobs:
 
           ```bash
           # Run drift detection locally
-          pwsh build/scripts/Detect-AgentDrift.ps1
+          pwsh -NoProfile build/scripts/Detect-AgentDrift.ps1
 
           # See detailed JSON output
-          pwsh build/scripts/Detect-AgentDrift.ps1 -OutputFormat json
+          pwsh -NoProfile build/scripts/Detect-AgentDrift.ps1 -OutputFormat json
           ```
           EOF
 
