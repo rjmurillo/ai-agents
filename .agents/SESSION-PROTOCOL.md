@@ -73,7 +73,7 @@ The agent MUST read context documents before starting work. This is a **blocking
 
 **Requirements:**
 
-1. The agent MUST read `.agents/HANDOFF.md` for previous session context
+1. The agent MUST read `.agents/HANDOFF.md` for previous session context (READ-ONLY reference)
 2. The agent SHOULD read relevant Serena memories based on task topic
 3. The agent SHOULD read `.agents/planning/enhancement-PROJECT-PLAN.md` if working on enhancement project
 4. The agent MAY read additional context files based on task requirements
@@ -84,7 +84,7 @@ The agent MUST read context documents before starting work. This is a **blocking
 - Agent references prior decisions from HANDOFF.md
 - Agent does not ask questions answered in HANDOFF.md
 
-**Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions.
+**Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions. Note: HANDOFF.md is a read-only reference; do not modify it during sessions.
 
 ### Phase 1.5: Skill Validation (BLOCKING)
 
@@ -200,23 +200,24 @@ The agent MUST update documentation before ending.
 
 **Requirements:**
 
-1. The agent MUST update `.agents/HANDOFF.md` with:
-   - Link to session log (e.g., `[Session NN](./sessions/YYYY-MM-DD-session-NN.md)`)
-   - What was completed this session
-   - What should happen next session
-   - Any blockers or concerns
-   - Files changed
+1. The agent MUST NOT update `.agents/HANDOFF.md` directly. Session context MUST go to:
+   - Your session log at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+   - Serena memory for cross-session context (using `mcp__serena__write_memory` or equivalent)
+   - `.agents/handoffs/{branch}/{session}.md` for branch-specific handoff (if on feature branch)
 2. The agent MUST complete the session log with:
    - Tasks attempted and outcomes
    - Decisions made with rationale
    - Challenges encountered and resolutions
+   - Link reference for next session handoff
 3. The agent SHOULD update PROJECT-PLAN.md if tasks were completed
+4. The agent MAY read `.agents/HANDOFF.md` for historical context (read-only reference)
 
 **Verification:**
 
-- HANDOFF.md modified timestamp is current
 - Session log contains complete information
+- Serena memory updated with relevant context
 - PROJECT-PLAN.md checkboxes updated if applicable
+- HANDOFF.md is NOT modified (unless explicitly approved by architect)
 
 ### Phase 2: Quality Checks (REQUIRED)
 
@@ -302,11 +303,12 @@ Copy this checklist to each session log and verify completion:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
-| MUST | Complete session log | [ ] | All sections filled |
+| MUST | Complete session log (all sections filled) | [ ] | File complete |
+| MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
 | SHOULD | Verify clean git status | [ ] | `git status` output |
@@ -387,11 +389,12 @@ All MUST requirements above are marked complete.
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
-| MUST | Complete session log | [ ] | All sections filled |
+| MUST | Complete session log (all sections filled) | [ ] | File complete |
+| MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Output below |
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` |
-| MUST | Commit all changes | [ ] | Commit SHA: _______ |
+| MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
 | SHOULD | Verify clean git status | [ ] | Output below |
@@ -562,7 +565,11 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 | Version | Date | Changes |
 |---------|------|---------|
+
 | 1.4 | 2025-12-22 | Added Unattended Execution Protocol (Issue #230) |
+| 1.5 | 2025-12-22 | Added Unattended Execution Protocol (Issue #230) |
+| 1.4 | 2025-12-22 | P0: Changed HANDOFF.md from MUST update to MUST NOT update; agents use session logs and Serena memory |
+
 | 1.3 | 2025-12-20 | Added Phase 2.5 QA Validation BLOCKING gate |
 | 1.2 | 2025-12-18 | Added Phase 1.5 skill validation BLOCKING gate |
 | 1.1 | 2025-12-17 | Added requirement to link session log in HANDOFF.md |
