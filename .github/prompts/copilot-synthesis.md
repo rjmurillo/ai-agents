@@ -98,10 +98,8 @@ Generate a markdown comment in this exact structure:
 
 ## Response Format
 
-After generating the synthesis content, you MUST end your response with:
+After generating the synthesis content, you MUST end your response with this exact plain text line (not in a code block):
 
-```text
 VERDICT: PASS
-```
 
 This signals successful synthesis completion.
