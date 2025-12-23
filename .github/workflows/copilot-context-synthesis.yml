@@ -121,14 +121,14 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SYNTHESIS_FINDINGS: ${{ steps.synthesize.outputs.findings }}
         run: |
           Import-Module "./.claude/skills/github/modules/GitHubHelpers.psm1" -Force
 
           $marker = "${{ steps.prepare.outputs.marker }}"
           $existingId = "${{ steps.prepare.outputs.existing_synthesis_id }}"
-          $synthesis = @"
-          ${{ steps.synthesize.outputs.findings }}
-          "@
+          # Use environment variable to avoid PowerShell here-string interpolation issues
+          $synthesis = $env:SYNTHESIS_FINDINGS
 
           # Prepare comment body with marker
           $body = "$marker`n`n$synthesis"
@@ -149,7 +149,7 @@ jobs:
           }
 
       - name: Assign copilot-swe-agent
-        if: success()
+        if: success() && steps.synthesize.outputs.verdict == 'PASS'
         shell: pwsh
         env:
           # COPILOT_GITHUB_TOKEN is a PAT from a Copilot-enabled user
@@ -169,11 +169,17 @@ jobs:
       - name: Remove copilot-ready label
         if: success()
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $issueNumber = "${{ steps.issue.outputs.number }}"
           Write-Host "Removing copilot-ready label..." -ForegroundColor Cyan
-          gh issue edit $issueNumber --remove-label "copilot-ready"
-          Write-Host "::notice::Removed copilot-ready label from issue #$issueNumber"
+          $result = gh issue edit $issueNumber --remove-label "copilot-ready" 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "::notice::Removed copilot-ready label from issue #$issueNumber"
+          } else {
+            Write-Host "::warning::Failed to remove copilot-ready label from issue #$issueNumber. Error: $result"
+          }
 
       - name: Summary
         if: success()
@@ -236,8 +242,11 @@ jobs:
             "issues=$($issues -join ' ')" | Add-Content -Path $env:GITHUB_OUTPUT
           }
 
-      # NOTE: Sweep uses regex-based synthesis as fallback for eventual consistency.
-      # The primary synthesize-single job uses AI-based synthesis when triggered by label.
+      # NOTE: Both synthesize-single and sweep-missed use the same regex-based
+      # extraction (Get-CodeRabbitPlan / Get-AITriageInfo) in the PowerShell script.
+      # Only the synthesize-single job adds AI-powered synthesis via the ai-review
+      # action when triggered by the copilot-ready label; sweep runs extraction
+      # in batch mode (with -SkipAssignment) for eventual consistency.
       - name: Synthesize context for each issue
         id: synthesize
         if: steps.find-issues.outputs.count != '0'

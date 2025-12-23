@@ -218,8 +218,8 @@ function Get-MaintainerGuidance {
             $sentences = $comment.body -split '(?<=[.!?])\s+'
             foreach ($sentence in $sentences) {
                 $cleaned = $sentence.Trim() -replace '[\r\n]+', ' '
-                # Match sentences containing RFC 2119 keywords (case-insensitive word boundaries)
-                if ($cleaned -match '\b(MUST|SHOULD|SHALL|REQUIRED|RECOMMENDED)\b' -and $cleaned.Length -gt 15) {
+                # Match sentences containing RFC 2119 keywords (case-insensitive)
+                if ($cleaned -imatch '\b(MUST|SHOULD|SHALL|REQUIRED|RECOMMENDED)\b' -and $cleaned.Length -gt 15) {
                     $guidance += $cleaned
                 }
             }
