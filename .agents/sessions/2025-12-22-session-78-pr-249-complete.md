@@ -50,6 +50,21 @@
 | `scripts/Invoke-PRMaintenance.ps1` | Rewrote Get-SimilarPRs similarity logic to compare description portions after colon |
 | `scripts/tests/Invoke-PRMaintenance.Tests.ps1` | Updated empty array test to accept $null or empty array |
 
+### Phase 1b: Fix CI Test Failures (Post-Push)
+
+After pushing commit 7e1f031, CI revealed 2 additional test failures:
+
+1. **"Creates worktree with correct path"**: $script:WorktreePath not set
+2. **"Cleans up worktree on success"**: $script:WorktreeRemoved not set
+
+**Root Cause**: In GitHub Actions, `Test-IsGitHubRunner` returns `$true`, causing the function to skip worktree creation entirely and use the direct merge path instead.
+
+**Fix Applied**:
+
+| File | Change |
+|------|--------|
+| `scripts/tests/Invoke-PRMaintenance.Tests.ps1` | Added `Mock Test-IsGitHubRunner { return $false }` to force worktree code path |
+
 ### Phase 2: Verify P1 Comments
 
 Reviewed `.agents/pr-comments/PR-249/comment-review-summary.md` P1 items:
@@ -73,14 +88,16 @@ All 121 tests pass (0 failures, 1 skipped for integration test placeholder).
 ## Commits
 
 - `7e1f031` fix(pr-249): resolve Get-SimilarPRs similarity logic and test assertion
+- `05504c1` fix(tests): mock Test-IsGitHubRunner for worktree tests
 
 ## Session End
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | All fixes implemented | [x] | 2 test failures resolved |
-| MUST | Pester tests pass | [x] | 121/121 passed |
-| MUST | Commit pushed | [x] | 7e1f031 pushed to origin/feat/dash-script |
+| MUST | All fixes implemented | [x] | 4 test failures resolved (2 local + 2 CI) |
+| MUST | Pester tests pass | [x] | 121/121 passed locally and in CI |
+| MUST | CI passes | [x] | Run 20447973667 completed with success |
+| MUST | Commit pushed | [x] | 7e1f031, 05504c1 pushed to origin/feat/dash-script |
 | MUST | Session log complete | [x] | This file |
 | SHOULD | P1 comments verified | [x] | All P1 items addressed in prior sessions |
 
@@ -116,4 +133,26 @@ $desc2 = ($title2 -split ':')[1].Trim()
 # Compare common prefix
 $compareLen = [Math]::Min($desc1.Length, $desc2.Length, 30)
 $desc1.Substring(0, $compareLen) -eq $desc2.Substring(0, $compareLen)
+```
+
+### Skill-Test-Environment-001: Environment-Dependent Code Paths in Tests
+
+**Statement**: When testing functions that have environment-specific code paths (like Test-IsGitHubRunner), explicitly mock the environment detection function to force the desired code path.
+
+**Context**: Tests that exercise worktree logic locally may fail in CI because the environment detection returns different values. The function takes a different code path entirely, so variables expected by the test are never set.
+
+**Pattern**:
+```powershell
+# FRAGILE: Assumes local execution path
+It "Creates worktree with correct path" {
+    Mock git { ... }
+    # Test fails in CI because worktree path never executed
+}
+
+# ROBUST: Explicitly control environment detection
+It "Creates worktree with correct path" {
+    Mock Test-IsGitHubRunner { return $false }  # Force local path
+    Mock git { ... }
+    # Test now works in both local and CI
+}
 ```
