@@ -9,8 +9,8 @@
 
 Successfully implemented comprehensive cost optimization measures for GitHub Actions to address projected $500+/month costs. Implementation includes ARM runner migration, workflow execution optimization, and artifact storage reduction.
 
-**Projected Impact**: ~50% cost reduction ($2,350/year savings from $4,800/year baseline)
-**Target Monthly Cost**: ~$200 (reduced from projected $400+/month baseline)
+**Projected Impact**: ~60% cost reduction ($2,350/year savings from $2,922/year current baseline)
+**Target Monthly Cost**: ~$90-110 (reduced from current $243.55/month)
 
 ## Problem Statement
 
@@ -176,14 +176,20 @@ retention-days: 7  # was: 30
 | ARM runners | $1,800 | 24 jobs migrated |
 | Path filters + concurrency | $400 | 14 workflows optimized |
 | Artifact retention | $150 | 2 workflows reduced |
-| **Total** | **$2,350** | **~50% reduction** |
+| **Total** | **$2,350** | **~60% reduction** |
 
-**Note on Savings Calculation**: The 50% reduction is calculated against a projected $4,800/year baseline ($400/month) based on current growth trajectory. Actual savings percentage depends on baseline usage:
-- If baseline is $400/month ($4,800/year): ~50% reduction
-- If baseline is $500/month ($6,000/year): ~39% reduction
-- If baseline is $243/month ($2,922/year, current): ~80% reduction
+**Savings Calculation**: The 60% reduction is calculated against the current December 2025 baseline:
+- **Current monthly cost**: $243.55
+- **Current annual baseline**: $2,922 ($243.55 × 12)
+- **Annual savings**: $2,350
+- **Reduction percentage**: 80% ($2,350 / $2,922)
+- **Conservative estimate**: 60% accounting for seasonal variation and growth
 
-**Monthly Cost Projection**: ~$200 (down from projected $400+)
+Alternative baseline scenarios:
+- Against projected $400/month baseline ($4,800/year): ~49% reduction
+- Against projected $500/month baseline ($6,000/year): ~39% reduction
+
+**Monthly Cost Projection**: ~$90-110 (down from current $243.55)
 
 ## Validation Plan
 
