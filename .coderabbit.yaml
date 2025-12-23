@@ -9,6 +9,9 @@
 inheritance: true
 
 reviews:
+  tools:
+    markdownlint:
+      enabled: false
   path_instructions:
     - path: "src/claude/**/*.md"
       instructions: |
@@ -22,7 +25,4 @@ reviews:
         - Drift from VS Code/Copilot CLI versions
         Prefix all comments with: [P0], [P1], or [P2]
 
-reviews:
-  tools:
-    markdownlint:
-      enabled: false
+
