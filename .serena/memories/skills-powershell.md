@@ -320,9 +320,95 @@ PowerShell distinguishes "module names" from "file paths". Without `./`, the arg
 
 ---
 
+## Skill-PowerShell-006: UTF-8 Without BOM (95%)
+
+**Statement**: Use `New-Object System.Text.UTF8Encoding $false` to write UTF-8 files without BOM
+
+**Context**: When writing text files that will be parsed by tools/systems that don't expect BOM
+
+**Trigger**: Using `[System.IO.File]::WriteAllText` or `Set-Content` with UTF-8 encoding
+
+**Evidence**: Session 67 (2025-12-22): Generate-Skills.ps1 was adding UTF-8 BOM (`ef bb bf`) to generated .skill files, breaking parsers. Fixed by using UTF8Encoding with emitBOM=$false.
+
+**Atomicity**: 95%
+
+**Tag**: helpful (prevents encoding issues)
+
+**Impact**: 9/10 (prevents parser failures)
+
+**Created**: 2025-12-22
+
+**Problem**:
+
+```powershell
+# WRONG - Adds UTF-8 BOM (EF BB BF) by default
+[System.IO.File]::WriteAllText($path, $text, [System.Text.Encoding]::UTF8)
+
+# File starts with: ef bb bf 2d 2d 2d ...
+#                  ^^^BOM^^^ ---
+```
+
+**Solution**:
+
+```powershell
+# CORRECT - UTF-8 without BOM
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($path, $text, $utf8NoBom)
+
+# File starts with: 2d 2d 2d ...
+#                   ---
+```
+
+**Why It Matters**:
+
+- UTF-8 BOM can break parsers, tools, and scripts that don't expect it
+- YAML parsers may interpret BOM as content
+- Git diffs show BOM as binary marker
+- Many Unix tools treat BOM as data, not metadata
+- PowerShell `Get-Content` with UTF-8 encoding strips BOM automatically, but other tools may not
+
+**When BOM Is OK**:
+
+- Windows text files opened in Notepad (expects BOM)
+- CSV files opened in Excel (requires BOM for UTF-8 detection)
+
+**When BOM Breaks Things**:
+
+- YAML/JSON config files
+- Markdown files
+- Shell scripts
+- Source code files
+- Any files parsed by non-Windows tools
+
+**Pattern**:
+
+```powershell
+function Set-ContentUtf8NoBom {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $Text
+    )
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($Path, $Text, $utf8NoBom)
+}
+```
+
+**Verification**:
+
+```bash
+# Check for BOM (should NOT show ef bb bf)
+head -1 file.txt | od -An -tx1 | head -1
+```
+
+**Validation**: 1 (Session 67)
+
+---
+
 ## Related Files
 
 - Get-PRContext.ps1 - Original syntax error
 - AIReviewCommon.psm1 - Import-Module path fix (PR #212 → #222)
+- Generate-Skills.ps1 - UTF-8 BOM fix (Session 67)
 - Source: PR #79 retrospective
 - Source: `.agents/sessions/2025-12-21-session-56-ai-triage-retrospective.md`
+- Source: `.agents/sessions/2025-12-22-session-67-generate-skills-refactoring.md`
