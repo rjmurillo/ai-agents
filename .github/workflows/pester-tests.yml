@@ -10,6 +10,7 @@
 # - Installation scripts (scripts/)
 # - Build automation (build/)
 # - GitHub Actions helpers (.github/scripts/)
+# - GitHub skill tests (.github/tests/)
 # - Claude skills (.claude/skills/)
 # - Root-level tests (tests/)
 #
@@ -52,6 +53,7 @@ jobs:
               - 'scripts/**'
               - 'build/**'
               - '.github/scripts/**'
+              - '.github/tests/**'
               - '.github/workflows/pester-tests.yml'
               - '.claude/skills/**'
               - 'tests/**'
@@ -118,6 +120,7 @@ jobs:
           echo "  - scripts/**"
           echo "  - build/**"
           echo "  - .github/scripts/**"
+          echo "  - .github/tests/**"
           echo "  - .github/workflows/pester-tests.yml"
           echo "  - .claude/skills/**"
           echo "  - tests/**"

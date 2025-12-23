@@ -5,10 +5,11 @@
 .DESCRIPTION
     Executes Pester unit tests located in multiple test directories:
     - scripts/tests/ - Installation script tests
-    - build/scripts/tests/ - Build script tests  
+    - build/scripts/tests/ - Build script tests
     - build/tests/ - Code generation tests
     - .claude/skills/*/tests/ - Claude skill tests
     - .github/scripts/ - GitHub workflow script tests
+    - .github/tests/** - GitHub skill tests (relocated from .claude/skills)
     
     Supports both CI/CD and local development scenarios.
 
@@ -65,7 +66,7 @@
 [CmdletBinding()]
 param(
     [Parameter()]
-    [string[]]$TestPath = @("./scripts/tests", "./build/scripts/tests", "./build/tests", "./.claude/skills/*/tests", "./.github/scripts"),
+    [string[]]$TestPath = @("./scripts/tests", "./build/scripts/tests", "./build/tests", "./.claude/skills/*/tests", "./.github/scripts", "./.github/tests/**"),
 
     [Parameter()]
     [string]$OutputPath = "./artifacts/pester-results.xml",
