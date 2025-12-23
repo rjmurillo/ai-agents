@@ -40,6 +40,7 @@ ADR-014 proposes a three-tier distributed handoff architecture to eliminate HAND
 ## Pattern: ADR Review Parallel Dispatch
 
 When reviewing critical ADRs, dispatch 4 perspectives in parallel:
+
 1. **Architect**: Technical soundness, ADR consistency
 2. **Critic**: Gap analysis, assumption challenges
 3. **Analyst**: Implementation verification
