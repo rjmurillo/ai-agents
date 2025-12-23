@@ -149,3 +149,5 @@ Named pipe daemon (Issue #287) deprioritized due to:
 ---
 
 *Session complete: 2025-12-23*
+
+<!-- CI validation retry: 2025-12-23T16:30:00Z -->
