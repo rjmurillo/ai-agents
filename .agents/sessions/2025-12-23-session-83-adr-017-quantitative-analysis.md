@@ -20,6 +20,8 @@ Quantitative verification of ADR-017 (Tiered Memory Index Architecture) numerica
 
 ## Session Log
 
+- **Starting Commit**: `509cfab`
+
 ### Phase 1: Protocol Compliance
 
 - [x] Read HANDOFF.md
