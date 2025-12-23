@@ -15,12 +15,12 @@ permissions:
 
 concurrency:
   group: issue-labeler-${{ github.event.issue.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false  # Issue workflows: avoid race conditions per ADR-016
 
 jobs:
   label:
     name: Apply Labels
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 2
 
     # Skip for bots and non-substantive edits
