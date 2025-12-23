@@ -61,65 +61,44 @@ jobs:
         id: ratelimit
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
+        shell: pwsh
         run: |
-          # Check multiple resource types with appropriate thresholds
-          RATE_DATA=$(gh api rate_limit)
-          
-          # Define thresholds (50% of limit for most resources)
-          CORE_THRESHOLD=100
-          SEARCH_THRESHOLD=15
-          CODE_SEARCH_THRESHOLD=5
-          GRAPHQL_THRESHOLD=100
-          
-          # Extract values
-          CORE_REMAINING=$(echo "$RATE_DATA" | jq '.resources.core.remaining')
-          SEARCH_REMAINING=$(echo "$RATE_DATA" | jq '.resources.search.remaining')
-          CODE_SEARCH_REMAINING=$(echo "$RATE_DATA" | jq '.resources.code_search.remaining')
-          GRAPHQL_REMAINING=$(echo "$RATE_DATA" | jq '.resources.graphql.remaining')
-          
-          # Store for summary
-          echo "core_remaining=$CORE_REMAINING" >> $GITHUB_OUTPUT
-          
-          echo "### API Rate Limit Status" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Resource | Remaining | Threshold | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-----------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          
-          # Check each resource
-          FAILED=0
-          
-          if [ "$CORE_REMAINING" -lt "$CORE_THRESHOLD" ]; then
-            echo "| core | $CORE_REMAINING | $CORE_THRESHOLD | ❌ TOO LOW |" >> $GITHUB_STEP_SUMMARY
-            FAILED=1
-          else
-            echo "| core | $CORE_REMAINING | $CORE_THRESHOLD | ✅ OK |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "$SEARCH_REMAINING" -lt "$SEARCH_THRESHOLD" ]; then
-            echo "| search | $SEARCH_REMAINING | $SEARCH_THRESHOLD | ❌ TOO LOW |" >> $GITHUB_STEP_SUMMARY
-            FAILED=1
-          else
-            echo "| search | $SEARCH_REMAINING | $SEARCH_THRESHOLD | ✅ OK |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "$CODE_SEARCH_REMAINING" -lt "$CODE_SEARCH_THRESHOLD" ]; then
-            echo "| code_search | $CODE_SEARCH_REMAINING | $CODE_SEARCH_THRESHOLD | ❌ TOO LOW |" >> $GITHUB_STEP_SUMMARY
-            FAILED=1
-          else
-            echo "| code_search | $CODE_SEARCH_REMAINING | $CODE_SEARCH_THRESHOLD | ✅ OK |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "$GRAPHQL_REMAINING" -lt "$GRAPHQL_THRESHOLD" ]; then
-            echo "| graphql | $GRAPHQL_REMAINING | $GRAPHQL_THRESHOLD | ❌ TOO LOW |" >> $GITHUB_STEP_SUMMARY
-            FAILED=1
-          else
-            echo "| graphql | $GRAPHQL_REMAINING | $GRAPHQL_THRESHOLD | ✅ OK |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "$FAILED" -eq 1 ]; then
-            echo "::error::One or more API rate limits too low"
+          # ADR-006: Use PowerShell for rate limit check (thin workflow pattern)
+          # Reuse Test-RateLimitSafe logic from main script
+          $rateLimitJson = gh api rate_limit 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to fetch rate limits: $rateLimitJson"
             exit 1
-          fi
+          }
+
+          $rateLimit = $rateLimitJson | ConvertFrom-Json
+          $thresholds = @{
+            'core' = 100
+            'search' = 15
+            'code_search' = 5
+            'graphql' = 100
+          }
+
+          # Build summary table
+          "### API Rate Limit Status" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          "" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          "| Resource | Remaining | Threshold | Status |" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          "|----------|-----------|-----------|--------|" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+
+          $failed = $false
+          foreach ($resource in $thresholds.Keys) {
+            $remaining = $rateLimit.resources.$resource.remaining
+            $threshold = $thresholds[$resource]
+            $status = if ($remaining -lt $threshold) { $failed = $true; "❌ TOO LOW" } else { "✅ OK" }
+            "| $resource | $remaining | $threshold | $status |" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          }
+
+          "core_remaining=$($rateLimit.resources.core.remaining)" | Out-File -Append $env:GITHUB_OUTPUT
+
+          if ($failed) {
+            Write-Error "One or more API rate limits too low"
+            exit 1
+          }
 
 
       - name: Run PR maintenance

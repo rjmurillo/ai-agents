@@ -175,6 +175,7 @@ Describe "Invoke-PRMaintenance.ps1" {
 
         It "Handles invalid JSON response" {
             Mock gh {
+                $global:LASTEXITCODE = 0  # Command succeeds but returns invalid JSON
                 return "INVALID JSON"
             }
 
@@ -729,8 +730,8 @@ Describe "Invoke-PRMaintenance.ps1" {
             $result | Should -Be $false
         }
 
-        It "Returns false for bell character" {
-            # Note: `a is the PowerShell escape sequence for the bell character (0x07)
+        It "Returns false for bell character (0x07)" {
+            # Note: ``a is the PowerShell escape sequence for the bell character (0x07)
             $result = Test-SafeBranchName -BranchName "branch`aname"
             $result | Should -Be $false
         }
@@ -750,7 +751,7 @@ Describe "Invoke-PRMaintenance.ps1" {
             $result | Should -Be $false
         }
 
-        It "Returns false for escape character" {
+        It "Returns false for escape character (0x1B)" {
             $result = Test-SafeBranchName -BranchName "branch`ename"
             $result | Should -Be $false
         }
@@ -911,6 +912,8 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
 
         It "Returns valid path for large PR number (Int64)" {
+            # Tests Int64 parameter type works correctly (GitHub IDs can exceed Int32.MaxValue)
+            # This validates the ADR-015 Fix 4 parameter type change
             $result = Get-SafeWorktreePath -BasePath $TestDrive -PRNumber 2147483648
             $result | Should -Match "ai-agents-pr-2147483648$"
         }
