@@ -90,6 +90,16 @@ jobs:
           $pesterVersion = (Get-Module Pester).Version
           echo "✓ Pester $pesterVersion installed"
 
+      - name: Install powershell-yaml
+        shell: pwsh
+        run: |
+          echo "Installing powershell-yaml module..."
+          Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
+          Install-Module -Name powershell-yaml -MinimumVersion 0.4.0 -Force -Scope CurrentUser
+          Import-Module powershell-yaml
+          $yamlVersion = (Get-Module powershell-yaml).Version
+          echo "✓ powershell-yaml $yamlVersion installed"
+
       - name: Set SKIP_AUTOFIX environment variable
         run: |
           echo "SKIP_AUTOFIX=0" >> $GITHUB_ENV
@@ -120,6 +130,12 @@ jobs:
           $pester = Get-Module -ListAvailable -Name Pester | Select-Object -First 1
           if ($pester) {
             Write-Host "✓ Pester $($pester.Version) is installed" -ForegroundColor Green
+          }
+
+          # Test powershell-yaml
+          $yaml = Get-Module -ListAvailable -Name powershell-yaml | Select-Object -First 1
+          if ($yaml) {
+            Write-Host "✓ powershell-yaml $($yaml.Version) is installed" -ForegroundColor Green
           }
 
           Write-Host ""
