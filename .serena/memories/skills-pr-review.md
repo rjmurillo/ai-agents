@@ -1,247 +1,295 @@
 # PR Review Skills
 
-Collection of proven strategies for GitHub pull request review and merge workflows in rjmurillo/ai-agents.
+**Consolidated**: 2025-12-23
+**Sources**: skills-pr-review, pr-comment-responder-skills, pr-review-noise-skills
+
+Comprehensive guide for GitHub PR review workflows, bot comment triage, and conversation resolution.
 
 ---
 
-## Skill-PR-Review-001: Conversation Resolution Requirement
+## Part 1: Core PR Workflow
 
-**Statement**: Before merging a PR in rjmurillo/ai-agents, ALL review conversations MUST be resolved. Unresolved threads block the merge due to branch protection rules.
+### Skill-PR-Review-001: Conversation Resolution Requirement
 
-**Context**: GitHub PR review and merge workflow
+**Statement**: Before merging, ALL review conversations MUST be resolved. Unresolved threads block merge due to branch protection.
 
-**Evidence**: Maintainer guidance from 2025-12-20 session - branch protection rules require conversation resolution before merge.
+**Atomicity**: 95% | **Impact**: 9/10 | **Validated**: 3
 
-**Atomicity**: 95%
-
-**Tag**: helpful
-
-**Impact**: 9/10
-
-**Created**: 2025-12-19
-
-**Validated**: 3
-
-**Pattern**:
+**Query unresolved threads** (GraphQL only - `gh pr view` doesn't support reviewThreads):
 
 ```bash
-# Check for unresolved conversations before attempting merge
-# NOTE: gh pr view does NOT support reviewThreads - must use GraphQL API
-gh api graphql -f query='
-query($owner: String!, $repo: String!, $number: Int!) {
-  repository(owner: $owner, name: $repo) {
-    pullRequest(number: $number) {
-      reviewThreads(first: 100) {
-        nodes {
-          id
-          isResolved
-          path
-          line
-          comments(first: 3) {
-            nodes { id body author { login } }
-          }
-        }
-      }
-    }
-  }
-}' -f owner=OWNER -f repo=REPO -F number=PR_NUMBER
+gh api graphql -f query='query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $number) { reviewThreads(first: 100) { nodes { id isResolved path comments(first: 3) { nodes { id body author { login } } } } } } } }' -f owner=OWNER -f repo=REPO -F number=PR_NUMBER
 ```
-
-**Invalid Pattern** (does not work):
-
-```bash
-# This fails - reviewThreads is not a valid field for gh pr view
-gh pr view <PR_NUMBER> --json reviewThreads  # ERROR: Unknown JSON field
-```
-
-**Anti-Pattern**:
-
-- Attempting to merge with unresolved conversations → merge will be blocked
-- Using `--admin` flag to bypass → violates repository policy
-- Pushing fixes without replying/resolving → threads remain unresolved
 
 ---
 
-## Skill-PR-Review-002: Conversation Resolution Protocol
+### Skill-PR-Review-002: Conversation Resolution Protocol
 
-**Statement**: When addressing PR review feedback, ALWAYS reply to the conversation with resolution details, then mark the thread as resolved. Pushing fixes alone does NOT resolve conversations.
+**Statement**: Reply with resolution details, THEN mark resolved. Pushing fixes alone does NOT resolve.
 
-**Context**: GitHub PR review workflow - responding to reviewer comments
+**Atomicity**: 98% | **Impact**: 10/10 | **Tag**: critical
 
-**Evidence**: Maintainer guidance from 2025-12-20 session - "each conversation needs a reply with either 1) the fix and link to commit SHA, or 2) explanation why not fixing, or 3) action for commenter to take"
+**Protocol** - Reply with ONE of:
 
-**Atomicity**: 98%
+1. **Fix applied**: `Fixed in commit abc1234. [Brief description]`
+2. **Won't fix**: `Won't fix: [Rationale for different approach]`
+3. **Action required**: `@reviewer Could you clarify [question]?`
 
-**Tag**: critical
-
-**Impact**: 10/10
-
-**Created**: 2025-12-20
-
-**Validated**: 1
-
-**Protocol**:
-
-For each unresolved conversation, reply with ONE of:
-
-1. **Fix applied**: Link to commit SHA that addresses the feedback
-
-   ```text
-   Fixed in commit abc1234. [Brief description of change]
-   ```
-
-2. **Won't fix with explanation**: Clear rationale why the suggestion wasn't applied
-
-   ```text
-   Won't fix: [Detailed explanation why this approach was chosen instead]
-   ```
-
-3. **Action required from reviewer**: @ mention the reviewer with specific ask
-
-   ```text
-   @reviewer-username Could you clarify [specific question]? I need more context to address this.
-   ```
-
-**After replying, RESOLVE the thread** using:
+**Then resolve**:
 
 ```bash
-# Reply to the thread
-gh api graphql -f query='
-mutation($threadId: ID!, $body: String!) {
-  addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {
-    comment { id }
-  }
-}' -f threadId=THREAD_ID -f body="REPLY_TEXT"
+# Reply to thread
+gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $id, body: $body}) { comment { id } } }' -f id="PRRT_xxx" -f body="Reply"
 
-# Resolve the thread
-gh api graphql -f query='
-mutation($threadId: ID!) {
-  resolveReviewThread(input: {threadId: $threadId}) {
-    thread { isResolved }
-  }
-}' -f threadId=THREAD_ID
+# Resolve thread
+gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id="PRRT_xxx"
 ```
-
-**Common Mistake**:
-
-- Pushing commit with fix but NOT replying to thread → thread stays unresolved
-- Replying but NOT resolving → thread stays unresolved (blocking merge)
-- Only resolving without reply → reviewer doesn't know how feedback was addressed
-
-**Notes**:
-
-- This is the complete workflow: Code fix → Reply → Resolve
-- Thread IDs are obtained via GraphQL query (see Skill-PR-Review-001)
-- Resolving requires the thread ID, not the comment ID
 
 ---
 
-## Skill-PR-Review-003: API Selection for PR Replies
+### Skill-PR-Review-003: API Selection (REST vs GraphQL)
 
-**Statement**: Use REST API (`in_reply_to`) for simple replies with comment IDs; use GraphQL (`addPullRequestReviewThreadReply`) when you need to resolve threads or only have thread IDs.
+**Statement**: REST for simple replies with comment IDs; GraphQL for thread resolution or thread IDs.
 
-**Context**: GitHub PR comment/thread handling - choosing the right API
+**Atomicity**: 94% | **Impact**: 8/10
 
-**Evidence**: Session 2025-12-20 - both approaches work but serve different use cases
-
-**Atomicity**: 94%
-
-**Tag**: critical
-
-**Impact**: 8/10
-
-**Created**: 2025-12-20
-
-**Validated**: 1
-
-**ID Types**:
-
-| ID Type | Format | Source | Used With |
-|---------|--------|--------|-----------|
-| Comment ID | Numeric (e.g., `2616639895`) | `gh api repos/O/R/pulls/N/comments` | REST API `in_reply_to` |
-| Thread ID | `PRRT_...` (e.g., `PRRT_kwDOQoWRls5m3L76`) | GraphQL `reviewThreads` query | GraphQL mutations |
-
-**REST API Approach** (when you have comment IDs):
-
-```bash
-# Reply to a review comment (creates new comment in thread)
-gh api repos/{owner}/{repo}/pulls/{pr}/comments \
-  -X POST \
-  -F in_reply_to=COMMENT_ID \
-  -f body="Reply text"
-```
-
-**GraphQL Approach** (when you have thread IDs or need to resolve):
-
-```bash
-# Reply to a thread
-gh api graphql -f query='
-mutation($threadId: ID!, $body: String!) {
-  addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {
-    comment { id }
-  }
-}' -f threadId="PRRT_xxx" -f body="Reply text"
-
-# Resolve the thread (ONLY available via GraphQL)
-gh api graphql -f query='
-mutation($threadId: ID!) {
-  resolveReviewThread(input: {threadId: $threadId}) {
-    thread { isResolved }
-  }
-}' -f threadId="PRRT_xxx"
-```
+| ID Type | Format | API |
+|---------|--------|-----|
+| Comment ID | Numeric `2616639895` | REST `in_reply_to` |
+| Thread ID | `PRRT_kwDO...` | GraphQL mutations |
 
 **Decision Matrix**:
 
-| Need | Use | Reason |
-|------|-----|--------|
-| Simple reply, have comment ID | REST | Simpler syntax |
-| Need to resolve thread | GraphQL | Only option |
-| Have thread ID only | GraphQL | REST needs comment ID |
-| Full PR review workflow | GraphQL | Get threads, reply, resolve in one flow |
-
-**Common Mistakes**:
-
-- Using comment ID with GraphQL mutation → Error: "Could not resolve to a node"
-- Using thread ID with REST API → Error: 404 Not Found
-- Assuming thread can be resolved via REST → No such endpoint exists
+| Need | Use |
+|------|-----|
+| Simple reply, have comment ID | REST |
+| Need to resolve thread | GraphQL (only option) |
+| Have thread ID only | GraphQL |
 
 ---
 
-## Skill-PR-Review-Security-001: Security Comment Triage Priority (94%)
+## Part 2: Bot Reviewer Triage
 
-**Statement**: Security-domain review comments (CWE, vulnerability, injection) receive +50% triage priority over style suggestions
+### Skill-PR-006: Reviewer Signal Quality
 
-**Context**: When triaging bot review comments on PRs
+**Statement**: Prioritize reviewers by historical actionability rate.
 
-**Evidence**: PR #60 had 30 bot comments, security signal buried in noise
+**Atomicity**: 96% | **Validated**: 14 PRs
 
-**Atomicity**: 94%
+| Priority | Reviewer | Signal Rate | Action |
+|----------|----------|-------------|--------|
+| **P0** | cursor[bot] | **100%** (28/28) | Process immediately |
+| **P1** | Human reviewers | N/A | Domain expertise |
+| **P2** | coderabbitai[bot] | ~50% (163 comments) | Review carefully |
+| **P3** | Copilot | ~34% (459 comments) | Skim for real issues |
+| **P4** | gemini-code-assist[bot] | ~25% (49 comments) | Quick scan |
 
-**Tag**: helpful
+**Comment Type Actionability**:
 
-**Impact**: 7/10
-
-**Created**: 2025-12-20
-
-**Pattern**:
-
-| Comment Domain | Keywords | Base Signal | Adjustment | Final Priority |
-|----------------|----------|-------------|------------|----------------|
-| Security | CWE, vulnerability, injection, XSS, SQL | Varies | +50% | Always investigate |
-| Bug | error, crash, exception | Varies | No change | Use base |
-| Style | formatting, naming, indentation | Varies | No change | Use base |
-
-**Anti-Pattern**: Treating all bot comments equally, security buried in noise
-
-**Source**: `.agents/retrospective/2025-12-20-pr-211-security-miss.md`
-
-**Relation to Existing Skills**: Extends Skill-Security-009 (domain-adjusted signal quality) with specific triage priority adjustment
+| Type | Rate | Examples |
+|------|------|----------|
+| Bug reports | ~90% | cursor[bot] bugs, type errors |
+| Missing coverage | ~70% | Test gaps, edge cases |
+| Style suggestions | ~20% | Formatting, naming |
+| Summaries | 0% | CodeRabbit walkthroughs |
 
 ---
 
-## Related Skills
+### Skill-PR-001: Reviewer Enumeration
 
-- Skill-PR-Review-001: Conversation Resolution Requirement
-- Skill-PR-Review-002: Conversation Resolution Protocol
-- Skill-PR-Review-003: API Selection for PR Replies
+**Statement**: Enumerate ALL reviewers before triaging to avoid single-bot blindness.
+
+**Atomicity**: 92% | **Validated**: 2
+
+```bash
+gh pr view PR --json reviews --jq '.reviews[].author.login' | sort -u
+```
+
+---
+
+### Skill-PR-002: Independent Comment Parsing
+
+**Statement**: Parse each comment independently; same-file comments may address different issues.
+
+**Atomicity**: 88%
+
+---
+
+### Skill-PR-003: Verification Count
+
+**Statement**: Verify addressed_count matches total_comment_count before claiming completion.
+
+**Atomicity**: 94% | **Validated**: 2
+
+---
+
+## Part 3: Acknowledgment Protocol
+
+### Skill-PR-Comment-001: Acknowledgment BLOCKING Gate
+
+**Statement**: Phase 3 BLOCKED until eyes reaction count equals comment count.
+
+**Atomicity**: 100% | **Tag**: critical
+
+```bash
+COMMENT_COUNT=$(gh api repos/O/R/pulls/PR/comments --jq 'length')
+EYES_COUNT=$(gh api repos/O/R/pulls/PR/comments --jq '[.[].reactions.eyes] | add')
+[ "$EYES_COUNT" -lt "$COMMENT_COUNT" ] && echo "BLOCKED" && exit 1
+```
+
+---
+
+### Skill-PR-Comment-002: Session-Specific Work Tracking
+
+**Statement**: Track 'NEW this session' separately from 'DONE prior sessions'.
+
+**Atomicity**: 100% | **Tag**: critical
+
+**Anti-Pattern**: Conflating prior session replies with current session obligations.
+
+---
+
+### Skill-PR-Comment-003: API Verification Before Phase Completion
+
+**Statement**: Verify mandatory step completion via API before marking phase complete.
+
+**Atomicity**: 100% | **Tag**: critical
+
+---
+
+### Skill-PR-Comment-004: PowerShell Fallback to gh CLI
+
+**Statement**: PowerShell script failure requires immediate gh CLI fallback attempt.
+
+**Atomicity**: 100%
+
+```bash
+if ! pwsh Add-CommentReaction.ps1 -CommentId $ID -Reaction "eyes"; then
+  gh api repos/O/R/pulls/comments/$ID/reactions -X POST -f content="eyes"
+fi
+```
+
+---
+
+## Part 4: Security Priority
+
+### Skill-PR-Review-Security-001: Security Comment Triage
+
+**Statement**: Security-domain comments receive +50% triage priority.
+
+**Atomicity**: 94% | **Impact**: 7/10
+
+| Domain | Keywords | Adjustment |
+|--------|----------|------------|
+| Security | CWE, vulnerability, injection | +50% - Always investigate |
+| Bug | error, crash | No change |
+| Style | formatting | No change |
+
+---
+
+### Skill-Triage-002: Never Dismiss Security Without Process Analysis
+
+**Statement**: Before dismissing security suggestion, verify protection covers all process boundaries.
+
+**Atomicity**: 93%
+
+**Checklist**:
+- [ ] Protection covers ALL execution paths?
+- [ ] Protection in same process as action?
+- [ ] TOCTOU analysis done?
+- [ ] Conditional execution checked?
+
+---
+
+## Part 5: Known False Positives
+
+### Skill-Review-001: CodeRabbit Sparse Checkout Blindness
+
+**Statement**: CodeRabbit flags .agents/ files as missing due to sparse checkout pattern.
+
+**Atomicity**: 95%
+
+**Verify**: `git ls-tree HEAD .agents/`
+
+---
+
+### Skill-Review-002: Python Implicit String Concat
+
+**Statement**: Dismiss Python implicit string concat warnings as false positives.
+
+**Atomicity**: 92%
+
+Adjacent string literals `r"pattern1" r"pattern2"` are valid Python per PEP 3126.
+
+---
+
+### Copilot False Positive Patterns
+
+| Pattern | Frequency | Actionability |
+|---------|-----------|---------------|
+| Unused variable | ~30% | ~20% (often intentional) |
+| Style suggestions | ~25% | ~10% (noise) |
+| Syntax issues | ~10% | ~90% (usually valid) |
+
+---
+
+### gemini-code-assist False Positives
+
+| Pattern | Frequency | Actionability |
+|---------|-----------|---------------|
+| Documentation-as-code | ~40% | 0% (misunderstands docs) |
+| Style suggestions | ~30% | ~20% |
+
+---
+
+## Part 6: Copilot Follow-Up PR Detection
+
+### Skill-PR-Copilot-001: Follow-Up PR Pattern
+
+**Statement**: Detect Copilot follow-up PRs using branch pattern `copilot/sub-pr-{original}`.
+
+**Atomicity**: 96%
+
+**Categories**:
+
+| Category | Indicator | Action |
+|----------|-----------|--------|
+| DUPLICATE | No/minimal changes | Close with commit ref |
+| SUPPLEMENTAL | Additional issues | Evaluate for merge |
+| INDEPENDENT | Unrelated | Close with explanation |
+
+---
+
+## Application Checklist
+
+### Phase 1-2: Context and Acknowledgment
+
+- [ ] Enumerate ALL reviewers (Skill-PR-001)
+- [ ] Prioritize cursor[bot] first (Skill-PR-006)
+- [ ] Parse each comment independently (Skill-PR-002)
+- [ ] **BLOCKING**: Add eyes reaction to EACH comment
+- [ ] **BLOCKING**: Verify eyes_count == comment_count via API
+
+### Phase 3-5: Analysis and Response
+
+- [ ] Track 'NEW this session' vs 'DONE prior sessions'
+- [ ] For atomic bugs, use Quick Fix path
+- [ ] Use correct API (REST vs GraphQL)
+- [ ] Reply then resolve each thread
+
+### Phase 6-8: Verification
+
+- [ ] Check for Copilot follow-up PRs
+- [ ] Verify addressed_count == total_comment_count
+- [ ] Update HANDOFF.md with session summary
+
+---
+
+## Cumulative Metrics (as of 2025-12-22)
+
+| Reviewer | Total Comments | Signal Rate | Trend |
+|----------|----------------|-------------|-------|
+| cursor[bot] | 45 | **100%** | ✅ Stable |
+| Copilot | 459 | ~34% | ↓ Declining |
+| coderabbitai[bot] | 164 | ~49% | → Stable |
+| gemini-code-assist[bot] | 49 | ~25% | → Stable |
