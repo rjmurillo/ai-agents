@@ -23,7 +23,7 @@ PR #235 adds `-IncludeIssueComments` switch to `Get-PRReviewComments.ps1` with 4
 **Workflow**: Validate Generated Agents
 **Run ID**: 20429677728
 
-**Issue**: PR updated `src/claude/pr-comment-responder.md` directly instead of regenerating from `templates/agents/pr-comment-responder.shared.md`. This violates the single-source-of-truth principle.
+**Issue**: PR updated `src/claude/pr-comment-responder.md` without syncing changes to `templates/agents/pr-comment-responder.shared.md`. This violates the temporary dual-maintenance requirement during the tri-template migration period.
 
 **Evidence**:
 ```
@@ -32,20 +32,34 @@ VALIDATION FAILED: 2 file(s) differ from generated output
   - src/vs-code-agents/pr-comment-responder.agent.md
 ```
 
-**Fix Required**:
-```bash
-# After merging template changes, regenerate agents
-pwsh build/Generate-Agents.ps1
-git add src/copilot-cli/ src/vs-code-agents/
-git commit -m "build: regenerate agents after template update"
-```
+**Context - Dual Template System**:
+
+Until the tri-template system is implemented (tracked in `.agents/` issues), changes MUST follow this dual-flow pattern:
+
+1. **Changes to `src/claude/**/*.md`** (Claude Code agents):
+   - MUST be independently reimplemented in `templates/agents/**/*.md`
+   - Maintain separate but synchronized content
+
+2. **Changes to `templates/agents/**/*.md`** (shared templates):
+   - MUST execute `pwsh build/Generate-Agents.ps1` to regenerate platform-specific agents
+   - MUST port changes to corresponding agents in `src/claude/**/*.md`
 
 **Why This Matters**:
-- Manual edits to generated files create drift across platforms (Claude Code, Copilot CLI, VS Code)
+- `src/claude/pr-comment-responder.md` is maintained independently (not generated)
+- Manual edits to generated files create drift across platforms (Copilot CLI, VS Code)
 - Next template regeneration would overwrite manual changes
 - Build validation gate exists specifically to prevent this
 
-**Resolution**: Commit 9205cf0 correctly updated `templates/agents/pr-comment-responder.shared.md` but did not regenerate platform-specific agents. Run `Generate-Agents.ps1` and commit results.
+**Fix Required**:
+```bash
+# 1. Port changes from src/claude to templates (if not done)
+# 2. Regenerate platform-specific agents
+pwsh build/Generate-Agents.ps1
+git add src/copilot-cli/ src/vs-code-agents/
+git commit -m "build: regenerate agents after template sync"
+```
+
+**Resolution**: Changes have been ported bidirectionally between `src/claude` and `templates/agents`. Run `Generate-Agents.ps1` and commit regenerated outputs.
 
 ---
 
