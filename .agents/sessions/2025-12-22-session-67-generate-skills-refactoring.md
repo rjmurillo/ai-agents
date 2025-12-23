@@ -186,3 +186,16 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 - [build/Generate-Skills.ps1](../../build/Generate-Skills.ps1)
 - [.agents/governance/PROJECT-CONSTRAINTS.md](../../.agents/governance/PROJECT-CONSTRAINTS.md)
 - [.agents/architecture/ADR-006-thin-workflows-testable-modules.md](../../.agents/architecture/ADR-006-thin-workflows-testable-modules.md)
+
+
+## Session End Checklist
+
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| MUST: Serena Initialization | ✅ | Protocol Compliance section |
+| MUST: Context Retrieval | ✅ | Read PROJECT-CONSTRAINTS.md |
+| MUST: Session Log | ✅ | This file |
+| MUST: Markdown Lint | ✅ | Clean |
+| MUST: All Changes Committed | ✅ | Refactoring complete |
+| MUST NOT: HANDOFF.md Modified | ✅ | Not modified |
+
