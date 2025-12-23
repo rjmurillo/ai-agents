@@ -3,6 +3,7 @@
 **Status**: Accepted
 **Date**: 2025-12-23
 **Deciders**: User, Claude Opus 4.5
+**Consulted**: 5-agent review (Critic, Architect, Analyst, Security, Independent-Thinker)
 **Context**: Issue #307 Memory Automation, PR #308
 
 ---
@@ -46,8 +47,6 @@ Two competing optimization strategies emerged:
 | Per-read cost | High (load all skills in domain) |
 | Waste when needing 1 skill | ~67% tokens wasted |
 
-**Example**: Reading `skills-copilot` (600 tokens) to get one triage table (100 tokens).
-
 ### Option 2: Pure Atomic Files
 
 **Keep every skill in its own file**
@@ -64,19 +63,13 @@ Two competing optimization strategies emerged:
 
 **Three-level hierarchy: Top Index → Domain Index → Atomic File**
 
-```
-Level 0: memory-index (domain routing, ~300 tokens)
+```text
+Level 0: memory-index (domain routing, ~400 tokens)
          ↓
-Level 1: skills-{domain}-index (activation vocabulary, ~50 tokens)
+Level 1: skills-{domain}-index (activation vocabulary, ~100 tokens)
          ↓
-Level 2: {atomic-skill} (focused content, ~100 tokens)
+Level 2: {atomic-skill} (focused content, ~150 tokens)
 ```
-
-| Metric | Value |
-|--------|-------|
-| Single skill retrieval | ~150 tokens (index + atomic) |
-| Full domain retrieval | ~350 tokens (index + all atomics) |
-| Waste | <15% |
 
 ---
 
@@ -84,22 +77,26 @@ Level 2: {atomic-skill} (focused content, ~100 tokens)
 
 **Chosen option: Option 3 - Tiered Index Architecture**
 
+### Critical Assumption
+
+**Memory-index caching**: Efficiency claims assume `memory-index` is loaded once per session and cached. Without caching, the architecture provides **27.6% savings**. With caching (memory-index excluded from per-retrieval cost), savings reach **81.6%**.
+
 ### Architecture
 
-```
-memory-index.md (Level 0)
+```text
+memory-index.md (Level 0) - ~400 tokens, cached
 ├── Points to: skills-copilot-index
 ├── Points to: skills-coderabbit-index
 └── Points to: skills-{domain}-index
 
-skills-copilot-index.md (Level 1)
+skills-copilot-index.md (Level 1) - ~100 tokens
 | Keywords | File |
 |----------|------|
 | P0 P1 P2 RICE maintenance-only ... | copilot-platform-priority |
 | duplicate sub-pr close branch ... | copilot-follow-up-pr |
 | false-positive triage actionability ... | copilot-pr-review |
 
-copilot-pr-review.md (Level 2)
+copilot-pr-review.md (Level 2) - ~150 tokens
 [Focused, actionable content only]
 ```
 
@@ -107,7 +104,7 @@ copilot-pr-review.md (Level 2)
 
 #### 1. Activation Vocabulary
 
-Each domain index contains **10-15 keywords** per skill that trigger LLM association patterns.
+Each domain index contains **10-15 keywords** per skill (recommended guideline based on pilot).
 
 ```markdown
 | Keywords | File |
@@ -115,7 +112,13 @@ Each domain index contains **10-15 keywords** per skill that trigger LLM associa
 | P0 P1 P2 RICE maintenance-only Claude-Code VSCode investment | copilot-platform-priority |
 ```
 
-**Why**: LLMs map tokens into vector space where **association patterns** (not symbolic logic) drive selection. Keywords are the activation vocabulary.
+**Why**: LLMs map tokens into vector space where **association patterns** (not symbolic logic) drive selection.
+
+**Keyword Guidelines**:
+
+- Use domain-specific compound terms (e.g., `pr-review`, not `review`)
+- Each skill SHOULD have ≥40% unique keywords vs other skills in domain
+- Include action verbs: `triage`, `close`, `duplicate`
 
 #### 2. Zero Retrieval-Value Content Elimination
 
@@ -125,36 +128,41 @@ Remove anything that doesn't aid retrieval:
 |--------|--------|
 | `# Title` headers | File name is self-descriptive |
 | `**Date**: ... \| **Status**: Active` | Not actionable |
-| `## Index\n\nParent: ...` | I came from there |
+| `## Index\n\nParent: ...` | Navigation context already known |
 | Verbose prose | Tables are denser |
-| Redundant examples | One example suffices |
 
 #### 3. Progressive Refinement
 
-Each level filters more precisely:
-
-| Level | Purpose | Tokens |
-|-------|---------|--------|
-| 0 | Domain routing | ~50 |
-| 1 | Skill identification via keywords | ~50 |
-| 2 | Actionable content | ~100 |
-
-**Total**: ~200 tokens for precise retrieval vs ~600 for consolidated file.
+| Level | Purpose | Tokens | Caching |
+|-------|---------|--------|---------|
+| 0 | Domain routing | ~400 | Session-cached |
+| 1 | Skill identification via keywords | ~100 | Per-retrieval |
+| 2 | Actionable content | ~150 | Per-retrieval |
 
 ---
 
-## Validation: A/B Test Results
+## Validation
 
-**Test Scenario**: "Handle bot review comments on PR #308"
+### Measured Token Costs (Analyst Verification)
 
-| Metric | Tiered (Copilot) | Consolidated (CodeRabbit) |
-|--------|------------------|---------------------------|
-| Tokens loaded | ~400 | ~900 |
-| Tokens needed | ~350 | ~300 |
-| Tokens wasted | ~50 (12%) | ~600 (67%) |
-| Precision | HIGH | LOW |
+| File | Measured Tokens |
+|------|-----------------|
+| `memory-index` (minimized) | ~400 |
+| `skills-copilot-index` | ~100 |
+| `copilot-platform-priority` | ~130 |
+| `copilot-follow-up-pr` | ~95 |
+| `copilot-pr-review` | ~210 |
+| `skills-coderabbit` (consolidated baseline) | ~1,415 |
 
-**Result**: Tiered is **2.25x more token-efficient** for targeted retrieval.
+### Efficiency Analysis
+
+| Scenario | Tiered (cached) | Consolidated | Savings |
+|----------|-----------------|--------------|---------|
+| Single skill retrieval | ~250 tokens | ~1,415 tokens | **82%** |
+| 3 skills from domain | ~535 tokens | ~1,415 tokens | **62%** |
+| 9+ skills (break-even) | ~1,400 tokens | ~1,415 tokens | **~0%** |
+
+**Break-even point**: Tiered loses efficiency when retrieving **9 or more skills** from the same domain (≥70% of domain content).
 
 ---
 
@@ -162,30 +170,80 @@ Each level filters more precisely:
 
 ### Positive
 
-1. **78% token reduction** for single-skill retrieval (130 vs 600 tokens)
-2. **52% token reduction** for full-domain retrieval (290 vs 600 tokens)
-3. **Activation vocabulary** enables intuitive matching
-4. **Scalable**: Adding skills doesn't bloat existing files
-5. **Maintainable**: Each file has single responsibility
+1. **82% token reduction** for single-skill retrieval (with caching)
+2. **Activation vocabulary** enables intuitive matching
+3. **Scalable**: Adding skills doesn't bloat existing files
+4. **Blast radius containment**: Corruption affects only one domain
 
 ### Negative
 
-1. **More files**: 4 files per domain vs 1 consolidated
-   - **Mitigation**: Files are tiny; total bytes decrease
+1. **More files**: 1 index + N atomic files per domain vs 1 consolidated
+   - **Mitigation**: Files are tiny; total bytes decrease by 64%
 2. **Two reads for single skill**: Index + atomic file
-   - **Mitigation**: 150 tokens total vs 600; net savings
+   - **Mitigation**: ~250 tokens vs ~1,415; net 82% savings
 3. **Manual index maintenance**: New skills must be added to index
-   - **Mitigation**: Automated validation can enforce this
+   - **Mitigation**: CI validation required (see Confirmation)
 
-### Neutral
+### Failure Modes
 
-1. **Hybrid with existing consolidation**: Some domains may remain consolidated if rarely accessed
+| Mode | Risk | Mitigation |
+|------|------|------------|
+| **Index drift** | Index points to renamed/deleted file | CI validation script |
+| **Keyword collision** | Overlapping keywords across skills | ≥40% unique keywords per skill |
+| **Cold start** | Memory-index not cached | Accept 27.6% savings vs 82% |
+| **Wrong path** | Agent picks wrong skill from keywords | Clear, specific keyword selection |
+
+---
+
+## Confirmation
+
+Compliance verified via:
+
+1. **Pre-commit hook**: Validates new skill files are indexed
+2. **CI workflow**: `Validate-MemoryIndex.ps1` checks index ↔ file consistency
+3. **Keyword density check**: Each skill has ≥40% unique keywords
+
+**Blocking for Phase 3+ rollout**: Issue #307 automation must be complete.
+
+---
+
+## Reversibility Assessment
+
+| Criterion | Status |
+|-----------|--------|
+| Rollback capability | Can revert to consolidated files in <30 minutes |
+| Vendor lock-in | None (pure markdown) |
+| Exit strategy | Delete indices, concatenate atomics to consolidated |
+| Data migration | No data loss on rollback |
+| Legacy impact | Existing consolidated memories remain functional |
+
+---
+
+## Abort Criteria
+
+Stop tiered migration and evaluate rollback if:
+
+- Token overhead >20% vs consolidated baseline
+- Retrieval precision <80% (wrong file loaded frequently)
+- Index maintenance >2 hours/month
+- Keyword collision rate >30% within domains
+- Index drift detected in >3 consecutive PRs within 30 days
+
+---
+
+## Sunset Trigger
+
+This architecture is optimized for lexical matching without embeddings. When Issue #167 (Vector Memory System) is implemented:
+
+1. Re-evaluate tiered approach vs semantic search
+2. Tiered indices may become unnecessary overhead
+3. Consider deprecation in favor of embedding-based retrieval
 
 ---
 
 ## Implementation
 
-### Domain Index Format (Minimal)
+### Domain Index Format
 
 ```markdown
 | Keywords | File |
@@ -193,9 +251,9 @@ Each level filters more precisely:
 | keyword1 keyword2 keyword3 ... | memory-file-name |
 ```
 
-No title, no metadata, no explanations. Pure lookup table.
+No title, no metadata. Pure lookup table.
 
-### Atomic File Format (Minimal)
+### Atomic File Format
 
 ```markdown
 ## Section
@@ -207,43 +265,44 @@ No title, no metadata, no explanations. Pure lookup table.
 **Key insight**: One sentence.
 ```
 
-No title (file name suffices), no parent pointers, no dates.
+No title, no parent pointers, no dates.
 
-### Activation Vocabulary Guidelines
+### When to Use Tiered vs Consolidated
 
-1. **10-15 keywords** per skill (empirically tested)
-2. **Include domain-specific terms**: `RICE`, `P0`, `sub-pr`
-3. **Include action verbs**: `triage`, `close`, `duplicate`
-4. **Avoid generic words**: `the`, `and`, `review` (too broad)
-5. **Match training data**: Use standard terminology, not invented jargon
+| Use Tiered | Use Consolidated |
+|------------|------------------|
+| Domain has ≥3 skills | Domain has ≤2 skills |
+| Typical retrieval needs ≤70% of content | Skills always retrieved together |
+| Skills are independently useful | Domain is rarely accessed |
 
 ---
 
 ## Migration Path
 
 1. **Pilot**: Copilot domain (3 skills) - COMPLETE
-2. **Validate**: A/B test confirms 2.25x efficiency - COMPLETE
-3. **Expand**: Apply to CodeRabbit (12 skills)
-4. **Generalize**: Apply to remaining high-value domains
-5. **Maintain**: Update memory-index routing table
+2. **Validate**: Measured 82% savings (with caching) - COMPLETE
+3. **Tooling**: Create `Validate-MemoryIndex.ps1` - REQUIRED before Phase 3
+4. **Expand**: Apply to CodeRabbit (12 skills)
+5. **Generalize**: Apply to remaining high-value domains
 
 ---
 
 ## Related Decisions
 
-- [PRD-skills-index-registry.md](../planning/PRD-skills-index-registry.md): Original O(1) lookup proposal
+- [PRD-skills-index-registry.md](../planning/PRD-skills-index-registry.md): Superseded flat registry approach
 - [Issue #307](https://github.com/rjmurillo/ai-agents/issues/307): Memory automation tracking
 - [Session 51](../sessions/2025-12-20-session-51-token-efficiency-debate.md): 10-agent token efficiency debate
-- `skill-memory-token-efficiency`: Activation vocabulary principle
+- `.agents/critique/017-tiered-memory-index-critique.md`: 5-agent review
+- `.agents/analysis/083-adr-017-quantitative-verification.md`: Token calculations
 
 ---
 
 ## References
 
 - **Pilot Implementation**: PR #308
-- **Test Data**: Copilot domain (3 skills, 60 lines total)
-- **Baseline**: Consolidated `skills-coderabbit` (900 tokens)
-- **Token Efficiency Memory**: `skill-memory-token-efficiency`
+- **Measured Data**: Copilot domain (4 files, 535 tokens total)
+- **Baseline**: Consolidated `skills-coderabbit` (1,415 tokens)
+- **Agent Reviews**: Critic, Architect, Analyst, Security, Independent-Thinker
 
 ---
 
@@ -252,12 +311,12 @@ No title (file name suffices), no parent pointers, no dates.
 Before applying to new domain:
 
 - [ ] Domain index is pure `| Keywords | File |` table
-- [ ] Each skill has 10-15 activation keywords
+- [ ] Each skill has 10-15 keywords with ≥40% unique
 - [ ] Atomic files have no titles, dates, or parent pointers
-- [ ] A/B test confirms token savings vs consolidated alternative
-- [ ] `memory-index` updated with domain index pointer
+- [ ] `memory-index` updated with domain routing
+- [ ] CI validation passes (index ↔ file consistency)
 
 ---
 
-**Supersedes**: None (new architecture)
+**Supersedes**: PRD-skills-index-registry.md flat registry approach (for high-value domains)
 **Amended by**: None
