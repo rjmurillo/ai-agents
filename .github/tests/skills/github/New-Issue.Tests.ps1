@@ -10,8 +10,9 @@
 #>
 
 BeforeAll {
-    $ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "issue" "New-Issue.ps1"
-    $ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
+    # Correct path: from .github/tests/skills/github -> .claude/skills/github/scripts/issue
+    $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "issue" "New-Issue.ps1"
+    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
 
     # Import the module for error handling functions
     Import-Module $ModulePath -Force
