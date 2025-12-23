@@ -102,6 +102,9 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
       - name: Skip validation (no relevant files changed)
         run: |
           echo "✅ No markdown files changed - skipping path validation"
