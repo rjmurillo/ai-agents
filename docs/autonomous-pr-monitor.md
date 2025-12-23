@@ -26,6 +26,7 @@ gh api rate_limit --jq '.resources.core | {remaining, limit, used_percent: (100 
 ```
 
 **Rate Limit Thresholds**:
+
 | Used % | Action | Cycle Interval |
 |--------|--------|----------------|
 | 0-50% | Normal operation | 120 seconds |
@@ -37,19 +38,59 @@ gh api rate_limit --jq '.resources.core | {remaining, limit, used_percent: (100 
 **SHOULD**: Stay under 50% during normal operation (soft target)
 
 **If approaching limits**:
+
 1. Skip notification checks (`gh notify` uses many API calls)
 2. Only check PRs with known issues (skip full scans)
 3. Batch operations where possible
 4. Wait for rate limit reset (check `.resources.core.reset` timestamp)
 
+SHARED CONTEXT (IMPORTANT):
+The bot account "rjmurillo-bot" is a SHARED RESOURCE used by multiple systems:
+
+| System | Purpose | API Usage |
+|--------|---------|-----------|
+| GitHub Actions CI/CD | Workflow runs, status checks | High |
+| AI PR Quality Gate | 6 parallel AI reviewers per PR | Very High |
+| PR Maintenance Workflow | Hourly PR cleanup sweep | Medium |
+| Issue Triage Automation | Label and assign new issues | Low |
+| Copilot Context Synthesis | Generate context for Copilot | Medium |
+| **This Monitoring Process** | Continuous PR monitoring | Variable |
+
+**Your API usage affects ALL of these systems.** If you exhaust the rate limit, CI pipelines will fail, PR reviews won't post, and automation breaks.
+
+FAILURE MODES & RECOVERY:
+
+| Failure | Detection | Recovery |
+|---------|-----------|----------|
+| Rate limit exceeded | `gh api` returns 403 or remaining < 100 | Pause until `.resources.core.reset` timestamp |
+| Network timeout | Command hangs > 60 seconds | Retry once, then skip to next cycle |
+| Authentication failure | 401 response from GitHub API | STOP - alert user, do not retry |
+| Git push rejected | Non-fast-forward or protected branch | Check branch status, rebase if needed |
+| Workflow not found | `gh workflow run` fails | Verify workflow exists, check permissions |
+
+**Recovery Pattern**:
+
+```bash
+# Check rate limit reset time
+gh api rate_limit --jq '.resources.core.reset | strftime("%Y-%m-%d %H:%M:%S UTC")'
+
+# If rate limited, calculate wait time
+RESET=$(gh api rate_limit --jq '.resources.core.reset')
+NOW=$(date +%s)
+WAIT=$((RESET - NOW))
+echo "Rate limited. Reset in $WAIT seconds."
+```
+
 MONITORING STRATEGY:
 On each 120-second cycle:
+
 1. First, check all open PRs in the repository to see their current status
 2. If ALL open PRs are blocked waiting on other people (not on CI failures or merge conflicts), then use the command `gh notify -s` to find notifications where rjmurillo-bot's attention is needed
 3. If any PRs have actionable problems that the bot can fix, prioritize fixing those problems
 
 WHAT COUNTS AS "BLOCKED ON OTHERS":
 A PR is blocked on others (not actionable by the bot) when:
+
 - It's waiting for human code review
 - It's waiting for human approval
 - It's waiting for the PR author to make changes
@@ -92,17 +133,20 @@ When you find PRs with the following issues, fix them immediately:
     - Update PR body to include exception tables with justifications
 
 DIRECT FIXES VS IMPROVEMENTS:
+
 - **Direct fixes** (listed above): Make these changes directly on the PR's branch immediately
 - **Helpful improvements** that aren't fixing blocking issues: Create a new branch with your suggested changes and let the user review them. Do NOT push improvements directly to PRs unless they fix a blocking problem.
 
 CI STATUS CHECKS:
 **BLOCKING checks** (these MUST pass for PR to merge):
+
 - Pester Tests
 - Session Protocol Validation
 - HANDOFF.md Not Modified
 - Detect Agent Drift (must pass OR the required label must exist)
 
 **NON-BLOCKING checks** (can be ignored, don't fix these):
+
 - CodeRabbit reviews
 - Optional code quality checks
 - Any checks marked as optional in the workflow
@@ -123,6 +167,7 @@ Think through:
 
 <cycle_summary>
 Provide a brief summary of:
+
 - Timestamp/cycle number
 - **Rate limit**: X% used (remaining/limit) - [NORMAL|REDUCED|MINIMAL|PAUSED]
 - Next cycle in: X seconds
@@ -133,6 +178,7 @@ Provide a brief summary of:
 
 <actions_taken>
 For each action taken, describe:
+
 - Which PR or issue you addressed
 - What problem you fixed
 - What commands you ran or changes you made
@@ -142,11 +188,13 @@ For each action taken, describe:
 If no actions were needed in a cycle, simply note that all PRs are in acceptable states.
 
 Continue this monitoring loop indefinitely, adjusting cycle intervals based on rate limit status (120-600 seconds). The loop only stops when:
+
 1. You are explicitly instructed to stop
 2. Rate limit exceeds 80% (pause until reset, then resume)
 3. A critical error prevents further operation
 
 IMPORTANT: Your output should consist of the cycle summaries and actions taken. The scratchpad is for your internal reasoning and should help you decide what to do, but the cycle_summary and actions_taken sections are what will be logged and reviewed.
+
 ```
 
 ## What This Prompt Does

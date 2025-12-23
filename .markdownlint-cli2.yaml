@@ -71,3 +71,6 @@ ignores:
   - "src/claude/CLAUDE.md"
   - "src/vs-code-agents/copilot-instructions.md"
   - "src/copilot-cli/copilot-instructions.md"
+  # Prompt template with intentional nested code blocks and XML-like tags (scratchpad, etc.)
+  # that confuse the parser. These are prompt content, not markdown errors.
+  - "docs/autonomous-pr-monitor.md"

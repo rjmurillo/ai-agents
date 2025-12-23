@@ -1277,4 +1277,62 @@ High-quality learnings extracted from autonomous monitoring across two cycles. S
 
 ---
 
-**Status**: [COMPLETE] - Iteration 5 checkpoint added, 3 new skills identified
+## Artifact Quality Review (Added Iteration 100+)
+
+**Purpose**: Retrospectives should evaluate not just execution (what was done) but also artifacts produced (documents, prompts, configurations).
+
+### Artifacts Produced This Session
+
+| Artifact | Type | Location |
+|----------|------|----------|
+| Autonomous PR Monitor Prompt | Operational Doc | `docs/autonomous-pr-monitor.md` |
+| Session Summaries | Status Updates | Posted to PR #301 |
+| Skill Extractions | Memory Updates | `.serena/memories/` |
+
+### Quality Assessment: autonomous-pr-monitor.md
+
+**Initial Version Issues** (identified by user steering):
+
+| Issue | Severity | Resolution |
+|-------|----------|------------|
+| Missing rate limit guidance | High | Added RATE LIMIT MANAGEMENT section |
+| 8-hour arbitrary limit | Medium | Changed to infinite loop with dynamic pacing |
+| No shared resource context | High | Added SHARED CONTEXT section listing all rjmurillo-bot consumers |
+| No failure modes | Medium | Added FAILURE MODES & RECOVERY table |
+| No self-termination conditions | Medium | Added explicit stop conditions |
+
+**User Steering Required**:
+
+The user had to point out:
+- "rjmurillo-bot is used for MANY operations"
+- "MUST not exceed 80%, SHOULD not exceed 50%"
+- "Goal is to give it to standalone instance"
+
+**Root Cause**: Agent produced prompt based on what it was doing, not what a naive agent would need.
+
+**Skill Extracted**: Skill-Documentation-006 (Self-Contained Operational Prompts)
+
+### Artifact Quality Checklist (New Standard)
+
+For operational prompts/documentation, verify:
+
+- [ ] **Resource Constraints**: Are API limits, rate limits, budgets documented?
+- [ ] **Shared Context**: Does it explain what else uses shared resources?
+- [ ] **Failure Modes**: Are error conditions and recovery documented?
+- [ ] **Self-Termination**: Are stop conditions explicit?
+- [ ] **Sustainability**: Can this run indefinitely without degradation?
+- [ ] **Self-Contained**: Would a naive agent succeed with only this document?
+
+### Retrospective Scope Expansion
+
+**Previous**: Retrospectives evaluated *execution* (fixes applied, skills extracted)
+
+**New**: Retrospectives MUST also evaluate *artifacts produced*:
+1. Did we create any documents, prompts, or configurations?
+2. Are they self-contained and sustainable?
+3. Would a different agent succeed using them?
+4. What implicit knowledge did we fail to make explicit?
+
+---
+
+**Status**: [COMPLETE] - Iteration 5 checkpoint added, 3 new skills identified, artifact quality review added
