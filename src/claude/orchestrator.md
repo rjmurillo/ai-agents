@@ -447,6 +447,33 @@ Before spawning multiple agents, verify the investment is justified:
 
 **Purpose**: Prevent premature PR opening by validating quality gates.
 
+**Terminology**: See `.agents/specs/design/HANDOFF-TERMS.md` for verdict definitions.
+
+#### Phase 4 Workflow Diagram
+
+```mermaid
+flowchart TD
+    A[Implementation Complete] --> B{Step 1: QA Validation}
+    B -->|PASS| C{Step 2: Security Relevant?}
+    B -->|FAIL| D[Route to Implementer]
+    B -->|NEEDS WORK| D
+    D --> E[Implementer Fixes Issues]
+    E --> B
+    
+    C -->|Yes| F{Step 3: Security PIV}
+    C -->|No| G[Security = N/A]
+    
+    F -->|APPROVED| H[Step 4: Aggregate Results]
+    F -->|CONDITIONAL| H
+    F -->|REJECTED| D
+    
+    G --> H
+    
+    H --> I{All Validations Pass?}
+    I -->|Yes: QA=PASS, Security=APPROVED/CONDITIONAL/N/A| J[Create PR with Validation Evidence]
+    I -->|No: Any FAIL/REJECTED| D
+```
+
 #### Step 1: Route to QA for Pre-PR Validation
 
 When implementer completes work and requests PR creation:
