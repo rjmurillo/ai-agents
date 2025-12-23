@@ -17,8 +17,8 @@
 #>
 
 BeforeAll {
-    # Create test temp directory
-    $Script:TestTempDir = Join-Path $env:TEMP "Validate-PathNormalization-Tests-$(Get-Random)"
+    # Create test temp directory (cross-platform)
+    $Script:TestTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "Validate-PathNormalization-Tests-$(Get-Random)"
     New-Item -ItemType Directory -Path $Script:TestTempDir -Force | Out-Null
 
     # Store repository root and script path

@@ -13,7 +13,10 @@
 #>
 
 BeforeAll {
-    # Import required module
+    # Install and import required module
+    if (-not (Get-Module -ListAvailable -Name powershell-yaml)) {
+        Install-Module -Name powershell-yaml -Force -Scope CurrentUser -AllowClobber
+    }
     Import-Module powershell-yaml -ErrorAction Stop
 
     # Read the script content and extract just the functions (skip main execution)
@@ -23,8 +26,8 @@ BeforeAll {
     # Execute only the function definitions
     Invoke-Expression $functionContent
 
-    # Create temp directory for test artifacts
-    $Script:TestTempDir = Join-Path $env:TEMP "Generate-Skills-Tests-$(Get-Random)"
+    # Create temp directory for test artifacts (cross-platform)
+    $Script:TestTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "Generate-Skills-Tests-$(Get-Random)"
     New-Item -ItemType Directory -Path $Script:TestTempDir -Force | Out-Null
 }
 
