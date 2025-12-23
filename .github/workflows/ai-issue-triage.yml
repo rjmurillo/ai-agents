@@ -22,7 +22,6 @@ name: AI Issue Triage
 on:
   issues:
     types: [opened, reopened, edited]
-
   # Scheduled sweep for eventual consistency - runs hourly
   schedule:
     - cron: "30 * * * *"
@@ -52,7 +51,7 @@ jobs:
   # ===========================================================================
   ai-issue-triage:
     name: AI Issue Triage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
 
     # Run for:
@@ -527,7 +526,7 @@ jobs:
   # ===========================================================================
   sweep-untriaged:
     name: Sweep Untriaged Issues
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
 
     # Run for:

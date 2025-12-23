@@ -28,10 +28,14 @@ on:
       - main
   workflow_dispatch: # Allow manual triggering
 
+concurrency:
+  group: validate-paths-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check-paths:
     name: Check Changed Paths
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
     outputs:
@@ -64,7 +68,7 @@ jobs:
     name: Validate Path Normalization
     needs: check-paths
     if: needs.check-paths.outputs.should-validate == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
 
@@ -98,10 +102,13 @@ jobs:
     name: Validate Path Normalization
     needs: check-paths
     if: needs.check-paths.outputs.should-validate != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
       - name: Skip validation (no relevant files changed)
         run: |
           echo "✅ No markdown files changed - skipping path validation"

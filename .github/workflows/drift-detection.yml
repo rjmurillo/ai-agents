@@ -13,12 +13,22 @@ on:
   schedule:
     # Run weekly on Monday at 9 AM UTC
     - cron: '0 9 * * 1'
+  push:
+    paths:
+      - 'src/claude/**'
+      - 'templates/agents/**'
+      - 'build/scripts/Detect-AgentDrift.ps1'
+      - '.github/workflows/drift-detection.yml'
   workflow_dispatch: # Allow manual triggering
+
+concurrency:
+  group: drift-detection-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   detect-drift:
     name: Detect Agent Drift
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       issues: write
