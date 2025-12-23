@@ -80,23 +80,29 @@ jobs:
           Write-Host "Checking review comment status..."
           
           # Fetch PR review comments
-          $reviews = gh api "/repos/${{ github.repository }}/pulls/$env:PR_NUMBER/reviews" | ConvertFrom-Json
           $comments = gh api "/repos/${{ github.repository }}/pulls/$env:PR_NUMBER/comments" | ConvertFrom-Json
-          
-          # Count security-related unresolved comments
+
+          # Count unresolved and security-related comments
+          $unresolvedCount = 0
           $securityUnresolved = 0
-          
+
           foreach ($comment in $comments) {
+            # Count all unresolved comments (GitHub does not expose resolved status via API)
+            # For now, we count all comments as this is informational
+            $unresolvedCount++
+
             # Check for security-related keywords that are not marked as "won't fix"
-            if ($comment.body -match '\b(security|vulnerability|CVE|injection|XSS)\b' -and 
+            if ($comment.body -match '\b(security|vulnerability|CVE|injection|XSS)\b' -and
                 -not ($comment.body -match '\bwon''t fix\b|\bWONT_FIX\b')) {
               $securityUnresolved++
             }
           }
-          
+
+          "unresolved_count=$unresolvedCount" >> $env:GITHUB_OUTPUT
           "security_unresolved=$securityUnresolved" >> $env:GITHUB_OUTPUT
-          
+
           Write-Host "Review comment status:"
+          Write-Host "  Total comments: $unresolvedCount"
           Write-Host "  Security-related unresolved: $securityUnresolved"
 
       - name: Check QA Report Exists

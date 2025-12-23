@@ -143,13 +143,13 @@ $significantChanges = $filesInPR | Where-Object {
 
 foreach ($changed in $significantChanges) {
   $isMentioned = $false
-  foreach ($mentionedFile in $mentionedFiles) {
-    if ($changed -eq $mentionedFile -or $changed -like "*/$mentionedFile" -or $changed -like "*\$mentionedFile") {
+  foreach ($mentioned in $mentionedFiles) {
+    if ($changed -eq $mentioned -or $changed -like "*/$mentioned" -or $changed -like "*\$mentioned") {
       $isMentioned = $true
       break
     }
   }
-  
+
   if (-not $isMentioned) {
     # Only warn about files in key directories
     if ($changed -match '^(\.github|scripts|src|\.agents)') {
