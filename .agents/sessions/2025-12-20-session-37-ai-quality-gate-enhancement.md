@@ -104,7 +104,7 @@ Issue #152 created successfully: https://github.com/rjmurillo/ai-agents/issues/1
 | MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Session preserved in PR #206 |
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | Lint executed (preserved session) |
-| MUST | Route to qa agent (feature implementation) | [ ] | N/A - Issue creation only |
+| MUST | Route to qa agent (feature implementation) | [x] | N/A - Issue creation only |
 | MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: a1009c3 |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A - Simple issue creation |

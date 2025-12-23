@@ -190,7 +190,7 @@ Mergeable: CONFLICTING
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report: SKIPPED: docs-only |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 6bbacc4 |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commits 1449d6d, 5f5f7b6, 2b97525 |
 | SHOULD | Update PROJECT-PLAN.md | [x] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [x] | Doc: N/A |
 | SHOULD | Verify clean git status | [x] | `git status` output |
