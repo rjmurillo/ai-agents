@@ -153,6 +153,12 @@ function Get-MaintainerGuidance {
     <#
     .SYNOPSIS
         Extracts key decisions from maintainer comments.
+
+    .DESCRIPTION
+        Extracts guidance from maintainer comments using a tiered approach:
+        1. First, extract explicit bullet points and numbered items
+        2. If none found, extract sentences with RFC 2119 keywords (MUST, SHOULD, etc.)
+        3. Prose comments without structure are still valuable context
     #>
     [CmdletBinding()]
     param(
@@ -171,6 +177,8 @@ function Get-MaintainerGuidance {
     $guidance = @()
     foreach ($comment in $maintainerComments) {
         $lines = $comment.body -split "`n"
+
+        # First pass: extract bullet points and numbered items
         foreach ($line in $lines) {
             $trimmed = $line.Trim()
             # Match numbered items (1. xxx) or bullet points (- xxx, * xxx)
@@ -179,6 +187,19 @@ function Get-MaintainerGuidance {
                 # Skip checkbox items or too short
                 if ($item.Length -gt 10 -and $item -notmatch '^\[[ x]\]') {
                     $guidance += $item
+                }
+            }
+        }
+
+        # Second pass: if no bullets found, extract sentences with RFC 2119 keywords
+        if ($guidance.Count -eq 0) {
+            # Split into sentences and find those with directive keywords
+            $sentences = $comment.body -split '(?<=[.!?])\s+'
+            foreach ($sentence in $sentences) {
+                $cleaned = $sentence.Trim() -replace '[\r\n]+', ' '
+                # Match sentences containing RFC 2119 keywords (case-insensitive word boundaries)
+                if ($cleaned -match '\b(MUST|SHOULD|SHALL|REQUIRED|RECOMMENDED)\b' -and $cleaned.Length -gt 15) {
+                    $guidance += $cleaned
                 }
             }
         }
