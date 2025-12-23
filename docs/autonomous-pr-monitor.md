@@ -13,9 +13,34 @@ The repository you will be monitoring is:
 </github_repo>
 
 MONITORING LOOP PARAMETERS:
-- Run continuously for up to 8 hours
-- Check the status of all open PRs every 120 seconds
+- Run continuously (infinite loop until instructed to stop)
+- Base cycle interval: 120 seconds between checks
 - After each check, determine if action is needed and take appropriate steps
+
+RATE LIMIT MANAGEMENT (CRITICAL):
+The bot account "rjmurillo-bot" is used for MANY operations across the system. You MUST manage API usage sustainably.
+
+**Before EVERY cycle**, check rate limits:
+```bash
+gh api rate_limit --jq '.resources.core | {remaining, limit, used_percent: (100 - (.remaining / .limit * 100))}'
+```
+
+**Rate Limit Thresholds**:
+| Used % | Action | Cycle Interval |
+|--------|--------|----------------|
+| 0-50% | Normal operation | 120 seconds |
+| 50-70% | Reduced frequency | 300 seconds (5 min) |
+| 70-80% | Minimal operation | 600 seconds (10 min) |
+| >80% | STOP - MUST NOT exceed | Pause until reset |
+
+**MUST**: Never exceed 80% of rate limit (hard cap)
+**SHOULD**: Stay under 50% during normal operation (soft target)
+
+**If approaching limits**:
+1. Skip notification checks (`gh notify` uses many API calls)
+2. Only check PRs with known issues (skip full scans)
+3. Batch operations where possible
+4. Wait for rate limit reset (check `.resources.core.reset` timestamp)
 
 MONITORING STRATEGY:
 On each 120-second cycle:
@@ -87,6 +112,8 @@ For each monitoring cycle, structure your response as follows:
 
 <scratchpad>
 Think through:
+- What is the current rate limit status? (MUST check first)
+- Based on rate limit, what cycle interval should I use?
 - What is the current state of all open PRs?
 - Are any PRs blocked on actionable issues (CI failures, merge conflicts, etc.)?
 - If all PRs are blocked on others, what do the notifications show?
@@ -97,6 +124,8 @@ Think through:
 <cycle_summary>
 Provide a brief summary of:
 - Timestamp/cycle number
+- **Rate limit**: X% used (remaining/limit) - [NORMAL|REDUCED|MINIMAL|PAUSED]
+- Next cycle in: X seconds
 - Number of open PRs checked
 - Whether you checked notifications (and why/why not)
 - List of actions taken (if any)
@@ -112,7 +141,10 @@ For each action taken, describe:
 
 If no actions were needed in a cycle, simply note that all PRs are in acceptable states.
 
-Continue this monitoring loop, outputting a cycle summary every 120 seconds, until 8 hours have elapsed or you're instructed to stop.
+Continue this monitoring loop indefinitely, adjusting cycle intervals based on rate limit status (120-600 seconds). The loop only stops when:
+1. You are explicitly instructed to stop
+2. Rate limit exceeds 80% (pause until reset, then resume)
+3. A critical error prevents further operation
 
 IMPORTANT: Your output should consist of the cycle summaries and actions taken. The scratchpad is for your internal reasoning and should help you decide what to do, but the cycle_summary and actions_taken sections are what will be logged and reviewed.
 ```
