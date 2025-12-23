@@ -211,7 +211,7 @@ Performance claims require consistent benchmarks across all documentation:
 | MUST | Update Serena memory (cross-session context) | [x] | N/A - PR comment response session |
 | MUST | Run markdown lint | [x] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/pr-285-session-82-comment-response.md` |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit: a624f2f |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: c2bd867 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [x] | N/A - PR comment response |
 | SHOULD | Invoke retrospective (significant sessions) | [x] | Learnings documented in session |

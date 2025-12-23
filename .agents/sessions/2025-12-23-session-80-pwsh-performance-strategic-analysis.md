@@ -107,7 +107,7 @@ Benchmark `gh pr view --json` vs current Get-PRContext.ps1 to validate expected 
 | MUST | Update Serena memory (cross-session context) | [x] | Memory: `claude-pwsh-performance-strategy` |
 | MUST | Run markdown lint | [x] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/pr-285-session-80-analysis.md` |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit: a624f2f |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: c2bd867 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [x] | N/A - analysis session |
 | SHOULD | Invoke retrospective (significant sessions) | [x] | N/A - will be part of larger retrospective |
