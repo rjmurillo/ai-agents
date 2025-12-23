@@ -9,17 +9,29 @@
 When using the `dorny/paths-filter` action to implement conditional workflow execution with required status checks, **checkout is required in ALL jobs that interact with the pattern**, including:
 
 1. **The check-paths job** - Required for paths-filter to read the repository and analyze file changes
-2. **The skip job** - Required for consistency and proper workflow function
+2. **The skip job** - Required for workflow consistency and pattern integrity (note: dorny/paths-filter itself does not run in skip jobs; the checkout requirement is a best practice for maintaining consistent job structure across the pattern)
 
 ## Why This Matters
 
 **User Impact**: Without proper checkout setup in all jobs using the dorny/paths-filter pattern, workflows may fail unexpectedly or produce incorrect results when attempting to skip based on file changes.
 
-From PR #100 analysis:
+### Why Checkout in Check-Paths Job
 
+From PR #100 analysis:
 - `dorny/paths-filter` compares changes against a base ref
 - Without checkout, the action cannot read repository contents
 - The pattern of "run on all PRs, filter internally" requires consistent setup across jobs
+
+### Why Checkout in Skip Jobs
+
+**Important**: While `dorny/paths-filter` itself does not execute in skip jobs (it only runs in check-paths), checkout is still required for pattern consistency:
+
+1. **Workflow symmetry** - Both execution paths (run vs skip) maintain identical base structure
+2. **Owner directive** - Explicitly required per PR #121 feedback: "This is required for dorny/paths-filter"
+3. **Future-proofing** - Ensures any future steps added to skip jobs have repository access
+4. **Reference consistency** - All workflows using this pattern (pester-tests.yml, ai-pr-quality-gate.yml, validate-paths.yml) include checkout in skip jobs
+
+This is a pattern requirement, not a technical necessity for the dorny/paths-filter action itself in skip contexts
 
 ## The Anti-Pattern (WRONG)
 
