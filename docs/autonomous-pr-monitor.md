@@ -44,11 +44,27 @@ When you find PRs with the following issues, fix them immediately:
 5. **ADR-014 Violations (HANDOFF.md Modified)**: If the "HANDOFF.md Not Modified" check is failing, revert any changes to HANDOFF.md in that PR
 
 6. **Cross-Platform Compatibility Issues**: Fix issues like:
-   - Using `$env:TEMP` instead of cross-platform temp directory methods
+   - Using `$env:TEMP` instead of `[System.IO.Path]::GetTempPath()` (Windows-only env var)
    - Using backslashes instead of forward slashes or `Join-Path` for file paths
    - Windows-specific commands that should work on Linux/Mac
 
-7. **Unresolved PR Review Threads**: If a PR has review comment threads that have been addressed but not marked as resolved, and this is blocking the merge, mark those threads as resolved
+7. **PowerShell Syntax Errors**: Fix common PowerShell syntax issues:
+   - Here-string terminators (`"@` or `'@`) must start at column 0 with NO leading whitespace
+   - Look for error "The string is missing the terminator" - usually means indented terminator
+
+8. **Exit Code Persistence**: Fix workflow scripts that fail due to `$LASTEXITCODE`:
+   - Add explicit `exit 0` at end of PowerShell workflow scripts
+   - `$LASTEXITCODE` persists from external commands (gh, npm, npx) and can cause false failures
+
+9. **Test Module Import Paths**: Fix incorrect relative paths in test files:
+   - Tests in `.github/tests/` importing from `.claude/skills/` need correct `../` depth
+   - Use `$PSScriptRoot` with proper parent traversal to build absolute paths
+
+10. **Unresolved PR Review Threads**: If a PR has review comment threads that have been addressed but not marked as resolved, and this is blocking the merge, mark those threads as resolved
+
+11. **Spec Validation Failures**: If "Validate Spec Coverage" fails with PARTIAL:
+    - Check if PR description documents all exceptions (e.g., Windows-only runners)
+    - Update PR body to include exception tables with justifications
 
 DIRECT FIXES VS IMPROVEMENTS:
 - **Direct fixes** (listed above): Make these changes directly on the PR's branch immediately
@@ -110,12 +126,14 @@ The agent will:
    - CI check status (distinguish between mergeable and actual CI pass)
    - Review comment status
 
-2. **Fix CI failures** - Analyze and fix common issues:
-   - PowerShell `$env:TEMP` should be `[System.IO.Path]::GetTempPath()` for cross-platform
-   - Here-string terminators (`"@`) must start at column 0
+2. **Fix CI failures** - Analyze and fix common issues (see Fix Patterns section):
+   - **Pattern 1**: `$env:TEMP` → `[System.IO.Path]::GetTempPath()` for cross-platform
+   - **Pattern 2**: Here-string terminators (`"@`) must start at column 0
+   - **Pattern 3**: Add `exit 0` to prevent `$LASTEXITCODE` persistence
+   - **Pattern 4**: Create missing GitHub labels before workflows reference them
+   - **Pattern 5**: Fix test module import paths with correct `../` traversal
+   - **Pattern 6**: Document platform exceptions in PR description
    - Missing module installations in test setup (e.g., `powershell-yaml`)
-   - Exit code issues in verification scripts (add `exit 0`)
-   - Missing GitHub labels that workflows depend on
 
 3. **Resolve merge conflicts** - For PRs with CONFLICTING status:
    - Checkout the worktree
@@ -131,6 +149,111 @@ The agent will:
    - Create a feature branch
    - Apply the fix
    - Create a PR with clear summary
+
+## Fix Patterns (From Session 80 Retrospective)
+
+These patterns were validated during autonomous monitoring and have 90%+ atomicity scores.
+
+### Pattern 1: Cross-Platform Temp Path (Skill-PowerShell-006)
+
+**Problem**: `$env:TEMP` is Windows-only and returns `$null` on Linux/macOS.
+
+```powershell
+# WRONG - Fails on Linux ARM runners
+$tempDir = Join-Path $env:TEMP "my-tests"
+# ArgumentNullException: Value cannot be null
+
+# CORRECT - Works on all platforms
+$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "my-tests"
+```
+
+**Fix command**:
+
+```bash
+sed -i 's/\$env:TEMP/[System.IO.Path]::GetTempPath()/g' path/to/file.ps1
+```
+
+### Pattern 2: Here-String Terminator (Skill-PowerShell-007)
+
+**Problem**: PowerShell requires here-string terminators at column 0.
+
+```powershell
+# WRONG - Indented terminator causes syntax error
+$json = @"
+{"key": "value"}
+    "@  # ERROR: The string is missing the terminator
+
+# CORRECT - Terminator at column 0
+$json = @"
+{"key": "value"}
+"@
+```
+
+**Fix command**:
+
+```bash
+# Remove leading whitespace from terminator line (replace LINE_NUMBER)
+sed -i 'LINE_NUMBERs/^[[:space:]]*//' path/to/file.ps1
+```
+
+### Pattern 3: Exit Code Persistence (Skill-PowerShell-008)
+
+**Problem**: `$LASTEXITCODE` persists from external commands and can fail workflows.
+
+```powershell
+# WRONG - External tool exit code persists
+npx markdownlint-cli2 --help  # May return non-zero
+Write-Host "Done!"
+# Workflow FAILS because $LASTEXITCODE is non-zero
+
+# CORRECT - Explicit exit resets state
+npx markdownlint-cli2 --help
+Write-Host "Done!"
+exit 0  # Ensures workflow step succeeds
+```
+
+### Pattern 4: Missing Labels (Skill-CI-Infrastructure-004)
+
+**Problem**: Workflows fail when referencing non-existent labels.
+
+```bash
+# Create missing labels before workflow can use them
+gh api repos/{owner}/{repo}/labels -X POST \
+  -f name="drift-detected" \
+  -f description="Agent drift detected" \
+  -f color="d73a4a"
+
+gh api repos/{owner}/{repo}/labels -X POST \
+  -f name="automated" \
+  -f description="Automated workflow" \
+  -f color="5319e7"
+```
+
+### Pattern 5: Test Module Paths (Skill-Testing-Path-001)
+
+**Problem**: Tests in `.github/tests/skills/github/` importing from `.claude/skills/github/`.
+
+```powershell
+# WRONG - Incorrect relative depth
+$ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
+
+# CORRECT - Navigate from test location to module location
+# From: .github/tests/skills/github/
+# To:   .claude/skills/github/modules/
+$ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+```
+
+### Pattern 6: Document Platform Exceptions (Skill-Testing-Platform-001)
+
+**Problem**: Spec validation fails when platform exceptions aren't documented.
+
+```markdown
+**Documented Exceptions**:
+| Workflow | Runner | Justification |
+|----------|--------|---------------|
+| pester-tests.yml | windows-latest | Tests have Windows-specific assumptions |
+| copilot-setup.yml | ubuntu-latest (x64) | Copilot architecture compatibility |
+```
 
 ## Key Commands Used
 
