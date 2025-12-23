@@ -360,6 +360,8 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
 
         It "Creates worktree with correct path" {
+            # Mock Test-IsGitHubRunner to force worktree code path
+            Mock Test-IsGitHubRunner { return $false }
             Mock git {
                 param([Parameter(ValueFromRemainingArguments)]$Args)
                 if ($Args -contains "rev-parse") {
@@ -446,6 +448,8 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
 
         It "Cleans up worktree on success" {
+            # Mock Test-IsGitHubRunner to force worktree code path
+            Mock Test-IsGitHubRunner { return $false }
             Mock git {
                 param([Parameter(ValueFromRemainingArguments)]$Args)
                 if ($Args -contains "rev-parse") { return "D:\repo" }
