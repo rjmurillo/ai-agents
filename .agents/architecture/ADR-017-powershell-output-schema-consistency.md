@@ -4,6 +4,10 @@
 
 Accepted
 
+## Date
+
+2025-12-23
+
 ## Context
 
 When designing PowerShell cmdlets and scripts that return structured data, a decision must be made about how to handle optional or conditional properties in output objects.
@@ -57,11 +61,32 @@ PowerShell pipelines work best with consistent object shapes:
 
 ```powershell
 # Works reliably with consistent schema
-Get-PRReviewComments | Select-Object ReviewCount, IssueCommentCount | Export-Csv
+Get-PRReviewComments | Select-Object ReviewCommentCount, IssueCommentCount | Export-Csv
 
 # Fails unpredictably with variable schema
-Get-PRReviewComments | Select-Object ReviewCount, IssueCommentCount  # Error if property missing
+Get-PRReviewComments | Select-Object ReviewCommentCount, IssueCommentCount  # Error if property missing
 ```
+
+### Alternatives Considered
+
+#### Conditional Property Inclusion
+
+```powershell
+$output = [PSCustomObject]@{
+    ReviewCommentCount = $reviewCount
+}
+if ($IncludeIssueComments) {
+    $output | Add-Member -NotePropertyName IssueCommentCount -NotePropertyValue $issueCount
+}
+```
+
+**Rejected because**: Creates variable schema that complicates consumption and breaks strict validators.
+
+#### Separate Output Types
+
+Create different output types for different switch combinations.
+
+**Rejected because**: Explosive growth in types (2^n for n optional switches), harder to maintain and document.
 
 ## Consequences
 
@@ -76,27 +101,6 @@ Get-PRReviewComments | Select-Object ReviewCount, IssueCommentCount  # Error if 
 
 - Slightly more verbose output when properties are unused
 - May require documentation explaining that 0/null means "not requested" vs "none found"
-
-## Alternatives Considered
-
-### Conditional Property Inclusion
-
-```powershell
-$output = [PSCustomObject]@{
-    ReviewCommentCount = $reviewCount
-}
-if ($IncludeIssueComments) {
-    $output | Add-Member -NotePropertyName IssueCommentCount -NotePropertyValue $issueCount
-}
-```
-
-**Rejected because**: Creates variable schema that complicates consumption and breaks strict validators.
-
-### Separate Output Types
-
-Create different output types for different switch combinations.
-
-**Rejected because**: Explosive growth in types (2^n for n optional switches), harder to maintain and document.
 
 ## Compliance
 
