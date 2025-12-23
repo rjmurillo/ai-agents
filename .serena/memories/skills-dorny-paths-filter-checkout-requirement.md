@@ -1,6 +1,6 @@
 # dorny/paths-filter Checkout Requirement
 
-**Date Learned**: 2025-12-20
+**Date Learned**: 2025-12-21
 **Source**: PR #121, PR #100
 **Confidence**: High (owner-confirmed)
 
