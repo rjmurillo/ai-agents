@@ -386,6 +386,44 @@ Before proceeding, confirm you have:
 
 ### Phase 1: Context Gathering
 
+#### Step 1.0: Session State Check
+
+Before fetching new data, check if this is a continuation of a previous session:
+
+```bash
+SESSION_DIR=".agents/pr-comments/PR-[number]"
+
+if [ -d "$SESSION_DIR" ]; then
+  echo "[CONTINUATION] Previous session found"
+  # Load existing state
+  PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
+  echo "Previous session had $PREVIOUS_COMMENTS comments"
+
+  # Check for NEW comments only
+  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+
+  if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
+    echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
+    # Proceed to Step 1.1 to fetch new comments only
+  else
+    echo "[NO NEW COMMENTS] Proceeding to Phase 8 for verification"
+    # Skip to Phase 8 to verify completion criteria
+  fi
+else
+  echo "[NEW SESSION] No previous state found"
+  # Proceed with full Phase 1 context gathering
+fi
+```
+
+**Session state directory**: `.agents/pr-comments/PR-[number]/`
+
+| File | Purpose |
+|------|---------|
+| `comments.md` | Comment map with status tracking |
+| `tasks.md` | Prioritized task list |
+| `session-summary.md` | Session outcomes and statistics |
+| `[comment_id]-plan.md` | Per-comment implementation plans |
+
 **CRITICAL**: Enumerate ALL reviewers and count ALL comments before proceeding. Missing comments wastes tokens on repeated prompts. Missed comments lead to incomplete PR handling and waste tokens on repeated prompts. Replying to incorrect comment threads creates noise and causes confusion.
 
 #### Step 1.1: Fetch PR Metadata
