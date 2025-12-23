@@ -240,8 +240,54 @@ mutation($threadId: ID!) {
 
 ---
 
+## Skill-PR-Review-004: Thread Resolution Must Follow Reply
+
+**Statement**: After posting replies to review comments, ALWAYS resolve the thread using GraphQL mutation. Replies alone do not resolve threads.
+
+**Context**: GitHub PR review workflow - completing the review cycle
+
+**Evidence**: Session 38 (PR #87) - rjmurillo-bot posted 3 replies in commit 9f77df3 but threads remained unresolved until GraphQL `resolveReviewThread` mutation was called
+
+**Atomicity**: 97%
+
+**Tag**: critical
+
+**Impact**: 10/10 (unresolved threads block PR merge due to branch protection)
+
+**Created**: 2025-12-20
+
+**Validated**: 2 (Session 37 PR #75, Session 38 PR #87)
+
+**Pattern**:
+
+```bash
+# 1. Verify reply exists (from prior work or new reply)
+# 2. Resolve the thread
+gh api graphql -f query='
+mutation($threadId: ID!) {
+  resolveReviewThread(input: {threadId: $threadId}) {
+    thread { id isResolved }
+  }
+}' -f threadId="PRRT_xxx"
+```
+
+**Common Mistakes**:
+
+- Posting reply and assuming thread auto-resolves → Thread stays unresolved
+- Only resolving without reply → Reviewer doesn't know how feedback was addressed
+- Forgetting to resolve after batch replies → PR blocked from merge
+
+**Notes**:
+
+- This completes the workflow from Skill-PR-Review-002 (reply + resolve)
+- Thread IDs obtained via GraphQL query (Skill-PR-Review-001)
+- Resolution requires thread ID, not comment ID (Skill-PR-Review-003)
+
+---
+
 ## Related Skills
 
 - Skill-PR-Review-001: Conversation Resolution Requirement
 - Skill-PR-Review-002: Conversation Resolution Protocol
 - Skill-PR-Review-003: API Selection for PR Replies
+- Skill-PR-Review-004: Thread Resolution Must Follow Reply
