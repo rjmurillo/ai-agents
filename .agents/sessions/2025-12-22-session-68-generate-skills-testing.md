@@ -321,12 +321,30 @@ All coverage thresholds met
 
 **Modified Files:**
 - `build/scripts/Invoke-PesterTests.ps1` (added coverage and threshold checking)
+- `.github/workflows/pester-tests.yml` (enabled coverage in CI)
 
 ### Git Commits
 
 1. **a526626**: test(generate-skills): add comprehensive Pester tests with 69.72% coverage
 2. **f1e669c**: docs(session): add session 68 log for Generate-Skills testing
-3. **[pending]**: feat(pester): add code coverage output and baseline checking
+3. **66957ac**: feat(pester): add code coverage output and baseline checking
+4. **2f4e515**: ci(pester): enable code coverage and threshold checking in CI workflow
+
+### CI Integration
+
+Updated `.github/workflows/pester-tests.yml` to enable coverage in CI:
+
+**Changes:**
+- Added `-EnableCodeCoverage -CheckCoverageThreshold` to test invocation
+- Upload coverage.xml as CI artifact (30 days retention)
+- Added `.baseline/**` to testable paths filter
+- Updated documentation with coverage information
+
+**CI Behavior:**
+- Generates JaCoCo code coverage reports for all tests
+- Checks coverage against `.baseline/coverage-thresholds.json`
+- Fails build if coverage drops below threshold
+- Uploads coverage artifact for analysis
 
 ## Session End Checklist
 
@@ -337,8 +355,9 @@ All coverage thresholds met
 - [x] Update Serena memory with learnings (2 new memories)
 - [x] Code coverage output implemented
 - [x] Coverage baseline mechanism implemented
-- [ ] Run markdownlint
-- [ ] Final commit
+- [x] CI workflow updated to enable coverage
+- [x] Run markdownlint
+- [x] All commits pushed
 
 ## Next Steps
 
