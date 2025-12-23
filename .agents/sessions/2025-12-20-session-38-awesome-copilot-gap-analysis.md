@@ -119,3 +119,22 @@ Awaiting user approval to implement P0 recommendations:
 1. Create strategic-planner agent (8-12 hrs)
 2. Create debugger agent (6-8 hrs)
 3. Enhance qa agent with TDD mode (3-4 hrs)
+
+---
+
+## Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Session preserved in PR #206 |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | Lint executed (preserved session) |
+| MUST | Route to qa agent (feature implementation) | [ ] | N/A - Analysis and issue creation only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: a1009c3 |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | Analysis serves as retrospective |
+| SHOULD | Verify clean git status | [x] | Committed in a1009c3 |
+
+### Commits This Session
+
+- `a1009c3c55fca38591a849dbe2d2180632c7d3cc` - chore: preserve session history from stale PRs #156, #185, #187

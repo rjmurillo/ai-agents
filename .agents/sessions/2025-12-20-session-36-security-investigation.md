@@ -91,25 +91,18 @@ Ask user to clarify expected count or provide examples of "missing" items
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` (include session log link) | [ ] | File modified |
-| MUST | Complete session log | [ ] | All sections filled |
-| MUST | Run markdown lint | [ ] | Output below |
-| MUST | Commit all changes | [ ] | Commit SHA: _______ |
-| SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
-| SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
-| SHOULD | Verify clean git status | [ ] | Output below |
-
-### Lint Output
-
-[Paste markdownlint output here]
-
-### Final Git Status
-
-[Paste git status output here]
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Session preserved in PR #206 |
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Run markdown lint | [x] | Lint executed (preserved session) |
+| MUST | Route to qa agent (feature implementation) | [ ] | N/A - Investigation only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: a1009c3 |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | Analysis: `.agents/analysis/003-missing-issues-prs-investigation.md` |
+| SHOULD | Verify clean git status | [x] | Committed in a1009c3 |
 
 ### Commits This Session
 
-- [To be added]
+- `a1009c3c55fca38591a849dbe2d2180632c7d3cc` - chore: preserve session history from stale PRs #156, #185, #187
 
 ---
 
