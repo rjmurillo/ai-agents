@@ -14,7 +14,10 @@ on:
   schedule:
     # Run weekly on Sundays at midnight UTC
     - cron: '0 0 * * 0'
-
+  push:
+    paths:
+      - '.agents/utilities/metrics/**'
+      - '.github/workflows/agent-metrics.yml'
   workflow_dispatch:
     inputs:
       days:
@@ -35,10 +38,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: agent-metrics-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   collect-metrics:
     name: Collect Agent Metrics
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - name: Checkout repository
@@ -91,12 +98,12 @@ jobs:
         with:
           name: agent-metrics-${{ github.run_number }}
           path: metrics-report.txt
-          retention-days: 90
+          retention-days: 7
 
   # Optional: Create issue if metrics are below targets
   check-thresholds:
     name: Check Metric Thresholds
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     needs: collect-metrics
 
     steps:
