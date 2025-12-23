@@ -339,6 +339,7 @@ jobs:
           timeout-minutes: 15
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          copilot-model: 'claude-opus-4.5'
 
       # ADR-005 SECURITY: Single PowerShell step for PRD comment generation and posting
       # Eliminates bash shell usage to prevent command injection from AI-generated content
