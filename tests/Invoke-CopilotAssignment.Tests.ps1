@@ -831,8 +831,8 @@ synthesis:
         It "Extracts ai_agents list" {
             $result = Get-SynthesisConfig -ConfigPath $configPath
             $result.trusted_sources.ai_agents | Should -Contain "rjmurillo-bot"
-            $result.trusted_sources.ai_agents | Should -Contain "coderabbitai"
-            $result.trusted_sources.ai_agents | Should -Contain "github-actions"
+            $result.trusted_sources.ai_agents | Should -Contain "coderabbitai[bot]"
+            $result.trusted_sources.ai_agents | Should -Contain "github-actions[bot]"
         }
     }
 
