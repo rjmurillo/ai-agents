@@ -18,7 +18,7 @@
 
 BeforeAll {
     # Create test temp directory
-    $Script:TestTempDir = Join-Path $env:TEMP "Detect-AgentDrift-Tests-$(Get-Random)"
+    $Script:TestTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "Detect-AgentDrift-Tests-$(Get-Random)"
     New-Item -ItemType Directory -Path $Script:TestTempDir -Force | Out-Null
 
     # Define test functions (copies from script for unit testing)
