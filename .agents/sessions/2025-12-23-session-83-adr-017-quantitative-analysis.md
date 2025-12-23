@@ -58,8 +58,8 @@ Quantitative verification of ADR-017 (Tiered Memory Index Architecture) numerica
 |-------------|--------|----------|
 | Complete checklist | ✅ PASS | All phases complete |
 | Run markdownlint | ✅ PASS | 0 errors |
-| Commit changes | ⏳ PENDING | Next step |
-| Validation script | ⏳ PENDING | After commit |
+| Commit changes | ✅ PASS | 873f21d |
+| Validation script | ⏳ PENDING | Next step |
 
 ---
 
