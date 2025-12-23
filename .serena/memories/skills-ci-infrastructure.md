@@ -798,6 +798,75 @@ Workflows are production code but often not tested pre-merge. Runtime errors onl
 
 ---
 
+## Skill-CI-Infrastructure-004: Label Pre-Validation (92%)
+
+**Statement**: Validate GitHub labels exist before deploying workflows that depend on them
+
+**Context**: GitHub Actions workflows that add labels to issues or PRs via `gh` CLI
+
+**Trigger**: Deploying workflows that reference labels
+
+**Evidence**: PR #202 and other PRs failed with "could not add label: 'drift-detected' not found"
+
+**Atomicity**: 92%
+
+**Tag**: critical (prevents cascading CI failures)
+
+**Impact**: 10/10
+
+**Created**: 2025-12-23
+
+**Problem**:
+
+```bash
+# Workflow fails if label doesn't exist
+gh issue create --title "Alert" --label "drift-detected,automated"
+# Error: could not add label: 'drift-detected' not found
+```
+
+**Solution**:
+
+```bash
+# Pre-deployment: Create labels if they don't exist
+gh api repos/{owner}/{repo}/labels -X POST \
+  -f name="drift-detected" \
+  -f description="Agent drift detected between platforms" \
+  -f color="d73a4a" || true  # Ignore error if already exists
+
+gh api repos/{owner}/{repo}/labels -X POST \
+  -f name="automated" \
+  -f description="Automated workflow action" \
+  -f color="5319e7" || true
+```
+
+**CI/CD Pattern**:
+
+```yaml
+# Include label creation in workflow
+- name: Ensure required labels exist
+  env:
+    GH_TOKEN: ${{ github.token }}
+  run: |
+    for label in drift-detected automated; do
+      gh label create "$label" --description "Auto-created" \
+        --color 5319e7 2>/dev/null || true
+    done
+```
+
+**Why It Matters**:
+
+When workflows are deployed or migrated, the labels they reference may not exist in the target repository. The `gh issue create` and `gh pr edit` commands fail fast when referencing non-existent labels, causing workflow failures that cascade across multiple PRs.
+
+**Prevention**:
+
+1. Document required labels in workflow comments
+2. Include label creation in setup scripts
+3. Add label verification step to CI
+
+**Validation**: 1 (PR #202, multiple PRs affected)
+
+---
+
 ## Related Files
 
 - Test Runner: `build/scripts/Invoke-PesterTests.ps1`

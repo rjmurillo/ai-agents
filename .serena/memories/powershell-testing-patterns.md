@@ -353,6 +353,105 @@ It "Should not match paths without literal ?" {
 
 ---
 
+## Skill-Testing-Platform-001: Document Platform Requirements (90%)
+
+**Statement**: When reverting multi-platform tests to single-platform, document specific platform assumptions that prevent cross-platform execution
+
+**Context**: When Pester tests fail on Linux/ARM but pass on Windows
+
+**Trigger**: Reverting workflow runners from cross-platform to Windows-only
+
+**Evidence**: PR #224: Pester tests failed on ARM Linux due to Windows-specific assumptions about hidden files, temp paths, and file system behavior. Tests reverted to Windows with documented justification.
+
+**Atomicity**: 90%
+
+**Tag**: helpful (prevents future migration attempts without fixing root cause)
+
+**Impact**: 8/10
+
+**Created**: 2025-12-23
+
+**Pattern**:
+
+```yaml
+# Document why Windows is required
+test:
+  name: Run Pester Tests
+  # Keep on Windows - many tests have Windows-specific assumptions
+  # (file paths, hidden files, etc.) that don't work on Linux ARM
+  runs-on: windows-latest
+```
+
+**Why It Matters**:
+
+Without documentation, future engineers may attempt ARM migration again and face the same failures. Documenting specific assumptions (hidden file behavior, temp path differences, path separator assumptions) creates a clear remediation path.
+
+**Follow-up Work**:
+
+1. Create issue tracking platform assumptions
+2. Gradually fix tests to be cross-platform
+3. Re-attempt migration after fixes
+
+**Validation**: 1 (PR #224)
+
+---
+
+## Skill-Testing-Path-001: Absolute Paths for Cross-Directory Imports (91%)
+
+**Statement**: Use explicit absolute paths (via `$PSScriptRoot` with multiple `..` segments) for test imports that cross directory hierarchies
+
+**Context**: When test files in `.github/tests/skills/` need to import modules from `.claude/skills/`
+
+**Trigger**: Writing Pester tests that import shared modules from different directory trees
+
+**Evidence**: PR #255: `New-Issue.Tests.ps1` had `Join-Path $PSScriptRoot ".." "modules"` which resolved to wrong location. Fixed with explicit path `Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules"`
+
+**Atomicity**: 91%
+
+**Tag**: helpful (prevents import failures)
+
+**Impact**: 8/10
+
+**Created**: 2025-12-23
+
+**Problem**:
+
+```powershell
+# WRONG: Assumes module is nearby
+$ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
+# Resolves to: .github/tests/skills/modules/GitHubHelpers.psm1 (doesn't exist!)
+```
+
+**Solution**:
+
+```powershell
+# CORRECT: Explicit path from test location to actual module location
+# From: .github/tests/skills/github/
+# To:   .claude/skills/github/modules/
+$ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+```
+
+**Why It Matters**:
+
+Test files and source files may be in different directory trees for organization reasons. Tests must explicitly navigate from their location to the source location. Using short relative paths assumes nearby files that may not exist.
+
+**Best Practice**:
+
+```powershell
+BeforeAll {
+    # Comment explaining the path navigation
+    # From: .github/tests/skills/github -> .claude/skills/github/...
+    $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Close-PR.ps1"
+    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+    
+    Import-Module $ModulePath -Force
+}
+```
+
+**Validation**: 1 (PR #255)
+
+---
+
 ## Related Skills
 
 - See above formal skills section for Skill-PowerShell-Testing-Combinations-001, Skill-PowerShell-Parameter-Patterns-001, Skill-PowerShell-Testing-Process-001, Skill-PowerShell-Path-Normalization-001, Skill-Testing-Exit-Code-Order-001, Skill-PowerShell-Wildcard-Escaping-001

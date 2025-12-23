@@ -320,6 +320,168 @@ PowerShell distinguishes "module names" from "file paths". Without `./`, the arg
 
 ---
 
+## Skill-PowerShell-006: Cross-Platform Temp Path (95%)
+
+**Statement**: Use `[System.IO.Path]::GetTempPath()` instead of `$env:TEMP` for cross-platform temporary directory access
+
+**Context**: When creating temporary files or directories in PowerShell scripts that run on Windows, Linux, or macOS
+
+**Trigger**: Writing code that creates temporary files or directories
+
+**Evidence**: PR #224 (Pester test failures on ARM Linux), PR #255 (Generate-Skills.Tests.ps1, Generate-Agents.Tests.ps1)
+
+**Atomicity**: 95%
+
+**Tag**: critical (cross-platform compatibility)
+
+**Impact**: 10/10
+
+**Created**: 2025-12-23
+
+**Problem**:
+
+```powershell
+# WRONG - Windows-only, returns $null on Linux/macOS
+$tempDir = Join-Path $env:TEMP "my-tests"
+# ArgumentNullException: Value cannot be null. (Parameter 'Path')
+```
+
+**Solution**:
+
+```powershell
+# CORRECT - Works on all platforms
+$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "my-tests"
+
+# ALTERNATIVE - Function wrapper
+function Get-TempDirectory {
+    [System.IO.Path]::GetTempPath()
+}
+$tempDir = Join-Path (Get-TempDirectory) "my-tests"
+```
+
+**Why It Matters**:
+
+`$env:TEMP` is a Windows environment variable that doesn't exist on Linux or macOS. When running PowerShell scripts on ARM Linux runners (GitHub Actions), `$env:TEMP` returns `$null`, causing `Join-Path` to fail with ArgumentNullException.
+
+**Validation**: 2 (PR #224, PR #255)
+
+---
+
+## Skill-PowerShell-007: Here-String Terminator Column Zero (96%)
+
+**Statement**: Here-string terminators (`"@` or `'@`) must start at column 0 with no leading whitespace
+
+**Context**: Writing multi-line here-strings in PowerShell scripts
+
+**Trigger**: Using here-string syntax `@"..."@` or `@'...'@`
+
+**Evidence**: PR #224 (Detect-AgentDrift.Tests.ps1 line 591 syntax error)
+
+**Atomicity**: 96%
+
+**Tag**: critical (syntax error)
+
+**Impact**: 9/10
+
+**Created**: 2025-12-23
+
+**Problem**:
+
+```powershell
+# WRONG - Terminator has leading whitespace (indented)
+$content = @"
+Some content here
+  "@    # ERROR: The string is missing the terminator: "@
+```
+
+**Solution**:
+
+```powershell
+# CORRECT - Terminator at column 0
+$content = @"
+Some content here
+"@
+# Works even if rest of script is indented
+```
+
+**Why It Matters**:
+
+PowerShell here-string syntax is strict: the closing `"@` or `'@` must be the only characters on its line AND must start at column 0 (no leading whitespace). This is a common issue when copy-pasting code or when auto-formatters indent the terminator.
+
+**Detection**: Error message will say "The string is missing the terminator: `"@`" with a line number earlier than the actual terminator.
+
+**Fix Command**:
+
+```bash
+# Remove leading whitespace from line 591
+sed -i '591s/^[[:space:]]*//' script.ps1
+```
+
+**Validation**: 1 (PR #224)
+
+---
+
+## Skill-PowerShell-008: Exit Code Persistence Prevention (94%)
+
+**Statement**: Add explicit `exit 0` at script end to prevent `$LASTEXITCODE` persistence from external commands
+
+**Context**: PowerShell scripts that call external tools (npm, npx, git) whose exit codes persist in `$LASTEXITCODE`
+
+**Trigger**: Script calls external commands in verification/setup steps
+
+**Evidence**: PR #298 (Copilot Workspace Setup failed with exit code 1 despite all checks passing)
+
+**Atomicity**: 94%
+
+**Tag**: helpful (prevents false failures)
+
+**Impact**: 9/10
+
+**Created**: 2025-12-23
+
+**Problem**:
+
+```powershell
+# Script that calls external commands
+npm install
+npx some-tool --help  # Returns exit code 1 but script continues
+
+Write-Host "All checks passed!"
+# Script exits with $LASTEXITCODE = 1 (persisted from npx)
+```
+
+**Solution**:
+
+```powershell
+# CORRECT - Reset exit code explicitly at end
+npm install
+npx some-tool --help  # Returns exit code 1
+
+Write-Host "All checks passed!"
+exit 0  # Explicitly exit with success
+```
+
+**Why It Matters**:
+
+`$LASTEXITCODE` persists the exit code of the most recent external command. If a command like `npx markdownlint-cli2 --help` returns non-zero but doesn't cause script termination, the script may exit with that exit code even if all logic completed successfully.
+
+**Alternative Solutions**:
+
+```powershell
+# Reset after each external command
+npx some-tool --help
+$global:LASTEXITCODE = 0
+
+# Check and reset explicitly
+if ($LASTEXITCODE -ne 0 -and $ExpectedNonZero) {
+    $global:LASTEXITCODE = 0
+}
+```
+
+**Validation**: 1 (PR #298)
+
+---
+
 ## Related Files
 
 - Get-PRContext.ps1 - Original syntax error
