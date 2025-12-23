@@ -843,7 +843,28 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
 
 </details>
 
-#### Step 6.4: Update Task List
+#### Step 6.4: Resolve Conversation Thread
+
+After replying with resolution, mark the thread as resolved. This is required for PRs with branch protection rules that require all conversations to be resolved before merging.
+
+**Exception**: Do NOT auto-resolve when:
+
+1. The reviewer is human (let them resolve after verifying)
+2. You need a response from the reviewer (human or bot)
+
+```powershell
+# Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+
+# Or resolve a single thread by ID
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_kwDOQoWRls5m7ln8"
+```
+
+**Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
+
+**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`-All`) automatically discovers and resolves all unresolved threads.
+
+#### Step 6.5: Update Task List
 
 Mark task as complete in `.agents/pr-comments/PR-[number]/tasks.md`.
 
@@ -878,7 +899,7 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MANDATORY**: Complete ALL sub-phases before claiming completion.
+**MANDATORY**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
 
 #### Phase 8.1: Comment Status Verification
 
@@ -897,7 +918,32 @@ if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
 fi
 ```
 
-#### Phase 8.2: Re-check for New Comments
+#### Phase 8.2: Verify Conversation Resolution
+
+**BLOCKING**: All conversations MUST be resolved for the PR to be mergeable with branch protection rules.
+
+**Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
+
+```powershell
+# Run bulk resolution to ensure all threads are resolved
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+```
+
+The script will:
+
+1. Query all review threads on the PR
+2. Identify any unresolved threads
+3. Resolve each one via GraphQL API
+4. Report summary: `N resolved, M failed`
+
+**Exit codes**:
+
+- `0`: All threads resolved (or already resolved)
+- `1`: One or more threads failed to resolve
+
+If any threads fail to resolve, investigate and retry before claiming completion.
+
+#### Phase 8.3: Re-check for New Comments
 
 After pushing commits, bots may post new comments. Wait and re-check:
 
@@ -918,7 +964,7 @@ fi
 
 **Critical**: Repeat this loop until no new comments appear after a commit. Bots like cursor[bot] and Copilot respond to your fixes and may identify issues with your implementation.
 
-#### Phase 8.3: QA Gate Verification
+#### Phase 8.4: QA Gate Verification
 
 Before claiming completion, verify CI checks pass:
 
@@ -937,7 +983,7 @@ if [ "$(echo "$FAILED" | jq 'length')" -gt 0 ]; then
 fi
 ```
 
-#### Phase 8.4: Completion Criteria Checklist
+#### Phase 8.5: Completion Criteria Checklist
 
 **ALL criteria must be true before completion**:
 

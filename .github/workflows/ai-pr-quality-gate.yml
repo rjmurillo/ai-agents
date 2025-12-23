@@ -39,7 +39,7 @@ jobs:
 
   check-changes:
     name: Check Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
@@ -90,7 +90,7 @@ jobs:
 
   review:
     name: ${{ matrix.agent }} Review
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     needs: check-changes
     if: needs.check-changes.outputs.should-run == 'true'
     timeout-minutes: 10
@@ -171,7 +171,7 @@ jobs:
 
   aggregate:
     name: Aggregate Results
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     needs: [check-changes, review]
     if: needs.check-changes.outputs.should-run == 'true'
 
@@ -403,7 +403,7 @@ jobs:
     name: Aggregate Results
     needs: check-changes
     if: needs.check-changes.outputs.should-run != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
 
