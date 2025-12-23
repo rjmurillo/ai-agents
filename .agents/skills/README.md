@@ -8,7 +8,7 @@ This directory contains extracted learnings from agent execution, organized by c
 |------|----------|--------|---------------|
 | `linting.md` | Code Quality and Documentation Standards | 9 | 2 |
 | `documentation.md` | Documentation Generation and Maintenance | 10 | 2 |
-| `multi-agent-workflow.md` | Agent Coordination and Workflow Patterns | 10 | 3 |
+| `multi-agent-workflow.md` | Agent Coordination and Workflow Patterns | 11 | 3 |
 
 ## Skill ID Convention
 
