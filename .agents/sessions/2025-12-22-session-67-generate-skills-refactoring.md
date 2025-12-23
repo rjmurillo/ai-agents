@@ -84,37 +84,54 @@ This task requires:
 
 ### Completed ✅
 
-1. **Deleted custom YAML parser** (112 lines → 4 lines)
-   - Removed `Parse-YamlScalar` function (27 lines)
-   - Removed `Parse-YamlFrontmatter` function (85 lines)
-   - Replaced with simple wrapper around `ConvertFrom-Yaml`
+1. **Replaced custom YAML parser with powershell-yaml module** (107 lines deleted)
+   - Removed `Parse-YamlScalar` function (15 lines)
+   - Removed `Parse-YamlFrontmatter` function (94 lines with block scalar support)
+   - Replaced with `ConvertFrom-Yaml` from powershell-yaml module (2 lines)
+   - Added `#Requires -Modules @{ ModuleName='powershell-yaml'; ModuleVersion='0.4.0' }`
+   - Added `Import-Module powershell-yaml -ErrorAction Stop`
 
-2. **Added powershell-yaml dependency**
-   - Added `#Requires -Modules` statement
-   - Added `Import-Module powershell-yaml`
-   - Updated [.github/workflows/copilot-setup-steps.yml](../../.github/workflows/copilot-setup-steps.yml) to install module in CI
+2. **Updated SKILL.md with canonical source notation**
+   - Added HTML comments indicating SKILL.md is canonical source
+   - Added `keep_headings` frontmatter field to control generated output
+   - Documented that GitHub.skill is generated artifact (do not edit manually)
 
-3. **Fixed UTF-8 BOM issue**
-   - Updated `Set-ContentUtf8` to use UTF-8 without BOM
-   - Prevents encoding issues in parsers/tools
+3. **Added pre-commit hook for automatic skill generation**
+   - Integrated into [.githooks/pre-commit](../../.githooks/pre-commit)
+   - Auto-generates *.skill files when SKILL.md is staged
+   - Follows same pattern as MCP config sync
+   - Includes symlink security checks (MEDIUM-002)
+   - Respects `SKIP_AUTOFIX=1` environment variable
 
-4. **Fixed parameter validation**
-   - Made `$DeniedHeadings` parameter optional (was incorrectly mandatory with empty default)
+4. **Added .gitattributes for line ending normalization**
+   - Rule: `*.skill text eol=lf diff=markdown`
+   - Ensures consistent LF line endings across all platforms
+   - Prevents spurious "file changed" due to CRLF/LF differences
+   - Matches Generate-Skills.ps1 `-ForceLf` behavior
+   - Enables markdown syntax highlighting in git diffs
 
 ### Code Reduction
 
 | Metric | Before | After | Change |
 |--------|--------|-------|--------|
 | Total lines | 530 | 422 | -108 (-20%) |
-| YAML parser lines | 112 | 4 | -108 (-96%) |
+| YAML parser lines | 109 | 2 | -107 (-98%) |
 | Maintenance burden | Custom code | Community module | ✅ Eliminated |
+| Test burden | Custom parser tests | Module maintainer's responsibility | ✅ Eliminated |
 
 ### Testing Results
 
-- ✅ Script executes without errors
-- ✅ Generates identical output (after BOM fix)
-- ✅ All 5 canonical SKILL.md files processed successfully
-- ✅ CI/CD integration verified
+- ✅ Script executes without errors using powershell-yaml module
+- ✅ Generates identical output to custom parser
+- ✅ github.skill content verified (no meaningful changes)
+- ✅ Block scalar support preserved (multiline description field)
+- ✅ Pre-commit hook integration tested
+- ✅ Line ending normalization configured
+
+### Git Commits
+
+1. **b471607**: refactor(generate-skills): replace custom YAML parser with powershell-yaml module
+2. **60bbd1c**: feat(gitattributes): add line ending normalization for skill files
 
 ## Learnings
 
