@@ -73,6 +73,14 @@ Describe "Invoke-CopilotAssignment Script Structure" {
         It "Supports ShouldProcess (WhatIf)" {
             $scriptContent | Should -Match '\[CmdletBinding\(SupportsShouldProcess\)\]'
         }
+
+        It "Has SkipAssignment switch parameter" {
+            $scriptContent | Should -Match '\[switch\]\$SkipAssignment'
+        }
+
+        It "Has PrepareContextOnly switch parameter" {
+            $scriptContent | Should -Match '\[switch\]\$PrepareContextOnly'
+        }
     }
 
     Context "Module Dependencies" {
@@ -185,6 +193,37 @@ Describe "Invoke-CopilotAssignment Script Structure" {
 
         It "Uses gh issue edit for assignment" {
             $scriptContent | Should -Match 'gh issue edit.*--add-assignee'
+        }
+    }
+
+    Context "PrepareContextOnly Mode" {
+        It "Has New-ContextFile function" {
+            $scriptContent | Should -Match 'function New-ContextFile'
+        }
+
+        It "New-ContextFile creates markdown context file" {
+            $scriptContent | Should -Match 'issue-\$IssueNumber-context\.md'
+        }
+
+        It "New-ContextFile includes issue title and labels" {
+            $scriptContent | Should -Match '\*\*Title\*\*:'
+            $scriptContent | Should -Match '\*\*Labels\*\*:'
+        }
+
+        It "PrepareContextOnly mode outputs to GITHUB_OUTPUT" {
+            $scriptContent | Should -Match 'context_file=.*GITHUB_OUTPUT'
+            $scriptContent | Should -Match 'existing_synthesis_id=.*GITHUB_OUTPUT'
+            $scriptContent | Should -Match 'marker=.*GITHUB_OUTPUT'
+        }
+
+        It "PrepareContextOnly returns structured output" {
+            $scriptContent | Should -Match 'ContextFile\s*='
+            $scriptContent | Should -Match 'ExistingSynthesisId\s*='
+        }
+
+        It "PrepareContextOnly exits early without synthesis" {
+            $scriptContent | Should -Match 'if \(\$PrepareContextOnly\)'
+            $scriptContent | Should -Match 'exit 0\s*\}\s*\n\s*# Extract context'
         }
     }
 
@@ -1191,6 +1230,144 @@ Describe "Test-HasSynthesizableContent Function" {
                 -CodeRabbitPlan @{ Implementation = $null; RelatedIssues = @(); RelatedPRs = @() } `
                 -AITriage @{ Priority = $null; Category = $null }
             $result | Should -Be $true
+        }
+    }
+}
+
+Describe "New-ContextFile Function" {
+
+    BeforeAll {
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        $scriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "issue" "Invoke-CopilotAssignment.ps1"
+        $scriptContent = Get-Content $scriptPath -Raw
+
+        # Extract and define the New-ContextFile function for testing
+        if ($scriptContent -match 'function New-ContextFile \{[\s\S]*?(?=\n#endregion)') {
+            $functionDef = $Matches[0]
+            Invoke-Expression $functionDef
+        }
+    }
+
+    AfterEach {
+        # Clean up temp files created during tests
+        Get-ChildItem ([System.IO.Path]::GetTempPath()) -Filter "issue-*-context.md" | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+
+    Context "Basic Functionality" {
+        It "Creates a context file in temp directory" {
+            $issue = [PSCustomObject]@{
+                title = "Test Issue"
+                body = "This is the issue body"
+                labels = @(@{ name = "bug" }, @{ name = "P1" })
+            }
+            $comments = @(
+                @{ user = @{ login = "rjmurillo" }; body = "Maintainer comment" }
+            )
+
+            $result = New-ContextFile -Issue $issue -TrustedComments $comments -IssueNumber 123
+            $result | Should -Not -BeNullOrEmpty
+            Test-Path $result | Should -Be $true
+        }
+
+        It "Creates file with correct naming convention" {
+            $issue = [PSCustomObject]@{
+                title = "Test Issue"
+                body = "Body"
+                labels = @()
+            }
+
+            $result = New-ContextFile -Issue $issue -TrustedComments @() -IssueNumber 456
+            $result | Should -Match 'issue-456-context\.md$'
+        }
+
+        It "Includes issue title in content" {
+            $issue = [PSCustomObject]@{
+                title = "My Test Issue Title"
+                body = "Body"
+                labels = @()
+            }
+
+            $result = New-ContextFile -Issue $issue -TrustedComments @() -IssueNumber 789
+            $content = Get-Content $result -Raw
+            $content | Should -Match '\*\*Title\*\*: My Test Issue Title'
+        }
+
+        It "Includes issue labels in content" {
+            $issue = [PSCustomObject]@{
+                title = "Test"
+                body = "Body"
+                labels = @(@{ name = "bug" }, @{ name = "enhancement" })
+            }
+
+            $result = New-ContextFile -Issue $issue -TrustedComments @() -IssueNumber 101
+            $content = Get-Content $result -Raw
+            $content | Should -Match '\*\*Labels\*\*: bug, enhancement'
+        }
+
+        It "Includes issue body in content" {
+            $issue = [PSCustomObject]@{
+                title = "Test"
+                body = "This is the detailed issue description with requirements."
+                labels = @()
+            }
+
+            $result = New-ContextFile -Issue $issue -TrustedComments @() -IssueNumber 102
+            $content = Get-Content $result -Raw
+            $content | Should -Match 'This is the detailed issue description'
+        }
+    }
+
+    Context "Trusted Comments" {
+        It "Includes all trusted comments in content" {
+            $issue = [PSCustomObject]@{
+                title = "Test"
+                body = "Body"
+                labels = @()
+            }
+            $comments = @(
+                @{ user = @{ login = "rjmurillo" }; body = "First comment from maintainer" }
+                @{ user = @{ login = "coderabbitai[bot]" }; body = "Analysis from CodeRabbit" }
+            )
+
+            $result = New-ContextFile -Issue $issue -TrustedComments $comments -IssueNumber 103
+            $content = Get-Content $result -Raw
+            $content | Should -Match 'Comment by rjmurillo'
+            $content | Should -Match 'First comment from maintainer'
+            $content | Should -Match 'Comment by coderabbitai\[bot\]'
+            $content | Should -Match 'Analysis from CodeRabbit'
+        }
+
+        It "Handles empty trusted comments array" {
+            $issue = [PSCustomObject]@{
+                title = "Test"
+                body = "Body"
+                labels = @()
+            }
+
+            $result = New-ContextFile -Issue $issue -TrustedComments @() -IssueNumber 104
+            $content = Get-Content $result -Raw
+            $content | Should -Match '## Comments from Trusted Sources'
+            # Should still create file successfully
+            Test-Path $result | Should -Be $true
+        }
+    }
+
+    Context "Output Format" {
+        It "Creates valid markdown structure" {
+            $issue = [PSCustomObject]@{
+                title = "Test"
+                body = "Body"
+                labels = @(@{ name = "bug" })
+            }
+
+            $result = New-ContextFile -Issue $issue -TrustedComments @() -IssueNumber 105
+            $content = Get-Content $result -Raw
+
+            # Verify markdown structure
+            $content | Should -Match '# Issue Context for Synthesis'
+            $content | Should -Match '## Issue Details'
+            $content | Should -Match '### Description'
+            $content | Should -Match '## Comments from Trusted Sources'
         }
     }
 }

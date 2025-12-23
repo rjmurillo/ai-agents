@@ -25,6 +25,11 @@
     Skip the copilot-swe-agent assignment. Use when assignment is handled
     separately with a COPILOT_GITHUB_TOKEN (workflow pattern).
 
+.PARAMETER PrepareContextOnly
+    Only prepare the context file for AI synthesis; do not create or update
+    synthesis comments. Returns the context file path and existing synthesis
+    comment ID for use by the ai-review action.
+
 .PARAMETER WhatIf
     Preview the synthesis comment without posting or assigning.
 
@@ -36,6 +41,10 @@
 
 .EXAMPLE
     .\Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
+
+.EXAMPLE
+    .\Invoke-CopilotAssignment.ps1 -IssueNumber 123 -PrepareContextOnly
+    # Returns: @{ ContextFile = "/tmp/issue-123-context.md"; ExistingSynthesisId = $null }
 
 .NOTES
     Exit Codes:
@@ -57,7 +66,9 @@ param(
 
     [string]$ConfigPath,
 
-    [switch]$SkipAssignment
+    [switch]$SkipAssignment,
+
+    [switch]$PrepareContextOnly
 )
 
 # Import shared helpers - reuse existing functions (DRY)
@@ -322,6 +333,72 @@ function Get-AITriageInfo {
 
 #endregion
 
+#region Context File Generation
+
+function New-ContextFile {
+    <#
+    .SYNOPSIS
+        Creates a context file for AI synthesis.
+
+    .DESCRIPTION
+        Generates a markdown file containing all relevant issue context for AI synthesis.
+        Includes issue details, labels, description, and all trusted source comments.
+        This file is passed to the ai-review action for AI-powered synthesis.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [psobject]$Issue,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [array]$TrustedComments,
+
+        [int]$IssueNumber
+    )
+
+    # Create temp file
+    $contextFile = Join-Path ([System.IO.Path]::GetTempPath()) "issue-$IssueNumber-context.md"
+
+    # Build context content
+    $content = @"
+# Issue Context for Synthesis
+
+## Issue Details
+
+**Title**: $($Issue.title)
+**Labels**: $($Issue.labels | ForEach-Object { $_.name } | Join-String -Separator ', ')
+
+### Description
+
+$($Issue.body)
+
+## Comments from Trusted Sources
+
+"@
+
+    foreach ($comment in $TrustedComments) {
+        $content += @"
+
+### Comment by $($comment.user.login)
+
+$($comment.body)
+
+---
+
+"@
+    }
+
+    # Write to file
+    $content | Set-Content -Path $contextFile -Encoding UTF8
+
+    Write-Host "Context file created: $contextFile ($(Get-Item $contextFile).Length bytes)" -ForegroundColor Gray
+    return $contextFile
+}
+
+#endregion
+
 #region Synthesis Generation
 
 function New-SynthesisComment {
@@ -523,6 +600,35 @@ Write-Host "Found $($comments.Count) comments" -ForegroundColor Gray
 $trustedUsers = @($config.trusted_sources.maintainers) + @($config.trusted_sources.ai_agents)
 $trustedComments = @(Get-TrustedSourceComments -Comments $comments -TrustedUsers $trustedUsers)
 Write-Host "Found $($trustedComments.Count) comments from trusted sources" -ForegroundColor Gray
+
+# PrepareContextOnly mode: create context file and return early
+if ($PrepareContextOnly) {
+    # Create context file for AI synthesis
+    $contextFile = New-ContextFile -Issue $issue -TrustedComments $trustedComments -IssueNumber $IssueNumber
+
+    # Check for existing synthesis comment (for idempotency)
+    $existingSynthesis = Find-ExistingSynthesis -Comments $comments -Marker $config.synthesis.marker
+
+    # Return structured output for workflow consumption
+    $output = [PSCustomObject]@{
+        ContextFile         = $contextFile
+        ExistingSynthesisId = & { if ($existingSynthesis) { $existingSynthesis.id } else { $null } }
+        Marker              = $config.synthesis.marker
+        IssueNumber         = $IssueNumber
+        Owner               = $Owner
+        Repo                = $Repo
+    }
+
+    # Write outputs for GitHub Actions consumption
+    if ($env:GITHUB_OUTPUT) {
+        "context_file=$contextFile" | Add-Content -Path $env:GITHUB_OUTPUT
+        "existing_synthesis_id=$($output.ExistingSynthesisId)" | Add-Content -Path $env:GITHUB_OUTPUT
+        "marker=$($config.synthesis.marker)" | Add-Content -Path $env:GITHUB_OUTPUT
+    }
+
+    $output
+    exit 0
+}
 
 # Extract context
 $maintainerGuidance = Get-MaintainerGuidance -Comments $trustedComments -Maintainers $config.trusted_sources.maintainers
