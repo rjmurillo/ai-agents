@@ -108,6 +108,8 @@ When creating/updating user-facing documentation:
 
 **Statement**: When creating prompts for autonomous operation, include all resource constraints, failure modes, shared resource context, and dynamic adjustment rules that the executing agent will need.
 
+**Parent Principle**: Skill-Documentation-007 (Self-Contained Artifacts) - this skill specializes the general principle for autonomous/long-running agents with additional sustainability requirements.
+
 **Context**: Prompts intended for standalone Claude instances or autonomous agents
 
 **Evidence**: PR #301 - Rate limit guidance was missing from autonomous-pr-monitor.md. User had to point out that rjmurillo-bot is used for MANY operations and the prompt needed sustainability guidance.
@@ -214,6 +216,93 @@ SHOULD stay under 50% during normal operation.
 
 ---
 
+## Skill-Documentation-007: Self-Contained Artifacts (General Principle)
+
+**Statement**: Any artifact that will be consumed by a future agent (or the same agent in a future session) MUST be self-contained enough for that agent to succeed without implicit knowledge.
+
+**Context**: Session logs, handoff artifacts, PRDs, task breakdowns, planning documents, and any cross-session or cross-agent communication
+
+**Evidence**: PR #301 - User feedback generalized validation questions 1-3 from operational prompts to all agent artifacts.
+
+**Atomicity**: 95%
+
+**Tag**: critical (cross-session continuity)
+
+**Impact**: 10/10 (foundational principle for all agent coordination)
+
+**Created**: 2025-12-23
+
+**The Core Problem**:
+
+Agents operate with implicit knowledge during a session that gets lost at session boundaries. When the next agent (or next session) picks up the work, they fail or make incorrect decisions because:
+
+- Context was in the author's "head" but not in the document
+- Decisions were made but reasoning wasn't recorded
+- Assumptions were implicit rather than explicit
+
+**Universal Validation Questions**:
+
+Before finalizing ANY artifact intended for future consumption, ask:
+
+| # | Question | Applies To |
+|---|----------|------------|
+| 1 | "If I had amnesia and only had this document, could I succeed?" | All artifacts |
+| 2 | "What do I know that the next agent won't?" | All artifacts |
+| 3 | "What implicit decisions am I making that should be explicit?" | All artifacts |
+
+**Artifact-Specific Extensions**:
+
+| Artifact Type | Additional Questions |
+|---------------|---------------------|
+| **Session Logs** | What was the end state? What's blocked? What's the next action? |
+| **Handoff Artifacts** | What decisions were made? What was tried and rejected? |
+| **PRDs** | Are acceptance criteria unambiguous? Can an implementer start without questions? |
+| **Task Breakdowns** | Is each task atomic? Is done-criteria measurable? Are dependencies explicit? |
+| **Operational Prompts** | What resources are consumed? What are failure modes? (See Skill-Documentation-006) |
+
+**Anti-Patterns**:
+
+```markdown
+# BAD: Session log with implicit state
+Worked on PR #301. Made good progress. Will continue tomorrow.
+
+# BAD: PRD with implicit requirements
+Implement user authentication. Should be secure.
+
+# BAD: Task breakdown with implicit dependencies
+1. Build the API
+2. Build the UI
+3. Deploy
+```
+
+**Patterns**:
+
+```markdown
+# GOOD: Session log with explicit state
+Worked on PR #301:
+- Completed: Rate limit management section
+- Blocked: Waiting for CI to pass (run 12345)
+- Next action: Address review comments on shared context section
+- Open question: Should we add retry logic? (deferred to user)
+
+# GOOD: PRD with explicit requirements
+Implement user authentication:
+- MUST use OAuth 2.0 with PKCE flow
+- MUST support Google and GitHub providers
+- Acceptance: User can log in, session persists 24h, logout clears session
+
+# GOOD: Task breakdown with explicit dependencies
+1. [No deps] Design auth database schema
+2. [Depends: 1] Implement auth API endpoints
+3. [Depends: 2] Build login UI components
+4. [Depends: 2, 3] Integration test auth flow
+5. [Depends: 4] Deploy to staging
+```
+
+**Validation**: 1 (PR #301, user feedback on generalizing Skill-Documentation-006)
+
+---
+
 ## Related Skills
 
 - Skill-Documentation-001: Systematic migration search
@@ -221,7 +310,8 @@ SHOULD stay under 50% during normal operation.
 - Skill-Documentation-003: Fallback preservation
 - Skill-Documentation-004: Pattern consistency
 - Skill-Documentation-005: User-facing content restrictions
-- Skill-Documentation-006: Self-contained operational prompts
+- Skill-Documentation-006: Self-contained operational prompts (specializes 007 for autonomous agents)
+- Skill-Documentation-007: Self-contained artifacts (general principle)
 
 ## References
 
