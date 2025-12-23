@@ -92,7 +92,7 @@ function Get-SynthesisConfig {
     $defaultConfig = @{
         trusted_sources = @{
             maintainers = @("rjmurillo")
-            ai_agents   = @("rjmurillo-bot", "coderabbitai[bot]", "copilot[bot]", "cursor[bot]", "github-actions[bot]")
+            ai_agents   = @("rjmurillo-bot", "Copilot", "coderabbitai[bot]", "cursor[bot]", "github-actions[bot]")
         }
         extraction_patterns = @{
             coderabbit = @{
@@ -136,9 +136,12 @@ function Get-SynthesisConfig {
         }
 
         # Extract ai_agents (terminate at next key, comment block, or EOF)
-        if ($content -match 'ai_agents:\s*((?:\s+-\s+\S+)+?)(?=\s*(?:\w+:|#|$))') {
+        if ($content -match 'ai_agents:\s*((?:\s+-\s+.+)+?)(?=\s*(?:\w+:|(?:^|\n)#|$))') {
             $config.trusted_sources.ai_agents = $Matches[1] -split "`n" | ForEach-Object {
-                if ($_ -match '^\s+-\s+(\S+)') { $Matches[1] }
+                # Extract value, strip inline comments
+                if ($_ -match '^\s+-\s+([^#]+)') {
+                    $Matches[1].Trim()
+                }
             } | Where-Object { $_ }
         }
 
@@ -193,6 +196,7 @@ function Get-MaintainerGuidance {
     $guidance = @()
     foreach ($comment in $maintainerComments) {
         $lines = $comment.body -split "`n"
+        $foundBullets = $false
 
         # First pass: extract bullet points and numbered items
         foreach ($line in $lines) {
@@ -203,12 +207,13 @@ function Get-MaintainerGuidance {
                 # Skip checkbox items or too short
                 if ($item.Length -gt 10 -and $item -notmatch '^\[[ x]\]') {
                     $guidance += $item
+                    $foundBullets = $true
                 }
             }
         }
 
-        # Second pass: if no bullets found, extract sentences with RFC 2119 keywords
-        if ($guidance.Count -eq 0) {
+        # Second pass: if no bullets found in this comment, extract sentences with RFC 2119 keywords
+        if (-not $foundBullets) {
             # Split into sentences and find those with directive keywords
             $sentences = $comment.body -split '(?<=[.!?])\s+'
             foreach ($sentence in $sentences) {
@@ -319,11 +324,12 @@ function Get-AITriageInfo {
     # Extract Priority and Category using shared logic (DRY)
     foreach ($field in @('Priority', 'Category')) {
         # Match Markdown table format: | **Priority** | `P1` |
-        if ($body -match "\*\*$field\*\*[^``]*``([^``]+)``") {
-            $triage[$field] = $Matches[1]
+        # Anchored to line start for accuracy, excludes separator rows (|:---|)
+        if ($body -match "(?m)^\s*\|\s*\*\*$field\*\*\s*\|\s*``([^``]+)``") {
+            $triage[$field] = $Matches[1].Trim()
         }
         # Fallback to plain text format: Priority: P1
-        elseif ($body -match "$field[:\s]+(\S+)") {
+        elseif ($body -match "(?m)^$field[:\s]+(\S+)") {
             $triage[$field] = $Matches[1]
         }
     }

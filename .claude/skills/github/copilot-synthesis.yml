@@ -119,7 +119,7 @@ trusted_sources:
   ai_agents:
     - rjmurillo-bot
     - coderabbitai[bot]
-    - copilot[bot]
+    - Copilot        # GitHub Copilot bot login (case-sensitive; verified via GitHub API)
     - cursor[bot]
     - github-actions[bot]
 

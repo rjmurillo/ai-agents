@@ -100,7 +100,7 @@ jobs:
         run: |
           Write-Host "Preparing context for issue #${{ steps.issue.outputs.number }}" -ForegroundColor Cyan
           & "./.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1" `
-            -IssueNumber ${{ steps.issue.outputs.number }} `
+            -IssueNumber "${{ steps.issue.outputs.number }}" `
             -PrepareContextOnly
 
       - name: AI-powered synthesis
@@ -136,7 +136,7 @@ jobs:
           $resolved = Resolve-RepoParams
           $owner = $resolved.Owner
           $repo = $resolved.Repo
-          $issueNumber = ${{ steps.issue.outputs.number }}
+          $issueNumber = "${{ steps.issue.outputs.number }}"
 
           if ($existingId) {
             Write-Host "Updating existing synthesis comment (ID: $existingId)" -ForegroundColor Yellow
@@ -157,7 +157,7 @@ jobs:
           # See: https://github.blog/changelog/2025-12-03-assign-issues-to-copilot-using-the-api/
           GH_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
-          $issueNumber = ${{ steps.issue.outputs.number }}
+          $issueNumber = "${{ steps.issue.outputs.number }}"
           Write-Host "Assigning copilot-swe-agent to issue #$issueNumber..." -ForegroundColor Cyan
           $result = gh issue edit $issueNumber --add-assignee "copilot-swe-agent" 2>&1
           if ($LASTEXITCODE -eq 0) {
@@ -170,7 +170,7 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          $issueNumber = ${{ steps.issue.outputs.number }}
+          $issueNumber = "${{ steps.issue.outputs.number }}"
           Write-Host "Removing copilot-ready label..." -ForegroundColor Cyan
           gh issue edit $issueNumber --remove-label "copilot-ready"
           Write-Host "::notice::Removed copilot-ready label from issue #$issueNumber"
@@ -179,7 +179,7 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          $issueNumber = ${{ steps.issue.outputs.number }}
+          $issueNumber = "${{ steps.issue.outputs.number }}"
           @"
           ## Copilot Context Synthesis Complete :robot:
 

@@ -719,7 +719,7 @@ Describe "Get-AITriageInfo Function" {
 | Property | Value |
 |:---------|:------|
 | **Category** | ``enhancement`` |
-|  **Priority** | ``P1`` |
+| **Priority** | ``P1`` |
 | **Milestone** | v1.1 |
 "@
                 }
