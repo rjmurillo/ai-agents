@@ -69,9 +69,9 @@ jobs:
     name: Run Pester Tests
     needs: check-paths
     if: needs.check-paths.outputs.should-run-tests == 'true'
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
-    # Pester 5.x works with PowerShell Core (pwsh) on ARM Linux
-    runs-on: ubuntu-24.04-arm
+    # Keep on Windows - many tests have Windows-specific assumptions
+    # (file paths, hidden files, etc.) that don't work on Linux ARM
+    runs-on: windows-latest
     permissions:
       contents: read
       checks: write  # Required for dorny/test-reporter to create check runs
@@ -79,20 +79,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-
-      - name: Diagnose ARM Runner Environment
-        shell: pwsh
-        run: |
-          Write-Host "=== ARM Runner Diagnostics ==="
-          Write-Host "PowerShell Version:"
-          $PSVersionTable | Format-List
-          Write-Host "`nPester Module:"
-          Get-Module -ListAvailable Pester | Format-List
-          Write-Host "`nArchitecture:"
-          uname -m
-          Write-Host "`nOS Info:"
-          cat /etc/os-release
-          Write-Host "==========================="
 
       - name: Run Pester Tests
         shell: pwsh
