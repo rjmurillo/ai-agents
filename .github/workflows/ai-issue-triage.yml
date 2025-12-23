@@ -336,7 +336,7 @@ jobs:
           context-type: issue
           issue-number: ${{ steps.issue.outputs.number }}
           prompt-file: .github/prompts/issue-prd-generation.md
-          timeout-minutes: 5
+          timeout-minutes: 15
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
