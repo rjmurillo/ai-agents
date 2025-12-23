@@ -102,9 +102,22 @@ For workflows triggered by non-PR events (issues, schedule, workflow_dispatch wi
 
 ## Session End Checklist
 
-- [x] Investigation complete
-- [x] Root cause identified
-- [x] Solution documented
-- [ ] Retrospective (not needed - no code changes)
-- [ ] HANDOFF.md update (read-only per protocol)
-- [ ] Commit session log
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| Serena Initialization | PASS | `mcp__serena__initial_instructions` invoked |
+| HANDOFF.md Read | PASS | Reviewed context from `.agents/HANDOFF.md` |
+| Session Log Created | PASS | This file created |
+| Investigation complete | PASS | Root cause: Issue workflows always run from default branch |
+| Solution documented | PASS | Merge PR #296 and re-test |
+| Markdown lint | PASS | Linting passed |
+| Changes committed | PASS | Commit 5b24f57 |
+| HANDOFF.md update | SKIP | Read-only per ADR-014 (Session State MCP replaces centralized tracking) |
+| Retrospective | SKIP | Investigation session - no code changes made |
+
+---
+
+## Final Commit
+
+**Commit SHA**: 5b24f57
+**Message**: docs: add session logs for copilot synthesis investigation
+**Files**: 3 changed (sessions 81, 82, and memory file)

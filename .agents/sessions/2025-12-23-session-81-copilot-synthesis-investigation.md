@@ -79,10 +79,26 @@ The AI successfully generated content (2699 chars, exit 0) but didn't include `V
 
 ## Session End Checklist
 
-- [x] Investigation complete
-- [x] Root cause identified
-- [x] Resolution path documented
-- [x] Session log created
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| Serena Initialization | PASS | `mcp__serena__initial_instructions` invoked |
+| HANDOFF.md Read | PASS | Reviewed context from `.agents/HANDOFF.md` |
+| Session Log Created | PASS | This file created |
+| Investigation complete | PASS | Root cause identified: PR #296 not merged to main |
+| Resolution path documented | PASS | Merge PR #296 and re-test |
+| Markdown lint | PASS | Linting passed |
+| Changes committed | PASS | Commit 5b24f57 |
+| HANDOFF.md update | SKIP | Read-only per ADR-014 (Session State MCP replaces centralized tracking) |
+
+---
+
+## Final Commit
+
+**Commit SHA**: 5b24f57
+**Message**: docs: add session logs for copilot synthesis investigation
+**Files**: 3 changed (sessions 81, 82, and memory file)
+
+---
 
 ## Next Session Notes
 
