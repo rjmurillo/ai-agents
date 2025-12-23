@@ -117,18 +117,23 @@ function Get-SynthesisConfig {
         # Deep copy to avoid modifying defaultConfig (shallow Clone() would share nested refs)
         $config = $defaultConfig | ConvertTo-Json -Depth 10 | ConvertFrom-Json -AsHashtable
 
-        # Extract maintainers (use non-greedy quantifier with boundary to prevent over-matching)
-        if ($content -match 'maintainers:\s*((?:\s+-\s+\S+)+?)(?=\s*\w+:|$)') {
+        # Extract maintainers (terminate at next key, comment block, or EOF)
+        if ($content -match 'maintainers:\s*((?:\s+-\s+\S+)+?)(?=\s*(?:\w+:|#|$))') {
             $config.trusted_sources.maintainers = $Matches[1] -split "`n" | ForEach-Object {
                 if ($_ -match '^\s+-\s+(\S+)') { $Matches[1] }
             } | Where-Object { $_ }
         }
 
-        # Extract ai_agents (use non-greedy quantifier with boundary to prevent over-matching)
-        if ($content -match 'ai_agents:\s*((?:\s+-\s+\S+)+?)(?=\s*\w+:|$)') {
+        # Extract ai_agents (terminate at next key, comment block, or EOF)
+        if ($content -match 'ai_agents:\s*((?:\s+-\s+\S+)+?)(?=\s*(?:\w+:|#|$))') {
             $config.trusted_sources.ai_agents = $Matches[1] -split "`n" | ForEach-Object {
                 if ($_ -match '^\s+-\s+(\S+)') { $Matches[1] }
             } | Where-Object { $_ }
+        }
+
+        # Extract coderabbit username from extraction_patterns.coderabbit.username
+        if ($content -match 'coderabbit:[\s\S]*?username:\s*"([^"]+)"') {
+            $config.extraction_patterns.coderabbit.username = $Matches[1]
         }
 
         # Extract synthesis marker (allow comments/blank lines between synthesis: and marker:)
