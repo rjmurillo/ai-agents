@@ -63,7 +63,7 @@ Even though PR was already merged, the session produced valuable outcomes:
 - Reduces API calls by N-1 where N is thread count
 - Validation: 1 (PR #315)
 
-Both skills stored in `skills-pr-review` memory via Serena.
+Both skills stored in `pr-review-core-workflow` skill memory via Serena.
 
 ### 3. Branch Cleanup
 
@@ -71,6 +71,75 @@ Both skills stored in `skills-pr-review` memory via Serena.
 - Prevented confusion with merged PR
 
 ## Learnings
+
+### Skill-PR-Review-004: Thread Resolution Protocol
+
+**Statement**: Review comment replies do NOT automatically resolve threads. Must execute separate GraphQL `resolveReviewThread` mutation after replying.
+
+**Context**: PR review workflow - comment reply and thread resolution
+
+**Evidence**: PR #310, PR #315 - Replying to review comments via REST or GraphQL does not change thread `isResolved` status. Requires explicit GraphQL mutation.
+
+**Atomicity**: 95%
+
+**Tag**: critical
+
+**Impact**: 10/10
+
+**Created**: 2025-12-23
+
+**Validated**: 2 (PR #310, PR #315)
+
+**Pattern** (2-step process):
+
+1. Reply via REST or GraphQL
+2. Resolve thread (separate GraphQL mutation):
+
+```bash
+gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id="PRRT_xxx"
+```
+
+**Verification**:
+
+```bash
+gh api graphql -f query='query { repository(owner: "owner", name: "repo") { pullRequest(number: N) { reviewThreads(first: 100) { nodes { id isResolved } } } } }' --jq '.data.repository.pullRequest.reviewThreads.nodes | map(select(.isResolved == false)) | length'
+```
+
+**Anti-Pattern**: Assuming reply resolves thread automatically → threads remain unresolved, blocking merge
+
+**When to Use**: After replying to any review comment when conversation is complete
+
+### Skill-PR-Review-005: Batch Thread Resolution Efficiency
+
+**Statement**: Use GraphQL mutation aliases to resolve multiple threads in single API call. Reduces API calls by N-1.
+
+**Context**: PR review workflow - bulk thread resolution
+
+**Evidence**: PR #315 - Resolved 15 threads using 2 batch mutations (8 + 7) instead of 15 individual calls.
+
+**Atomicity**: 93%
+
+**Impact**: 6/10
+
+**Created**: 2025-12-23
+
+**Validated**: 1 (PR #315)
+
+**Pattern**:
+
+```graphql
+mutation {
+  t1: resolveReviewThread(input: {threadId: "PRRT_xxx"}) { thread { id isResolved } }
+  t2: resolveReviewThread(input: {threadId: "PRRT_yyy"}) { thread { id isResolved } }
+  # ... add more as needed
+}
+```
+
+**Benefits**: 1 API call for N threads (vs N calls), atomic operation
+
+**Anti-Pattern**: Resolving threads one-by-one with N API calls → inefficient, slower
+
+**When to Use**: 2+ threads to resolve simultaneously
 
 ### Skill-PR-Review-006: PR Merge State Verification (NEW)
 
@@ -117,7 +186,7 @@ query {
 | Requirement | Status | Evidence |
 |-------------|--------|----------|
 | PR merge state verified | [x] | GraphQL query confirmed MERGED |
-| Skills stored in memory | [x] | Skill-PR-Review-006 added to skills-pr-review |
+| Skills stored in memory | [x] | Skill-PR-Review-006 added to pr-review-core-workflow |
 | Orphaned branch deleted | [x] | feat/adr-review branch removed from remote |
 | Session log created | [x] | This file |
 | Main branch updated | [x] | Session log committed to main |
@@ -125,7 +194,7 @@ query {
 ## Files Modified
 
 - `.agents/sessions/2025-12-23-session-85-pr-315-post-merge-analysis.md` (created)
-- `.serena/memories/skills-pr-review.md` (updated with Skill-PR-Review-004, Skill-PR-Review-005, Skill-PR-Review-006)
+- `.serena/memories/pr-review-core-workflow.md` (skills-pr-review memory; updated with Skill-PR-Review-004, Skill-PR-Review-005, Skill-PR-Review-006)
 
 ## Next Steps
 
