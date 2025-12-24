@@ -10,7 +10,7 @@
 | orchestration agent coordination parallel handoff | skills-orchestration, skills-collaboration-patterns |
 | documentation PRD spec user-facing | skills-documentation |
 | validation quality lint false-positive | skills-validation, skills-linting |
-| CI CD workflow actions runner ARM | skills-ci-infrastructure, skills-github-workflow-patterns |
+| CI CD workflow actions runner ARM | skills-ci-infrastructure-index, skills-github-workflow-patterns |
 | copilot review false-positive triage response | skills-copilot-index |
 | coderabbit noise config path-filter false-positive | skills-coderabbit-index |
 | git hook pre-commit autofix | skills-git-hooks |
