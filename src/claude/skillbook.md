@@ -121,43 +121,155 @@ mcp__serena__read_memory    # Read specific domain index
 - [ ] **REJECT**: Exact duplicate
 ```
 
-## Skill File Format (ADR-017)
+## File Naming Convention
 
-Skills are stored as markdown files in `.serena/memories/`:
+Skill files use `{domain}-{topic}.md` format for index discoverability:
+
+```text
+.serena/memories/
+├── skills-{domain}-index.md    # L2: Domain index (routing table)
+└── {domain}-{topic}.md         # L3: Atomic skill file(s)
+```
+
+### Naming Rules
+
+| Component | Pattern | Examples |
+|-----------|---------|----------|
+| Domain | Lowercase, hyphenated | `pr-review`, `session-init`, `github-cli` |
+| Topic | Descriptive noun/verb | `security`, `acknowledgment`, `api-patterns` |
+| Full name | `{domain}-{topic}.md` | `pr-review-security.md`, `pester-test-isolation.md` |
+
+**Internal Skill ID**: The `Skill-{Category}-{NNN}` identifier goes INSIDE the file, not in the filename.
+
+### File vs Index Decision
+
+| File Type | Purpose | Example |
+|-----------|---------|---------|
+| `skills-{domain}-index.md` | L2 routing table | `skills-pr-review-index.md` |
+| `{domain}-{topic}.md` | L3 atomic content | `pr-review-security.md` |
+
+## Skill File Formats (ADR-017)
+
+Skills are stored as markdown files in `.serena/memories/`. Two canonical formats exist:
+
+### Format A: Standalone Skill (Major Skills)
+
+Use for skills that are referenced independently or represent major capabilities.
 
 ```markdown
-# Skill-[Category]-[Number]: [Title]
+# Skill-{Category}-{NNN}: {Title}
 
-**Statement**: [Atomic strategy - max 15 words]
+**Statement**: {Atomic strategy - max 15 words}
 
-**Context**: [When to apply]
+**Context**: {When to apply}
 
-**Evidence**: [Specific execution proof]
+**Evidence**: {Specific execution proof with session/PR reference}
 
-**Atomicity**: [%]
-
-**Impact**: [1-10]
+**Atomicity**: {%} | **Impact**: {1-10}
 
 ## Pattern
 
-[Code example or detailed guidance]
+{Code example or detailed guidance}
 
 ## Anti-Pattern
 
-[What NOT to do]
+{What NOT to do}
+
+## Related
+
+- **BLOCKS**: {Skills this blocks}
+- **ENABLES**: {Skills this enables}
+```
+
+**Example** (from `session-init-serena.md`):
+
+```markdown
+# Skill-Init-001: Serena Mandatory Initialization
+
+**Statement**: MUST initialize Serena before ANY other action.
+
+**Context**: BLOCKING gate at session start (Phase 1)
+
+**Evidence**: This gate works perfectly - never violated.
+
+**Atomicity**: 98% | **Impact**: 10/10
+
+## Pattern
+1. mcp__serena__activate_project
+2. mcp__serena__initial_instructions
+3. Proceed with work
+```
+
+### Format B: Bundled Skills (Related Workflows)
+
+Use for multiple related skills that share a workflow context.
+
+```markdown
+# {Domain}: {Topic Title}
+
+## Skill-{Category}-{NNN}: {First Skill Title}
+
+**Statement**: {Atomic strategy}
+
+**Atomicity**: {%} | **Impact**: {1-10}
+
+{Code example}
+
+## Skill-{Category}-{NNN}: {Second Skill Title}
+
+**Statement**: {Atomic strategy}
+
+**Atomicity**: {%} | **Impact**: {1-10}
+
+{Code example}
+```
+
+**Example** (from `pr-review-acknowledgment.md`):
+
+```markdown
+# PR Review: Acknowledgment Protocol
+
+## Skill-PR-Comment-001: Acknowledgment BLOCKING Gate
+
+**Statement**: Phase 3 BLOCKED until eyes count equals comment count.
+
+**Atomicity**: 100% | **Tag**: critical
+
+## Skill-PR-Comment-002: Session-Specific Work Tracking
+
+**Statement**: Track 'NEW this session' separately from 'DONE prior'.
+
+**Atomicity**: 100% | **Tag**: critical
+```
+
+### Format Selection Decision Tree
+
+```text
+1. Is this a CRITICAL/BLOCKING skill (P0)?
+   YES → Format A (standalone, full detail)
+   NO  → Continue
+
+2. Are there 2+ related skills in the same workflow?
+   YES → Format B (bundled in one file)
+   NO  → Format A (standalone)
+
+3. Is the skill referenced by other skills?
+   YES → Format A (standalone for linkability)
+   NO  → Either format acceptable
 ```
 
 ### Skill Categories
 
-| Category | Description | Example |
-|----------|-------------|---------|
-| Build | Compilation | Skill-Build-001 |
-| Test | Testing | Skill-Test-001 |
-| Debug | Debugging | Skill-Debug-001 |
-| Design | Architecture | Skill-Design-001 |
-| Perf | Optimization | Skill-Perf-001 |
-| Process | Workflow | Skill-Process-001 |
-| Tool | Tool-specific | Skill-Tool-001 |
+| Category | Domain Prefix | Description | Example ID |
+|----------|--------------|-------------|------------|
+| Init | `session-init-` | Session initialization | Skill-Init-001 |
+| PR | `pr-review-` | Pull request workflows | Skill-PR-Comment-001 |
+| GH | `github-cli-` | GitHub CLI patterns | Skill-GH-API-001 |
+| Test | `pester-` | Testing strategies | Skill-Test-Pester-001 |
+| Build | `ci-` | Build and CI | Skill-Build-001 |
+| Memory | `skill-memory-` | Memory operations | Skill-Memory-001 |
+| Security | `security-` | Security patterns | Skill-Security-001 |
+| Process | `workflow-` | Workflow patterns | Skill-Process-001 |
 
 ## Memory Protocol
 
@@ -272,8 +384,9 @@ Skillbook Manager:
 When agents retrieve skills:
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "skill [task context]"
+mcp__serena__read_memory
+memory_file_name: "skills-[domain]-index"
+# Then read specific skill file from index
 ```
 
 Agents should cite:
@@ -290,7 +403,7 @@ Agents should cite:
 
 When skillbook update is complete:
 
-1. Confirm skill created/updated via cloudmcp-manager memory tools
+1. Confirm skill created/updated via Serena memory tools
 2. Return summary of changes to orchestrator
 3. Recommend notification to relevant agents (orchestrator handles this)
 
@@ -301,7 +414,7 @@ When skillbook update is complete:
 | **retrospective** | Need more evidence | Request additional analysis |
 | **orchestrator** | Skills updated | Notify for next task |
 
-**Note**: Memory operations are executed directly via cloudmcp-manager memory tools (see Claude Code Tools section). You do not delegate to a memory agent—you invoke memory tools directly.
+**Note**: Memory operations are executed directly via Serena memory tools (see Claude Code Tools section). You do not delegate to a memory agent; you invoke memory tools directly.
 
 ## Execution Mindset
 
