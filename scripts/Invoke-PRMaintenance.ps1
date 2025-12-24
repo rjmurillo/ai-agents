@@ -605,10 +605,18 @@ function Resolve-PRConflicts {
                     throw "Conflicts in non-auto-resolvable files"
                 }
 
-                # Complete merge
-                $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to commit merge"
+                # Check if there are staged changes to commit
+                $null = git diff --cached --quiet 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    # No staged changes - merge was clean or already resolved
+                    Write-Log "Merge completed without needing conflict resolution commit" -Level INFO
+                }
+                else {
+                    # Complete merge with commit
+                    $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Failed to commit merge"
+                    }
                 }
             }
 
@@ -685,10 +693,18 @@ function Resolve-PRConflicts {
                     throw "Conflicts in non-auto-resolvable files"
                 }
 
-                # Complete merge
-                $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to commit merge"
+                # Check if there are staged changes to commit
+                $null = git diff --cached --quiet 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    # No staged changes - merge was clean or already resolved
+                    Write-Log "Merge completed without needing conflict resolution commit" -Level INFO
+                }
+                else {
+                    # Complete merge with commit
+                    $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Failed to commit merge"
+                    }
                 }
             }
 
