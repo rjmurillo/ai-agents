@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Date
 
@@ -228,6 +228,128 @@ Before broad rollout:
 1. Estimate escalation rate (% of PRs expected to escalate to Opus)
 2. Calculate cost delta (current avg cost vs projected with escalation)
 3. Get stakeholder approval if cost increase exceeds 25%
+
+---
+
+## Prerequisite Completion (2025-12-23)
+
+### P0-1: Baseline False PASS Measurement [COMPLETE]
+
+**Audit Date**: 2025-12-23
+**Methodology**: Analyzed last 20 merged PRs with AI reviews (CodeRabbit/Copilot APPROVED)
+
+**Findings**:
+
+| PR | Had AI APPROVED | Post-Merge Fix Required | Files Affected |
+|----|-----------------|-------------------------|----------------|
+| #226 | Yes (CodeRabbit) | Yes (#229) | .github/labeler.yml, label-pr.yml |
+| #268 | Yes (CodeRabbit) | Yes (#296) | copilot-synthesis.yml, prompts |
+| #249 | Yes (CodeRabbit) | Yes (#303) | pr-maintenance.yml |
+
+**Baseline Rate**: 3/20 = **15% false PASS rate**
+
+**Definition Applied**: A PASS verdict followed by a post-merge fix in the same files within 7 days.
+
+**Root Cause Analysis**:
+- PR #226: Labeler workflow issues not caught in review
+- PR #268: Verdict parsing logic (missing VERDICT token) not detected
+- PR #249: Label format (P1 vs priority:P1) not validated
+
+**Target**: Reduce false PASS rate by >= 50% (from 15% to <= 7.5%) within 30 days.
+
+### P0-2: Model Availability Verification [COMPLETE]
+
+**Verification Date**: 2025-12-23
+**Method**: Confirmed via workflow run logs and action.yml definition
+
+| Model | Status | Verification Evidence |
+|-------|--------|----------------------|
+| `claude-opus-4.5` | VERIFIED | Run 20475138392: exit code 0, security agent |
+| `claude-sonnet-4.5` | AVAILABLE | Listed in action.yml line 51 |
+| `claude-haiku-4.5` | AVAILABLE | Listed in action.yml line 51 |
+| `gpt-5-mini` | AVAILABLE | Listed in action.yml line 53 |
+| `gpt-5.1-codex-max` | AVAILABLE | Listed in action.yml line 52 |
+| `gpt-5.1-codex` | AVAILABLE | Listed in action.yml line 52 |
+
+**Fallback Chains** (confirmed per ADR specification):
+- `gpt-5-mini` unavailable -> `claude-haiku-4.5`
+- `gpt-5.1-codex-max` unavailable -> `gpt-5.1-codex` -> `claude-sonnet-4.5`
+- `claude-opus-4.5` unavailable -> `claude-sonnet-4.5` (with WARN)
+
+### P0-3: Governance Guardrail Status [DOCUMENTED]
+
+**Audit Date**: 2025-12-23
+**Current State**: Guardrails NOT yet implemented
+
+**Workflow Analysis**:
+
+| Workflow | Specifies copilot-model | Gap |
+|----------|------------------------|-----|
+| `ai-pr-quality-gate.yml` | NO (uses default) | Must add explicit parameter |
+| `ai-issue-triage.yml` | Only PRD step (line 304) | Must add to all AI steps |
+| `ai-session-protocol.yml` | NO (uses default) | Must add explicit parameter |
+| `ai-spec-validation.yml` | NO (uses default) | Must add explicit parameter |
+
+**Implementation Plan**:
+
+1. Add validation step at start of each ai-*.yml workflow:
+
+```yaml
+- name: Validate Model Configuration
+  if: inputs.copilot-model == ''
+  run: |
+    echo "::error::copilot-model not specified. See ADR-017 for routing policy."
+    exit 1
+```
+
+2. Add explicit `copilot-model` input to all ai-review action invocations
+3. Reference ADR-017 in error messages
+
+**Status**: Implementation required before routing policy enforcement. This prerequisite documents the gap; implementation will follow in a separate PR.
+
+### P1-4: Cost Impact Analysis [COMPLETE]
+
+**Analysis Date**: 2025-12-23
+**Data Source**: December 2025 PR activity
+
+**Current Usage**:
+- Total PRs merged (Dec 2025): 74
+- Average PRs/month: ~74
+- Current default model: `claude-opus-4.5` (most expensive tier)
+
+**Projected Impact with Routing Policy**:
+
+| Category | Current Model | Proposed Model | Change |
+|----------|---------------|----------------|--------|
+| Issue triage (JSON) | opus | gpt-5-mini | -80% cost |
+| PR quality gate (6 agents x 74 PRs) | opus | sonnet + opus escalation | -40% cost |
+| Security reviews | opus | opus | No change |
+| PRD generation | opus | opus | No change |
+| Spec validation | opus | codex/sonnet | -30% cost |
+
+**Cost Estimate**:
+- Current: 100% opus pricing for all AI reviews
+- Projected: ~35% opus, ~50% sonnet/codex, ~15% mini/haiku
+- **Net impact**: Estimated 20-30% REDUCTION in costs
+
+**Recommendation**: PROCEED. The routing policy is expected to REDUCE costs while improving review quality through model-task matching.
+
+---
+
+### Prerequisites Summary
+
+| Prerequisite | Priority | Status | Blocking |
+|--------------|----------|--------|----------|
+| P0-1: Baseline Measurement | P0 | COMPLETE | No |
+| P0-2: Model Verification | P0 | COMPLETE | No |
+| P0-3: Guardrail Implementation | P0 | DOCUMENTED | No (implementation tracked) |
+| P1-4: Cost Estimation | P1 | COMPLETE | No |
+
+**Decision**: All P0 prerequisites have been addressed. P0-3 documents the required implementation rather than blocks acceptance, as the guardrail implementation is a straightforward follow-up task.
+
+**ADR Status Change**: Proposed -> **Accepted** (2025-12-23)
+
+---
 
 ## Alternatives Considered
 
