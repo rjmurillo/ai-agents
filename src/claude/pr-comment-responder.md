@@ -190,7 +190,7 @@ escap            # Output escaping
 
 Security vulnerabilities like CWE-20/CWE-78 can be introduced and merged when security-domain comments are not prioritized. Similarly, symlink TOCTOU comments can be dismissed as style suggestions when they should be flagged as security-domain.
 
-**Skill Reference**: Skill-PR-Review-Security-001 (atomicity: 94%)
+**Skill Reference**: pr-review-security (atomicity: 94%)
 
 ### Quick Fix Path Criteria
 
@@ -303,7 +303,7 @@ PR_BASE=$(echo "$PR_DATA" | jq -r '.baseRefName')
 #### Step 1.2: Enumerate All Reviewers
 
 ```powershell
-# Using github skill (PREFERRED) - prevents single-bot blindness (Skill-PR-001)
+# Using github skill (PREFERRED) - prevents single-bot blindness (pr-enum-001)
 pwsh .claude/skills/github/scripts/pr/Get-PRReviewers.ps1 -PullRequest [number]
 
 # Exclude bots from enumeration
@@ -646,7 +646,7 @@ Reply to comments that need immediate response BEFORE implementation:
 > **[CRITICAL]**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
 
 ```powershell
-# Using github skill (PREFERRED) - handles thread-preserving replies correctly (Skill-PR-004)
+# Using github skill (PREFERRED) - handles thread-preserving replies correctly (pr-thread-reply)
 # Reply to review comment (in-thread reply using /replies endpoint)
 pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -CommentId [comment_id] -Body "[response]"
 

@@ -256,16 +256,16 @@ pwsh scripts/Validate-MemoryIndex.ps1
 
 **Entity IDs** (inside file content):
 
-- Pattern: `[Type]-[Name]` or `Skill-[Category]-[NNN]`
-- Case: PascalCase with hyphen separator
-- Example: `Skill-PR-001`, `Feature-Authentication`
+- Pattern: `{domain}-{description}` (kebab-case, no prefix)
+- Case: lowercase with hyphens
+- Example: `pr-enum-001`, `git-worktree-parallel`
 
 | Type | Entity ID Pattern | File Name Pattern |
 |------|-------------------|-------------------|
-| Skill | `Skill-[Category]-[NNN]` | `[domain]-[topic].md` |
-| Feature | `Feature-[Name]` | `feature-[name].md` |
-| Decision | `ADR-[Number]` | `adr-[number]-[topic].md` |
-| Pattern | `Pattern-[Name]` | `pattern-[name].md` |
+| Skill | `{domain}-{description}` | `{domain}-{description}.md` |
+| Feature | `feature-{name}` | `feature-{name}.md` |
+| Decision | `adr-{number}` | `adr-{number}-{topic}.md` |
+| Pattern | `pattern-{name}` | `pattern-{name}.md` |
 
 ## Relations (Encoded in File Content)
 
@@ -343,7 +343,7 @@ memory_file_name: "skills-[domain]-index"
 ### Citation Format (During Execution)
 
 ```markdown
-**Applying**: [Skill-ID]
+**Applying**: {skill-id}
 **Strategy**: [Brief description of skill]
 **Expected Outcome**: [What should happen based on this skill]
 ```
@@ -359,7 +359,7 @@ memory_file_name: "skills-[domain]-index"
 ### Example
 
 ```markdown
-**Applying**: Skill-Build-001
+**Applying**: ci-build-isolation
 **Strategy**: Use /m:1 /nodeReuse:false for CI builds
 **Expected Outcome**: Avoid Windows file locking errors
 

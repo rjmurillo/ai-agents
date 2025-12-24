@@ -1,0 +1,52 @@
+# Template and Variant Maintenance Architecture
+
+## Statement
+
+Claude variants in `src/claude/*.md` are maintained SEPARATELY from templates in `templates/agents/*.shared.md`. Updates must be applied to BOTH locations.
+
+## Context
+
+When updating agent documentation, naming conventions, or examples.
+
+## Evidence
+
+Session 2025-12-24: User correction when assuming Claude variants were generated from templates. Line 803 in `src/claude/retrospective.md` was missed because only the template was updated.
+
+## Architecture
+
+```
+templates/agents/              src/claude/
+├── retrospective.shared.md    ├── retrospective.md      ← SEPARATE maintenance
+├── orchestrator.shared.md     ├── orchestrator.md       ← SEPARATE maintenance
+├── memory.shared.md           ├── memory.md             ← SEPARATE maintenance
+└── ...                        └── ...
+
+src/copilot-cli/               src/vs-code-agents/
+├── *.agent.md                 ├── *.agent.md
+└── (generated from templates) └── (generated from templates)
+```
+
+## Key Insight
+
+- `src/claude/*.md` - Manually maintained, NOT generated
+- `src/copilot-cli/*.agent.md` - Generated via `build/Generate-Agents.ps1`
+- `src/vs-code-agents/*.agent.md` - Generated via `build/Generate-Agents.ps1`
+- `templates/agents/*.shared.md` - Source for generated variants only
+
+## Anti-Pattern
+
+Updating only `templates/agents/*.shared.md` and assuming Claude variants will be updated automatically.
+
+## Correct Pattern
+
+1. Update `templates/agents/*.shared.md` (source for copilot-cli and vs-code-agents)
+2. Update `src/claude/*.md` (manual, separate maintenance)
+3. Run `build/Generate-Agents.ps1` to regenerate copilot-cli and vs-code-agents variants
+
+## Atomicity
+
+95%
+
+## Impact
+
+9/10 - Prevents incomplete documentation updates

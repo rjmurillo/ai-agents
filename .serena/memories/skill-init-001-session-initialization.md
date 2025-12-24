@@ -42,6 +42,7 @@ At session start, BEFORE any other action, initialize Serena with `mcp__serena__
 ## Anti-Pattern
 
 Starting work without Serena initialization leads to:
+
 - Missing project memories
 - No access to semantic code tools
 - Repeated mistakes from not having historical context
@@ -65,4 +66,9 @@ At session start:
 
 ## Tags
 
-#initialization #mandatory #blocking #session-start #serena #P0
+- #initialization
+- #mandatory
+- #blocking
+- #session-start
+- #serena
+- #P0

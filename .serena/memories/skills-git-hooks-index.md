@@ -6,3 +6,5 @@
 | grep pattern anchor exact match substring false-positive | git-hooks-grep-patterns |
 | TOCTOU security symlink race-condition check time-of-use | git-hooks-toctou |
 | session validation checklist commit block protocol | git-hooks-session-validation |
+| branch validation pre-commit main master prevent feature | skill-git-001-pre-commit-branch-validation |
+| branch recovery main commit mistake reset origin HEAD | skill-git-002-branch-recovery-procedure |
