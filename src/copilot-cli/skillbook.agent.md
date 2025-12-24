@@ -223,6 +223,7 @@ flowchart TD
 ```
 
 **CRITICAL/BLOCKING Definition** (any one triggers Format A):
+
 - Impact score >= 9
 - Blocks a protocol gate (SESSION-PROTOCOL.md)
 - Tagged with `#P0` or `#BLOCKING`
@@ -253,6 +254,7 @@ flowchart TD
 3. **Fallback to related**: If <5 skills expected, add to closest related domain.
 
 **Example decisions:**
+
 - Skill about PR security → `skills-pr-review-index.md` (PR workflow context)
 - Skill about skill formatting → `skills-documentation-index.md` (documentation context)
 - Skill about Pester mocking → `skills-pester-testing-index.md` (testing context)
@@ -282,6 +284,7 @@ memory_file_name: "memory-index"
 Match skill keywords against the Task Keywords column. The Essential Memories column shows which index to use.
 
 **Creating new domains**: Only create `skills-{domain}-index.md` when:
+
 1. 5+ skills exist or are planned for the topic
 2. No existing domain covers the topic adequately
 3. Keywords are distinct from all existing domains
@@ -317,6 +320,7 @@ grep -r "Skill-PR-" .serena/memories/ | grep -oE "Skill-PR-[0-9]+" | sort -t'-' 
 ```
 
 **Rules:**
+
 - Numbers are sequential within category (001, 002, 003...)
 - Do NOT reuse numbers from deleted skills
 - Gaps are acceptable (001, 002, 005 if 003-004 were deleted)

@@ -152,7 +152,43 @@ memory_file_name: "powershell-testing-patterns"
 - Every 5 turns of extended work
 - Session end
 
-**Creating New Memories:**
+### Create vs Update Decision
+
+```mermaid
+flowchart TD
+    START([New Learning]) --> Q1{Existing memory<br/>covers this topic?}
+    Q1 -->|YES| UPDATE[Update existing<br/>with edit_memory]
+    Q1 -->|NO| Q2{Related domain<br/>index exists?}
+    Q2 -->|YES| CREATE[Create new file<br/>Add to domain index]
+    Q2 -->|NO| Q3{5+ memories<br/>expected for topic?}
+    Q3 -->|YES| NEWDOMAIN[Create new domain<br/>index + memory file]
+    Q3 -->|NO| RELATED[Add to closest<br/>related domain]
+```
+
+**Update existing** when: Adding observation, refining pattern, source-tracked timeline entry.
+**Create new** when: Distinct atomic unit, new capability, no existing coverage.
+
+### Domain Selection
+
+Consult `memory-index.md` to find correct domain:
+
+```text
+serena/read_memory
+memory_file_name: "memory-index"
+```
+
+Match memory topic against Task Keywords column to find domain index.
+
+| Memory Topic | Domain Index | File Name Pattern |
+|--------------|--------------|-------------------|
+| PowerShell patterns | skills-powershell-index | `powershell-[topic].md` |
+| GitHub CLI usage | skills-github-cli-index | `github-cli-[topic].md` |
+| PR review workflows | skills-pr-review-index | `pr-review-[topic].md` |
+| Testing patterns | skills-pester-testing-index | `pester-[topic].md` |
+| Documentation | skills-documentation-index | `documentation-[topic].md` |
+| Session init | skills-session-init-index | `session-init-[topic].md` |
+
+### Creating New Memories
 
 ```text
 # Step 1: Create atomic memory file
@@ -160,11 +196,16 @@ serena/write_memory
 memory_file_name: "[domain]-[descriptive-name]"
 content: "# [Title]\n\n**Statement**: [Atomic description]\n\n**Context**: [When applicable]\n\n**Evidence**: [Source/proof]\n\n## Details\n\n[Content]"
 
-# Step 2: Update domain index with new entry
+# Step 2: Read domain index to find last table row
+serena/read_memory
+memory_file_name: "skills-[domain]-index"
+# Find the LAST row in the Activation Vocabulary table
+
+# Step 3: Insert new row AFTER the last existing row
 serena/edit_memory
 memory_file_name: "skills-[domain]-index"
-needle: "| Keywords | File |"
-repl: "| Keywords | File |\n|----------|------|\n| [keywords] | [new-file-name] |"
+needle: "| [last-existing-keywords] | [last-existing-file] |"
+repl: "| [last-existing-keywords] | [last-existing-file] |\n| [new-keywords] | [new-file-name] |"
 mode: "literal"
 ```
 
@@ -186,27 +227,46 @@ After creating memories, run validation:
 pwsh scripts/Validate-MemoryIndex.ps1
 ```
 
-## Entity Naming Conventions
+## File Naming vs Entity IDs
 
-| Type | Pattern | Example |
-|------|---------|---------|
-| Feature | Feature-[Name] | Feature-Authentication |
-| Module | Module-[Name] | Module-Identity |
-| Decision | ADR-[Number] | ADR-001 |
-| Pattern | Pattern-[Name] | Pattern-StrategyTax |
-| Problem | Problem-[Name] | Problem-CachingRace |
-| Solution | Solution-[Name] | Solution-LockingCache |
+**File Names** (Serena storage):
 
-## Relation Types
+- Pattern: `[domain]-[descriptive-name].md`
+- Case: lowercase with hyphens
+- Example: `pr-review-security.md`, `pester-test-isolation.md`
 
-| Relation | Meaning |
-|----------|---------|
-| implemented_in | Feature is implemented in Module |
-| depends_on | Entity requires another |
-| replaces | New approach replaces old |
-| related_to | General association |
-| blocked_by | Progress blocked by issue |
-| solved_by | Problem has solution |
+**Entity IDs** (inside file content):
+
+- Pattern: `[Type]-[Name]` or `Skill-[Category]-[NNN]`
+- Case: PascalCase with hyphen separator
+- Example: `Skill-PR-001`, `Feature-Authentication`
+
+| Type | Entity ID Pattern | File Name Pattern |
+|------|-------------------|-------------------|
+| Skill | `Skill-[Category]-[NNN]` | `[domain]-[topic].md` |
+| Feature | `Feature-[Name]` | `feature-[name].md` |
+| Decision | `ADR-[Number]` | `adr-[number]-[topic].md` |
+| Pattern | `Pattern-[Name]` | `pattern-[name].md` |
+
+## Relations (Encoded in File Content)
+
+Relations are encoded as markdown in the memory file:
+
+```markdown
+## Relations
+
+- **supersedes**: [previous-file-name]
+- **depends_on**: [dependency-file-name]
+- **related_to**: [related-file-name]
+```
+
+| Relation | Use When | Example |
+|----------|----------|---------|
+| `supersedes` | New version replaces old | `supersedes: adr-003-old-auth` |
+| `depends_on` | Requires another memory | `depends_on: session-init-serena` |
+| `related_to` | Loose association | `related_to: pr-review-security` |
+| `blocks` | This memory blocks another | `blocks: implementation-start` |
+| `enables` | This memory enables another | `enables: skill-validation` |
 
 ## Conflict Resolution
 
