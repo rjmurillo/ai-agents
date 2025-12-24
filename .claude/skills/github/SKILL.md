@@ -166,6 +166,20 @@ pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123 -BodyFile
 pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -BodyFile triage-summary.md
 ```
 
+### Copilot Directive Placement
+
+**Use issue comments for @copilot directives, not review comments.**
+
+```powershell
+# RECOMMENDED - Use issue comment for directives
+pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "@copilot please refactor the function in src/foo.ps1"
+
+# ANTI-PATTERN - Avoid review comments for directives
+# pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123 -Body "@copilot please refactor this"
+```
+
+**Why**: Review comments should focus on code feedback. Directive comments create noise (PR #249: 41 of 42 comments were @copilot directives). See AGENTS.md "Copilot Directive Best Practices" section.
+
 ## API Endpoints Used
 
 | Script | Endpoint |
