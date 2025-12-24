@@ -182,4 +182,4 @@ The investigation revealed that Issue #357 describes **working behavior, not a b
 | Issue comments posted | ✅ PASS | #357, #338, #358 linked |
 | HANDOFF.md updated with session summary | ✅ N/A | Read-only per protocol |
 | Session log committed | ✅ PASS | See commit |
-| Commit SHA recorded | ✅ PASS | Pending |
+| Commit SHA recorded | ✅ PASS | 9804153 |
