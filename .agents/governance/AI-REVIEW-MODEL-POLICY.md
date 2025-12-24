@@ -425,4 +425,4 @@ This is a **governance policy**, not an agent capability. It sets system-wide de
 - `.github/actions/ai-review/action.yml` - Context building implementation
 - `.github/prompts/*` - Prompt catalog
 - `.github/workflows/ai-*.yml` - AI review workflows
-- [ADR-019 Debate Log](../architecture/ADR-019-debate-log.md) - Multi-agent debate history
+- [ADR-019 Debate Log](../critique/ADR-019-debate-log.md) - Multi-agent debate history

@@ -176,7 +176,7 @@ See [AI Review Model Policy](../../governance/AI-REVIEW-MODEL-POLICY.md) for:
 
 ## Debate History
 
-This ADR was refined through multi-agent debate (Sessions 86-90). See [ADR-019-debate-log.md](ADR-019-debate-log.md) for:
+This ADR was refined through multi-agent debate (Sessions 86-90). See [ADR-019-debate-log.md](../critique/ADR-019-debate-log.md) for:
 
 - 3 rounds of review (architect, critic, independent-thinker, security, analyst, high-level-advisor)
 - Key decisions: evidence sufficiency principle, security hardening, cost calculation

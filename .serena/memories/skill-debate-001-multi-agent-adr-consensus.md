@@ -68,6 +68,6 @@ Round N:
 
 - Source: `.agents/sessions/2025-12-23-session-86-adr-017-debate.md`
 - ADR: `.agents/architecture/ADR-019-model-routing-low-false-pass.md`
-- Debate Log: `.agents/architecture/ADR-019-debate-log.md`
+- Debate Log: `.agents/critique/ADR-019-debate-log.md`
 - Related: skills-architecture (ADR patterns)
 - Related: skills-critique (conflict escalation)

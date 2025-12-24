@@ -51,7 +51,7 @@ Successfully split ADR-019 from bundled document (~550 lines) into focused archi
 
 **Updated**:
 
-- `.agents/architecture/ADR-019-debate-log.md` (added "Post-Debate: ADR-019 Split" section)
+- `.agents/critique/ADR-019-debate-log.md` (added "Post-Debate: ADR-019 Split" section)
 - `.agents/sessions/2025-12-23-session-90-adr-debate-clarification.md` (documented split)
 
 **Removed**:
