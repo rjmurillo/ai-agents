@@ -111,7 +111,7 @@ if ($results.Errors.Count -gt 0) {
 ### Files Modified
 
 - `scripts/Invoke-PRMaintenance.ps1`: Exit code logic and documentation
-- `.agents/devops/incident-2025-12-24-arm-runners.md`: Incident report (this file)
+- `.agents/devops/incident-2025-12-24-pr-maintenance-exit-code.md`: Incident report (this file)
 
 ## Prevention Measures
 
