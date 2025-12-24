@@ -12,6 +12,7 @@
 | fallback tool call graceful degradation mcp serena | documentation-fallback-pattern |
 | user-facing content internal PR issue session exclude | documentation-user-facing |
 | self-contained artifact handoff agent amnesia autonomous | documentation-self-contained |
+| skill format standalone bundled decision tree mermaid P0 | skill-format-selection-decision-tree |
 
 ## Domain Statistics
 

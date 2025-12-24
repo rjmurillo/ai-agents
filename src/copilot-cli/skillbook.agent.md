@@ -206,18 +206,20 @@ Use for multiple related skills that share a workflow context.
 
 ### Format Selection Decision Tree
 
-```text
-1. Is this a CRITICAL/BLOCKING skill (P0)?
-   YES → Format A (standalone, full detail)
-   NO  → Continue
+```mermaid
+flowchart TD
+    START([New Skill]) --> Q1{CRITICAL or<br/>BLOCKING P0?}
+    Q1 -->|YES| A1[Format A<br/>Standalone]
+    Q1 -->|NO| Q2{2+ related skills<br/>same workflow?}
+    Q2 -->|YES| B1[Format B<br/>Bundled]
+    Q2 -->|NO| Q3{Referenced by<br/>other skills?}
+    Q3 -->|YES| A2[Format A<br/>Standalone]
+    Q3 -->|NO| EITHER[Either Format<br/>Acceptable]
 
-2. Are there 2+ related skills in the same workflow?
-   YES → Format B (bundled in one file)
-   NO  → Format A (standalone)
-
-3. Is the skill referenced by other skills?
-   YES → Format A (standalone for linkability)
-   NO  → Either format acceptable
+    A1 --> DONE([Create File])
+    A2 --> DONE
+    B1 --> DONE
+    EITHER --> DONE
 ```
 
 ### Skill Categories
