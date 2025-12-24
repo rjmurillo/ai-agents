@@ -19,6 +19,7 @@ gh api graphql -f query='query($owner: String!, $repo: String!, $number: Int!) {
 **Atomicity**: 98% | **Impact**: 10/10 | **Tag**: critical
 
 **Protocol** - Reply with ONE of:
+
 1. **Fix applied**: `Fixed in commit abc1234. [Brief description]`
 2. **Won't fix**: `Won't fix: [Rationale for different approach]`
 3. **Action required**: `@reviewer Could you clarify [question]?`

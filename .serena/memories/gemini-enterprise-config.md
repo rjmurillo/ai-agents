@@ -3,6 +3,7 @@
 ## Enterprise Version
 
 **Group-Level Configuration**:
+
 - Managed via Google Cloud console
 - Apply settings to Developer Connect connection groups
 - Set organization-wide style guides
