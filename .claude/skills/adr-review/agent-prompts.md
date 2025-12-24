@@ -1,3 +1,6 @@
+<!-- markdownlint-disable MD024 MD040 MD051 -->
+<!-- Disabled: MD024 (duplicate headings in code examples), MD040 (nested code blocks), MD051 (fragments in nested content) -->
+
 # Agent Prompt Templates
 
 Detailed prompt templates for each phase of ADR review.
@@ -474,7 +477,7 @@ ADR Convergence Check (Round {round_number})
 
 | Your Concern | Resolution | Addressed? |
 |--------------|------------|------------|
-{concern_resolution_table}
+| {concern} | {resolution} | {status} |
 
 ## Instructions
 
