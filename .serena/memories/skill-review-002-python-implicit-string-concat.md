@@ -1,14 +1,4 @@
-# PR Review: Known False Positives
-
-## Skill-Review-001: CodeRabbit Sparse Checkout Blindness
-
-**Statement**: CodeRabbit flags .agents/ files as missing due to sparse checkout pattern.
-
-**Atomicity**: 95%
-
-**Verify**: `git ls-tree HEAD .agents/`
-
-## Skill-Review-002: Python Implicit String Concat
+# Skill-Review-002: Python Implicit String Concat
 
 **Statement**: Dismiss Python implicit string concat warnings as false positives.
 

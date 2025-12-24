@@ -1,6 +1,4 @@
-# PR Review: Bot Reviewer Triage
-
-## Skill-PR-006: Reviewer Signal Quality
+# Skill-PR-006: Reviewer Signal Quality
 
 **Statement**: Prioritize reviewers by historical actionability rate.
 
@@ -22,19 +20,3 @@
 | Missing coverage | ~70% | Test gaps, edge cases |
 | Style suggestions | ~20% | Formatting, naming |
 | Summaries | 0% | CodeRabbit walkthroughs |
-
-## Skill-PR-001: Reviewer Enumeration
-
-**Statement**: Enumerate ALL reviewers before triaging to avoid single-bot blindness.
-
-```bash
-gh pr view PR --json reviews --jq '.reviews[].author.login' | sort -u
-```
-
-## Skill-PR-002: Independent Comment Parsing
-
-**Statement**: Parse each comment independently; same-file comments may address different issues.
-
-## Skill-PR-003: Verification Count
-
-**Statement**: Verify addressed_count matches total_comment_count before claiming completion.
