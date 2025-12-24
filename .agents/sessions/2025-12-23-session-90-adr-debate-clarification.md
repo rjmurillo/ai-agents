@@ -84,6 +84,26 @@ The following session files from the debate process are untracked:
 - `.agents/architecture/ADR-017-model-routing-low-false-pass.md` - 10 changes applied
 - `.agents/sessions/2025-12-23-session-90-adr-debate-clarification.md` - This log
 
+## Follow-up: ADR-018 Creation
+
+**Context**: User asked whether ADR-017 strictly adheres to foundational ADR definition. Analysis revealed:
+- ADR-017 bundles 7 related decisions (violates "single AD" criterion)
+- "Any Decision Record" debate: MADR broadens to governance, critics maintain architectural focus
+- Codebase has hybrid pattern: ADR-014 (architecture) + COST-GOVERNANCE (governance)
+
+**Decision**: Create meta-ADR establishing split criteria
+
+**Deliverable**: ADR-018 - Architecture vs Governance Decision Split Criteria
+
+**Key provisions**:
+1. **Decision matrix**: Classify by architectural impact + enforcement requirements
+2. **Three patterns**: ADR-only, Governance-only, Split (ADR + Governance)
+3. **Decision workflow**: Flowchart for placement
+4. **Real examples**: ADR-014 split (exemplar), ADR-017 (candidate for split)
+5. **Templates**: ADR template and Governance policy template
+
+**Impact**: Resolves ambiguity about when to use architecture/ vs governance/ vs both
+
 ## Session End Checklist
 
 | Item | Status | Evidence |
@@ -93,5 +113,6 @@ The following session files from the debate process are untracked:
 | P1 issues addressed | [x] | 2 P1 changes applied |
 | Debate log updated | [x] | Round 3 entry added |
 | ADR updated | [x] | All changes applied |
+| ADR-018 meta-ADR created | [x] | Split criteria documented |
 | Session log completed | [x] | This file |
 | Ready to commit | [x] | All files staged |
