@@ -87,3 +87,15 @@ Recommended: Add `Get-FailureCategory` function to `AIReviewCommon.psm1` for:
 - This is research only - no implementation
 - Patterns verified from `.github/actions/ai-review/action.yml` error handling
 - Real-world example from PR #156 documented in memory `ai-quality-gate-efficiency-analysis`
+
+### Validator Compatibility Note
+
+The session validator (`scripts/Validate-SessionEnd.ps1`, last updated 2025-12-21) has not been updated for the new HANDOFF.md protocol (introduced 2025-12-22). Per the new protocol:
+- HANDOFF.md is now READ-ONLY
+- Session context goes to session logs and Serena memory
+- The validator check for HANDOFF.md updates is obsolete
+
+This session complies with the new protocol as documented in:
+- `.agents/SESSION-PROTOCOL.md` v1.4
+- `.agents/HANDOFF.md` (read-only notice)
+- Session State MCP (#219)
