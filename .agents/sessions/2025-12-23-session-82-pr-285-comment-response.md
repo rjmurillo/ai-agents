@@ -84,7 +84,7 @@ shell: pwsh -NoProfile -Command "& '{0}'"
 
 **Root cause**: Multiple benchmark runs with different results, not reconciled.
 
-**Authoritative source**: `shell-benchmark-oh-my-posh-pwsh.json`
+**Authoritative source**: `.agents/benchmarks/shell-benchmark-oh-my-posh-pwsh.json`
 - Average: 184.11ms with -NoProfile (10 iterations)
 - Baseline: 1,044ms without -NoProfile (from session 80 analysis)
 - Profile overhead: 861ms (82.4% reduction)

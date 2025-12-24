@@ -378,7 +378,7 @@ User preference states PowerShell is required. However, let's challenge this:
 
 ```powershell
 # Measured on Windows 11, PowerShell 7.4
-# Benchmark: shell-benchmark-oh-my-posh-pwsh.json
+# Benchmark: .agents/benchmarks/shell-benchmark-oh-my-posh-pwsh.json
 # Average: 183ms with -NoProfile (10 iterations, oh-my-posh environment)
 # Average: 1,044ms without -NoProfile
 # Profile overhead: 861ms (82.4% reduction)
