@@ -499,6 +499,519 @@ Describe "Invoke-PRMaintenance.ps1" {
 
             $script:WorktreeRemoved | Should -Be $true
         }
+
+        It "Skips commit when merge has no staged changes (clean merge)" {
+            # This tests the fix for workflow run 20495388994
+            # When merge completes cleanly, git diff --cached --quiet returns 0
+            # and commit should be skipped
+            Mock Test-IsGitHubRunner { return $true }
+            $script:CommitCalled = $false
+            Mock git {
+                param([Parameter(ValueFromRemainingArguments)]$Args)
+
+                if ($Args -contains "fetch") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "checkout") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "merge") {
+                    # Merge succeeds (no conflicts)
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "diff" -and $Args -contains "--cached" -and $Args -contains "--quiet") {
+                    # No staged changes - returns 0
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "commit") {
+                    $script:CommitCalled = $true
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "push") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+
+                $global:LASTEXITCODE = 0
+                return ""
+            }
+
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "feature"
+            $result | Should -Be $true
+            $script:CommitCalled | Should -Be $false
+        }
+
+        It "REGRESSION: Handles HANDOFF.md conflict where checkout --theirs results in no actual change" {
+            # This is the EXACT failure scenario from workflow run 20495388994
+            # 1. Merge reports conflict in .agents/HANDOFF.md
+            # 2. checkout --theirs is called but file was already identical
+            # 3. git add succeeds but stages nothing
+            # 4. git diff --cached --quiet returns 0 (no staged changes)
+            # 5. OLD CODE: git commit fails with "nothing to commit"
+            # 6. NEW CODE: should skip commit and succeed
+            Mock Test-IsGitHubRunner { return $true }
+            $script:CommitCalled = $false
+            Mock git {
+                param([Parameter(ValueFromRemainingArguments)]$Args)
+
+                if ($Args -contains "fetch") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "checkout" -and -not ($Args -contains "--theirs")) {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "merge") {
+                    # Merge reports conflict
+                    $global:LASTEXITCODE = 1
+                    return "CONFLICT (content): Merge conflict in .agents/HANDOFF.md"
+                }
+                if ($Args -contains "diff" -and $Args -contains "--name-only" -and $Args -contains "--diff-filter=U") {
+                    # Only HANDOFF.md has conflict
+                    $global:LASTEXITCODE = 0
+                    return ".agents/HANDOFF.md"
+                }
+                if ($Args -contains "checkout" -and $Args -contains "--theirs") {
+                    # Checkout succeeds but file was already identical
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "add" -and $Args -contains ".agents/HANDOFF.md") {
+                    # Add succeeds but nothing actually staged
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "diff" -and $Args -contains "--cached" -and $Args -contains "--quiet") {
+                    # KEY: No actual changes staged - this is the edge case!
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "commit") {
+                    $script:CommitCalled = $true
+                    # If commit is called, it would fail with nothing to commit
+                    $global:LASTEXITCODE = 1
+                    return "nothing to commit, working tree clean"
+                }
+                if ($Args -contains "push") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+
+                $global:LASTEXITCODE = 0
+                return ""
+            }
+
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "feature"
+            $result | Should -Be $true
+            # Commit should NOT be called because diff --cached --quiet returned 0
+            $script:CommitCalled | Should -Be $false
+        }
+
+        It "REGRESSION: Handles session file conflict where file is already up to date" {
+            # Similar to HANDOFF.md case but for .agents/sessions/* files
+            Mock Test-IsGitHubRunner { return $true }
+            $script:CommitCalled = $false
+            Mock git {
+                param([Parameter(ValueFromRemainingArguments)]$Args)
+
+                if ($Args -contains "fetch") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "checkout" -and -not ($Args -contains "--theirs")) {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "merge") {
+                    $global:LASTEXITCODE = 1
+                    return "CONFLICT"
+                }
+                if ($Args -contains "diff" -and $Args -contains "--name-only" -and $Args -contains "--diff-filter=U") {
+                    $global:LASTEXITCODE = 0
+                    return ".agents/sessions/2025-01-01-session-01.md"
+                }
+                if ($Args -contains "checkout" -and $Args -contains "--theirs") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "add") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "diff" -and $Args -contains "--cached" -and $Args -contains "--quiet") {
+                    # No actual changes staged
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "commit") {
+                    $script:CommitCalled = $true
+                    $global:LASTEXITCODE = 1
+                    return "nothing to commit"
+                }
+                if ($Args -contains "push") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+
+                $global:LASTEXITCODE = 0
+                return ""
+            }
+
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "feature"
+            $result | Should -Be $true
+            $script:CommitCalled | Should -Be $false
+        }
+
+        It "REGRESSION: Old behavior would fail on 'nothing to commit' error" {
+            # This test documents what the OLD behavior was and ensures we don't regress
+            # OLD: Always called git commit after resolving conflicts
+            # NEW: Check for staged changes first
+            #
+            # This test verifies that if someone removes the staged check,
+            # the test will fail because commit returns error
+            Mock Test-IsGitHubRunner { return $true }
+            Mock git {
+                param([Parameter(ValueFromRemainingArguments)]$Args)
+
+                if ($Args -contains "fetch") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "checkout" -and -not ($Args -contains "--theirs")) {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "merge") {
+                    $global:LASTEXITCODE = 1
+                    return "CONFLICT"
+                }
+                if ($Args -contains "diff" -and $Args -contains "--name-only" -and $Args -contains "--diff-filter=U") {
+                    $global:LASTEXITCODE = 0
+                    return ".agents/HANDOFF.md"
+                }
+                if ($Args -contains "checkout" -and $Args -contains "--theirs") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "add") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "diff" -and $Args -contains "--cached" -and $Args -contains "--quiet") {
+                    # No staged changes
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "commit") {
+                    # Simulates what happens if commit is called with nothing staged
+                    $global:LASTEXITCODE = 1
+                    throw "nothing to commit, working tree clean"
+                }
+                if ($Args -contains "push") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+
+                $global:LASTEXITCODE = 0
+                return ""
+            }
+
+            # This should succeed with the fix - commit is never called
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "feature"
+            $result | Should -Be $true
+        }
+
+        It "Handles multiple auto-resolvable files with mixed staged status" {
+            # Both HANDOFF.md and session file in conflict
+            # One has changes, one doesn't
+            Mock Test-IsGitHubRunner { return $true }
+            $script:CommitCalled = $false
+            Mock git {
+                param([Parameter(ValueFromRemainingArguments)]$Args)
+
+                if ($Args -contains "fetch") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "checkout" -and -not ($Args -contains "--theirs")) {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "merge") {
+                    $global:LASTEXITCODE = 1
+                    return "CONFLICT"
+                }
+                if ($Args -contains "diff" -and $Args -contains "--name-only" -and $Args -contains "--diff-filter=U") {
+                    $global:LASTEXITCODE = 0
+                    # Return both files as having conflicts - as an array
+                    return @(".agents/HANDOFF.md", ".agents/sessions/2025-01-01-session-01.md")
+                }
+                if ($Args -contains "checkout" -and $Args -contains "--theirs") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "add") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "diff" -and $Args -contains "--cached" -and $Args -contains "--quiet") {
+                    # At least one file has actual changes
+                    $global:LASTEXITCODE = 1
+                    return ""
+                }
+                if ($Args -contains "commit") {
+                    $script:CommitCalled = $true
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "push") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+
+                $global:LASTEXITCODE = 0
+                return ""
+            }
+
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "feature"
+            $result | Should -Be $true
+            # Commit should be called because there ARE staged changes
+            $script:CommitCalled | Should -Be $true
+        }
+
+        It "Commits when merge has staged changes (conflict resolved)" {
+            # This tests the positive path where conflicts are resolved and staged
+            Mock Test-IsGitHubRunner { return $true }
+            $script:CommitCalled = $false
+            Mock git {
+                param([Parameter(ValueFromRemainingArguments)]$Args)
+
+                if ($Args -contains "fetch") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "checkout" -and -not ($Args -contains "--theirs")) {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "merge") {
+                    # Merge has conflicts
+                    $global:LASTEXITCODE = 1
+                    return "CONFLICT"
+                }
+                if ($Args -contains "diff" -and $Args -contains "--name-only") {
+                    $global:LASTEXITCODE = 0
+                    return ".agents/HANDOFF.md"
+                }
+                if ($Args -contains "checkout" -and $Args -contains "--theirs") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "add") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "diff" -and $Args -contains "--cached" -and $Args -contains "--quiet") {
+                    # Staged changes exist - returns 1
+                    $global:LASTEXITCODE = 1
+                    return ""
+                }
+                if ($Args -contains "commit") {
+                    $script:CommitCalled = $true
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "push") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+
+                $global:LASTEXITCODE = 0
+                return ""
+            }
+
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "feature"
+            $result | Should -Be $true
+            $script:CommitCalled | Should -Be $true
+        }
+
+        It "Returns false when commit fails after conflict resolution" {
+            # Negative test: commit fails even with staged changes
+            Mock Test-IsGitHubRunner { return $true }
+            Mock git {
+                param([Parameter(ValueFromRemainingArguments)]$Args)
+
+                if ($Args -contains "fetch") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "checkout" -and -not ($Args -contains "--theirs")) {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "merge") {
+                    $global:LASTEXITCODE = 1
+                    return "CONFLICT"
+                }
+                if ($Args -contains "diff" -and $Args -contains "--name-only") {
+                    $global:LASTEXITCODE = 0
+                    return ".agents/HANDOFF.md"
+                }
+                if ($Args -contains "checkout" -and $Args -contains "--theirs") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "add") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "diff" -and $Args -contains "--cached" -and $Args -contains "--quiet") {
+                    # Staged changes exist
+                    $global:LASTEXITCODE = 1
+                    return ""
+                }
+                if ($Args -contains "commit") {
+                    # Commit fails
+                    $global:LASTEXITCODE = 1
+                    return "error: commit failed"
+                }
+
+                $global:LASTEXITCODE = 0
+                return ""
+            }
+
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "feature"
+            $result | Should -Be $false
+        }
+
+        It "Skips commit in worktree mode when merge has no staged changes" {
+            # Test the local worktree code path for clean merge
+            Mock Test-IsGitHubRunner { return $false }
+            $script:CommitCalled = $false
+            Mock git {
+                param([Parameter(ValueFromRemainingArguments)]$Args)
+
+                if ($Args -contains "rev-parse") {
+                    $global:LASTEXITCODE = 0
+                    return "/repo"
+                }
+                if ($Args -contains "worktree" -and $Args -contains "add") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "worktree" -and $Args -contains "remove") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "fetch") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "merge") {
+                    # Merge succeeds (no conflicts)
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "diff" -and $Args -contains "--cached" -and $Args -contains "--quiet") {
+                    # No staged changes
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "commit") {
+                    $script:CommitCalled = $true
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "push") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+
+                $global:LASTEXITCODE = 0
+                return ""
+            }
+
+            Mock Push-Location {}
+            Mock Pop-Location {}
+            Mock Test-Path { return $true }
+
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "feature"
+            $result | Should -Be $true
+            $script:CommitCalled | Should -Be $false
+        }
+
+        It "Commits in worktree mode when merge has staged changes" {
+            # Test the local worktree code path for conflict resolution
+            Mock Test-IsGitHubRunner { return $false }
+            $script:CommitCalled = $false
+            Mock git {
+                param([Parameter(ValueFromRemainingArguments)]$Args)
+
+                if ($Args -contains "rev-parse") {
+                    $global:LASTEXITCODE = 0
+                    return "/repo"
+                }
+                if ($Args -contains "worktree" -and $Args -contains "add") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "worktree" -and $Args -contains "remove") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "fetch") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "merge") {
+                    $global:LASTEXITCODE = 1
+                    return "CONFLICT"
+                }
+                if ($Args -contains "diff" -and $Args -contains "--name-only") {
+                    $global:LASTEXITCODE = 0
+                    return ".agents/HANDOFF.md"
+                }
+                if ($Args -contains "checkout" -and $Args -contains "--theirs") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "add") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "diff" -and $Args -contains "--cached" -and $Args -contains "--quiet") {
+                    # Staged changes exist
+                    $global:LASTEXITCODE = 1
+                    return ""
+                }
+                if ($Args -contains "commit") {
+                    $script:CommitCalled = $true
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+                if ($Args -contains "push") {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+
+                $global:LASTEXITCODE = 0
+                return ""
+            }
+
+            Mock Push-Location {}
+            Mock Pop-Location {}
+            Mock Test-Path { return $true }
+
+            $result = Resolve-PRConflicts -Owner "test" -Repo "repo" -PRNumber 123 -BranchName "feature"
+            $result | Should -Be $true
+            $script:CommitCalled | Should -Be $true
+        }
     }
 
     Context "Get-SimilarPRs Function" {
