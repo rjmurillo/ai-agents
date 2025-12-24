@@ -2,6 +2,7 @@
 |---------------|-------------------|
 | session start init handoff protocol | project-overview, codebase-structure, user-preference-no-bash-python |
 | github pr issue cli gh api graphql | skills-github-cli-index, skills-pr-review, project-labels-milestones |
+| gh extension notify combine metrics milestone webhook grep sub-issue | skills-gh-extensions-index |
 | label milestone issue create tag priority | project-labels-milestones |
 | powershell ps1 psm1 module pester test | skills-powershell-index, pattern-thin-workflows, skills-pester-testing |
 | security vulnerability TOCTOU secret injection | skills-security-index |
