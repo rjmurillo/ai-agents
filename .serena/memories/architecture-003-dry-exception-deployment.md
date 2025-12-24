@@ -46,6 +46,7 @@ If an artifact ships outside the repository structure, it must be self-contained
 ## Application Pattern
 
 **Source Tree (DRY applies)**:
+
 ```markdown
 <!-- .agents/governance/CONSTRAINTS.md -->
 # Project Constraints
@@ -56,6 +57,7 @@ If an artifact ships outside the repository structure, it must be self-contained
 ```
 
 **Deployment Units (Embed for portability)**:
+
 ```markdown
 <!-- src/claude/architect.md (ships to ~/.claude/) -->
 **Constraints**:

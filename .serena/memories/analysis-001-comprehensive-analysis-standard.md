@@ -33,6 +33,7 @@ Session 21 (2025-12-18): Analysis 004 (1347 lines, 3 options) → 100% match to 
 ### 1. Options Analysis (3-5 alternatives)
 
 **Template**:
+
 ```markdown
 ## Option 1: [Name]
 
@@ -54,10 +55,11 @@ Session 21 (2025-12-18): Analysis 004 (1347 lines, 3 options) → 100% match to 
 ### 2. Trade-Off Tables
 
 **Template**:
+
 ```markdown
 | Option | Complexity | Maintainability | Scalability | Effort | Recommendation |
 |--------|------------|-----------------|-------------|--------|----------------|
-| Option 1 | Low | High | Medium | Low | ⭐ Recommended |
+| Option 1 | Low | High | Medium | Low | Recommended |
 | Option 2 | High | Low | High | High | Consider |
 | Option 3 | Medium | Medium | Low | Medium | Avoid |
 ```
@@ -65,6 +67,7 @@ Session 21 (2025-12-18): Analysis 004 (1347 lines, 3 options) → 100% match to 
 ### 3. Evidence (Verified Facts)
 
 **Template**:
+
 ```markdown
 ## Evidence
 
@@ -84,6 +87,7 @@ Session 21 (2025-12-18): Analysis 004 (1347 lines, 3 options) → 100% match to 
 ### 4. Recommendation with Rationale
 
 **Template**:
+
 ```markdown
 ## Recommendation
 
@@ -112,6 +116,7 @@ Session 21 (2025-12-18): Analysis 004 (1347 lines, 3 options) → 100% match to 
 ## Anti-Pattern: Shallow Analysis
 
 **Insufficient**:
+
 ```markdown
 We should create PROJECT-CONSTRAINTS.md because it's needed.
 
