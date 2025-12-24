@@ -65,11 +65,52 @@ Reduce bot review noise from 97 comments (PR #249) to <20 per PR by tuning CodeR
 
 ### Phase 2: Update Configurations
 
-[Work in progress...]
+**CodeRabbit (.coderabbit.yaml)**:
+
+- Set profile to `chill` (reduces nitpicky feedback)
+- Added path_filters to exclude:
+  - `.agents/sessions/**`
+  - `.agents/analysis/**`
+  - `.serena/memories/**`
+  - `**/*.generated.*`
+  - `**/bin/**`, `**/obj/**`
+- Reduced supplementary content (collapsed walkthrough, disabled poetry, related issues/PRs)
+- Added high-confidence instructions to path_instructions
+
+**Gemini (.gemini/config.yaml)**:
+
+- Raised severity threshold from MEDIUM to HIGH
+- Capped max_review_comments at 10 (was unlimited)
+- Path exclusions already configured correctly
+
+**Copilot (.github/copilot-code-review.md)**:
+
+- Added Review Quality Guidelines section
+- High-confidence instruction (>80% confidence required)
+- Explicit focus areas and exclusions
+- Conciseness requirement
+
+**Documentation (.agents/devops/BOT-CONFIGURATION.md)**:
+
+- Created comprehensive bot configuration guide
+- Documented what each bot does
+- Explained tuning rationale
+- Verification strategy and metrics
+- Future improvements section
+
+### Phase 3: Linting and Commit
+
+- Pre-existing linting errors in `.claude/skills/adr-review/agent-prompts.md` (not my changes)
+- Reverted unintended changes to adr-review skill
+- My new files are lint-compliant
 
 ## Decisions Made
 
-[To be filled as work progresses...]
+1. **CodeRabbit Profile**: Chose `chill` over `assertive` based on analysis showing 66% noise ratio
+2. **Gemini Severity**: Raised to HIGH (from MEDIUM) to focus on critical issues only
+3. **Gemini Comment Limit**: Set to 10 to force prioritization (actionability was 24%)
+4. **Copilot Configuration**: Instruction-based (no hard limits available)
+5. **Path Exclusions**: Excluded all agent artifacts, sessions, memories, generated files
 
 ## Session End Checklist
 
