@@ -38,7 +38,8 @@ permissions:
 jobs:
   collect-metrics:
     name: Collect Agent Metrics
-    runs-on: ubuntu-latest
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - name: Checkout repository
@@ -96,7 +97,8 @@ jobs:
   # Optional: Create issue if metrics are below targets
   check-thresholds:
     name: Check Metric Thresholds
-    runs-on: ubuntu-latest
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
     needs: collect-metrics
 
     steps:

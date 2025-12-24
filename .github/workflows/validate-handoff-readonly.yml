@@ -1,0 +1,82 @@
+# Validate HANDOFF.md Read-Only Policy
+#
+# CI backstop for ADR-014 distributed handoff architecture.
+# Prevents HANDOFF.md modifications on feature branches even if
+# pre-commit hook is bypassed via `git commit --no-verify`.
+#
+# This workflow:
+# - Runs on all PRs to main
+# - Checks if .agents/HANDOFF.md has been modified
+# - Blocks merge if HANDOFF.md changes detected
+#
+# Related: ADR-014 (Distributed Handoff Architecture)
+# Purpose: Enforces read-only policy for HANDOFF.md on feature branches
+
+name: Validate HANDOFF.md Read-Only
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.agents/HANDOFF.md'
+  workflow_dispatch:
+
+jobs:
+  validate-handoff:
+    name: Check HANDOFF.md Not Modified
+    # ADR-014: Use ARM runners for 37.5% cost reduction
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Check for HANDOFF.md modifications
+        id: check-handoff
+        run: |
+          echo "Checking if .agents/HANDOFF.md was modified..."
+
+          MODIFIED_FILES=$(git diff --name-only origin/main...HEAD)
+
+          if echo "$MODIFIED_FILES" | grep -q "^\.agents/HANDOFF\.md$"; then
+            echo "handoff_modified=true" >> "$GITHUB_OUTPUT"
+            echo "::error file=.agents/HANDOFF.md::HANDOFF.md must not be modified on feature branches (ADR-014)"
+          else
+            echo "handoff_modified=false" >> "$GITHUB_OUTPUT"
+            echo "HANDOFF.md not modified - check passed"
+          fi
+
+      - name: Block if HANDOFF.md modified
+        if: steps.check-handoff.outputs.handoff_modified == 'true'
+        run: |
+          echo ""
+          echo "=== ADR-014 VIOLATION DETECTED ==="
+          echo ""
+          echo "HANDOFF.md must NOT be modified on feature branches."
+          echo ""
+          echo "Per ADR-014 (Distributed Handoff Architecture):"
+          echo "  - HANDOFF.md is READ-ONLY on feature branches"
+          echo "  - Session context goes to: .agents/sessions/YYYY-MM-DD-session-NN.md"
+          echo "  - Cross-session context goes to: Serena memory"
+          echo "  - Branch coordination goes to: .agents/handoffs/{branch}/ (optional)"
+          echo ""
+          echo "To fix this PR:"
+          echo "  1. Revert changes to .agents/HANDOFF.md"
+          echo "  2. Move session context to session log file"
+          echo "  3. Store cross-session context in Serena memory"
+          echo ""
+          echo "See: .agents/architecture/ADR-014-distributed-handoff-architecture.md"
+          echo ""
+          exit 1
+
+      - name: Pass - HANDOFF.md unchanged
+        if: steps.check-handoff.outputs.handoff_modified == 'false'
+        run: |
+          echo "HANDOFF.md read-only policy enforced"
+          echo "No modifications detected on this branch"

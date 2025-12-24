@@ -90,16 +90,15 @@ trusted_sources:
   #
   # KNOWN AI AGENTS AND THEIR CONTRIBUTIONS:
   #
-  # coderabbitai
+  # coderabbitai[bot]
   #   - Provides implementation plans (## Implementation section)
   #   - Links to similar issues (🔗 Similar Issues)
   #   - Links to related PRs (🔗 Related PRs)
   #   - High signal-to-noise ratio for technical context
   #
-  # Copilot
+  # copilot[bot]
   #   - GitHub Copilot's own comments when it responds to @copilot mentions
   #   - May contain clarifying questions or status updates
-  #   - Login is "Copilot" (not "copilot" - case matters)
   #
   # cursor[bot]
   #   - Cursor's Bugbot code reviewer
@@ -107,7 +106,7 @@ trusted_sources:
   #   - Identifies real bugs with specific line references
   #   - Comments include severity badges and fix suggestions
   #
-  # github-actions
+  # github-actions[bot]
   #   - GitHub Actions bot comments
   #   - May include AI triage results (priority, category)
   #   - Workflow status updates
@@ -119,10 +118,10 @@ trusted_sources:
   #
   ai_agents:
     - rjmurillo-bot
-    - coderabbitai
-    - Copilot
+    - coderabbitai[bot]
+    - Copilot        # GitHub Copilot bot login (case-sensitive; verified via GitHub API)
     - cursor[bot]
-    - github-actions
+    - github-actions[bot]
 
 # -----------------------------------------------------------------------------
 # EXTRACTION PATTERNS
@@ -152,6 +151,10 @@ extraction_patterns:
   # Content is extracted from the pattern until the next heading or EOF.
   #
   coderabbit:
+    # GitHub username for CodeRabbit bot (used to filter comments)
+    # IMPORTANT: Must match exactly what GitHub API returns (includes [bot] suffix)
+    username: "coderabbitai[bot]"
+
     # Header that precedes implementation plan details
     # Example in comment:
     #   ## Implementation

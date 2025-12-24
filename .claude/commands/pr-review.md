@@ -168,7 +168,7 @@ When using `--parallel` with worktrees:
 | All comments resolved | Each comment has [COMPLETE] or [WONTFIX] status | Yes |
 | No new comments | Re-check after 45s wait returned 0 new | Yes |
 | CI checks pass | `gh pr checks` all green (including AI Quality Gate) | Yes |
-| No unresolved threads | `gh pr view --json reviewThreads` all resolved | Yes |
+| No unresolved threads | GraphQL query for unresolved reviewThreads | Yes |
 | Commits pushed | `git status` shows "up to date with origin" | Yes |
 
 **If ANY criterion fails**: Do NOT claim completion. The agent must loop back to address the issue.
@@ -180,7 +180,8 @@ When using `--parallel` with worktrees:
 for pr in pr_numbers; do
   echo "=== PR #$pr Completion Check ==="
   gh pr checks $pr --json name,state | jq '[.[] | select(.state != "SUCCESS")]'
-  gh pr view $pr --json reviewThreads | jq '.reviewThreads | [.[] | select(.isResolved == false)]'
+  # Note: reviewThreads requires GraphQL, not gh pr view --json
+  gh api graphql -f query="query { repository(owner: \"OWNER\", name: \"REPO\") { pullRequest(number: $pr) { reviewThreads(first: 50) { nodes { isResolved } } } } }" | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)]'
 done
 ```
 
