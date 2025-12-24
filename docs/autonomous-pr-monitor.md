@@ -252,7 +252,7 @@ $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "my-tests"
 **Fix command**:
 
 ```bash
-sed -i 's/\$env:TEMP/[[]System.IO.Path[]]::GetTempPath()/g' path/to/file.ps1
+sed -i 's/\$env:TEMP/[System.IO.Path]::GetTempPath()/g' path/to/file.ps1
 ```
 
 ### Pattern 2: Here-String Terminator (Skill-PowerShell-007)
@@ -305,14 +305,14 @@ exit 0  # Ensures workflow step succeeds
 ```bash
 # Create missing labels before workflow can use them
 gh api repos/{owner}/{repo}/labels -X POST \
-  -f name=drift-detected \
+  -f "name=drift-detected" \
   -f "description=Agent drift detected" \
-  -f color=d73a4a
+  -f "color=d73a4a"
 
 gh api repos/{owner}/{repo}/labels -X POST \
-  -f name=automated \
+  -f "name=automated" \
   -f "description=Automated workflow" \
-  -f color=5319e7
+  -f "color=5319e7"
 ```
 
 ### Pattern 5: Test Module Paths (Skill-Testing-Path-001)
@@ -359,7 +359,7 @@ gh pr view {number} --json statusCheckRollup --jq '.statusCheckRollup[] | "\(.co
 gh run view {run_id} --log-failed
 
 # Create missing labels
-gh api repos/{owner}/{repo}/labels -X POST -f name=label-name -f "description=Label description" -f color=d73a4a
+gh api repos/{owner}/{repo}/labels -X POST -f "name=label-name" -f "description=Label description" -f "color=d73a4a"
 
 # Find notifications needing attention
 gh notify -s
