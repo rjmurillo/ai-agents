@@ -13,12 +13,12 @@ This document specifies the workflow YAML changes required to implement the feat
 ### Insert After Line 69 (after Parse Categorization Results step)
 
 ```yaml
-      - name: Review Feature Request (Critic Agent)
+      - name: Review Feature Request (Analyst Agent)
         id: review-feature
         if: steps.parse-categorize.outputs.category == 'enhancement'
         uses: ./.github/actions/ai-review
         with:
-          agent: critic
+          agent: analyst
           context-type: issue
           issue-number: ${{ github.event.issue.number }}
           prompt-file: .github/prompts/issue-feature-review.md
