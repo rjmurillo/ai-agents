@@ -495,25 +495,65 @@ runs:
         # Calculate timeout in seconds
         TIMEOUT_SECONDS=$((TIMEOUT_MINUTES * 60))
 
-        # Invoke Copilot CLI with timeout
-        echo "Invoking Copilot CLI (timeout: ${TIMEOUT_MINUTES}m)..."
+        # Retry configuration
+        MAX_ATTEMPTS=3
+        BACKOFF_SECONDS=(0 10 30)
+        
+        # Initialize variables for retry loop
+        OUTPUT=""
+        STDERR_OUTPUT=""
+        EXIT_CODE=1
+        ATTEMPT=1
+
+        # Invoke Copilot CLI with retry logic and exponential backoff
+        echo "Invoking Copilot CLI with retry logic (max attempts: $MAX_ATTEMPTS, timeout: ${TIMEOUT_MINUTES}m per attempt)..."
         echo "Agent: $COPILOT_AGENT, Model: $COPILOT_MODEL"
         echo "Prompt size: $(wc -c < /tmp/ai-review-full-prompt.md) bytes"
 
-        # Create temp files for separate stdout/stderr capture
-        STDOUT_FILE=$(mktemp)
-        STDERR_FILE=$(mktemp)
+        while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+          echo ""
+          echo "=== Attempt $ATTEMPT of $MAX_ATTEMPTS ==="
+          
+          # Create temp files for separate stdout/stderr capture
+          STDOUT_FILE=$(mktemp)
+          STDERR_FILE=$(mktemp)
 
-        set +e
-        timeout "$TIMEOUT_SECONDS" copilot --no-color --silent --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
-        EXIT_CODE=$?
+          set +e
+          timeout "$TIMEOUT_SECONDS" copilot --no-color --silent --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+          EXIT_CODE=$?
 
-        OUTPUT=$(cat "$STDOUT_FILE")
-        STDERR_OUTPUT=$(cat "$STDERR_FILE")
-        rm -f "$STDOUT_FILE" "$STDERR_FILE"
-        set -e
+          OUTPUT=$(cat "$STDOUT_FILE")
+          STDERR_OUTPUT=$(cat "$STDERR_FILE")
+          rm -f "$STDOUT_FILE" "$STDERR_FILE"
+          set -e
 
-        # Log what we captured
+          # Log what we captured
+          echo "Exit code: $EXIT_CODE"
+          echo "Stdout length: ${#OUTPUT} chars"
+          echo "Stderr length: ${#STDERR_OUTPUT} chars"
+
+          # Check if we got valid output or success
+          if [ $EXIT_CODE -eq 0 ] || [ -n "$OUTPUT" ] || [ -n "$STDERR_OUTPUT" ]; then
+            # Success or meaningful failure - don't retry
+            echo "Received output or success status - proceeding with result"
+            break
+          fi
+
+          # Empty output with failure - likely transient error
+          if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+            WAIT_TIME=${BACKOFF_SECONDS[$ATTEMPT]}
+            echo "::warning::Copilot CLI returned empty output (exit code $EXIT_CODE) - likely transient failure"
+            echo "Retrying in ${WAIT_TIME}s... (attempt $((ATTEMPT + 1)) of $MAX_ATTEMPTS)"
+            sleep $WAIT_TIME
+            ATTEMPT=$((ATTEMPT + 1))
+          else
+            echo "::error::All $MAX_ATTEMPTS attempts failed with empty output"
+            break
+          fi
+        done
+
+        echo ""
+        echo "=== Final Result ==="
         echo "Exit code: $EXIT_CODE"
         echo "Stdout length: ${#OUTPUT} chars"
         echo "Stderr length: ${#STDERR_OUTPUT} chars"
