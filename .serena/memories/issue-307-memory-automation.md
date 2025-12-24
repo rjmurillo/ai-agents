@@ -1,36 +1,102 @@
-# Issue #307: Memory Automation
+# Issue #307: Memory Automation Expansion Proposal
 
-**Issue**: https://github.com/rjmurillo/ai-agents/issues/307
-**Created**: 2025-12-23
-**Status**: PR #308 created
-**PR**: https://github.com/rjmurillo/ai-agents/pull/308
+## Current State (ADR-017 Complete)
 
-## Scope
+- **Domain Indexes**: 30 skill domains
+- **Indexed Files**: 197 atomic skills
+- **Token Efficiency**: 82% savings with session caching
 
-Implement memory automation to reduce cognitive load:
+## Proposed Cache-Aside Memory Domains
 
-1. **Memory Index** - 1-line summaries, topic tags, staleness detection
-2. **Session Init Gate** - Enforce initialization, not just checklist
-3. **Skill Consolidation** - Deduplicate 70+ skill memories
-4. **Artifact Quality Gate** - Validate Skill-007 compliance
+### Priority 1: High-Value Caches (Reduce GitHub API calls)
 
-## Current Progress
+| Domain | Cache Target | TTL | Invalidation Trigger |
+|--------|--------------|-----|----------------------|
+| `github-open-issues-cache` | Open issues list | 1 hour | Issue created/closed webhook |
+| `github-open-prs-cache` | Open PRs list | 30 min | PR opened/merged/closed |
+| `github-labels-milestones-cache` | Labels and milestones | 24 hours | Manual or on change |
 
-- [x] Created issue #307
-- [x] Created `automation-priorities-2025-12` memory with analysis
-- [x] Memory index with summaries (`memory-index`)
-- [x] Consolidated user preferences (2→1)
-- [x] Consolidated session init skills (2→1)
-- [x] Consolidated PR review memories (3→1)
-- [x] Consolidated skill-documentation-* (4→1)
-- [x] Consolidated skill-planning-* (3→1)
-- [x] Consolidated skill-orchestration-* (3→1)
-- [x] Consolidated skill-protocol-* (4→1) - NEW collection
-- [ ] Additional skill consolidation (more opportunities exist)
-- [ ] Artifact quality gate (deferred)
+**Benefit**: Agents frequently query open issues/PRs. Caching saves 10-20 API calls per session.
 
-## Related Memories
+### Priority 2: Architecture Reference (Rarely Changes)
 
-- `automation-priorities-2025-12` - Strategic analysis
-- `skills-*` - 30+ memories to consolidate
-- `skill-*` - 40+ memories to consolidate
+| Domain | Source | Content |
+|--------|--------|---------|
+| `skills-adr-index` | `.agents/architecture/ADR-*.md` | ADR summaries and decision keywords |
+
+**ADR Index Format**:
+```markdown
+| ADR | Title | Status | Keywords |
+|-----|-------|--------|----------|
+| ADR-001 | Markdown Linting | Active | lint markdown fix autofix |
+| ADR-017 | Tiered Memory | Active | memory index tier L1 L2 L3 |
+```
+
+### Priority 3: Governance Reference
+
+| Domain | Source | Content |
+|--------|--------|---------|
+| `skills-governance-index` | `.agents/governance/*.md` | Governance policies and constraints |
+
+### Priority 4: Session Context (Optional)
+
+| Domain | Purpose | Scope |
+|--------|---------|-------|
+| `active-session-context` | Current session state | Single session, cleared on end |
+
+## Cache-Aside Pattern Implementation
+
+```text
+1. Agent needs data (e.g., open PRs)
+2. Check memory: mcp__serena__read_memory("github-open-prs-cache")
+3. If MISS or STALE:
+   a. Query GitHub API
+   b. Write to memory with timestamp
+   c. Use data
+4. If HIT and FRESH:
+   a. Use cached data directly
+```
+
+### Staleness Check
+
+Each cache file includes header:
+
+```markdown
+# GitHub Open PRs Cache
+
+**Last Updated**: 2025-12-23T20:30:00Z
+**TTL**: 30 minutes
+**Next Refresh**: After 2025-12-23T21:00:00Z
+
+## Cached Data
+...
+```
+
+Agent checks: `if (now > next_refresh) { refresh_cache() }`
+
+## Excluded from Caching (Not Recommended)
+
+| Domain | Reason |
+|--------|--------|
+| Sessions | Too transient, high churn, low reuse value |
+| Planning artifacts | Already in `.agents/planning/`, not frequently queried |
+| PR comments state | Changes too rapidly during review |
+
+## Implementation Tasks
+
+1. [ ] Create `skills-adr-index.md` domain index
+2. [ ] Create `skills-governance-index.md` domain index
+3. [ ] Create cache refresh scripts for GitHub data
+4. [ ] Add cache staleness check to agent memory protocol
+5. [ ] Update `memory-index.md` with new domains
+
+## Token Cost Analysis
+
+| Cache Domain | Size | Read Cost | Savings per Session |
+|--------------|------|-----------|---------------------|
+| ADR index | ~500 tokens | 1 read | Avoids 20 file reads |
+| Open issues | ~1,000 tokens | 1 read | Avoids 3-5 API calls |
+| Open PRs | ~800 tokens | 1 read | Avoids 2-3 API calls |
+| Labels/Milestones | ~300 tokens | 1 read | Avoids 2 API calls |
+
+**Total**: ~2,600 tokens for 4 domains vs 10-30 API calls saved

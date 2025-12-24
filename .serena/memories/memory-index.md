@@ -11,6 +11,7 @@
 | security vulnerability TOCTOU secret injection | skills-security-index |
 | planning task file path scope breakdown | skills-planning-index |
 | architecture ADR model composite tool allocation producer-consumer | skills-architecture-index |
+| adr decision record active proposed superseded rationale | adr-reference-index |
 | design agent specialization entry-criteria limitation composability | skills-design-index |
 | implementation code feature bug fix test TDD additive | skills-implementation-index |
 | orchestration agent coordination parallel handoff dispatch | skills-orchestration-index |
@@ -39,6 +40,15 @@
 | process workflow gap missing capability root cause | skills-process-workflow-gaps |
 | cva refactoring variant consolidation template generate | skills-cva-refactoring |
 | phase3 agent skill session handoff template verification | skills-agent-workflow-phase3 |
+
+## GitHub Cache (Cache-Aside Pattern)
+
+| Cache Keywords | Memory File | TTL |
+|----------------|-------------|-----|
+| open pr list pull request ready review | github-open-prs-cache | 30 min |
+| open issue list bug enhancement priority | github-open-issues-cache | 1 hour |
+
+**Usage**: Read cache first. If stale (check timestamp), refresh from API and update memory.
 
 ## User Constraints (MUST READ)
 
