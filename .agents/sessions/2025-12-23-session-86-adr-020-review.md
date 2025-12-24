@@ -73,8 +73,8 @@
 | MUST | Complete session log (all sections filled) | [x] | This file |
 | MUST | Update Serena memory (cross-session context) | [x] | N/A - no new learnings requiring memory |
 | MUST | Run markdown lint | [x] | Pre-commit hook |
-| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: docs-only |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA below |
+| MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/session-86-validator-fix-qa.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | `9e29a25` |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | Unchanged (feature branch) |
 | SHOULD | Update PROJECT-PLAN.md | [x] | N/A - ADR review session |
 | SHOULD | Invoke retrospective (significant sessions) | [x] | N/A - single task session |
