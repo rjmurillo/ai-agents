@@ -142,7 +142,7 @@ None. Pre-existing markdown lint errors in `.claude/skills/adr-review/agent-prom
 | MUST | Update Serena memory (cross-session context) | [x] | Memory updated: `ai-quality-gate-failure-categorization` |
 | MUST | Run markdown lint | [x] | Session log clean (pre-existing errors in other files) |
 | MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/329-failure-categorization-qa-deferred.md` |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commits: feea262, 01497df |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 1a2d85c |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | Added to Recent Sessions (last 5 list) |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - no project plan for this issue |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Not needed - focused implementation |
