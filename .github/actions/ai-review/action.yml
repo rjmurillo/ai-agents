@@ -502,9 +502,10 @@ runs:
         # Calculate timeout in seconds
         TIMEOUT_SECONDS=$((TIMEOUT_MINUTES * 60))
 
-        # Retry configuration (Issue #328: Handle infrastructure failures)
+        # Retry configuration (Issue #328, #338: Handle infrastructure failures)
+        # Spec from #338: attempts at 0s, 10s, 30s (total 40s max wait)
         MAX_RETRIES=2
-        RETRY_DELAY_BASE=30  # seconds
+        RETRY_DELAYS=(0 10 30)  # seconds before each attempt
         ATTEMPT=0
         INFRASTRUCTURE_FAILURE=false
 
@@ -537,8 +538,8 @@ runs:
 
         # Retry loop
         while [ $ATTEMPT -le $MAX_RETRIES ]; do
+          RETRY_DELAY=${RETRY_DELAYS[$ATTEMPT]}
           if [ $ATTEMPT -gt 0 ]; then
-            RETRY_DELAY=$((RETRY_DELAY_BASE * (2 ** (ATTEMPT - 1))))  # Exponential backoff
             echo ""
             echo "=== RETRY ATTEMPT $ATTEMPT/$MAX_RETRIES ==="
             echo "Infrastructure failure detected. Retrying in ${RETRY_DELAY}s..."
@@ -576,8 +577,22 @@ runs:
               ATTEMPT=$((ATTEMPT + 1))
               continue  # Retry
             else
-              echo "::error::Max retries ($MAX_RETRIES) exceeded for infrastructure failure"
-              # Fall through to construct failure message
+              # Issue #338: FAIL FAST - exit 1 instead of returning verdict
+              # This makes infrastructure failures obvious in GitHub Actions UI
+              echo ""
+              echo "::error::=== INFRASTRUCTURE FAILURE - JOB FAILED ==="
+              echo "::error::Copilot CLI failed after $((MAX_RETRIES + 1)) attempts with no output."
+              echo "::error::"
+              echo "::error::LIKELY CAUSE: COPILOT_GITHUB_TOKEN secret is expired or misconfigured."
+              echo "::error::"
+              echo "::error::TO FIX:"
+              echo "::error::  1. Check Repository Settings > Secrets > COPILOT_GITHUB_TOKEN"
+              echo "::error::  2. Ensure the token has 'copilot' scope"
+              echo "::error::  3. Verify the GitHub account has Copilot access enabled"
+              echo "::error::"
+              echo "::error::This job is FAILING (not returning verdict) to make the issue visible."
+              echo "::error::Re-run this job after fixing the token."
+              exit 1
             fi
           else
             # Success or code quality failure (not infrastructure) - don't retry
@@ -589,12 +604,21 @@ runs:
         done
 
         # Detailed error analysis
+        # Note: Infrastructure failures with no output already exit 1 above
+        # This section handles cases that made it through (had output or non-infra errors)
         if [ $EXIT_CODE -eq 124 ]; then
+          # Timeout - this is an infrastructure issue, fail fast
+          echo ""
+          echo "::error::=== TIMEOUT - JOB FAILED ==="
           echo "::error::Copilot CLI timed out after ${TIMEOUT_MINUTES} minutes"
-          OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: AI review timed out after ${TIMEOUT_MINUTES} minutes"
-          if [ -n "$STDERR_OUTPUT" ]; then
-            OUTPUT="$OUTPUT"$'\n'"STDERR: $STDERR_OUTPUT"
-          fi
+          echo "::error::"
+          echo "::error::LIKELY CAUSES:"
+          echo "::error::  - Copilot API is slow or unresponsive"
+          echo "::error::  - Network connectivity issues"
+          echo "::error::  - Prompt is too large for the timeout setting"
+          echo "::error::"
+          echo "::error::Re-run this job to retry."
+          exit 1
         elif [ $EXIT_CODE -ne 0 ]; then
           echo "::error::Copilot CLI exited with code $EXIT_CODE"
 
@@ -606,36 +630,29 @@ runs:
 
           # Analyze failure mode
           if [ -z "$OUTPUT" ] && [ -z "$STDERR_OUTPUT" ]; then
+            # No output at all - this is an infrastructure issue, fail fast
+            # (Note: This should have been caught in the retry loop, but handle defensively)
             echo ""
-            echo "=== FAILURE ANALYSIS ==="
-            echo "The Copilot CLI produced no output (stdout or stderr)."
-            echo "This typically indicates one of the following issues:"
-            echo ""
-            echo "1. MISSING COPILOT ACCESS"
-            echo "   - The GitHub account associated with BOT_PAT does not have"
-            echo "     GitHub Copilot access enabled"
-            echo "   - Solution: Enable Copilot for the account or use a different PAT"
-            echo ""
-            echo "2. INVALID PAT TOKEN"
-            echo "   - The PAT token may be expired or have insufficient scopes"
-            echo "   - Required: 'copilot' scope for Copilot access"
-            echo ""
-            echo "3. NETWORK ISSUES"
-            echo "   - Unable to reach Copilot API endpoints"
-            echo "   - Check network connectivity and proxy settings"
-            echo ""
-            echo "4. RATE LIMITING"
-            echo "   - Too many requests in a short time period"
-            echo "   - Wait and retry"
-            echo "========================="
-            echo ""
-
-            OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI failed (exit code $EXIT_CODE) with no output - likely missing Copilot access for the bot account"
+            echo "::error::=== NO OUTPUT - JOB FAILED ==="
+            echo "::error::Copilot CLI produced no output (stdout or stderr)."
+            echo "::error::"
+            echo "::error::LIKELY CAUSES:"
+            echo "::error::  1. MISSING COPILOT ACCESS - GitHub account does not have Copilot enabled"
+            echo "::error::  2. INVALID PAT TOKEN - Token expired or missing 'copilot' scope"
+            echo "::error::  3. NETWORK ISSUES - Unable to reach Copilot API"
+            echo "::error::  4. RATE LIMITING - Too many requests"
+            echo "::error::"
+            echo "::error::TO FIX: Check COPILOT_GITHUB_TOKEN in Repository Settings > Secrets"
+            exit 1
           elif [ -z "$OUTPUT" ]; then
-            # Has stderr but no stdout
-            OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI failed (exit code $EXIT_CODE)"$'\n'"STDERR: $STDERR_OUTPUT"
+            # Has stderr but no stdout - infrastructure issue, fail fast
+            echo ""
+            echo "::error::=== CLI ERROR - JOB FAILED ==="
+            echo "::error::Copilot CLI failed (exit code $EXIT_CODE) with error output."
+            echo "::error::Stderr: $STDERR_OUTPUT"
+            exit 1
           fi
-          # If OUTPUT is not empty, keep it as-is (may contain error details from CLI)
+          # If OUTPUT is not empty, keep it as-is (may contain legitimate code quality findings)
         fi
 
         # Save output
