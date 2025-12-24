@@ -38,7 +38,7 @@ pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 
 Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
 
-**CRITICAL - Verify PR Merge State (Skill-PR-Review-006)**:
+**CRITICAL - Verify PR Merge State (pr-review-006-merge-state-verification)**:
 
 Before proceeding with review work, verify PR has not been merged via GraphQL (source of truth):
 
@@ -205,11 +205,11 @@ done
 
 ## Thread Resolution Protocol
 
-### Overview (Skill-PR-Review-004, Skill-PR-Review-005)
+### Overview (pr-review-004-thread-resolution-single, pr-review-005-thread-resolution-batch)
 
 **CRITICAL**: Replying to a review comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation.
 
-### Single Thread Resolution (Skill-PR-Review-004)
+### Single Thread Resolution (pr-review-004-thread-resolution-single)
 
 After replying to a review comment, resolve the thread via GraphQL:
 
@@ -226,7 +226,7 @@ mutation($threadId: ID!) {
 
 **Why this matters**: pr-comment-responder skill replies to comments, but threads remain unresolved unless explicitly resolved via GraphQL. Unresolved threads block PR merge per branch protection rules.
 
-### Batch Thread Resolution (Skill-PR-Review-005)
+### Batch Thread Resolution (pr-review-005-thread-resolution-batch)
 
 For 2+ threads, use GraphQL mutation aliases for efficiency:
 
