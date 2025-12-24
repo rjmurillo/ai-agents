@@ -92,7 +92,7 @@ jobs:
           fi
 
       - name: Synthesize context and assign Copilot
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
@@ -175,7 +175,7 @@ jobs:
 
       - name: Process each issue
         if: steps.find-issues.outputs.count != '0'
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           ISSUES: ${{ steps.find-issues.outputs.issues }}
         run: |
