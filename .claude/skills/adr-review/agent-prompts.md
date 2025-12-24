@@ -22,7 +22,7 @@ ADR Review Request (Phase 1: Independent Review)
 **Role**: Technical authority on ADR structure and architectural coherence.
 
 ## ADR Content
-```
+```markdown
 {adr_content}
 ```
 
@@ -80,7 +80,7 @@ ADR Review Request (Phase 1: Independent Review)
 **Role**: Stress-test the ADR for completeness, gaps, and alignment.
 
 ## ADR Content
-```
+```markdown
 {adr_content}
 ```
 
@@ -127,7 +127,7 @@ ADR Review Request (Phase 1: Independent Review)
 **Role**: Challenge assumptions and prevent groupthink.
 
 ## ADR Content
-```
+```markdown
 {adr_content}
 ```
 
@@ -175,7 +175,7 @@ ADR Review Request (Phase 1: Independent Review)
 **Role**: Analyze security implications and threat models.
 
 ## ADR Content
-```
+```markdown
 {adr_content}
 ```
 
@@ -225,7 +225,7 @@ ADR Review Request (Phase 1: Independent Review)
 **Role**: Validate claims with evidence and assess feasibility.
 
 ## ADR Content
-```
+```markdown
 {adr_content}
 ```
 
@@ -273,7 +273,7 @@ ADR Review Request (Phase 1: Independent Review)
 **Role**: Strategic assessment and priority validation.
 
 ## ADR Content
-```
+```markdown
 {adr_content}
 ```
 
@@ -400,7 +400,7 @@ Task(subagent_type="{agent}", prompt="""
 ADR Convergence Check (Round {round_number})
 
 ## Updated ADR
-```
+```markdown
 {updated_adr_content}
 ```
 
@@ -420,7 +420,7 @@ Provide exactly ONE position:
 
 **Accept**: All blocking concerns resolved. No new issues found.
 
-**Disagree and Commit**: Reservations remain but I agree to proceed.
+**Disagree-and-Commit**: Reservations remain but I agree to proceed.
 - Must document specific dissent
 - Dissent will be recorded in ADR
 
@@ -429,7 +429,7 @@ Provide exactly ONE position:
 - Must explain why this is blocking
 
 ## Output Format
-**Position**: [Accept | Disagree and Commit | Block]
+**Position**: [Accept | Disagree-and-Commit | Block]
 
 **Rationale**: [Why this position]
 

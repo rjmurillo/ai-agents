@@ -150,7 +150,7 @@ ADR Convergence Check (Round [N])
 ## Instructions
 Provide ONE position:
 - **Accept**: No blocking concerns remain
-- **Disagree and Commit**: Reservations exist but agree to proceed (document dissent)
+- **Disagree-and-Commit**: Reservations exist but agree to proceed (document dissent)
 - **Block**: Unresolved P0 concerns (specify what remains)
 """)
 ```
@@ -278,7 +278,7 @@ Every ADR must include reversibility assessment per architect.md:
 ## Example Invocation
 
 **User triggers:**
-```
+```text
 Review this ADR: .agents/architecture/ADR-005-api-versioning.md
 ```
 
