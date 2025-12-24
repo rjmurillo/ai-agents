@@ -156,6 +156,7 @@ Provide ONE position:
 ```
 
 **Consensus Criteria:**
+
 - All 6 agents Accept OR Disagree-and-Commit = Consensus reached
 - Any agent Blocks = Another round required (if round < 10)
 - Round 10 with no consensus = Conclude with unresolved issues documented
@@ -254,12 +255,14 @@ Return to orchestrator with structured recommendations:
 ### Prior ADR Locations
 
 Check these locations for existing ADRs and patterns:
+
 - `.agents/architecture/ADR-*.md`
 - `docs/architecture/ADR-*.md`
 
 ### ADR Template Reference
 
 Use MADR 4.0 format per architect.md. Key sections:
+
 - Context and Problem Statement
 - Decision Drivers
 - Considered Options
@@ -269,6 +272,7 @@ Use MADR 4.0 format per architect.md. Key sections:
 ### Reversibility Assessment
 
 Every ADR must include reversibility assessment per architect.md:
+
 - Rollback capability
 - Vendor lock-in assessment
 - Exit strategy
@@ -278,11 +282,13 @@ Every ADR must include reversibility assessment per architect.md:
 ## Example Invocation
 
 **User triggers:**
+
 ```text
 Review this ADR: .agents/architecture/ADR-005-api-versioning.md
 ```
 
 **Orchestrator triggers:**
+
 ```python
 # When architect creates/updates ADR
 Task(subagent_type="orchestrator", prompt="""
