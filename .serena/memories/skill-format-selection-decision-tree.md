@@ -30,9 +30,21 @@ flowchart TD
 
 | Question | YES | NO |
 |----------|-----|-----|
-| CRITICAL/BLOCKING (P0)? | Format A | Continue |
+| CRITICAL/BLOCKING? | Format A | Continue |
 | 2+ related skills same workflow? | Format B | Continue |
-| Referenced by other skills? | Format A | Either |
+| Has BLOCKS/ENABLES relationships? | Format A | Either |
+
+## CRITICAL/BLOCKING Definition
+
+Any ONE triggers Format A:
+- Impact score >= 9
+- Blocks a protocol gate (SESSION-PROTOCOL.md)
+- Tagged with `#P0` or `#BLOCKING`
+- Referenced in `.agents/SESSION-PROTOCOL.md`
+
+## "Has BLOCKS/ENABLES relationships"
+
+Skill will be cited in other skills' Related sections.
 
 ## Format Definitions
 

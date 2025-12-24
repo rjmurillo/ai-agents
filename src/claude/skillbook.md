@@ -246,11 +246,11 @@ Use for multiple related skills that share a workflow context.
 
 ```mermaid
 flowchart TD
-    START([New Skill]) --> Q1{CRITICAL or<br/>BLOCKING P0?}
+    START([New Skill]) --> Q1{CRITICAL/BLOCKING?<br/>See criteria below}
     Q1 -->|YES| A1[Format A<br/>Standalone]
     Q1 -->|NO| Q2{2+ related skills<br/>same workflow?}
     Q2 -->|YES| B1[Format B<br/>Bundled]
-    Q2 -->|NO| Q3{Referenced by<br/>other skills?}
+    Q2 -->|NO| Q3{Has BLOCKS/ENABLES<br/>relationships?}
     Q3 -->|YES| A2[Format A<br/>Standalone]
     Q3 -->|NO| EITHER[Either Format<br/>Acceptable]
 
@@ -260,18 +260,131 @@ flowchart TD
     EITHER --> DONE
 ```
 
-### Skill Categories
+**CRITICAL/BLOCKING Definition** (any one triggers Format A):
+- Impact score >= 9
+- Blocks a protocol gate (SESSION-PROTOCOL.md)
+- Tagged with `#P0` or `#BLOCKING`
+- Referenced in `.agents/SESSION-PROTOCOL.md`
 
-| Category | Domain Prefix | Description | Example ID |
-|----------|--------------|-------------|------------|
-| Init | `session-init-` | Session initialization | Skill-Init-001 |
-| PR | `pr-review-` | Pull request workflows | Skill-PR-Comment-001 |
-| GH | `github-cli-` | GitHub CLI patterns | Skill-GH-API-001 |
-| Test | `pester-` | Testing strategies | Skill-Test-Pester-001 |
-| Build | `ci-` | Build and CI | Skill-Build-001 |
-| Memory | `skill-memory-` | Memory operations | Skill-Memory-001 |
-| Security | `security-` | Security patterns | Skill-Security-001 |
-| Process | `workflow-` | Workflow patterns | Skill-Process-001 |
+**"Has BLOCKS/ENABLES relationships"**: Skill will be cited in other skills' Related sections.
+
+### Index Selection Decision Tree
+
+```mermaid
+flowchart TD
+    START([New Skill]) --> Q1{Skill topic matches<br/>existing domain index?}
+    Q1 -->|YES| ADD[Add to existing<br/>skills-DOMAIN-index.md]
+    Q1 -->|NO| Q2{5+ skills expected<br/>in this topic area?}
+    Q2 -->|YES| CREATE[Create new<br/>skills-DOMAIN-index.md]
+    Q2 -->|NO| Q3{Closest related<br/>domain?}
+    Q3 --> RELATED[Add to related<br/>domain index]
+
+    ADD --> UPDATE[Update memory-index.md<br/>if new keywords]
+    CREATE --> UPDATE
+    RELATED --> UPDATE
+```
+
+**Index Selection Rules:**
+
+1. **Match existing domain**: Check `memory-index.md` keywords. If skill keywords overlap >50% with existing domain, add there.
+2. **Create new domain**: Only if 5+ skills expected AND no existing domain covers topic.
+3. **Fallback to related**: If <5 skills expected, add to closest related domain.
+
+**Example decisions:**
+- Skill about PR security → `skills-pr-review-index.md` (PR workflow context)
+- Skill about skill formatting → `skills-documentation-index.md` (documentation context)
+- Skill about Pester mocking → `skills-pester-testing-index.md` (testing context)
+
+### Activation Vocabulary Rules
+
+When adding a skill to a domain index, select 4-8 keywords:
+
+| Keyword Type | Required | Example |
+|--------------|----------|---------|
+| Primary noun | YES | `security`, `isolation`, `mutation` |
+| Action verb | YES | `validate`, `resolve`, `triage` |
+| Tool/context | If applicable | `gh`, `pester`, `graphql` |
+| Synonyms | Recommended | `check`/`verify`, `error`/`failure` |
+
+**Uniqueness requirement**: Minimum 40% unique keywords vs other skills in same domain.
+
+### Domain-to-Index Mapping
+
+To find the correct index for a new skill, consult `memory-index.md`:
+
+```text
+mcp__serena__read_memory
+memory_file_name: "memory-index"
+```
+
+Match skill keywords against the Task Keywords column. The Essential Memories column shows which index to use.
+
+**Creating new domains**: Only create `skills-{domain}-index.md` when:
+1. 5+ skills exist or are planned for the topic
+2. No existing domain covers the topic adequately
+3. Keywords are distinct from all existing domains
+
+### Skill Categories (Reference)
+
+Categories are encoded in the Skill ID, not the filename:
+
+| Category | Used When | Example ID |
+|----------|-----------|------------|
+| Init | Session/tool initialization | Skill-Init-001 |
+| PR | Pull request workflows | Skill-PR-001 |
+| GH | GitHub CLI operations | Skill-GH-001 |
+| Test | Testing patterns | Skill-Test-001 |
+| Build | Compilation/CI | Skill-Build-001 |
+| Memory | Memory operations | Skill-Memory-001 |
+| Security | Security patterns | Skill-Security-001 |
+| Process | Workflow patterns | Skill-Process-001 |
+| Triage | Prioritization/routing | Skill-Triage-001 |
+| Comment | Comment/review handling | Skill-Comment-001 |
+
+**Extending categories**: Create new category when skill doesn't fit existing. Use 2-8 character abbreviation.
+
+### Skill ID Numbering (NNN)
+
+To determine the next skill number for a category:
+
+```bash
+# Find highest existing number for category (e.g., PR)
+grep -r "Skill-PR-" .serena/memories/ | grep -oE "Skill-PR-[0-9]+" | sort -t'-' -k3 -n | tail -1
+# Output: Skill-PR-004
+# Next skill: Skill-PR-005
+```
+
+**Rules:**
+- Numbers are sequential within category (001, 002, 003...)
+- Do NOT reuse numbers from deleted skills
+- Gaps are acceptable (001, 002, 005 if 003-004 were deleted)
+
+### Index Update Procedure
+
+After creating a skill file, update the domain index:
+
+**Step 1**: Read current index to find insertion point
+
+```text
+mcp__serena__read_memory
+memory_file_name: "skills-[domain]-index"
+```
+
+**Step 2**: Insert new row in Activation Vocabulary table
+
+```text
+mcp__serena__edit_memory
+memory_file_name: "skills-[domain]-index"
+needle: "| [last-existing-keywords] | [last-existing-file] |"
+repl: "| [last-existing-keywords] | [last-existing-file] |\n| [new-keywords] | [new-file-name] |"
+mode: "literal"
+```
+
+**Step 3**: Validate
+
+```bash
+pwsh scripts/Validate-MemoryIndex.ps1
+```
 
 ## Memory Protocol
 
