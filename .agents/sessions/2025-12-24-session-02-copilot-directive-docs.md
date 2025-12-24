@@ -38,7 +38,7 @@ Issue #327 is part of Epic #324 (10x Velocity Improvement). In PR #249, 41 of 42
 | Complete session log | ✅ PASS | Updated with outcomes and decisions |
 | Update Serena memory | ✅ PASS | Created copilot-directive-relocation, updated skills-copilot-index |
 | Run markdownlint | ✅ PASS | 0 errors, all files clean |
-| Commit changes | ⏳ PENDING | Will commit next |
+| Commit changes | ✅ PASS | Commit 71f9853 |
 | Do not update HANDOFF.md | ✅ N/A | Read-only protocol |
 
 ---
@@ -78,10 +78,21 @@ Issue #327 is part of Epic #324 (10x Velocity Improvement). In PR #249, 41 of 42
 
 ## Next Actions
 
-1. Run markdownlint to fix any formatting issues
-2. Commit changes with conventional commit message
-3. Update Serena memory with this pattern
-4. Close issue #327
+1. Close issue #327
+
+---
+
+## Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete with Decisions, Outcomes, Next Actions |
+| MUST | Update Serena memory (cross-session context) | [x] | copilot-directive-relocation created, skills-copilot-index updated |
+| MUST | Run markdown lint | [x] | 0 errors |
+| MUST | Route to qa agent (feature implementation) | [ ] | N/A - documentation only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 71f9853 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged (read-only protocol) |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - no project plan for issue #327 |
 
 ---
 
