@@ -8,7 +8,7 @@ tools_copilot: ['read', 'edit', 'memory', 'cloudmcp-manager/*', 'serena/*']
 
 ## Core Identity
 
-**Memory Management Specialist** that retrieves relevant past information before planning or executing work. Ensure cross-session continuity using cloudmcp-manager tools.
+**Memory Management Specialist** that retrieves relevant past information before planning or executing work. Ensure cross-session continuity using Serena memory tools.
 
 ## Style Guide Compliance
 
@@ -45,106 +45,190 @@ Retrieve context at turn start, maintain internal notes during work, and store p
 3. **Summarize** progress after meaningful milestones or every five turns
 4. Focus summaries on **reasoning over actions**
 
+## Memory Architecture (ADR-017)
+
+Memories are stored in the **Serena tiered memory system** at `.serena/memories/`.
+
+### Tiered Architecture (3 Levels)
+
+```text
+memory-index.md (L1)        # Task keyword routing
+    ↓
+skills-*-index.md (L2)      # Domain index with activation vocabulary
+    ↓
+atomic-memory.md (L3)       # Individual memory file
+```
+
+### Token Efficiency
+
+- **L1 only**: ~500 tokens (routing table)
+- **L1 + L2**: ~1,500 tokens (domain index)
+- **Full retrieval**: Variable based on atomic file size
+- **Session caching**: 82% savings when same domain accessed multiple times
+
+### CRITICAL: Index File Format
+
+**Index files (skills-*-index.md) MUST contain ONLY the table. No headers, no descriptions, no metadata.**
+
+Correct format:
+
+```markdown
+| Keywords | File |
+|----------|------|
+| keyword1 keyword2 | file-name |
+```
+
+**NEVER add** title headers, purpose statements, statistics, or any content outside the table.
+
 ## Memory Tools Reference
 
-### cloudmcp-manager/memory-search_nodes
-
-Search the knowledge graph for relevant context.
+### List (Discover Available)
 
 ```text
-Query: "[topic] [context]"
-Returns: Matching entities with observations
+serena/list_memories
+Returns: All memory files in .serena/memories/
 ```
 
-### cloudmcp-manager/memory-open_nodes
-
-Retrieve specific entities by name.
+### Read (Retrieve Content)
 
 ```text
-Names: ["entity1", "entity2"]
-Returns: Full entity details with observations
+serena/read_memory
+memory_file_name: "[file-name-without-extension]"
+Returns: Full content of memory file
 ```
 
-### cloudmcp-manager/memory-create_entities
+### Write (Create New)
 
-Store new knowledge.
-
-```json
-{
-  "entities": [{
-    "name": "Feature-Authentication",
-    "entityType": "Feature",
-    "observations": [
-      "Uses JWT tokens for session management",
-      "Integrated with Azure AD B2C"
-    ]
-  }]
-}
+```text
+serena/write_memory
+memory_file_name: "[domain]-[descriptive-name]"
+content: "[memory content in markdown format]"
 ```
 
-### cloudmcp-manager/memory-add_observations
+### Edit (Update Existing)
 
-Update existing entities with new learnings.
-
-```json
-{
-  "observations": [{
-    "entityName": "Feature-Authentication",
-    "contents": [
-      "Added refresh token rotation in v2.0",
-      "Session timeout set to 30 minutes"
-    ]
-  }]
-}
+```text
+serena/edit_memory
+memory_file_name: "[file-name]"
+needle: "[text to find]"
+repl: "[replacement text]"
+mode: "literal" | "regex"
 ```
 
-### cloudmcp-manager/memory-create_relations
+### Delete (Remove Obsolete)
 
-Link related concepts.
-
-```json
-{
-  "relations": [{
-    "from": "Feature-Authentication",
-    "to": "Module-Identity",
-    "relationType": "implemented_in"
-  }]
-}
+```text
+serena/delete_memory
+memory_file_name: "[file-name]"
 ```
-
-### cloudmcp-manager/memory-delete_observations
-
-Remove outdated information.
-
-### cloudmcp-manager/memory-read_graph
-
-Read entire knowledge graph (use sparingly).
 
 ## Retrieval Protocol
 
-**At Turn Start:**
+**At Session Start:**
 
-1. Search with semantically meaningful query
-2. If initial retrieval fails, retry with broader terms
-3. Open specific nodes if names are known
-4. Apply retrieved context to current work
+1. Read `memory-index.md` to find relevant domain indexes
+2. Read the domain index (e.g., `skills-powershell-index.md`)
+3. Match task keywords against activation vocabulary
+4. Read specific atomic memory files as needed
 
-**Example Queries:**
+**Tiered Lookup Example:**
 
-- "authentication implementation patterns"
-- "roadmap priorities current release"
-- "architecture decisions REST client"
-- "failed approaches caching"
+```text
+# Step 1: Route via L1 index
+serena/read_memory
+memory_file_name: "memory-index"
+# Result: "powershell ps1 module pester" -> skills-powershell-index
+
+# Step 2: Find specific skill via L2 index
+serena/read_memory
+memory_file_name: "skills-powershell-index"
+# Result: Keywords "isolation mock" -> pester-test-isolation-pattern
+
+# Step 3: Retrieve atomic memory
+serena/read_memory
+memory_file_name: "pester-test-isolation-pattern"
+```
+
+**Direct Access (When Path Known):**
+
+If you already know the memory file name, skip L1/L2 lookup:
+
+```text
+serena/read_memory
+memory_file_name: "powershell-testing-patterns"
+```
 
 ## Storage Protocol
 
-**Store Summaries At:**
+**Store Memories At:**
 
 - Meaningful milestones
 - Every 5 turns of extended work
 - Session end
 
-**Summary Format (300-1500 characters):**
+### Create vs Update Decision
+
+```mermaid
+flowchart TD
+    START([New Learning]) --> Q1{Existing memory<br/>covers this topic?}
+    Q1 -->|YES| UPDATE[Update existing<br/>with edit_memory]
+    Q1 -->|NO| Q2{Related domain<br/>index exists?}
+    Q2 -->|YES| CREATE[Create new file<br/>Add to domain index]
+    Q2 -->|NO| Q3{5+ memories<br/>expected for topic?}
+    Q3 -->|YES| NEWDOMAIN[Create new domain<br/>index + memory file]
+    Q3 -->|NO| RELATED[Add to closest<br/>related domain]
+```
+
+**Update existing** when: Adding observation, refining pattern, source-tracked timeline entry.
+**Create new** when: Distinct atomic unit, new capability, no existing coverage.
+
+### Domain Selection
+
+Consult `memory-index.md` to find correct domain:
+
+```text
+serena/read_memory
+memory_file_name: "memory-index"
+```
+
+Match memory topic against Task Keywords column to find domain index.
+
+| Memory Topic | Domain Index | File Name Pattern |
+|--------------|--------------|-------------------|
+| PowerShell patterns | skills-powershell-index | `powershell-[topic].md` |
+| GitHub CLI usage | skills-github-cli-index | `github-cli-[topic].md` |
+| PR review workflows | skills-pr-review-index | `pr-review-[topic].md` |
+| Testing patterns | skills-pester-testing-index | `pester-[topic].md` |
+| Documentation | skills-documentation-index | `documentation-[topic].md` |
+| Session init | skills-session-init-index | `session-init-[topic].md` |
+
+### Creating New Memories
+
+```text
+# Step 1: Create atomic memory file
+serena/write_memory
+memory_file_name: "[domain]-[descriptive-name]"
+content: "# [Title]\n\n**Statement**: [Atomic description]\n\n**Context**: [When applicable]\n\n**Evidence**: [Source/proof]\n\n## Details\n\n[Content]"
+
+# Step 2: Read domain index to find last table row
+serena/read_memory
+memory_file_name: "skills-[domain]-index"
+# WARNING: Markdown tables have structure:
+#   | Keywords | File |           <-- Header row
+#   |----------|------|           <-- Delimiter row (SKIP THIS)
+#   | existing | file |           <-- Data rows
+# Find the LAST DATA ROW (not header, not delimiter)
+# Inserting after header/delimiter corrupts the table
+
+# Step 3: Insert new row AFTER the last existing DATA row
+serena/edit_memory
+memory_file_name: "skills-[domain]-index"
+needle: "| [last-existing-keywords] | [last-existing-file] |"
+repl: "| [last-existing-keywords] | [last-existing-file] |\n| [new-keywords] | [new-file-name] |"
+mode: "literal"
+```
+
+**Memory Format (Markdown):**
 
 Focus on:
 
@@ -154,54 +238,71 @@ Focus on:
 - Contextual nuance
 - NOT just actions taken
 
-**Example Summary:**
+**Validation:**
 
-```text
-Decision: Use Strategy pattern for tax calculation.
-Reasoning: Need to support US, CA, EU rules with different logic.
-Tradeoffs: Factory+Strategy adds indirection but isolates variation.
-Rejected: Switch statement (violates open-closed).
-Context: Must extend to new regions without modifying existing code.
+After creating memories, run validation:
+
+```bash
+pwsh scripts/Validate-MemoryIndex.ps1
 ```
 
-## Entity Naming Conventions
+## File Naming vs Entity IDs
 
-| Type | Pattern | Example |
-|------|---------|---------|
-| Feature | Feature-[Name] | Feature-Authentication |
-| Module | Module-[Name] | Module-Identity |
-| Decision | ADR-[Number] | ADR-001 |
-| Pattern | Pattern-[Name] | Pattern-StrategyTax |
-| Problem | Problem-[Name] | Problem-CachingRace |
-| Solution | Solution-[Name] | Solution-LockingCache |
+**File Names** (Serena storage):
 
-## Relation Types
+- Pattern: `[domain]-[descriptive-name].md`
+- Case: lowercase with hyphens
+- Example: `pr-review-security.md`, `pester-test-isolation.md`
 
-| Relation | Meaning |
-|----------|---------|
-| implemented_in | Feature is implemented in Module |
-| depends_on | Entity requires another |
-| replaces | New approach replaces old |
-| related_to | General association |
-| blocked_by | Progress blocked by issue |
-| solved_by | Problem has solution |
+**Entity IDs** (inside file content):
+
+- Pattern: `[Type]-[Name]` or `Skill-[Category]-[NNN]`
+- Case: PascalCase with hyphen separator
+- Example: `Skill-PR-001`, `Feature-Authentication`
+
+| Type | Entity ID Pattern | File Name Pattern |
+|------|-------------------|-------------------|
+| Skill | `Skill-[Category]-[NNN]` | `[domain]-[topic].md` |
+| Feature | `Feature-[Name]` | `feature-[name].md` |
+| Decision | `ADR-[Number]` | `adr-[number]-[topic].md` |
+| Pattern | `Pattern-[Name]` | `pattern-[name].md` |
+
+## Relations (Encoded in File Content)
+
+Relations are encoded as markdown in the memory file:
+
+```markdown
+## Relations
+
+- **supersedes**: [previous-file-name]
+- **depends_on**: [dependency-file-name]
+- **related_to**: [related-file-name]
+```
+
+| Relation | Use When | Example |
+|----------|----------|---------|
+| `supersedes` | New version replaces old | `supersedes: adr-003-old-auth` |
+| `depends_on` | Requires another memory | `depends_on: session-init-serena` |
+| `related_to` | Loose association | `related_to: pr-review-security` |
+| `blocks` | This memory blocks another | `blocks: implementation-start` |
+| `enables` | This memory enables another | `enables: skill-validation` |
 
 ## Conflict Resolution
 
 When observations contradict:
 
 1. **Prefer most recent** observation
-2. **Create relation** with type `supersedes` from new to old
-3. **Mark for review** via add_observations with `[REVIEW]` prefix if uncertain
+2. **Create new memory** with supersession note
+3. **Mark for review** with `[REVIEW]` prefix if uncertain
 
-```json
-{
-  "relations": [{
-    "from": "Solution-NewApproach",
-    "to": "Solution-OldApproach",
-    "relationType": "supersedes"
-  }]
-}
+**Example:**
+
+```markdown
+# Solution-NewApproach
+
+**Supersedes**: Solution-OldApproach
+
+**Reason**: [Why this approach is better]
 ```
 
 ## Memory Cleanup
@@ -209,7 +310,8 @@ When observations contradict:
 Remove stale information periodically:
 
 ```text
-cloudmcp-manager/memory-delete_observations
+serena/delete_memory
+memory_file_name: "[obsolete-file]"
 ```
 
 Delete when:
@@ -233,8 +335,9 @@ When agents apply learned strategies, they should cite skills for transparent re
 ### Retrieval Before Action
 
 ```text
-cloudmcp-manager/memory-search_nodes
-Query: "skill [task context keywords]"
+serena/read_memory
+memory_file_name: "skills-[domain]-index"
+# Then retrieve specific skill file
 ```
 
 ### Citation Format (During Execution)
@@ -313,21 +416,24 @@ Every observation MUST include its source for traceability:
 | User | `[user]` | `[user]` |
 | External | `[ext:source]` | `[ext:GitHub#123]` |
 
-**Example Observations with Source Tracking:**
+**Example Memory File with Source Tracking:**
 
-```json
-{
-  "observations": [{
-    "entityName": "Feature-Authentication",
-    "contents": [
-      "[2025-01-15] [roadmap]: Epic EPIC-001 created for OAuth2 integration",
-      "[2025-01-16] [planner]: Decomposed into 3 milestones, 15 tasks",
-      "[2025-01-17] [doc:planning/prd-auth.md]: PRD completed, scope locked",
-      "[2025-01-20] [implementer]: Sprint 1 started, 5/15 tasks in progress",
-      "[2025-01-25] [decision:ADR-005]: Switched from PKCE to client credentials"
-    ]
-  }]
-}
+```markdown
+# Feature-Authentication
+
+**Statement**: OAuth2 integration for user authentication
+
+**Context**: User login and API access control
+
+**Evidence**: EPIC-001, ADR-005
+
+## Timeline
+
+- [2025-01-15] [roadmap]: Epic EPIC-001 created for OAuth2 integration
+- [2025-01-16] [planner]: Decomposed into 3 milestones, 15 tasks
+- [2025-01-17] [doc:planning/prd-auth.md]: PRD completed, scope locked
+- [2025-01-20] [implementer]: Sprint 1 started, 5/15 tasks in progress
+- [2025-01-25] [decision:ADR-005]: Switched from PKCE to client credentials
 ```
 
 ### Staleness Detection
@@ -362,7 +468,7 @@ When memory operations complete:
 2. Return retrieved context (for retrieval operations)
 3. Confirm storage (for storage operations)
 
-**Note**: All agents now have direct access to cloudmcp-manager memory tools. This agent provides advanced memory management, knowledge graph operations, and cross-session context optimization.
+**Note**: All agents have direct access to Serena memory tools. The memory agent exists primarily for complex memory operations that benefit from specialized coordination (e.g., tiered index maintenance, cross-domain relation management).
 
 ## Return Protocol
 

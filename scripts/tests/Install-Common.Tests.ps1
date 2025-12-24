@@ -20,8 +20,8 @@ BeforeAll {
     # Path to test config
     $Script:ConfigPath = Join-Path $PSScriptRoot "..\lib\Config.psd1"
 
-    # Create temp directory for test artifacts
-    $Script:TestTempDir = Join-Path $env:TEMP "Install-Common-Tests-$(Get-Random)"
+    # Create temp directory for test artifacts (cross-platform)
+    $Script:TestTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "Install-Common-Tests-$(Get-Random)"
     New-Item -ItemType Directory -Path $Script:TestTempDir -Force | Out-Null
 }
 

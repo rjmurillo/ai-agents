@@ -14,10 +14,7 @@ on:
   schedule:
     # Run weekly on Sundays at midnight UTC
     - cron: '0 0 * * 0'
-  push:
-    paths:
-      - '.agents/utilities/metrics/**'
-      - '.github/workflows/agent-metrics.yml'
+
   workflow_dispatch:
     inputs:
       days:
@@ -38,13 +35,10 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: agent-metrics-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   collect-metrics:
     name: Collect Agent Metrics
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
 
     steps:
@@ -98,11 +92,12 @@ jobs:
         with:
           name: agent-metrics-${{ github.run_number }}
           path: metrics-report.txt
-          retention-days: 7
+          retention-days: 90
 
   # Optional: Create issue if metrics are below targets
   check-thresholds:
     name: Check Metric Thresholds
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: collect-metrics
 

@@ -18,7 +18,7 @@
 
 BeforeAll {
     # Create test temp directory
-    $Script:TestTempDir = Join-Path $env:TEMP "Detect-AgentDrift-Tests-$(Get-Random)"
+    $Script:TestTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "Detect-AgentDrift-Tests-$(Get-Random)"
     New-Item -ItemType Directory -Path $Script:TestTempDir -Force | Out-Null
 
     # Define test functions (copies from script for unit testing)
@@ -585,9 +585,9 @@ Describe "Performance" {
 Use mcp__cloudmcp-manager__memory-search_nodes for search.
 Use mcp__cognitionai-deepwiki__ask_question for docs.
 Use `#runSubagent with subagentType=analyst` for research.
-```bash
+``````bash
 echo hello
-```
+``````
 "@
             $measure = Measure-Command {
                 for ($i = 0; $i -lt 1000; $i++) {

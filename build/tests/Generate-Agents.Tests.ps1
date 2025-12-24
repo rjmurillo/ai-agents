@@ -17,8 +17,8 @@ BeforeAll {
     $ModulePath = Join-Path $PSScriptRoot "..\Generate-Agents.Common.psm1"
     Import-Module $ModulePath -Force
 
-    # Create temp directory for test artifacts
-    $Script:TestTempDir = Join-Path $env:TEMP "Generate-Agents-Tests-$(Get-Random)"
+    # Create temp directory for test artifacts (cross-platform)
+    $Script:TestTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "Generate-Agents-Tests-$(Get-Random)"
     New-Item -ItemType Directory -Path $Script:TestTempDir -Force | Out-Null
 }
 

@@ -51,6 +51,7 @@ on:
 ```
 
 **Exceptions**:
+
 - Issue-triggered workflows (no files changed)
 - PR workflows with internal path filtering (dorny/paths-filter)
 - Workflows that analyze entire repository
@@ -66,10 +67,12 @@ concurrency:
 ```
 
 **cancel-in-progress: true** for:
+
 - Branch/PR workflows (rapid commits should cancel outdated runs)
 - Scheduled workflows (new trigger should cancel old run)
 
 **cancel-in-progress: false** for:
+
 - Issue-based workflows (avoid race conditions)
 - Critical deployment workflows (preserve all runs)
 
@@ -88,6 +91,7 @@ concurrency:
 ### Cost Alerts
 
 Set up GitHub billing alerts at:
+
 - **$50**: Warning threshold (50% of budget)
 - **$80**: Action required (80% of budget)
 - **$100**: Budget exceeded (emergency review)

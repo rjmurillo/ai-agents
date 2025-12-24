@@ -20,7 +20,7 @@
 
 BeforeAll {
     # Create isolated test temp directory
-    $Script:TestTempDir = Join-Path $env:TEMP "Invoke-PesterTests-Tests-$(Get-Random)"
+    $Script:TestTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "Invoke-PesterTests-Tests-$(Get-Random)"
     New-Item -ItemType Directory -Path $Script:TestTempDir -Force | Out-Null
 
     # Store repository root and script path

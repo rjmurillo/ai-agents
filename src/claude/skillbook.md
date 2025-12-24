@@ -39,7 +39,12 @@ Key requirements:
 
 You have direct access to:
 
-- **cloudmcp-manager memory tools**: Skill storage
+- **Serena memory tools**: Skill storage in `.serena/memories/`
+  - `mcp__serena__list_memories`: List all available memories
+  - `mcp__serena__read_memory`: Read specific memory file
+  - `mcp__serena__write_memory`: Create new memory file
+  - `mcp__serena__edit_memory`: Update existing memory
+  - `mcp__serena__delete_memory`: Remove obsolete memory
 - **Read/Grep**: Search for existing patterns
 - **TodoWrite**: Track skill operations
 
@@ -98,12 +103,16 @@ Before adding ANY new skill:
 [Full text]
 
 ### Similarity Search
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "skill [topic] [keywords]"
+1. Read memory-index.md for domain routing
+2. Read relevant domain index (skills-*-index.md)
+3. Search activation vocabulary for similar keywords
+
+mcp__serena__list_memories  # List all memories
+mcp__serena__read_memory    # Read specific domain index
 
 ### Most Similar Existing
-- **ID**: [Skill ID or "None"]
-- **Text**: [Existing text]
+- **File**: [skill-file-name.md or "None"]
+- **Keywords**: [Activation vocabulary overlap]
 - **Similarity**: [%]
 
 ### Decision
@@ -112,79 +121,264 @@ Query: "skill [topic] [keywords]"
 - [ ] **REJECT**: Exact duplicate
 ```
 
-## Skill Entity Format
+## File Naming Convention
 
-```json
-{
-  "name": "Skill-[Category]-[Number]",
-  "entityType": "Skill",
-  "observations": [
-    "Statement: [Atomic strategy - max 15 words]",
-    "Context: [When to apply]",
-    "Evidence: [Specific execution]",
-    "Atomicity: [%]",
-    "Tag: helpful | harmful | neutral",
-    "Impact: [1-10]",
-    "Created: [date]",
-    "Validated: [count]"
-  ]
-}
+Skill files use `{domain}-{topic}.md` format for index discoverability:
+
+```text
+.serena/memories/
+├── skills-{domain}-index.md    # L2: Domain index (routing table)
+└── {domain}-{topic}.md         # L3: Atomic skill file(s)
 ```
 
-### Skill Categories
+### CRITICAL: Index File Format
 
-| Category | Description | Example |
-|----------|-------------|---------|
-| Build | Compilation | Skill-Build-001 |
-| Test | Testing | Skill-Test-001 |
-| Debug | Debugging | Skill-Debug-001 |
-| Design | Architecture | Skill-Design-001 |
-| Perf | Optimization | Skill-Perf-001 |
-| Process | Workflow | Skill-Process-001 |
-| Tool | Tool-specific | Skill-Tool-001 |
+**Index files MUST contain ONLY the table. No headers, no descriptions, no metadata.**
+
+Correct format (maximum token efficiency):
+
+```markdown
+| Keywords | File |
+|----------|------|
+| keyword1 keyword2 keyword3 | file-name-1 |
+| keyword4 keyword5 | file-name-2 |
+```
+
+**NEVER add**:
+
+- Title headers (`# Domain Index`)
+- Purpose statements
+- Statistics sections
+- See Also references
+- Any content outside the table
+
+### Naming Rules
+
+| Component | Pattern | Examples |
+|-----------|---------|----------|
+| Domain | Lowercase, hyphenated | `pr-review`, `session-init`, `github-cli` |
+| Topic | Descriptive noun/verb | `security`, `acknowledgment`, `api-patterns` |
+| Full name | `{domain}-{topic}.md` | `pr-review-security.md`, `pester-test-isolation.md` |
+
+**Internal Skill ID**: The `Skill-{Category}-{NNN}` identifier goes INSIDE the file, not in the filename.
+
+### File vs Index Decision
+
+| File Type | Purpose | Example |
+|-----------|---------|---------|
+| `skills-{domain}-index.md` | L2 routing table | `skills-pr-review-index.md` |
+| `{domain}-{topic}.md` | L3 atomic content | `pr-review-security.md` |
+
+## Skill File Format (ADR-017)
+
+**ONE format. ALWAYS consistent. No exceptions.**
+
+Skills are stored as atomic markdown files in `.serena/memories/`. Every skill uses this format:
+
+```markdown
+# Skill-{Category}-{NNN}: {Title}
+
+**Statement**: {Atomic strategy - max 15 words}
+
+**Context**: {When to apply}
+
+**Evidence**: {Specific execution proof with session/PR reference}
+
+**Atomicity**: {%} | **Impact**: {1-10}
+
+## Pattern
+
+{Code example or detailed guidance}
+
+## Anti-Pattern
+
+{What NOT to do - optional, include only if there's a common mistake}
+```
+
+**One skill per file.** No bundling. No decision trees. No exceptions.
+
+**Example** (from `session-init-serena.md`):
+
+```markdown
+# Skill-Init-001: Serena Mandatory Initialization
+
+**Statement**: MUST initialize Serena before ANY other action.
+
+**Context**: BLOCKING gate at session start (Phase 1)
+
+**Evidence**: This gate works perfectly - never violated.
+
+**Atomicity**: 98% | **Impact**: 10/10
+
+## Pattern
+1. mcp__serena__activate_project
+2. mcp__serena__initial_instructions
+3. Proceed with work
+```
+
+### Index Selection
+
+1. Check `memory-index.md` for matching domain keywords
+2. Add skill to existing domain index if keywords overlap >50%
+3. Create new domain index only if 5+ skills exist AND no domain covers topic
+
+### Activation Vocabulary Rules
+
+When adding a skill to a domain index, select 4-8 keywords:
+
+| Keyword Type | Required | Example |
+|--------------|----------|---------|
+| Primary noun | YES | `security`, `isolation`, `mutation` |
+| Action verb | YES | `validate`, `resolve`, `triage` |
+| Tool/context | If applicable | `gh`, `pester`, `graphql` |
+| Synonyms | Recommended | `check`/`verify`, `error`/`failure` |
+
+**Uniqueness requirement**: Minimum 40% unique keywords vs other skills in same domain.
+
+### Domain-to-Index Mapping
+
+To find the correct index for a new skill, consult `memory-index.md`:
+
+```text
+mcp__serena__read_memory
+memory_file_name: "memory-index"
+```
+
+Match skill keywords against the Task Keywords column. The Essential Memories column shows which index to use.
+
+**Creating new domains**: Only create `skills-{domain}-index.md` when:
+
+1. 5+ skills exist or are planned for the topic
+2. No existing domain covers the topic adequately
+3. Keywords are distinct from all existing domains
+
+### Skill Categories (Reference)
+
+Categories are encoded in the Skill ID, not the filename:
+
+| Category | Used When | Example ID |
+|----------|-----------|------------|
+| Init | Session/tool initialization | Skill-Init-001 |
+| PR | Pull request workflows | Skill-PR-001 |
+| GH | GitHub CLI operations | Skill-GH-001 |
+| Test | Testing patterns | Skill-Test-001 |
+| Build | Compilation/CI | Skill-Build-001 |
+| Memory | Memory operations | Skill-Memory-001 |
+| Security | Security patterns | Skill-Security-001 |
+| Process | Workflow patterns | Skill-Process-001 |
+| Triage | Prioritization/routing | Skill-Triage-001 |
+| Comment | Comment/review handling | Skill-Comment-001 |
+
+**Extending categories**: Create new category when skill doesn't fit existing. Use 2-8 character abbreviation.
+
+### Skill ID Numbering (NNN)
+
+To determine the next skill number for a category:
+
+```bash
+# Find highest existing number for category (e.g., PR)
+grep -r "Skill-PR-" .serena/memories/ | grep -oE "Skill-PR-[0-9]+" | sort -t'-' -k3 -n | tail -1
+# Output: Skill-PR-004
+# Next skill: Skill-PR-005
+```
+
+**Rules:**
+
+- Numbers are sequential within category (001, 002, 003...)
+- Do NOT reuse numbers from deleted skills
+- Gaps are acceptable (001, 002, 005 if 003-004 were deleted)
+
+### Index Update Procedure
+
+After creating a skill file, update the domain index:
+
+**Step 1**: Read current index to find insertion point
+
+```text
+mcp__serena__read_memory
+memory_file_name: "skills-[domain]-index"
+```
+
+**Step 2**: Insert new row in Activation Vocabulary table
+
+```text
+mcp__serena__edit_memory
+memory_file_name: "skills-[domain]-index"
+needle: "| [last-existing-keywords] | [last-existing-file] |"
+repl: "| [last-existing-keywords] | [last-existing-file] |\n| [new-keywords] | [new-file-name] |"
+mode: "literal"
+```
+
+**Step 3**: Validate
+
+```bash
+pwsh scripts/Validate-MemoryIndex.ps1
+```
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Skills are stored in the **Serena tiered memory system** (ADR-017) at `.serena/memories/`.
 
-**Before skill lookup:**
+### Tiered Architecture (3 Levels)
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "skill [category] [context]"
+memory-index.md (L1)        # Task keyword routing
+    ↓
+skills-*-index.md (L2)      # Domain index with activation vocabulary
+    ↓
+atomic-skill.md (L3)        # Individual skill file
 ```
 
-**After skill creation:**
+### Skill Lookup (Read)
 
-```json
-mcp__cloudmcp-manager__memory-create_entities
-{
-  "entities": [{
-    "name": "Skill-[Category]-[NNN]",
-    "entityType": "Skill",
-    "observations": [
-      "Statement: [skill statement]",
-      "Context: [when to apply]",
-      "Evidence: [source of learning]",
-      "Atomicity: [score]",
-      "Tag: [helpful|harmful|neutral]",
-      "Impact: [1-10]"
-    ]
-  }]
-}
+1. **Start with memory-index.md** to find the right domain index
+2. **Read the domain index** (e.g., `skills-powershell-index.md`)
+3. **Match activation vocabulary** to find specific skill file
+4. **Read atomic skill file** for detailed guidance
+
+```text
+mcp__serena__read_memory
+memory_file_name: "memory-index"
+
+mcp__serena__read_memory
+memory_file_name: "skills-powershell-index"
+
+mcp__serena__read_memory
+memory_file_name: "powershell-testing-patterns"
 ```
 
-**After skill validation:**
+### Skill Creation (Write)
 
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Skill-[Category]-[NNN]",
-    "contents": ["Validation: [success|failure] - [details]"]
-  }]
-}
+New skills go into atomic files following domain naming:
+
+```text
+mcp__serena__write_memory
+memory_file_name: "[domain]-[skill-name]"
+content: "[skill content in standard format]"
 ```
+
+Then update the domain index to include the new skill:
+
+```text
+mcp__serena__edit_memory
+memory_file_name: "skills-[domain]-index"
+needle: "| Keywords | File |"
+repl: "| Keywords | File |\n|----------|------|\n| [keywords] | [new-skill-name] |"
+mode: "literal"
+```
+
+### Validation
+
+After creating skills, run validation:
+
+```bash
+pwsh scripts/Validate-MemoryIndex.ps1
+```
+
+Requirements:
+
+- All files referenced in indexes must exist
+- Keyword uniqueness within domain: minimum 40%
 
 ## Contradiction Resolution
 
@@ -234,8 +428,9 @@ Skillbook Manager:
 When agents retrieve skills:
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "skill [task context]"
+mcp__serena__read_memory
+memory_file_name: "skills-[domain]-index"
+# Then read specific skill file from index
 ```
 
 Agents should cite:
@@ -252,7 +447,7 @@ Agents should cite:
 
 When skillbook update is complete:
 
-1. Confirm skill created/updated via cloudmcp-manager memory tools
+1. Confirm skill created/updated via Serena memory tools
 2. Return summary of changes to orchestrator
 3. Recommend notification to relevant agents (orchestrator handles this)
 
@@ -263,7 +458,7 @@ When skillbook update is complete:
 | **retrospective** | Need more evidence | Request additional analysis |
 | **orchestrator** | Skills updated | Notify for next task |
 
-**Note**: Memory operations are executed directly via cloudmcp-manager memory tools (see Claude Code Tools section). You do not delegate to a memory agent—you invoke memory tools directly.
+**Note**: Memory operations are executed directly via Serena memory tools (see Claude Code Tools section). You do not delegate to a memory agent; you invoke memory tools directly.
 
 ## Execution Mindset
 
