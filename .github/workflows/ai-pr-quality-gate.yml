@@ -400,9 +400,41 @@ jobs:
 
           Write-Output "AI Quality Gate passed with verdict: $finalVerdict"
 
-# Skip job that provides passing status when no relevant files changed
+# Skip jobs that provide passing status when no relevant files changed
+# NOTE: We need TWO skip jobs with the SAME names as the real jobs to satisfy
+# required status checks. This follows the dual-job same-name pattern from
+# pester-tests.yml (see Issue #335 for details).
 
-  skip-review:
+  # Skip job for individual agent reviews - uses matrix to match review job names
+  skip-agent-reviews:
+    name: ${{ matrix.agent }} Review
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run != 'true'
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+
+    strategy:
+      matrix:
+        include:
+          - agent: security
+          - agent: qa
+          - agent: analyst
+          - agent: architect
+          - agent: devops
+          - agent: roadmap
+
+    steps:
+      - name: Skip ${{ matrix.agent }} review (no relevant changes)
+        run: |
+          echo "✅ ${{ matrix.agent }} review skipped - no relevant file changes detected"
+          echo ""
+          echo "This PR only contains changes to files that don't require AI review."
+          echo "Status: PASS (skipped)"
+
+  # Skip job for aggregate results - matches aggregate job name
+  skip-aggregate:
     name: Aggregate Results
     needs: check-changes
     if: needs.check-changes.outputs.should-run != 'true'
@@ -412,9 +444,6 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-
       - name: Skip AI review (no relevant file changes)
         run: |
           echo "✅ AI Quality Gate skipped - no relevant file changes detected"
