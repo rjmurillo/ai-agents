@@ -25,6 +25,11 @@
     Skip the copilot-swe-agent assignment. Use when assignment is handled
     separately with a COPILOT_GITHUB_TOKEN (workflow pattern).
 
+.PARAMETER PrepareContextOnly
+    Only prepare the context file for AI synthesis; do not create or update
+    synthesis comments. Returns the context file path and existing synthesis
+    comment ID for use by the ai-review action.
+
 .PARAMETER WhatIf
     Preview the synthesis comment without posting or assigning.
 
@@ -36,6 +41,10 @@
 
 .EXAMPLE
     .\Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
+
+.EXAMPLE
+    .\Invoke-CopilotAssignment.ps1 -IssueNumber 123 -PrepareContextOnly
+    # Returns: @{ ContextFile = "/tmp/issue-123-context.md"; ExistingSynthesisId = $null }
 
 .NOTES
     Exit Codes:
@@ -57,7 +66,9 @@ param(
 
     [string]$ConfigPath,
 
-    [switch]$SkipAssignment
+    [switch]$SkipAssignment,
+
+    [switch]$PrepareContextOnly
 )
 
 # Import shared helpers - reuse existing functions (DRY)
@@ -81,10 +92,11 @@ function Get-SynthesisConfig {
     $defaultConfig = @{
         trusted_sources = @{
             maintainers = @("rjmurillo")
-            ai_agents   = @("rjmurillo-bot", "coderabbitai", "Copilot", "cursor[bot]", "github-actions")
+            ai_agents   = @("rjmurillo-bot", "Copilot", "coderabbitai[bot]", "cursor[bot]", "github-actions[bot]")
         }
         extraction_patterns = @{
             coderabbit = @{
+                username            = "coderabbitai[bot]"
                 implementation_plan = "## Implementation"
                 related_issues      = "🔗 Similar Issues"
                 related_prs         = "🔗 Related PRs"
@@ -116,18 +128,26 @@ function Get-SynthesisConfig {
         # Deep copy to avoid modifying defaultConfig (shallow Clone() would share nested refs)
         $config = $defaultConfig | ConvertTo-Json -Depth 10 | ConvertFrom-Json -AsHashtable
 
-        # Extract maintainers (use non-greedy quantifier with boundary to prevent over-matching)
-        if ($content -match 'maintainers:\s*((?:\s+-\s+\S+)+?)(?=\s*\w+:|$)') {
+        # Extract maintainers (terminate at next key, comment block, or EOF)
+        if ($content -match 'maintainers:\s*((?:\s+-\s+\S+)+?)(?=\s*(?:\w+:|#|$))') {
             $config.trusted_sources.maintainers = $Matches[1] -split "`n" | ForEach-Object {
                 if ($_ -match '^\s+-\s+(\S+)') { $Matches[1] }
             } | Where-Object { $_ }
         }
 
-        # Extract ai_agents (use non-greedy quantifier with boundary to prevent over-matching)
-        if ($content -match 'ai_agents:\s*((?:\s+-\s+\S+)+?)(?=\s*\w+:|$)') {
+        # Extract ai_agents (terminate at next key, comment block, or EOF)
+        if ($content -match 'ai_agents:\s*((?:\s+-\s+.+)+?)(?=\s*(?:\w+:|(?:^|\n)#|$))') {
             $config.trusted_sources.ai_agents = $Matches[1] -split "`n" | ForEach-Object {
-                if ($_ -match '^\s+-\s+(\S+)') { $Matches[1] }
+                # Extract value, strip inline comments
+                if ($_ -match '^\s+-\s+([^#]+)') {
+                    $Matches[1].Trim()
+                }
             } | Where-Object { $_ }
+        }
+
+        # Extract coderabbit username from extraction_patterns.coderabbit.username
+        if ($content -match 'coderabbit:[\s\S]*?username:\s*"([^"]+)"') {
+            $config.extraction_patterns.coderabbit.username = $Matches[1]
         }
 
         # Extract synthesis marker (allow comments/blank lines between synthesis: and marker:)
@@ -152,6 +172,12 @@ function Get-MaintainerGuidance {
     <#
     .SYNOPSIS
         Extracts key decisions from maintainer comments.
+
+    .DESCRIPTION
+        Extracts guidance from maintainer comments using a tiered approach:
+        1. First, extract explicit bullet points and numbered items
+        2. If none found, extract sentences with RFC 2119 keywords (MUST, SHOULD, etc.)
+        3. Prose comments without structure are still valuable context
     #>
     [CmdletBinding()]
     param(
@@ -170,6 +196,9 @@ function Get-MaintainerGuidance {
     $guidance = @()
     foreach ($comment in $maintainerComments) {
         $lines = $comment.body -split "`n"
+        $foundBullets = $false
+
+        # First pass: extract bullet points and numbered items
         foreach ($line in $lines) {
             $trimmed = $line.Trim()
             # Match numbered items (1. xxx) or bullet points (- xxx, * xxx)
@@ -178,6 +207,20 @@ function Get-MaintainerGuidance {
                 # Skip checkbox items or too short
                 if ($item.Length -gt 10 -and $item -notmatch '^\[[ x]\]') {
                     $guidance += $item
+                    $foundBullets = $true
+                }
+            }
+        }
+
+        # Second pass: if no bullets found in this comment, extract sentences with RFC 2119 keywords
+        if (-not $foundBullets) {
+            # Split into sentences and find those with directive keywords
+            $sentences = $comment.body -split '(?<=[.!?])\s+'
+            foreach ($sentence in $sentences) {
+                $cleaned = $sentence.Trim() -replace '[\r\n]+', ' '
+                # Match sentences containing RFC 2119 keywords (case-insensitive)
+                if ($cleaned -imatch '\b(MUST|SHOULD|SHALL|REQUIRED|RECOMMENDED)\b' -and $cleaned.Length -gt 15) {
+                    $guidance += $cleaned
                 }
             }
         }
@@ -197,15 +240,20 @@ function Get-CodeRabbitPlan {
         [hashtable]$Patterns
     )
 
-    $rabbitComments = $Comments | Where-Object { $_.user.login -eq "coderabbitai" }
+    $rabbitComments = $Comments | Where-Object { $_.user.login -eq $Patterns.username }
     if ($rabbitComments.Count -eq 0) { return $null }
 
     $plan = @{ Implementation = $null; RelatedIssues = @(); RelatedPRs = @() }
 
-    # Use patterns from config
+    # Use patterns from config - wrap in optional HTML tags for flexibility
+    # CodeRabbit may use formats like: "🔗 Similar Issues" or "<b>🔗 Similar Issues</b>"
     $implPattern = [regex]::Escape($Patterns.implementation_plan)
-    $issuesPattern = [regex]::Escape($Patterns.related_issues)
-    $prsPattern = [regex]::Escape($Patterns.related_prs)
+    $issuesPatternRaw = [regex]::Escape($Patterns.related_issues)
+    $prsPatternRaw = [regex]::Escape($Patterns.related_prs)
+
+    # Create flexible patterns that allow optional <b> tags around the content
+    $issuesPattern = "(?:<b>)?$issuesPatternRaw(?:</b>)?"
+    $prsPattern = "(?:<b>)?$prsPatternRaw(?:</b>)?"
 
     foreach ($comment in $rabbitComments) {
         $body = $comment.body
@@ -215,14 +263,23 @@ function Get-CodeRabbitPlan {
             $plan.Implementation = $Matches[1].Trim()
         }
 
-        # Extract related issues using config pattern (wrap in @() to ensure array)
-        if ($body -match "$issuesPattern([\s\S]*?)(?=##|🔗|$)") {
-            $plan.RelatedIssues = @([regex]::Matches($Matches[1], '#(\d+)') | ForEach-Object { "#$($_.Groups[1].Value)" })
+        # Extract related issues using flexible pattern (handles <details> blocks)
+        # Match until next section marker or end of details block
+        if ($body -match "$issuesPattern([\s\S]*?)(?=</details>|<details>|##|🔗|$)") {
+            $issueMatches = [regex]::Matches($Matches[1], '/issues/(\d+)|#(\d+)')
+            $plan.RelatedIssues = @($issueMatches | ForEach-Object {
+                if ($_.Groups[1].Success) { "#$($_.Groups[1].Value)" }
+                elseif ($_.Groups[2].Success) { "#$($_.Groups[2].Value)" }
+            } | Select-Object -Unique)
         }
 
-        # Extract related PRs using config pattern (wrap in @() to ensure array)
-        if ($body -match "$prsPattern([\s\S]*?)(?=##|🔗|$)") {
-            $plan.RelatedPRs = @([regex]::Matches($Matches[1], '#(\d+)') | ForEach-Object { "#$($_.Groups[1].Value)" })
+        # Extract related PRs using flexible pattern (handles <details> blocks)
+        if ($body -match "$prsPattern([\s\S]*?)(?=</details>|<details>|##|🔗|$)") {
+            $prMatches = [regex]::Matches($Matches[1], '/pull/(\d+)|#(\d+)')
+            $plan.RelatedPRs = @($prMatches | ForEach-Object {
+                if ($_.Groups[1].Success) { "#$($_.Groups[1].Value)" }
+                elseif ($_.Groups[2].Success) { "#$($_.Groups[2].Value)" }
+            } | Select-Object -Unique)
         }
     }
 
@@ -267,16 +324,83 @@ function Get-AITriageInfo {
     # Extract Priority and Category using shared logic (DRY)
     foreach ($field in @('Priority', 'Category')) {
         # Match Markdown table format: | **Priority** | `P1` |
-        if ($body -match "\*\*$field\*\*[^``]*``([^``]+)``") {
-            $triage[$field] = $Matches[1]
+        # Anchored to line start for accuracy, excludes separator rows (|:---|)
+        if ($body -match "(?m)^\s*\|\s*\*\*$field\*\*\s*\|\s*``([^``]+)``") {
+            $triage[$field] = $Matches[1].Trim()
         }
         # Fallback to plain text format: Priority: P1
-        elseif ($body -match "$field[:\s]+(\S+)") {
+        elseif ($body -match "(?m)^$field[:\s]+(\S+)") {
             $triage[$field] = $Matches[1]
         }
     }
 
     return $triage
+}
+
+#endregion
+
+#region Context File Generation
+
+function New-ContextFile {
+    <#
+    .SYNOPSIS
+        Creates a context file for AI synthesis.
+
+    .DESCRIPTION
+        Generates a markdown file containing all relevant issue context for AI synthesis.
+        Includes issue details, labels, description, and all trusted source comments.
+        This file is passed to the ai-review action for AI-powered synthesis.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [psobject]$Issue,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [array]$TrustedComments,
+
+        [int]$IssueNumber
+    )
+
+    # Create temp file
+    $contextFile = Join-Path ([System.IO.Path]::GetTempPath()) "issue-$IssueNumber-context.md"
+
+    # Build context content
+    $content = @"
+# Issue Context for Synthesis
+
+## Issue Details
+
+**Title**: $($Issue.title)
+**Labels**: $($Issue.labels | ForEach-Object { $_.name } | Join-String -Separator ', ')
+
+### Description
+
+$($Issue.body)
+
+## Comments from Trusted Sources
+
+"@
+
+    foreach ($comment in $TrustedComments) {
+        $content += @"
+
+### Comment by $($comment.user.login)
+
+$($comment.body)
+
+---
+
+"@
+    }
+
+    # Write to file
+    $content | Set-Content -Path $contextFile -Encoding UTF8
+
+    Write-Host "Context file created: $contextFile ($(Get-Item $contextFile).Length bytes)" -ForegroundColor Gray
+    return $contextFile
 }
 
 #endregion
@@ -482,6 +606,35 @@ Write-Host "Found $($comments.Count) comments" -ForegroundColor Gray
 $trustedUsers = @($config.trusted_sources.maintainers) + @($config.trusted_sources.ai_agents)
 $trustedComments = @(Get-TrustedSourceComments -Comments $comments -TrustedUsers $trustedUsers)
 Write-Host "Found $($trustedComments.Count) comments from trusted sources" -ForegroundColor Gray
+
+# PrepareContextOnly mode: create context file and return early
+if ($PrepareContextOnly) {
+    # Create context file for AI synthesis
+    $contextFile = New-ContextFile -Issue $issue -TrustedComments $trustedComments -IssueNumber $IssueNumber
+
+    # Check for existing synthesis comment (for idempotency)
+    $existingSynthesis = Find-ExistingSynthesis -Comments $comments -Marker $config.synthesis.marker
+
+    # Return structured output for workflow consumption
+    $output = [PSCustomObject]@{
+        ContextFile         = $contextFile
+        ExistingSynthesisId = & { if ($existingSynthesis) { $existingSynthesis.id } else { $null } }
+        Marker              = $config.synthesis.marker
+        IssueNumber         = $IssueNumber
+        Owner               = $Owner
+        Repo                = $Repo
+    }
+
+    # Write outputs for GitHub Actions consumption
+    if ($env:GITHUB_OUTPUT) {
+        "context_file=$contextFile" | Add-Content -Path $env:GITHUB_OUTPUT
+        "existing_synthesis_id=$($output.ExistingSynthesisId)" | Add-Content -Path $env:GITHUB_OUTPUT
+        "marker=$($config.synthesis.marker)" | Add-Content -Path $env:GITHUB_OUTPUT
+    }
+
+    $output
+    exit 0
+}
 
 # Extract context
 $maintainerGuidance = Get-MaintainerGuidance -Comments $trustedComments -Maintainers $config.trusted_sources.maintainers
