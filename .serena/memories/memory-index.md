@@ -1,3 +1,5 @@
+# Memory Index
+
 | Task Keywords | Essential Memories |
 |---------------|-------------------|
 | session start init handoff protocol serena blocking | skills-session-init-index, project-overview, codebase-structure |
@@ -30,6 +32,7 @@
 | labeler yaml glob negation matcher any-glob all-glob | skills-labeler-index |
 | analysis gap root-cause trade-off git blame investigation | skills-analysis-index |
 | git hook pre-commit autofix cross-language grep TOCTOU | skills-git-hooks-index |
+| git branch merge conflict checkout cleanup workflow resolution | skills-git-index |
 | protocol blocking gate RFC MUST verification template legacy | skills-protocol-index |
 | retrospective learning session failure | retrospective-2025-12-17, retrospective-2025-12-18 |
 | regex pattern match escape lookahead anchor quantifier | skills-regex |
