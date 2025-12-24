@@ -14,10 +14,13 @@
 
 BeforeAll {
     # Install and import required module
-    if (-not (Get-Module -ListAvailable -Name powershell-yaml)) {
-        Install-Module -Name powershell-yaml -Force -Scope CurrentUser -AllowClobber
+    # Version pinned for security and reproducibility
+    $requiredVersion = '0.4.12'
+    $module = Get-Module -ListAvailable -Name powershell-yaml | Where-Object { $_.Version -eq $requiredVersion }
+    if (-not $module) {
+        Install-Module -Name powershell-yaml -RequiredVersion $requiredVersion -Force -Scope CurrentUser -AllowClobber
     }
-    Import-Module powershell-yaml -ErrorAction Stop
+    Import-Module powershell-yaml -RequiredVersion $requiredVersion -ErrorAction Stop
 
     # Read the script content and extract just the functions (skip main execution)
     $scriptContent = Get-Content "$PSScriptRoot/../Generate-Skills.ps1" -Raw
