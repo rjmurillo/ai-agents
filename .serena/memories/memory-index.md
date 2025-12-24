@@ -1,16 +1,19 @@
 | Task Keywords | Essential Memories |
 |---------------|-------------------|
 | session start init handoff protocol serena blocking | skills-session-init-index, project-overview, codebase-structure |
-| github pr issue cli gh api graphql | skills-github-cli-index, skills-pr-review-index, project-labels-milestones |
+| github pr issue cli gh api | skills-github-cli-index, skills-pr-review-index, project-labels-milestones |
+| graphql mutation query resolve thread reply batch nested | skills-graphql-index |
 | jq json parse filter select map array object string | skills-jq-index |
 | gh extension notify combine metrics milestone webhook grep sub-issue | skills-gh-extensions-index |
 | label milestone issue create tag priority | project-labels-milestones |
 | powershell ps1 psm1 module pester test discovery isolation | skills-powershell-index, skills-pester-testing-index, pattern-thin-workflows |
 | bash exit code cross-language contract AUTOFIX pre-commit hook | skills-bash-integration-index |
 | security vulnerability TOCTOU secret injection | skills-security-index |
-| planning architecture ADR design task file path | skills-planning-index, skills-architecture, skills-design |
+| planning task file path scope breakdown | skills-planning-index |
+| architecture ADR model composite tool allocation producer-consumer | skills-architecture-index |
+| design agent specialization entry-criteria limitation composability | skills-design-index |
 | implementation code feature bug fix test TDD additive | skills-implementation-index, skills-workflow, skills-execution |
-| orchestration agent coordination parallel handoff | skills-orchestration, skills-collaboration-patterns |
+| orchestration agent coordination parallel handoff dispatch | skills-orchestration-index, skills-collaboration-patterns |
 | documentation PRD spec user-facing migration self-contained | skills-documentation-index |
 | validation quality lint false-positive gate test | skills-validation-index, skills-linting |
 | CI CD workflow actions runner ARM | skills-ci-infrastructure-index, skills-github-workflow-patterns |
