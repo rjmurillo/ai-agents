@@ -1,9 +1,7 @@
-# Git Skills Index
-
 | Keywords | File |
 |----------|------|
-| git merge conflict resolve checkout branch main | git-conflict-resolution-workflow |
-| git branch delete cleanup checkout exists local force | git-branch-cleanup-pattern |
+| merge conflict resolve theirs ours accept reject resolution-strategy | git-conflict-resolution-workflow |
+| stale branch delete prune cleanup obsolete local-only tracking | git-branch-cleanup-pattern |
 | merge pre-flight deletion upstream conflict detect | git-merge-preflight |
 | worktree parallel isolation PR cross-contamination | git-worktree-parallel |
 | worktree cleanup remove temporary session end | git-worktree-cleanup |
