@@ -961,24 +961,53 @@ fi
 
 **Critical**: Repeat this loop until no new comments appear after a commit. Bots like cursor[bot] and Copilot respond to your fixes and may identify issues with your implementation.
 
-#### Phase 8.4: QA Gate Verification
+#### Phase 8.4: CI Check Verification
 
-Before claiming completion, verify CI checks pass:
+**MANDATORY**: Verify ALL CI checks pass before claiming completion. The `mergeable: "MERGEABLE"` field only indicates no merge conflicts, NOT that CI checks are passing.
+
+**Critical**: `gh pr view --json mergeable` returning `"MERGEABLE"` means:
+- ✅ No merge conflicts
+- ✅ Branch is compatible with base
+
+It does NOT mean:
+- ❌ CI checks passing
+- ❌ Required status checks satisfied
+
+**Always verify CI explicitly**:
 
 ```bash
-# Check PR status
-gh pr checks [number] --watch
+# Check ALL CI checks status
+echo "=== CI Check Verification ==="
+gh pr checks [number] --json name,state,conclusion > ci-checks.json
 
-# If AI Quality Gate fails, parse actionable items
-CHECKS=$(gh pr checks [number] --json name,state,description)
-FAILED=$(echo "$CHECKS" | jq '[.[] | select(.state == "FAILURE")]')
+# Parse for failures (exclude skipped and null conclusions)
+FAILED_CHECKS=$(cat ci-checks.json | jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != null)]')
+FAILED_COUNT=$(echo "$FAILED_CHECKS" | jq 'length')
 
-if [ "$(echo "$FAILED" | jq 'length')" -gt 0 ]; then
-  echo "[QA GATE FAIL] Parsing failures for actionable items..."
-  # Add new tasks to task list
-  # Return to Phase 6 for implementation
+if [ "$FAILED_COUNT" -gt 0 ]; then
+  echo "[BLOCKED] $FAILED_COUNT CI checks not passing:"
+  echo "$FAILED_CHECKS" | jq -r '.[] | "  - \(.name): \(.conclusion)"'
+  
+  # Parse actionable items from failures
+  echo ""
+  echo "Actionable items:"
+  # Extract failure details for each check
+  echo "$FAILED_CHECKS" | jq -r '.[] | "  - \(.name): Review logs at \(.detailsUrl // "N/A")"'
+  
+  # Do NOT claim completion - return to Phase 6 for fixes
+  exit 1
 fi
+
+echo "[PASS] All CI checks passing ($(cat ci-checks.json | jq 'length') checks)"
 ```
+
+**Exit codes**:
+- `0`: All checks passing (or skipped)
+- `1`: One or more checks failed (blocks completion)
+
+**If CI fails**: Parse failure messages, add new tasks to task list, return to Phase 6 for implementation.
+
+**Skill Reference**: Skill-PR-Review-007 (CI verification before completion, atomicity: 96%)
 
 #### Phase 8.5: Completion Criteria Checklist
 
