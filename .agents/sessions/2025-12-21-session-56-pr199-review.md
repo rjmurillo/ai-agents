@@ -95,7 +95,7 @@ None. PR #199 is ready for merge when the author determines the changes are comp
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | Session 56 added to history table |
+| MUST | Update `.agents/HANDOFF.md` (include session log link) | N/A | Superseded by read-only policy (2025-12-22); session log at `.agents/sessions/` is authoritative |
 | MUST | Complete session log | [x] | All sections filled |
 | MUST | Run markdown lint | [x] | 0 errors on 138 files |
 | MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: docs-only (zero comments, no implementation) |
