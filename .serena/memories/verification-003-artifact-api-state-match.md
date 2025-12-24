@@ -32,7 +32,7 @@
 # Before resolving threads (Phase 8)
 
 # 1. Count completed tasks in artifact
-ARTIFACT_COMPLETE=$(grep -c "^\- \[x\]" .agents/planning/tasks.md)
+ARTIFACT_COMPLETE=$(grep -c "^\\- \\[x\\]" .agents/planning/tasks.md)
 
 # 2. Count resolved threads via API
 API_RESOLVED=$(gh api graphql -f query='
