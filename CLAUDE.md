@@ -69,6 +69,37 @@ This file exists for Claude Code's auto-load behavior. All canonical agent docum
 
 For full details on workflows, agent catalog, and best practices, see [AGENTS.md](AGENTS.md).
 
+## GitHub Workflow Requirements (MUST)
+
+### Issue Assignment
+
+When starting work on a GitHub issue, you MUST assign it to yourself:
+
+```bash
+gh issue edit <number> --add-assignee @me
+```
+
+**When**: At the start of work, before making any changes.
+
+**Why**: Prevents duplicate work and signals ownership.
+
+### Pull Request Template
+
+When creating a pull request, you MUST use the PR template:
+
+1. Read the template: `cat .github/PULL_REQUEST_TEMPLATE.md`
+2. Structure PR body to include ALL template sections:
+   - Summary
+   - Specification References (table)
+   - Changes (bulleted list)
+   - Type of Change (checkboxes)
+   - Testing (checkboxes)
+   - Agent Review (security + other reviews)
+   - Checklist
+   - Related Issues
+
+**Do NOT** create PRs with custom descriptions that skip template sections.
+
 ## Default Behavior: Use Orchestrator Agent
 
 When the user gives you any task, you MUST use the orchestrator agent rather than executing the task natively. The orchestrator will route to appropriate specialized agents.
