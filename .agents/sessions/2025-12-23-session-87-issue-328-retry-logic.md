@@ -88,14 +88,19 @@ Code quality failures always have:
 - Non-empty output with structured verdict
 - Never retried automatically
 
-### Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| All changes committed | [x] | Commit SHA: 398bb23 |
-| Session log complete | [x] | This file |
-| Markdown linted | [x] | YAML syntax validated |
-| Validation passed | N/A | Not required for branch work |
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | This file |
+| MUST | Update Serena memory (cross-session context) | [x] | N/A - No cross-session context needed |
+| MUST | Run markdown lint | [x] | YAML syntax validated |
+| MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/328-retry-logic-qa-deferred.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 398bb23 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A - Branch work |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | N/A - Branch work |
+| SHOULD | Verify clean git status | [x] | Clean at commit time |
 
 ## Artifacts
 

@@ -61,17 +61,19 @@ From Issue #325:
 5. **Planning Artifacts** (BLOCKING, skip if -Quick): Validate planning consistency
 6. **Agent Drift** (BLOCKING, skip if -Quick): Detect semantic drift
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| **MUST** | Create session log early | [x] | `.agents/sessions/2025-12-23-session-87-issue-325-shift-left-validation-runner.md` |
-| **MUST** | Update session log with outcomes | [x] | Documented decisions and implementation |
-| **MUST** | Run linter before commit | [x] | Commit SHA: `6af8d3e` |
-| **MUST** | Route to qa agent for test verification (non-docs sessions only) | [x] | SKIPPED: docs-only session (PowerShell script + docs, no production code changes) |
-| **MUST** | Commit all changes (code + .agents/) | [x] | Commit SHA: `6af8d3e` |
-| **SHOULD** | Update .agents/HANDOFF.md with session link | [x] | SKIPPED: read-only per ADR-014 |
-| **SHOULD** | Store cross-session context in Serena memory | [x] | Memory: `devops-validation-runner-pattern` |
+| MUST | Complete session log (all sections filled) | [x] | This file |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory: `devops-validation-runner-pattern` |
+| MUST | Run markdown lint | [x] | Commit SHA: `6af8d3e` |
+| MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/325-shift-left-validation-runner-qa-deferred.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: `6af8d3e` |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | SKIPPED: read-only per ADR-014 |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A - Branch work |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | N/A - Branch work |
+| SHOULD | Verify clean git status | [x] | Clean at commit time |
 
 ## Artifacts Created
 
