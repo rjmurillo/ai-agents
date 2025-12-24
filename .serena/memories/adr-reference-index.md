@@ -35,6 +35,7 @@ This is a REFERENCE index, not a skills index. ADRs live in `.agents/architectur
 | ADR-001 | Markdown Linting Configuration | markdown lint autofix |
 | ADR-005 | PowerShell-Only Scripting Standard | powershell ps1 pwsh |
 | ADR-017 | Tiered Memory Index Architecture | memory index L1 L2 L3 tier |
+| ADR-018 | Cache Invalidation Strategy | cache invalidate TTL session-local cloudmcp |
 
 ### Proposed (Not Yet Implemented)
 | ADR | Title | Status |

@@ -12,6 +12,7 @@
 | planning task file path scope breakdown | skills-planning-index |
 | architecture ADR model composite tool allocation producer-consumer | skills-architecture-index |
 | adr decision record active proposed superseded rationale | adr-reference-index |
+| cache invalidation TTL session-local cloudmcp stale refresh | adr-reference-index |
 | design agent specialization entry-criteria limitation composability | skills-design-index |
 | implementation code feature bug fix test TDD additive | skills-implementation-index |
 | orchestration agent coordination parallel handoff dispatch | skills-orchestration-index |
