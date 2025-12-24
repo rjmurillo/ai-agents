@@ -143,7 +143,7 @@ None. Pre-existing markdown lint errors in `.claude/skills/adr-review/agent-prom
 | MUST | Run markdown lint | [x] | Session log clean (pre-existing errors in other files) |
 | MUST | Route to qa agent (feature implementation) | [x] | `.agents/qa/329-failure-categorization-qa-deferred.md` |
 | MUST | Commit all changes (including .serena/memories) | [x] | Commits: feea262, 01497df |
-| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | Added to Recent Sessions (last 5 list) |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - no project plan for this issue |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Not needed - focused implementation |
 | SHOULD | Verify clean git status | [x] | `git status` shows clean |
