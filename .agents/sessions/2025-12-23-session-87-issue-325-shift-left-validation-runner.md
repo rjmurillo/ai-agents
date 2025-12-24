@@ -67,9 +67,9 @@ From Issue #325:
 |-----|------|--------|----------|
 | **MUST** | Create session log early | [x] | `.agents/sessions/2025-12-23-session-87-issue-325-shift-left-validation-runner.md` |
 | **MUST** | Update session log with outcomes | [x] | Documented decisions and implementation |
-| **MUST** | Run linter before commit | [x] | Commit SHA: `20f974e` |
+| **MUST** | Run linter before commit | [x] | Commit SHA: `6af8d3e` |
 | **MUST** | Route to qa agent for test verification (non-docs sessions only) | [x] | SKIPPED: docs-only session (PowerShell script + docs, no production code changes) |
-| **MUST** | Commit all changes (code + .agents/) | [x] | Commit SHA: `20f974e` |
+| **MUST** | Commit all changes (code + .agents/) | [x] | Commit SHA: `6af8d3e` |
 | **SHOULD** | Update .agents/HANDOFF.md with session link | [x] | SKIPPED: read-only per ADR-014 |
 | **SHOULD** | Store cross-session context in Serena memory | [x] | Memory: `devops-validation-runner-pattern` |
 
