@@ -77,6 +77,13 @@ outputs:
   exit-code:
     description: 'Exit code (0=pass, 1=fail)'
     value: ${{ steps.parse.outputs.exit_code }}
+  # Retry/infrastructure failure tracking (Issue #328)
+  infrastructure-failure:
+    description: 'Whether failure was infrastructure-related (true/false)'
+    value: ${{ steps.invoke.outputs.infrastructure_failure }}
+  retry-count:
+    description: 'Number of retry attempts made (0 = no retries)'
+    value: ${{ steps.invoke.outputs.retry_count }}
   # Debug outputs for AI agents and humans
   full-prompt:
     description: 'Complete prompt sent to the model (for debugging)'
@@ -456,7 +463,7 @@ runs:
           echo "EOF_PROMPT"
         } >> $GITHUB_OUTPUT
 
-    - name: Invoke Copilot CLI
+    - name: Invoke Copilot CLI (with retry for infrastructure failures)
       id: invoke
       shell: bash
       env:
@@ -495,28 +502,91 @@ runs:
         # Calculate timeout in seconds
         TIMEOUT_SECONDS=$((TIMEOUT_MINUTES * 60))
 
-        # Invoke Copilot CLI with timeout
-        echo "Invoking Copilot CLI (timeout: ${TIMEOUT_MINUTES}m)..."
-        echo "Agent: $COPILOT_AGENT, Model: $COPILOT_MODEL"
-        echo "Prompt size: $(wc -c < /tmp/ai-review-full-prompt.md) bytes"
+        # Retry configuration (Issue #328: Handle infrastructure failures)
+        MAX_RETRIES=2
+        RETRY_DELAY_BASE=30  # seconds
+        ATTEMPT=0
+        INFRASTRUCTURE_FAILURE=false
 
-        # Create temp files for separate stdout/stderr capture
-        STDOUT_FILE=$(mktemp)
-        STDERR_FILE=$(mktemp)
+        # Function to check if failure is infrastructure-related
+        is_infrastructure_failure() {
+          local exit_code=$1
+          local output=$2
+          local stderr=$3
 
-        set +e
-        timeout "$TIMEOUT_SECONDS" copilot --no-color --silent --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
-        EXIT_CODE=$?
+          # Timeout (exit code 124)
+          if [ $exit_code -eq 124 ]; then
+            return 0
+          fi
 
-        OUTPUT=$(cat "$STDOUT_FILE")
-        STDERR_OUTPUT=$(cat "$STDERR_FILE")
-        rm -f "$STDOUT_FILE" "$STDERR_FILE"
-        set -e
+          # Non-zero exit with no output (indicates infrastructure issue)
+          if [ $exit_code -ne 0 ] && [ -z "$output" ] && [ -z "$stderr" ]; then
+            return 0
+          fi
 
-        # Log what we captured
-        echo "Exit code: $EXIT_CODE"
-        echo "Stdout length: ${#OUTPUT} chars"
-        echo "Stderr length: ${#STDERR_OUTPUT} chars"
+          # Check stderr for infrastructure keywords
+          if [ -n "$stderr" ]; then
+            if echo "$stderr" | grep -qiE "(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|ETIMEDOUT|503|502|504)"; then
+              return 0
+            fi
+          fi
+
+          # Not an infrastructure failure
+          return 1
+        }
+
+        # Retry loop
+        while [ $ATTEMPT -le $MAX_RETRIES ]; do
+          if [ $ATTEMPT -gt 0 ]; then
+            RETRY_DELAY=$((RETRY_DELAY_BASE * (2 ** (ATTEMPT - 1))))  # Exponential backoff
+            echo ""
+            echo "=== RETRY ATTEMPT $ATTEMPT/$MAX_RETRIES ==="
+            echo "Infrastructure failure detected. Retrying in ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+          fi
+
+          echo "Invoking Copilot CLI (attempt $((ATTEMPT + 1))/$((MAX_RETRIES + 1)), timeout: ${TIMEOUT_MINUTES}m)..."
+          echo "Agent: $COPILOT_AGENT, Model: $COPILOT_MODEL"
+          echo "Prompt size: $(wc -c < /tmp/ai-review-full-prompt.md) bytes"
+
+          # Create temp files for separate stdout/stderr capture
+          STDOUT_FILE=$(mktemp)
+          STDERR_FILE=$(mktemp)
+
+          set +e
+          timeout "$TIMEOUT_SECONDS" copilot --no-color --silent --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+          EXIT_CODE=$?
+
+          OUTPUT=$(cat "$STDOUT_FILE")
+          STDERR_OUTPUT=$(cat "$STDERR_FILE")
+          rm -f "$STDOUT_FILE" "$STDERR_FILE"
+          set -e
+
+          # Log what we captured
+          echo "Exit code: $EXIT_CODE"
+          echo "Stdout length: ${#OUTPUT} chars"
+          echo "Stderr length: ${#STDERR_OUTPUT} chars"
+
+          # Check if this is an infrastructure failure
+          if is_infrastructure_failure $EXIT_CODE "$OUTPUT" "$STDERR_OUTPUT"; then
+            INFRASTRUCTURE_FAILURE=true
+            echo "::warning::Infrastructure failure detected (exit code: $EXIT_CODE)"
+
+            if [ $ATTEMPT -lt $MAX_RETRIES ]; then
+              ATTEMPT=$((ATTEMPT + 1))
+              continue  # Retry
+            else
+              echo "::error::Max retries ($MAX_RETRIES) exceeded for infrastructure failure"
+              # Fall through to construct failure message
+            fi
+          else
+            # Success or code quality failure (not infrastructure) - don't retry
+            INFRASTRUCTURE_FAILURE=false
+            break
+          fi
+
+          ATTEMPT=$((ATTEMPT + 1))
+        done
 
         # Detailed error analysis
         if [ $EXIT_CODE -eq 124 ]; then
@@ -594,6 +664,12 @@ runs:
 
         # Output Copilot exit code for debugging
         echo "copilot_exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+        # Output infrastructure failure flag for labeling
+        echo "infrastructure_failure=$INFRASTRUCTURE_FAILURE" >> $GITHUB_OUTPUT
+
+        # Output retry count for observability
+        echo "retry_count=$ATTEMPT" >> $GITHUB_OUTPUT
 
     - name: Parse output
       id: parse

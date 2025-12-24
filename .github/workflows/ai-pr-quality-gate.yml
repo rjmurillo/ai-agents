@@ -148,6 +148,8 @@ jobs:
           AGENT: ${{ matrix.agent }}
           VERDICT: ${{ steps.review.outputs.verdict }}
           FINDINGS: ${{ steps.review.outputs.findings }}
+          INFRASTRUCTURE_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
+          RETRY_COUNT: ${{ steps.review.outputs.retry-count }}
         run: |
           # Create output directory for this agent's results
           mkdir -p ai-review-results
@@ -158,9 +160,17 @@ jobs:
           # Write findings to file (avoids shell interpolation issues with special chars)
           echo "$FINDINGS" > "ai-review-results/${AGENT}-findings.txt"
 
+          # Write infrastructure failure flag (Issue #328)
+          echo "$INFRASTRUCTURE_FAILURE" > "ai-review-results/${AGENT}-infrastructure-failure.txt"
+
+          # Write retry count (Issue #328)
+          echo "$RETRY_COUNT" > "ai-review-results/${AGENT}-retry-count.txt"
+
           echo "Saved ${AGENT} results:"
           echo "  Verdict: $VERDICT"
           echo "  Findings: $(wc -c < ai-review-results/${AGENT}-findings.txt) bytes"
+          echo "  Infrastructure failure: $INFRASTRUCTURE_FAILURE"
+          echo "  Retry count: $RETRY_COUNT"
 
       - name: Upload review results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -366,6 +376,46 @@ jobs:
 
           $report | Set-Content $reportFile -Encoding UTF8
           "report_file=$reportFile" >> $env:GITHUB_OUTPUT
+
+      - name: Check for infrastructure failures and add label
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+        run: |
+          # Check if any agent had infrastructure failure (Issue #328)
+          $infrastructureFailureDetected = $false
+          $retryAttempts = @()
+
+          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
+
+          foreach ($agent in $agents) {
+            $infraFile = "ai-review-results/$agent-infrastructure-failure.txt"
+            $retryFile = "ai-review-results/$agent-retry-count.txt"
+
+            if (Test-Path $infraFile) {
+              $infraFlag = (Get-Content $infraFile -Raw).Trim()
+              if ($infraFlag -eq "true") {
+                $infrastructureFailureDetected = $true
+                $retryCount = 0
+                if (Test-Path $retryFile) {
+                  $retryCount = [int](Get-Content $retryFile -Raw).Trim()
+                }
+                $retryAttempts += "${agent}: $retryCount retries"
+                Write-Output "::notice::Infrastructure failure detected for $agent agent (retries: $retryCount)"
+              }
+            }
+          }
+
+          if ($infrastructureFailureDetected) {
+            Write-Output "::warning::Infrastructure failures detected - adding infrastructure-failure label"
+            Write-Output "Retry attempts: $($retryAttempts -join ', ')"
+
+            # Add infrastructure-failure label to PR
+            gh pr edit $env:PR_NUMBER --add-label "infrastructure-failure"
+          } else {
+            Write-Output "No infrastructure failures detected"
+          }
 
       - name: Post PR Comment
         shell: pwsh
