@@ -1,0 +1,97 @@
+# Memory Validation for ADR-017 Compliance
+#
+# Validates memory files follow the tiered index architecture:
+# - Skill format validation (one skill per file, no bundled formats)
+# - Index validation (proper Keywords|File table format)
+#
+# This is a REQUIRED check that blocks PRs from corrupting the memory system.
+# Pre-commit hooks can be bypassed; CI cannot.
+#
+# Local developers can run the same validation using:
+#   pwsh scripts/Validate-SkillFormat.ps1
+#   pwsh scripts/Validate-MemoryIndex.ps1
+
+name: Memory Validation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.serena/memories/**'
+      - 'scripts/Validate-SkillFormat.ps1'
+      - 'scripts/Validate-MemoryIndex.ps1'
+      - '.github/workflows/memory-validation.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.serena/memories/**'
+      - 'scripts/Validate-SkillFormat.ps1'
+      - 'scripts/Validate-MemoryIndex.ps1'
+      - '.github/workflows/memory-validation.yml'
+  workflow_dispatch: # Allow manual triggering
+
+concurrency:
+  group: memory-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Memory Files
+    # ADR-014: Use ubuntu-24.04-arm to align with standardized ARM runners for CI.
+    # ARM runners are selected here for cost-optimized, consistent validation workloads.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Check for memory file changes
+        id: changes
+        shell: pwsh
+        run: |
+          # Get list of changed files in this PR/push
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            $changedFiles = git diff --name-only origin/${{ github.base_ref }}...HEAD
+          } else {
+            $changedFiles = git diff --name-only HEAD~1...HEAD
+          }
+
+          # Match any file under .serena/memories/ (including subdirectories)
+          $memoryChanges = $changedFiles | Where-Object { $_ -match '^\.serena/memories/' }
+
+          if ($memoryChanges.Count -eq 0) {
+            Write-Host "No memory files changed. Skipping validation." -ForegroundColor Yellow
+            Write-Host "This allows workflow-only changes to pass without validating pre-existing issues."
+            echo "skip=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "Memory files changed: $($memoryChanges.Count) file(s)" -ForegroundColor Cyan
+            $memoryChanges | ForEach-Object { Write-Host "  - $_" }
+            echo "skip=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Validate Skill Format (ADR-017)
+        if: steps.changes.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "=== Skill Format Validation ===" -ForegroundColor Cyan
+          Write-Host "Checking for bundled skill files (multiple skills per file)..." -ForegroundColor Gray
+          ./scripts/Validate-SkillFormat.ps1 -CI
+
+      - name: Validate Memory Index
+        if: steps.changes.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "=== Memory Index Validation ===" -ForegroundColor Cyan
+          Write-Host "Checking index file references and keyword uniqueness..." -ForegroundColor Gray
+          ./scripts/Validate-MemoryIndex.ps1 -CI
+
+      - name: Skip notice
+        if: steps.changes.outputs.skip == 'true'
+        run: |
+          echo "::notice::Memory validation skipped - no .serena/memories/** files changed in this PR."
