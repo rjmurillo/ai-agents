@@ -1,7 +1,7 @@
 # Skill: Multi-Agent ADR Debate Protocol
 
 **Extracted**: 2025-12-23
-**Source**: Session 86 - ADR-017 Multi-Agent Debate
+**Source**: Session 86 - ADR-019 Multi-Agent Debate
 
 ## Skill-Debate-001: Structured Multi-Agent ADR Consensus (95%)
 
@@ -11,7 +11,7 @@
 
 **Trigger**: ADR requires validation from 3+ specialized perspectives
 
-**Evidence**: ADR-017 achieved consensus in 2 rounds with 5 agents (architect, critic, independent-thinker, security, analyst). All P0 issues resolved before convergence.
+**Evidence**: ADR-019 achieved consensus in 2 rounds with 5 agents (architect, critic, independent-thinker, security, analyst). All P0 issues resolved before convergence.
 
 **Atomicity**: 95%
 
@@ -43,16 +43,18 @@ Round N:
 ```
 
 **Success Criteria**:
+
 - All agents either Accept or Disagree-and-Commit
 - Dissent documented in debate log
 - ADR updated with all P0 resolutions
 
 **Anti-Pattern**:
+
 - Single-agent ADR review (misses domain expertise)
 - Endless debate without convergence check (rounds > 10)
 - Ignoring dissent (must document Disagree-and-Commit rationale)
 
-**Key Learnings from ADR-017**:
+**Key Learnings from ADR-019**:
 
 1. **independent-thinker is essential**: Challenges groupthink with evidence-based contrarian views
 2. **P0 vs P1 categorization enables progress**: Not all issues are blocking
@@ -65,7 +67,7 @@ Round N:
 ## Related Documents
 
 - Source: `.agents/sessions/2025-12-23-session-86-adr-017-debate.md`
-- ADR: `.agents/architecture/ADR-017-model-routing-low-false-pass.md`
-- Debate Log: `.agents/architecture/ADR-017-debate-log.md`
+- ADR: `.agents/architecture/ADR-019-model-routing-low-false-pass.md`
+- Debate Log: `.agents/architecture/ADR-019-debate-log.md`
 - Related: skills-architecture (ADR patterns)
 - Related: skills-critique (conflict escalation)
