@@ -800,7 +800,7 @@ Use cloudmcp-manager memory tools directly for all persistence operations.
 mcp__cloudmcp-manager__memory-create_entities
 {
   "entities": [{
-    "name": "Skill-[Category]-[NNN]",
+    "name": "{domain}-{description}",
     "entityType": "Skill",
     "observations": ["[Skill statement with context and evidence]"]
   }]
@@ -867,7 +867,7 @@ When retrospective is complete:
 
 | Skill ID | Statement | Atomicity | Operation | Target |
 |----------|-----------|-----------|-----------|--------|
-| Skill-[Cat]-[NNN] | [Atomic statement - max 15 words] | [%] | ADD/UPDATE/TAG/REMOVE | [Memory file if UPDATE] |
+| {domain}-{description} | [Atomic statement - max 15 words] | [%] | ADD/UPDATE/TAG/REMOVE | [Memory file if UPDATE] |
 
 ### Memory Updates
 
