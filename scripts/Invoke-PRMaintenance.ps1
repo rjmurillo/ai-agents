@@ -38,9 +38,9 @@
 
 .NOTES
     Exit Codes:
-    0 = Success (all actionable items processed)
-    1 = Partial success (some items processed, some blocked)
-    2 = Error (script failure)
+    0 = Success (all PRs processed, blocked PRs reported via separate step)
+    1 = Reserved for future use
+    2 = Error (script failure, API errors, fatal exceptions)
 #>
 
 [CmdletBinding()]
@@ -976,13 +976,19 @@ try {
         Save-Log -Path $LogPath
 
         # Determine exit code
+        # Exit code 0: Success (PRs processed, even if some are blocked)
+        # Exit code 1: Reserved for future use
+        # Exit code 2: Fatal errors (script failure, API errors)
+        # 
+        # Note: Blocked PRs (CHANGES_REQUESTED) are not errors - they're
+        # reported via summary and trigger a separate alert issue.
+        # The workflow should only fail on actual errors.
         $exitCode = 0
         if ($results.Errors.Count -gt 0) {
             $exitCode = 2
         }
-        elseif ($results.Blocked.Count -gt 0) {
-            $exitCode = 1
-        }
+        # Removed: elseif ($results.Blocked.Count -gt 0) { $exitCode = 1 }
+        # Blocked PRs are handled by the "Create alert issue for blocked PRs" step
     }
     finally {
         # ADR-015 Fix 3: Always release lock in finally block
