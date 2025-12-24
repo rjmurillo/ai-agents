@@ -33,8 +33,9 @@ A new capability is requested: sophisticated feature request review that:
 2. **ADR-005 Compliance**: PowerShell-only scripting
 3. **Copilot CLI Limitations**: De-prioritized to P2 (maintenance only)
 4. **Conditional Execution**: Only feature requests need this review
-5. **Research Tools**: Prompt references MCP tools not available in Copilot CLI
-6. **Separation of Concerns**: Analyst categorizes; critic evaluates; new reviewer assesses value
+5. **Research Tools**: Prompt adapted for context-limited execution
+6. **Separation of Concerns**: Analyst categorizes AND evaluates (same agent, different prompts); roadmap prioritizes
+7. **Existing Capability**: Analyst agent already defines Feature Request Review template (lines 178-215)
 
 ## Considered Options
 
@@ -43,12 +44,12 @@ A new capability is requested: sophisticated feature request review that:
 Add a new step that runs only when `category=enhancement`:
 
 ```yaml
-- name: Review Feature Request (Critic Agent)
+- name: Review Feature Request (Analyst Agent)
   id: review-feature
   if: steps.parse-categorize.outputs.category == 'enhancement'
   uses: ./.github/actions/ai-review
   with:
-    agent: critic
+    agent: analyst
     context-type: issue
     prompt-file: .github/prompts/issue-feature-review.md
 ```
@@ -57,8 +58,8 @@ Add a new step that runs only when `category=enhancement`:
 
 - Clean conditional execution based on category
 - Does not disrupt existing analyst/roadmap flow
-- Uses critic agent (aligns with "constructively skeptical" requirement)
-- Adds value without modifying working steps
+- Uses analyst agent (already has Feature Request Review capability in its definition)
+- Same agent for categorization and evaluation ensures consistent context
 - Easy to disable or modify independently
 
 **Cons**:
@@ -111,49 +112,65 @@ Create new `feature-reviewer` agent:
 **Cons**:
 
 - Agent proliferation (18 agents already)
-- Critic agent already serves "constructively skeptical" evaluation role
+- Analyst agent already has Feature Request Review capability
 - No reuse benefit
+
+### Option 5: Use Critic Agent (REJECTED)
+
+Use critic agent for feature evaluation:
+
+**Pros**:
+
+- "Constructively skeptical" tone matches evaluation needs
+
+**Cons**:
+
+- Critic agent is scoped to "plan validation" not feature evaluation
+- Critic constraints explicitly exclude "code review or completed work assessment"
+- Analyst has richer context (already categorized the issue)
+- Role mismatch creates maintenance confusion
 
 ## Decision Outcome
 
-**Chosen option: Option 1 - New Conditional Step with Critic Agent**
+**Chosen option: Option 1 - New Conditional Step with Analyst Agent**
 
 ### Rationale
 
-1. **Role Alignment**: The prompt describes "polite, clear, and constructively skeptical" which matches the critic agent's purpose.
+1. **Existing Capability**: Analyst agent already defines Feature Request Review template (lines 178-215 in `analyst.agent.md`) covering User Impact, Implementation, Alignment, Trade-offs, and Recommendations.
 
 2. **Separation of Concerns**:
-   - Analyst: Categorize (what type of issue)
-   - Critic (new step): Evaluate (should we proceed with this feature)
+   - Analyst (step 1): Categorize (what type of issue)
+   - Analyst (step 2): Evaluate (should we proceed with this feature) - same agent, different prompt
    - Roadmap: Prioritize (when and where it fits)
 
 3. **Conditional Execution**: Only runs for `category=enhancement`, avoiding unnecessary processing for bugs, docs, questions.
 
 4. **ADR-006 Compliance**: Step invokes composite action; all parsing logic in PowerShell modules.
 
-5. **Tool Availability**: Copilot CLI has limited tool access. The prompt must be adapted to work without MCP tools, relying on:
-   - Issue body content (already provided)
-   - Copilot's web search capabilities (limited)
-   - Repository context from checkout
+5. **Critic Agent Rejected**: Critic is scoped to "plan validation" (pre-implementation review of internal plans), not feature request evaluation. Using critic would violate its defined constraints and create role confusion.
 
 ### Copilot CLI Tool Availability
 
-The enhanced prompt references these MCP tools which are NOT available in Copilot CLI:
+**Correction (2025-12-23)**: Copilot CLI DOES support MCP tools:
 
-| Tool in Prompt | Copilot CLI Alternative |
-|----------------|------------------------|
-| `perplexity_search` | Use `copilot --websearch` flag (limited) |
-| `WebFetch` | Not available; must work from issue content |
-| `mcp__github` tools | Use `gh` CLI within workflow |
-| `Serena` memory tools | Not available |
-| `context7` docs | Not available |
+- Ships with GitHub MCP server by default
+- Custom MCP servers can be added via `~/.copilot/agents` or `.github/agents/`
+- [Source: GitHub Changelog Oct 2025](https://github.blog/changelog/2025-10-28-github-copilot-cli-use-custom-agents-and-delegate-to-copilot-coding-agent/)
 
-**Adaptation Strategy**:
+However, for simplicity and reliability, this implementation does NOT require MCP tools:
 
-1. Remove explicit tool references from prompt
-2. Instruct model to work from available context
-3. Be transparent about what cannot be verified
-4. Pre-fetch repository data in workflow steps before invoking Copilot
+| Context Source | Availability |
+|----------------|--------------|
+| Issue title and body | Available (provided by workflow) |
+| Repository structure | Available (from checkout) |
+| Training knowledge | Available |
+| Real-time web search | Optional (MCP can provide, but not required) |
+
+**Prompt Strategy**:
+
+1. Work from issue content and repository context
+2. Be transparent about what cannot be verified
+3. Use parseable output format for reliable extraction
 
 ## Implementation
 
@@ -164,12 +181,12 @@ File: `.github/workflows/ai-issue-triage.yml`
 Add after `Parse Categorization Results` step:
 
 ```yaml
-- name: Review Feature Request (Critic Agent)
+- name: Review Feature Request (Analyst Agent)
   id: review-feature
   if: steps.parse-categorize.outputs.category == 'enhancement'
   uses: ./.github/actions/ai-review
   with:
-    agent: critic
+    agent: analyst
     context-type: issue
     issue-number: ${{ github.event.issue.number }}
     prompt-file: .github/prompts/issue-feature-review.md
@@ -186,13 +203,13 @@ Add after `Parse Categorization Results` step:
   run: |
     Import-Module .github/scripts/AIReviewCommon.psm1
 
-    # Parse recommendation
+    # Parse recommendation (returns: PROCEED|DEFER|REQUEST_EVIDENCE|NEEDS_RESEARCH|DECLINE)
     $recommendation = Get-FeatureReviewRecommendation -Output $env:RAW_OUTPUT
 
-    # Parse suggested assignees (comma-separated)
+    # Parse suggested assignees (returns comma-separated GitHub usernames)
     $assignees = Get-FeatureReviewAssignees -Output $env:RAW_OUTPUT
 
-    # Parse suggested labels
+    # Parse suggested labels (returns comma-separated label names)
     $labels = Get-FeatureReviewLabels -Output $env:RAW_OUTPUT
 
     echo "recommendation=$recommendation" >> $env:GITHUB_OUTPUT
@@ -210,73 +227,178 @@ Location follows existing pattern (all prompts in `.github/prompts/`).
 
 File: `.github/scripts/AIReviewCommon.psm1`
 
-Add functions:
+Add functions with hardened regex (per security review):
 
 ```powershell
 function Get-FeatureReviewRecommendation {
     [CmdletBinding()]
-    param([string]$Output)
-    # Parse recommendation from output
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Output
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Output)) { return 'NEEDS_RESEARCH' }
+
+    # Allowlist of valid recommendations
+    $validRecommendations = @('PROCEED', 'DEFER', 'REQUEST_EVIDENCE', 'NEEDS_RESEARCH', 'DECLINE')
+
+    if ($Output -match 'RECOMMENDATION:\s*(PROCEED|DEFER|REQUEST_EVIDENCE|NEEDS_RESEARCH|DECLINE)') {
+        return $Matches[1]
+    }
+    return 'NEEDS_RESEARCH'  # Safe default
 }
 
 function Get-FeatureReviewAssignees {
     [CmdletBinding()]
-    param([string]$Output)
-    # Parse assignees from output (returns comma-separated string)
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Output
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Output)) { return '' }
+
+    if ($Output -match 'ASSIGNEES:\s*(.+?)(?:\r?\n|$)') {
+        $raw = $Matches[1].Trim()
+        if ($raw -eq 'none' -or $raw -eq 'none suggested') { return '' }
+
+        # Validate each username against GitHub pattern (1-39 chars, alphanumeric + hyphen)
+        $validated = $raw -split ',' | ForEach-Object {
+            $user = $_.Trim()
+            if ($user -match '^(?=.{1,39}$)[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$') {
+                $user
+            } else {
+                Write-Warning "Skipped invalid assignee: $user"
+            }
+        } | Where-Object { $_ }
+        return ($validated -join ',')
+    }
+    return ''
 }
 
 function Get-FeatureReviewLabels {
     [CmdletBinding()]
-    param([string]$Output)
-    # Parse labels from output (returns comma-separated string)
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Output
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Output)) { return '' }
+
+    if ($Output -match 'LABELS:\s*(.+?)(?:\r?\n|$)') {
+        $raw = $Matches[1].Trim()
+        if ($raw -eq 'none') { return '' }
+
+        # Validate label format (alphanumeric, hyphen, colon, slash allowed)
+        $validated = $raw -split ',' | ForEach-Object {
+            $label = $_.Trim()
+            if ($label -match '^[a-zA-Z0-9][a-zA-Z0-9-:/ ]*$') {
+                $label
+            } else {
+                Write-Warning "Skipped invalid label: $label"
+            }
+        } | Where-Object { $_ }
+        return ($validated -join ',')
+    }
+    return ''
 }
 ```
 
 File: `.github/scripts/AIReviewCommon.Tests.ps1`
 
-Add Pester tests for `Get-FeatureReviewRecommendation`, `Get-FeatureReviewAssignees`, and `Get-FeatureReviewLabels`.
+Add Pester tests (80% coverage per ADR-006):
 
-## Prompt Adaptation for Copilot CLI
+```powershell
+Describe 'Get-FeatureReviewRecommendation' {
+    It 'Parses PROCEED recommendation' {
+        $output = "RECOMMENDATION: PROCEED`nRationale: Good fit"
+        Get-FeatureReviewRecommendation -Output $output | Should -Be 'PROCEED'
+    }
 
-The original prompt assumes MCP tool access. For Copilot CLI, adapt as follows:
+    It 'Returns NEEDS_RESEARCH for empty input' {
+        Get-FeatureReviewRecommendation -Output '' | Should -Be 'NEEDS_RESEARCH'
+    }
 
-### Remove
+    It 'Returns NEEDS_RESEARCH for invalid recommendation' {
+        Get-FeatureReviewRecommendation -Output 'RECOMMENDATION: INVALID' | Should -Be 'NEEDS_RESEARCH'
+    }
+}
 
-- Explicit tool call references (`perplexity_search`, `WebFetch`, `mcp__*`)
-- Assumptions about external data sources
+Describe 'Get-FeatureReviewAssignees' {
+    It 'Parses single assignee' {
+        $output = "ASSIGNEES: octocat"
+        Get-FeatureReviewAssignees -Output $output | Should -Be 'octocat'
+    }
 
-### Retain
+    It 'Parses multiple assignees' {
+        $output = "ASSIGNEES: user1,user2,user3"
+        Get-FeatureReviewAssignees -Output $output | Should -Be 'user1,user2,user3'
+    }
 
-- Evaluation criteria (User Impact, Implementation, Alignment, Trade-offs)
-- Evidence-based recommendation framework
-- Transparency about data availability
-- Polite acknowledgment of submitter
+    It 'Returns empty for none suggested' {
+        $output = "ASSIGNEES: none suggested"
+        Get-FeatureReviewAssignees -Output $output | Should -Be ''
+    }
 
-### Add
+    It 'Skips invalid usernames' {
+        $output = "ASSIGNEES: valid-user,invalid..user,another-valid"
+        Get-FeatureReviewAssignees -Output $output | Should -Be 'valid-user,another-valid'
+    }
+}
 
-- Instruction to work from issue content and repository context only
-- Explicit statement: "You do not have access to external search tools"
-- Guidance to flag what would require manual research
+Describe 'Get-FeatureReviewLabels' {
+    It 'Parses single label' {
+        $output = "LABELS: enhancement"
+        Get-FeatureReviewLabels -Output $output | Should -Be 'enhancement'
+    }
 
-### Adapted Prompt Structure
+    It 'Parses labels with special chars' {
+        $output = "LABELS: area:ci/cd,priority:high"
+        Get-FeatureReviewLabels -Output $output | Should -Be 'area:ci/cd,priority:high'
+    }
+
+    It 'Returns empty for none' {
+        $output = "LABELS: none"
+        Get-FeatureReviewLabels -Output $output | Should -Be ''
+    }
+}
+```
+
+## Prompt Output Format
+
+The prompt MUST produce parseable output tokens for reliable extraction:
+
+### Required Output Tokens
+
+```text
+RECOMMENDATION: PROCEED|DEFER|REQUEST_EVIDENCE|NEEDS_RESEARCH|DECLINE
+ASSIGNEES: user1,user2 (or "none" if no suggestion)
+LABELS: label1,label2 (or "none" if no additional labels)
+```
+
+### Prompt Template
+
+File: `.github/prompts/issue-feature-review.md`
 
 ```markdown
 # Feature Request Review Task
 
 You are an expert .NET open-source reviewer (polite, clear, and constructively skeptical).
 
-## Context Limitations
+## Context Available
 
 You have access to:
 - The issue title and body
 - Repository structure (from checkout)
 - Your training knowledge
-
-You do NOT have access to:
-- Real-time web search
-- Stack Overflow queries
-- External API documentation
-- Usage analytics
 
 When information is unavailable, explicitly state "UNKNOWN - requires manual research".
 
@@ -285,31 +407,35 @@ When information is unavailable, explicitly state "UNKNOWN - requires manual res
 ### 1. Thank the Submitter
 Acknowledge their contribution politely.
 
-### 2. Evaluate (from available context)
+### 2. Evaluate
 
-| Criterion | Source | Assessment |
-|-----------|--------|------------|
-| User Impact | Issue description | [Assessment or UNKNOWN] |
-| Implementation | Repository patterns | [Assessment or UNKNOWN] |
-| Alignment | Issue labels, existing issues | [Assessment or UNKNOWN] |
-| Trade-offs | Technical knowledge | [Assessment] |
+| Criterion | Assessment |
+|-----------|------------|
+| User Impact | [Assessment or UNKNOWN] |
+| Implementation Complexity | [Assessment or UNKNOWN] |
+| Strategic Alignment | [Assessment or UNKNOWN] |
+| Trade-offs | [Assessment] |
 
 ### 3. Recommendation
 
-RECOMMENDATION: [PROCEED | DEFER | REQUEST_EVIDENCE | NEEDS_RESEARCH]
+Provide ONE of: PROCEED, DEFER, REQUEST_EVIDENCE, NEEDS_RESEARCH, DECLINE
 
-Rationale: [1-2 sentences]
+### 4. Output (REQUIRED FORMAT)
 
-### 4. Suggested Actions
+You MUST include these exact tokens at the end of your response:
 
-- Assignees: [usernames or "none suggested"]
-- Additional Labels: [labels or "none"]
-- Milestone: [milestone or "none"]
-
-## Output Format
-
-[Structured response following above framework]
+RECOMMENDATION: [your recommendation]
+ASSIGNEES: [comma-separated usernames or "none"]
+LABELS: [comma-separated labels or "none"]
 ```
+
+### Token Definitions
+
+| Token | Valid Values | Default |
+|-------|--------------|---------|
+| RECOMMENDATION | PROCEED, DEFER, REQUEST_EVIDENCE, NEEDS_RESEARCH, DECLINE | NEEDS_RESEARCH |
+| ASSIGNEES | GitHub usernames (1-39 chars, alphanumeric + hyphen) | none |
+| LABELS | Label names (alphanumeric, hyphen, colon, slash) | none |
 
 ## Consequences
 
@@ -319,16 +445,17 @@ Rationale: [1-2 sentences]
 2. **Polite Engagement**: Thanks submitters, improving community experience
 3. **Transparency**: Clear about what can/cannot be verified
 4. **Conditional**: Only runs for feature requests, not all issues
+5. **Existing Capability**: Uses analyst's existing Feature Request Review template
 
 ### Negative
 
-1. **Copilot CLI Limitations**: Cannot perform live research; must rely on available context
+1. **Context Limitations**: Works from available context only; manual research may be needed
 2. **Additional Step**: Adds ~2-3 minutes for feature request processing
-3. **Module Updates**: Requires new PowerShell parsing function
+3. **Module Updates**: Requires three new PowerShell parsing functions with tests
 
 ### Neutral
 
-1. **Agent Choice**: Critic is reasonable but could be analyst; decision is defensible either way
+1. **Same Agent, Two Prompts**: Analyst invoked twice (categorize, then evaluate) - acceptable tradeoff for separation of concerns
 
 ## Validation Checklist
 
@@ -351,4 +478,16 @@ Before implementing:
 
 - Current workflow: `.github/workflows/ai-issue-triage.yml`
 - Existing prompts: `.github/prompts/issue-*.md`
-- Critic agent: `src/claude/critic.md`
+- Analyst agent: `.github/agents/analyst.agent.md` (lines 178-215: Feature Request Review template)
+- Parsing patterns: `.github/scripts/AIReviewCommon.psm1`
+
+## Related Issues
+
+- **Issue #110**: Design: Feature Request Review Step for Issue Triage Workflow
+
+## Review History
+
+- **2025-12-23**: Multi-agent review (6 agents) via adr-review skill
+  - Verdict: NEEDS REVISION → Addressed in this revision
+  - Key changes: Switched from critic to analyst agent, corrected MCP tool claims, added parseable output format
+  - Debate log: `.agents/architecture/ADR-020-debate-log.md`
