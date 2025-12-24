@@ -89,7 +89,13 @@ Phase 4: Learning Extraction
   |-- Skillbook Updates
   +-- Deduplication Check
 
-Phase 5: Close the Retrospective
+Phase 5: Recursive Learning Extraction
+  |-- Initial Extraction
+  |-- Skillbook Delegation
+  |-- Recursive Evaluation
+  +-- Termination Criteria
+
+Phase 6: Close the Retrospective
   |-- +/Delta
   |-- ROTI
   +-- Helped, Hindered, Hypothesis
@@ -710,7 +716,245 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 
 ---
 
-## Phase 5: Close the Retrospective
+## Phase 5: Recursive Learning Extraction
+
+Transform session learnings into persistent Serena memories using skillbook agent. Continue recursively until all novel learnings worthy of bootstrapping an amnesiac are exhausted.
+
+### Purpose
+
+Ensure no valuable learnings are lost between sessions by:
+
+- Systematically identifying all learnings from the session
+- Delegating to skillbook for atomicity validation and deduplication
+- Creating Serena memories with ADR-017 compliant naming
+- Continuing recursively until all novel learnings are exhausted
+
+### Process
+
+#### Step 1: Initial Extraction
+
+Identify all learnings from the retrospective phases:
+
+- Successes that should be reinforced (Phase 2)
+- Failures that exposed skill gaps (Phase 2)
+- Process improvements identified (Phase 3)
+- Novel patterns discovered (Phase 1)
+- Near misses that revealed insights (Phase 2)
+
+**Template:**
+
+````markdown
+## Initial Learning Extraction
+
+### Learning Candidates
+
+| ID | Statement | Evidence | Atomicity | Source Phase |
+|----|-----------|----------|-----------|--------------|
+| L1 | [Atomic statement - max 15 words] | [Session/PR reference] | [%] | Phase 2 - Success |
+| L2 | [Atomic statement - max 15 words] | [Session/PR reference] | [%] | Phase 1 - Pattern |
+| ... | ... | ... | ... | ... |
+
+### Filtering
+
+- Atomicity threshold: ≥70%
+- Novel (not duplicate): TBD via skillbook
+- Actionable: Has clear application context
+````
+
+#### Step 2: Skillbook Delegation
+
+For each learning batch (recommend 3-5 learnings per batch):
+
+**Delegation Request:**
+
+````markdown
+## Skillbook Delegation Request
+
+**Context**: Session retrospective learning extraction
+
+**Learnings to Process**:
+
+1. **Learning L1**
+   - Statement: [Atomic statement]
+   - Evidence: [Execution proof]
+   - Atomicity: [%]
+   - Proposed Operation: ADD | UPDATE
+   - Target Domain: [e.g., pr-review, pester-testing]
+
+2. **Learning L2**
+   - [Same structure]
+
+**Requested Actions**:
+
+1. Validate atomicity (target: >85%)
+2. Run deduplication check against existing memories
+3. Create memories with `{domain}-{topic}.md` naming
+4. Update relevant domain indexes
+5. Return skill IDs and file paths created
+````
+
+**Expected Skillbook Output:**
+
+````markdown
+## Skillbook Processing Results
+
+### Batch 1 Results
+
+| Learning ID | Operation | Skill ID | File | Atomicity | Status |
+|-------------|-----------|----------|------|-----------|--------|
+| L1 | ADD | Skill-PR-007 | pr-review-security.md | 92% | [COMPLETE] |
+| L2 | UPDATE | Skill-Test-003 | pester-test-isolation.md | 88% | [COMPLETE] |
+| L3 | REJECT | - | - | 35% | [FAIL] - Too vague |
+| L4 | DUPLICATE | Skill-GH-002 | github-cli-api-patterns.md | 78% | [SKIP] - 85% similar |
+
+### Index Updates
+
+- skills-pr-review-index.md: Added pr-review-security
+- skills-pester-testing-index.md: Updated pester-test-isolation
+
+### Validation
+
+[PASS] `pwsh scripts/Validate-MemoryIndex.ps1`
+````
+
+#### Step 3: Recursive Evaluation
+
+After each batch is processed, ask:
+
+**Recursion Question**: "Are there additional learnings that emerged from the extraction process itself?"
+
+**Evaluation Criteria:**
+
+| Check | Question | If Yes |
+|-------|----------|--------|
+| Meta-learning | Did the extraction reveal a pattern about how we learn? | Extract it |
+| Process insight | Did we discover a better way to do retrospectives? | Extract it |
+| Deduplication finding | Did we find contradictory skills that need resolution? | Extract conflict resolution learning |
+| Atomicity refinement | Did we refine how to score atomicity? | Extract scoring insight |
+| Domain discovery | Did we identify a new domain that needs an index? | Document for architect |
+
+**If YES**: Prepare next batch of learnings, return to Step 2
+
+**If NO**: Proceed to Step 4
+
+**Example Recursive Learning:**
+
+````markdown
+## Recursive Learning Example
+
+**Iteration 1 Result**: Created 3 skills about PR review security
+**Iteration 2 Discovery**: Pattern emerged - all 3 skills involve input validation
+**Iteration 2 Learning**: "Group related skills by security principle (validation, sanitization, encoding)"
+**Iteration 2 Action**: Update skills-security-index.md with principle-based keywords
+````
+
+#### Step 4: Termination Criteria
+
+Stop recursive extraction when ALL criteria are met:
+
+- [ ] No new learnings identified in current iteration
+- [ ] All learnings either persisted or rejected as duplicates
+- [ ] Meta-learning evaluation yields no insights
+- [ ] Extracted learnings count documented in session log
+- [ ] Validation script passes: `pwsh scripts/Validate-MemoryIndex.ps1`
+
+**Infinite Loop Prevention:**
+
+- Maximum 5 iterations
+- Maximum 20 total learnings extracted per session
+- Minimum 1 novel learning per iteration (else terminate)
+- Each iteration MUST show different learnings than previous
+
+### Prompt Template for Skillbook Agent
+
+Use this prompt when delegating to skillbook:
+
+````markdown
+## Skillbook Agent Delegation
+
+**Task**: Recursively evaluate and persist session learnings as Serena memories
+
+**Context**: Retrospective session [YYYY-MM-DD] identified [N] learning candidates
+
+**Batch [N] Learnings**:
+
+[Paste learning candidates with atomicity scores]
+
+**Instructions**:
+
+1. Validate atomicity (target: >85%)
+2. Run deduplication check against existing memories
+3. For each learning:
+   - If novel and atomic: CREATE skill file `{domain}-{topic}.md`
+   - If refinement: UPDATE existing skill file
+   - If duplicate >70%: REJECT with similar skill reference
+   - If too vague <70%: REJECT with refinement guidance
+4. Update relevant domain indexes (skills-{domain}-index.md)
+5. Assign skill IDs following convention: Skill-{Category}-{NNN}
+6. Run validation: `pwsh scripts/Validate-MemoryIndex.ps1`
+7. Return skill IDs, file paths, and validation status
+
+**Termination**: Process this batch, then I will evaluate for additional learnings
+````
+
+### Integration with Phase 4
+
+Phase 4 identifies and scores learnings. Phase 5 persists them:
+
+| Phase 4 Output | Phase 5 Action |
+|----------------|----------------|
+| Atomicity-scored learnings | Batch into groups of 3-5 |
+| Skill operation recommendations | Pass to skillbook for execution |
+| Evidence from execution | Include in skillbook delegation |
+| Deduplication check (manual) | Skillbook runs automated check |
+
+### Documentation Requirements
+
+After Phase 5 completes, document in retrospective artifact:
+
+````markdown
+## Phase 5: Recursive Learning Extraction
+
+### Extraction Summary
+
+- **Iterations**: [N]
+- **Learnings Identified**: [Total count]
+- **Skills Created**: [N] (see skill IDs below)
+- **Skills Updated**: [N] (see skill IDs below)
+- **Duplicates Rejected**: [N]
+- **Vague Learnings Rejected**: [N]
+
+### Skills Persisted
+
+| Iteration | Skill ID | File | Operation | Atomicity |
+|-----------|----------|------|-----------|-----------|
+| 1 | Skill-PR-007 | pr-review-security.md | ADD | 92% |
+| 1 | Skill-Test-003 | pester-test-isolation.md | UPDATE | 88% |
+| 2 | Skill-Memory-005 | memory-index-keywords.md | ADD | 90% |
+
+### Recursive Insights
+
+**Iteration 1**: Identified 3 PR security skills
+**Iteration 2**: Pattern emerged about keyword selection for memory indexes
+**Iteration 3**: No new learnings - TERMINATED
+
+### Validation
+
+[PASS] `pwsh scripts/Validate-MemoryIndex.ps1`
+````
+
+### Quality Gates
+
+- [ ] All persisted skills have atomicity ≥70%
+- [ ] No duplicate skills created (deduplication check passed)
+- [ ] All skill files follow ADR-017 format
+- [ ] All domain indexes updated correctly
+- [ ] Validation script passes
+- [ ] Extracted learnings count documented
+
+---
+
+## Phase 6: Close the Retrospective
 
 Evaluate the retrospective itself. Continuous improvement.
 
