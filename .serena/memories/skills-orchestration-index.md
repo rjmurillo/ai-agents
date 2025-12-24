@@ -4,3 +4,4 @@
 | handoff aggregation staging conflict HANDOFF.md bundle commit | orchestration-handoff-coordination |
 | validation gate accept reject session-end checklist protocol | orchestration-validation-gate |
 | pr comment chain retrospective responder workflow learning | orchestration-pr-chain |
+| recursive learning extraction meta-pattern termination systematic | orchestration-recursive-learning-extraction |

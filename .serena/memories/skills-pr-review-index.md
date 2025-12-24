@@ -5,9 +5,12 @@
 | parse independent same-file different issues separately | skill-pr-002-independent-comment-parsing |
 | addressed_count total_comment_count match claim done | skill-pr-003-verification-count |
 | signal quality priority actionability rate cursor copilot | skill-pr-006-reviewer-signal-quality |
-| acknowledgment eyes reaction blocking gate comment phase | pr-review-acknowledgment |
+| acknowledgment eyes reaction count match API verify fallback | pr-review-acknowledgment |
 | security priority CWE vulnerability injection TOCTOU | pr-review-security |
 | sparse checkout coderabbit .agents/ missing ls-tree | skill-review-001-coderabbit-sparse-checkout-blindness |
 | python string concat PEP 3126 adjacent literals valid | skill-review-002-python-implicit-string-concat |
 | copilot follow-up duplicate supplemental sub-pr pattern | pr-review-copilot-followup |
 | checklist phase gate workflow order template | pr-review-checklist |
+| merge state verification Test-PRMerged GraphQL stale OPEN blocking | pr-review-007-merge-state-verification |
+| session state continuity check existing NEW comments incremental | pr-review-008-session-state-continuity |
+| bot mention side effects trigger reaction acknowledgment premium | pr-review-bot-mention-side-effects |
