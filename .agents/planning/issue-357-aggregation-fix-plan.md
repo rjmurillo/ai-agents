@@ -44,58 +44,17 @@ This plan addresses the real improvements needed to reduce false positives and p
 
 ## Proposed Solutions
 
-### Solution 1: Human Override Mechanism (P0)
+### ~~Solution 1: Human Override Mechanism~~ (REMOVED)
 
-**Problem**: No way to bypass AI review for approved PRs.
-
-**Implementation**:
-
-1. Add `ai-review-bypass` label to GitHub repository
-2. Modify workflow to check for bypass label before blocking
-
-**Location**: `.github/workflows/ai-pr-quality-gate.yml`
-
-**Changes**:
-
-```yaml
-# In aggregate job, before "Check for Critical Failures" step
-- name: Check for bypass label
-  id: check-bypass
-  env:
-    GH_TOKEN: ${{ github.token }}
-    PR_NUMBER: ${{ env.PR_NUMBER }}
-  run: |
-    LABELS=$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name' 2>/dev/null)
-    if echo "$LABELS" | grep -q "ai-review-bypass"; then
-      echo "bypass=true" >> $GITHUB_OUTPUT
-      echo "::notice::AI Review bypass label detected - findings will be reported but not blocking"
-    else
-      echo "bypass=false" >> $GITHUB_OUTPUT
-    fi
-
-# Modify "Check for Critical Failures" step
-- name: Check for Critical Failures
-  shell: pwsh
-  run: |
-    $finalVerdict = "${{ steps.aggregate.outputs.final_verdict }}"
-    $bypass = "${{ steps.check-bypass.outputs.bypass }}"
-
-    if ($finalVerdict -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL') {
-      if ($bypass -eq "true") {
-        Write-Output "::warning::AI Quality Gate issues detected but bypassed via label"
-        exit 0  # Don't block
-      }
-      Write-Output "::error::AI Quality Gate found critical issues"
-      exit 1
-    }
-```
-
-**Effort**: 2 hours
-**Risk**: Low (additive change, no breaking changes)
+> **REMOVED**: Bypass label mechanism was rejected. AI agents cannot be trusted with
+> an "easy out" - they will exploit it and code quality will rot. Instead of giving
+> agents escape hatches, the system must constrain them through design.
+>
+> Constraints > Trust. If agents can't do the wrong thing, they won't.
 
 ---
 
-### Solution 2: Context-Aware Review Skipping (P1)
+### Solution 1: Context-Aware Review Skipping (P0)
 
 **Problem**: QA agent requires tests for documentation-only PRs.
 
@@ -179,7 +138,7 @@ If the PR context is "standard":
 
 ---
 
-### Solution 3: Agent Prompt Calibration (P2)
+### Solution 2: Agent Prompt Calibration (P1)
 
 **Problem**: Agents may be too strict, creating false positives.
 
@@ -212,7 +171,7 @@ If the PR context is "standard":
 
 ---
 
-### Solution 4: Improve PR Comment Clarity (P3)
+### Solution 3: Improve PR Comment Clarity (P2)
 
 **Problem**: Findings are not actionable enough.
 
@@ -258,9 +217,7 @@ This is a **prerequisite** because transient failures mask the true failure rate
 
 | Task | Owner | Status |
 |------|-------|--------|
-| Implement bypass label mechanism | implementer | Pending |
-| Create `ai-review-bypass` label | devops | Pending |
-| Document bypass usage | explainer | Pending |
+| Implement context-aware review skipping | implementer | Pending |
 | Merge ready PRs (#334, #336, #245) per [#358](https://github.com/rjmurillo/ai-agents/issues/358) | devops | Pending |
 
 ### Phase 2: Reduce False Positives (This Week)
@@ -296,9 +253,9 @@ This is a **prerequisite** because transient failures mask the true failure rate
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Bypass label abuse | Low quality code merges | Require owner approval for bypass |
 | Over-tuning prompts | Miss real issues | Keep security agent strict |
 | Context detection errors | Wrong agent behavior | Default to "standard" context |
+| Agent exploitation of loopholes | Code quality rot | Design constraints, not escape hatches |
 
 ---
 
@@ -313,25 +270,19 @@ This is a **prerequisite** because transient failures mask the true failure rate
 
 ### New Issues to Create
 
-1. **Add AI Review Bypass Label Mechanism** (P0)
-   - Add `ai-review-bypass` label
-   - Modify workflow to honor label
-   - Document usage
-   - Link to parent epic [#324](https://github.com/rjmurillo/ai-agents/issues/324)
-
-2. **Context-Aware AI Review** (P1)
+1. **Context-Aware AI Review** (P0)
    - Detect doc-only vs code changes
    - Pass context to agents
    - Adjust verdicts accordingly
    - Link to parent epic [#324](https://github.com/rjmurillo/ai-agents/issues/324)
 
-3. **Calibrate AI Agent Prompts** (P2)
+2. **Calibrate AI Agent Prompts** (P1)
    - Review all 6 agent prompts
    - Add calibration examples
    - Test with representative PRs
    - Link to parent epic [#324](https://github.com/rjmurillo/ai-agents/issues/324)
 
-4. **Improve AI Review Findings Format** (P3)
+3. **Improve AI Review Findings Format** (P2)
    - Add "How to Fix" column
    - Include line numbers
    - Add quick fix suggestions
@@ -368,12 +319,13 @@ PRs are blocked because AI agents identify actual code quality concerns:
 ### Next Steps
 
 We're creating improvement issues to address:
-- [ ] #XXX: Human override mechanism (bypass label)
-- [ ] #XXX: Context-aware review (doc-only PRs)
-- [ ] #XXX: Agent prompt calibration
-- [ ] #XXX: Improved findings format
+- [ ] #XXX: Context-aware review (doc-only PRs) - P0
+- [ ] #XXX: Agent prompt calibration - P1
+- [ ] #XXX: Improved findings format - P2
 
 Closing this as "Not a Bug" - the system works as designed, but improvements are planned.
+
+> **Note**: Bypass label mechanism was explicitly rejected. Constraints > Trust.
 ```
 
 ---
