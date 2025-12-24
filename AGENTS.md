@@ -1010,7 +1010,7 @@ Test results are saved to `artifacts/pester-results.xml` (gitignored).
 
 When generating or fixing markdown with code blocks, use the fix-markdown-fences utility to repair malformed closing fences automatically.
 
-**Location**: `.agents/utilities/fix-markdown-fences/SKILL.md`
+**Location**: `.claude/skills/fix-markdown-fences/SKILL.md`
 
 **Problem**: Closing fences should never have language identifiers (e.g., ` ` `text). This utility detects and fixes them.
 
@@ -1018,10 +1018,10 @@ When generating or fixing markdown with code blocks, use the fix-markdown-fences
 
 ```bash
 # PowerShell
-pwsh .agents/utilities/fix-markdown-fences/fix_fences.ps1
+pwsh .claude/skills/fix-markdown-fences/fix_fences.ps1
 
 # Python
-python .agents/utilities/fix-markdown-fences/fix_fences.py
+python .claude/skills/fix-markdown-fences/fix_fences.py
 ```
 
 **Benefits**:

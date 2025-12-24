@@ -1,13 +1,13 @@
 # Utility Skills
 
 Category: Automation Tools and Scripts
-Source: `.agents/utilities/fix-markdown-fences/SKILL.md`
+Source: `.claude/skills/fix-markdown-fences/SKILL.md`
 Migrated: 2025-12-13
 
 ## Skill-Utility-001: Fix Markdown Code Fence Closings
 
 - **Atomicity**: 92%
-- **Location**: `.agents/utilities/fix-markdown-fences/`
+- **Location**: `.claude/skills/fix-markdown-fences/`
 - **Implementations**: Python (`fix_fences.py`), PowerShell (`fix_fences.ps1`)
 
 ### Problem
@@ -46,10 +46,10 @@ def hello():
 
 ```bash
 # PowerShell
-pwsh .agents/utilities/fix-markdown-fences/fix_fences.ps1
+pwsh .claude/skills/fix-markdown-fences/fix_fences.ps1
 
 # Python
-python .agents/utilities/fix-markdown-fences/fix_fences.py
+python .claude/skills/fix-markdown-fences/fix_fences.py
 ```
 
 ### Edge Cases Handled
@@ -114,7 +114,7 @@ git config core.hooksPath .githooks
 
 **Impact**: 8/10
 
-**Location**: `.agents/utilities/security-detection/`
+**Location**: `.claude/skills/security-detection/`
 
 **Pattern Categories**:
 
@@ -128,10 +128,10 @@ git config core.hooksPath .githooks
 
 ```bash
 # Run security pattern scan
-pwsh .agents/utilities/security-detection/scan.ps1 -Path ./src
+pwsh .claude/skills/security-detection/scan.ps1 -Path ./src
 ```
 
-**Source**: `.agents/utilities/security-detection/SKILL.md`
+**Source**: `.claude/skills/security-detection/SKILL.md`
 
 ---
 
@@ -181,6 +181,6 @@ $pathLength = $resolvedPath.Length  # Also works
 
 ## Related Documents
 
-- Source: `.agents/utilities/fix-markdown-fences/SKILL.md`
-- Source: `.agents/utilities/security-detection/SKILL.md`
+- Source: `.claude/skills/fix-markdown-fences/SKILL.md`
+- Source: `.claude/skills/security-detection/SKILL.md`
 - Related: skills-security (security best practices)
