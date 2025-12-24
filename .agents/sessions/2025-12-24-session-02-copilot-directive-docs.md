@@ -25,24 +25,20 @@ Issue #327 is part of Epic #324 (10x Velocity Improvement). In PR #249, 41 of 42
 
 ## Protocol Compliance
 
-### Session Start
+### Session Start (COMPLETE ALL before work)
 
-| Step | Status | Evidence |
-|------|--------|----------|
-| Initialize Serena | ✅ PASS | Tool output received |
-| Read HANDOFF.md | ✅ PASS | Content reviewed |
-| Create session log | ✅ PASS | This file |
-| Read relevant memories | ✅ PASS | Read skills-copilot-index, copilot-pr-review, pr-review-copilot-followup |
-
-### Session End
-
-| Step | Status | Evidence |
-|------|--------|----------|
-| Complete session log | ✅ PASS | Updated with outcomes and decisions |
-| Update Serena memory | ✅ PASS | Created copilot-directive-relocation, updated skills-copilot-index |
-| Run markdownlint | ✅ PASS | 0 errors, all files clean |
-| Commit changes | ✅ PASS | Commit 71f9853 |
-| Do not update HANDOFF.md | ✅ N/A | Read-only protocol |
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output received |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output received |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content reviewed |
+| MUST | Create this session log | [x] | This file |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [SKIPPED] | Docs-only session |
+| MUST | Read skill-usage-mandatory memory | [SKIPPED] | Docs-only session |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Constraints acknowledged |
+| SHOULD | Search relevant Serena memories | [x] | skills-copilot-index, copilot-pr-review, pr-review-copilot-followup |
+| SHOULD | Verify git status | [x] | Clean |
+| SHOULD | Note starting commit | [x] | 17781fb |
 
 ---
 
