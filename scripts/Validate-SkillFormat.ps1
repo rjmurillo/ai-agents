@@ -1,11 +1,12 @@
 <#
 .SYNOPSIS
-    Validates skill files follow the atomic format (one skill per file).
+    Validates skill files follow the atomic format and naming convention.
 
 .DESCRIPTION
     Enforces ADR-017 skill format requirements:
     - One skill per file (no bundled skills)
     - Files with `## Skill-` headers are flagged as bundled format
+    - Files must NOT use 'skill-' prefix (use {domain}-{description} format)
 
     This validation runs on staged .serena/memories/ files during pre-commit.
 
@@ -37,6 +38,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $script:ExitCode = 0
 $script:BundledFiles = @()
+$script:PrefixViolations = @()
 
 # Get files to check
 if ($StagedOnly) {
@@ -79,11 +81,22 @@ foreach ($file in $filesToCheck) {
         }
         $script:ExitCode = 1
     }
+
+    # Check for invalid 'skill-' prefix (ADR-017 requires {domain}-{description} format)
+    if ($file.Name -match '^skill-') {
+        Write-Host "  PREFIX: $($file.Name) uses invalid 'skill-' prefix" -ForegroundColor Yellow
+        $script:PrefixViolations += $file.Name
+        $script:ExitCode = 1
+    }
 }
 
 # Summary
 Write-Host ""
+
+$hasIssues = $false
+
 if ($script:BundledFiles.Count -gt 0) {
+    $hasIssues = $true
     Write-Host "=== Bundled Format Detected ===" -ForegroundColor Yellow
     Write-Host "The following files contain multiple skills:" -ForegroundColor Yellow
     $script:BundledFiles | ForEach-Object {
@@ -93,15 +106,30 @@ if ($script:BundledFiles.Count -gt 0) {
     Write-Host "ADR-017 requires ONE skill per file. No exceptions." -ForegroundColor Red
     Write-Host "Split bundled skills into separate atomic files." -ForegroundColor Red
     Write-Host ""
+}
 
+if ($script:PrefixViolations.Count -gt 0) {
+    $hasIssues = $true
+    Write-Host "=== Invalid Naming Convention ===" -ForegroundColor Yellow
+    Write-Host "The following files use the deprecated 'skill-' prefix:" -ForegroundColor Yellow
+    $script:PrefixViolations | ForEach-Object {
+        Write-Host "  - $_" -ForegroundColor Yellow
+    }
+    Write-Host ""
+    Write-Host "ADR-017 requires {domain}-{description} naming (no 'skill-' prefix)." -ForegroundColor Red
+    Write-Host "Rename files to use domain prefix (e.g., pr-reviewer-enumeration.md)." -ForegroundColor Red
+    Write-Host ""
+}
+
+if ($hasIssues) {
     if ($CI) {
         Write-Host "Result: FAILED" -ForegroundColor Red
         exit 1
     } else {
-        Write-Host "Result: WARNING (non-blocking for legacy files)" -ForegroundColor Yellow
+        Write-Host "Result: WARNING (non-blocking for local development)" -ForegroundColor Yellow
         exit 0
     }
 } else {
-    Write-Host "Result: PASSED - All skill files are atomic format" -ForegroundColor Green
+    Write-Host "Result: PASSED - All skill files follow atomic format and naming convention" -ForegroundColor Green
     exit 0
 }
