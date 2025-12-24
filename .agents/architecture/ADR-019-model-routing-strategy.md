@@ -1,4 +1,4 @@
-# ADR-017: AI Review Model Routing Strategy
+# ADR-019: AI Review Model Routing Strategy
 
 ## Status
 
@@ -162,7 +162,7 @@ See [AI Review Model Policy](../../governance/AI-REVIEW-MODEL-POLICY.md) for:
 
 - ADR-010: Quality Gates (provides aggregation framework)
 - ADR-014: GitHub Actions Runner Selection (cost governance pattern)
-- ADR-018: Architecture vs Governance Split Criteria (defines this split pattern)
+- ADR-020: Architecture vs Governance Split Criteria (defines this split pattern)
 - Issue #164: Failure Categorization (infrastructure noise vs false PASS)
 
 ## References
@@ -176,7 +176,7 @@ See [AI Review Model Policy](../../governance/AI-REVIEW-MODEL-POLICY.md) for:
 
 ## Debate History
 
-This ADR was refined through multi-agent debate (Sessions 86-90). See [ADR-017-debate-log.md](ADR-017-debate-log.md) for:
+This ADR was refined through multi-agent debate (Sessions 86-90). See [ADR-019-debate-log.md](../critique/ADR-019-debate-log.md) for:
 
 - 3 rounds of review (architect, critic, independent-thinker, security, analyst, high-level-advisor)
 - Key decisions: evidence sufficiency principle, security hardening, cost calculation
@@ -190,5 +190,5 @@ This ADR was refined through multi-agent debate (Sessions 86-90). See [ADR-017-d
 - **2025-12-23 (Sessions 86-88)**: Multi-agent debate achieved consensus
 - **2025-12-23 (Session 89)**: Prerequisites completed (baseline, model verification, cost estimation)
 - **2025-12-23 (Session 90)**: Round 3 post-prerequisites review, root cause analysis added
-- **2025-12-23 (Session 90)**: Split into ADR + Governance per ADR-018 recommendation
+- **2025-12-23 (Session 90)**: Split into ADR + Governance per ADR-020 recommendation
 - **2025-12-23**: Status changed to **Accepted**

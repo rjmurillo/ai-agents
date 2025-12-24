@@ -1,4 +1,4 @@
-# ADR-017 Debate Log
+# ADR-019 Debate Log
 
 **ADR**: Model Routing Policy (Copilot CLI)
 **Date**: 2025-12-23
@@ -231,7 +231,7 @@
 
 ### Phase 3: Resolution
 
-**Changes Applied to ADR-017**:
+**Changes Applied to ADR-019**:
 
 1. Added "Scope Clarification" subsection in Context - addresses independent-thinker concern about infrastructure noise (references Issue #164)
 
@@ -291,7 +291,7 @@
 
 ## Round 2 (Convergence Check)
 
-**All 5 agents re-invoked on updated ADR-017.**
+**All 5 agents re-invoked on updated ADR-019.**
 
 ### Final Positions
 
@@ -342,11 +342,11 @@ This dissent is recorded per the debate protocol. No blocking action required.
 
 **Date**: 2025-12-23
 **Session**: 90
-**Context**: Review of ADR-017 after prerequisite completion (Session 89)
+**Context**: Review of ADR-019 after prerequisite completion (Session 89)
 
 ### Phase 1: Independent Review
 
-**All 6 agents re-invoked on ADR-017 with completed Prerequisites section.**
+**All 6 agents re-invoked on ADR-019 with completed Prerequisites section.**
 
 #### Critical Finding: Root Cause Mismatch
 
@@ -488,17 +488,17 @@ This dissent is recorded per debate protocol. No blocking action required.
 
 ---
 
-## Post-Debate: ADR-017 Split (Session 90)
+## Post-Debate: ADR-019 Split (Session 90)
 
 **Date**: 2025-12-23
-**Trigger**: User questioned whether ADR-017 strictly adheres to foundational ADR definition
-**Finding**: ADR-017 bundles 7 related decisions (violates "single AD" criterion)
+**Trigger**: User questioned whether ADR-019 strictly adheres to foundational ADR definition
+**Finding**: ADR-019 bundles 7 related decisions (violates "single AD" criterion)
 
-### Split Decision (Per ADR-018)
+### Split Decision (Per ADR-020)
 
-Following ADR-018 (Architecture vs Governance Split Criteria), ADR-017 was split into:
+Following ADR-020 (Architecture vs Governance Split Criteria), ADR-019 was split into:
 
-1. **ADR-017-model-routing-strategy.md** (architecture/)
+1. **ADR-019-model-routing-strategy.md** (architecture/)
    - **Lean architectural decision**: Model routing strategy for AI reviews
    - **Content**: Context, Decision, Rationale, Alternatives, Consequences
    - **Focus**: Why route models by prompt type + evidence availability
@@ -512,7 +512,7 @@ Following ADR-018 (Architecture vs Governance Split Criteria), ADR-017 was split
 
 ### Rationale for Split
 
-**Why split was recommended** (per ADR-018 criteria):
+**Why split was recommended** (per ADR-020 criteria):
 1. ✅ Decision affects architecture (model routing affects system quality)
 2. ✅ Requires operational enforcement (MUST use explicit copilot-model, branch protection rules)
 3. ✅ Tightly coupled (routing requires evidence rules, security hardening, aggregator)
@@ -526,13 +526,13 @@ Following ADR-018 (Architecture vs Governance Split Criteria), ADR-017 was split
 
 ### Cross-References
 
-- [ADR-017-model-routing-strategy.md](ADR-017-model-routing-strategy.md) - Architectural decision
+- [ADR-019-model-routing-strategy.md](ADR-019-model-routing-strategy.md) - Architectural decision
 - [AI-REVIEW-MODEL-POLICY.md](../../governance/AI-REVIEW-MODEL-POLICY.md) - Governance policy
-- [ADR-018-architecture-governance-split-criteria.md](ADR-018-architecture-governance-split-criteria.md) - Defines split criteria
+- [ADR-020-architecture-governance-split-criteria.md](ADR-020-architecture-governance-split-criteria.md) - Defines split criteria
 
-### Original ADR-017 Disposition
+### Original ADR-019 Disposition
 
-The original `ADR-017-model-routing-low-false-pass.md` (bundled version) is **deprecated** and replaced by the split documents. It is preserved in git history for reference.
+The original `ADR-019-model-routing-low-false-pass.md` (bundled version) is **deprecated** and replaced by the split documents. It is preserved in git history for reference.
 
 ---
 
@@ -543,4 +543,4 @@ The original `ADR-017-model-routing-low-false-pass.md` (bundled version) is **de
 **Status**: Complete - Consensus Achieved + Split Applied
 **Rounds**: 3 (2 initial + 1 post-prerequisites)
 **Final Result**: 5 Accept + 1 Disagree-and-Commit
-**Split Date**: 2025-12-23 (Session 90, per ADR-018)
+**Split Date**: 2025-12-23 (Session 90, per ADR-020)

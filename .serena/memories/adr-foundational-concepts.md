@@ -10,6 +10,7 @@
 A **justified design choice** that addresses a functional or non-functional requirement that is architecturally significant.
 
 **Key characteristics**:
+
 - Must be justified (has rationale)
 - Addresses specific requirements (functional or non-functional)
 - Architecturally significant (has measurable impact)
@@ -19,6 +20,7 @@ A **justified design choice** that addresses a functional or non-functional requ
 A requirement that has a **measurable effect** on the architecture and quality of a software and/or hardware system.
 
 **Significance criteria**:
+
 - Measurable impact on architecture
 - Affects system quality attributes
 - Influences structural design decisions
@@ -28,6 +30,7 @@ A requirement that has a **measurable effect** on the architecture and quality o
 Captures a **single AD and its rationale**.
 
 **Purpose**: Help understand:
+
 - Reasons for a chosen architectural decision
 - Trade-offs considered
 - Consequences (positive and negative)
@@ -39,6 +42,7 @@ Captures a **single AD and its rationale**.
 The **collection of ADRs** created and maintained in a project.
 
 **Characteristics**:
+
 - Living documentation
 - Chronological record of architectural evolution
 - Provides historical context for current architecture
@@ -46,6 +50,7 @@ The **collection of ADRs** created and maintained in a project.
 ### Architectural Knowledge Management (AKM)
 
 The broader discipline that encompasses:
+
 - Architectural decisions
 - Decision rationale
 - Trade-off analysis
@@ -63,11 +68,13 @@ The broader discipline that encompasses:
 **MADR** now stands for "Markdown **Any** Decision Records" (not "Architectural")
 
 **Rationale for expansion**:
+
 - Many design decisions that don't qualify as architecturally significant are still worth capturing
 - Autonomous teams make managerial and organizational decisions that benefit from ADR format
 - Strategy decisions, tooling choices, and process decisions all require justification and trade-off analysis
 
 **Extended usage includes**:
+
 - Design decisions (not just architecture)
 - Process decisions
 - Tool selection decisions
@@ -79,6 +86,7 @@ The broader discipline that encompasses:
 **Concern**: Broadening ADRs dilutes their architectural focus
 
 **Arguments against "Any Decision Record"**:
+
 - Mixing architectural and non-architectural decisions obscures architectural evolution
 - Lacks specificity - turns ADR into a catch-all for "any significant decision"
 - Better to create **separate records** for architectural vs other important decisions
@@ -89,18 +97,22 @@ The broader discipline that encompasses:
 ### Resolution in This Codebase
 
 **Hybrid approach**:
+
 - **`.agents/architecture/`** - Architectural Decision Records (strict ADR definition)
 - **`.agents/governance/`** - Governance policies and operational decisions
 
-**Example**: 
+**Example**:
+
 - `ADR-014` (in architecture) defines runner selection decision and rationale
 - `COST-GOVERNANCE.md` (in governance) operationalizes the policy with compliance requirements
 
 **When to use which**:
+
 - Use ADR for decisions affecting system structure, quality attributes, or technical architecture
 - Use governance docs for operational policies, compliance requirements, and process standards
 
 **Generalization**: The ADR pattern is valuable for any significant decision requiring:
+
 - Justification
 - Trade-off analysis
 - Long-term understanding
@@ -121,7 +133,8 @@ AKM (Architectural Knowledge Management)
 **Current ADR catalog**: `.agents/architecture/ADR-*.md`
 
 **Examples**:
-- ADR-017: Model routing policy (addresses quality requirement: false PASS rate)
+
+- ADR-019: Model routing policy (addresses quality requirement: false PASS rate)
 - ADR-014: Distributed handoff architecture (addresses scalability requirement: merge conflicts)
 - ADR-010: Quality gates (addresses reliability requirement: consistent review verdicts)
 
@@ -130,6 +143,7 @@ AKM (Architectural Knowledge Management)
 ## Key Insight
 
 An ADR is NOT just documentation—it's a **decision artifact** that:
+
 1. Forces explicit reasoning at decision time
 2. Preserves context for future maintainers
 3. Enables reversibility (if consequences prove undesirable)

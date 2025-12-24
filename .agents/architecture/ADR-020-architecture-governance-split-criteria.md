@@ -1,4 +1,4 @@
-# ADR-018: Architecture vs Governance Decision Split Criteria
+# ADR-020: Architecture vs Governance Decision Split Criteria
 
 ## Status
 
@@ -40,7 +40,7 @@ Our codebase has **two** locations for decision documentation:
 - **ADR-014**: Architectural decision (use ARM runners for 37.5% cost savings)
 - **COST-GOVERNANCE.md**: Operational policy (compliance comments, exception process, monitoring)
 
-**Emerging ambiguity**: ADR-017 bundles architectural decision + governance policy
+**Emerging ambiguity**: ADR-019 bundles architectural decision + governance policy
 - Model routing strategy (architectural)
 - Evidence sufficiency rules (quality gates)
 - Governance guardrails (MUST use explicit copilot-model)
@@ -150,7 +150,7 @@ Negative: [Costs, risks, limitations]
 
 **Examples**:
 - ADR-014 (runner selection) + COST-GOVERNANCE.md
-- ADR-017 (model routing strategy) + AI-REVIEW-MODEL-POLICY.md (recommended split)
+- ADR-019 (model routing strategy) + AI-REVIEW-MODEL-POLICY.md (recommended split)
 
 **Pattern**:
 
@@ -372,7 +372,7 @@ Trigger a split when:
 
 ### For Existing Decisions
 
-1. **ADR-017**: Recommended to split (model routing strategy + AI-REVIEW-MODEL-POLICY.md)
+1. **ADR-019**: Recommended to split (model routing strategy + AI-REVIEW-MODEL-POLICY.md)
 2. **Other ADRs**: Leave as-is unless enforcement burden triggers split
 3. **Governance docs**: Leave as-is (already correct placement)
 
@@ -399,8 +399,8 @@ Trigger a split when:
 ## Related Decisions
 
 - ADR-014: GitHub Actions Runner Selection (architecture) + COST-GOVERNANCE.md (governance) - Exemplar split pattern
-- ADR-017: Model Routing Policy (currently bundled, candidate for split)
-- Session 90: Multi-agent debate on ADR-017 exposed need for split criteria
+- ADR-019: Model Routing Policy (currently bundled, candidate for split)
+- Session 90: Multi-agent debate on ADR-019 exposed need for split criteria
 
 ## References
 
@@ -445,13 +445,13 @@ Trigger a split when:
 
 ---
 
-### Example 3: ADR-017 Model Routing (Candidate for Split)
+### Example 3: ADR-019 Model Routing (Candidate for Split)
 
 **Current**: Single ADR bundling architectural decision + governance policy
 
 **Recommended split**:
 
-**ADR-017** (architecture/):
+**ADR-019** (architecture/):
 - Decision: Route AI reviews to specialized models (gpt-5-mini, sonnet, opus, codex)
 - Rationale: Minimize false PASS by matching model strengths to prompt type
 - Alternatives: Opus-everywhere, Sonnet-everywhere, Codex-everywhere
