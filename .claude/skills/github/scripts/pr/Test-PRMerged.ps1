@@ -39,6 +39,8 @@ param(
     [Parameter(Mandatory)] [int]$PullRequest
 )
 
+$ErrorActionPreference = "Stop"
+
 Import-Module (Join-Path $PSScriptRoot ".." ".." "modules" "GitHubHelpers.psm1") -Force
 
 Assert-GhAuthenticated
@@ -46,10 +48,11 @@ $resolved = Resolve-RepoParams -Owner $Owner -Repo $Repo
 $Owner = $resolved.Owner
 $Repo = $resolved.Repo
 
-$query = @"
-query {
-  repository(owner: "$Owner", name: "$Repo") {
-    pullRequest(number: $PullRequest) {
+# Use parameterized GraphQL query to prevent injection
+$query = @'
+query($owner: String!, $repo: String!, $prNumber: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $prNumber) {
       state
       merged
       mergedAt
@@ -59,19 +62,24 @@ query {
     }
   }
 }
-"@
+'@
 
-Write-Verbose "Querying GraphQL for PR #$PullRequest merge state"
+Write-Verbose "Querying GraphQL for PR #${PullRequest} merge state"
 
-$result = gh api graphql -f query="$query" 2>&1
+$result = gh api graphql -f query="$query" -f owner="$Owner" -f repo="$Repo" -F prNumber=$PullRequest 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-ErrorAndExit "GraphQL query failed: $result" 2
 }
 
-$pr = ($result | ConvertFrom-Json).data.repository.pullRequest
+try {
+    $pr = ($result | ConvertFrom-Json).data.repository.pullRequest
 
-if (-not $pr) {
-    Write-ErrorAndExit "PR #$PullRequest not found in $Owner/$Repo" 2
+    if (-not $pr) {
+        Write-ErrorAndExit "PR #$PullRequest not found in $Owner/$Repo. The query might have failed or the PR does not exist." 2
+    }
+}
+catch {
+    Write-ErrorAndExit "Failed to parse GraphQL response for PR #$PullRequest. Response: $result. Error: $_" 2
 }
 
 $output = [PSCustomObject]@{
@@ -82,13 +90,14 @@ $output = [PSCustomObject]@{
     State        = $pr.state
     Merged       = $pr.merged
     MergedAt     = $pr.mergedAt
-    MergedBy     = $pr.mergedBy.login
+    MergedBy     = if ($pr.mergedBy) { $pr.mergedBy.login } else { $null }
 }
 
 Write-Output $output
 
 if ($pr.merged) {
-    Write-Host "[MERGED] PR #$PullRequest merged at $($pr.mergedAt) by @$($pr.mergedBy.login)" -ForegroundColor Yellow
+    $mergedByText = if ($pr.mergedBy) { "@$($pr.mergedBy.login)" } else { "automated process" }
+    Write-Host "[MERGED] PR #$PullRequest merged at $($pr.mergedAt) by $mergedByText" -ForegroundColor Yellow
     exit 1  # Exit code 1 = merged (skip review work)
 } else {
     Write-Host "[NOT MERGED] PR #$PullRequest is not merged (state: $($pr.state))" -ForegroundColor Green

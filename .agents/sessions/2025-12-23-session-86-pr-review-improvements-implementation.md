@@ -157,8 +157,8 @@ Comprehensive plan with:
 **Title**: "feat: Implement PR merge state verification to prevent wasted review effort"
 
 **Changes**:
-- Test-PRMerged.ps1 script (182 lines)
-- pr-review.md updates (3 sections added)
+- Test-PRMerged.ps1 script (96 lines)
+- pr-review.md updates (86 lines added across 3 sections)
 
 **Labels**: enhancement, priority:P2
 
@@ -210,7 +210,7 @@ Comprehensive plan with:
 
 **Statement**: Use GraphQL mutation aliases to resolve multiple threads in single API call.
 
-**Evidence**: Session 85 resolved 15 threads in 2 API calls (8 gemini + 7 Copilot) vs 15 individual calls
+**Evidence**: Session 85 resolved 15 threads in 2 API calls (8 Gemini + 7 Copilot) vs 15 individual calls
 
 **Impact**: Reduced API calls by 87% (15→2), reduced latency
 
@@ -223,7 +223,7 @@ Comprehensive plan with:
 | Time spent | ~45 minutes |
 | Files created | 3 (script, plan, session log) |
 | Files modified | 1 (pr-review.md) |
-| Lines of code | 182 (Test-PRMerged.ps1 + pr-review.md updates) |
+| Lines of code | 182 total (96 lines Test-PRMerged.ps1 + 86 lines pr-review.md updates) |
 | Tests executed | 2 (merged PR, open PR) |
 | Issues created | 1 (#321) |
 | PRs created | 1 (#322) |

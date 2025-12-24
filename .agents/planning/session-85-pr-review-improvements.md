@@ -251,11 +251,17 @@ $output = [PSCustomObject]@{
     Success      = $true
     PullRequest  = $PullRequest
     State        = $pr.state
+    Owner        = $Owner
+    Repo         = $Repo
     Merged       = $pr.merged
+    Owner        = $Owner
+    Repo         = $Repo
     MergedAt     = $pr.mergedAt
-    MergedBy     = $pr.mergedBy.login
+    MergedBy     = if ($pr.mergedBy) { $pr.mergedBy.login } else { $null }
 }
-
+    $mergedByText = if ($pr.mergedBy) { "@$($pr.mergedBy.login)" } else { "automated process" }
+    Write-Host "[MERGED] PR #$PullRequest merged at $($pr.mergedAt) by $mergedByText" -ForegroundColor Yellow
+    exit 1  # Exit code 1 = merged (skip review work)
 Write-Output $output
 
 if ($pr.merged) {

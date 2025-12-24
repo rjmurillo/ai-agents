@@ -205,7 +205,7 @@ done
 
 ## Thread Resolution Protocol
 
-### Overview (Skills PR-Review-004, PR-Review-005)
+### Overview (Skill-PR-Review-004, Skill-PR-Review-005)
 
 **CRITICAL**: Replying to a review comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation.
 
@@ -217,11 +217,11 @@ After replying to a review comment, resolve the thread via GraphQL:
 # Step 1: Reply to comment (handled by pr-comment-responder skill)
 # Step 2: Resolve thread (REQUIRED separate step)
 gh api graphql -f query='
-mutation {
-  resolveReviewThread(input: {threadId: "PRRT_xxx"}) {
+mutation($threadId: ID!) {
+  resolveReviewThread(input: {threadId: $threadId}) {
     thread { isResolved }
   }
-}' -f threadId="PRRT_xxx"
+}' -f threadId=
 ```
 
 **Why this matters**: pr-comment-responder skill replies to comments, but threads remain unresolved unless explicitly resolved via GraphQL. Unresolved threads block PR merge per branch protection rules.
@@ -232,50 +232,3 @@ For 2+ threads, use GraphQL mutation aliases for efficiency:
 
 ```bash
 gh api graphql -f query='
-mutation {
-  t1: resolveReviewThread(input: {threadId: "PRRT_xxx"}) { thread { id isResolved } }
-  t2: resolveReviewThread(input: {threadId: "PRRT_yyy"}) { thread { id isResolved } }
-  t3: resolveReviewThread(input: {threadId: "PRRT_zzz"}) { thread { id isResolved } }
-  t4: resolveReviewThread(input: {threadId: "PRRT_aaa"}) { thread { id isResolved } }
-  t5: resolveReviewThread(input: {threadId: "PRRT_bbb"}) { thread { id isResolved } }
-}
-'
-```
-
-**Benefits**:
-- 1 API call instead of N calls (e.g., 1 call for 5 threads vs 5 calls)
-- Reduced network latency (1 round trip vs N)
-- Atomic operation (all succeed or all fail)
-
-**When to use**: 2+ threads to resolve (break-even point)
-
-### Verification
-
-```bash
-# Check for unresolved threads
-unresolved_count=$(gh api graphql -f query='
-query {
-  repository(owner: "OWNER", name: "REPO") {
-    pullRequest(number: PR_NUMBER) {
-      reviewThreads(first: 100) {
-        nodes { id isResolved }
-      }
-    }
-  }
-}' --jq '.data.repository.pullRequest.reviewThreads.nodes | map(select(.isResolved == false)) | length')
-
-echo "Unresolved threads: $unresolved_count"
-# Should be 0 before claiming completion
-```
-
-**Reference**: Session 85 discovered this requirement when PR #315 had 18 unresolved threads despite all comments being replied to.
-
-## Examples
-
-```bash
-/pr-review 194                              # Single PR
-/pr-review 53,141,143                       # Multiple PRs sequentially
-/pr-review 53,141,143 --parallel            # Multiple PRs in parallel
-/pr-review all-open --parallel              # All open PRs needing review
-/pr-review 194 --parallel --cleanup=false   # Skip cleanup
-```
