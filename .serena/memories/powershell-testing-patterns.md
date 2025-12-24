@@ -355,11 +355,13 @@ It "Should not match paths without literal ?" {
 
 ## Skill-Testing-Platform-001: Document Platform Requirements (90%)
 
-**Statement**: When reverting multi-platform tests to single-platform, document specific platform assumptions that prevent cross-platform execution
+**Statement**: When reverting multi-platform tests to single-platform, add YAML comments in workflow file documenting specific platform assumptions
 
 **Context**: When Pester tests fail on Linux/ARM but pass on Windows
 
 **Trigger**: Reverting workflow runners from cross-platform to Windows-only
+
+**Location Rationale**: Bundled in powershell-testing-patterns.md per ADR-017 Format B (8+ related testing skills share workflow context)
 
 **Evidence**: PR #224: Pester tests failed on ARM Linux due to Windows-specific assumptions about hidden files, temp paths, and file system behavior. Tests reverted to Windows with documented justification.
 

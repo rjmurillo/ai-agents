@@ -16,14 +16,3 @@
 | integration test workflow dry-run module import validation pre-merge | ci-quality-gates |
 | research platform documentation limitation compatibility known issue | ci-deployment-validation |
 | label pre-validation create ensure exists gh label create deploy | ci-deployment-validation |
-| File | Skills | Focus |
-|------|--------|-------|
-| ci-test-runner-artifacts | TestRunner-001, Artifacts-001 | Test execution patterns |
-| ci-runner-selection | Runner-001 | Linux vs Windows choice |
-| ci-output-handling | ANSI-Disable-001, Output-001 | Output formatting |
-| ci-environment-simulation | Environment-Testing-001 | Local CI testing |
-| ci-yaml-shell-patterns | Heredoc-001, Auth-001, Regex-001, Shell-001 | YAML/shell safety |
-| ci-matrix-artifacts | Matrix-Output-001 | Matrix job data passing |
-| ci-ai-integration | Structured-Output-001, Comment-001 | AI automation |
-| ci-quality-gates | CI-001, Infra-003, Integration-001 | Validation gates |
-| ci-deployment-validation | Research-002, Infra-004 | Pre-deployment checks |
