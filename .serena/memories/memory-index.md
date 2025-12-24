@@ -7,10 +7,10 @@
 | label milestone issue create tag priority | project-labels-milestones |
 | powershell ps1 psm1 module pester test | skills-powershell-index, pattern-thin-workflows, skills-pester-testing |
 | security vulnerability TOCTOU secret injection | skills-security-index |
-| planning architecture ADR design | skills-planning, skills-architecture, skills-design |
+| planning architecture ADR design task file path | skills-planning-index, skills-architecture, skills-design |
 | implementation code feature bug fix test TDD additive | skills-implementation-index, skills-workflow, skills-execution |
 | orchestration agent coordination parallel handoff | skills-orchestration, skills-collaboration-patterns |
-| documentation PRD spec user-facing | skills-documentation |
+| documentation PRD spec user-facing migration self-contained | skills-documentation-index |
 | validation quality lint false-positive gate test | skills-validation-index, skills-linting |
 | CI CD workflow actions runner ARM | skills-ci-infrastructure-index, skills-github-workflow-patterns |
 | copilot review false-positive triage response | skills-copilot-index |
