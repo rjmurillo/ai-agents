@@ -6,17 +6,37 @@
 - **Indexed Files**: 197 atomic skills
 - **Token Efficiency**: 82% savings with session caching
 
-## Proposed Cache-Aside Memory Domains
+## Cache Strategy (DECISION NEEDED)
 
-### Priority 1: High-Value Caches (Reduce GitHub API calls)
+### Problem
 
-| Domain | Cache Target | TTL | Invalidation Trigger |
-|--------|--------------|-----|----------------------|
-| `github-open-issues-cache` | Open issues list | 1 hour | Issue created/closed webhook |
-| `github-open-prs-cache` | Open PRs list | 30 min | PR opened/merged/closed |
-| `github-labels-milestones-cache` | Labels and milestones | 24 hours | Manual or on change |
+Ephemeral cache files (open PRs, open issues) in git would:
+1. Cause merge conflicts on every PR
+2. Slow merge velocity
+3. Require constant conflict resolution from main
 
-**Benefit**: Agents frequently query open issues/PRs. Caching saves 10-20 API calls per session.
+### Options
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **Session-local cache** | No merge conflicts | No cross-session benefit |
+| **cloudmcp cache** | Cross-session, no conflicts | External dependency |
+| **Invalidate-on-write** | Fresh data guaranteed | Requires write hooks |
+| **No cache (query API)** | Always fresh | Higher API usage |
+
+### Recommendation
+
+Do NOT store ephemeral cache data in `.serena/memories/`. Use one of:
+1. Session-local variables (in-context)
+2. cloudmcp for cross-session caching
+3. Local temp files outside git tracking
+
+### Invalidation Strategy
+
+Prefer invalidate-on-write over TTL-on-read:
+- When closing PR/Issue: invalidate cache
+- When creating PR/Issue: invalidate cache
+- Avoids stale data from TTL-based reads
 
 ### Priority 2: Architecture Reference (Rarely Changes)
 

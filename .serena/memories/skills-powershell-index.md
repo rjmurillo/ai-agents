@@ -1,11 +1,3 @@
-# PowerShell Skills Index
-
-**Domain**: PowerShell patterns and best practices
-**Skills**: 16
-**Updated**: 2025-12-23
-
-## Activation Vocabulary
-
 | Keywords | File |
 |----------|------|
 | string interpolation variable colon scope qualifier subexpression braced syntax double-quoted | powershell-string-safety |
@@ -21,9 +13,6 @@
 | wildcard escape bracket `[?]` `[*]` -like operator literal character matching | powershell-testing-patterns |
 | platform document assumption Windows Linux ARM revert migration cross-platform | powershell-testing-patterns |
 | absolute path PSScriptRoot import module test hierarchy directory tree | powershell-testing-patterns |
-
-## Coverage
-
 | File | Skills | Lines |
 |------|--------|-------|
 | powershell-string-safety | 001, 007 | 80 |
@@ -31,8 +20,3 @@
 | powershell-security-ai-output | Security-001 | 60 |
 | powershell-cross-platform-ci | 005, 006, 008 | 140 |
 | powershell-testing-patterns | Testing-001, Testing-002, Param-001, Path-001, Wildcard-001, Platform-001, TestPath-001 | 458 |
-
-## Related
-
-- Source: PR #79, #212, #224, #255, #298
-- Security index: `skills-security`

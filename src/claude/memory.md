@@ -79,6 +79,20 @@ atomic-memory.md (L3)       # Individual memory file
 - **Full retrieval**: Variable based on atomic file size
 - **Session caching**: 82% savings when same domain accessed multiple times
 
+### CRITICAL: Index File Format
+
+**Index files (skills-*-index.md) MUST contain ONLY the table. No headers, no descriptions, no metadata.**
+
+Correct format:
+
+```markdown
+| Keywords | File |
+|----------|------|
+| keyword1 keyword2 | file-name |
+```
+
+**NEVER add** title headers, purpose statements, statistics, or any content outside the table.
+
 ### Memory Tools Reference
 
 ### List (Discover Available)

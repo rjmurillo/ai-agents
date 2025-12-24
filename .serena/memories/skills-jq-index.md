@@ -1,11 +1,3 @@
-# jq JSON Parsing Domain Index
-
-**Purpose**: Route to atomic skills for jq JSON parsing with GitHub CLI and REST API responses.
-
-**Use Case**: Essential for automation scripts and CI/CD pipelines processing JSON.
-
-## Activation Vocabulary
-
 | Keywords | File |
 |----------|------|
 | jq field access nested array index iterate basic | jq-field-extraction |
@@ -19,13 +11,3 @@
 | jq gh github cli json integrate inline extract paginate slurp | jq-github-cli-integration |
 | jq pitfall error null type mismatch raw quotes | jq-pitfalls |
 | jq reference quick operator function syntax | jq-quick-reference |
-
-## Domain Statistics
-
-- **Skills**: 10 core skills + 4 pitfalls
-- **Integration**: GitHub CLI `--json --jq` pattern
-
-## See Also
-
-- `skills-github-cli-index` - GitHub CLI operations
-- `github-rest-api-reference` - API endpoints

@@ -131,6 +131,27 @@ Skill files use `{domain}-{topic}.md` format for index discoverability:
 └── {domain}-{topic}.md         # L3: Atomic skill file(s)
 ```
 
+### CRITICAL: Index File Format
+
+**Index files MUST contain ONLY the table. No headers, no descriptions, no metadata.**
+
+Correct format (maximum token efficiency):
+
+```markdown
+| Keywords | File |
+|----------|------|
+| keyword1 keyword2 keyword3 | file-name-1 |
+| keyword4 keyword5 | file-name-2 |
+```
+
+**NEVER add**:
+
+- Title headers (`# Domain Index`)
+- Purpose statements
+- Statistics sections
+- See Also references
+- Any content outside the table
+
 ### Naming Rules
 
 | Component | Pattern | Examples |

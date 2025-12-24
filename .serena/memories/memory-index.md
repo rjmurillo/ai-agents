@@ -41,15 +41,6 @@
 | cva refactoring variant consolidation template generate | skills-cva-refactoring |
 | phase3 agent skill session handoff template verification | skills-agent-workflow-phase3 |
 
-## GitHub Cache (Cache-Aside Pattern)
-
-| Cache Keywords | Memory File | TTL |
-|----------------|-------------|-----|
-| open pr list pull request ready review | github-open-prs-cache | 30 min |
-| open issue list bug enhancement priority | github-open-issues-cache | 1 hour |
-
-**Usage**: Read cache first. If stale (check timestamp), refresh from API and update memory.
-
 ## User Constraints (MUST READ)
 
 | Constraint | Memory |

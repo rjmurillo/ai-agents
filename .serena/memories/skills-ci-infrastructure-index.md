@@ -1,11 +1,3 @@
-# CI Infrastructure Skills Index
-
-**Domain**: CI/CD pipelines, GitHub Actions, build automation
-**Skills**: 20
-**Updated**: 2025-12-23
-
-## Activation Vocabulary
-
 | Keywords | File |
 |----------|------|
 | pester test runner invoke artifacts output xml junit nunit CI local | ci-test-runner-artifacts |
@@ -24,9 +16,6 @@
 | integration test workflow dry-run module import validation pre-merge | ci-quality-gates |
 | research platform documentation limitation compatibility known issue | ci-deployment-validation |
 | label pre-validation create ensure exists gh label create deploy | ci-deployment-validation |
-
-## Coverage
-
 | File | Skills | Focus |
 |------|--------|-------|
 | ci-test-runner-artifacts | TestRunner-001, Artifacts-001 | Test execution patterns |
@@ -38,9 +27,3 @@
 | ci-ai-integration | Structured-Output-001, Comment-001 | AI automation |
 | ci-quality-gates | CI-001, Infra-003, Integration-001 | Validation gates |
 | ci-deployment-validation | Research-002, Infra-004 | Pre-deployment checks |
-
-## Related
-
-- Source: Sessions 03-08, PRs #47, #79, #202, #212
-- GitHub workflow patterns: `skills-github-workflow-patterns`
-- PowerShell CI: `powershell-cross-platform-ci`
