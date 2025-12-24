@@ -25,7 +25,8 @@ jobs:
   # Identify changed session files and build matrix
   detect-changes:
     name: Detect Changed Sessions
-    runs-on: ubuntu-latest
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
@@ -60,7 +61,8 @@ jobs:
   # Validate each session file in parallel using matrix strategy
   validate:
     name: Validate ${{ matrix.session_file }}
-    runs-on: ubuntu-latest
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
     needs: detect-changes
     if: needs.detect-changes.outputs.has_sessions == 'true'
     timeout-minutes: 10
@@ -124,8 +126,7 @@ jobs:
           echo "$FINDINGS" > "validation-results/${FILE_NAME}-findings.txt"
 
           # Check for MUST failures in findings
-          # Note: grep -c exits 1 when no matches; capture output separately from exit code
-          MUST_FAIL_COUNT=$(echo "$FINDINGS" | grep -c "MUST:.*FAIL" 2>/dev/null) || MUST_FAIL_COUNT=0
+          MUST_FAIL_COUNT=$(echo "$FINDINGS" | grep -c "MUST:.*FAIL" || echo "0")
           echo "$MUST_FAIL_COUNT" > "validation-results/${FILE_NAME}-must-failures.txt"
 
           echo "Saved validation results for $SESSION_FILE"
@@ -142,7 +143,8 @@ jobs:
   # Aggregate results and post comment
   aggregate:
     name: Aggregate Results
-    runs-on: ubuntu-latest
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
     needs: [detect-changes, validate]
     if: needs.detect-changes.outputs.has_sessions == 'true'
 
