@@ -62,7 +62,8 @@ jobs:
             $changedFiles = git diff --name-only HEAD~1...HEAD
           }
 
-          $memoryChanges = $changedFiles | Where-Object { $_ -like '.serena/memories/*' }
+          # Match any file under .serena/memories/ (including subdirectories)
+          $memoryChanges = $changedFiles | Where-Object { $_ -match '^\.serena/memories/' }
 
           if ($memoryChanges.Count -eq 0) {
             Write-Host "No memory files changed. Skipping validation." -ForegroundColor Yellow
