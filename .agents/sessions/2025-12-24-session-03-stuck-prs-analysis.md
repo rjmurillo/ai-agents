@@ -85,8 +85,8 @@ Only PR #342 shares the missing workflow blocker type.
 | MUST | Update Serena memory (cross-session context) | [x] | Memory: stuck-pr-patterns-2025-12-24 |
 | MUST | Run markdown lint | [x] | 0 errors |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/341-stuck-pr-analysis-verification.md` |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 2d57219 |
-| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: d0de3ca |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | Added to Recent Sessions only (per validator requirement) |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A (no project plan for Issue #341) |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Not required (straightforward investigation) |
 | SHOULD | Verify clean git status | [x] | Clean status after commit |
