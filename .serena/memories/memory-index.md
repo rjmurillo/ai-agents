@@ -12,8 +12,11 @@
 | planning task file path scope breakdown | skills-planning-index |
 | architecture ADR model composite tool allocation producer-consumer | skills-architecture-index |
 | design agent specialization entry-criteria limitation composability | skills-design-index |
-| implementation code feature bug fix test TDD additive | skills-implementation-index, skills-workflow, skills-execution |
-| orchestration agent coordination parallel handoff dispatch | skills-orchestration-index, skills-collaboration-patterns |
+| implementation code feature bug fix test TDD additive | skills-implementation-index |
+| orchestration agent coordination parallel handoff dispatch | skills-orchestration-index |
+| agent workflow pipeline critic atomic commit scope MVP | skills-agent-workflow-index |
+| quality qa DoD definition-of-done test strategy critique | skills-quality-index |
+| utility script markdown fence PathInfo security pattern | skills-utilities-index |
 | documentation PRD spec user-facing migration self-contained | skills-documentation-index |
 | validation quality lint false-positive gate test | skills-validation-index |
 | linting markdown autofix config exclude language backtick | skills-linting-index |

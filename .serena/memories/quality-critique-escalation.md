@@ -1,9 +1,4 @@
-# Critique Skills
-
-**Extracted**: 2025-12-16
-**Source**: `.agents/critique/` directory
-
-## Skill-Critique-001: Conflict Escalation Protocol (90%)
+# Critique and Escalation Protocol
 
 **Statement**: When specialists disagree, document positions and escalate to high-level-advisor
 
@@ -13,11 +8,9 @@
 
 **Atomicity**: 90%
 
-**Tag**: helpful
-
 **Impact**: 8/10
 
-**Protocol**:
+## Escalation Protocol
 
 1. Document each specialist's position clearly
 2. Note areas of agreement vs. disagreement
@@ -25,17 +18,29 @@
 4. Escalate to high-level-advisor with all positions
 5. Apply disagree-and-commit after decision
 
-**Anti-Pattern**:
+## Anti-Patterns
 
 - Stalling on consensus
 - Overriding specialist without escalation
 - Endless debate without resolution
 
-**Source**: `.agents/critique/001-agent-templating-critique.md`
+## Documentation Format
 
----
+```markdown
+## Specialist Disagreement
 
-## Related Documents
+### Position A (architect)
+[Position summary]
 
-- Source: `.agents/critique/001-agent-templating-critique.md`
-- Related: skills-workflow (handoff patterns)
+### Position B (implementer)
+[Position summary]
+
+### Agreed Points
+- [Common ground]
+
+### Contested Points
+- [Where they differ]
+
+### Recommended Escalation
+high-level-advisor with context: [summary]
+```
