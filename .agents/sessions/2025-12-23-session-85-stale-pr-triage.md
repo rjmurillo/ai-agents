@@ -57,11 +57,11 @@
 | MUST | Update Serena memory (cross-session context) | [x] | N/A - triage session |
 | MUST | Run markdown lint | [x] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [ ] | N/A - documentation only |
-| MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 0fff144 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [x] | N/A - no project plan |
 | SHOULD | Invoke retrospective (significant sessions) | [x] | N/A - triage session |
-| SHOULD | Verify clean git status | [ ] | `git status` output |
+| SHOULD | Verify clean git status | [x] | Clean after commit 0fff144 |
 
 ## Decisions Made
 

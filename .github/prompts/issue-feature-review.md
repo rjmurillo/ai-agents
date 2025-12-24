@@ -139,6 +139,7 @@ RECOMMENDATION: [PROCEED | DEFER | REQUEST_EVIDENCE | NEEDS_RESEARCH | DECLINE]
 - **Next Steps**:
   1. [Action 1]
   2. [Action 2]
+
 ```
 
 ## Important Guidelines
