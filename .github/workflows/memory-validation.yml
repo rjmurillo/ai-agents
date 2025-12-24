@@ -55,12 +55,20 @@ jobs:
         id: changes
         shell: pwsh
         run: |
-          # Get list of changed files in this PR/push
+          # Get list of changed files based on event type
           if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
-            $changedFiles = git diff --name-only origin/${{ github.base_ref }}...HEAD
+            # Compare PR branch against the base branch
+            $diffOutput = git diff --name-only origin/${{ github.base_ref }}...HEAD
+          } elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            # Use the commit range provided by the push event payload
+            $diffOutput = git diff --name-only ${{ github.event.before }}...${{ github.sha }}
           } else {
-            $changedFiles = git diff --name-only HEAD~1...HEAD
+            # Fallback for workflow_dispatch or other events: compare against main
+            $diffOutput = git diff --name-only origin/main...HEAD
           }
+
+          # Split output into array (git diff returns newline-separated string)
+          $changedFiles = $diffOutput -split '\r?\n' | Where-Object { $_ }
 
           # Match any file under .serena/memories/ (including subdirectories)
           $memoryChanges = $changedFiles | Where-Object { $_ -match '^\.serena/memories/' }
