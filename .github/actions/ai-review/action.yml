@@ -630,7 +630,10 @@ runs:
             echo "========================="
             echo ""
 
-            OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI failed (exit code $EXIT_CODE) with no output - likely missing Copilot access for the bot account"
+            # Auth/infrastructure failures should not block PRs - emit WARN instead of CRITICAL_FAIL
+            # This allows PRs to proceed while still alerting to the infrastructure issue
+            echo "::warning::Copilot CLI authentication/access failure - review will proceed without AI analysis"
+            OUTPUT="VERDICT: WARN"$'\n'"MESSAGE: Copilot CLI authentication failed (exit code $EXIT_CODE) - AI review skipped due to missing Copilot access. This is an infrastructure issue, not a code quality issue."
           elif [ -z "$OUTPUT" ]; then
             # Has stderr but no stdout
             OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI failed (exit code $EXIT_CODE)"$'\n'"STDERR: $STDERR_OUTPUT"

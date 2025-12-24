@@ -19,3 +19,4 @@
 | required check path filter phantom blocking internal skip git diff | ci-workflow-required-checks |
 | zero SHA first commit force-push git cat-file LASTEXITCODE validation | ci-workflow-required-checks |
 | required check testing non-matching PR status reporting verification | ci-workflow-required-checks |
+| copilot cli authentication exit code 1 no output bot token access WARN | skill-ci-001-copilot-cli-authentication |
