@@ -48,6 +48,7 @@ For each [FAIL], apply objective fixes:
 | Ambiguous references | Add grep commands or file path examples |
 
 **Required fix quality**:
+
 - NOT "when appropriate" → INSTEAD "when X > threshold Y"
 - NOT "similar to" → INSTEAD "grep command: `grep -r 'pattern' path/`"
 - NOT "as needed" → INSTEAD "if condition A then action B, else action C"
@@ -59,6 +60,7 @@ Invoke critic again with same questions. Repeat Step 3 until all [PASS].
 ### Step 5: Commit With Verification Evidence
 
 Include in commit message:
+
 ```
 [PASS] Critic verification: all amnesiac execution tests
 
@@ -68,6 +70,7 @@ Verified: [list of capability questions]
 ## Anti-Pattern
 
 **NEVER**:
+
 - Commit documentation without critic verification
 - Accept vague terms ("when appropriate", "as needed", "similar to")
 - Assume prior context will be available to future agents

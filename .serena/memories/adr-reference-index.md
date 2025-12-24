@@ -9,6 +9,7 @@ This is a REFERENCE index, not a skills index. ADRs live in `.agents/architectur
 ## Active ADRs by Topic
 
 ### Agent System
+
 | ADR | Title | Keywords |
 |-----|-------|----------|
 | ADR-002 | Agent Model Selection Optimization | model haiku sonnet opus routing |
@@ -19,6 +20,7 @@ This is a REFERENCE index, not a skills index. ADRs live in `.agents/architectur
 | ADR-014a | Distributed Handoff Architecture | handoff session log |
 
 ### CI/CD and Workflows
+
 | ADR | Title | Keywords |
 |-----|-------|----------|
 | ADR-004 | Pre-Commit Hook as Validation Orchestration | pre-commit hook validation |
@@ -30,6 +32,7 @@ This is a REFERENCE index, not a skills index. ADRs live in `.agents/architectur
 | ADR-016 | Workflow Execution Optimization | workflow cache optimization |
 
 ### Standards and Patterns
+
 | ADR | Title | Keywords |
 |-----|-------|----------|
 | ADR-001 | Markdown Linting Configuration | markdown lint autofix |
@@ -38,6 +41,7 @@ This is a REFERENCE index, not a skills index. ADRs live in `.agents/architectur
 | ADR-018 | Cache Invalidation Strategy | cache invalidate TTL session-local cloudmcp |
 
 ### Proposed (Not Yet Implemented)
+
 | ADR | Title | Status |
 |-----|-------|--------|
 | ADR-011 | Session State MCP | Proposed |

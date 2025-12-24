@@ -14,3 +14,7 @@
 | merge state verification Test-PRMerged GraphQL stale OPEN blocking | pr-review-007-merge-state-verification |
 | session state continuity check existing NEW comments incremental | pr-review-008-session-state-continuity |
 | bot mention side effects trigger reaction acknowledgment premium | pr-review-bot-mention-side-effects |
+| enumerate verify cross-check completeness gate miss | pr-enum-001 |
+| status COMPLETE BLOCKED AWAITING_HUMAN decision tree | pr-status-001 |
+| [HARMFUL] assume enumeration complete without verify | anti-pattern-pr-001 |
+| [HARMFUL] conflate task completion PR readiness status | anti-pattern-status-001 |
