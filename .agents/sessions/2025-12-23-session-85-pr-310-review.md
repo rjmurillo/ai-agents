@@ -54,13 +54,58 @@ Optimizes for **lowest false PASS rate** to prevent missed issues, especially im
 - [x] Commit session log
 - [x] Record commit SHA: 2006d00
 
+## Multi-Agent Debate Results
+
+Orchestrated rigorous multi-agent debate on ADR-017 per user request.
+
+### Consensus Achieved in 2 Rounds
+
+**Final Agent Positions**:
+- architect: **Accept**
+- critic: **Accept**
+- independent-thinker: **Disagree-and-Commit** (documented dissent)
+- security: **Accept**
+- analyst: **Accept**
+
+### Major ADR Enhancements
+
+1. **Scope Clarification**: Explicitly separates evidence gaps from infrastructure noise (Issue #164)
+2. **Section 4: Security Hardening**: Prompt injection safeguards, mandatory CONTEXT_MODE header, confidence scoring
+3. **Section 5: Escalation Criteria**: Operational table replacing vague "high uncertainty"
+4. **Section 6: Risk Review Contract**: Defines CAN/CANNOT for summary-mode PRs
+5. **Section 7: Aggregator Policy**: Promoted from optional to REQUIRED
+6. **Prerequisites Section**: Three P0 blocking gates + one P1:
+   - Baseline false PASS measurement (P0)
+   - Model availability verification (P0)
+   - Governance guardrail implementation (P0)
+   - Cost estimation (P1)
+7. **Success Metrics**: Added baseline column with measurable targets
+8. **Alternatives Considered**: Added "Enforce smaller PRs" option
+
+### Independent-Thinker Dissent (Documented)
+
+Maintains skepticism that evidence sufficiency is primary lever over infrastructure noise (Issue #164), but supports execution because:
+- Policy is falsifiable via post-deployment audit
+- Baseline measurement prerequisite blocks premature implementation
+- Security hardening controls are defensible on their own merits
+
+### Deliverables
+
+- **Updated ADR**: `.agents/architecture/ADR-017-model-routing-low-false-pass.md` (commit d296e16)
+- **Debate Log**: `.agents/architecture/ADR-017-debate-log.md` (348 lines)
+- Both files committed and pushed to `docs/adr-017` branch
+
 ## Outcome
 
-Successfully reviewed and documented PR #310. The PR description now follows the template structure with:
+Successfully reviewed and documented PR #310, then conducted multi-agent debate to achieve consensus on ADR-017:
+
+**Initial Review**:
 - Clear summary of ADR-017's purpose
 - Proper specification references
 - Detailed changes list
 - Decision context and consequences
-- All template sections completed
 
-PR is ready for review.
+**Post-Debate Status**:
+- ADR-017 remains **Proposed** until Prerequisites satisfied
+- 4 Accept + 1 Disagree-and-Commit = consensus achieved
+- PR ready for review with significantly strengthened ADR
