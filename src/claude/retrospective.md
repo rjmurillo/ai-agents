@@ -685,7 +685,7 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 ### ADD
 ```json
 {
-  "skill_id": "Skill-[Cat]-[N]",
+  "skill_id": "{domain}-{description}",
   "statement": "[Atomic]",
   "context": "[When to apply]",
   "evidence": "[Source]",
@@ -1044,7 +1044,7 @@ Use cloudmcp-manager memory tools directly for all persistence operations.
 mcp__cloudmcp-manager__memory-create_entities
 {
   "entities": [{
-    "name": "Skill-[Category]-[NNN]",
+    "name": "{domain}-{description}",
     "entityType": "Skill",
     "observations": ["[Skill statement with context and evidence]"]
   }]
@@ -1111,7 +1111,7 @@ When retrospective is complete:
 
 | Skill ID | Statement | Atomicity | Operation | Target |
 |----------|-----------|-----------|-----------|--------|
-| Skill-[Cat]-[NNN] | [Atomic statement - max 15 words] | [%] | ADD/UPDATE/TAG/REMOVE | [Memory file if UPDATE] |
+| {domain}-{description} | [Atomic statement - max 15 words] | [%] | ADD/UPDATE/TAG/REMOVE | [Memory file if UPDATE] |
 
 ### Memory Updates
 
@@ -1150,8 +1150,8 @@ When retrospective is complete:
 
 | Skill ID | Statement | Atomicity | Operation | Target |
 |----------|-----------|-----------|-----------|--------|
-| Skill-Validation-006 | Validate workflow YAML syntax before committing | 92% | ADD | - |
-| Skill-CI-003 | Use matrix strategy for parallel agent execution | 88% | UPDATE | skills-ci-infrastructure.md |
+| validation-yaml-syntax | Validate workflow YAML syntax before committing | 92% | ADD | - |
+| ci-matrix-parallel | Use matrix strategy for parallel agent execution | 88% | UPDATE | skills-ci-infrastructure.md |
 
 ### Memory Updates
 
