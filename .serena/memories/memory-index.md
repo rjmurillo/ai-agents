@@ -5,7 +5,8 @@
 | jq json parse filter select map array object string | skills-jq-index |
 | gh extension notify combine metrics milestone webhook grep sub-issue | skills-gh-extensions-index |
 | label milestone issue create tag priority | project-labels-milestones |
-| powershell ps1 psm1 module pester test | skills-powershell-index, pattern-thin-workflows, skills-pester-testing |
+| powershell ps1 psm1 module pester test discovery isolation | skills-powershell-index, skills-pester-testing-index, pattern-thin-workflows |
+| bash exit code cross-language contract AUTOFIX pre-commit hook | skills-bash-integration-index |
 | security vulnerability TOCTOU secret injection | skills-security-index |
 | planning architecture ADR design task file path | skills-planning-index, skills-architecture, skills-design |
 | implementation code feature bug fix test TDD additive | skills-implementation-index, skills-workflow, skills-execution |
