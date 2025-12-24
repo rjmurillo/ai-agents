@@ -341,46 +341,27 @@ This memory contains:
 - Per-PR breakdown of comment outcomes
 - Anti-patterns to avoid
 
-#### Step 0.2: Load Reviewer-Specific Memories (Deferred Until After Step 1.2)
+#### Step 0.2: Verify Core Memory Loaded
 
-**Note**: This step is executed AFTER Step 1.2 (reviewer enumeration) completes. It is documented in Phase 0 for logical grouping but executes later in the workflow.
+Before proceeding, confirm `pr-comment-responder-skills` is loaded:
 
-After enumerating reviewers in Step 1.2, load memories for each unique reviewer:
+- [ ] Memory content appears in context
+- [ ] Reviewer signal quality table visible
+- [ ] Triage heuristics available
 
-```python
-# For each reviewer in the list, check for dedicated memory
-reviewers = ["cursor[bot]", "copilot-pull-request-reviewer", "coderabbitai[bot]", ...]
+**If memory load fails**: Proceed with default heuristics but flag in session log.
 
-for reviewer in reviewers:
-    # Check against known reviewer memories (see table below)
-    # Note: Actual memory names follow project conventions, not algorithmic transformation
-    # The mapping is maintained manually in the table below
+#### Step 0.3: Note on Reviewer-Specific Memories
 
-    # Example lookup logic:
-    if reviewer == "cursor[bot]":
-        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
-    elif reviewer == "copilot-pull-request-reviewer":
-        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
-    # Or use a mapping dict for cleaner code
-```
+Reviewer-specific memories (e.g., `cursor-bot-review-patterns`) are loaded in **Step 1.2a** after reviewer enumeration completes. Phase 0 focuses only on core skills memory.
 
-**Known Reviewer Memories**:
+---
 
 | Reviewer | Memory Name | Content |
 |----------|-------------|---------|
 | cursor[bot] | `cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
 | Copilot | `copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
 | coderabbitai[bot] | - | (Use pr-comment-responder-skills) |
-
-#### Step 0.3: Verify Memory Loaded
-
-Before proceeding, confirm you have:
-
-- [ ] pr-comment-responder-skills loaded
-- [ ] Reviewer signal quality table in context
-- [ ] Any reviewer-specific patterns loaded
-
-**If memory load fails**: Proceed with default heuristics but flag in session log.
 
 ---
 
@@ -451,6 +432,22 @@ ISSUE_REVIEWERS=$(gh api repos/[owner]/[repo]/issues/[number]/comments --jq '[.[
 ALL_REVIEWERS=$(echo "$REVIEWERS $ISSUE_REVIEWERS" | jq -s 'add | unique')
 echo "Reviewers: $ALL_REVIEWERS"
 ```
+
+#### Step 1.2a: Load Reviewer-Specific Memories
+
+Now that reviewers are enumerated, load memories for each unique reviewer:
+
+```python
+# For each reviewer, check for dedicated memory
+for reviewer in ALL_REVIEWERS:
+    if reviewer == "cursor[bot]":
+        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
+    elif reviewer == "copilot-pull-request-reviewer":
+        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
+    # Other reviewers use pr-comment-responder-skills (already loaded in Phase 0)
+```
+
+**Reference**: See Phase 0, Step 0.3 for the reviewer memory mapping table.
 
 #### Step 1.3: Retrieve ALL Comments (with pagination)
 
@@ -952,11 +949,13 @@ gh pr edit [number] --body "[updated body]"
 **MANDATORY**: Verify all comments addressed before claiming completion.
 
 ```bash
-# Count addressed vs total
-ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
+# Count addressed vs total (both COMPLETE and WONTFIX are valid resolutions)
+COMPLETE=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md || echo 0)
+WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md || echo 0)
+ADDRESSED=$((COMPLETE + WONTFIX))
 TOTAL=$TOTAL_COMMENTS
 
-echo "Verification: $ADDRESSED / $TOTAL comments addressed"
+echo "Verification: $ADDRESSED / $TOTAL comments addressed (COMPLETE: $COMPLETE, WONTFIX: $WONTFIX)"
 
 if [ "$ADDRESSED" -lt "$TOTAL" ]; then
   echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED)) comments remaining"
@@ -988,27 +987,38 @@ session_stats = {
 #### Step 9.2: Update pr-comment-responder-skills Memory
 
 ```python
-# Read current memory
+# Read current memory to get existing statistics
 current = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
 
-# Update statistics sections:
-# 1. Per-Reviewer Performance (Cumulative) table
-# 2. Per-PR Breakdown section (add new PR entry)
-# 3. Metrics section (update totals)
+# Calculate new cumulative totals from session_stats
+# Example: If cursor[bot] had 9 comments (100%) and this PR adds 2 more (100%)
+# New totals: 11 comments, 11 actionable, 100%
 
-# Use edit_memory to update specific sections
+# Update Per-Reviewer Performance table with new totals
+# Find the row for each reviewer and update their cumulative stats
 mcp__serena__edit_memory(
     memory_file_name="pr-comment-responder-skills",
-    needle="### Per-Reviewer Performance \\(Cumulative\\)",
-    repl="[Updated section with new PR data]",
+    needle=r"\| cursor\[bot\] \| \d+ \| \d+ \| \*\*\d+%\*\* \|",
+    repl=f"| cursor[bot] | {new_total_comments} | {new_actionable} | **{new_rate}%** |",
     mode="regex"
 )
 
-# Add new Per-PR Breakdown entry
+# Add new Per-PR Breakdown entry (prepend to existing entries)
+new_pr_section = f"""### Per-PR Breakdown
+
+#### PR #{PR_NUMBER} ({date})
+
+| Reviewer | Comments | Actionable | Rate |
+|----------|----------|------------|------|
+| cursor[bot] | {cursor_comments} | {cursor_actionable} | {cursor_rate}% |
+| copilot-pull-request-reviewer | {copilot_comments} | {copilot_actionable} | {copilot_rate}% |
+
+"""
+
 mcp__serena__edit_memory(
     memory_file_name="pr-comment-responder-skills",
     needle="### Per-PR Breakdown",
-    repl="### Per-PR Breakdown\n\n#### PR #[NEW] (YYYY-MM-DD)\n\n[New PR stats table]\n\n",
+    repl=new_pr_section,
     mode="literal"
 )
 ```
