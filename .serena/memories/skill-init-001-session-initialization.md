@@ -66,4 +66,9 @@ At session start:
 
 ## Tags
 
-# initialization #mandatory #blocking #session-start #serena #P0
+- #initialization
+- #mandatory
+- #blocking
+- #session-start
+- #serena
+- #P0
