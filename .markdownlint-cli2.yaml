@@ -10,7 +10,7 @@ config:
 
   # Fenced code language - REQUIRED for syntax highlighting
   # Note: 3 known false positives in nested template files (retrospective.md, roadmap.md)
-  # where closing fences of outer markdown blocks are misidentified as new blocks
+  # where nested code blocks cause parser confusion
   MD040: true
 
   # Inline HTML - allow specific elements, flag unescaped generic types
@@ -60,6 +60,7 @@ globs:
   - "!.agents/**"
   - "!.serena/memories/**"
   - "!.flowbaby/**"
+  - "!.claude/skills/**"
 
 ignores:
   - "node_modules/**"
@@ -71,3 +72,8 @@ ignores:
   - "src/claude/CLAUDE.md"
   - "src/vs-code-agents/copilot-instructions.md"
   - "src/copilot-cli/copilot-instructions.md"
+  # Prompt template with intentional nested code blocks and XML-like tags (scratchpad, etc.)
+  # that confuse the parser. These are prompt content, not markdown errors.
+  - "docs/autonomous-pr-monitor.md"
+  # Skills treated as third-party plugins per PR #331 - excluded via glob pattern above
+  # - ".claude/skills/adr-review/agent-prompts.md"  # No longer needed with glob exclusion

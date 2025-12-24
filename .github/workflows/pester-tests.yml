@@ -30,32 +30,15 @@ on:
       - main
       - 'feat/**'
       - 'fix/**'
-    paths:
-      - 'scripts/**'
-      - 'build/**'
-      - '.github/scripts/**'
-      - '.claude/skills/**'
-      - 'tests/**'
-      - '.github/workflows/pester-tests.yml'
   pull_request:
     branches:
       - main
-    paths:
-      - 'scripts/**'
-      - 'build/**'
-      - '.github/scripts/**'
-      - '.claude/skills/**'
-      - 'tests/**'
-      - '.github/workflows/pester-tests.yml'
   workflow_dispatch: # Allow manual triggering
-
-concurrency:
-  group: pester-tests-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   check-paths:
     name: Check Changed Paths
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -94,6 +77,8 @@ jobs:
     name: Run Pester Tests
     needs: check-paths
     if: needs.check-paths.outputs.should-run-tests == 'true'
+    # Keep on Windows - many tests have Windows-specific assumptions
+    # (file paths, hidden files, etc.) that don't work on Linux ARM
     runs-on: windows-latest
     permissions:
       contents: read
@@ -113,7 +98,7 @@ jobs:
         with:
           name: pester-test-results
           path: ./artifacts/pester-results.xml
-          retention-days: 7
+          retention-days: 30
 
       - name: Upload Code Coverage Results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -136,6 +121,7 @@ jobs:
     name: Run Pester Tests
     needs: check-paths
     if: needs.check-paths.outputs.should-run-tests != 'true'
+    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
