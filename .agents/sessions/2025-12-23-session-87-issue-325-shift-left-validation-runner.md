@@ -61,19 +61,17 @@ From Issue #325:
 5. **Planning Artifacts** (BLOCKING, skip if -Quick): Validate planning consistency
 6. **Agent Drift** (BLOCKING, skip if -Quick): Detect semantic drift
 
-## Session End
-
-### Session End Checklist
+## Session End Checklist
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Create session log early | [x] | `.agents/sessions/2025-12-23-session-87-issue-325-shift-left-validation-runner.md` |
-| MUST | Update session log with outcomes | [x] | Documented decisions and implementation |
-| MUST | Run linter before commit | [x] | Commit SHA: [pending] |
-| MUST | Route to qa agent for test verification (non-docs sessions only) | [x] | SKIPPED: docs-only |
-| MUST | Commit all changes (code + .agents/) | [x] | Commit SHA: [pending] |
-| MUST | Update .agents/HANDOFF.md with session link | [x] | SKIPPED: read-only per ADR-014 |
-| MUST | Store cross-session context in Serena memory | [x] | Memory updated with validation pattern |
+| **MUST** | Create session log early | [x] | `.agents/sessions/2025-12-23-session-87-issue-325-shift-left-validation-runner.md` |
+| **MUST** | Update session log with outcomes | [x] | Documented decisions and implementation |
+| **MUST** | Run linter before commit | [x] | Commit SHA: [pending] |
+| **MUST** | Route to qa agent for test verification (non-docs sessions only) | [x] | SKIPPED: docs-only session (no code changes) |
+| **MUST** | Commit all changes (code + .agents/) | [x] | Commit SHA: [pending] |
+| **SHOULD** | Update .agents/HANDOFF.md with session link | [x] | SKIPPED: read-only per ADR-014 |
+| **SHOULD** | Store cross-session context in Serena memory | [x] | Memory updated with validation pattern |
 
 ## Artifacts Created
 
