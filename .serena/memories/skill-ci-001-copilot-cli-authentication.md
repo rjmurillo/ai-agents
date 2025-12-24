@@ -40,6 +40,7 @@ Stderr length: 0 chars
 ### Workflow Impact
 
 When DevOps agent returns `CRITICAL_FAIL` due to Copilot CLI failure:
+
 - `Aggregate Results` step fails the entire PR
 - All AI reviews may appear to fail even though code is fine
 - Multiple PRs blocked simultaneously
@@ -47,6 +48,7 @@ When DevOps agent returns `CRITICAL_FAIL` due to Copilot CLI failure:
 ## Mitigation
 
 1. **Verify bot account Copilot access**
+
    ```bash
    gh copilot --help  # Should work if access enabled
    ```
@@ -61,11 +63,14 @@ When DevOps agent returns `CRITICAL_FAIL` due to Copilot CLI failure:
 
 ## Evidence
 
-Session 04 (2025-12-24): DevOps agent returned CRITICAL_FAIL on multiple PRs (#301, #322, #320, #310) due to Copilot CLI exit code 1 with no output.
+Session 04 (2025-12-24): Identified that bot account lacks Copilot access. DevOps agent returned `CRITICAL_FAIL` with no output, blocking all PRs.
 
-## Tags
+**Fix Applied**: Changed `.github/actions/ai-review/action.yml` to emit `WARN` instead of `CRITICAL_FAIL` when authentication fails (no stdout AND no stderr). This allows PRs to proceed while still flagging infrastructure issues.
 
-- #ci
-- #copilot
-- #authentication
-- #ai-quality-gate
+## Resolution
+
+For auth failures (no output), the composite action now:
+
+1. Emits GitHub Actions `::warning::` annotation
+2. Returns `VERDICT: WARN` instead of `CRITICAL_FAIL`
+3. Includes message explaining this is infrastructure, not code quality
