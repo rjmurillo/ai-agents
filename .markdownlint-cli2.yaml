@@ -10,7 +10,7 @@ config:
 
   # Fenced code language - REQUIRED for syntax highlighting
   # Note: 3 known false positives in nested template files (retrospective.md, roadmap.md)
-  # where closing fences of outer markdown blocks are misidentified as new blocks
+  # where nested code blocks cause parser confusion
   MD040: true
 
   # Inline HTML - allow specific elements, flag unescaped generic types
