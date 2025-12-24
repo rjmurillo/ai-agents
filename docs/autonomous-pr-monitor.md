@@ -9,8 +9,10 @@ You will be running an autonomous monitoring loop for a GitHub repository to hel
 
 The repository you will be monitoring is:
 <github_repo>
-{{GITHUB_REPO}}
+https://github.com/owner/repo
 </github_repo>
+
+Replace `owner/repo` with your actual repository (e.g., `rjmurillo/ai-agents`).
 
 MONITORING LOOP PARAMETERS:
 - Run continuously (infinite loop until instructed to stop)
@@ -123,7 +125,7 @@ When you find PRs with the following issues, fix them immediately:
    - `$LASTEXITCODE` persists from external commands (gh, npm, npx) and can cause false failures
 
 9. **Test Module Import Paths**: Fix incorrect relative paths in test files:
-   - Tests in `.github/tests/` importing from `.claude/skills/` need correct `../` depth
+   - Tests in `.github/tests/` that import from `.claude/skills/` need the correct `../` depth
    - Use `$PSScriptRoot` with proper parent traversal to build absolute paths
 
 10. **Unresolved PR Review Threads**: If a PR has review comment threads that have been addressed but not marked as resolved, and this is blocking the merge, mark those threads as resolved
@@ -193,7 +195,7 @@ Continue this monitoring loop indefinitely, adjusting cycle intervals based on r
 2. Rate limit exceeds 80% (pause until reset, then resume)
 3. A critical error prevents further operation
 
-IMPORTANT: Your output should consist of the cycle summaries and actions taken. The scratchpad is for your internal reasoning and should help you decide what to do, but the cycle_summary and actions_taken sections are what will be logged and reviewed.
+IMPORTANT: Your output must consist only of the cycle_summary and actions_taken sections. The scratchpad is strictly for your internal reasoning to help you decide what to do and must never be included in your visible output; only the cycle_summary and actions_taken sections will be logged and reviewed.
 
 ```
 
@@ -250,7 +252,7 @@ $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "my-tests"
 **Fix command**:
 
 ```bash
-sed -i 's/\$env:TEMP/[System.IO.Path]::GetTempPath()/g' path/to/file.ps1
+sed -i 's/\$env:TEMP/[[]System.IO.Path[]]::GetTempPath()/g' path/to/file.ps1
 ```
 
 ### Pattern 2: Here-String Terminator (Skill-PowerShell-007)
@@ -272,8 +274,10 @@ $json = @"
 **Fix command**:
 
 ```bash
-# Remove leading whitespace from terminator line (replace LINE_NUMBER)
-sed -i 'LINE_NUMBERs/^[[:space:]]*//' path/to/file.ps1
+# Remove leading whitespace from terminator line
+# Set LINE_NUMBER to the line containing the here-string terminator (e.g., 10)
+LINE_NUMBER=10
+sed -i "${LINE_NUMBER}s/^[[:space:]]*//" path/to/file.ps1
 ```
 
 ### Pattern 3: Exit Code Persistence (Skill-PowerShell-008)
@@ -296,17 +300,19 @@ exit 0  # Ensures workflow step succeeds
 
 **Problem**: Workflows fail when referencing non-existent labels.
 
+**Note**: Replace `{owner}/{repo}` with your repository (e.g., `rjmurillo/ai-agents`).
+
 ```bash
 # Create missing labels before workflow can use them
 gh api repos/{owner}/{repo}/labels -X POST \
-  -f name="drift-detected" \
-  -f description="Agent drift detected" \
-  -f color="d73a4a"
+  -f name=drift-detected \
+  -f "description=Agent drift detected" \
+  -f color=d73a4a
 
 gh api repos/{owner}/{repo}/labels -X POST \
-  -f name="automated" \
-  -f description="Automated workflow" \
-  -f color="5319e7"
+  -f name=automated \
+  -f "description=Automated workflow" \
+  -f color=5319e7
 ```
 
 ### Pattern 5: Test Module Paths (Skill-Testing-Path-001)
@@ -337,6 +343,11 @@ $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "gi
 
 ## Key Commands Used
 
+**Note**: Replace placeholders with actual values:
+- `{owner}/{repo}` → Your repository (e.g., `rjmurillo/ai-agents`)
+- `{number}` → PR number (e.g., `255`)
+- `{run_id}` → Workflow run ID
+
 ```bash
 # Check all PRs
 gh pr list --state open --json number,title,headRefName,mergeable
@@ -348,7 +359,7 @@ gh pr view {number} --json statusCheckRollup --jq '.statusCheckRollup[] | "\(.co
 gh run view {run_id} --log-failed
 
 # Create missing labels
-gh api repos/{owner}/{repo}/labels -X POST -f name="label-name" -f description="..." -f color="..."
+gh api repos/{owner}/{repo}/labels -X POST -f name=label-name -f "description=Label description" -f color=d73a4a
 
 # Find notifications needing attention
 gh notify -s
@@ -367,5 +378,5 @@ The agent tracks progress using TodoWrite:
 ## Prerequisites
 
 - GitHub CLI (`gh`) authenticated
-- Git worktrees set up for parallel PR work (`/home/richard/worktree-pr-{number}`)
+- Git worktrees set up for parallel PR work (`~/worktrees/pr-{number}`)
 - Access to push to feature branches
