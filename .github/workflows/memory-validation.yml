@@ -48,15 +48,41 @@ jobs:
         shell: pwsh
         run: |
           # Get list of changed files based on event type
+          $diffOutput = $null
+
           if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
-            # Compare PR branch against the base branch
+            # Compare PR branch against the base branch (three dots for merge-base diff)
             $diffOutput = git diff --name-only origin/${{ github.base_ref }}...HEAD
           } elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
-            # Use the commit range provided by the push event payload
-            $diffOutput = git diff --name-only ${{ github.event.before }}...${{ github.sha }}
+            # Handle push event with guards for edge cases
+            $beforeSha = '${{ github.event.before }}'
+            $afterSha = '${{ github.sha }}'
+            $zeroSha = '0000000000000000000000000000000000000000'
+
+            if ($beforeSha -eq $zeroSha) {
+              # First commit on a new branch: fall back to comparing against main
+              Write-Host "First commit on branch detected. Comparing against origin/main..." -ForegroundColor Yellow
+              $diffOutput = git diff --name-only origin/main..$afterSha
+            } else {
+              # Verify that the 'before' commit exists (may not after force-push/rebase)
+              git cat-file -e "$beforeSha^{commit}" 2>$null
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "Warning: Base commit $beforeSha not found (possible force-push). Falling back to origin/main..." -ForegroundColor Yellow
+                $diffOutput = git diff --name-only origin/main..$afterSha
+              } else {
+                # Normal push: use two dots for direct commit range
+                $diffOutput = git diff --name-only $beforeSha..$afterSha
+              }
+            }
           } else {
             # Fallback for workflow_dispatch or other events: compare against main
             $diffOutput = git diff --name-only origin/main...HEAD
+          }
+
+          # Check if git diff succeeded
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "git diff command failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
           }
 
           # Split output into array (git diff returns newline-separated string)
