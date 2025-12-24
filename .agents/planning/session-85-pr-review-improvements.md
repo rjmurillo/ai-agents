@@ -227,49 +227,60 @@ $resolved = Resolve-RepoParams -Owner $Owner -Repo $Repo
 $Owner = $resolved.Owner
 $Repo = $resolved.Repo
 
-$query = @"
-query {
-  repository(owner: "$Owner", name: "$Repo") {
-    pullRequest(number: $PullRequest) {
+# Use parameterized GraphQL query to prevent injection
+$query = @'
+query($owner: String!, $repo: String!, $prNumber: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $prNumber) {
       state
       merged
       mergedAt
-      mergedBy { login }
+      mergedBy {
+        login
+      }
     }
   }
 }
-"@
+'@
 
-$result = gh api graphql -f query="$query" 2>&1
+Write-Verbose "Querying GraphQL for PR #${PullRequest} merge state"
+
+$result = gh api graphql -f query="$query" -f owner="$Owner" -f repo="$Repo" -F prNumber=$PullRequest 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-ErrorAndExit "GraphQL query failed: $result" 2
 }
 
-$pr = ($result | ConvertFrom-Json).data.repository.pullRequest
+try {
+    $pr = ($result | ConvertFrom-Json).data.repository.pullRequest
+
+    if (-not $pr) {
+        Write-ErrorAndExit "PR #$PullRequest not found in $Owner/$Repo. The query might have failed or the PR does not exist." 2
+    }
+}
+catch {
+    Write-ErrorAndExit "Failed to parse GraphQL response for PR #$PullRequest. Response: $result. Error: $_" 2
+}
 
 $output = [PSCustomObject]@{
     Success      = $true
     PullRequest  = $PullRequest
+    Owner        = $Owner
+    Repo         = $Repo
     State        = $pr.state
-    Owner        = $Owner
-    Repo         = $Repo
     Merged       = $pr.merged
-    Owner        = $Owner
-    Repo         = $Repo
     MergedAt     = $pr.mergedAt
     MergedBy     = if ($pr.mergedBy) { $pr.mergedBy.login } else { $null }
 }
-    $mergedByText = if ($pr.mergedBy) { "@$($pr.mergedBy.login)" } else { "automated process" }
-    Write-Host "[MERGED] PR #$PullRequest merged at $($pr.mergedAt) by $mergedByText" -ForegroundColor Yellow
-    exit 1  # Exit code 1 = merged (skip review work)
+
 Write-Output $output
 
 if ($pr.merged) {
-    Write-Host "PR #$PullRequest merged at $($pr.mergedAt) by @$($pr.mergedBy.login)" -ForegroundColor Yellow
-    exit 1  # Exit code 1 = merged
+    $mergedByText = if ($pr.mergedBy) { "@$($pr.mergedBy.login)" } else { "automated process" }
+    Write-Host "[MERGED] PR #$PullRequest merged at $($pr.mergedAt) by $mergedByText" -ForegroundColor Yellow
+    exit 1  # Exit code 1 = merged (skip review work)
 } else {
-    Write-Host "PR #$PullRequest is not merged (state: $($pr.state))" -ForegroundColor Green
-    exit 0  # Exit code 0 = not merged
+    Write-Host "[NOT MERGED] PR #$PullRequest is not merged (state: $($pr.state))" -ForegroundColor Green
+    exit 0  # Exit code 0 = not merged (safe to proceed)
 }
 ```
 

@@ -49,7 +49,7 @@ $merged = $LASTEXITCODE -eq 1
 
 if ($merged) {
     Write-Host "PR #{number} is already merged. Skipping review work." -ForegroundColor Yellow
-    continue  # Skip to next PR
+    return  # Exit current script/function; caller handles iteration to next PR
 }
 ```
 
@@ -221,7 +221,7 @@ mutation($threadId: ID!) {
   resolveReviewThread(input: {threadId: $threadId}) {
     thread { isResolved }
   }
-}' -f threadId=
+}' -f threadId="PRRT_xxx"
 ```
 
 **Why this matters**: pr-comment-responder skill replies to comments, but threads remain unresolved unless explicitly resolved via GraphQL. Unresolved threads block PR merge per branch protection rules.
