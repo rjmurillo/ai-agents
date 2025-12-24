@@ -486,10 +486,61 @@ This dissent is recorded per debate protocol. No blocking action required.
 
 ---
 
+---
+
+## Post-Debate: ADR-017 Split (Session 90)
+
+**Date**: 2025-12-23
+**Trigger**: User questioned whether ADR-017 strictly adheres to foundational ADR definition
+**Finding**: ADR-017 bundles 7 related decisions (violates "single AD" criterion)
+
+### Split Decision (Per ADR-018)
+
+Following ADR-018 (Architecture vs Governance Split Criteria), ADR-017 was split into:
+
+1. **ADR-017-model-routing-strategy.md** (architecture/)
+   - **Lean architectural decision**: Model routing strategy for AI reviews
+   - **Content**: Context, Decision, Rationale, Alternatives, Consequences
+   - **Focus**: Why route models by prompt type + evidence availability
+   - **Immutable**: Design decision locked at acceptance
+
+2. **AI-REVIEW-MODEL-POLICY.md** (governance/)
+   - **Operational policy**: Compliance requirements and enforcement
+   - **Content**: Model routing matrix, evidence rules, security hardening, escalation criteria, aggregator policy, monitoring
+   - **Focus**: How to implement routing strategy, what to enforce, how to monitor
+   - **Evolvable**: Policy can be updated without re-opening architectural debate
+
+### Rationale for Split
+
+**Why split was recommended** (per ADR-018 criteria):
+1. ✅ Decision affects architecture (model routing affects system quality)
+2. ✅ Requires operational enforcement (MUST use explicit copilot-model, branch protection rules)
+3. ✅ Tightly coupled (routing requires evidence rules, security hardening, aggregator)
+4. ✅ Policy will evolve independently (monitoring thresholds, escalation criteria tuning)
+
+**Benefits realized**:
+- Architectural decision remains focused and immutable
+- Governance policy can evolve without ADR revision
+- Follows established pattern (ADR-014 + COST-GOVERNANCE)
+- Clearer separation of "why we decided" vs "how we enforce"
+
+### Cross-References
+
+- [ADR-017-model-routing-strategy.md](ADR-017-model-routing-strategy.md) - Architectural decision
+- [AI-REVIEW-MODEL-POLICY.md](../../governance/AI-REVIEW-MODEL-POLICY.md) - Governance policy
+- [ADR-018-architecture-governance-split-criteria.md](ADR-018-architecture-governance-split-criteria.md) - Defines split criteria
+
+### Original ADR-017 Disposition
+
+The original `ADR-017-model-routing-low-false-pass.md` (bundled version) is **deprecated** and replaced by the split documents. It is preserved in git history for reference.
+
+---
+
 ## Metadata
 
 **Created**: 2025-12-23
-**Sessions**: 86 (initial debate), 90 (post-prerequisites review)
-**Status**: Complete - Consensus Achieved
+**Sessions**: 86 (initial debate), 90 (post-prerequisites review + split)
+**Status**: Complete - Consensus Achieved + Split Applied
 **Rounds**: 3 (2 initial + 1 post-prerequisites)
 **Final Result**: 5 Accept + 1 Disagree-and-Commit
+**Split Date**: 2025-12-23 (Session 90, per ADR-018)

@@ -104,6 +104,50 @@ The following session files from the debate process are untracked:
 
 **Impact**: Resolves ambiguity about when to use architecture/ vs governance/ vs both
 
+## Follow-up 2: ADR-017 Split Execution
+
+**Trigger**: User requested split per ADR-018 recommendation
+
+**Actions Completed**:
+
+1. Created **ADR-017-model-routing-strategy.md** (architecture/):
+   - Lean architectural decision (Context, Decision, Rationale, Alternatives, Consequences)
+   - Focus: Why route models by prompt type + evidence availability
+   - Size: ~200 lines (vs original 550+ lines)
+   - Immutable design decision
+
+2. Created **AI-REVIEW-MODEL-POLICY.md** (governance/):
+   - Operational policy with compliance requirements
+   - Content: Model routing matrix, evidence sufficiency rules, security hardening, escalation criteria, aggregator policy, circuit breaker, monitoring, baseline data
+   - Size: ~400 lines
+   - Evolvable governance policy
+
+3. Updated **ADR-017-debate-log.md**:
+   - Added "Post-Debate: ADR-017 Split" section
+   - Documented split rationale per ADR-018 criteria
+   - Cross-references to both split documents
+   - Marked original ADR-017 as deprecated
+
+4. Original **ADR-017-model-routing-low-false-pass.md**:
+   - Preserved in git history for reference
+   - Will be removed from working tree (replaced by split)
+
+**Benefits Realized**:
+
+- ✅ Architectural decision now follows "single AD" criterion
+- ✅ Governance policy can evolve without ADR debate
+- ✅ Follows ADR-014 + COST-GOVERNANCE pattern
+- ✅ Clear separation: "why we decided" vs "how we enforce"
+
+**ADR-018 Criteria Applied**:
+
+| Criterion | ADR-017 Analysis | Result |
+|-----------|------------------|--------|
+| Affects architecture? | Yes (routing affects system quality) | ✓ Architecture component |
+| Requires enforcement? | Yes (MUST use copilot-model, branch protection) | ✓ Governance component |
+| Tightly coupled? | Yes (routing + evidence + security + aggregator) | ✓ Split pattern applies |
+| Policy evolves independently? | Yes (monitoring thresholds, escalation tuning) | ✓ Split benefits realized |
+
 ## Session End Checklist
 
 | Item | Status | Evidence |
@@ -111,8 +155,9 @@ The following session files from the debate process are untracked:
 | Multi-agent debate completed | [x] | 4-phase protocol executed, consensus achieved |
 | P0 issues resolved | [x] | 8 P0 changes applied to ADR-017 |
 | P1 issues addressed | [x] | 2 P1 changes applied |
-| Debate log updated | [x] | Round 3 entry added |
-| ADR updated | [x] | All changes applied |
+| Debate log updated | [x] | Round 3 entry added + split documented |
+| ADR updated | [x] | All changes applied + split executed |
 | ADR-018 meta-ADR created | [x] | Split criteria documented |
+| ADR-017 split executed | [x] | Architecture + Governance documents created |
 | Session log completed | [x] | This file |
 | Ready to commit | [x] | All files staged |
