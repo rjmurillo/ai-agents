@@ -53,17 +53,19 @@ Recommended: Add `Get-FailureCategory` function to `AIReviewCommon.psm1` for:
 - Reusability across workflows
 - Centralized pattern maintenance
 
-## Session End
+## Session End (COMPLETE ALL before closing)
 
-### Checklist
-
-| Task | Status | Evidence |
-|------|--------|----------|
-| Analysis document created | ✅ | `.agents/analysis/002-ai-quality-gate-failure-patterns.md` |
-| Memory updated | ✅ | `ai-quality-gate-failure-categorization` |
-| Markdownlint passed | ✅ | `.agents/` excluded per config, no errors in my files |
-| Changes committed | ✅ | Commit `0f86911` |
-| Session validator run | ⏳ | Pending |
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed: `ai-quality-gate-failure-categorization` |
+| MUST | Run markdown lint | [x] | Lint output clean (`.agents/` excluded) |
+| MUST | Route to qa agent (feature implementation) | [ ] | N/A - research only, no implementation |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: cd3cd04 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - no project plan for research task |
+| SHOULD | Invoke retrospective (significant sessions) | [ ] | Not needed - focused research task |
+| SHOULD | Verify clean git status | [x] | `git status` shows clean |
 
 ### Handoff
 
