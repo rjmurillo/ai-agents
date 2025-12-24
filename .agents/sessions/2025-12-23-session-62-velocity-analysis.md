@@ -6,12 +6,20 @@
 
 ## Protocol Compliance
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| Serena initialized | [x] | initial_instructions called |
-| HANDOFF.md read | [x] | Read-only reference reviewed |
-| Session log created | [x] | This file |
-| Validation passed | [ ] | Pending |
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|:---:|:-----|:------:|:---------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Project activated |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Instructions loaded |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Read-only reference reviewed |
+| MUST | Create this session log | [x] | This file |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [SKIPPED] | Analysis session - GitHub skills N/A |
+| MUST | Read skill-usage-mandatory memory | [SKIPPED] | Analysis session - GitHub skills N/A |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Constraints acknowledged |
+| SHOULD | Search relevant Serena memories | [x] | retrospective-2025-12-18, ai-quality-gate-efficiency-analysis |
+| SHOULD | Verify git status | [x] | Clean |
+| SHOULD | Note starting commit | [x] | e6ccf3a |
 
 ## Task Overview
 
@@ -119,10 +127,14 @@ Launching parallel agents to:
 
 ## Session End Checklist
 
-| Task | Status | Evidence |
-|------|--------|----------|
-| Session log complete | [x] | This file |
-| Serena memory updated | [ ] | Pending |
-| Linting passed | [ ] | Pending |
-| Changes committed | [ ] | Pending |
-| HANDOFF.md NOT modified | [x] | Not touched |
+| Req | Step | Status | Evidence |
+|:---:|:-----|:------:|:---------|
+| MUST | Complete session log (all sections filled) | [x] | This file complete |
+| MUST | Update Serena memory (cross-session context) | [x] | velocity-analysis-2025-12-23.md |
+| MUST | Run markdown lint | [x] | Clean |
+| MUST | Route to qa agent (feature implementation) | [SKIPPED] | Analysis session - no code changes |
+| MUST | Commit all changes (including .serena/memories) | [x] | cb264fb |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A - analysis session |
+| SHOULD | Invoke retrospective (significant sessions) | [SKIPPED] | Covered by velocity plan |
+| SHOULD | Verify clean git status | [x] | Clean |
