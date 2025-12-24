@@ -30,6 +30,15 @@
 | git hook pre-commit autofix cross-language grep TOCTOU | skills-git-hooks-index |
 | protocol blocking gate RFC MUST verification template legacy | skills-protocol-index |
 | retrospective learning session failure | retrospective-2025-12-17, retrospective-2025-12-18 |
+| regex pattern match escape lookahead anchor quantifier | skills-regex |
+| roadmap epic priority strategic vision business value | skills-roadmap |
+| governance agent consolidation design principle overlap | skills-governance |
+| dorny paths-filter checkout base ref PR changes | skills-dorny-paths-filter-checkout-requirement |
+| edit file read search replace text operation | skills-edit |
+| pr validation gate status check blocker merge | skills-pr-validation-gates |
+| process workflow gap missing capability root cause | skills-process-workflow-gaps |
+| cva refactoring variant consolidation template generate | skills-cva-refactoring |
+| phase3 agent skill session handoff template verification | skills-agent-workflow-phase3 |
 
 ## User Constraints (MUST READ)
 
