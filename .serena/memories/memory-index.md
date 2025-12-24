@@ -15,14 +15,17 @@
 | implementation code feature bug fix test TDD additive | skills-implementation-index, skills-workflow, skills-execution |
 | orchestration agent coordination parallel handoff dispatch | skills-orchestration-index, skills-collaboration-patterns |
 | documentation PRD spec user-facing migration self-contained | skills-documentation-index |
-| validation quality lint false-positive gate test | skills-validation-index, skills-linting |
-| CI CD workflow actions runner ARM | skills-ci-infrastructure-index, skills-github-workflow-patterns |
+| validation quality lint false-positive gate test | skills-validation-index |
+| linting markdown autofix config exclude language backtick | skills-linting-index |
+| CI CD workflow actions runner ARM | skills-ci-infrastructure-index |
+| workflow pattern composite matrix artifact verdict report | skills-workflow-patterns-index |
 | copilot review false-positive triage response | skills-copilot-index |
 | gemini code assist config styleguide ignore path enterprise | skills-gemini-index |
 | coderabbit noise config path-filter false-positive | skills-coderabbit-index |
 | labeler yaml glob negation matcher any-glob all-glob | skills-labeler-index |
 | analysis gap root-cause trade-off git blame investigation | skills-analysis-index |
-| git hook pre-commit autofix | skills-git-hooks |
+| git hook pre-commit autofix cross-language grep TOCTOU | skills-git-hooks-index |
+| protocol blocking gate RFC MUST verification template legacy | skills-protocol-index |
 | retrospective learning session failure | retrospective-2025-12-17, retrospective-2025-12-18 |
 
 ## User Constraints (MUST READ)
