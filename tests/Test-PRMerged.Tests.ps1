@@ -11,8 +11,10 @@
 #>
 
 BeforeAll {
-    $ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "pr" "Test-PRMerged.ps1"
-    $ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
+    # tests/ is at repo root, script is at .claude/skills/github/scripts/pr/
+    $repoRoot = Join-Path $PSScriptRoot ".."
+    $ScriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "pr" "Test-PRMerged.ps1"
+    $ModulePath = Join-Path $repoRoot ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
     
     # Import the module for error handling functions
     Import-Module $ModulePath -Force
