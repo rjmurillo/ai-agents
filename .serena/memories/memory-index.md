@@ -17,6 +17,8 @@
 | copilot review false-positive triage response | skills-copilot-index |
 | gemini code assist config styleguide ignore path enterprise | skills-gemini-index |
 | coderabbit noise config path-filter false-positive | skills-coderabbit-index |
+| labeler yaml glob negation matcher any-glob all-glob | skills-labeler-index |
+| analysis gap root-cause trade-off git blame investigation | skills-analysis-index |
 | git hook pre-commit autofix | skills-git-hooks |
 | retrospective learning session failure | retrospective-2025-12-17, retrospective-2025-12-18 |
 

@@ -15,10 +15,11 @@
 | PR feedback gate copilot coderabbit cursor triage comment | validation-pr-feedback |
 | zero bugs red flag skepticism verification claim hubris | validation-skepticism |
 | anti-pattern victory lap finish metric fixation vanity verify implement | validation-anti-patterns |
+| validation tooling pattern TDD progressive adoption warning mode | validation-tooling-patterns |
 
 ## Domain Statistics
 
-- **Skills**: 6 core skills
+- **Skills**: 7 core skills
 - **Anti-Patterns**: 4 documented
 - **Impact**: Critical for preventing false confidence
 
