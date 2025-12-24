@@ -60,7 +60,7 @@ Recommended: Add `Get-FailureCategory` function to `AIReviewCommon.psm1` for:
 | MUST | Complete session log (all sections filled) | [x] | File complete |
 | MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed: `ai-quality-gate-failure-categorization` |
 | MUST | Run markdown lint | [x] | Lint output clean (`.agents/` excluded) |
-| MUST | Route to qa agent (feature implementation) | [ ] | N/A - research only, no implementation |
+| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: docs-only |
 | MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: cd3cd04 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - no project plan for research task |
