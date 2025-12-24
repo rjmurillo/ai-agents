@@ -17,7 +17,7 @@
 #>
 
 BeforeAll {
-    # Create test temp directory (cross-platform)
+    # Create test temp directory
     $Script:TestTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "Validate-PathNormalization-Tests-$(Get-Random)"
     New-Item -ItemType Directory -Path $Script:TestTempDir -Force | Out-Null
 

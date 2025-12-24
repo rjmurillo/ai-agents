@@ -711,6 +711,83 @@ else
 fi
 
 #
+# Memory Index Validation (BLOCKING)
+#
+# Validates tiered memory index consistency (ADR-017).
+# When .serena/memories/ files are staged, ensures:
+# - All index entries point to existing files
+# - Keyword density >=40% unique per skill
+#
+# Related: ADR-017, Issue #307
+#
+MEMORY_INDEX_SCRIPT="$REPO_ROOT/scripts/Validate-MemoryIndex.ps1"
+
+# Check if any memory files are staged
+STAGED_MEMORY_FILES=$(echo "$STAGED_FILES" | grep -E '^\.serena/memories/' || true)
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    echo_info "Checking memory index consistency (ADR-017)..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$MEMORY_INDEX_SCRIPT" ]; then
+        echo_warning "Skipping memory index validation: script path is a symlink"
+    elif [ -f "$MEMORY_INDEX_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run memory index validation in CI mode
+            if ! pwsh -NoProfile -File "$MEMORY_INDEX_SCRIPT" -Path "$REPO_ROOT/.serena/memories" -CI 2>&1; then
+                echo_error "Memory index validation FAILED."
+                echo_info "  Run manually: pwsh scripts/Validate-MemoryIndex.ps1"
+                EXIT_STATUS=1
+            else
+                echo_success "Memory index validation: PASS"
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping memory index validation."
+        fi
+    else
+        echo_info "Memory index validation script not found. Skipping."
+    fi
+else
+    echo_info "No memory files staged. Skipping memory index validation."
+fi
+
+#
+# Skill Format Validation (BLOCKING for new files)
+#
+# Enforces ADR-017 atomic format: ONE skill per file. No bundled skills.
+# Blocks commits that add new bundled-format skill files.
+# Legacy bundled files are allowed (non-blocking warning only).
+#
+# Related: ADR-017, Issue #307
+#
+SKILL_FORMAT_SCRIPT="$REPO_ROOT/scripts/Validate-SkillFormat.ps1"
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    echo_info "Checking skill format (ADR-017: one skill per file)..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SKILL_FORMAT_SCRIPT" ]; then
+        echo_warning "Skipping skill format validation: script path is a symlink"
+    elif [ -f "$SKILL_FORMAT_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run skill format validation on staged files only
+            # -StagedOnly checks only new/modified files (not legacy bundled files)
+            if ! pwsh -NoProfile -File "$SKILL_FORMAT_SCRIPT" -StagedOnly -CI 2>&1; then
+                echo_error "Skill format validation FAILED."
+                echo_info "  ADR-017 requires ONE skill per file. Split bundled skills."
+                EXIT_STATUS=1
+            else
+                echo_success "Skill format validation: PASS"
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping skill format validation."
+        fi
+    else
+        echo_info "Skill format validation script not found. Skipping."
+    fi
+fi
+
+#
 # Final Summary
 #
 echo ""

@@ -2,6 +2,8 @@
 
 A coordinated multi-agent system for software development, available for **VS Code (GitHub Copilot)**, **GitHub Copilot CLI**, and **Claude Code CLI**.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rjmurillo/ai-agents)
+
 ## Features
 
 - **17 specialized agents** for different development phases
