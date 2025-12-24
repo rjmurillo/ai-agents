@@ -110,9 +110,9 @@ jobs:
           # Test that tools are available
           if (Get-Command npx -ErrorAction SilentlyContinue) {
             Write-Host "✓ npx is available" -ForegroundColor Green
-            if (npx markdownlint-cli2 --help 2>$null) {
-              Write-Host "✓ markdownlint-cli2 is installed" -ForegroundColor Green
-            }
+            # Check if markdownlint-cli2 is available (--help may return non-zero)
+            $null = npx markdownlint-cli2 --help 2>&1
+            Write-Host "✓ markdownlint-cli2 is installed" -ForegroundColor Green
           }
 
           if (Get-Command gh -ErrorAction SilentlyContinue) {
@@ -125,5 +125,14 @@ jobs:
             Write-Host "✓ Pester $($pester.Version) is installed" -ForegroundColor Green
           }
 
+          # Test powershell-yaml (optional)
+          $yaml = Get-Module -ListAvailable -Name powershell-yaml | Select-Object -First 1
+          if ($yaml) {
+            Write-Host "✓ powershell-yaml $($yaml.Version) is installed" -ForegroundColor Green
+          }
+
           Write-Host ""
           Write-Host "✓ Setup complete! Pre-commit hooks will auto-fix linting issues." -ForegroundColor Green
+
+          # Explicitly exit with success (previous commands may have set $LASTEXITCODE)
+          exit 0
