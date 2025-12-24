@@ -1,8 +1,11 @@
 | Keywords | File |
 |----------|------|
-| labeler negation pattern matcher all-globs exclude isolation | labeler-negation-patterns |
-| labeler matcher any-glob all-files all-globs selection type | labeler-matcher-types |
-| labeler combined block all include exclude AND logic | labeler-combined-patterns |
+| negation pattern matcher selection all-globs-to-all-files anti-pattern | skill-labeler-001-negation-pattern-matcher-selection |
+| negation isolation separate dedicated block AND logic | skill-labeler-006-negation-pattern-isolation |
+| any-glob-to-any-file presence check simple single | skill-labeler-003-any-matcher |
+| any-glob-to-all-files every changed file must match | skill-labeler-004-all-files-matcher |
+| all-globs-to-any-file multiple patterns required AND | skill-labeler-005-all-patterns-matcher |
+| combined block include exclude merge positive negative | labeler-combined-patterns |
 | Matcher | Logic | Use When |
 |---------|-------|----------|
 | `any-glob-to-any-file` | ANY matches ANY | Simple presence check |
