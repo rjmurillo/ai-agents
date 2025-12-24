@@ -5,10 +5,6 @@ on:
     - cron: '0 * * * *'  # Hourly at minute 0 (UTC)
   workflow_dispatch:     # Manual trigger
     inputs:
-      dry_run:
-        description: 'Dry run (no changes)'
-        type: boolean
-        default: false
       max_prs:
         description: 'Max PRs to process'
         type: number
@@ -66,11 +62,7 @@ jobs:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          $inputValue = '${{ inputs.dry_run }}'
-          $dryRun = if ($inputValue -eq 'false') { $false } else { $true }
-          $params = @{ MaxPRs = [int]'${{ env.PR_MAX_PRS }}'; LogPath = '.agents/logs/pr-maintenance.log' }
-          if ($dryRun) { $params['DryRun'] = $true }
-          ./scripts/Invoke-PRMaintenance.ps1 @params
+          ./scripts/Invoke-PRMaintenance.ps1 -MaxPRs ([int]'${{ env.PR_MAX_PRS }}') -LogPath '.agents/logs/pr-maintenance.log'
 
       - name: Parse results and post summary
         id: results
@@ -83,9 +75,7 @@ jobs:
           $results = Get-MaintenanceResults -LogPath '.agents/logs/pr-maintenance.log'
           $coreRemaining = (gh api rate_limit --jq '.resources.core.remaining')
           $runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
-          $inputValue = '${{ inputs.dry_run }}'
-          $dryRun = $inputValue -ne 'false'
-          $summary = New-MaintenanceSummary -Results $results -DryRun $dryRun -CoreRemaining $coreRemaining -RunUrl $runUrl
+          $summary = New-MaintenanceSummary -Results $results -CoreRemaining $coreRemaining -RunUrl $runUrl
           $summary | Out-File $env:GITHUB_STEP_SUMMARY -Append
           "processed=$($results.Processed)" | Out-File $env:GITHUB_OUTPUT -Append
           "has_blocked=$($results.HasBlocked.ToString().ToLower())" | Out-File $env:GITHUB_OUTPUT -Append
