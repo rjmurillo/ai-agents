@@ -11,7 +11,7 @@
 | implementation code feature bug fix | skills-implementation, skills-workflow, skills-execution |
 | orchestration agent coordination parallel handoff | skills-orchestration, skills-collaboration-patterns |
 | documentation PRD spec user-facing | skills-documentation |
-| validation quality lint false-positive | skills-validation, skills-linting |
+| validation quality lint false-positive gate test | skills-validation-index, skills-linting |
 | CI CD workflow actions runner ARM | skills-ci-infrastructure-index, skills-github-workflow-patterns |
 | copilot review false-positive triage response | skills-copilot-index |
 | gemini code assist config styleguide ignore path enterprise | skills-gemini-index |
