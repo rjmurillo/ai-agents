@@ -221,7 +221,7 @@ jobs:
 
       - name: Aggregate Verdicts
         id: aggregate
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
 
@@ -253,7 +253,7 @@ jobs:
 
       - name: Generate Report
         id: report
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           RUN_ID: ${{ github.run_id }}
           SERVER_URL: ${{ github.server_url }}
@@ -368,7 +368,7 @@ jobs:
           "report_file=$reportFile" >> $env:GITHUB_OUTPUT
 
       - name: Post PR Comment
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
@@ -382,14 +382,14 @@ jobs:
             -Marker "AI-PR-QUALITY-GATE"
 
       - name: Set Job Summary
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
           Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Check for Critical Failures
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           $finalVerdict = "${{ steps.aggregate.outputs.final_verdict }}"
 

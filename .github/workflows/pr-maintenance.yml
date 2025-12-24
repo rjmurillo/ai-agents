@@ -42,7 +42,7 @@ jobs:
           fetch-depth: 0
 
       - name: Validate environment
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module ./.github/scripts/PRMaintenanceModule.psm1
           $result = Test-WorkflowEnvironment
@@ -52,7 +52,7 @@ jobs:
         id: ratelimit
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module ./.github/scripts/PRMaintenanceModule.psm1
           $result = Test-WorkflowRateLimit
@@ -64,7 +64,7 @@ jobs:
         id: maintenance
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           $inputValue = '${{ inputs.dry_run }}'
           $dryRun = if ($inputValue -eq 'false') { $false } else { $true }
@@ -77,7 +77,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module ./.github/scripts/PRMaintenanceModule.psm1
           $results = Get-MaintenanceResults -LogPath '.agents/logs/pr-maintenance.log'
@@ -95,7 +95,7 @@ jobs:
         if: steps.results.outputs.has_blocked == 'true'
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module ./.github/scripts/PRMaintenanceModule.psm1
           $blockedPRs = Get-Content blocked-prs.txt
@@ -115,7 +115,7 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module ./.github/scripts/PRMaintenanceModule.psm1
           $runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'

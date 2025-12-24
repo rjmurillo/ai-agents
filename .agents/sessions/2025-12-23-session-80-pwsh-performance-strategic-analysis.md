@@ -50,7 +50,7 @@ Every `pwsh` invocation from Claude Code's Bash tool suffers from process spawn 
 
 ### Skill-Perf-001 (from skills-powershell)
 - Statement: ALWAYS use `pwsh -NoProfile` for non-interactive scripts
-- Evidence: 1,199ms -> 316ms per spawn (73.6% reduction)
+- Evidence: 1,044ms -> 183ms per spawn (82.4% reduction) [Updated in Session 82]
 - Atomicity: 98%
 - Already implemented in PR #285
 
