@@ -44,6 +44,16 @@ This creates two core forces:
 - **Evidence availability**: when PR context is summary-only, no model can do line-level code review.
 - **Model fit**: code-evidence prompts need code-specialist behavior when patch evidence exists. Writing/security prompts need deep reasoning.
 
+### Scope Clarification
+
+This ADR addresses **false PASS due to evidence gaps and model fit**. It does NOT address:
+
+- Infrastructure failures causing cascading verdicts (see Issue #164: Failure Categorization)
+- Prompt quality issues
+- Context truncation bugs in the composite action
+
+These are valid concerns raised during review but require separate solutions.
+
 ## Decision
 
 Adopt an **evidence-aware, tiered model routing policy** with a conservative stance:
@@ -52,7 +62,7 @@ Adopt an **evidence-aware, tiered model routing policy** with a conservative sta
 
 - If PR context is **summary mode** (stat-only), any prompt that normally expects code evidence MUST NOT produce a PASS verdict.
   - Output should be **WARN/CRITICAL_FAIL/REJECTED** (per prompt contract) and explicitly request the missing evidence.
-  - Operationally: treat summary-mode PRs as **“risk review only”**, not “code review”.
+  - Operationally: treat summary-mode PRs as **"risk review only"**, not "code review".
 
 - If the context includes only a **partial diff** (for example spec-file with 500-line head), the agent must:
   - Mark confidence as limited.
@@ -69,7 +79,7 @@ Choose models by prompt shape and evidence availability:
 
 - **General review and synthesis (non-security)**
   - Primary: `claude-sonnet-4.5`
-  - Escalation: `claude-opus-4.5` when uncertainty is high or the output is borderline PASS/WARN.
+  - Escalation: `claude-opus-4.5` when escalation criteria are met (see Section 5).
   - Goal: strong reasoning with lower false PASS via conservative escalation.
 
 - **Security gate**
@@ -79,13 +89,95 @@ Choose models by prompt shape and evidence availability:
 - **Code evidence and traceability (requires patch evidence)**
   - Primary: `gpt-5.1-codex-max`
   - Fallback: `gpt-5.1-codex`
-  - Use for: QA, DevOps, spec completeness, spec traceability, “tests tied to diff”.
+  - Use for: QA, DevOps, spec completeness, spec traceability, "tests tied to diff".
   - If context is summary-only: route to `claude-opus-4.5` for risk review, and forbid PASS.
 
 ### 3. Governance
 
 - Workflows MUST pass `copilot-model` explicitly per job.
 - Add a guardrail step that fails the workflow if `copilot-model` is omitted (prevents silent regressions to defaults).
+
+**Guardrail implementation**:
+
+- Location: Add validation step at start of each `ai-*.yml` workflow
+- Error message: `ERROR: copilot-model not specified. See ADR-017 for routing policy.`
+- Implementation: Before this ADR moves to Accepted, a PR must exist that adds this guardrail to all ai-*.yml workflows
+
+### 4. Security hardening
+
+**Prompt injection safeguards**:
+
+- PR title and body are user-controlled and may contain adversarial prompts
+- Before passing to model, sanitize by:
+  - Stripping known jailbreak patterns (`<|system|>`, role-switch attempts)
+  - Escaping or encoding special tokens
+- Implementation: Add sanitization function to `ai-review` composite action
+
+**Mandatory CONTEXT_MODE header**:
+
+- All prompts MUST include: `CONTEXT_MODE: [full|summary|partial]`
+- This is NOT optional. Prompts without CONTEXT_MODE handling should fail validation.
+- Models must check this header; PASS is forbidden if mode is not `full` (unless prompt explicitly defines partial-context behavior)
+
+**Confidence scoring rules**:
+
+- When model returns a verdict, it SHOULD include confidence (0-100 scale)
+- If confidence < 70% AND verdict is PASS, escalate to Opus for review
+- Fallback models inherit "forbid PASS" when primary is unavailable
+
+### 5. Escalation criteria
+
+Replace vague "high uncertainty" with operational definitions:
+
+| Trigger | Condition | Action |
+|---------|-----------|--------|
+| Low confidence | Primary model outputs PASS with confidence < 70% | Escalate to Opus |
+| Borderline verdict | Primary model explicitly flags uncertainty | Escalate to Opus |
+| Context concern | Primary model notes evidence may be insufficient | Escalate to Opus |
+| Fallback active | Primary model unavailable, using fallback | Forbid PASS |
+
+**Cost bounds**: Escalation should not exceed 20% of PRs per month. If threshold exceeded, review escalation criteria.
+
+### 6. Risk review contract (for summary-mode PRs)
+
+When context is summary-only, agents CAN perform:
+
+- File pattern analysis (which files changed, rough scope)
+- Metadata checks (PR title quality, label presence)
+- Description completeness (does PR body explain changes?)
+- Risk flagging (large scope, sensitive paths like .github/, security-related files)
+
+Agents CANNOT perform:
+
+- Line-level code review
+- Specific bug detection
+- Test coverage verification
+- Implementation correctness checks
+
+**Example WARN output for summary-mode security gate**:
+
+```markdown
+## Verdict: WARN
+
+**Reason**: PR context is summary-only; cannot perform line-level security review.
+
+**Risk assessment based on available metadata**:
+- PR touches 15 files including `.github/workflows/` (sensitive path)
+- Changes span 2,847 lines (large scope increases risk)
+- No secrets detected in file names
+
+**Required action**: Rerun with smaller PR or provide full diff context.
+```
+
+### 7. Aggregator policy (REQUIRED)
+
+This is NOT optional. When multiple agents review in parallel:
+
+- "Max severity wins": if any agent outputs CRITICAL_FAIL/REJECTED, the run fails
+- If any agent reports insufficient evidence, treat as non-PASS until rerun with evidence
+- Final verdict is the most conservative across all agents
+
+Implementation: Add aggregator step to `ai-pr-quality-gate.yml` that collects all agent verdicts and applies this policy. Reference ADR-010 for integration with Quality Gates.
 
 ## Rationale
 
@@ -94,9 +186,48 @@ To minimize false PASS, we need both:
 - **Conservative verdict policy**: insufficient evidence must block PASS.
 - **Best-fit models**:
   - Code-specialist models are better at mapping checks to concrete diffs when diffs exist.
-  - Opus-class models are better for high-stakes reasoning (security) and for “risk review” when diffs do not exist.
+  - Opus-class models are better for high-stakes reasoning (security) and for "risk review" when diffs do not exist.
 
-This reduces the chance that multiple parallel agents all “PASS” due to missing evidence or shallow review.
+This reduces the chance that multiple parallel agents all "PASS" due to missing evidence or shallow review.
+
+## Prerequisites
+
+Before this ADR can move from Proposed to Accepted:
+
+### Baseline measurement (P0)
+
+1. **Define "false PASS"**: A PASS verdict followed by a post-merge bug, security issue, or regression in the same files reviewed
+2. **Establish baseline**: Audit the last 20 merged PRs that received PASS verdicts
+   - Count how many had post-merge issues that the review should have caught
+   - Document the baseline rate (e.g., "4/20 = 20% false PASS rate")
+3. **Set target**: Reduce false PASS rate by at least 50% within 30 days of implementation
+
+### Model availability verification (P0)
+
+Before deploying routing changes:
+
+1. Verify each model is available via Copilot CLI in GitHub Actions
+2. Document verified models and test date
+3. Define fallback chain if any model becomes unavailable:
+   - `gpt-5-mini` unavailable -> `claude-haiku-4.5`
+   - `gpt-5.1-codex-max` unavailable -> `gpt-5.1-codex` -> `claude-sonnet-4.5`
+   - `claude-opus-4.5` unavailable -> `claude-sonnet-4.5` (with WARN that escalation is degraded)
+
+### Governance guardrail implementation (P0)
+
+A PR must exist that:
+
+1. Adds validation step to all ai-*.yml workflows
+2. Fails workflow if `copilot-model` input is missing or empty
+3. Shows error message referencing this ADR
+
+### Cost estimation (P1)
+
+Before broad rollout:
+
+1. Estimate escalation rate (% of PRs expected to escalate to Opus)
+2. Calculate cost delta (current avg cost vs projected with escalation)
+3. Get stakeholder approval if cost increase exceeds 25%
 
 ## Alternatives Considered
 
@@ -106,6 +237,7 @@ This reduces the chance that multiple parallel agents all “PASS” due to miss
 | `claude-sonnet-4.5` everywhere | Cheaper; good generalist | Higher false PASS risk on security and diff-heavy traceability | Does not match prompt shapes |
 | Codex models everywhere | Strong on diffs/tests | Weak for long-form PRDs and summary-only PR contexts | Over-rotates to code tasks |
 | Tiered routing without evidence rules | Easy to adopt | Still yields false PASS on summary-only PRs | Evidence sufficiency is required |
+| Enforce smaller PRs instead of routing | Eliminates summary-mode problem | Requires cultural change; may not be feasible for all changes | Valid alternative; can be pursued in parallel |
 
 ## Consequences
 
@@ -114,12 +246,14 @@ This reduces the chance that multiple parallel agents all “PASS” due to miss
 - Fewer missed issues (lower false PASS), especially under parallel agent execution.
 - Better evidence-based reviews for spec and traceability prompts.
 - Security reviews become consistently deep and cautious.
+- Clear contract for what agents can/cannot do with limited evidence.
 
 ### Negative
 
 - More false FAIL / WARN outcomes (expected by design).
 - Higher cost and longer runs in cases that escalate to Opus.
 - Some PRs will require resizing or reruns with richer diff context to get a PASS.
+- Operational complexity from routing logic and escalation criteria.
 
 ## Implementation Notes
 
@@ -130,22 +264,32 @@ This reduces the chance that multiple parallel agents all “PASS” due to miss
    - General review/synthesis: `claude-sonnet-4.5`
 
 2. **Make evidence explicit to prompts**:
-   - Add a standardized header in context: `CONTEXT_MODE=full|summary`.
-   - Prompts should contain a rule: “If CONTEXT_MODE=summary, you must not PASS.”
+   - Add a standardized header in context: `CONTEXT_MODE=full|summary|partial`.
+   - Prompts MUST contain a rule: "If CONTEXT_MODE is not 'full', you must not PASS unless the prompt explicitly defines partial-context behavior."
 
-3. **Optional but high leverage**: improve large PR evidence
+3. **Improve large PR evidence** (recommended, not optional):
    - Instead of stat-only, include a bounded patch sample:
      - `gh pr diff | head -N` plus `--stat`
      - or top-k changed files with truncated hunks
    - This directly lowers false PASS by enabling line-level checks.
 
-4. **Aggregator policy** (if/when you add a final step):
-   - “Max severity wins”: if any agent outputs CRITICAL_FAIL/REJECTED, the run fails.
-   - If any agent reports insufficient evidence, treat as non-PASS until rerun with evidence.
+4. **Aggregator step** (required):
+   - Add to `ai-pr-quality-gate.yml` workflow
+   - Collect all agent verdicts
+   - Apply "max severity wins" policy
+   - If any agent reports insufficient evidence, final verdict is not PASS
+
+5. **Post-deployment audit** (required after 2 weeks):
+   - Escalation rate: % of jobs that escalated to Opus (target: < 20%)
+   - False PASS reduction: % improvement vs baseline (target: >= 50%)
+   - Cost increase: % vs baseline (threshold: < 25% or requires stakeholder review)
+   - Developer friction: Are developers ignoring WARN on summary-only PRs?
 
 ## Related Decisions
 
 - ADR-005 (PowerShell hardening) and ADR-014 (runner/cost) influence workflow reliability and execution time.
+- ADR-010 (Quality Gates) provides aggregation framework for multi-agent verdicts.
+- Issue #164 (Failure Categorization) addresses infrastructure noise separately from this model routing policy.
 
 ## References
 
@@ -158,18 +302,18 @@ This reduces the chance that multiple parallel agents all “PASS” due to miss
 
 ---
 
-## Agent-Specific Fields (Required for Agent ADRs)
+## Policy Application (Governance Scope)
 
-### Agent Name
+This is a **governance policy**, not an agent capability. It sets system-wide defaults that all agents and workflows must follow.
 
-Model Routing Policy (Copilot CLI via `ai-review` composite action)
+### Scope
 
-### Overlap Analysis
-
-| Existing Agent | Capability Overlap | Overlap % | Differentiation |
-|---|---:|---:|---|
-| orchestrator | Routes work across capabilities | 35% | This routes *models* and sets conservative pass criteria |
-| analyst | Produces structured assessments | 10% | This does not assess code; it governs execution defaults |
+| Component | How Policy Applies |
+|-----------|-------------------|
+| orchestrator | Routes to appropriate models per this policy |
+| ai-review action | Accepts `copilot-model` parameter per this policy |
+| ai-*.yml workflows | Must specify `copilot-model` explicitly |
+| .github/prompts/* | Must include CONTEXT_MODE handling |
 
 ### Entry Criteria
 
@@ -184,13 +328,26 @@ Model Routing Policy (Copilot CLI via `ai-review` composite action)
 ### Explicit Limitations
 
 1. If PR context is summary-only, line-level review is impossible. The policy forbids PASS in this case.
-2. Model quality claims here are heuristic (no live vendor benchmarking in this environment). The routing is based on prompt shape and evidence type.
+2. Model quality claims here are heuristic (no live vendor benchmarking in this environment). The routing is based on prompt shape and evidence type. Quarterly review recommended.
+3. This policy does not address infrastructure failures or prompt quality issues (see Related Decisions).
 
 ### Success Metrics
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| False PASS rate | Down materially vs baseline | Sampled audits: compare agent PASS vs post-merge findings |
-| Post-merge critical escapes | No increase (ideally down) | Track incidents/regressions vs agent verdict history |
-| “Insufficient evidence” surfaced | Up initially (expected) | Count WARN/REJECTED citing summary/partial diff |
-| Developer time lost to reruns | Bounded | Track rerun frequency after evidence improvements |
+| Metric | Target | Measurement | Baseline |
+|--------|--------|-------------|----------|
+| False PASS rate | >= 50% reduction vs baseline | Sampled audits: compare agent PASS vs post-merge findings | TBD (prerequisite) |
+| Post-merge critical escapes | No increase (ideally down) | Track incidents/regressions vs agent verdict history | Current incident rate |
+| "Insufficient evidence" surfaced | Up initially (expected) | Count WARN/REJECTED citing summary/partial diff | 0 (new metric) |
+| Escalation rate | < 20% of PRs | Count escalations to Opus | N/A |
+| Cost increase | < 25% vs baseline | Compare monthly Copilot costs | Current monthly cost |
+| Developer time lost to reruns | < 5% of PRs require rerun | Track rerun frequency after evidence improvements | TBD |
+
+---
+
+## Debate Log Reference
+
+This ADR was refined through multi-agent debate. See `.agents/architecture/ADR-017-debate-log.md` for:
+
+- Round-by-round feedback from architect, critic, independent-thinker, security, and analyst agents
+- Key decisions made and rationale
+- Final agent positions (Accept / Disagree-and-Commit)
