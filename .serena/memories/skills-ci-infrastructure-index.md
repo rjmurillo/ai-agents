@@ -16,3 +16,6 @@
 | integration test workflow dry-run module import validation pre-merge | ci-quality-gates |
 | research platform documentation limitation compatibility known issue | ci-deployment-validation |
 | label pre-validation create ensure exists gh label create deploy | ci-deployment-validation |
+| required check path filter phantom blocking internal skip git diff | ci-workflow-required-checks |
+| zero SHA first commit force-push git cat-file LASTEXITCODE validation | ci-workflow-required-checks |
+| required check testing non-matching PR status reporting verification | ci-workflow-required-checks |
