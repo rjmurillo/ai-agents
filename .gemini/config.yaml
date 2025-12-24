@@ -15,7 +15,7 @@ code_review:
     include_drafts: true   # Review draft PRs for early feedback
     help: false            # Don't post help message on PR open
   comment_severity_threshold: HIGH  # Only HIGH severity (was MEDIUM)
-  max_review_comments: 10  # Limit to 10 comments (was unlimited)
+  # max_review_comments: 10  # Removed per PR #331 - let bot surface all HIGH severity issues
 
 # Exclude agent artifacts and memory files from review
 ignore_patterns:

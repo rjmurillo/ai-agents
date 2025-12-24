@@ -743,6 +743,6 @@ echo_info ""
 echo_info "For quick validation during development:"
 echo_info "  pwsh scripts/Validate-PrePR.ps1 -Quick"
 echo_info ""
-echo_info "See: .agents/SHIFT-LEFT.md for details"
+echo_info "See: .agents/devops/SHIFT-LEFT.md for details"
 
 exit 0
