@@ -581,7 +581,8 @@ runs:
               # This makes infrastructure failures obvious in GitHub Actions UI
               echo ""
               echo "::error::=== INFRASTRUCTURE FAILURE - JOB FAILED ==="
-              echo "::error::Copilot CLI failed after $((MAX_RETRIES + 1)) attempts with no output."
+              TOTAL_ATTEMPTS=$((ATTEMPT + 1))
+              echo "::error::Copilot CLI failed after ${TOTAL_ATTEMPTS} attempts with no output."
               echo "::error::"
               echo "::error::LIKELY CAUSE: COPILOT_GITHUB_TOKEN secret is expired or misconfigured."
               echo "::error::"
