@@ -1,20 +1,25 @@
 | Keywords | File |
 |----------|------|
 | multi-agent validation chain security qa devops three-phase remediation threat model | security-validation-chain |
-| input validation sanitize parameterized allowlist denylist type-check injection | security-defensive-coding |
-| error handling stack trace internal details generic message correlation ID | security-defensive-coding |
-| logging security event audit authentication authorization access control sensitive | security-defensive-coding |
-| secret detection regex pattern hardcoded AWS GitHub token API key connection string | security-secret-detection |
-| infrastructure file CI CD IaC Dockerfile Kubernetes script config sensitive review | security-infrastructure-review |
-| TOCTOU race condition cross-process symlink defense-in-depth re-validate action | security-toctou-defense |
-| first-run gap creation exists modification conditional check bypass | security-toctou-defense |
-| review triage signal quality security comment priority domain-adjusted actionable | security-review-enforcement |
-| pre-commit hook bash detection ADR-005 PowerShell CWE-20 CWE-78 enforcement | security-review-enforcement |
+| input validation sanitize parameterized allowlist denylist type-check | skill-security-002-input-validation-first |
+| error handling stack trace internal details generic message correlation ID | skill-security-003-secure-error-handling |
+| logging security event audit authentication authorization sensitive | skill-security-004-security-event-logging |
+| secret detection regex pattern hardcoded AWS GitHub token API key | security-secret-detection |
+| infrastructure file CI CD IaC Dockerfile Kubernetes script config | security-infrastructure-review |
+| TOCTOU race condition cross-process symlink defense-in-depth re-validate | skill-security-007-defense-in-depth-for-cross-process-security-checks |
+| first-run gap creation exists modification conditional check bypass | skill-security-008-first-run-gap-analysis |
+| review triage signal quality domain-adjusted actionable priority | skill-security-009-domain-adjusted-signal-quality |
+| pre-commit hook bash detection ADR-005 PowerShell CWE-20 CWE-78 | skill-security-010-pre-commit-bash-detection |
+
 | File | Skills | Focus |
 |------|--------|-------|
 | security-validation-chain | 001 | Multi-agent security workflow |
-| security-defensive-coding | 002, 003, 004 | Input, errors, logging |
+| skill-security-002-input-validation-first | 002 | Input validation |
+| skill-security-003-secure-error-handling | 003 | Error handling |
+| skill-security-004-security-event-logging | 004 | Security logging |
 | security-secret-detection | 005 | Regex patterns for secrets |
 | security-infrastructure-review | 006 | File categories for review |
-| security-toctou-defense | 007, 008 | Race conditions, first-run gaps |
-| security-review-enforcement | 009, 010 | Triage and pre-commit |
+| skill-security-007-defense-in-depth | 007 | Race conditions |
+| skill-security-008-first-run-gap-analysis | 008 | First-run gaps |
+| skill-security-009-domain-adjusted-signal-quality | 009 | Triage priority |
+| skill-security-010-pre-commit-bash-detection | 010 | Pre-commit enforcement |
