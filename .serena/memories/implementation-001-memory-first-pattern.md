@@ -11,7 +11,7 @@ For agent-facing patterns (detection, routing, decision logic), document in Sere
 
 ## Decision Tree
 
-```
+```text
 If pattern is "detection" or "decision logic":
   -> Document in memory (Skill-X-Y format)
   -> Agent reads memory at Step 0
@@ -32,7 +32,7 @@ When you identify a repeating pattern that multiple agents need to follow.
 
 ## Correct Pattern
 
-```
+```text
 # .serena/memories/pr-comment-responder-skills.md:
 # Skill-PR-Copilot-001: Detection heuristics
 #   - Branch pattern: copilot/sub-pr-{N}
