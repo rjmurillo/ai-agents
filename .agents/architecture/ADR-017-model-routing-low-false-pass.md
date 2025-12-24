@@ -108,22 +108,44 @@ Choose models by prompt shape and evidence availability:
 **Prompt injection safeguards**:
 
 - PR title and body are user-controlled and may contain adversarial prompts
-- Before passing to model, sanitize by:
-  - Stripping known jailbreak patterns (`<|system|>`, role-switch attempts)
-  - Escaping or encoding special tokens
-- Implementation: Add sanitization function to `ai-review` composite action
+- Before passing to model, sanitize using **whitelist approach**:
+  - Parse PR title/body into structured schema (JSON with fields: title, body, max lengths)
+  - Validate that title/body contain only alphanumeric, spaces, and common punctuation (`.`, `,`, `-`, `_`, `(`, `)`, `'`, `"`)
+  - Reject input that doesn't conform to schema or contains unexpected characters
+  - Log rejected inputs for security monitoring
+- Blacklist approaches (stripping patterns) are insufficient—attackers find new patterns
+- Implementation: Add schema validation function to `ai-review` composite action before model invocation
 
 **Mandatory CONTEXT_MODE header**:
 
 - All prompts MUST include: `CONTEXT_MODE: [full|summary|partial]`
 - This is NOT optional. Prompts without CONTEXT_MODE handling should fail validation.
 - Models must check this header; PASS is forbidden if mode is not `full` (unless prompt explicitly defines partial-context behavior)
+- **Validation requirement**: The `ai-review` action MUST validate that CONTEXT_MODE matches actual context:
+  - Compute token count or hash of context
+  - If context exceeds MAX_DIFF_LINES, verify CONTEXT_MODE=summary
+  - If context is full diff, verify CONTEXT_MODE=full
+  - If mismatch detected, fail workflow with error: "CONTEXT_MODE validation failed: claimed {mode} but actual context is {actual_mode}"
+- This prevents manipulation attacks where an adversary crafts a PR to trick mode detection
 
 **Confidence scoring rules**:
 
 - When model returns a verdict, it SHOULD include confidence (0-100 scale)
 - If confidence < 70% AND verdict is PASS, escalate to Opus for review
 - Fallback models inherit "forbid PASS" when primary is unavailable
+
+**Fallback Model Circuit Breaker**:
+
+**DoS Mitigation**:
+
+- If the primary model is unavailable (API outage, rate limiting), fallback models are used per Section 2 (Model routing matrix)
+- Fallback models inherit "forbid PASS" policy to maintain security posture
+- **Risk**: An attacker can cause DoS on primary model, forcing all reviews into fallback mode where PASS is forbidden, blocking all merges indefinitely
+- **Mitigation**: Circuit breaker policy
+  - If fallback model produces **5 consecutive non-PASS verdicts** due to "forbid PASS" rule (not due to actual code issues), escalate to **manual approval**
+  - Manual approval requires: (1) Verification that primary model is unavailable, (2) Human review of PR, (3) Documented justification for merge
+  - After circuit breaker triggers, alert oncall: "Primary model {model_name} unavailable for >5 PRs, fallback blocking all merges"
+- This prevents indefinite DoS while maintaining security posture
 
 ### 5. Escalation criteria
 
@@ -177,7 +199,14 @@ This is NOT optional. When multiple agents review in parallel:
 - If any agent reports insufficient evidence, treat as non-PASS until rerun with evidence
 - Final verdict is the most conservative across all agents
 
-Implementation: Add aggregator step to `ai-pr-quality-gate.yml` that collects all agent verdicts and applies this policy. Reference ADR-010 for integration with Quality Gates.
+**Implementation**:
+
+1. Add aggregator step to `ai-pr-quality-gate.yml` that collects all agent verdicts and applies this policy
+2. **Enforcement**: Configure branch protection rule requiring status check `AI Review Aggregator` to pass before merge
+3. This prevents bypass—developers cannot manually merge without aggregator approval
+4. Reference ADR-010 for integration with Quality Gates
+
+**Security note**: Without branch protection enforcement, the aggregator is advisory, not enforced. The branch protection rule is REQUIRED for this policy to be effective.
 
 ## Rationale
 
@@ -231,12 +260,24 @@ Before broad rollout:
 
 ---
 
+## Status Transition Timeline
+
+This ADR moved from **Proposed** to **Accepted** status on **2025-12-23** after all P0 prerequisites were completed (P0-1, P0-2, P0-3 documented). The chronology was:
+
+1. **2025-12-23 (Session 86-88)**: Multi-agent debate achieved consensus (4 Accept + 1 Disagree-and-Commit)
+2. **2025-12-23 (Session 89)**: All P0 prerequisites executed and documented
+3. **2025-12-23**: Status changed from Proposed to **Accepted**
+
+Prerequisites were completed BEFORE status change to Accepted, per ADR governance.
+
+---
+
 ## Prerequisite Completion (2025-12-23)
 
 ### P0-1: Baseline False PASS Measurement [COMPLETE]
 
 **Audit Date**: 2025-12-23
-**Methodology**: Analyzed last 20 merged PRs with AI reviews (CodeRabbit/Copilot APPROVED)
+**Methodology**: Analyzed last 20 merged PRs with AI reviews (CodeRabbit/Copilot APPROVED). For each PR, checked GitHub for post-merge fix PRs within 7 days that touched the same files. Validation confirmed no post-merge fixes in 17 PRs; 3 PRs had documented fixes.
 
 **Findings**:
 
@@ -250,12 +291,30 @@ Before broad rollout:
 
 **Definition Applied**: A PASS verdict followed by a post-merge fix in the same files within 7 days.
 
-**Root Cause Analysis**:
-- PR #226: Labeler workflow issues not caught in review
-- PR #268: Verdict parsing logic (missing VERDICT token) not detected
-- PR #249: Label format (P1 vs priority:P1) not validated
+**Note**: 7-day window is a lower bound; delayed regressions (>7 days) are not captured. Actual false PASS rate may be higher.
 
-**Target**: Reduce false PASS rate by >= 50% (from 15% to <= 7.5%) within 30 days.
+#### Root Cause Analysis of Baseline Cases
+
+For each of the 3 false PASS cases, we analyzed whether full diff context and correct model routing (per this ADR) would have caught the issue:
+
+- **PR #226 (Labeler workflow issues)**: Runtime workflow logic bug requiring execution to detect. Full diff would NOT reveal this—requires integration testing. **NOT addressed by this ADR**.
+
+- **PR #268 (Missing VERDICT token)**: Prompt quality issue—prompt should validate that VERDICT token is emitted. Full diff would NOT help—requires prompt improvement. **NOT addressed by this ADR**.
+
+- **PR #249 (Label format P1 vs priority:P1)**: Validation gap—prompt should check label naming conventions. Full diff would NOT help—requires validation rules in prompt. **NOT addressed by this ADR**.
+
+**Conclusion**: The 3 baseline cases were caused by prompt quality and validation gaps, NOT by evidence insufficiency or model mismatch. This ADR does not directly address these 3 cases.
+
+**Scope Clarification**: This ADR targets **FUTURE false PASS cases caused by summary-only context**, which is a documented risk (lines 17-22, MAX_DIFF_LINES threshold) even though it has not yet manifested in the measured baseline. The 15% baseline establishes a "before" measurement for OTHER improvements (prompt quality, validation rules) tracked separately.
+
+**Separated Metrics**:
+
+- **Baseline false PASS rate (all causes)**: 15% (3/20 PRs, from P0-1)
+- **Target false PASS rate (evidence insufficiency)**: TBD—new metric for large-PR summary-mode risk
+
+This ADR is preventive (stop future risks) not remedial (fix current baseline).
+
+**Target**: Monitor false PASS rate trend (all causes). Establish new metric for evidence insufficiency after implementation.
 
 ### P0-2: Model Availability Verification [COMPLETE]
 
@@ -328,9 +387,25 @@ Before broad rollout:
 | Spec validation | opus | codex/sonnet | -30% cost |
 
 **Cost Estimate**:
-- Current: 100% opus pricing for all AI reviews
-- Projected: ~35% opus, ~50% sonnet/codex, ~15% mini/haiku
-- **Net impact**: Estimated 20-30% REDUCTION in costs
+
+**Calculation**:
+
+- Current usage: 74 PRs/month × 6 agents/PR = 444 Opus jobs/month (100% Opus baseline)
+- Projected routing:
+  - Issue triage (not PR-based): ~20 jobs/month → gpt-5-mini (Opus → Mini = -80% cost)
+  - PR quality gate: 74 PRs × 6 agents = 444 jobs
+    - 80% use Sonnet as primary, 20% escalate to Opus per line 139
+    - = 355 Sonnet + 89 Opus jobs
+  - Security reviews: 74 PRs × 1 security agent = 74 Opus jobs (no change)
+  - Spec validation: ~30 jobs/month → Codex (-30% vs Opus)
+
+**Assuming** Sonnet = 50% of Opus cost, Codex = 70%, Mini = 20%:
+
+- Current cost (normalized): 444 Opus + 20 Opus triage + 74 Opus security + 30 Opus spec = 568 Opus-equivalent units
+- Projected cost: 355 Sonnet (=178 Opus-eq) + 89 Opus + 20 Mini (=4 Opus-eq) + 74 Opus + 30 Codex (=21 Opus-eq) = 366 Opus-equivalent units
+- **Net impact**: 366/568 = 64% of baseline = **36% REDUCTION**
+
+**Caveat**: Assumes escalation rate stays at 20%. If escalation exceeds 30%, cost savings diminish. Post-deployment audit will validate.
 
 **Recommendation**: PROCEED. The routing policy is expected to REDUCE costs while improving review quality through model-task matching.
 
@@ -391,9 +466,11 @@ Before broad rollout:
 
 3. **Improve large PR evidence** (recommended, not optional):
    - Instead of stat-only, include a bounded patch sample:
-     - `gh pr diff | head -N` plus `--stat`
+     - `gh pr diff | head -500` (first 500 lines) plus `--stat`
+     - This matches the existing spec-file behavior (line 31: "up to 500 lines")
      - or top-k changed files with truncated hunks
    - This directly lowers false PASS by enabling line-level checks.
+   - Rationale for N=500: Balances context completeness with token limits; aligns with current action.yml spec-file implementation
 
 4. **Aggregator step** (required):
    - Add to `ai-pr-quality-gate.yml` workflow
@@ -457,11 +534,12 @@ This is a **governance policy**, not an agent capability. It sets system-wide de
 
 | Metric | Target | Measurement | Baseline |
 |--------|--------|-------------|----------|
-| False PASS rate | >= 50% reduction vs baseline | Sampled audits: compare agent PASS vs post-merge findings | TBD (prerequisite) |
+| False PASS rate (all causes) | Monitor trend | Sampled audits: compare agent PASS vs post-merge findings | 15% (P0-1 complete) |
+| False PASS rate (evidence insufficiency) | >= 50% reduction vs baseline | Count WARN/REJECTED on summary-mode PRs that later have issues | TBD (new metric) |
 | Post-merge critical escapes | No increase (ideally down) | Track incidents/regressions vs agent verdict history | Current incident rate |
 | "Insufficient evidence" surfaced | Up initially (expected) | Count WARN/REJECTED citing summary/partial diff | 0 (new metric) |
 | Escalation rate | < 20% of PRs | Count escalations to Opus | N/A |
-| Cost increase | < 25% vs baseline | Compare monthly Copilot costs | Current monthly cost |
+| Cost increase | < 25% vs baseline | Compare monthly Copilot costs | Current (36% reduction projected) |
 | Developer time lost to reruns | < 5% of PRs require rerun | Track rerun frequency after evidence improvements | TBD |
 
 ---
