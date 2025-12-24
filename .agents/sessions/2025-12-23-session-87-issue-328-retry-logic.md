@@ -5,6 +5,23 @@
 **Issue**: #328
 **Branch**: docs/velocity
 
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Inherited from parent orchestrator (Session 62) |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Inherited from parent orchestrator |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Read-only reference (inherited context) |
+| MUST | Create this session log | [x] | This file |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [SKIPPED] | DevOps task - GitHub skills N/A |
+| MUST | Read skill-usage-mandatory memory | [SKIPPED] | DevOps task - no GitHub API calls |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Constraints inherited from parent |
+| SHOULD | Search relevant Serena memories | [x] | ci-ai-integration, workflow-verdict-tokens |
+| SHOULD | Verify git status | [x] | Clean |
+| SHOULD | Note starting commit | [x] | e6ccf3a |
+
 ## Objective
 
 Implement retry logic for infrastructure failures in AI Quality Gate to reduce false CRITICAL_FAIL verdicts and wasted premium API requests.
