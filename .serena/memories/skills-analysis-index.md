@@ -4,3 +4,4 @@
 | comprehensive analysis options trade-off recommendation specs | analysis-comprehensive-standard |
 | git blame root cause commit PR investigation history context | analysis-git-blame |
 | RCA root cause analysis verify premise before implementation issue | skill-analysis-002-rca-before-implementation |
+| related issue discovery search prerequisites dependencies planning | skill-analysis-003-related-issue-discovery |
