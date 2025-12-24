@@ -4,7 +4,7 @@
 | github pr issue cli gh api graphql | skills-github-cli-index, skills-pr-review, project-labels-milestones |
 | label milestone issue create tag priority | project-labels-milestones |
 | powershell ps1 psm1 module pester test | skills-powershell-index, pattern-thin-workflows, skills-pester-testing |
-| security vulnerability TOCTOU secret injection | skills-security |
+| security vulnerability TOCTOU secret injection | skills-security-index |
 | planning architecture ADR design | skills-planning, skills-architecture, skills-design |
 | implementation code feature bug fix | skills-implementation, skills-workflow, skills-execution |
 | orchestration agent coordination parallel handoff | skills-orchestration, skills-collaboration-patterns |
