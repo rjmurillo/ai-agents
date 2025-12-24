@@ -679,7 +679,7 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 ### ADD
 ```json
 {
-  "skill_id": "Skill-[Cat]-[N]",
+  "skill_id": "{domain}-{description}",
   "statement": "[Atomic]",
   "context": "[When to apply]",
   "evidence": "[Source]",
@@ -906,8 +906,8 @@ When retrospective is complete:
 
 | Skill ID | Statement | Atomicity | Operation | Target |
 |----------|-----------|-----------|-----------|--------|
-| Skill-Validation-006 | Validate workflow YAML syntax before committing | 92% | ADD | - |
-| Skill-CI-003 | Use matrix strategy for parallel agent execution | 88% | UPDATE | skills-ci-infrastructure.md |
+| validation-yaml-syntax | Validate workflow YAML syntax before committing | 92% | ADD | - |
+| ci-matrix-parallel | Use matrix strategy for parallel agent execution | 88% | UPDATE | skills-ci-infrastructure.md |
 
 ### Memory Updates
 

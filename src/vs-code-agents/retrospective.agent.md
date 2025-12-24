@@ -494,22 +494,22 @@ Adapted from Keep/Drop/Add. Categorize what to do with findings.
 ### Keep (TAG as helpful)
 | Finding | Skill ID | Validation Count |
 |---------|----------|------------------|
-| [Finding] | [Skill-XXX] | [N+1] |
+| [Finding] | {domain}-{description} | [N+1] |
 
 ### Drop (REMOVE or TAG as harmful)
 | Finding | Skill ID | Reason |
 |---------|----------|--------|
-| [Finding] | [Skill-XXX] | [Why removing] |
+| [Finding] | {domain}-{description} | [Why removing] |
 
 ### Add (New skill)
 | Finding | Proposed Skill ID | Statement |
 |---------|-------------------|-----------|
-| [Finding] | [Skill-Category-NNN] | [Atomic statement] |
+| [Finding] | {domain}-{description} | [Atomic statement] |
 
 ### Modify (UPDATE existing)
 | Finding | Skill ID | Current | Proposed |
 |---------|----------|---------|----------|
-| [Finding] | [Skill-XXX] | [Current text] | [New text] |
+| [Finding] | {domain}-{description} | [Current text] | [New text] |
 ````
 
 ### Activity: SMART Validation
@@ -679,7 +679,7 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 ### ADD
 ```json
 {
-  "skill_id": "Skill-[Cat]-[N]",
+  "skill_id": "{domain}-{description}",
   "statement": "[Atomic]",
   "context": "[When to apply]",
   "evidence": "[Source]",
@@ -805,7 +805,7 @@ Use cloudmcp-manager memory tools directly for all persistence operations.
 ### Entities
 | Entity Type | Name | Content |
 |-------------|------|---------|
-| Skill | [Skill-Cat-NNN] | [Statement] |
+| Skill | {domain}-{description} | [Statement] |
 
 ### Observations (for updates)
 | Entity | Observation | Evidence |
