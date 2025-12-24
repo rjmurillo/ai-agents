@@ -802,4 +802,15 @@ if [ "$FILES_FIXED" = "1" ]; then
 else
     echo_success "All pre-commit checks passed."
 fi
+
+# Suggestion: Run full validation before creating PR
+echo ""
+echo_info "Before creating a PR, run the full validation suite:"
+echo_info "  pwsh scripts/Validate-PrePR.ps1"
+echo_info ""
+echo_info "For quick validation during development:"
+echo_info "  pwsh scripts/Validate-PrePR.ps1 -Quick"
+echo_info ""
+echo_info "See: .agents/devops/SHIFT-LEFT.md for details"
+
 exit 0
