@@ -169,13 +169,11 @@ Correct format (maximum token efficiency):
 | `skills-{domain}-index.md` | L2 routing table | `skills-pr-review-index.md` |
 | `{domain}-{topic}.md` | L3 atomic content | `pr-review-security.md` |
 
-## Skill File Formats (ADR-017)
+## Skill File Format (ADR-017)
 
-Skills are stored as markdown files in `.serena/memories/`. Two canonical formats exist:
+**ONE format. ALWAYS consistent. No exceptions.**
 
-### Format A: Standalone Skill (Major Skills)
-
-Use for skills that are referenced independently or represent major capabilities.
+Skills are stored as atomic markdown files in `.serena/memories/`. Every skill uses this format:
 
 ```markdown
 # Skill-{Category}-{NNN}: {Title}
@@ -194,13 +192,10 @@ Use for skills that are referenced independently or represent major capabilities
 
 ## Anti-Pattern
 
-{What NOT to do}
-
-## Related
-
-- **BLOCKS**: {Skills this blocks}
-- **ENABLES**: {Skills this enables}
+{What NOT to do - optional, include only if there's a common mistake}
 ```
+
+**One skill per file.** No bundling. No decision trees. No exceptions.
 
 **Example** (from `session-init-serena.md`):
 
@@ -221,102 +216,11 @@ Use for skills that are referenced independently or represent major capabilities
 3. Proceed with work
 ```
 
-### Format B: Bundled Skills (Related Workflows)
+### Index Selection
 
-Use for multiple related skills that share a workflow context.
-
-```markdown
-# {Domain}: {Topic Title}
-
-## Skill-{Category}-{NNN}: {First Skill Title}
-
-**Statement**: {Atomic strategy}
-
-**Atomicity**: {%} | **Impact**: {1-10}
-
-{Code example}
-
-## Skill-{Category}-{NNN}: {Second Skill Title}
-
-**Statement**: {Atomic strategy}
-
-**Atomicity**: {%} | **Impact**: {1-10}
-
-{Code example}
-```
-
-**Example** (from `pr-review-acknowledgment.md`):
-
-```markdown
-# PR Review: Acknowledgment Protocol
-
-## Skill-PR-Comment-001: Acknowledgment BLOCKING Gate
-
-**Statement**: Phase 3 BLOCKED until eyes count equals comment count.
-
-**Atomicity**: 100% | **Tag**: critical
-
-## Skill-PR-Comment-002: Session-Specific Work Tracking
-
-**Statement**: Track 'NEW this session' separately from 'DONE prior'.
-
-**Atomicity**: 100% | **Tag**: critical
-```
-
-### Format Selection Decision Tree
-
-```mermaid
-flowchart TD
-    START([New Skill]) --> Q1{CRITICAL/BLOCKING?<br/>See criteria below}
-    Q1 -->|YES| A1[Format A<br/>Standalone]
-    Q1 -->|NO| Q2{2+ related skills<br/>same workflow?}
-    Q2 -->|YES| B1[Format B<br/>Bundled]
-    Q2 -->|NO| Q3{Has BLOCKS/ENABLES<br/>relationships?}
-    Q3 -->|YES| A2[Format A<br/>Standalone]
-    Q3 -->|NO| EITHER[Either Format<br/>Acceptable]
-
-    A1 --> DONE([Create File])
-    A2 --> DONE
-    B1 --> DONE
-    EITHER --> DONE
-```
-
-**CRITICAL/BLOCKING Definition** (any one triggers Format A):
-
-- Impact score >= 9
-- Blocks a protocol gate (SESSION-PROTOCOL.md)
-- Tagged with `#P0` or `#BLOCKING`
-- Referenced in `.agents/SESSION-PROTOCOL.md`
-
-**"Has BLOCKS/ENABLES relationships"**: Skill will be cited in other skills' Related sections.
-
-### Index Selection Decision Tree
-
-```mermaid
-flowchart TD
-    START([New Skill]) --> Q1{Skill topic matches<br/>existing domain index?}
-    Q1 -->|YES| ADD[Add to existing<br/>skills-DOMAIN-index.md]
-    Q1 -->|NO| Q2{5+ skills expected<br/>in this topic area?}
-    Q2 -->|YES| CREATE[Create new<br/>skills-DOMAIN-index.md]
-    Q2 -->|NO| Q3{Closest related<br/>domain?}
-    Q3 --> RELATED[Add to related<br/>domain index]
-
-    ADD --> UPDATE[Update memory-index.md<br/>if new keywords]
-    CREATE --> UPDATE
-    RELATED --> UPDATE
-```
-
-**Index Selection Rules:**
-
-1. **Match existing domain**: Check `memory-index.md` keywords. If skill keywords overlap >50% with existing domain, add there.
-2. **Create new domain**: Only if 5+ skills expected AND no existing domain covers topic.
-3. **Fallback to related**: If <5 skills expected, add to closest related domain.
-
-**Example decisions:**
-
-- Skill about PR security → `skills-pr-review-index.md` (PR workflow context)
-- Skill about skill formatting → `skills-documentation-index.md` (documentation context)
-- Skill about Pester mocking → `skills-pester-testing-index.md` (testing context)
+1. Check `memory-index.md` for matching domain keywords
+2. Add skill to existing domain index if keywords overlap >50%
+3. Create new domain index only if 5+ skills exist AND no domain covers topic
 
 ### Activation Vocabulary Rules
 
