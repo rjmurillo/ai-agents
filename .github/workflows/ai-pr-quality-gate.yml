@@ -454,6 +454,7 @@ jobs:
           "report_file=$reportFile" >> $env:GITHUB_OUTPUT
 
       - name: Check for infrastructure failures and add label
+        continue-on-error: true
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

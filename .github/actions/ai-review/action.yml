@@ -668,8 +668,8 @@ runs:
         # Output infrastructure failure flag for labeling
         echo "infrastructure_failure=$INFRASTRUCTURE_FAILURE" >> $GITHUB_OUTPUT
 
-        # Output retry count for observability
-        echo "retry_count=$ATTEMPT" >> $GITHUB_OUTPUT
+        # Output retry count for observability (ATTEMPT-1 because first attempt is not a retry)
+        echo "retry_count=$((ATTEMPT - 1))" >> $GITHUB_OUTPUT
 
     - name: Parse output
       id: parse
