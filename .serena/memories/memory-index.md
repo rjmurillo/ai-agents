@@ -13,6 +13,7 @@
 | validation quality lint false-positive | skills-validation, skills-linting |
 | CI CD workflow actions runner ARM | skills-ci-infrastructure-index, skills-github-workflow-patterns |
 | copilot review false-positive triage response | skills-copilot-index |
+| gemini code assist config styleguide ignore path enterprise | skills-gemini-index |
 | coderabbit noise config path-filter false-positive | skills-coderabbit-index |
 | git hook pre-commit autofix | skills-git-hooks |
 | retrospective learning session failure | retrospective-2025-12-17, retrospective-2025-12-18 |
