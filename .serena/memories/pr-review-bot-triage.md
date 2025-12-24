@@ -10,9 +10,9 @@
 |----------|----------|-------------|--------|
 | **P0** | cursor[bot] | **100%** (28/28) | Process immediately |
 | **P1** | Human reviewers | N/A | Domain expertise |
+| **P2** | Copilot | **90%** (17/19) | Review with priority |
 | **P2** | coderabbitai[bot] | ~50% (163 comments) | Review carefully |
-| **P3** | Copilot | ~34% (459 comments) | Skim for real issues |
-| **P4** | gemini-code-assist[bot] | ~25% (49 comments) | Quick scan |
+| **P3** | gemini-code-assist[bot] | **0%** (0/5 on PR 308) | Check exclusion context |
 
 **Comment Type Actionability**:
 
