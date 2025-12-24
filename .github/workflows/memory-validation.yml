@@ -1,0 +1,62 @@
+# Memory Validation for ADR-017 Compliance
+#
+# Validates memory files follow the tiered index architecture:
+# - Skill format validation (one skill per file, no bundled formats)
+# - Index validation (proper Keywords|File table format)
+#
+# This is a REQUIRED check that blocks PRs from corrupting the memory system.
+# Pre-commit hooks can be bypassed; CI cannot.
+#
+# Local developers can run the same validation using:
+#   pwsh scripts/Validate-SkillFormat.ps1
+#   pwsh scripts/Validate-MemoryIndex.ps1
+
+name: Memory Validation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.serena/memories/**'
+      - 'scripts/Validate-SkillFormat.ps1'
+      - 'scripts/Validate-MemoryIndex.ps1'
+      - '.github/workflows/memory-validation.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.serena/memories/**'
+      - 'scripts/Validate-SkillFormat.ps1'
+      - 'scripts/Validate-MemoryIndex.ps1'
+      - '.github/workflows/memory-validation.yml'
+  workflow_dispatch: # Allow manual triggering
+
+concurrency:
+  group: memory-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Memory Files
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Validate Skill Format (ADR-017)
+        shell: pwsh
+        run: |
+          Write-Host "=== Skill Format Validation ===" -ForegroundColor Cyan
+          Write-Host "Checking for bundled skill files (multiple skills per file)..." -ForegroundColor Gray
+          ./scripts/Validate-SkillFormat.ps1 -CI
+
+      - name: Validate Memory Index
+        shell: pwsh
+        run: |
+          Write-Host "=== Memory Index Validation ===" -ForegroundColor Cyan
+          Write-Host "Checking index file references and keyword uniqueness..." -ForegroundColor Gray
+          ./scripts/Validate-MemoryIndex.ps1 -CI
