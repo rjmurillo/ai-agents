@@ -17,13 +17,13 @@ This utility collects and reports metrics on agent usage from git history. It im
 
 ```bash
 # Basic usage (30 days, summary output)
-python .agents/utilities/metrics/collect_metrics.py
+python .claude/skills/metrics/collect_metrics.py
 
 # Last 90 days as markdown
-python .agents/utilities/metrics/collect_metrics.py --since 90 --output markdown
+python .claude/skills/metrics/collect_metrics.py --since 90 --output markdown
 
 # JSON output for automation
-python .agents/utilities/metrics/collect_metrics.py --output json
+python .claude/skills/metrics/collect_metrics.py --output json
 ```
 
 ### PowerShell
@@ -112,7 +112,7 @@ To generate a monthly dashboard report:
 
 ```bash
 # Generate report
-python .agents/utilities/metrics/collect_metrics.py \
+python .claude/skills/metrics/collect_metrics.py \
     --since 30 \
     --output markdown \
     > .agents/metrics/report-$(date +%Y-%m).md

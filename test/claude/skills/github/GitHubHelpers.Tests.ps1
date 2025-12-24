@@ -6,7 +6,8 @@
 #>
 
 BeforeAll {
-    $ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
+    # Correct path: from .github/tests/skills/github -> .claude/skills/github/modules
+    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
     Import-Module $ModulePath -Force
 }
 
@@ -125,7 +126,7 @@ Describe "Script Parameter Validation" {
 
     Context "Get-PRContext.ps1" {
         BeforeAll {
-            $ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "pr" "Get-PRContext.ps1"
+            $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Get-PRContext.ps1"
             $content = Get-Content $ScriptPath -Raw
         }
 
@@ -156,7 +157,7 @@ Describe "Script Parameter Validation" {
 
     Context "Post-IssueComment.ps1" {
         BeforeAll {
-            $ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "issue" "Post-IssueComment.ps1"
+            $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "issue" "Post-IssueComment.ps1"
             $content = Get-Content $ScriptPath -Raw
         }
 
@@ -180,7 +181,7 @@ Describe "Script Parameter Validation" {
 
     Context "Set-IssueLabels.ps1" {
         BeforeAll {
-            $ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "issue" "Set-IssueLabels.ps1"
+            $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "issue" "Set-IssueLabels.ps1"
             $content = Get-Content $ScriptPath -Raw
         }
 
@@ -199,7 +200,7 @@ Describe "Script Parameter Validation" {
 
     Context "Add-CommentReaction.ps1" {
         BeforeAll {
-            $ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "reactions" "Add-CommentReaction.ps1"
+            $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "reactions" "Add-CommentReaction.ps1"
             $content = Get-Content $ScriptPath -Raw
         }
 
@@ -224,7 +225,7 @@ Describe "Script Parameter Validation" {
 
     Context "Post-PRCommentReply.ps1" {
         BeforeAll {
-            $ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "pr" "Post-PRCommentReply.ps1"
+            $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Post-PRCommentReply.ps1"
             $content = Get-Content $ScriptPath -Raw
         }
 

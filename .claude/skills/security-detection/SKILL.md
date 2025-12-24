@@ -6,7 +6,7 @@ Detect infrastructure and security-critical file changes to trigger security age
 
 ## Location
 
-`.agents/utilities/security-detection/`
+`.claude/skills/security-detection/`
 
 ## Available Scripts
 
@@ -94,9 +94,9 @@ Add to `.githooks/pre-commit`:
 ```bash
 # Security detection (non-blocking warning)
 if command -v python3 &> /dev/null; then
-    python3 .agents/utilities/security-detection/detect_infrastructure.py --git-staged
+    python3 .claude/skills/security-detection/detect_infrastructure.py --git-staged
 elif command -v pwsh &> /dev/null; then
-    pwsh -File .agents/utilities/security-detection/detect-infrastructure.ps1 -UseGitStaged
+    pwsh -File .claude/skills/security-detection/detect-infrastructure.ps1 -UseGitStaged
 fi
 ```
 
@@ -104,7 +104,7 @@ fi
 
 ```yaml
 - name: Check security-critical files
-  run: python .agents/utilities/security-detection/detect_infrastructure.py --git-staged
+  run: python .claude/skills/security-detection/detect_infrastructure.py --git-staged
 ```
 
 ## Exit Codes

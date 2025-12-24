@@ -3,7 +3,8 @@
     Closes a GitHub Pull Request.
 
 .DESCRIPTION
-    Closes a PR, optionally deleting the head branch.
+    Closes a PR with optional comment explaining the reason.
+    Supports idempotency - returns success if already closed.
 
 .PARAMETER Owner
     Repository owner. Inferred from git remote if not provided.
@@ -14,20 +15,20 @@
 .PARAMETER PullRequest
     PR number (required).
 
-.PARAMETER DeleteBranch
-    If specified, deletes the head branch after closing the PR.
-
 .PARAMETER Comment
-    Optional comment to post before closing the PR.
+    Optional comment to post before closing.
+
+.PARAMETER CommentFile
+    Optional file containing comment body.
 
 .EXAMPLE
-    .\Close-PR.ps1 -PullRequest 123
+    .\Close-PR.ps1 -PullRequest 50
 
 .EXAMPLE
-    .\Close-PR.ps1 -PullRequest 123 -DeleteBranch -Comment "Closing as superseded by #456"
+    .\Close-PR.ps1 -PullRequest 50 -Comment "Superseded by #51"
 
 .NOTES
-    Exit Codes: 0=Success, 1=Invalid params, 2=PR not found, 3=API error, 4=Not authenticated
+    Exit Codes: 0=Success, 1=Invalid params, 2=Not found, 3=API error, 4=Not authenticated
 #>
 
 [CmdletBinding()]
@@ -35,9 +36,11 @@ param(
     [string]$Owner,
     [string]$Repo,
     [Parameter(Mandatory)] [int]$PullRequest,
-    [switch]$DeleteBranch,
-    [string]$Comment
+    [string]$Comment,
+    [string]$CommentFile
 )
+
+$ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot ".." ".." "modules" "GitHubHelpers.psm1") -Force
 
@@ -46,46 +49,58 @@ $resolved = Resolve-RepoParams -Owner $Owner -Repo $Repo
 $Owner = $resolved.Owner
 $Repo = $resolved.Repo
 
-# Post comment if provided
-if (-not [string]::IsNullOrWhiteSpace($Comment)) {
-    Write-Verbose "Posting comment before closing PR #${PullRequest}"
-    
-    # Use existing Post-PRCommentReply.ps1 for consistent comment handling
-    $commentScript = Join-Path $PSScriptRoot "Post-PRCommentReply.ps1"
-    try {
-        & $commentScript -Owner $Owner -Repo $Repo -PullRequest $PullRequest -Body $Comment -ErrorAction Stop
-    }
-    catch {
-        Write-Warning "Failed to post comment: $_"
-        # Continue anyway - closing is more important
-    }
+# Validate CommentFile if provided
+if ($CommentFile) {
+    Assert-ValidBodyFile -BodyFile $CommentFile
+    $Comment = Get-Content -Path $CommentFile -Raw
 }
 
-# Close PR
-$ghArgs = @('pr', 'close', $PullRequest, '--repo', "$Owner/$Repo")
+Write-Verbose "Closing PR #$PullRequest in $Owner/$Repo"
 
-if ($DeleteBranch) {
-    $ghArgs += '--delete-branch'
-}
-
-$result = & gh @ghArgs 2>&1
-
+# Check current state first
+$prState = gh pr view $PullRequest --repo "$Owner/$Repo" --json state 2>&1
 if ($LASTEXITCODE -ne 0) {
-    if ($result -match "not found") {
-        Write-ErrorAndExit "PR #${PullRequest} not found in ${Owner}/${Repo}" 2
+    if ($prState -match "not found") {
+        Write-ErrorAndExit "PR #$PullRequest not found in $Owner/$Repo" 2
     }
-    Write-ErrorAndExit "Failed to close PR: $result" 3
+    Write-ErrorAndExit "Failed to get PR state: $prState" 3
 }
 
-Write-Host "Closed PR #${PullRequest}" -ForegroundColor Green
+$state = ($prState | ConvertFrom-Json).state
 
-if ($DeleteBranch) {
-    Write-Host "  Head branch deleted" -ForegroundColor Cyan
+if ($state -eq "CLOSED" -or $state -eq "MERGED") {
+    Write-Host "PR #$PullRequest is already $($state.ToLower())" -ForegroundColor Yellow
+    [PSCustomObject]@{
+        Success = $true
+        Number = $PullRequest
+        State = $state
+        Action = "none"
+        Message = "PR already $($state.ToLower())"
+    } | ConvertTo-Json
+    exit 0
 }
 
-# GitHub Actions outputs for programmatic consumption
-if ($env:GITHUB_OUTPUT) {
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "pr=$PullRequest"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "branch_deleted=$($DeleteBranch.ToString().ToLower())"
+# Post comment if provided
+if ($Comment) {
+    Write-Verbose "Posting close comment"
+    $result = gh pr comment "$PullRequest" --repo "$Owner/$Repo" --body "$Comment" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to post comment: $result"
+    }
 }
+
+# Close the PR
+$result = gh pr close $PullRequest --repo "$Owner/$Repo" 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-ErrorAndExit "Failed to close PR #$($PullRequest): $result" 3
+}
+
+Write-Host "Closed PR #$PullRequest" -ForegroundColor Green
+
+[PSCustomObject]@{
+    Success = $true
+    Number = $PullRequest
+    State = "CLOSED"
+    Action = "closed"
+    Message = "PR closed successfully"
+} | ConvertTo-Json

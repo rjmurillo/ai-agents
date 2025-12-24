@@ -35,7 +35,7 @@ Implement two complementary optimizations:
 
 | Workflow | Files Analyzed | Path Filter |
 |----------|---------------|-------------|
-| agent-metrics | Metrics scripts | `.agents/utilities/metrics/**` |
+| agent-metrics | Metrics scripts | `.claude/skills/metrics/**` |
 | copilot-setup-steps | Git hooks | `.githooks/**` |
 | drift-detection | Agent files, templates | `src/claude/**`, `templates/agents/**` |
 | pester-tests | PowerShell scripts | `scripts/**`, `build/**`, `.claude/skills/**` |
@@ -131,7 +131,7 @@ Implement two complementary optimizations:
    on:
      push:
        paths:
-         - '.agents/utilities/metrics/**'
+         - '.claude/skills/metrics/**'
          - '.github/workflows/agent-metrics.yml'
    ```
 

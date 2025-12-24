@@ -76,10 +76,10 @@ git commit --no-verify -m "message"
 
 ```powershell
 # Fix markdown fences (closing fences with language identifiers)
-pwsh .agents/utilities/fix-markdown-fences/fix_fences.ps1
+pwsh .claude/skills/fix-markdown-fences/fix_fences.ps1
 
 # Python alternative
-python .agents/utilities/fix-markdown-fences/fix_fences.py
+python .claude/skills/fix-markdown-fences/fix_fences.py
 ```
 
 ## Agent Invocation

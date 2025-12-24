@@ -1,0 +1,12 @@
+﻿---
+name: "steering-matcher"
+description: "Match file paths against steering file glob patterns to determine applicable steering guidance. Use when orchestrator needs to inject context-aware guidance based on files being modified."
+generated: true
+generated_from: ".claude\skills\steering-matcher\SKILL.md"
+---
+# GENERATED FILE
+# Source of truth: SKILL.md
+# Do not edit manually
+#
+# Regenerate: pwsh ./scripts/gen-skills.ps1
+
