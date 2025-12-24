@@ -14,11 +14,12 @@
 | self-contained artifact handoff agent amnesia autonomous | documentation-self-contained |
 | skill format standalone bundled decision tree mermaid P0 | skill-format-selection-decision-tree |
 | index selection domain routing keyword overlap create new | skill-index-selection-decision-tree |
+| verification critic amnesiac completeness objective PASS FAIL protocol | documentation-verification-protocol |
 
 ## Domain Statistics
 
-- **Skills**: 7 core skills
-- **CRITICAL Tags**: 2 (user-facing restrictions, self-containment)
+- **Skills**: 8 core skills
+- **CRITICAL Tags**: 3 (user-facing restrictions, self-containment, verification protocol)
 
 ## See Also
 

@@ -199,9 +199,14 @@ content: "# [Title]\n\n**Statement**: [Atomic description]\n\n**Context**: [When
 # Step 2: Read domain index to find last table row
 serena/read_memory
 memory_file_name: "skills-[domain]-index"
-# Find the LAST row in the Activation Vocabulary table
+# WARNING: Markdown tables have structure:
+#   | Keywords | File |           <-- Header row
+#   |----------|------|           <-- Delimiter row (SKIP THIS)
+#   | existing | file |           <-- Data rows
+# Find the LAST DATA ROW (not header, not delimiter)
+# Inserting after header/delimiter corrupts the table
 
-# Step 3: Insert new row AFTER the last existing row
+# Step 3: Insert new row AFTER the last existing DATA row
 serena/edit_memory
 memory_file_name: "skills-[domain]-index"
 needle: "| [last-existing-keywords] | [last-existing-file] |"
