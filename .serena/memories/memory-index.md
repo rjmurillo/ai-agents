@@ -1,7 +1,7 @@
 | Task Keywords | Essential Memories |
 |---------------|-------------------|
 | session start init handoff protocol | project-overview, codebase-structure, user-preference-no-bash-python |
-| github pr issue cli gh api graphql | skills-github-cli-index, skills-pr-review, project-labels-milestones |
+| github pr issue cli gh api graphql | skills-github-cli-index, skills-pr-review-index, project-labels-milestones |
 | jq json parse filter select map array object string | skills-jq-index |
 | gh extension notify combine metrics milestone webhook grep sub-issue | skills-gh-extensions-index |
 | label milestone issue create tag priority | project-labels-milestones |

@@ -1,0 +1,40 @@
+# PR Review: Bot Reviewer Triage
+
+## Skill-PR-006: Reviewer Signal Quality
+
+**Statement**: Prioritize reviewers by historical actionability rate.
+
+**Atomicity**: 96% | **Validated**: 14 PRs
+
+| Priority | Reviewer | Signal Rate | Action |
+|----------|----------|-------------|--------|
+| **P0** | cursor[bot] | **100%** (28/28) | Process immediately |
+| **P1** | Human reviewers | N/A | Domain expertise |
+| **P2** | coderabbitai[bot] | ~50% (163 comments) | Review carefully |
+| **P3** | Copilot | ~34% (459 comments) | Skim for real issues |
+| **P4** | gemini-code-assist[bot] | ~25% (49 comments) | Quick scan |
+
+**Comment Type Actionability**:
+
+| Type | Rate | Examples |
+|------|------|----------|
+| Bug reports | ~90% | cursor[bot] bugs, type errors |
+| Missing coverage | ~70% | Test gaps, edge cases |
+| Style suggestions | ~20% | Formatting, naming |
+| Summaries | 0% | CodeRabbit walkthroughs |
+
+## Skill-PR-001: Reviewer Enumeration
+
+**Statement**: Enumerate ALL reviewers before triaging to avoid single-bot blindness.
+
+```bash
+gh pr view PR --json reviews --jq '.reviews[].author.login' | sort -u
+```
+
+## Skill-PR-002: Independent Comment Parsing
+
+**Statement**: Parse each comment independently; same-file comments may address different issues.
+
+## Skill-PR-003: Verification Count
+
+**Statement**: Verify addressed_count matches total_comment_count before claiming completion.
