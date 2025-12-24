@@ -213,13 +213,21 @@ jobs:
           DEVOPS_VERDICT=$(cat ai-review-results/devops-verdict.txt 2>/dev/null || echo "UNKNOWN")
           ROADMAP_VERDICT=$(cat ai-review-results/roadmap-verdict.txt 2>/dev/null || echo "UNKNOWN")
 
+          # Read infrastructure failure flags
+          SECURITY_INFRA=$(cat ai-review-results/security-infrastructure-failure.txt 2>/dev/null || echo "false")
+          QA_INFRA=$(cat ai-review-results/qa-infrastructure-failure.txt 2>/dev/null || echo "false")
+          ANALYST_INFRA=$(cat ai-review-results/analyst-infrastructure-failure.txt 2>/dev/null || echo "false")
+          ARCHITECT_INFRA=$(cat ai-review-results/architect-infrastructure-failure.txt 2>/dev/null || echo "false")
+          DEVOPS_INFRA=$(cat ai-review-results/devops-infrastructure-failure.txt 2>/dev/null || echo "false")
+          ROADMAP_INFRA=$(cat ai-review-results/roadmap-infrastructure-failure.txt 2>/dev/null || echo "false")
+
           echo "Loaded verdicts:"
-          echo "  Security: $SECURITY_VERDICT"
-          echo "  QA: $QA_VERDICT"
-          echo "  Analyst: $ANALYST_VERDICT"
-          echo "  Architect: $ARCHITECT_VERDICT"
-          echo "  DevOps: $DEVOPS_VERDICT"
-          echo "  Roadmap: $ROADMAP_VERDICT"
+          echo "  Security: $SECURITY_VERDICT (infra: $SECURITY_INFRA)"
+          echo "  QA: $QA_VERDICT (infra: $QA_INFRA)"
+          echo "  Analyst: $ANALYST_VERDICT (infra: $ANALYST_INFRA)"
+          echo "  Architect: $ARCHITECT_VERDICT (infra: $ARCHITECT_INFRA)"
+          echo "  DevOps: $DEVOPS_VERDICT (infra: $DEVOPS_INFRA)"
+          echo "  Roadmap: $ROADMAP_VERDICT (infra: $ROADMAP_INFRA)"
 
           # Export verdicts for subsequent steps
           echo "security_verdict=$SECURITY_VERDICT" >> $GITHUB_OUTPUT
@@ -228,6 +236,14 @@ jobs:
           echo "architect_verdict=$ARCHITECT_VERDICT" >> $GITHUB_OUTPUT
           echo "devops_verdict=$DEVOPS_VERDICT" >> $GITHUB_OUTPUT
           echo "roadmap_verdict=$ROADMAP_VERDICT" >> $GITHUB_OUTPUT
+
+          # Export infrastructure failure flags
+          echo "security_infra=$SECURITY_INFRA" >> $GITHUB_OUTPUT
+          echo "qa_infra=$QA_INFRA" >> $GITHUB_OUTPUT
+          echo "analyst_infra=$ANALYST_INFRA" >> $GITHUB_OUTPUT
+          echo "architect_infra=$ARCHITECT_INFRA" >> $GITHUB_OUTPUT
+          echo "devops_infra=$DEVOPS_INFRA" >> $GITHUB_OUTPUT
+          echo "roadmap_infra=$ROADMAP_INFRA" >> $GITHUB_OUTPUT
 
       - name: Aggregate Verdicts
         id: aggregate
@@ -243,15 +259,59 @@ jobs:
           $devopsVerdict = "${{ steps.load-results.outputs.devops_verdict }}"
           $roadmapVerdict = "${{ steps.load-results.outputs.roadmap_verdict }}"
 
-          Write-Log "Security verdict: $securityVerdict"
-          Write-Log "QA verdict: $qaVerdict"
-          Write-Log "Analyst verdict: $analystVerdict"
-          Write-Log "Architect verdict: $architectVerdict"
-          Write-Log "DevOps verdict: $devopsVerdict"
-          Write-Log "Roadmap verdict: $roadmapVerdict"
+          # Get infrastructure failure flags
+          $securityInfra = "${{ steps.load-results.outputs.security_infra }}" -eq "true"
+          $qaInfra = "${{ steps.load-results.outputs.qa_infra }}" -eq "true"
+          $analystInfra = "${{ steps.load-results.outputs.analyst_infra }}" -eq "true"
+          $architectInfra = "${{ steps.load-results.outputs.architect_infra }}" -eq "true"
+          $devopsInfra = "${{ steps.load-results.outputs.devops_infra }}" -eq "true"
+          $roadmapInfra = "${{ steps.load-results.outputs.roadmap_infra }}" -eq "true"
 
+          Write-Log "Security verdict: $securityVerdict (infra: $securityInfra)"
+          Write-Log "QA verdict: $qaVerdict (infra: $qaInfra)"
+          Write-Log "Analyst verdict: $analystVerdict (infra: $analystInfra)"
+          Write-Log "Architect verdict: $architectVerdict (infra: $architectInfra)"
+          Write-Log "DevOps verdict: $devopsVerdict (infra: $devopsInfra)"
+          Write-Log "Roadmap verdict: $roadmapVerdict (infra: $roadmapInfra)"
+
+          # Categorize failures: if verdict is failure AND infrastructure flag is true, it's INFRASTRUCTURE
+          # Otherwise, it's CODE_QUALITY
+          function Get-Category {
+            param([string]$Verdict, [bool]$InfraFlag)
+            if ($Verdict -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL') {
+              if ($InfraFlag) { return 'INFRASTRUCTURE' } else { return 'CODE_QUALITY' }
+            }
+            return 'N/A'
+          }
+
+          $securityCategory = Get-Category -Verdict $securityVerdict -InfraFlag $securityInfra
+          $qaCategory = Get-Category -Verdict $qaVerdict -InfraFlag $qaInfra
+          $analystCategory = Get-Category -Verdict $analystVerdict -InfraFlag $analystInfra
+          $architectCategory = Get-Category -Verdict $architectVerdict -InfraFlag $architectInfra
+          $devopsCategory = Get-Category -Verdict $devopsVerdict -InfraFlag $devopsInfra
+          $roadmapCategory = Get-Category -Verdict $roadmapVerdict -InfraFlag $roadmapInfra
+
+          Write-Log "Security category: $securityCategory"
+          Write-Log "QA category: $qaCategory"
+          Write-Log "Analyst category: $analystCategory"
+          Write-Log "Architect category: $architectCategory"
+          Write-Log "DevOps category: $devopsCategory"
+          Write-Log "Roadmap category: $roadmapCategory"
+
+          # Determine if any CODE_QUALITY failures exist
+          $codeQualityFailures = @($securityCategory, $qaCategory, $analystCategory, $architectCategory, $devopsCategory, $roadmapCategory) -contains 'CODE_QUALITY'
+
+          # Merge all verdicts
           $final = Merge-Verdicts -Verdicts @($securityVerdict, $qaVerdict, $analystVerdict, $architectVerdict, $devopsVerdict, $roadmapVerdict)
           Write-Log "Final verdict: $final"
+
+          # If final verdict is failure but no CODE_QUALITY failures, change to WARN
+          if ($final -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL') {
+            if (-not $codeQualityFailures) {
+              Write-Log "All failures are INFRASTRUCTURE - downgrading to WARN (PR will not be blocked)"
+              $final = 'WARN'
+            }
+          }
 
           "final_verdict=$final" >> $env:GITHUB_OUTPUT
           "security_verdict=$securityVerdict" >> $env:GITHUB_OUTPUT
@@ -260,6 +320,14 @@ jobs:
           "architect_verdict=$architectVerdict" >> $env:GITHUB_OUTPUT
           "devops_verdict=$devopsVerdict" >> $env:GITHUB_OUTPUT
           "roadmap_verdict=$roadmapVerdict" >> $env:GITHUB_OUTPUT
+
+          # Output categories for PR comment
+          "security_category=$securityCategory" >> $env:GITHUB_OUTPUT
+          "qa_category=$qaCategory" >> $env:GITHUB_OUTPUT
+          "analyst_category=$analystCategory" >> $env:GITHUB_OUTPUT
+          "architect_category=$architectCategory" >> $env:GITHUB_OUTPUT
+          "devops_category=$devopsCategory" >> $env:GITHUB_OUTPUT
+          "roadmap_category=$roadmapCategory" >> $env:GITHUB_OUTPUT
 
       - name: Generate Report
         id: report
@@ -286,6 +354,14 @@ jobs:
           $architectVerdict = "${{ steps.aggregate.outputs.architect_verdict }}"
           $devopsVerdict = "${{ steps.aggregate.outputs.devops_verdict }}"
           $roadmapVerdict = "${{ steps.aggregate.outputs.roadmap_verdict }}"
+
+          # Get categories
+          $securityCategory = "${{ steps.aggregate.outputs.security_category }}"
+          $qaCategory = "${{ steps.aggregate.outputs.qa_category }}"
+          $analystCategory = "${{ steps.aggregate.outputs.analyst_category }}"
+          $architectCategory = "${{ steps.aggregate.outputs.architect_category }}"
+          $devopsCategory = "${{ steps.aggregate.outputs.devops_category }}"
+          $roadmapCategory = "${{ steps.aggregate.outputs.roadmap_category }}"
 
           # Get emojis
           $securityEmoji = Get-VerdictEmoji -Verdict $securityVerdict
@@ -321,14 +397,14 @@ jobs:
 
           ### Review Summary
 
-          | Agent | Verdict | Status |
-          |:------|:--------|:------:|
-          | Security | $securityVerdict | $securityEmoji |
-          | QA | $qaVerdict | $qaEmoji |
-          | Analyst | $analystVerdict | $analystEmoji |
-          | Architect | $architectVerdict | $architectEmoji |
-          | DevOps | $devopsVerdict | $devopsEmoji |
-          | Roadmap | $roadmapVerdict | $roadmapEmoji |
+          | Agent | Verdict | Category | Status |
+          |:------|:--------|:---------|:------:|
+          | Security | $securityVerdict | $securityCategory | $securityEmoji |
+          | QA | $qaVerdict | $qaCategory | $qaEmoji |
+          | Analyst | $analystVerdict | $analystCategory | $analystEmoji |
+          | Architect | $architectVerdict | $architectCategory | $architectEmoji |
+          | DevOps | $devopsVerdict | $devopsCategory | $devopsEmoji |
+          | Roadmap | $roadmapVerdict | $roadmapCategory | $roadmapEmoji |
 
           "@
 
