@@ -19,3 +19,5 @@
 | required check path filter phantom blocking internal skip git diff | ci-workflow-required-checks |
 | zero SHA first commit force-push git cat-file LASTEXITCODE validation | ci-workflow-required-checks |
 | required check testing non-matching PR status reporting verification | ci-workflow-required-checks |
+| fail-fast exit code 1 infrastructure failure timeout token retry | skill-ci-001-fail-fast-infrastructure-failures |
+| retry timing explicit array backoff formula RETRY_DELAYS | skill-ci-002-explicit-retry-timing |
