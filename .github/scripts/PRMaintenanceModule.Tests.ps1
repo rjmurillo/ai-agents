@@ -248,10 +248,9 @@ Conflicts Resolved: 100
                 HasBlocked   = $false
             }
 
-            $summary = New-MaintenanceSummary -Results $results -DryRun $true -CoreRemaining 4500
+            $summary = New-MaintenanceSummary -Results $results -CoreRemaining 4500
 
             $summary | Should -Match 'PR Maintenance Summary'
-            $summary | Should -Match 'Dry Run.*Yes'
             $summary | Should -Match 'PRs Processed.*5'
             $summary | Should -Match 'Comments Acknowledged.*12'
             $summary | Should -Match 'Conflicts Resolved.*2'
@@ -267,7 +266,7 @@ Conflicts Resolved: 100
                 HasBlocked   = $true
             }
 
-            $summary = New-MaintenanceSummary -Results $results -DryRun $false -CoreRemaining 4000
+            $summary = New-MaintenanceSummary -Results $results -CoreRemaining 4000
 
             $summary | Should -Match 'Blocked PRs \(Require Human Action\)'
             $summary | Should -Match 'PR #123'
@@ -288,20 +287,6 @@ Conflicts Resolved: 100
 
             $summary | Should -Match 'View Logs'
             $summary | Should -Match $runUrl
-        }
-
-        It "Should show Dry Run: No when not in dry run mode" {
-            $results = [PSCustomObject]@{
-                Processed    = 1
-                Acknowledged = 0
-                Resolved     = 0
-                BlockedPRs   = @()
-                HasBlocked   = $false
-            }
-
-            $summary = New-MaintenanceSummary -Results $results -DryRun $false
-
-            $summary | Should -Match 'Dry Run.*No'
         }
     }
 
@@ -413,7 +398,7 @@ Conflicts Resolved: 3
             $results = Get-MaintenanceResults -LogPath $logPath
 
             # Generate summary
-            $summary = New-MaintenanceSummary -Results $results -DryRun $false -CoreRemaining 4000
+            $summary = New-MaintenanceSummary -Results $results -CoreRemaining 4000
 
             # Verify end-to-end
             $results.Processed | Should -Be 10
@@ -437,7 +422,7 @@ Blocked PRs (require human action):
             $results = Get-MaintenanceResults -LogPath $logPath
 
             # Generate summary
-            $summary = New-MaintenanceSummary -Results $results -DryRun $true
+            $summary = New-MaintenanceSummary -Results $results
 
             # Generate alert body
             $alertBody = New-BlockedPRsAlertBody -BlockedPRs $results.BlockedPRs

@@ -18,9 +18,6 @@
 .PARAMETER Repo
     Repository name. Defaults to current repo name.
 
-.PARAMETER DryRun
-    If specified, only report what would be done without making changes.
-
 .PARAMETER MaxPRs
     Maximum number of PRs to process in one run. Defaults to 20.
 
@@ -29,9 +26,6 @@
 
 .EXAMPLE
     .\scripts\Invoke-PRMaintenance.ps1
-
-.EXAMPLE
-    .\scripts\Invoke-PRMaintenance.ps1 -DryRun
 
 .EXAMPLE
     .\scripts\Invoke-PRMaintenance.ps1 -MaxPRs 5
@@ -47,7 +41,6 @@
 param(
     [string]$Owner,
     [string]$Repo,
-    [switch]$DryRun,
     [int]$MaxPRs = 20,
     [string]$LogPath
 )
@@ -548,19 +541,13 @@ function Resolve-PRConflicts {
         [string]$Repo,
         [long]$PRNumber,  # ADR-015 Fix 4: Int64
         [string]$BranchName,
-        [string]$TargetBranch = 'main',  # PR target branch (baseRefName)
-        [switch]$DryRun
+        [string]$TargetBranch = 'main'  # PR target branch (baseRefName)
     )
 
     # ADR-015 Fix 1: Validate branch name for command injection prevention
     if (-not (Test-SafeBranchName -BranchName $BranchName)) {
         Write-Log "Rejecting PR #$PRNumber due to unsafe branch name: $BranchName" -Level ERROR
         return $false
-    }
-
-    if ($DryRun) {
-        Write-Log "[DRY RUN] Would resolve conflicts for PR #$PRNumber" -Level ACTION
-        return $true
     }
 
     # Detect GitHub Actions runner - worktrees not needed there as workspace is already isolated
@@ -808,7 +795,6 @@ function Invoke-PRMaintenance {
     param(
         [string]$Owner,
         [string]$Repo,
-        [switch]$DryRun,
         [int]$MaxPRs
     )
 
@@ -822,7 +808,6 @@ function Invoke-PRMaintenance {
 
     Write-Log "Starting PR maintenance run" -Level INFO
     Write-Log "Repository: $Owner/$Repo" -Level INFO
-    Write-Log "DryRun: $DryRun" -Level INFO
     Write-Log "MaxPRs: $MaxPRs" -Level INFO
 
     # Get all open PRs
@@ -857,14 +842,8 @@ function Invoke-PRMaintenance {
             $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
             foreach ($comment in $unacked) {
                 Write-Log "Acknowledging comment $($comment.id) from $($comment.user.login)" -Level ACTION
-                if (-not $DryRun) {
-                    $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
-                    if ($acked) {
-                        $results.CommentsAcknowledged++
-                    }
-                }
-                else {
-                    Write-Log "[DRY RUN] Would acknowledge comment $($comment.id)" -Level ACTION
+                $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
+                if ($acked) {
                     $results.CommentsAcknowledged++
                 }
             }
@@ -872,7 +851,7 @@ function Invoke-PRMaintenance {
             # Check and resolve merge conflicts
             if ($pr.mergeable -eq 'CONFLICTING') {
                 Write-Log "PR #$($pr.number) has merge conflicts - attempting resolution" -Level ACTION
-                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.headRefName -TargetBranch $pr.baseRefName -DryRun:$DryRun
+                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.headRefName -TargetBranch $pr.baseRefName
                 if ($resolved) {
                     $results.ConflictsResolved++
                 }
@@ -943,7 +922,7 @@ try {
         }
 
         # Run maintenance
-        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -DryRun:$DryRun -MaxPRs $MaxPRs
+        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs
 
         # Summary
         Write-Log "---" -Level INFO
