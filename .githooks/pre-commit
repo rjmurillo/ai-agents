@@ -643,61 +643,79 @@ else
 fi
 
 #
-# Skill Violation Detection (WARNING, non-blocking)
+# Memory Index Validation (BLOCKING)
 #
-# Detects raw gh command usage when GitHub skills exist.
-# Helps enforce skill-usage-mandatory memory.
+# Validates tiered memory index consistency (ADR-017).
+# When .serena/memories/ files are staged, ensures:
+# - All index entries point to existing files
+# - Keyword density >=40% unique per skill
 #
-# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
-# Related: Issue rjmurillo/ai-agents#230 (Phase 1), .serena/memories/skill-usage-mandatory.md
+# Related: ADR-017, Issue #307
 #
-SKILL_DETECT_SCRIPT="$REPO_ROOT/scripts/Detect-SkillViolation.ps1"
+MEMORY_INDEX_SCRIPT="$REPO_ROOT/scripts/Validate-MemoryIndex.ps1"
 
-if [ -n "$STAGED_FILES" ]; then
+# Check if any memory files are staged
+STAGED_MEMORY_FILES=$(echo "$STAGED_FILES" | grep -E '^\.serena/memories/' || true)
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    echo_info "Checking memory index consistency (ADR-017)..."
+
     # MEDIUM-002: Reject symlinks for security
-    if [ -L "$SKILL_DETECT_SCRIPT" ]; then
-        echo_warning "Skipping skill violation detection: script path is a symlink"
-    elif [ -f "$SKILL_DETECT_SCRIPT" ]; then
+    if [ -L "$MEMORY_INDEX_SCRIPT" ]; then
+        echo_warning "Skipping memory index validation: script path is a symlink"
+    elif [ -f "$MEMORY_INDEX_SCRIPT" ]; then
         if command -v pwsh &> /dev/null; then
-            echo_info "Checking for skill violations..."
-            # Non-blocking: warnings only, no exit code enforcement
-            pwsh -NoProfile -ExecutionPolicy Bypass -File "$SKILL_DETECT_SCRIPT" -StagedOnly 2>&1 || true
+            # Run memory index validation in CI mode
+            if ! pwsh -NoProfile -File "$MEMORY_INDEX_SCRIPT" -Path "$REPO_ROOT/.serena/memories" -CI 2>&1; then
+                echo_error "Memory index validation FAILED."
+                echo_info "  Run manually: pwsh scripts/Validate-MemoryIndex.ps1"
+                EXIT_STATUS=1
+            else
+                echo_success "Memory index validation: PASS"
+            fi
         else
-            echo_info "PowerShell not available. Skipping skill violation detection."
+            echo_warning "PowerShell not available. Skipping memory index validation."
         fi
     else
-        echo_info "Skill violation detection script not found. Skipping."
+        echo_info "Memory index validation script not found. Skipping."
     fi
+else
+    echo_info "No memory files staged. Skipping memory index validation."
 fi
 
 #
-# Test Coverage Detection (WARNING, non-blocking)
+# Skill Format Validation (BLOCKING for new files)
 #
-# Detects .ps1 files without corresponding .Tests.ps1 files.
-# Helps identify test coverage gaps before QA failures.
+# Enforces ADR-017 atomic format: ONE skill per file. No bundled skills.
+# Blocks commits that add new bundled-format skill files.
+# Legacy bundled files are allowed (non-blocking warning only).
 #
-# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
-# Related: Issue rjmurillo/ai-agents#230 (FR-4), .github/instructions/testing.instructions.md
+# Related: ADR-017, Issue #307
 #
-TEST_COVERAGE_SCRIPT="$REPO_ROOT/scripts/Detect-TestCoverageGaps.ps1"
+SKILL_FORMAT_SCRIPT="$REPO_ROOT/scripts/Validate-SkillFormat.ps1"
 
-# Only check if PowerShell files are staged
-STAGED_PS_FILES=$(echo "$STAGED_FILES" | grep -E '\.ps1$' | grep -v '\.Tests\.ps1$' || true)
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    echo_info "Checking skill format (ADR-017: one skill per file)..."
 
-if [ -n "$STAGED_PS_FILES" ]; then
     # MEDIUM-002: Reject symlinks for security
-    if [ -L "$TEST_COVERAGE_SCRIPT" ]; then
-        echo_warning "Skipping test coverage detection: script path is a symlink"
-    elif [ -f "$TEST_COVERAGE_SCRIPT" ]; then
+    if [ -L "$SKILL_FORMAT_SCRIPT" ]; then
+        echo_warning "Skipping skill format validation: script path is a symlink"
+    elif [ -f "$SKILL_FORMAT_SCRIPT" ]; then
         if command -v pwsh &> /dev/null; then
-            echo_info "Checking test coverage..."
-            # Non-blocking: warnings only, no exit code enforcement
-            pwsh -NoProfile -ExecutionPolicy Bypass -File "$TEST_COVERAGE_SCRIPT" -StagedOnly 2>&1 || true
+            # Run skill format validation on staged files only
+            # -StagedOnly checks only new/modified files (not legacy bundled files)
+            if ! pwsh -NoProfile -File "$SKILL_FORMAT_SCRIPT" -StagedOnly -CI 2>&1; then
+                echo_error "Skill format validation FAILED."
+                echo_info "  ADR-017 requires ONE skill per file. Split bundled skills."
+                EXIT_STATUS=1
+            else
+                echo_success "Skill format validation: PASS"
+            fi
         else
-            echo_info "PowerShell not available. Skipping test coverage detection."
+            echo_warning "PowerShell not available. Skipping skill format validation."
         fi
     else
-        echo_info "Test coverage detection script not found. Skipping."
+        echo_info "Skill format validation script not found. Skipping."
     fi
 fi
 
