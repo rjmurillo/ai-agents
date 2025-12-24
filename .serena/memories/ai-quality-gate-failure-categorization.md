@@ -130,9 +130,26 @@ function Get-FailureCategory {
 - False positive rate (infrastructure causing blocks)
 - Retry success rate (from #328)
 
+## Implementation Status
+
+**Completed**: 2025-12-24 (Session 01, Commit feea262)
+
+**Changes**:
+1. Added `Get-FailureCategory` function to `.github/scripts/AIReviewCommon.psm1`
+2. Updated `.github/workflows/ai-pr-quality-gate.yml` to compute categories
+3. Infrastructure-only failures now downgrade to WARN (PR not blocked)
+4. PR comments show Category column in Review Summary table
+
+**Key Behavior**:
+- Infrastructure-only failures → WARN (PR not blocked)
+- Any CODE_QUALITY failure → CRITICAL_FAIL (PR blocked)
+- Mixed failures → CODE_QUALITY wins (PR blocked)
+
+**Session Log**: `.agents/sessions/2025-12-24-session-01-failure-categorization.md`
+
 ## Related
 
-- Issue #328: Retry logic for infrastructure failures
-- Issue #329: Failure categorization (this research)
+- Issue #328: Retry logic for infrastructure failures (COMPLETED)
+- Issue #329: Failure categorization (COMPLETED - this implementation)
 - Memory `ai-quality-gate-efficiency-analysis`: Cost analysis
 - Analysis document: `.agents/analysis/002-ai-quality-gate-failure-patterns.md`
