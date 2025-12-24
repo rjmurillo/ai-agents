@@ -1,7 +1,8 @@
 | Task Keywords | Essential Memories |
 |---------------|-------------------|
 | session start init handoff protocol | project-overview, codebase-structure, user-preference-no-bash-python |
-| github pr issue cli gh api graphql | skills-github-cli, skills-pr-review |
+| github pr issue cli gh api graphql | skills-github-cli, skills-pr-review, project-labels-milestones |
+| label milestone issue create tag priority | project-labels-milestones |
 | powershell ps1 psm1 module pester test | skills-powershell, pattern-thin-workflows, skills-pester-testing |
 | security vulnerability TOCTOU secret injection | skills-security |
 | planning architecture ADR design | skills-planning, skills-architecture, skills-design |
