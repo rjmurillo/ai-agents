@@ -38,6 +38,23 @@ pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 
 Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
 
+**CRITICAL - Verify PR Merge State (Skill-PR-Review-006)**:
+
+Before proceeding with review work, verify PR has not been merged via GraphQL (source of truth):
+
+```powershell
+# Check merge state via Test-PRMerged.ps1
+pwsh .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}
+$merged = $LASTEXITCODE -eq 1
+
+if ($merged) {
+    Write-Host "PR #{number} is already merged. Skipping review work." -ForegroundColor Yellow
+    continue  # Skip to next PR
+}
+```
+
+**Why this matters**: `gh pr view --json state` may return stale "OPEN" for recently merged PRs, leading to wasted effort (see Issue #321, Session 85).
+
 ### Step 2: Create Worktrees (if --parallel)
 
 For parallel execution:
@@ -168,7 +185,8 @@ When using `--parallel` with worktrees:
 | All comments resolved | Each comment has [COMPLETE] or [WONTFIX] status | Yes |
 | No new comments | Re-check after 45s wait returned 0 new | Yes |
 | CI checks pass | `gh pr checks` all green (including AI Quality Gate) | Yes |
-| No unresolved threads | GraphQL query for unresolved reviewThreads | Yes |
+| No unresolved threads | GraphQL query for unresolved reviewThreads (see Thread Resolution Protocol) | Yes |
+| PR not merged | Test-PRMerged.ps1 exit code 0 | Yes |
 | Commits pushed | `git status` shows "up to date with origin" | Yes |
 
 **If ANY criterion fails**: Do NOT claim completion. The agent must loop back to address the issue.
@@ -184,6 +202,73 @@ for pr in pr_numbers; do
   gh api graphql -f query="query { repository(owner: \"OWNER\", name: \"REPO\") { pullRequest(number: $pr) { reviewThreads(first: 50) { nodes { isResolved } } } } }" | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)]'
 done
 ```
+
+## Thread Resolution Protocol
+
+### Overview (Skills PR-Review-004, PR-Review-005)
+
+**CRITICAL**: Replying to a review comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation.
+
+### Single Thread Resolution (Skill-PR-Review-004)
+
+After replying to a review comment, resolve the thread via GraphQL:
+
+```bash
+# Step 1: Reply to comment (handled by pr-comment-responder skill)
+# Step 2: Resolve thread (REQUIRED separate step)
+gh api graphql -f query='
+mutation {
+  resolveReviewThread(input: {threadId: "PRRT_xxx"}) {
+    thread { isResolved }
+  }
+}' -f threadId="PRRT_xxx"
+```
+
+**Why this matters**: pr-comment-responder skill replies to comments, but threads remain unresolved unless explicitly resolved via GraphQL. Unresolved threads block PR merge per branch protection rules.
+
+### Batch Thread Resolution (Skill-PR-Review-005)
+
+For 2+ threads, use GraphQL mutation aliases for efficiency:
+
+```bash
+gh api graphql -f query='
+mutation {
+  t1: resolveReviewThread(input: {threadId: "PRRT_xxx"}) { thread { id isResolved } }
+  t2: resolveReviewThread(input: {threadId: "PRRT_yyy"}) { thread { id isResolved } }
+  t3: resolveReviewThread(input: {threadId: "PRRT_zzz"}) { thread { id isResolved } }
+  t4: resolveReviewThread(input: {threadId: "PRRT_aaa"}) { thread { id isResolved } }
+  t5: resolveReviewThread(input: {threadId: "PRRT_bbb"}) { thread { id isResolved } }
+}
+'
+```
+
+**Benefits**:
+- 1 API call instead of N calls (e.g., 1 call for 5 threads vs 5 calls)
+- Reduced network latency (1 round trip vs N)
+- Atomic operation (all succeed or all fail)
+
+**When to use**: 2+ threads to resolve (break-even point)
+
+### Verification
+
+```bash
+# Check for unresolved threads
+unresolved_count=$(gh api graphql -f query='
+query {
+  repository(owner: "OWNER", name: "REPO") {
+    pullRequest(number: PR_NUMBER) {
+      reviewThreads(first: 100) {
+        nodes { id isResolved }
+      }
+    }
+  }
+}' --jq '.data.repository.pullRequest.reviewThreads.nodes | map(select(.isResolved == false)) | length')
+
+echo "Unresolved threads: $unresolved_count"
+# Should be 0 before claiming completion
+```
+
+**Reference**: Session 85 discovered this requirement when PR #315 had 18 unresolved threads despite all comments being replied to.
 
 ## Examples
 
