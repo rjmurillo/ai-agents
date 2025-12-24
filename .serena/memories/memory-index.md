@@ -1,6 +1,6 @@
 | Task Keywords | Essential Memories |
 |---------------|-------------------|
-| session start init handoff protocol | project-overview, codebase-structure, user-preference-no-bash-python |
+| session start init handoff protocol serena blocking | skills-session-init-index, project-overview, codebase-structure |
 | github pr issue cli gh api graphql | skills-github-cli-index, skills-pr-review-index, project-labels-milestones |
 | jq json parse filter select map array object string | skills-jq-index |
 | gh extension notify combine metrics milestone webhook grep sub-issue | skills-gh-extensions-index |
@@ -8,7 +8,7 @@
 | powershell ps1 psm1 module pester test | skills-powershell-index, pattern-thin-workflows, skills-pester-testing |
 | security vulnerability TOCTOU secret injection | skills-security-index |
 | planning architecture ADR design | skills-planning, skills-architecture, skills-design |
-| implementation code feature bug fix | skills-implementation, skills-workflow, skills-execution |
+| implementation code feature bug fix test TDD additive | skills-implementation-index, skills-workflow, skills-execution |
 | orchestration agent coordination parallel handoff | skills-orchestration, skills-collaboration-patterns |
 | documentation PRD spec user-facing | skills-documentation |
 | validation quality lint false-positive gate test | skills-validation-index, skills-linting |
