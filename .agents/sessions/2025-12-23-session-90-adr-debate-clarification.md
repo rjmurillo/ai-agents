@@ -157,7 +157,7 @@ The following session files from the debate process are untracked:
 | P1 issues addressed | [x] | 2 P1 changes applied |
 | Debate log updated | [x] | Round 3 entry added + split documented |
 | ADR updated | [x] | All changes applied + split executed |
-| ADR-018 meta-ADR created | [x] | Split criteria documented |
-| ADR-017 split executed | [x] | Architecture + Governance documents created |
+| ADR-018 meta-ADR created | [x] | Split criteria documented (commit c8ada09) |
+| ADR-017 split executed | [x] | Architecture + Governance documents created (commit 0698b2e) |
 | Session log completed | [x] | This file |
-| Ready to commit | [x] | All files staged |
+| Ready to commit | [x] | All commits complete (0698b2e) |
