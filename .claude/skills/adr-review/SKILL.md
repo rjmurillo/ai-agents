@@ -244,11 +244,11 @@ Provide ONE position:
 
 ## Artifact Storage
 
-Save debate artifacts to `.agents/architecture/`:
+Save debate artifacts to `.agents/critique/`:
 
 ### Debate Log
 
-Save to: `.agents/architecture/ADR-NNN-debate-log.md`
+Save to: `.agents/critique/ADR-NNN-debate-log.md`
 
 ```markdown
 # ADR Debate Log: [ADR Title]

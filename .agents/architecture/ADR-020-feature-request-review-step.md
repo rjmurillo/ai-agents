@@ -490,4 +490,4 @@ Before implementing:
 - **2025-12-23**: Multi-agent review (6 agents) via adr-review skill
   - Verdict: NEEDS REVISION → Addressed in this revision
   - Key changes: Switched from critic to analyst agent, corrected MCP tool claims, added parseable output format
-  - Debate log: `.agents/architecture/ADR-020-debate-log.md`
+  - Debate log: `.agents/critique/ADR-020-debate-log.md`

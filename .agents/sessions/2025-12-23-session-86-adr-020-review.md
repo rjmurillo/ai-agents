@@ -64,7 +64,7 @@
 3. Change prompt output format for parsing
 4. Implement parsing functions with hardened regex
 
-**Debate Log**: `.agents/architecture/ADR-020-debate-log.md`
+**Debate Log**: `.agents/critique/ADR-020-debate-log.md`
 
 ## Session End (COMPLETE ALL before closing)
 
@@ -96,7 +96,7 @@ Clean after commit.
 
 ### Artifacts Created
 
-- `.agents/architecture/ADR-020-debate-log.md` - Full 6-agent debate record
+- `.agents/critique/ADR-020-debate-log.md` - Full 6-agent debate record
 - `.agents/analysis/020-adr-020-feature-request-review-analysis.md` - Analyst feasibility study
 - `.agents/critique/ADR-020-feature-request-review-critique.md` - Critic detailed review
 
