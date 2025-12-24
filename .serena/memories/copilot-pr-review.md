@@ -15,11 +15,16 @@
 | PowerShell escapes (`` `a ``, `` `n ``) | Skip |
 | Duplicates cursor[bot] | Note duplicate |
 
-## Metrics (PR #249)
+## Metrics
 
-Signal: 21% (↓ from 35%) | False positives: 64% (↑ from 10%)
+| PR | Signal | False Positives | Notes |
+|----|--------|-----------------|-------|
+| #249 | 21% | 64% | High noise, cursor[bot] duplicates |
+| #308 | 62% | 38% | Table-only format FPs (4), phrasing FPs (2) |
 
-**→ Prioritize cursor[bot] first. Increase verification.**
+**Trend**: Signal improved 41 points. New ADR-017 table-only format not yet learned by Copilot.
+
+**→ Document table-only format in coderabbit config to reduce FPs.**
 
 ## Response Templates
 
