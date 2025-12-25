@@ -521,6 +521,59 @@ function Test-PRNeedsOwnerAction {
     return $pr -eq 'CHANGES_REQUESTED'
 }
 
+function Test-IsBotAuthor {
+    <#
+    .SYNOPSIS
+        Determines if a PR was authored by a bot account.
+    .DESCRIPTION
+        Bot-authored PRs have different CHANGES_REQUESTED semantics:
+        - Human-authored PR with CHANGES_REQUESTED: Truly blocked, needs human action
+        - Bot-authored PR with CHANGES_REQUESTED: Agent should address reviewer feedback
+
+        This distinction is CRITICAL. The PR maintenance script runs as a bot identity
+        (e.g., rjmurillo-bot). When a bot authors a PR and a human requests changes,
+        the bot/agent should ADDRESS the feedback, not skip the PR as "blocked".
+
+        See memory: pr-changes-requested-semantics
+    .PARAMETER AuthorLogin
+        The PR author's login (e.g., 'copilot-swe-agent', 'dependabot[bot]')
+    .OUTPUTS
+        [bool] True if the author is a bot, false otherwise
+    .EXAMPLE
+        Test-IsBotAuthor -AuthorLogin 'dependabot[bot]'
+        # Returns: $true
+    .EXAMPLE
+        Test-IsBotAuthor -AuthorLogin 'rjmurillo'
+        # Returns: $false
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$AuthorLogin
+    )
+
+    # Known bot author patterns:
+    # - *[bot] suffix: GitHub Apps (dependabot[bot], github-actions[bot], copilot[bot])
+    # - copilot-swe-agent: Copilot SWE Agent (no [bot] suffix)
+    # - *-bot suffix: Custom bot accounts (rjmurillo-bot)
+    # - renovate[bot]: Renovate dependency updates
+
+    $botPatterns = @(
+        '\[bot\]$',           # GitHub Apps: dependabot[bot], copilot[bot], etc.
+        '^copilot-swe-agent$', # Copilot SWE Agent
+        '-bot$',              # Custom bot accounts: rjmurillo-bot
+        '^github-actions$'    # GitHub Actions (without [bot] suffix in some contexts)
+    )
+
+    foreach ($pattern in $botPatterns) {
+        if ($AuthorLogin -match $pattern) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Test-IsGitHubRunner {
     <#
     .SYNOPSIS
@@ -819,7 +872,8 @@ function Invoke-PRMaintenance {
         Processed = 0
         CommentsAcknowledged = 0
         ConflictsResolved = 0
-        Blocked = [System.Collections.ArrayList]::new()
+        Blocked = [System.Collections.ArrayList]::new()          # Human-authored PRs with CHANGES_REQUESTED
+        ActionRequired = [System.Collections.ArrayList]::new()   # Bot-authored PRs with CHANGES_REQUESTED (agent should address)
         Errors = [System.Collections.ArrayList]::new()
     }
 
@@ -836,15 +890,45 @@ function Invoke-PRMaintenance {
         Write-Log "Processing PR #$($pr.number): $($pr.title)" -Level INFO
 
         try {
-            # Check if PR needs owner action (CHANGES_REQUESTED)
+            # Check if PR has CHANGES_REQUESTED review decision
+            # CRITICAL: The action depends on WHO authored the PR:
+            #
+            # - Human-authored PR: Truly blocked. The human author must address feedback.
+            #   This script cannot act on their behalf.
+            #
+            # - Bot-authored PR: Agent should address feedback. When a bot authors a PR
+            #   (e.g., copilot-swe-agent, rjmurillo-bot) and a human requests changes,
+            #   the agent running this script IS the bot identity and SHOULD address
+            #   the reviewer's feedback.
+            #
+            # See memory: pr-changes-requested-semantics
             if ($pr.reviewDecision -eq 'CHANGES_REQUESTED') {
-                Write-Log "PR #$($pr.number) has CHANGES_REQUESTED - blocked" -Level WARN
-                $null = $results.Blocked.Add(@{
-                    PR = $pr.number
-                    Reason = 'CHANGES_REQUESTED'
-                    Title = $pr.title
-                })
-                continue
+                $authorLogin = $pr.author.login
+                $isBotAuthor = Test-IsBotAuthor -AuthorLogin $authorLogin
+
+                if ($isBotAuthor) {
+                    # Bot-authored PR: Agent should address reviewer feedback
+                    # Add to ActionRequired list for the agent to handle via pr-comment-responder
+                    Write-Log "PR #$($pr.number) by $authorLogin has CHANGES_REQUESTED - agent action required" -Level WARN
+                    $null = $results.ActionRequired.Add(@{
+                        PR = $pr.number
+                        Author = $authorLogin
+                        Reason = 'CHANGES_REQUESTED'
+                        Title = $pr.title
+                    })
+                    # Continue processing this PR (acknowledge comments, etc.)
+                    # The ActionRequired list signals to the workflow that pr-comment-responder should run
+                } else {
+                    # Human-authored PR: Truly blocked, needs human action
+                    Write-Log "PR #$($pr.number) by $authorLogin has CHANGES_REQUESTED - blocked (human author)" -Level WARN
+                    $null = $results.Blocked.Add(@{
+                        PR = $pr.number
+                        Author = $authorLogin
+                        Reason = 'CHANGES_REQUESTED'
+                        Title = $pr.title
+                    })
+                    continue  # Skip further processing for human-authored PRs
+                }
             }
 
             # Check for similar merged PRs (informational only - no auto-close)
@@ -949,11 +1033,20 @@ try {
         Write-Log "Comments Acknowledged: $($results.CommentsAcknowledged)" -Level SUCCESS
         Write-Log "Conflicts Resolved: $($results.ConflictsResolved)" -Level SUCCESS
 
+        if ($results.ActionRequired.Count -gt 0) {
+            Write-Log "---" -Level INFO
+            Write-Log "Bot PRs with CHANGES_REQUESTED (agent should address):" -Level WARN
+            foreach ($item in $results.ActionRequired) {
+                Write-Log "  PR #$($item.PR) by $($item.Author): $($item.Title)" -Level WARN
+            }
+            Write-Log "Run: /pr-review $($results.ActionRequired.PR -join ',')" -Level INFO
+        }
+
         if ($results.Blocked.Count -gt 0) {
             Write-Log "---" -Level INFO
             Write-Log "Blocked PRs (require human action):" -Level WARN
             foreach ($blocked in $results.Blocked) {
-                Write-Log "  PR #$($blocked.PR): $($blocked.Reason) - $($blocked.Title)" -Level WARN
+                Write-Log "  PR #$($blocked.PR) by $($blocked.Author): $($blocked.Reason) - $($blocked.Title)" -Level WARN
             }
         }
 
@@ -981,19 +1074,40 @@ try {
 | PRs Processed | $($results.Processed) |
 | Comments Acknowledged | $($results.CommentsAcknowledged) |
 | Conflicts Resolved | $($results.ConflictsResolved) |
-| Blocked (needs human) | $($results.Blocked.Count) |
+| Bot PRs Need Action | $($results.ActionRequired.Count) |
+| Blocked (human author) | $($results.Blocked.Count) |
 | Errors | $($results.Errors.Count) |
 
 "@
+            # List bot PRs that need agent action (CHANGES_REQUESTED on bot-authored PRs)
+            if ($results.ActionRequired.Count -gt 0) {
+                $summary += @"
+### Bot PRs with CHANGES_REQUESTED
+
+These bot-authored PRs have reviewer feedback that needs to be addressed:
+
+| PR | Author | Title |
+|----|--------|-------|
+"@
+                foreach ($item in $results.ActionRequired) {
+                    $summary += "| #$($item.PR) | $($item.Author) | $($item.Title) |`n"
+                }
+                $summary += @"
+
+**Action**: Run ``/pr-review $($results.ActionRequired.PR -join ',')`` to address reviewer feedback.
+
+"@
+            }
+
             # Explain why 0 actions might have been taken
-            if ($actionsCount -eq 0 -and $results.TotalPRs -gt 0) {
+            if ($actionsCount -eq 0 -and $results.TotalPRs -gt 0 -and $results.ActionRequired.Count -eq 0) {
                 $summary += @"
 ### Why No Actions Taken?
 
 All $($results.TotalPRs) open PRs were scanned but none required automated action:
 - No unacknowledged bot comments found
 - No merge conflicts to resolve
-- $($results.Blocked.Count) PR(s) blocked with CHANGES_REQUESTED
+- $($results.Blocked.Count) human-authored PR(s) blocked with CHANGES_REQUESTED
 
 This is normal when PRs are awaiting human review or have no pending bot feedback.
 "@

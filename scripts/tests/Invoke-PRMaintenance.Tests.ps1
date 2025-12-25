@@ -1085,6 +1085,54 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
+    Context "Test-IsBotAuthor Function" {
+        # Tests for bot author detection - CRITICAL for CHANGES_REQUESTED semantics
+        # See memory: pr-changes-requested-semantics
+
+        It "Returns true for GitHub App bots with [bot] suffix" {
+            Test-IsBotAuthor -AuthorLogin "dependabot[bot]" | Should -Be $true
+            Test-IsBotAuthor -AuthorLogin "copilot[bot]" | Should -Be $true
+            Test-IsBotAuthor -AuthorLogin "github-actions[bot]" | Should -Be $true
+            Test-IsBotAuthor -AuthorLogin "renovate[bot]" | Should -Be $true
+            Test-IsBotAuthor -AuthorLogin "coderabbitai[bot]" | Should -Be $true
+        }
+
+        It "Returns true for Copilot SWE Agent" {
+            Test-IsBotAuthor -AuthorLogin "copilot-swe-agent" | Should -Be $true
+        }
+
+        It "Returns true for custom bot accounts with -bot suffix" {
+            Test-IsBotAuthor -AuthorLogin "rjmurillo-bot" | Should -Be $true
+            Test-IsBotAuthor -AuthorLogin "my-project-bot" | Should -Be $true
+        }
+
+        It "Returns true for github-actions without [bot] suffix" {
+            Test-IsBotAuthor -AuthorLogin "github-actions" | Should -Be $true
+        }
+
+        It "Returns false for regular human users" {
+            Test-IsBotAuthor -AuthorLogin "rjmurillo" | Should -Be $false
+            Test-IsBotAuthor -AuthorLogin "johndoe" | Should -Be $false
+            Test-IsBotAuthor -AuthorLogin "alice123" | Should -Be $false
+        }
+
+        It "Returns false for usernames containing 'bot' but not matching patterns" {
+            # 'robot' contains 'bot' but doesn't match patterns
+            Test-IsBotAuthor -AuthorLogin "robot" | Should -Be $false
+            Test-IsBotAuthor -AuthorLogin "robotics-user" | Should -Be $false
+            # 'botmaster' starts with bot but doesn't match patterns
+            Test-IsBotAuthor -AuthorLogin "botmaster" | Should -Be $false
+        }
+
+        It "Is case-insensitive for pattern matching (matches GitHub behavior)" {
+            # GitHub usernames are case-insensitive in practice
+            # PowerShell -match is case-insensitive by default, which is correct
+            Test-IsBotAuthor -AuthorLogin "Dependabot[bot]" | Should -Be $true
+            Test-IsBotAuthor -AuthorLogin "COPILOT-SWE-AGENT" | Should -Be $true
+            Test-IsBotAuthor -AuthorLogin "RjMurillo-Bot" | Should -Be $true
+        }
+    }
+
     Context "Logging Functions" {
         It "Write-Log adds entry to log array" {
             $script:LogEntries = [System.Collections.ArrayList]::new()
