@@ -170,7 +170,10 @@ function Get-SafeWorktreePath {
 .DESCRIPTION
     Prevents script from running when API rate limit is too low.
     Checks multiple resource types with resource-specific thresholds.
+    Returns both status and rate limit data to avoid redundant API calls.
     ADR-015 Fix 6: Multi-Resource Rate Limit Check (DevOps/HLA P0)
+.OUTPUTS
+    Hashtable with 'Safe' (boolean) and 'RateLimit' (object) properties
 #>
 function Test-RateLimitSafe {
     [CmdletBinding()]
@@ -187,7 +190,7 @@ function Test-RateLimitSafe {
         $rateLimitJson = gh api rate_limit 2>&1
         if ($LASTEXITCODE -ne 0) {
             Write-Log "Failed to check rate limit: $rateLimitJson" -Level WARN
-            return $true  # Proceed on error - don't block if we can't check
+            return @{ Safe = $true; RateLimit = $null }  # Proceed on error - don't block if we can't check
         }
 
         $rateLimit = $rateLimitJson | ConvertFrom-Json
@@ -224,15 +227,15 @@ function Test-RateLimitSafe {
             # Log next available run time for scheduling
             $coreReset = [DateTimeOffset]::FromUnixTimeSeconds([int]$rateLimit.resources.core.reset).UtcDateTime
             Write-Log "Rate limit resets at: $($coreReset.ToString('yyyy-MM-dd HH:mm:ss')) UTC" -Level INFO
-            return $false
+            return @{ Safe = $false; RateLimit = $rateLimit }
         }
 
         Write-Log "All API rate limits OK" -Level INFO
-        return $true
+        return @{ Safe = $true; RateLimit = $rateLimit }
     }
     catch {
         Write-Log "Rate limit check failed: $_" -Level WARN
-        return $true  # Proceed on error
+        return @{ Safe = $true; RateLimit = $null }  # Proceed on error
     }
 }
 
@@ -973,7 +976,8 @@ try {
         Write-Log "=== CHECKING API RATE LIMITS ===" -Level STATE
         Write-Log "Querying GitHub API rate limit status..." -Level INFO
         
-        if (-not (Test-RateLimitSafe)) {
+        $rateLimitCheck = Test-RateLimitSafe
+        if (-not $rateLimitCheck.Safe) {
             Write-Log "╔════════════════════════════════════════════════════════════════════════════╗" -Level WARN
             Write-Log "║                         EARLY EXIT: RATE LIMIT LOW                         ║" -Level WARN
             Write-Log "╚════════════════════════════════════════════════════════════════════════════╝" -Level WARN
@@ -993,13 +997,15 @@ try {
             # Write to GitHub Actions step summary for UI visibility
             if ($env:GITHUB_STEP_SUMMARY) {
                 Write-Log "Writing step summary for GitHub Actions UI..." -Level INFO
-                try {
-                    $rateLimit = (gh api rate_limit 2>&1 | ConvertFrom-Json)
-                    $coreRemaining = $rateLimit.resources.core.remaining
-                    $coreLimit = $rateLimit.resources.core.limit
-                    $resetTime = [DateTimeOffset]::FromUnixTimeSeconds([int]$rateLimit.resources.core.reset).UtcDateTime
-                    $waitMinutes = [int](($resetTime - (Get-Date).ToUniversalTime()).TotalMinutes)
-                    @"
+                # Use rate limit data from Test-RateLimitSafe to avoid redundant API call
+                if ($rateLimitCheck.RateLimit) {
+                    try {
+                        $rateLimit = $rateLimitCheck.RateLimit
+                        $coreRemaining = $rateLimit.resources.core.remaining
+                        $coreLimit = $rateLimit.resources.core.limit
+                        $resetTime = [DateTimeOffset]::FromUnixTimeSeconds([int]$rateLimit.resources.core.reset).UtcDateTime
+                        $waitMinutes = [int](($resetTime - (Get-Date).ToUniversalTime()).TotalMinutes)
+                        @"
 ## PR Maintenance - Early Exit
 
 **Status**: Skipped (rate limit too low)
@@ -1009,10 +1015,22 @@ try {
 
 The workflow will automatically retry on the next hourly schedule once the rate limit resets.
 "@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
-                    Write-Log "Step summary written with rate limit details" -Level INFO
+                        Write-Log "Step summary written with rate limit details" -Level INFO
+                    }
+                    catch {
+                        Write-Log "Failed to format rate limit details for summary: $_" -Level WARN
+                        @"
+## PR Maintenance - Early Exit
+
+**Status**: Skipped (rate limit too low)
+**PRs Processed**: 0
+
+The workflow detected insufficient API rate limit and exited early to prevent hitting GitHub API limits.
+"@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
+                        Write-Log "Step summary written with fallback message" -Level INFO
+                    }
                 }
-                catch {
-                    Write-Log "Could not get detailed rate limit info: $_" -Level WARN
+                else {
                     @"
 ## PR Maintenance - Early Exit
 
@@ -1021,7 +1039,7 @@ The workflow will automatically retry on the next hourly schedule once the rate 
 
 The workflow detected insufficient API rate limit and exited early to prevent hitting GitHub API limits.
 "@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
-                    Write-Log "Step summary written with generic message" -Level INFO
+                    Write-Log "Step summary written with fallback message (no rate limit data)" -Level INFO
                 }
             }
             
