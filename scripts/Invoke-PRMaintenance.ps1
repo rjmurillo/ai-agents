@@ -560,7 +560,12 @@ function Get-BotAuthorInfo {
 
         This function categorizes bots and provides the recommended action for each.
 
-        See memory: pr-changes-requested-semantics
+        Related memories (for bot-specific patterns - keep DRY):
+        - pr-changes-requested-semantics: Overall CHANGES_REQUESTED handling
+        - cursor-bot-review-patterns: cursor[bot] 100% actionable signal
+        - copilot-pr-review: Copilot review patterns (21% signal)
+        - copilot-follow-up-pr: Copilot sub-PR creation behavior
+        - coderabbit-config-strategy: CodeRabbit noise reduction
     .PARAMETER AuthorLogin
         The PR author's login (e.g., 'copilot-swe-agent', 'dependabot[bot]')
     .OUTPUTS
