@@ -249,7 +249,7 @@ function Write-Log {
         [Parameter(Mandatory)]
         [string]$Message,
 
-        [ValidateSet('INFO', 'WARN', 'ERROR', 'SUCCESS', 'ACTION')]
+        [ValidateSet('INFO', 'WARN', 'ERROR', 'SUCCESS', 'ACTION', 'DECISION', 'STATE')]
         [string]$Level = 'INFO'
     )
 
@@ -259,12 +259,14 @@ function Write-Log {
     $null = $script:LogEntries.Add($entry)
 
     $color = switch ($Level) {
-        'INFO'    { 'Gray' }
-        'WARN'    { 'Yellow' }
-        'ERROR'   { 'Red' }
-        'SUCCESS' { 'Green' }
-        'ACTION'  { 'Cyan' }
-        default   { 'White' }
+        'INFO'     { 'Gray' }
+        'WARN'     { 'Yellow' }
+        'ERROR'    { 'Red' }
+        'SUCCESS'  { 'Green' }
+        'ACTION'   { 'Cyan' }
+        'DECISION' { 'Magenta' }
+        'STATE'    { 'White' }
+        default    { 'White' }
     }
 
     Write-Host $entry -ForegroundColor $color
@@ -791,56 +793,96 @@ function Invoke-PRMaintenance {
         Errors = [System.Collections.ArrayList]::new()
     }
 
-    Write-Log "Starting PR maintenance run" -Level INFO
+    Write-Log "=== STARTING PR PROCESSING LOOP ===" -Level STATE
     Write-Log "Repository: $Owner/$Repo" -Level INFO
     Write-Log "MaxPRs: $MaxPRs" -Level INFO
 
     # Get all open PRs
+    Write-Log "Fetching open PRs from GitHub API..." -Level INFO
     $prs = Get-OpenPRs -Owner $Owner -Repo $Repo -Limit $MaxPRs
-    Write-Log "Found $($prs.Count) open PRs" -Level INFO
+    Write-Log "RESULT: Found $($prs.Count) open PRs" -Level DECISION
+    
+    if ($prs.Count -eq 0) {
+        Write-Log "No PRs to process - exiting normally" -Level SUCCESS
+        return $results
+    }
 
     foreach ($pr in $prs) {
-        Write-Log "Processing PR #$($pr.number): $($pr.title)" -Level INFO
+        Write-Log "" -Level INFO
+        Write-Log "┌─────────────────────────────────────────────────────" -Level INFO
+        Write-Log "│ PROCESSING PR #$($pr.number)" -Level STATE
+        Write-Log "│ Title: $($pr.title)" -Level INFO
+        Write-Log "│ Author: $($pr.author.login)" -Level INFO
+        Write-Log "│ Head: $($pr.headRefName) → Base: $($pr.baseRefName)" -Level INFO
+        Write-Log "│ Mergeable: $($pr.mergeable) | Review: $($pr.reviewDecision)" -Level INFO
+        Write-Log "└─────────────────────────────────────────────────────" -Level INFO
 
         try {
             # Check if PR needs owner action (CHANGES_REQUESTED)
+            Write-Log "Checking review status..." -Level INFO
             if ($pr.reviewDecision -eq 'CHANGES_REQUESTED') {
-                Write-Log "PR #$($pr.number) has CHANGES_REQUESTED - blocked" -Level WARN
+                Write-Log "DECISION: PR #$($pr.number) blocked - CHANGES_REQUESTED from reviewer" -Level DECISION
+                Write-Log "ACTION: Adding to blocked list (requires human intervention)" -Level WARN
                 $null = $results.Blocked.Add(@{
                     PR = $pr.number
                     Reason = 'CHANGES_REQUESTED'
                     Title = $pr.title
                 })
+                Write-Log "RESULT: Skipping further processing for PR #$($pr.number)" -Level INFO
                 continue
             }
+            Write-Log "Review status OK - no changes requested" -Level INFO
 
             # Check for similar merged PRs (informational only - no auto-close)
+            Write-Log "Checking for similar merged PRs..." -Level INFO
             $similarPRs = Get-SimilarPRs -Owner $Owner -Repo $Repo -PRNumber $pr.number -Title $pr.title
             if ($similarPRs.Count -gt 0) {
-                Write-Log "PR #$($pr.number) has similar merged PRs - review recommended:" -Level INFO
+                Write-Log "FOUND: $($similarPRs.Count) similar merged PRs (review recommended):" -Level WARN
                 foreach ($similar in $similarPRs) {
-                    Write-Log "  - PR #$($similar.Number): $($similar.Title)" -Level INFO
+                    Write-Log "  → PR #$($similar.Number): $($similar.Title)" -Level INFO
                 }
+            }
+            else {
+                Write-Log "No similar merged PRs found" -Level INFO
             }
 
             # Acknowledge unacknowledged bot comments
+            Write-Log "Checking for unacknowledged bot comments..." -Level INFO
             $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
-            foreach ($comment in $unacked) {
-                Write-Log "Acknowledging comment $($comment.id) from $($comment.user.login)" -Level ACTION
-                $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
-                if ($acked) {
-                    $results.CommentsAcknowledged++
+            Write-Log "FOUND: $($unacked.Count) unacknowledged bot comments" -Level INFO
+            
+            if ($unacked.Count -gt 0) {
+                foreach ($comment in $unacked) {
+                    Write-Log "ACTION: Acknowledging comment $($comment.id) from $($comment.user.login)" -Level ACTION
+                    $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
+                    if ($acked) {
+                        Write-Log "SUCCESS: Comment $($comment.id) acknowledged with 👀 reaction" -Level SUCCESS
+                        $results.CommentsAcknowledged++
+                    }
+                    else {
+                        Write-Log "FAILED: Could not acknowledge comment $($comment.id)" -Level WARN
+                    }
                 }
+                Write-Log "TOTAL: Acknowledged $($results.CommentsAcknowledged) comments" -Level SUCCESS
             }
 
             # Check and resolve merge conflicts
+            Write-Log "Checking merge status..." -Level INFO
             if ($pr.mergeable -eq 'CONFLICTING') {
-                Write-Log "PR #$($pr.number) has merge conflicts - attempting resolution" -Level ACTION
+                Write-Log "CONFLICT DETECTED: PR #$($pr.number) has merge conflicts" -Level WARN
+                Write-Log "ACTION: Attempting automatic conflict resolution" -Level ACTION
+                Write-Log "  Branch: $($pr.headRefName)" -Level INFO
+                Write-Log "  Target: $($pr.baseRefName)" -Level INFO
+                
                 $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.headRefName -TargetBranch $pr.baseRefName
+                
                 if ($resolved) {
+                    Write-Log "SUCCESS: Conflicts resolved and pushed" -Level SUCCESS
                     $results.ConflictsResolved++
                 }
                 else {
+                    Write-Log "FAILED: Could not auto-resolve conflicts" -Level ERROR
+                    Write-Log "ACTION: Adding to blocked list (requires human intervention)" -Level WARN
                     $null = $results.Blocked.Add(@{
                         PR = $pr.number
                         Reason = 'UNRESOLVABLE_CONFLICTS'
@@ -848,17 +890,34 @@ function Invoke-PRMaintenance {
                     })
                 }
             }
+            else {
+                Write-Log "Merge status: $($pr.mergeable) - no conflicts" -Level INFO
+            }
 
             $results.Processed++
+            Write-Log "COMPLETE: PR #$($pr.number) processed successfully" -Level SUCCESS
         }
         catch {
-            Write-Log "Error processing PR #$($pr.number): $_" -Level ERROR
+            Write-Log "ERROR: Exception while processing PR #$($pr.number)" -Level ERROR
+            Write-Log "Exception: $_" -Level ERROR
+            Write-Log "Type: $($_.Exception.GetType().FullName)" -Level ERROR
+            if ($_.ScriptStackTrace) {
+                Write-Log "Stack: $($_.ScriptStackTrace)" -Level ERROR
+            }
             $null = $results.Errors.Add(@{
                 PR = $pr.number
                 Error = $_.ToString()
             })
         }
     }
+
+    Write-Log "" -Level INFO
+    Write-Log "=== PR PROCESSING LOOP COMPLETE ===" -Level STATE
+    Write-Log "Processed: $($results.Processed) PRs" -Level INFO
+    Write-Log "Comments Acknowledged: $($results.CommentsAcknowledged)" -Level INFO
+    Write-Log "Conflicts Resolved: $($results.ConflictsResolved)" -Level INFO
+    Write-Log "Blocked: $($results.Blocked.Count) PRs" -Level INFO
+    Write-Log "Errors: $($results.Errors.Count) PRs" -Level INFO
 
     return $results
 }
@@ -874,30 +933,66 @@ if ($MyInvocation.InvocationName -eq '.') {
 }
 
 try {
-    Write-Log "=== PR Maintenance Starting ===" -Level INFO
+    Write-Log "╔════════════════════════════════════════════════════════════════════════════╗" -Level STATE
+    Write-Log "║                    PR MAINTENANCE SCRIPT STARTING                          ║" -Level STATE
+    Write-Log "╚════════════════════════════════════════════════════════════════════════════╝" -Level STATE
+    Write-Log "" -Level INFO
+    
+    # Environment context - critical for debugging
+    Write-Log "=== ENVIRONMENT CONTEXT ===" -Level STATE
     Write-Log "Script: $PSCommandPath" -Level INFO
     Write-Log "PowerShell: $($PSVersionTable.PSVersion)" -Level INFO
     Write-Log "OS: $([Environment]::OSVersion.VersionString)" -Level INFO
     Write-Log "User: $env:USERNAME" -Level INFO
     Write-Log "Working Directory: $PWD" -Level INFO
+    Write-Log "Hostname: $env:COMPUTERNAME" -Level INFO
+    Write-Log "Start Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -Level INFO
+    Write-Log "" -Level INFO
+    
+    # GitHub Actions context - if running in CI
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+        Write-Log "=== GITHUB ACTIONS CONTEXT ===" -Level STATE
+        Write-Log "Run ID: $env:GITHUB_RUN_ID" -Level INFO
+        Write-Log "Run Number: $env:GITHUB_RUN_NUMBER" -Level INFO
+        Write-Log "Workflow: $env:GITHUB_WORKFLOW" -Level INFO
+        Write-Log "Repository: $env:GITHUB_REPOSITORY" -Level INFO
+        Write-Log "Actor: $env:GITHUB_ACTOR" -Level INFO
+        Write-Log "Event: $env:GITHUB_EVENT_NAME" -Level INFO
+        Write-Log "" -Level INFO
+    }
     
     # ADR-021: Concurrency protection via GitHub Actions workflow concurrency group only
-    Write-Log "Concurrency protection: GitHub Actions workflow concurrency group (pr-maintenance)" -Level INFO
+    Write-Log "=== CONCURRENCY PROTECTION ===" -Level STATE
+    Write-Log "Mechanism: GitHub Actions workflow concurrency group (pr-maintenance)" -Level INFO
+    Write-Log "Cancel-in-progress: false" -Level INFO
+    Write-Log "Note: No file-based locks - relies on workflow-level concurrency group" -Level INFO
+    Write-Log "" -Level INFO
     
     try {
         # ADR-015 Fix 6: Check API rate limit before processing (multi-resource)
-        Write-Log "Checking API rate limits..." -Level INFO
+        Write-Log "=== CHECKING API RATE LIMITS ===" -Level STATE
+        Write-Log "Querying GitHub API rate limit status..." -Level INFO
+        
         if (-not (Test-RateLimitSafe)) {
-            Write-Log "EARLY EXIT: API rate limit too low" -Level WARN
+            Write-Log "╔════════════════════════════════════════════════════════════════════════════╗" -Level WARN
+            Write-Log "║                         EARLY EXIT: RATE LIMIT LOW                         ║" -Level WARN
+            Write-Log "╚════════════════════════════════════════════════════════════════════════════╝" -Level WARN
+            Write-Log "" -Level WARN
+            Write-Log "REASON: API rate limit below safety thresholds" -Level WARN
+            Write-Log "ACTION: Exiting to prevent hitting GitHub API limits" -Level WARN
+            Write-Log "NEXT STEP: Workflow will auto-retry on next hourly schedule after reset" -Level WARN
             
             # Write to GitHub Actions outputs for workflow visibility
             if ($env:GITHUB_OUTPUT) {
+                Write-Log "Writing to GITHUB_OUTPUT..." -Level INFO
                 "exit_reason=rate_limit_low" | Out-File $env:GITHUB_OUTPUT -Append
                 "prs_processed=0" | Out-File $env:GITHUB_OUTPUT -Append
+                Write-Log "Outputs written successfully" -Level INFO
             }
             
             # Write to GitHub Actions step summary for UI visibility
             if ($env:GITHUB_STEP_SUMMARY) {
+                Write-Log "Writing step summary for GitHub Actions UI..." -Level INFO
                 try {
                     $rateLimit = (gh api rate_limit 2>&1 | ConvertFrom-Json)
                     $coreRemaining = $rateLimit.resources.core.remaining
@@ -914,8 +1009,10 @@ try {
 
 The workflow will automatically retry on the next hourly schedule once the rate limit resets.
 "@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
+                    Write-Log "Step summary written with rate limit details" -Level INFO
                 }
                 catch {
+                    Write-Log "Could not get detailed rate limit info: $_" -Level WARN
                     @"
 ## PR Maintenance - Early Exit
 
@@ -924,86 +1021,132 @@ The workflow will automatically retry on the next hourly schedule once the rate 
 
 The workflow detected insufficient API rate limit and exited early to prevent hitting GitHub API limits.
 "@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
+                    Write-Log "Step summary written with generic message" -Level INFO
                 }
             }
             
+            Write-Log "Saving log before exit..." -Level INFO
             Save-Log -Path $LogPath
+            Write-Log "EXIT CODE: 0 (success - early exit is expected behavior)" -Level SUCCESS
             exit 0
         }
-        Write-Log "API rate limits OK - proceeding with PR maintenance" -Level INFO
+        
+        Write-Log "RESULT: API rate limits OK - all resources above thresholds" -Level SUCCESS
+        Write-Log "DECISION: Proceeding with PR maintenance" -Level DECISION
+        Write-Log "" -Level INFO
 
         # Resolve repo info
-        Write-Log "Resolving repository information..." -Level INFO
+        Write-Log "=== RESOLVING REPOSITORY INFORMATION ===" -Level STATE
         if (-not $Owner -or -not $Repo) {
+            Write-Log "Owner/Repo not provided - detecting from git remote..." -Level INFO
             $repoInfo = Get-RepoInfo
-            if (-not $Owner) { $Owner = $repoInfo.Owner }
-            if (-not $Repo) { $Repo = $repoInfo.Repo }
+            if (-not $Owner) { 
+                $Owner = $repoInfo.Owner 
+                Write-Log "Detected Owner: $Owner" -Level INFO
+            }
+            if (-not $Repo) { 
+                $Repo = $repoInfo.Repo 
+                Write-Log "Detected Repo: $Repo" -Level INFO
+            }
         }
-        Write-Log "Repository: $Owner/$Repo" -Level INFO
+        Write-Log "Target Repository: $Owner/$Repo" -Level SUCCESS
+        Write-Log "" -Level INFO
 
         # Safety check: ensure we're not on a protected branch (unless in CI)
-        Write-Log "Checking current branch..." -Level INFO
+        Write-Log "=== BRANCH SAFETY CHECK ===" -Level STATE
         $currentBranch = git branch --show-current
         Write-Log "Current branch: $currentBranch" -Level INFO
-        $isCI = $env:GITHUB_ACTIONS -eq 'true'
-        Write-Log "CI environment: $isCI" -Level INFO
         
-        if ($currentBranch -in $script:Config.ProtectedBranches -and -not $isCI) {
+        $isCI = $env:GITHUB_ACTIONS -eq 'true'
+        Write-Log "Running in CI: $isCI" -Level INFO
+        
+        $isProtected = $currentBranch -in $script:Config.ProtectedBranches
+        Write-Log "Branch is protected: $isProtected" -Level INFO
+        
+        if ($isProtected -and -not $isCI) {
+            Write-Log "╔════════════════════════════════════════════════════════════════════════════╗" -Level ERROR
+            Write-Log "║                          FATAL: PROTECTED BRANCH                           ║" -Level ERROR
+            Write-Log "╚════════════════════════════════════════════════════════════════════════════╝" -Level ERROR
+            Write-Log "" -Level ERROR
             Write-Log "ERROR: Cannot run on protected branch '$currentBranch' outside CI" -Level ERROR
+            Write-Log "Protected branches: $($script:Config.ProtectedBranches -join ', ')" -Level ERROR
+            Write-Log "REASON: Direct runs on protected branches are forbidden for safety" -Level ERROR
+            Write-Log "SOLUTION: Switch to a feature branch or run via GitHub Actions" -Level ERROR
+            Write-Log "EXIT CODE: 2 (error)" -Level ERROR
             exit 2
         }
-        if ($currentBranch -in $script:Config.ProtectedBranches -and $isCI) {
-            Write-Log "Running on protected branch '$currentBranch' in CI mode (read-only operations via API)" -Level INFO
+        
+        if ($isProtected -and $isCI) {
+            Write-Log "ALLOWED: Protected branch '$currentBranch' in CI mode (read-only API operations)" -Level SUCCESS
         }
+        else {
+            Write-Log "SAFE: Non-protected branch - proceeding" -Level SUCCESS
+        }
+        Write-Log "" -Level INFO
 
         # Run maintenance
-        Write-Log "Starting PR maintenance processing (MaxPRs: $MaxPRs)..." -Level INFO
+        Write-Log "=== STARTING PR MAINTENANCE ===" -Level STATE
+        Write-Log "Max PRs to process: $MaxPRs" -Level INFO
+        Write-Log "" -Level INFO
+        
         $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs
-        Write-Log "PR maintenance processing complete" -Level INFO
+        
+        Write-Log "" -Level INFO
+        Write-Log "=== PR MAINTENANCE COMPLETE ===" -Level STATE
 
         # Summary
         Write-Log "---" -Level INFO
-        Write-Log "=== PR Maintenance Summary ===" -Level INFO
+        Write-Log "=== FINAL SUMMARY ===" -Level STATE
         Write-Log "PRs Processed: $($results.Processed)" -Level INFO
         Write-Log "Comments Acknowledged: $($results.CommentsAcknowledged)" -Level SUCCESS
         Write-Log "Conflicts Resolved: $($results.ConflictsResolved)" -Level SUCCESS
 
         if ($results.Blocked.Count -gt 0) {
             Write-Log "---" -Level INFO
-            Write-Log "Blocked PRs (require human action):" -Level WARN
+            Write-Log "⚠️  BLOCKED PRS (require human action):" -Level WARN
             foreach ($blocked in $results.Blocked) {
-                Write-Log "  PR #$($blocked.PR): $($blocked.Reason) - $($blocked.Title)" -Level WARN
+                Write-Log "  → PR #$($blocked.PR): $($blocked.Reason)" -Level WARN
+                Write-Log "     Title: $($blocked.Title)" -Level INFO
             }
+            Write-Log "Total Blocked: $($results.Blocked.Count)" -Level WARN
         }
 
         if ($results.Errors.Count -gt 0) {
             Write-Log "---" -Level INFO
-            Write-Log "Errors:" -Level ERROR
+            Write-Log "❌ ERRORS:" -Level ERROR
             foreach ($err in $results.Errors) {
-                Write-Log "  PR #$($err.PR): $($err.Error)" -Level ERROR
+                Write-Log "  → PR #$($err.PR): $($err.Error)" -Level ERROR
             }
+            Write-Log "Total Errors: $($results.Errors.Count)" -Level ERROR
         }
 
         $duration = (Get-Date) - $script:StartTime
         Write-Log "---" -Level INFO
-        Write-Log "Completed in $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
+        Write-Log "Duration: $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
+        Write-Log "" -Level INFO
 
         # Save log
-        Write-Log "Saving log file..." -Level INFO
+        Write-Log "=== SAVING LOG FILE ===" -Level STATE
+        Write-Log "Log path: $LogPath" -Level INFO
         Save-Log -Path $LogPath
+        Write-Log "Log saved successfully" -Level SUCCESS
+        Write-Log "" -Level INFO
 
         # Write outputs for workflow
         if ($env:GITHUB_OUTPUT) {
-            Write-Log "Writing to GITHUB_OUTPUT..." -Level INFO
+            Write-Log "=== WRITING WORKFLOW OUTPUTS ===" -Level STATE
             "exit_reason=success" | Out-File $env:GITHUB_OUTPUT -Append
             "prs_processed=$($results.Processed)" | Out-File $env:GITHUB_OUTPUT -Append
             "comments_acknowledged=$($results.CommentsAcknowledged)" | Out-File $env:GITHUB_OUTPUT -Append
             "conflicts_resolved=$($results.ConflictsResolved)" | Out-File $env:GITHUB_OUTPUT -Append
             "blocked_count=$($results.Blocked.Count)" | Out-File $env:GITHUB_OUTPUT -Append
             "error_count=$($results.Errors.Count)" | Out-File $env:GITHUB_OUTPUT -Append
+            Write-Log "Outputs written to GITHUB_OUTPUT" -Level SUCCESS
+            Write-Log "" -Level INFO
         }
 
         # Determine exit code
+        Write-Log "=== DETERMINING EXIT CODE ===" -Level STATE
         # Exit code 0: Success (PRs processed, even if some are blocked)
         # Exit code 1: Reserved for future use
         # Exit code 2: Fatal errors (script failure, API errors)
@@ -1013,8 +1156,11 @@ The workflow detected insufficient API rate limit and exited early to prevent hi
         # The workflow should only fail on actual errors.
         $exitCode = 0
         if ($results.Errors.Count -gt 0) {
-            Write-Log "Setting exit code 2 due to errors" -Level WARN
+            Write-Log "DECISION: Errors detected - setting exit code 2" -Level DECISION
             $exitCode = 2
+        }
+        else {
+            Write-Log "DECISION: No errors - exit code 0" -Level DECISION
         }
         Write-Log "Exit code: $exitCode" -Level INFO
         # Removed: elseif ($results.Blocked.Count -gt 0) { $exitCode = 1 }
@@ -1022,24 +1168,58 @@ The workflow detected insufficient API rate limit and exited early to prevent hi
     }
     finally {
         # ADR-021: No lock cleanup needed - using GitHub Actions concurrency group
-        Write-Log "Cleanup complete" -Level INFO
+        Write-Log "=== CLEANUP ===" -Level STATE
+        Write-Log "No cleanup needed (GitHub Actions concurrency group handles isolation)" -Level INFO
     }
 
-    Write-Log "Script execution complete - exiting with code $exitCode" -Level INFO
+    Write-Log "" -Level INFO
+    Write-Log "╔════════════════════════════════════════════════════════════════════════════╗" -Level STATE
+    Write-Log "║                    SCRIPT EXECUTION COMPLETE                               ║" -Level STATE
+    Write-Log "╚════════════════════════════════════════════════════════════════════════════╝" -Level STATE
+    Write-Log "Final exit code: $exitCode" -Level SUCCESS
     exit $exitCode
 }
 catch {
-    Write-Log "FATAL ERROR: $_" -Level ERROR
-    Write-Log "Exception Type: $($_.Exception.GetType().FullName)" -Level ERROR
-    Write-Log "Stack Trace: $($_.ScriptStackTrace)" -Level ERROR
+    Write-Log "" -Level ERROR
+    Write-Log "╔════════════════════════════════════════════════════════════════════════════╗" -Level ERROR
+    Write-Log "║                           FATAL ERROR                                      ║" -Level ERROR
+    Write-Log "╚════════════════════════════════════════════════════════════════════════════╝" -Level ERROR
+    Write-Log "" -Level ERROR
+    Write-Log "EXCEPTION: $_" -Level ERROR
+    Write-Log "TYPE: $($_.Exception.GetType().FullName)" -Level ERROR
+    Write-Log "MESSAGE: $($_.Exception.Message)" -Level ERROR
+    
+    if ($_.InvocationInfo) {
+        Write-Log "LOCATION: $($_.InvocationInfo.ScriptName):$($_.InvocationInfo.ScriptLineNumber)" -Level ERROR
+        Write-Log "LINE: $($_.InvocationInfo.Line)" -Level ERROR
+    }
+    
+    if ($_.ScriptStackTrace) {
+        Write-Log "--- STACK TRACE ---" -Level ERROR
+        $_.ScriptStackTrace -split "`n" | ForEach-Object {
+            Write-Log $_ -Level ERROR
+        }
+        Write-Log "--- END STACK TRACE ---" -Level ERROR
+    }
+    
+    Write-Log "" -Level ERROR
+    Write-Log "IMPACT: Script failed to complete - no PRs processed" -Level ERROR
+    Write-Log "ACTION REQUIRED: Review error above and fix root cause" -Level ERROR
+    Write-Log "" -Level ERROR
     
     # Write error to outputs
     if ($env:GITHUB_OUTPUT) {
+        Write-Log "Writing error to GITHUB_OUTPUT..." -Level ERROR
         "exit_reason=fatal_error" | Out-File $env:GITHUB_OUTPUT -Append
         "prs_processed=0" | Out-File $env:GITHUB_OUTPUT -Append
+        Write-Log "Error outputs written" -Level INFO
     }
     
+    Write-Log "Saving error log..." -Level ERROR
     Save-Log -Path $LogPath
+    Write-Log "Error log saved to: $LogPath" -Level INFO
+    Write-Log "" -Level ERROR
+    Write-Log "EXIT CODE: 2 (fatal error)" -Level ERROR
     exit 2
 }
 
