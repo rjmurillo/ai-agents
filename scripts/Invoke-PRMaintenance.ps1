@@ -162,38 +162,7 @@ function Get-SafeWorktreePath {
     return $resolved
 }
 
-<#
-.SYNOPSIS
-    No-op script-level lock retained for compatibility.
-.DESCRIPTION
-    ADR-015 Decision 1 explicitly rejects file-based locking in favor of
-    GitHub Actions concurrency groups on ephemeral runners because:
-      - File-based locks add complexity without meaningful benefit
-      - Runners are isolated per job, so cross-job file locks are ineffective
-
-    This function is retained as a thin shim so existing call sites continue
-    to work, but it does NOT implement any file-based locking. Concurrency
-    protection is provided exclusively by the workflow's concurrency group.
-#>
-function Enter-ScriptLock {
-    [CmdletBinding()]
-    param()
-    Write-Log "Enter-ScriptLock: no-op (ADR-015: rely on GitHub Actions concurrency group, not file-based locks)" -Level INFO
-    return $true
-}
-
-<#
-.SYNOPSIS
-    No-op release for the script-level lock.
-.DESCRIPTION
-    Kept for compatibility with existing call sites. Does not modify any
-    filesystem state because file-based locks were deprecated by ADR-015.
-#>
-function Exit-ScriptLock {
-    [CmdletBinding()]
-    param()
-    Write-Log "Exit-ScriptLock: no-op (ADR-015: file-based locks deprecated)" -Level INFO
-}
+# ADR-021: Lock functions removed - GitHub Actions concurrency group provides all needed protection
 
 <#
 .SYNOPSIS
@@ -905,31 +874,30 @@ if ($MyInvocation.InvocationName -eq '.') {
 }
 
 try {
-    # ADR-015 Fix 3: Acquire script lock to prevent concurrent execution
-    if (-not (Enter-ScriptLock)) {
-        Write-Log "Exiting: another instance is running" -Level WARN
-        # Write to GitHub Actions step summary if in CI
-        if ($env:GITHUB_STEP_SUMMARY) {
-            @"
-## PR Maintenance - Early Exit
-
-**Status**: Skipped (another instance running)
-**PRs Processed**: 0
-**Reason**: Concurrent execution detected - another PR maintenance instance is already running.
-
-This is expected behavior when multiple workflow runs overlap. The concurrent run will handle PR processing.
-"@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
-        }
-        exit 0
-    }
-
+    Write-Log "=== PR Maintenance Starting ===" -Level INFO
+    Write-Log "Script: $PSCommandPath" -Level INFO
+    Write-Log "PowerShell: $($PSVersionTable.PSVersion)" -Level INFO
+    Write-Log "OS: $([Environment]::OSVersion.VersionString)" -Level INFO
+    Write-Log "User: $env:USERNAME" -Level INFO
+    Write-Log "Working Directory: $PWD" -Level INFO
+    
+    # ADR-021: Concurrency protection via GitHub Actions workflow concurrency group only
+    Write-Log "Concurrency protection: GitHub Actions workflow concurrency group (pr-maintenance)" -Level INFO
+    
     try {
         # ADR-015 Fix 6: Check API rate limit before processing (multi-resource)
+        Write-Log "Checking API rate limits..." -Level INFO
         if (-not (Test-RateLimitSafe)) {
-            Write-Log "Exiting: API rate limit too low" -Level WARN
-            # Write to GitHub Actions step summary if in CI  
+            Write-Log "EARLY EXIT: API rate limit too low" -Level WARN
+            
+            # Write to GitHub Actions outputs for workflow visibility
+            if ($env:GITHUB_OUTPUT) {
+                "exit_reason=rate_limit_low" | Out-File $env:GITHUB_OUTPUT -Append
+                "prs_processed=0" | Out-File $env:GITHUB_OUTPUT -Append
+            }
+            
+            # Write to GitHub Actions step summary for UI visibility
             if ($env:GITHUB_STEP_SUMMARY) {
-                # Get rate limit details for summary
                 try {
                     $rateLimit = (gh api rate_limit 2>&1 | ConvertFrom-Json)
                     $coreRemaining = $rateLimit.resources.core.remaining
@@ -958,20 +926,28 @@ The workflow detected insufficient API rate limit and exited early to prevent hi
 "@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
                 }
             }
+            
+            Save-Log -Path $LogPath
             exit 0
         }
+        Write-Log "API rate limits OK - proceeding with PR maintenance" -Level INFO
 
         # Resolve repo info
+        Write-Log "Resolving repository information..." -Level INFO
         if (-not $Owner -or -not $Repo) {
             $repoInfo = Get-RepoInfo
             if (-not $Owner) { $Owner = $repoInfo.Owner }
             if (-not $Repo) { $Repo = $repoInfo.Repo }
         }
+        Write-Log "Repository: $Owner/$Repo" -Level INFO
 
         # Safety check: ensure we're not on a protected branch (unless in CI)
-        # In GitHub Actions scheduled runs, we checkout main but only READ PR data via API
+        Write-Log "Checking current branch..." -Level INFO
         $currentBranch = git branch --show-current
+        Write-Log "Current branch: $currentBranch" -Level INFO
         $isCI = $env:GITHUB_ACTIONS -eq 'true'
+        Write-Log "CI environment: $isCI" -Level INFO
+        
         if ($currentBranch -in $script:Config.ProtectedBranches -and -not $isCI) {
             Write-Log "ERROR: Cannot run on protected branch '$currentBranch' outside CI" -Level ERROR
             exit 2
@@ -981,7 +957,9 @@ The workflow detected insufficient API rate limit and exited early to prevent hi
         }
 
         # Run maintenance
+        Write-Log "Starting PR maintenance processing (MaxPRs: $MaxPRs)..." -Level INFO
         $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs
+        Write-Log "PR maintenance processing complete" -Level INFO
 
         # Summary
         Write-Log "---" -Level INFO
@@ -1011,7 +989,19 @@ The workflow detected insufficient API rate limit and exited early to prevent hi
         Write-Log "Completed in $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
 
         # Save log
+        Write-Log "Saving log file..." -Level INFO
         Save-Log -Path $LogPath
+
+        # Write outputs for workflow
+        if ($env:GITHUB_OUTPUT) {
+            Write-Log "Writing to GITHUB_OUTPUT..." -Level INFO
+            "exit_reason=success" | Out-File $env:GITHUB_OUTPUT -Append
+            "prs_processed=$($results.Processed)" | Out-File $env:GITHUB_OUTPUT -Append
+            "comments_acknowledged=$($results.CommentsAcknowledged)" | Out-File $env:GITHUB_OUTPUT -Append
+            "conflicts_resolved=$($results.ConflictsResolved)" | Out-File $env:GITHUB_OUTPUT -Append
+            "blocked_count=$($results.Blocked.Count)" | Out-File $env:GITHUB_OUTPUT -Append
+            "error_count=$($results.Errors.Count)" | Out-File $env:GITHUB_OUTPUT -Append
+        }
 
         # Determine exit code
         # Exit code 0: Success (PRs processed, even if some are blocked)
@@ -1023,25 +1013,33 @@ The workflow detected insufficient API rate limit and exited early to prevent hi
         # The workflow should only fail on actual errors.
         $exitCode = 0
         if ($results.Errors.Count -gt 0) {
+            Write-Log "Setting exit code 2 due to errors" -Level WARN
             $exitCode = 2
         }
+        Write-Log "Exit code: $exitCode" -Level INFO
         # Removed: elseif ($results.Blocked.Count -gt 0) { $exitCode = 1 }
         # Blocked PRs are handled by the "Create alert issue for blocked PRs" step
     }
     finally {
-        # ADR-015 Fix 3: Always release lock in finally block
-        Exit-ScriptLock
+        # ADR-021: No lock cleanup needed - using GitHub Actions concurrency group
+        Write-Log "Cleanup complete" -Level INFO
     }
 
+    Write-Log "Script execution complete - exiting with code $exitCode" -Level INFO
     exit $exitCode
 }
 catch {
-    Write-Log "Fatal error: $_" -Level ERROR
-    Write-Log $_.ScriptStackTrace -Level ERROR
+    Write-Log "FATAL ERROR: $_" -Level ERROR
+    Write-Log "Exception Type: $($_.Exception.GetType().FullName)" -Level ERROR
+    Write-Log "Stack Trace: $($_.ScriptStackTrace)" -Level ERROR
+    
+    # Write error to outputs
+    if ($env:GITHUB_OUTPUT) {
+        "exit_reason=fatal_error" | Out-File $env:GITHUB_OUTPUT -Append
+        "prs_processed=0" | Out-File $env:GITHUB_OUTPUT -Append
+    }
+    
     Save-Log -Path $LogPath
-
-    # ADR-015 Fix 3: Release lock on fatal error
-    Exit-ScriptLock
     exit 2
 }
 
