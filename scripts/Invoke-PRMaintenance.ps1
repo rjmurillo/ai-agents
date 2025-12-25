@@ -908,6 +908,18 @@ try {
     # ADR-015 Fix 3: Acquire script lock to prevent concurrent execution
     if (-not (Enter-ScriptLock)) {
         Write-Log "Exiting: another instance is running" -Level WARN
+        # Write to GitHub Actions step summary if in CI
+        if ($env:GITHUB_STEP_SUMMARY) {
+            @"
+## PR Maintenance - Early Exit
+
+**Status**: Skipped (another instance running)
+**PRs Processed**: 0
+**Reason**: Concurrent execution detected - another PR maintenance instance is already running.
+
+This is expected behavior when multiple workflow runs overlap. The concurrent run will handle PR processing.
+"@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
+        }
         exit 0
     }
 
@@ -915,6 +927,37 @@ try {
         # ADR-015 Fix 6: Check API rate limit before processing (multi-resource)
         if (-not (Test-RateLimitSafe)) {
             Write-Log "Exiting: API rate limit too low" -Level WARN
+            # Write to GitHub Actions step summary if in CI  
+            if ($env:GITHUB_STEP_SUMMARY) {
+                # Get rate limit details for summary
+                try {
+                    $rateLimit = (gh api rate_limit 2>&1 | ConvertFrom-Json)
+                    $coreRemaining = $rateLimit.resources.core.remaining
+                    $coreLimit = $rateLimit.resources.core.limit
+                    $resetTime = [DateTimeOffset]::FromUnixTimeSeconds([int]$rateLimit.resources.core.reset).UtcDateTime
+                    $waitMinutes = [int](($resetTime - (Get-Date).ToUniversalTime()).TotalMinutes)
+                    @"
+## PR Maintenance - Early Exit
+
+**Status**: Skipped (rate limit too low)
+**PRs Processed**: 0
+**Rate Limit**: $coreRemaining / $coreLimit remaining
+**Resets In**: $waitMinutes minutes (at $($resetTime.ToString('yyyy-MM-dd HH:mm:ss')) UTC)
+
+The workflow will automatically retry on the next hourly schedule once the rate limit resets.
+"@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
+                }
+                catch {
+                    @"
+## PR Maintenance - Early Exit
+
+**Status**: Skipped (rate limit too low)
+**PRs Processed**: 0
+
+The workflow detected insufficient API rate limit and exited early to prevent hitting GitHub API limits.
+"@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
+                }
+            }
             exit 0
         }
 
