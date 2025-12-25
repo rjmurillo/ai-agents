@@ -94,6 +94,23 @@ Session: 2025-12-24 - User clarification on nuanced bot handling:
 > will not process the changes unless explicitly mentioned in the review 
 > comments with @copilot to trigger action."
 
+## Maintenance Tasks Always Run
+
+**CRITICAL**: CHANGES_REQUESTED status only affects who can ADDRESS reviewer feedback.
+
+Maintenance tasks run for ALL PRs regardless of:
+- CHANGES_REQUESTED status
+- Author type (human or bot)
+
+| Task | Runs? | Why |
+|------|-------|-----|
+| Resolve merge conflicts | Always | Keeps PR mergeable |
+| Acknowledge bot comments | Always | Shows engagement |
+| Check similar PRs | Always | Informational |
+| Address reviewer feedback | Depends | Bot category determines action |
+
+The Blocked/ActionRequired lists are for REPORTING purposes, not for skipping work.
+
 ## Related
 
 - `Get-BotAuthorInfo` function for bot categorization

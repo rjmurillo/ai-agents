@@ -991,11 +991,15 @@ function Invoke-PRMaintenance {
             # CRITICAL: The action depends on WHO authored the PR and bot type:
             #
             # Bot categories (see Get-BotAuthorInfo):
-            # - human: Truly blocked, needs human author action
+            # - human: Cannot address feedback, but maintenance tasks still run
             # - agent-controlled: Agent can address directly via pr-comment-responder
             # - mention-triggered: Needs @mention (e.g., @copilot) in comment
             # - command-triggered: Needs specific command (e.g., @dependabot rebase)
             # - unknown-bot: Requires manual review
+            #
+            # IMPORTANT: Maintenance tasks (conflict resolution, comment acknowledgment)
+            # ALWAYS run regardless of CHANGES_REQUESTED status or author type.
+            # The Blocked/ActionRequired lists only indicate who can address the feedback.
             #
             # See memory: pr-changes-requested-semantics
             if ($pr.reviewDecision -eq 'CHANGES_REQUESTED') {
@@ -1015,19 +1019,17 @@ function Invoke-PRMaintenance {
                         Action = $botInfo.Action
                         Mention = $botInfo.Mention
                     })
-                    # Continue processing this PR (acknowledge comments, etc.)
-                    # The ActionRequired list provides category-specific guidance
                 } else {
-                    # Human-authored PR: Truly blocked, needs human action
-                    Write-Log "PR #$($pr.number) by $authorLogin has CHANGES_REQUESTED - blocked (human author)" -Level WARN
+                    # Human-authored PR: Cannot address feedback, but maintenance continues
+                    Write-Log "PR #$($pr.number) by $authorLogin has CHANGES_REQUESTED - feedback requires human (maintenance continues)" -Level INFO
                     $null = $results.Blocked.Add(@{
                         PR = $pr.number
                         Author = $authorLogin
                         Reason = 'CHANGES_REQUESTED'
                         Title = $pr.title
                     })
-                    continue  # Skip further processing for human-authored PRs
                 }
+                # NOTE: No 'continue' here - maintenance tasks (conflicts, comments) always run
             }
 
             # Check for similar merged PRs (informational only - no auto-close)
