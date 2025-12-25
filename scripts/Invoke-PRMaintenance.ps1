@@ -521,30 +521,20 @@ function Test-PRNeedsOwnerAction {
     return $pr -eq 'CHANGES_REQUESTED'
 }
 
+
 function Test-IsBotAuthor {
     <#
     .SYNOPSIS
         Determines if a PR was authored by a bot account.
     .DESCRIPTION
-        Bot-authored PRs have different CHANGES_REQUESTED semantics:
-        - Human-authored PR with CHANGES_REQUESTED: Truly blocked, needs human action
-        - Bot-authored PR with CHANGES_REQUESTED: Agent should address reviewer feedback
-
-        This distinction is CRITICAL. The PR maintenance script runs as a bot identity
-        (e.g., rjmurillo-bot). When a bot authors a PR and a human requests changes,
-        the bot/agent should ADDRESS the feedback, not skip the PR as "blocked".
+        Simple boolean check for bot authorship. For detailed bot categorization
+        and recommended actions, use Get-BotAuthorInfo instead.
 
         See memory: pr-changes-requested-semantics
     .PARAMETER AuthorLogin
         The PR author's login (e.g., 'copilot-swe-agent', 'dependabot[bot]')
     .OUTPUTS
         [bool] True if the author is a bot, false otherwise
-    .EXAMPLE
-        Test-IsBotAuthor -AuthorLogin 'dependabot[bot]'
-        # Returns: $true
-    .EXAMPLE
-        Test-IsBotAuthor -AuthorLogin 'rjmurillo'
-        # Returns: $false
     #>
     [CmdletBinding()]
     param(
@@ -552,26 +542,133 @@ function Test-IsBotAuthor {
         [string]$AuthorLogin
     )
 
-    # Known bot author patterns:
-    # - *[bot] suffix: GitHub Apps (dependabot[bot], github-actions[bot], copilot[bot])
-    # - copilot-swe-agent: Copilot SWE Agent (no [bot] suffix)
-    # - *-bot suffix: Custom bot accounts (rjmurillo-bot)
-    # - renovate[bot]: Renovate dependency updates
+    $info = Get-BotAuthorInfo -AuthorLogin $AuthorLogin
+    return $info.IsBot
+}
 
-    $botPatterns = @(
-        '\[bot\]$',           # GitHub Apps: dependabot[bot], copilot[bot], etc.
-        '^copilot-swe-agent$', # Copilot SWE Agent
-        '-bot$',              # Custom bot accounts: rjmurillo-bot
-        '^github-actions$'    # GitHub Actions (without [bot] suffix in some contexts)
+function Get-BotAuthorInfo {
+    <#
+    .SYNOPSIS
+        Returns detailed information about a PR author including bot type and recommended action.
+    .DESCRIPTION
+        Bot-authored PRs have nuanced CHANGES_REQUESTED semantics:
+
+        1. Human-authored PR: Truly blocked, needs human action
+        2. Agent-controlled bot (e.g., rjmurillo-bot): Agent can address feedback directly
+        3. Mention-triggered bot (e.g., copilot-swe-agent): Needs @copilot mention
+        4. Command-triggered bot (e.g., dependabot): Needs @dependabot commands
+
+        This function categorizes bots and provides the recommended action for each.
+
+        See memory: pr-changes-requested-semantics
+    .PARAMETER AuthorLogin
+        The PR author's login (e.g., 'copilot-swe-agent', 'dependabot[bot]')
+    .OUTPUTS
+        [hashtable] with keys:
+          - IsBot: [bool] Whether author is a bot
+          - Category: [string] 'human', 'agent-controlled', 'mention-triggered', 'command-triggered'
+          - Action: [string] Recommended action for CHANGES_REQUESTED
+          - Mention: [string] The mention pattern to use (if applicable)
+    .EXAMPLE
+        Get-BotAuthorInfo -AuthorLogin 'rjmurillo-bot'
+        # Returns: @{ IsBot = $true; Category = 'agent-controlled'; Action = 'pr-comment-responder'; Mention = $null }
+    .EXAMPLE
+        Get-BotAuthorInfo -AuthorLogin 'copilot-swe-agent'
+        # Returns: @{ IsBot = $true; Category = 'mention-triggered'; Action = 'mention in comment'; Mention = '@copilot' }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$AuthorLogin
     )
 
-    foreach ($pattern in $botPatterns) {
+    # Bot categories with their characteristics:
+    #
+    # agent-controlled: Bots that this agent can control directly (same identity or delegatable)
+    #   - Custom bot accounts matching the running identity (e.g., rjmurillo-bot)
+    #   - Action: Use pr-comment-responder to address feedback
+    #
+    # mention-triggered: Bots that act when mentioned in comments
+    #   - copilot-swe-agent: Responds to @copilot mentions
+    #   - Action: Add comment with @mention to trigger action
+    #
+    # command-triggered: Bots that respond to specific commands
+    #   - dependabot[bot]: Responds to @dependabot commands (rebase, recreate, etc.)
+    #   - renovate[bot]: Responds to renovate commands
+    #   - Action: Add comment with specific command to trigger action
+
+    # Mention-triggered bots (need @mention to act)
+    $mentionTriggered = @{
+        '^copilot-swe-agent$' = '@copilot'
+        '^copilot\[bot\]$'    = '@copilot'
+    }
+
+    # Command-triggered bots (need specific commands)
+    $commandTriggered = @{
+        '^dependabot\[bot\]$' = '@dependabot'
+        '^renovate\[bot\]$'   = '@renovate'
+    }
+
+    # Agent-controlled bots (we can address directly)
+    $agentControlled = @(
+        '-bot$'           # Custom bot accounts: rjmurillo-bot, my-project-bot
+        '^github-actions$' # GitHub Actions identity
+        '^github-actions\[bot\]$'
+    )
+
+    # Check mention-triggered first
+    foreach ($pattern in $mentionTriggered.Keys) {
         if ($AuthorLogin -match $pattern) {
-            return $true
+            return @{
+                IsBot = $true
+                Category = 'mention-triggered'
+                Action = "Mention $($mentionTriggered[$pattern]) in a comment to trigger action"
+                Mention = $mentionTriggered[$pattern]
+            }
         }
     }
 
-    return $false
+    # Check command-triggered
+    foreach ($pattern in $commandTriggered.Keys) {
+        if ($AuthorLogin -match $pattern) {
+            return @{
+                IsBot = $true
+                Category = 'command-triggered'
+                Action = "Use $($commandTriggered[$pattern]) commands (e.g., rebase, recreate)"
+                Mention = $commandTriggered[$pattern]
+            }
+        }
+    }
+
+    # Check agent-controlled
+    foreach ($pattern in $agentControlled) {
+        if ($AuthorLogin -match $pattern) {
+            return @{
+                IsBot = $true
+                Category = 'agent-controlled'
+                Action = 'pr-comment-responder'
+                Mention = $null
+            }
+        }
+    }
+
+    # Check for other bots we may not have categorized (generic [bot] suffix)
+    if ($AuthorLogin -match '\[bot\]$') {
+        return @{
+            IsBot = $true
+            Category = 'unknown-bot'
+            Action = 'Review manually - unknown bot type'
+            Mention = $null
+        }
+    }
+
+    # Human author
+    return @{
+        IsBot = $false
+        Category = 'human'
+        Action = 'Blocked - requires human author action'
+        Mention = $null
+    }
 }
 
 function Test-IsGitHubRunner {
@@ -891,33 +988,35 @@ function Invoke-PRMaintenance {
 
         try {
             # Check if PR has CHANGES_REQUESTED review decision
-            # CRITICAL: The action depends on WHO authored the PR:
+            # CRITICAL: The action depends on WHO authored the PR and bot type:
             #
-            # - Human-authored PR: Truly blocked. The human author must address feedback.
-            #   This script cannot act on their behalf.
-            #
-            # - Bot-authored PR: Agent should address feedback. When a bot authors a PR
-            #   (e.g., copilot-swe-agent, rjmurillo-bot) and a human requests changes,
-            #   the agent running this script IS the bot identity and SHOULD address
-            #   the reviewer's feedback.
+            # Bot categories (see Get-BotAuthorInfo):
+            # - human: Truly blocked, needs human author action
+            # - agent-controlled: Agent can address directly via pr-comment-responder
+            # - mention-triggered: Needs @mention (e.g., @copilot) in comment
+            # - command-triggered: Needs specific command (e.g., @dependabot rebase)
+            # - unknown-bot: Requires manual review
             #
             # See memory: pr-changes-requested-semantics
             if ($pr.reviewDecision -eq 'CHANGES_REQUESTED') {
                 $authorLogin = $pr.author.login
-                $isBotAuthor = Test-IsBotAuthor -AuthorLogin $authorLogin
+                $botInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
 
-                if ($isBotAuthor) {
-                    # Bot-authored PR: Agent should address reviewer feedback
-                    # Add to ActionRequired list for the agent to handle via pr-comment-responder
-                    Write-Log "PR #$($pr.number) by $authorLogin has CHANGES_REQUESTED - agent action required" -Level WARN
+                if ($botInfo.IsBot) {
+                    # Bot-authored PR: Add to ActionRequired with specific guidance
+                    Write-Log "PR #$($pr.number) by $authorLogin has CHANGES_REQUESTED - $($botInfo.Category)" -Level WARN
+                    Write-Log "  Action: $($botInfo.Action)" -Level INFO
                     $null = $results.ActionRequired.Add(@{
                         PR = $pr.number
                         Author = $authorLogin
                         Reason = 'CHANGES_REQUESTED'
                         Title = $pr.title
+                        Category = $botInfo.Category
+                        Action = $botInfo.Action
+                        Mention = $botInfo.Mention
                     })
                     # Continue processing this PR (acknowledge comments, etc.)
-                    # The ActionRequired list signals to the workflow that pr-comment-responder should run
+                    # The ActionRequired list provides category-specific guidance
                 } else {
                     # Human-authored PR: Truly blocked, needs human action
                     Write-Log "PR #$($pr.number) by $authorLogin has CHANGES_REQUESTED - blocked (human author)" -Level WARN
@@ -1035,11 +1134,23 @@ try {
 
         if ($results.ActionRequired.Count -gt 0) {
             Write-Log "---" -Level INFO
-            Write-Log "Bot PRs with CHANGES_REQUESTED (agent should address):" -Level WARN
-            foreach ($item in $results.ActionRequired) {
-                Write-Log "  PR #$($item.PR) by $($item.Author): $($item.Title)" -Level WARN
+            Write-Log "Bot PRs with CHANGES_REQUESTED:" -Level WARN
+
+            # Group by category for cleaner output
+            $byCategory = $results.ActionRequired | Group-Object -Property Category
+            foreach ($group in $byCategory) {
+                Write-Log "  [$($group.Name)]:" -Level INFO
+                foreach ($item in $group.Group) {
+                    Write-Log "    PR #$($item.PR) by $($item.Author): $($item.Title)" -Level WARN
+                    Write-Log "      Action: $($item.Action)" -Level INFO
+                }
             }
-            Write-Log "Run: /pr-review $($results.ActionRequired.PR -join ',')" -Level INFO
+
+            # Show quick command for agent-controlled PRs only
+            $agentControlled = $results.ActionRequired | Where-Object { $_.Category -eq 'agent-controlled' }
+            if ($agentControlled.Count -gt 0) {
+                Write-Log "Run: /pr-review $($agentControlled.PR -join ',')" -Level INFO
+            }
         }
 
         if ($results.Blocked.Count -gt 0) {
@@ -1079,24 +1190,38 @@ try {
 | Errors | $($results.Errors.Count) |
 
 "@
-            # List bot PRs that need agent action (CHANGES_REQUESTED on bot-authored PRs)
+            # List bot PRs that need action (CHANGES_REQUESTED on bot-authored PRs)
             if ($results.ActionRequired.Count -gt 0) {
                 $summary += @"
 ### Bot PRs with CHANGES_REQUESTED
 
-These bot-authored PRs have reviewer feedback that needs to be addressed:
+These bot-authored PRs have reviewer feedback. Actions vary by bot type:
 
-| PR | Author | Title |
-|----|--------|-------|
+| PR | Author | Category | Action |
+|----|--------|----------|--------|
 "@
                 foreach ($item in $results.ActionRequired) {
-                    $summary += "| #$($item.PR) | $($item.Author) | $($item.Title) |`n"
+                    $summary += "| #$($item.PR) | $($item.Author) | $($item.Category) | $($item.Action) |`n"
                 }
-                $summary += @"
 
-**Action**: Run ``/pr-review $($results.ActionRequired.PR -join ',')`` to address reviewer feedback.
+                # Group actions by category
+                $agentControlled = $results.ActionRequired | Where-Object { $_.Category -eq 'agent-controlled' }
+                $mentionTriggered = $results.ActionRequired | Where-Object { $_.Category -eq 'mention-triggered' }
+                $commandTriggered = $results.ActionRequired | Where-Object { $_.Category -eq 'command-triggered' }
 
-"@
+                $summary += "`n#### Recommended Actions`n`n"
+
+                if ($agentControlled.Count -gt 0) {
+                    $summary += "**Agent-controlled PRs**: Run ``/pr-review $($agentControlled.PR -join ',')```n`n"
+                }
+                if ($mentionTriggered.Count -gt 0) {
+                    $mentions = ($mentionTriggered | ForEach-Object { "$($_.Mention) on PR #$($_.PR)" }) -join ', '
+                    $summary += "**Mention-triggered PRs**: Add comment with mention ($mentions)`n`n"
+                }
+                if ($commandTriggered.Count -gt 0) {
+                    $commands = ($commandTriggered | ForEach-Object { "$($_.Mention) on PR #$($_.PR)" }) -join ', '
+                    $summary += "**Command-triggered PRs**: Use bot commands ($commands)`n`n"
+                }
             }
 
             # Explain why 0 actions might have been taken

@@ -2,12 +2,21 @@
 
 ## Critical Understanding
 
-**CHANGES_REQUESTED is NOT a "blocked" state for bot-authored PRs.**
+**CHANGES_REQUESTED handling depends on both author type AND bot category.**
 
-When a reviewer requests changes on a PR:
-- The **PR author** is expected to address the feedback
-- For **human-authored PRs**: The human author must act → blocked for automation
-- For **bot-authored PRs**: The bot/agent must address feedback → NOT blocked
+When a reviewer requests changes on a PR, the action depends on:
+1. **Who authored the PR** (human vs bot)
+2. **What type of bot** (if bot-authored)
+
+## Bot Categories
+
+| Category | Examples | How to Address Feedback |
+|----------|----------|------------------------|
+| **human** | rjmurillo, johndoe | Blocked - human must act |
+| **agent-controlled** | rjmurillo-bot, my-project-bot | `/pr-review` via pr-comment-responder |
+| **mention-triggered** | copilot-swe-agent, copilot[bot] | Add comment with `@copilot` |
+| **command-triggered** | dependabot[bot], renovate[bot] | Use `@dependabot rebase`, etc. |
+| **unknown-bot** | other [bot] accounts | Manual review required |
 
 ## The Mistake to Avoid
 
@@ -17,73 +26,76 @@ if ($pr.reviewDecision -eq 'CHANGES_REQUESTED') {
     Write-Log "Blocked - needs human"
     continue  # SKIP - WRONG for bot PRs!
 }
+
+# ALSO WRONG: Treating all bot PRs the same
+if ($isBotAuthor) {
+    # Invoke pr-comment-responder for all bots
+    # WRONG: copilot-swe-agent needs @copilot mention instead!
+}
 ```
 
 ## Correct Logic
 
 ```powershell
-# RIGHT: Distinguish by author type
+# RIGHT: Use Get-BotAuthorInfo for nuanced handling
 if ($pr.reviewDecision -eq 'CHANGES_REQUESTED') {
-    $isBot = $pr.author.login -match '\[bot\]$' -or 
-             $pr.author.login -in @('copilot-swe-agent', 'github-actions')
-    
-    if ($isBot) {
-        # Bot authored → agent should address feedback
-        Write-Log "Bot PR needs to address reviewer feedback"
-        # Continue processing, invoke pr-comment-responder
-    } else {
+    $botInfo = Get-BotAuthorInfo -AuthorLogin $pr.author.login
+
+    if (-not $botInfo.IsBot) {
         # Human authored → truly blocked
-        Write-Log "Human PR blocked - needs author action"
         continue
+    }
+
+    # Bot authored → action depends on category
+    switch ($botInfo.Category) {
+        'agent-controlled' {
+            # We can address directly via pr-comment-responder
+            # Add to ActionRequired list
+        }
+        'mention-triggered' {
+            # Needs @mention in comment (e.g., @copilot)
+            # Add to ActionRequired with Mention guidance
+        }
+        'command-triggered' {
+            # Needs specific command (e.g., @dependabot rebase)
+            # Add to ActionRequired with command guidance
+        }
     }
 }
 ```
 
-## Review Decision States
+## Real Examples
 
-| State | Human-Authored PR | Bot-Authored PR |
-|-------|-------------------|-----------------|
-| `APPROVED` | Ready to merge | Ready to merge |
-| `CHANGES_REQUESTED` | Blocked, needs human | **Agent should address** |
-| `REVIEW_REQUIRED` | Awaiting review | Awaiting review |
-| `null` | No reviews yet | No reviews yet |
+| PR | Author | Category | Action |
+|----|--------|----------|--------|
+| #247 | copilot-swe-agent | mention-triggered | `@copilot` in comment |
+| #246 | rjmurillo-bot | agent-controlled | `/pr-review 246` |
+| #235 | rjmurillo-bot | agent-controlled | `/pr-review 235` |
 
 ## Why This Matters
 
-PRs like #247, #246, #235 were incorrectly marked "blocked" when:
-- They were authored by bots (copilot-swe-agent, rjmurillo-bot)
-- Human reviewers (rjmurillo, gemini) requested changes
-- The agent running PR maintenance IS the bot identity
-- The agent SHOULD address the feedback, not skip it
+Different bots have different trigger mechanisms:
 
-## Identifying Bot Authors
+- **copilot-swe-agent**: Will NOT act on CHANGES_REQUESTED unless explicitly 
+  mentioned with `@copilot` in a comment
+- **dependabot[bot]**: Responds to specific commands like `@dependabot rebase`
+- **rjmurillo-bot**: The identity this agent runs as - can address directly
 
-Common bot author patterns:
-- `*[bot]` suffix (e.g., `copilot[bot]`, `github-actions[bot]`)
-- `copilot-swe-agent`
-- `rjmurillo-bot`
-- `dependabot[bot]`
-- `renovate[bot]`
+## Implementation
 
-## Integration with PR Maintenance
-
-When processing a bot-authored PR with CHANGES_REQUESTED:
-
-1. Fetch review comments via `Get-PRReviewComments.ps1`
-2. Invoke `pr-comment-responder` skill to address feedback
-3. Push fixes and respond to reviewers
-4. Re-request review if needed
+See `Get-BotAuthorInfo` in `scripts/Invoke-PRMaintenance.ps1` for the full
+categorization logic.
 
 ## Evidence
 
-Session: 2025-12-24 - User correction during PR #395 retrospective:
+Session: 2025-12-24 - User clarification on nuanced bot handling:
 
-> "CHANGES_REQUESTED means a reviewer (rjmurillo) has requested changes from 
-> the PR author (Copilot). These PRs are actually waiting for you to do 
-> something and signal back to the reviewer, not for you to ignore."
+> "For PRs authored by copilot-swe-agent, if changes are requested, the agent 
+> will not process the changes unless explicitly mentioned in the review 
+> comments with @copilot to trigger action."
 
 ## Related
 
-- `pr-comment-responder` skill for handling review feedback
+- `Get-BotAuthorInfo` function for bot categorization
+- `pr-comment-responder` skill for agent-controlled PRs
 - `scripts/Invoke-PRMaintenance.ps1` for PR processing logic
-- Issue #400 for visibility improvements

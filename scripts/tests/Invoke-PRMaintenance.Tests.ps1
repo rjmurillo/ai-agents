@@ -1133,6 +1133,73 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
+    Context "Get-BotAuthorInfo Function" {
+        # Tests for nuanced bot categorization - CRITICAL for CHANGES_REQUESTED handling
+        # See memory: pr-changes-requested-semantics
+
+        It "Returns 'agent-controlled' for custom bot accounts" {
+            $info = Get-BotAuthorInfo -AuthorLogin "rjmurillo-bot"
+            $info.IsBot | Should -Be $true
+            $info.Category | Should -Be 'agent-controlled'
+            $info.Action | Should -Be 'pr-comment-responder'
+            $info.Mention | Should -BeNullOrEmpty
+        }
+
+        It "Returns 'mention-triggered' for copilot-swe-agent" {
+            $info = Get-BotAuthorInfo -AuthorLogin "copilot-swe-agent"
+            $info.IsBot | Should -Be $true
+            $info.Category | Should -Be 'mention-triggered'
+            $info.Mention | Should -Be '@copilot'
+        }
+
+        It "Returns 'mention-triggered' for copilot[bot]" {
+            $info = Get-BotAuthorInfo -AuthorLogin "copilot[bot]"
+            $info.IsBot | Should -Be $true
+            $info.Category | Should -Be 'mention-triggered'
+            $info.Mention | Should -Be '@copilot'
+        }
+
+        It "Returns 'command-triggered' for dependabot[bot]" {
+            $info = Get-BotAuthorInfo -AuthorLogin "dependabot[bot]"
+            $info.IsBot | Should -Be $true
+            $info.Category | Should -Be 'command-triggered'
+            $info.Mention | Should -Be '@dependabot'
+        }
+
+        It "Returns 'command-triggered' for renovate[bot]" {
+            $info = Get-BotAuthorInfo -AuthorLogin "renovate[bot]"
+            $info.IsBot | Should -Be $true
+            $info.Category | Should -Be 'command-triggered'
+            $info.Mention | Should -Be '@renovate'
+        }
+
+        It "Returns 'unknown-bot' for unrecognized bot accounts" {
+            $info = Get-BotAuthorInfo -AuthorLogin "someother[bot]"
+            $info.IsBot | Should -Be $true
+            $info.Category | Should -Be 'unknown-bot'
+            $info.Action | Should -Match 'manual'
+        }
+
+        It "Returns 'human' for regular users" {
+            $info = Get-BotAuthorInfo -AuthorLogin "rjmurillo"
+            $info.IsBot | Should -Be $false
+            $info.Category | Should -Be 'human'
+            $info.Action | Should -Match 'Blocked'
+        }
+
+        It "Returns 'agent-controlled' for github-actions" {
+            $info = Get-BotAuthorInfo -AuthorLogin "github-actions"
+            $info.IsBot | Should -Be $true
+            $info.Category | Should -Be 'agent-controlled'
+        }
+
+        It "Returns 'agent-controlled' for github-actions[bot]" {
+            $info = Get-BotAuthorInfo -AuthorLogin "github-actions[bot]"
+            $info.IsBot | Should -Be $true
+            $info.Category | Should -Be 'agent-controlled'
+        }
+    }
+
     Context "Logging Functions" {
         It "Write-Log adds entry to log array" {
             $script:LogEntries = [System.Collections.ArrayList]::new()
