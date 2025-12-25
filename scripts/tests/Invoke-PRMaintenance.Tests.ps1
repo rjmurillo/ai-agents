@@ -1460,33 +1460,18 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
-    Context "Enter-ScriptLock and Exit-ScriptLock - ADR-015 No-Op Compliance" {
-        # ADR-015 Decision 1 rejects file-based locking in favor of GitHub Actions concurrency groups.
-        # These functions are now no-ops that always succeed for compatibility with existing call sites.
+    Context "Enter-ScriptLock and Exit-ScriptLock - Removed per ADR-021" {
+        # ADR-021: Lock functions completely removed in favor of GitHub Actions concurrency groups.
+        # These tests verify the functions no longer exist.
 
-        It "Enter-ScriptLock always returns true (no-op per ADR-015)" {
-            # ADR-015: File-based locks deprecated; function is a no-op that always succeeds
-            $result = Enter-ScriptLock
-            $result | Should -Be $true
+        It "Enter-ScriptLock function does not exist (removed per ADR-021)" {
+            # ADR-021: Functions removed entirely, not just made no-op
+            { Get-Command Enter-ScriptLock -ErrorAction Stop } | Should -Throw
         }
 
-        It "Enter-ScriptLock returns true on repeated calls (no lock contention)" {
-            # ADR-015: No actual locking, so repeated calls always succeed
-            $result1 = Enter-ScriptLock
-            $result2 = Enter-ScriptLock
-            $result1 | Should -Be $true
-            $result2 | Should -Be $true
-        }
-
-        It "Exit-ScriptLock does not throw" {
-            # ADR-015: No-op function should never throw
-            { Exit-ScriptLock } | Should -Not -Throw
-        }
-
-        It "Exit-ScriptLock can be called multiple times without error" {
-            # ADR-015: No state to release, so multiple calls are safe
-            { Exit-ScriptLock } | Should -Not -Throw
-            { Exit-ScriptLock } | Should -Not -Throw
+        It "Exit-ScriptLock function does not exist (removed per ADR-021)" {
+            # ADR-021: Functions removed entirely, not just made no-op
+            { Get-Command Exit-ScriptLock -ErrorAction Stop } | Should -Throw
         }
     }
 
@@ -1524,27 +1509,31 @@ Describe "Invoke-PRMaintenance.ps1" {
             $result | Should -Be $true
         }
 
-        It "Returns false when core remaining < threshold" {
+        It "Returns hashtable with Safe=false when core remaining < threshold" {
             Mock gh {
                 $global:LASTEXITCODE = 0
                 return & $Script:CreateRateLimitResponse -CoreRemaining 50 -SearchRemaining 20 -CodeSearchRemaining 10 -GraphqlRemaining 500
             }
 
             $result = Test-RateLimitSafe
-            $result | Should -Be $false
+            $result | Should -BeOfType [hashtable]
+            $result.Safe | Should -Be $false
+            $result.RateLimit | Should -Not -BeNullOrEmpty
         }
 
-        It "Returns false when search remaining < threshold" {
+        It "Returns hashtable with Safe=false when search remaining < threshold" {
             Mock gh {
                 $global:LASTEXITCODE = 0
                 return & $Script:CreateRateLimitResponse -CoreRemaining 500 -SearchRemaining 10 -CodeSearchRemaining 10 -GraphqlRemaining 500
             }
 
             $result = Test-RateLimitSafe
-            $result | Should -Be $false
+            $result | Should -BeOfType [hashtable]
+            $result.Safe | Should -Be $false
+            $result.RateLimit | Should -Not -BeNullOrEmpty
         }
 
-        It "Returns true when remaining = threshold (uses strict less-than)" {
+        It "Returns hashtable with Safe=true when remaining = threshold (uses strict less-than)" {
             # Function uses -lt, so 100 < 100 is false, meaning rate limit is OK
             Mock gh {
                 $global:LASTEXITCODE = 0
@@ -1552,27 +1541,33 @@ Describe "Invoke-PRMaintenance.ps1" {
             }
 
             $result = Test-RateLimitSafe
-            $result | Should -Be $true
+            $result | Should -BeOfType [hashtable]
+            $result.Safe | Should -Be $true
+            $result.RateLimit | Should -Not -BeNullOrEmpty
         }
 
-        It "Returns true on API failure (fail-open)" {
+        It "Returns hashtable with Safe=true on API failure (fail-open)" {
             Mock gh {
                 $global:LASTEXITCODE = 1
                 return "Error: API error"
             }
 
             $result = Test-RateLimitSafe
-            $result | Should -Be $true
+            $result | Should -BeOfType [hashtable]
+            $result.Safe | Should -Be $true
+            $result.RateLimit | Should -BeNullOrEmpty
         }
 
-        It "Returns true on invalid JSON (fail-open)" {
+        It "Returns hashtable with Safe=true on invalid JSON (fail-open)" {
             Mock gh {
                 $global:LASTEXITCODE = 0
                 return "INVALID JSON"
             }
 
             $result = Test-RateLimitSafe
-            $result | Should -Be $true
+            $result | Should -BeOfType [hashtable]
+            $result.Safe | Should -Be $true
+            $result.RateLimit | Should -BeNullOrEmpty
         }
 
         It "Accepts custom resource thresholds" {
@@ -1583,7 +1578,9 @@ Describe "Invoke-PRMaintenance.ps1" {
 
             # Custom thresholds should still pass
             $result = Test-RateLimitSafe -ResourceThresholds @{ 'core' = 200 }
-            $result | Should -Be $true
+            $result | Should -BeOfType [hashtable]
+            $result.Safe | Should -Be $true
+            $result.RateLimit | Should -Not -BeNullOrEmpty
         }
     }
 
