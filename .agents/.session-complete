@@ -2,9 +2,30 @@
 
 Investigation and fix for PR Maintenance workflow run 20496517728 is complete.
 
+## Root Cause
+PR Maintenance script exits early (exit 0) without visible output when:
+1. Lock held (concurrent execution detected)
+2. Rate limit low (GitHub API below safety thresholds)
+
+## Solution
+Added GitHub Actions step summaries for early exits showing:
+- Why 0 PRs processed
+- Rate limit status and reset time
+- Next expected run time
+
 ## Commits
 - ed4b314: fix: Add GitHub Actions summary for PR maintenance early exits
-- ce52a8e: docs: Add session log and analysis
+- da3d1e6: docs: Add session log and analysis (this commit)
+
+## Impact
+Future workflow runs show clear step summaries explaining early exits.
+
+## Files Modified
+- scripts/Invoke-PRMaintenance.ps1 (+43 lines)
+
+## Documentation
+- .agents/analysis/debug-deepthink-20496517728.md
+- .agents/sessions/2025-12-25-session-01-debug-deepthink.md
 
 ## Status
-Ready for review and merge.
+✅ Ready for review and merge
