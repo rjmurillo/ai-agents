@@ -815,6 +815,7 @@ function Invoke-PRMaintenance {
     )
 
     $results = @{
+        TotalPRs = 0
         Processed = 0
         CommentsAcknowledged = 0
         ConflictsResolved = 0
@@ -828,6 +829,7 @@ function Invoke-PRMaintenance {
 
     # Get all open PRs
     $prs = Get-OpenPRs -Owner $Owner -Repo $Repo -Limit $MaxPRs
+    $results.TotalPRs = $prs.Count
     Write-Log "Found $($prs.Count) open PRs" -Level INFO
 
     foreach ($pr in $prs) {
@@ -966,6 +968,46 @@ try {
         $duration = (Get-Date) - $script:StartTime
         Write-Log "---" -Level INFO
         Write-Log "Completed in $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
+
+        # Write GitHub Actions step summary for visibility (Issue #400)
+        if ($env:GITHUB_STEP_SUMMARY) {
+            $actionsCount = $results.CommentsAcknowledged + $results.ConflictsResolved
+            $summary = @"
+## PR Maintenance Summary
+
+| Metric | Count |
+|--------|-------|
+| Open PRs Scanned | $($results.TotalPRs) |
+| PRs Processed | $($results.Processed) |
+| Comments Acknowledged | $($results.CommentsAcknowledged) |
+| Conflicts Resolved | $($results.ConflictsResolved) |
+| Blocked (needs human) | $($results.Blocked.Count) |
+| Errors | $($results.Errors.Count) |
+
+"@
+            # Explain why 0 actions might have been taken
+            if ($actionsCount -eq 0 -and $results.TotalPRs -gt 0) {
+                $summary += @"
+### Why No Actions Taken?
+
+All $($results.TotalPRs) open PRs were scanned but none required automated action:
+- No unacknowledged bot comments found
+- No merge conflicts to resolve
+- $($results.Blocked.Count) PR(s) blocked with CHANGES_REQUESTED
+
+This is normal when PRs are awaiting human review or have no pending bot feedback.
+"@
+            }
+            elseif ($results.TotalPRs -eq 0) {
+                $summary += @"
+### No Open PRs
+
+No open pull requests found in the repository.
+"@
+            }
+
+            $summary | Out-File $env:GITHUB_STEP_SUMMARY -Append
+        }
 
         # Save log
         Save-Log -Path $LogPath
