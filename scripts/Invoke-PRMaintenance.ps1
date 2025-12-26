@@ -1354,9 +1354,10 @@ function Invoke-PRMaintenance {
 
                 # Handle copilot-swe-agent PRs specially - synthesize other bot feedback
                 if ($isCopilotPR) {
-                    # Collect comments from other review bots (not copilot) - CASE-INSENSITIVE
+                    # Collect comments from other review bots (not copilot) - CASE-INSENSITIVE, ANCHORED
+                    # Security: Anchored regex prevents partial matches (e.g., 'not-coderabbitai-user')
                     $otherBotComments = @($comments | Where-Object {
-                        $_.user.login -imatch '(coderabbitai|cursor\[bot\]|gemini-code-assist)' -and
+                        $_.user.login -imatch '^(coderabbitai(\[bot\])?|cursor\[bot\]|gemini-code-assist(\[bot\])?)$' -and
                         $_.user.login -inotmatch 'copilot'
                     })
                     $commentsToSynthesize = $otherBotComments.Count

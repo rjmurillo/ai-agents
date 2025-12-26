@@ -12,7 +12,7 @@ Describe 'Invoke-PRMaintenance Integration Tests' -Tag 'Integration' {
     BeforeEach {
         # Check if PRs are still open, skip if closed
         $openPRs = gh pr list --repo "$Owner/$Repo" --state open --json number 2>$null | ConvertFrom-Json
-        $script:OpenPRNumbers = @($openPRs.number)
+        $script:OpenPRNumbers = @($openPRs | ForEach-Object { $_.number })
     }
 
     It 'Bot-authored PRs with conflicts appear in ActionRequired (not Blocked)' -Skip:(-not ($OpenPRNumbers | Where-Object { $_ -in $AffectedBotPRs })) {
