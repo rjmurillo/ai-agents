@@ -18,32 +18,29 @@ flowchart TD
     A[PR] --> B{Is rjmurillo-bot<br/>the PR author?}
 
     B -->|Yes| C{Are CHANGES_REQUESTED}
-    C --> |Yes| D["/pr-review via pr-comment-responder"]
-    C --> |No| M
+    C -->|Yes| D["/pr-review via pr-comment-responder"]
+    C -->|No| M
 
     B -->|No| E{Is rjmurillo-bot<br/>added as reviewer?}
 
     E -->|Yes| C
-    E -->|No| M
 
     E -->|No| F{Is @rjmurillo-bot<br/>mentioned in comments?}
-    F -->|No| M
 
     F -->|Yes| G[Add eyes reaction to those comments]
     G --> H[Process only those comments]
-    H --> M    
-    
-    J --> K[No actions available for bot]
+    H --> M
+
+    F -->|No| M
 
     D --> M[Maintenance Tasks]
 
     M --> O{Has Merge Conflicts}
 
-
     O -->|Yes| L[Resolve Merge Conflicts]
-    O -->|No| Z
+    O -->|No| Z[END]
 
-    L --> Z[END]
+    L --> Z
 ```
 
 ## rjmurillo-bot Activation Triggers
