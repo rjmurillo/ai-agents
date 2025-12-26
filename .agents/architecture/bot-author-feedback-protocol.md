@@ -42,6 +42,26 @@ pwsh scripts/Invoke-PRMaintenance.ps1 -MaxPRs 5
 /pr-review 123,456,789
 ```
 
+### Invocation Decision Tree
+
+Use this to determine which invocation method:
+
+```text
+Q: What is your goal?
+├─ "Routine maintenance" → Scheduled (hourly GitHub Actions)
+├─ "Check PR status now" → Manual: pwsh scripts/Invoke-PRMaintenance.ps1
+├─ "Address CHANGES_REQUESTED" → Agent: /pr-review <PR>
+└─ "Trigger from CI/CD" → gh workflow run pr-maintenance.yml
+
+Q: Are you an agent responding to review comments?
+├─ YES → /pr-review <PR> (processes comments, implements fixes)
+└─ NO → pwsh scripts/Invoke-PRMaintenance.ps1 (scans, reports, resolves conflicts)
+
+Q: Do you need to implement code changes?
+├─ YES → /pr-review (agent modifies code)
+└─ NO → Invoke-PRMaintenance.ps1 (script only reports)
+```
+
 ## Prerequisites
 
 ### Session Protocol
@@ -333,9 +353,16 @@ A derivative PR is a PR created by a bot (typically `copilot-swe-agent`) that:
 
 ```text
 GIVEN: PR with baseRefName != 'main' AND baseRefName != 'master'
-WHEN: Author is a mention-triggered bot (e.g., copilot-swe-agent)
-THEN: This is likely a derivative PR
+WHEN: Author is a mention-triggered bot (Category == 'mention-triggered')
+THEN: This is a derivative PR
 ```
+
+**Implementation**: `Get-DerivativePRs` in `scripts/Invoke-PRMaintenance.ps1` checks:
+
+1. `$pr.baseRefName` not in ('main', 'master')
+2. `Get-BotAuthorInfo($author).Category -eq 'mention-triggered'`
+
+**Note**: Only `mention-triggered` bots create derivatives. Agent-controlled bots (e.g., rjmurillo-bot) respond directly to their own PRs.
 
 ### Handling Workflow
 
@@ -471,10 +498,13 @@ grep 'PR #123' .agents/logs/pr-maintenance.log
 
 ### Exit Codes
 
-| Code | Meaning | Next Action |
-|------|---------|-------------|
-| 0 | Success | Check summary for details |
-| 2 | Fatal error | Review logs, check API connectivity |
+| Code | Meaning | Workflow Status | Next Action |
+|------|---------|-----------------|-------------|
+| 0 | Success | Pass | Check summary for details |
+| 1 | Reserved | N/A | Not currently used |
+| 2 | Fatal error | Fail | Review logs at `.agents/logs/pr-maintenance.log` |
+
+**Note**: Blocked PRs (CHANGES_REQUESTED) do NOT cause exit code 2. They are reported via summary and trigger the "Create alert issue" workflow step.
 
 ## Success Metrics
 

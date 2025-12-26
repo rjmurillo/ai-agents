@@ -14,6 +14,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  actions: read  # Required for workflow status checks
 
 concurrency:
   group: pr-maintenance

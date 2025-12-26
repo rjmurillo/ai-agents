@@ -29,6 +29,7 @@ Before any work, rjmurillo-bot MUST:
 | **mention-triggered** | copilot-swe-agent | Supplements agent-controlled via @copilot |
 | **command-triggered** | dependabot[bot] | Uses @dependabot commands |
 | **non-responsive** | github-actions[bot] | Cannot respond to mentions - blocked |
+| **unknown-bot** | other[bot] | Review manually |
 | **human** | rjmurillo | Only if @rjmurillo-bot mentioned |
 
 ## Implementation

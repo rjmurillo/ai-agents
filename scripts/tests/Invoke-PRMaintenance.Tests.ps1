@@ -1575,6 +1575,128 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
+    Context "Scenario 4 - No Bot Involvement (Maintenance Only)" {
+        # Protocol acceptance criteria: Human-authored PR, bot not reviewer, not mentioned
+        # THEN: CommentsAcknowledged = 0, No ActionRequired entry, only conflict resolution attempted
+
+        BeforeEach {
+            Mock Get-OpenPRs {
+                return @(
+                    @{
+                        number = 200
+                        title = "feat: human PR no bot"
+                        state = "OPEN"
+                        headRefName = "human-feature"
+                        baseRefName = "main"
+                        mergeable = "MERGEABLE"
+                        reviewDecision = $null  # No CHANGES_REQUESTED
+                        author = @{ login = "rjmurillo" }  # Human author
+                        reviewRequests = @()  # Bot not requested as reviewer
+                    }
+                )
+            }
+            # Comments exist but none mention @rjmurillo-bot
+            Mock Get-PRComments {
+                return @(
+                    @{
+                        id = 5001
+                        user = @{ type = "Bot"; login = "coderabbitai[bot]" }
+                        reactions = @{ eyes = 0 }
+                        body = "Code review suggestion - no bot mention"
+                    }
+                )
+            }
+            Mock Add-CommentReaction { return $true }
+            Mock Get-SimilarPRs { return @() }
+            Mock Resolve-PRConflicts { return $false }
+        }
+
+        It "Does NOT add eyes reaction when bot not involved" {
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            # CommentsAcknowledged = 0 (no eyes added)
+            $results.CommentsAcknowledged | Should -Be 0
+
+            # Add-CommentReaction should NOT have been called
+            Should -Invoke Add-CommentReaction -Times 0
+        }
+
+        It "Does NOT add to ActionRequired when bot not involved" {
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            $results.ActionRequired.Count | Should -Be 0
+        }
+
+        It "Does NOT add to Blocked when no CHANGES_REQUESTED" {
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            $results.Blocked.Count | Should -Be 0
+        }
+
+        It "Processes PR successfully with zero actions when maintenance only" {
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            $results.Processed | Should -Be 1
+            $results.CommentsAcknowledged | Should -Be 0
+            $results.ActionRequired.Count | Should -Be 0
+            $results.Blocked.Count | Should -Be 0
+            $results.Errors.Count | Should -Be 0
+        }
+    }
+
+    Context "Scenario 4b - Maintenance with Conflicts" {
+        # Conflict resolution variant: human-authored PR with merge conflicts
+        # Protocol: Conflict resolution runs regardless of bot involvement
+
+        BeforeEach {
+            Mock Get-OpenPRs {
+                return @(
+                    @{
+                        number = 201
+                        title = "feat: human PR with conflicts"
+                        state = "OPEN"
+                        headRefName = "human-feature"
+                        baseRefName = "main"
+                        mergeable = "CONFLICTING"  # Has conflicts
+                        reviewDecision = $null
+                        author = @{ login = "rjmurillo" }  # Human author
+                        reviewRequests = @()  # Bot not requested as reviewer
+                    }
+                )
+            }
+            # Comments exist but none mention @rjmurillo-bot
+            Mock Get-PRComments {
+                return @(
+                    @{
+                        id = 5002
+                        user = @{ type = "Bot"; login = "coderabbitai[bot]" }
+                        reactions = @{ eyes = 0 }
+                        body = "Code review suggestion - no bot mention"
+                    }
+                )
+            }
+            Mock Add-CommentReaction { return $true }
+            Mock Get-SimilarPRs { return @() }
+            Mock Resolve-PRConflicts { return $true }
+        }
+
+        It "Still attempts conflict resolution (maintenance task)" {
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            # Conflict resolution should be attempted
+            Should -Invoke Resolve-PRConflicts -Times 1
+            $results.ConflictsResolved | Should -Be 1
+        }
+
+        It "Does NOT add eyes reaction even with conflicts" {
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            # CommentsAcknowledged = 0 (bot not involved means no eyes)
+            $results.CommentsAcknowledged | Should -Be 0
+            Should -Invoke Add-CommentReaction -Times 0
+        }
+    }
+
     Context "Error Handling - Get-PRComments Failure" {
         # P0 test per QA agent recommendation: script should handle API failures gracefully
 

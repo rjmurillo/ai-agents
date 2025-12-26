@@ -1343,7 +1343,7 @@ function Invoke-PRMaintenance {
             }
 
             # Check for similar merged PRs (informational only - no auto-close)
-            $similarPRs = Get-SimilarPRs -Owner $Owner -Repo $Repo -PRNumber $pr.number -Title $pr.title
+            $similarPRs = @(Get-SimilarPRs -Owner $Owner -Repo $Repo -PRNumber $pr.number -Title $pr.title)
             if ($similarPRs.Count -gt 0) {
                 Write-Log "PR #$($pr.number) has similar merged PRs - review recommended:" -Level INFO
                 foreach ($similar in $similarPRs) {
