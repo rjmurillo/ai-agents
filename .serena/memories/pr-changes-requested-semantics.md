@@ -35,8 +35,22 @@ Before any work, rjmurillo-bot MUST:
 
 See `Get-BotAuthorInfo` in `scripts/Invoke-PRMaintenance.ps1`.
 
+## Derivative PRs
+
+Derivative PRs are created by mention-triggered bots (e.g., copilot-swe-agent) targeting feature branches instead of main.
+
+| Detection | Action |
+|-----------|--------|
+| `baseRefName != main/master` + mention-triggered author | Add to `DerivativePRs` collection |
+| Parent PR found (matching `headRefName`) | Add parent to `ActionRequired` with `PENDING_DERIVATIVES` |
+
+**Functions**: `Get-DerivativePRs`, `Get-PRsWithPendingDerivatives` in `scripts/Invoke-PRMaintenance.ps1`
+
+**Risk**: Parent PR may merge before derivative is reviewed, orphaning the derivative.
+
 ## Related
 
 - **Full Protocol**: `.agents/architecture/bot-author-feedback-protocol.md`
 - `pr-comment-responder` skill agent
 - `pr-review-acknowledgment` for eyes reaction protocol
+- `copilot-follow-up-pr` for copilot derivative behavior
