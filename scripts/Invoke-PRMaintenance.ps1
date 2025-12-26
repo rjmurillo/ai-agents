@@ -584,6 +584,74 @@ function Test-IsBotReviewer {
     return $null -ne $botReviewer
 }
 
+function Invoke-CopilotSynthesis {
+    <#
+    .SYNOPSIS
+        Generates a @copilot synthesis prompt from other bot comments.
+    .DESCRIPTION
+        When rjmurillo-bot is a reviewer on a copilot-swe-agent PR, this function
+        synthesizes feedback from other review bots (coderabbitai, cursor[bot], etc.)
+        into a prompt directed at @copilot.
+    .PARAMETER Owner
+        Repository owner
+    .PARAMETER Repo
+        Repository name
+    .PARAMETER PRNumber
+        Pull request number
+    .PARAMETER PRTitle
+        Pull request title
+    .PARAMETER BotComments
+        Array of comment objects from other review bots
+    .OUTPUTS
+        String - Markdown-formatted prompt for @copilot
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [int]$PRNumber,
+
+        [Parameter(Mandatory)]
+        [string]$PRTitle,
+
+        [Parameter(Mandatory)]
+        [array]$BotComments
+    )
+
+    $prompt = "@copilot Please address the following feedback on PR #$PRNumber`:`n`n"
+
+    # Group comments by bot author
+    $grouped = $BotComments | Group-Object { $_.user.login }
+
+    foreach ($group in $grouped) {
+        $botName = $group.Name
+        $comments = $group.Group
+        $plural = if ($comments.Count -gt 1) { 's' } else { '' }
+        $prompt += "**$botName** ($($comments.Count) comment$plural):`n"
+
+        foreach ($comment in $comments) {
+            # Truncate body to first 100 chars for link text
+            $linkText = if ($comment.body.Length -gt 100) {
+                $comment.body.Substring(0, 97) + '...'
+            } else {
+                $comment.body
+            }
+            # Remove newlines for single-line display
+            $linkText = $linkText -replace '[\r\n]+', ' '
+            $prompt += "- [$linkText]($($comment.html_url))`n"
+        }
+        $prompt += "`n"
+    }
+
+    $prompt += "Please implement fixes for these issues and update the PR."
+
+    return $prompt
+}
+
 function Get-BotAuthorInfo {
     <#
     .SYNOPSIS
