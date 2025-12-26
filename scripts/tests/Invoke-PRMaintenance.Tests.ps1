@@ -1408,7 +1408,7 @@ Describe "Invoke-PRMaintenance.ps1" {
                 return "[]"
             }
 
-            $result = Get-SimilarPRs -Owner "test" -Repo "repo" -PRNumber 123 -Title "feat: unique feature"
+            $result = @(Get-SimilarPRs -Owner "test" -Repo "repo" -PRNumber 123 -Title "feat: unique feature")
             $result.Count | Should -Be 0
         }
 
@@ -1429,7 +1429,7 @@ Describe "Invoke-PRMaintenance.ps1" {
                 return ($Script:Fixtures.MergedPRs | ConvertTo-Json)
             }
 
-            $result = Get-SimilarPRs -Owner "test" -Repo "repo" -PRNumber 789 -Title "feat: add feature X v2"
+            $result = @(Get-SimilarPRs -Owner "test" -Repo "repo" -PRNumber 789 -Title "feat: add feature X v2")
             $result.Count | Should -Be 0
         }
 
