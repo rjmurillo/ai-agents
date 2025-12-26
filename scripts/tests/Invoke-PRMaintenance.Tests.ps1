@@ -2192,6 +2192,153 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
+    Context "TotalPRs Property (Issue #400)" {
+        # Tests for TotalPRs property being set correctly in results
+
+        BeforeEach {
+            # Reset mocks for each test to prevent cross-test contamination
+            Mock Get-PRComments { return @() }
+            Mock Add-CommentReaction { return $true }
+            Mock Get-SimilarPRs { return @() }
+            Mock Resolve-PRConflicts { return $false }
+        }
+
+        It "Sets TotalPRs to 0 when no open PRs" {
+            # Use Write-Output -NoEnumerate to preserve empty array
+            Mock Get-OpenPRs { Write-Output -NoEnumerate @() }
+
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            $results.TotalPRs | Should -Be 0
+        }
+
+        It "Sets TotalPRs to count of open PRs" {
+            Mock Get-OpenPRs {
+                return @(
+                    @{
+                        number = 1
+                        title = "PR 1"
+                        state = "OPEN"
+                        headRefName = "branch-1"
+                        baseRefName = "main"
+                        mergeable = "MERGEABLE"
+                        reviewDecision = $null
+                        author = @{ login = "user1" }
+                        reviewRequests = @()
+                    },
+                    @{
+                        number = 2
+                        title = "PR 2"
+                        state = "OPEN"
+                        headRefName = "branch-2"
+                        baseRefName = "main"
+                        mergeable = "MERGEABLE"
+                        reviewDecision = $null
+                        author = @{ login = "user2" }
+                        reviewRequests = @()
+                    },
+                    @{
+                        number = 3
+                        title = "PR 3"
+                        state = "OPEN"
+                        headRefName = "branch-3"
+                        baseRefName = "main"
+                        mergeable = "MERGEABLE"
+                        reviewDecision = $null
+                        author = @{ login = "user3" }
+                        reviewRequests = @()
+                    }
+                )
+            }
+
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            $results.TotalPRs | Should -Be 3
+        }
+
+        It "TotalPRs equals Processed when single PR is processed" {
+            Mock Get-OpenPRs {
+                # Use Write-Output -NoEnumerate with single-element array
+                Write-Output -NoEnumerate @(
+                    @{
+                        number = 1
+                        title = "PR 1"
+                        state = "OPEN"
+                        headRefName = "branch-1"
+                        baseRefName = "main"
+                        mergeable = "MERGEABLE"
+                        reviewDecision = $null
+                        author = @{ login = "user1" }
+                        reviewRequests = @()
+                    }
+                )
+            }
+
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            # TotalPRs should equal count of open PRs
+            $results.TotalPRs | Should -Be 1
+            # Processed should be 1 since we processed the PR
+            $results.Processed | Should -Be 1
+        }
+    }
+
+    Context "GITHUB_STEP_SUMMARY Output (Issue #400)" {
+        # Tests for step summary output logic
+        # Note: The actual file writing is in the entry point, but we can test the data used
+
+        BeforeEach {
+            Mock Get-PRComments { return @() }
+            Mock Add-CommentReaction { return $true }
+            Mock Get-SimilarPRs { return @() }
+            Mock Resolve-PRConflicts { return $false }
+        }
+
+        It "Results hashtable contains all keys needed for step summary" {
+            Mock Get-OpenPRs { Write-Output -NoEnumerate @() }
+
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            # Verify all required keys exist for step summary generation
+            $results.Keys | Should -Contain 'TotalPRs'
+            $results.Keys | Should -Contain 'Processed'
+            $results.Keys | Should -Contain 'CommentsAcknowledged'
+            $results.Keys | Should -Contain 'ConflictsResolved'
+            $results.Keys | Should -Contain 'ActionRequired'
+            $results.Keys | Should -Contain 'Blocked'
+        }
+
+        It "ActionRequired count is 0 when no PRs need action" {
+            Mock Get-OpenPRs { Write-Output -NoEnumerate @() }
+
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            # Use @() wrapper to handle null/empty consistently
+            @($results.ActionRequired).Count | Should -Be 0
+        }
+
+        It "Blocked count is 0 when no PRs are blocked" {
+            Mock Get-OpenPRs {
+                return ,@{
+                    number = 1
+                    title = "Approved PR"
+                    state = "OPEN"
+                    headRefName = "feature"
+                    baseRefName = "main"
+                    mergeable = "MERGEABLE"
+                    reviewDecision = "APPROVED"
+                    author = @{ login = "user1" }
+                    reviewRequests = @()
+                }
+            }
+
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            # Use @() wrapper to handle null/empty consistently
+            @($results.Blocked).Count | Should -Be 0
+        }
+    }
+
     Context "Protected Branch Safety" {
         It "Exits with code 2 when on protected branch main" {
             Mock git {
