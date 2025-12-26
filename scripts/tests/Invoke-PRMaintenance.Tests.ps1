@@ -1067,6 +1067,175 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
+    Context "Get-DerivativePRs Function" {
+        # Tests for derivative PR detection - P0 per bot-author-feedback-protocol.md
+        # Derivative PRs target feature branches (not main) and are created by bots
+
+        It "Detects derivative PR from copilot-swe-agent targeting feature branch" {
+            $mockPRs = @(
+                @{
+                    number = 437
+                    title = "Rename variable for clarity"
+                    baseRefName = "fix/400-pr-maintenance"  # Targets feature branch, not main
+                    headRefName = "copilot/sub-pr-402"
+                    author = @{ login = "copilot-swe-agent" }
+                },
+                @{
+                    number = 402
+                    title = "feat: PR maintenance visibility"
+                    baseRefName = "main"  # Regular PR targeting main
+                    headRefName = "fix/400-pr-maintenance"
+                    author = @{ login = "rjmurillo-bot" }
+                }
+            )
+
+            $result = Get-DerivativePRs -Owner "test" -Repo "repo" -OpenPRs $mockPRs
+            $result.Count | Should -Be 1
+            $result[0].Number | Should -Be 437
+            $result[0].TargetBranch | Should -Be "fix/400-pr-maintenance"
+            $result[0].Author | Should -Be "copilot-swe-agent"
+            $result[0].Category | Should -Be "mention-triggered"
+        }
+
+        It "Extracts parent PR number from copilot branch naming pattern" {
+            $mockPRs = @(
+                @{
+                    number = 437
+                    title = "Fix issue from review"
+                    baseRefName = "feat/main-feature"
+                    headRefName = "copilot/sub-pr-402"  # Pattern: sub-pr-{parent}
+                    author = @{ login = "copilot-swe-agent" }
+                }
+            )
+
+            $result = Get-DerivativePRs -Owner "test" -Repo "repo" -OpenPRs $mockPRs
+            $result[0].ParentPR | Should -Be 402
+        }
+
+        It "Returns empty array when no derivative PRs exist" {
+            $mockPRs = @(
+                @{
+                    number = 100
+                    title = "Regular PR"
+                    baseRefName = "main"
+                    headRefName = "feature-branch"
+                    author = @{ login = "rjmurillo-bot" }
+                }
+            )
+
+            $result = Get-DerivativePRs -Owner "test" -Repo "repo" -OpenPRs $mockPRs
+            ($result -eq $null -or $result.Count -eq 0) | Should -Be $true
+        }
+
+        It "Ignores human-authored PRs targeting feature branches" {
+            $mockPRs = @(
+                @{
+                    number = 500
+                    title = "Human sub-PR"
+                    baseRefName = "feature-branch"  # Targets feature branch
+                    headRefName = "human-fix"
+                    author = @{ login = "rjmurillo" }  # Human author
+                }
+            )
+
+            $result = Get-DerivativePRs -Owner "test" -Repo "repo" -OpenPRs $mockPRs
+            ($result -eq $null -or $result.Count -eq 0) | Should -Be $true
+        }
+
+        It "Ignores agent-controlled bots targeting feature branches" {
+            # agent-controlled bots (like rjmurillo-bot) don't create derivatives
+            # they respond directly to their own PRs
+            $mockPRs = @(
+                @{
+                    number = 600
+                    title = "Bot sub-PR"
+                    baseRefName = "feature-branch"
+                    headRefName = "bot-fix"
+                    author = @{ login = "rjmurillo-bot" }  # agent-controlled, not mention-triggered
+                }
+            )
+
+            $result = Get-DerivativePRs -Owner "test" -Repo "repo" -OpenPRs $mockPRs
+            ($result -eq $null -or $result.Count -eq 0) | Should -Be $true
+        }
+    }
+
+    Context "Get-PRsWithPendingDerivatives Function" {
+        # Tests for parent PR correlation with derivatives
+
+        It "Correlates derivative PR with parent by matching target branch to head branch" {
+            $mockPRs = @(
+                @{
+                    number = 402
+                    title = "Parent PR"
+                    baseRefName = "main"
+                    headRefName = "fix/400-pr-maintenance"  # Parent's head branch
+                    author = @{ login = "rjmurillo-bot" }
+                },
+                @{
+                    number = 437
+                    title = "Derivative PR"
+                    baseRefName = "fix/400-pr-maintenance"  # Targets parent's head branch
+                    headRefName = "copilot/sub-pr-402"
+                    author = @{ login = "copilot-swe-agent" }
+                }
+            )
+            $derivatives = @(
+                @{
+                    Number = 437
+                    TargetBranch = "fix/400-pr-maintenance"
+                    Author = "copilot-swe-agent"
+                }
+            )
+
+            $result = Get-PRsWithPendingDerivatives -Owner "test" -Repo "repo" -OpenPRs $mockPRs -Derivatives $derivatives
+            $result.Count | Should -Be 1
+            $result[0].ParentPR | Should -Be 402
+            $result[0].Derivatives | Should -Contain 437
+        }
+
+        It "Groups multiple derivatives under same parent" {
+            $mockPRs = @(
+                @{
+                    number = 100
+                    title = "Parent PR"
+                    baseRefName = "main"
+                    headRefName = "feature-branch"
+                    author = @{ login = "rjmurillo-bot" }
+                }
+            )
+            $derivatives = @(
+                @{ Number = 201; TargetBranch = "feature-branch"; Author = "copilot-swe-agent" },
+                @{ Number = 202; TargetBranch = "feature-branch"; Author = "copilot-swe-agent" }
+            )
+
+            $result = Get-PRsWithPendingDerivatives -Owner "test" -Repo "repo" -OpenPRs $mockPRs -Derivatives $derivatives
+            $result.Count | Should -Be 1
+            $result[0].ParentPR | Should -Be 100
+            $result[0].Derivatives.Count | Should -Be 2
+            $result[0].Derivatives | Should -Contain 201
+            $result[0].Derivatives | Should -Contain 202
+        }
+
+        It "Returns empty array when no matching parent found" {
+            $mockPRs = @(
+                @{
+                    number = 100
+                    title = "Unrelated PR"
+                    baseRefName = "main"
+                    headRefName = "other-branch"  # Doesn't match derivative target
+                    author = @{ login = "rjmurillo-bot" }
+                }
+            )
+            $derivatives = @(
+                @{ Number = 201; TargetBranch = "feature-branch"; Author = "copilot-swe-agent" }
+            )
+
+            $result = Get-PRsWithPendingDerivatives -Owner "test" -Repo "repo" -OpenPRs $mockPRs -Derivatives $derivatives
+            ($result -eq $null -or $result.Count -eq 0) | Should -Be $true
+        }
+    }
+
     Context "Test-IsGitHubRunner Function" {
         It "Returns true when GITHUB_ACTIONS environment variable is set" {
             $env:GITHUB_ACTIONS = "true"

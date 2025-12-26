@@ -945,6 +945,156 @@ function Resolve-PRConflicts {
     }
 }
 
+function Get-DerivativePRs {
+    <#
+    .SYNOPSIS
+        Detects derivative PRs that target feature branches instead of main.
+    .DESCRIPTION
+        Derivative PRs are created by bots (typically copilot-swe-agent) that:
+        - Target a feature branch (not main/master) - the parent PR's branch
+        - Address specific comments from the parent PR's review
+
+        These require special handling to avoid orphaned or conflicting changes.
+
+        See: .agents/architecture/bot-author-feedback-protocol.md#derivative-prs
+    .PARAMETER Owner
+        Repository owner.
+    .PARAMETER Repo
+        Repository name.
+    .PARAMETER OpenPRs
+        Optional. Pre-fetched array of open PRs to analyze. If not provided,
+        will fetch from API.
+    .OUTPUTS
+        Array of hashtables with derivative PR info:
+        - Number: PR number
+        - Title: PR title
+        - Author: Author login
+        - TargetBranch: The feature branch being targeted (baseRefName)
+        - ParentPR: Parent PR number (if determinable from branch name pattern)
+        - SourceBranch: The derivative's branch (headRefName)
+    .EXAMPLE
+        Get-DerivativePRs -Owner 'rjmurillo' -Repo 'ai-agents'
+        # Returns derivative PRs targeting non-main branches
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$Owner,
+        [string]$Repo,
+        [Parameter()]
+        [array]$OpenPRs = $null
+    )
+
+    # Use pre-fetched PRs if provided, otherwise fetch from API
+    if ($null -eq $OpenPRs) {
+        $OpenPRs = Get-OpenPRs -Owner $Owner -Repo $Repo -Limit 100
+    }
+
+    $derivatives = @()
+
+    foreach ($pr in $OpenPRs) {
+        # Skip PRs targeting main/master - these are not derivatives
+        if ($pr.baseRefName -eq 'main' -or $pr.baseRefName -eq 'master') {
+            continue
+        }
+
+        # Check if author is a mention-triggered bot (typical derivative PR creator)
+        $authorLogin = $pr.author.login
+        $botInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
+
+        # Only mention-triggered bots create derivative PRs (e.g., copilot-swe-agent)
+        if ($botInfo.IsBot -and $botInfo.Category -eq 'mention-triggered') {
+            # Try to determine parent PR from branch name pattern
+            # Common patterns: copilot/sub-pr-123, copilot/fix-pr-456
+            $parentPR = $null
+            if ($pr.headRefName -match 'sub-pr-(\d+)' -or $pr.headRefName -match 'pr-(\d+)') {
+                $parentPR = [int]$Matches[1]
+            }
+
+            $derivatives += @{
+                Number = $pr.number
+                Title = $pr.title
+                Author = $authorLogin
+                TargetBranch = $pr.baseRefName
+                ParentPR = $parentPR
+                SourceBranch = $pr.headRefName
+                Category = $botInfo.Category
+                Mention = $botInfo.Mention
+            }
+        }
+    }
+
+    # Skill-PowerShell-002: Return @() not $null for empty results
+    if ($derivatives.Count -eq 0) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+    Write-Output -NoEnumerate $derivatives
+}
+
+function Get-PRsWithPendingDerivatives {
+    <#
+    .SYNOPSIS
+        Finds parent PRs that have pending derivative PRs.
+    .DESCRIPTION
+        Cross-references open PRs with derivative PRs to identify parent PRs
+        that should not be merged until their derivatives are resolved.
+
+        Risk: Parent PR may merge before derivative is reviewed, leaving
+        the derivative orphaned (base branch deleted).
+
+        See: .agents/architecture/bot-author-feedback-protocol.md#risk-race-condition
+    .PARAMETER Owner
+        Repository owner.
+    .PARAMETER Repo
+        Repository name.
+    .PARAMETER OpenPRs
+        Pre-fetched array of open PRs.
+    .PARAMETER Derivatives
+        Pre-fetched array of derivative PRs from Get-DerivativePRs.
+    .OUTPUTS
+        Array of hashtables with parent PR info and their derivatives:
+        - ParentPR: Parent PR number
+        - ParentBranch: Parent PR's head branch
+        - Derivatives: Array of derivative PR numbers
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$Owner,
+        [string]$Repo,
+        [Parameter(Mandatory)]
+        [array]$OpenPRs,
+        [Parameter(Mandatory)]
+        [array]$Derivatives
+    )
+
+    $parentsWithDerivatives = @{}
+
+    foreach ($derivative in $Derivatives) {
+        # Find the parent PR by matching target branch to head branch
+        $parent = $OpenPRs | Where-Object { $_.headRefName -eq $derivative.TargetBranch }
+
+        if ($parent) {
+            $parentNum = $parent.number
+            if (-not $parentsWithDerivatives.ContainsKey($parentNum)) {
+                $parentsWithDerivatives[$parentNum] = @{
+                    ParentPR = $parentNum
+                    ParentBranch = $parent.headRefName
+                    ParentTitle = $parent.title
+                    Derivatives = @()
+                }
+            }
+            $parentsWithDerivatives[$parentNum].Derivatives += $derivative.Number
+        }
+    }
+
+    # Skill-PowerShell-002: Return @() not $null for empty results
+    if ($parentsWithDerivatives.Count -eq 0) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+    Write-Output -NoEnumerate @($parentsWithDerivatives.Values)
+}
+
 function Get-SimilarPRs {
     <#
     .SYNOPSIS
@@ -1034,6 +1184,8 @@ function Invoke-PRMaintenance {
         ConflictsResolved = 0
         Blocked = [System.Collections.ArrayList]::new()          # Human-authored PRs with CHANGES_REQUESTED
         ActionRequired = [System.Collections.ArrayList]::new()   # Bot-authored PRs with CHANGES_REQUESTED (agent should address)
+        DerivativePRs = [System.Collections.ArrayList]::new()    # PRs targeting feature branches (not main)
+        ParentsWithDerivatives = [System.Collections.ArrayList]::new()  # Parent PRs that have pending derivatives
         Errors = [System.Collections.ArrayList]::new()
     }
 
@@ -1045,6 +1197,45 @@ function Invoke-PRMaintenance {
     $prs = Get-OpenPRs -Owner $Owner -Repo $Repo -Limit $MaxPRs
     $results.TotalPRs = $prs.Count
     Write-Log "Found $($prs.Count) open PRs" -Level INFO
+
+    # ============================================================
+    # DERIVATIVE PR DETECTION (P0 per bot-author-feedback-protocol.md)
+    # ============================================================
+    # Detect derivative PRs that target feature branches (not main).
+    # These are typically created by copilot-swe-agent in response to
+    # review comments on parent PRs.
+    # ============================================================
+
+    $derivatives = Get-DerivativePRs -Owner $Owner -Repo $Repo -OpenPRs $prs
+    if ($derivatives.Count -gt 0) {
+        Write-Log "Found $($derivatives.Count) derivative PR(s) targeting feature branches" -Level WARN
+        foreach ($d in $derivatives) {
+            Write-Log "  Derivative PR #$($d.Number): targets '$($d.TargetBranch)' (from $($d.Author))" -Level INFO
+            $null = $results.DerivativePRs.Add($d)
+        }
+
+        # Find parent PRs that have pending derivatives
+        $parentsWithDerivatives = Get-PRsWithPendingDerivatives -Owner $Owner -Repo $Repo -OpenPRs $prs -Derivatives $derivatives
+        if ($parentsWithDerivatives.Count -gt 0) {
+            Write-Log "Found $($parentsWithDerivatives.Count) parent PR(s) with pending derivatives" -Level WARN
+            foreach ($p in $parentsWithDerivatives) {
+                Write-Log "  Parent PR #$($p.ParentPR) has derivative(s): #$(($p.Derivatives -join ', #'))" -Level WARN
+                $null = $results.ParentsWithDerivatives.Add($p)
+
+                # Add to ActionRequired with PENDING_DERIVATIVES reason
+                $null = $results.ActionRequired.Add(@{
+                    PR = $p.ParentPR
+                    Author = 'N/A'  # Will be populated in main loop
+                    Reason = 'PENDING_DERIVATIVES'
+                    Title = $p.ParentTitle
+                    Category = 'has-derivatives'
+                    Action = "Review derivative PR(s) #$(($p.Derivatives -join ', #')) before merging"
+                    Mention = $null
+                    Derivatives = $p.Derivatives
+                })
+            }
+        }
+    }
 
     foreach ($pr in $prs) {
         Write-Log "Processing PR #$($pr.number): $($pr.title)" -Level INFO
@@ -1247,10 +1438,11 @@ try {
         Write-Log "PRs Processed: $($results.Processed)" -Level INFO
         Write-Log "Comments Acknowledged: $($results.CommentsAcknowledged)" -Level SUCCESS
         Write-Log "Conflicts Resolved: $($results.ConflictsResolved)" -Level SUCCESS
+        Write-Log "Derivative PRs Found: $($results.DerivativePRs.Count)" -Level $(if ($results.DerivativePRs.Count -gt 0) { 'WARN' } else { 'INFO' })
 
         if ($results.ActionRequired.Count -gt 0) {
             Write-Log "---" -Level INFO
-            Write-Log "Bot PRs with CHANGES_REQUESTED:" -Level WARN
+            Write-Log "PRs Requiring Action:" -Level WARN
 
             # Group by category for cleaner output
             $byCategory = $results.ActionRequired | Group-Object -Property Category
@@ -1302,6 +1494,8 @@ try {
 | PRs Processed | $($results.Processed) |
 | Comments Acknowledged | $($results.CommentsAcknowledged) |
 | Conflicts Resolved | $($results.ConflictsResolved) |
+| Derivative PRs | $($results.DerivativePRs.Count) |
+| Parents with Derivatives | $($results.ParentsWithDerivatives.Count) |
 | Bot PRs Need Action | $($results.ActionRequired.Count) |
 | Blocked (human author) | $($results.Blocked.Count) |
 | Errors | $($results.Errors.Count) |
@@ -1340,6 +1534,37 @@ These PRs require rjmurillo-bot action (CHANGES_REQUESTED or @mention):
                     $commands = ($commandTriggered | ForEach-Object { "$($_.Mention) on PR #$($_.PR)" }) -join ', '
                     $summary += "**Command-triggered PRs**: Use bot commands ($commands)`n`n"
                 }
+
+                # Warn about parent PRs with pending derivatives
+                $hasDerivatives = $results.ActionRequired | Where-Object { $_.Category -eq 'has-derivatives' }
+                if ($hasDerivatives.Count -gt 0) {
+                    $summary += "### :warning: Parent PRs with Pending Derivatives`n`n"
+                    $summary += "These PRs have derivative PRs that should be reviewed before merging:`n`n"
+                    $summary += "| Parent PR | Derivative PRs | Action |`n"
+                    $summary += "|-----------|----------------|--------|`n"
+                    foreach ($item in $hasDerivatives) {
+                        $derivativeLinks = ($item.Derivatives | ForEach-Object { "#$_" }) -join ', '
+                        $summary += "| #$($item.PR) | $derivativeLinks | $($item.Action) |`n"
+                    }
+                    $summary += "`n"
+                }
+            }
+
+            # List derivative PRs
+            if ($results.DerivativePRs.Count -gt 0) {
+                $summary += @"
+### Derivative PRs Detected
+
+These PRs target feature branches (not main) and are typically created by bots in response to review comments:
+
+| PR | Author | Target Branch | Parent PR |
+|----|--------|---------------|-----------|
+"@
+                foreach ($d in $results.DerivativePRs) {
+                    $parentLink = if ($d.ParentPR) { "#$($d.ParentPR)" } else { "Unknown" }
+                    $summary += "| #$($d.Number) | $($d.Author) | $($d.TargetBranch) | $parentLink |`n"
+                }
+                $summary += "`n**Action**: Review derivative PRs in context of their parent PRs before merging parents.`n`n"
             }
 
             # Explain why 0 actions might have been taken
