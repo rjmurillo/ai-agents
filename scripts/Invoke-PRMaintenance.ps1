@@ -1066,7 +1066,7 @@ function Invoke-PRMaintenance {
 
             $authorLogin = $pr.author.login
             $botInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
-            $isBotAuthor = $botInfo.IsBot -and $botInfo.Category -eq 'agent-controlled'
+            $isAgentControlledBot = $botInfo.IsBot -and $botInfo.Category -eq 'agent-controlled'
             $isBotReviewer = Test-IsBotReviewer -ReviewRequests $pr.reviewRequests
             $hasChangesRequested = $pr.reviewDecision -eq 'CHANGES_REQUESTED'
 
@@ -1076,9 +1076,9 @@ function Invoke-PRMaintenance {
             $isBotMentioned = $mentionedComments.Count -gt 0
 
             # Determine action based on activation triggers
-            if ($isBotAuthor -or $isBotReviewer) {
+            if ($isAgentControlledBot -or $isBotReviewer) {
                 # Bot is author or reviewer
-                $role = if ($isBotAuthor) { 'author' } else { 'reviewer' }
+                $role = if ($isAgentControlledBot) { 'author' } else { 'reviewer' }
                 if ($hasChangesRequested) {
                     # CHANGES_REQUESTED -> /pr-review
                     Write-Log "PR #$($pr.number): rjmurillo-bot is $role with CHANGES_REQUESTED -> /pr-review" -Level WARN
