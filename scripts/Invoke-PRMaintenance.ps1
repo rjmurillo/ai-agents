@@ -42,7 +42,8 @@ param(
     [string]$Owner,
     [string]$Repo,
     [int]$MaxPRs = 20,
-    [string]$LogPath
+    [string]$LogPath,
+    [switch]$DryRun
 )
 
 Set-StrictMode -Version Latest
@@ -1184,15 +1185,13 @@ function Get-SimilarPRs {
     $output = gh pr list --repo "$Owner/$Repo" --state merged --limit 20 --json number,title 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Log "Failed to query merged PRs: $output" -Level WARN
-        Write-Output -NoEnumerate @()
-        return
+        return @()
     }
 
     # Skill-PowerShell-002: Ensure $mergedPRs is always array, not $null
     $parsed = $output | ConvertFrom-Json
     if ($null -eq $parsed) {
-        Write-Output -NoEnumerate @()
-        return
+        return @()
     }
     $mergedPRs = @($parsed)
 
@@ -1218,20 +1217,17 @@ function Get-SimilarPRs {
             $mergedCompare = $mergedDesc.Substring(0, [Math]::Min($compareLen, $mergedDesc.Length))
 
             if ($thisCompare -eq $mergedCompare -or $thisDesc -like "*$mergedCompare*" -or $mergedDesc -like "*$thisCompare*") {
-                $similar += @{
-                    Number = $merged.number
-                    Title = $merged.title
+                $similar += [PSCustomObject]@{
+                    number = $merged.number
+                    title = $merged.title
                 }
             }
         }
     }
 
     # Skill-PowerShell-002: Ensure return is always array, not $null
-    if ($similar.Count -eq 0) {
-        Write-Output -NoEnumerate @()
-        return
-    }
-    Write-Output -NoEnumerate $similar
+    # Note: Call site uses @() wrapper so simple return works correctly
+    return $similar
 }
 
 #endregion
@@ -1487,7 +1483,7 @@ function Invoke-PRMaintenance {
             if ($similarPRs.Count -gt 0) {
                 Write-Log "PR #$($pr.number) has similar merged PRs - review recommended:" -Level INFO
                 foreach ($similar in $similarPRs) {
-                    Write-Log "  - PR #$($similar.Number): $($similar.Title)" -Level INFO
+                    Write-Log "  - PR #$($similar.number): $($similar.title)" -Level INFO
                 }
             }
 
@@ -1593,7 +1589,7 @@ try {
         }
 
         # Run maintenance
-        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs
+        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs -DryRun:$DryRun
 
         # Summary
         Write-Log "---" -Level INFO
