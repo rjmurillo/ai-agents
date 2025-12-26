@@ -46,20 +46,21 @@ pwsh scripts/Invoke-PRMaintenance.ps1 -MaxPRs 5
 
 Use this to determine which invocation method:
 
-```text
-Q: What is your goal?
-├─ "Routine maintenance" → Scheduled (hourly GitHub Actions)
-├─ "Check PR status now" → Manual: pwsh scripts/Invoke-PRMaintenance.ps1
-├─ "Address CHANGES_REQUESTED" → Agent: /pr-review <PR>
-└─ "Trigger from CI/CD" → gh workflow run pr-maintenance.yml
+```mermaid
+flowchart TD
+    A[What is your goal?] --> B{Goal Type}
+    B -->|Routine maintenance| C[Scheduled: hourly GitHub Actions]
+    B -->|Check PR status now| D[Manual: pwsh scripts/Invoke-PRMaintenance.ps1]
+    B -->|Address CHANGES_REQUESTED| E[Agent: /pr-review PR]
+    B -->|Trigger from CI/CD| F[gh workflow run pr-maintenance.yml]
 
-Q: Are you an agent responding to review comments?
-├─ YES → /pr-review <PR> (processes comments, implements fixes)
-└─ NO → pwsh scripts/Invoke-PRMaintenance.ps1 (scans, reports, resolves conflicts)
+    G[Are you an agent responding to review comments?] --> H{Response}
+    H -->|YES| I[/pr-review PR<br/>processes comments, implements fixes]
+    H -->|NO| J[pwsh scripts/Invoke-PRMaintenance.ps1<br/>scans, reports, resolves conflicts]
 
-Q: Do you need to implement code changes?
-├─ YES → /pr-review (agent modifies code)
-└─ NO → Invoke-PRMaintenance.ps1 (script only reports)
+    K[Do you need to implement code changes?] --> L{Changes Needed}
+    L -->|YES| M[/pr-review<br/>agent modifies code]
+    L -->|NO| N[Invoke-PRMaintenance.ps1<br/>script only reports]
 ```
 
 ## Prerequisites
