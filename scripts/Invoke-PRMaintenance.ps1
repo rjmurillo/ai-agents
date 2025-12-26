@@ -1363,12 +1363,26 @@ function Invoke-PRMaintenance {
                     $results.ConflictsResolved++
                 }
                 else {
-                    $null = $results.Blocked.Add(@{
-                        PR = $pr.number
-                        Author = $authorLogin
-                        Reason = 'UNRESOLVABLE_CONFLICTS'
-                        Title = $pr.title
-                    })
+                    # Bot-authored PRs go to ActionRequired (bot can manually resolve)
+                    # Human-authored PRs go to Blocked (requires human intervention)
+                    if ($isAgentControlledBot) {
+                        $null = $results.ActionRequired.Add(@{
+                            PR = $pr.number
+                            Author = $authorLogin
+                            Reason = 'MANUAL_CONFLICT_RESOLUTION'
+                            Title = $pr.title
+                            Category = 'agent-controlled'
+                            Action = '/pr-review to manually resolve conflicts'
+                        })
+                    }
+                    else {
+                        $null = $results.Blocked.Add(@{
+                            PR = $pr.number
+                            Author = $authorLogin
+                            Reason = 'UNRESOLVABLE_CONFLICTS'
+                            Title = $pr.title
+                        })
+                    }
                 }
             }
 
