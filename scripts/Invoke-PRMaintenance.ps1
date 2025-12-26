@@ -1501,9 +1501,17 @@ function Invoke-PRMaintenance {
                     $results.ConflictsResolved++
                 }
                 else {
-                    # Bot-authored PRs go to ActionRequired (bot can manually resolve)
-                    # Human-authored PRs go to Blocked (requires human intervention)
-                    if ($isAgentControlledBot) {
+                    # Check if PR already in ActionRequired (deduplication - single list guarantee)
+                    $alreadyInActionRequired = $results.ActionRequired | Where-Object { $_.PR -eq $pr.number }
+
+                    if ($alreadyInActionRequired) {
+                        # Update existing ActionRequired entry with conflict info
+                        $alreadyInActionRequired.HasConflicts = $true
+                        $alreadyInActionRequired.Action = "$($alreadyInActionRequired.Action) + resolve conflicts"
+                        Write-Log "PR #$($pr.number): Added conflict info to existing ActionRequired entry" -Level INFO
+                    }
+                    elseif ($isAgentControlledBot) {
+                        # Bot-authored PRs go to ActionRequired (bot can manually resolve)
                         $null = $results.ActionRequired.Add(@{
                             PR = $pr.number
                             Author = $authorLogin
@@ -1514,6 +1522,7 @@ function Invoke-PRMaintenance {
                         })
                     }
                     else {
+                        # Human-authored PRs go to Blocked (requires human intervention)
                         $null = $results.Blocked.Add(@{
                             PR = $pr.number
                             Author = $authorLogin
