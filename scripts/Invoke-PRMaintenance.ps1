@@ -1282,29 +1282,56 @@ function Invoke-PRMaintenance {
                 # Bot is author or reviewer
                 $role = if ($isAgentControlledBot) { 'author' } else { 'reviewer' }
 
+                # Handle copilot-swe-agent PRs specially - synthesize other bot feedback
+                if ($isCopilotPR) {
+                    # Collect comments from other review bots (not copilot) - CASE-INSENSITIVE
+                    $otherBotComments = @($comments | Where-Object {
+                        $_.user.login -imatch '(coderabbitai|cursor\[bot\]|gemini-code-assist)' -and
+                        $_.user.login -inotmatch 'copilot'
+                    })
+                    $commentsToSynthesize = $otherBotComments.Count
+
+                    if ($commentsToSynthesize -gt 0) {
+                        Write-Log "PR #$($pr.number): Found $commentsToSynthesize comments from other bots to synthesize" -Level INFO
+                        $null = $results.ActionRequired.Add(@{
+                            PR = $pr.number
+                            Author = $authorLogin
+                            Reason = 'COPILOT_SYNTHESIS_NEEDED'
+                            Title = $pr.title
+                            Category = 'synthesis-required'
+                            Action = 'Synthesize bot feedback and direct to @copilot'
+                            CommentsToSynthesize = $commentsToSynthesize
+                        })
+                    } else {
+                        Write-Log "PR #$($pr.number): Copilot PR with no other bot comments - no synthesis needed" -Level INFO
+                    }
+                }
+
                 # Get unaddressed comments BEFORE action determination (reused for acknowledgment later)
                 $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number -Comments $comments
                 $hasUnaddressedComments = $unacked.Count -gt 0
 
-                # Trigger action if CHANGES_REQUESTED OR unaddressed comments exist
-                $needsAction = $hasChangesRequested -or $hasUnaddressedComments
+                # Trigger action if CHANGES_REQUESTED OR unaddressed comments exist (for agent-controlled PRs)
+                if (-not $isCopilotPR) {
+                    $needsAction = $hasChangesRequested -or $hasUnaddressedComments
 
-                if ($needsAction) {
-                    $reason = if ($hasChangesRequested) { 'CHANGES_REQUESTED' } else { 'UNADDRESSED_COMMENTS' }
-                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with $reason -> /pr-review" -Level WARN
-                    $null = $results.ActionRequired.Add(@{
-                        PR = $pr.number
-                        Author = $authorLogin
-                        Reason = $reason
-                        Title = $pr.title
-                        Category = 'agent-controlled'
-                        Action = '/pr-review via pr-comment-responder'
-                        Mention = $null
-                        UnaddressedCount = $unacked.Count
-                    })
-                } else {
-                    # No CHANGES_REQUESTED and no unaddressed comments -> maintenance only
-                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role, no action needed -> maintenance only" -Level INFO
+                    if ($needsAction) {
+                        $reason = if ($hasChangesRequested) { 'CHANGES_REQUESTED' } else { 'UNADDRESSED_COMMENTS' }
+                        Write-Log "PR #$($pr.number): rjmurillo-bot is $role with $reason -> /pr-review" -Level WARN
+                        $null = $results.ActionRequired.Add(@{
+                            PR = $pr.number
+                            Author = $authorLogin
+                            Reason = $reason
+                            Title = $pr.title
+                            Category = 'agent-controlled'
+                            Action = '/pr-review via pr-comment-responder'
+                            Mention = $null
+                            UnaddressedCount = $unacked.Count
+                        })
+                    } else {
+                        # No CHANGES_REQUESTED and no unaddressed comments -> maintenance only
+                        Write-Log "PR #$($pr.number): rjmurillo-bot is $role, no action needed -> maintenance only" -Level INFO
+                    }
                 }
 
                 # Acknowledge ALL unaddressed comments (reuse $unacked from above - no duplicate API call)
