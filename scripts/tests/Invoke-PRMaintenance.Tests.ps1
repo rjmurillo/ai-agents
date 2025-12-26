@@ -248,6 +248,393 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
+    Context "Get-UnresolvedReviewThreads Function" {
+        BeforeAll {
+            # GraphQL response fixtures
+            $Script:ThreadFixtures = @{
+                AllUnresolved = @{
+                    data = @{
+                        repository = @{
+                            pullRequest = @{
+                                reviewThreads = @{
+                                    nodes = @(
+                                        @{ id = "T1"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 1001 }) } }
+                                        @{ id = "T2"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 1002 }) } }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                AllResolved = @{
+                    data = @{
+                        repository = @{
+                            pullRequest = @{
+                                reviewThreads = @{
+                                    nodes = @(
+                                        @{ id = "T1"; isResolved = $true; comments = @{ nodes = @(@{ databaseId = 1001 }) } }
+                                        @{ id = "T2"; isResolved = $true; comments = @{ nodes = @(@{ databaseId = 1002 }) } }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                MixedState = @{
+                    data = @{
+                        repository = @{
+                            pullRequest = @{
+                                reviewThreads = @{
+                                    nodes = @(
+                                        @{ id = "T1"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 1001 }) } }
+                                        @{ id = "T2"; isResolved = $true; comments = @{ nodes = @(@{ databaseId = 1002 }) } }
+                                        @{ id = "T3"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 1003 }) } }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                NoThreads = @{
+                    data = @{
+                        repository = @{
+                            pullRequest = @{
+                                reviewThreads = @{
+                                    nodes = @()
+                                }
+                            }
+                        }
+                    }
+                }
+                NullThreads = @{
+                    data = @{
+                        repository = @{
+                            pullRequest = @{
+                                reviewThreads = @{
+                                    nodes = $null
+                                }
+                            }
+                        }
+                    }
+                }
+                # PR #365 equivalent: 5 threads, all unresolved
+                PR365Equivalent = @{
+                    data = @{
+                        repository = @{
+                            pullRequest = @{
+                                reviewThreads = @{
+                                    nodes = @(
+                                        @{ id = "T1"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 1 }) } }
+                                        @{ id = "T2"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 2 }) } }
+                                        @{ id = "T3"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 3 }) } }
+                                        @{ id = "T4"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 4 }) } }
+                                        @{ id = "T5"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 5 }) } }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        It "Returns unresolved threads when some threads are unresolved" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ($Script:ThreadFixtures.AllUnresolved | ConvertTo-Json -Depth 10)
+            }
+
+            $result = Get-UnresolvedReviewThreads -Owner "test" -Repo "repo" -PR 123
+            $result.Count | Should -Be 2
+            $result[0].isResolved | Should -Be $false
+            $result[1].isResolved | Should -Be $false
+        }
+
+        It "Returns empty array when all threads are resolved" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ($Script:ThreadFixtures.AllResolved | ConvertTo-Json -Depth 10)
+            }
+
+            $result = Get-UnresolvedReviewThreads -Owner "test" -Repo "repo" -PR 123
+            # When Where-Object filters everything out, result may be $null
+            # The function returns @() but PowerShell collapses it
+            ($null -eq $result -or $result.Count -eq 0) | Should -Be $true
+        }
+
+        It "Returns empty array when no threads exist" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ($Script:ThreadFixtures.NoThreads | ConvertTo-Json -Depth 10)
+            }
+
+            $result = Get-UnresolvedReviewThreads -Owner "test" -Repo "repo" -PR 123
+            ($null -eq $result -or $result.Count -eq 0) | Should -Be $true
+        }
+
+        It "Returns empty array when threads nodes is null" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ($Script:ThreadFixtures.NullThreads | ConvertTo-Json -Depth 10)
+            }
+
+            $result = Get-UnresolvedReviewThreads -Owner "test" -Repo "repo" -PR 123
+            ($null -eq $result -or $result.Count -eq 0) | Should -Be $true
+        }
+
+        It "Returns empty array on GraphQL API failure" {
+            Mock gh {
+                $global:LASTEXITCODE = 1
+                return "GraphQL error: rate limit exceeded"
+            }
+
+            $result = Get-UnresolvedReviewThreads -Owner "test" -Repo "repo" -PR 123
+            ($null -eq $result -or $result.Count -eq 0) | Should -Be $true
+        }
+
+        It "Returns empty array on JSON parse failure" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return "not valid json {"
+            }
+
+            $result = Get-UnresolvedReviewThreads -Owner "test" -Repo "repo" -PR 123
+            ($null -eq $result -or $result.Count -eq 0) | Should -Be $true
+        }
+
+        It "Correctly filters mixed resolved and unresolved threads" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ($Script:ThreadFixtures.MixedState | ConvertTo-Json -Depth 10)
+            }
+
+            $result = Get-UnresolvedReviewThreads -Owner "test" -Repo "repo" -PR 123
+            $result.Count | Should -Be 2
+            $result | ForEach-Object { $_.isResolved | Should -Be $false }
+            # Verify correct threads returned
+            $result.id | Should -Contain "T1"
+            $result.id | Should -Contain "T3"
+            $result.id | Should -Not -Contain "T2"
+        }
+
+        It "Extracts databaseId from first comment in thread" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ($Script:ThreadFixtures.AllUnresolved | ConvertTo-Json -Depth 10)
+            }
+
+            $result = Get-UnresolvedReviewThreads -Owner "test" -Repo "repo" -PR 123
+            $result[0].comments.nodes[0].databaseId | Should -Be 1001
+            $result[1].comments.nodes[0].databaseId | Should -Be 1002
+        }
+
+        It "Returns 5 unresolved threads for PR #365 equivalent fixture" {
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ($Script:ThreadFixtures.PR365Equivalent | ConvertTo-Json -Depth 10)
+            }
+
+            $result = Get-UnresolvedReviewThreads -Owner "rjmurillo" -Repo "ai-agents" -PR 365
+            $result.Count | Should -Be 5
+            $result | ForEach-Object { $_.isResolved | Should -Be $false }
+        }
+    }
+
+    Context "Get-UnaddressedComments Function" {
+        BeforeAll {
+            # Comment fixtures for different lifecycle states
+            $Script:CommentFixtures = @{
+                # NEW state: unacknowledged (eyes=0)
+                NewState = @(
+                    @{ id = 1001; user = @{ type = "Bot"; login = "coderabbitai[bot]" }; reactions = @{ eyes = 0 }; body = "Suggestion 1" }
+                )
+                # ACKNOWLEDGED state: eyes>0 but thread unresolved
+                AcknowledgedState = @(
+                    @{ id = 1002; user = @{ type = "Bot"; login = "coderabbitai[bot]" }; reactions = @{ eyes = 1 }; body = "Suggestion 2" }
+                )
+                # RESOLVED state: eyes>0 and thread resolved
+                ResolvedState = @(
+                    @{ id = 1003; user = @{ type = "Bot"; login = "coderabbitai[bot]" }; reactions = @{ eyes = 1 }; body = "Suggestion 3" }
+                )
+                # PR #365 equivalent: 5 bot comments with eyes>0
+                PR365Comments = @(
+                    @{ id = 1; user = @{ type = "Bot"; login = "coderabbitai[bot]" }; reactions = @{ eyes = 1 }; body = "Comment 1" }
+                    @{ id = 2; user = @{ type = "Bot"; login = "coderabbitai[bot]" }; reactions = @{ eyes = 1 }; body = "Comment 2" }
+                    @{ id = 3; user = @{ type = "Bot"; login = "coderabbitai[bot]" }; reactions = @{ eyes = 1 }; body = "Comment 3" }
+                    @{ id = 4; user = @{ type = "Bot"; login = "coderabbitai[bot]" }; reactions = @{ eyes = 1 }; body = "Comment 4" }
+                    @{ id = 5; user = @{ type = "Bot"; login = "coderabbitai[bot]" }; reactions = @{ eyes = 1 }; body = "Comment 5" }
+                )
+                # Fully resolved: all bot comments addressed
+                FullyResolved = @(
+                    @{ id = 1001; user = @{ type = "Bot"; login = "coderabbitai[bot]" }; reactions = @{ eyes = 1 }; body = "Resolved 1" }
+                    @{ id = 1002; user = @{ type = "Bot"; login = "coderabbitai[bot]" }; reactions = @{ eyes = 1 }; body = "Resolved 2" }
+                )
+                # Mixed state: unacked, acked but unresolved, resolved
+                MixedState = @(
+                    @{ id = 1; user = @{ type = "Bot"; login = "bot1" }; reactions = @{ eyes = 0 }; body = "Unacked" }
+                    @{ id = 2; user = @{ type = "Bot"; login = "bot2" }; reactions = @{ eyes = 1 }; body = "Acked unresolved" }
+                    @{ id = 3; user = @{ type = "Bot"; login = "bot3" }; reactions = @{ eyes = 1 }; body = "Acked resolved" }
+                )
+                # Human comments only
+                HumanOnly = @(
+                    @{ id = 2001; user = @{ type = "User"; login = "human" }; reactions = @{ eyes = 0 }; body = "Human comment" }
+                )
+                # Mixed bot and human
+                MixedBotHuman = @(
+                    @{ id = 1001; user = @{ type = "Bot"; login = "bot" }; reactions = @{ eyes = 0 }; body = "Bot unacked" }
+                    @{ id = 2001; user = @{ type = "User"; login = "human" }; reactions = @{ eyes = 0 }; body = "Human unacked" }
+                )
+            }
+        }
+
+        It "Returns unacknowledged bot comments (NEW state: eyes=0)" {
+            Mock Get-PRComments { return $Script:CommentFixtures.NewState }
+            Mock Get-UnresolvedReviewThreads { return @() }
+
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123
+            $result.Count | Should -Be 1
+            $result[0].id | Should -Be 1001
+            $result[0].reactions.eyes | Should -Be 0
+        }
+
+        It "Returns acknowledged but unresolved comments (ACKNOWLEDGED state: eyes>0, isResolved=false)" {
+            Mock Get-PRComments { return $Script:CommentFixtures.AcknowledgedState }
+            # Thread is unresolved, containing comment ID 1002
+            Mock Get-UnresolvedReviewThreads {
+                return @(
+                    @{ id = "T1"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 1002 }) } }
+                )
+            }
+
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123
+            $result.Count | Should -Be 1
+            $result[0].id | Should -Be 1002
+            $result[0].reactions.eyes | Should -Be 1  # Has eyes but still unaddressed
+        }
+
+        It "Returns empty array when all comments addressed (eyes>0, isResolved=true)" {
+            Mock Get-PRComments { return $Script:CommentFixtures.FullyResolved }
+            # All threads resolved - return empty
+            Mock Get-UnresolvedReviewThreads { return @() }
+
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123
+            # PowerShell may collapse empty array to $null
+            ($null -eq $result -or $result.Count -eq 0) | Should -Be $true
+        }
+
+        It "Returns empty array when no comments exist" {
+            Mock Get-PRComments { return @() }
+            Mock Get-UnresolvedReviewThreads { return @() }
+
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123
+            # PowerShell may collapse empty array to $null
+            ($null -eq $result -or $result.Count -eq 0) | Should -Be $true
+        }
+
+        It "Returns empty array when Comments parameter is null" {
+            # When Comments is $null, the function calls Get-PRComments
+            Mock Get-PRComments { return @() }
+            Mock Get-UnresolvedReviewThreads { return @() }
+
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123 -Comments $null
+            # PowerShell may collapse empty array to $null
+            ($null -eq $result -or $result.Count -eq 0) | Should -Be $true
+        }
+
+        It "Uses pre-fetched Comments parameter without calling Get-PRComments" {
+            $preFetchedComments = $Script:CommentFixtures.NewState
+            Mock Get-PRComments { throw "Should not be called" }
+            Mock Get-UnresolvedReviewThreads { return @() }
+
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123 -Comments $preFetchedComments
+            $result.Count | Should -Be 1
+            Should -Not -Invoke Get-PRComments
+        }
+
+        It "Filters out non-bot comments correctly" {
+            Mock Get-PRComments { return $Script:CommentFixtures.MixedBotHuman }
+            Mock Get-UnresolvedReviewThreads { return @() }
+
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123
+            $result.Count | Should -Be 1
+            $result[0].user.type | Should -Be "Bot"
+            $result | Where-Object { $_.user.type -eq "User" } | Should -BeNullOrEmpty
+        }
+
+        It "Returns empty array when only human comments exist" {
+            Mock Get-PRComments { return $Script:CommentFixtures.HumanOnly }
+            Mock Get-UnresolvedReviewThreads { return @() }
+
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123
+            # PowerShell may collapse empty array to $null
+            ($null -eq $result -or $result.Count -eq 0) | Should -Be $true
+        }
+
+        It "Correctly handles mixed state: returns only unaddressed comments" {
+            Mock Get-PRComments { return $Script:CommentFixtures.MixedState }
+            # Thread for comment ID 2 is unresolved, thread for ID 3 is resolved
+            Mock Get-UnresolvedReviewThreads {
+                return @(
+                    @{ id = "T2"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 2 }) } }
+                )
+            }
+
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123
+            # Should return: ID 1 (unacked) and ID 2 (acked but unresolved)
+            # Should NOT return: ID 3 (acked and resolved)
+            $result.Count | Should -Be 2
+            $result.id | Should -Contain 1
+            $result.id | Should -Contain 2
+            $result.id | Should -Not -Contain 3
+        }
+
+        It "Returns 5 unaddressed comments for PR #365 equivalent (all acknowledged but unresolved)" {
+            Mock Get-PRComments { return $Script:CommentFixtures.PR365Comments }
+            # All 5 threads are unresolved
+            Mock Get-UnresolvedReviewThreads {
+                return @(
+                    @{ id = "T1"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 1 }) } }
+                    @{ id = "T2"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 2 }) } }
+                    @{ id = "T3"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 3 }) } }
+                    @{ id = "T4"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 4 }) } }
+                    @{ id = "T5"; isResolved = $false; comments = @{ nodes = @(@{ databaseId = 5 }) } }
+                )
+            }
+
+            $result = Get-UnaddressedComments -Owner "rjmurillo" -Repo "ai-agents" -PRNumber 365
+            $result.Count | Should -Be 5
+            $result | ForEach-Object { $_.reactions.eyes | Should -Be 1 }  # All acknowledged
+        }
+
+        It "Returns 0 for fully resolved PR (Fixture 2 from PRD)" {
+            Mock Get-PRComments { return $Script:CommentFixtures.FullyResolved }
+            Mock Get-UnresolvedReviewThreads { return @() }  # All threads resolved
+
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123
+            $result.Count | Should -Be 0
+        }
+
+        It "Gracefully handles Get-UnresolvedReviewThreads returning empty array" {
+            Mock Get-PRComments { return $Script:CommentFixtures.NewState }
+            Mock Get-UnresolvedReviewThreads { return @() }
+
+            # Should still return unacknowledged comments (eyes=0)
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123
+            $result.Count | Should -Be 1
+        }
+
+        It "Never returns null (per Skill-PowerShell-002)" {
+            Mock Get-PRComments { return @() }
+            Mock Get-UnresolvedReviewThreads { return @() }
+
+            $result = Get-UnaddressedComments -Owner "test" -Repo "repo" -PRNumber 123
+            # Per Skill-PowerShell-002: functions return arrays, never $null
+            # Empty array is valid, but $null is not
+            $null -eq $result | Should -Be $false -Because "Function should return empty array, not null"
+            $result.GetType().IsArray | Should -Be $true -Because "Result should be an array type"
+        }
+    }
+
     Context "Add-CommentReaction Function" {
         It "Returns true on successful reaction" {
             Mock Invoke-GhApi {
