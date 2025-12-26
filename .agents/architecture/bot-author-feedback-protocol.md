@@ -306,6 +306,54 @@ When the protocol says "process comments", the agent must:
 3. Reply to comment with status: commit SHA if fixed, explanation if won't fix
 4. Mark review thread as resolved (if applicable)
 
+## Comment Lifecycle Model
+
+### State Transitions
+
+```text
+[NEW] -> [ACKNOWLEDGED] -> [REPLIED] -> [RESOLVED]
+```
+
+| State | reactions.eyes | isResolved | Has Reply |
+|-------|---------------|------------|-----------|
+| NEW | 0 | false | No |
+| ACKNOWLEDGED | > 0 | false | No |
+| REPLIED | > 0 | false | Yes |
+| RESOLVED | > 0 | true | Yes |
+
+### Detection Functions
+
+| Function | Detects States | Purpose |
+|----------|---------------|---------|
+| `Get-UnacknowledgedComments` | NEW only | Legacy check for eyes=0 |
+| `Get-UnresolvedReviewThreads` | NEW, ACKNOWLEDGED, REPLIED | GraphQL thread resolution check |
+| `Get-UnaddressedComments` | NEW, ACKNOWLEDGED, REPLIED | Combined actionable check |
+
+### Why Both Checks Matter
+
+**Problem (PR #365)**: Script used only `Get-UnacknowledgedComments`, which checked `reactions.eyes = 0`. PR #365 had 5 comments with `eyes=1` but all threads unresolved. Script incorrectly reported "no action needed."
+
+**Solution**: `Get-UnaddressedComments` checks BOTH acknowledgment AND thread resolution:
+
+```powershell
+# OLD: Only detected NEW state
+$unacked = Get-UnacknowledgedComments  # eyes = 0
+
+# NEW: Detects all unaddressed states
+$unaddressed = Get-UnaddressedComments  # eyes = 0 OR isResolved = false
+```
+
+### ActionRequired Reason Field
+
+The script now distinguishes the reason for action:
+
+| Reason | Condition | Meaning |
+|--------|-----------|---------|
+| `CHANGES_REQUESTED` | reviewDecision = CHANGES_REQUESTED | Reviewer formally requested changes |
+| `UNRESOLVED_THREADS` | Threads with isResolved = false | Comments acknowledged but not resolved |
+| `UNACKNOWLEDGED` | Comments with eyes = 0 | Comments not yet seen by bot |
+| `UNRESOLVED_THREADS+UNACKNOWLEDGED` | Both conditions | Mixed state |
+
 ## State Machine
 
 ```mermaid
@@ -594,6 +642,25 @@ ProcessPR()
 | **Maintenance** | Merge conflict resolution only |
 | **Eyes reaction** | Social indicator that bot acknowledged and will address feedback |
 | **reviewDecision** | GitHub API field: null, APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED |
+
+### Acknowledged vs Resolved
+
+**Acknowledged**: A comment has received an eyes reaction, indicating the bot has seen and queued it for processing.
+
+- Check: `reactions.eyes > 0`
+- Function: `Get-UnacknowledgedComments`
+
+**Resolved**: A review thread has been marked as resolved in GitHub.
+
+- Check: `isResolved = true` (via GraphQL API)
+- Function: `Get-UnresolvedReviewThreads`
+
+**Unaddressed**: Either unacknowledged OR unresolved.
+
+- Check: `reactions.eyes = 0 OR isResolved = false`
+- Function: `Get-UnaddressedComments`
+
+**Example (PR #365)**: Had 5 comments with `eyes=1` but all threads remained unresolved. Before the fix, `Get-UnacknowledgedComments` returned 0 (all acknowledged). After the fix, `Get-UnaddressedComments` returns 5 (none resolved).
 
 ## Related Documents
 
