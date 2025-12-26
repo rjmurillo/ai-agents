@@ -70,37 +70,40 @@ Before performing any work, rjmurillo-bot MUST:
 
 ```mermaid
 flowchart TD
-    A[PR] --> B{Is rjmurillo-bot<br/>the PR author?}
+    A[Fetch Open PRs] --> B{Derivative PRs?}
 
-    B -->|Yes| C{CHANGES_REQUESTED?}
-    C -->|Yes| D["/pr-review via pr-comment-responder"]
-    C -->|No| M
+    B -->|Yes| C[Detect & Link to Parents]
+    C --> D[Add Parents to ActionRequired]
+    D --> E[Process Each PR]
 
-    B -->|No| E{Is rjmurillo-bot<br/>added as reviewer?}
+    B -->|No| E
 
-    E -->|Yes| C
+    E --> F{Is rjmurillo-bot<br/>the PR author?}
 
-    E -->|No| F{Is @rjmurillo-bot<br/>mentioned in comments?}
+    F -->|Yes| G{CHANGES_REQUESTED?}
+    G -->|Yes| H["/pr-review via pr-comment-responder"]
+    G -->|No| M
 
-    F -->|Yes| G[Add eyes reaction to those comments]
-    G --> H[Process only those comments]
-    H --> M
+    F -->|No| I{Is rjmurillo-bot<br/>added as reviewer?}
 
-    F -->|No| M
+    I -->|Yes| G
 
-    D --> M[Maintenance Tasks]
+    I -->|No| J{Is @rjmurillo-bot<br/>mentioned in comments?}
 
-    M --> O{Has Merge Conflicts?}
+    J -->|Yes| K[Add eyes reaction to those comments]
+    K --> L[Process only those comments]
+    L --> M
 
-    O -->|Yes| L[Resolve Merge Conflicts]
-    O -->|No| P
+    J -->|No| M
 
-    L --> P{Has Derivative PRs?}
+    H --> M[Maintenance Tasks]
 
-    P -->|Yes| Q[Report derivatives in ActionRequired]
-    P -->|No| Z[END]
+    M --> N{Has Merge Conflicts?}
 
-    Q --> Z
+    N -->|Yes| O[Resolve Merge Conflicts]
+    N -->|No| P[Next PR or END]
+
+    O --> P
 ```
 
 ## rjmurillo-bot Activation Triggers
@@ -249,7 +252,17 @@ When the protocol says "process comments", the agent must:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> CheckAuthor: PR received
+    [*] --> FetchPRs: Start maintenance
+
+    FetchPRs --> DetectDerivatives: PRs fetched
+
+    DetectDerivatives --> LinkToParents: Derivatives found
+    DetectDerivatives --> ProcessPRs: No derivatives
+
+    LinkToParents --> AddToActionRequired: Parents identified
+    AddToActionRequired --> ProcessPRs: Report PENDING_DERIVATIVES
+
+    ProcessPRs --> CheckAuthor: For each PR
 
     CheckAuthor --> CheckChangesRequested: rjmurillo-bot is author
     CheckAuthor --> CheckReviewer: Not bot-authored
@@ -270,14 +283,13 @@ stateDiagram-v2
 
     Maintenance --> CheckConflicts: Maintenance tasks
     CheckConflicts --> ResolveConflicts: Has conflicts
-    CheckConflicts --> CheckDerivatives: No conflicts
+    CheckConflicts --> NextPR: No conflicts
 
-    ResolveConflicts --> CheckDerivatives: Conflicts resolved
+    ResolveConflicts --> NextPR: Conflicts resolved
 
-    CheckDerivatives --> ReportDerivatives: Has derivative PRs
-    CheckDerivatives --> Done: No derivatives
+    NextPR --> CheckAuthor: More PRs
+    NextPR --> Done: All PRs processed
 
-    ReportDerivatives --> Done: Add to ActionRequired
     Done --> [*]
 ```
 
