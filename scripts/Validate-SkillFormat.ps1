@@ -19,11 +19,17 @@
 .PARAMETER StagedOnly
     Only check staged files (for pre-commit hook).
 
+.PARAMETER ChangedFiles
+    Array of file paths to check (for CI workflow). When specified, only these files are validated.
+
 .EXAMPLE
     pwsh scripts/Validate-SkillFormat.ps1
 
 .EXAMPLE
     pwsh scripts/Validate-SkillFormat.ps1 -StagedOnly
+
+.EXAMPLE
+    pwsh scripts/Validate-SkillFormat.ps1 -CI -ChangedFiles @('.serena/memories/pr-001.md', '.serena/memories/qa-002.md')
 
 .NOTES
     Related: ADR-017, Issue #307
@@ -32,7 +38,8 @@
 param(
     [string]$Path = ".serena/memories",
     [switch]$CI,
-    [switch]$StagedOnly
+    [switch]$StagedOnly,
+    [string[]]$ChangedFiles = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,7 +48,18 @@ $script:BundledFiles = @()
 $script:PrefixViolations = @()
 
 # Get files to check
-if ($StagedOnly) {
+if ($ChangedFiles.Count -gt 0) {
+    # Use explicitly passed files (from CI workflow)
+    $memoryFiles = $ChangedFiles |
+        Where-Object { $_ -match '^\.serena/memories/.*\.md$' -and $_ -notmatch 'skills-.*-index\.md$' }
+
+    if (-not $memoryFiles) {
+        Write-Host "No skill files in changed files list. Skipping format validation." -ForegroundColor Gray
+        exit 0
+    }
+
+    $filesToCheck = $memoryFiles | ForEach-Object { Get-Item $_ -ErrorAction SilentlyContinue }
+} elseif ($StagedOnly) {
     # Get staged memory files from git
     $stagedFiles = git diff --cached --name-only --diff-filter=ACMR 2>$null |
         Where-Object { $_ -match '^\.serena/memories/.*\.md$' -and $_ -notmatch 'skills-.*-index\.md$' }

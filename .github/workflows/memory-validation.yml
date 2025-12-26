@@ -99,15 +99,22 @@ jobs:
             Write-Host "Memory files changed: $($memoryChanges.Count) file(s)" -ForegroundColor Cyan
             $memoryChanges | ForEach-Object { Write-Host "  - $_" }
             echo "skip=false" >> $env:GITHUB_OUTPUT
+            # Pass changed files as JSON array for the validation step
+            $filesJson = $memoryChanges | ConvertTo-Json -Compress
+            echo "files=$filesJson" >> $env:GITHUB_OUTPUT
           }
 
       - name: Validate Skill Format (ADR-017)
         if: steps.changes.outputs.skip != 'true'
         shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          CHANGED_FILES: ${{ steps.changes.outputs.files }}
         run: |
           Write-Host "=== Skill Format Validation ===" -ForegroundColor Cyan
           Write-Host "Checking for bundled skill files (multiple skills per file)..." -ForegroundColor Gray
-          ./scripts/Validate-SkillFormat.ps1 -CI
+          # Pass only changed files to the script (prevents checking pre-existing issues in unchanged files)
+          $changedFiles = $env:CHANGED_FILES | ConvertFrom-Json
+          ./scripts/Validate-SkillFormat.ps1 -CI -ChangedFiles $changedFiles
 
       - name: Validate Memory Index
         if: steps.changes.outputs.skip != 'true'
