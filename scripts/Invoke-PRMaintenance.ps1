@@ -390,7 +390,7 @@ function Get-OpenPRs {
         [int]$Limit
     )
 
-    $result = gh pr list --repo "$Owner/$Repo" --state open --limit $Limit --json number,title,state,headRefName,baseRefName,mergeable,reviewDecision,author 2>&1
+    $result = gh pr list --repo "$Owner/$Repo" --state open --limit $Limit --json number,title,state,headRefName,baseRefName,mergeable,reviewDecision,author,reviewRequests 2>&1
 
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to list PRs: $result"
@@ -544,6 +544,36 @@ function Test-IsBotAuthor {
 
     $info = Get-BotAuthorInfo -AuthorLogin $AuthorLogin
     return $info.IsBot
+}
+
+function Test-IsBotReviewer {
+    <#
+    .SYNOPSIS
+        Determines if rjmurillo-bot is a requested reviewer on the PR.
+    .DESCRIPTION
+        Checks the reviewRequests array to see if rjmurillo-bot has been
+        requested as a reviewer. This is one of the activation triggers
+        per the bot-author-feedback-protocol.
+
+        See: .agents/architecture/bot-author-feedback-protocol.md
+    .PARAMETER ReviewRequests
+        The reviewRequests array from the PR (contains login fields)
+    .OUTPUTS
+        [bool] True if rjmurillo-bot is a requested reviewer
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [object[]]$ReviewRequests
+    )
+
+    if ($null -eq $ReviewRequests -or $ReviewRequests.Count -eq 0) {
+        return $false
+    }
+
+    # Check if any requested reviewer is rjmurillo-bot
+    $botReviewer = $ReviewRequests | Where-Object { $_.login -eq 'rjmurillo-bot' }
+    return $null -ne $botReviewer
 }
 
 function Get-BotAuthorInfo {
@@ -992,71 +1022,90 @@ function Invoke-PRMaintenance {
         Write-Log "Processing PR #$($pr.number): $($pr.title)" -Level INFO
 
         try {
-            # Check if PR has CHANGES_REQUESTED review decision
-            # CRITICAL: The action depends on WHO authored the PR and bot type:
+            # ============================================================
+            # PR Processing per bot-author-feedback-protocol.md
+            # ============================================================
             #
-            # Bot categories (see Get-BotAuthorInfo):
-            # - human: Cannot address feedback, but maintenance tasks still run
-            # - agent-controlled: Agent can address directly via pr-comment-responder
-            # - mention-triggered: Needs @mention (e.g., @copilot) in comment
-            # - command-triggered: Needs specific command (e.g., @dependabot rebase)
-            # - unknown-bot: Requires manual review
+            # Decision flow:
+            # 1. Is rjmurillo-bot the PR author? -> Check CHANGES_REQUESTED
+            # 2. Is rjmurillo-bot a reviewer? -> Check CHANGES_REQUESTED
+            # 3. Is @rjmurillo-bot mentioned? -> Process mentioned comments
+            # 4. Otherwise -> Maintenance only
             #
-            # IMPORTANT: Maintenance = merge conflict resolution only.
-            # Eyes reaction (comment acknowledgment) only when bot takes action:
-            #   - rjmurillo-bot is PR author
-            #   - rjmurillo-bot is mentioned in comment
-            #
-            # Blocked list: Human-authored PR with NO action toward @rjmurillo-bot
-            #
-            # See: .agents/architecture/bot-author-feedback-protocol.md
-            if ($pr.reviewDecision -eq 'CHANGES_REQUESTED') {
-                $authorLogin = $pr.author.login
-                $botInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
+            # All paths lead to maintenance (conflict resolution).
+            # Eyes reaction only when bot takes action.
+            # ============================================================
 
-                if ($botInfo.IsBot) {
-                    # Bot-authored PR: Add to ActionRequired with specific guidance
-                    Write-Log "PR #$($pr.number) by $authorLogin has CHANGES_REQUESTED - $($botInfo.Category)" -Level WARN
-                    Write-Log "  Action: $($botInfo.Action)" -Level INFO
+            $authorLogin = $pr.author.login
+            $botInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
+            $isBotAuthor = $botInfo.IsBot -and $botInfo.Category -eq 'agent-controlled'
+            $isBotReviewer = Test-IsBotReviewer -ReviewRequests $pr.reviewRequests
+            $hasChangesRequested = $pr.reviewDecision -eq 'CHANGES_REQUESTED'
+
+            # Get comments once for mention check and acknowledgment
+            $comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
+            $mentionedComments = @($comments | Where-Object { $_.body -match '@rjmurillo-bot' })
+            $isBotMentioned = $mentionedComments.Count -gt 0
+
+            # Determine action based on activation triggers
+            if ($isBotAuthor -or $isBotReviewer) {
+                # Bot is author or reviewer
+                if ($hasChangesRequested) {
+                    # CHANGES_REQUESTED -> /pr-review
+                    $role = if ($isBotAuthor) { 'author' } else { 'reviewer' }
+                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with CHANGES_REQUESTED -> /pr-review" -Level WARN
                     $null = $results.ActionRequired.Add(@{
                         PR = $pr.number
                         Author = $authorLogin
                         Reason = 'CHANGES_REQUESTED'
                         Title = $pr.title
-                        Category = $botInfo.Category
-                        Action = $botInfo.Action
-                        Mention = $botInfo.Mention
+                        Category = 'agent-controlled'
+                        Action = '/pr-review via pr-comment-responder'
+                        Mention = $null
                     })
                 } else {
-                    # Human-authored PR: Check if @rjmurillo-bot is mentioned in any comment
-                    # If mentioned, bot can take action; otherwise, PR is blocked
-                    $comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
-                    $botMentioned = $comments | Where-Object { $_.body -match '@rjmurillo-bot' }
+                    # No CHANGES_REQUESTED -> maintenance only
+                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role, no CHANGES_REQUESTED -> maintenance only" -Level INFO
+                }
 
-                    if ($botMentioned) {
-                        # Bot is mentioned - can take action on those specific comments
-                        Write-Log "PR #$($pr.number) by $authorLogin has CHANGES_REQUESTED - @rjmurillo-bot mentioned" -Level WARN
-                        $null = $results.ActionRequired.Add(@{
-                            PR = $pr.number
-                            Author = $authorLogin
-                            Reason = 'CHANGES_REQUESTED'
-                            Title = $pr.title
-                            Category = 'mention-triggered'
-                            Action = 'Process comments where @rjmurillo-bot is mentioned'
-                            Mention = '@rjmurillo-bot'
-                        })
-                    } else {
-                        # No mention - PR is blocked, no actions available for bot
-                        Write-Log "PR #$($pr.number) by $authorLogin has CHANGES_REQUESTED - no @rjmurillo-bot mention (blocked)" -Level INFO
-                        $null = $results.Blocked.Add(@{
-                            PR = $pr.number
-                            Author = $authorLogin
-                            Reason = 'CHANGES_REQUESTED'
-                            Title = $pr.title
-                        })
+                # Acknowledge ALL comments when author or reviewer
+                $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
+                foreach ($comment in $unacked) {
+                    Write-Log "Acknowledging comment $($comment.id) from $($comment.user.login)" -Level ACTION
+                    $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
+                    if ($acked) {
+                        $results.CommentsAcknowledged++
                     }
                 }
-                # NOTE: Maintenance (conflict resolution) always runs
+            }
+            elseif ($isBotMentioned) {
+                # Bot mentioned in comments -> process those specific comments
+                Write-Log "PR #$($pr.number): @rjmurillo-bot mentioned in $($mentionedComments.Count) comment(s)" -Level WARN
+                $null = $results.ActionRequired.Add(@{
+                    PR = $pr.number
+                    Author = $authorLogin
+                    Reason = 'MENTION'
+                    Title = $pr.title
+                    Category = 'mention-triggered'
+                    Action = 'Process comments where @rjmurillo-bot is mentioned'
+                    Mention = '@rjmurillo-bot'
+                })
+
+                # Acknowledge ONLY mentioned comments
+                $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
+                foreach ($comment in $unacked) {
+                    if ($comment.body -match '@rjmurillo-bot') {
+                        Write-Log "Acknowledging mentioned comment $($comment.id) from $($comment.user.login)" -Level ACTION
+                        $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
+                        if ($acked) {
+                            $results.CommentsAcknowledged++
+                        }
+                    }
+                }
+            }
+            else {
+                # Not author, reviewer, or mentioned -> maintenance only, no eyes
+                Write-Log "PR #$($pr.number): rjmurillo-bot not involved -> maintenance only" -Level INFO
             }
 
             # Check for similar merged PRs (informational only - no auto-close)
@@ -1068,33 +1117,9 @@ function Invoke-PRMaintenance {
                 }
             }
 
-            # Acknowledge comments ONLY when rjmurillo-bot will take action:
-            # - If rjmurillo-bot authored PR: acknowledge all comments
-            # - Otherwise: only acknowledge comments mentioning @rjmurillo-bot
-            $authorLogin = $pr.author.login
-            $botInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
-            $isBotAuthor = $botInfo.IsBot -and $botInfo.Category -eq 'agent-controlled'
-
-            $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
-            foreach ($comment in $unacked) {
-                $shouldAcknowledge = $false
-
-                if ($isBotAuthor) {
-                    # Bot authored this PR - acknowledge all comments
-                    $shouldAcknowledge = $true
-                } elseif ($comment.body -match '@rjmurillo-bot') {
-                    # Comment mentions the bot - acknowledge this specific comment
-                    $shouldAcknowledge = $true
-                }
-
-                if ($shouldAcknowledge) {
-                    Write-Log "Acknowledging comment $($comment.id) from $($comment.user.login)" -Level ACTION
-                    $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
-                    if ($acked) {
-                        $results.CommentsAcknowledged++
-                    }
-                }
-            }
+            # ============================================================
+            # MAINTENANCE: Merge conflict resolution (always runs)
+            # ============================================================
 
             # Check and resolve merge conflicts
             if ($pr.mergeable -eq 'CONFLICTING') {

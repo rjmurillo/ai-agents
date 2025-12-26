@@ -1133,6 +1133,50 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
+    Context "Test-IsBotReviewer Function" {
+        # Tests for reviewer detection - activation trigger per bot-author-feedback-protocol.md
+
+        It "Returns true when rjmurillo-bot is in reviewRequests" {
+            $reviewRequests = @(
+                @{ login = 'someuser' }
+                @{ login = 'rjmurillo-bot' }
+            )
+            Test-IsBotReviewer -ReviewRequests $reviewRequests | Should -Be $true
+        }
+
+        It "Returns false when rjmurillo-bot is NOT in reviewRequests" {
+            $reviewRequests = @(
+                @{ login = 'someuser' }
+                @{ login = 'anotheruser' }
+            )
+            Test-IsBotReviewer -ReviewRequests $reviewRequests | Should -Be $false
+        }
+
+        It "Returns false for empty reviewRequests" {
+            Test-IsBotReviewer -ReviewRequests @() | Should -Be $false
+        }
+
+        It "Returns false for null reviewRequests" {
+            Test-IsBotReviewer -ReviewRequests $null | Should -Be $false
+        }
+
+        It "Returns true when rjmurillo-bot is the only reviewer" {
+            $reviewRequests = @(
+                @{ login = 'rjmurillo-bot' }
+            )
+            Test-IsBotReviewer -ReviewRequests $reviewRequests | Should -Be $true
+        }
+
+        It "Is case-insensitive for login matching (matches GitHub behavior)" {
+            # GitHub usernames are case-insensitive in practice
+            # PowerShell -eq is case-insensitive by default, which is correct
+            $reviewRequests = @(
+                @{ login = 'Rjmurillo-Bot' }  # Different case
+            )
+            Test-IsBotReviewer -ReviewRequests $reviewRequests | Should -Be $true
+        }
+    }
+
     Context "Get-BotAuthorInfo Function" {
         # Tests for nuanced bot categorization - CRITICAL for CHANGES_REQUESTED handling
         # See memory: pr-changes-requested-semantics
