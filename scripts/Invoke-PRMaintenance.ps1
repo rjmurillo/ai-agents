@@ -585,6 +585,202 @@ function Test-IsBotReviewer {
     return $null -ne $botReviewer
 }
 
+function Get-UnresolvedReviewThreads {
+    <#
+    .SYNOPSIS
+        Retrieves review threads that remain unresolved on a pull request.
+    .DESCRIPTION
+        Uses GitHub GraphQL API to query review thread resolution status.
+        Part of the "Acknowledged vs Resolved" lifecycle model:
+
+        NEW -> ACKNOWLEDGED (eyes reaction) -> REPLIED -> RESOLVED (thread marked resolved)
+
+        A comment can be acknowledged (has eyes reaction) but NOT resolved (thread still open).
+        This function identifies threads in that intermediate state.
+
+        See: .agents/architecture/bot-author-feedback-protocol.md
+    .PARAMETER Owner
+        Repository owner (e.g., 'rjmurillo')
+    .PARAMETER Repo
+        Repository name (e.g., 'ai-agents')
+    .PARAMETER PR
+        Pull request number
+    .OUTPUTS
+        [object[]] Array of thread objects where isResolved = false.
+        Returns empty array when all threads are resolved or on API failure.
+        Never returns $null (per Skill-PowerShell-002).
+    .EXAMPLE
+        $unresolved = Get-UnresolvedReviewThreads -Owner 'rjmurillo' -Repo 'ai-agents' -PR 365
+        if ($unresolved.Count -gt 0) {
+            Write-Host "Found $($unresolved.Count) unresolved threads"
+        }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [int]$PR
+    )
+
+    # GraphQL query per FR1 specification
+    # Note: first: 100 handles most PRs; pagination not implemented for edge cases with 100+ threads
+    $query = @"
+query {
+    repository(owner: "$Owner", name: "$Repo") {
+        pullRequest(number: $PR) {
+            reviewThreads(first: 100) {
+                nodes {
+                    id
+                    isResolved
+                    comments(first: 1) {
+                        nodes {
+                            databaseId
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+"@
+
+    $result = gh api graphql -f query=$query 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "Failed to query review threads for PR #${PR}: $result" -Level WARN
+        return @()  # Return empty array on failure per FR2
+    }
+
+    try {
+        $parsed = $result | ConvertFrom-Json
+    }
+    catch {
+        Write-Log "Failed to parse GraphQL response for PR #${PR}: $result" -Level WARN
+        return @()  # Return empty array on parse failure
+    }
+
+    $threads = $parsed.data.repository.pullRequest.reviewThreads.nodes
+
+    if ($null -eq $threads -or $threads.Count -eq 0) {
+        return @()  # No threads exist
+    }
+
+    # Filter to unresolved threads only
+    $unresolved = @($threads | Where-Object { -not $_.isResolved })
+
+    return $unresolved  # Always returns array, never $null
+}
+
+function Get-UnaddressedComments {
+    <#
+    .SYNOPSIS
+        Gets bot comments that are either unacknowledged OR acknowledged but unresolved.
+    .DESCRIPTION
+        Detects comments in the NEW, ACKNOWLEDGED, or REPLIED lifecycle states.
+        Unlike Get-UnacknowledgedComments (which only detects NEW state), this function
+        captures the full spectrum of unaddressed feedback.
+
+        Lifecycle Model:
+          NEW (eyes=0) -> ACKNOWLEDGED (eyes>0) -> REPLIED -> RESOLVED (thread marked resolved)
+
+        A comment is "addressed" ONLY when:
+          - It has been acknowledged (eyes > 0) AND
+          - Its thread has been resolved (isResolved = true)
+
+        A comment is "unaddressed" when:
+          - It lacks acknowledgment (eyes = 0), OR
+          - It is acknowledged but its thread remains unresolved (eyes > 0, isResolved = false)
+
+        Semantic Model:
+          Get-UnacknowledgedComments: Detects [NEW] only (reactions.eyes = 0)
+          Get-UnaddressedComments:    Detects [NEW], [ACKNOWLEDGED], [REPLIED] (all unresolved states)
+
+        See: .agents/architecture/bot-author-feedback-protocol.md
+    .PARAMETER Owner
+        Repository owner (e.g., 'rjmurillo')
+    .PARAMETER Repo
+        Repository name (e.g., 'ai-agents')
+    .PARAMETER PRNumber
+        Pull request number
+    .PARAMETER Comments
+        Pre-fetched comments array. If not provided, will call Get-PRComments.
+        Pass this to avoid duplicate API calls when comments are already fetched.
+    .OUTPUTS
+        [object[]] Array of bot comments that are unaddressed.
+        Returns empty array when all bot comments are addressed.
+        Never returns $null (per Skill-PowerShell-002).
+    .EXAMPLE
+        $unaddressed = Get-UnaddressedComments -Owner 'rjmurillo' -Repo 'ai-agents' -PRNumber 365
+        if ($unaddressed.Count -gt 0) {
+            Write-Host "Found $($unaddressed.Count) unaddressed bot comments"
+        }
+    .EXAMPLE
+        # Reuse pre-fetched comments to avoid duplicate API calls
+        $comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber
+        $unaddressed = Get-UnaddressedComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber -Comments $comments
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [int]$PRNumber,
+
+        [Parameter()]
+        [array]$Comments = $null
+    )
+
+    # Use pre-fetched comments if provided, otherwise fetch from API
+    if ($null -eq $Comments) {
+        $Comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber
+    }
+
+    # Early exit if no comments
+    if ($null -eq $Comments -or $Comments.Count -eq 0) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+
+    # Query unresolved threads to get IDs of comments that are acknowledged but not resolved
+    $unresolvedThreads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PR $PRNumber
+
+    # Extract comment IDs from unresolved threads (databaseId field from first comment in each thread)
+    $unresolvedCommentIds = @()
+    foreach ($thread in $unresolvedThreads) {
+        $firstComment = $thread.comments.nodes | Select-Object -First 1
+        if ($null -ne $firstComment -and $null -ne $firstComment.databaseId) {
+            $unresolvedCommentIds += $firstComment.databaseId
+        }
+    }
+
+    # Filter comments where:
+    # - user.type = 'Bot' AND
+    # - (reactions.eyes = 0 OR id in unresolvedCommentIds)
+    #
+    # This captures:
+    # - NEW state: eyes = 0 (unacknowledged)
+    # - ACKNOWLEDGED/REPLIED state: eyes > 0 but thread unresolved
+    $unaddressed = @($Comments | Where-Object {
+        $_.user.type -eq 'Bot' -and
+        ($_.reactions.eyes -eq 0 -or $unresolvedCommentIds -contains $_.id)
+    })
+
+    if ($null -eq $unaddressed -or $unaddressed.Count -eq 0) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+
+    Write-Output -NoEnumerate $unaddressed
+}
+
 function Invoke-CopilotSynthesis {
     <#
     .SYNOPSIS
