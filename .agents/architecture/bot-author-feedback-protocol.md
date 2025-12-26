@@ -295,6 +295,88 @@ How rjmurillo-bot responds based on who authored the PR:
 | **unknown-bot** | other[bot] | Review manually |
 | **human** | rjmurillo | Only if @rjmurillo-bot mentioned |
 
+## Derivative PRs
+
+Bots like `copilot-swe-agent` may spawn derivative PRs based on review comments. These require special handling to avoid orphaned or conflicting changes.
+
+### What is a Derivative PR?
+
+A derivative PR is a PR created by a bot (typically `copilot-swe-agent`) that:
+
+- **Targets a feature branch** (not `main`) - the parent PR's branch
+- **Addresses a specific comment** from the parent PR's review
+- **Example**: PR #437 targets `fix/400-pr-maintenance-visibility` (PR #402's branch)
+
+### Detection
+
+```text
+GIVEN: PR with baseRefName != 'main' AND baseRefName != 'master'
+WHEN: Author is a mention-triggered bot (e.g., copilot-swe-agent)
+THEN: This is likely a derivative PR
+```
+
+### Handling Workflow
+
+```mermaid
+flowchart TD
+    A[Derivative PR Detected] --> B{Parent PR Still Open?}
+    B -->|Yes| C[Review in Context of Parent]
+    B -->|No| D[Orphaned - Close or Retarget]
+
+    C --> E{Changes Valid?}
+    E -->|Yes| F[Merge into Parent Branch]
+    E -->|No| G[Close with Explanation]
+
+    F --> H[Parent PR Updated]
+    H --> I[Continue Parent Review]
+```
+
+### Risk: Race Condition
+
+**Problem**: Parent PR may merge before derivative PR is reviewed.
+
+**Scenario**:
+
+1. PR #402 receives CHANGES_REQUESTED
+2. `@copilot` spawns PR #437 targeting PR #402's branch
+3. Reviewer approves PR #402 (not noticing derivative)
+4. PR #402 merges
+5. PR #437 becomes orphaned (base branch deleted)
+
+**Mitigation**:
+
+1. **Before merging parent PR**: Check for open derivative PRs targeting its branch
+2. **Maintenance script enhancement**: Detect and report derivative PRs in ActionRequired
+3. **Reviewer education**: Check for sub-PRs before final approval
+
+### Script Integration
+
+The maintenance script should:
+
+1. Detect derivative PRs (baseRefName != main/master + bot author)
+2. Link them to parent PRs in the summary output
+3. Block parent PR merge if derivatives are pending
+
+**Detection query**:
+
+```bash
+gh pr list --state open --json number,baseRefName,headRefName,author \
+  --jq '.[] | select(.baseRefName != "main" and .baseRefName != "master")'
+```
+
+### Acceptance Criteria
+
+**Scenario: Derivative PR from copilot-swe-agent**
+
+```text
+GIVEN: copilot-swe-agent creates PR targeting feature branch (not main)
+WHEN: Protocol executes on parent PR
+THEN:
+  - Derivative PRs listed in parent's ActionRequired entry
+  - Warning logged about pending derivative
+  - Parent merge blocked until derivatives resolved
+```
+
 ## Error Recovery
 
 ### Rate Limit Exceeded
