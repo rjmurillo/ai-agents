@@ -1250,6 +1250,7 @@ function Invoke-PRMaintenance {
         Processed = 0
         CommentsAcknowledged = 0
         ConflictsResolved = 0
+        SynthesisPosted = 0
         Blocked = [System.Collections.ArrayList]::new()          # Human-authored PRs with CHANGES_REQUESTED
         ActionRequired = [System.Collections.ArrayList]::new()   # Bot-authored PRs with CHANGES_REQUESTED (agent should address)
         DerivativePRs = [System.Collections.ArrayList]::new()    # PRs targeting feature branches (not main)
@@ -1361,6 +1362,29 @@ function Invoke-PRMaintenance {
 
                     if ($commentsToSynthesize -gt 0) {
                         Write-Log "PR #$($pr.number): Found $commentsToSynthesize comments from other bots to synthesize" -Level INFO
+
+                        # Generate synthesis prompt using Invoke-CopilotSynthesis
+                        $synthesisPrompt = Invoke-CopilotSynthesis `
+                            -Owner $Owner `
+                            -Repo $Repo `
+                            -PRNumber $pr.number `
+                            -PRTitle $pr.title `
+                            -BotComments $otherBotComments
+
+                        # Post synthesis prompt as PR comment
+                        if (-not $DryRun) {
+                            try {
+                                gh pr comment $pr.number --repo "$Owner/$Repo" --body $synthesisPrompt 2>&1 | Out-Null
+                                Write-Log "PR #$($pr.number): Posted synthesis prompt to @copilot" -Level INFO
+                                $results.SynthesisPosted++
+                            }
+                            catch {
+                                Write-Log "PR #$($pr.number): Failed to post synthesis prompt: $_" -Level WARN
+                            }
+                        } else {
+                            Write-Log "PR #$($pr.number): [DRY-RUN] Would post synthesis prompt to @copilot" -Level INFO
+                        }
+
                         $null = $results.ActionRequired.Add(@{
                             PR = $pr.number
                             Author = $authorLogin
