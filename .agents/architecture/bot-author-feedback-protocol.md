@@ -4,12 +4,67 @@
 
 This document describes how the PR maintenance system handles CHANGES_REQUESTED feedback and when rjmurillo-bot takes action.
 
+## Quick Start
+
+### When to Use This Protocol
+
+- **Scheduled (automated)**: GitHub Actions runs hourly - no manual action needed
+- **Manual (on-demand)**: Run script when PRs need immediate attention
+
+### Invocation
+
+**Automated (Default)**:
+
+GitHub Actions workflow: `.github/workflows/pr-maintenance.yml`
+
+```bash
+# Manual trigger via CLI
+gh workflow run pr-maintenance.yml
+```
+
+**Manual Execution**:
+
+```bash
+# Process up to 20 PRs (default)
+pwsh scripts/Invoke-PRMaintenance.ps1
+
+# Process specific number
+pwsh scripts/Invoke-PRMaintenance.ps1 -MaxPRs 5
+```
+
+**Agent Invocation** (responding to review comments):
+
+```bash
+# In Claude Code session - invoke pr-comment-responder skill
+/pr-review 123
+
+# Multiple PRs
+/pr-review 123,456,789
+```
+
 ## Prerequisites
+
+### Session Protocol
 
 Before performing any work, rjmurillo-bot MUST:
 
 1. Read `.agents/AGENTS.md`
 2. Follow `.agents/SESSION-PROTOCOL.md`
+
+**Verification**: Check for session log at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+
+### Required Tools
+
+| Tool | Version | Verify | Install |
+|------|---------|--------|---------|
+| PowerShell Core | 7.0+ | `pwsh --version` | <https://aka.ms/powershell> |
+| GitHub CLI | Latest | `gh --version` | <https://cli.github.com> |
+| Git | 2.23+ | `git --version` | <https://git-scm.com> |
+
+### Required Permissions
+
+- **Local execution**: GitHub CLI authenticated with push access (`gh auth status`)
+- **GitHub Actions**: `GITHUB_TOKEN` with `repo`, `workflow`, `pull_requests:write`
 
 ## Decision Flow
 
@@ -56,15 +111,62 @@ rjmurillo-bot takes action in these scenarios:
 | **Mention** | @rjmurillo-bot in comment | N/A | Eyes reaction + process ONLY that comment |
 | **None** | Not author, reviewer, or mentioned | N/A | Maintenance only |
 
+### Acceptance Criteria by Scenario
+
+**Scenario 1: Bot Author with CHANGES_REQUESTED**
+
+```text
+GIVEN: PR authored by rjmurillo-bot with reviewDecision=CHANGES_REQUESTED
+WHEN: Protocol executes
+THEN:
+  - All review comments have eyes reaction
+  - /pr-review skill invoked
+  - Each comment addressed with reply containing commit SHA or explanation
+  - PR added to ActionRequired list
+```
+
+**Scenario 2: Bot Reviewer with CHANGES_REQUESTED**
+
+```text
+GIVEN: Human-authored PR with rjmurillo-bot as reviewer + CHANGES_REQUESTED
+WHEN: Protocol executes
+THEN:
+  - All comments acknowledged with eyes
+  - /pr-review skill invoked
+  - PR added to ActionRequired list with Category='agent-controlled'
+```
+
+**Scenario 3: Bot Mentioned**
+
+```text
+GIVEN: Human-authored PR with @rjmurillo-bot in comment #2 (of 3 comments)
+WHEN: Protocol executes
+THEN:
+  - Comment #2 has eyes reaction (mentioned)
+  - Comments #1 and #3 have NO eyes reaction
+  - PR added to ActionRequired with Reason='MENTION'
+```
+
+**Scenario 4: No Bot Involvement**
+
+```text
+GIVEN: Human-authored PR, bot not reviewer, not mentioned
+WHEN: Protocol executes
+THEN:
+  - CommentsAcknowledged = 0
+  - No ActionRequired entry
+  - Only conflict resolution attempted
+```
+
 ## Comment Acknowledgment (Eyes Reaction)
 
 The eyes reaction is a social indicator of engagement. Use it ONLY when rjmurillo-bot will take action on the item.
 
 **When to add eyes reaction:**
 
-- rjmurillo-bot is the PR author
-- rjmurillo-bot is assigned as reviewer
-- @rjmurillo-bot is explicitly mentioned in the comment
+- rjmurillo-bot is the PR author -> add to ALL comments
+- rjmurillo-bot is assigned as reviewer -> add to ALL comments
+- @rjmurillo-bot is explicitly mentioned -> add ONLY to that comment
 
 **When NOT to add eyes reaction:**
 
@@ -74,6 +176,15 @@ The eyes reaction is a social indicator of engagement. Use it ONLY when rjmurill
 ## Maintenance Tasks
 
 Maintenance tasks are limited to **merge conflict resolution only**.
+
+### Auto-Resolvable Conflicts
+
+Files that can be auto-resolved with `--theirs` strategy:
+
+- `.agents/HANDOFF.md`
+- `.agents/sessions/*`
+
+All other conflicts require manual resolution.
 
 ### Resolving Merge Conflicts
 
@@ -89,6 +200,45 @@ gh pr list --state open --limit 10
 ```
 
 Note: PR numbers are included in the git log for reference (e.g., `abc1234 fix: something (#123)`).
+
+## Handoff: Script to Agent
+
+The maintenance script identifies PRs needing action but does NOT address review comments automatically.
+
+### Script Output Interpretation
+
+```text
+### PRs Requiring Action
+
+| PR | Author | Category | Action |
+|----|--------|----------|--------|
+| #123 | rjmurillo-bot | agent-controlled | /pr-review via pr-comment-responder |
+
+#### Recommended Actions
+
+**Agent-controlled PRs**: Run `/pr-review 123`
+```
+
+### Next Steps After Script
+
+1. **Note PR numbers** from "Run: /pr-review X,Y,Z" line in output
+2. **Invoke pr-comment-responder skill** via Claude Code:
+
+   ```bash
+   /pr-review 123
+   ```
+
+3. **Agent addresses feedback** per `.agents/SESSION-PROTOCOL.md`
+4. **Verify completion**: All comments have replies with commit SHAs
+
+### What "Process Comments" Means
+
+When the protocol says "process comments", the agent must:
+
+1. Read each actionable comment
+2. Implement requested changes (if valid)
+3. Reply to comment with status: commit SHA if fixed, explanation if won't fix
+4. Mark review thread as resolved (if applicable)
 
 ## State Machine
 
@@ -134,6 +284,110 @@ How rjmurillo-bot responds based on who authored the PR:
 | **Other bot** | Mentioned | Eyes + process mentioned comments only |
 | **Other bot** | Not involved | Maintenance only (conflict resolution) |
 
+### Bot Categories
+
+| Category | Examples | Behavior |
+|----------|----------|----------|
+| **agent-controlled** | rjmurillo-bot | Can run /pr-review directly |
+| **mention-triggered** | copilot-swe-agent | Needs @copilot mention |
+| **command-triggered** | dependabot[bot] | Needs @dependabot commands |
+| **non-responsive** | github-actions[bot] | Cannot respond - blocked |
+| **unknown-bot** | other[bot] | Review manually |
+| **human** | rjmurillo | Only if @rjmurillo-bot mentioned |
+
+## Error Recovery
+
+### Rate Limit Exceeded
+
+**Symptom**: Script exits with "API rate limit too low"
+
+**Recovery**:
+
+1. Check reset time in log output
+2. Wait until reset OR check: `gh api rate_limit`
+3. Rerun script after reset
+
+### Merge Conflict Resolution Failed
+
+**Symptom**: PR status still CONFLICTING after run
+
+**Cause**: Conflicts in non-auto-resolvable files
+
+**Recovery**:
+
+```bash
+git checkout <pr-branch>
+git merge main
+# Resolve conflicts manually
+git commit
+git push
+```
+
+### Comment Acknowledgment Failed
+
+**Symptom**: "Failed to add reaction to comment" in logs
+
+**Cause**: API rate limit OR missing permissions
+
+**Recovery**:
+
+1. Check rate limit: `gh api rate_limit`
+2. Verify token permissions: `gh auth status`
+3. Manually add eyes reaction in GitHub UI OR rerun after reset
+
+### /pr-review Failed Partway
+
+**Symptom**: Some comments addressed, others not
+
+**Recovery**:
+
+1. Check which comments have replies
+2. Re-run `/pr-review <PR>` - it will skip already-addressed comments
+3. If persistent failure, address remaining comments manually
+
+## Logs and Debugging
+
+### Log Locations
+
+- **Scheduled runs**: GitHub Actions > Run details > Download logs artifact
+- **Local runs**: `.agents/logs/pr-maintenance.log`
+
+### Reading Logs
+
+```bash
+# Tail latest local run
+tail -f .agents/logs/pr-maintenance.log
+
+# Filter errors only
+grep '\[ERROR\]' .agents/logs/pr-maintenance.log
+
+# Search for specific PR
+grep 'PR #123' .agents/logs/pr-maintenance.log
+```
+
+### Exit Codes
+
+| Code | Meaning | Next Action |
+|------|---------|-------------|
+| 0 | Success | Check summary for details |
+| 2 | Fatal error | Review logs, check API connectivity |
+
+## Success Metrics
+
+### Baseline (Normal Operation)
+
+- **PRs processed**: 100% of open PRs (up to MaxPRs limit)
+- **Comment acknowledgment rate**: >95%
+- **Run duration**: <60s for 20 PRs
+
+### Alert Thresholds
+
+| Condition | Threshold | Investigation |
+|-----------|-----------|---------------|
+| Errors per run | >3 | Check API health, token permissions |
+| Run duration | >120s | Check GitHub API latency |
+| Zero actions | >24 hours | Verify scheduled workflow enabled |
+
 ## Anti-Patterns
 
 ```powershell
@@ -157,6 +411,17 @@ if (-not $shouldAct) { return }
 ProcessPR()
 # RIGHT: Must read AGENTS.md and follow SESSION-PROTOCOL.md first
 ```
+
+## Glossary
+
+| Term | Definition |
+|------|------------|
+| **ActionRequired** | A PR where rjmurillo-bot must take action (output by script) |
+| **Blocked** | A PR blocked by human-authored CHANGES_REQUESTED (skip, report only) |
+| **Process comment** | Read comment, implement fix, reply with commit SHA or explanation |
+| **Maintenance** | Merge conflict resolution only |
+| **Eyes reaction** | Social indicator that bot acknowledged and will address feedback |
+| **reviewDecision** | GitHub API field: null, APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED |
 
 ## Related Documents
 
