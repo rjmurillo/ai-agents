@@ -1156,7 +1156,8 @@ try {
             # Show quick command for agent-controlled PRs only
             $agentControlled = $results.ActionRequired | Where-Object { $_.Category -eq 'agent-controlled' }
             if ($agentControlled.Count -gt 0) {
-                Write-Log "Run: /pr-review $($agentControlled.PR -join ',')" -Level INFO
+                $prNumbers = ($agentControlled | ForEach-Object { $_.PR }) -join ','
+                Write-Log "Run: /pr-review $prNumbers" -Level INFO
             }
         }
 
@@ -1219,7 +1220,8 @@ These bot-authored PRs have reviewer feedback. Actions vary by bot type:
                 $summary += "`n#### Recommended Actions`n`n"
 
                 if ($agentControlled.Count -gt 0) {
-                    $summary += "**Agent-controlled PRs**: Run ``/pr-review $($agentControlled.PR -join ',')```n`n"
+                    $prNumbers = ($agentControlled | ForEach-Object { $_.PR }) -join ','
+                    $summary += "**Agent-controlled PRs**: Run ````/pr-review $prNumbers`````n`n"
                 }
                 if ($mentionTriggered.Count -gt 0) {
                     $mentions = ($mentionTriggered | ForEach-Object { "$($_.Mention) on PR #$($_.PR)" }) -join ', '
@@ -1238,8 +1240,8 @@ These bot-authored PRs have reviewer feedback. Actions vary by bot type:
 
 All $($results.TotalPRs) open PRs were scanned but none required automated action:
 - No unacknowledged bot comments found
-- No merge conflicts to resolve
-- $($results.Blocked.Count) human-authored PR(s) blocked with CHANGES_REQUESTED
+- No merge conflicts were automatically resolved
+- $($results.Blocked.Count) PR(s) are blocked (e.g., CHANGES_REQUESTED or unresolvable conflicts)
 
 This is normal when PRs are awaiting human review or have no pending bot feedback.
 "@
@@ -1252,7 +1254,12 @@ No open pull requests found in the repository.
 "@
             }
 
-            $summary | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            try {
+                $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -ErrorAction Stop
+            }
+            catch {
+                Write-Log "Failed to write GitHub step summary: $_" -Level WARN
+            }
         }
 
         # Save log
