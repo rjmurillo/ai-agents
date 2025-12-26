@@ -445,19 +445,27 @@ function Get-UnacknowledgedComments {
         NOTE: Bot author list should ideally reference the agent configuration files
         (.claude/commands/pr-review.md, src/claude/pr-comment-responder.md) to avoid
         duplication and drift. Current implementation uses environment-configured list.
+    .PARAMETER Comments
+        Pre-fetched comments array. If not provided, will call Get-PRComments.
+        Pass this to avoid duplicate API calls when comments are already fetched.
     #>
     [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
-        [int]$PRNumber
+        [int]$PRNumber,
+        [Parameter()]
+        [array]$Comments = $null
     )
 
-    $comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber
+    # Use pre-fetched comments if provided, otherwise fetch from API
+    if ($null -eq $Comments) {
+        $Comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber
+    }
 
     # Skill-PowerShell-002: Return @() not $null for empty results
     # Filter comments and ensure array return
-    $unacked = @($comments | Where-Object {
+    $unacked = @($Comments | Where-Object {
         $_.user.type -eq 'Bot' -and
         $_.reactions.eyes -eq 0
     })
@@ -1088,8 +1096,8 @@ function Invoke-PRMaintenance {
                     Write-Log "PR #$($pr.number): rjmurillo-bot is $role, no CHANGES_REQUESTED -> maintenance only" -Level INFO
                 }
 
-                # Acknowledge ALL comments when author or reviewer
-                $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
+                # Acknowledge ALL comments when author or reviewer (reuse pre-fetched comments)
+                $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number -Comments $comments
                 foreach ($comment in $unacked) {
                     Write-Log "Acknowledging comment $($comment.id) from $($comment.user.login)" -Level ACTION
                     $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
@@ -1111,10 +1119,10 @@ function Invoke-PRMaintenance {
                     Mention = '@rjmurillo-bot'
                 })
 
-                # Acknowledge ONLY mentioned comments
-                $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
-                foreach ($comment in $unacked) {
-                    if ($comment.body -match '@rjmurillo-bot') {
+                # Acknowledge ONLY mentioned comments (reuse pre-fetched $mentionedComments)
+                foreach ($comment in $mentionedComments) {
+                    # Only acknowledge if not already acknowledged (bot comment without eyes)
+                    if ($comment.user.type -eq 'Bot' -and $comment.reactions.eyes -eq 0) {
                         Write-Log "Acknowledging mentioned comment $($comment.id) from $($comment.user.login)" -Level ACTION
                         $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
                         if ($acked) {
@@ -1124,8 +1132,23 @@ function Invoke-PRMaintenance {
                 }
             }
             else {
-                # Not author, reviewer, or mentioned -> maintenance only, no eyes
-                Write-Log "PR #$($pr.number): rjmurillo-bot not involved -> maintenance only" -Level INFO
+                # Not author, reviewer, or mentioned
+                if ($hasChangesRequested) {
+                    # Human-authored PR with CHANGES_REQUESTED -> track as blocked for visibility
+                    Write-Log "PR #$($pr.number): rjmurillo-bot not involved, CHANGES_REQUESTED -> tracking in Blocked" -Level WARN
+                    $null = $results.Blocked.Add(@{
+                        PR       = $pr.number
+                        Author   = $authorLogin
+                        Reason   = 'CHANGES_REQUESTED'
+                        Title    = $pr.title
+                        Category = 'human-blocked'
+                        Action   = 'Awaiting human changes/approval'
+                    })
+                }
+                else {
+                    # No CHANGES_REQUESTED -> maintenance only, no eyes
+                    Write-Log "PR #$($pr.number): rjmurillo-bot not involved -> maintenance only" -Level INFO
+                }
             }
 
             # Check for similar merged PRs (informational only - no auto-close)
@@ -1307,7 +1330,7 @@ These PRs require rjmurillo-bot action (CHANGES_REQUESTED or @mention):
 
                 if ($agentControlled.Count -gt 0) {
                     $prNumbers = ($agentControlled | ForEach-Object { $_.PR }) -join ','
-                    $summary += "**Agent-controlled PRs**: Run ````/pr-review $prNumbers`````n`n"
+                    $summary += "**Agent-controlled PRs**: Run ``/pr-review $prNumbers```n`n"
                 }
                 if ($mentionTriggered.Count -gt 0) {
                     $mentions = ($mentionTriggered | ForEach-Object { "$($_.Mention) on PR #$($_.PR)" }) -join ', '

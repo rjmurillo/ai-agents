@@ -1248,6 +1248,164 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
+    Context "ActionRequired Collection - Bot Author CHANGES_REQUESTED" {
+        # Tests for ActionRequired population when bot is author with CHANGES_REQUESTED
+        # Critical path: bot-authored PRs with CHANGES_REQUESTED should be added to ActionRequired (not Blocked)
+
+        BeforeEach {
+            Mock Get-OpenPRs {
+                return @(
+                    @{
+                        number = 100
+                        title = "feat: automated PR"
+                        state = "OPEN"
+                        headRefName = "automated-feature"
+                        baseRefName = "main"
+                        mergeable = "MERGEABLE"
+                        reviewDecision = "CHANGES_REQUESTED"
+                        author = @{ login = "rjmurillo-bot" }
+                        reviewRequests = @()
+                    }
+                )
+            }
+            Mock Get-PRComments { return @() }
+            Mock Add-CommentReaction { return $true }
+            Mock Get-SimilarPRs { return @() }
+            Mock Resolve-PRConflicts { return $false }
+        }
+
+        It "Adds bot-authored PR with CHANGES_REQUESTED to ActionRequired" {
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            $results.ActionRequired.Count | Should -Be 1
+            $results.ActionRequired[0].PR | Should -Be 100
+            $results.ActionRequired[0].Category | Should -Be 'agent-controlled'
+            $results.ActionRequired[0].Reason | Should -Be 'CHANGES_REQUESTED'
+        }
+
+        It "Does NOT add bot-authored PR with CHANGES_REQUESTED to Blocked" {
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            $results.Blocked.Count | Should -Be 0
+        }
+    }
+
+    Context "ActionRequired Collection - Bot Reviewer CHANGES_REQUESTED" {
+        # Tests for ActionRequired population when bot is reviewer with CHANGES_REQUESTED
+
+        BeforeEach {
+            Mock Get-OpenPRs {
+                return @(
+                    @{
+                        number = 101
+                        title = "feat: human PR"
+                        state = "OPEN"
+                        headRefName = "human-feature"
+                        baseRefName = "main"
+                        mergeable = "MERGEABLE"
+                        reviewDecision = "CHANGES_REQUESTED"
+                        author = @{ login = "rjmurillo" }
+                        reviewRequests = @(
+                            @{ login = "rjmurillo-bot" }
+                        )
+                    }
+                )
+            }
+            Mock Get-PRComments { return @() }
+            Mock Add-CommentReaction { return $true }
+            Mock Get-SimilarPRs { return @() }
+            Mock Resolve-PRConflicts { return $false }
+        }
+
+        It "Adds PR with bot as reviewer and CHANGES_REQUESTED to ActionRequired" {
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            $results.ActionRequired.Count | Should -Be 1
+            $results.ActionRequired[0].PR | Should -Be 101
+            $results.ActionRequired[0].Category | Should -Be 'agent-controlled'
+        }
+    }
+
+    Context "ActionRequired Collection - Bot Mentioned" {
+        # Tests for ActionRequired population when bot is mentioned
+
+        BeforeEach {
+            Mock Get-OpenPRs {
+                return @(
+                    @{
+                        number = 102
+                        title = "feat: mention test"
+                        state = "OPEN"
+                        headRefName = "mention-test"
+                        baseRefName = "main"
+                        mergeable = "MERGEABLE"
+                        reviewDecision = $null
+                        author = @{ login = "rjmurillo" }
+                        reviewRequests = @()
+                    }
+                )
+            }
+            Mock Get-PRComments {
+                return @(
+                    @{
+                        id = 999
+                        user = @{ type = "Bot"; login = "copilot" }
+                        reactions = @{ eyes = 0 }
+                        body = "Hey @rjmurillo-bot please review this"
+                    }
+                )
+            }
+            Mock Add-CommentReaction { return $true }
+            Mock Get-SimilarPRs { return @() }
+            Mock Resolve-PRConflicts { return $false }
+        }
+
+        It "Adds PR with @rjmurillo-bot mention to ActionRequired" {
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            $results.ActionRequired.Count | Should -Be 1
+            $results.ActionRequired[0].PR | Should -Be 102
+            $results.ActionRequired[0].Category | Should -Be 'mention-triggered'
+            $results.ActionRequired[0].Reason | Should -Be 'MENTION'
+        }
+    }
+
+    Context "Blocked Collection - Human CHANGES_REQUESTED" {
+        # Tests for Blocked population when human PR has CHANGES_REQUESTED and bot not involved
+
+        BeforeEach {
+            Mock Get-OpenPRs {
+                return @(
+                    @{
+                        number = 103
+                        title = "feat: human only PR"
+                        state = "OPEN"
+                        headRefName = "human-only"
+                        baseRefName = "main"
+                        mergeable = "MERGEABLE"
+                        reviewDecision = "CHANGES_REQUESTED"
+                        author = @{ login = "rjmurillo" }
+                        reviewRequests = @()
+                    }
+                )
+            }
+            Mock Get-PRComments { return @() }
+            Mock Add-CommentReaction { return $true }
+            Mock Get-SimilarPRs { return @() }
+            Mock Resolve-PRConflicts { return $false }
+        }
+
+        It "Adds human PR with CHANGES_REQUESTED to Blocked (not ActionRequired)" {
+            $results = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 5
+
+            $results.Blocked.Count | Should -Be 1
+            $results.Blocked[0].PR | Should -Be 103
+            $results.Blocked[0].Reason | Should -Be 'CHANGES_REQUESTED'
+            $results.Blocked[0].Category | Should -Be 'human-blocked'
+            $results.ActionRequired.Count | Should -Be 0
+        }
+    }
+
     Context "Logging Functions" {
         It "Write-Log adds entry to log array" {
             $script:LogEntries = [System.Collections.ArrayList]::new()
