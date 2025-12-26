@@ -15,30 +15,35 @@ Before performing any work, rjmurillo-bot MUST:
 
 ```mermaid
 flowchart TD
-    A[PR with CHANGES_REQUESTED] --> B{Is rjmurillo-bot<br/>the PR author?}
+    A[PR] --> B{Is rjmurillo-bot<br/>the PR author?}
 
-    B -->|Yes| C[Add to ActionRequired]
-    C --> D["/pr-review via pr-comment-responder"]
+    B -->|Yes| C{Are CHANGES_REQUESTED}
+    C --> |Yes| D["/pr-review via pr-comment-responder"]
+    C --> |No| M
 
     B -->|No| E{Is rjmurillo-bot<br/>added as reviewer?}
 
     E -->|Yes| C
+    E -->|No| M
 
     E -->|No| F{Is @rjmurillo-bot<br/>mentioned in comments?}
+    F -->|No| M
 
-    F -->|Yes| G[Process ONLY mentioned comments]
-    G --> H[Add eyes reaction to those comments]
-    H --> D
-
-    F -->|No| I{Human-authored PR?}
-
-    I -->|Yes| J[Add to Blocked list]
+    F -->|Yes| G[Add eyes reaction to those comments]
+    G --> H[Process only those comments]
+    H --> M    
+    
     J --> K[No actions available for bot]
 
-    I -->|No| L[Other bot - manual review]
-
     D --> M[Maintenance Tasks]
-    M --> N[Resolve merge conflicts only]
+
+    M --> O{Has Merge Conflicts}
+
+
+    O -->|Yes| L[Resolve Merge Conflicts]
+    O -->|No| Z
+
+    L --> Z[END]
 ```
 
 ## rjmurillo-bot Activation Triggers
