@@ -13,7 +13,8 @@ When a reviewer requests changes:
 | Category | Examples | How to Address Feedback |
 |----------|----------|------------------------|
 | **human** | rjmurillo, johndoe | Blocked - human must act |
-| **agent-controlled** | rjmurillo-bot, github-actions[bot] | `/pr-review` via pr-comment-responder |
+| **agent-controlled** | rjmurillo-bot | `/pr-review` via pr-comment-responder |
+| **non-responsive** | github-actions[bot] | Cannot respond - see protocol doc |
 | **mention-triggered** | copilot-swe-agent, copilot[bot] | Add comment with `@copilot` |
 | **command-triggered** | dependabot[bot], renovate[bot] | Use `@dependabot rebase`, etc. |
 | **unknown-bot** | other [bot] accounts | Manual review required |
@@ -60,6 +61,10 @@ if ($pr.reviewDecision -eq 'CHANGES_REQUESTED') { continue }
 # WRONG: Treat all bots the same
 if ($isBotAuthor) { Invoke-PRCommentResponder }  # copilot needs @mention!
 ```
+
+## Documentation
+
+**Full protocol documentation with state diagrams**: `.agents/architecture/bot-author-feedback-protocol.md`
 
 ## Related
 
