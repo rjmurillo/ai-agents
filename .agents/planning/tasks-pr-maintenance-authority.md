@@ -148,24 +148,24 @@ This applies only within the $isAgentControlledBot block to preserve human PR be
 **Prompt**:
 
 ```text
-In scripts/Invoke-PRMaintenance.ps1, optimize the Get-UnacknowledgedComments calls:
+FILE: /home/richard/ai-agents/scripts/Invoke-PRMaintenance.ps1
+LOCATION: Line 1291 (search pattern: "Get-UnacknowledgedComments -Owner")
+ACTION: REPLACE duplicate call with variable reuse
 
-CURRENT STATE (after Task 1.2):
-- Get-UnacknowledgedComments called before action determination
-- Get-UnacknowledgedComments called again around line 1291 for acknowledgment loop
+After Task 1.2 adds $unacked at ~line 1270, there is a DUPLICATE call at line 1291.
 
-REFACTOR:
-1. Locate the $unacked assignment from Task 1.2 (should be around line 1270)
-2. Remove or comment out any duplicate Get-UnacknowledgedComments call later in the block
-3. Reuse $unacked for the foreach loop that adds eyes reactions
-
-The foreach loop should use the existing $unacked variable:
+SEARCH for this EXACT pattern at line 1291:
+$unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number -Comments $comments
 foreach ($comment in $unacked) {
-    $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id -Reaction 'eyes'
-    # ... existing logic
-}
 
-Verify: Script should call Get-UnacknowledgedComments exactly once per PR, not twice.
+REPLACE WITH (remove the duplicate call, reuse existing $unacked):
+# Reuse $unacked from action determination (line ~1270) - avoid duplicate API call
+foreach ($comment in $unacked) {
+
+VERIFY: Run `grep -n "Get-UnacknowledgedComments" scripts/Invoke-PRMaintenance.ps1`
+- Should appear at function definition (line 436)
+- Should appear exactly ONCE in the $isAgentControlledBot block (~line 1270)
+- Should NOT appear at line 1291 anymore
 ```
 
 ---
@@ -230,13 +230,17 @@ This detection is used by Task 2.2 to collect bot comments for synthesis.
 **Prompt**:
 
 ```text
-In scripts/Invoke-PRMaintenance.ps1, add comment collection after the copilot PR detection (Task 2.1):
+FILE: /home/richard/ai-agents/scripts/Invoke-PRMaintenance.ps1
+LOCATION: After Task 2.1's $isCopilotPR detection (~line 1268), BEFORE action determination (~line 1270)
+SEARCH PATTERN: "if ($isCopilotPR)" (added by Task 2.1)
+ACTION: INSERT inside the $isCopilotPR block
 
-if ($isCopilotPR) {
-    # Collect comments from other review bots (not copilot)
+INSERT this code block inside the if ($isCopilotPR) { ... } block from Task 2.1:
+
+    # Collect comments from other review bots (not copilot) - CASE-INSENSITIVE
     $otherBotComments = @($comments | Where-Object {
-        $_.user.login -match '(coderabbitai|cursor\[bot\]|gemini-code-assist)' -and
-        $_.user.login -notmatch 'copilot'
+        $_.user.login -imatch '(coderabbitai|cursor\[bot\]|gemini-code-assist)' -and
+        $_.user.login -inotmatch 'copilot'
     })
     $commentsToSynthesize = $otherBotComments.Count
 
@@ -254,9 +258,9 @@ if ($isCopilotPR) {
     } else {
         Write-Log "PR #$($pr.number): Copilot PR with no other bot comments - no synthesis needed" -Level INFO
     }
-}
 
-IMPORTANT: If $commentsToSynthesize is 0, do NOT add to ActionRequired.
+NOTE: Uses -imatch and -inotmatch for CASE-INSENSITIVE matching (handles CodeRabbitAI vs coderabbitai).
+VERIFY: If $commentsToSynthesize is 0, do NOT add to ActionRequired (only log message).
 ```
 
 ---
@@ -344,14 +348,39 @@ This function groups comments by bot author and generates a markdown prompt for 
 **Prompt**:
 
 ```text
-In scripts/Invoke-PRMaintenance.ps1, add synthesis posting inside the Task 2.2 block where $commentsToSynthesize -gt 0:
+FILE: /home/richard/ai-agents/scripts/Invoke-PRMaintenance.ps1
+ACTION: Two modifications required
 
-if ($commentsToSynthesize -gt 0) {
-    # Generate synthesis prompt
+## STEP 1: Add SynthesisPosted counter to $results initialization
+
+LOCATION: Line 1180 (search pattern: "$results = @{")
+INSERT new property after "Errors = [System.Collections.ArrayList]::new()":
+
+        SynthesisPosted = 0
+
+So it becomes:
+    $results = @{
+        TotalPRs = 0
+        Processed = 0
+        CommentsAcknowledged = 0
+        ConflictsResolved = 0
+        Blocked = [System.Collections.ArrayList]::new()
+        ActionRequired = [System.Collections.ArrayList]::new()
+        DerivativePRs = [System.Collections.ArrayList]::new()
+        ParentsWithDerivatives = [System.Collections.ArrayList]::new()
+        Errors = [System.Collections.ArrayList]::new()
+        SynthesisPosted = 0  # <-- ADD THIS LINE
+    }
+
+## STEP 2: Add synthesis posting inside Task 2.2 block
+
+LOCATION: Inside the "if ($commentsToSynthesize -gt 0)" block from Task 2.2
+INSERT BEFORE the $results.ActionRequired.Add() call:
+
+    # Generate and post synthesis prompt
     $synthesisPrompt = Invoke-CopilotSynthesis -Owner $Owner -Repo $Repo `
         -PRNumber $pr.number -PRTitle $pr.title -BotComments $otherBotComments
 
-    # Post to PR
     try {
         $null = gh pr comment $pr.number --repo "$Owner/$Repo" --body $synthesisPrompt
         Write-Log "Posted copilot synthesis for PR #$($pr.number)" -Level ACTION
@@ -361,11 +390,9 @@ if ($commentsToSynthesize -gt 0) {
         # Continue processing - don't fail on synthesis error
     }
 
-    # Add to ActionRequired (existing code from Task 2.2)
-    $null = $results.ActionRequired.Add(@{...})
-}
-
-Add $results.SynthesisPosted = 0 to the results initialization if not present.
+VERIFY: Run `grep -n "SynthesisPosted" scripts/Invoke-PRMaintenance.ps1`
+- Should appear at line ~1189 (initialization)
+- Should appear inside synthesis block (increment)
 ```
 
 ---
@@ -457,32 +484,53 @@ This ensures no PR appears in both ActionRequired and Blocked lists.
 **Prompt**:
 
 ```text
-In tests/Invoke-PRMaintenance.Tests.ps1, add this test to the appropriate Describe block:
+FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+STATUS: FILE DOES NOT EXIST - must be created
 
-It 'Routes bot-authored PR with unresolvable conflicts to ActionRequired' {
-    # Arrange
-    $mockPR = @{
-        number = 999
-        title = 'Test PR'
-        author = @{ login = 'rjmurillo-bot' }
-        mergeable = 'CONFLICTING'
-        headRefName = 'test-branch'
-        baseRefName = 'main'
-    }
-    Mock Resolve-PRConflicts { return $false }
-    Mock Get-BotInfo { @{ Category = 'agent-controlled'; IsReviewBot = $true } }
+CREATE the test file with this structure:
 
-    # Act
-    $results = Process-SinglePR -PR $mockPR -Owner 'rjmurillo' -Repo 'ai-agents'
-
-    # Assert
-    $results.ActionRequired | Should -HaveCount 1
-    $results.ActionRequired[0].Reason | Should -Be 'MANUAL_CONFLICT_RESOLUTION'
-    $results.ActionRequired[0].Action | Should -Be '/pr-review to manually resolve conflicts'
-    $results.Blocked | Should -BeNullOrEmpty
+BeforeAll {
+    . "$PSScriptRoot/../scripts/Invoke-PRMaintenance.ps1"
 }
 
-Adjust mocking approach to match existing test patterns in the file.
+Describe 'Invoke-PRMaintenance Bot Authority Tests' {
+    BeforeEach {
+        # Mock GitHub CLI and external dependencies
+        Mock gh { }
+        Mock Write-Log { }
+    }
+
+    It 'Routes bot-authored PR with unresolvable conflicts to ActionRequired' {
+        # Arrange
+        Mock Get-BotInfo { @{ IsBot = $true; Category = 'agent-controlled'; IsReviewBot = $true } }
+        Mock Resolve-PRConflicts { return $false }
+        Mock Get-OpenPRs {
+            @([PSCustomObject]@{
+                number = 999
+                title = 'Test PR'
+                author = @{ login = 'rjmurillo-bot' }
+                mergeable = 'CONFLICTING'
+                headRefName = 'test-branch'
+                baseRefName = 'main'
+                reviewDecision = $null
+                reviewRequests = @()
+            })
+        }
+        Mock Get-PRComments { @() }
+
+        # Act
+        $results = Invoke-PRMaintenance -Owner 'rjmurillo' -Repo 'ai-agents'
+
+        # Assert
+        $results.ActionRequired | Should -HaveCount 1
+        $results.ActionRequired[0].Reason | Should -Be 'MANUAL_CONFLICT_RESOLUTION'
+        $results.ActionRequired[0].Action | Should -Be '/pr-review to manually resolve conflicts'
+        $results.Blocked | Should -BeNullOrEmpty
+    }
+}
+
+NOTE: Tests mock Get-OpenPRs and call Invoke-PRMaintenance directly (no Process-SinglePR function exists).
+VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed`
 ```
 
 ### Task 5.2: [TEST] Bot PR unaddressed comments trigger action
@@ -503,34 +551,46 @@ Adjust mocking approach to match existing test patterns in the file.
 **Prompt**:
 
 ```text
-In tests/Invoke-PRMaintenance.Tests.ps1, add this test:
+FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+PREREQUISITE: File created by Task 5.1
+ACTION: ADD test to existing 'Invoke-PRMaintenance Bot Authority Tests' Describe block
 
-It 'Triggers action for bot PR with unaddressed comments even without CHANGES_REQUESTED' {
-    # Arrange
-    $mockPR = @{
-        number = 888
-        title = 'Test PR with comments'
-        author = @{ login = 'rjmurillo-bot' }
-        reviewDecision = $null  # Not CHANGES_REQUESTED
-        mergeable = 'MERGEABLE'
+    It 'Triggers action for bot PR with unaddressed comments even without CHANGES_REQUESTED' {
+        # Arrange
+        Mock Get-BotInfo { @{ IsBot = $true; Category = 'agent-controlled'; IsReviewBot = $true } }
+        Mock Resolve-PRConflicts { return $true }  # No conflicts
+        Mock Get-OpenPRs {
+            @([PSCustomObject]@{
+                number = 888
+                title = 'Test PR with comments'
+                author = @{ login = 'rjmurillo-bot' }
+                reviewDecision = $null  # Not CHANGES_REQUESTED
+                mergeable = 'MERGEABLE'
+                headRefName = 'feature'
+                baseRefName = 'main'
+                reviewRequests = @()
+            })
+        }
+        Mock Get-PRComments { @() }
+        Mock Get-UnacknowledgedComments {
+            @(
+                @{ id = 1; body = 'Comment 1'; user = @{ login = 'coderabbitai' } }
+                @{ id = 2; body = 'Comment 2'; user = @{ login = 'cursor[bot]' } }
+                @{ id = 3; body = 'Comment 3'; user = @{ login = 'gemini-code-assist' } }
+            )
+        }
+
+        # Act
+        $results = Invoke-PRMaintenance -Owner 'rjmurillo' -Repo 'ai-agents'
+
+        # Assert
+        $results.ActionRequired | Should -HaveCount 1
+        $results.ActionRequired[0].Reason | Should -Be 'UNADDRESSED_COMMENTS'
+        $results.ActionRequired[0].UnaddressedCount | Should -Be 3
+        $results.ActionRequired[0].Action | Should -Be '/pr-review via pr-comment-responder'
     }
-    $mockComments = @(
-        @{ id = 1; body = 'Comment 1'; user = @{ login = 'coderabbitai' } }
-        @{ id = 2; body = 'Comment 2'; user = @{ login = 'cursor[bot]' } }
-        @{ id = 3; body = 'Comment 3'; user = @{ login = 'gemini-code-assist' } }
-    )
-    Mock Get-BotInfo { @{ Category = 'agent-controlled'; IsReviewBot = $true } }
-    Mock Get-UnacknowledgedComments { $mockComments }
 
-    # Act
-    $results = Process-SinglePR -PR $mockPR -Owner 'rjmurillo' -Repo 'ai-agents'
-
-    # Assert
-    $results.ActionRequired | Should -HaveCount 1
-    $results.ActionRequired[0].Reason | Should -Be 'UNADDRESSED_COMMENTS'
-    $results.ActionRequired[0].UnaddressedCount | Should -Be 3
-    $results.ActionRequired[0].Action | Should -Be '/pr-review via pr-comment-responder'
-}
+VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed`
 ```
 
 ### Task 5.3: [TEST] Copilot PR synthesis detection
@@ -551,35 +611,52 @@ It 'Triggers action for bot PR with unaddressed comments even without CHANGES_RE
 **Prompt**:
 
 ```text
-In tests/Invoke-PRMaintenance.Tests.ps1, add this test:
+FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+PREREQUISITE: File created by Task 5.1
+ACTION: ADD test to existing 'Invoke-PRMaintenance Bot Authority Tests' Describe block
 
-It 'Detects copilot PR and triggers synthesis for other bot comments' {
-    # Arrange
-    $mockPR = @{
-        number = 247
-        title = 'Copilot PR'
-        author = @{ login = 'copilot-swe-agent' }
-        reviewDecision = 'CHANGES_REQUESTED'
+    It 'Detects copilot PR and triggers synthesis for other bot comments' {
+        # Arrange
+        Mock Get-BotInfo -ParameterFilter { $Login -eq 'copilot-swe-agent' } {
+            @{ IsBot = $true; Category = 'mention-triggered' }
+        }
+        Mock Get-BotInfo -ParameterFilter { $Login -ne 'copilot-swe-agent' } {
+            @{ IsBot = $true; Category = 'agent-controlled'; IsReviewBot = $true }
+        }
+        Mock Test-IsBotReviewer { return $true }  # rjmurillo-bot is reviewer
+        Mock Resolve-PRConflicts { return $true }
+        Mock Get-OpenPRs {
+            @([PSCustomObject]@{
+                number = 247
+                title = 'Copilot PR'
+                author = @{ login = 'copilot-swe-agent' }
+                reviewDecision = 'CHANGES_REQUESTED'
+                mergeable = 'MERGEABLE'
+                headRefName = 'feature'
+                baseRefName = 'main'
+                reviewRequests = @(@{ login = 'rjmurillo-bot' })
+            })
+        }
+        Mock Get-PRComments {
+            @(
+                @{ id = 1; body = 'Issue 1'; user = @{ login = 'coderabbitai' }; html_url = 'https://...' }
+                @{ id = 2; body = 'Issue 2'; user = @{ login = 'coderabbitai' }; html_url = 'https://...' }
+                @{ id = 3; body = 'Issue 3'; user = @{ login = 'cursor[bot]' }; html_url = 'https://...' }
+            )
+        }
+        Mock gh { }  # Mock synthesis comment posting
+
+        # Act
+        $results = Invoke-PRMaintenance -Owner 'rjmurillo' -Repo 'ai-agents'
+
+        # Assert
+        $synthesisEntry = $results.ActionRequired | Where-Object { $_.Reason -eq 'COPILOT_SYNTHESIS_NEEDED' }
+        $synthesisEntry | Should -Not -BeNullOrEmpty
+        $synthesisEntry.CommentsToSynthesize | Should -Be 3
+        $synthesisEntry.Category | Should -Be 'synthesis-required'
     }
-    $mockComments = @(
-        @{ id = 1; body = 'Issue 1'; user = @{ login = 'coderabbitai' }; html_url = 'https://...' }
-        @{ id = 2; body = 'Issue 2'; user = @{ login = 'coderabbitai' }; html_url = 'https://...' }
-        @{ id = 3; body = 'Issue 3'; user = @{ login = 'coderabbitai' }; html_url = 'https://...' }
-        @{ id = 4; body = 'Issue 4'; user = @{ login = 'cursor[bot]' }; html_url = 'https://...' }
-        @{ id = 5; body = 'Issue 5'; user = @{ login = 'cursor[bot]' }; html_url = 'https://...' }
-    )
-    Mock Get-BotInfo -ParameterFilter { $Login -eq 'copilot-swe-agent' } { @{ Category = 'mention-triggered' } }
-    Mock Get-BotInfo -ParameterFilter { $Login -eq 'rjmurillo-bot' } { @{ Category = 'agent-controlled'; IsReviewBot = $true } }
 
-    # Act
-    $results = Process-SinglePR -PR $mockPR -Owner 'rjmurillo' -Repo 'ai-agents' -Comments $mockComments
-
-    # Assert
-    $synthesisEntry = $results.ActionRequired | Where-Object { $_.Reason -eq 'COPILOT_SYNTHESIS_NEEDED' }
-    $synthesisEntry | Should -Not -BeNullOrEmpty
-    $synthesisEntry.CommentsToSynthesize | Should -Be 5
-    $synthesisEntry.Category | Should -Be 'synthesis-required'
-}
+VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed`
 ```
 
 ### Task 5.4: [TEST] No duplicate PR entries
@@ -601,36 +678,45 @@ It 'Detects copilot PR and triggers synthesis for other bot comments' {
 **Prompt**:
 
 ```text
-In tests/Invoke-PRMaintenance.Tests.ps1, add this test:
+FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+PREREQUISITE: File created by Task 5.1
+ACTION: ADD test to existing 'Invoke-PRMaintenance Bot Authority Tests' Describe block
 
-It 'PR with conflicts and CHANGES_REQUESTED appears in ActionRequired only (deduplication)' {
-    # Arrange
-    $mockPR = @{
-        number = 235
-        title = 'Bot PR with conflicts and changes requested'
-        author = @{ login = 'rjmurillo-bot' }
-        reviewDecision = 'CHANGES_REQUESTED'
-        mergeable = 'CONFLICTING'
-        headRefName = 'feature-branch'
-        baseRefName = 'main'
+    It 'PR with conflicts and CHANGES_REQUESTED appears in ActionRequired only (deduplication)' {
+        # Arrange
+        Mock Get-BotInfo { @{ IsBot = $true; Category = 'agent-controlled'; IsReviewBot = $true } }
+        Mock Resolve-PRConflicts { return $false }  # Conflict resolution fails
+        Mock Get-OpenPRs {
+            @([PSCustomObject]@{
+                number = 235
+                title = 'Bot PR with conflicts and changes requested'
+                author = @{ login = 'rjmurillo-bot' }
+                reviewDecision = 'CHANGES_REQUESTED'
+                mergeable = 'CONFLICTING'
+                headRefName = 'feature-branch'
+                baseRefName = 'main'
+                reviewRequests = @()
+            })
+        }
+        Mock Get-PRComments { @() }
+        Mock Get-UnacknowledgedComments { @() }
+
+        # Act
+        $results = Invoke-PRMaintenance -Owner 'rjmurillo' -Repo 'ai-agents'
+
+        # Assert - Single entry in ActionRequired (not duplicated)
+        $prEntries = $results.ActionRequired | Where-Object { $_.PR -eq 235 }
+        $prEntries | Should -HaveCount 1
+
+        # Assert - Not in Blocked
+        $results.Blocked | Where-Object { $_.PR -eq 235 } | Should -BeNullOrEmpty
+
+        # Assert - Has conflict info merged
+        $prEntries[0].HasConflicts | Should -Be $true
+        $prEntries[0].Action | Should -Match 'resolve conflicts'
     }
-    Mock Resolve-PRConflicts { return $false }
-    Mock Get-BotInfo { @{ Category = 'agent-controlled'; IsReviewBot = $true } }
 
-    # Act
-    $results = Process-SinglePR -PR $mockPR -Owner 'rjmurillo' -Repo 'ai-agents'
-
-    # Assert - Single entry in ActionRequired
-    $prEntries = $results.ActionRequired | Where-Object { $_.PR -eq 235 }
-    $prEntries | Should -HaveCount 1
-
-    # Assert - Not in Blocked
-    $results.Blocked | Where-Object { $_.PR -eq 235 } | Should -BeNullOrEmpty
-
-    # Assert - Has conflict info merged
-    $prEntries[0].HasConflicts | Should -Be $true
-    $prEntries[0].Action | Should -Match 'resolve conflicts'
-}
+VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed`
 ```
 
 ### Task 5.5: [TEST] Human PR conflicts go to Blocked
@@ -651,32 +737,42 @@ It 'PR with conflicts and CHANGES_REQUESTED appears in ActionRequired only (dedu
 **Prompt**:
 
 ```text
-In tests/Invoke-PRMaintenance.Tests.ps1, add this test:
+FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+PREREQUISITE: File created by Task 5.1
+ACTION: ADD test to existing 'Invoke-PRMaintenance Bot Authority Tests' Describe block
 
-It 'Human-authored PR with unresolvable conflicts goes to Blocked (not ActionRequired)' {
-    # Arrange
-    $mockPR = @{
-        number = 777
-        title = 'Human PR'
-        author = @{ login = 'human-user' }
-        mergeable = 'CONFLICTING'
-        headRefName = 'feature'
-        baseRefName = 'main'
+    It 'Human-authored PR with unresolvable conflicts goes to Blocked (not ActionRequired)' {
+        # Arrange - REGRESSION TEST for human PR handling
+        Mock Get-BotInfo { @{ IsBot = $false } }  # Not a bot
+        Mock Resolve-PRConflicts { return $false }  # Conflict resolution fails
+        Mock Get-OpenPRs {
+            @([PSCustomObject]@{
+                number = 777
+                title = 'Human PR'
+                author = @{ login = 'human-user' }
+                mergeable = 'CONFLICTING'
+                headRefName = 'feature'
+                baseRefName = 'main'
+                reviewDecision = $null
+                reviewRequests = @()
+            })
+        }
+        Mock Get-PRComments { @() }
+
+        # Act
+        $results = Invoke-PRMaintenance -Owner 'rjmurillo' -Repo 'ai-agents'
+
+        # Assert - Human PR goes to Blocked (existing behavior preserved)
+        $results.Blocked | Should -HaveCount 1
+        $results.Blocked[0].Reason | Should -Be 'UNRESOLVABLE_CONFLICTS'
+        $results.Blocked[0].PR | Should -Be 777
+
+        # Assert - NOT in ActionRequired
+        $results.ActionRequired | Where-Object { $_.PR -eq 777 } | Should -BeNullOrEmpty
     }
-    Mock Resolve-PRConflicts { return $false }
-    Mock Get-BotInfo { $null }  # Not a bot
 
-    # Act
-    $results = Process-SinglePR -PR $mockPR -Owner 'rjmurillo' -Repo 'ai-agents'
-
-    # Assert
-    $results.Blocked | Should -HaveCount 1
-    $results.Blocked[0].Reason | Should -Be 'UNRESOLVABLE_CONFLICTS'
-    $results.Blocked[0].PR | Should -Be 777
-    $results.ActionRequired | Where-Object { $_.PR -eq 777 } | Should -BeNullOrEmpty
-}
-
-This is a regression test ensuring human PRs still go to Blocked.
+NOTE: This is a REGRESSION test ensuring human PRs still go to Blocked (not affected by bot authority changes).
+VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed`
 ```
 
 ### Task 5.6: [TEST] Copilot PR with zero other bot comments
@@ -697,32 +793,47 @@ This is a regression test ensuring human PRs still go to Blocked.
 **Prompt**:
 
 ```text
-In tests/Invoke-PRMaintenance.Tests.ps1, add this test:
+FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+PREREQUISITE: File created by Task 5.1
+ACTION: ADD test to existing 'Invoke-PRMaintenance Bot Authority Tests' Describe block
 
-It 'Copilot PR with no other bot comments does NOT trigger synthesis' {
-    # Arrange
-    $mockPR = @{
-        number = 333
-        title = 'Copilot PR without other bot feedback'
-        author = @{ login = 'copilot-swe-agent' }
-        reviewDecision = 'APPROVED'
+    It 'Copilot PR with no other bot comments does NOT trigger synthesis' {
+        # Arrange - EDGE CASE: No other bot comments to synthesize
+        Mock Get-BotInfo -ParameterFilter { $Login -eq 'copilot-swe-agent' } {
+            @{ IsBot = $true; Category = 'mention-triggered' }
+        }
+        Mock Get-BotInfo -ParameterFilter { $Login -ne 'copilot-swe-agent' } {
+            @{ IsBot = $true; Category = 'agent-controlled'; IsReviewBot = $true }
+        }
+        Mock Test-IsBotReviewer { return $true }
+        Mock Resolve-PRConflicts { return $true }
+        Mock Get-OpenPRs {
+            @([PSCustomObject]@{
+                number = 333
+                title = 'Copilot PR without other bot feedback'
+                author = @{ login = 'copilot-swe-agent' }
+                reviewDecision = 'APPROVED'
+                mergeable = 'MERGEABLE'
+                headRefName = 'feature'
+                baseRefName = 'main'
+                reviewRequests = @(@{ login = 'rjmurillo-bot' })
+            })
+        }
+        # Only copilot's own comments - no other bots
+        Mock Get-PRComments {
+            @(@{ id = 1; body = 'I fixed it'; user = @{ login = 'copilot-swe-agent' } })
+        }
+
+        # Act
+        $results = Invoke-PRMaintenance -Owner 'rjmurillo' -Repo 'ai-agents'
+
+        # Assert - NO synthesis entry (0 other bot comments)
+        $synthesisEntry = $results.ActionRequired | Where-Object { $_.Reason -eq 'COPILOT_SYNTHESIS_NEEDED' }
+        $synthesisEntry | Should -BeNullOrEmpty
     }
-    # Only copilot's own comments - no other bots
-    $mockComments = @(
-        @{ id = 1; body = 'I fixed it'; user = @{ login = 'copilot-swe-agent' } }
-    )
-    Mock Get-BotInfo -ParameterFilter { $Login -eq 'copilot-swe-agent' } { @{ Category = 'mention-triggered' } }
-    Mock Get-BotInfo -ParameterFilter { $Login -eq 'rjmurillo-bot' } { @{ Category = 'agent-controlled'; IsReviewBot = $true } }
 
-    # Act
-    $results = Process-SinglePR -PR $mockPR -Owner 'rjmurillo' -Repo 'ai-agents' -Comments $mockComments
-
-    # Assert
-    $synthesisEntry = $results.ActionRequired | Where-Object { $_.Reason -eq 'COPILOT_SYNTHESIS_NEEDED' }
-    $synthesisEntry | Should -BeNullOrEmpty
-}
-
-This tests the edge case where no synthesis should occur.
+NOTE: EDGE CASE test - synthesis should NOT trigger when no other bots left feedback.
+VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed`
 ```
 
 ### Task 5.7: [TEST] Integration test on 6 affected PRs
@@ -745,21 +856,43 @@ This tests the edge case where no synthesis should occur.
 **Prompt**:
 
 ```text
-Create tests/Integration-PRMaintenance.Tests.ps1 with integration tests:
+FILE: /home/richard/ai-agents/tests/Integration-PRMaintenance.Tests.ps1
+STATUS: FILE DOES NOT EXIST - must be created
+ACTION: CREATE new integration test file
+
+NOTE: These tests run against LIVE GitHub API data. PRs may be closed/merged.
+Skip tests if PRs are no longer open.
+
+CREATE the integration test file:
+
+BeforeAll {
+    . "$PSScriptRoot/../scripts/Invoke-PRMaintenance.ps1"
+    $script:Owner = 'rjmurillo'
+    $script:Repo = 'ai-agents'
+
+    # Discover which affected PRs are still open (avoid hardcoding)
+    $script:AffectedBotPRs = @(365, 353, 301, 255, 235)
+    $script:CopilotPR = 247
+}
 
 Describe 'Invoke-PRMaintenance Integration Tests' -Tag 'Integration' {
-    BeforeAll {
-        . $PSScriptRoot/../scripts/Invoke-PRMaintenance.ps1
-        $script:Owner = 'rjmurillo'
-        $script:Repo = 'ai-agents'
+    BeforeEach {
+        # Check if PRs are still open, skip if closed
+        $openPRs = gh pr list --repo "$Owner/$Repo" --state open --json number | ConvertFrom-Json
+        $script:OpenPRNumbers = $openPRs.number
     }
 
-    It 'Bot-authored PRs with conflicts appear in ActionRequired (not Blocked)' {
-        # Run maintenance on affected PRs
-        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -PRNumbers @(365, 353, 301, 255, 235)
+    It 'Bot-authored PRs with conflicts appear in ActionRequired (not Blocked)' -Skip:(-not ($OpenPRNumbers | Where-Object { $_ -in $AffectedBotPRs })) {
+        # Run maintenance on affected PRs that are still open
+        $prsToTest = $AffectedBotPRs | Where-Object { $_ -in $OpenPRNumbers }
+        if (-not $prsToTest) {
+            Set-ItResult -Skipped -Because "No affected bot PRs are currently open"
+            return
+        }
 
-        # Verify bot PRs are in ActionRequired
-        foreach ($prNum in @(365, 353, 301, 255, 235)) {
+        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo
+
+        foreach ($prNum in $prsToTest) {
             $inActionRequired = $results.ActionRequired | Where-Object { $_.PR -eq $prNum }
             $inBlocked = $results.Blocked | Where-Object { $_.PR -eq $prNum }
 
@@ -768,15 +901,15 @@ Describe 'Invoke-PRMaintenance Integration Tests' -Tag 'Integration' {
         }
     }
 
-    It 'PR #247 (copilot PR) triggers synthesis workflow' {
-        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -PRNumbers @(247)
+    It 'PR #247 (copilot PR) triggers synthesis workflow' -Skip:($CopilotPR -notin $OpenPRNumbers) {
+        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo
 
-        $copilotEntry = $results.ActionRequired | Where-Object { $_.PR -eq 247 }
+        $copilotEntry = $results.ActionRequired | Where-Object { $_.PR -eq $CopilotPR }
         $copilotEntry.Reason | Should -Be 'COPILOT_SYNTHESIS_NEEDED'
     }
 
     It 'No PR appears in both ActionRequired and Blocked' {
-        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -PRNumbers @(365, 353, 301, 255, 247, 235)
+        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo
 
         foreach ($actionItem in $results.ActionRequired) {
             $duplicate = $results.Blocked | Where-Object { $_.PR -eq $actionItem.PR }
@@ -785,7 +918,8 @@ Describe 'Invoke-PRMaintenance Integration Tests' -Tag 'Integration' {
     }
 }
 
-Tag as 'Integration' to run separately from unit tests.
+VERIFY: Run `Invoke-Pester tests/Integration-PRMaintenance.Tests.ps1 -Tag Integration -Output Detailed`
+NOTE: Requires GitHub CLI authentication. Some tests may skip if PRs are closed.
 ```
 
 ---
@@ -813,12 +947,25 @@ Tag as 'Integration' to run separately from unit tests.
 **Prompt**:
 
 ```text
-Update .agents/architecture/bot-author-feedback-protocol.md:
+FILE: /home/richard/ai-agents/.agents/architecture/bot-author-feedback-protocol.md
+ACTION: Two modifications required
 
-1. ADD to Activation Triggers table (around line 133):
+## STEP 1: Add row to Activation Triggers table
+
+SEARCH PATTERN: "| Trigger | Condition |" or "| **PR Author** |"
+LOCATION: Line ~133 (inside the activation triggers table)
+
+ADD this row after the existing "Reviewer" rows:
 | **Reviewer on Copilot PR** | rjmurillo-bot reviews copilot-swe-agent PR | N/A | Synthesize bot feedback for @copilot |
 
-2. ADD new section "Copilot Synthesis Workflow" after line 200:
+The table should now have 5 rows total (2 Author + 2 Reviewer + 1 Copilot).
+
+## STEP 2: Add new section after the table
+
+SEARCH PATTERN: End of activation triggers table (blank line after last row)
+LOCATION: Approximately line 140-145
+
+INSERT this new section:
 
 ## Copilot Synthesis Workflow
 
@@ -842,6 +989,8 @@ When rjmurillo-bot is assigned as reviewer on a copilot-swe-agent PR, it synthes
 
 **CRITICAL**: Bot reviewer CANNOT directly modify mention-triggered PRs.
 Must delegate via @copilot mention for copilot-swe-agent to implement changes.
+
+VERIFY: Run `grep -n "Copilot Synthesis" .agents/architecture/bot-author-feedback-protocol.md`
 ```
 
 ### Task 6.2: [DOCS] Update pr-changes-requested-semantics.md memory
@@ -862,7 +1011,19 @@ Must delegate via @copilot mention for copilot-swe-agent to implement changes.
 **Prompt**:
 
 ```text
-Update .agents/memories/pr-changes-requested-semantics.md to add:
+FILE: /home/richard/ai-agents/.agents/memories/pr-changes-requested-semantics.md
+STATUS: FILE DOES NOT EXIST - must be created
+ACTION: CREATE new Serena memory file
+
+CREATE the memory file with this content:
+
+# PR Changes Requested Semantics
+
+This memory documents when PR maintenance triggers action for bot-authored PRs.
+
+## Overview
+
+Bot-authored PRs use expanded trigger conditions beyond just `reviewDecision = CHANGES_REQUESTED`.
 
 ## Bot PR Action Triggers (Beyond CHANGES_REQUESTED)
 
@@ -880,7 +1041,12 @@ Bot-authored PRs trigger action under expanded conditions:
 - **Bots synthesized**: coderabbitai, cursor[bot], gemini-code-assist
 - **Note**: Bot reviewer cannot directly modify - must delegate via @copilot
 
-## Action Reasons
+### MANUAL_CONFLICT_RESOLUTION Trigger
+- **When**: Bot-authored PR has unresolvable merge conflicts
+- **Action**: `/pr-review to manually resolve conflicts`
+- **Note**: Bot has full authority over its own PRs
+
+## Action Reasons Reference
 
 | Reason | Trigger | Action |
 |--------|---------|--------|
@@ -888,6 +1054,12 @@ Bot-authored PRs trigger action under expanded conditions:
 | UNADDRESSED_COMMENTS | unacked.Count > 0 | /pr-review via pr-comment-responder |
 | MANUAL_CONFLICT_RESOLUTION | Bot PR + failed auto-resolution | /pr-review to resolve conflicts |
 | COPILOT_SYNTHESIS_NEEDED | Bot reviewer on copilot PR | Synthesize for @copilot |
+
+## Related Files
+- scripts/Invoke-PRMaintenance.ps1
+- .agents/architecture/bot-author-feedback-protocol.md
+
+VERIFY: Run `cat .agents/memories/pr-changes-requested-semantics.md` to confirm file creation.
 ```
 
 ---
