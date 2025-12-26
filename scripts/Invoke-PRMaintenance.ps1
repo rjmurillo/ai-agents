@@ -1261,6 +1261,17 @@ function Invoke-PRMaintenance {
             $isBotReviewer = Test-IsBotReviewer -ReviewRequests $pr.reviewRequests
             $hasChangesRequested = $pr.reviewDecision -eq 'CHANGES_REQUESTED'
 
+            # Detect copilot-swe-agent PRs where rjmurillo-bot is reviewer
+            $isCopilotPR = $false
+            if ($isBotReviewer -and ($authorLogin -imatch 'copilot')) {
+                # Check if author is a mention-triggered bot (copilot-swe-agent behavior)
+                $authorBotInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
+                if ($authorBotInfo.Category -eq 'mention-triggered') {
+                    $isCopilotPR = $true
+                    Write-Log "PR #$($pr.number): Detected copilot-swe-agent PR with rjmurillo-bot as reviewer" -Level INFO
+                }
+            }
+
             # Get comments once for mention check and acknowledgment
             $comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
             $mentionedComments = @($comments | Where-Object { $_.body -match '@rjmurillo-bot' })
