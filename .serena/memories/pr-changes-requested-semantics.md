@@ -19,6 +19,7 @@ Before any work, rjmurillo-bot MUST:
 |---------|--------|
 | **PR Author** | rjmurillo-bot authored PR -> ActionRequired -> /pr-review all comments |
 | **Reviewer** | rjmurillo-bot added as reviewer -> ActionRequired -> /pr-review all comments |
+| **Reviewer on Copilot PR** | rjmurillo-bot reviews copilot-swe-agent -> Synthesize bot feedback for @copilot |
 | **Mention** | @rjmurillo-bot in comment -> Process ONLY that comment |
 
 ## Bot Categories
@@ -35,6 +36,19 @@ Before any work, rjmurillo-bot MUST:
 ## Implementation
 
 See `Get-BotAuthorInfo` in `scripts/Invoke-PRMaintenance.ps1`.
+
+## Copilot Synthesis
+
+When rjmurillo-bot is reviewer on a copilot-swe-agent PR:
+
+1. Collect comments from other bots (coderabbitai, cursor[bot], gemini-code-assist)
+2. Generate @copilot synthesis prompt with grouped feedback
+3. Post comment directing @copilot to address issues
+4. Add to ActionRequired with reason `COPILOT_SYNTHESIS_NEEDED`
+
+**Authority Boundary**: Bot reviewer cannot modify mention-triggered PRs directly - must delegate via @copilot.
+
+**Function**: `Invoke-CopilotSynthesis` in `scripts/Invoke-PRMaintenance.ps1`
 
 ## Derivative PRs
 

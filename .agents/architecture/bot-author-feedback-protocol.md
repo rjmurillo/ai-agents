@@ -136,8 +136,45 @@ rjmurillo-bot takes action in these scenarios:
 | **PR Author** | PR opened by rjmurillo-bot | No | Maintenance only |
 | **Reviewer** | rjmurillo-bot added as reviewer | Yes | /pr-review via pr-comment-responder |
 | **Reviewer** | rjmurillo-bot added as reviewer | No | Maintenance only |
+| **Reviewer on Copilot PR** | rjmurillo-bot reviews copilot-swe-agent PR | N/A | Synthesize bot feedback for @copilot |
 | **Mention** | @rjmurillo-bot in comment | N/A | Eyes reaction + process ONLY that comment |
 | **None** | Not author, reviewer, or mentioned | N/A | Maintenance only |
+
+### Copilot Synthesis Workflow
+
+When rjmurillo-bot is assigned as reviewer on a copilot-swe-agent PR, it synthesizes feedback from other review bots.
+
+**Trigger Conditions:**
+
+1. PR author matches `copilot` pattern (copilot-swe-agent)
+2. rjmurillo-bot is a reviewer on the PR
+3. Comments exist from other bots (coderabbitai, cursor[bot], gemini-code-assist)
+
+**Workflow:**
+
+1. Detect copilot-swe-agent authorship
+2. Collect comments from other review bots (case-insensitive matching)
+3. Generate synthesis prompt using `Invoke-CopilotSynthesis`
+4. Post @copilot comment with grouped feedback links
+5. Add PR to ActionRequired with reason `COPILOT_SYNTHESIS_NEEDED`
+
+**Authority Boundary:**
+
+Bot reviewer CANNOT directly modify mention-triggered PRs - must delegate via @copilot comment. This preserves the principle that copilot-swe-agent responds only to @copilot mentions.
+
+**Synthesis Prompt Format:**
+
+```text
+@copilot Please address the following feedback on PR #N:
+
+**coderabbitai** (X comments):
+- [truncated comment text](link)
+
+**cursor[bot]** (Y comments):
+- [truncated comment text](link)
+
+Please implement fixes for these issues and update the PR.
+```
 
 ### Acceptance Criteria by Scenario
 
