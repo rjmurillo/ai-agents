@@ -1231,16 +1231,20 @@ Describe "Invoke-PRMaintenance.ps1" {
             $info.Action | Should -Match 'Blocked'
         }
 
-        It "Returns 'agent-controlled' for github-actions" {
+        It "Returns 'non-responsive' for github-actions (cannot respond to comments)" {
+            # Per cursor[bot] review: github-actions cannot respond to comments
+            # These accounts should be blocked, prompting migration to user-specific credentials
             $info = Get-BotAuthorInfo -AuthorLogin "github-actions"
             $info.IsBot | Should -Be $true
-            $info.Category | Should -Be 'agent-controlled'
+            $info.Category | Should -Be 'non-responsive'
+            $info.Action | Should -Match 'Blocked'
         }
 
-        It "Returns 'agent-controlled' for github-actions[bot]" {
+        It "Returns 'non-responsive' for github-actions[bot] (cannot respond to comments)" {
             $info = Get-BotAuthorInfo -AuthorLogin "github-actions[bot]"
             $info.IsBot | Should -Be $true
-            $info.Category | Should -Be 'agent-controlled'
+            $info.Category | Should -Be 'non-responsive'
+            $info.Action | Should -Match 'Blocked'
         }
     }
 

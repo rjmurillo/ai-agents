@@ -645,9 +645,17 @@ function Get-BotAuthorInfo {
     }
 
     # Agent-controlled bots (we can address directly)
+    # NOTE: github-actions and github-actions[bot] are intentionally NOT included here.
+    # Per cursor[bot] review: These accounts are "non-responsive" - they cannot respond
+    # to comments or mentions. PRs from these accounts should prompt migration to
+    # user-specific credentials. See ADR recommendation in PR #402 comments.
     $agentControlled = @(
         '-bot$'           # Custom bot accounts: rjmurillo-bot, my-project-bot
-        '^github-actions$' # GitHub Actions identity
+    )
+
+    # Non-responsive bots (cannot respond to comments/mentions)
+    $nonResponsive = @(
+        '^github-actions$'
         '^github-actions\[bot\]$'
     )
 
@@ -682,6 +690,18 @@ function Get-BotAuthorInfo {
                 IsBot = $true
                 Category = 'agent-controlled'
                 Action = 'pr-comment-responder'
+                Mention = $null
+            }
+        }
+    }
+
+    # Check non-responsive bots (cannot respond to comments/mentions)
+    foreach ($pattern in $nonResponsive) {
+        if ($AuthorLogin -match $pattern) {
+            return @{
+                IsBot = $true
+                Category = 'non-responsive'
+                Action = 'Blocked - bot cannot respond to comments. Recommend migrating to user-specific credentials.'
                 Mention = $null
             }
         }
@@ -1131,6 +1151,7 @@ function Invoke-PRMaintenance {
                 else {
                     $null = $results.Blocked.Add(@{
                         PR = $pr.number
+                        Author = $authorLogin
                         Reason = 'UNRESOLVABLE_CONFLICTS'
                         Title = $pr.title
                     })
