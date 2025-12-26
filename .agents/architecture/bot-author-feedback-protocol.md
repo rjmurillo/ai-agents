@@ -90,12 +90,17 @@ flowchart TD
 
     D --> M[Maintenance Tasks]
 
-    M --> O{Has Merge Conflicts}
+    M --> O{Has Merge Conflicts?}
 
     O -->|Yes| L[Resolve Merge Conflicts]
-    O -->|No| Z[END]
+    O -->|No| P
 
-    L --> Z
+    L --> P{Has Derivative PRs?}
+
+    P -->|Yes| Q[Report derivatives in ActionRequired]
+    P -->|No| Z[END]
+
+    Q --> Z
 ```
 
 ## rjmurillo-bot Activation Triggers
@@ -265,9 +270,14 @@ stateDiagram-v2
 
     Maintenance --> CheckConflicts: Maintenance tasks
     CheckConflicts --> ResolveConflicts: Has conflicts
-    CheckConflicts --> Done: No conflicts
+    CheckConflicts --> CheckDerivatives: No conflicts
 
-    ResolveConflicts --> Done: Conflicts resolved
+    ResolveConflicts --> CheckDerivatives: Conflicts resolved
+
+    CheckDerivatives --> ReportDerivatives: Has derivative PRs
+    CheckDerivatives --> Done: No derivatives
+
+    ReportDerivatives --> Done: Add to ActionRequired
     Done --> [*]
 ```
 
