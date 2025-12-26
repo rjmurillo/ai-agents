@@ -1070,9 +1070,9 @@ function Invoke-PRMaintenance {
             # Determine action based on activation triggers
             if ($isBotAuthor -or $isBotReviewer) {
                 # Bot is author or reviewer
+                $role = if ($isBotAuthor) { 'author' } else { 'reviewer' }
                 if ($hasChangesRequested) {
                     # CHANGES_REQUESTED -> /pr-review
-                    $role = if ($isBotAuthor) { 'author' } else { 'reviewer' }
                     Write-Log "PR #$($pr.number): rjmurillo-bot is $role with CHANGES_REQUESTED -> /pr-review" -Level WARN
                     $null = $results.ActionRequired.Add(@{
                         PR = $pr.number
@@ -1284,12 +1284,12 @@ try {
 | Errors | $($results.Errors.Count) |
 
 "@
-            # List bot PRs that need action (CHANGES_REQUESTED on bot-authored PRs)
+            # List PRs that need action (CHANGES_REQUESTED or @mention)
             if ($results.ActionRequired.Count -gt 0) {
                 $summary += @"
-### Bot PRs with CHANGES_REQUESTED
+### PRs Requiring Action
 
-These bot-authored PRs have reviewer feedback. Actions vary by bot type:
+These PRs require rjmurillo-bot action (CHANGES_REQUESTED or @mention):
 
 | PR | Author | Category | Action |
 |----|--------|----------|--------|

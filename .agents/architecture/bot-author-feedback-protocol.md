@@ -17,7 +17,7 @@ Before performing any work, rjmurillo-bot MUST:
 flowchart TD
     A[PR] --> B{Is rjmurillo-bot<br/>the PR author?}
 
-    B -->|Yes| C{Are CHANGES_REQUESTED}
+    B -->|Yes| C{CHANGES_REQUESTED?}
     C -->|Yes| D["/pr-review via pr-comment-responder"]
     C -->|No| M
 
