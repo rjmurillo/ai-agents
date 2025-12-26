@@ -2,22 +2,37 @@
 
 ## Critical Understanding
 
-**CHANGES_REQUESTED handling depends on both author type AND bot category.**
+rjmurillo-bot takes action based on **activation triggers**, not just PR authorship.
 
-When a reviewer requests changes:
-1. **Who authored the PR** (human vs bot)
-2. **What type of bot** (if bot-authored)
+## Prerequisites
+
+Before any work, rjmurillo-bot MUST:
+1. Read `.agents/AGENTS.md`
+2. Follow `.agents/SESSION-PROTOCOL.md`
+
+## rjmurillo-bot Activation Triggers
+
+| Trigger | Action |
+|---------|--------|
+| **PR Author** | rjmurillo-bot authored PR → ActionRequired → /pr-review all comments |
+| **Reviewer** | rjmurillo-bot added as reviewer → ActionRequired → /pr-review all comments |
+| **Mention** | @rjmurillo-bot in comment → Process ONLY that comment |
+
+## Blocked List
+
+A PR is added to Blocked ONLY when:
+- Human authored the PR, AND
+- No action is directed toward @rjmurillo-bot (explicitly or implicitly)
 
 ## Bot Categories
 
-| Category | Examples | How to Address Feedback |
+| Category | Examples | When rjmurillo-bot Acts |
 |----------|----------|------------------------|
-| **human** | rjmurillo, johndoe | Blocked - human must act |
-| **agent-controlled** | rjmurillo-bot | `/pr-review` via pr-comment-responder |
-| **non-responsive** | github-actions[bot] | Cannot respond - see protocol doc |
-| **mention-triggered** | copilot-swe-agent, copilot[bot] | Add comment with `@copilot` |
-| **command-triggered** | dependabot[bot], renovate[bot] | Use `@dependabot rebase`, etc. |
-| **unknown-bot** | other [bot] accounts | Manual review required |
+| **agent-controlled** | rjmurillo-bot | Author or reviewer of PR |
+| **mention-triggered** | copilot-swe-agent | Supplements agent-controlled via @copilot |
+| **command-triggered** | dependabot[bot] | Uses @dependabot commands |
+| **non-responsive** | github-actions[bot] | Cannot respond to mentions |
+| **human** | rjmurillo | Only if @rjmurillo-bot mentioned |
 
 ## Bot-Specific Pattern References (DRY)
 
@@ -41,16 +56,29 @@ $botInfo = Get-BotAuthorInfo -AuthorLogin $pr.author.login
 # Returns: IsBot, Category, Action, Mention
 ```
 
-## Maintenance Tasks Always Run
+## Maintenance Tasks
 
-CHANGES_REQUESTED status only affects who can ADDRESS feedback.
+Maintenance is limited to **merge conflict resolution only**.
 
-| Task | Runs? | Why |
-|------|-------|-----|
-| Resolve merge conflicts | Always | Keeps PR mergeable |
-| Acknowledge bot comments | Always | Shows engagement |
-| Check similar PRs | Always | Informational |
-| Address reviewer feedback | Depends | Bot category determines action |
+### Resolving Merge Conflicts
+
+Before resolving, gather context:
+```bash
+git log --oneline -10 origin/main  # Last 10 commits for context
+```
+
+Additional context from open Issues/PRs as needed. PR numbers appear in git log.
+
+## Eyes Reaction (Comment Acknowledgment)
+
+Eyes reaction = social indicator of engagement. Use ONLY when taking action:
+
+| Scenario | Add Eyes? |
+|----------|-----------|
+| rjmurillo-bot is PR author | Yes |
+| rjmurillo-bot is reviewer | Yes |
+| @rjmurillo-bot mentioned | Yes (on that comment) |
+| Human PR, no mention | No |
 
 ## Anti-Patterns
 
