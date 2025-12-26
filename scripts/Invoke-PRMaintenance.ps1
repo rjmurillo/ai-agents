@@ -1594,15 +1594,34 @@ function Invoke-PRMaintenance {
                 }
 
                 # Get unaddressed comments BEFORE action determination (reused for acknowledgment later)
-                $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number -Comments $comments
-                $hasUnaddressedComments = $unacked.Count -gt 0
+                # TASK-006: Use Get-UnaddressedComments to detect all unaddressed feedback states
+                $unaddressed = Get-UnaddressedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number -Comments $comments
+                $hasUnaddressedComments = $unaddressed.Count -gt 0
 
                 # Trigger action if CHANGES_REQUESTED OR unaddressed comments exist (for agent-controlled PRs)
                 if (-not $isCopilotPR) {
                     $needsAction = $hasChangesRequested -or $hasUnaddressedComments
 
                     if ($needsAction) {
-                        $reason = if ($hasChangesRequested) { 'CHANGES_REQUESTED' } else { 'UNADDRESSED_COMMENTS' }
+                        # TASK-007: Determine reason based on unresolved threads vs unacknowledged comments
+                        if ($hasChangesRequested) {
+                            $reason = 'CHANGES_REQUESTED'
+                        } elseif ($hasUnaddressedComments) {
+                            # Distinguish between unresolved threads and unacknowledged comments
+                            $unresolvedThreads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PR $pr.number
+                            $hasUnresolvedThreads = $unresolvedThreads.Count -gt 0
+                            $hasUnackedComments = ($unaddressed | Where-Object { $_.reactions.eyes -eq 0 }).Count -gt 0
+
+                            $reason = if ($hasUnresolvedThreads -and $hasUnackedComments) {
+                                'UNRESOLVED_THREADS+UNACKNOWLEDGED'
+                            } elseif ($hasUnresolvedThreads) {
+                                'UNRESOLVED_THREADS'
+                            } else {
+                                'UNACKNOWLEDGED'
+                            }
+                        } else {
+                            $reason = 'UNKNOWN'  # Should not reach here, but defensive
+                        }
                         Write-Log "PR #$($pr.number): rjmurillo-bot is $role with $reason -> /pr-review" -Level WARN
                         $null = $results.ActionRequired.Add(@{
                             PR = $pr.number
@@ -1612,7 +1631,7 @@ function Invoke-PRMaintenance {
                             Category = 'agent-controlled'
                             Action = '/pr-review via pr-comment-responder'
                             Mention = $null
-                            UnaddressedCount = $unacked.Count
+                            UnaddressedCount = $unaddressed.Count
                         })
                     } else {
                         # No CHANGES_REQUESTED and no unaddressed comments -> maintenance only
@@ -1620,8 +1639,8 @@ function Invoke-PRMaintenance {
                     }
                 }
 
-                # Acknowledge ALL unaddressed comments (reuse $unacked from above - no duplicate API call)
-                foreach ($comment in $unacked) {
+                # Acknowledge ALL unaddressed comments (reuse $unaddressed from above - no duplicate API call)
+                foreach ($comment in $unaddressed) {
                     Write-Log "Acknowledging comment $($comment.id) from $($comment.user.login)" -Level ACTION
                     $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
                     if ($acked) {
