@@ -1242,7 +1242,8 @@ function Invoke-PRMaintenance {
     param(
         [string]$Owner,
         [string]$Repo,
-        [int]$MaxPRs
+        [int]$MaxPRs,
+        [switch]$DryRun
     )
 
     $results = @{
