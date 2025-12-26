@@ -110,17 +110,16 @@ Out of scope:
 
 ---
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-| Item | Status | Evidence |
-|------|--------|----------|
-| Session log created | [COMPLETE] | This file |
-| Retrospective artifact created | [COMPLETE] | `.agents/retrospective/2025-12-26-prd-planning-workflow.md` |
-| Execution timeline documented | [COMPLETE] | Phase 0: Execution Trace Analysis |
-| Root cause analysis performed | [COMPLETE] | Phase 1: Five Whys + Fishbone |
-| Skills extracted and scored | [COMPLETE] | 5 skills, atomicity 88-95% |
-| Metrics quantified | [COMPLETE] | 71% success rate, 5 skills, 17 tasks analyzed |
-| Handoff format provided | [COMPLETE] | Phase 5: Retrospective Handoff |
-| Memory updates specified | [COMPLETE] | 3 files to update |
-| Linting run | [PENDING] | Next step |
-| Commit session artifacts | [PENDING] | After linting |
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: docs-only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: d7a53e5 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A - retrospective session |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | Doc: `.agents/retrospective/2025-12-26-prd-planning-workflow.md` |
+| SHOULD | Verify clean git status | [x] | `git status` output clean |

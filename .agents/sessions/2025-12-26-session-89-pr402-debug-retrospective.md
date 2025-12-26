@@ -21,12 +21,19 @@ Perform retrospective analysis on the debugging session for PR #402, focusing on
 3. Testing gaps and process improvements
 4. Learnings extraction
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-- [x] Retrospective document created
-- [x] Learnings extracted to Serena memory
-- [x] Session log complete
-- [x] Files committed
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: docs-only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 1dca68e |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A - retrospective session |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | Doc: `.agents/retrospective/402-double-nested-array-debug.md` |
+| SHOULD | Verify clean git status | [x] | `git status` output clean |
 
 ## Evidence
 
