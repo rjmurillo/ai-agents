@@ -1270,25 +1270,33 @@ function Invoke-PRMaintenance {
             if ($isAgentControlledBot -or $isBotReviewer) {
                 # Bot is author or reviewer
                 $role = if ($isAgentControlledBot) { 'author' } else { 'reviewer' }
-                if ($hasChangesRequested) {
-                    # CHANGES_REQUESTED -> /pr-review
-                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with CHANGES_REQUESTED -> /pr-review" -Level WARN
+
+                # Get unaddressed comments BEFORE action determination (reused for acknowledgment later)
+                $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number -Comments $comments
+                $hasUnaddressedComments = $unacked.Count -gt 0
+
+                # Trigger action if CHANGES_REQUESTED OR unaddressed comments exist
+                $needsAction = $hasChangesRequested -or $hasUnaddressedComments
+
+                if ($needsAction) {
+                    $reason = if ($hasChangesRequested) { 'CHANGES_REQUESTED' } else { 'UNADDRESSED_COMMENTS' }
+                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with $reason -> /pr-review" -Level WARN
                     $null = $results.ActionRequired.Add(@{
                         PR = $pr.number
                         Author = $authorLogin
-                        Reason = 'CHANGES_REQUESTED'
+                        Reason = $reason
                         Title = $pr.title
                         Category = 'agent-controlled'
                         Action = '/pr-review via pr-comment-responder'
                         Mention = $null
+                        UnaddressedCount = $unacked.Count
                     })
                 } else {
-                    # No CHANGES_REQUESTED -> maintenance only
-                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role, no CHANGES_REQUESTED -> maintenance only" -Level INFO
+                    # No CHANGES_REQUESTED and no unaddressed comments -> maintenance only
+                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role, no action needed -> maintenance only" -Level INFO
                 }
 
-                # Acknowledge ALL comments when author or reviewer (reuse pre-fetched comments)
-                $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number -Comments $comments
+                # Acknowledge ALL unaddressed comments (reuse $unacked from above - no duplicate API call)
                 foreach ($comment in $unacked) {
                     Write-Log "Acknowledging comment $($comment.id) from $($comment.user.login)" -Level ACTION
                     $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
