@@ -49,18 +49,18 @@ Use this to determine which invocation method:
 ```mermaid
 flowchart TD
     A[What is your goal?] --> B{Goal Type}
-    B -->|Routine maintenance| C[Scheduled: hourly GitHub Actions]
-    B -->|Check PR status now| D[Manual: pwsh scripts/Invoke-PRMaintenance.ps1]
-    B -->|Address CHANGES_REQUESTED| E[Agent: /pr-review PR]
-    B -->|Trigger from CI/CD| F[gh workflow run pr-maintenance.yml]
+    B -->|Routine maintenance| C["Scheduled: hourly GitHub Actions"]
+    B -->|Check PR status now| D["Manual: pwsh Invoke-PRMaintenance.ps1"]
+    B -->|Address CHANGES_REQUESTED| E["Agent: pr-review skill"]
+    B -->|Trigger from CI/CD| F["gh workflow run pr-maintenance.yml"]
 
     G[Are you an agent responding to review comments?] --> H{Response}
-    H -->|YES| I[/pr-review PR<br/>processes comments, implements fixes]
-    H -->|NO| J[pwsh scripts/Invoke-PRMaintenance.ps1<br/>scans, reports, resolves conflicts]
+    H -->|YES| I["pr-review skill<br>processes comments, implements fixes"]
+    H -->|NO| J["Invoke-PRMaintenance.ps1<br>scans, reports, resolves conflicts"]
 
     K[Do you need to implement code changes?] --> L{Changes Needed}
-    L -->|YES| M[/pr-review<br/>agent modifies code]
-    L -->|NO| N[Invoke-PRMaintenance.ps1<br/>script only reports]
+    L -->|YES| M["pr-review skill<br>agent modifies code"]
+    L -->|NO| N["Invoke-PRMaintenance.ps1<br>script only reports"]
 ```
 
 ## Prerequisites
