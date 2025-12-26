@@ -47,18 +47,14 @@ flowchart TD
 
 rjmurillo-bot takes action in these scenarios:
 
-| Trigger | Condition | Action |
-|---------|-----------|--------|
-| **PR Author** | PR opened by rjmurillo-bot | Add to ActionRequired, run /pr-review |
-| **Reviewer** | rjmurillo-bot added as reviewer | Add to ActionRequired, run /pr-review |
-| **Mention** | @rjmurillo-bot in comment | Process ONLY that comment |
-
-### Blocked List
-
-A PR is added to the Blocked list ONLY when:
-
-- Human authored the PR, AND
-- No action is directed toward @rjmurillo-bot (explicitly or implicitly)
+| Trigger | Condition | CHANGES_REQUESTED? | Action |
+|---------|-----------|-------------------|--------|
+| **PR Author** | PR opened by rjmurillo-bot | Yes | /pr-review via pr-comment-responder |
+| **PR Author** | PR opened by rjmurillo-bot | No | Maintenance only |
+| **Reviewer** | rjmurillo-bot added as reviewer | Yes | /pr-review via pr-comment-responder |
+| **Reviewer** | rjmurillo-bot added as reviewer | No | Maintenance only |
+| **Mention** | @rjmurillo-bot in comment | N/A | Eyes reaction + process ONLY that comment |
+| **None** | Not author, reviewer, or mentioned | N/A | Maintenance only |
 
 ## Comment Acknowledgment (Eyes Reaction)
 
@@ -98,61 +94,68 @@ Note: PR numbers are included in the git log for reference (e.g., `abc1234 fix: 
 
 ```mermaid
 stateDiagram-v2
-    [*] --> CheckAuthor: PR with CHANGES_REQUESTED
+    [*] --> CheckAuthor: PR received
 
-    CheckAuthor --> BotIsAuthor: rjmurillo-bot authored PR
+    CheckAuthor --> CheckChangesRequested: rjmurillo-bot is author
     CheckAuthor --> CheckReviewer: Not bot-authored
 
-    BotIsAuthor --> ActionRequired: Add to ActionRequired
-    ActionRequired --> ProcessAll: /pr-review all comments
+    CheckChangesRequested --> PRReview: CHANGES_REQUESTED
+    CheckChangesRequested --> Maintenance: No changes requested
 
-    CheckReviewer --> BotIsReviewer: rjmurillo-bot is reviewer
+    PRReview --> Maintenance: /pr-review complete
+
+    CheckReviewer --> CheckChangesRequested: rjmurillo-bot is reviewer
     CheckReviewer --> CheckMention: Not a reviewer
 
-    BotIsReviewer --> ActionRequired
+    CheckMention --> ProcessMentioned: @rjmurillo-bot mentioned
+    CheckMention --> Maintenance: No mention
 
-    CheckMention --> MentionFound: @rjmurillo-bot mentioned
-    CheckMention --> NoMention: No mention
+    ProcessMentioned --> EyesReaction: Add eyes to comment
+    EyesReaction --> Maintenance: Process that comment
 
-    MentionFound --> ProcessMentioned: Process ONLY mentioned comments
-    ProcessMentioned --> AckMentioned: Eyes reaction on those
+    Maintenance --> CheckConflicts: Maintenance tasks
+    CheckConflicts --> ResolveConflicts: Has conflicts
+    CheckConflicts --> Done: No conflicts
 
-    NoMention --> HumanPR: Human authored
-    NoMention --> OtherBot: Other bot authored
-
-    HumanPR --> Blocked: No bot action available
-    OtherBot --> ManualReview: Requires manual review
-
-    ProcessAll --> Maintenance
-    AckMentioned --> Maintenance
-    Maintenance --> ResolveConflicts: Only merge conflicts
-    ResolveConflicts --> [*]
+    ResolveConflicts --> Done: Conflicts resolved
+    Done --> [*]
 ```
 
-## Bot Categories
+## PR Author Categories
 
-| Category | Examples | When rjmurillo-bot Acts |
-|----------|----------|------------------------|
-| **agent-controlled** | rjmurillo-bot | Author or reviewer of PR |
-| **mention-triggered** | copilot-swe-agent | When @copilot mentioned (supplements agent-controlled) |
-| **command-triggered** | dependabot[bot] | Uses @dependabot commands |
-| **non-responsive** | github-actions[bot] | Cannot respond to mentions |
-| **human** | rjmurillo | Only if @rjmurillo-bot mentioned |
+How rjmurillo-bot responds based on who authored the PR:
+
+| PR Author | rjmurillo-bot Role | Action |
+|-----------|-------------------|--------|
+| **rjmurillo-bot** | Author | /pr-review if CHANGES_REQUESTED, else maintenance |
+| **rjmurillo-bot** | Reviewer | /pr-review if CHANGES_REQUESTED, else maintenance |
+| **Human** | Mentioned | Eyes + process mentioned comments only |
+| **Human** | Not involved | Maintenance only (conflict resolution) |
+| **Other bot** | Mentioned | Eyes + process mentioned comments only |
+| **Other bot** | Not involved | Maintenance only (conflict resolution) |
 
 ## Anti-Patterns
 
 ```powershell
 # WRONG: Add eyes to all comments
-foreach ($comment in $allComments) { Add-Reaction -eyes }  # Only when taking action!
+foreach ($comment in $allComments) { Add-Reaction -eyes }
+# RIGHT: Only add eyes when bot will take action on that comment
 
-# WRONG: Process all comments when only mentioned
-if ($mentionedOnce) { ProcessAllComments() }  # Only process where mentioned!
+# WRONG: Run /pr-review when not author or reviewer
+if ($mentioned) { Invoke-PRReview }
+# RIGHT: If only mentioned, process ONLY the mentioned comments
 
-# WRONG: Include comment acknowledgment in maintenance
-$maintenanceTasks = @('conflicts', 'comments')  # Only conflicts!
+# WRONG: Run /pr-review without CHANGES_REQUESTED
+if ($isBotAuthor) { Invoke-PRReview }
+# RIGHT: Only /pr-review when author/reviewer AND CHANGES_REQUESTED
+
+# WRONG: Skip maintenance when not taking action
+if (-not $shouldAct) { return }
+# RIGHT: Always check for merge conflicts regardless of action
 
 # WRONG: Skip session protocol
-ProcessPR()  # Must read AGENTS.md and follow SESSION-PROTOCOL.md first!
+ProcessPR()
+# RIGHT: Must read AGENTS.md and follow SESSION-PROTOCOL.md first
 ```
 
 ## Related Documents
