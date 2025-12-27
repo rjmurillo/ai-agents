@@ -26,8 +26,8 @@ Before creating an ADR, collect the following inputs from the user or conversati
 ### 2. Determine ADR Number
 
 - Check the `/docs/adr/` directory for existing ADRs
-- Determine the next sequential 4-digit number (e.g., 0001, 0002, etc.)
-- If the directory doesn't exist, start with 0001
+- Determine the next sequential 3-digit number (e.g., 001, 002, etc.)
+- If the directory doesn't exist, start with 001
 
 ### 3. Generate ADR Document in Markdown
 
@@ -49,7 +49,7 @@ Create an ADR as a markdown file following the standardized format below with th
 
 ```yaml
 ---
-title: "ADR-NNNN: [Decision Title]"
+title: "ADR-NNN: [Decision Title]"
 status: "Proposed"
 date: "YYYY-MM-DD"
 authors: "[Stakeholder Names/Roles]"
@@ -153,13 +153,13 @@ For each alternative:
 
 ### Naming Convention
 
-`adr-NNNN-[title-slug].md`
+`adr-NNN-[title-slug].md`
 
 **Examples:**
 
-- `adr-0001-database-selection.md`
-- `adr-0015-microservices-architecture.md`
-- `adr-0042-authentication-strategy.md`
+- `adr-001-database-selection.md`
+- `adr-015-microservices-architecture.md`
+- `adr-042-authentication-strategy.md`
 
 ### Location
 
