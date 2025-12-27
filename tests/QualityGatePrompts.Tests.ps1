@@ -23,6 +23,7 @@ BeforeAll {
 
     # Helper function to check if prompt contains required section
     function Test-PromptSection {
+        [CmdletBinding()]
         param(
             [string]$PromptPath,
             [string]$SectionHeader
@@ -33,6 +34,7 @@ BeforeAll {
 
     # Helper function to extract file patterns from PR Type Detection table
     function Get-FilePatternMappings {
+        [CmdletBinding()]
         param([string]$PromptPath)
 
         $content = Get-Content $PromptPath -Raw
@@ -53,6 +55,7 @@ BeforeAll {
 
     # Helper function to check verdict threshold section exists for a PR type
     function Test-VerdictThresholdForType {
+        [CmdletBinding()]
         param(
             [string]$PromptPath,
             [string]$PRType
@@ -62,23 +65,27 @@ BeforeAll {
     }
 
     # Helper function to classify a file path
+    # Logic aligns with prompt definitions - order by precedence
     function Get-FileCategory {
+        [CmdletBinding()]
         param(
             [string]$FilePath
         )
 
         switch -Regex ($FilePath) {
-            '\.github/workflows/.*\.yml$' { return 'WORKFLOW' }
-            '\.github/actions/' { return 'ACTION' }
+            '\.github/workflows/.*\.(yml|yaml)$' { return 'WORKFLOW' }
+            '\.github/actions/.*/action\.ya?ml$' { return 'ACTION' }
             '\.github/prompts/.*\.md$' { return 'PROMPT' }
+            '^scripts/.*\.(ps1|sh)$' { return 'SCRIPT' }
             '\.(ps1|psm1|cs|ts|js|py)$' { return 'CODE' }
             '\.(json|xml|yaml)$' {
                 if ($FilePath -notmatch '\.github/workflows/') { return 'CONFIG' }
                 else { return 'WORKFLOW' }
             }
             '\.(md|txt|rst|adoc)$' {
-                if ($FilePath -match '\.github/prompts/') { return 'PROMPT' }
-                else { return 'DOCS' }
+                # DOCS are *.md files NOT in .github/ directory
+                if ($FilePath.StartsWith('.github/')) { return 'OTHER' }
+                return 'DOCS'
             }
             default { return 'OTHER' }
         }
@@ -86,6 +93,7 @@ BeforeAll {
 
     # Helper function to determine overall PR type from file list
     function Get-PRType {
+        [CmdletBinding()]
         param(
             [string[]]$Files
         )
@@ -176,9 +184,17 @@ Describe "Quality Gate Prompt Structure" {
 }
 
 Describe "File Category Classification" {
+    Context "SCRIPT files" {
+        It "Should classify <Path> as SCRIPT" -ForEach @(
+            @{ Path = "scripts/Invoke-PRMaintenance.ps1" }
+            @{ Path = "scripts/build.sh" }
+        ) {
+            Get-FileCategory -FilePath $Path | Should -Be "SCRIPT"
+        }
+    }
+
     Context "CODE files" {
         It "Should classify <Path> as CODE" -ForEach @(
-            @{ Path = "scripts/Invoke-PRMaintenance.ps1" }
             @{ Path = "src/module.psm1" }
             @{ Path = "lib/helper.cs" }
             @{ Path = "src/index.ts" }
@@ -250,8 +266,13 @@ Describe "PR Type Detection" {
         }
 
         It "Should detect CODE-only PR" {
-            $files = @("scripts/main.ps1", "lib/helper.psm1")
+            $files = @("src/main.ps1", "lib/helper.psm1")
             Get-PRType -Files $files | Should -Be "CODE"
+        }
+
+        It "Should detect SCRIPT-only PR" {
+            $files = @("scripts/build.ps1", "scripts/deploy.sh")
+            Get-PRType -Files $files | Should -Be "SCRIPT"
         }
 
         It "Should detect WORKFLOW-only PR" {
@@ -267,6 +288,11 @@ Describe "PR Type Detection" {
 
     Context "Mixed PRs" {
         It "Should detect MIXED when CODE + DOCS" {
+            $files = @("src/main.ps1", "README.md")
+            Get-PRType -Files $files | Should -Be "MIXED"
+        }
+
+        It "Should detect MIXED when SCRIPT + DOCS" {
             $files = @("scripts/main.ps1", "README.md")
             Get-PRType -Files $files | Should -Be "MIXED"
         }
@@ -277,7 +303,7 @@ Describe "PR Type Detection" {
         }
 
         It "Should detect MIXED when CODE + WORKFLOW + DOCS" {
-            $files = @("scripts/main.ps1", ".github/workflows/ci.yml", "README.md")
+            $files = @("src/main.ps1", ".github/workflows/ci.yml", "README.md")
             Get-PRType -Files $files | Should -Be "MIXED"
         }
     }
@@ -468,11 +494,11 @@ Describe "Regression Test Scenarios" {
                 Rationale = "Single markdown file in .agents/ should not require tests"
             }
             @{
-                Name = "PR #437 - CODE-only variable rename"
+                Name = "PR #437 - SCRIPT-only variable rename"
                 Files = @("scripts/Invoke-PRMaintenance.ps1")
-                ExpectedType = "CODE"
+                ExpectedType = "SCRIPT"
                 ExpectedVerdict = "PASS"
-                Rationale = "Refactoring rename should not require new tests"
+                Rationale = "Refactoring rename in scripts/ should not require new tests"
             }
             @{
                 Name = "PR #438 - WORKFLOW-only new workflow"
