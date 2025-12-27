@@ -2,7 +2,7 @@
 
 ## Overview
 
-This policy operationalizes [ADR-019: AI Review Model Routing Strategy](../architecture/ADR-019-model-routing-strategy.md) with compliance requirements, security hardening, and operational procedures.
+This policy operationalizes [ADR-021: AI Review Model Routing Strategy](../architecture/ADR-021-model-routing-strategy.md) with compliance requirements, security hardening, and operational procedures.
 
 **Policy objective**: Minimize false PASS in AI reviews by routing requests to specialized models based on prompt type and evidence availability.
 
@@ -94,7 +94,7 @@ jobs:
 - name: Validate Model Configuration
   if: inputs.copilot-model == ''
   run: |
-    echo "::error::copilot-model not specified. See ADR-019 and AI-REVIEW-MODEL-POLICY for routing policy."
+    echo "::error::copilot-model not specified. See ADR-021 and AI-REVIEW-MODEL-POLICY for routing policy."
     exit 1
 ```
 
@@ -413,10 +413,10 @@ This is a **governance policy**, not an agent capability. It sets system-wide de
 
 ## Related Policies and Decisions
 
-- [ADR-019: AI Review Model Routing Strategy](../architecture/ADR-019-model-routing-strategy.md) - Architectural decision and rationale
+- [ADR-021: AI Review Model Routing Strategy](../architecture/ADR-021-model-routing-strategy.md) - Architectural decision and rationale
 - [ADR-010: Quality Gates](../architecture/ADR-010-quality-gates.md) - Aggregation framework
 - [ADR-014: GitHub Actions Runner Selection](../architecture/ADR-014-github-actions-runner-selection.md) - Cost governance pattern
-- [ADR-020: Architecture vs Governance Split Criteria](../architecture/ADR-020-architecture-governance-split-criteria.md) - Defines this split pattern
+- [ADR-022: Architecture vs Governance Split Criteria](../architecture/ADR-022-architecture-governance-split-criteria.md) - Defines this split pattern
 - [COST-GOVERNANCE.md](COST-GOVERNANCE.md) - Runner selection policy (similar enforcement pattern)
 - Issue #164: Failure Categorization (infrastructure noise vs false PASS)
 
@@ -425,4 +425,4 @@ This is a **governance policy**, not an agent capability. It sets system-wide de
 - `.github/actions/ai-review/action.yml` - Context building implementation
 - `.github/prompts/*` - Prompt catalog
 - `.github/workflows/ai-*.yml` - AI review workflows
-- [ADR-019 Debate Log](../critique/ADR-019-debate-log.md) - Multi-agent debate history
+- [ADR-021 Debate Log](../critique/ADR-021-debate-log.md) - Multi-agent debate history
