@@ -28,7 +28,7 @@ Add context-aware evaluation to AI Quality Gate prompts so DOCS-only PRs don't r
 | DevOps Prompt | `.github/prompts/pr-quality-gate-devops.md` | PR Scope Detection |
 | Orchestrator | `.claude/agents/orchestrator.md` | Reliability Principles |
 | Test Suite | `tests/QualityGatePrompts.Tests.ps1` | 84 structural validation tests |
-| ADR-021 | `.agents/architecture/ADR-021-*.md` | Multi-agent reviewed decision |
+| ADR-021 | `.agents/architecture/ADR-023-*.md` | Multi-agent reviewed decision |
 | PRD | `.agents/planning/PRD-quality-gate-prompt-refinement.md` | Implementation documentation |
 
 ### Validation
@@ -110,6 +110,6 @@ d47b65d docs(adr): complete multi-agent review of ADR-021
 
 - [PR #466](https://github.com/rjmurillo/ai-agents/pull/466)
 - [Issue #357](https://github.com/rjmurillo/ai-agents/issues/357)
-- [ADR-021](/.agents/architecture/ADR-021-quality-gate-prompt-testing.md)
-- [Debate Log](/.agents/critique/ADR-021-debate-log.md)
+- [ADR-021](/.agents/architecture/ADR-023-quality-gate-prompt-testing.md)
+- [Debate Log](/.agents/critique/ADR-023-debate-log.md)
 - [Session Memory](serena://memory/session-91-issue-357-handoff)

@@ -6,7 +6,7 @@ consulted: ["qa", "devops", "security", "critic", "independent-thinker", "high-l
 informed: ["implementer", "analyst"]
 ---
 
-# ADR-021: Quality Gate Prompt Structural Validation
+# ADR-023: Quality Gate Prompt Structural Validation
 
 ## Context and Problem Statement
 
@@ -168,4 +168,4 @@ This decision aligns with:
 - [PRD-quality-gate-prompt-refinement](/.agents/planning/PRD-quality-gate-prompt-refinement.md) - Implementation PRD
 - [ADR-010](/.agents/architecture/ADR-010-quality-gates-evaluator-optimizer.md) - Quality gate patterns
 - [Pester Documentation](https://pester.dev/) - Test framework
-- [Debate Log](/.agents/critique/ADR-021-debate-log.md) - Multi-agent review record
+- [Debate Log](/.agents/critique/ADR-023-debate-log.md) - Multi-agent review record

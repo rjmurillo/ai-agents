@@ -1,4 +1,4 @@
-# Plan Critique: ADR-021 Quality Gate Prompt Testing Requirements
+# Plan Critique: ADR-023 Quality Gate Prompt Testing Requirements
 
 **Date**: 2025-12-27
 **Critic**: critic agent

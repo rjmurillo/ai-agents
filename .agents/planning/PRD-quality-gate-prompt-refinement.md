@@ -112,5 +112,5 @@ Invoke-Pester tests/QualityGatePrompts.Tests.ps1 -Output Detailed
 
 - [Issue #357](https://github.com/rjmurillo/ai-agents/issues/357) - Original bug report
 - [RCA](/.agents/analysis/003-quality-gate-comment-caching-rca.md) - Root cause analysis
-- [ADR-021](/.agents/architecture/ADR-021-quality-gate-prompt-testing.md) - Test suite decision record
+- [ADR-021](/.agents/architecture/ADR-023-quality-gate-prompt-testing.md) - Test suite decision record
 - [Prompt Engineering Reference](/.claude/skills/prompt-engineer/references/prompt-engineering-single-turn.md) - Pattern source

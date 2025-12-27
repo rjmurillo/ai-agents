@@ -1,4 +1,4 @@
-# ADR Debate Log: ADR-021 Quality Gate Prompt Testing
+# ADR Debate Log: ADR-023 Quality Gate Prompt Testing
 
 ## Summary
 

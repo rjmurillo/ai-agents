@@ -1,6 +1,6 @@
-# Related Work Research: ADR-021 Quality Gate Prompt Testing
+# Related Work Research: ADR-023 Quality Gate Prompt Testing
 
-**ADR**: ADR-021: Quality Gate Prompt Testing Requirements
+**ADR**: ADR-023: Quality Gate Prompt Testing Requirements
 **Research Date**: 2025-12-27
 **Researcher**: analyst agent
 
