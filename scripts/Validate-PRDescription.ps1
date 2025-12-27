@@ -108,7 +108,8 @@ foreach ($pattern in $patterns) {
   }
 }
 
-$mentionedFiles = $mentionedFiles | Select-Object -Unique
+# Wrap in @() after Select-Object to preserve array behavior
+$mentionedFiles = @($mentionedFiles | Select-Object -Unique)
 Write-Host "Description mentions $($mentionedFiles.Count) files"
 
 # Check for mismatches
