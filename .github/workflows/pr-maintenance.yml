@@ -160,9 +160,11 @@ jobs:
 
           $parsed = $result | ConvertFrom-Json
           if ($parsed.Success) {
-            Write-Host "::notice::PR #${{ matrix.number }}: Conflicts resolved successfully"
+            Write-Host "::notice::PR #${{ matrix.number }}: Conflicts resolved - $($parsed.FilesResolved.Count) file(s)"
           } else {
-            Write-Host "::warning::PR #${{ matrix.number }}: $($parsed.Message)"
+            Write-Host "::error::PR #${{ matrix.number }}: $($parsed.Message)"
+            Write-Host "::error::Blocked files: $($parsed.FilesBlocked -join ', ')"
+            exit 1
           }
 
   # Job 3: Post-processing summary

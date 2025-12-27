@@ -69,9 +69,25 @@ $ErrorActionPreference = 'Stop'
 
 #region Configuration
 
+# Files that can be auto-resolved by accepting target branch (main) version
+# These are typically auto-generated or frequently-updated files where
+# the main branch version is authoritative
 $script:AutoResolvableFiles = @(
+    # Session artifacts - constantly changing, main is authoritative
     '.agents/HANDOFF.md',
-    '.agents/sessions/*'
+    '.agents/sessions/*',
+    # Serena memories - auto-generated, main is authoritative
+    '.serena/memories/*',
+    # Lock files - should match main
+    'package-lock.json',
+    'pnpm-lock.yaml',
+    'yarn.lock',
+    # Other auto-generated
+    '.agents/qa/*',
+    '.agents/analysis/*',
+    '.agents/critique/*',
+    '.agents/planning/*',
+    '.agents/retrospective/*'
 )
 
 #endregion
