@@ -1,16 +1,23 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Automated PR maintenance script for unattended operation.
+    PR discovery and classification for GitHub Actions matrix strategy.
 
 .DESCRIPTION
-    Processes all open PRs to:
-    - Acknowledge unacknowledged bot comments (eyes reaction)
-    - Resolve merge conflicts with main
-    - Close PRs superseded by merged PRs
-    - Report blocked PRs (CHANGES_REQUESTED, needs human approval)
+    THIN ORCHESTRATION LAYER: Identifies PRs needing attention and outputs JSON
+    for GitHub Actions matrix to spawn parallel pr-comment-responder jobs.
 
-    Designed to run periodically (e.g., hourly via cron/Task Scheduler).
+    This script ONLY does:
+    - Discover open PRs
+    - Classify each PR by activation trigger
+    - Detect conflicts and derivative PRs
+    - Output ActionRequired JSON for workflow matrix
+
+    Processing is delegated to:
+    - /pr-comment-responder: Comment acknowledgment, replies, thread resolution
+    - /merge-resolver: Conflict resolution
+
+    See: .agents/architecture/bot-author-feedback-protocol.md
 
 .PARAMETER Owner
     Repository owner. Defaults to current repo owner.
@@ -24,16 +31,36 @@
 .PARAMETER LogPath
     Path to write detailed log file. Defaults to .agents/logs/pr-maintenance.log
 
-.EXAMPLE
-    .\scripts\Invoke-PRMaintenance.ps1
+.PARAMETER OutputJson
+    Output ActionRequired PRs as JSON for matrix consumption.
+    When specified, suppresses normal logging and outputs only JSON.
 
 .EXAMPLE
-    .\scripts\Invoke-PRMaintenance.ps1 -MaxPRs 5
+    .\scripts\Invoke-PRMaintenance.ps1
+    # Normal mode: logs summary and step summary
+
+.EXAMPLE
+    .\scripts\Invoke-PRMaintenance.ps1 -OutputJson
+    # Matrix mode: outputs JSON for workflow consumption
+
+.OUTPUTS
+    When -OutputJson is specified:
+    {
+      "prs": [
+        {"number": 123, "category": "agent-controlled", "hasConflicts": true, "reason": "CHANGES_REQUESTED"},
+        {"number": 456, "category": "mention-triggered", "hasConflicts": false, "reason": "MENTION"}
+      ],
+      "summary": {
+        "total": 5,
+        "actionRequired": 2,
+        "blocked": 1,
+        "derivatives": 0
+      }
+    }
 
 .NOTES
     Exit Codes:
-    0 = Success (all PRs processed, blocked PRs reported via separate step)
-    1 = Reserved for future use
+    0 = Success
     2 = Error (script failure, API errors, fatal exceptions)
 #>
 
@@ -42,7 +69,9 @@ param(
     [string]$Owner,
     [string]$Repo,
     [int]$MaxPRs = 20,
-    [string]$LogPath
+    [string]$LogPath,
+    [switch]$OutputJson,
+    [switch]$DryRun
 )
 
 Set-StrictMode -Version Latest
@@ -54,268 +83,89 @@ $script:Config = @{
     # Branches we must never commit to directly
     ProtectedBranches = @('main', 'master', 'develop')
 
-    # Bot authors whose comments need acknowledgment
-    BotAuthors = @('Copilot', 'coderabbitai[bot]', 'gemini-code-assist[bot]', 'cursor[bot]')
-
-    # Reaction to add for acknowledgment
-    AcknowledgeReaction = 'eyes'
-
-    # Worktree base path (relative to repo root)
-    WorktreeBasePath = '..'
-
-    # Maximum time to wait for CI (seconds)
-    CIWaitTimeout = 300
-}
-
-#endregion
-
-#region Security Validation (P0 Fixes - ADR-015)
-
-<#
-.SYNOPSIS
-    Validates branch name for command injection prevention.
-.DESCRIPTION
-    Rejects branch names that could be used for command injection or path traversal.
-    ADR-015 Fix 1: Branch Name Validation (Security HIGH)
-#>
-function Test-SafeBranchName {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$BranchName
-    )
-
-    # Empty or whitespace
-    if ([string]::IsNullOrWhiteSpace($BranchName)) {
-        Write-Log "Invalid branch name: empty or whitespace" -Level WARN
-        return $false
-    }
-
-    # Starts with hyphen (could be interpreted as git option)
-    if ($BranchName.StartsWith('-')) {
-        Write-Log "Invalid branch name: starts with hyphen" -Level WARN
-        return $false
-    }
-
-    # Contains path traversal
-    if ($BranchName.Contains('..')) {
-        Write-Log "Invalid branch name: contains path traversal" -Level WARN
-        return $false
-    }
-
-    # Control characters
-    if ($BranchName -match '[\x00-\x1f\x7f]') {
-        Write-Log "Invalid branch name: contains control characters" -Level WARN
-        return $false
-    }
-
-    # Git special characters that could cause issues
-    if ($BranchName -match '[~^:?*\[\]\\]') {
-        Write-Log "Invalid branch name: contains git special characters" -Level WARN
-        return $false
-    }
-
-    # Shell metacharacters
-    if ($BranchName -match '[`$;&|<>(){}]') {
-        Write-Log "Invalid branch name: contains shell metacharacters" -Level WARN
-        return $false
-    }
-
-    return $true
-}
-
-<#
-.SYNOPSIS
-    Gets a validated worktree path that cannot escape the base directory.
-.DESCRIPTION
-    Ensures worktree path is within allowed base directory to prevent path traversal.
-    ADR-015 Fix 2: Worktree Path Validation (Security HIGH)
-#>
-function Get-SafeWorktreePath {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$BasePath,
-
-        [Parameter(Mandatory)]
-        [long]$PRNumber
-    )
-
-    # Validate PR number is positive
-    if ($PRNumber -le 0) {
-        throw "Invalid PR number: $PRNumber"
-    }
-
-    # Resolve base path to absolute
-    $base = Resolve-Path $BasePath -ErrorAction Stop
-
-    # Construct worktree path (PR number is safe - validated as positive long)
-    $worktreeName = "ai-agents-pr-$PRNumber"
-    $worktreePath = Join-Path $base.Path $worktreeName
-
-    # Get full path and verify it's within base
-    $resolved = [System.IO.Path]::GetFullPath($worktreePath)
-    if (-not $resolved.StartsWith($base.Path)) {
-        throw "Worktree path escapes base directory: $worktreePath"
-    }
-
-    return $resolved
-}
-
-<#
-.SYNOPSIS
-    No-op script-level lock retained for compatibility.
-.DESCRIPTION
-    ADR-015 Decision 1 explicitly rejects file-based locking in favor of
-    GitHub Actions concurrency groups on ephemeral runners because:
-      - File-based locks add complexity without meaningful benefit
-      - Runners are isolated per job, so cross-job file locks are ineffective
-
-    This function is retained as a thin shim so existing call sites continue
-    to work, but it does NOT implement any file-based locking. Concurrency
-    protection is provided exclusively by the workflow's concurrency group.
-#>
-function Enter-ScriptLock {
-    [CmdletBinding()]
-    param()
-    Write-Log "Enter-ScriptLock: no-op (ADR-015: rely on GitHub Actions concurrency group, not file-based locks)" -Level INFO
-    return $true
-}
-
-<#
-.SYNOPSIS
-    No-op release for the script-level lock.
-.DESCRIPTION
-    Kept for compatibility with existing call sites. Does not modify any
-    filesystem state because file-based locks were deprecated by ADR-015.
-#>
-function Exit-ScriptLock {
-    [CmdletBinding()]
-    param()
-    Write-Log "Exit-ScriptLock: no-op (ADR-015: file-based locks deprecated)" -Level INFO
-}
-
-<#
-.SYNOPSIS
-    Checks GitHub API rate limit before processing.
-.DESCRIPTION
-    Prevents script from running when API rate limit is too low.
-    Checks multiple resource types with resource-specific thresholds.
-    ADR-015 Fix 6: Multi-Resource Rate Limit Check (DevOps/HLA P0)
-#>
-function Test-RateLimitSafe {
-    [CmdletBinding()]
-    param(
-        [hashtable]$ResourceThresholds = @{
-            'core' = 100           # General API calls
-            'search' = 15          # 50% of 30 limit
-            'code_search' = 5      # 50% of 10 limit
-            'graphql' = 100        # 50% of 5000 limit (low because we use REST mostly)
-        }
-    )
-
-    try {
-        $rateLimitJson = gh api rate_limit 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Log "Failed to check rate limit: $rateLimitJson" -Level WARN
-            return $true  # Proceed on error - don't block if we can't check
-        }
-
-        $rateLimit = $rateLimitJson | ConvertFrom-Json
-        $allResourcesSafe = $true
-        $violations = @()
-
-        foreach ($resourceName in $ResourceThresholds.Keys) {
-            $threshold = $ResourceThresholds[$resourceName]
-            $resource = $rateLimit.resources.$resourceName
-            
-            if ($null -eq $resource) {
-                Write-Log "Resource '$resourceName' not found in rate limit response" -Level WARN
-                continue
-            }
-
-            $remaining = [int]$resource.remaining
-            $limit = [int]$resource.limit
-            $resetEpoch = [int]$resource.reset
-
-            if ($remaining -lt $threshold) {
-                # Calculate reset time for smarter scheduling (P1 fix from PR #249)
-                $resetTime = [DateTimeOffset]::FromUnixTimeSeconds($resetEpoch).LocalDateTime
-                $timeUntilReset = $resetTime - (Get-Date)
-                $violations += "${resourceName}: ${remaining}/${limit} (threshold: ${threshold}, resets in $([int]$timeUntilReset.TotalMinutes) minutes)"
-                $allResourcesSafe = $false
-            }
-            else {
-                Write-Log "Rate limit OK for ${resourceName}: ${remaining}/${limit} remaining" -Level INFO
-            }
-        }
-
-        if (-not $allResourcesSafe) {
-            Write-Log "API rate limit too low for: $($violations -join ', ')" -Level WARN
-            # Log next available run time for scheduling
-            $coreReset = [DateTimeOffset]::FromUnixTimeSeconds([int]$rateLimit.resources.core.reset).UtcDateTime
-            Write-Log "Rate limit resets at: $($coreReset.ToString('yyyy-MM-dd HH:mm:ss')) UTC" -Level INFO
-            return $false
-        }
-
-        Write-Log "All API rate limits OK" -Level INFO
-        return $true
-    }
-    catch {
-        Write-Log "Rate limit check failed: $_" -Level WARN
-        return $true  # Proceed on error
+    # Bot authors by category
+    BotCategories = @{
+        'agent-controlled' = @('rjmurillo-bot', 'rjmurillo[bot]')
+        'mention-triggered' = @('copilot-swe-agent', 'copilot-swe-agent[bot]', 'copilot', 'app/copilot-swe-agent')
+        'review-bot' = @('coderabbitai', 'coderabbitai[bot]', 'cursor[bot]', 'gemini-code-assist', 'gemini-code-assist[bot]')
     }
 }
+
+$script:StartTime = Get-Date
+$script:LogBuffer = [System.Collections.ArrayList]::new()
 
 #endregion
 
 #region Logging
 
-$script:LogEntries = [System.Collections.ArrayList]::new()
-$script:StartTime = Get-Date
-
 function Write-Log {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
         [string]$Message,
-
         [ValidateSet('INFO', 'WARN', 'ERROR', 'SUCCESS', 'ACTION')]
         [string]$Level = 'INFO'
     )
 
+    # Skip logging in JSON output mode
+    if ($OutputJson) { return }
+
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    $entry = "[$timestamp] [$Level] $Message"
-
-    $null = $script:LogEntries.Add($entry)
-
     $color = switch ($Level) {
         'INFO'    { 'Gray' }
         'WARN'    { 'Yellow' }
         'ERROR'   { 'Red' }
         'SUCCESS' { 'Green' }
         'ACTION'  { 'Cyan' }
-        default   { 'White' }
     }
-
+    $entry = "[$timestamp] [$Level] $Message"
     Write-Host $entry -ForegroundColor $color
+    $null = $script:LogBuffer.Add($entry)
 }
 
 function Save-Log {
     [CmdletBinding()]
     param([string]$Path)
 
-    if (-not $Path) {
-        $Path = Join-Path $PSScriptRoot '..' '.agents' 'logs' 'pr-maintenance.log'
+    if ($OutputJson) { return }
+    if (-not $Path) { return }
+
+    $dir = Split-Path $Path -Parent
+    if ($dir -and -not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    $script:LogBuffer -join "`n" | Set-Content -Path $Path -Encoding UTF8
+}
+
+#endregion
+
+#region Security Validation
+
+function Test-RateLimitSafe {
+    [CmdletBinding()]
+    param()
+
+    $limits = gh api rate_limit 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "Failed to check rate limit: $limits" -Level WARN
+        return $true  # Assume safe if can't check
     }
 
-    $logDir = Split-Path $Path -Parent
-    if (-not (Test-Path $logDir)) {
-        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
-    }
+    try {
+        $parsed = $limits | ConvertFrom-Json
+        $core = $parsed.resources.core
+        $graphql = $parsed.resources.graphql
 
-    $script:LogEntries | Out-File -FilePath $Path -Append -Encoding utf8
-    Write-Log "Log saved to: $Path" -Level INFO
+        # Need at least 100 core and 50 graphql remaining
+        if ($core.remaining -lt 100 -or $graphql.remaining -lt 50) {
+            Write-Log "Rate limit too low: core=$($core.remaining), graphql=$($graphql.remaining)" -Level WARN
+            return $false
+        }
+        return $true
+    }
+    catch {
+        Write-Log "Failed to parse rate limit response: $_" -Level WARN
+        return $true
+    }
 }
 
 #endregion
@@ -327,42 +177,32 @@ function Invoke-GhApi {
     param(
         [Parameter(Mandatory)]
         [string]$Endpoint,
-
         [string]$Method = 'GET',
-
-        [hashtable]$Body,
-
-        [string]$JqFilter
+        [string]$Body
     )
 
     $args = @('api', $Endpoint)
-
     if ($Method -ne 'GET') {
-        $args += '-X', $Method
+        $args += @('--method', $Method)
     }
-
     if ($Body) {
-        foreach ($key in $Body.Keys) {
-            $args += '-f', "$key=$($Body[$key])"
-        }
+        $args += @('--input', '-')
+        $result = $Body | gh @args 2>&1
+    } else {
+        $result = gh @args 2>&1
     }
-
-    if ($JqFilter) {
-        $args += '--jq', $JqFilter
-    }
-
-    $result = & gh @args 2>&1
 
     if ($LASTEXITCODE -ne 0) {
-        throw "GitHub API call failed: $result"
+        Write-Log "API call failed: $Endpoint - $result" -Level WARN
+        return $null
     }
-
     return $result
 }
 
 function Get-RepoInfo {
     [CmdletBinding()]
     param()
+
     $remote = git remote get-url origin 2>$null
     if (-not $remote) {
         throw "Not in a git repository or no origin remote"
@@ -380,510 +220,493 @@ function Get-RepoInfo {
 
 #endregion
 
-#region PR Processing Functions
+#region PR Discovery
 
 function Get-OpenPRs {
     [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
-        [int]$Limit
+        [int]$Limit = 20
     )
 
-    $result = gh pr list --repo "$Owner/$Repo" --state open --limit $Limit --json number,title,state,headRefName,baseRefName,mergeable,reviewDecision,author 2>&1
+    # Uses GraphQL variables for security (prevents injection via Owner/Repo)
+    $query = @'
+query($owner: String!, $name: String!, $limit: Int!) {
+    repository(owner: $owner, name: $name) {
+        pullRequests(first: $limit, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}) {
+            nodes {
+                number
+                title
+                author { login }
+                headRefName
+                baseRefName
+                mergeable
+                reviewDecision
+                reviewRequests(first: 10) {
+                    nodes {
+                        requestedReviewer {
+                            ... on User { login }
+                            ... on Team { name }
+                            ... on Bot { login }
+                        }
+                    }
+                }
+                commits(last: 1) {
+                    nodes {
+                        commit {
+                            statusCheckRollup {
+                                state
+                                contexts(first: 100) {
+                                    nodes {
+                                        ... on CheckRun {
+                                            name
+                                            conclusion
+                                            status
+                                        }
+                                        ... on StatusContext {
+                                            context
+                                            state
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+'@
 
+    $result = gh api graphql -f query=$query -f owner="$Owner" -f name="$Repo" -F limit=$Limit 2>&1
     if ($LASTEXITCODE -ne 0) {
-        throw "Failed to list PRs: $result"
+        Write-Log "Failed to query PRs: $result" -Level ERROR
+        return @()
     }
-
-    # Skill-PowerShell-002: Return @() not $null for empty results
-    # Wrap in @() to ensure empty JSON array "[]" becomes empty PowerShell array, not $null
-    # Use comma operator to prevent array unwrapping on return
-    $parsed = @($result | ConvertFrom-Json)
-    if ($parsed.Count -eq 0) {
-        return , @()
-    }
-    return , $parsed
-}
-
-function Get-PRComments {
-    <#
-    .SYNOPSIS
-        Gets all comments for a PR.
-    .DESCRIPTION
-        Retrieves PR review comments using the GitHub API.
-        Part of the PR comment acknowledgment workflow.
-    #>
-    [CmdletBinding()]
-    param(
-        [string]$Owner,
-        [string]$Repo,
-        [int]$PRNumber
-    )
-
-    $endpoint = "repos/$Owner/$Repo/pulls/$PRNumber/comments"
-    $result = Invoke-GhApi -Endpoint $endpoint
-
-    # Skill-PowerShell-002: Return @() not $null for empty results
-    $parsed = $result | ConvertFrom-Json
-    if ($null -eq $parsed) {
-        Write-Output -NoEnumerate @()
-        return
-    }
-    Write-Output -NoEnumerate @($parsed)
-}
-
-function Get-UnacknowledgedComments {
-    <#
-    .SYNOPSIS
-        Gets bot comments that haven't been acknowledged with an eyes reaction.
-    .DESCRIPTION
-        Filters PR review comments to find bot-generated comments without acknowledgment.
-        Works in conjunction with Get-PRComments and Add-CommentReaction to form
-        the complete acknowledgment workflow.
-
-        NOTE: Bot author list should ideally reference the agent configuration files
-        (.claude/commands/pr-review.md, src/claude/pr-comment-responder.md) to avoid
-        duplication and drift. Current implementation uses environment-configured list.
-    #>
-    [CmdletBinding()]
-    param(
-        [string]$Owner,
-        [string]$Repo,
-        [int]$PRNumber
-    )
-
-    $comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber
-
-    # Skill-PowerShell-002: Return @() not $null for empty results
-    # Filter comments and ensure array return
-    $unacked = @($comments | Where-Object {
-        $_.user.type -eq 'Bot' -and
-        $_.reactions.eyes -eq 0
-    })
-    if ($null -eq $unacked -or $unacked.Count -eq 0) {
-        Write-Output -NoEnumerate @()
-        return
-    }
-    Write-Output -NoEnumerate $unacked
-}
-
-function Add-CommentReaction {
-    [CmdletBinding()]
-    param(
-        [string]$Owner,
-        [string]$Repo,
-        [long]$CommentId,  # ADR-015 Fix 4: Int64 to prevent overflow (GitHub IDs exceed Int32.MaxValue)
-        [string]$Reaction = 'eyes'
-    )
-
-    $endpoint = "repos/$Owner/$Repo/pulls/comments/$CommentId/reactions"
 
     try {
-        $null = Invoke-GhApi -Endpoint $endpoint -Method POST -Body @{ content = $Reaction }
-        return $true
+        $parsed = $result | ConvertFrom-Json
+        return @($parsed.data.repository.pullRequests.nodes)
     }
     catch {
-        Write-Log "Failed to add reaction to comment $CommentId`: $_" -Level WARN
+        Write-Log "Failed to parse PR query response: $_" -Level ERROR
+        return @()
+    }
+}
+
+#endregion
+
+#region Classification
+
+function Get-BotAuthorInfo {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$AuthorLogin
+    )
+
+    foreach ($category in $script:Config.BotCategories.Keys) {
+        $bots = $script:Config.BotCategories[$category]
+        foreach ($bot in $bots) {
+            if ($AuthorLogin -ieq $bot -or $AuthorLogin -imatch "^$([regex]::Escape($bot))") {
+                return @{
+                    IsBot = $true
+                    Category = $category
+                    Name = $AuthorLogin
+                }
+            }
+        }
+    }
+
+    return @{
+        IsBot = $false
+        Category = 'human'
+        Name = $AuthorLogin
+    }
+}
+
+function Test-IsBotReviewer {
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        $ReviewRequests
+    )
+
+    if ($null -eq $ReviewRequests -or $null -eq $ReviewRequests.nodes) {
         return $false
     }
+
+    foreach ($request in $ReviewRequests.nodes) {
+        $reviewer = $request.requestedReviewer
+        if ($null -eq $reviewer) { continue }
+
+        $login = $reviewer.login
+        if (-not $login) { continue }
+
+        $botInfo = Get-BotAuthorInfo -AuthorLogin $login
+        if ($botInfo.IsBot -and $botInfo.Category -eq 'agent-controlled') {
+            return $true
+        }
+    }
+
+    return $false
 }
 
 function Test-PRHasConflicts {
     [CmdletBinding()]
     param(
-        [string]$Owner,
-        [string]$Repo,
-        [int]$PRNumber
+        [Parameter(Mandatory)]
+        $PR
     )
 
-    $pr = gh pr view $PRNumber --repo "$Owner/$Repo" --json mergeable --jq '.mergeable' 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Log "Failed to check PR #$PRNumber mergeable status: $pr" -Level WARN
-        return $false  # Fail-safe: assume no conflicts if we can't check
-    }
-    return $pr -eq 'CONFLICTING'
+    return $PR.mergeable -eq 'CONFLICTING'
 }
 
-function Test-PRNeedsOwnerAction {
-    [CmdletBinding()]
-    param(
-        [string]$Owner,
-        [string]$Repo,
-        [int]$PRNumber
-    )
-
-    $pr = gh pr view $PRNumber --repo "$Owner/$Repo" --json reviewDecision --jq '.reviewDecision' 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Log "Failed to check PR #$PRNumber review decision: $pr" -Level WARN
-        return $false  # Fail-safe: assume no action needed if we can't check
-    }
-    return $pr -eq 'CHANGES_REQUESTED'
-}
-
-function Test-IsGitHubRunner {
+function Test-PRHasFailingChecks {
     <#
     .SYNOPSIS
-        Detects if the script is running in a GitHub Actions runner environment.
+        Checks if a PR has failing CI checks.
+
     .DESCRIPTION
-        GitHub Actions runners set several environment variables that can be used for detection.
-        This avoids unnecessary worktree setup when running in CI where the workspace is already isolated.
-    #>
-    [CmdletBinding()]
-    param()
-    return $null -ne $env:GITHUB_ACTIONS
-}
+        Examines the statusCheckRollup from the PR's latest commit to determine
+        if any required checks have failed. This enables detecting PRs that need
+        attention due to CI failures (e.g., Session Protocol validation failures).
 
-function Resolve-PRConflicts {
-    [CmdletBinding()]
-    param(
-        [string]$Owner,
-        [string]$Repo,
-        [long]$PRNumber,  # ADR-015 Fix 4: Int64
-        [string]$BranchName,
-        [string]$TargetBranch = 'main'  # PR target branch (baseRefName)
-    )
-
-    # ADR-015 Fix 1: Validate branch name for command injection prevention
-    if (-not (Test-SafeBranchName -BranchName $BranchName)) {
-        Write-Log "Rejecting PR #$PRNumber due to unsafe branch name: $BranchName" -Level ERROR
-        return $false
-    }
-
-    # Detect GitHub Actions runner - worktrees not needed there as workspace is already isolated
-    $isGitHubRunner = Test-IsGitHubRunner
-
-    if ($isGitHubRunner) {
-        Write-Log "Running in GitHub Actions - using direct merge without worktree" -Level INFO
-
-        try {
-            # Fetch PR branch and target branch (P0 fix from PR #249: not hardcoded main)
-            $null = git fetch origin $BranchName 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                throw "Failed to fetch branch $BranchName"
-            }
-            $null = git fetch origin $TargetBranch 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                throw "Failed to fetch target branch $TargetBranch"
-            }
-
-            # Checkout PR branch
-            $null = git checkout $BranchName 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                throw "Failed to checkout branch $BranchName"
-            }
-
-            # Attempt merge with target branch
-            $mergeResult = git merge "origin/$TargetBranch" 2>&1
-
-            if ($LASTEXITCODE -ne 0) {
-                # Check if conflicts are in auto-resolvable files only
-                $conflicts = git diff --name-only --diff-filter=U
-
-                $canAutoResolve = $true
-                foreach ($file in $conflicts) {
-                    if ($file -eq '.agents/HANDOFF.md' -or $file -like '.agents/sessions/*') {
-                        # Accept target branch's version (--theirs refers to the branch being merged FROM,
-                        # which is origin/$TargetBranch when merging target into feature branch)
-                        $null = git checkout --theirs $file 2>&1
-                        if ($LASTEXITCODE -ne 0) {
-                            throw "Failed to checkout --theirs for $file"
-                        }
-                        $null = git add $file 2>&1
-                        if ($LASTEXITCODE -ne 0) {
-                            throw "Failed to git add $file"
-                        }
-                    }
-                    else {
-                        $canAutoResolve = $false
-                        Write-Log "Cannot auto-resolve conflict in: $file" -Level WARN
-                    }
-                }
-
-                if (-not $canAutoResolve) {
-                    $null = git merge --abort 2>&1
-                    throw "Conflicts in non-auto-resolvable files"
-                }
-
-                # Check if there are staged changes to commit
-                $null = git diff --cached --quiet 2>&1
-                if ($LASTEXITCODE -eq 0) {
-                    # No staged changes - merge was clean or already resolved
-                    Write-Log "Merge completed without needing conflict resolution commit" -Level INFO
-                }
-                else {
-                    # Complete merge with commit
-                    $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
-                    if ($LASTEXITCODE -ne 0) {
-                        throw "Failed to commit merge"
-                    }
-                }
-            }
-
-            # Push (P1 fix from PR #249: check exit code to detect failures)
-            $pushOutput = git push origin $BranchName 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                throw "Git push failed: $pushOutput"
-            }
-
-            Write-Log "Successfully resolved conflicts for PR #$PRNumber" -Level SUCCESS
-            return $true
-        }
-        catch {
-            Write-Log "Failed to resolve conflicts for PR #${PRNumber}: $_" -Level ERROR
-            return $false
-        }
-    }
-    else {
-        # Local execution - use worktree for isolation
-        $repoRoot = git rev-parse --show-toplevel
-
-        # ADR-015 Fix 2: Validate worktree path for path traversal prevention
-        try {
-            $worktreePath = Get-SafeWorktreePath -BasePath $script:Config.WorktreeBasePath -PRNumber $PRNumber
-        }
-        catch {
-            Write-Log "Failed to get safe worktree path for PR #${PRNumber}: $_" -Level ERROR
-            return $false
-        }
-
-        try {
-            # Create worktree
-            Write-Log "Creating worktree for PR #$PRNumber at $worktreePath" -Level ACTION
-            $null = git worktree add $worktreePath $BranchName 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                throw "Failed to create worktree for $BranchName"
-            }
-
-            Push-Location $worktreePath
-
-            # Fetch and merge target branch (P0 fix from PR #249: not hardcoded main)
-            $null = git fetch origin $TargetBranch 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                throw "Failed to fetch target branch $TargetBranch"
-            }
-            $mergeResult = git merge "origin/$TargetBranch" 2>&1
-
-            if ($LASTEXITCODE -ne 0) {
-                # Check if conflicts are in auto-resolvable files only
-                $conflicts = git diff --name-only --diff-filter=U
-
-                $canAutoResolve = $true
-                foreach ($file in $conflicts) {
-                    if ($file -eq '.agents/HANDOFF.md' -or $file -like '.agents/sessions/*') {
-                        # Accept target branch's version (--theirs refers to the branch being merged FROM,
-                        # which is origin/$TargetBranch when merging target into feature branch)
-                        $null = git checkout --theirs $file 2>&1
-                        if ($LASTEXITCODE -ne 0) {
-                            throw "Failed to checkout --theirs for $file"
-                        }
-                        $null = git add $file 2>&1
-                        if ($LASTEXITCODE -ne 0) {
-                            throw "Failed to git add $file"
-                        }
-                    }
-                    else {
-                        $canAutoResolve = $false
-                        Write-Log "Cannot auto-resolve conflict in: $file" -Level WARN
-                    }
-                }
-
-                if (-not $canAutoResolve) {
-                    $null = git merge --abort 2>&1
-                    throw "Conflicts in non-auto-resolvable files"
-                }
-
-                # Check if there are staged changes to commit
-                $null = git diff --cached --quiet 2>&1
-                if ($LASTEXITCODE -eq 0) {
-                    # No staged changes - merge was clean or already resolved
-                    Write-Log "Merge completed without needing conflict resolution commit" -Level INFO
-                }
-                else {
-                    # Complete merge with commit
-                    $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
-                    if ($LASTEXITCODE -ne 0) {
-                        throw "Failed to commit merge"
-                    }
-                }
-            }
-
-            # Push (P1 fix from PR #249: check exit code to detect failures)
-            $pushOutput = git push origin $BranchName 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                throw "Git push failed: $pushOutput"
-            }
-
-            Write-Log "Successfully resolved conflicts for PR #$PRNumber" -Level SUCCESS
-            return $true
-        }
-        catch {
-            Write-Log "Failed to resolve conflicts for PR #${PRNumber}: $_" -Level ERROR
-            return $false
-        }
-        finally {
-            Pop-Location -ErrorAction SilentlyContinue
-
-            # Clean up worktree
-            if (Test-Path $worktreePath) {
-                git -C $repoRoot worktree remove $worktreePath --force 2>&1 | Out-Null
-            }
-        }
-    }
-}
-
-function Get-SimilarPRs {
-    <#
-    .SYNOPSIS
-        Finds merged PRs with similar titles to help identify potential duplicates.
-    .DESCRIPTION
-        Returns a list of recently merged PRs that have similar title patterns.
-        Does not auto-close - just provides information for human review.
-        Similar to CodeRabbit's approach on Issue enrichment.
+    .PARAMETER PR
+        The PR object from GraphQL query containing commits.nodes[0].commit.statusCheckRollup.
     #>
     [CmdletBinding()]
     param(
-        [string]$Owner,
-        [string]$Repo,
-        [int]$PRNumber,
-        [string]$Title
+        [Parameter(Mandatory)]
+        $PR
     )
 
-    # Check if there's a merged PR with very similar title
-    $output = gh pr list --repo "$Owner/$Repo" --state merged --limit 20 --json number,title 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Log "Failed to query merged PRs: $output" -Level WARN
-        Write-Output -NoEnumerate @()
-        return
-    }
+    # Helper to safely get property (strict mode compatible, works with hashtables and PSObjects)
+    # Uses Write-Output -NoEnumerate to preserve arrays (prevents PowerShell unrolling)
+    function Get-SafeProperty {
+        param($Object, [string]$PropertyName)
+        if ($null -eq $Object) { return $null }
 
-    # Skill-PowerShell-002: Ensure $mergedPRs is always array, not $null
-    $parsed = $output | ConvertFrom-Json
-    if ($null -eq $parsed) {
-        Write-Output -NoEnumerate @()
-        return
-    }
-    $mergedPRs = @($parsed)
+        $value = $null
 
-    $similar = @()
-    foreach ($merged in $mergedPRs) {
-        if ($merged.number -eq $PRNumber) { continue }
-
-        # Simple similarity check - same prefix up to first colon
-        $thisPrefix = ($Title -split ':')[0]
-        $mergedPrefix = ($merged.title -split ':')[0]
-
-        # Two PRs are similar if they have the same type prefix (feat, fix, etc.)
-        # AND one title contains a significant portion of the other (handles "v2" suffixes)
-        if ($thisPrefix -eq $mergedPrefix) {
-            # Extract the description part after the colon (if any)
-            $thisDesc = if ($Title -match '^[^:]+:\s*(.+)$') { $Matches[1] } else { $Title }
-            $mergedDesc = if ($merged.title -match '^[^:]+:\s*(.+)$') { $Matches[1] } else { $merged.title }
-
-            # Check if descriptions are similar (one contains the other or share significant overlap)
-            $minLen = [Math]::Min($thisDesc.Length, $mergedDesc.Length)
-            $compareLen = [Math]::Max(10, [Math]::Min(30, $minLen))
-            $thisCompare = $thisDesc.Substring(0, [Math]::Min($compareLen, $thisDesc.Length))
-            $mergedCompare = $mergedDesc.Substring(0, [Math]::Min($compareLen, $mergedDesc.Length))
-
-            if ($thisCompare -eq $mergedCompare -or $thisDesc -like "*$mergedCompare*" -or $mergedDesc -like "*$thisCompare*") {
-                $similar += @{
-                    Number = $merged.number
-                    Title = $merged.title
-                }
+        # Handle hashtables
+        if ($Object -is [hashtable]) {
+            if ($Object.ContainsKey($PropertyName)) {
+                $value = $Object[$PropertyName]
             }
+        }
+        # Handle PSObjects (from JSON parsing)
+        elseif ($Object.PSObject.Properties.Name -contains $PropertyName) {
+            $value = $Object.$PropertyName
+        }
+
+        # Preserve arrays when returning (prevent PowerShell unrolling)
+        if ($null -ne $value -and $value -is [array]) {
+            return @(,$value)  # Wrap in array to prevent unrolling
+        }
+        return $value
+    }
+
+    # Safely navigate the nested structure
+    $commits = Get-SafeProperty $PR 'commits'
+    if (-not $commits) { return $false }
+
+    $nodes = Get-SafeProperty $commits 'nodes'
+    if (-not $nodes -or $nodes.Count -eq 0) { return $false }
+
+    $firstNode = $nodes[0]
+    if (-not $firstNode) { return $false }
+
+    $commit = Get-SafeProperty $firstNode 'commit'
+    if (-not $commit) { return $false }
+
+    $rollup = Get-SafeProperty $commit 'statusCheckRollup'
+    if (-not $rollup) { return $false }
+
+    # Check overall state first (FAILURE, ERROR, PENDING, SUCCESS, EXPECTED)
+    $state = Get-SafeProperty $rollup 'state'
+    if ($state -and $state -in @('FAILURE', 'ERROR')) {
+        return $true
+    }
+
+    # Also check individual check runs for FAILURE conclusion
+    $contexts = Get-SafeProperty $rollup 'contexts'
+    if (-not $contexts) { return $false }
+
+    $contextNodes = Get-SafeProperty $contexts 'nodes'
+    if (-not $contextNodes) { return $false }
+
+    foreach ($ctx in $contextNodes) {
+        if (-not $ctx) { continue }
+
+        # CheckRun has 'conclusion', StatusContext has 'state'
+        $conclusion = Get-SafeProperty $ctx 'conclusion'
+        $ctxState = Get-SafeProperty $ctx 'state'
+
+        if ($conclusion -eq 'FAILURE' -or $ctxState -eq 'FAILURE') {
+            return $true
         }
     }
 
-    # Skill-PowerShell-002: Ensure return is always array, not $null
-    if ($similar.Count -eq 0) {
-        Write-Output -NoEnumerate @()
-        return
-    }
-    Write-Output -NoEnumerate $similar
+    return $false
 }
 
 #endregion
 
-#region Main Processing Logic
+#region Derivative Detection
 
-function Invoke-PRMaintenance {
+function Get-DerivativePRs {
+    [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
-        [int]$MaxPRs
+        [array]$OpenPRs
+    )
+
+    $derivatives = @()
+    $protectedBranches = $script:Config.ProtectedBranches
+
+    foreach ($pr in $OpenPRs) {
+        # Derivative = targets a non-protected branch (feature branch)
+        if ($pr.baseRefName -notin $protectedBranches) {
+            $derivatives += @{
+                Number = $pr.number
+                Title = $pr.title
+                Author = $pr.author.login
+                TargetBranch = $pr.baseRefName
+                SourceBranch = $pr.headRefName
+            }
+        }
+    }
+
+    return $derivatives
+}
+
+function Get-PRsWithPendingDerivatives {
+    [CmdletBinding()]
+    param(
+        [string]$Owner,
+        [string]$Repo,
+        [array]$OpenPRs,
+        [array]$Derivatives
+    )
+
+    $parentsWithDerivatives = @()
+
+    foreach ($derivative in $Derivatives) {
+        # Find parent PR that has headRefName matching derivative's baseRefName
+        $parentPR = $OpenPRs | Where-Object { $_.headRefName -eq $derivative.TargetBranch } | Select-Object -First 1
+        if ($parentPR) {
+            # Check if we already have this parent in the list
+            $existing = $parentsWithDerivatives | Where-Object { $_.ParentPR -eq $parentPR.number }
+            if ($existing) {
+                $existing.Derivatives += $derivative.Number
+            } else {
+                $parentsWithDerivatives += @{
+                    ParentPR = $parentPR.number
+                    ParentTitle = $parentPR.title
+                    ParentBranch = $parentPR.headRefName
+                    Derivatives = @($derivative.Number)
+                }
+            }
+        }
+    }
+
+    return $parentsWithDerivatives
+}
+
+#endregion
+
+#region Main Logic
+
+function Invoke-PRMaintenance {
+    [CmdletBinding()]
+    param(
+        [string]$Owner,
+        [string]$Repo,
+        [int]$MaxPRs,
+        [switch]$DryRun
     )
 
     $results = @{
-        Processed = 0
-        CommentsAcknowledged = 0
-        ConflictsResolved = 0
+        TotalPRs = 0
+        ActionRequired = [System.Collections.ArrayList]::new()
         Blocked = [System.Collections.ArrayList]::new()
+        DerivativePRs = [System.Collections.ArrayList]::new()
+        ParentsWithDerivatives = [System.Collections.ArrayList]::new()
         Errors = [System.Collections.ArrayList]::new()
     }
 
-    Write-Log "Starting PR maintenance run" -Level INFO
+    Write-Log "Starting PR discovery" -Level INFO
     Write-Log "Repository: $Owner/$Repo" -Level INFO
     Write-Log "MaxPRs: $MaxPRs" -Level INFO
 
     # Get all open PRs
     $prs = Get-OpenPRs -Owner $Owner -Repo $Repo -Limit $MaxPRs
+    $results.TotalPRs = $prs.Count
     Write-Log "Found $($prs.Count) open PRs" -Level INFO
 
+    # Detect derivative PRs
+    $derivatives = @(Get-DerivativePRs -Owner $Owner -Repo $Repo -OpenPRs $prs)
+    if ($derivatives.Count -gt 0) {
+        Write-Log "Found $($derivatives.Count) derivative PR(s)" -Level WARN
+        foreach ($d in $derivatives) {
+            $null = $results.DerivativePRs.Add($d)
+        }
+
+        $parentsWithDerivatives = Get-PRsWithPendingDerivatives -Owner $Owner -Repo $Repo -OpenPRs $prs -Derivatives $derivatives
+        foreach ($p in $parentsWithDerivatives) {
+            $null = $results.ParentsWithDerivatives.Add($p)
+            $null = $results.ActionRequired.Add(@{
+                number = $p.ParentPR
+                category = 'has-derivatives'
+                hasConflicts = $false
+                reason = 'PENDING_DERIVATIVES'
+                author = 'N/A'
+                title = $p.ParentTitle
+                derivatives = $p.Derivatives
+            })
+        }
+    }
+
+    # Classify each PR
     foreach ($pr in $prs) {
-        Write-Log "Processing PR #$($pr.number): $($pr.title)" -Level INFO
+        Write-Log "Classifying PR #$($pr.number): $($pr.title)" -Level INFO
 
         try {
-            # Check if PR needs owner action (CHANGES_REQUESTED)
-            if ($pr.reviewDecision -eq 'CHANGES_REQUESTED') {
-                Write-Log "PR #$($pr.number) has CHANGES_REQUESTED - blocked" -Level WARN
-                $null = $results.Blocked.Add(@{
-                    PR = $pr.number
-                    Reason = 'CHANGES_REQUESTED'
-                    Title = $pr.title
-                })
-                continue
-            }
+            $authorLogin = $pr.author.login
+            $botInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
+            $isAgentControlledBot = $botInfo.IsBot -and $botInfo.Category -eq 'agent-controlled'
+            $isMentionTriggeredBot = $botInfo.IsBot -and $botInfo.Category -eq 'mention-triggered'
+            $isBotReviewer = Test-IsBotReviewer -ReviewRequests $pr.reviewRequests
+            $hasChangesRequested = $pr.reviewDecision -eq 'CHANGES_REQUESTED'
+            $hasConflicts = Test-PRHasConflicts -PR $pr
+            $hasFailingChecks = Test-PRHasFailingChecks -PR $pr
 
-            # Check for similar merged PRs (informational only - no auto-close)
-            $similarPRs = Get-SimilarPRs -Owner $Owner -Repo $Repo -PRNumber $pr.number -Title $pr.title
-            if ($similarPRs.Count -gt 0) {
-                Write-Log "PR #$($pr.number) has similar merged PRs - review recommended:" -Level INFO
-                foreach ($similar in $similarPRs) {
-                    Write-Log "  - PR #$($similar.Number): $($similar.Title)" -Level INFO
+            # Decision flow (classification only - no processing)
+            #
+            # Priority 1: Agent-controlled bot (rjmurillo-bot) as author or reviewer
+            # Priority 2: Mention-triggered bot (copilot-swe-agent) with rjmurillo-bot as reviewer
+            #             -> rjmurillo-bot can synthesize comments and @copilot to unblock
+            # Priority 3: Human-authored PRs (blocked, require human action)
+
+            if ($isAgentControlledBot -or $isBotReviewer) {
+                $role = if ($isAgentControlledBot) { 'author' } else { 'reviewer' }
+
+                if ($hasChangesRequested) {
+                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with CHANGES_REQUESTED" -Level WARN
+                    $null = $results.ActionRequired.Add(@{
+                        number = $pr.number
+                        category = 'agent-controlled'
+                        hasConflicts = $hasConflicts
+                        hasFailingChecks = $hasFailingChecks
+                        reason = 'CHANGES_REQUESTED'
+                        author = $authorLogin
+                        title = $pr.title
+                        headRefName = $pr.headRefName
+                        baseRefName = $pr.baseRefName
+                    })
                 }
-            }
-
-            # Acknowledge unacknowledged bot comments
-            $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
-            foreach ($comment in $unacked) {
-                Write-Log "Acknowledging comment $($comment.id) from $($comment.user.login)" -Level ACTION
-                $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
-                if ($acked) {
-                    $results.CommentsAcknowledged++
+                elseif ($hasConflicts) {
+                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with conflicts" -Level WARN
+                    $null = $results.ActionRequired.Add(@{
+                        number = $pr.number
+                        category = 'agent-controlled'
+                        hasConflicts = $true
+                        hasFailingChecks = $hasFailingChecks
+                        reason = 'HAS_CONFLICTS'
+                        author = $authorLogin
+                        title = $pr.title
+                        headRefName = $pr.headRefName
+                        baseRefName = $pr.baseRefName
+                    })
                 }
-            }
-
-            # Check and resolve merge conflicts
-            if ($pr.mergeable -eq 'CONFLICTING') {
-                Write-Log "PR #$($pr.number) has merge conflicts - attempting resolution" -Level ACTION
-                $resolved = Resolve-PRConflicts -Owner $Owner -Repo $Repo -PRNumber $pr.number -BranchName $pr.headRefName -TargetBranch $pr.baseRefName
-                if ($resolved) {
-                    $results.ConflictsResolved++
+                elseif ($hasFailingChecks) {
+                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with failing checks" -Level WARN
+                    $null = $results.ActionRequired.Add(@{
+                        number = $pr.number
+                        category = 'agent-controlled'
+                        hasConflicts = $false
+                        hasFailingChecks = $true
+                        reason = 'HAS_FAILING_CHECKS'
+                        author = $authorLogin
+                        title = $pr.title
+                        headRefName = $pr.headRefName
+                        baseRefName = $pr.baseRefName
+                    })
                 }
                 else {
+                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role, no action needed" -Level INFO
+                }
+            }
+            elseif ($isMentionTriggeredBot) {
+                # Copilot-SWE-Agent PR - rjmurillo-bot can synthesize comments and @copilot to unblock
+                # No need to check if rjmurillo-bot is reviewer - we can always help
+                # Triggers: CHANGES_REQUESTED, HAS_CONFLICTS, or HAS_FAILING_CHECKS
+                if ($hasChangesRequested -or $hasConflicts -or $hasFailingChecks) {
+                    $reason = if ($hasChangesRequested) { 'CHANGES_REQUESTED' }
+                              elseif ($hasConflicts) { 'HAS_CONFLICTS' }
+                              else { 'HAS_FAILING_CHECKS' }
+                    Write-Log "PR #$($pr.number): $authorLogin PR needs @copilot synthesis ($reason)" -Level WARN
+                    $null = $results.ActionRequired.Add(@{
+                        number = $pr.number
+                        category = 'mention-triggered'
+                        hasConflicts = $hasConflicts
+                        hasFailingChecks = $hasFailingChecks
+                        reason = $reason
+                        author = $authorLogin
+                        title = $pr.title
+                        headRefName = $pr.headRefName
+                        baseRefName = $pr.baseRefName
+                        requiresSynthesis = $true
+                    })
+                }
+                else {
+                    Write-Log "PR #$($pr.number): $authorLogin PR, no action needed" -Level INFO
+                }
+            }
+            else {
+                # Human-authored PRs or mention-triggered bots without rjmurillo-bot reviewer
+                if ($hasChangesRequested) {
+                    Write-Log "PR #$($pr.number): Human-authored with CHANGES_REQUESTED" -Level INFO
                     $null = $results.Blocked.Add(@{
-                        PR = $pr.number
-                        Reason = 'UNRESOLVABLE_CONFLICTS'
-                        Title = $pr.title
+                        number = $pr.number
+                        category = 'human-blocked'
+                        hasConflicts = $hasConflicts
+                        reason = 'CHANGES_REQUESTED'
+                        author = $authorLogin
+                        title = $pr.title
+                    })
+                }
+                elseif ($hasConflicts) {
+                    Write-Log "PR #$($pr.number): Human-authored with conflicts" -Level INFO
+                    $null = $results.Blocked.Add(@{
+                        number = $pr.number
+                        category = 'human-blocked'
+                        hasConflicts = $true
+                        reason = 'HAS_CONFLICTS'
+                        author = $authorLogin
+                        title = $pr.title
+                    })
+                }
+                elseif ($hasFailingChecks) {
+                    Write-Log "PR #$($pr.number): Human-authored with failing checks" -Level INFO
+                    $null = $results.Blocked.Add(@{
+                        number = $pr.number
+                        category = 'human-blocked'
+                        hasConflicts = $false
+                        hasFailingChecks = $true
+                        reason = 'HAS_FAILING_CHECKS'
+                        author = $authorLogin
+                        title = $pr.title
                     })
                 }
             }
-
-            $results.Processed++
         }
         catch {
-            Write-Log "Error processing PR #$($pr.number): $_" -Level ERROR
+            Write-Log "Error classifying PR #$($pr.number): $_" -Level ERROR
             $null = $results.Errors.Add(@{
                 PR = $pr.number
                 Error = $_.ToString()
@@ -900,105 +723,127 @@ function Invoke-PRMaintenance {
 
 # Guard: Only execute main logic when run directly, not when dot-sourced for testing
 if ($MyInvocation.InvocationName -eq '.') {
-    # Script is being dot-sourced - functions are now available but don't execute main logic
     return
 }
 
 try {
-    # ADR-015 Fix 3: Acquire script lock to prevent concurrent execution
-    if (-not (Enter-ScriptLock)) {
-        Write-Log "Exiting: another instance is running" -Level WARN
+    # Check API rate limit
+    if (-not (Test-RateLimitSafe)) {
+        if (-not $OutputJson) {
+            Write-Log "Exiting: API rate limit too low" -Level WARN
+        }
         exit 0
     }
 
-    try {
-        # ADR-015 Fix 6: Check API rate limit before processing (multi-resource)
-        if (-not (Test-RateLimitSafe)) {
-            Write-Log "Exiting: API rate limit too low" -Level WARN
-            exit 0
-        }
+    # Resolve repo info
+    if (-not $Owner -or -not $Repo) {
+        $repoInfo = Get-RepoInfo
+        if (-not $Owner) { $Owner = $repoInfo.Owner }
+        if (-not $Repo) { $Repo = $repoInfo.Repo }
+    }
 
-        # Resolve repo info
-        if (-not $Owner -or -not $Repo) {
-            $repoInfo = Get-RepoInfo
-            if (-not $Owner) { $Owner = $repoInfo.Owner }
-            if (-not $Repo) { $Repo = $repoInfo.Repo }
-        }
+    # Run discovery
+    $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs -DryRun:$DryRun
 
-        # Safety check: ensure we're not on a protected branch (unless in CI)
-        # In GitHub Actions scheduled runs, we checkout main but only READ PR data via API
-        $currentBranch = git branch --show-current
-        $isCI = $env:GITHUB_ACTIONS -eq 'true'
-        if ($currentBranch -in $script:Config.ProtectedBranches -and -not $isCI) {
-            Write-Log "ERROR: Cannot run on protected branch '$currentBranch' outside CI" -Level ERROR
-            exit 2
+    # JSON Output Mode (for workflow matrix)
+    if ($OutputJson) {
+        $output = @{
+            prs = @($results.ActionRequired)
+            summary = @{
+                total = $results.TotalPRs
+                actionRequired = $results.ActionRequired.Count
+                blocked = $results.Blocked.Count
+                derivatives = $results.DerivativePRs.Count
+            }
         }
-        if ($currentBranch -in $script:Config.ProtectedBranches -and $isCI) {
-            Write-Log "Running on protected branch '$currentBranch' in CI mode (read-only operations via API)" -Level INFO
-        }
+        $output | ConvertTo-Json -Depth 10 -Compress
+        exit 0
+    }
 
-        # Run maintenance
-        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs
+    # Normal Mode: Log summary
+    Write-Log "---" -Level INFO
+    Write-Log "=== PR Discovery Summary ===" -Level INFO
+    Write-Log "Open PRs: $($results.TotalPRs)" -Level INFO
+    Write-Log "Action Required: $($results.ActionRequired.Count)" -Level $(if ($results.ActionRequired.Count -gt 0) { 'WARN' } else { 'INFO' })
+    Write-Log "Blocked (human): $($results.Blocked.Count)" -Level $(if ($results.Blocked.Count -gt 0) { 'WARN' } else { 'INFO' })
+    Write-Log "Derivatives: $($results.DerivativePRs.Count)" -Level $(if ($results.DerivativePRs.Count -gt 0) { 'WARN' } else { 'INFO' })
 
-        # Summary
+    if ($results.ActionRequired.Count -gt 0) {
         Write-Log "---" -Level INFO
-        Write-Log "=== PR Maintenance Summary ===" -Level INFO
-        Write-Log "PRs Processed: $($results.Processed)" -Level INFO
-        Write-Log "Comments Acknowledged: $($results.CommentsAcknowledged)" -Level SUCCESS
-        Write-Log "Conflicts Resolved: $($results.ConflictsResolved)" -Level SUCCESS
+        Write-Log "PRs Requiring Action:" -Level WARN
+        foreach ($item in $results.ActionRequired) {
+            Write-Log "  PR #$($item.number): $($item.reason) [$($item.category)]" -Level WARN
+            if ($item.hasConflicts) {
+                Write-Log "    -> Has conflicts, run /merge-resolver first" -Level INFO
+            }
+        }
+
+        $prNumbers = ($results.ActionRequired | ForEach-Object { $_.number }) -join ','
+        Write-Log "Run: /pr-comment-responder $prNumbers" -Level INFO
+    }
+
+    if ($results.Blocked.Count -gt 0) {
+        Write-Log "---" -Level INFO
+        Write-Log "Blocked PRs (require human action):" -Level WARN
+        foreach ($blocked in $results.Blocked) {
+            Write-Log "  PR #$($blocked.number): $($blocked.reason) - $($blocked.title)" -Level WARN
+        }
+    }
+
+    $duration = (Get-Date) - $script:StartTime
+    Write-Log "---" -Level INFO
+    Write-Log "Completed in $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
+
+    # GitHub Actions step summary
+    if ($env:GITHUB_STEP_SUMMARY) {
+        $summary = @"
+## PR Discovery Summary
+
+| Metric | Count |
+|--------|-------|
+| Open PRs Scanned | $($results.TotalPRs) |
+| PRs Need Action | $($results.ActionRequired.Count) |
+| Blocked (human) | $($results.Blocked.Count) |
+| Derivative PRs | $($results.DerivativePRs.Count) |
+| Errors | $($results.Errors.Count) |
+
+"@
+        if ($results.ActionRequired.Count -gt 0) {
+            $summary += @"
+### PRs Requiring Action
+
+| PR | Category | Reason | Has Conflicts |
+|----|----------|--------|---------------|
+"@
+            foreach ($item in $results.ActionRequired) {
+                $conflictIcon = if ($item.hasConflicts) { ':warning:' } else { ':white_check_mark:' }
+                $summary += "| #$($item.number) | $($item.category) | $($item.reason) | $conflictIcon |`n"
+            }
+            $summary += "`n"
+        }
 
         if ($results.Blocked.Count -gt 0) {
-            Write-Log "---" -Level INFO
-            Write-Log "Blocked PRs (require human action):" -Level WARN
+            $summary += @"
+### Blocked PRs (Human Action Required)
+
+| PR | Author | Reason |
+|----|--------|--------|
+"@
             foreach ($blocked in $results.Blocked) {
-                Write-Log "  PR #$($blocked.PR): $($blocked.Reason) - $($blocked.Title)" -Level WARN
+                $summary += "| #$($blocked.number) | $($blocked.author) | $($blocked.reason) |`n"
             }
         }
 
-        if ($results.Errors.Count -gt 0) {
-            Write-Log "---" -Level INFO
-            Write-Log "Errors:" -Level ERROR
-            foreach ($err in $results.Errors) {
-                Write-Log "  PR #$($err.PR): $($err.Error)" -Level ERROR
-            }
-        }
+        $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding UTF8
+    }
 
-        $duration = (Get-Date) - $script:StartTime
-        Write-Log "---" -Level INFO
-        Write-Log "Completed in $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
-
-        # Save log
+    # Save log
+    if ($LogPath) {
         Save-Log -Path $LogPath
-
-        # Determine exit code
-        # Exit code 0: Success (PRs processed, even if some are blocked)
-        # Exit code 1: Reserved for future use
-        # Exit code 2: Fatal errors (script failure, API errors)
-        # 
-        # Note: Blocked PRs (CHANGES_REQUESTED) are not errors - they're
-        # reported via summary and trigger a separate alert issue.
-        # The workflow should only fail on actual errors.
-        $exitCode = 0
-        if ($results.Errors.Count -gt 0) {
-            $exitCode = 2
-        }
-        # Removed: elseif ($results.Blocked.Count -gt 0) { $exitCode = 1 }
-        # Blocked PRs are handled by the "Create alert issue for blocked PRs" step
     }
-    finally {
-        # ADR-015 Fix 3: Always release lock in finally block
-        Exit-ScriptLock
-    }
-
-    exit $exitCode
 }
 catch {
     Write-Log "Fatal error: $_" -Level ERROR
-    Write-Log $_.ScriptStackTrace -Level ERROR
-    Save-Log -Path $LogPath
-
-    # ADR-015 Fix 3: Release lock on fatal error
-    Exit-ScriptLock
     exit 2
 }
 

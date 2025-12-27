@@ -409,6 +409,81 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 
 </details>
 
+### Phase 1.5: Copilot PR Synthesis
+
+**When applicable**: If PR author is `copilot-swe-agent` AND `rjmurillo-bot` is a reviewer, synthesize feedback from other review bots before proceeding.
+
+#### Step 1.5.1: Detect Copilot-SWE-Agent PR
+
+```powershell
+# Check PR author and reviewers
+$prData = pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest [number]
+$isCopilotPR = $prData.author.login -match 'copilot'
+
+# Check if rjmurillo-bot is requested reviewer
+$reviewers = pwsh .claude/skills/github/scripts/pr/Get-PRReviewers.ps1 -PullRequest [number]
+$isBotReviewer = $reviewers -match 'rjmurillo-bot'
+
+if ($isCopilotPR -and $isBotReviewer) {
+  Write-Host "[SYNTHESIS REQUIRED] Copilot PR with rjmurillo-bot as reviewer"
+}
+```
+
+#### Step 1.5.2: Collect Other Bot Comments
+
+When synthesis is required, collect comments from other review bots (not copilot):
+
+```powershell
+$comments = pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number]
+
+# Filter to review bots (case-insensitive, anchored for security)
+$otherBotComments = $comments | Where-Object {
+  $_.author -imatch '^(coderabbitai(\[bot\])?|cursor\[bot\]|gemini-code-assist(\[bot\])?)$' -and
+  $_.author -inotmatch 'copilot'
+}
+
+if ($otherBotComments.Count -gt 0) {
+  Write-Host "Found $($otherBotComments.Count) comments from other bots to synthesize"
+}
+```
+
+#### Step 1.5.3: Generate Synthesis Prompt
+
+Create a synthesis prompt that directs @copilot to address the collected feedback:
+
+```markdown
+@copilot Please review and address the following feedback from other reviewers:
+
+## Summary of Review Comments
+
+[For each bot comment, extract:]
+- **Source**: @[bot_name]
+- **File**: [path]:[line]
+- **Issue**: [brief summary of the concern]
+- **Suggested Action**: [what the bot recommends]
+
+## Recommended Actions
+
+1. [Prioritized action 1]
+2. [Prioritized action 2]
+...
+
+Please implement these fixes and push the changes.
+```
+
+#### Step 1.5.4: Post Synthesis Comment
+
+```bash
+# Post synthesis as PR comment
+gh pr comment [number] --body "[synthesis_prompt]"
+```
+
+**Why synthesis matters**: Copilot-SWE-Agent responds to @copilot mentions. By synthesizing feedback from multiple bots (CodeRabbit, cursor[bot], etc.) into a single directed prompt, we reduce noise and help Copilot address issues more efficiently.
+
+**Skip synthesis when**: No comments from other review bots exist (proceed directly to Phase 2).
+
+---
+
 ### Phase 2: Comment Map Generation
 
 Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number]/comments.md`.
