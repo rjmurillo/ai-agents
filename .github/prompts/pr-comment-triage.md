@@ -30,49 +30,64 @@ Analyze all comments on this pull request and provide a structured triage decisi
 
 ## Output Format
 
-You MUST output valid JSON that can be parsed. Do NOT include markdown code fences or extra text.
+Your ENTIRE response must be a single JSON object. NO other text.
+
+- Start your response with `{` and end with `}`
+- Do NOT wrap JSON in markdown code fences
+- Do NOT include explanations before or after the JSON
+
+### Required JSON Schema
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `comments` | array | Yes | One entry per comment analyzed |
+| `comments[].id` | number | Yes | Comment ID from GitHub API |
+| `comments[].author` | string | Yes | Username of commenter |
+| `comments[].file` | string | When available | File path the comment references |
+| `comments[].line` | number | When available | Line number the comment references |
+| `comments[].classification` | string | Yes | One of: `quick-fix`, `standard`, `strategic`, `wontfix`, `question`, `stale` |
+| `comments[].priority` | string | Yes | One of: `critical`, `major`, `minor` |
+| `comments[].action` | string | Yes | One of: `implement`, `reply`, `resolve` |
+| `comments[].summary` | string | Yes | Brief description of the issue |
+| `comments[].resolution` | string | Yes | Specific fix or response |
+| `summary` | object | Yes | Counts by classification |
+| `recommendation` | string | Yes | Human-readable summary of actions |
+| `verdict` | string | Yes | `PASS` or `WARN` |
+
+### Verdict Values
+
+- `PASS`: All comments classified successfully
+- `WARN`: Comments classified but some marked as `question` (needs human input)
+
+### CORRECT (raw JSON only)
+
+{"comments":[{"id":123456789,"author":"gemini-code-assist","file":"src/utils.ps1","line":42,"classification":"quick-fix","priority":"major","action":"implement","summary":"Add null check before accessing property","resolution":"Add `if ($null -ne $obj) { ... }` guard at line 42"}],"summary":{"total":1,"quick_fix":1,"standard":0,"strategic":0,"wontfix":0,"question":0,"stale":0},"recommendation":"Implement 1 fix","verdict":"PASS"}
+
+### INCORRECT (has wrapper text)
+
+Here's my analysis of the PR comments:
 
 ```json
-{
-  "comments": [
-    {
-      "id": 123456789,
-      "author": "gemini-code-assist",
-      "file": "path/to/file.ps1",
-      "line": 42,
-      "classification": "quick-fix",
-      "priority": "major",
-      "action": "implement",
-      "summary": "Add null check before accessing property",
-      "resolution": "Add `if ($null -ne $obj)` guard"
-    }
-  ],
-  "summary": {
-    "total": 5,
-    "quick_fix": 2,
-    "standard": 1,
-    "strategic": 0,
-    "wontfix": 1,
-    "question": 0,
-    "stale": 1
-  },
-  "recommendation": "Implement 3 fixes, decline 1, mark 1 stale"
-}
+{"comments":[...],"verdict":"PASS"}
 ```
+
+Let me know if you need clarification.
 
 ## Important Rules
 
 1. **Every comment gets a classification** - No skipping
-2. **Be specific in resolution** - Describe exact fix, not vague "fix this"
+2. **Resolution must be actionable** - Include exact code or steps
+   - CORRECT: "Add `if ($null -ne $obj) { ... }` guard at line 42"
+   - INCORRECT: "Fix the null reference issue"
 3. **Preserve comment ID** - Required for automation to acknowledge/reply
 4. **Include file and line** - When available from the comment
 5. **Security issues are always critical** - Never downgrade security findings
 
-## Comment Sources
+## Comment Source Handling
 
-- `gemini-code-assist`: Usually high-quality, specific suggestions
-- `copilot-pull-request-reviewer`: Often flags patterns, may have false positives
-- `coderabbitai`: Detailed reviews, check for overlapping suggestions
-- Human reviewers: Highest priority, always address
-
-VERDICT: PASS (when all comments triaged successfully)
+| Source | Default Priority | Notes |
+|--------|------------------|-------|
+| Human reviewers | `major` minimum | Upgrade to `critical` if blocking |
+| `gemini-code-assist` | As warranted | High-quality, specific suggestions |
+| `coderabbitai` | As warranted | Check for duplicates with other bots |
+| `copilot-*` | As warranted | Higher false-positive rate |
