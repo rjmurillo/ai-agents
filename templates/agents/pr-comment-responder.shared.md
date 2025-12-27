@@ -114,7 +114,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 ### Comment Triage Priority
 
-**MUST**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
 
 #### Priority Adjustment by Domain
 
@@ -157,7 +157,7 @@ escap            # Output escaping
 
 Security vulnerabilities like CWE-20/CWE-78 can be introduced and merged when security-domain comments are not prioritized. Similarly, symlink TOCTOU comments can be dismissed as style suggestions when they should be flagged as security-domain.
 
-**Skill Reference**: Skill-PR-Review-Security-001 (atomicity: 94%)
+**Skill Reference**: pr-review-security (atomicity: 94%)
 
 ### Quick Fix Path Criteria
 
@@ -186,7 +186,7 @@ Analyze and implement...
 
 ### QA Integration Requirement
 
-**MUST**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
+**MANDATORY**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
@@ -323,7 +323,87 @@ echo "[PASS] All gates cleared"
 
 ## Workflow Protocol
 
+### Phase 0: Memory Initialization (BLOCKING)
+
+**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
+
+#### Step 0.1: Load Core Skills Memory
+
+```python
+# ALWAYS load pr-comment-responder-skills first
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+```
+
+This memory contains:
+
+- Reviewer signal quality statistics (actionability rates)
+- Triage heuristics and learned patterns
+- Per-PR breakdown of comment outcomes
+- Anti-patterns to avoid
+
+#### Step 0.2: Verify Core Memory Loaded
+
+Before proceeding, confirm `pr-comment-responder-skills` is loaded:
+
+- [ ] Memory content appears in context
+- [ ] Reviewer signal quality table visible
+- [ ] Triage heuristics available
+
+**If memory load fails**: Proceed with default heuristics but flag in session log.
+
+#### Step 0.3: Note on Reviewer-Specific Memories
+
+Reviewer-specific memories (e.g., `cursor-bot-review-patterns`) are loaded in **Step 1.2a** after reviewer enumeration completes. Phase 0 focuses only on core skills memory.
+
+---
+
+| Reviewer | Memory Name | Content |
+|----------|-------------|---------|
+| cursor[bot] | `cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
+| Copilot | `copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
+| coderabbitai[bot] | - | (Use pr-comment-responder-skills) |
+
+---
+
 ### Phase 1: Context Gathering
+
+#### Step 1.0: Session State Check
+
+Before fetching new data, check if this is a continuation of a previous session:
+
+```bash
+SESSION_DIR=".agents/pr-comments/PR-[number]"
+
+if [ -d "$SESSION_DIR" ]; then
+  echo "[CONTINUATION] Previous session found"
+  # Load existing state
+  PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
+  echo "Previous session had $PREVIOUS_COMMENTS comments"
+
+  # Check for NEW comments only
+  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+
+  if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
+    echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
+    # Proceed to Step 1.1 to fetch new comments only
+  else
+    echo "[NO NEW COMMENTS] Proceeding to Phase 8 for verification"
+    # Skip to Phase 8 to verify completion criteria
+  fi
+else
+  echo "[NEW SESSION] No previous state found"
+  # Proceed with full Phase 1 context gathering
+fi
+```
+
+**Session state directory**: `.agents/pr-comments/PR-[number]/`
+
+| File | Purpose |
+|------|---------|
+| `comments.md` | Comment map with status tracking |
+| `tasks.md` | Prioritized task list |
+| `session-summary.md` | Session outcomes and statistics |
+| `[comment_id]-plan.md` | Per-comment implementation plans |
 
 **CRITICAL**: Enumerate ALL reviewers and count ALL comments before proceeding. Missing comments wastes tokens on repeated prompts. Missed comments lead to incomplete PR handling and waste tokens on repeated prompts. Replying to incorrect comment threads creates noise and causes confusion.
 
@@ -352,6 +432,22 @@ ISSUE_REVIEWERS=$(gh api repos/[owner]/[repo]/issues/[number]/comments --jq '[.[
 ALL_REVIEWERS=$(echo "$REVIEWERS $ISSUE_REVIEWERS" | jq -s 'add | unique')
 echo "Reviewers: $ALL_REVIEWERS"
 ```
+
+#### Step 1.2a: Load Reviewer-Specific Memories
+
+Now that reviewers are enumerated, load memories for each unique reviewer:
+
+```python
+# For each reviewer, check for dedicated memory
+for reviewer in ALL_REVIEWERS:
+    if reviewer == "cursor[bot]":
+        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
+    elif reviewer == "copilot-pull-request-reviewer":
+        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
+    # Other reviewers use pr-comment-responder-skills (already loaded in Phase 0)
+```
+
+**Reference**: See Phase 0, Step 0.3 for the reviewer memory mapping table.
 
 #### Step 1.3: Retrieve ALL Comments (with pagination)
 
@@ -815,28 +911,7 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
   -F in_reply_to=[comment_id]
 ```
 
-#### Step 6.4: Resolve Conversation Thread
-
-After replying with resolution, mark the thread as resolved. This is required for PRs with branch protection rules that require all conversations to be resolved before merging.
-
-**Exception**: Do NOT auto-resolve when:
-
-1. The reviewer is human (let them resolve after verifying)
-2. You need a response from the reviewer (human or bot)
-
-```powershell
-# Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
-
-# Or resolve a single thread by ID
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_kwDOQoWRls5m7ln8"
-```
-
-**Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
-
-**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`-All`) automatically discovers and resolves all unresolved threads.
-
-#### Step 6.5: Update Task List
+#### Step 6.4: Update Task List
 
 Mark task as complete in `.agents/pr-comments/PR-[number]/tasks.md`.
 
@@ -871,99 +946,109 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MUST**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
-
-#### Phase 8.1: Comment Status Verification
+**MANDATORY**: Verify all comments addressed before claiming completion.
 
 ```bash
-# Count addressed vs total
-ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
-WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
+# Count addressed vs total (both COMPLETE and WONTFIX are valid resolutions)
+COMPLETE=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md || echo 0)
+WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md || echo 0)
+ADDRESSED=$((COMPLETE + WONTFIX))
 TOTAL=$TOTAL_COMMENTS
 
-echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
+echo "Verification: $ADDRESSED / $TOTAL comments addressed (COMPLETE: $COMPLETE, WONTFIX: $WONTFIX)"
 
-if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
-  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
+if [ "$ADDRESSED" -lt "$TOTAL" ]; then
+  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED)) comments remaining"
+  # List unaddressed
   grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
-  # Return to Phase 3 for unaddressed comments
 fi
 ```
 
-#### Phase 8.2: Verify Conversation Resolution
+### Phase 9: Memory Storage (BLOCKING)
 
-**BLOCKING**: All conversations MUST be resolved for the PR to be mergeable with branch protection rules.
+**MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
 
-**Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
+#### Step 9.1: Calculate Session Statistics
 
-```powershell
-# Run bulk resolution to ensure all threads are resolved
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+For each reviewer who commented on this PR:
+
+```python
+session_stats = {
+    "pr_number": PR_NUMBER,
+    "date": "YYYY-MM-DD",
+    "reviewers": {
+        "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
+        "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
+        # ... other reviewers
+    }
+}
 ```
 
-The script will:
+#### Step 9.2: Update pr-comment-responder-skills Memory
 
-1. Query all review threads on the PR
-2. Identify any unresolved threads
-3. Resolve each one via GraphQL API
-4. Report summary: `N resolved, M failed`
+```python
+# Read current memory to get existing statistics
+current = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
 
-**Exit codes**:
+# Calculate new cumulative totals from session_stats
+# Example: If cursor[bot] had 9 comments (100%) and this PR adds 2 more (100%)
+# New totals: 11 comments, 11 actionable, 100%
 
-- `0`: All threads resolved (or already resolved)
-- `1`: One or more threads failed to resolve
+# Update Per-Reviewer Performance table with new totals
+# Find the row for each reviewer and update their cumulative stats
+mcp__serena__edit_memory(
+    memory_file_name="pr-comment-responder-skills",
+    needle=r"\| cursor\[bot\] \| \d+ \| \d+ \| \*\*\d+%\*\* \|",
+    repl=f"| cursor[bot] | {new_total_comments} | {new_actionable} | **{new_rate}%** |",
+    mode="regex"
+)
 
-If any threads fail to resolve, investigate and retry before claiming completion.
+# Add new Per-PR Breakdown entry (prepend to existing entries)
+new_pr_section = f"""### Per-PR Breakdown
 
-#### Phase 8.3: Re-check for New Comments
+#### PR #{PR_NUMBER} ({date})
 
-After pushing commits, bots may post new comments. Wait and re-check:
+| Reviewer | Comments | Actionable | Rate |
+|----------|----------|------------|------|
+| cursor[bot] | {cursor_comments} | {cursor_actionable} | {cursor_rate}% |
+| copilot-pull-request-reviewer | {copilot_comments} | {copilot_actionable} | {copilot_rate}% |
+
+"""
+
+mcp__serena__edit_memory(
+    memory_file_name="pr-comment-responder-skills",
+    needle="### Per-PR Breakdown",
+    repl=new_pr_section,
+    mode="literal"
+)
+```
+
+#### Step 9.3: Update Required Fields
+
+The following MUST be updated in `pr-comment-responder-skills`:
+
+| Section | What to Update |
+|---------|----------------|
+| Per-Reviewer Performance | Add PR to PRs list, update totals |
+| Per-PR Breakdown | Add new PR section with per-reviewer stats |
+| Metrics | Update cumulative totals |
+
+#### Step 9.4: Verify Memory Updated
+
+Confirm that the `pr-comment-responder-skills` memory reflects the new PR:
+
+- [ ] In **Per-Reviewer Performance (Cumulative)**, the PR appears in each relevant reviewer's PR list and their totals are updated
+- [ ] In **Per-PR Breakdown**, a new section for this PR exists with per-reviewer stats populated
+- [ ] In **Metrics**, cumulative totals (PR counts, comment counts, resolution stats) include this PR
+
+**Verification Command**:
 
 ```bash
-# Wait for bot responses (30-60 seconds)
-sleep 45
-
-# Re-fetch comments
-NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
-
-# Compare to original count
-if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
-  echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
-  # Fetch new comments, add to comment map with status [NEW]
-  # Return to Phase 3 for analysis
-fi
+# Read updated memory and verify new PR data appears
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
 ```
 
-**Critical**: Repeat this loop until no new comments appear after a commit. Bots like cursor[bot] and Copilot respond to your fixes and may identify issues with your implementation.
-
-#### Phase 8.4: QA Gate Verification
-
-Before claiming completion, verify CI checks pass:
-
-```bash
-# Check PR status
-gh pr checks [number] --watch
-
-# If AI Quality Gate fails, parse actionable items
-CHECKS=$(gh pr checks [number] --json name,state,description)
-FAILED=$(echo "$CHECKS" | jq '[.[] | select(.state == "FAILURE")]')
-
-if [ "$(echo "$FAILED" | jq 'length')" -gt 0 ]; then
-  echo "[QA GATE FAIL] Parsing failures for actionable items..."
-  # Add new tasks to task list
-  # Return to Phase 6 for implementation
-fi
-```
-
-#### Phase 8.5: Completion Criteria Checklist
-
-**ALL criteria must be true before completion**:
-
-- [ ] All comments have status `[COMPLETE]` or `[WONTFIX]`
-- [ ] All review threads resolved (except human reviewer threads)
-- [ ] All CI checks passing
-- [ ] No new comments after final commit
-- [ ] PR description updated if scope changed
+---
 
 ## Bot-Specific Handling
 
@@ -1000,7 +1085,7 @@ Use sparingly. Only resolve after actually addressing issues.
 
 Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
 
-**At start (MUST):**
+**At start (MANDATORY):**
 
 ```text
 mcp__cloudmcp-manager__memory-search_nodes

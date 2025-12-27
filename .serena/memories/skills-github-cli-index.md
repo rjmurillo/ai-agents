@@ -2,6 +2,7 @@
 |----------|------|
 | pr create review merge list approve squash draft fill auto-merge delete-branch | github-cli-pr-operations |
 | issue create edit close reopen lock pin transfer lifecycle assignee milestone label | github-cli-issue-operations |
+| bidirectional issue linking cross-reference comment navigation related | skill-github-001-bidirectional-issue-linking |
 | copilot copilot-swe-agent assign trigger automated resolution context injection | github-cli-issue-operations |
 | run workflow list view log-failed watch trigger dispatch inputs status failure | github-cli-workflow-runs |
 | release create upload download assets generate-notes draft prerelease changelog tag | github-cli-releases |

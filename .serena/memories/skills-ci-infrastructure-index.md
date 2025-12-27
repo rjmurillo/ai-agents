@@ -16,3 +16,10 @@
 | integration test workflow dry-run module import validation pre-merge | ci-quality-gates |
 | research platform documentation limitation compatibility known issue | ci-deployment-validation |
 | label pre-validation create ensure exists gh label create deploy | ci-deployment-validation |
+| required check path filter phantom blocking internal skip git diff | ci-workflow-required-checks |
+| zero SHA first commit force-push git cat-file LASTEXITCODE validation | ci-workflow-required-checks |
+| required check testing non-matching PR status reporting verification | ci-workflow-required-checks |
+| fail-fast exit code 1 infrastructure failure timeout token retry | skill-ci-001-fail-fast-infrastructure-failures |
+| retry timing explicit array backoff formula RETRY_DELAYS | skill-ci-002-explicit-retry-timing |
+| job status success failure verdict PASS CRITICAL_FAIL multi-stage pipeline distinction | skill-ci-003-job-status-verdict-distinction |
+| error message investigate tool output infra flag classification handler | skill-ci-004-error-message-investigation |

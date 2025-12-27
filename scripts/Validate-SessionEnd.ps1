@@ -243,16 +243,22 @@ foreach ($row in $mustRows) {
 }
 
 # --- Verify HANDOFF contains a link to this session log
-$handoffPath = Join-Path $repoRoot ".agents/HANDOFF.md"
-if (-not (Test-Path -LiteralPath $handoffPath)) { Fail 'E_HANDOFF_MISSING' "Missing .agents/HANDOFF.md" }
-$handoff = Read-AllText $handoffPath
+# Skip on feature branches: HANDOFF.md is read-only per ADR-014/SESSION-PROTOCOL v1.4
+$currentBranch = (& git -C $repoRoot branch --show-current).Trim()
+$isMainBranch = $currentBranch -eq 'main'
 
-# Accept either [Session NN](./sessions/...) or raw path.
-if ($handoff -notmatch [Regex]::Escape(($sessionRel -replace '^\.agents/',''))) {
-  # The typical link omits ".agents/" prefix (because HANDOFF lives in .agents/)
-  $relFromHandoff = $sessionRel -replace '^\.agents/',''
-  if ($handoff -notmatch [Regex]::Escape($relFromHandoff)) {
-    Fail 'E_HANDOFF_LINK_MISSING' "HANDOFF.md does not reference this session log: $relFromHandoff"
+if ($isMainBranch) {
+  $handoffPath = Join-Path $repoRoot ".agents/HANDOFF.md"
+  if (-not (Test-Path -LiteralPath $handoffPath)) { Fail 'E_HANDOFF_MISSING' "Missing .agents/HANDOFF.md" }
+  $handoff = Read-AllText $handoffPath
+
+  # Accept either [Session NN](./sessions/...) or raw path.
+  if ($handoff -notmatch [Regex]::Escape(($sessionRel -replace '^\.agents/',''))) {
+    # The typical link omits ".agents/" prefix (because HANDOFF lives in .agents/)
+    $relFromHandoff = $sessionRel -replace '^\.agents/',''
+    if ($handoff -notmatch [Regex]::Escape($relFromHandoff)) {
+      Fail 'E_HANDOFF_LINK_MISSING' "HANDOFF.md does not reference this session log: $relFromHandoff"
+    }
   }
 }
 

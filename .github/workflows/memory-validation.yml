@@ -1,0 +1,123 @@
+# Memory Validation for ADR-017 Compliance
+#
+# Validates memory files follow the tiered index architecture:
+# - Skill format validation (one skill per file, no bundled formats)
+# - Index validation (proper Keywords|File table format)
+#
+# This is a REQUIRED check that blocks PRs from corrupting the memory system.
+# Pre-commit hooks can be bypassed; CI cannot.
+#
+# Local developers can run the same validation using:
+#   pwsh scripts/Validate-SkillFormat.ps1
+#   pwsh scripts/Validate-MemoryIndex.ps1
+
+name: Memory Validation
+
+# NOTE: No path filters here - workflow must always run because "Validate Memory Files"
+# is a required status check. Path-based filtering happens inside the job using git diff.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: # Allow manual triggering
+
+concurrency:
+  group: memory-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Memory Files
+    # ADR-014: Use ubuntu-24.04-arm to align with standardized ARM runners for CI.
+    # ARM runners are selected here for cost-optimized, consistent validation workloads.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Check for memory file changes
+        id: changes
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          # Get list of changed files based on event type
+          $diffOutput = $null
+
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            # Compare PR branch against the base branch (three dots for merge-base diff)
+            $diffOutput = git diff --name-only origin/${{ github.base_ref }}...HEAD
+          } elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
+            # Handle push event with guards for edge cases
+            $beforeSha = '${{ github.event.before }}'
+            $afterSha = '${{ github.sha }}'
+            $zeroSha = '0000000000000000000000000000000000000000'
+
+            if ($beforeSha -eq $zeroSha) {
+              # First commit on a new branch: fall back to comparing against main
+              Write-Host "First commit on branch detected. Comparing against origin/main..." -ForegroundColor Yellow
+              $diffOutput = git diff --name-only origin/main..$afterSha
+            } else {
+              # Verify that the 'before' commit exists (may not after force-push/rebase)
+              git cat-file -e "$beforeSha^{commit}" 2>$null
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "Warning: Base commit $beforeSha not found (possible force-push). Falling back to origin/main..." -ForegroundColor Yellow
+                $diffOutput = git diff --name-only origin/main..$afterSha
+              } else {
+                # Normal push: use two dots for direct commit range
+                $diffOutput = git diff --name-only $beforeSha..$afterSha
+              }
+            }
+          } else {
+            # Fallback for workflow_dispatch or other events: compare against main
+            $diffOutput = git diff --name-only origin/main...HEAD
+          }
+
+          # Check if git diff succeeded
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "git diff command failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+
+          # Split output into array (git diff returns newline-separated string)
+          $changedFiles = $diffOutput -split '\r?\n' | Where-Object { $_ }
+
+          # Match any file under .serena/memories/ (including subdirectories)
+          $memoryChanges = $changedFiles | Where-Object { $_ -match '^\.serena/memories/' }
+
+          if ($memoryChanges.Count -eq 0) {
+            Write-Host "No memory files changed. Skipping validation." -ForegroundColor Yellow
+            Write-Host "This allows workflow-only changes to pass without validating pre-existing issues."
+            echo "skip=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "Memory files changed: $($memoryChanges.Count) file(s)" -ForegroundColor Cyan
+            $memoryChanges | ForEach-Object { Write-Host "  - $_" }
+            echo "skip=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Validate Skill Format (ADR-017)
+        if: steps.changes.outputs.skip != 'true'
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          Write-Host "=== Skill Format Validation ===" -ForegroundColor Cyan
+          Write-Host "Checking for bundled skill files (multiple skills per file)..." -ForegroundColor Gray
+          ./scripts/Validate-SkillFormat.ps1 -CI
+
+      - name: Validate Memory Index
+        if: steps.changes.outputs.skip != 'true'
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          Write-Host "=== Memory Index Validation ===" -ForegroundColor Cyan
+          Write-Host "Checking index file references and keyword uniqueness..." -ForegroundColor Gray
+          ./scripts/Validate-MemoryIndex.ps1 -CI
+
+      - name: Skip notice
+        if: steps.changes.outputs.skip == 'true'
+        run: |
+          echo "::notice::Memory validation skipped - no .serena/memories/** files changed in this PR."

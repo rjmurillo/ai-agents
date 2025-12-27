@@ -14,7 +14,7 @@
 # - Root-level tests (tests/)
 #
 # Local developers and AI agents can run the same tests using:
-#   pwsh ./build/scripts/Invoke-PesterTests.ps1
+#   pwsh -NoProfile ./build/scripts/Invoke-PesterTests.ps1
 
 name: Pester Tests
 
@@ -81,7 +81,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Run Pester Tests
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: ./build/scripts/Invoke-PesterTests.ps1 -CI
 
       - name: Upload Test Results
