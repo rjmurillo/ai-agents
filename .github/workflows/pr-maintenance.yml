@@ -256,18 +256,35 @@ jobs:
           $findings = $env:AI_FINDINGS
           $resolutions = $null
 
-          # Extract JSON from AI output
-          if ($findings -match '\{[\s\S]*"resolutions"[\s\S]*\}') {
+          # Extract JSON from AI output (handle markdown code fences if present)
+          $jsonContent = $findings
+          # Remove markdown code fences if present (```json ... ```)
+          if ($findings -match '```(?:json)?\s*([\s\S]*?)```') {
+            $jsonContent = $Matches[1].Trim()
+          }
+
+          # Extract JSON object containing resolutions
+          if ($jsonContent -match '\{[\s\S]*"resolutions"[\s\S]*\}') {
             try {
               $resolutions = $Matches[0] | ConvertFrom-Json
             } catch {
               Write-Host "::error::Failed to parse AI resolutions JSON: $_"
+              Write-Host "::error::Raw JSON attempted: $($Matches[0].Substring(0, [Math]::Min(500, $Matches[0].Length)))"
               exit 1
             }
           }
 
-          if (-not $resolutions -or -not $resolutions.resolutions) {
-            Write-Host "::error::No valid resolutions found in AI output"
+          # Validate resolutions exist and are not empty
+          if (-not $resolutions) {
+            Write-Host "::error::No JSON object with 'resolutions' key found in AI output"
+            exit 1
+          }
+          if (-not $resolutions.resolutions) {
+            Write-Host "::error::AI output missing 'resolutions' array"
+            exit 1
+          }
+          if ($resolutions.resolutions.Count -eq 0) {
+            Write-Host "::error::AI returned empty resolutions array - cannot resolve conflicts"
             exit 1
           }
 
