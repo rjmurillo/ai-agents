@@ -211,16 +211,3 @@ jobs:
 
             $summary | Out-File $env:GITHUB_STEP_SUMMARY -Append
           }
-
-      - name: Create alert for blocked PRs
-        env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        run: |
-          $json = '${{ needs.discover-prs.outputs.summary-json }}'
-          if (-not $json) { exit 0 }
-
-          $parsed = $json | ConvertFrom-Json
-          if ($parsed.summary.blocked -gt 0) {
-            Write-Host "::warning::$($parsed.summary.blocked) PR(s) blocked waiting for human action"
-          }
