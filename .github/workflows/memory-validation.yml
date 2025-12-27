@@ -100,7 +100,8 @@ jobs:
             $memoryChanges | ForEach-Object { Write-Host "  - $_" }
             echo "skip=false" >> $env:GITHUB_OUTPUT
             # Pass changed files as JSON array for the validation step
-            $filesJson = $memoryChanges | ConvertTo-Json -Compress
+            # Use @() to ensure consistent array output even for single items
+            $filesJson = @($memoryChanges) | ConvertTo-Json -Compress
             echo "files=$filesJson" >> $env:GITHUB_OUTPUT
           }
 

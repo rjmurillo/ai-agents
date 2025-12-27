@@ -50,6 +50,7 @@ $script:PrefixViolations = @()
 # Get files to check
 if ($ChangedFiles.Count -gt 0) {
     # Use explicitly passed files (from CI workflow)
+    # Exclude index files (skills-*-index.md and memory-index.md) as they don't contain skill content
     $memoryFiles = $ChangedFiles |
         Where-Object { $_ -match '^\.serena/memories/.*\.md$' -and $_ -notmatch 'skills-.*-index\.md$' }
 
@@ -58,6 +59,8 @@ if ($ChangedFiles.Count -gt 0) {
         exit 0
     }
 
+    # Filter to existing files only (deleted files don't need validation)
+    # Use -ErrorAction SilentlyContinue to skip deleted/renamed files
     $filesToCheck = $memoryFiles | ForEach-Object { Get-Item $_ -ErrorAction SilentlyContinue }
 } elseif ($StagedOnly) {
     # Get staged memory files from git
@@ -102,7 +105,7 @@ foreach ($file in $filesToCheck) {
 
     # Check for invalid 'skill-' prefix (ADR-017 requires {domain}-{description} format)
     if ($file.Name -match '^skill-') {
-        Write-Host "  PREFIX: $($file.Name) uses invalid 'skill-' prefix" -ForegroundColor Yellow
+        Write-Warning "  PREFIX: $($file.Name) uses invalid 'skill-' prefix"
         $script:PrefixViolations += $file.Name
         $script:ExitCode = 1
     }
@@ -128,14 +131,14 @@ if ($script:BundledFiles.Count -gt 0) {
 
 if ($script:PrefixViolations.Count -gt 0) {
     $hasIssues = $true
-    Write-Host "=== Invalid Naming Convention ===" -ForegroundColor Yellow
-    Write-Host "The following files use the deprecated 'skill-' prefix:" -ForegroundColor Yellow
+    Write-Warning "=== Invalid Naming Convention ==="
+    Write-Warning "The following files use the deprecated 'skill-' prefix:"
     $script:PrefixViolations | ForEach-Object {
-        Write-Host "  - $_" -ForegroundColor Yellow
+        Write-Warning "  - $_"
     }
     Write-Host ""
-    Write-Host "ADR-017 requires {domain}-{description} naming (no 'skill-' prefix)." -ForegroundColor Red
-    Write-Host "Rename files to use domain prefix (e.g., pr-reviewer-enumeration.md)." -ForegroundColor Red
+    Write-Error "ADR-017 requires {domain}-{description} naming (no 'skill-' prefix)."
+    Write-Error "Rename files to use domain prefix (e.g., pr-001-reviewer-enumeration.md)."
     Write-Host ""
 }
 
@@ -144,7 +147,7 @@ if ($hasIssues) {
         Write-Host "Result: FAILED" -ForegroundColor Red
         exit 1
     } else {
-        Write-Host "Result: WARNING (non-blocking for local development)" -ForegroundColor Yellow
+        Write-Warning "Result: WARNING (non-blocking for local development)"
         exit 0
     }
 } else {
