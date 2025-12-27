@@ -221,7 +221,7 @@ jobs:
 
           ---
 
-          💡 See the [PR comment]($env:SERVER_URL/$env:REPOSITORY/pull/$prNumber#issuecomment-AI-PR-QUALITY-GATE) for full context across all agents.
+          💡 See the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) for full context across all agents, or check the PR for the consolidated quality gate comment.
           "@
 
           # Write to step summary
@@ -505,7 +505,7 @@ jobs:
           | DevOps | $devopsVerdict | $devopsCategory | $devopsEmoji |
           | Roadmap | $roadmapVerdict | $roadmapCategory | $roadmapEmoji |
 
-          💡 **Quick Access**: Click on individual agent job names in the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) to see detailed findings and step summaries.
+          💡 **Quick Access**: Click on individual agent jobs (e.g., "🔒 security Review", "🧪 qa Review") in the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) to see detailed findings and step summaries.
 
           "@
 
