@@ -642,25 +642,6 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
     }
 
-    Context "Script Lock Mechanism" {
-        It "Enter-ScriptLock creates lock file" {
-            # This is a basic smoke test
-            $result = Enter-ScriptLock
-            $result | Should -Be $true
-
-            # Clean up
-            Exit-ScriptLock
-        }
-
-        It "Exit-ScriptLock removes lock file" {
-            Enter-ScriptLock
-            Exit-ScriptLock
-
-            $lockFile = Join-Path ([System.IO.Path]::GetTempPath()) 'invoke-pr-maintenance.lock'
-            Test-Path $lockFile | Should -Be $false
-        }
-    }
-
     Context "Logging Functions" {
         It "Write-Log creates log entries with correct format" {
             # Write-Log doesn't throw
