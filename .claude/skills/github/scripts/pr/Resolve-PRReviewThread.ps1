@@ -38,6 +38,7 @@ $ErrorActionPreference = 'Stop'
 function Resolve-ReviewThread {
     param([string]$Id)
 
+    # Uses GraphQL variables for security (prevents injection via ThreadId)
     # Use GraphQL variables to prevent injection (ADR-015 compliant)
     $mutation = @'
 mutation($threadId: ID!) {
@@ -82,6 +83,7 @@ function Get-UnresolvedReviewThreads {
     }
     $repo = $repoJson | ConvertFrom-Json
 
+    # Uses GraphQL variables for security (prevents injection via owner/name/PR)
     # Use GraphQL variables to prevent injection (ADR-015 compliant)
     $query = @'
 query($owner: String!, $name: String!, $prNumber: Int!) {
