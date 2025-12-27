@@ -110,10 +110,10 @@ Let me know if you need any clarification.
 
 ```text
 Here's my analysis:
-```json
 {"resolutions":[...],"verdict":"PASS"}
 ```
-```
+
+(Note: Do not nest code fences or add extra text - output ONLY JSON)
 
 ## Verdict Criteria
 
