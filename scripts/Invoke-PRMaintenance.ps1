@@ -86,7 +86,7 @@ $script:Config = @{
     # Bot authors by category
     BotCategories = @{
         'agent-controlled' = @('rjmurillo-bot', 'rjmurillo[bot]')
-        'mention-triggered' = @('copilot-swe-agent', 'copilot-swe-agent[bot]', 'copilot')
+        'mention-triggered' = @('copilot-swe-agent', 'copilot-swe-agent[bot]', 'copilot', 'app/copilot-swe-agent')
         'review-bot' = @('coderabbitai', 'coderabbitai[bot]', 'cursor[bot]', 'gemini-code-assist', 'gemini-code-assist[bot]')
     }
 }
@@ -507,11 +507,18 @@ function Invoke-PRMaintenance {
             $authorLogin = $pr.author.login
             $botInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
             $isAgentControlledBot = $botInfo.IsBot -and $botInfo.Category -eq 'agent-controlled'
+            $isMentionTriggeredBot = $botInfo.IsBot -and $botInfo.Category -eq 'mention-triggered'
             $isBotReviewer = Test-IsBotReviewer -ReviewRequests $pr.reviewRequests
             $hasChangesRequested = $pr.reviewDecision -eq 'CHANGES_REQUESTED'
             $hasConflicts = Test-PRHasConflicts -PR $pr
 
             # Decision flow (classification only - no processing)
+            #
+            # Priority 1: Agent-controlled bot (rjmurillo-bot) as author or reviewer
+            # Priority 2: Mention-triggered bot (copilot-swe-agent) with rjmurillo-bot as reviewer
+            #             -> rjmurillo-bot can synthesize comments and @copilot to unblock
+            # Priority 3: Human-authored PRs (blocked, require human action)
+
             if ($isAgentControlledBot -or $isBotReviewer) {
                 $role = if ($isAgentControlledBot) { 'author' } else { 'reviewer' }
 
@@ -545,10 +552,30 @@ function Invoke-PRMaintenance {
                     Write-Log "PR #$($pr.number): rjmurillo-bot is $role, no action needed" -Level INFO
                 }
             }
+            elseif ($isMentionTriggeredBot) {
+                # Copilot-SWE-Agent PR - rjmurillo-bot can synthesize comments and @copilot to unblock
+                # No need to check if rjmurillo-bot is reviewer - we can always help
+                if ($hasChangesRequested -or $hasConflicts) {
+                    $reason = if ($hasChangesRequested) { 'CHANGES_REQUESTED' } else { 'HAS_CONFLICTS' }
+                    Write-Log "PR #$($pr.number): $authorLogin PR needs @copilot synthesis" -Level WARN
+                    $null = $results.ActionRequired.Add(@{
+                        number = $pr.number
+                        category = 'mention-triggered'
+                        hasConflicts = $hasConflicts
+                        reason = $reason
+                        author = $authorLogin
+                        title = $pr.title
+                        headRefName = $pr.headRefName
+                        baseRefName = $pr.baseRefName
+                        requiresSynthesis = $true
+                    })
+                }
+                else {
+                    Write-Log "PR #$($pr.number): $authorLogin PR, no action needed" -Level INFO
+                }
+            }
             else {
-                # Check for @rjmurillo-bot mention (would need comment fetching - skip for now)
-                # The pr-comment-responder will handle this when invoked
-
+                # Human-authored PRs or mention-triggered bots without rjmurillo-bot reviewer
                 if ($hasChangesRequested) {
                     Write-Log "PR #$($pr.number): Human-authored with CHANGES_REQUESTED" -Level INFO
                     $null = $results.Blocked.Add(@{

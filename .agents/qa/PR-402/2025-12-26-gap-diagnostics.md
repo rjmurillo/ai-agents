@@ -351,7 +351,102 @@ if (-not $resolved) {
 
 ---
 
-## Gap 5: PR #365 - Root Cause Analysis
+## Gap 5: Refactoring Removed All Tests for Extracted Functions ✅ RESOLVED
+
+**Date Added**: 2025-12-26
+**Commit**: 320c2b3 - refactor(pr-maintenance): slim script to discovery/classification only
+**Resolution Commit**: 664fbd8 - test(skills): add unit tests for extracted skill functions
+**Date Resolved**: 2025-12-26
+**Severity**: CRITICAL_FAIL → RESOLVED
+
+### Affected Functions
+
+873 lines of production code extracted to 3 new skill scripts with ZERO tests:
+
+1. **Get-UnresolvedReviewThreads.ps1** (165 lines, 9 tests REMOVED)
+2. **Get-UnaddressedComments.ps1** (224 lines, 13 tests REMOVED)
+3. **Resolve-PRConflicts.ps1** (484 lines, 0 tests created)
+
+### Root Cause
+
+**Test Lifecycle Violation**:
+
+```bash
+# Commit ee45485 (2025-12-26 11:26): ADDED 387 test lines
+git show ee45485 --stat
+# Output: scripts/tests/Invoke-PRMaintenance.Tests.ps1 | 387 ++++++
+
+# Commit 320c2b3 (2025-12-26 17:16): REMOVED 2572 test lines
+git diff --stat ee45485 320c2b3 -- scripts/tests/Invoke-PRMaintenance.Tests.ps1
+# Output: 213 insertions(+), 2572 deletions(-)
+```
+
+**Evidence of removal**:
+```bash
+git diff 320c2b3^1 320c2b3 -- scripts/tests/Invoke-PRMaintenance.Tests.ps1 | grep "^-.*Context"
+# Shows:
+# - Context "Get-UnresolvedReviewThreads Function" (REMOVED)
+# - Context "Get-UnaddressedComments Function" (REMOVED)
+```
+
+**No test files created for extracted code**:
+```bash
+ls .claude/skills/github/tests/
+# Shows: NO Get-UnresolvedReviewThreads.Tests.ps1, NO Get-UnaddressedComments.Tests.ps1
+
+ls .claude/skills/merge-resolver/tests/
+# Output: No such file or directory
+```
+
+### Impact
+
+**Security Risk**: HIGH
+- Test-SafeBranchName: Command injection prevention with 0 tests
+- Get-SafeWorktreePath: Path traversal prevention with 0 tests
+
+**Code Quality**: FAIL
+- Resolve-PRConflicts: 227 lines (exceeds 100-line threshold) with 0 tests
+- Complex git operations (worktrees, merges, conflict resolution) untested
+- GraphQL query parsing untested
+- Lifecycle state machine (NEW/ACKNOWLEDGED/REPLIED) untested
+
+**Regression Risk**: HIGH
+- 873 lines of new code may break at any time
+- No way to detect failures until production
+
+### Resolution Applied (Commit 664fbd8)
+
+**Tests Created**:
+
+1. ✅ Get-UnresolvedReviewThreads.Tests.ps1
+   - Location: `.claude/skills/github/tests/Get-UnresolvedReviewThreads.Tests.ps1`
+   - Test Count: 32 tests (exceeds minimum requirement)
+   - Coverage: GraphQL query parsing, thread filtering, error handling, lifecycle model, Skill-PowerShell-002 compliance
+   - Pass Rate: 100% (32/32)
+
+2. ✅ Get-UnaddressedComments.Tests.ps1
+   - Location: `.claude/skills/github/tests/Get-UnaddressedComments.Tests.ps1`
+   - Test Count: 38 tests (exceeds minimum requirement)
+   - Coverage: Lifecycle state detection, thread resolution integration, comment filtering, error handling, pre-fetched optimization
+   - Pass Rate: 100% (38/38)
+
+3. ✅ Resolve-PRConflicts.Tests.ps1
+   - Location: `.claude/skills/merge-resolver/tests/Resolve-PRConflicts.Tests.ps1`
+   - Test Count: 54 tests (exceeds minimum 15)
+   - Coverage:
+     - Test-SafeBranchName: 6 tests (ADR-015 security validation)
+     - Get-SafeWorktreePath: 4 tests (path traversal prevention)
+     - Conflict resolution: 7 tests (GitHub runner mode, worktree mode, auto-resolution)
+     - Additional: 37 tests for parameters, error handling, worktree management, DryRun mode
+   - Pass Rate: 100% (54/54)
+
+**Total**: 124 new tests, 100% pass rate, 7.99s execution time
+
+**Evidence**: See `.agents/qa/PR-402/664fbd8-test-coverage-verification.md` for full QA report
+
+---
+
+## Gap 6: PR #365 - Root Cause Analysis
 
 **Date Added**: 2025-12-26
 **PR**: #365 - fix(memory): rename skill- prefix files and add naming validation

@@ -91,6 +91,12 @@ Describe "Invoke-PRMaintenance.ps1" {
             $result.Category | Should -Be "mention-triggered"
         }
 
+        It "Identifies app/copilot-swe-agent (GitHub app format) as mention-triggered" {
+            $result = Get-BotAuthorInfo -AuthorLogin "app/copilot-swe-agent"
+            $result.IsBot | Should -Be $true
+            $result.Category | Should -Be "mention-triggered"
+        }
+
         It "Identifies coderabbitai as review-bot" {
             $result = Get-BotAuthorInfo -AuthorLogin "coderabbitai[bot]"
             $result.IsBot | Should -Be $true
@@ -282,6 +288,81 @@ Describe "Invoke-PRMaintenance.ps1" {
             $result = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 10
 
             $result.TotalPRs | Should -Be 3
+        }
+    }
+
+    Context "Invoke-PRMaintenance Function - Mention-Triggered Bot Classification" {
+        BeforeEach {
+            Mock Get-OpenPRs {
+                return @(
+                    @{
+                        number = 247
+                        title = "Copilot PR with changes requested"
+                        author = @{ login = "app/copilot-swe-agent" }
+                        headRefName = "copilot-feature"
+                        baseRefName = "main"
+                        mergeable = "MERGEABLE"
+                        reviewDecision = "CHANGES_REQUESTED"
+                        reviewRequests = @{ nodes = @() }
+                    },
+                    @{
+                        number = 248
+                        title = "Copilot PR with conflicts"
+                        author = @{ login = "copilot-swe-agent" }
+                        headRefName = "copilot-conflict"
+                        baseRefName = "main"
+                        mergeable = "CONFLICTING"
+                        reviewDecision = $null
+                        reviewRequests = @{ nodes = @() }
+                    },
+                    @{
+                        number = 249
+                        title = "Copilot PR approved - no action needed"
+                        author = @{ login = "copilot-swe-agent" }
+                        headRefName = "copilot-approved"
+                        baseRefName = "main"
+                        mergeable = "MERGEABLE"
+                        reviewDecision = "APPROVED"
+                        reviewRequests = @{ nodes = @() }
+                    }
+                )
+            }
+        }
+
+        It "Classifies Copilot PR with CHANGES_REQUESTED as ActionRequired (mention-triggered)" {
+            $result = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 10
+
+            $actionRequired = $result.ActionRequired | Where-Object { $_.number -eq 247 }
+            $actionRequired | Should -Not -BeNullOrEmpty
+            $actionRequired.category | Should -Be "mention-triggered"
+            $actionRequired.reason | Should -Be "CHANGES_REQUESTED"
+            $actionRequired.requiresSynthesis | Should -Be $true
+        }
+
+        It "Classifies Copilot PR with conflicts as ActionRequired (mention-triggered)" {
+            $result = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 10
+
+            $actionRequired = $result.ActionRequired | Where-Object { $_.number -eq 248 }
+            $actionRequired | Should -Not -BeNullOrEmpty
+            $actionRequired.category | Should -Be "mention-triggered"
+            $actionRequired.reason | Should -Be "HAS_CONFLICTS"
+            $actionRequired.hasConflicts | Should -Be $true
+        }
+
+        It "Does not add approved Copilot PR to ActionRequired or Blocked" {
+            $result = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 10
+
+            $result.ActionRequired | Where-Object { $_.number -eq 249 } | Should -BeNullOrEmpty
+            $result.Blocked | Where-Object { $_.number -eq 249 } | Should -BeNullOrEmpty
+        }
+
+        It "Recognizes app/copilot-swe-agent format from GitHub API" {
+            $result = Invoke-PRMaintenance -Owner "test" -Repo "repo" -MaxPRs 10
+
+            # PR 247 uses app/copilot-swe-agent format - should still be recognized
+            $actionRequired = $result.ActionRequired | Where-Object { $_.number -eq 247 }
+            $actionRequired | Should -Not -BeNullOrEmpty
+            $actionRequired.author | Should -Be "app/copilot-swe-agent"
         }
     }
 
