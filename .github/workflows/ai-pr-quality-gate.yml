@@ -248,10 +248,12 @@ jobs:
           $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL')
 
           if ($verdict -in $blockingVerdicts) {
-            # Truncate findings to fit in annotation (max ~200 chars)
+            # GitHub Actions annotations have a practical limit of ~200 chars for readability
+            # We truncate to 180 chars (177 + "...") to leave room for the prefix "[agent] VERDICT: "
+            $maxAnnotationLength = 180
             $summary = ($findings -replace "`n", " ")
-            if ($summary.Length -gt 180) {
-              $summary = $summary.Substring(0, 177) + "..."
+            if ($summary.Length -gt $maxAnnotationLength) {
+              $summary = $summary.Substring(0, $maxAnnotationLength - 3) + "..."
             }
 
             Write-Output "::error::[$agent] ${verdict}: $summary"
