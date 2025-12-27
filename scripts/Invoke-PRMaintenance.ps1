@@ -42,7 +42,8 @@ param(
     [string]$Owner,
     [string]$Repo,
     [int]$MaxPRs = 20,
-    [string]$LogPath
+    [string]$LogPath,
+    [switch]$DryRun
 )
 
 Set-StrictMode -Version Latest
@@ -390,7 +391,7 @@ function Get-OpenPRs {
         [int]$Limit
     )
 
-    $result = gh pr list --repo "$Owner/$Repo" --state open --limit $Limit --json number,title,state,headRefName,baseRefName,mergeable,reviewDecision,author 2>&1
+    $result = gh pr list --repo "$Owner/$Repo" --state open --limit $Limit --json number,title,state,headRefName,baseRefName,mergeable,reviewDecision,author,reviewRequests 2>&1
 
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to list PRs: $result"
@@ -445,19 +446,27 @@ function Get-UnacknowledgedComments {
         NOTE: Bot author list should ideally reference the agent configuration files
         (.claude/commands/pr-review.md, src/claude/pr-comment-responder.md) to avoid
         duplication and drift. Current implementation uses environment-configured list.
+    .PARAMETER Comments
+        Pre-fetched comments array. If not provided, will call Get-PRComments.
+        Pass this to avoid duplicate API calls when comments are already fetched.
     #>
     [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
-        [int]$PRNumber
+        [int]$PRNumber,
+        [Parameter()]
+        [array]$Comments = $null
     )
 
-    $comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber
+    # Use pre-fetched comments if provided, otherwise fetch from API
+    if ($null -eq $Comments) {
+        $Comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber
+    }
 
     # Skill-PowerShell-002: Return @() not $null for empty results
     # Filter comments and ensure array return
-    $unacked = @($comments | Where-Object {
+    $unacked = @($Comments | Where-Object {
         $_.user.type -eq 'Bot' -and
         $_.reactions.eyes -eq 0
     })
@@ -519,6 +528,475 @@ function Test-PRNeedsOwnerAction {
         return $false  # Fail-safe: assume no action needed if we can't check
     }
     return $pr -eq 'CHANGES_REQUESTED'
+}
+
+
+function Test-IsBotAuthor {
+    <#
+    .SYNOPSIS
+        Determines if a PR was authored by a bot account.
+    .DESCRIPTION
+        Simple boolean check for bot authorship. For detailed bot categorization
+        and recommended actions, use Get-BotAuthorInfo instead.
+
+        See memory: pr-changes-requested-semantics
+    .PARAMETER AuthorLogin
+        The PR author's login (e.g., 'copilot-swe-agent', 'dependabot[bot]')
+    .OUTPUTS
+        [bool] True if the author is a bot, false otherwise
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$AuthorLogin
+    )
+
+    $info = Get-BotAuthorInfo -AuthorLogin $AuthorLogin
+    return $info.IsBot
+}
+
+function Test-IsBotReviewer {
+    <#
+    .SYNOPSIS
+        Determines if rjmurillo-bot is a requested reviewer on the PR.
+    .DESCRIPTION
+        Checks the reviewRequests array to see if rjmurillo-bot has been
+        requested as a reviewer. This is one of the activation triggers
+        per the bot-author-feedback-protocol.
+
+        See: .agents/architecture/bot-author-feedback-protocol.md
+    .PARAMETER ReviewRequests
+        The reviewRequests array from the PR (contains login fields)
+    .OUTPUTS
+        [bool] True if rjmurillo-bot is a requested reviewer
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [object[]]$ReviewRequests
+    )
+
+    if ($null -eq $ReviewRequests -or $ReviewRequests.Count -eq 0) {
+        return $false
+    }
+
+    # Check if any requested reviewer is rjmurillo-bot
+    $botReviewer = $ReviewRequests | Where-Object { $_.login -eq 'rjmurillo-bot' }
+    return $null -ne $botReviewer
+}
+
+function Get-UnresolvedReviewThreads {
+    <#
+    .SYNOPSIS
+        Retrieves review threads that remain unresolved on a pull request.
+    .DESCRIPTION
+        Uses GitHub GraphQL API to query review thread resolution status.
+        Part of the "Acknowledged vs Resolved" lifecycle model:
+
+        NEW -> ACKNOWLEDGED (eyes reaction) -> REPLIED -> RESOLVED (thread marked resolved)
+
+        A comment can be acknowledged (has eyes reaction) but NOT resolved (thread still open).
+        This function identifies threads in that intermediate state.
+
+        See: .agents/architecture/bot-author-feedback-protocol.md
+    .PARAMETER Owner
+        Repository owner (e.g., 'rjmurillo')
+    .PARAMETER Repo
+        Repository name (e.g., 'ai-agents')
+    .PARAMETER PR
+        Pull request number
+    .OUTPUTS
+        [object[]] Array of thread objects where isResolved = false.
+        Returns empty array when all threads are resolved or on API failure.
+        Never returns $null (per Skill-PowerShell-002).
+    .EXAMPLE
+        $unresolved = Get-UnresolvedReviewThreads -Owner 'rjmurillo' -Repo 'ai-agents' -PR 365
+        if ($unresolved.Count -gt 0) {
+            Write-Host "Found $($unresolved.Count) unresolved threads"
+        }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [int]$PR
+    )
+
+    # GraphQL query per FR1 specification
+    # Note: first: 100 handles most PRs; pagination not implemented for edge cases with 100+ threads
+    $query = @"
+query {
+    repository(owner: "$Owner", name: "$Repo") {
+        pullRequest(number: $PR) {
+            reviewThreads(first: 100) {
+                nodes {
+                    id
+                    isResolved
+                    comments(first: 1) {
+                        nodes {
+                            databaseId
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+"@
+
+    $result = gh api graphql -f query=$query 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "Failed to query review threads for PR #${PR}: $result" -Level WARN
+        return @()  # Return empty array on failure per FR2
+    }
+
+    try {
+        $parsed = $result | ConvertFrom-Json
+    }
+    catch {
+        Write-Log "Failed to parse GraphQL response for PR #${PR}: $result" -Level WARN
+        return @()  # Return empty array on parse failure
+    }
+
+    $threads = $parsed.data.repository.pullRequest.reviewThreads.nodes
+
+    if ($null -eq $threads -or $threads.Count -eq 0) {
+        return @()  # No threads exist
+    }
+
+    # Filter to unresolved threads only
+    $unresolved = @($threads | Where-Object { -not $_.isResolved })
+
+    return $unresolved  # Always returns array, never $null
+}
+
+function Get-UnaddressedComments {
+    <#
+    .SYNOPSIS
+        Gets bot comments that are either unacknowledged OR acknowledged but unresolved.
+    .DESCRIPTION
+        Detects comments in the NEW, ACKNOWLEDGED, or REPLIED lifecycle states.
+        Unlike Get-UnacknowledgedComments (which only detects NEW state), this function
+        captures the full spectrum of unaddressed feedback.
+
+        Lifecycle Model:
+          NEW (eyes=0) -> ACKNOWLEDGED (eyes>0) -> REPLIED -> RESOLVED (thread marked resolved)
+
+        A comment is "addressed" ONLY when:
+          - It has been acknowledged (eyes > 0) AND
+          - Its thread has been resolved (isResolved = true)
+
+        A comment is "unaddressed" when:
+          - It lacks acknowledgment (eyes = 0), OR
+          - It is acknowledged but its thread remains unresolved (eyes > 0, isResolved = false)
+
+        Semantic Model:
+          Get-UnacknowledgedComments: Detects [NEW] only (reactions.eyes = 0)
+          Get-UnaddressedComments:    Detects [NEW], [ACKNOWLEDGED], [REPLIED] (all unresolved states)
+
+        See: .agents/architecture/bot-author-feedback-protocol.md
+    .PARAMETER Owner
+        Repository owner (e.g., 'rjmurillo')
+    .PARAMETER Repo
+        Repository name (e.g., 'ai-agents')
+    .PARAMETER PRNumber
+        Pull request number
+    .PARAMETER Comments
+        Pre-fetched comments array. If not provided, will call Get-PRComments.
+        Pass this to avoid duplicate API calls when comments are already fetched.
+    .OUTPUTS
+        [object[]] Array of bot comments that are unaddressed.
+        Returns empty array when all bot comments are addressed.
+        Never returns $null (per Skill-PowerShell-002).
+    .EXAMPLE
+        $unaddressed = Get-UnaddressedComments -Owner 'rjmurillo' -Repo 'ai-agents' -PRNumber 365
+        if ($unaddressed.Count -gt 0) {
+            Write-Host "Found $($unaddressed.Count) unaddressed bot comments"
+        }
+    .EXAMPLE
+        # Reuse pre-fetched comments to avoid duplicate API calls
+        $comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber
+        $unaddressed = Get-UnaddressedComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber -Comments $comments
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [int]$PRNumber,
+
+        [Parameter()]
+        [array]$Comments = $null
+    )
+
+    # Use pre-fetched comments if provided, otherwise fetch from API
+    if ($null -eq $Comments) {
+        $Comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $PRNumber
+    }
+
+    # Early exit if no comments
+    if ($null -eq $Comments -or $Comments.Count -eq 0) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+
+    # Query unresolved threads to get IDs of comments that are acknowledged but not resolved
+    $unresolvedThreads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PR $PRNumber
+
+    # Extract comment IDs from unresolved threads (databaseId field from first comment in each thread)
+    $unresolvedCommentIds = @()
+    foreach ($thread in $unresolvedThreads) {
+        $firstComment = $thread.comments.nodes | Select-Object -First 1
+        if ($null -ne $firstComment -and $null -ne $firstComment.databaseId) {
+            $unresolvedCommentIds += $firstComment.databaseId
+        }
+    }
+
+    # Filter comments where:
+    # - user.type = 'Bot' AND
+    # - (reactions.eyes = 0 OR id in unresolvedCommentIds)
+    #
+    # This captures:
+    # - NEW state: eyes = 0 (unacknowledged)
+    # - ACKNOWLEDGED/REPLIED state: eyes > 0 but thread unresolved
+    $unaddressed = @($Comments | Where-Object {
+        $_.user.type -eq 'Bot' -and
+        ($_.reactions.eyes -eq 0 -or $unresolvedCommentIds -contains $_.id)
+    })
+
+    if ($null -eq $unaddressed -or $unaddressed.Count -eq 0) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+
+    Write-Output -NoEnumerate $unaddressed
+}
+
+function Invoke-CopilotSynthesis {
+    <#
+    .SYNOPSIS
+        Generates a @copilot synthesis prompt from other bot comments.
+    .DESCRIPTION
+        When rjmurillo-bot is a reviewer on a copilot-swe-agent PR, this function
+        synthesizes feedback from other review bots (coderabbitai, cursor[bot], etc.)
+        into a prompt directed at @copilot.
+    .PARAMETER Owner
+        Repository owner
+    .PARAMETER Repo
+        Repository name
+    .PARAMETER PRNumber
+        Pull request number
+    .PARAMETER PRTitle
+        Pull request title
+    .PARAMETER BotComments
+        Array of comment objects from other review bots
+    .OUTPUTS
+        String - Markdown-formatted prompt for @copilot
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [int]$PRNumber,
+
+        [Parameter(Mandatory)]
+        [string]$PRTitle,
+
+        [Parameter(Mandatory)]
+        [array]$BotComments
+    )
+
+    $prompt = "@copilot Please address the following feedback on PR #$PRNumber`:`n`n"
+
+    # Group comments by bot author
+    $grouped = $BotComments | Group-Object { $_.user.login }
+
+    foreach ($group in $grouped) {
+        $botName = $group.Name
+        $comments = $group.Group
+        $plural = if ($comments.Count -gt 1) { 's' } else { '' }
+        $prompt += "**$botName** ($($comments.Count) comment$plural):`n"
+
+        foreach ($comment in $comments) {
+            # Truncate body to first 100 chars for link text
+            $linkText = if ($comment.body.Length -gt 100) {
+                $comment.body.Substring(0, 97) + '...'
+            } else {
+                $comment.body
+            }
+            # Remove newlines for single-line display
+            $linkText = $linkText -replace '[\r\n]+', ' '
+            $prompt += "- [$linkText]($($comment.html_url))`n"
+        }
+        $prompt += "`n"
+    }
+
+    $prompt += "Please implement fixes for these issues and update the PR."
+
+    return $prompt
+}
+
+function Get-BotAuthorInfo {
+    <#
+    .SYNOPSIS
+        Returns detailed information about a PR author including bot type and recommended action.
+    .DESCRIPTION
+        Bot-authored PRs have nuanced CHANGES_REQUESTED semantics:
+
+        1. Human-authored PR: Truly blocked, needs human action
+        2. Agent-controlled bot (e.g., rjmurillo-bot): Agent can address feedback directly
+        3. Mention-triggered bot (e.g., copilot-swe-agent): Needs @copilot mention
+        4. Command-triggered bot (e.g., dependabot): Needs @dependabot commands
+
+        This function categorizes bots and provides the recommended action for each.
+
+        Related memories (for bot-specific patterns - keep DRY):
+        - pr-changes-requested-semantics: Overall CHANGES_REQUESTED handling
+        - cursor-bot-review-patterns: cursor[bot] 100% actionable signal
+        - copilot-pr-review: Copilot review patterns (21% signal)
+        - copilot-follow-up-pr: Copilot sub-PR creation behavior
+        - coderabbit-config-strategy: CodeRabbit noise reduction
+    .PARAMETER AuthorLogin
+        The PR author's login (e.g., 'copilot-swe-agent', 'dependabot[bot]')
+    .OUTPUTS
+        [hashtable] with keys:
+          - IsBot: [bool] Whether author is a bot
+          - Category: [string] 'human', 'agent-controlled', 'mention-triggered', 'command-triggered'
+          - Action: [string] Recommended action for CHANGES_REQUESTED
+          - Mention: [string] The mention pattern to use (if applicable)
+    .EXAMPLE
+        Get-BotAuthorInfo -AuthorLogin 'rjmurillo-bot'
+        # Returns: @{ IsBot = $true; Category = 'agent-controlled'; Action = 'pr-comment-responder'; Mention = $null }
+    .EXAMPLE
+        Get-BotAuthorInfo -AuthorLogin 'copilot-swe-agent'
+        # Returns: @{ IsBot = $true; Category = 'mention-triggered'; Action = 'mention in comment'; Mention = '@copilot' }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$AuthorLogin
+    )
+
+    # Bot categories with their characteristics:
+    #
+    # agent-controlled: Bots that this agent can control directly (same identity or delegatable)
+    #   - Custom bot accounts matching the running identity (e.g., rjmurillo-bot)
+    #   - Action: Use pr-comment-responder to address feedback
+    #
+    # mention-triggered: Bots that act when mentioned in comments
+    #   - copilot-swe-agent: Responds to @copilot mentions
+    #   - Action: Add comment with @mention to trigger action
+    #
+    # command-triggered: Bots that respond to specific commands
+    #   - dependabot[bot]: Responds to @dependabot commands (rebase, recreate, etc.)
+    #   - renovate[bot]: Responds to renovate commands
+    #   - Action: Add comment with specific command to trigger action
+
+    # Mention-triggered bots (need @mention to act)
+    $mentionTriggered = @{
+        '^copilot-swe-agent$' = '@copilot'
+        '^copilot\[bot\]$'    = '@copilot'
+    }
+
+    # Command-triggered bots (need specific commands)
+    $commandTriggered = @{
+        '^dependabot\[bot\]$' = '@dependabot'
+        '^renovate\[bot\]$'   = '@renovate'
+    }
+
+    # Agent-controlled bots (we can address directly)
+    # NOTE: github-actions and github-actions[bot] are intentionally NOT included here.
+    # Per cursor[bot] review: These accounts are "non-responsive" - they cannot respond
+    # to comments or mentions. PRs from these accounts should prompt migration to
+    # user-specific credentials. See ADR recommendation in PR #402 comments.
+    $agentControlled = @(
+        '-bot$'           # Custom bot accounts: rjmurillo-bot, my-project-bot
+    )
+
+    # Non-responsive bots (cannot respond to comments/mentions)
+    $nonResponsive = @(
+        '^github-actions$'
+        '^github-actions\[bot\]$'
+    )
+
+    # Check mention-triggered first
+    foreach ($pattern in $mentionTriggered.Keys) {
+        if ($AuthorLogin -match $pattern) {
+            return @{
+                IsBot = $true
+                Category = 'mention-triggered'
+                Action = "Mention $($mentionTriggered[$pattern]) in a comment to trigger action"
+                Mention = $mentionTriggered[$pattern]
+            }
+        }
+    }
+
+    # Check command-triggered
+    foreach ($pattern in $commandTriggered.Keys) {
+        if ($AuthorLogin -match $pattern) {
+            return @{
+                IsBot = $true
+                Category = 'command-triggered'
+                Action = "Use $($commandTriggered[$pattern]) commands (e.g., rebase, recreate)"
+                Mention = $commandTriggered[$pattern]
+            }
+        }
+    }
+
+    # Check agent-controlled
+    foreach ($pattern in $agentControlled) {
+        if ($AuthorLogin -match $pattern) {
+            return @{
+                IsBot = $true
+                Category = 'agent-controlled'
+                Action = 'pr-comment-responder'
+                Mention = $null
+            }
+        }
+    }
+
+    # Check non-responsive bots (cannot respond to comments/mentions)
+    foreach ($pattern in $nonResponsive) {
+        if ($AuthorLogin -match $pattern) {
+            return @{
+                IsBot = $true
+                Category = 'non-responsive'
+                Action = 'Blocked - bot cannot respond to comments. Recommend migrating to user-specific credentials.'
+                Mention = $null
+            }
+        }
+    }
+
+    # Check for other bots we may not have categorized (generic [bot] suffix)
+    if ($AuthorLogin -match '\[bot\]$') {
+        return @{
+            IsBot = $true
+            Category = 'unknown-bot'
+            Action = 'Review manually - unknown bot type'
+            Mention = $null
+        }
+    }
+
+    # Human author
+    return @{
+        IsBot = $false
+        Category = 'human'
+        Action = 'Blocked - requires human author action'
+        Mention = $null
+    }
 }
 
 function Test-IsGitHubRunner {
@@ -605,10 +1083,18 @@ function Resolve-PRConflicts {
                     throw "Conflicts in non-auto-resolvable files"
                 }
 
-                # Complete merge
-                $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to commit merge"
+                # Check if there are staged changes to commit
+                $null = git diff --cached --quiet 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    # No staged changes - merge was clean or already resolved
+                    Write-Log "Merge completed without needing conflict resolution commit" -Level INFO
+                }
+                else {
+                    # Complete merge with commit
+                    $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Failed to commit merge"
+                    }
                 }
             }
 
@@ -685,10 +1171,18 @@ function Resolve-PRConflicts {
                     throw "Conflicts in non-auto-resolvable files"
                 }
 
-                # Complete merge
-                $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to commit merge"
+                # Check if there are staged changes to commit
+                $null = git diff --cached --quiet 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    # No staged changes - merge was clean or already resolved
+                    Write-Log "Merge completed without needing conflict resolution commit" -Level INFO
+                }
+                else {
+                    # Complete merge with commit
+                    $null = git commit -m "Merge $TargetBranch into $BranchName - auto-resolve HANDOFF.md conflicts" 2>&1
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Failed to commit merge"
+                    }
                 }
             }
 
@@ -716,6 +1210,156 @@ function Resolve-PRConflicts {
     }
 }
 
+function Get-DerivativePRs {
+    <#
+    .SYNOPSIS
+        Detects derivative PRs that target feature branches instead of main.
+    .DESCRIPTION
+        Derivative PRs are created by bots (typically copilot-swe-agent) that:
+        - Target a feature branch (not main/master) - the parent PR's branch
+        - Address specific comments from the parent PR's review
+
+        These require special handling to avoid orphaned or conflicting changes.
+
+        See: .agents/architecture/bot-author-feedback-protocol.md#derivative-prs
+    .PARAMETER Owner
+        Repository owner.
+    .PARAMETER Repo
+        Repository name.
+    .PARAMETER OpenPRs
+        Optional. Pre-fetched array of open PRs to analyze. If not provided,
+        will fetch from API.
+    .OUTPUTS
+        Array of hashtables with derivative PR info:
+        - Number: PR number
+        - Title: PR title
+        - Author: Author login
+        - TargetBranch: The feature branch being targeted (baseRefName)
+        - ParentPR: Parent PR number (if determinable from branch name pattern)
+        - SourceBranch: The derivative's branch (headRefName)
+    .EXAMPLE
+        Get-DerivativePRs -Owner 'rjmurillo' -Repo 'ai-agents'
+        # Returns derivative PRs targeting non-main branches
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$Owner,
+        [string]$Repo,
+        [Parameter()]
+        [array]$OpenPRs = $null
+    )
+
+    # Use pre-fetched PRs if provided, otherwise fetch from API
+    if ($null -eq $OpenPRs) {
+        $OpenPRs = Get-OpenPRs -Owner $Owner -Repo $Repo -Limit 100
+    }
+
+    $derivatives = @()
+
+    foreach ($pr in $OpenPRs) {
+        # Skip PRs targeting main/master - these are not derivatives
+        if ($pr.baseRefName -eq 'main' -or $pr.baseRefName -eq 'master') {
+            continue
+        }
+
+        # Check if author is a mention-triggered bot (typical derivative PR creator)
+        $authorLogin = $pr.author.login
+        $botInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
+
+        # Only mention-triggered bots create derivative PRs (e.g., copilot-swe-agent)
+        if ($botInfo.IsBot -and $botInfo.Category -eq 'mention-triggered') {
+            # Try to determine parent PR from branch name pattern
+            # Common patterns: copilot/sub-pr-123, copilot/fix-pr-456
+            $parentPR = $null
+            if ($pr.headRefName -match 'sub-pr-(\d+)' -or $pr.headRefName -match 'pr-(\d+)') {
+                $parentPR = [int]$Matches[1]
+            }
+
+            $derivatives += @{
+                Number = $pr.number
+                Title = $pr.title
+                Author = $authorLogin
+                TargetBranch = $pr.baseRefName
+                ParentPR = $parentPR
+                SourceBranch = $pr.headRefName
+                Category = $botInfo.Category
+                Mention = $botInfo.Mention
+            }
+        }
+    }
+
+    # Skill-PowerShell-002: Return @() not $null for empty results
+    if ($derivatives.Count -eq 0) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+    Write-Output -NoEnumerate $derivatives
+}
+
+function Get-PRsWithPendingDerivatives {
+    <#
+    .SYNOPSIS
+        Finds parent PRs that have pending derivative PRs.
+    .DESCRIPTION
+        Cross-references open PRs with derivative PRs to identify parent PRs
+        that should not be merged until their derivatives are resolved.
+
+        Risk: Parent PR may merge before derivative is reviewed, leaving
+        the derivative orphaned (base branch deleted).
+
+        See: .agents/architecture/bot-author-feedback-protocol.md#risk-race-condition
+    .PARAMETER Owner
+        Repository owner.
+    .PARAMETER Repo
+        Repository name.
+    .PARAMETER OpenPRs
+        Pre-fetched array of open PRs.
+    .PARAMETER Derivatives
+        Pre-fetched array of derivative PRs from Get-DerivativePRs.
+    .OUTPUTS
+        Array of hashtables with parent PR info and their derivatives:
+        - ParentPR: Parent PR number
+        - ParentBranch: Parent PR's head branch
+        - Derivatives: Array of derivative PR numbers
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$Owner,
+        [string]$Repo,
+        [Parameter(Mandatory)]
+        [array]$OpenPRs,
+        [Parameter(Mandatory)]
+        [array]$Derivatives
+    )
+
+    $parentsWithDerivatives = @{}
+
+    foreach ($derivative in $Derivatives) {
+        # Find the parent PR by matching target branch to head branch
+        $parent = $OpenPRs | Where-Object { $_.headRefName -eq $derivative.TargetBranch }
+
+        if ($parent) {
+            $parentNum = $parent.number
+            if (-not $parentsWithDerivatives.ContainsKey($parentNum)) {
+                $parentsWithDerivatives[$parentNum] = @{
+                    ParentPR = $parentNum
+                    ParentBranch = $parent.headRefName
+                    ParentTitle = $parent.title
+                    Derivatives = @()
+                }
+            }
+            $parentsWithDerivatives[$parentNum].Derivatives += $derivative.Number
+        }
+    }
+
+    # Skill-PowerShell-002: Return @() not $null for empty results
+    if ($parentsWithDerivatives.Count -eq 0) {
+        Write-Output -NoEnumerate @()
+        return
+    }
+    Write-Output -NoEnumerate @($parentsWithDerivatives.Values)
+}
+
 function Get-SimilarPRs {
     <#
     .SYNOPSIS
@@ -737,15 +1381,13 @@ function Get-SimilarPRs {
     $output = gh pr list --repo "$Owner/$Repo" --state merged --limit 20 --json number,title 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Log "Failed to query merged PRs: $output" -Level WARN
-        Write-Output -NoEnumerate @()
-        return
+        return @()
     }
 
     # Skill-PowerShell-002: Ensure $mergedPRs is always array, not $null
     $parsed = $output | ConvertFrom-Json
     if ($null -eq $parsed) {
-        Write-Output -NoEnumerate @()
-        return
+        return @()
     }
     $mergedPRs = @($parsed)
 
@@ -771,20 +1413,17 @@ function Get-SimilarPRs {
             $mergedCompare = $mergedDesc.Substring(0, [Math]::Min($compareLen, $mergedDesc.Length))
 
             if ($thisCompare -eq $mergedCompare -or $thisDesc -like "*$mergedCompare*" -or $mergedDesc -like "*$thisCompare*") {
-                $similar += @{
-                    Number = $merged.number
-                    Title = $merged.title
+                $similar += [PSCustomObject]@{
+                    number = $merged.number
+                    title = $merged.title
                 }
             }
         }
     }
 
     # Skill-PowerShell-002: Ensure return is always array, not $null
-    if ($similar.Count -eq 0) {
-        Write-Output -NoEnumerate @()
-        return
-    }
-    Write-Output -NoEnumerate $similar
+    # Note: Call site uses @() wrapper so simple return works correctly
+    return $similar
 }
 
 #endregion
@@ -795,14 +1434,20 @@ function Invoke-PRMaintenance {
     param(
         [string]$Owner,
         [string]$Repo,
-        [int]$MaxPRs
+        [int]$MaxPRs,
+        [switch]$DryRun
     )
 
     $results = @{
+        TotalPRs = 0
         Processed = 0
         CommentsAcknowledged = 0
         ConflictsResolved = 0
-        Blocked = [System.Collections.ArrayList]::new()
+        SynthesisPosted = 0
+        Blocked = [System.Collections.ArrayList]::new()          # Human-authored PRs with CHANGES_REQUESTED
+        ActionRequired = [System.Collections.ArrayList]::new()   # Bot-authored PRs with CHANGES_REQUESTED (agent should address)
+        DerivativePRs = [System.Collections.ArrayList]::new()    # PRs targeting feature branches (not main)
+        ParentsWithDerivatives = [System.Collections.ArrayList]::new()  # Parent PRs that have pending derivatives
         Errors = [System.Collections.ArrayList]::new()
     }
 
@@ -812,41 +1457,254 @@ function Invoke-PRMaintenance {
 
     # Get all open PRs
     $prs = Get-OpenPRs -Owner $Owner -Repo $Repo -Limit $MaxPRs
+    $results.TotalPRs = $prs.Count
     Write-Log "Found $($prs.Count) open PRs" -Level INFO
+
+    # ============================================================
+    # DERIVATIVE PR DETECTION (P0 per bot-author-feedback-protocol.md)
+    # ============================================================
+    # Detect derivative PRs that target feature branches (not main).
+    # These are typically created by copilot-swe-agent in response to
+    # review comments on parent PRs.
+    # ============================================================
+
+    $derivatives = Get-DerivativePRs -Owner $Owner -Repo $Repo -OpenPRs $prs
+    if ($derivatives.Count -gt 0) {
+        Write-Log "Found $($derivatives.Count) derivative PR(s) targeting feature branches" -Level WARN
+        foreach ($d in $derivatives) {
+            Write-Log "  Derivative PR #$($d.Number): targets '$($d.TargetBranch)' (from $($d.Author))" -Level INFO
+            $null = $results.DerivativePRs.Add($d)
+        }
+
+        # Find parent PRs that have pending derivatives
+        $parentsWithDerivatives = Get-PRsWithPendingDerivatives -Owner $Owner -Repo $Repo -OpenPRs $prs -Derivatives $derivatives
+        if ($parentsWithDerivatives.Count -gt 0) {
+            Write-Log "Found $($parentsWithDerivatives.Count) parent PR(s) with pending derivatives" -Level WARN
+            foreach ($p in $parentsWithDerivatives) {
+                Write-Log "  Parent PR #$($p.ParentPR) has derivative(s): #$(($p.Derivatives -join ', #'))" -Level WARN
+                $null = $results.ParentsWithDerivatives.Add($p)
+
+                # Add to ActionRequired with PENDING_DERIVATIVES reason
+                $null = $results.ActionRequired.Add(@{
+                    PR = $p.ParentPR
+                    Author = 'N/A'  # Will be populated in main loop
+                    Reason = 'PENDING_DERIVATIVES'
+                    Title = $p.ParentTitle
+                    Category = 'has-derivatives'
+                    Action = "Review derivative PR(s) #$(($p.Derivatives -join ', #')) before merging"
+                    Mention = $null
+                    Derivatives = $p.Derivatives
+                })
+            }
+        }
+    }
 
     foreach ($pr in $prs) {
         Write-Log "Processing PR #$($pr.number): $($pr.title)" -Level INFO
 
         try {
-            # Check if PR needs owner action (CHANGES_REQUESTED)
-            if ($pr.reviewDecision -eq 'CHANGES_REQUESTED') {
-                Write-Log "PR #$($pr.number) has CHANGES_REQUESTED - blocked" -Level WARN
-                $null = $results.Blocked.Add(@{
+            # ============================================================
+            # PR Processing per bot-author-feedback-protocol.md
+            # ============================================================
+            #
+            # Decision flow:
+            # 1. Is rjmurillo-bot the PR author? -> Check CHANGES_REQUESTED
+            # 2. Is rjmurillo-bot a reviewer? -> Check CHANGES_REQUESTED
+            # 3. Is @rjmurillo-bot mentioned? -> Process mentioned comments
+            # 4. Otherwise -> Maintenance only
+            #
+            # All paths lead to maintenance (conflict resolution).
+            # Eyes reaction only when bot takes action.
+            # ============================================================
+
+            $authorLogin = $pr.author.login
+            $botInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
+            $isAgentControlledBot = $botInfo.IsBot -and $botInfo.Category -eq 'agent-controlled'
+            $isBotReviewer = Test-IsBotReviewer -ReviewRequests $pr.reviewRequests
+            $hasChangesRequested = $pr.reviewDecision -eq 'CHANGES_REQUESTED'
+
+            # Detect copilot-swe-agent PRs where rjmurillo-bot is reviewer
+            $isCopilotPR = $false
+            if ($isBotReviewer -and ($authorLogin -imatch 'copilot')) {
+                # Check if author is a mention-triggered bot (copilot-swe-agent behavior)
+                $authorBotInfo = Get-BotAuthorInfo -AuthorLogin $authorLogin
+                if ($authorBotInfo.Category -eq 'mention-triggered') {
+                    $isCopilotPR = $true
+                    Write-Log "PR #$($pr.number): Detected copilot-swe-agent PR with rjmurillo-bot as reviewer" -Level INFO
+                }
+            }
+
+            # Get comments once for mention check and acknowledgment
+            $comments = Get-PRComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
+            $mentionedComments = @($comments | Where-Object { $_.body -match '@rjmurillo-bot' })
+            $isBotMentioned = $mentionedComments.Count -gt 0
+
+            # Determine action based on activation triggers
+            if ($isAgentControlledBot -or $isBotReviewer) {
+                # Bot is author or reviewer
+                $role = if ($isAgentControlledBot) { 'author' } else { 'reviewer' }
+
+                # Handle copilot-swe-agent PRs specially - synthesize other bot feedback
+                if ($isCopilotPR) {
+                    # Collect comments from other review bots (not copilot) - CASE-INSENSITIVE, ANCHORED
+                    # Security: Anchored regex prevents partial matches (e.g., 'not-coderabbitai-user')
+                    $otherBotComments = @($comments | Where-Object {
+                        $_.user.login -imatch '^(coderabbitai(\[bot\])?|cursor\[bot\]|gemini-code-assist(\[bot\])?)$' -and
+                        $_.user.login -inotmatch 'copilot'
+                    })
+                    $commentsToSynthesize = $otherBotComments.Count
+
+                    if ($commentsToSynthesize -gt 0) {
+                        Write-Log "PR #$($pr.number): Found $commentsToSynthesize comments from other bots to synthesize" -Level INFO
+
+                        # Generate synthesis prompt using Invoke-CopilotSynthesis
+                        $synthesisPrompt = Invoke-CopilotSynthesis `
+                            -Owner $Owner `
+                            -Repo $Repo `
+                            -PRNumber $pr.number `
+                            -PRTitle $pr.title `
+                            -BotComments $otherBotComments
+
+                        # Post synthesis prompt as PR comment
+                        if (-not $DryRun) {
+                            try {
+                                gh pr comment $pr.number --repo "$Owner/$Repo" --body $synthesisPrompt 2>&1 | Out-Null
+                                Write-Log "PR #$($pr.number): Posted synthesis prompt to @copilot" -Level INFO
+                                $results.SynthesisPosted++
+                            }
+                            catch {
+                                Write-Log "PR #$($pr.number): Failed to post synthesis prompt: $_" -Level WARN
+                            }
+                        } else {
+                            Write-Log "PR #$($pr.number): [DRY-RUN] Would post synthesis prompt to @copilot" -Level INFO
+                        }
+
+                        $null = $results.ActionRequired.Add(@{
+                            PR = $pr.number
+                            Author = $authorLogin
+                            Reason = 'COPILOT_SYNTHESIS_NEEDED'
+                            Title = $pr.title
+                            Category = 'synthesis-required'
+                            Action = 'Synthesize bot feedback and direct to @copilot'
+                            CommentsToSynthesize = $commentsToSynthesize
+                        })
+                    } else {
+                        Write-Log "PR #$($pr.number): Copilot PR with no other bot comments - no synthesis needed" -Level INFO
+                    }
+                }
+
+                # Get unaddressed comments BEFORE action determination (reused for acknowledgment later)
+                # TASK-006: Use Get-UnaddressedComments to detect all unaddressed feedback states
+                $unaddressed = Get-UnaddressedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number -Comments $comments
+                $hasUnaddressedComments = $unaddressed.Count -gt 0
+
+                # Trigger action if CHANGES_REQUESTED OR unaddressed comments exist (for agent-controlled PRs)
+                if (-not $isCopilotPR) {
+                    $needsAction = $hasChangesRequested -or $hasUnaddressedComments
+
+                    if ($needsAction) {
+                        # TASK-007: Determine reason based on unresolved threads vs unacknowledged comments
+                        if ($hasChangesRequested) {
+                            $reason = 'CHANGES_REQUESTED'
+                        } elseif ($hasUnaddressedComments) {
+                            # Distinguish between unresolved threads and unacknowledged comments
+                            $unresolvedThreads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PR $pr.number
+                            $hasUnresolvedThreads = $unresolvedThreads.Count -gt 0
+                            $hasUnackedComments = ($unaddressed | Where-Object { $_.reactions.eyes -eq 0 }).Count -gt 0
+
+                            $reason = if ($hasUnresolvedThreads -and $hasUnackedComments) {
+                                'UNRESOLVED_THREADS+UNACKNOWLEDGED'
+                            } elseif ($hasUnresolvedThreads) {
+                                'UNRESOLVED_THREADS'
+                            } else {
+                                'UNACKNOWLEDGED'
+                            }
+                        } else {
+                            $reason = 'UNKNOWN'  # Should not reach here, but defensive
+                        }
+                        Write-Log "PR #$($pr.number): rjmurillo-bot is $role with $reason -> /pr-review" -Level WARN
+                        $null = $results.ActionRequired.Add(@{
+                            PR = $pr.number
+                            Author = $authorLogin
+                            Reason = $reason
+                            Title = $pr.title
+                            Category = 'agent-controlled'
+                            Action = '/pr-review via pr-comment-responder'
+                            Mention = $null
+                            UnaddressedCount = $unaddressed.Count
+                        })
+                    } else {
+                        # No CHANGES_REQUESTED and no unaddressed comments -> maintenance only
+                        Write-Log "PR #$($pr.number): rjmurillo-bot is $role, no action needed -> maintenance only" -Level INFO
+                    }
+                }
+
+                # Acknowledge ALL unaddressed comments (reuse $unaddressed from above - no duplicate API call)
+                foreach ($comment in $unaddressed) {
+                    Write-Log "Acknowledging comment $($comment.id) from $($comment.user.login)" -Level ACTION
+                    $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
+                    if ($acked) {
+                        $results.CommentsAcknowledged++
+                    }
+                }
+            }
+            elseif ($isBotMentioned) {
+                # Bot mentioned in comments -> process those specific comments
+                Write-Log "PR #$($pr.number): @rjmurillo-bot mentioned in $($mentionedComments.Count) comment(s)" -Level WARN
+                $null = $results.ActionRequired.Add(@{
                     PR = $pr.number
-                    Reason = 'CHANGES_REQUESTED'
+                    Author = $authorLogin
+                    Reason = 'MENTION'
                     Title = $pr.title
+                    Category = 'mention-triggered'
+                    Action = 'Process comments where @rjmurillo-bot is mentioned'
+                    Mention = '@rjmurillo-bot'
                 })
-                continue
+
+                # Acknowledge ONLY mentioned comments (reuse pre-fetched $mentionedComments)
+                foreach ($comment in $mentionedComments) {
+                    # Only acknowledge if not already acknowledged (bot comment without eyes)
+                    if ($comment.user.type -eq 'Bot' -and $comment.reactions.eyes -eq 0) {
+                        Write-Log "Acknowledging mentioned comment $($comment.id) from $($comment.user.login)" -Level ACTION
+                        $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
+                        if ($acked) {
+                            $results.CommentsAcknowledged++
+                        }
+                    }
+                }
+            }
+            else {
+                # Not author, reviewer, or mentioned
+                if ($hasChangesRequested) {
+                    # Human-authored PR with CHANGES_REQUESTED -> track as blocked for visibility
+                    Write-Log "PR #$($pr.number): rjmurillo-bot not involved, CHANGES_REQUESTED -> tracking in Blocked" -Level WARN
+                    $null = $results.Blocked.Add(@{
+                        PR       = $pr.number
+                        Author   = $authorLogin
+                        Reason   = 'CHANGES_REQUESTED'
+                        Title    = $pr.title
+                        Category = 'human-blocked'
+                        Action   = 'Awaiting human changes/approval'
+                    })
+                }
+                else {
+                    # No CHANGES_REQUESTED -> maintenance only, no eyes
+                    Write-Log "PR #$($pr.number): rjmurillo-bot not involved -> maintenance only" -Level INFO
+                }
             }
 
             # Check for similar merged PRs (informational only - no auto-close)
-            $similarPRs = Get-SimilarPRs -Owner $Owner -Repo $Repo -PRNumber $pr.number -Title $pr.title
+            $similarPRs = @(Get-SimilarPRs -Owner $Owner -Repo $Repo -PRNumber $pr.number -Title $pr.title)
             if ($similarPRs.Count -gt 0) {
                 Write-Log "PR #$($pr.number) has similar merged PRs - review recommended:" -Level INFO
                 foreach ($similar in $similarPRs) {
-                    Write-Log "  - PR #$($similar.Number): $($similar.Title)" -Level INFO
+                    Write-Log "  - PR #$($similar.number): $($similar.title)" -Level INFO
                 }
             }
 
-            # Acknowledge unacknowledged bot comments
-            $unacked = Get-UnacknowledgedComments -Owner $Owner -Repo $Repo -PRNumber $pr.number
-            foreach ($comment in $unacked) {
-                Write-Log "Acknowledging comment $($comment.id) from $($comment.user.login)" -Level ACTION
-                $acked = Add-CommentReaction -Owner $Owner -Repo $Repo -CommentId $comment.id
-                if ($acked) {
-                    $results.CommentsAcknowledged++
-                }
-            }
+            # ============================================================
+            # MAINTENANCE: Merge conflict resolution (always runs)
+            # ============================================================
 
             # Check and resolve merge conflicts
             if ($pr.mergeable -eq 'CONFLICTING') {
@@ -856,11 +1714,35 @@ function Invoke-PRMaintenance {
                     $results.ConflictsResolved++
                 }
                 else {
-                    $null = $results.Blocked.Add(@{
-                        PR = $pr.number
-                        Reason = 'UNRESOLVABLE_CONFLICTS'
-                        Title = $pr.title
-                    })
+                    # Check if PR already in ActionRequired (deduplication - single list guarantee)
+                    $alreadyInActionRequired = $results.ActionRequired | Where-Object { $_.PR -eq $pr.number }
+
+                    if ($alreadyInActionRequired) {
+                        # Update existing ActionRequired entry with conflict info
+                        $alreadyInActionRequired.HasConflicts = $true
+                        $alreadyInActionRequired.Action = "$($alreadyInActionRequired.Action) + resolve conflicts"
+                        Write-Log "PR #$($pr.number): Added conflict info to existing ActionRequired entry" -Level INFO
+                    }
+                    elseif ($isAgentControlledBot) {
+                        # Bot-authored PRs go to ActionRequired (bot can manually resolve)
+                        $null = $results.ActionRequired.Add(@{
+                            PR = $pr.number
+                            Author = $authorLogin
+                            Reason = 'MANUAL_CONFLICT_RESOLUTION'
+                            Title = $pr.title
+                            Category = 'agent-controlled'
+                            Action = '/pr-review to manually resolve conflicts'
+                        })
+                    }
+                    else {
+                        # Human-authored PRs go to Blocked (requires human intervention)
+                        $null = $results.Blocked.Add(@{
+                            PR = $pr.number
+                            Author = $authorLogin
+                            Reason = 'UNRESOLVABLE_CONFLICTS'
+                            Title = $pr.title
+                        })
+                    }
                 }
             }
 
@@ -922,7 +1804,7 @@ try {
         }
 
         # Run maintenance
-        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs
+        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs -DryRun:$DryRun
 
         # Summary
         Write-Log "---" -Level INFO
@@ -930,12 +1812,35 @@ try {
         Write-Log "PRs Processed: $($results.Processed)" -Level INFO
         Write-Log "Comments Acknowledged: $($results.CommentsAcknowledged)" -Level SUCCESS
         Write-Log "Conflicts Resolved: $($results.ConflictsResolved)" -Level SUCCESS
+        Write-Log "Derivative PRs Found: $($results.DerivativePRs.Count)" -Level $(if ($results.DerivativePRs.Count -gt 0) { 'WARN' } else { 'INFO' })
+
+        if ($results.ActionRequired.Count -gt 0) {
+            Write-Log "---" -Level INFO
+            Write-Log "PRs Requiring Action:" -Level WARN
+
+            # Group by category for cleaner output
+            $byCategory = $results.ActionRequired | Group-Object -Property Category
+            foreach ($group in $byCategory) {
+                Write-Log "  [$($group.Name)]:" -Level INFO
+                foreach ($item in $group.Group) {
+                    Write-Log "    PR #$($item.PR) by $($item.Author): $($item.Title)" -Level WARN
+                    Write-Log "      Action: $($item.Action)" -Level INFO
+                }
+            }
+
+            # Show quick command for agent-controlled PRs only
+            $agentControlled = $results.ActionRequired | Where-Object { $_.Category -eq 'agent-controlled' }
+            if ($agentControlled.Count -gt 0) {
+                $prNumbers = ($agentControlled | ForEach-Object { $_.PR }) -join ','
+                Write-Log "Run: /pr-review $prNumbers" -Level INFO
+            }
+        }
 
         if ($results.Blocked.Count -gt 0) {
             Write-Log "---" -Level INFO
             Write-Log "Blocked PRs (require human action):" -Level WARN
             foreach ($blocked in $results.Blocked) {
-                Write-Log "  PR #$($blocked.PR): $($blocked.Reason) - $($blocked.Title)" -Level WARN
+                Write-Log "  PR #$($blocked.PR) by $($blocked.Author): $($blocked.Reason) - $($blocked.Title)" -Level WARN
             }
         }
 
@@ -950,6 +1855,120 @@ try {
         $duration = (Get-Date) - $script:StartTime
         Write-Log "---" -Level INFO
         Write-Log "Completed in $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
+
+        # Write GitHub Actions step summary for visibility (Issue #400)
+        if ($env:GITHUB_STEP_SUMMARY) {
+            $actionsCount = $results.CommentsAcknowledged + $results.ConflictsResolved
+            $summary = @"
+## PR Maintenance Summary
+
+| Metric | Count |
+|--------|-------|
+| Open PRs Scanned | $($results.TotalPRs) |
+| PRs Processed | $($results.Processed) |
+| Comments Acknowledged | $($results.CommentsAcknowledged) |
+| Conflicts Resolved | $($results.ConflictsResolved) |
+| Derivative PRs | $($results.DerivativePRs.Count) |
+| Parents with Derivatives | $($results.ParentsWithDerivatives.Count) |
+| Bot PRs Need Action | $($results.ActionRequired.Count) |
+| Blocked (human author) | $($results.Blocked.Count) |
+| Errors | $($results.Errors.Count) |
+
+"@
+            # List PRs that need action (CHANGES_REQUESTED or @mention)
+            if ($results.ActionRequired.Count -gt 0) {
+                $summary += @"
+### PRs Requiring Action
+
+These PRs require rjmurillo-bot action (CHANGES_REQUESTED or @mention):
+
+| PR | Author | Category | Action |
+|----|--------|----------|--------|
+"@
+                foreach ($item in $results.ActionRequired) {
+                    $summary += "| #$($item.PR) | $($item.Author) | $($item.Category) | $($item.Action) |`n"
+                }
+
+                # Group actions by category
+                $agentControlled = $results.ActionRequired | Where-Object { $_.Category -eq 'agent-controlled' }
+                $mentionTriggered = $results.ActionRequired | Where-Object { $_.Category -eq 'mention-triggered' }
+                $commandTriggered = $results.ActionRequired | Where-Object { $_.Category -eq 'command-triggered' }
+
+                $summary += "`n#### Recommended Actions`n`n"
+
+                if ($agentControlled.Count -gt 0) {
+                    $prNumbers = ($agentControlled | ForEach-Object { $_.PR }) -join ','
+                    $summary += "**Agent-controlled PRs**: Run ``/pr-review $prNumbers```n`n"
+                }
+                if ($mentionTriggered.Count -gt 0) {
+                    $mentions = ($mentionTriggered | ForEach-Object { "$($_.Mention) on PR #$($_.PR)" }) -join ', '
+                    $summary += "**Mention-triggered PRs**: Add comment with mention ($mentions)`n`n"
+                }
+                if ($commandTriggered.Count -gt 0) {
+                    $commands = ($commandTriggered | ForEach-Object { "$($_.Mention) on PR #$($_.PR)" }) -join ', '
+                    $summary += "**Command-triggered PRs**: Use bot commands ($commands)`n`n"
+                }
+
+                # Warn about parent PRs with pending derivatives
+                $hasDerivatives = $results.ActionRequired | Where-Object { $_.Category -eq 'has-derivatives' }
+                if ($hasDerivatives.Count -gt 0) {
+                    $summary += "### :warning: Parent PRs with Pending Derivatives`n`n"
+                    $summary += "These PRs have derivative PRs that should be reviewed before merging:`n`n"
+                    $summary += "| Parent PR | Derivative PRs | Action |`n"
+                    $summary += "|-----------|----------------|--------|`n"
+                    foreach ($item in $hasDerivatives) {
+                        $derivativeLinks = ($item.Derivatives | ForEach-Object { "#$_" }) -join ', '
+                        $summary += "| #$($item.PR) | $derivativeLinks | $($item.Action) |`n"
+                    }
+                    $summary += "`n"
+                }
+            }
+
+            # List derivative PRs
+            if ($results.DerivativePRs.Count -gt 0) {
+                $summary += @"
+### Derivative PRs Detected
+
+These PRs target feature branches (not main) and are typically created by bots in response to review comments:
+
+| PR | Author | Target Branch | Parent PR |
+|----|--------|---------------|-----------|
+"@
+                foreach ($d in $results.DerivativePRs) {
+                    $parentLink = if ($d.ParentPR) { "#$($d.ParentPR)" } else { "Unknown" }
+                    $summary += "| #$($d.Number) | $($d.Author) | $($d.TargetBranch) | $parentLink |`n"
+                }
+                $summary += "`n**Action**: Review derivative PRs in context of their parent PRs before merging parents.`n`n"
+            }
+
+            # Explain why 0 actions might have been taken
+            if ($actionsCount -eq 0 -and $results.TotalPRs -gt 0 -and $results.ActionRequired.Count -eq 0) {
+                $summary += @"
+### Why No Actions Taken?
+
+All $($results.TotalPRs) open PRs were scanned but none required automated action:
+- No unacknowledged bot comments found
+- No merge conflicts were automatically resolved
+- $($results.Blocked.Count) PR(s) are blocked (e.g., CHANGES_REQUESTED or unresolvable conflicts)
+
+This is normal when PRs are awaiting human review or have no pending bot feedback.
+"@
+            }
+            elseif ($results.TotalPRs -eq 0) {
+                $summary += @"
+### No Open PRs
+
+No open pull requests found in the repository.
+"@
+            }
+
+            try {
+                $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -ErrorAction Stop
+            }
+            catch {
+                Write-Log "Failed to write GitHub step summary: $_" -Level WARN
+            }
+        }
 
         # Save log
         Save-Log -Path $LogPath
