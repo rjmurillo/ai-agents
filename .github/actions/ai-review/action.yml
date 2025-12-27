@@ -583,6 +583,12 @@ runs:
           if is_infrastructure_failure $EXIT_CODE "$OUTPUT" "$STDERR_OUTPUT"; then
             INFRASTRUCTURE_FAILURE=true
             echo "::warning::Infrastructure failure detected (exit code: $EXIT_CODE)"
+            if [ -n "$STDERR_OUTPUT" ]; then
+              echo "::warning::stderr (truncated): $(echo "$STDERR_OUTPUT" | head -c 500)"
+              if echo "$STDERR_OUTPUT" | grep -qi "rate limit"; then
+                echo "::warning::Copilot may be rate limited. No public Copilot rate-limit API is available; relying on CLI response and backoff."
+              fi
+            fi
 
             if [ $ATTEMPT -lt $MAX_RETRIES ]; then
               ATTEMPT=$((ATTEMPT + 1))
