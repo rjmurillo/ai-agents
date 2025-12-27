@@ -205,9 +205,12 @@ jobs:
           $alertType = Get-VerdictAlertType -Verdict $verdict
           $verdictEmoji = Get-VerdictEmoji -Verdict $verdict
 
+          # Capitalize agent name (handle empty string case)
+          $agentDisplay = if ($agent) { (Get-Culture).TextInfo.ToTitleCase($agent.ToLower()) } else { "Unknown" }
+
           # Build step summary
           $summary = @"
-          ## $emoji $($agent.Substring(0,1).ToUpper() + $agent.Substring(1)) Review
+          ## $emoji $agentDisplay Review
 
           > [!$alertType]
           > $verdictEmoji **Verdict: $verdict**
@@ -638,8 +641,8 @@ jobs:
           foreach ($agent in $agentVerdicts.Keys) {
             $verdict = $agentVerdicts[$agent]
             if ($verdict -in $blockingVerdicts) {
-              $failedAgents += "$agent`: $verdict"
-              Write-Output "::error::$agent`: $verdict"
+              $failedAgents += "${agent}: $verdict"
+              Write-Output "::error::${agent}: $verdict"
             }
           }
 
