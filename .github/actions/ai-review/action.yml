@@ -762,19 +762,20 @@ runs:
         AI_FINDINGS: ${{ steps.invoke.outputs.raw_output }}
         AI_LABELS: ${{ steps.parse.outputs.labels }}
         PR_NUMBER: ${{ inputs.pr-number }}
+        EXECUTE_SCRIPT: ${{ inputs.execute-script }}
       run: |
-        Write-Host "Executing post-analysis script: ${{ inputs.execute-script }}"
+        Write-Host "Executing post-analysis script: $env:EXECUTE_SCRIPT"
         Write-Host "PR Number: $env:PR_NUMBER"
         Write-Host "AI Verdict: $env:AI_VERDICT"
 
-        # Validate script exists
-        if (-not (Test-Path '${{ inputs.execute-script }}')) {
-          Write-Error "Execute script not found: ${{ inputs.execute-script }}"
+        # Validate script exists (use -LiteralPath to prevent path injection)
+        if (-not (Test-Path -LiteralPath $env:EXECUTE_SCRIPT)) {
+          Write-Error "Execute script not found: $env:EXECUTE_SCRIPT"
           exit 1
         }
 
         # Execute the script with parameters
-        & '${{ inputs.execute-script }}' `
+        & $env:EXECUTE_SCRIPT `
           -PRNumber ([int]$env:PR_NUMBER) `
           -Verdict $env:AI_VERDICT `
           -FindingsJson $env:AI_FINDINGS

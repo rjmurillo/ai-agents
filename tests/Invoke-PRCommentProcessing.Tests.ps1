@@ -252,14 +252,15 @@ Describe "Invoke-CommentProcessing Function" {
     }
 
     Context "Classification Routing" {
-        It "Increments Resolved for stale classification" {
+        It "Increments Skipped for stale classification (manual resolution required)" {
             $findings = @{
                 comments = @(
                     @{ id = 1; classification = 'stale'; summary = 'Old comment' }
                 )
             }
             $result = Invoke-CommentProcessing -Findings $findings
-            $result.Resolved | Should -Be 1
+            # Stale comments now skipped because thread resolution requires threadId
+            $result.Skipped | Should -Be 1
         }
 
         It "Increments Skipped for question classification" {
@@ -313,8 +314,8 @@ Describe "Invoke-CommentProcessing Function" {
                 )
             }
             $result = Invoke-CommentProcessing -Findings $findings
-            $result.Resolved | Should -Be 1
-            $result.Skipped | Should -Be 2
+            # All three are now Skipped: stale (needs threadId), question, quick-fix
+            $result.Skipped | Should -Be 3
             # Acknowledged count depends on successful reaction adds
         }
     }

@@ -69,6 +69,7 @@ function Get-Findings {
 }
 
 # Add reaction to a comment
+# Tries PR review comment endpoint first, then falls back to issue comment endpoint
 function Add-CommentReaction {
     param(
         [long]$CommentId,
@@ -81,15 +82,24 @@ function Add-CommentReaction {
     }
 
     $resolved = Resolve-RepoParams
-    $result = gh api "repos/$($resolved.Owner)/$($resolved.Repo)/pulls/comments/$CommentId/reactions" `
+    $baseUrl = "repos/$($resolved.Owner)/$($resolved.Repo)"
+
+    # Try PR review comment endpoint first
+    $result = gh api "$baseUrl/pulls/comments/$CommentId/reactions" `
         -X POST -f content=$Reaction 2>&1
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to add reaction to comment $CommentId : $result"
+        # Fall back to issue comment endpoint (for regular PR comments)
+        $result = gh api "$baseUrl/issues/comments/$CommentId/reactions" `
+            -X POST -f content=$Reaction 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to add reaction to comment $CommentId : $result"
+            return
+        }
     }
-    else {
-        Write-Host "Added $Reaction reaction to comment $CommentId" -ForegroundColor Green
-    }
+
+    Write-Host "Added $Reaction reaction to comment $CommentId" -ForegroundColor Green
 }
 
 # Process comments based on classification
@@ -120,18 +130,24 @@ function Invoke-CommentProcessing {
         # Handle based on classification
         switch ($comment.classification) {
             'stale' {
-                # Mark as resolved
-                if (-not $DryRun) {
-                    Write-Host "  Marking stale comment as resolved"
-                    # Note: Resolving requires the thread ID, not comment ID
-                    # This would need additional lookup
-                }
-                $stats.Resolved++
+                # Note: Resolving requires the review thread ID, not comment ID
+                # Thread resolution is a separate API call that would need threadId
+                # For now, we skip these and flag for human attention
+                Write-Host "  Stale comment needs manual resolution (thread ID required)" -ForegroundColor Yellow
+                $stats.Skipped++
             }
 
             'wontfix' {
                 # Reply with decline rationale
-                if (-not $DryRun -and $comment.resolution) {
+                if (-not $comment.resolution) {
+                    Write-Warning "  Wontfix comment missing resolution field - cannot post reply"
+                    $stats.Skipped++
+                }
+                elseif ($DryRun) {
+                    Write-Host "[DRY-RUN] Would reply declining with: $($comment.resolution)"
+                    $stats.Skipped++
+                }
+                else {
                     $body = "Thank you for the feedback. After review, we've decided not to implement this change:`n`n$($comment.resolution)"
                     try {
                         & "$PSScriptRoot/Post-PRCommentReply.ps1" `
