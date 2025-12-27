@@ -38,18 +38,20 @@ $ErrorActionPreference = 'Stop'
 function Resolve-ReviewThread {
     param([string]$Id)
 
-    $mutation = @"
-mutation {
-    resolveReviewThread(input: {threadId: "$Id"}) {
+    # Uses GraphQL variables for security (prevents injection via ThreadId)
+    # Use GraphQL variables to prevent injection (ADR-015 compliant)
+    $mutation = @'
+mutation($threadId: ID!) {
+    resolveReviewThread(input: {threadId: $threadId}) {
         thread {
             id
             isResolved
         }
     }
 }
-"@
+'@
 
-    $result = gh api graphql -f query=$mutation 2>&1
+    $result = gh api graphql -f query=$mutation -f threadId="$Id" 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Failed to resolve thread ${Id}: $result"
         return $false
@@ -81,11 +83,12 @@ function Get-UnresolvedReviewThreads {
     }
     $repo = $repoJson | ConvertFrom-Json
 
-    $query = @"
-query {
-    repository(owner: "$($repo.owner.login)", name: "$($repo.name)") {
-        pullRequest(number: $PR) {
-            # Note: first: 100 handles most PRs; pagination not implemented for edge cases with 100+ threads
+    # Uses GraphQL variables for security (prevents injection via owner/name/PR)
+    # Use GraphQL variables to prevent injection (ADR-015 compliant)
+    $query = @'
+query($owner: String!, $name: String!, $prNumber: Int!) {
+    repository(owner: $owner, name: $name) {
+        pullRequest(number: $prNumber) {
             reviewThreads(first: 100) {
                 nodes {
                     id
@@ -101,9 +104,9 @@ query {
         }
     }
 }
-"@
+'@
 
-    $result = gh api graphql -f query=$query 2>&1
+    $result = gh api graphql -f query=$query -f owner="$($repo.owner.login)" -f name="$($repo.name)" -F prNumber=$PR 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to query threads: $result"
     }

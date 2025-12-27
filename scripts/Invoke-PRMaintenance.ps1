@@ -747,8 +747,20 @@ try {
 
     # JSON Output Mode (for workflow matrix)
     if ($OutputJson) {
+        # Sort: conflicts first (most urgent), then failing checks, then other issues
+        $sortedPRs = @($results.ActionRequired | Sort-Object -Property @{
+            Expression = { $_.hasConflicts }
+            Descending = $true
+        }, @{
+            Expression = { $_.hasFailingChecks }
+            Descending = $true
+        }, @{
+            Expression = { $_.number }
+            Ascending = $true
+        })
+
         $output = @{
-            prs = @($results.ActionRequired)
+            prs = $sortedPRs
             summary = @{
                 total = $results.TotalPRs
                 actionRequired = $results.ActionRequired.Count

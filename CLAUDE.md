@@ -100,6 +100,34 @@ When creating a pull request, you MUST use the PR template:
 
 **Do NOT** create PRs with custom descriptions that skip template sections.
 
+### Branch Operation Verification (MUST)
+
+Before ANY mutating git or GitHub operation, you MUST verify the current branch:
+
+```bash
+# 1. Always verify current branch first
+git branch --show-current
+
+# 2. Confirm it matches your intended PR/issue
+```
+
+**Required flags for external operations**:
+
+| Operation | Required Flag | Example |
+|-----------|---------------|---------|
+| `gh workflow run` | `--ref {branch}` | `gh workflow run ci.yml --ref feat/my-feature` |
+| `gh pr create` | `--base` and `--head` | `gh pr create --base main --head feat/my-feature` |
+
+**Anti-patterns to AVOID**:
+
+| Do NOT | Do Instead |
+|--------|------------|
+| `gh workflow run ci.yml` (no ref) | `gh workflow run ci.yml --ref {branch}` |
+| Assume you're on the right branch | Run `git branch --show-current` first |
+| Switch branches without checking status | Run `git status` before `git checkout` |
+
+**Why**: Branch confusion causes commits to wrong branches, workflows on wrong refs, and PRs from wrong base - wasting significant effort.
+
 ## Default Behavior: Use Orchestrator Agent
 
 When the user gives you any task, you MUST use the orchestrator agent rather than executing the task natively. The orchestrator will route to appropriate specialized agents.
