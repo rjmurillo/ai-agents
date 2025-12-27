@@ -92,8 +92,8 @@ Describe "Test-PRMerged" {
             $scriptContent | Should -Match '2:\s*Error occurred'
         }
 
-        It "Should reference Skill-PR-Review-006" {
-            $scriptContent | Should -Match 'Skill-PR-Review-006'
+        It "Should reference Skill-PR-Review-007" {
+            $scriptContent | Should -Match 'Skill-PR-Review-007'
         }
 
         It "Should reference Issue #321" {
@@ -458,7 +458,7 @@ Describe "Test-PRMerged" {
         }
 
         It "Should reference source skill in notes" {
-            $scriptContent | Should -Match 'Source:.*Skill-PR-Review-006'
+            $scriptContent | Should -Match 'Source:.*Skill-PR-Review-007'
         }
 
         It "Should reference session number" {
