@@ -120,10 +120,23 @@ git diff --cached --stat
 ## Resolution Strategies
 
 See `references/strategies.md` for detailed patterns:
+
+**Code Conflicts:**
 - Combining additive changes
 - Handling moved code
 - Resolving import conflicts
 - Dealing with deleted code
+- Conflicting logic resolution
+
+**Infrastructure Conflicts:**
+- Package lock files (regenerate, don't merge)
+- Configuration files (JSON/YAML semantic merge)
+- Database migrations (renumber, preserve order)
+
+**Documentation Conflicts:**
+- Numbered documentation (ADR, RFC) - renumber incoming to next available
+- Template-generated files - resolve in template, regenerate outputs
+- Rebase add/add conflicts - per-commit resolution during rebase
 
 ## Auto-Resolution Script
 

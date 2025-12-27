@@ -104,6 +104,54 @@ Learned from PR #41 CI fix analysis (2025-12-15).
 - **Source**: `.agents/retrospective/phase1-remediation-pr43.md`
 - **Mitigation**: Baseline snapshot, exception list, gradual rollout
 
+## Skill-Process-AutoTrigger-Check-001
+
+**Statement**: Verify expected skill auto-triggers executed within 2 minutes of artifact creation to prevent reactive gap discovery
+
+**Context**: After creating artifacts with expected skill triggers (e.g., ADR → adr-review), check logs for trigger execution
+
+**Evidence**: Session 91 (Issue #357):
+- T+6: ADR-021 created
+- T+7: Manual adr-review invocation required (should have auto-triggered)
+- T+9: Gap analysis created (reactive discovery)
+
+**Atomicity**: 90%
+
+**Tag**: helpful (prevents reactive work)
+
+**Impact**: 7/10 (catches automation failures early)
+
+**Created**: 2025-12-27
+
+**Problem**:
+```text
+Agent creates ADR
+Expected: adr-review skill auto-triggers
+Actual: No trigger, manual invocation required
+Discovery: Reactive (after noticing review missing)
+```
+
+**Solution**:
+```text
+After creating artifact with expected triggers:
+1. Wait 2 minutes
+2. Check logs for trigger execution
+3. If trigger missing → surface failure immediately
+4. Investigate trigger condition mismatch
+```
+
+**Where to add**: SESSION-PROTOCOL.md Phase 2 (Context Retrieval) - verify after artifact creation steps
+
+**Frequency**: 2nd occurrence (also prior ADR creation)
+
+**Priority**: P0 (prevents reactive gap discovery)
+
+**Related Skills**:
+- ADR-review skill: Expected to trigger after ADR creation in high-impact categories
+- Session protocol auto-trigger expectations
+
+**Validation**: 1 (Session 91 ADR-021 auto-trigger gap)
+
 ## Related Documents
 
 - Analysis: `.agents/analysis/pr41-issue-analysis.md`
