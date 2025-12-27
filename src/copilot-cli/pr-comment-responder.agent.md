@@ -157,7 +157,7 @@ escap            # Output escaping
 
 Security vulnerabilities like CWE-20/CWE-78 can be introduced and merged when security-domain comments are not prioritized. Similarly, symlink TOCTOU comments can be dismissed as style suggestions when they should be flagged as security-domain.
 
-**Skill Reference**: Skill-PR-Review-Security-001 (atomicity: 94%)
+**Skill Reference**: pr-review-security (atomicity: 94%)
 
 ### Quick Fix Path Criteria
 

@@ -42,6 +42,7 @@
 **Problem**: Excellent deliverables but 5+ user interventions for constraint violations.
 
 **Violations**:
+
 1. **Skill usage**: Raw `gh` commands despite skills existing
 2. **Language**: Bash/Python despite PowerShell-only rule
 3. **Atomic commits**: 16 files in one commit (mixed topics)

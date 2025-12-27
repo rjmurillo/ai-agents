@@ -11,6 +11,7 @@
 ### Problem
 
 Ephemeral cache files (open PRs, open issues) in git would:
+
 1. Cause merge conflicts on every PR
 2. Slow merge velocity
 3. Require constant conflict resolution from main
@@ -27,6 +28,7 @@ Ephemeral cache files (open PRs, open issues) in git would:
 ### Recommendation
 
 Do NOT store ephemeral cache data in `.serena/memories/`. Use one of:
+
 1. Session-local variables (in-context)
 2. cloudmcp for cross-session caching
 3. Local temp files outside git tracking
@@ -34,6 +36,7 @@ Do NOT store ephemeral cache data in `.serena/memories/`. Use one of:
 ### Invalidation Strategy
 
 Prefer invalidate-on-write over TTL-on-read:
+
 - When closing PR/Issue: invalidate cache
 - When creating PR/Issue: invalidate cache
 - Avoids stale data from TTL-based reads
@@ -45,6 +48,7 @@ Prefer invalidate-on-write over TTL-on-read:
 | `skills-adr-index` | `.agents/architecture/ADR-*.md` | ADR summaries and decision keywords |
 
 **ADR Index Format**:
+
 ```markdown
 | ADR | Title | Status | Keywords |
 |-----|-------|--------|----------|

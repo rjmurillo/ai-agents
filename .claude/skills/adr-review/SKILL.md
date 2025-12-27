@@ -2,6 +2,8 @@
 name: adr-review
 description: Multi-agent debate orchestration for Architecture Decision Records. Use when reviewing, validating, or refining ADRs. Triggers on "review this ADR", "validate ADR", "ADR debate", "critique this architecture decision", or when architect agent creates/updates an ADR. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus.
 ---
+<!-- markdownlint-disable MD040 -->
+<!-- Disabled: MD040 (nested code blocks in prompt examples) -->
 
 # ADR Review
 
@@ -27,9 +29,66 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 
 ## Debate Protocol
 
+### Phase 0: Related Work Research (NEW)
+
+Before launching independent reviews, use analyst agent to search for related work:
+
+```text
+Task(subagent_type="analyst", prompt="""
+ADR Related Work Research
+
+## ADR Being Reviewed
+Title: [ADR title]
+Key topics: [Extract 3-5 keywords from ADR]
+
+## Research Tasks
+
+1. **Search open Issues** for related discussions:
+   ```bash
+   gh issue list --state open --search "[keywords]" --json number,title,labels
+   ```
+
+2. **Search open PRs** for in-progress work:
+
+   ```bash
+   gh pr list --state open --search "[keywords]" --json number,title,headRefName
+   ```
+
+3. **Search closed Issues** for prior decisions:
+
+   ```bash
+   gh issue list --state closed --search "[keywords]" --limit 10 --json number,title,labels
+   ```
+
+## Output Format
+
+### Related Issues
+
+| # | Title | Status | Relevance |
+|---|-------|--------|-----------|
+| [number] | [title] | open/closed | [How it relates to ADR] |
+
+### Related PRs
+
+| # | Title | Branch | Status |
+|---|-------|--------|--------|
+| [number] | [title] | [branch] | [open/merged/closed] |
+
+### Implications for ADR Review
+
+- [What existing work affects this ADR?]
+- [Are there gaps already known?]
+- [Should any issues be linked?]
+- [Are any PRs already implementing this?]
+""")
+
+```
+
+Include related work findings in each Phase 1 agent prompt as context.
+
 ### Phase 1: Independent Review
 
-Invoke each agent with the ADR content. Each provides:
+Invoke each agent with the ADR content AND related work findings. Each provides:
 
 ```markdown
 ## [Agent] Review
@@ -156,6 +215,7 @@ Provide ONE position:
 ```
 
 **Consensus Criteria:**
+
 - All 6 agents Accept OR Disagree-and-Commit = Consensus reached
 - Any agent Blocks = Another round required (if round < 10)
 - Round 10 with no consensus = Conclude with unresolved issues documented
@@ -182,13 +242,13 @@ Provide ONE position:
 [List P0 issues still blocking]
 ```
 
-## Output Format
+## Artifact Storage
 
-Save debate artifacts to `.agents/architecture/`:
+Save debate artifacts to `.agents/critique/`:
 
 ### Debate Log
 
-Save to: `.agents/architecture/ADR-NNN-debate-log.md`
+Save to: `.agents/critique/ADR-NNN-debate-log.md`
 
 ```markdown
 # ADR Debate Log: [ADR Title]
@@ -254,12 +314,14 @@ Return to orchestrator with structured recommendations:
 ### Prior ADR Locations
 
 Check these locations for existing ADRs and patterns:
+
 - `.agents/architecture/ADR-*.md`
 - `docs/architecture/ADR-*.md`
 
 ### ADR Template Reference
 
 Use MADR 4.0 format per architect.md. Key sections:
+
 - Context and Problem Statement
 - Decision Drivers
 - Considered Options
@@ -269,6 +331,7 @@ Use MADR 4.0 format per architect.md. Key sections:
 ### Reversibility Assessment
 
 Every ADR must include reversibility assessment per architect.md:
+
 - Rollback capability
 - Vendor lock-in assessment
 - Exit strategy
@@ -278,11 +341,13 @@ Every ADR must include reversibility assessment per architect.md:
 ## Example Invocation
 
 **User triggers:**
+
 ```text
 Review this ADR: .agents/architecture/ADR-005-api-versioning.md
 ```
 
 **Orchestrator triggers:**
+
 ```python
 # When architect creates/updates ADR
 Task(subagent_type="orchestrator", prompt="""
@@ -294,6 +359,20 @@ Follow debate protocol in .claude/skills/adr-review/SKILL.md
 
 ## Efficiency Notes
 
+- **Phase 0 is critical**: Related work research prevents duplicate effort and identifies existing gaps
 - Most reviews converge in 1-2 rounds when high-level-advisor resolves conflicts early
 - Skip Phase 1 re-invocation for agents with no relevant expertise (e.g., security for pure process ADRs)
 - Cache agent positions between rounds to avoid re-reading unchanged concerns
+- If Phase 0 finds an open PR already implementing the ADR, consider deferring review until PR is merged
+
+## Related Work Integration
+
+When Phase 0 finds related items:
+
+| Finding | Action |
+|---------|--------|
+| Open issue discussing same topic | Link in ADR, acknowledge in review |
+| Closed issue with prior decision | Verify ADR aligns or documents deviation |
+| Open PR implementing feature | Wait for PR or coordinate with author |
+| Known gap in backlog | Verify ADR addresses the gap |
+| Duplicate proposal | Consider closing in favor of existing |

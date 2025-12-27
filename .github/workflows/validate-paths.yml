@@ -75,14 +75,14 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Validate documentation paths
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Write-Host "Validating path normalization in documentation..."
           ./build/scripts/Validate-PathNormalization.ps1 -FailOnViolation
 
       - name: Show violations on failure
         if: failure()
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Write-Host ""
           Write-Host "=== Path Normalization Failed ===" -ForegroundColor Red

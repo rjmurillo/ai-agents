@@ -25,6 +25,7 @@
 ## Configuration Anti-Patterns
 
 **Don't**:
+
 - Set `max_review_comments: 0` (use `code_review.disable: true` instead)
 - Use `ignore_patterns` for temporary exclusions (use PR-level settings)
 - Enable `have_fun` in professional repositories
@@ -33,6 +34,7 @@
 ## Style Guide Anti-Patterns
 
 **Don't**:
+
 - Copy-paste entire language style guides (link instead)
 - Write style guides longer than actual code
 - Contradict linter/formatter rules
@@ -40,5 +42,5 @@
 
 ## References
 
-- **Official Docs**: https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github
-- **Glob Patterns**: https://code.visualstudio.com/docs/editor/glob-patterns
+- **Official Docs**: <https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github>
+- **Glob Patterns**: <https://code.visualstudio.com/docs/editor/glob-patterns>

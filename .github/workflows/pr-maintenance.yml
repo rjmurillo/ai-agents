@@ -5,10 +5,6 @@ on:
     - cron: '0 * * * *'  # Hourly at minute 0 (UTC)
   workflow_dispatch:     # Manual trigger
     inputs:
-      dry_run:
-        description: 'Dry run (no changes)'
-        type: boolean
-        default: true
       max_prs:
         description: 'Max PRs to process'
         type: number
@@ -18,6 +14,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  actions: read  # Required for workflow status checks
 
 concurrency:
   group: pr-maintenance
@@ -42,7 +39,7 @@ jobs:
           fetch-depth: 0
 
       - name: Validate environment
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module ./.github/scripts/PRMaintenanceModule.psm1
           $result = Test-WorkflowEnvironment
@@ -52,7 +49,7 @@ jobs:
         id: ratelimit
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module ./.github/scripts/PRMaintenanceModule.psm1
           $result = Test-WorkflowRateLimit
@@ -64,28 +61,22 @@ jobs:
         id: maintenance
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          $inputValue = '${{ inputs.dry_run }}'
-          $dryRun = if ($inputValue -eq 'false') { $false } else { $true }
-          $params = @{ MaxPRs = [int]'${{ env.PR_MAX_PRS }}'; LogPath = '.agents/logs/pr-maintenance.log' }
-          if ($dryRun) { $params['DryRun'] = $true }
-          ./scripts/Invoke-PRMaintenance.ps1 @params
+          ./scripts/Invoke-PRMaintenance.ps1 -MaxPRs ([int]'${{ env.PR_MAX_PRS }}') -LogPath '.agents/logs/pr-maintenance.log'
 
       - name: Parse results and post summary
         id: results
         if: always()
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module ./.github/scripts/PRMaintenanceModule.psm1
           $results = Get-MaintenanceResults -LogPath '.agents/logs/pr-maintenance.log'
           $coreRemaining = (gh api rate_limit --jq '.resources.core.remaining')
           $runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
-          $inputValue = '${{ inputs.dry_run }}'
-          $dryRun = $inputValue -ne 'false'
-          $summary = New-MaintenanceSummary -Results $results -DryRun $dryRun -CoreRemaining $coreRemaining -RunUrl $runUrl
+          $summary = New-MaintenanceSummary -Results $results -CoreRemaining $coreRemaining -RunUrl $runUrl
           $summary | Out-File $env:GITHUB_STEP_SUMMARY -Append
           "processed=$($results.Processed)" | Out-File $env:GITHUB_OUTPUT -Append
           "has_blocked=$($results.HasBlocked.ToString().ToLower())" | Out-File $env:GITHUB_OUTPUT -Append
@@ -95,13 +86,13 @@ jobs:
         if: steps.results.outputs.has_blocked == 'true'
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module ./.github/scripts/PRMaintenanceModule.psm1
           $blockedPRs = Get-Content blocked-prs.txt
           $runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           $body = New-BlockedPRsAlertBody -BlockedPRs $blockedPRs -RunUrl $runUrl
-          ./.claude/skills/github/scripts/issue/New-Issue.ps1 -Title "[PR Maintenance] Blocked PRs Require Human Action" -Body $body -Labels "automation,needs-triage"
+          & ./.claude/skills/github/scripts/issue/New-Issue.ps1 -Title "[PR Maintenance] Blocked PRs Require Human Action" -Body $body -Labels "automation,needs-triage"
 
       - name: Upload logs
         if: always()
@@ -115,9 +106,9 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module ./.github/scripts/PRMaintenanceModule.psm1
           $runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           $body = New-WorkflowFailureAlertBody -RunUrl $runUrl -TriggerEvent '${{ github.event_name }}'
-          ./.claude/skills/github/scripts/issue/New-Issue.ps1 -Title "[ALERT] PR Maintenance Workflow Failed" -Body $body -Labels "automation,priority:P1"
+          & ./.claude/skills/github/scripts/issue/New-Issue.ps1 -Title "[ALERT] PR Maintenance Workflow Failed" -Body $body -Labels "automation,priority:P1"

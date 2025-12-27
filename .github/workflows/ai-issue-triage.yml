@@ -54,7 +54,7 @@ jobs:
       # SEC-FIX: Replaced bash parsing with PowerShell to prevent CWE-20/CWE-78 (Issue #211)
       - name: Parse Categorization Results
         id: parse-categorize
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           RAW_OUTPUT: ${{ steps.categorize.outputs.findings }}
           FALLBACK_LABELS: ${{ steps.categorize.outputs.labels }}
@@ -107,7 +107,7 @@ jobs:
       # SEC-FIX: Replaced bash parsing with PowerShell to prevent CWE-20/CWE-78 (Issue #211)
       - name: Parse Roadmap Results
         id: parse-align
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           RAW_OUTPUT: ${{ steps.align.outputs.findings }}
           MILESTONE_FROM_ACTION: ${{ steps.align.outputs.milestone }}
@@ -166,7 +166,7 @@ jobs:
 
       # SEC-FIX: Replaced bash iteration with PowerShell to prevent CWE-78 (Issue #211)
       - name: Apply Labels
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -255,7 +255,7 @@ jobs:
 
       # SEC-FIX: Replaced bash with PowerShell to prevent CWE-78 (Issue #211)
       - name: Assign Milestone
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -307,7 +307,7 @@ jobs:
       # Eliminates bash shell usage to prevent command injection from AI-generated content
       - name: Post PRD Comment
         if: steps.parse-align.outputs.escalate_to_prd == 'true' && steps.generate-prd.outputs.findings != ''
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -377,7 +377,7 @@ jobs:
             -Marker "AI-PRD-GENERATION"
 
       - name: Post Triage Summary
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
