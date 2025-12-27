@@ -1,11 +1,11 @@
-## ADR-017 Quantitative Verification Findings
+# ADR-019 Quantitative Verification Findings
 
 **Analyzed**: 2025-12-23 | **Analyst**: Claude Opus 4.5
 **Full Report**: `.agents/analysis/083-adr-017-quantitative-verification.md`
 
 ---
 
-### Key Corrections to ADR-017 Claims
+## Key Corrections to ADR-019 Claims
 
 | ADR Claim | Original | Corrected |
 |-----------|----------|-----------|
@@ -73,20 +73,20 @@ n_breakeven = (C_consolidated - C_domain_index) / C_atomic_avg
 
 ### Critical Dependency: Memory-Index Caching
 
-**ADR-017 efficiency claims are valid ONLY if memory-index (2,639 tokens) is cached** across MCP `read_memory` calls.
+**ADR-019 efficiency claims are valid ONLY if memory-index (2,639 tokens) is cached** across MCP `read_memory` calls.
 
 **Without caching**:
 
 - Single skill: Tiered uses **3.7x MORE tokens** than consolidated (3,964 vs 1,325)
 - Tiered becomes worse for ALL retrieval patterns
 
-**Status**: Assumption not documented in ADR-017. MCP caching behavior not verified.
+**Status**: Assumption not documented in ADR-019. MCP caching behavior not verified.
 
 ---
 
 ### Recommendations (P0)
 
-1. **Document caching assumption** in ADR-017 (10 min)
+1. **Document caching assumption** in ADR-019 (10 min)
 2. **Add CI check for index ↔ atomic file consistency** (2 hours)
 3. **Establish domain consolidation threshold** (30 min):
    - Use tiered: ≥3 skills, ≤70% typical retrieval, low co-occurrence
