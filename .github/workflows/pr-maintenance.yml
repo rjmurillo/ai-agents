@@ -170,19 +170,21 @@ jobs:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: gh pr checkout ${{ matrix.number }}
 
-      - name: Process PR comments with Claude Code
-        uses: anthropics/claude-code-action@v1
+      - name: Process PR comments with AI review
+        uses: ./.github/actions/ai-review
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          direct_prompt: |
-            /pr-comment-responder ${{ matrix.number }}
-
+          agent: pr-comment-responder
+          context-type: pr-diff
+          pr-number: ${{ matrix.number }}
+          prompt-file: .github/prompts/pr-comment-triage.md
+          additional-context: |
             Category: ${{ matrix.category }}
             Reason: ${{ matrix.reason }}
             Has Conflicts: ${{ matrix.hasConflicts }}
-
-            Process all unaddressed comments on this PR. Acknowledge feedback,
-            implement fixes where appropriate, and push commits.
+          execute-script: .claude/skills/github/scripts/pr/Invoke-PRCommentProcessing.ps1
+          timeout-minutes: 15
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
   # Job 3: Post-processing summary
   summarize:

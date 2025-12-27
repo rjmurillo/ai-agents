@@ -60,6 +60,14 @@ inputs:
       Default is false to minimize costs.
     required: false
     default: 'false'
+  execute-script:
+    description: |
+      Optional PowerShell script to run after Copilot analysis completes.
+      The script receives the analysis findings and can execute mutations
+      (acknowledge comments, post replies, commit changes, etc.).
+      Script is called with: -PRNumber, -Verdict, -FindingsJson parameters.
+    required: false
+    default: ''
 
 outputs:
   verdict:
@@ -741,3 +749,18 @@ runs:
         echo "  Labels: $LABELS"
         echo "  Milestone: $MILESTONE"
         echo "  Exit Code: $EXIT_CODE"
+
+    - name: Execute post-analysis script
+      if: inputs.execute-script != ''
+      shell: pwsh -NoProfile -Command "& '{0}'"
+      env:
+        GH_TOKEN: ${{ inputs.bot-pat }}
+        AI_VERDICT: ${{ steps.parse.outputs.verdict }}
+        AI_FINDINGS: ${{ steps.invoke.outputs.raw_output }}
+        AI_LABELS: ${{ steps.parse.outputs.labels }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+      run: |
+        & "${{ inputs.execute-script }}" `
+          -PRNumber $env:PR_NUMBER `
+          -Verdict $env:AI_VERDICT `
+          -FindingsJson $env:AI_FINDINGS
