@@ -19,7 +19,7 @@ Scripts are organized by **intended audience and execution context**:
 - Adding AI agent capability? → `.claude/skills/` (with wrapper in `scripts/` if needed)
 - Writing tests? → `tests/`
 
-See [ADR-017](../.agents/architecture/ADR-017-script-organization.md) for detailed rationale and guidelines.
+See [ADR-019](../.agents/architecture/ADR-019-script-organization.md) for detailed rationale and guidelines.
 
 ## Overview
 

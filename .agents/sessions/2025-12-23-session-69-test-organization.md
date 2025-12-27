@@ -48,7 +48,7 @@
 
 ### Phase 2: Script Organization Documentation
 
-**Created ADR-017**: Script Organization and Usage Patterns
+**Created ADR-019**: Script Organization and Usage Patterns
 
 **Key Decisions**:
 - Established 5-tier hierarchy based on intended audience
@@ -72,7 +72,7 @@
 
 **Updated files**:
 - `scripts/README.md` - Added organization section with ADR link
-- `.agents/architecture/ADR-017-script-organization.md` - Comprehensive guidelines
+- `.agents/architecture/ADR-019-script-organization.md` - Comprehensive guidelines
 
 ---
 
@@ -105,7 +105,7 @@ Changes staged for commit
 ### Commits This Session
 
 - Moved test files to tests/ directory
-- Created ADR-017 for script organization
+- Created ADR-019 for script organization
 - Updated scripts/README.md with organization principles
 
 ### Files Changed
@@ -122,7 +122,7 @@ Changes staged for commit
 - `scripts/README.md` - Added organization section
 
 **Added**:
-- `.agents/architecture/ADR-017-script-organization.md`
+- `.agents/architecture/ADR-019-script-organization.md`
 
 ### Test Results
 
@@ -133,4 +133,4 @@ Changes staged for commit
 - ✅ #2644216844 - Moved Detect-SkillViolation.Tests.ps1
 - ✅ #2644217274 - Moved Detect-TestCoverageGaps.Tests.ps1
 - ✅ #2644217723 - Moved New-ValidatedPR.Tests.ps1
-- ✅ #2644221530 - Created ADR-017 for script organization
+- ✅ #2644221530 - Created ADR-019 for script organization

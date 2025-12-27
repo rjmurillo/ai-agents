@@ -1,4 +1,4 @@
-# ADR-017: Script Organization and Usage Patterns
+# ADR-019: Script Organization and Usage Patterns
 
 ## Status
 
@@ -174,7 +174,7 @@ Scripts are organized by intended audience:
 - **.claude/skills/** - AI agent skills (wrapped for developer use)
 - **tests/** - Pester test files
 
-See [ADR-017](../.agents/architecture/ADR-017-script-organization.md) for details.
+See [ADR-019](../.agents/architecture/ADR-019-script-organization.md) for details.
 ```
 
 ## Related ADRs
