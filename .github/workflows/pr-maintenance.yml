@@ -346,6 +346,31 @@ jobs:
           echo "Use /merge-resolver ${{ matrix.number }} for manual resolution"
           exit 1
 
+      - name: Process PR comments for PR #${{ matrix.number }}
+        id: process-comments
+        # Process comments when:
+        # - No conflicts, OR conflicts were resolved successfully
+        if: |
+          matrix.hasConflicts != true ||
+          steps.auto-resolve.outputs.needs_ai != 'true' ||
+          steps.ai-analysis.outputs.verdict == 'PASS'
+        uses: ./.github/actions/ai-review
+        with:
+          agent: pr-comment-responder
+          context-type: pr-diff
+          pr-number: ${{ matrix.number }}
+          prompt-file: .github/prompts/pr-comment-triage.md
+          execute-script: .claude/skills/github/scripts/pr/Invoke-PRCommentProcessing.ps1
+          timeout-minutes: 10
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Comment processing result
+        if: steps.process-comments.outcome == 'success' || steps.process-comments.outcome == 'failure'
+        run: |
+          echo "PR #${{ matrix.number }} comment processing: ${{ steps.process-comments.outcome }}"
+          echo "Verdict: ${{ steps.process-comments.outputs.verdict }}"
+
   # Job 3: Post-processing summary
   summarize:
     needs: [discover-prs, process-prs]

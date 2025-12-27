@@ -60,6 +60,17 @@ inputs:
       Default is false to minimize costs.
     required: false
     default: 'false'
+  execute-script:
+    description: |
+      Optional PowerShell script to run after analysis.
+      The script receives AI findings via environment variables:
+      - AI_VERDICT: The parsed verdict (PASS, WARN, CRITICAL_FAIL, etc.)
+      - AI_FINDINGS: Raw output from the AI model (JSON if prompt requested it)
+      - AI_LABELS: Parsed labels (JSON array)
+      - PR_NUMBER: The PR number being analyzed
+      Use this for post-analysis mutations (acknowledge comments, apply fixes, etc.)
+    required: false
+    default: ''
 
 outputs:
   verdict:
@@ -741,3 +752,36 @@ runs:
         echo "  Labels: $LABELS"
         echo "  Milestone: $MILESTONE"
         echo "  Exit Code: $EXIT_CODE"
+
+    - name: Execute post-analysis script
+      if: inputs.execute-script != ''
+      shell: pwsh -NoProfile -Command "& '{0}'"
+      env:
+        GH_TOKEN: ${{ inputs.bot-pat }}
+        AI_VERDICT: ${{ steps.parse.outputs.verdict }}
+        AI_FINDINGS: ${{ steps.invoke.outputs.raw_output }}
+        AI_LABELS: ${{ steps.parse.outputs.labels }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+      run: |
+        Write-Host "Executing post-analysis script: ${{ inputs.execute-script }}"
+        Write-Host "PR Number: $env:PR_NUMBER"
+        Write-Host "AI Verdict: $env:AI_VERDICT"
+
+        # Validate script exists
+        if (-not (Test-Path '${{ inputs.execute-script }}')) {
+          Write-Error "Execute script not found: ${{ inputs.execute-script }}"
+          exit 1
+        }
+
+        # Execute the script with parameters
+        & '${{ inputs.execute-script }}' `
+          -PRNumber ([int]$env:PR_NUMBER) `
+          -Verdict $env:AI_VERDICT `
+          -FindingsJson $env:AI_FINDINGS
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Execute script failed with exit code $LASTEXITCODE"
+          exit $LASTEXITCODE
+        }
+
+        Write-Host "Post-analysis script completed successfully"
