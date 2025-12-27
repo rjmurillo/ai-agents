@@ -157,8 +157,8 @@ helpful, critical, blocking-gate
 
 ## Created
 
-2025-01-XX (from Issue #XXX analysis)
+2025-12-24 (from Issue #369 analysis)
 
 ## Source
 
-Issue #XXX: "fix: Add mandatory CI check verification before claiming PR review complete"
+Issue #369: "fix: Add mandatory CI check verification before claiming PR review complete"

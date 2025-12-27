@@ -978,27 +978,48 @@ It does NOT mean:
 ```bash
 # Check ALL CI checks status
 echo "=== CI Check Verification ==="
-gh pr checks [number] --json name,state,conclusion > ci-checks.json
 
-# Parse for failures (exclude skipped and null conclusions)
-FAILED_CHECKS=$(cat ci-checks.json | jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != null)]')
-FAILED_COUNT=$(echo "$FAILED_CHECKS" | jq 'length')
+# First, wait for all checks to complete
+while true; do
+    gh pr checks [number] --json name,state > ci-checks-status.json
 
-if [ "$FAILED_COUNT" -gt 0 ]; then
-  echo "[BLOCKED] $FAILED_COUNT CI checks not passing:"
-  echo "$FAILED_CHECKS" | jq -r '.[] | "  - \(.name): \(.conclusion)"'
-  
+    # Count checks that are not yet completed
+    pending_checks=$(jq '[.[] | select(.state != "COMPLETED")]' ci-checks-status.json)
+    pending_count=$(echo "$pending_checks" | jq 'length')
+
+    if [ "$pending_count" -eq 0 ]; then
+        echo "All CI checks have completed."
+        rm ci-checks-status.json # Clean up temporary file
+        break
+    fi
+
+    echo "$pending_count CI checks are not yet complete. Waiting 30 seconds..."
+    echo "$pending_checks" | jq -r '.[] | "  - \(.name): \(.state)"'
+    sleep 30
+done
+
+gh pr checks [number] --json name,state,conclusion,detailsUrl > ci-checks.json
+
+# Parse for failures (exclude skipped and successful conclusions)
+failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' ci-checks.json)
+failed_count=$(echo "$failed_checks" | jq 'length')
+
+if [ "$failed_count" -gt 0 ]; then
+  echo "[BLOCKED] $failed_count CI checks not passing:"
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): \(.conclusion)"'
+
   # Parse actionable items from failures
   echo ""
   echo "Actionable items:"
   # Extract failure details for each check
-  echo "$FAILED_CHECKS" | jq -r '.[] | "  - \(.name): Review logs at \(.detailsUrl // "N/A")"'
-  
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): Review logs at \(.detailsUrl // "N/A")"'
+
   # Do NOT claim completion - return to Phase 6 for fixes
   exit 1
 fi
 
-echo "[PASS] All CI checks passing ($(cat ci-checks.json | jq 'length') checks)"
+echo "[PASS] All CI checks passing ($(jq 'length' ci-checks.json) checks)"
+rm ci-checks.json # Clean up temporary file
 ```
 
 **Exit codes**:
