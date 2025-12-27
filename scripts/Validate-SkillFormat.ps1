@@ -137,8 +137,8 @@ if ($script:PrefixViolations.Count -gt 0) {
         Write-Warning "  - $_"
     }
     Write-Host ""
-    Write-Error "ADR-017 requires {domain}-{description} naming (no 'skill-' prefix)."
-    Write-Error "Rename files to use domain prefix (e.g., pr-001-reviewer-enumeration.md)."
+    Write-Host "ADR-017 requires {domain}-{description} naming (no 'skill-' prefix)." -ForegroundColor Red
+    Write-Host "Rename files to use domain prefix (e.g., pr-001-reviewer-enumeration.md)." -ForegroundColor Red
     Write-Host ""
 }
 
