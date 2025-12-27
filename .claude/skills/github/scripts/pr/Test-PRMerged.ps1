@@ -5,7 +5,7 @@
 .DESCRIPTION
     Queries GitHub GraphQL API to determine PR merge state.
     Use this before starting PR review work to prevent wasted effort on merged PRs.
-    Per Skill-PR-Review-006: gh pr view may return stale data.
+    Per Skill-PR-Review-007: gh pr view may return stale data.
 
 .PARAMETER Owner
     Repository owner. Inferred from git remote if not provided.
@@ -28,7 +28,7 @@
     - 1: PR IS merged (skip review work)
     - 2: Error occurred
 
-    Source: Skill-PR-Review-006 (Session 85)
+    Source: Skill-PR-Review-007 (Session 85)
     Related: Issue #321
 #>
 

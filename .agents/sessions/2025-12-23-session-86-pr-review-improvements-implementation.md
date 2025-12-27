@@ -16,7 +16,7 @@ Session 85 discovered that PR #315 was already merged, but `gh pr view` returned
 
 - **Skill-PR-Review-004**: Thread Resolution Protocol
 - **Skill-PR-Review-005**: Batch Thread Resolution Efficiency
-- **Skill-PR-Review-006**: PR Merge State Verification
+- **Skill-PR-Review-007**: PR Merge State Verification
 
 ## Deliverables
 

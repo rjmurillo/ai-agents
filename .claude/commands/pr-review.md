@@ -38,7 +38,7 @@ pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 
 Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
 
-**CRITICAL - Verify PR Merge State (pr-review-006-merge-state-verification)**:
+**CRITICAL - Verify PR Merge State (pr-review-007-merge-state-verification)**:
 
 Before proceeding with review work, verify PR has not been merged via GraphQL (source of truth):
 
@@ -232,3 +232,16 @@ For 2+ threads, use GraphQL mutation aliases for efficiency:
 
 ```bash
 gh api graphql -f query='
+mutation {
+  t1: resolveReviewThread(input: {threadId: "PRRT_xxx"}) { thread { id isResolved } }
+  t2: resolveReviewThread(input: {threadId: "PRRT_yyy"}) { thread { id isResolved } }
+  t3: resolveReviewThread(input: {threadId: "PRRT_zzz"}) { thread { id isResolved } }
+}
+'
+```
+
+**Benefits**:
+
+- 1 API call instead of N calls
+- Reduced network latency (1 round trip vs N)
+- Atomic operation (all succeed or all fail)

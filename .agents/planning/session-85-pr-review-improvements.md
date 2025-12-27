@@ -1,7 +1,7 @@
 # Session 85: PR Review Workflow Improvements
 
 **Date**: 2025-12-23
-**Status**: [PLANNING]
+**Status**: [IMPLEMENTED]
 **Branch**: feat/pr-review-merge-state-verification
 **Related Session**: [Session 85](.agents/sessions/2025-12-23-session-85-pr-315-post-merge-analysis.md)
 
@@ -15,7 +15,7 @@ Session 85 discovered that PR #315 was already merged, but `gh pr view` returned
 
 - **Skill-PR-Review-004**: Thread Resolution Protocol
 - **Skill-PR-Review-005**: Batch Thread Resolution Efficiency
-- **Skill-PR-Review-006**: PR Merge State Verification (prevents this issue)
+- **Skill-PR-Review-007**: PR Merge State Verification (prevents this issue)
 
 ## Changes Required
 
@@ -45,7 +45,7 @@ For each PR number, validate using:
 pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 ```
 
-**CRITICAL - Verify PR Merge State (Skill-PR-Review-006)**:
+**CRITICAL - Verify PR Merge State (Skill-PR-Review-007)**:
 
 Before proceeding with review work, verify PR has not been merged via GraphQL (source of truth):
 
@@ -84,7 +84,7 @@ Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo, **NO
 ```markdown
 ### Step 1.2: Verify PR Merge State (BLOCKING)
 
-**CRITICAL - Skill-PR-Review-006**: Before fetching PR metadata, verify PR has not been merged.
+**CRITICAL - Skill-PR-Review-007**: Before fetching PR metadata, verify PR has not been merged.
 
 ```bash
 # Check merge state via GraphQL (source of truth)
@@ -194,7 +194,7 @@ echo "Unresolved threads: $unresolved_count"
 .DESCRIPTION
     Queries GitHub GraphQL API to determine PR merge state.
     Use this before starting PR review work to prevent wasted effort on merged PRs.
-    Per Skill-PR-Review-006: gh pr view may return stale data.
+    Per Skill-PR-Review-007: gh pr view may return stale data.
 
 .PARAMETER Owner
     Repository owner. Inferred from git remote if not provided.
@@ -210,7 +210,7 @@ echo "Unresolved threads: $unresolved_count"
 
 .NOTES
     Exit Codes: 0=Not merged, 1=Merged, 2=Error
-    Source: Skill-PR-Review-006 (Session 85)
+    Source: Skill-PR-Review-007 (Session 85)
 #>
 
 [CmdletBinding()]
@@ -303,15 +303,15 @@ if ($pr.merged) {
 
 ## Implementation Checklist
 
-- [ ] Update `.claude/commands/pr-review.md` with merge state verification (Step 1)
-- [ ] Add Thread Resolution Protocol section to pr-review.md
-- [ ] Create `.claude/skills/github/scripts/pr/Test-PRMerged.ps1`
-- [ ] Test `Test-PRMerged.ps1` with merged PR (e.g., PR #315)
-- [ ] Test `Test-PRMerged.ps1` with open PR
+- [x] Update `.claude/commands/pr-review.md` with merge state verification (Step 1)
+- [x] Add Thread Resolution Protocol section to pr-review.md
+- [x] Create `.claude/skills/github/scripts/pr/Test-PRMerged.ps1`
+- [x] Test `Test-PRMerged.ps1` with merged PR (e.g., PR #315)
+- [x] Test `Test-PRMerged.ps1` with open PR
 - [ ] Document pr-comment-responder skill update guidance (user-managed skill)
-- [ ] Update Completion Criteria with PR merge verification
+- [x] Update Completion Criteria with PR merge verification
 - [ ] Create example scenarios document
-- [ ] Update session log with implementation results
+- [x] Update session log with implementation results
 
 ## Testing Strategy
 

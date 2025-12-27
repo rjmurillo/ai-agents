@@ -4,7 +4,7 @@
 
 **Context**: PR review workflow initialization (blocking gate)
 
-**Evidence**: PR #345 correctly detected MERGED state via GraphQL, skipped review work (Session 85+)
+**Evidence**: PR #315 correctly detected MERGED state via GraphQL, skipped review work (Session 85+)
 
 **Atomicity**: 92% | **Impact**: 8/10
 
