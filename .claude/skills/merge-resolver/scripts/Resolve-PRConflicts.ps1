@@ -69,9 +69,38 @@ $ErrorActionPreference = 'Stop'
 
 #region Configuration
 
+# Files that can be auto-resolved by accepting target branch (main) version
+# These are typically auto-generated or frequently-updated files where
+# the main branch version is authoritative
 $script:AutoResolvableFiles = @(
+    # Session artifacts - constantly changing, main is authoritative
     '.agents/HANDOFF.md',
-    '.agents/sessions/*'
+    '.agents/sessions/*',
+    '.agents/*',  # All .agents subdirectories
+    # Serena memories - auto-generated, main is authoritative
+    '.serena/memories/*',
+    '.serena/*',  # All Serena files
+    # Lock files - should match main
+    'package-lock.json',
+    'pnpm-lock.yaml',
+    'yarn.lock',
+    # Skill definitions - main is authoritative
+    '.claude/skills/*',
+    '.claude/skills/*/*',
+    '.claude/skills/*/*/*',
+    '.claude/commands/*',
+    '.claude/agents/*',
+    # Template files - main is authoritative (include subdirectories)
+    'templates/*',
+    'templates/*/*',
+    'templates/*/*/*',
+    # Platform-specific agent definitions - main is authoritative
+    'src/copilot-cli/*',
+    'src/vs-code-agents/*',
+    'src/claude/*',
+    # GitHub configs - main is authoritative
+    '.github/agents/*',
+    '.github/prompts/*'
 )
 
 #endregion

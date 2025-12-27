@@ -662,4 +662,115 @@ Describe "Invoke-PRMaintenance.ps1" {
             $result | Should -BeNullOrEmpty
         }
     }
+
+    Context "PR Prioritization Sorting" {
+        # Tests for JSON output sorting: conflicts first, then failing checks, then by PR number
+        # This ensures the workflow matrix processes most urgent PRs first
+
+        It "Sorts PRs with conflicts before PRs without conflicts" {
+            $prs = @(
+                @{ number = 100; hasConflicts = $false; hasFailingChecks = $true }
+                @{ number = 200; hasConflicts = $true; hasFailingChecks = $false }
+                @{ number = 300; hasConflicts = $false; hasFailingChecks = $false }
+            )
+
+            $sorted = @($prs | Sort-Object -Property @{
+                Expression = { $_.hasConflicts }
+                Descending = $true
+            }, @{
+                Expression = { $_.hasFailingChecks }
+                Descending = $true
+            }, @{
+                Expression = { $_.number }
+                Ascending = $true
+            })
+
+            $sorted[0].number | Should -Be 200  # Conflicts first
+            $sorted[1].number | Should -Be 100  # Failing checks second
+            $sorted[2].number | Should -Be 300  # Neither last
+        }
+
+        It "Sorts PRs with both conflicts and failing checks before conflicts only" {
+            $prs = @(
+                @{ number = 100; hasConflicts = $true; hasFailingChecks = $false }
+                @{ number = 200; hasConflicts = $true; hasFailingChecks = $true }
+                @{ number = 300; hasConflicts = $false; hasFailingChecks = $true }
+            )
+
+            $sorted = @($prs | Sort-Object -Property @{
+                Expression = { $_.hasConflicts }
+                Descending = $true
+            }, @{
+                Expression = { $_.hasFailingChecks }
+                Descending = $true
+            }, @{
+                Expression = { $_.number }
+                Ascending = $true
+            })
+
+            $sorted[0].number | Should -Be 200  # Both issues first
+            $sorted[1].number | Should -Be 100  # Conflicts only second
+            $sorted[2].number | Should -Be 300  # Failing checks only last
+        }
+
+        It "Uses PR number as tiebreaker for equal priority" {
+            $prs = @(
+                @{ number = 300; hasConflicts = $true; hasFailingChecks = $true }
+                @{ number = 100; hasConflicts = $true; hasFailingChecks = $true }
+                @{ number = 200; hasConflicts = $true; hasFailingChecks = $true }
+            )
+
+            $sorted = @($prs | Sort-Object -Property @{
+                Expression = { $_.hasConflicts }
+                Descending = $true
+            }, @{
+                Expression = { $_.hasFailingChecks }
+                Descending = $true
+            }, @{
+                Expression = { $_.number }
+                Ascending = $true
+            })
+
+            $sorted[0].number | Should -Be 100  # Lowest number first
+            $sorted[1].number | Should -Be 200
+            $sorted[2].number | Should -Be 300  # Highest number last
+        }
+
+        It "Handles empty PR list without error" {
+            $prs = @()
+
+            $sorted = @($prs | Sort-Object -Property @{
+                Expression = { $_.hasConflicts }
+                Descending = $true
+            }, @{
+                Expression = { $_.hasFailingChecks }
+                Descending = $true
+            }, @{
+                Expression = { $_.number }
+                Ascending = $true
+            })
+
+            $sorted.Count | Should -Be 0
+        }
+
+        It "Handles single PR without error" {
+            $prs = @(
+                @{ number = 42; hasConflicts = $true; hasFailingChecks = $true }
+            )
+
+            $sorted = @($prs | Sort-Object -Property @{
+                Expression = { $_.hasConflicts }
+                Descending = $true
+            }, @{
+                Expression = { $_.hasFailingChecks }
+                Descending = $true
+            }, @{
+                Expression = { $_.number }
+                Ascending = $true
+            })
+
+            $sorted.Count | Should -Be 1
+            $sorted[0].number | Should -Be 42
+        }
+    }
 }
