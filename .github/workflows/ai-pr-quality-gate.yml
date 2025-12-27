@@ -607,10 +607,12 @@ jobs:
         run: |
           # Use GitHub skill script for idempotent comment posting
           # PRs are issues in GitHub API, so we use Post-IssueComment with marker
+          # UpdateIfExists ensures comment is updated on each commit (not just first run)
           & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
             -Issue $env:PR_NUMBER `
             -BodyFile $env:REPORT_FILE `
-            -Marker "AI-PR-QUALITY-GATE"
+            -Marker "AI-PR-QUALITY-GATE" `
+            -UpdateIfExists
 
       - name: Set Job Summary
         shell: pwsh -NoProfile -Command "& '{0}'"

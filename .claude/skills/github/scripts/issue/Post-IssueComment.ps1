@@ -4,7 +4,9 @@
 
 .DESCRIPTION
     Posts comments to issues with optional marker for idempotency.
-    If marker exists in existing comments, skips posting.
+    If marker exists in existing comments, behavior depends on UpdateIfExists:
+    - UpdateIfExists not specified: skips posting (write-once idempotency)
+    - UpdateIfExists specified: updates existing comment (upsert behavior)
 
 .PARAMETER Owner
     Repository owner. Inferred from git remote if not provided.
@@ -24,9 +26,14 @@
 .PARAMETER Marker
     HTML comment marker for idempotency (e.g., "AI-TRIAGE").
 
+.PARAMETER UpdateIfExists
+    When specified with Marker, updates the existing comment instead of skipping.
+    Use this for CI/CD status comments that should reflect latest state.
+
 .EXAMPLE
     .\Post-IssueComment.ps1 -Issue 123 -Body "Analysis complete."
     .\Post-IssueComment.ps1 -Issue 123 -BodyFile triage.md -Marker "AI-TRIAGE"
+    .\Post-IssueComment.ps1 -Issue 123 -BodyFile status.md -Marker "CI-STATUS" -UpdateIfExists
 
 .NOTES
     Exit Codes: 0=Success (including skip due to marker), 1=Invalid params, 2=File not found, 3=API error, 4=Not authenticated
@@ -39,7 +46,8 @@ param(
     [Parameter(Mandatory)] [int]$Issue,
     [Parameter(ParameterSetName = 'BodyText', Mandatory)] [string]$Body,
     [Parameter(ParameterSetName = 'BodyFile', Mandatory)] [string]$BodyFile,
-    [string]$Marker
+    [string]$Marker,
+    [switch]$UpdateIfExists
 )
 
 Import-Module (Join-Path $PSScriptRoot ".." ".." "modules" "GitHubHelpers.psm1") -Force
@@ -60,24 +68,62 @@ if ([string]::IsNullOrWhiteSpace($Body)) { Write-ErrorAndExit "Body cannot be em
 # Check idempotency marker
 if ($Marker) {
     $markerHtml = "<!-- $Marker -->"
-    $existingComments = gh api "repos/$Owner/$Repo/issues/$Issue/comments" --jq ".[].body" 2>$null
-
-    if ($LASTEXITCODE -eq 0 -and $existingComments -match [regex]::Escape($markerHtml)) {
-        Write-Host "Comment with marker '$Marker' already exists. Skipping." -ForegroundColor Yellow
-        Write-Host "Success: True, Issue: $Issue, Marker: $Marker, Skipped: True"
-
-        # GitHub Actions outputs for programmatic consumption
-        if ($env:GITHUB_OUTPUT) {
-            Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
-            Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=true"
-            Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
-            Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
+    
+    # Get all comments to check for existing marker
+    $commentsJson = gh api "repos/$Owner/$Repo/issues/$Issue/comments" 2>$null
+    
+    if ($LASTEXITCODE -eq 0) {
+        $comments = $commentsJson | ConvertFrom-Json
+        $existingComment = $comments | Where-Object { $_.body -match [regex]::Escape($markerHtml) } | Select-Object -First 1
+        
+        if ($existingComment) {
+            if ($UpdateIfExists) {
+                # Update existing comment (upsert behavior for CI/CD status)
+                Write-Host "Comment with marker '$Marker' exists. Updating..." -ForegroundColor Cyan
+                
+                # Prepend marker if not in body
+                if ($Body -notmatch [regex]::Escape($markerHtml)) {
+                    $Body = "$markerHtml`n`n$Body"
+                }
+                
+                $response = Update-IssueComment -Owner $Owner -Repo $Repo -CommentId $existingComment.id -Body $Body
+                
+                Write-Host "Updated comment on issue #$Issue" -ForegroundColor Green
+                Write-Host "  URL: $($response.html_url)" -ForegroundColor Cyan
+                Write-Host "Success: True, Issue: $Issue, CommentId: $($response.id), Updated: True"
+                
+                # GitHub Actions outputs for programmatic consumption
+                if ($env:GITHUB_OUTPUT) {
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=false"
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "updated=true"
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "comment_id=$($response.id)"
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "html_url=$($response.html_url)"
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "updated_at=$($response.updated_at)"
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
+                }
+                
+                exit 0
+            } else {
+                # Skip posting (write-once idempotency)
+                Write-Host "Comment with marker '$Marker' already exists. Skipping." -ForegroundColor Yellow
+                Write-Host "Success: True, Issue: $Issue, Marker: $Marker, Skipped: True"
+                
+                # GitHub Actions outputs for programmatic consumption
+                if ($env:GITHUB_OUTPUT) {
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=true"
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
+                    Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
+                }
+                
+                exit 0  # Idempotent skip is a success
+            }
         }
-
-        exit 0  # Idempotent skip is a success
     }
 
-    # Prepend marker if not in body
+    # Prepend marker if not in body (for new comments)
     if ($Body -notmatch [regex]::Escape($markerHtml)) {
         $Body = "$markerHtml`n`n$Body"
     }
