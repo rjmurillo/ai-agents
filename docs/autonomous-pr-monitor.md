@@ -537,6 +537,28 @@ The agent tracks progress using TodoWrite:
 - Create PR #298 for Copilot Workspace exit code fix
 - Fixed PR #247 HANDOFF.md ADR-014 violation
 
+## Bot Categories and PR Handling
+
+The PR maintenance script classifies PRs by author category to determine appropriate action:
+
+| Category | Examples | Action |
+|----------|----------|--------|
+| `agent-controlled` | `rjmurillo-bot`, `rjmurillo[bot]` | Direct action - respond to comments, resolve conflicts |
+| `mention-triggered` | `copilot-swe-agent`, `app/copilot-swe-agent`, `copilot` | Synthesize feedback and `@copilot` to unblock |
+| `review-bot` | `coderabbitai`, `cursor[bot]`, `gemini-code-assist` | Read-only - provide feedback but don't author PRs |
+| Human | All other authors | Blocked - requires human action |
+
+### Copilot PR Handling
+
+When a Copilot-authored PR (e.g., `copilot-swe-agent`) has `CHANGES_REQUESTED`:
+
+1. The PR is classified as `mention-triggered` and added to `ActionRequired`
+2. `rjmurillo-bot` synthesizes review comments from all bots (CodeRabbit, Cursor, Gemini)
+3. The synthesized feedback is posted as a comment mentioning `@copilot`
+4. Copilot receives the consolidated feedback and can address all issues in one pass
+
+This enables automated coordination between review bots and Copilot without human intervention.
+
 ## Prerequisites
 
 - GitHub CLI (`gh`) authenticated

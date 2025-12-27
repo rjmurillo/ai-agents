@@ -40,58 +40,58 @@ Unified skill for GitHub CLI operations aligned with the GitHub REST API.
 
 ```powershell
 # Get PR context with changed files
-pwsh scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFiles
+pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFiles
 
 # Get all review comments (handles pagination)
-pwsh scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50
+pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50
 
 # Enumerate reviewers (prevents single-bot blindness per Skill-PR-001)
-pwsh scripts/pr/Get-PRReviewers.ps1 -PullRequest 50 -ExcludeBots
+pwsh -NoProfile scripts/pr/Get-PRReviewers.ps1 -PullRequest 50 -ExcludeBots
 
 # Reply to review comment (thread-preserving per Skill-PR-004)
-pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123456 -Body "Fixed in abc1234."
+pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123456 -Body "Fixed in abc1234."
 
 # Post top-level PR comment
-pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -Body "All comments addressed."
+pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -Body "All comments addressed."
 ```
 
 ### Issue Operations
 
 ```powershell
 # Get issue context
-pwsh scripts/issue/Get-IssueContext.ps1 -Issue 123
+pwsh -NoProfile scripts/issue/Get-IssueContext.ps1 -Issue 123
 
 # Apply labels with auto-creation
-pwsh scripts/issue/Set-IssueLabels.ps1 -Issue 123 -Labels @("bug", "needs-review") -Priority "P1"
+pwsh -NoProfile scripts/issue/Set-IssueLabels.ps1 -Issue 123 -Labels @("bug", "needs-review") -Priority "P1"
 
 # Assign milestone
-pwsh scripts/issue/Set-IssueMilestone.ps1 -Issue 123 -Milestone "v1.0.0"
+pwsh -NoProfile scripts/issue/Set-IssueMilestone.ps1 -Issue 123 -Milestone "v1.0.0"
 
 # Post comment with idempotency marker
-pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -BodyFile triage.md -Marker "AI-TRIAGE"
+pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -BodyFile triage.md -Marker "AI-TRIAGE"
 ```
 
 ### Reactions
 
 ```powershell
 # Acknowledge review comment with eyes
-pwsh scripts/reactions/Add-CommentReaction.ps1 -CommentId 12345678 -Reaction "eyes"
+pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId 12345678 -Reaction "eyes"
 
 # Add thumbs up to issue comment
-pwsh scripts/reactions/Add-CommentReaction.ps1 -CommentId 12345678 -CommentType "issue" -Reaction "+1"
+pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId 12345678 -CommentType "issue" -Reaction "+1"
 ```
 
 ### Copilot Assignment
 
 ```powershell
 # Synthesize context and assign Copilot to issue
-pwsh scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123
+pwsh -NoProfile scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123
 
 # Preview synthesis without posting (WhatIf)
-pwsh scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
+pwsh -NoProfile scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
 
 # Use custom config
-pwsh scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -ConfigPath "copilot-synthesis.yml"
+pwsh -NoProfile scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -ConfigPath "copilot-synthesis.yml"
 ```
 
 ## Shared Module
@@ -139,10 +139,10 @@ All scripts support optional `-Owner` and `-Repo` parameters. If omitted, they i
 
 ```powershell
 # From within git repo - auto-infers
-pwsh scripts/pr/Get-PRContext.ps1 -PullRequest 50
+pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50
 
 # Explicit - when running outside repo or for different repo
-pwsh scripts/pr/Get-PRContext.ps1 -Owner "octocat" -Repo "hello-world" -PullRequest 50
+pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -Owner "octocat" -Repo "hello-world" -PullRequest 50
 ```
 
 ### Idempotency with Markers
@@ -151,10 +151,10 @@ Use `-Marker` parameter to prevent duplicate comments:
 
 ```powershell
 # First call - posts comment with <!-- AI-TRIAGE --> marker
-pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
+pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
 
 # Second call - detects marker, exits with code 5
-pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
+pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
 ```
 
 ### Body from File
@@ -162,9 +162,23 @@ pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker 
 For multi-line content, use `-BodyFile` to avoid escaping issues:
 
 ```powershell
-pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123 -BodyFile reply.md
-pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -BodyFile triage-summary.md
+pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123 -BodyFile reply.md
+pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -BodyFile triage-summary.md
 ```
+
+### Copilot Directive Placement
+
+**Use issue comments for @copilot directives, not review comments.**
+
+```powershell
+# RECOMMENDED - Use issue comment for directives
+pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "@copilot please refactor the function in src/foo.ps1"
+
+# ANTI-PATTERN - Avoid review comments for directives
+pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123 -Body "@copilot please refactor this"
+```
+
+**Why**: Review comments should focus on code feedback. Directive comments create noise (PR #249: 41 of 42 comments were @copilot directives). See AGENTS.md "Copilot Directive Best Practices" section.
 
 ## API Endpoints Used
 

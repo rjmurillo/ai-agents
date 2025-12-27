@@ -24,6 +24,7 @@ globs:
 ## Why Exclude .agents/
 
 ADRs/plans have different formatting needs:
+
 - Intentional nested code blocks
 - Templates with special syntax
 - Generated content
