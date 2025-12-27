@@ -76,18 +76,21 @@ $script:AutoResolvableFiles = @(
     # Session artifacts - constantly changing, main is authoritative
     '.agents/HANDOFF.md',
     '.agents/sessions/*',
+    '.agents/*',  # All .agents subdirectories
     # Serena memories - auto-generated, main is authoritative
     '.serena/memories/*',
+    '.serena/*',  # All Serena files
     # Lock files - should match main
     'package-lock.json',
     'pnpm-lock.yaml',
     'yarn.lock',
-    # Other auto-generated
-    '.agents/qa/*',
-    '.agents/analysis/*',
-    '.agents/critique/*',
-    '.agents/planning/*',
-    '.agents/retrospective/*'
+    # Platform-specific agent definitions - main is authoritative
+    'src/copilot-cli/*',
+    'src/vs-code-agents/*',
+    'src/claude/*',
+    # GitHub configs - main is authoritative
+    '.github/agents/*',
+    '.github/prompts/*'
 )
 
 #endregion

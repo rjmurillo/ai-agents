@@ -144,13 +144,14 @@ jobs:
           git config user.name "rjmurillo-bot"
           git config user.email "rjmurillo-bot@users.noreply.github.com"
 
-      - name: Resolve conflicts for PR #${{ matrix.number }}
+      - name: Auto-resolve conflicts for PR #${{ matrix.number }}
+        id: auto-resolve
         if: matrix.hasConflicts == true && (inputs.process_conflicts != false)
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Write-Host "Resolving conflicts for PR #${{ matrix.number }}"
+          Write-Host "Attempting auto-resolution for PR #${{ matrix.number }}"
           Write-Host "Branch: ${{ matrix.headRefName }} -> ${{ matrix.baseRefName }}"
 
           $result = ./.claude/skills/merge-resolver/scripts/Resolve-PRConflicts.ps1 `
@@ -160,12 +161,173 @@ jobs:
 
           $parsed = $result | ConvertFrom-Json
           if ($parsed.Success) {
-            Write-Host "::notice::PR #${{ matrix.number }}: Conflicts resolved - $($parsed.FilesResolved.Count) file(s)"
+            Write-Host "::notice::PR #${{ matrix.number }}: Auto-resolved - $($parsed.FilesResolved.Count) file(s)"
+            "needs_ai=false" | Out-File $env:GITHUB_OUTPUT -Append
           } else {
-            Write-Host "::error::PR #${{ matrix.number }}: $($parsed.Message)"
-            Write-Host "::error::Blocked files: $($parsed.FilesBlocked -join ', ')"
+            Write-Host "::warning::PR #${{ matrix.number }}: Auto-resolution blocked on: $($parsed.FilesBlocked -join ', ')"
+            "needs_ai=true" | Out-File $env:GITHUB_OUTPUT -Append
+            "blocked_files=$($parsed.FilesBlocked | ConvertTo-Json -Compress)" | Out-File $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Prepare conflict context for AI analysis
+        id: conflict-context
+        if: steps.auto-resolve.outputs.needs_ai == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          # Checkout PR branch and attempt merge to get conflict state
+          git fetch origin '${{ matrix.headRefName }}'
+          git checkout '${{ matrix.headRefName }}'
+          git fetch origin '${{ matrix.baseRefName }}'
+
+          # Attempt merge (will create conflict markers)
+          $null = git merge "origin/${{ matrix.baseRefName }}" 2>&1
+
+          # Gather conflict context with git blame analysis
+          $blockedFiles = '${{ steps.auto-resolve.outputs.blocked_files }}' | ConvertFrom-Json
+          $context = @()
+
+          foreach ($file in $blockedFiles) {
+            $context += "### File: $file"
+            $context += ""
+            $context += "#### Conflict markers:"
+            $context += '```'
+            $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
+            if ($content) {
+              # Extract just the conflict sections
+              $content -split "`n" | Where-Object { $_ -match '^(<<<<<<<|=======|>>>>>>>|[^<=>].*)' } |
+                Select-Object -First 100 | ForEach-Object { $context += $_ }
+            }
+            $context += '```'
+            $context += ""
+
+            # Get recent commits for this file on both branches
+            $context += "#### Recent commits (PR branch):"
+            $context += '```'
+            git log --oneline -5 HEAD -- $file 2>$null | ForEach-Object { $context += $_ }
+            $context += '```'
+            $context += ""
+            $context += "#### Recent commits (base branch):"
+            $context += '```'
+            git log --oneline -5 "origin/${{ matrix.baseRefName }}" -- $file 2>$null | ForEach-Object { $context += $_ }
+            $context += '```'
+            $context += ""
+          }
+
+          $contextStr = $context -join "`n"
+          # Escape for GitHub Actions output
+          $contextStr = $contextStr -replace '%', '%25' -replace "`n", '%0A' -replace "`r", '%0D'
+          "conflict_context=$contextStr" | Out-File $env:GITHUB_OUTPUT -Append
+
+          # Abort the merge so we can try again after AI analysis
+          git merge --abort 2>$null
+
+      - name: AI conflict analysis
+        id: ai-analysis
+        if: steps.auto-resolve.outputs.needs_ai == 'true'
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: pr-diff
+          pr-number: ${{ matrix.number }}
+          additional-context: |
+            ## Merge Conflict Analysis Request
+
+            The following files have conflicts that could not be auto-resolved:
+            ${{ steps.auto-resolve.outputs.blocked_files }}
+
+            ${{ steps.conflict-context.outputs.conflict_context }}
+          prompt-file: .github/prompts/merge-conflict-analysis.md
+          timeout-minutes: 5
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Apply AI conflict resolution
+        if: steps.auto-resolve.outputs.needs_ai == 'true' && steps.ai-analysis.outputs.verdict == 'PASS'
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          AI_FINDINGS: ${{ steps.ai-analysis.outputs.findings }}
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          Write-Host "Applying AI-recommended conflict resolutions for PR #${{ matrix.number }}"
+
+          # Parse AI output to find resolutions JSON
+          $findings = $env:AI_FINDINGS
+          $resolutions = $null
+
+          # Extract JSON from AI output
+          if ($findings -match '\{[\s\S]*"resolutions"[\s\S]*\}') {
+            try {
+              $resolutions = $Matches[0] | ConvertFrom-Json
+            } catch {
+              Write-Host "::error::Failed to parse AI resolutions JSON: $_"
+              exit 1
+            }
+          }
+
+          if (-not $resolutions -or -not $resolutions.resolutions) {
+            Write-Host "::error::No valid resolutions found in AI output"
             exit 1
           }
+
+          # Checkout PR branch and merge
+          git fetch origin '${{ matrix.headRefName }}'
+          git checkout '${{ matrix.headRefName }}'
+          git fetch origin '${{ matrix.baseRefName }}'
+          $null = git merge "origin/${{ matrix.baseRefName }}" 2>&1
+
+          # Apply each resolution
+          foreach ($res in $resolutions.resolutions) {
+            Write-Host "Resolving $($res.file) with strategy: $($res.strategy)"
+            Write-Host "  Reasoning: $($res.reasoning)"
+
+            switch ($res.strategy) {
+              'theirs' {
+                git checkout --theirs $res.file
+                git add $res.file
+              }
+              'ours' {
+                git checkout --ours $res.file
+                git add $res.file
+              }
+              'combine' {
+                if ($res.combined_content) {
+                  $res.combined_content | Set-Content $res.file -NoNewline
+                  git add $res.file
+                } else {
+                  Write-Host "::error::Combine strategy requires combined_content for $($res.file)"
+                  exit 1
+                }
+              }
+              default {
+                Write-Host "::error::Unknown strategy: $($res.strategy)"
+                exit 1
+              }
+            }
+          }
+
+          # Verify no remaining conflicts
+          $remaining = git diff --name-only --diff-filter=U
+          if ($remaining) {
+            Write-Host "::error::Unresolved conflicts remain: $remaining"
+            git merge --abort
+            exit 1
+          }
+
+          # Commit and push
+          git commit -m "Merge ${{ matrix.baseRefName }} into ${{ matrix.headRefName }} - AI-resolved conflicts"
+          git push origin '${{ matrix.headRefName }}'
+          Write-Host "::notice::PR #${{ matrix.number }}: AI-resolved conflicts successfully"
+
+      - name: Report unresolvable conflicts
+        if: steps.auto-resolve.outputs.needs_ai == 'true' && steps.ai-analysis.outputs.verdict != 'PASS'
+        run: |
+          echo "::error::PR #${{ matrix.number }}: Conflicts require manual resolution"
+          echo "::error::AI verdict: ${{ steps.ai-analysis.outputs.verdict }}"
+          echo "::error::Blocked files: ${{ steps.auto-resolve.outputs.blocked_files }}"
+          echo "Use /merge-resolver ${{ matrix.number }} for manual resolution"
+          exit 1
 
   # Job 3: Post-processing summary
   summarize:
