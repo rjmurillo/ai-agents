@@ -165,27 +165,6 @@ jobs:
             Write-Host "::warning::PR #${{ matrix.number }}: $($parsed.Message)"
           }
 
-      - name: Checkout PR branch
-        env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
-        run: gh pr checkout ${{ matrix.number }}
-
-      - name: Process PR comments with AI review
-        uses: ./.github/actions/ai-review
-        with:
-          agent: pr-comment-responder
-          context-type: pr-diff
-          pr-number: ${{ matrix.number }}
-          prompt-file: .github/prompts/pr-comment-triage.md
-          additional-context: |
-            Category: ${{ matrix.category }}
-            Reason: ${{ matrix.reason }}
-            Has Conflicts: ${{ matrix.hasConflicts }}
-          execute-script: .claude/skills/github/scripts/pr/Invoke-PRCommentProcessing.ps1
-          timeout-minutes: 15
-          bot-pat: ${{ secrets.BOT_PAT }}
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-
   # Job 3: Post-processing summary
   summarize:
     needs: [discover-prs, process-prs]
@@ -214,20 +193,20 @@ jobs:
           if ($actionRequired.Count -gt 0) {
             $prNumbers = ($actionRequired | ForEach-Object { "#$($_.number)" }) -join ", "
             Write-Host "::notice::Action required for PRs: $prNumbers"
-            Write-Host "Run: /pr-comment-responder $(($actionRequired | ForEach-Object { $_.number }) -join ',')"
+            Write-Host "Run: /pr-review $(($actionRequired | ForEach-Object { $_.number }) -join ',')"
 
             $summary = @"
 
           ---
           ### Next Steps
 
-          The following PRs require agent attention:
+          The following PRs require manual review via ``/pr-review``:
 
           | PR | Reason | Action |
           |----|--------|--------|
           "@
             foreach ($pr in $actionRequired) {
-              $summary += "| #$($pr.number) | $($pr.reason) | ``/pr-comment-responder $($pr.number)`` |`n"
+              $summary += "| #$($pr.number) | $($pr.reason) | ``/pr-review $($pr.number)`` |`n"
             }
 
             $summary | Out-File $env:GITHUB_STEP_SUMMARY -Append
