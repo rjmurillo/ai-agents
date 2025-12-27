@@ -173,11 +173,93 @@ jobs:
           echo "  Retry count: $RETRY_COUNT"
 
       - name: Upload review results
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: review-${{ matrix.agent }}
           path: ai-review-results/
           retention-days: 1
+
+      - name: Generate step summary
+        if: always()
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          AGENT: ${{ matrix.agent }}
+          EMOJI: ${{ matrix.emoji }}
+          VERDICT: ${{ steps.review.outputs.verdict }}
+          FINDINGS: ${{ steps.review.outputs.findings }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+        run: |
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
+
+          $verdict = $env:VERDICT
+          $agent = $env:AGENT
+          $emoji = $env:EMOJI
+          $findings = $env:FINDINGS
+          $prNumber = $env:PR_NUMBER
+
+          # Get alert type for verdict
+          $alertType = Get-VerdictAlertType -Verdict $verdict
+          $verdictEmoji = Get-VerdictEmoji -Verdict $verdict
+
+          # Build step summary
+          $summary = @"
+          ## $emoji $($agent.Substring(0,1).ToUpper() + $agent.Substring(1)) Review
+
+          > [!$alertType]
+          > $verdictEmoji **Verdict: $verdict**
+
+          <details>
+          <summary>Review Findings</summary>
+
+          $findings
+
+          </details>
+
+          ---
+
+          💡 See the [PR comment]($env:SERVER_URL/$env:REPOSITORY/pull/$prNumber#issuecomment-AI-PR-QUALITY-GATE) for full context across all agents.
+          "@
+
+          # Write to step summary
+          $summary | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding UTF8
+
+      - name: Check verdict and fail if needed
+        if: always()
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          AGENT: ${{ matrix.agent }}
+          EMOJI: ${{ matrix.emoji }}
+          VERDICT: ${{ steps.review.outputs.verdict }}
+          FINDINGS: ${{ steps.review.outputs.findings }}
+        run: |
+          $agent = $env:AGENT
+          $emoji = $env:EMOJI
+          $verdict = $env:VERDICT
+          $findings = $env:FINDINGS
+
+          # Check if verdict indicates a blocking failure
+          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL')
+
+          if ($verdict -in $blockingVerdicts) {
+            # Truncate findings to fit in annotation (max ~200 chars)
+            $summary = ($findings -replace "`n", " ")
+            if ($summary.Length -gt 180) {
+              $summary = $summary.Substring(0, 177) + "..."
+            }
+
+            Write-Output "::error::[$agent] ${verdict}: $summary"
+            Write-Output ""
+            Write-Output "❌ $emoji $agent review failed with verdict: $verdict"
+            Write-Output ""
+            Write-Output "See the step summary above for full findings."
+            exit 1
+          }
+
+          Write-Output "✅ $emoji $agent review passed with verdict: $verdict"
 
 # Aggregate results from all parallel reviews
 
@@ -186,12 +268,29 @@ jobs:
     # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: [check-changes, review]
-    if: needs.check-changes.outputs.should-run == 'true'
+    # Always run if check-changes ran and said to run, even if some matrix jobs failed
+    if: always() && needs.check-changes.outputs.should-run == 'true'
 
     outputs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
 
     steps:
+      - name: Identify failed agents
+        id: failed-agents
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          # Check which matrix jobs failed by examining the needs context
+          # This step runs before downloading artifacts to surface failures early
+          $reviewResult = "${{ needs.review.result }}"
+          Write-Output "Review matrix result: $reviewResult"
+
+          if ($reviewResult -eq "failure" -or $reviewResult -eq "cancelled") {
+            "has_failures=true" >> $env:GITHUB_OUTPUT
+            Write-Output "::warning::One or more agent review jobs failed - see individual job logs for details"
+          } else {
+            "has_failures=false" >> $env:GITHUB_OUTPUT
+          }
+
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -406,6 +505,8 @@ jobs:
           | DevOps | $devopsVerdict | $devopsCategory | $devopsEmoji |
           | Roadmap | $roadmapVerdict | $roadmapCategory | $roadmapEmoji |
 
+          💡 **Quick Access**: Click on individual agent job names in the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) to see detailed findings and step summaries.
+
           "@
 
           # Add findings sections
@@ -520,12 +621,42 @@ jobs:
         run: |
           $finalVerdict = "${{ steps.aggregate.outputs.final_verdict }}"
 
-          if ($finalVerdict -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL') {
-            Write-Output "::error::AI Quality Gate found critical issues that must be addressed before merge"
+          # Get individual agent verdicts for detailed reporting
+          $agentVerdicts = @{
+            '🔒 Security' = "${{ steps.aggregate.outputs.security_verdict }}"
+            '🧪 QA' = "${{ steps.aggregate.outputs.qa_verdict }}"
+            '📊 Analyst' = "${{ steps.aggregate.outputs.analyst_verdict }}"
+            '📐 Architect' = "${{ steps.aggregate.outputs.architect_verdict }}"
+            '⚙️ DevOps' = "${{ steps.aggregate.outputs.devops_verdict }}"
+            '🗺️ Roadmap' = "${{ steps.aggregate.outputs.roadmap_verdict }}"
+          }
+
+          # Identify agents with blocking verdicts
+          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL')
+          $failedAgents = @()
+
+          foreach ($agent in $agentVerdicts.Keys) {
+            $verdict = $agentVerdicts[$agent]
+            if ($verdict -in $blockingVerdicts) {
+              $failedAgents += "$agent`: $verdict"
+              Write-Output "::error::$agent`: $verdict"
+            }
+          }
+
+          if ($finalVerdict -in $blockingVerdicts) {
+            Write-Output ""
+            Write-Output "❌ AI Quality Gate FAILED"
+            Write-Output ""
+            Write-Output "Agents with blocking verdicts:"
+            foreach ($failed in $failedAgents) {
+              Write-Output "  - $failed"
+            }
+            Write-Output ""
+            Write-Output "Click on individual agent jobs above to see detailed findings."
             exit 1
           }
 
-          Write-Output "AI Quality Gate passed with verdict: $finalVerdict"
+          Write-Output "✅ AI Quality Gate passed with verdict: $finalVerdict"
 
 # Skip jobs that provide passing status when no relevant files changed
 # NOTE: We need TWO skip jobs with the SAME names as the real jobs to satisfy
