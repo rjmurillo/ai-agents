@@ -429,6 +429,76 @@ if [ -n "$STAGED_MCP_FILE" ]; then
 fi
 
 #
+# Agent Generation Sync
+#
+# Syncs shared agent templates to platform-specific outputs when templates are staged.
+# templates/agents/*.shared.md → src/copilot-cli/*.agent.md + src/vs-code-agents/*.md
+# templates/agents/*.shared.md is the source of truth; generated files are auto-generated.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+#
+GENERATE_AGENTS_SCRIPT="$REPO_ROOT/build/Generate-Agents.ps1"
+
+# Check if any shared agent template is staged
+STAGED_AGENT_TEMPLATES=$(echo "$STAGED_FILES" | grep -E '^templates/agents/.*\.shared\.md$' || true)
+
+if [ -n "$STAGED_AGENT_TEMPLATES" ]; then
+    # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
+    if [ "$AUTOFIX" = "1" ]; then
+        echo_info "Regenerating platform-specific agent files..."
+
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$GENERATE_AGENTS_SCRIPT" ]; then
+            echo_warning "Skipping agent generation: script path is a symlink"
+        elif [ -f "$GENERATE_AGENTS_SCRIPT" ]; then
+            if command -v pwsh &> /dev/null; then
+                # Run generator script
+                GENERATE_OUTPUT=$(pwsh -NoProfile -File "$GENERATE_AGENTS_SCRIPT" 2>&1)
+                GENERATE_EXIT=$?
+
+                if [ $GENERATE_EXIT -eq 0 ]; then
+                    # Stage all generated agent files
+                    COPILOT_AGENTS="$REPO_ROOT/src/copilot-cli"
+                    VSCODE_AGENTS="$REPO_ROOT/src/vs-code-agents"
+
+                    # Stage copilot-cli agents
+                    if [ -d "$COPILOT_AGENTS" ] && [ ! -L "$COPILOT_AGENTS" ]; then
+                        for agent in "$COPILOT_AGENTS"/*.agent.md; do
+                            if [ -f "$agent" ] && [ ! -L "$agent" ]; then
+                                git add -- "$agent"
+                            fi
+                        done
+                    fi
+
+                    # Stage vs-code-agents
+                    if [ -d "$VSCODE_AGENTS" ] && [ ! -L "$VSCODE_AGENTS" ]; then
+                        for agent in "$VSCODE_AGENTS"/*.md; do
+                            if [ -f "$agent" ] && [ ! -L "$agent" ]; then
+                                git add -- "$agent"
+                            fi
+                        done
+                    fi
+
+                    echo_success "Regenerated and staged platform-specific agents."
+                    FILES_FIXED=1
+                else
+                    echo_warning "Agent generation failed (see above)."
+                    echo_info "  $GENERATE_OUTPUT"
+                    # Non-blocking: just warn, don't fail the commit
+                fi
+            else
+                echo_warning "PowerShell not available. Skipping agent generation."
+                echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+            fi
+        else
+            echo_info "Agent generation script not found. Skipping."
+        fi
+    else
+        echo_info "Agent generation skipped (auto-fix disabled)."
+    fi
+fi
+
+#
 # Security Detection (Non-blocking warning)
 #
 # Detects infrastructure and security-critical file changes

@@ -22,3 +22,4 @@
 | fail-fast exit code 1 infrastructure failure timeout token retry | skill-ci-001-fail-fast-infrastructure-failures |
 | retry timing explicit array backoff formula RETRY_DELAYS | skill-ci-002-explicit-retry-timing |
 | job status success failure verdict PASS CRITICAL_FAIL multi-stage pipeline distinction | skill-ci-003-job-status-verdict-distinction |
+| error message investigate tool output infra flag classification handler | skill-ci-004-error-message-investigation |
