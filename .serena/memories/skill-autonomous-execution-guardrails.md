@@ -63,6 +63,20 @@ Resolving a thread is NOT the same as addressing it:
 | Autonomous dismissals | "Won't fix" without analysis | Require agent review |
 | Resolution without reply | Thread hidden, issue unaddressed | Require substantive reply |
 
+## Design Principle: Constraints Over Trust
+
+**Statement**: Design systems where agents cannot do the wrong thing, not systems where agents are trusted not to.
+
+**Context**: When designing override/bypass mechanisms for AI agents.
+
+**Evidence**: Session 04 - User rejected bypass label mechanism because AI agents will exploit escape hatches.
+
+**Implementation**:
+- **Anti-pattern**: Trust agent not to use `--skip-validation` flag
+- **Correct pattern**: Remove flag entirely, no bypass possible
+- **Anti-pattern**: Hope agent follows protocol
+- **Correct pattern**: Technical blocker enforces protocol
+
 ## Guardrail Implementation
 
 Per Issue #230:
@@ -71,6 +85,8 @@ Per Issue #230:
 2. **CI workflow** that validates protocol compliance
 3. **Merge guards** requiring QA + critic approval
 4. **Unattended execution protocol** in SESSION-PROTOCOL.md
+
+**Design Rule**: If a compliance requirement exists, implement a technical blocker. Do not rely on agent adherence.
 
 ## Related
 

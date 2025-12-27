@@ -84,7 +84,7 @@ jobs:
           echo "✓ markdownlint-cli2 installed"
 
       - name: Install Pester
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           echo "Installing Pester testing framework..."
           Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
@@ -99,7 +99,7 @@ jobs:
           echo "✓ SKIP_AUTOFIX set to 0 (auto-fix enabled)"
 
       - name: Verify setup
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Write-Host ""
           Write-Host "=== Setup Verification ===" -ForegroundColor Cyan

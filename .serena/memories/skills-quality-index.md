@@ -5,3 +5,5 @@
 | critique conflict escalation disagree-and-commit specialist advisor | quality-critique-escalation |
 | testing powershell syntax import-module load basic validation | quality-basic-testing |
 | requirement count verification N implemented N specified manifest | quality-requirement-count |
+| shift-left agent consultation pre-push 6-agent quality gate | quality-shift-left-gate |
+| remediation priority verdict P0 MUST SHOULD CRITICAL_FAIL evidence | quality-agent-remediation |

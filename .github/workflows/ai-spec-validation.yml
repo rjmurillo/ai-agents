@@ -213,7 +213,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
 
@@ -347,7 +347,7 @@ jobs:
           "report_file=$reportFile" >> $env:GITHUB_OUTPUT
 
       - name: Post PR Comment
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -361,7 +361,7 @@ jobs:
             -Marker "AI-SPEC-VALIDATION"
 
       - name: Set Job Summary
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
@@ -369,7 +369,7 @@ jobs:
 
       - name: Check for Failures
         if: steps.spec-ref.outputs.has_specs == 'true'
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}

@@ -26,9 +26,11 @@
 ## Force Field Analysis
 
 **Before verification gates**:
+
 - Restraining forces: 21/25 (trust-based ineffective, no gates)
 - Net: -5 (favors violations)
 
 **After verification gates**:
+
 - Driving forces: 20/20 (gates prevent violations)
 - Net: +16 (prevents violations)

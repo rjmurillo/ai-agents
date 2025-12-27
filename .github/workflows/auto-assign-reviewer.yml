@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Auto-Assign Reviewer
+
+# Automatically adds rjmurillo-bot as a reviewer on all PRs
+# This enables the bot to receive review requests and respond to PR comments
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+
+concurrency:
+  group: auto-reviewer-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  assign-reviewer:
+    name: Add Bot Reviewer
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 2
+
+    # Skip if the PR author is the bot itself (avoid self-review)
+    if: github.event.pull_request.user.login != 'rjmurillo-bot'
+
+    steps:
+      - name: Add rjmurillo-bot as reviewer
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --add-reviewer rjmurillo-bot
+
+          echo "Added rjmurillo-bot as reviewer for PR #${{ github.event.pull_request.number }}"

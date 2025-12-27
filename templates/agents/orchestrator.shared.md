@@ -1020,7 +1020,7 @@ Look for these sections in retrospective output:
 # For each skill candidate with atomicity >= 70%
 runSubagent(agentName: "skillbook", description: "Process skill operation", prompt: """
     Operation: [ADD/UPDATE/TAG/REMOVE]
-    Skill ID: [Skill-Category-NNN]
+    Skill ID: {domain}-{description}
     Statement: [Atomic skill statement]
     Atomicity: [%]
     Target File: [.serena/memories/file.md if UPDATE]
@@ -1081,8 +1081,8 @@ After processing retrospective handoff:
 ## Retrospective Processing Complete
 
 ### Skills Persisted
-- Skill-Validation-006: Added to skills-validation.md
-- Skill-CI-003: Updated in skills-ci-infrastructure.md
+- validation-self-report: Added to skills-validation-index.md
+- ci-quality-gates: Updated in skills-ci-infrastructure-index.md
 
 ### Memory Updates
 - Added observation to AI-Workflow-Patterns entity

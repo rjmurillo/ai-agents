@@ -4,7 +4,7 @@
 # Regenerates all agents from templates and fails if committed files differ.
 #
 # Local developers and AI agents can run the same validation using:
-#   pwsh ./build/Generate-Agents.ps1 -Validate
+#   pwsh -NoProfile ./build/Generate-Agents.ps1 -Validate
 
 name: Validate Generated Agents
 
@@ -49,14 +49,14 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Regenerate and validate agent files
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Write-Host "Running agent generation in validation mode..."
           ./build/Generate-Agents.ps1 -Validate
 
       - name: Show diff on failure
         if: failure()
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Write-Host ""
           Write-Host "=== Files that differ from generated output ===" -ForegroundColor Red
@@ -77,7 +77,7 @@ jobs:
             Write-Host ""
             Write-Host "To fix this issue:" -ForegroundColor Cyan
             Write-Host "  1. Edit the source template in templates/agents/*.shared.md" -ForegroundColor White
-            Write-Host "  2. Run: pwsh build/Generate-Agents.ps1" -ForegroundColor White
+            Write-Host "  2. Run: pwsh -NoProfile build/Generate-Agents.ps1" -ForegroundColor White
             Write-Host "  3. Commit the regenerated files" -ForegroundColor White
             Write-Host ""
             Write-Host "=== Detailed diff ===" -ForegroundColor Red

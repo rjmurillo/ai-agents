@@ -16,6 +16,7 @@ With 115+ memories, countless skills scattered across files, and manual session 
 **Current State**: Manual, frequently forgotten, causes rework
 
 **Pain Points**:
+
 - Agents skip Serena initialization → lose project memories
 - Agents skip HANDOFF.md → repeat completed work
 - Session logs created late or never → lose context
@@ -31,12 +32,14 @@ With 115+ memories, countless skills scattered across files, and manual session 
 **Current State**: 115 memories, no index, agents read randomly or skip entirely
 
 **Pain Points**:
+
 - Too many memories to read them all
 - No way to know which are relevant without reading them
 - Redundant information across memories
 - Stale memories mixed with current
 
 **Automation Opportunity**: Memory index/catalog with:
+
 - Topic tags and relevance scores
 - "Read these N memories for task X" recommendations
 - Staleness detection and cleanup prompts
@@ -51,12 +54,14 @@ With 115+ memories, countless skills scattered across files, and manual session 
 **Current State**: Manual review, Skill-007 not enforced
 
 **Pain Points**:
+
 - Artifacts created with implicit knowledge
 - Session logs missing end state, next action
 - PRDs missing acceptance criteria
 - Operational prompts missing sustainability guidance
 
 **Automation Opportunity**: Validator that checks artifacts against Skill-007:
+
 - [ ] Amnesia test: Would a naive agent succeed?
 - [ ] Implicit knowledge: What's missing?
 - [ ] For shared resources: Rate limit awareness?
@@ -70,12 +75,14 @@ With 115+ memories, countless skills scattered across files, and manual session 
 **Current State**: 115 memories with overlapping skills, scattered patterns
 
 **Pain Points**:
+
 - Same skill documented in multiple places
 - Conflicting guidance across memories
 - No single source of truth per topic
 - Skills discovered but not applied
 
 **Automation Opportunity**: Skill catalog that:
+
 - Indexes all skills by topic
 - Detects duplicates and conflicts
 - Suggests consolidation
@@ -90,11 +97,13 @@ With 115+ memories, countless skills scattered across files, and manual session 
 **Current State**: Manual `gh pr list`, manual CI check, manual review comment scan
 
 **Pain Points**:
+
 - Takes 5+ API calls to understand one PR
 - Easy to miss blocked PRs
 - No prioritization of what needs attention
 
 **Automation Opportunity**: Daily/triggered PR dashboard:
+
 - All open PRs with status
 - CI failures highlighted
 - Review comments needing response
@@ -110,11 +119,13 @@ With 115+ memories, countless skills scattered across files, and manual session 
 **Current State**: Per-workflow rate limit checks (inconsistent)
 
 **Pain Points**:
+
 - Each workflow implements its own check
 - No coordination between workflows
 - Autonomous processes can exhaust limits for CI
 
 **Automation Opportunity**: Shared rate limit service:
+
 - Single check before any API-heavy operation
 - Coordination between consumers
 - Automatic throttling/queuing

@@ -145,16 +145,16 @@ memory_file_name: "[file-name]"
 
 **Entity IDs** (inside file content):
 
-- Pattern: `[Type]-[Name]` or `Skill-[Category]-[NNN]`
-- Case: PascalCase with hyphen separator
-- Example: `Skill-PR-001`, `Feature-Authentication`
+- Pattern: `{domain}-{description}` (kebab-case, no prefix)
+- Case: lowercase with hyphens
+- Example: `pr-enum-001`, `git-worktree-parallel`
 
 | Type | Entity ID Pattern | File Name Pattern |
 |------|-------------------|-------------------|
-| Skill | `Skill-[Category]-[NNN]` | `[domain]-[topic].md` |
-| Feature | `Feature-[Name]` | `feature-[name].md` |
-| Decision | `ADR-[Number]` | `adr-[number]-[topic].md` |
-| Pattern | `Pattern-[Name]` | `pattern-[name].md` |
+| Skill | `{domain}-{description}` | `{domain}-{description}.md` |
+| Feature | `feature-{name}` | `feature-{name}.md` |
+| Decision | `adr-{number}` | `adr-{number}-{topic}.md` |
+| Pattern | `pattern-{name}` | `pattern-{name}.md` |
 
 ## Relations (Encoded in File Content)
 

@@ -1,8 +1,3 @@
-# Claude Code local settings (keep skills/commands, ignore local config)
-.claude/*
-!.claude/skills/
-!.claude/commands/
-
 # Generated index files
 .codebase-index.json
 .codebase-intelligence.json

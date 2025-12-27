@@ -49,6 +49,7 @@ Describe "AIReviewCommon Module" {
                 'Get-PRChangedFiles'
                 'ConvertTo-JsonEscaped'
                 'Format-MarkdownTableRow'
+                'Get-FailureCategory'
             )
             foreach ($fn in $expectedFunctions) {
                 $module.ExportedFunctions.Keys | Should -Contain $fn
@@ -322,6 +323,108 @@ Summary complete.
 
         It "Should return CRITICAL_FAIL if any FAIL present" {
             Merge-Verdicts -Verdicts @('PASS', 'FAIL', 'WARN') | Should -Be 'CRITICAL_FAIL'
+        }
+    }
+
+    Context "Get-FailureCategory" {
+        # Tests for Issue #329 - AI Quality Gate Failure Categorization
+
+        It "Should return INFRASTRUCTURE for exit code 124 (timeout)" {
+            Get-FailureCategory -ExitCode 124 | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for exit code 124 regardless of message" {
+            Get-FailureCategory -ExitCode 124 -Message "Security vulnerability detected" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for rate limit message" {
+            Get-FailureCategory -Message "rate limit exceeded" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for ratelimit (no space variant)" {
+            Get-FailureCategory -Message "API ratelimit hit" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for timeout message" {
+            Get-FailureCategory -Message "Request timed out" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for 429 error" {
+            Get-FailureCategory -Message "HTTP 429 Too Many Requests" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for network error" {
+            Get-FailureCategory -Message "network error connecting to API" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for 502 Bad Gateway" {
+            Get-FailureCategory -Stderr "502 Bad Gateway" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for 503 Service Unavailable" {
+            Get-FailureCategory -Stderr "503 Service Unavailable" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for connection refused" {
+            Get-FailureCategory -Stderr "connection refused" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for connection reset" {
+            Get-FailureCategory -Stderr "connection reset by peer" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for connection timeout" {
+            Get-FailureCategory -Stderr "connection timeout" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for Copilot CLI failed with no output" {
+            Get-FailureCategory -Message "Copilot CLI failed (exit code 1) with no output" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for missing Copilot access" {
+            Get-FailureCategory -Message "missing Copilot access for the bot account" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for insufficient scopes" {
+            Get-FailureCategory -Message "insufficient scopes for this operation" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for empty output (both message and stderr empty)" {
+            Get-FailureCategory -Message "" -Stderr "" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return INFRASTRUCTURE for null message and stderr" {
+            Get-FailureCategory | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should return CODE_QUALITY for security vulnerability message" {
+            Get-FailureCategory -Message "Security vulnerability detected in dependencies" | Should -Be 'CODE_QUALITY'
+        }
+
+        It "Should return CODE_QUALITY for code quality failure" {
+            Get-FailureCategory -Message "VERDICT: CRITICAL_FAIL - Code does not meet quality standards" | Should -Be 'CODE_QUALITY'
+        }
+
+        It "Should return CODE_QUALITY for test failure" {
+            Get-FailureCategory -Message "Tests failed: 3 assertions did not pass" | Should -Be 'CODE_QUALITY'
+        }
+
+        It "Should return CODE_QUALITY when message has content but no infrastructure pattern" {
+            Get-FailureCategory -Message "Missing documentation for public API" | Should -Be 'CODE_QUALITY'
+        }
+
+        It "Should check message before stderr for infrastructure patterns" {
+            # If message matches, should return INFRASTRUCTURE even if stderr is empty
+            Get-FailureCategory -Message "rate limit exceeded" -Stderr "" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should check stderr when message doesn't match" {
+            Get-FailureCategory -Message "Some unrelated message" -Stderr "503 Service Unavailable" | Should -Be 'INFRASTRUCTURE'
+        }
+
+        It "Should be case-insensitive for pattern matching" {
+            Get-FailureCategory -Message "RATE LIMIT EXCEEDED" | Should -Be 'INFRASTRUCTURE'
+            Get-FailureCategory -Message "Rate Limit" | Should -Be 'INFRASTRUCTURE'
         }
     }
 

@@ -11,6 +11,7 @@
 **Problem**: Agent followed 25% of protocol (2 of 8 requirements). MANDATORY labels ignored.
 
 **Root Causes**:
+
 1. **Selective Compliance**: Agent treats minimal as sufficient
 2. **Document Fragmentation**: Protocol scattered across 4+ sources
 3. **Reactive Enforcement**: Compliance checked AFTER work, not BEFORE
@@ -33,6 +34,7 @@
 ## Part 2: Session Initialization Failures
 
 **Incidents**:
+
 1. Session started without Serena initialization → blocked entire session
 2. Generated auto-headers violating explicit user requirement
 
@@ -54,6 +56,7 @@
 **Problem**: 4 tests passed locally, failed in CI (environment asymmetry)
 
 **Failures Fixed**:
+
 1. **Path normalization**: Windows 8.3 short names broke string operations
 2. **Exit code ordering**: gh CLI check before parameter validation (3 tests)
 3. **ANSI codes**: Escape codes corrupted XML output
@@ -68,6 +71,7 @@
 | Skill-CI-Environment-001 | Test locally with temp paths and no auth to catch CI failures | 88% |
 
 **Anti-Patterns**:
+
 - Never use string Substring on paths (Windows normalization)
 - Never check external tools before parameter validation
 

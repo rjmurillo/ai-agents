@@ -19,6 +19,7 @@
 **Atomicity**: 93%
 
 **Checklist**:
+
 - [ ] Protection covers ALL execution paths?
 - [ ] Protection in same process as action?
 - [ ] TOCTOU analysis done?

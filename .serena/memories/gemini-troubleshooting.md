@@ -11,6 +11,7 @@ Check these settings:
 | `include_drafts` | `true` (for draft PRs) |
 
 Also verify:
+
 - PR files not on excluded paths (`ignore_patterns`)
 - Gemini app installed and authorized
 
@@ -27,6 +28,7 @@ Solutions:
 ## Custom Rules Ignored
 
 Verify:
+
 - `styleguide.md` is in `.gemini/` folder (not root)
 - Markdown syntax is valid
 - Rules are specific and actionable (not vague)

@@ -51,11 +51,13 @@ Match skill keywords against the Task Keywords column. The Essential Memories co
 ## Creating New Domain Index
 
 Only create `skills-{domain}-index.md` when ALL conditions met:
+
 1. 5+ skills exist or are planned for the topic
 2. No existing domain covers the topic adequately
 3. Keywords are distinct from all existing domains
 
 After creating new index:
+
 1. Add entry to `memory-index.md` Task Keywords table
 2. Run `pwsh scripts/Validate-MemoryIndex.ps1`
 
@@ -84,6 +86,7 @@ grep -r "Skill-PR-" .serena/memories/ | grep -oE "Skill-PR-[0-9]+" | sort -t'-' 
 ```
 
 **Rules:**
+
 - Numbers are sequential within category (001, 002, 003...)
 - Do NOT reuse numbers from deleted skills
 - Gaps are acceptable (001, 002, 005 if 003-004 were deleted)

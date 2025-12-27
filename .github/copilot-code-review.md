@@ -1,5 +1,29 @@
 # Code Review Instructions for Agent Consistency
 
+## Review Quality Guidelines (Issue #326)
+
+**Target**: <20 review comments per PR (PR #249 had 97 comments)
+
+**Only comment when you have HIGH CONFIDENCE (>80%) that an issue exists.**
+
+Focus your reviews on:
+
+1. **High-confidence issues**: Bugs, security vulnerabilities, logic errors
+2. **Actionable feedback**: Specific changes that improve code quality
+3. **Architecture violations**: Drift from ADRs, missing required components
+
+**Do NOT comment on:**
+
+1. **Style preferences**: Formatting, naming (handled by automated tooling)
+2. **Observations**: Describing what code does without suggesting improvements
+3. **Low-confidence speculation**: "This might be an issue" or "Consider..."
+4. **Documentation-only changes**: Unless missing critical safety information
+5. **Generated files**: Session logs, analysis files, Serena memories
+
+**Be concise**: One sentence per comment when possible. If uncertain whether something is an issue, do not comment.
+
+---
+
 When reviewing pull requests that modify agent files, pay close attention to **drift between VS Code, Copilot CLI, and Claude versions** of agents.
 
 ## Agent Locations

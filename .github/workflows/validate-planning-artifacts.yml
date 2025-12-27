@@ -43,14 +43,14 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Validate planning artifact consistency
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Write-Host "Validating planning artifact consistency..."
           ./build/scripts/Validate-PlanningArtifacts.ps1 -FailOnError
 
       - name: Show violations on failure
         if: failure()
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Write-Host ""
           Write-Host "=== Planning Artifact Validation Failed ===" -ForegroundColor Red

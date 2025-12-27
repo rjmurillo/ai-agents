@@ -1,3 +1,6 @@
+<!-- markdownlint-disable MD024 MD040 MD051 -->
+<!-- Disabled: MD024 (duplicate headings in code examples), MD040 (nested code blocks), MD051 (fragments in nested content) -->
+
 # Agent Prompt Templates
 
 Detailed prompt templates for each phase of ADR review.
@@ -27,11 +30,14 @@ ADR Review Request (Phase 1: Independent Review)
 ```
 
 ## Prior ADRs Reference
+
 Check alignment with existing decisions in:
+
 - .agents/architecture/ADR-*.md
 - docs/architecture/ADR-*.md
 
 ## Review Checklist
+
 - [ ] MADR 4.0 structure compliance (frontmatter, required sections)
 - [ ] Problem statement is clear and specific
 - [ ] Decision drivers trace to requirements
@@ -44,31 +50,40 @@ Check alignment with existing decisions in:
 - [ ] Vendor lock-in assessed (if external dependencies)
 
 ## Scope Analysis
+
 Does this ADR conflate multiple distinct decisions? Consider:
+
 - Could this be split for clearer enforcement?
 - Are there decisions that have different stakeholders?
 - Would future teams benefit from separation?
 
 ## Output Format
+
 ### Strengths
+
 - [Sound aspects with evidence]
 
 ### Weaknesses/Gaps
+
 - [Issue]: [Why it matters]
 
 ### Scope Concerns
+
 - [Split recommendation if applicable]
 
 ### Questions
+
 - [Clarifications needed]
 
 ### Blocking Concerns
+
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
 **You are the tie-breaker on structural/governance questions.**
 """)
+
 ```
 
 ### Critic
@@ -85,6 +100,7 @@ ADR Review Request (Phase 1: Independent Review)
 ```
 
 ## Review Focus
+
 1. **Completeness**: Are all required sections present and filled?
 2. **Feasibility**: Is the chosen option technically sound?
 3. **Alignment**: Does this match project objectives and existing patterns?
@@ -92,30 +108,39 @@ ADR Review Request (Phase 1: Independent Review)
 5. **Evidence**: Are claims supported by data or reasoning?
 
 ## Scope Analysis
+
 Does this ADR try to address too many decisions at once?
+
 - Think of ADRs like legislation: crisp decisions are easier to enforce
 - Flag if splitting would improve clarity
 
 ## Output Format
+
 ### Strengths
+
 - [What the ADR does well]
 
 ### Weaknesses/Gaps
+
 - [Issue]: [Specific location in ADR]
 
 ### Scope Concerns
+
 - [Split recommendation if applicable]
 
 ### Questions
+
 - [Ambiguities requiring clarification]
 
 ### Blocking Concerns
+
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
 **Focus on plan clarity, not execution details.**
 """)
+
 ```
 
 ### Independent-Thinker
@@ -132,6 +157,7 @@ ADR Review Request (Phase 1: Independent Review)
 ```
 
 ## Review Focus
+
 1. **Challenge assumptions**: What is taken for granted without evidence?
 2. **Alternative interpretations**: What other framings exist?
 3. **Contrarian views**: What would critics of this decision say?
@@ -139,31 +165,39 @@ ADR Review Request (Phase 1: Independent Review)
 5. **Uncertainty areas**: Where is evidence weak or conflicting?
 
 ## Questions to Answer
+
 - What evidence supports the key assumptions?
 - Have we considered what happens if this decision is wrong?
 - What alternative approaches were dismissed too quickly?
 - Is there groupthink in the decision process?
 
 ## Output Format
+
 ### Strengths
+
 - [Sound reasoning with evidence]
 
 ### Weaknesses/Gaps
+
 - [Unchallenged assumption]: [Counter-evidence or alternative view]
 
 ### Scope Concerns
+
 - [Split recommendation if applicable]
 
 ### Questions
+
 - [Evidence gaps to address]
 
 ### Blocking Concerns
+
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
 **Be the devil's advocate. Verify, don't validate.**
 """)
+
 ```
 
 ### Security
@@ -180,6 +214,7 @@ ADR Review Request (Phase 1: Independent Review)
 ```
 
 ## Security Review Checklist
+
 - [ ] Attack surface changes identified
 - [ ] New threat vectors assessed
 - [ ] Security controls specified
@@ -190,30 +225,38 @@ ADR Review Request (Phase 1: Independent Review)
 - [ ] Dependency security evaluated
 
 ## STRIDE Analysis (if applicable)
+
 | Threat | Category | Impact | Likelihood | Mitigation |
 |--------|----------|--------|------------|------------|
 | [Threat] | S/T/R/I/D/E | H/M/L | H/M/L | [Control] |
 
 ## Output Format
+
 ### Strengths
+
 - [Security-positive aspects]
 
 ### Weaknesses/Gaps
+
 - [Security concern]: [Risk level and impact]
 
 ### Scope Concerns
+
 - [Split recommendation if security scope is mixed]
 
 ### Questions
+
 - [Security clarifications needed]
 
 ### Blocking Concerns
+
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
 **Assume breach, design for defense.**
 """)
+
 ```
 
 ### Analyst
@@ -230,6 +273,7 @@ ADR Review Request (Phase 1: Independent Review)
 ```
 
 ## Review Focus
+
 1. **Evidence validation**: Are claims supported by data?
 2. **Feasibility assessment**: Can this be implemented as described?
 3. **Dependency analysis**: Are dependencies correctly identified?
@@ -237,31 +281,39 @@ ADR Review Request (Phase 1: Independent Review)
 5. **Cost/benefit**: Is the trade-off analysis accurate?
 
 ## Research Questions
+
 - What evidence supports the claimed benefits?
 - Are the effort estimates realistic based on similar work?
 - What prior art or industry patterns apply?
 - What are the known failure modes for this approach?
 
 ## Output Format
+
 ### Strengths
+
 - [Well-supported claims with evidence]
 
 ### Weaknesses/Gaps
+
 - [Unsupported claim]: [What evidence is missing]
 
 ### Scope Concerns
+
 - [Split recommendation if applicable]
 
 ### Questions
+
 - [Research questions to address]
 
 ### Blocking Concerns
+
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
 **Distinguish facts from hypotheses.**
 """)
+
 ```
 
 ### High-Level-Advisor
@@ -278,6 +330,7 @@ ADR Review Request (Phase 1: Independent Review)
 ```
 
 ## Strategic Review Focus
+
 1. **Alignment**: Does this support strategic objectives?
 2. **Priority**: Is this the right decision at the right time?
 3. **Trade-offs**: Are the trade-offs appropriate for current context?
@@ -285,31 +338,39 @@ ADR Review Request (Phase 1: Independent Review)
 5. **Reversibility**: What happens if we need to change course?
 
 ## Key Questions
+
 - Is this solving the right problem?
 - What are we giving up by making this decision?
 - What should we stop doing if we proceed?
 - Is there a simpler approach being overlooked?
 
 ## Output Format
+
 ### Strengths
+
 - [Strategic alignment with evidence]
 
 ### Weaknesses/Gaps
+
 - [Strategic concern]: [Impact on objectives]
 
 ### Scope Concerns
+
 - [Split recommendation if applicable]
 
 ### Questions
+
 - [Strategic clarifications needed]
 
 ### Blocking Concerns
+
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
 **You break ties between other agents. Deliver verdicts, not options.**
 """)
+
 ```
 
 ---
@@ -405,30 +466,37 @@ ADR Convergence Check (Round {round_number})
 ```
 
 ## Changes Made This Round
+
 {changes_summary}
 
 ## Your Previous Concerns
+
 {agent_previous_concerns}
 
 ## Resolution Status
+
 | Your Concern | Resolution | Addressed? |
 |--------------|------------|------------|
-{concern_resolution_table}
+| {concern} | {resolution} | {status} |
 
 ## Instructions
+
 Provide exactly ONE position:
 
 **Accept**: All blocking concerns resolved. No new issues found.
 
 **Disagree-and-Commit**: Reservations remain but I agree to proceed.
+
 - Must document specific dissent
 - Dissent will be recorded in ADR
 
 **Block**: Unresolved P0 concerns prevent acceptance.
+
 - Must specify exactly what remains unaddressed
 - Must explain why this is blocking
 
 ## Output Format
+
 **Position**: [Accept | Disagree-and-Commit | Block]
 
 **Rationale**: [Why this position]
@@ -437,6 +505,7 @@ Provide exactly ONE position:
 
 **Blocking Issues** (if Block): [Exact P0 issues remaining]
 """)
+
 ```
 
 ---

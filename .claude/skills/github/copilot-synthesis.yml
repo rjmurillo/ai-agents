@@ -24,8 +24,8 @@
 #   .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1
 #
 # Example invocation:
-#   pwsh .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123
-#   pwsh .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
+#   pwsh -NoProfile .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123
+#   pwsh -NoProfile .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
 #
 # The script automatically locates this config at:
 #   <repo-root>/.claude/skills/github/copilot-synthesis.yml

@@ -11,3 +11,7 @@
 | python string concat PEP 3126 adjacent literals valid | skill-review-002-python-implicit-string-concat |
 | copilot follow-up duplicate supplemental sub-pr pattern | pr-review-copilot-followup |
 | checklist phase gate workflow order template | pr-review-checklist |
+| enumerate verify cross-check completeness gate miss | pr-enum-001 |
+| status COMPLETE BLOCKED AWAITING_HUMAN decision tree | pr-status-001 |
+| [HARMFUL] assume enumeration complete without verify | anti-pattern-pr-001 |
+| [HARMFUL] conflate task completion PR readiness status | anti-pattern-status-001 |

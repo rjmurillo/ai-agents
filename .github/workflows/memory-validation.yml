@@ -45,7 +45,7 @@ jobs:
 
       - name: Check for memory file changes
         id: changes
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           # Get list of changed files based on event type
           $diffOutput = $null
@@ -103,7 +103,7 @@ jobs:
 
       - name: Validate Skill Format (ADR-017)
         if: steps.changes.outputs.skip != 'true'
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Write-Host "=== Skill Format Validation ===" -ForegroundColor Cyan
           Write-Host "Checking for bundled skill files (multiple skills per file)..." -ForegroundColor Gray
@@ -111,7 +111,7 @@ jobs:
 
       - name: Validate Memory Index
         if: steps.changes.outputs.skip != 'true'
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           Write-Host "=== Memory Index Validation ===" -ForegroundColor Cyan
           Write-Host "Checking index file references and keyword uniqueness..." -ForegroundColor Gray

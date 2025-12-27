@@ -13,6 +13,7 @@
 ## Why
 
 Eliminates duplication of:
+
 - Node.js/npm setup
 - Authentication
 - Agent loading
@@ -24,6 +25,7 @@ Eliminates duplication of:
 `.github/actions/ai-review/action.yml`
 
 **Inputs**:
+
 - `agent`: Agent name (analyst, critic, qa, roadmap, etc.)
 - `context-type`: pr-diff, issue, session-log, spec-file
 - `additional-context`: Extra context to append
@@ -32,6 +34,7 @@ Eliminates duplication of:
 - `copilot-token`: Copilot authentication token
 
 **Outputs**:
+
 - `verdict`: PASS | WARN | CRITICAL_FAIL
 - `findings`: Full AI response text
 - `labels`, `milestone`: Parsed structured data
