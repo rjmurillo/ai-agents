@@ -147,7 +147,7 @@ After completing each PR comment response session, update this section and the `
 
 ### Comment Triage Priority
 
-**MUST**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
 
 #### Priority Adjustment by Domain
 
@@ -215,7 +215,7 @@ Task(subagent_type="orchestrator", prompt="Analyze and implement...")
 
 ### QA Integration Requirement
 
-**MUST**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
+**MANDATORY**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
@@ -896,7 +896,7 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MUST**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
+**MANDATORY**: Verify all comments addressed before claiming completion.
 
 #### Phase 8.1: Comment Status Verification
 
