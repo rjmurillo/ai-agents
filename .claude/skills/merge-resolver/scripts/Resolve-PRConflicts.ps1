@@ -84,6 +84,16 @@ $script:AutoResolvableFiles = @(
     'package-lock.json',
     'pnpm-lock.yaml',
     'yarn.lock',
+    # Skill definitions - main is authoritative
+    '.claude/skills/*',
+    '.claude/skills/*/*',
+    '.claude/skills/*/*/*',
+    '.claude/commands/*',
+    '.claude/agents/*',
+    # Template files - main is authoritative (include subdirectories)
+    'templates/*',
+    'templates/*/*',
+    'templates/*/*/*',
     # Platform-specific agent definitions - main is authoritative
     'src/copilot-cli/*',
     'src/vs-code-agents/*',
