@@ -103,8 +103,8 @@ d47b65d docs(adr): complete multi-agent review of ADR-021
 | [x] PR created | ✅ | #466 |
 | [x] HANDOFF context stored | ✅ | Serena memory: `session-91-issue-357-handoff` |
 | [x] Retrospective complete | ✅ | `.agents/retrospective/2025-12-27-session-91-*.md` |
-| [ ] Markdownlint run | Pending | |
-| [ ] Validation script | Pending | |
+| [x] Markdownlint run | ✅ | 0 errors |
+| [x] Validation script | ✅ | 87 tests passed |
 
 ## References
 
