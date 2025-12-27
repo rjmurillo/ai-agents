@@ -1,0 +1,8 @@
+# CODEOWNERS - Automatic review assignment
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# rjmurillo-bot reviews all changes
+# Note: Requires branch protection rule "Require review from Code Owners"
+# to enforce approval before merge
+
+* @rjmurillo-bot
