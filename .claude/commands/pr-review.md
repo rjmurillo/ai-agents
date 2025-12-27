@@ -38,6 +38,23 @@ pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 
 Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
 
+**CRITICAL - Verify PR Merge State (pr-review-007-merge-state-verification)**:
+
+Before proceeding with review work, verify PR has not been merged via GraphQL (source of truth):
+
+```powershell
+# Check merge state via Test-PRMerged.ps1
+pwsh .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}
+$merged = $LASTEXITCODE -eq 1
+
+if ($merged) {
+    Write-Host "PR #{number} is already merged. Skipping review work." -ForegroundColor Yellow
+    return  # Exit current script/function; caller handles iteration to next PR
+}
+```
+
+**Why this matters**: `gh pr view --json state` may return stale "OPEN" for recently merged PRs, leading to wasted effort (see Issue #321, Session 85).
+
 ### Step 2: Create Worktrees (if --parallel)
 
 For parallel execution:
@@ -168,7 +185,8 @@ When using `--parallel` with worktrees:
 | All comments resolved | Each comment has [COMPLETE] or [WONTFIX] status | Yes |
 | No new comments | Re-check after 45s wait returned 0 new | Yes |
 | CI checks pass | `gh pr checks` all green (including AI Quality Gate) | Yes |
-| No unresolved threads | GraphQL query for unresolved reviewThreads | Yes |
+| No unresolved threads | GraphQL query for unresolved reviewThreads (see Thread Resolution Protocol) | Yes |
+| PR not merged | Test-PRMerged.ps1 exit code 0 | Yes |
 | Commits pushed | `git status` shows "up to date with origin" | Yes |
 
 **If ANY criterion fails**: Do NOT claim completion. The agent must loop back to address the issue.
@@ -185,12 +203,45 @@ for pr in pr_numbers; do
 done
 ```
 
-## Examples
+## Thread Resolution Protocol
+
+### Overview (pr-review-004-thread-resolution-single, pr-review-005-thread-resolution-batch)
+
+**CRITICAL**: Replying to a review comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation.
+
+### Single Thread Resolution (pr-review-004-thread-resolution-single)
+
+After replying to a review comment, resolve the thread via GraphQL:
 
 ```bash
-/pr-review 194                              # Single PR
-/pr-review 53,141,143                       # Multiple PRs sequentially
-/pr-review 53,141,143 --parallel            # Multiple PRs in parallel
-/pr-review all-open --parallel              # All open PRs needing review
-/pr-review 194 --parallel --cleanup=false   # Skip cleanup
+# Step 1: Reply to comment (handled by pr-comment-responder skill)
+# Step 2: Resolve thread (REQUIRED separate step)
+gh api graphql -f query='
+mutation($threadId: ID!) {
+  resolveReviewThread(input: {threadId: $threadId}) {
+    thread { isResolved }
+  }
+}' -f threadId="PRRT_xxx"
 ```
+
+**Why this matters**: pr-comment-responder skill replies to comments, but threads remain unresolved unless explicitly resolved via GraphQL. Unresolved threads block PR merge per branch protection rules.
+
+### Batch Thread Resolution (pr-review-005-thread-resolution-batch)
+
+For 2+ threads, use GraphQL mutation aliases for efficiency:
+
+```bash
+gh api graphql -f query='
+mutation {
+  t1: resolveReviewThread(input: {threadId: "PRRT_xxx"}) { thread { id isResolved } }
+  t2: resolveReviewThread(input: {threadId: "PRRT_yyy"}) { thread { id isResolved } }
+  t3: resolveReviewThread(input: {threadId: "PRRT_zzz"}) { thread { id isResolved } }
+}
+'
+```
+
+**Benefits**:
+
+- 1 API call instead of N calls
+- Reduced network latency (1 round trip vs N)
+- Atomic operation (all succeed or all fail)

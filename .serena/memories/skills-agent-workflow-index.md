@@ -6,3 +6,4 @@
 | scope discipline discovery defer document expand mid-execution | agent-workflow-scope-discipline |
 | MVP ship working perfect gold-plating tech debt constraint | agent-workflow-mvp-shipping |
 | collaboration user addition scope gap signal learning heuristic | agent-workflow-collaboration |
+| post-implementation critic validation compliance standards naming formatting | agent-workflow-post-implementation-critic-validation |

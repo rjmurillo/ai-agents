@@ -25,6 +25,18 @@ gh api graphql \
   -f id="PRRT_kwDOAbCdEf4GHIJKL"
 ```
 
+### Anti-Pattern: Reply ≠ Resolve
+
+**Common Mistake**: Replying to a review comment does NOT automatically resolve the thread.
+
+**Reality**: Thread resolution is a separate GraphQL mutation. Unresolved threads block PR merge per branch protection rules.
+
+**Fix**: After replying, explicitly resolve via GraphQL mutation above or use:
+
+```powershell
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest {number} -All
+```
+
 ## Unresolve Review Thread
 
 ```bash

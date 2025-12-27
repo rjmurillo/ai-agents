@@ -118,6 +118,16 @@ mode: "literal"
 pwsh scripts/Validate-MemoryIndex.ps1
 ```
 
+**CRITICAL**: This validation detects orphaned files (files not in any domain index). If validation fails with orphan warnings, you MUST add the orphaned file to a domain index before committing.
+
+## Common Validation Failures
+
+| Failure Type | Cause | Fix |
+|--------------|-------|-----|
+| Orphaned file | Memory file exists but not in any index | Add entry to appropriate `skills-*-index.md` |
+| Low uniqueness | <40% unique keywords in domain | Replace generic keywords with specific terms |
+| Missing file | Index references non-existent file | Remove stale entry from index OR create missing file |
+
 ## Evidence
 
 Derived from migration of 196 skill files across 30 domains during ADR-017 implementation.

@@ -27,9 +27,15 @@ pwsh build/Generate-Agents.ps1 -Validate
 
 ### Sync Strategy
 1. Edit shared content in templates first
-2. Run Generate-Agents.ps1 to update VS Code/Copilot
-3. Manually port relevant changes to Claude if needed
-4. Claude-only content stays in Claude files only
+2. **ALSO** update `src/claude/*.md` manually (it's a SIBLING, not generated)
+3. Run Generate-Agents.ps1 to update VS Code/Copilot
+4. Manually port relevant changes to Claude if needed
+5. Claude-only content stays in Claude files only
+
+### Common Mistake
+**Anti-Pattern**: Assuming Claude variants are auto-generated
+**Reality**: `src/claude/*.md` files are manually maintained alongside templates
+**Fix**: When updating templates, explicitly add Claude file updates to task list
 
 ## Evidence
 Session: 2024 agent synchronization task
