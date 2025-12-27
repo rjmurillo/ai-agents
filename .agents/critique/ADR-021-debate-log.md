@@ -1,4 +1,4 @@
-# ADR-019 Debate Log
+# ADR-021 Debate Log
 
 **ADR**: Model Routing Policy (Copilot CLI)
 **Date**: 2025-12-23
@@ -496,9 +496,9 @@ This dissent is recorded per debate protocol. No blocking action required.
 
 ### Split Decision (Per ADR-020)
 
-Following ADR-020 (Architecture vs Governance Split Criteria), ADR-019 was split into:
+Following ADR-022 (Architecture vs Governance Split Criteria), ADR-021 was split into:
 
-1. **ADR-019-model-routing-strategy.md** (architecture/)
+1. **ADR-021-model-routing-strategy.md** (architecture/)
    - **Lean architectural decision**: Model routing strategy for AI reviews
    - **Content**: Context, Decision, Rationale, Alternatives, Consequences
    - **Focus**: Why route models by prompt type + evidence availability
@@ -512,7 +512,7 @@ Following ADR-020 (Architecture vs Governance Split Criteria), ADR-019 was split
 
 ### Rationale for Split
 
-**Why split was recommended** (per ADR-020 criteria):
+**Why split was recommended** (per ADR-022 criteria):
 1. ✅ Decision affects architecture (model routing affects system quality)
 2. ✅ Requires operational enforcement (MUST use explicit copilot-model, branch protection rules)
 3. ✅ Tightly coupled (routing requires evidence rules, security hardening, aggregator)
@@ -526,9 +526,9 @@ Following ADR-020 (Architecture vs Governance Split Criteria), ADR-019 was split
 
 ### Cross-References
 
-- [ADR-019-model-routing-strategy.md](ADR-019-model-routing-strategy.md) - Architectural decision
+- [ADR-021-model-routing-strategy.md](ADR-021-model-routing-strategy.md) - Architectural decision
 - [AI-REVIEW-MODEL-POLICY.md](../../governance/AI-REVIEW-MODEL-POLICY.md) - Governance policy
-- [ADR-020-architecture-governance-split-criteria.md](ADR-020-architecture-governance-split-criteria.md) - Defines split criteria
+- [ADR-022-architecture-governance-split-criteria.md](ADR-022-architecture-governance-split-criteria.md) - Defines split criteria
 
 ### Original ADR-019 Disposition
 

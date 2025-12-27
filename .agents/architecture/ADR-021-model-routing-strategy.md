@@ -1,4 +1,4 @@
-# ADR-019: AI Review Model Routing Strategy
+# ADR-021: AI Review Model Routing Strategy
 
 ## Status
 
