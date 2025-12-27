@@ -29,11 +29,13 @@ Commit 7d4e9d9 (2025-12-19): External reference to src/STYLE-GUIDE.md failed bec
 ## Application Pattern
 
 **Before**:
+
 ```markdown
 **MUST READ**: Before producing any output, reference src/STYLE-GUIDE.md for:
 ```
 
 **After**:
+
 ```markdown
 **Communication Standards**:
 - Use clear, direct language
@@ -45,6 +47,7 @@ Commit 7d4e9d9 (2025-12-19): External reference to src/STYLE-GUIDE.md failed bec
 ## Anti-Pattern
 
 Referencing external files from agent prompts that ship to end-user machines:
+
 - src/STYLE-GUIDE.md
 - .agents/governance/CONSTRAINTS.md
 - Any file outside agent deployment directory

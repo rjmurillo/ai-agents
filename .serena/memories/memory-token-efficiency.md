@@ -33,7 +33,7 @@ PRD-skills-index-registry.md (2025-12-20) - 10-agent consensus validated that:
 ## The Trade-off
 
 | Approach | `list_memories` Cost | Per-read Cost | Discovery |
-|----------|---------------------|---------------|-----------|
+|----------|----------------------|---------------|-----------|
 | Many small files | Higher (100+ names) | Lower (focused) | Name-based |
 | Few large files | Lower (15 names) | Higher (scanning) | Content-based |
 
@@ -43,7 +43,7 @@ PRD-skills-index-registry.md (2025-12-20) - 10-agent consensus validated that:
 
 1. **Word frequency density**: Each file name is a mini-summary that triggers relevance matching
 2. **Focused reads**: No token waste scanning irrelevant content in consolidated libraries
-3. **Two-layer discovery**: File name (coarse filter) → Index statement (fine filter) → Read (precision)
+3. **Two-layer discovery**: File name (coarse filter) -> Index statement (fine filter) -> Read (precision)
 
 ## Anti-pattern
 

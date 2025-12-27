@@ -13,14 +13,14 @@ QA must verify worktree isolation BEFORE accepting any push to remote. Prevents 
 
 ### Check 1: Branch Name Pattern
 
-```
+```text
 Pattern: (feat|fix|audit|chore|docs)/*
 Failure: Branch does not match isolation pattern
 ```
 
 ### Check 2: Not on Shared/Main Branch
 
-```
+```text
 Forbidden: main, master, copilot/add-copilot-context-synthesis, develop
 Failure: Currently on shared/main branch
 Action: Create isolated branch first
@@ -28,7 +28,7 @@ Action: Create isolated branch first
 
 ### Check 3: Worktree Exists (if in worktree mode)
 
-```
+```text
 Pattern: worktree-{ROLE}-*
 Verification: git worktree list --porcelain
 Warning: No worktree found matching pattern
@@ -36,7 +36,7 @@ Warning: No worktree found matching pattern
 
 ### Check 4: Single Feature Commits
 
-```
+```text
 Action: Extract issue numbers from commits
 Expected: Maximum 1 unique issue number
 Warning: Multiple issues detected in commits

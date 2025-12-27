@@ -21,10 +21,10 @@
 **Triage Pattern**:
 
 ```text
-1. Is comment about security? → Always investigate
-2. Is file in .githooks/? → ASSERTIVE enforcement
-3. Is file in .github/workflows/? → Check for injection patterns
-4. Otherwise → Use base signal quality
+1. Is comment about security? -> Always investigate
+2. Is file in .githooks/? -> ASSERTIVE enforcement
+3. Is file in .github/workflows/? -> Check for injection patterns
+4. Otherwise -> Use base signal quality
 ```
 
 **Source**: `.agents/retrospective/pr-52-symlink-retrospective.md`

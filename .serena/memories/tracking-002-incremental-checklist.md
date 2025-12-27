@@ -10,7 +10,7 @@ Mark Session End checklist items `[x]` immediately when requirements satisfied (
 
 ## Evidence
 
-**Session End compliance cliff (2025-12-20)**: At T+3-4 when work done → low energy → protocol skipped
+**Session End compliance cliff (2025-12-20)**: At T+3-4 when work done -> low energy -> protocol skipped
 
 **Fishbone analysis**: "Checklist requires retrospective effort" - batch completion at end increases cognitive load
 
@@ -33,14 +33,14 @@ Mark Session End checklist items `[x]` immediately when requirements satisfied (
 # During session, update checklist as work progresses:
 
 [11:23] Update HANDOFF.md with analysis findings
-→ Edit session log: [x] Update HANDOFF.md
+-> Edit session log: [x] Update HANDOFF.md
 
 [12:45] Run npx markdownlint-cli2 --fix "**/*.md"
-→ Edit session log: [x] Run markdown lint
+-> Edit session log: [x] Run markdown lint
 
 [14:10] git commit -m "feat: implement feature X"
-→ Edit session log: [x] Commit all changes
-→ Add commit SHA: 3b6559d
+-> Edit session log: [x] Commit all changes
+-> Add commit SHA: 3b6559d
 
 # At session end: Already complete, just verify
 ```
@@ -53,9 +53,9 @@ Mark Session End checklist items `[x]` immediately when requirements satisfied (
 [11:23-14:30] Multiple actions (HANDOFF, lint, commits)
 
 # At session end (14:30): Try to remember what was done
-- [ ] Update HANDOFF.md ← Did I do this?
-- [ ] Run markdown lint ← Can't remember
-- [ ] Commit changes ← Skip, too tired
+- [ ] Update HANDOFF.md <- Did I do this?
+- [ ] Run markdown lint <- Can't remember
+- [ ] Commit changes <- Skip, too tired
 
 # Result: Incomplete checklist, session closure without compliance
 ```
@@ -89,7 +89,7 @@ git log --follow --oneline .agents/sessions/2025-12-20-session-47.md
 [14:28] - [x] Session Start complete
 [14:29] - [x] HANDOFF.md updated
 [14:29] - [x] Markdown lint run
-[14:30] - [x] Changes committed  ← All retrofitted
+[14:30] - [x] Changes committed  <- All retrofitted
 ```
 
 ## Benefits

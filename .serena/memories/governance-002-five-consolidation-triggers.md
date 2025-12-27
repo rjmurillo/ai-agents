@@ -16,7 +16,7 @@
 
 1. >50% output overlap between agents
 2. Unclear routing decisions (orchestrator confusion)
-3. Circular handoffs (A→B→A patterns)
+3. Circular handoffs (A->B->A patterns)
 4. Single-use agents (invoked once per quarter)
 5. Excessive maintenance burden
 

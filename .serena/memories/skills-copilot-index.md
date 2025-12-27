@@ -6,3 +6,4 @@
 | model multiplier premium-request plan tier GPT-4o Claude Gemini o1 CLI chat cost | copilot-supported-models |
 | synthesis verdict parsing workflow condition PASS output comment posting | copilot-synthesis-verdict-parsing |
 | directive issue-comment review-comment noise signal anti-pattern best-practice relocation PR-249 | copilot-directive-relocation |
+| synthesis verdict parsing PASS token workflow output prompt AI response format debug | copilot-synthesis-verdict-parsing |

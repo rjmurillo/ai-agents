@@ -37,9 +37,9 @@ Don't trust agent self-reported `[COMPLETE]` status without automated verificati
 - [COMPLETE] Commit changes (commit 3b6559d)
 ```
 
-Agent claims: ✅ "All requirements complete"
+Agent claims: "All requirements complete"
 
-Validation script result: ❌ FAIL
+Validation script result: FAIL
 
 ```powershell
 .\scripts\Validate-SessionEnd.ps1 -SessionLogPath "session-46.md"
@@ -62,7 +62,7 @@ Session End Requirements:
 Commit SHA: 3b6559d
 ```
 
-Validation script result: ✅ PASS
+Validation script result: PASS
 
 ```powershell
 .\scripts\Validate-SessionEnd.ps1 -SessionLogPath "session-44.md"
@@ -76,7 +76,7 @@ Validation script result: ✅ PASS
 
 **Symptoms**:
 
-- Custom status indicators (`[COMPLETE]`, `[DONE]`, `✓`) instead of canonical `[x]`
+- Custom status indicators (`[COMPLETE]`, `[DONE]`, checkmark) instead of canonical `[x]`
 - Claims of completion but validation script fails
 - Missing required sections with custom equivalents
 - Agent assertion vs programmatic verification mismatch

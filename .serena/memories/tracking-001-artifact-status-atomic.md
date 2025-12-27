@@ -52,7 +52,7 @@ Before any GitHub API state change:
 ```bash
 # Check artifact reflects current state
 grep "A-001" .agents/planning/tasks.md
-# Should show [ ] → [x] transition
+# Should show [ ] -> [x] transition
 ```
 
 ## Related Skills

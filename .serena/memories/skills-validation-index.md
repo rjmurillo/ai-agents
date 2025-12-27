@@ -8,3 +8,4 @@
 | zero bugs red flag skepticism verification claim hubris | validation-skepticism |
 | anti-pattern victory lap finish metric fixation vanity verify implement | validation-anti-patterns |
 | validation tooling pattern TDD progressive adoption warning mode | validation-tooling-patterns |
+| self-report compliance claim agent verification script session-end trust | validation-006-self-report-verification |
