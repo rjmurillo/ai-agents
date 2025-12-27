@@ -70,13 +70,13 @@ jobs:
           $result = ./scripts/Invoke-PRMaintenance.ps1 -MaxPRs ([int]'${{ env.PR_MAX_PRS }}') -OutputJson
           $parsed = $result | ConvertFrom-Json
 
-          # Output for matrix (only PRs with conflicts for parallel processing)
-          $conflictPRs = @($parsed.prs | Where-Object { $_.hasConflicts -eq $true })
-          $matrixJson = @{ include = $conflictPRs } | ConvertTo-Json -Compress -Depth 10
+          # Output for matrix - ALL PRs requiring action (for parallel processing)
+          $actionPRs = @($parsed.prs)
+          $matrixJson = @{ include = $actionPRs } | ConvertTo-Json -Compress -Depth 10
           "matrix=$matrixJson" | Out-File $env:GITHUB_OUTPUT -Append
 
           # Check if we have any PRs to process
-          $hasPRs = $conflictPRs.Count -gt 0
+          $hasPRs = $actionPRs.Count -gt 0
           "has-prs=$($hasPRs.ToString().ToLower())" | Out-File $env:GITHUB_OUTPUT -Append
 
           # Full summary for later steps
@@ -84,7 +84,7 @@ jobs:
 
           Write-Host "Found $($parsed.summary.total) open PRs"
           Write-Host "Action Required: $($parsed.summary.actionRequired)"
-          Write-Host "With Conflicts: $($conflictPRs.Count)"
+          Write-Host "With Conflicts: $(@($actionPRs | Where-Object { $_.hasConflicts }).Count)"
 
       - name: Write step summary
         env:
@@ -122,12 +122,12 @@ jobs:
 
           $summary | Out-File $env:GITHUB_STEP_SUMMARY -Append
 
-  # Job 2: Resolve conflicts in parallel (matrix strategy)
-  resolve-conflicts:
+  # Job 2: Process PRs in parallel (matrix strategy)
+  process-prs:
     needs: discover-prs
-    if: needs.discover-prs.outputs.has-prs == 'true' && (inputs.process_conflicts != false)
+    if: needs.discover-prs.outputs.has-prs == 'true'
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       matrix: ${{ fromJson(needs.discover-prs.outputs.matrix) }}
       fail-fast: false
@@ -145,6 +145,7 @@ jobs:
           git config user.email "rjmurillo-bot@users.noreply.github.com"
 
       - name: Resolve conflicts for PR #${{ matrix.number }}
+        if: matrix.hasConflicts == true && (inputs.process_conflicts != false)
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
         shell: pwsh -NoProfile -Command "& '{0}'"
@@ -164,9 +165,28 @@ jobs:
             Write-Host "::warning::PR #${{ matrix.number }}: $($parsed.Message)"
           }
 
+      - name: Checkout PR branch
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: gh pr checkout ${{ matrix.number }}
+
+      - name: Process PR comments with Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            /pr-comment-responder ${{ matrix.number }}
+
+            Category: ${{ matrix.category }}
+            Reason: ${{ matrix.reason }}
+            Has Conflicts: ${{ matrix.hasConflicts }}
+
+            Process all unaddressed comments on this PR. Acknowledge feedback,
+            implement fixes where appropriate, and push commits.
+
   # Job 3: Post-processing summary
   summarize:
-    needs: [discover-prs, resolve-conflicts]
+    needs: [discover-prs, process-prs]
     if: always()
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
