@@ -124,3 +124,51 @@ See `references/strategies.md` for detailed patterns:
 - Handling moved code
 - Resolving import conflicts
 - Dealing with deleted code
+
+## Auto-Resolution Script
+
+For automated conflict resolution in CI/CD, use `scripts/Resolve-PRConflicts.ps1`:
+
+```powershell
+# Resolve conflicts for a PR
+pwsh .claude/skills/merge-resolver/scripts/Resolve-PRConflicts.ps1 \
+    -PRNumber 123 \
+    -BranchName "fix/my-feature" \
+    -TargetBranch "main"
+```
+
+### Auto-Resolvable Files
+
+The following files are automatically resolved by accepting the target branch version:
+
+| Pattern | Rationale |
+|---------|-----------|
+| `.agents/HANDOFF.md` | Session state, regenerated each session |
+| `.agents/sessions/*` | Session logs, target branch has latest |
+
+### Script Output
+
+Returns JSON:
+
+```json
+{
+  "Success": true,
+  "Message": "Successfully resolved conflicts for PR #123",
+  "FilesResolved": [".agents/HANDOFF.md"],
+  "FilesBlocked": []
+}
+```
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success - conflicts resolved and pushed |
+| 1 | Failure - conflicts in non-auto-resolvable files |
+
+### Security
+
+ADR-015 compliance:
+- Branch name validation (prevents command injection)
+- Worktree path validation (prevents path traversal)
+- Handles both GitHub Actions runner and local environments
