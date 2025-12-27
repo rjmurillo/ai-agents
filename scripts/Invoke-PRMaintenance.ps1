@@ -291,6 +291,28 @@ query {
                         }
                     }
                 }
+                commits(last: 1) {
+                    nodes {
+                        commit {
+                            statusCheckRollup {
+                                state
+                                contexts(first: 100) {
+                                    nodes {
+                                        ... on CheckRun {
+                                            name
+                                            conclusion
+                                            status
+                                        }
+                                        ... on StatusContext {
+                                            context
+                                            state
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -379,6 +401,95 @@ function Test-PRHasConflicts {
     )
 
     return $PR.mergeable -eq 'CONFLICTING'
+}
+
+function Test-PRHasFailingChecks {
+    <#
+    .SYNOPSIS
+        Checks if a PR has failing CI checks.
+
+    .DESCRIPTION
+        Examines the statusCheckRollup from the PR's latest commit to determine
+        if any required checks have failed. This enables detecting PRs that need
+        attention due to CI failures (e.g., Session Protocol validation failures).
+
+    .PARAMETER PR
+        The PR object from GraphQL query containing commits.nodes[0].commit.statusCheckRollup.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        $PR
+    )
+
+    # Helper to safely get property (strict mode compatible, works with hashtables and PSObjects)
+    # Uses Write-Output -NoEnumerate to preserve arrays (prevents PowerShell unrolling)
+    function Get-SafeProperty {
+        param($Object, [string]$PropertyName)
+        if ($null -eq $Object) { return $null }
+
+        $value = $null
+
+        # Handle hashtables
+        if ($Object -is [hashtable]) {
+            if ($Object.ContainsKey($PropertyName)) {
+                $value = $Object[$PropertyName]
+            }
+        }
+        # Handle PSObjects (from JSON parsing)
+        elseif ($Object.PSObject.Properties.Name -contains $PropertyName) {
+            $value = $Object.$PropertyName
+        }
+
+        # Preserve arrays when returning (prevent PowerShell unrolling)
+        if ($null -ne $value -and $value -is [array]) {
+            return @(,$value)  # Wrap in array to prevent unrolling
+        }
+        return $value
+    }
+
+    # Safely navigate the nested structure
+    $commits = Get-SafeProperty $PR 'commits'
+    if (-not $commits) { return $false }
+
+    $nodes = Get-SafeProperty $commits 'nodes'
+    if (-not $nodes -or $nodes.Count -eq 0) { return $false }
+
+    $firstNode = $nodes[0]
+    if (-not $firstNode) { return $false }
+
+    $commit = Get-SafeProperty $firstNode 'commit'
+    if (-not $commit) { return $false }
+
+    $rollup = Get-SafeProperty $commit 'statusCheckRollup'
+    if (-not $rollup) { return $false }
+
+    # Check overall state first (FAILURE, ERROR, PENDING, SUCCESS, EXPECTED)
+    $state = Get-SafeProperty $rollup 'state'
+    if ($state -and $state -in @('FAILURE', 'ERROR')) {
+        return $true
+    }
+
+    # Also check individual check runs for FAILURE conclusion
+    $contexts = Get-SafeProperty $rollup 'contexts'
+    if (-not $contexts) { return $false }
+
+    $contextNodes = Get-SafeProperty $contexts 'nodes'
+    if (-not $contextNodes) { return $false }
+
+    foreach ($ctx in $contextNodes) {
+        if (-not $ctx) { continue }
+
+        # CheckRun has 'conclusion', StatusContext has 'state'
+        $conclusion = Get-SafeProperty $ctx 'conclusion'
+        $ctxState = Get-SafeProperty $ctx 'state'
+
+        if ($conclusion -eq 'FAILURE' -or $ctxState -eq 'FAILURE') {
+            return $true
+        }
+    }
+
+    return $false
 }
 
 #endregion
@@ -511,6 +622,7 @@ function Invoke-PRMaintenance {
             $isBotReviewer = Test-IsBotReviewer -ReviewRequests $pr.reviewRequests
             $hasChangesRequested = $pr.reviewDecision -eq 'CHANGES_REQUESTED'
             $hasConflicts = Test-PRHasConflicts -PR $pr
+            $hasFailingChecks = Test-PRHasFailingChecks -PR $pr
 
             # Decision flow (classification only - no processing)
             #
@@ -528,6 +640,7 @@ function Invoke-PRMaintenance {
                         number = $pr.number
                         category = 'agent-controlled'
                         hasConflicts = $hasConflicts
+                        hasFailingChecks = $hasFailingChecks
                         reason = 'CHANGES_REQUESTED'
                         author = $authorLogin
                         title = $pr.title
@@ -541,7 +654,22 @@ function Invoke-PRMaintenance {
                         number = $pr.number
                         category = 'agent-controlled'
                         hasConflicts = $true
+                        hasFailingChecks = $hasFailingChecks
                         reason = 'HAS_CONFLICTS'
+                        author = $authorLogin
+                        title = $pr.title
+                        headRefName = $pr.headRefName
+                        baseRefName = $pr.baseRefName
+                    })
+                }
+                elseif ($hasFailingChecks) {
+                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with failing checks" -Level WARN
+                    $null = $results.ActionRequired.Add(@{
+                        number = $pr.number
+                        category = 'agent-controlled'
+                        hasConflicts = $false
+                        hasFailingChecks = $true
+                        reason = 'HAS_FAILING_CHECKS'
                         author = $authorLogin
                         title = $pr.title
                         headRefName = $pr.headRefName
@@ -555,13 +683,17 @@ function Invoke-PRMaintenance {
             elseif ($isMentionTriggeredBot) {
                 # Copilot-SWE-Agent PR - rjmurillo-bot can synthesize comments and @copilot to unblock
                 # No need to check if rjmurillo-bot is reviewer - we can always help
-                if ($hasChangesRequested -or $hasConflicts) {
-                    $reason = if ($hasChangesRequested) { 'CHANGES_REQUESTED' } else { 'HAS_CONFLICTS' }
-                    Write-Log "PR #$($pr.number): $authorLogin PR needs @copilot synthesis" -Level WARN
+                # Triggers: CHANGES_REQUESTED, HAS_CONFLICTS, or HAS_FAILING_CHECKS
+                if ($hasChangesRequested -or $hasConflicts -or $hasFailingChecks) {
+                    $reason = if ($hasChangesRequested) { 'CHANGES_REQUESTED' }
+                              elseif ($hasConflicts) { 'HAS_CONFLICTS' }
+                              else { 'HAS_FAILING_CHECKS' }
+                    Write-Log "PR #$($pr.number): $authorLogin PR needs @copilot synthesis ($reason)" -Level WARN
                     $null = $results.ActionRequired.Add(@{
                         number = $pr.number
                         category = 'mention-triggered'
                         hasConflicts = $hasConflicts
+                        hasFailingChecks = $hasFailingChecks
                         reason = $reason
                         author = $authorLogin
                         title = $pr.title
@@ -594,6 +726,18 @@ function Invoke-PRMaintenance {
                         category = 'human-blocked'
                         hasConflicts = $true
                         reason = 'HAS_CONFLICTS'
+                        author = $authorLogin
+                        title = $pr.title
+                    })
+                }
+                elseif ($hasFailingChecks) {
+                    Write-Log "PR #$($pr.number): Human-authored with failing checks" -Level INFO
+                    $null = $results.Blocked.Add(@{
+                        number = $pr.number
+                        category = 'human-blocked'
+                        hasConflicts = $false
+                        hasFailingChecks = $true
+                        reason = 'HAS_FAILING_CHECKS'
                         author = $authorLogin
                         title = $pr.title
                     })
