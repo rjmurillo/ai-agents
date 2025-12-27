@@ -663,6 +663,40 @@ Assess complexity BEFORE selecting agents:
 1. **Security agent ALWAYS for**: Files matching `**/Auth/**`, `.githooks/*`, `*.env*`
 2. **QA agent ALWAYS after**: Any implementer changes
 3. **Critic agent BEFORE**: Multi-domain implementations
+4. **adr-review skill ALWAYS after**: ADR creation/update (see below)
+
+### ADR Review Enforcement (BLOCKING)
+
+When ANY agent returns output indicating ADR creation/update:
+
+**Detection Pattern**:
+
+- Agent output contains: "ADR created/updated: .agents/architecture/ADR-*.md"
+- Agent output contains: "MANDATORY: Orchestrator MUST invoke adr-review"
+
+**Enforcement**:
+
+```text
+BLOCKING GATE: ADR Review Required
+
+1. Verify ADR file exists at specified path
+2. Invoke adr-review skill:
+
+   Skill(skill="adr-review", args="[ADR file path]")
+
+3. Wait for adr-review completion
+4. Only after adr-review completes, route to next agent per original plan
+
+DO NOT route to next agent until adr-review completes.
+```
+
+**Failure Handling**:
+
+| Condition | Action |
+|-----------|--------|
+| ADR file not found | Report error to user, halt workflow |
+| adr-review skill unavailable | Report error to user, document gap, proceed with warning |
+| adr-review fails | Review failure output, decide to retry or escalate to user |
 
 ### Consistency Checkpoint (Pre-Critic)
 
