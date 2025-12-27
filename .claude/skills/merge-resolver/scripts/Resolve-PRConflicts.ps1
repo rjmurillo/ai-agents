@@ -235,9 +235,14 @@ function Resolve-PRConflicts {
         FilesBlocked = @()
     }
 
-    # Validate branch name for command injection prevention
+    # Validate branch names for command injection prevention
     if (-not (Test-SafeBranchName -BranchName $BranchName)) {
         $result.Message = "Rejecting PR #$PRNumber due to unsafe branch name: $BranchName"
+        Write-Error $result.Message
+        return $result
+    }
+    if (-not (Test-SafeBranchName -BranchName $TargetBranch)) {
+        $result.Message = "Rejecting PR #$PRNumber due to unsafe target branch name: $TargetBranch"
         Write-Error $result.Message
         return $result
     }

@@ -94,10 +94,11 @@ function Get-UnresolvedReviewThreads {
 
     # GraphQL query per FR1 specification
     # Note: first: 100 handles most PRs; pagination not implemented for edge cases with 100+ threads
-    $query = @"
-query {
-    repository(owner: "$Owner", name: "$Repo") {
-        pullRequest(number: $PR) {
+    # Uses GraphQL variables for security (prevents injection via Owner/Repo/PR)
+    $query = @'
+query($owner: String!, $name: String!, $prNumber: Int!) {
+    repository(owner: $owner, name: $name) {
+        pullRequest(number: $prNumber) {
             reviewThreads(first: 100) {
                 nodes {
                     id
@@ -112,9 +113,9 @@ query {
         }
     }
 }
-"@
+'@
 
-    $result = gh api graphql -f query=$query 2>&1
+    $result = gh api graphql -f query=$query -f owner="$Owner" -f name="$Repo" -F prNumber=$PR 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Failed to query review threads for PR #${PR}: $result"
         return @()  # Return empty array on failure per FR2

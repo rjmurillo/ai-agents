@@ -168,46 +168,6 @@ function Test-RateLimitSafe {
     }
 }
 
-function Enter-ScriptLock {
-    [CmdletBinding()]
-    param()
-
-    $lockFile = Join-Path ([System.IO.Path]::GetTempPath()) 'invoke-pr-maintenance.lock'
-
-    try {
-        if (Test-Path $lockFile) {
-            $lockContent = Get-Content $lockFile -Raw -ErrorAction SilentlyContinue
-            if ($lockContent) {
-                $lockData = $lockContent | ConvertFrom-Json -ErrorAction SilentlyContinue
-                if ($lockData -and $lockData.pid) {
-                    $process = Get-Process -Id $lockData.pid -ErrorAction SilentlyContinue
-                    if ($process) {
-                        Write-Log "Another instance is running (PID: $($lockData.pid))" -Level WARN
-                        return $false
-                    }
-                }
-            }
-        }
-
-        @{ pid = $PID; started = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content $lockFile
-        return $true
-    }
-    catch {
-        Write-Log "Failed to acquire lock: $_" -Level WARN
-        return $true  # Proceed if lock mechanism fails
-    }
-}
-
-function Exit-ScriptLock {
-    [CmdletBinding()]
-    param()
-
-    $lockFile = Join-Path ([System.IO.Path]::GetTempPath()) 'invoke-pr-maintenance.lock'
-    if (Test-Path $lockFile) {
-        Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
-    }
-}
-
 #endregion
 
 #region GitHub API Helpers
@@ -270,10 +230,11 @@ function Get-OpenPRs {
         [int]$Limit = 20
     )
 
-    $query = @"
-query {
-    repository(owner: "$Owner", name: "$Repo") {
-        pullRequests(first: $Limit, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}) {
+    # Uses GraphQL variables for security (prevents injection via Owner/Repo)
+    $query = @'
+query($owner: String!, $name: String!, $limit: Int!) {
+    repository(owner: $owner, name: $name) {
+        pullRequests(first: $limit, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}) {
             nodes {
                 number
                 title
@@ -317,9 +278,9 @@ query {
         }
     }
 }
-"@
+'@
 
-    $result = gh api graphql -f query=$query 2>&1
+    $result = gh api graphql -f query=$query -f owner="$Owner" -f name="$Repo" -F limit=$Limit 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Log "Failed to query PRs: $result" -Level ERROR
         return @()
@@ -766,85 +727,76 @@ if ($MyInvocation.InvocationName -eq '.') {
 }
 
 try {
-    # Acquire script lock
-    if (-not (Enter-ScriptLock)) {
+    # Check API rate limit
+    if (-not (Test-RateLimitSafe)) {
         if (-not $OutputJson) {
-            Write-Log "Exiting: another instance is running" -Level WARN
+            Write-Log "Exiting: API rate limit too low" -Level WARN
         }
         exit 0
     }
 
-    try {
-        # Check API rate limit
-        if (-not (Test-RateLimitSafe)) {
-            if (-not $OutputJson) {
-                Write-Log "Exiting: API rate limit too low" -Level WARN
+    # Resolve repo info
+    if (-not $Owner -or -not $Repo) {
+        $repoInfo = Get-RepoInfo
+        if (-not $Owner) { $Owner = $repoInfo.Owner }
+        if (-not $Repo) { $Repo = $repoInfo.Repo }
+    }
+
+    # Run discovery
+    $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs -DryRun:$DryRun
+
+    # JSON Output Mode (for workflow matrix)
+    if ($OutputJson) {
+        $output = @{
+            prs = @($results.ActionRequired)
+            summary = @{
+                total = $results.TotalPRs
+                actionRequired = $results.ActionRequired.Count
+                blocked = $results.Blocked.Count
+                derivatives = $results.DerivativePRs.Count
             }
-            exit 0
         }
+        $output | ConvertTo-Json -Depth 10 -Compress
+        exit 0
+    }
 
-        # Resolve repo info
-        if (-not $Owner -or -not $Repo) {
-            $repoInfo = Get-RepoInfo
-            if (-not $Owner) { $Owner = $repoInfo.Owner }
-            if (-not $Repo) { $Repo = $repoInfo.Repo }
-        }
+    # Normal Mode: Log summary
+    Write-Log "---" -Level INFO
+    Write-Log "=== PR Discovery Summary ===" -Level INFO
+    Write-Log "Open PRs: $($results.TotalPRs)" -Level INFO
+    Write-Log "Action Required: $($results.ActionRequired.Count)" -Level $(if ($results.ActionRequired.Count -gt 0) { 'WARN' } else { 'INFO' })
+    Write-Log "Blocked (human): $($results.Blocked.Count)" -Level $(if ($results.Blocked.Count -gt 0) { 'WARN' } else { 'INFO' })
+    Write-Log "Derivatives: $($results.DerivativePRs.Count)" -Level $(if ($results.DerivativePRs.Count -gt 0) { 'WARN' } else { 'INFO' })
 
-        # Run discovery
-        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs -DryRun:$DryRun
-
-        # JSON Output Mode (for workflow matrix)
-        if ($OutputJson) {
-            $output = @{
-                prs = @($results.ActionRequired)
-                summary = @{
-                    total = $results.TotalPRs
-                    actionRequired = $results.ActionRequired.Count
-                    blocked = $results.Blocked.Count
-                    derivatives = $results.DerivativePRs.Count
-                }
-            }
-            $output | ConvertTo-Json -Depth 10 -Compress
-            exit 0
-        }
-
-        # Normal Mode: Log summary
+    if ($results.ActionRequired.Count -gt 0) {
         Write-Log "---" -Level INFO
-        Write-Log "=== PR Discovery Summary ===" -Level INFO
-        Write-Log "Open PRs: $($results.TotalPRs)" -Level INFO
-        Write-Log "Action Required: $($results.ActionRequired.Count)" -Level $(if ($results.ActionRequired.Count -gt 0) { 'WARN' } else { 'INFO' })
-        Write-Log "Blocked (human): $($results.Blocked.Count)" -Level $(if ($results.Blocked.Count -gt 0) { 'WARN' } else { 'INFO' })
-        Write-Log "Derivatives: $($results.DerivativePRs.Count)" -Level $(if ($results.DerivativePRs.Count -gt 0) { 'WARN' } else { 'INFO' })
-
-        if ($results.ActionRequired.Count -gt 0) {
-            Write-Log "---" -Level INFO
-            Write-Log "PRs Requiring Action:" -Level WARN
-            foreach ($item in $results.ActionRequired) {
-                Write-Log "  PR #$($item.number): $($item.reason) [$($item.category)]" -Level WARN
-                if ($item.hasConflicts) {
-                    Write-Log "    -> Has conflicts, run /merge-resolver first" -Level INFO
-                }
-            }
-
-            $prNumbers = ($results.ActionRequired | ForEach-Object { $_.number }) -join ','
-            Write-Log "Run: /pr-comment-responder $prNumbers" -Level INFO
-        }
-
-        if ($results.Blocked.Count -gt 0) {
-            Write-Log "---" -Level INFO
-            Write-Log "Blocked PRs (require human action):" -Level WARN
-            foreach ($blocked in $results.Blocked) {
-                Write-Log "  PR #$($blocked.number): $($blocked.reason) - $($blocked.title)" -Level WARN
+        Write-Log "PRs Requiring Action:" -Level WARN
+        foreach ($item in $results.ActionRequired) {
+            Write-Log "  PR #$($item.number): $($item.reason) [$($item.category)]" -Level WARN
+            if ($item.hasConflicts) {
+                Write-Log "    -> Has conflicts, run /merge-resolver first" -Level INFO
             }
         }
 
-        $duration = (Get-Date) - $script:StartTime
+        $prNumbers = ($results.ActionRequired | ForEach-Object { $_.number }) -join ','
+        Write-Log "Run: /pr-comment-responder $prNumbers" -Level INFO
+    }
+
+    if ($results.Blocked.Count -gt 0) {
         Write-Log "---" -Level INFO
-        Write-Log "Completed in $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
+        Write-Log "Blocked PRs (require human action):" -Level WARN
+        foreach ($blocked in $results.Blocked) {
+            Write-Log "  PR #$($blocked.number): $($blocked.reason) - $($blocked.title)" -Level WARN
+        }
+    }
 
-        # GitHub Actions step summary
-        if ($env:GITHUB_STEP_SUMMARY) {
-            $summary = @"
+    $duration = (Get-Date) - $script:StartTime
+    Write-Log "---" -Level INFO
+    Write-Log "Completed in $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
+
+    # GitHub Actions step summary
+    if ($env:GITHUB_STEP_SUMMARY) {
+        $summary = @"
 ## PR Discovery Summary
 
 | Metric | Count |
@@ -856,42 +808,38 @@ try {
 | Errors | $($results.Errors.Count) |
 
 "@
-            if ($results.ActionRequired.Count -gt 0) {
-                $summary += @"
+        if ($results.ActionRequired.Count -gt 0) {
+            $summary += @"
 ### PRs Requiring Action
 
 | PR | Category | Reason | Has Conflicts |
 |----|----------|--------|---------------|
 "@
-                foreach ($item in $results.ActionRequired) {
-                    $conflictIcon = if ($item.hasConflicts) { ':warning:' } else { ':white_check_mark:' }
-                    $summary += "| #$($item.number) | $($item.category) | $($item.reason) | $conflictIcon |`n"
-                }
-                $summary += "`n"
+            foreach ($item in $results.ActionRequired) {
+                $conflictIcon = if ($item.hasConflicts) { ':warning:' } else { ':white_check_mark:' }
+                $summary += "| #$($item.number) | $($item.category) | $($item.reason) | $conflictIcon |`n"
             }
+            $summary += "`n"
+        }
 
-            if ($results.Blocked.Count -gt 0) {
-                $summary += @"
+        if ($results.Blocked.Count -gt 0) {
+            $summary += @"
 ### Blocked PRs (Human Action Required)
 
 | PR | Author | Reason |
 |----|--------|--------|
 "@
-                foreach ($blocked in $results.Blocked) {
-                    $summary += "| #$($blocked.number) | $($blocked.author) | $($blocked.reason) |`n"
-                }
+            foreach ($blocked in $results.Blocked) {
+                $summary += "| #$($blocked.number) | $($blocked.author) | $($blocked.reason) |`n"
             }
-
-            $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding UTF8
         }
 
-        # Save log
-        if ($LogPath) {
-            Save-Log -Path $LogPath
-        }
+        $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding UTF8
     }
-    finally {
-        Exit-ScriptLock
+
+    # Save log
+    if ($LogPath) {
+        Save-Log -Path $LogPath
     }
 }
 catch {
