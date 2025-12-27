@@ -82,7 +82,8 @@ $pr = $prJson | ConvertFrom-Json
 
 # Extract files mentioned in PR description
 $description = $pr.body
-$filesInPR = $pr.files | ForEach-Object { $_.path }
+# Wrap in @() to ensure array even with single/zero items (PowerShell gotcha)
+$filesInPR = @($pr.files | ForEach-Object { $_.path })
 
 Write-Host "PR has $($filesInPR.Count) changed files"
 
@@ -170,8 +171,8 @@ if ($issues.Count -eq 0) {
   exit 0
 }
 
-$criticalCount = ($issues | Where-Object { $_.Severity -eq "CRITICAL" }).Count
-$warningCount = ($issues | Where-Object { $_.Severity -eq "WARNING" }).Count
+$criticalCount = @($issues | Where-Object { $_.Severity -eq "CRITICAL" }).Count
+$warningCount = @($issues | Where-Object { $_.Severity -eq "WARNING" }).Count
 
 Write-Host "Found $($issues.Count) issue(s):"
 Write-Host "  CRITICAL: $criticalCount"
