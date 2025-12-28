@@ -124,47 +124,7 @@
 # Skill Files: Line Ending Normalization
 # ============================================================================
 #
-# WHY DO WE NEED THIS?
-#
-# Problem: Generated *.skill files can have inconsistent line endings
-# - Windows developers → CRLF line endings
-# - Linux/Mac developers → LF line endings
-# - Generate-Skills.ps1 runs on different platforms → inconsistent output
-# - Git sees "file changed" when only line endings differ
-#
-# Solution: Normalize all *.skill files to LF line endings
-# - text: Marks file as text (enables line ending normalization)
-# - eol=lf: Forces LF line endings in working directory
-# - diff=markdown: Enables markdown syntax highlighting in diffs
-#
-# HOW DOES IT WORK?
-#
-# On checkout (git pull, git checkout):
-# 1. Git reads *.skill file from repository (always LF)
-# 2. Converts to LF in working directory (eol=lf)
-# 3. Result: Consistent LF on all platforms
-#
-# On commit (git add, git commit):
-# 1. Git reads *.skill file from working directory
-# 2. Normalizes to LF before storing in repository
-# 3. Result: Repository always contains LF
-#
-# WHAT IS THE RESULT?
-#
-# Cross-platform consistency:
-# - Windows: Working directory has LF (not CRLF)
-# - Linux/Mac: Working directory has LF (no change)
-# - Repository: Always stores LF
-# - Git diffs: No spurious line ending changes
-#
-# TRADE-OFF
-#
-# Benefit: Zero line ending conflicts, deterministic generate output
-# Cost: Windows tools expecting CRLF may need LF support
-# Mitigation: Modern editors (VS Code, PowerShell ISE) handle LF correctly
-#
-# Note: Generate-Skills.ps1 uses -ForceLf by default to match this behavior
-#
-# See: Generate-Skills.ps1 (line ending normalization)
+# Force LF line endings for generated skill files to prevent git noise
+# from platform differences. See ADR-019 for rationale and implementation.
 #
 *.skill text eol=lf diff=markdown
