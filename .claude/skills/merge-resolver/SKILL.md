@@ -15,6 +15,7 @@ Resolve merge conflicts by analyzing git history and commit intent.
 4. **Determine intent** - Classify changes by type
 5. **Apply resolution** - Keep, merge, or discard based on analysis
 6. **Stage resolved files** - Prepare for commit
+7. **Validate session protocol** - BLOCKING: Run validation before push
 
 ## Step 1: Fetch PR Context
 
@@ -116,6 +117,59 @@ git diff --check
 # Show staged changes
 git diff --cached --stat
 ```
+
+## Step 7: Validate Session Protocol (BLOCKING)
+
+**MUST complete before pushing.** This step prevents CI failures from incomplete session logs.
+
+### Why This Matters
+
+Session protocol validation is a CI blocking gate. Pushing without completing session requirements causes:
+- CI failures with "MUST requirement(s) not met" errors
+- Wasted review cycles
+- Confusion about root cause (often misidentified as template sync issues)
+
+### Validation Steps
+
+```bash
+# 1. Ensure session log exists
+SESSION_LOG=$(ls -t .agents/sessions/*.md 2>/dev/null | head -1)
+if [ -z "$SESSION_LOG" ]; then
+    echo "ERROR: No session log found. Create one before pushing."
+    exit 1
+fi
+
+# 2. Run session protocol validator
+pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath "$SESSION_LOG"
+
+# 3. If validation fails, fix issues before proceeding
+if [ $? -ne 0 ]; then
+    echo "ERROR: Session protocol validation failed."
+    echo "Complete all MUST requirements in your session log before pushing."
+    exit 1
+fi
+```
+
+### Session End Checklist (REQUIRED)
+
+Before pushing, verify your session log contains:
+
+| Req | Step | Status |
+|-----|------|--------|
+| MUST | Complete session log (all sections filled) | [ ] |
+| MUST | Update Serena memory (cross-session context) | [ ] |
+| MUST | Run markdown lint | [ ] |
+| MUST | Route to qa agent (feature implementation) | [ ] |
+| MUST | Commit all changes (including .serena/memories) | [ ] |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] |
+
+### Common Failures
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `E_TEMPLATE_DRIFT` | Session checklist outdated | Copy canonical checklist from SESSION-PROTOCOL.md |
+| `E_QA_EVIDENCE` | QA row checked but no report path | Add QA report or use "SKIPPED: docs-only" for docs-only sessions |
+| `E_DIRTY_WORKTREE` | Uncommitted changes | Stage and commit all files including `.agents/` |
 
 ## Resolution Strategies
 
