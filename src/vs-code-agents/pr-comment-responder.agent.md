@@ -114,7 +114,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 ### Comment Triage Priority
 
-**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+**MUST**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
 
 #### Priority Adjustment by Domain
 
@@ -186,7 +186,7 @@ Analyze and implement...
 
 ### QA Integration Requirement
 
-**MANDATORY**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
+**MUST**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
@@ -325,7 +325,7 @@ echo "[PASS] All gates cleared"
 
 ### Phase 0: Memory Initialization (BLOCKING)
 
-**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
+**MUST**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
 
 #### Step 0.1: Load Core Skills Memory
 
@@ -946,7 +946,7 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MANDATORY**: Verify all comments addressed before claiming completion.
+**MUST**: Verify all comments addressed before claiming completion.
 
 ```bash
 # Count addressed vs total (both COMPLETE and WONTFIX are valid resolutions)
@@ -966,7 +966,7 @@ fi
 
 ### Phase 9: Memory Storage (BLOCKING)
 
-**MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
+**MUST**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
 
 #### Step 9.1: Calculate Session Statistics
 

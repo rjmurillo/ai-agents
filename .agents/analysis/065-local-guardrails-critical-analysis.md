@@ -25,7 +25,7 @@ The specification proposes local validation guardrails to prevent AI Quality Gat
 ## 3. Approach
 
 **Methodology**:
-1. Verified PR sample (n=8) by querying GitHub API for actual AI Quality Gate results
+1. Verified PR sample (n=8: #233, #232, #199, #206, #194, #143, #141, #202) by querying GitHub API for actual AI Quality Gate results
 2. Analyzed Issue #230 for overlapping scope
 3. Reviewed existing validation infrastructure (`Validate-SessionEnd.ps1`, pre-commit hook)
 4. Searched for prior art and related issues/PRs
