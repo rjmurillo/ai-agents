@@ -230,6 +230,126 @@ Even "simple" bug fixes often need regression tests that would otherwise go unte
 Task(subagent_type="qa", prompt="Verify fix and assess regression test needs...")
 ```
 
+## Verification Gates (BLOCKING)
+
+These gates implement RFC 2119 MUST requirements. Proceeding without passing causes artifact drift.
+
+### Gate 0: Session Log Creation
+
+**Before any work**: Create session log with protocol compliance checklist.
+
+```bash
+# Create session log
+SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
+cat > "$SESSION_FILE" << 'EOF'
+# PR Comment Responder Session
+
+## Protocol Compliance Checklist
+
+- [ ] Gate 0: Session log created
+- [ ] Gate 1: Eyes reactions = comment count
+- [ ] Gate 2: Artifact files created
+- [ ] Gate 3: All tasks tracked in tasks.md
+- [ ] Gate 4: Artifact state matches API state
+- [ ] Gate 5: All threads resolved
+EOF
+```
+
+**Evidence required**: Session log file exists with checkboxes.
+
+### Gate 1: Acknowledgment Verification
+
+**After Phase 2**: Verify eyes reaction count equals total comment count.
+
+```bash
+# Count reactions added vs comments
+REACTIONS_ADDED=$(cat .agents/pr-comments/PR-[number]/session.log | grep -c "reaction.*eyes")
+COMMENT_COUNT=$TOTAL_COMMENTS
+
+if [ "$REACTIONS_ADDED" -ne "$COMMENT_COUNT" ]; then
+  echo "[BLOCKED] Reactions: $REACTIONS_ADDED != Comments: $COMMENT_COUNT"
+  exit 1
+fi
+```
+
+**Evidence required**: Log shows equal counts.
+
+### Gate 2: Artifact Creation Verification
+
+**After generating comment map and task list**: Verify files exist and contain expected counts.
+
+```bash
+# Verify artifacts exist
+test -f ".agents/pr-comments/PR-[number]/comments.md" || exit 1
+test -f ".agents/pr-comments/PR-[number]/tasks.md" || exit 1
+
+# Verify comment count matches
+ARTIFACT_COUNT=$(grep -c "^| [0-9]" .agents/pr-comments/PR-[number]/comments.md)
+if [ "$ARTIFACT_COUNT" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Artifact count: $ARTIFACT_COUNT != API count: $TOTAL_COMMENTS"
+  exit 1
+fi
+```
+
+**Evidence required**: Files exist with correct counts.
+
+### Gate 3: Artifact Update After Fix
+
+**After EVERY fix commit**: Update artifact status atomically.
+
+```bash
+# IMMEDIATELY after git commit, update artifact
+sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... [COMPLETE]/" \
+  .agents/pr-comments/PR-[number]/tasks.md
+
+# Verify update applied
+grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || exit 1
+```
+
+**Evidence required**: Task marked complete in artifact file.
+
+### Gate 4: State Synchronization Before Resolution
+
+**Before Phase 8 (thread resolution)**: Verify artifact state matches intended API state.
+
+```bash
+# Count completed tasks in artifact
+COMPLETED=$(grep -c "\[COMPLETE\]" .agents/pr-comments/PR-[number]/tasks.md)
+TOTAL=$(grep -c "^- \[ \]\|^\[x\]" .agents/pr-comments/PR-[number]/tasks.md)
+
+# Count threads to resolve
+UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Verify alignment
+if [ "$COMPLETED" -ne "$((TOTAL - UNRESOLVED_API))" ]; then
+  echo "[BLOCKED] Artifact COMPLETED ($COMPLETED) != API resolved ($((TOTAL - UNRESOLVED_API)))"
+  exit 1
+fi
+```
+
+**Evidence required**: Counts match before proceeding.
+
+### Gate 5: Final Verification
+
+**After Phase 8**: Verify all threads resolved AND artifacts updated.
+
+```bash
+# API state
+REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Artifact state
+PENDING=$(grep -c "Status: pending\|Status: \[ACKNOWLEDGED\]" .agents/pr-comments/PR-[number]/comments.md)
+
+if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
+  exit 1
+fi
+
+echo "[PASS] All gates cleared"
+```
+
+**Evidence required**: Both counts are zero.
+
 ## Workflow Protocol
 
 ### Phase 0: Memory Initialization (BLOCKING)

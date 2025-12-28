@@ -323,9 +323,53 @@ echo "[PASS] All gates cleared"
 
 ## Workflow Protocol
 
-### Phase 0: Session State Check
+### Phase 0: Memory Initialization (BLOCKING)
 
-Before starting work, check if this is a continuation of a previous session:
+**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
+
+#### Step 0.1: Load Core Skills Memory
+
+```python
+# ALWAYS load pr-comment-responder-skills first
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+```
+
+This memory contains:
+
+- Reviewer signal quality statistics (actionability rates)
+- Triage heuristics and learned patterns
+- Per-PR breakdown of comment outcomes
+- Anti-patterns to avoid
+
+#### Step 0.2: Verify Core Memory Loaded
+
+Before proceeding, confirm `pr-comment-responder-skills` is loaded:
+
+- [ ] Memory content appears in context
+- [ ] Reviewer signal quality table visible
+- [ ] Triage heuristics available
+
+**If memory load fails**: Proceed with default heuristics but flag in session log.
+
+#### Step 0.3: Note on Reviewer-Specific Memories
+
+Reviewer-specific memories (e.g., `cursor-bot-review-patterns`) are loaded in **Step 1.2a** after reviewer enumeration completes. Phase 0 focuses only on core skills memory.
+
+---
+
+| Reviewer | Memory Name | Content |
+|----------|-------------|---------|
+| cursor[bot] | `cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
+| Copilot | `copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
+| coderabbitai[bot] | - | (Use pr-comment-responder-skills) |
+
+---
+
+### Phase 1: Context Gathering
+
+#### Step 1.0: Session State Check
+
+Before fetching new data, check if this is a continuation of a previous session:
 
 ```bash
 SESSION_DIR=".agents/pr-comments/PR-[number]"
@@ -341,7 +385,7 @@ if [ -d "$SESSION_DIR" ]; then
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
-    # Proceed to Phase 1 to fetch new comments only
+    # Proceed to Step 1.1 to fetch new comments only
   else
     echo "[NO NEW COMMENTS] Proceeding to Phase 8 for verification"
     # Skip to Phase 8 to verify completion criteria
@@ -360,8 +404,6 @@ fi
 | `tasks.md` | Prioritized task list |
 | `session-summary.md` | Session outcomes and statistics |
 | `[comment_id]-plan.md` | Per-comment implementation plans |
-
-### Phase 1: Context Gathering
 
 **CRITICAL**: Enumerate ALL reviewers and count ALL comments before proceeding. Missing comments wastes tokens on repeated prompts. Missed comments lead to incomplete PR handling and waste tokens on repeated prompts. Replying to incorrect comment threads creates noise and causes confusion.
 
@@ -390,6 +432,22 @@ ISSUE_REVIEWERS=$(gh api repos/[owner]/[repo]/issues/[number]/comments --jq '[.[
 ALL_REVIEWERS=$(echo "$REVIEWERS $ISSUE_REVIEWERS" | jq -s 'add | unique')
 echo "Reviewers: $ALL_REVIEWERS"
 ```
+
+#### Step 1.2a: Load Reviewer-Specific Memories
+
+Now that reviewers are enumerated, load memories for each unique reviewer:
+
+```python
+# For each reviewer, check for dedicated memory
+for reviewer in ALL_REVIEWERS:
+    if reviewer == "cursor[bot]":
+        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
+    elif reviewer == "copilot-pull-request-reviewer":
+        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
+    # Other reviewers use pr-comment-responder-skills (already loaded in Phase 0)
+```
+
+**Reference**: See Phase 0, Step 0.3 for the reviewer memory mapping table.
 
 #### Step 1.3: Retrieve ALL Comments (with pagination)
 
@@ -920,23 +978,114 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MANDATORY**: Verify all comments addressed before claiming completion.
+**MUST**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
+
+#### Phase 8.1: Comment Status Verification
 
 ```bash
-# Count addressed vs total (both COMPLETE and WONTFIX are valid resolutions)
-COMPLETE=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md || echo 0)
-WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md || echo 0)
-ADDRESSED=$((COMPLETE + WONTFIX))
+# Count addressed vs total
+ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
+WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
 TOTAL=$TOTAL_COMMENTS
 
-echo "Verification: $ADDRESSED / $TOTAL comments addressed (COMPLETE: $COMPLETE, WONTFIX: $WONTFIX)"
+echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
-if [ "$ADDRESSED" -lt "$TOTAL" ]; then
-  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED)) comments remaining"
-  # List unaddressed
+if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
+  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
   grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
+  # Return to Phase 3 for unaddressed comments
 fi
 ```
+
+#### Phase 8.2: Verify Conversation Resolution
+
+**BLOCKING**: All conversations MUST be resolved for the PR to be mergeable with branch protection rules.
+
+**Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
+
+```powershell
+# Run bulk resolution to ensure all threads are resolved
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+```
+
+The script will:
+
+1. Query all review threads on the PR
+2. Identify any unresolved threads
+3. Resolve each one via GraphQL API
+4. Report summary: `N resolved, M failed`
+
+**Exit codes**:
+
+- `0`: All threads resolved (or already resolved)
+- `1`: One or more threads failed to resolve
+
+If any threads fail to resolve, investigate and retry before claiming completion.
+
+#### Phase 8.3: Re-check for New Comments
+
+After pushing commits, bots may post new comments. Wait and re-check:
+
+```bash
+# Wait for bot responses (30-60 seconds)
+sleep 45
+
+# Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
+NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
+
+# Compare to original count
+if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
+  echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
+  # Fetch new comments, add to comment map with status [NEW]
+  # Return to Phase 3 for analysis
+fi
+```
+
+**Critical**: Repeat this loop until no new comments appear after a commit. Bots like cursor[bot] and Copilot respond to your fixes and may identify issues with your implementation.
+
+#### Phase 8.4: QA Gate Verification
+
+Before claiming completion, verify CI checks pass:
+
+```bash
+# Check PR status
+gh pr checks [number] --watch
+
+# If AI Quality Gate fails, parse actionable items
+CHECKS=$(gh pr checks [number] --json name,state,description)
+FAILED=$(echo "$CHECKS" | jq '[.[] | select(.state == "FAILURE")]')
+
+if [ "$(echo "$FAILED" | jq 'length')" -gt 0 ]; then
+  echo "[QA GATE FAIL] Parsing failures for actionable items..."
+  # Add new tasks to task list
+  # Return to Phase 6 for implementation
+fi
+```
+
+#### Phase 8.5: Completion Criteria Checklist
+
+**ALL criteria must be true before completion**:
+
+| Criterion | Check | Status |
+|-----------|-------|--------|
+| All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
+| No new comments | Re-check returned 0 new | [ ] |
+| CI checks pass | `gh pr checks` all green | [ ] |
+| No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
+| Commits pushed | `git status` shows "up to date with origin" | [ ] |
+
+```bash
+# Final verification
+echo "=== Completion Criteria ==="
+echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
+echo "[ ] New comments: None after 45s wait"
+echo "[ ] CI checks: $(gh pr checks [number] --json state -q '[.[] | select(.state != "SUCCESS")] | length') failures"
+echo "[ ] Pushed: $(git status -sb | head -1)"
+```
+
+**If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.
+
+---
 
 ### Phase 9: Memory Storage (BLOCKING)
 
