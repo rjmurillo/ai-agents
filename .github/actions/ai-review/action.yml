@@ -599,11 +599,7 @@ runs:
               TOTAL_ATTEMPTS=$((ATTEMPT + 1))
               ATTEMPT=$TOTAL_ATTEMPTS
 
-              OUTPUT=$(cat <<EOF
-VERDICT: CRITICAL_FAIL
-MESSAGE: Copilot CLI infrastructure failure after ${TOTAL_ATTEMPTS} attempts (exit code $EXIT_CODE). Check COPILOT_GITHUB_TOKEN scope, rate limits, or network connectivity.
-EOF
-)
+              OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI infrastructure failure after ${TOTAL_ATTEMPTS} attempts (exit code $EXIT_CODE). Check COPILOT_GITHUB_TOKEN scope, rate limits, or network connectivity."
               if [ -z "$STDERR_OUTPUT" ]; then
                 STDERR_OUTPUT="Infrastructure failure detected after retries."
               fi
@@ -659,11 +655,7 @@ EOF
           fi
         else
           if [ -z "$OUTPUT" ]; then
-            OUTPUT=$(cat <<EOF
-VERDICT: CRITICAL_FAIL
-MESSAGE: Copilot CLI infrastructure failure (exit code $EXIT_CODE). Output unavailable after retries.
-EOF
-)
+            OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI infrastructure failure (exit code $EXIT_CODE). Output unavailable after retries."
           fi
         fi
 
