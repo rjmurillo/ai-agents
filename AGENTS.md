@@ -305,6 +305,50 @@ Skill-PR-Copilot-001 in `.serena/memories/pr-comment-responder-skills.md` docume
 - Follow-up: copilot/sub-pr-156 targeting PR #156's branch
 - Decision: Syntax fix applied, no code changes in follow-up
 
+## Copilot Directive Best Practices
+
+When using @copilot directives in pull requests, use **issue comments** instead of review comments to keep review threads focused on code feedback.
+
+### Anti-Pattern (Pollutes Review Threads)
+
+```text
+PR Review Comment on line 42:
+@copilot please refactor this function
+```
+
+**Problem**: Review comments should focus on actual code feedback. Directive comments create noise in review threads.
+
+### Recommended Pattern (Clean Threads)
+
+```text
+Issue Comment (not on a specific line):
+@copilot please refactor the function in src/foo.ps1
+```
+
+**Benefits**:
+
+- Review comments remain focused on code feedback
+- @copilot directives do not require line-specific context
+- Significantly reduces comment noise in review threads
+
+### Impact Evidence
+
+PR #249 analysis:
+
+- Total rjmurillo comments: 42
+- @copilot directives: 41
+- Actual code feedback: 1
+- Signal-to-noise ratio: 2.4%
+
+Using issue comments for directives would reduce review comment volume by 98% in this case.
+
+### When to Use Each Comment Type
+
+| Comment Type | Use For | Example |
+|--------------|---------|---------|
+| **Review Comment** | Code-specific feedback requiring context | "This function should validate input before processing" |
+| **Issue Comment** | @copilot directives and general discussion | "@copilot please add tests for the validation logic" |
+
 ---
 
 ## Orchestrator: Task Classification & Domain Identification
@@ -808,6 +852,46 @@ analyst → high-level-advisor → independent-thinker → critic → roadmap �
 
 ---
 
+### ADR Review Requirement (MANDATORY)
+
+**Rule**: ALL ADRs created or updated MUST trigger the adr-review skill before workflow continues.
+
+**Scope**: Applies to ADR files matching `.agents/architecture/ADR-*.md` and `docs/architecture/ADR-*.md`
+
+**Enforcement**:
+
+| Agent | Responsibility |
+|-------|----------------|
+| **architect** | Signal MANDATORY routing to orchestrator when ADR created/updated |
+| **orchestrator** | Detect signal and invoke adr-review skill before routing to next agent |
+| **implementer** | If creating ADR, signal MANDATORY routing to orchestrator |
+| **All agents** | Do NOT bypass adr-review by directly routing to next agent |
+
+**Blocking Gate**:
+
+```text
+IF ADR created/updated:
+  1. Agent returns to orchestrator with MANDATORY routing signal
+  2. Orchestrator invokes adr-review skill
+  3. adr-review completes (may take multiple rounds)
+  4. Orchestrator routes to next agent only after adr-review PASS
+
+VIOLATION: Routing to next agent without adr-review is a protocol violation.
+```
+
+**Skill Invocation**:
+
+```bash
+# Orchestrator invokes adr-review skill
+Skill(skill="adr-review", args="[path to ADR file]")
+```
+
+**Rationale**: All ADRs benefit from multi-agent validation (architect, critic, independent-thinker, security, analyst, high-level-advisor) coordinated by adr-review skill.
+
+**Related**: See `.claude/skills/adr-review/SKILL.md` for debate protocol details.
+
+---
+
 ### Planner – Implementation Planning
 
 **Role**: Turns epics into concrete, implementation-ready plans. Orchestrates impact analysis consultations for multi-domain changes.
@@ -1010,7 +1094,7 @@ Test results are saved to `artifacts/pester-results.xml` (gitignored).
 
 When generating or fixing markdown with code blocks, use the fix-markdown-fences utility to repair malformed closing fences automatically.
 
-**Location**: `.agents/utilities/fix-markdown-fences/SKILL.md`
+**Location**: `.claude/skills/fix-markdown-fences/SKILL.md`
 
 **Problem**: Closing fences should never have language identifiers (e.g., ` ` `text). This utility detects and fixes them.
 
@@ -1018,10 +1102,10 @@ When generating or fixing markdown with code blocks, use the fix-markdown-fences
 
 ```bash
 # PowerShell
-pwsh .agents/utilities/fix-markdown-fences/fix_fences.ps1
+pwsh .claude/skills/fix-markdown-fences/fix_fences.ps1
 
 # Python
-python .agents/utilities/fix-markdown-fences/fix_fences.py
+python .claude/skills/fix-markdown-fences/fix_fences.py
 ```
 
 **Benefits**:

@@ -222,16 +222,13 @@ function New-MaintenanceSummary {
 
     .DESCRIPTION
         Creates formatted markdown summary including:
-        - Run timestamp and mode (dry run vs live)
+        - Run timestamp
         - Metrics table (PRs processed, comments, conflicts)
         - Blocked PRs list (if any)
         - Rate limit status after run
 
     .PARAMETER Results
         PSCustomObject from Get-MaintenanceResults.
-
-    .PARAMETER DryRun
-        Whether the run was in dry-run mode.
 
     .PARAMETER CoreRemaining
         Remaining core API rate limit after run.
@@ -243,7 +240,7 @@ function New-MaintenanceSummary {
         System.String - Formatted markdown summary.
 
     .EXAMPLE
-        $summary = New-MaintenanceSummary -Results $results -DryRun $true -CoreRemaining 4500
+        $summary = New-MaintenanceSummary -Results $results -CoreRemaining 4500
         $summary | Out-File $env:GITHUB_STEP_SUMMARY -Append
     #>
     [CmdletBinding()]
@@ -252,21 +249,17 @@ function New-MaintenanceSummary {
         [Parameter(Mandatory)]
         [PSCustomObject]$Results,
 
-        [bool]$DryRun = $true,
-
         [int]$CoreRemaining = 0,
 
         [string]$RunUrl = ''
     )
 
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC'
-    $dryRunText = if ($DryRun) { 'Yes' } else { 'No' }
 
     $summary = @"
 ## PR Maintenance Summary
 
 **Run Time**: $timestamp
-**Dry Run**: $dryRunText
 
 | Metric | Value |
 |--------|-------|

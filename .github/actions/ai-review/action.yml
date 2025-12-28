@@ -60,6 +60,17 @@ inputs:
       Default is false to minimize costs.
     required: false
     default: 'false'
+  execute-script:
+    description: |
+      Optional PowerShell script to run after analysis.
+      The script receives AI findings via environment variables:
+      - AI_VERDICT: The parsed verdict (PASS, WARN, CRITICAL_FAIL, etc.)
+      - AI_FINDINGS: Raw output from the AI model (JSON if prompt requested it)
+      - AI_LABELS: Parsed labels (JSON array)
+      - PR_NUMBER: The PR number being analyzed
+      Use this for post-analysis mutations (acknowledge comments, apply fixes, etc.)
+    required: false
+    default: ''
 
 outputs:
   verdict:
@@ -77,6 +88,13 @@ outputs:
   exit-code:
     description: 'Exit code (0=pass, 1=fail)'
     value: ${{ steps.parse.outputs.exit_code }}
+  # Retry/infrastructure failure tracking (Issue #328)
+  infrastructure-failure:
+    description: 'Whether failure was infrastructure-related (true/false)'
+    value: ${{ steps.invoke.outputs.infrastructure_failure }}
+  retry-count:
+    description: 'Number of retry attempts made (0 = no retries)'
+    value: ${{ steps.invoke.outputs.retry_count }}
   # Debug outputs for AI agents and humans
   full-prompt:
     description: 'Complete prompt sent to the model (for debugging)'
@@ -456,7 +474,7 @@ runs:
           echo "EOF_PROMPT"
         } >> $GITHUB_OUTPUT
 
-    - name: Invoke Copilot CLI
+    - name: Invoke Copilot CLI (with retry for infrastructure failures)
       id: invoke
       shell: bash
       env:
@@ -495,36 +513,124 @@ runs:
         # Calculate timeout in seconds
         TIMEOUT_SECONDS=$((TIMEOUT_MINUTES * 60))
 
-        # Invoke Copilot CLI with timeout
-        echo "Invoking Copilot CLI (timeout: ${TIMEOUT_MINUTES}m)..."
-        echo "Agent: $COPILOT_AGENT, Model: $COPILOT_MODEL"
-        echo "Prompt size: $(wc -c < /tmp/ai-review-full-prompt.md) bytes"
+        # Retry configuration (Issue #328, #338: Handle infrastructure failures)
+        # Spec from #338: attempts at 0s, 10s, 30s (total 40s max wait)
+        MAX_RETRIES=2
+        RETRY_DELAYS=(0 10 30)  # seconds before each attempt
+        ATTEMPT=0
+        INFRASTRUCTURE_FAILURE=false
 
-        # Create temp files for separate stdout/stderr capture
-        STDOUT_FILE=$(mktemp)
-        STDERR_FILE=$(mktemp)
+        # Function to check if failure is infrastructure-related
+        is_infrastructure_failure() {
+          local exit_code=$1
+          local output=$2
+          local stderr=$3
 
-        set +e
-        timeout "$TIMEOUT_SECONDS" copilot --no-color --silent --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
-        EXIT_CODE=$?
+          # Timeout (exit code 124)
+          if [ $exit_code -eq 124 ]; then
+            return 0
+          fi
 
-        OUTPUT=$(cat "$STDOUT_FILE")
-        STDERR_OUTPUT=$(cat "$STDERR_FILE")
-        rm -f "$STDOUT_FILE" "$STDERR_FILE"
-        set -e
+          # Non-zero exit with no output (indicates infrastructure issue)
+          if [ $exit_code -ne 0 ] && [ -z "$output" ] && [ -z "$stderr" ]; then
+            return 0
+          fi
 
-        # Log what we captured
-        echo "Exit code: $EXIT_CODE"
-        echo "Stdout length: ${#OUTPUT} chars"
-        echo "Stderr length: ${#STDERR_OUTPUT} chars"
+          # Check stderr for infrastructure keywords
+          if [ -n "$stderr" ]; then
+            if echo "$stderr" | grep -qiE "(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|ETIMEDOUT|503|502|504)"; then
+              return 0
+            fi
+          fi
+
+          # Not an infrastructure failure
+          return 1
+        }
+
+        # Retry loop
+        while [ $ATTEMPT -le $MAX_RETRIES ]; do
+          RETRY_DELAY=${RETRY_DELAYS[$ATTEMPT]}
+          if [ $ATTEMPT -gt 0 ]; then
+            echo ""
+            echo "=== RETRY ATTEMPT $ATTEMPT/$MAX_RETRIES ==="
+            echo "Infrastructure failure detected. Retrying in ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+          fi
+
+          echo "Invoking Copilot CLI (attempt $((ATTEMPT + 1))/$((MAX_RETRIES + 1)), timeout: ${TIMEOUT_MINUTES}m)..."
+          echo "Agent: $COPILOT_AGENT, Model: $COPILOT_MODEL"
+          echo "Prompt size: $(wc -c < /tmp/ai-review-full-prompt.md) bytes"
+
+          # Create temp files for separate stdout/stderr capture
+          STDOUT_FILE=$(mktemp)
+          STDERR_FILE=$(mktemp)
+
+          set +e
+          timeout "$TIMEOUT_SECONDS" copilot --no-color --silent --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+          EXIT_CODE=$?
+
+          OUTPUT=$(cat "$STDOUT_FILE")
+          STDERR_OUTPUT=$(cat "$STDERR_FILE")
+          rm -f "$STDOUT_FILE" "$STDERR_FILE"
+          set -e
+
+          # Log what we captured
+          echo "Exit code: $EXIT_CODE"
+          echo "Stdout length: ${#OUTPUT} chars"
+          echo "Stderr length: ${#STDERR_OUTPUT} chars"
+
+          # Check if this is an infrastructure failure
+          if is_infrastructure_failure $EXIT_CODE "$OUTPUT" "$STDERR_OUTPUT"; then
+            INFRASTRUCTURE_FAILURE=true
+            echo "::warning::Infrastructure failure detected (exit code: $EXIT_CODE)"
+
+            if [ $ATTEMPT -lt $MAX_RETRIES ]; then
+              ATTEMPT=$((ATTEMPT + 1))
+              continue  # Retry
+            else
+              # Issue #338: FAIL FAST - exit 1 instead of returning verdict
+              # This makes infrastructure failures obvious in GitHub Actions UI
+              echo ""
+              echo "::error::=== INFRASTRUCTURE FAILURE - JOB FAILED ==="
+              TOTAL_ATTEMPTS=$((ATTEMPT + 1))
+              echo "::error::Copilot CLI failed after ${TOTAL_ATTEMPTS} attempts with no output."
+              echo "::error::"
+              echo "::error::LIKELY CAUSE: COPILOT_GITHUB_TOKEN secret is expired or misconfigured."
+              echo "::error::"
+              echo "::error::TO FIX:"
+              echo "::error::  1. Check Repository Settings > Secrets > COPILOT_GITHUB_TOKEN"
+              echo "::error::  2. Ensure the token has 'copilot' scope"
+              echo "::error::  3. Verify the GitHub account has Copilot access enabled"
+              echo "::error::"
+              echo "::error::This job is FAILING (not returning verdict) to make the issue visible."
+              echo "::error::Re-run this job after fixing the token."
+              exit 1
+            fi
+          else
+            # Success or code quality failure (not infrastructure) - don't retry
+            INFRASTRUCTURE_FAILURE=false
+            break
+          fi
+
+          ATTEMPT=$((ATTEMPT + 1))
+        done
 
         # Detailed error analysis
+        # Note: Infrastructure failures with no output already exit 1 above
+        # This section handles cases that made it through (had output or non-infra errors)
         if [ $EXIT_CODE -eq 124 ]; then
+          # Timeout - this is an infrastructure issue, fail fast
+          echo ""
+          echo "::error::=== TIMEOUT - JOB FAILED ==="
           echo "::error::Copilot CLI timed out after ${TIMEOUT_MINUTES} minutes"
-          OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: AI review timed out after ${TIMEOUT_MINUTES} minutes"
-          if [ -n "$STDERR_OUTPUT" ]; then
-            OUTPUT="$OUTPUT"$'\n'"STDERR: $STDERR_OUTPUT"
-          fi
+          echo "::error::"
+          echo "::error::LIKELY CAUSES:"
+          echo "::error::  - Copilot API is slow or unresponsive"
+          echo "::error::  - Network connectivity issues"
+          echo "::error::  - Prompt is too large for the timeout setting"
+          echo "::error::"
+          echo "::error::Re-run this job to retry."
+          exit 1
         elif [ $EXIT_CODE -ne 0 ]; then
           echo "::error::Copilot CLI exited with code $EXIT_CODE"
 
@@ -536,36 +642,29 @@ runs:
 
           # Analyze failure mode
           if [ -z "$OUTPUT" ] && [ -z "$STDERR_OUTPUT" ]; then
+            # No output at all - this is an infrastructure issue, fail fast
+            # (Note: This should have been caught in the retry loop, but handle defensively)
             echo ""
-            echo "=== FAILURE ANALYSIS ==="
-            echo "The Copilot CLI produced no output (stdout or stderr)."
-            echo "This typically indicates one of the following issues:"
-            echo ""
-            echo "1. MISSING COPILOT ACCESS"
-            echo "   - The GitHub account associated with BOT_PAT does not have"
-            echo "     GitHub Copilot access enabled"
-            echo "   - Solution: Enable Copilot for the account or use a different PAT"
-            echo ""
-            echo "2. INVALID PAT TOKEN"
-            echo "   - The PAT token may be expired or have insufficient scopes"
-            echo "   - Required: 'copilot' scope for Copilot access"
-            echo ""
-            echo "3. NETWORK ISSUES"
-            echo "   - Unable to reach Copilot API endpoints"
-            echo "   - Check network connectivity and proxy settings"
-            echo ""
-            echo "4. RATE LIMITING"
-            echo "   - Too many requests in a short time period"
-            echo "   - Wait and retry"
-            echo "========================="
-            echo ""
-
-            OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI failed (exit code $EXIT_CODE) with no output - likely missing Copilot access for the bot account"
+            echo "::error::=== NO OUTPUT - JOB FAILED ==="
+            echo "::error::Copilot CLI produced no output (stdout or stderr)."
+            echo "::error::"
+            echo "::error::LIKELY CAUSES:"
+            echo "::error::  1. MISSING COPILOT ACCESS - GitHub account does not have Copilot enabled"
+            echo "::error::  2. INVALID PAT TOKEN - Token expired or missing 'copilot' scope"
+            echo "::error::  3. NETWORK ISSUES - Unable to reach Copilot API"
+            echo "::error::  4. RATE LIMITING - Too many requests"
+            echo "::error::"
+            echo "::error::TO FIX: Check COPILOT_GITHUB_TOKEN in Repository Settings > Secrets"
+            exit 1
           elif [ -z "$OUTPUT" ]; then
-            # Has stderr but no stdout
-            OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI failed (exit code $EXIT_CODE)"$'\n'"STDERR: $STDERR_OUTPUT"
+            # Has stderr but no stdout - infrastructure issue, fail fast
+            echo ""
+            echo "::error::=== CLI ERROR - JOB FAILED ==="
+            echo "::error::Copilot CLI failed (exit code $EXIT_CODE) with error output."
+            echo "::error::Stderr: $STDERR_OUTPUT"
+            exit 1
           fi
-          # If OUTPUT is not empty, keep it as-is (may contain error details from CLI)
+          # If OUTPUT is not empty, keep it as-is (may contain legitimate code quality findings)
         fi
 
         # Save output
@@ -594,6 +693,12 @@ runs:
 
         # Output Copilot exit code for debugging
         echo "copilot_exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+        # Output infrastructure failure flag for labeling
+        echo "infrastructure_failure=$INFRASTRUCTURE_FAILURE" >> $GITHUB_OUTPUT
+
+        # Output retry count for observability (ATTEMPT-1 because first attempt is not a retry)
+        echo "retry_count=$((ATTEMPT - 1))" >> $GITHUB_OUTPUT
 
     - name: Parse output
       id: parse
@@ -647,3 +752,37 @@ runs:
         echo "  Labels: $LABELS"
         echo "  Milestone: $MILESTONE"
         echo "  Exit Code: $EXIT_CODE"
+
+    - name: Execute post-analysis script
+      if: inputs.execute-script != ''
+      shell: pwsh -NoProfile -Command "& '{0}'"
+      env:
+        GH_TOKEN: ${{ inputs.bot-pat }}
+        AI_VERDICT: ${{ steps.parse.outputs.verdict }}
+        AI_FINDINGS: ${{ steps.invoke.outputs.raw_output }}
+        AI_LABELS: ${{ steps.parse.outputs.labels }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        EXECUTE_SCRIPT: ${{ inputs.execute-script }}
+      run: |
+        Write-Host "Executing post-analysis script: $env:EXECUTE_SCRIPT"
+        Write-Host "PR Number: $env:PR_NUMBER"
+        Write-Host "AI Verdict: $env:AI_VERDICT"
+
+        # Validate script exists (use -LiteralPath to prevent path injection)
+        if (-not (Test-Path -LiteralPath $env:EXECUTE_SCRIPT)) {
+          Write-Error "Execute script not found: $env:EXECUTE_SCRIPT"
+          exit 1
+        }
+
+        # Execute the script with parameters
+        & $env:EXECUTE_SCRIPT `
+          -PRNumber ([int]$env:PR_NUMBER) `
+          -Verdict $env:AI_VERDICT `
+          -FindingsJson $env:AI_FINDINGS
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Execute script failed with exit code $LASTEXITCODE"
+          exit $LASTEXITCODE
+        }
+
+        Write-Host "Post-analysis script completed successfully"

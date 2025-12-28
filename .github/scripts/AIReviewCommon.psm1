@@ -315,6 +315,116 @@ function Merge-Verdicts {
     return $final
 }
 
+function Get-FailureCategory {
+    <#
+    .SYNOPSIS
+        Categorize failure as INFRASTRUCTURE or CODE_QUALITY.
+
+    .DESCRIPTION
+        Analyzes AI review failures to distinguish infrastructure issues
+        (timeouts, rate limits, network errors) from actual code quality problems.
+
+        Infrastructure failures should NOT block PRs, while code quality failures should.
+
+        Decision tree:
+        1. Exit code 124 (timeout) → INFRASTRUCTURE
+        2. Message matches infrastructure pattern → INFRASTRUCTURE
+        3. Stderr matches infrastructure pattern → INFRASTRUCTURE
+        4. Output is empty → INFRASTRUCTURE (likely access/network)
+        5. Default → CODE_QUALITY
+
+    .PARAMETER Message
+        Verdict message from AI output.
+
+    .PARAMETER Stderr
+        Stderr from Copilot CLI execution.
+
+    .PARAMETER ExitCode
+        Exit code from Copilot CLI execution.
+
+    .PARAMETER Verdict
+        Parsed verdict (PASS, WARN, CRITICAL_FAIL, etc.).
+
+    .OUTPUTS
+        System.String - "INFRASTRUCTURE" or "CODE_QUALITY"
+
+    .EXAMPLE
+        $category = Get-FailureCategory -ExitCode 124 -Message "timeout" -Stderr "" -Verdict "CRITICAL_FAIL"
+        # Returns 'INFRASTRUCTURE'
+
+    .EXAMPLE
+        $category = Get-FailureCategory -ExitCode 1 -Message "Security vulnerability detected" -Stderr "" -Verdict "CRITICAL_FAIL"
+        # Returns 'CODE_QUALITY'
+
+    .NOTES
+        Part of Issue #329 - AI Quality Gate Failure Categorization
+        Research: .agents/analysis/002-ai-quality-gate-failure-patterns.md
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter()]
+        [AllowEmptyString()]
+        [string]$Message = '',
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string]$Stderr = '',
+
+        [Parameter()]
+        [int]$ExitCode = 0,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string]$Verdict = ''
+    )
+
+    # Exit code 124 = timeout (ALWAYS infrastructure)
+    if ($ExitCode -eq 124) {
+        Write-Verbose "Categorized as INFRASTRUCTURE: Exit code 124 (timeout)"
+        return 'INFRASTRUCTURE'
+    }
+
+    # Infrastructure failure patterns (case-insensitive)
+    $infrastructurePatterns = @(
+        'timed?\s*out',
+        'timeout',
+        'rate\s*limit',
+        '429',
+        'network\s*error',
+        '502\s*Bad\s*Gateway',
+        '503\s*Service\s*Unavailable',
+        'connection\s*(refused|reset|timeout)',
+        'Copilot\s*CLI\s*failed.*with\s*no\s*output',
+        'missing\s*Copilot\s*access',
+        'insufficient\s*scopes'
+    )
+
+    $infrastructureRegex = $infrastructurePatterns -join '|'
+
+    # Check message for infrastructure patterns
+    if (-not [string]::IsNullOrWhiteSpace($Message) -and $Message -match $infrastructureRegex) {
+        Write-Verbose "Categorized as INFRASTRUCTURE: Message matches pattern"
+        return 'INFRASTRUCTURE'
+    }
+
+    # Check stderr for infrastructure patterns
+    if (-not [string]::IsNullOrWhiteSpace($Stderr) -and $Stderr -match $infrastructureRegex) {
+        Write-Verbose "Categorized as INFRASTRUCTURE: Stderr matches pattern"
+        return 'INFRASTRUCTURE'
+    }
+
+    # Empty output = likely infrastructure (access/network)
+    if ([string]::IsNullOrWhiteSpace($Message) -and [string]::IsNullOrWhiteSpace($Stderr)) {
+        Write-Verbose "Categorized as INFRASTRUCTURE: Empty output"
+        return 'INFRASTRUCTURE'
+    }
+
+    # Default to code quality
+    Write-Verbose "Categorized as CODE_QUALITY: Default classification"
+    return 'CODE_QUALITY'
+}
+
 #endregion
 
 #region Formatting Functions
@@ -912,6 +1022,7 @@ Export-ModuleMember -Function @(
     'Get-Labels'
     'Get-Milestone'
     'Merge-Verdicts'
+    'Get-FailureCategory'
     # AI output parsing (JSON format - security hardened)
     'Get-LabelsFromAIOutput'
     'Get-MilestoneFromAIOutput'

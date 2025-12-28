@@ -60,7 +60,7 @@ You have direct access to:
 | Operation | Script | Replaces |
 |-----------|--------|----------|
 | PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
+| Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
 | Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq unique` |
 | Reply to comment | `Post-PRCommentReply.ps1` | `gh api ... -X POST` |
 | Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
@@ -147,7 +147,7 @@ After completing each PR comment response session, update this section and the `
 
 ### Comment Triage Priority
 
-**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+**MUST**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
 
 #### Priority Adjustment by Domain
 
@@ -190,7 +190,7 @@ escap            # Output escaping
 
 Security vulnerabilities like CWE-20/CWE-78 can be introduced and merged when security-domain comments are not prioritized. Similarly, symlink TOCTOU comments can be dismissed as style suggestions when they should be flagged as security-domain.
 
-**Skill Reference**: Skill-PR-Review-Security-001 (atomicity: 94%)
+**Skill Reference**: pr-review-security (atomicity: 94%)
 
 ### Quick Fix Path Criteria
 
@@ -215,7 +215,7 @@ Task(subagent_type="orchestrator", prompt="Analyze and implement...")
 
 ### QA Integration Requirement
 
-**MANDATORY**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
+**MUST**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
@@ -230,11 +230,175 @@ Even "simple" bug fixes often need regression tests that would otherwise go unte
 Task(subagent_type="qa", prompt="Verify fix and assess regression test needs...")
 ```
 
+## Verification Gates (BLOCKING)
+
+These gates implement RFC 2119 MUST requirements. Proceeding without passing causes artifact drift.
+
+### Gate 0: Session Log Creation
+
+**Before any work**: Create session log with protocol compliance checklist.
+
+```bash
+# Create session log
+SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
+cat > "$SESSION_FILE" << 'EOF'
+# PR Comment Responder Session
+
+## Protocol Compliance Checklist
+
+- [ ] Gate 0: Session log created
+- [ ] Gate 1: Eyes reactions = comment count
+- [ ] Gate 2: Artifact files created
+- [ ] Gate 3: All tasks tracked in tasks.md
+- [ ] Gate 4: Artifact state matches API state
+- [ ] Gate 5: All threads resolved
+EOF
+```
+
+**Evidence required**: Session log file exists with checkboxes.
+
+### Gate 1: Acknowledgment Verification
+
+**After Phase 2**: Verify eyes reaction count equals total comment count.
+
+```bash
+# Count reactions added vs comments
+REACTIONS_ADDED=$(cat .agents/pr-comments/PR-[number]/session.log | grep -c "reaction.*eyes")
+COMMENT_COUNT=$TOTAL_COMMENTS
+
+if [ "$REACTIONS_ADDED" -ne "$COMMENT_COUNT" ]; then
+  echo "[BLOCKED] Reactions: $REACTIONS_ADDED != Comments: $COMMENT_COUNT"
+  exit 1
+fi
+```
+
+**Evidence required**: Log shows equal counts.
+
+### Gate 2: Artifact Creation Verification
+
+**After generating comment map and task list**: Verify files exist and contain expected counts.
+
+```bash
+# Verify artifacts exist
+test -f ".agents/pr-comments/PR-[number]/comments.md" || exit 1
+test -f ".agents/pr-comments/PR-[number]/tasks.md" || exit 1
+
+# Verify comment count matches
+ARTIFACT_COUNT=$(grep -c "^| [0-9]" .agents/pr-comments/PR-[number]/comments.md)
+if [ "$ARTIFACT_COUNT" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Artifact count: $ARTIFACT_COUNT != API count: $TOTAL_COMMENTS"
+  exit 1
+fi
+```
+
+**Evidence required**: Files exist with correct counts.
+
+### Gate 3: Artifact Update After Fix
+
+**After EVERY fix commit**: Update artifact status atomically.
+
+```bash
+# IMMEDIATELY after git commit, update artifact
+sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... [COMPLETE]/" \
+  .agents/pr-comments/PR-[number]/tasks.md
+
+# Verify update applied
+grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || exit 1
+```
+
+**Evidence required**: Task marked complete in artifact file.
+
+### Gate 4: State Synchronization Before Resolution
+
+**Before Phase 8 (thread resolution)**: Verify artifact state matches intended API state.
+
+```bash
+# Count completed tasks in artifact
+COMPLETED=$(grep -c "\[COMPLETE\]" .agents/pr-comments/PR-[number]/tasks.md)
+TOTAL=$(grep -c "^- \[ \]\|^\[x\]" .agents/pr-comments/PR-[number]/tasks.md)
+
+# Count threads to resolve
+UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Verify alignment
+if [ "$COMPLETED" -ne "$((TOTAL - UNRESOLVED_API))" ]; then
+  echo "[BLOCKED] Artifact COMPLETED ($COMPLETED) != API resolved ($((TOTAL - UNRESOLVED_API)))"
+  exit 1
+fi
+```
+
+**Evidence required**: Counts match before proceeding.
+
+### Gate 5: Final Verification
+
+**After Phase 8**: Verify all threads resolved AND artifacts updated.
+
+```bash
+# API state
+REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Artifact state
+PENDING=$(grep -c "Status: pending\|Status: \[ACKNOWLEDGED\]" .agents/pr-comments/PR-[number]/comments.md)
+
+if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
+  exit 1
+fi
+
+echo "[PASS] All gates cleared"
+```
+
+**Evidence required**: Both counts are zero.
+
 ## Workflow Protocol
 
-### Phase 0: Session State Check
+### Phase 0: Memory Initialization (BLOCKING)
 
-Before starting work, check if this is a continuation of a previous session:
+**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
+
+#### Step 0.1: Load Core Skills Memory
+
+```python
+# ALWAYS load pr-comment-responder-skills first
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+```
+
+This memory contains:
+
+- Reviewer signal quality statistics (actionability rates)
+- Triage heuristics and learned patterns
+- Per-PR breakdown of comment outcomes
+- Anti-patterns to avoid
+
+#### Step 0.2: Verify Core Memory Loaded
+
+Before proceeding, confirm `pr-comment-responder-skills` is loaded:
+
+- [ ] Memory content appears in context
+- [ ] Reviewer signal quality table visible
+- [ ] Triage heuristics available
+
+**If memory load fails**: Proceed with default heuristics but flag in session log.
+
+#### Step 0.3: Note on Reviewer-Specific Memories
+
+Reviewer-specific memories (e.g., `cursor-bot-review-patterns`) are loaded in **Step 1.2a** after reviewer enumeration completes. Phase 0 focuses only on core skills memory.
+
+---
+
+| Reviewer | Memory Name | Content |
+|----------|-------------|---------|
+| cursor[bot] | `cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
+| Copilot | `copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
+| coderabbitai[bot] | - | (Use pr-comment-responder-skills) |
+
+---
+
+### Phase 1: Context Gathering
+
+#### Step 1.0: Session State Check
+
+Before fetching new data, check if this is a continuation of a previous session:
 
 ```bash
 SESSION_DIR=".agents/pr-comments/PR-[number]"
@@ -245,12 +409,12 @@ if [ -d "$SESSION_DIR" ]; then
   PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
   echo "Previous session had $PREVIOUS_COMMENTS comments"
 
-  # Check for NEW comments only
-  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+  # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)
+  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
-    # Proceed to Phase 1 to fetch new comments only
+    # Proceed to Step 1.1 to fetch new comments only
   else
     echo "[NO NEW COMMENTS] Proceeding to Phase 8 for verification"
     # Skip to Phase 8 to verify completion criteria
@@ -269,8 +433,6 @@ fi
 | `tasks.md` | Prioritized task list |
 | `session-summary.md` | Session outcomes and statistics |
 | `[comment_id]-plan.md` | Per-comment implementation plans |
-
-### Phase 1: Context Gathering
 
 **CRITICAL**: Enumerate ALL reviewers and count ALL comments before proceeding. Missing comments wastes tokens on repeated prompts. Missed comments lead to incomplete PR handling and waste tokens on repeated prompts. Replying to incorrect comment threads creates noise and causes confusion.
 
@@ -303,7 +465,7 @@ PR_BASE=$(echo "$PR_DATA" | jq -r '.baseRefName')
 #### Step 1.2: Enumerate All Reviewers
 
 ```powershell
-# Using github skill (PREFERRED) - prevents single-bot blindness (Skill-PR-001)
+# Using github skill (PREFERRED) - prevents single-bot blindness (pr-enum-001)
 pwsh .claude/skills/github/scripts/pr/Get-PRReviewers.ps1 -PullRequest [number]
 
 # Exclude bots from enumeration
@@ -325,13 +487,30 @@ echo "Reviewers: $ALL_REVIEWERS"
 
 </details>
 
+#### Step 1.2a: Load Reviewer-Specific Memories
+
+Now that reviewers are enumerated, load memories for each unique reviewer:
+
+```python
+# For each reviewer, check for dedicated memory
+for reviewer in ALL_REVIEWERS:
+    if reviewer == "cursor[bot]":
+        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
+    elif reviewer == "copilot-pull-request-reviewer":
+        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
+    # Other reviewers use pr-comment-responder-skills (already loaded in Phase 0)
+```
+
+**Reference**: See Phase 0, Step 0.3 for the reviewer memory mapping table.
+
 #### Step 1.3: Retrieve ALL Comments (with pagination)
 
 ```powershell
 # Using github skill (PREFERRED) - handles pagination automatically
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number]
+# IMPORTANT: Use -IncludeIssueComments to capture AI Quality Gate, CodeRabbit summaries, etc.
+pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments
 
-# Returns all review comments with: id, author, path, line, body, diff_hunk, created_at, in_reply_to_id
+# Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
 ```
 
 <details>
@@ -374,13 +553,16 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 The `Get-PRReviewComments.ps1` script returns full comment details including:
 
 - `id`: Comment ID for reactions and replies
+- `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
 - `author`: Reviewer username
-- `path`: File path
-- `line`: Line number (or original_line for outdated)
+- `path`: File path (null for issue comments)
+- `line`: Line number (null for issue comments)
 - `body`: Comment text
-- `diff_hunk`: Surrounding code context
+- `diff_hunk`: Surrounding code context (null for issue comments)
 - `created_at`: Timestamp
-- `in_reply_to_id`: Parent comment for threads
+- `in_reply_to_id`: Parent comment for threads (null for issue comments)
+
+**Note**: Issue comments include AI Quality Gate reviews, spec validation, and CodeRabbit summaries that would otherwise be missed.
 
 <details>
 <summary>Alternative: Raw gh CLI extraction</summary>
@@ -613,6 +795,100 @@ These comments require immediate response before implementation:
 [If tasks have dependencies, document here]
 ```
 
+### Phase 4.5: Copilot Follow-Up Handling
+
+**BLOCKING GATE**: Must complete before Phase 5 begins
+
+This phase detects and handles Copilot's follow-up PR creation pattern. When you reply to Copilot's review comments, Copilot often creates a new PR targeting the original PR's branch.
+
+#### Detection Pattern
+
+Copilot follow-up PRs match:
+
+- **Branch**: `copilot/sub-pr-{original_pr_number}`
+- **Target**: Original PR's base branch (not main)
+- **Announcement**: Issue comment from `app/copilot-swe-agent` containing "I've opened a new pull request"
+
+**Example**: PR #32 → Follow-up PR #33 (copilot/sub-pr-32)
+
+#### Step 4.5.1: Query for Follow-Up PRs
+
+```bash
+# Search for follow-up PR matching pattern
+FOLLOW_UP=$(gh pr list --state=open \
+  --search="head:copilot/sub-pr-${PR_NUMBER}" \
+  --json=number,title,body,headRefName,baseRefName,state,author)
+
+if [ -z "$FOLLOW_UP" ] || [ "$(echo "$FOLLOW_UP" | jq 'length')" -eq 0 ]; then
+  echo "No follow-up PRs found. Proceed to Phase 5."
+  exit 0
+fi
+```
+
+#### Step 4.5.2: Verify Copilot Announcement
+
+```bash
+# Check for Copilot announcement comment on original PR
+ANNOUNCEMENT=$(gh api repos/OWNER/REPO/issues/${PR_NUMBER}/comments \
+  --jq '.[] | select(.user.login == "app/copilot-swe-agent" and .body | contains("opened a new pull request"))')
+
+if [ -z "$ANNOUNCEMENT" ]; then
+  echo "WARNING: Follow-up PR found but no Copilot announcement. May not be official follow-up."
+fi
+```
+
+#### Step 4.5.3: Categorize Follow-Up Intent
+
+Analyze the follow-up PR content to determine intent:
+
+**DUPLICATE**: Follow-up contains same changes as fixes already applied
+
+- Example: PR #32/#33 (both address same 5 comments)
+- Action: Close with explanation linking to original commits
+
+**SUPPLEMENTAL**: Follow-up addresses different/additional issues
+
+- Example: Extra changes needed after initial reply
+- Action: Evaluate for merge or request changes
+
+**INDEPENDENT**: Follow-up unrelated to original review
+
+- Example: Copilot misunderstood context
+- Action: Close with note
+
+#### Step 4.5.4: Execute Decision
+
+**DUPLICATE Decision**:
+
+```bash
+# Close with explanation
+gh pr close ${FOLLOW_UP_PR} --comment "Closing: This follow-up PR duplicates changes already applied in the original PR.
+
+Applied fixes:
+- Commit [hash1]: [description]
+- Commit [hash2]: [description]
+
+See PR #${PR_NUMBER} for details."
+```
+
+**SUPPLEMENTAL Decision**:
+
+```bash
+# Evaluate for merge or request changes
+# Option A: Merge if changes are valid and address new issues
+gh pr merge ${FOLLOW_UP_PR} --auto --squash --delete-branch
+
+# Option B: Leave open for review
+# Post comment on original PR documenting supplemental follow-up
+```
+
+**INDEPENDENT Decision**:
+
+```bash
+# Close with note
+gh pr close ${FOLLOW_UP_PR} --comment "Closing: This PR addresses concerns that were already resolved in PR #${PR_NUMBER}. No action needed."
+```
+
 ### Phase 5: Immediate Replies
 
 Reply to comments that need immediate response BEFORE implementation:
@@ -646,7 +922,7 @@ Reply to comments that need immediate response BEFORE implementation:
 > **[CRITICAL]**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
 
 ```powershell
-# Using github skill (PREFERRED) - handles thread-preserving replies correctly (Skill-PR-004)
+# Using github skill (PREFERRED) - handles thread-preserving replies correctly (pr-thread-reply)
 # Reply to review comment (in-thread reply using /replies endpoint)
 pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -CommentId [comment_id] -Body "[response]"
 
@@ -838,7 +1114,7 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MANDATORY**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
+**MUST**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
 
 #### Phase 8.1: Comment Status Verification
 
@@ -890,8 +1166,8 @@ After pushing commits, bots may post new comments. Wait and re-check:
 # Wait for bot responses (30-60 seconds)
 sleep 45
 
-# Re-fetch comments
-NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+# Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
+NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
 
 # Compare to original count
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
@@ -944,6 +1220,94 @@ echo "[ ] Pushed: $(git status -sb | head -1)"
 ```
 
 **If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.
+
+---
+
+### Phase 9: Memory Storage (BLOCKING)
+
+**MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
+
+#### Step 9.1: Calculate Session Statistics
+
+For each reviewer who commented on this PR:
+
+```python
+session_stats = {
+    "pr_number": PR_NUMBER,
+    "date": "YYYY-MM-DD",
+    "reviewers": {
+        "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
+        "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
+        # ... other reviewers
+    }
+}
+```
+
+#### Step 9.2: Update pr-comment-responder-skills Memory
+
+```python
+# Read current memory to get existing statistics
+current = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+
+# Calculate new cumulative totals from session_stats
+# Example: If cursor[bot] had 9 comments (100%) and this PR adds 2 more (100%)
+# New totals: 11 comments, 11 actionable, 100%
+
+# Update Per-Reviewer Performance table with new totals
+# Find the row for each reviewer and update their cumulative stats
+mcp__serena__edit_memory(
+    memory_file_name="pr-comment-responder-skills",
+    needle=r"\| cursor\[bot\] \| \d+ \| \d+ \| \*\*\d+%\*\* \|",
+    repl=f"| cursor[bot] | {new_total_comments} | {new_actionable} | **{new_rate}%** |",
+    mode="regex"
+)
+
+# Add new Per-PR Breakdown entry (prepend to existing entries)
+new_pr_section = f"""### Per-PR Breakdown
+
+#### PR #{PR_NUMBER} ({date})
+
+| Reviewer | Comments | Actionable | Rate |
+|----------|----------|------------|------|
+| cursor[bot] | {cursor_comments} | {cursor_actionable} | {cursor_rate}% |
+| copilot-pull-request-reviewer | {copilot_comments} | {copilot_actionable} | {copilot_rate}% |
+
+"""
+
+mcp__serena__edit_memory(
+    memory_file_name="pr-comment-responder-skills",
+    needle="### Per-PR Breakdown",
+    repl=new_pr_section,
+    mode="literal"
+)
+```
+
+#### Step 9.3: Update Required Fields
+
+The following MUST be updated in `pr-comment-responder-skills`:
+
+| Section | What to Update |
+|---------|----------------|
+| Per-Reviewer Performance | Add PR to PRs list, update totals |
+| Per-PR Breakdown | Add new PR section with per-reviewer stats |
+| Metrics | Update cumulative totals |
+
+#### Step 9.4: Verify Memory Updated
+
+Confirm that the `pr-comment-responder-skills` memory reflects the new PR:
+
+- [ ] In **Per-Reviewer Performance (Cumulative)**, the PR appears in each relevant reviewer's PR list and their totals are updated
+- [ ] In **Per-PR Breakdown**, a new section for this PR exists with per-reviewer stats populated
+- [ ] In **Metrics**, cumulative totals (PR counts, comment counts, resolution stats) include this PR
+
+**Verification Command**:
+
+```bash
+# Read updated memory and verify new PR data appears
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+```
+
+---
 
 ## Memory Protocol
 
