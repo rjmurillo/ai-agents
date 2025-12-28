@@ -119,3 +119,12 @@
 # See: ADR-014 "Distributed Handoff Architecture" Phase 2
 #
 .agents/handoffs/*.md merge=handoff-aggregate
+
+# ============================================================================
+# Skill Files: Line Ending Normalization
+# ============================================================================
+#
+# Force LF line endings for generated skill files to prevent git noise
+# from platform differences. See ADR-019 for rationale and implementation.
+#
+*.skill text eol=lf diff=markdown

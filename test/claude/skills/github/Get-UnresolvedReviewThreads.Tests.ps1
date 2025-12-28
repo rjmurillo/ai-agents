@@ -8,7 +8,8 @@
 #>
 
 BeforeAll {
-    $ScriptPath = Join-Path $PSScriptRoot '..' 'scripts' 'pr' 'Get-UnresolvedReviewThreads.ps1'
+    # Correct path: from test/claude/skills/github -> .claude/skills/github/scripts/pr
+    $ScriptPath = Join-Path $PSScriptRoot '..' '..' '..' '..' '.claude' 'skills' 'github' 'scripts' 'pr' 'Get-UnresolvedReviewThreads.ps1'
     $ScriptContent = Get-Content -Path $ScriptPath -Raw
 }
 

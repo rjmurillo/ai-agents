@@ -76,7 +76,7 @@ runs-on: ubuntu-24.04-arm
 
 | Workflow | Paths Monitored |
 |----------|----------------|
-| agent-metrics.yml | `.agents/utilities/metrics/**`, `.github/workflows/agent-metrics.yml` |
+| agent-metrics.yml | `.claude/skills/metrics/**`, `.github/workflows/agent-metrics.yml` |
 | copilot-setup-steps.yml | `.githooks/**`, `.github/workflows/copilot-setup-steps.yml` |
 | drift-detection.yml | `src/claude/**`, `templates/agents/**`, `build/scripts/Detect-AgentDrift.ps1` |
 | pester-tests.yml | `scripts/**`, `build/**`, `.github/scripts/**`, `.claude/skills/**`, `tests/**` |
