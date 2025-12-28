@@ -50,3 +50,24 @@ Updating only `templates/agents/*.shared.md` and assuming Claude variants will b
 ## Impact
 
 9/10 - Prevents incomplete documentation updates
+
+## Verification Step (Session 92 Learning)
+
+After running `build/Generate-Agents.ps1`, verify regeneration:
+
+```bash
+# Check that copilot-cli variants were regenerated
+git diff templates/agents/retrospective.shared.md src/copilot-cli/retrospective.agent.md
+
+# Check that vs-code-agents variants were regenerated
+git diff templates/agents/retrospective.shared.md src/vs-code-agents/retrospective.agent.md
+
+# Ensure Claude variants are manually updated
+git status src/claude/*.md  # Should show modifications if template changes apply
+```
+
+**Expected:** Changes from templates propagate to copilot-cli and vs-code-agents. Claude variants require manual editing.
+
+**Anti-Pattern:** Update template, run generator, commit without verifying diffs.
+
+**Evidence:** Session 92 template-first pattern + architecture-template-variant-maintenance memory

@@ -221,7 +221,7 @@ You WILL use action-oriented headers:
 
 You WILL present research findings using:
 
-```
+```markdown
 ### Research Summary: [Topic]
 **Sources Analyzed:**
 - [Source 1]: [Key findings]
@@ -309,7 +309,7 @@ Prompt Builder responds directly to user requests without dual-persona introduct
 
 When research is required, Prompt Builder outlines the research plan:
 
-```
+```markdown
 ## **Prompt Builder**: Researching [Topic] for Prompt Enhancement
 I will:
 1. Research [specific sources/areas]

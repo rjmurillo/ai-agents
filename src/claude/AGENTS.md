@@ -6,6 +6,36 @@ This document describes the 18 AI agents defined for Claude Code CLI and the cri
 
 The `src/claude/` directory contains **hand-maintained** agent definitions for Claude Code CLI. Unlike VS Code and Copilot CLI agents (which are generated from templates), Claude agents are the primary source for Claude-specific features.
 
+## Source vs Installation Relationship
+
+```text
+src/claude/*.md  ───────────────────────────────────────┐
+   (SOURCE - hand-maintained)                           │
+                                                        ▼
+                                              scripts/install.ps1
+                                                        │
+                                                        ▼
+                                           .claude/agents/*.md
+                                           (INSTALLED - runtime)
+```
+
+**Key distinction**:
+
+| Directory | Role | Editing |
+|-----------|------|---------|
+| `src/claude/` | SOURCE for Claude Code agents | Edit here |
+| `.claude/agents/` | INSTALLED copy (runtime) | DO NOT edit directly |
+| `templates/agents/` | SOURCE for VS Code/Copilot agents | Edit here for cross-platform |
+
+**Backporting improvements**: If `.claude/agents/` contains improvements made during runtime that should persist:
+
+1. Copy improvements from `.claude/agents/{agent}.md` to `src/claude/{agent}.md`
+2. Verify ADR enforcement, security gates, and blocking sections are PRESERVED
+3. Commit to `src/claude/` only
+4. Run `scripts/install-claude-repo.ps1 -Force` to reinstall
+
+**Common mistake**: Copying `.claude/agents/` wholesale to `src/claude/` may overwrite blocking gates (like ADR Review Enforcement) if the installed version was modified without including those sections.
+
 ## Critical Workflow Rules
 
 ### Rule 1: Synchronization with Templates
