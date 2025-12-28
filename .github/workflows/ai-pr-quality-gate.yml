@@ -633,25 +633,28 @@ jobs:
         run: |
           $finalVerdict = "${{ steps.aggregate.outputs.final_verdict }}"
 
-          # Get individual agent verdicts for detailed reporting
-          $agentVerdicts = @{
-            '🔒 Security' = "${{ steps.aggregate.outputs.security_verdict }}"
-            '🧪 QA' = "${{ steps.aggregate.outputs.qa_verdict }}"
-            '📊 Analyst' = "${{ steps.aggregate.outputs.analyst_verdict }}"
-            '📐 Architect' = "${{ steps.aggregate.outputs.architect_verdict }}"
-            '⚙️ DevOps' = "${{ steps.aggregate.outputs.devops_verdict }}"
-            '🗺️ Roadmap' = "${{ steps.aggregate.outputs.roadmap_verdict }}"
-          }
+          # Use ordered array for deterministic output (dictionary Keys property is unordered)
+          $agentVerdicts = @(
+            @{ Name = '🔒 Security'; Verdict = "${{ steps.aggregate.outputs.security_verdict }}" }
+            @{ Name = '🧪 QA'; Verdict = "${{ steps.aggregate.outputs.qa_verdict }}" }
+            @{ Name = '📊 Analyst'; Verdict = "${{ steps.aggregate.outputs.analyst_verdict }}" }
+            @{ Name = '📐 Architect'; Verdict = "${{ steps.aggregate.outputs.architect_verdict }}" }
+            @{ Name = '⚙️ DevOps'; Verdict = "${{ steps.aggregate.outputs.devops_verdict }}" }
+            @{ Name = '🗺️ Roadmap'; Verdict = "${{ steps.aggregate.outputs.roadmap_verdict }}" }
+          )
 
           # Identify agents with blocking verdicts
           $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL')
           $failedAgents = @()
 
-          foreach ($agent in $agentVerdicts.Keys) {
-            $verdict = $agentVerdicts[$agent]
-            if ($verdict -in $blockingVerdicts) {
-              $failedAgents += "${agent}: $verdict"
-              Write-Output "::error::${agent}: $verdict"
+          foreach ($entry in $agentVerdicts) {
+            if ([string]::IsNullOrWhiteSpace($entry.Verdict)) {
+              Write-Output "::warning::$($entry.Name): No verdict received from aggregate step"
+              continue
+            }
+            if ($entry.Verdict -in $blockingVerdicts) {
+              $failedAgents += "$($entry.Name): $($entry.Verdict)"
+              Write-Output "::error::$($entry.Name): $($entry.Verdict)"
             }
           }
 
