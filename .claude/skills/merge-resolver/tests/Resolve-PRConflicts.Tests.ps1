@@ -263,4 +263,93 @@ Describe 'Resolve-PRConflicts.ps1' {
             $ScriptContent | Should -Match 'Get-RepoInfo'
         }
     }
+
+    Context 'Behavioral Tests - Test-SafeBranchName' {
+        BeforeAll {
+            # Extract functions from script using AST (avoids mandatory parameter prompt)
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($ScriptPath, [ref]$null, [ref]$null)
+            $functions = $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false)
+
+            # Extract Test-SafeBranchName function
+            $testSafeBranchNameAst = $functions | Where-Object { $_.Name -eq 'Test-SafeBranchName' }
+            if (-not $testSafeBranchNameAst) {
+                throw "Test-SafeBranchName function not found in script"
+            }
+
+            # Create the function in current scope
+            Invoke-Expression $testSafeBranchNameAst.Extent.Text
+        }
+
+        # Positive test cases - valid branch names
+        It 'Should accept valid branch name: feature/my-branch' {
+            Test-SafeBranchName -BranchName 'feature/my-branch' | Should -Be $true
+        }
+
+        It 'Should accept valid branch name: fix/issue-123' {
+            Test-SafeBranchName -BranchName 'fix/issue-123' | Should -Be $true
+        }
+
+        It 'Should accept valid branch name: main' {
+            Test-SafeBranchName -BranchName 'main' | Should -Be $true
+        }
+
+        # Negative test cases - attack strings
+        It 'Should reject branch name with semicolon (command injection)' {
+            Test-SafeBranchName -BranchName 'main;rm -rf /' | Should -Be $false
+        }
+
+        It 'Should reject branch name with pipe (command injection)' {
+            Test-SafeBranchName -BranchName 'main|cat /etc/passwd' | Should -Be $false
+        }
+
+        It 'Should reject branch name with backtick (command substitution)' {
+            Test-SafeBranchName -BranchName 'main`whoami`' | Should -Be $false
+        }
+
+        It 'Should reject branch name starting with hyphen (git option injection)' {
+            Test-SafeBranchName -BranchName '--exec=malicious' | Should -Be $false
+        }
+
+        It 'Should reject branch name with path traversal' {
+            Test-SafeBranchName -BranchName '../../../etc/passwd' | Should -Be $false
+        }
+
+        It 'Should reject branch name with dollar sign (variable expansion)' {
+            Test-SafeBranchName -BranchName 'main$HOME' | Should -Be $false
+        }
+
+        It 'Should reject branch name with ampersand (background execution)' {
+            Test-SafeBranchName -BranchName 'main&whoami' | Should -Be $false
+        }
+
+        # Edge cases
+        It 'Should reject empty branch name' {
+            # Empty string causes parameter binding failure, which is acceptable security behavior
+            # Test using a variable to bypass parameter binding validation
+            $empty = ''
+            { Test-SafeBranchName -BranchName $empty } | Should -Throw
+        }
+
+        It 'Should reject whitespace-only branch name' {
+            Test-SafeBranchName -BranchName '   ' | Should -Be $false
+        }
+
+        It 'Should reject branch name with control characters' {
+            Test-SafeBranchName -BranchName "main`0secret" | Should -Be $false
+        }
+
+        It 'Should reject branch name with git special characters' {
+            Test-SafeBranchName -BranchName 'main~1' | Should -Be $false
+            Test-SafeBranchName -BranchName 'main^1' | Should -Be $false
+            Test-SafeBranchName -BranchName 'main:file' | Should -Be $false
+        }
+    }
+
+    Context 'Behavioral Tests - TargetBranch Validation' {
+        It 'Should validate TargetBranch with same rules as BranchName' {
+            # The script should call Test-SafeBranchName for TargetBranch
+            # Verify the pattern exists in the script
+            $ScriptContent | Should -Match 'Test-SafeBranchName.*-BranchName \$TargetBranch'
+        }
+    }
 }

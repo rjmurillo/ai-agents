@@ -382,7 +382,33 @@ mcp__cloudmcp-manager__memory-create_entities
 
 ## Handoff Protocol
 
-When review is complete:
+**As a subagent, you CANNOT delegate**. Return results to orchestrator.
+
+### ADR Creation/Update Protocol (BLOCKING)
+
+When you create or update an ADR file matching `.agents/architecture/ADR-*.md`:
+
+1. Save ADR to `.agents/architecture/ADR-NNNN-[title].md`
+2. Update architecture changelog if needed
+3. Store decision in memory
+4. Return to orchestrator with **MANDATORY routing**:
+
+```text
+ADR created/updated: [path to ADR file]
+
+MANDATORY: Orchestrator MUST invoke adr-review skill before proceeding.
+
+Command:
+  Skill(skill="adr-review", args="[path to ADR file]")
+
+Rationale: All ADRs require multi-agent validation per adr-review protocol.
+```
+
+**BLOCKING REQUIREMENT**: You MUST NOT recommend routing to any other agent (planner, implementer, etc.) until adr-review completes. Orchestrator is responsible for enforcing this gate.
+
+### Non-ADR Review Handoff
+
+When review is complete and NO ADR was created/updated:
 
 1. Save findings to `.agents/architecture/`
 2. Update architecture changelog if decisions made

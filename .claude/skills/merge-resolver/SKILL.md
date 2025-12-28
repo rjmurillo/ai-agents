@@ -120,10 +120,23 @@ git diff --cached --stat
 ## Resolution Strategies
 
 See `references/strategies.md` for detailed patterns:
+
+**Code Conflicts:**
 - Combining additive changes
 - Handling moved code
 - Resolving import conflicts
 - Dealing with deleted code
+- Conflicting logic resolution
+
+**Infrastructure Conflicts:**
+- Package lock files (regenerate, don't merge)
+- Configuration files (JSON/YAML semantic merge)
+- Database migrations (renumber, preserve order)
+
+**Documentation Conflicts:**
+- Numbered documentation (ADR, RFC) - renumber incoming to next available
+- Template-generated files - resolve in template, regenerate outputs
+- Rebase add/add conflicts - per-commit resolution during rebase
 
 ## Auto-Resolution Script
 
@@ -143,8 +156,18 @@ The following files are automatically resolved by accepting the target branch ve
 
 | Pattern | Rationale |
 |---------|-----------|
-| `.agents/HANDOFF.md` | Session state, regenerated each session |
-| `.agents/sessions/*` | Session logs, target branch has latest |
+| `.agents/*` | Session artifacts, constantly changing |
+| `.serena/*` | Serena memories, auto-generated |
+| `.claude/skills/*/*.md` | Skill definitions, main is authoritative |
+| `.claude/commands/*` | Command definitions, main is authoritative |
+| `.claude/agents/*` | Agent definitions, main is authoritative |
+| `templates/*` | Template files, main is authoritative |
+| `src/copilot-cli/*` | Platform agent definitions |
+| `src/vs-code-agents/*` | Platform agent definitions |
+| `src/claude/*` | Platform agent definitions |
+| `.github/agents/*` | GitHub agent configs |
+| `.github/prompts/*` | GitHub prompts |
+| `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` | Lock files, regenerate from main |
 
 ### Script Output
 

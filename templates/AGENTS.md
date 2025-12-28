@@ -6,6 +6,42 @@ This document describes the AI agents defined in the template system and how the
 
 The `templates/` directory is the **source of truth** for AI agent definitions. It contains shared templates that are transformed by `build/Generate-Agents.ps1` into platform-specific agent files for VS Code and Copilot CLI.
 
+**Important**: Claude Code agents (`src/claude/`) are NOT generated from templates. They are hand-maintained separately. See `src/claude/AGENTS.md` for the Claude agent workflow.
+
+## Platform Generation vs Claude Installation
+
+```text
+templates/agents/*.shared.md ─────────┐
+   (SOURCE for VS Code/Copilot)       │
+                                      ▼
+                            build/Generate-Agents.ps1
+                                      │
+              ┌───────────────────────┼───────────────────────┐
+              ▼                       ▼                       │
+   src/vs-code-agents/*.agent.md  src/copilot-cli/*.agent.md  │
+   (GENERATED - DO NOT EDIT)      (GENERATED - DO NOT EDIT)   │
+                                                              │
+                                                              │
+src/claude/*.md ──────────────────────────────────────────────┘
+   (HAND-MAINTAINED - separate flow)                          │
+                                                              ▼
+                                                    scripts/install.ps1
+                                                              │
+                                                              ▼
+                                                   .claude/agents/*.md
+                                                   (INSTALLED - runtime)
+```
+
+**Key distinction**:
+
+| Directory | Role | Source |
+|-----------|------|--------|
+| `templates/agents/` | Template for VS Code/Copilot | Hand-maintained |
+| `src/vs-code-agents/` | Generated output | From templates |
+| `src/copilot-cli/` | Generated output | From templates |
+| `src/claude/` | Claude Code source | Hand-maintained (separate) |
+| `.claude/agents/` | Claude Code runtime | From src/claude via install |
+
 ## Architecture
 
 ```mermaid

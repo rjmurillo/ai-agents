@@ -361,7 +361,7 @@ It "Should not match paths without literal ?" {
 
 **Trigger**: Reverting workflow runners from cross-platform to Windows-only
 
-**Location Rationale**: Bundled in powershell-testing-patterns.md per ADR-017 Format B (8+ related testing skills share workflow context)
+**Location Rationale**: Bundled in powershell-testing-patterns.md per ADR-019 Format B (8+ related testing skills share workflow context)
 
 **Evidence**: PR #224: Pester tests failed on ARM Linux due to Windows-specific assumptions about hidden files, temp paths, and file system behavior. Tests reverted to Windows with documented justification.
 
