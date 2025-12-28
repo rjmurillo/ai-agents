@@ -11,10 +11,37 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 
 ## When to Use
 
-- User requests ADR review ("review this ADR", "validate this decision")
-- Architect creates or updates an ADR
-- Orchestrator detects ADR file changes
-- Strategic decisions require multi-perspective validation
+**MANDATORY Triggers** (automatic, non-negotiable):
+
+- Architect creates or updates an ADR and signals orchestrator
+- ANY agent creates or updates a file matching `.agents/architecture/ADR-*.md`
+- Orchestrator detects ADR creation/update signal from agent output
+
+**User-Initiated Triggers** (manual):
+
+- User explicitly requests ADR review ("review this ADR", "validate this decision")
+- User requests multi-perspective validation for strategic decisions
+
+**Enforcement**:
+
+The architect agent is configured to ALWAYS signal orchestrator with MANDATORY routing when ADR files are created/updated. Orchestrator is configured to BLOCK workflow continuation until adr-review completes.
+
+**Scope**:
+
+- Primary location: `.agents/architecture/ADR-*.md`
+- Secondary location: `docs/architecture/ADR-*.md` (if project uses this structure)
+
+**Anti-Pattern**:
+
+- Architect routes to planner without adr-review
+- Orchestrator proceeds to next agent without invoking adr-review
+- User must manually request adr-review after ADR creation
+
+**Correct Pattern**:
+
+- Architect signals orchestrator: "MANDATORY: invoke adr-review"
+- Orchestrator invokes adr-review skill
+- Workflow continues only after adr-review completes
 
 ## Agent Roles
 

@@ -1,73 +1,54 @@
 # Claude Code Instructions
 
+> **RFC 2119**: MUST = required, SHOULD = recommended, MAY = optional.
+
 ## BLOCKING GATE: Session Protocol
 
 > **Canonical Source**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
->
-> This file uses RFC 2119 key words. MUST = required, SHOULD = recommended, MAY = optional.
 
-### Phase 1: Serena Initialization (BLOCKING)
+### Session Start (BLOCKING)
 
-You MUST NOT proceed to any other action until both calls succeed:
+Complete ALL before any work:
 
-```text
-1. mcp__serena__activate_project  (with project path)
-2. mcp__serena__initial_instructions
-```
-
-**Verification**: Tool output appears in session transcript.
-
-**If skipped**: You lack project memories, semantic code tools, and historical context.
-
-### Phase 2: Context Retrieval (BLOCKING)
-
-You MUST read `.agents/HANDOFF.md` before starting work.
-
-**Verification**: Content appears in session context; you reference prior decisions.
-
-**If skipped**: You will repeat completed work or contradict prior decisions.
-
-### Phase 3: Session Log (REQUIRED)
-
-You MUST create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` early in session.
-
-**Verification**: File exists with Protocol Compliance section.
+| Req | Step | Verification |
+|-----|------|--------------|
+| MUST | `mcp__serena__activate_project` | Tool output in transcript |
+| MUST | `mcp__serena__initial_instructions` | Tool output in transcript |
+| MUST | Read `.agents/HANDOFF.md` (read-only reference) | Content in context |
+| MUST | Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
+| MUST | List skills: `.claude/skills/github/scripts/` | Output documented |
+| MUST | Read `skill-usage-mandatory` memory | Content in context |
+| MUST | Read `.agents/governance/PROJECT-CONSTRAINTS.md` | Content in context |
 
 ### Session End (BLOCKING)
 
-You CANNOT claim session completion until validation PASSES:
+Complete ALL before closing:
 
-```bash
-pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
-```
+| Req | Step | Verification |
+|-----|------|--------------|
+| MUST | Complete session log | All sections filled |
+| MUST | Update Serena memory (cross-session context) | Memory write confirmed |
+| MUST | Run `npx markdownlint-cli2 --fix "**/*.md"` | Lint clean |
+| MUST | Route to qa agent (feature implementation) | QA report exists |
+| MUST | Commit all changes (including `.serena/memories/`) | Commit SHA recorded |
+| MUST NOT | Update `.agents/HANDOFF.md` | HANDOFF.md unchanged |
 
-Before running validator, you MUST:
-
-1. Complete Session End checklist in session log (all `[x]` checked)
-2. Update `.agents/HANDOFF.md` with session summary and session log link
-3. Run `npx markdownlint-cli2 --fix "**/*.md"`
-4. Commit all changes including `.agents/` files
-5. Record commit SHA in Session End checklist Evidence column
-
-**Verification**: Validator exits with code 0 (PASS).
-
-**If validation fails**: Fix violations and re-run validator. Do NOT claim completion.
-
-**Full protocol with RFC 2119 requirements**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
+**Validation**: `pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[log].md"`
 
 ---
 
-Refer to [AGENTS.md](AGENTS.md) for complete project instructions.
+## Critical Constraints
 
-This file exists for Claude Code's auto-load behavior. All canonical agent documentation is maintained in `AGENTS.md` to follow the DRY principle.
+> **Canonical Source**: [.agents/governance/PROJECT-CONSTRAINTS.md](.agents/governance/PROJECT-CONSTRAINTS.md)
 
-## Quick Reference
+| Constraint | Source | Violation Response |
+|------------|--------|-------------------|
+| MUST use PowerShell only (.ps1/.psm1) | ADR-005 | No .sh or .py files |
+| MUST NOT use raw `gh` when skill exists | skill-usage-mandatory | Check `.claude/skills/` first |
+| MUST NOT put logic in workflow YAML | ADR-006 | Logic goes in .psm1 modules |
+| MUST use atomic commits (one logical change) | code-style-conventions | Max 5 files OR single topic |
 
-- **Agent invocation**: `Task(subagent_type="agent_name", prompt="...")`
-- **Memory system**: `cloudmcp-manager` with Serena (tools prefixed with `mcp__serena__`: `write_memory`, `read_memory`, `list_memories`, `delete_memory`, `edit_memory`) fallback
-- **Output directories**: `.agents/{analysis,architecture,planning,critique,qa,retrospective}/`
-
-For full details on workflows, agent catalog, and best practices, see [AGENTS.md](AGENTS.md).
+---
 
 ## GitHub Workflow Requirements (MUST)
 
@@ -100,147 +81,185 @@ When creating a pull request, you MUST use the PR template:
 
 **Do NOT** create PRs with custom descriptions that skip template sections.
 
-## Default Behavior: Use Orchestrator Agent
+### Branch Operation Verification (MUST)
 
-When the user gives you any task, you MUST use the orchestrator agent rather than executing the task natively. The orchestrator will route to appropriate specialized agents.
+Before ANY mutating git or GitHub operation, you MUST verify the current branch:
 
-**Exception**: Simple questions that don't require code changes or multi-step tasks can be answered directly.
+```bash
+# 1. Always verify current branch first
+git branch --show-current
+
+# 2. Confirm it matches your intended PR/issue
+```
+
+**Required flags for external operations**:
+
+| Operation | Required Flag | Example |
+|-----------|---------------|---------|
+| `gh workflow run` | `--ref {branch}` | `gh workflow run ci.yml --ref feat/my-feature` |
+| `gh pr create` | `--base` and `--head` | `gh pr create --base main --head feat/my-feature` |
+
+**Anti-patterns to AVOID**:
+
+| Do NOT | Do Instead |
+|--------|------------|
+| `gh workflow run ci.yml` (no ref) | `gh workflow run ci.yml --ref {branch}` |
+| Assume you're on the right branch | Run `git branch --show-current` first |
+| Switch branches without checking status | Run `git status` before `git checkout` |
+
+**Why**: Branch confusion causes commits to wrong branches, workflows on wrong refs, and PRs from wrong base - wasting significant effort.
+
+## Document Hierarchy
+
+Read these in order when starting work:
+
+| Priority | Document | Purpose |
+|----------|----------|---------|
+| 1 | `.agents/SESSION-PROTOCOL.md` | Session start/end requirements |
+| 2 | `.agents/HANDOFF.md` | Project status dashboard (read-only) |
+| 3 | `.agents/governance/PROJECT-CONSTRAINTS.md` | Hard constraints |
+| 4 | `.agents/AGENT-INSTRUCTIONS.md` | Task execution protocol |
+| 5 | `.agents/AGENT-SYSTEM.md` | Full agent catalog (18 agents) |
+| 6 | `AGENTS.md` | Installation and usage guide |
+
+---
+
+## Default Behavior: Use Orchestrator
+
+For any non-trivial task, delegate to orchestrator:
 
 ```python
-# For any non-trivial task, invoke orchestrator first
 Task(subagent_type="orchestrator", prompt="[user's task description]")
 ```
 
-This ensures proper agent coordination, memory management, and consistent workflows.
+**Exception**: Simple questions or single-file changes can be handled directly.
 
-<!-- BEGIN: ai-agents installer -->
-## AI Agent System
+---
 
-This section provides instructions for using the multi-agent system with Claude Code.
+## Quick Reference
 
-### Overview
-
-A coordinated multi-agent system for software development. Specialized agents handle different responsibilities with explicit handoff protocols and persistent memory.
-
-### Agent Catalog
-
-| Agent | Purpose | When to Use |
-|-------|---------|-------------|
-| **orchestrator** | Task coordination | Complex multi-step tasks |
-| **implementer** | Production code, .NET patterns | Writing/reviewing code |
-| **analyst** | Research, root cause analysis | Investigating issues, evaluating requests |
-| **architect** | ADRs, design governance | Technical decisions |
-| **planner** | Milestones, work packages | Breaking down epics |
-| **critic** | Plan validation | Before implementation |
-| **qa** | Test strategy, verification | After implementation |
-| **explainer** | PRDs, feature docs | Documenting features |
-| **task-generator** | Atomic task breakdown | After PRD created |
-| **high-level-advisor** | Strategic decisions | Major direction choices |
-| **independent-thinker** | Challenge assumptions | Getting unfiltered feedback |
-| **memory** | Cross-session context | Retrieving/storing knowledge |
-| **skillbook** | Skill management | Managing learned strategies |
-| **retrospective** | Learning extraction | After task completion |
-| **devops** | CI/CD pipelines | Build automation, deployment |
-| **roadmap** | Strategic vision | Epic definition, prioritization |
-| **security** | Vulnerability assessment | Threat modeling, secure coding |
-| **pr-comment-responder** | PR review handler | Addressing bot/human review comments |
-
-### Invoking Agents
-
-Use the Task tool with `subagent_type` parameter:
+### Agent Invocation
 
 ```python
 # Research before implementation
-Task(subagent_type="analyst", prompt="Investigate why X fails")
+Task(subagent_type="analyst", prompt="Investigate [topic]")
 
-# Design review
-Task(subagent_type="architect", prompt="Review design for feature X")
+# Design decisions
+Task(subagent_type="architect", prompt="Review design for [feature]")
 
-# Implementation
-Task(subagent_type="implementer", prompt="Implement feature X per plan")
-
-# Plan validation
+# Plan validation (REQUIRED before implementation)
 Task(subagent_type="critic", prompt="Validate plan at .agents/planning/...")
 
-# Code review
-Task(subagent_type="architect", prompt="Review code quality")
+# Implementation
+Task(subagent_type="implementer", prompt="Implement [feature] per plan")
+
+# Quality verification (REQUIRED after implementation)
+Task(subagent_type="qa", prompt="Verify [feature]")
 
 # Extract learnings
-Task(subagent_type="retrospective", prompt="Analyze what we learned")
+Task(subagent_type="retrospective", prompt="Analyze session for learnings")
 ```
 
-### Standard Workflows
+### Common Workflows
 
-**Feature Development:**
+| Scenario | Flow |
+|----------|------|
+| Quick fix | `implementer → qa` |
+| Standard feature | `analyst → planner → critic → implementer → qa` |
+| Strategic decision | `independent-thinker → high-level-advisor → task-generator` |
+| Security-sensitive | `analyst → security → architect → critic → implementer → qa` |
 
-```text
-analyst -> architect -> planner -> critic -> implementer -> qa -> retrospective
-```
-
-**Quick Fix:**
-
-```text
-implementer -> qa
-```
-
-**Strategic Decision:**
-
-```text
-independent-thinker -> high-level-advisor -> task-generator
-```
-
-### Memory Protocol
-
-Agents use `cloudmcp-manager` for cross-session memory:
+### Memory System
 
 ```python
-# Search for context
-mcp__cloudmcp-manager__memory-search_nodes(query="[topic]")
+# Serena (preferred)
+mcp__serena__list_memories()
+mcp__serena__read_memory(memory_file_name="[name]")
+mcp__serena__write_memory(memory_file_name="[name]", content="...")
 
-# Store learnings
-mcp__cloudmcp-manager__memory-add_observations(...)
-mcp__cloudmcp-manager__memory-create_entities(...)
+# cloudmcp-manager (graph-based)
+mcp__cloudmcp-manager__memory-search_nodes(query="[topic]")
+mcp__cloudmcp-manager__memory-create_entities(entities=[...])
 ```
 
 ### Output Directories
 
-Agents save artifacts to `.agents/`:
+| Directory | Agent | Purpose |
+|-----------|-------|---------|
+| `.agents/analysis/` | analyst | Research findings |
+| `.agents/architecture/` | architect | ADRs, design decisions |
+| `.agents/planning/` | planner | PRDs, plans |
+| `.agents/critique/` | critic | Plan reviews |
+| `.agents/qa/` | qa | Test reports |
+| `.agents/retrospective/` | retrospective | Learnings |
+| `.agents/sessions/` | all | Session logs |
 
-| Directory | Purpose |
-|-----------|---------|
-| `analysis/` | Analyst findings, research |
-| `architecture/` | ADRs, design decisions |
-| `planning/` | Plans and PRDs |
-| `critique/` | Plan reviews |
-| `qa/` | Test strategies and reports |
-| `retrospective/` | Learning extractions |
-| `roadmap/` | Epic definitions |
-| `devops/` | CI/CD configurations |
-| `security/` | Threat models |
-| `sessions/` | Session context |
+---
 
-### Best Practices
+## Skill System
 
-1. **Start with orchestrator**: For complex tasks, let orchestrator route to appropriate agents
-2. **Memory First**: Agents retrieve context before multi-step reasoning
-3. **Clear Handoffs**: Agents announce next agent and purpose
-4. **Store Learnings**: Update memory at milestones
-5. **Commit Atomically**: Small, conventional commits
+Before GitHub operations, check for existing skills:
 
-### Routing Heuristics
+```powershell
+Get-ChildItem -Path ".claude/skills/github/scripts" -Recurse -Filter "*.ps1"
+```
 
-| Task Type | Primary Agent | Fallback |
-|-----------|---------------|----------|
-| Code implementation | implementer | - |
-| Architecture review | architect | analyst |
-| Task decomposition | task-generator | planner |
-| Challenge assumptions | independent-thinker | critic |
-| Test strategy | qa | implementer |
-| Research/investigation | analyst | - |
-| Strategic decisions | high-level-advisor | roadmap |
-| Documentation/PRD | explainer | planner |
-| CI/CD pipelines | devops | implementer |
-| Security review | security | analyst |
-| Post-project learning | retrospective | analyst |
+**Skill locations**:
 
-<!-- END: ai-agents installer -->
+- PR operations: `.claude/skills/github/scripts/pr/`
+- Issue operations: `.claude/skills/github/scripts/issue/`
+- Reactions: `.claude/skills/github/scripts/reactions/`
+
+**Rule**: If a skill exists, use it. If missing, ADD to skill library (don't write inline).
+
+---
+
+## Steering System
+
+Steering files provide context-aware guidance based on file patterns:
+
+| Steering File | Applies To | Purpose |
+|---------------|------------|---------|
+| `security-practices.md` | `**/Auth/**`, `*.env*` | Security requirements |
+| `agent-prompts.md` | `src/claude/**/*.md` | Agent prompt standards |
+| `testing-approach.md` | `**/*.Tests.ps1` | Pester testing conventions |
+| `powershell-patterns.md` | `**/*.ps1`, `**/*.psm1` | PowerShell patterns |
+
+Location: `.agents/steering/`
+
+---
+
+## Key Learnings
+
+### HANDOFF.md Is Read-Only (v1.4)
+
+- **DO NOT** update HANDOFF.md during sessions
+- **DO** write session context to session logs
+- **DO** use Serena memory for cross-session context
+- **Reason**: HANDOFF.md grew to 35K tokens with 80%+ merge conflict rate
+
+### QA Validation Is Required
+
+- Route to qa agent after feature implementation
+- Skip only for documentation-only changes (no code, config, or test changes)
+
+### Skill Violations Are Protocol Failures
+
+- Session 15 had 5+ skill violations despite documentation
+- Phase 1.5 skill validation gate now enforces compliance
+
+---
+
+## Emergency Recovery
+
+| Problem | Solution |
+|---------|----------|
+| Lost context | Read `.agents/sessions/` logs |
+| Unclear next step | Re-read `.agents/HANDOFF.md` dashboard |
+| Linting fails | `npx markdownlint-cli2 --fix "**/*.md"` |
+| Git issues | `git log --oneline -5` for recent commits |
+| Protocol violation | Acknowledge, complete missed step, document |
+
+---
+
+For complete documentation, see [AGENTS.md](AGENTS.md).

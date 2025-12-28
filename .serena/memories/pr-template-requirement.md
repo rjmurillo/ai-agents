@@ -37,3 +37,14 @@ Then structure the PR body to match all sections.
 - Do NOT skip the Specification References table
 - Do NOT forget the Type of Change checkboxes
 
+## Fixing Existing PRs
+
+If a PR was created without the template, fix it using REST API:
+
+```bash
+gh api repos/{owner}/{repo}/pulls/{number} --method PATCH -f body="$(cat .github/PULL_REQUEST_TEMPLATE.md)"
+# Then manually fill in sections
+```
+
+**Evidence**: PR 354 body updated via REST API to use proper template format.
+

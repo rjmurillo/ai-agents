@@ -157,3 +157,168 @@ Migration files with sequence numbers.
 1. Accept both migration files
 2. Rename conflicting numbers
 3. Update migration dependencies if needed
+
+## Numbered Documentation Conflicts (ADR, RFC)
+
+Architecture Decision Records or RFCs with sequence numbers (`ADR-021`, `RFC-003`).
+
+**Symptoms:**
+- Add/add conflict: both branches create `ADR-NNN-*` with same number
+- Different content in same-numbered files
+- Often occurs when parallel work creates ADRs independently
+
+**Investigation:**
+
+```bash
+# Check what ADR numbers exist in each branch
+git show main:".agents/architecture/" | grep "^ADR-" | sort -t'-' -k2 -n
+git show HEAD:".agents/architecture/" | grep "^ADR-" | sort -t'-' -k2 -n
+
+# Find next available number
+ls .agents/architecture/ADR-*.md | sed 's/.*ADR-\([0-9]*\).*/\1/' | sort -n | tail -1
+```
+
+**Resolution:**
+
+1. Keep the version from `main` (canonical, already merged)
+2. Renumber the incoming branch's ADR to next available
+
+```bash
+# Accept main's version of the conflicting file
+git checkout --theirs .agents/architecture/ADR-021-*.md
+
+# Rename incoming ADR to next available number (e.g., ADR-023)
+git mv .agents/architecture/ADR-021-my-adr.md .agents/architecture/ADR-023-my-adr.md
+
+# Update frontmatter in the renamed file
+sed -i 's/ADR-021/ADR-023/g' .agents/architecture/ADR-023-my-adr.md
+
+# Find and update all references to the old number
+git grep -l "ADR-021" -- "*.md" | xargs sed -i 's/ADR-021/ADR-023/g'
+```
+
+**Validation:**
+- No duplicate ADR numbers in `.agents/architecture/`
+- All cross-references updated (session logs, PRDs, HANDOFF.md)
+- Debate logs and critique files renamed consistently
+
+**Related Files to Update:**
+- `.agents/critique/ADR-NNN-debate-log.md`
+- `.agents/critique/ADR-NNN-*-critique.md`
+- `.agents/planning/PRD-*.md` (References section)
+- `.agents/sessions/*.md` (if ADR mentioned)
+
+## Template-Generated File Conflicts
+
+Files generated from templates (e.g., `build/Generate-Agents.ps1`).
+
+**Symptoms:**
+- Conflicts in `src/claude/*.md`, `src/copilot-cli/*.md`, etc.
+- Same changes appear across multiple platform directories
+- Conflict markers in files that share common sections
+
+**Investigation:**
+
+```bash
+# Check if file is generated
+head -5 src/claude/architect.md  # Look for "Generated from" comment
+
+# Find the source template
+grep -r "architect" templates/agents/*.shared.md
+
+# Check template modification dates
+git log --oneline -3 -- templates/agents/architect.shared.md
+```
+
+**Resolution:**
+
+1. Do NOT manually merge generated files
+2. Resolve conflicts in the **template** file instead
+3. Regenerate all platform-specific files
+
+```bash
+# Resolve conflict in template
+# Edit templates/agents/architect.shared.md to combine changes
+
+# Regenerate all platform files
+pwsh build/Generate-Agents.ps1
+
+# Stage all generated files
+git add src/claude/*.md src/copilot-cli/*.md src/vs-code-agents/*.md
+```
+
+**Anti-pattern:** Editing generated files directly will be overwritten on next regeneration.
+
+**Template Locations:**
+| Generated Pattern | Template Source |
+|-------------------|-----------------|
+| `src/*/architect.md` | `templates/agents/architect.shared.md` |
+| `src/*/orchestrator.md` | `templates/agents/orchestrator.shared.md` |
+| Platform-specific agents | `templates/agents/*.{claude,copilot,vscode}.md` |
+
+## Rebase Add/Add Conflicts
+
+Conflict during `git rebase` when both branches add files with same path.
+
+**Symptoms:**
+- Error: `CONFLICT (add/add): Merge conflict in <file>`
+- Both branches created the same file independently
+- File didn't exist in common ancestor
+
+**Difference from Merge Add/Add:**
+- Rebase applies commits one-by-one onto new base
+- Conflict appears when rebasing commit that adds file already added by new base
+- Must resolve per-commit, not once for whole branch
+
+**Investigation:**
+
+```bash
+# During rebase, see what commit is being applied
+git log --oneline -1 REBASE_HEAD
+
+# Compare the two versions
+git show HEAD:<file>        # Version from new base
+git show REBASE_HEAD:<file> # Version being rebased
+```
+
+**Resolution Options:**
+
+1. **Keep main's version** (if main is more current/canonical):
+   ```bash
+   git checkout --theirs <file>
+   git add <file>
+   git rebase --continue
+   ```
+
+2. **Keep branch's version** (if branch has needed changes):
+   ```bash
+   git checkout --ours <file>
+   git add <file>
+   git rebase --continue
+   ```
+
+3. **Merge content** (if both versions needed):
+   - Manually combine content
+   - Remove conflict markers
+   - `git add <file> && git rebase --continue`
+
+4. **Rename incoming** (for numbered files like ADRs):
+   ```bash
+   # Keep main's version
+   git checkout --theirs <file>
+
+   # Extract branch's content to new name
+   git show REBASE_HEAD:<file> > <new-file-path>
+
+   git add <file> <new-file-path>
+   git rebase --continue
+   ```
+
+**Common Add/Add Scenarios:**
+
+| File Type | Typical Resolution |
+|-----------|-------------------|
+| Session logs | Keep both, different dates |
+| ADRs with same number | Renumber incoming |
+| Configuration | Merge settings |
+| Test fixtures | Keep both if different tests |

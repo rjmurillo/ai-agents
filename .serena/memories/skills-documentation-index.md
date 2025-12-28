@@ -9,3 +9,4 @@
 | self-contained artifact handoff agent amnesia general | documentation-007-self-contained-artifacts |
 | index selection domain routing keyword overlap create new | index-selection-decision-tree |
 | verification critic amnesiac completeness objective PASS FAIL protocol | documentation-verification-protocol |
+| framework constraints limitations pull push SKILL.md automatic invocation | documentation-008-framework-constraints |

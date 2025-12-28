@@ -33,10 +33,85 @@ For `all-open`, query: `gh pr list --state open --json number,reviewDecision`
 For each PR number, validate using:
 
 ```powershell
-pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 ```
 
 Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
+
+**CRITICAL - Verify PR Merge State (pr-review-007-merge-state-verification)**:
+
+Before proceeding with review work, verify PR has not been merged via GraphQL (source of truth):
+
+```powershell
+# Check merge state via Test-PRMerged.ps1
+pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}
+$merged = $LASTEXITCODE -eq 1
+
+if ($merged) {
+    Write-Host "PR #{number} is already merged. Skipping review work." -ForegroundColor Yellow
+    return  # Exit current script/function; caller handles iteration to next PR
+}
+```
+
+**Why this matters**: `gh pr view --json state` may return stale "OPEN" for recently merged PRs, leading to wasted effort (see Issue #321, Session 85).
+
+### Step 1.5: Comprehensive PR Status Check (REQUIRED)
+
+Before addressing comments, gather full PR context:
+
+**1. Review ALL Comments** (review comments + PR comments):
+
+```powershell
+# Get review threads with resolution status
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewThreads.ps1 -PullRequest {number}
+
+# Get unresolved review threads
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest {number}
+
+# Get unaddressed comments (comments without replies)
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest {number}
+
+# Get full PR context including comments
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
+```
+
+**2. Check Merge Eligibility with Base Branch**:
+
+```powershell
+# Get PR context including merge state
+$context = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
+
+# Check: $context.Mergeable should be "MERGEABLE"
+# Check: $context.MergeStateStatus for conflicts
+
+# Verify PR is not already merged
+pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}
+# Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
+```
+
+**3. Review ALL Failing Checks**:
+
+```bash
+# Get all checks with conclusions
+gh pr checks {number} 2>&1
+
+# For each failing check, investigate:
+# - If session validation: Use session-log-fixer skill
+# - If AI reviewer: Check for infrastructure vs code quality issues
+# - If Pester tests: Run tests locally to verify
+# - If linting: Run npx markdownlint-cli2 --fix
+```
+
+**Action on failures**:
+
+| Check Type | Failure Action |
+|------------|----------------|
+| Session validation | Invoke `session-log-fixer` skill |
+| AI reviewer (infra) | May be transient; note and continue |
+| AI reviewer (code quality) | Address findings or acknowledge |
+| Pester tests | Run locally, fix failures |
+| Markdown lint | Run `npx markdownlint-cli2 --fix` |
+| PR title validation | Update title to conventional commit format |
 
 ### Step 2: Create Worktrees (if --parallel)
 
@@ -165,13 +240,26 @@ When using `--parallel` with worktrees:
 
 | Criterion | Verification | Required |
 |-----------|--------------|----------|
-| All comments resolved | Each comment has [COMPLETE] or [WONTFIX] status | Yes |
+| All review comments addressed | Each review thread has reply + resolution | Yes |
+| All PR comments acknowledged | Each PR comment has acknowledgment (reply or reaction) | Yes |
 | No new comments | Re-check after 45s wait returned 0 new | Yes |
-| CI checks pass | `gh pr checks` all green (including AI Quality Gate) | Yes |
-| No unresolved threads | GraphQL query for unresolved reviewThreads | Yes |
+| CI checks pass | `gh pr checks` all green (or failures acknowledged) | Yes |
+| No unresolved threads | GraphQL query for unresolved reviewThreads = 0 | Yes |
+| Merge eligible | `mergeable=MERGEABLE`, no conflicts with base | Yes |
+| PR not merged | Test-PRMerged.ps1 exit code 0 | Yes |
 | Commits pushed | `git status` shows "up to date with origin" | Yes |
 
 **If ANY criterion fails**: Do NOT claim completion. The agent must loop back to address the issue.
+
+**Failure handling by type**:
+
+| Failure Type | Action |
+|--------------|--------|
+| Session validation fails | Use `session-log-fixer` skill to diagnose and fix |
+| AI reviewer fails (infra) | Note as infrastructure issue; may be transient |
+| AI reviewer fails (code quality) | Address findings or document acknowledgment |
+| Merge conflicts | Resolve conflicts or merge base branch |
+| Behind base branch | Merge base or rebase as appropriate |
 
 ### Verification Command
 
@@ -185,12 +273,61 @@ for pr in pr_numbers; do
 done
 ```
 
-## Examples
+## Thread Resolution Protocol
 
-```bash
-/pr-review 194                              # Single PR
-/pr-review 53,141,143                       # Multiple PRs sequentially
-/pr-review 53,141,143 --parallel            # Multiple PRs in parallel
-/pr-review all-open --parallel              # All open PRs needing review
-/pr-review 194 --parallel --cleanup=false   # Skip cleanup
+### Overview (pr-review-004-thread-resolution-single, pr-review-005-thread-resolution-batch)
+
+**CRITICAL**: Replying to a review comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation.
+
+### Single Thread Resolution (pr-review-004-thread-resolution-single)
+
+After replying to a review comment, resolve the thread:
+
+```powershell
+# Step 1: Reply to comment
+pwsh -NoProfile .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest {number} -ThreadId "PRRT_xxx" -Body "Response text"
+
+# Step 2: Resolve thread (REQUIRED separate step)
+pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_xxx"
 ```
+
+**Why this matters**: Replying to a comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation. Unresolved threads block PR merge per branch protection rules.
+
+### Batch Thread Resolution (pr-review-005-thread-resolution-batch)
+
+For 2+ threads, use the skill with multiple thread IDs:
+
+```powershell
+# Resolve multiple threads efficiently
+$threadIds = @("PRRT_xxx", "PRRT_yyy", "PRRT_zzz")
+foreach ($threadId in $threadIds) {
+    pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId $threadId
+}
+
+# Or use GraphQL batch mutation for maximum efficiency (1 API call)
+gh api graphql -f query='
+mutation {
+  t1: resolveReviewThread(input: {threadId: "PRRT_xxx"}) { thread { id isResolved } }
+  t2: resolveReviewThread(input: {threadId: "PRRT_yyy"}) { thread { id isResolved } }
+  t3: resolveReviewThread(input: {threadId: "PRRT_zzz"}) { thread { id isResolved } }
+}'
+```
+
+**Benefits**:
+
+- 1 API call instead of N calls
+- Reduced network latency (1 round trip vs N)
+- Atomic operation (all succeed or all fail)
+
+## Related Memories
+
+When reviewing PRs, consult these Serena memories for context:
+
+| Memory | Purpose |
+|--------|---------|
+| `pr-review-007-merge-state-verification` | GraphQL source of truth for merge state |
+| `pr-review-004-thread-resolution-single` | Single thread resolution via GraphQL |
+| `pr-review-005-thread-resolution-batch` | Batch thread resolution efficiency |
+| `pr-review-008-session-state-continuity` | Session context for multi-round reviews |
+| `ai-quality-gate-failure-categorization` | Infrastructure vs code quality failures |
+| `session-log-fixer` (skill) | Diagnose and fix session protocol failures |

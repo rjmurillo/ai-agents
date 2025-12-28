@@ -429,6 +429,144 @@ if [ -n "$STAGED_MCP_FILE" ]; then
 fi
 
 #
+# Agent Generation Sync
+#
+# Syncs shared agent templates to platform-specific outputs when templates are staged.
+# templates/agents/*.shared.md → src/copilot-cli/*.agent.md + src/vs-code-agents/*.md
+# templates/agents/*.shared.md is the source of truth; generated files are auto-generated.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+#
+GENERATE_AGENTS_SCRIPT="$REPO_ROOT/build/Generate-Agents.ps1"
+
+# Check if any shared agent template is staged
+STAGED_AGENT_TEMPLATES=$(echo "$STAGED_FILES" | grep -E '^templates/agents/.*\.shared\.md$' || true)
+
+if [ -n "$STAGED_AGENT_TEMPLATES" ]; then
+    # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
+    if [ "$AUTOFIX" = "1" ]; then
+        echo_info "Regenerating platform-specific agent files..."
+
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$GENERATE_AGENTS_SCRIPT" ]; then
+            echo_warning "Skipping agent generation: script path is a symlink"
+        elif [ -f "$GENERATE_AGENTS_SCRIPT" ]; then
+            if command -v pwsh &> /dev/null; then
+                # Run generator script
+                GENERATE_OUTPUT=$(pwsh -NoProfile -File "$GENERATE_AGENTS_SCRIPT" 2>&1)
+                GENERATE_EXIT=$?
+
+                if [ $GENERATE_EXIT -eq 0 ]; then
+                    # Stage all generated agent files
+                    COPILOT_AGENTS="$REPO_ROOT/src/copilot-cli"
+                    VSCODE_AGENTS="$REPO_ROOT/src/vs-code-agents"
+
+                    # Stage copilot-cli agents
+                    if [ -d "$COPILOT_AGENTS" ] && [ ! -L "$COPILOT_AGENTS" ]; then
+                        for agent in "$COPILOT_AGENTS"/*.agent.md; do
+                            if [ -f "$agent" ] && [ ! -L "$agent" ]; then
+                                git add -- "$agent"
+                            fi
+                        done
+                    fi
+
+                    # Stage vs-code-agents
+                    if [ -d "$VSCODE_AGENTS" ] && [ ! -L "$VSCODE_AGENTS" ]; then
+                        for agent in "$VSCODE_AGENTS"/*.md; do
+                            if [ -f "$agent" ] && [ ! -L "$agent" ]; then
+                                git add -- "$agent"
+                            fi
+                        done
+                    fi
+
+                    echo_success "Regenerated and staged platform-specific agents."
+                    FILES_FIXED=1
+                else
+                    echo_warning "Agent generation failed (see above)."
+                    echo_info "  $GENERATE_OUTPUT"
+                    # Non-blocking: just warn, don't fail the commit
+                fi
+            else
+                echo_warning "PowerShell not available. Skipping agent generation."
+                echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+            fi
+        else
+            echo_info "Agent generation script not found. Skipping."
+        fi
+    else
+        echo_info "Agent generation skipped (auto-fix disabled)."
+    fi
+fi
+
+#
+# Skill Generation (BLOCKING)
+#
+# Auto-generates *.skill files from canonical SKILL.md sources.
+# SKILL.md is the source of truth; *.skill is auto-generated for Claude.
+# Ensures generated files stay in sync with source changes.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: Generate-Skills.ps1, ADR-005 (PowerShell-only)
+#
+SKILL_GEN_SCRIPT="$REPO_ROOT/build/Generate-Skills.ps1"
+
+# Check if any SKILL.md files are staged
+STAGED_SKILL_FILES=$(echo "$STAGED_FILES" | grep -E '/SKILL\.md$' || true)
+
+if [ -n "$STAGED_SKILL_FILES" ]; then
+    # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
+    if [ "$AUTOFIX" = "1" ]; then
+        echo_info "Auto-generating skill files from SKILL.md..."
+
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$SKILL_GEN_SCRIPT" ]; then
+            echo_warning "Skipping skill generation: script path is a symlink"
+        elif [ -f "$SKILL_GEN_SCRIPT" ]; then
+            if command -v pwsh &> /dev/null; then
+                # Run generator to update *.skill files
+                if pwsh -NoProfile -File "$SKILL_GEN_SCRIPT" -Root "$REPO_ROOT" 2>&1; then
+                    # Generator succeeded - check for modified *.skill files
+                    # Use while/read loop with proper IFS to handle spaces in filenames
+                    while IFS= read -r skill_md; do
+                        [ -z "$skill_md" ] && continue
+
+                        # Derive *.skill path from SKILL.md directory
+                        skill_dir=$(dirname "$skill_md")
+
+                        # Find all *.skill files in the same directory
+                        # MEDIUM-002: Defense-in-depth symlink check before staging
+                        find "$skill_dir" -maxdepth 1 -name '*.skill' -type f ! -type l 2>/dev/null | while read -r skill_file; do
+                            # Check if the skill file was modified by the generator
+                            if ! git diff --quiet -- "$skill_file" 2>/dev/null; then
+                                echo_success "Generated: $skill_file"
+                                # Use -- to prevent filenames starting with - being treated as options
+                                git add -- "$skill_file"
+                                FILES_FIXED=1
+                            fi
+                        done
+                    done <<< "$STAGED_SKILL_FILES"
+                    echo_success "Skill files generated."
+                else
+                    echo_error "Skill generation failed (see above)."
+                    echo_info "  Fix SKILL.md or run manually: pwsh build/Generate-Skills.ps1"
+                    EXIT_STATUS=1
+                fi
+            else
+                echo_warning "PowerShell not available. Skipping skill generation."
+                echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+            fi
+        else
+            echo_info "Skill generation script not found. Skipping."
+        fi
+    else
+        echo_info "Skill generation skipped (auto-fix disabled)."
+        echo_info "  Run manually after commit: pwsh build/Generate-Skills.ps1"
+    fi
+else
+    echo_info "No SKILL.md files staged. Skipping skill generation."
+fi
+
+#
 # Security Detection (Non-blocking warning)
 #
 # Detects infrastructure and security-critical file changes

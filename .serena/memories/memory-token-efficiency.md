@@ -75,8 +75,29 @@ architecture
 
 ## Validation
 
-1 (PRD-skills-index-registry.md 10-agent consensus)
+2 (PRD-skills-index-registry.md 10-agent consensus, PR #255 evidence)
+
+## Additional Evidence (PR #255)
+
+PR #255 (2025-12-22) demonstrated token optimization in practice:
+
+| Change | Tokens Saved |
+|--------|-------------|
+| Comment stripping (copilot-synthesis.yml) | ~2,400 |
+| Test separation (.github/tests/) | ~1,500 |
+| Schema deletion | ~500 |
+| Reference extraction | ~200 |
+| **Total** | **~4,600** |
+
+These savings apply the same principles to skill files:
+- Atomic files with activation vocabulary in names
+- Progressive disclosure (workflow vs. reference content)
+- Execution-focused content only in skill directories
 
 ## Created
 
 2025-12-20
+
+## Updated
+
+2025-12-22 (PR #255 evidence added)

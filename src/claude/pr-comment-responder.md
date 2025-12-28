@@ -60,7 +60,7 @@ You have direct access to:
 | Operation | Script | Replaces |
 |-----------|--------|----------|
 | PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
+| Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
 | Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq unique` |
 | Reply to comment | `Post-PRCommentReply.ps1` | `gh api ... -X POST` |
 | Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
@@ -147,7 +147,7 @@ After completing each PR comment response session, update this section and the `
 
 ### Comment Triage Priority
 
-**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+**MUST**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
 
 #### Priority Adjustment by Domain
 
@@ -215,7 +215,7 @@ Task(subagent_type="orchestrator", prompt="Analyze and implement...")
 
 ### QA Integration Requirement
 
-**MANDATORY**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
+**MUST**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
@@ -229,6 +229,126 @@ Even "simple" bug fixes often need regression tests that would otherwise go unte
 # After implementer completes ANY fix
 Task(subagent_type="qa", prompt="Verify fix and assess regression test needs...")
 ```
+
+## Verification Gates (BLOCKING)
+
+These gates implement RFC 2119 MUST requirements. Proceeding without passing causes artifact drift.
+
+### Gate 0: Session Log Creation
+
+**Before any work**: Create session log with protocol compliance checklist.
+
+```bash
+# Create session log
+SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
+cat > "$SESSION_FILE" << 'EOF'
+# PR Comment Responder Session
+
+## Protocol Compliance Checklist
+
+- [ ] Gate 0: Session log created
+- [ ] Gate 1: Eyes reactions = comment count
+- [ ] Gate 2: Artifact files created
+- [ ] Gate 3: All tasks tracked in tasks.md
+- [ ] Gate 4: Artifact state matches API state
+- [ ] Gate 5: All threads resolved
+EOF
+```
+
+**Evidence required**: Session log file exists with checkboxes.
+
+### Gate 1: Acknowledgment Verification
+
+**After Phase 2**: Verify eyes reaction count equals total comment count.
+
+```bash
+# Count reactions added vs comments
+REACTIONS_ADDED=$(cat .agents/pr-comments/PR-[number]/session.log | grep -c "reaction.*eyes")
+COMMENT_COUNT=$TOTAL_COMMENTS
+
+if [ "$REACTIONS_ADDED" -ne "$COMMENT_COUNT" ]; then
+  echo "[BLOCKED] Reactions: $REACTIONS_ADDED != Comments: $COMMENT_COUNT"
+  exit 1
+fi
+```
+
+**Evidence required**: Log shows equal counts.
+
+### Gate 2: Artifact Creation Verification
+
+**After generating comment map and task list**: Verify files exist and contain expected counts.
+
+```bash
+# Verify artifacts exist
+test -f ".agents/pr-comments/PR-[number]/comments.md" || exit 1
+test -f ".agents/pr-comments/PR-[number]/tasks.md" || exit 1
+
+# Verify comment count matches
+ARTIFACT_COUNT=$(grep -c "^| [0-9]" .agents/pr-comments/PR-[number]/comments.md)
+if [ "$ARTIFACT_COUNT" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Artifact count: $ARTIFACT_COUNT != API count: $TOTAL_COMMENTS"
+  exit 1
+fi
+```
+
+**Evidence required**: Files exist with correct counts.
+
+### Gate 3: Artifact Update After Fix
+
+**After EVERY fix commit**: Update artifact status atomically.
+
+```bash
+# IMMEDIATELY after git commit, update artifact
+sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... [COMPLETE]/" \
+  .agents/pr-comments/PR-[number]/tasks.md
+
+# Verify update applied
+grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || exit 1
+```
+
+**Evidence required**: Task marked complete in artifact file.
+
+### Gate 4: State Synchronization Before Resolution
+
+**Before Phase 8 (thread resolution)**: Verify artifact state matches intended API state.
+
+```bash
+# Count completed tasks in artifact
+COMPLETED=$(grep -c "\[COMPLETE\]" .agents/pr-comments/PR-[number]/tasks.md)
+TOTAL=$(grep -c "^- \[ \]\|^\[x\]" .agents/pr-comments/PR-[number]/tasks.md)
+
+# Count threads to resolve
+UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Verify alignment
+if [ "$COMPLETED" -ne "$((TOTAL - UNRESOLVED_API))" ]; then
+  echo "[BLOCKED] Artifact COMPLETED ($COMPLETED) != API resolved ($((TOTAL - UNRESOLVED_API)))"
+  exit 1
+fi
+```
+
+**Evidence required**: Counts match before proceeding.
+
+### Gate 5: Final Verification
+
+**After Phase 8**: Verify all threads resolved AND artifacts updated.
+
+```bash
+# API state
+REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Artifact state
+PENDING=$(grep -c "Status: pending\|Status: \[ACKNOWLEDGED\]" .agents/pr-comments/PR-[number]/comments.md)
+
+if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
+  exit 1
+fi
+
+echo "[PASS] All gates cleared"
+```
+
+**Evidence required**: Both counts are zero.
 
 ## Workflow Protocol
 
@@ -289,8 +409,8 @@ if [ -d "$SESSION_DIR" ]; then
   PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
   echo "Previous session had $PREVIOUS_COMMENTS comments"
 
-  # Check for NEW comments only
-  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+  # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)
+  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
@@ -387,9 +507,10 @@ for reviewer in ALL_REVIEWERS:
 
 ```powershell
 # Using github skill (PREFERRED) - handles pagination automatically
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number]
+# IMPORTANT: Use -IncludeIssueComments to capture AI Quality Gate, CodeRabbit summaries, etc.
+pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments
 
-# Returns all review comments with: id, author, path, line, body, diff_hunk, created_at, in_reply_to_id
+# Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
 ```
 
 <details>
@@ -432,13 +553,16 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 The `Get-PRReviewComments.ps1` script returns full comment details including:
 
 - `id`: Comment ID for reactions and replies
+- `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
 - `author`: Reviewer username
-- `path`: File path
-- `line`: Line number (or original_line for outdated)
+- `path`: File path (null for issue comments)
+- `line`: Line number (null for issue comments)
 - `body`: Comment text
-- `diff_hunk`: Surrounding code context
+- `diff_hunk`: Surrounding code context (null for issue comments)
 - `created_at`: Timestamp
-- `in_reply_to_id`: Parent comment for threads
+- `in_reply_to_id`: Parent comment for threads (null for issue comments)
+
+**Note**: Issue comments include AI Quality Gate reviews, spec validation, and CodeRabbit summaries that would otherwise be missed.
 
 <details>
 <summary>Alternative: Raw gh CLI extraction</summary>
@@ -671,6 +795,100 @@ These comments require immediate response before implementation:
 [If tasks have dependencies, document here]
 ```
 
+### Phase 4.5: Copilot Follow-Up Handling
+
+**BLOCKING GATE**: Must complete before Phase 5 begins
+
+This phase detects and handles Copilot's follow-up PR creation pattern. When you reply to Copilot's review comments, Copilot often creates a new PR targeting the original PR's branch.
+
+#### Detection Pattern
+
+Copilot follow-up PRs match:
+
+- **Branch**: `copilot/sub-pr-{original_pr_number}`
+- **Target**: Original PR's base branch (not main)
+- **Announcement**: Issue comment from `app/copilot-swe-agent` containing "I've opened a new pull request"
+
+**Example**: PR #32 → Follow-up PR #33 (copilot/sub-pr-32)
+
+#### Step 4.5.1: Query for Follow-Up PRs
+
+```bash
+# Search for follow-up PR matching pattern
+FOLLOW_UP=$(gh pr list --state=open \
+  --search="head:copilot/sub-pr-${PR_NUMBER}" \
+  --json=number,title,body,headRefName,baseRefName,state,author)
+
+if [ -z "$FOLLOW_UP" ] || [ "$(echo "$FOLLOW_UP" | jq 'length')" -eq 0 ]; then
+  echo "No follow-up PRs found. Proceed to Phase 5."
+  exit 0
+fi
+```
+
+#### Step 4.5.2: Verify Copilot Announcement
+
+```bash
+# Check for Copilot announcement comment on original PR
+ANNOUNCEMENT=$(gh api repos/OWNER/REPO/issues/${PR_NUMBER}/comments \
+  --jq '.[] | select(.user.login == "app/copilot-swe-agent" and .body | contains("opened a new pull request"))')
+
+if [ -z "$ANNOUNCEMENT" ]; then
+  echo "WARNING: Follow-up PR found but no Copilot announcement. May not be official follow-up."
+fi
+```
+
+#### Step 4.5.3: Categorize Follow-Up Intent
+
+Analyze the follow-up PR content to determine intent:
+
+**DUPLICATE**: Follow-up contains same changes as fixes already applied
+
+- Example: PR #32/#33 (both address same 5 comments)
+- Action: Close with explanation linking to original commits
+
+**SUPPLEMENTAL**: Follow-up addresses different/additional issues
+
+- Example: Extra changes needed after initial reply
+- Action: Evaluate for merge or request changes
+
+**INDEPENDENT**: Follow-up unrelated to original review
+
+- Example: Copilot misunderstood context
+- Action: Close with note
+
+#### Step 4.5.4: Execute Decision
+
+**DUPLICATE Decision**:
+
+```bash
+# Close with explanation
+gh pr close ${FOLLOW_UP_PR} --comment "Closing: This follow-up PR duplicates changes already applied in the original PR.
+
+Applied fixes:
+- Commit [hash1]: [description]
+- Commit [hash2]: [description]
+
+See PR #${PR_NUMBER} for details."
+```
+
+**SUPPLEMENTAL Decision**:
+
+```bash
+# Evaluate for merge or request changes
+# Option A: Merge if changes are valid and address new issues
+gh pr merge ${FOLLOW_UP_PR} --auto --squash --delete-branch
+
+# Option B: Leave open for review
+# Post comment on original PR documenting supplemental follow-up
+```
+
+**INDEPENDENT Decision**:
+
+```bash
+# Close with note
+gh pr close ${FOLLOW_UP_PR} --comment "Closing: This PR addresses concerns that were already resolved in PR #${PR_NUMBER}. No action needed."
+```
+
 ### Phase 5: Immediate Replies
 
 Reply to comments that need immediate response BEFORE implementation:
@@ -896,7 +1114,7 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MANDATORY**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
+**MUST**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
 
 #### Phase 8.1: Comment Status Verification
 
@@ -948,8 +1166,8 @@ After pushing commits, bots may post new comments. Wait and re-check:
 # Wait for bot responses (30-60 seconds)
 sleep 45
 
-# Re-fetch comments
-NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+# Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
+NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
 
 # Compare to original count
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
@@ -961,24 +1179,79 @@ fi
 
 **Critical**: Repeat this loop until no new comments appear after a commit. Bots like cursor[bot] and Copilot respond to your fixes and may identify issues with your implementation.
 
-#### Phase 8.4: QA Gate Verification
+#### Phase 8.4: CI Check Verification
 
-Before claiming completion, verify CI checks pass:
+**MANDATORY**: Verify ALL CI checks pass before claiming completion. The `mergeable: "MERGEABLE"` field only indicates no merge conflicts, NOT that CI checks are passing.
+
+**Critical**: `gh pr view --json mergeable` returning `"MERGEABLE"` means:
+
+- ✅ No merge conflicts
+- ✅ Branch is compatible with base
+
+It does NOT mean:
+
+- ❌ CI checks passing
+- ❌ Required status checks satisfied
+
+**Always verify CI explicitly**:
 
 ```bash
-# Check PR status
-gh pr checks [number] --watch
+# Check ALL CI checks status
+echo "=== CI Check Verification ==="
 
-# If AI Quality Gate fails, parse actionable items
-CHECKS=$(gh pr checks [number] --json name,state,description)
-FAILED=$(echo "$CHECKS" | jq '[.[] | select(.state == "FAILURE")]')
+# Create a secure temporary file for CI check results (avoids race conditions)
+checks_file=$(mktemp)
+# Ensure the temporary file is removed on exit (handles all exit paths)
+trap 'rm -f "$checks_file"' EXIT
 
-if [ "$(echo "$FAILED" | jq 'length')" -gt 0 ]; then
-  echo "[QA GATE FAIL] Parsing failures for actionable items..."
-  # Add new tasks to task list
-  # Return to Phase 6 for implementation
+# Wait for all checks to complete, fetching all fields in one call
+while true; do
+    gh pr checks [number] --json name,state,conclusion,detailsUrl > "$checks_file"
+
+    # Count checks that are not yet completed
+    pending_checks=$(jq '[.[] | select(.state != "COMPLETED")]' "$checks_file")
+    pending_count=$(echo "$pending_checks" | jq 'length')
+
+    if [ "$pending_count" -eq 0 ]; then
+        echo "All CI checks have completed."
+        break
+    fi
+
+    echo "$pending_count CI checks are not yet complete. Waiting 30 seconds..."
+    echo "$pending_checks" | jq -r '.[] | "  - \(.name): \(.state)"'
+    sleep 30
+done
+
+# Parse for failures (exclude skipped and successful conclusions)
+failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' "$checks_file")
+failed_count=$(echo "$failed_checks" | jq 'length')
+
+if [ "$failed_count" -gt 0 ]; then
+  echo "[BLOCKED] $failed_count CI checks not passing:"
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): \(.conclusion)"'
+
+  # Parse actionable items from failures
+  echo ""
+  echo "Actionable items:"
+  # Extract failure details for each check
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): Review logs at \(.detailsUrl // "N/A")"'
+
+  # Do NOT claim completion - return to Phase 6 for fixes
+  exit 1
 fi
+
+echo "[PASS] All CI checks passing ($(jq 'length' "$checks_file") checks)"
+# trap handles cleanup automatically
 ```
+
+**Exit codes**:
+
+- `0`: All checks passing (or skipped)
+- `1`: One or more checks failed (blocks completion)
+
+**If CI fails**: Parse failure messages, add new tasks to task list, return to Phase 6 for implementation.
+
+**Skill Reference**: Skill-PR-Review-007 (CI verification before completion, atomicity: 96%)
 
 #### Phase 8.5: Completion Criteria Checklist
 

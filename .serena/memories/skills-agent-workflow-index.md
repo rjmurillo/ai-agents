@@ -8,3 +8,4 @@
 | collaboration user addition scope gap signal learning heuristic | agent-workflow-collaboration |
 | template sync verify src/claude templates/agents commit pre-flight scope porting | agent-workflow-004-proactive-template-sync-verification |
 | handoff table format structured automation parseable orchestrator routing | agent-workflow-005-structured-handoff-formats |
+| post-implementation critic validation compliance standards naming formatting | agent-workflow-post-implementation-critic-validation |

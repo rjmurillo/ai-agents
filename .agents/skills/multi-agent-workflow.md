@@ -249,6 +249,57 @@ Discarding feature branch session history during merge conflict resolution loses
 
 ---
 
+## Skill-Workflow-012: Branch Handoffs for Feature Branch Validator Compliance
+
+- **Statement**: On feature branches, create branch handoffs at `.agents/handoffs/{branch}/{session}.md` to satisfy validator without updating HANDOFF.md
+- **Context**: Session End validation on feature branches where HANDOFF.md is read-only (ADR-014)
+- **Atomicity**: 95%
+- **Evidence**: Session 92-93 - Validator requires HANDOFF.md reference but pre-commit hook blocks HANDOFF.md changes on feature branches
+- **Impact**: Resolves circular dependency between validator and pre-commit enforcement
+- **Tags**: helpful, protocol-compliance
+
+**Protocol Conflict**:
+
+Three authoritative sources contradict:
+
+1. **HANDOFF.md**: Read-only on feature branches (ADR-014)
+2. **Validator** (`Validate-SessionEnd.ps1` line 255): Requires HANDOFF.md to reference session log (E_HANDOFF_LINK_MISSING)
+3. **Pre-commit Hook**: Blocks HANDOFF.md changes on feature branches
+
+**Resolution**:
+
+| Branch Type | Action | Rationale |
+|-------------|--------|-----------|
+| **Feature Branch** | Create branch handoff at `.agents/handoffs/{branch}/{session}.md` | Satisfies documentation requirement without modifying HANDOFF.md |
+| **Main Branch** | Update HANDOFF.md "Last 5 Sessions" table | Canonical dashboard maintained on main only |
+
+**Workaround Pattern**:
+
+```bash
+# On feature branch (e.g., feature/issue-123)
+# Session log created as usual
+.agents/sessions/2025-12-24-session-92.md
+
+# Create branch handoff instead of updating HANDOFF.md
+.agents/handoffs/feature/issue-123/2025-12-24-session-92.md
+
+# Content: Reference to session log + key decisions
+# Session End validator satisfied by session log existence
+# Pre-commit hook does NOT block branch handoffs
+```
+
+**Validator Gap**:
+
+The validator script (`Validate-SessionEnd.ps1`) was not updated after ADR-014. Future fix tracked in GitHub issue (to be filed).
+
+**References**:
+
+- ADR-014: Distributed Handoff Architecture (reason for HANDOFF.md read-only)
+- Pre-commit hook output: "ERROR: BLOCKED: HANDOFF.md is read-only on feature branches"
+- SESSION-PROTOCOL.md v1.4: Should clarify HANDOFF.md update policy
+
+---
+
 ## Anti-Patterns
 
 ### Anti-Workflow-001: Skipping Critic Validation
