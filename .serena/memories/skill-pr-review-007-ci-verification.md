@@ -56,15 +56,18 @@ gh pr view 199 --json state,mergeable,reviewDecision
 
 ```bash
 # After all other verification, BEFORE claiming completion
-gh pr checks 199 --json name,state,conclusion
+# Use mktemp to avoid race conditions with concurrent agents
+checks_file=$(mktemp)
+trap 'rm -f "$checks_file"' EXIT
+
+gh pr checks 199 --json name,state,conclusion,detailsUrl > "$checks_file"
 
 # Parse results
-FAILED_CHECKS=$(gh pr checks 199 --json name,state,conclusion | \
-  jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != null)]')
+failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' "$checks_file")
 
-if [ "$(echo "$FAILED_CHECKS" | jq 'length')" -gt 0 ]; then
+if [ "$(echo "$failed_checks" | jq 'length')" -gt 0 ]; then
   echo "[BLOCKED] CI checks not passing:"
-  echo "$FAILED_CHECKS" | jq -r '.[].name'
+  echo "$failed_checks" | jq -r '.[].name'
   # Do NOT claim completion
   exit 1
 fi
@@ -96,29 +99,37 @@ Add after Phase 8.3 (re-check for new comments), before Phase 8.5 (completion cr
 \```bash
 # Check PR CI status
 echo "=== CI Check Verification ==="
-gh pr checks [number] --json name,state,conclusion > ci-checks.json
+
+# Create a secure temporary file (avoids race conditions with concurrent agents)
+checks_file=$(mktemp)
+trap 'rm -f "$checks_file"' EXIT
+
+# Fetch all fields in one call, reuse for both waiting and verification
+gh pr checks [number] --json name,state,conclusion,detailsUrl > "$checks_file"
 
 # Parse for failures
-FAILED_CHECKS=$(cat ci-checks.json | jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != null)]')
-FAILED_COUNT=$(echo "$FAILED_CHECKS" | jq 'length')
+failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' "$checks_file")
+failed_count=$(echo "$failed_checks" | jq 'length')
 
-if [ "$FAILED_COUNT" -gt 0 ]; then
-  echo "[BLOCKED] $FAILED_COUNT CI checks not passing:"
-  echo "$FAILED_CHECKS" | jq -r '.[] | "  - \\(.name): \\(.conclusion)"'
-  
+if [ "$failed_count" -gt 0 ]; then
+  echo "[BLOCKED] $failed_count CI checks not passing:"
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): \(.conclusion)"'
+
   # Parse actionable items from failures
   echo ""
   echo "Actionable items:"
-  # Add logic to parse specific failure messages
-  
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): Review logs at \(.detailsUrl // "N/A")"'
+
   # Return to Phase 6 for fixes
   exit 1
 fi
 
-echo "[PASS] All CI checks passing ($(cat ci-checks.json | jq 'length') checks)"
+echo "[PASS] All CI checks passing ($(jq 'length' "$checks_file") checks)"
+# trap handles cleanup automatically
 \```
 
 **Exit codes**:
+
 - `0`: All checks passing (or skipped)
 - `1`: One or more checks failed (blocks completion)
 ```

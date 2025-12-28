@@ -966,10 +966,12 @@ fi
 **MANDATORY**: Verify ALL CI checks pass before claiming completion. The `mergeable: "MERGEABLE"` field only indicates no merge conflicts, NOT that CI checks are passing.
 
 **Critical**: `gh pr view --json mergeable` returning `"MERGEABLE"` means:
+
 - ✅ No merge conflicts
 - ✅ Branch is compatible with base
 
 It does NOT mean:
+
 - ❌ CI checks passing
 - ❌ Required status checks satisfied
 
@@ -979,17 +981,21 @@ It does NOT mean:
 # Check ALL CI checks status
 echo "=== CI Check Verification ==="
 
-# First, wait for all checks to complete
+# Create a secure temporary file for CI check results (avoids race conditions)
+checks_file=$(mktemp)
+# Ensure the temporary file is removed on exit (handles all exit paths)
+trap 'rm -f "$checks_file"' EXIT
+
+# Wait for all checks to complete, fetching all fields in one call
 while true; do
-    gh pr checks [number] --json name,state > ci-checks-status.json
+    gh pr checks [number] --json name,state,conclusion,detailsUrl > "$checks_file"
 
     # Count checks that are not yet completed
-    pending_checks=$(jq '[.[] | select(.state != "COMPLETED")]' ci-checks-status.json)
+    pending_checks=$(jq '[.[] | select(.state != "COMPLETED")]' "$checks_file")
     pending_count=$(echo "$pending_checks" | jq 'length')
 
     if [ "$pending_count" -eq 0 ]; then
         echo "All CI checks have completed."
-        rm ci-checks-status.json # Clean up temporary file
         break
     fi
 
@@ -998,10 +1004,8 @@ while true; do
     sleep 30
 done
 
-gh pr checks [number] --json name,state,conclusion,detailsUrl > ci-checks.json
-
 # Parse for failures (exclude skipped and successful conclusions)
-failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' ci-checks.json)
+failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' "$checks_file")
 failed_count=$(echo "$failed_checks" | jq 'length')
 
 if [ "$failed_count" -gt 0 ]; then
@@ -1018,11 +1022,12 @@ if [ "$failed_count" -gt 0 ]; then
   exit 1
 fi
 
-echo "[PASS] All CI checks passing ($(jq 'length' ci-checks.json) checks)"
-rm ci-checks.json # Clean up temporary file
+echo "[PASS] All CI checks passing ($(jq 'length' "$checks_file") checks)"
+# trap handles cleanup automatically
 ```
 
 **Exit codes**:
+
 - `0`: All checks passing (or skipped)
 - `1`: One or more checks failed (blocks completion)
 
