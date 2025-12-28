@@ -74,17 +74,32 @@ The agent MUST read context documents before starting work. This is a **blocking
 **Requirements:**
 
 1. The agent MUST read `.agents/HANDOFF.md` for previous session context (READ-ONLY reference)
-2. The agent SHOULD read relevant Serena memories based on task topic
-3. The agent SHOULD read `.agents/planning/enhancement-PROJECT-PLAN.md` if working on enhancement project
-4. The agent MAY read additional context files based on task requirements
+2. The agent MUST read the `memory-index` Serena memory to identify task-relevant memories
+3. The agent MUST read memories from `memory-index` that match the task keywords before modifying code or files
+4. The agent SHOULD read `.agents/planning/enhancement-PROJECT-PLAN.md` if working on enhancement project
+5. The agent MAY read additional context files based on task requirements
+
+**Memory Loading Protocol:**
+
+The `memory-index` maps task keywords to essential memories. Example workflow:
+
+```text
+1. Identify task keywords (e.g., "pr review", "powershell", "github cli")
+2. Read memory-index, find matching rows
+3. Load listed memories (e.g., skills-pr-review-index, skills-powershell-index)
+4. Apply learned patterns from memories before proceeding
+```
+
+**Evidence**: 30% session efficiency loss observed when memories not loaded first (skill-init-003-memory-first-monitoring-gate).
 
 **Verification:**
 
 - File contents appear in session context
 - Agent references prior decisions from HANDOFF.md
 - Agent does not ask questions answered in HANDOFF.md
+- Session log Protocol Compliance section lists memories read (in Evidence column)
 
-**Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions. Note: HANDOFF.md is a read-only reference; do not modify it during sessions.
+**Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions. Note: HANDOFF.md is a read-only reference; do not modify it during sessions. Without loading relevant memories, agents repeat solved problems or miss established patterns.
 
 ### Phase 1.5: Skill Validation (BLOCKING)
 
@@ -169,7 +184,7 @@ Copy this checklist to each session log and verify completion:
 | MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Output documented below |
 | MUST | Read skill-usage-mandatory memory | [ ] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
-| SHOULD | Search relevant Serena memories | [ ] | Memory results present |
+| MUST | Read memory-index, load task-relevant memories | [ ] | List memories loaded |
 | SHOULD | Verify git status | [ ] | Output documented below |
 | SHOULD | Note starting commit | [ ] | SHA documented below |
 
@@ -343,7 +358,7 @@ Create at: `.agents/sessions/YYYY-MM-DD-session-NN.md`
 | MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Output documented below |
 | MUST | Read skill-usage-mandatory memory | [ ] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
-| SHOULD | Search relevant Serena memories | [ ] | Memory results present |
+| MUST | Read memory-index, load task-relevant memories | [ ] | List memories loaded |
 | SHOULD | Verify git status | [ ] | Output documented below |
 | SHOULD | Note starting commit | [ ] | SHA documented below |
 
