@@ -11,7 +11,7 @@ description: |
   
 allowed-tools: "Bash(pwsh:*), Bash(gh api:*), Bash(gh pr:*), Bash(gh issue:*), Read, Write, Grep, Glob"
 generated: true
-generated-from: "SKILL.md"
+generated-from: ".claude/skills/github/SKILL.md"
 ---
 # GENERATED FILE
 # Source of truth: SKILL.md

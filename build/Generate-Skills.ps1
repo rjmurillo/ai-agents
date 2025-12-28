@@ -223,7 +223,8 @@ function Build-SkillFrontmatter([hashtable] $Fm, [string] $SourceRelPath, [switc
 
 # Main
 $rootPath = Resolve-Path $Root
-$canonicalFiles = @(Get-ChildItem -Path $rootPath -Recurse -File -Filter $CanonicalName)
+# -Force includes hidden directories (like .claude/)
+$canonicalFiles = @(Get-ChildItem -Path $rootPath -Recurse -Force -File -Filter $CanonicalName)
 if ($canonicalFiles.Count -eq 0) { throw "No $CanonicalName found under $rootPath" }
 
 $anyDiff = $false
@@ -235,9 +236,11 @@ foreach ($file in $canonicalFiles) {
   $split = Split-Frontmatter $md
   $fm = $split.Frontmatter
   $body = $split.Body
+  $rel = [System.IO.Path]::GetRelativePath($rootPath, $canonicalPath)
 
   # Extract keep_headings from metadata.generator.keep_headings
   # This path complies with Anthropic skill-creator validation rules
+  # Skills without this config don't need .skill file generation
   $keep = $null
   if ($fm.Contains("metadata") -and
       $fm["metadata"] -is [System.Collections.IDictionary] -and
@@ -248,14 +251,13 @@ foreach ($file in $canonicalFiles) {
   }
 
   if ($null -eq $keep) {
-    throw "Missing frontmatter key 'metadata.generator.keep_headings' in $canonicalPath"
+    Write-Log "Skipping (no metadata.generator.keep_headings): $rel"
+    continue
   }
 
   if ($keep -isnot [System.Collections.IList]) {
     throw "'metadata.generator.keep_headings' must be a YAML list in $canonicalPath"
   }
-
-  $rel = [System.IO.Path]::GetRelativePath($rootPath, $canonicalPath)
 
   $hashInput = Normalize-Newlines -Text $md -Lf
   $hash = Compute-Sha256Hex $hashInput
