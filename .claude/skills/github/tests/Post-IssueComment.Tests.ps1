@@ -234,8 +234,8 @@ Main content here.
             }
 
             # Count occurrences - should be exactly 1
-            $matches = [regex]::Matches($body, [regex]::Escape($markerHtml))
-            $matches.Count | Should -Be 1
+            $matchResults = [regex]::Matches($body, [regex]::Escape($markerHtml))
+            $matchResults.Count | Should -Be 1
         }
     }
 
@@ -323,9 +323,13 @@ Main content here.
             $hasMarker = $false
             $existingCommentWithMarker = $null
 
-            $action = if (-not $hasMarker) { "post_new" } 
-                      elseif ($existingCommentWithMarker) { "handle_existing" } 
-                      else { "post_new" }
+            $action = if (-not $hasMarker) { 
+                "post_new" 
+            } elseif ($existingCommentWithMarker) { 
+                "handle_existing" 
+            } else { 
+                "post_new" 
+            }
 
             $action | Should -Be "post_new"
         }
@@ -396,7 +400,6 @@ Main content here.
 
         It "Should handle empty marker string gracefully" {
             $marker = ""
-            $body = "Test content"
 
             # When marker is empty, no marker logic should apply
             [string]::IsNullOrEmpty($marker) | Should -BeTrue
