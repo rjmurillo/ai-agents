@@ -1,0 +1,12 @@
+﻿---
+name: "security-detection"
+description: ""
+generated: true
+generated_from: ".agents\utilities\security-detection\SKILL.md"
+---
+# GENERATED FILE
+# Source of truth: SKILL.md
+# Do not edit manually
+#
+# Regenerate: pwsh ./scripts/gen-skills.ps1
+

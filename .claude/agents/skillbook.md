@@ -200,7 +200,7 @@ Skills are stored as atomic markdown files in `.serena/memories/`. Every skill u
 **Example** (from `session-init-serena.md`):
 
 ```markdown
-# Skill-Init-001: Serena Mandatory Initialization
+# Serena Mandatory Initialization
 
 **Statement**: MUST initialize Serena before ANY other action.
 
@@ -252,41 +252,26 @@ Match skill keywords against the Task Keywords column. The Essential Memories co
 2. No existing domain covers the topic adequately
 3. Keywords are distinct from all existing domains
 
-### Skill Categories (Reference)
+### Skill Naming Convention
 
-Categories are encoded in the Skill ID, not the filename:
+Use descriptive kebab-case names **without** the `skill-` prefix:
 
-| Category | Used When | Example ID |
-|----------|-----------|------------|
-| Init | Session/tool initialization | Skill-Init-001 |
-| PR | Pull request workflows | Skill-PR-001 |
-| GH | GitHub CLI operations | Skill-GH-001 |
-| Test | Testing patterns | Skill-Test-001 |
-| Build | Compilation/CI | Skill-Build-001 |
-| Memory | Memory operations | Skill-Memory-001 |
-| Security | Security patterns | Skill-Security-001 |
-| Process | Workflow patterns | Skill-Process-001 |
-| Triage | Prioritization/routing | Skill-Triage-001 |
-| Comment | Comment/review handling | Skill-Comment-001 |
+| Domain | Example Filename | Description |
+|--------|------------------|-------------|
+| session-init | `session-init-serena` | Session initialization |
+| pr-review | `pr-enum-001` | Pull request workflows |
+| git | `git-worktree-parallel` | Git operations |
+| security | `security-toctou-defense` | Security patterns |
+| ci | `ci-quality-gates` | CI/CD patterns |
+| workflow | `workflow-shell-safety` | Workflow patterns |
 
-**Extending categories**: Create new category when skill doesn't fit existing. Use 2-8 character abbreviation.
+**Naming rules:**
 
-### Skill ID Numbering (NNN)
-
-To determine the next skill number for a category:
-
-```bash
-# Find highest existing number for category (e.g., PR)
-grep -r "Skill-PR-" .serena/memories/ | grep -oE "Skill-PR-[0-9]+" | sort -t'-' -k3 -n | tail -1
-# Output: Skill-PR-004
-# Next skill: Skill-PR-005
-```
-
-**Rules:**
-
-- Numbers are sequential within category (001, 002, 003...)
-- Do NOT reuse numbers from deleted skills
-- Gaps are acceptable (001, 002, 005 if 003-004 were deleted)
+- Use `{domain}-{description}` or `{domain}-{description}-{NNN}` format
+- Descriptive names preferred over numeric IDs (e.g., `git-worktree-parallel` not `git-001`)
+- Use numeric suffix only when multiple skills are closely related (e.g., `pr-enum-001`, `pr-status-001`)
+- All lowercase with hyphens (kebab-case)
+- No `skill-` or `Skill-` prefix
 
 ### Index Update Procedure
 
@@ -436,7 +421,7 @@ memory_file_name: "skills-[domain]-index"
 Agents should cite:
 
 ```markdown
-**Applying**: Skill-Build-001
+**Applying**: ci-build-isolation
 **Strategy**: Use /m:1 /nodeReuse:false for CI builds
 **Expected**: Avoid file locking errors
 ```

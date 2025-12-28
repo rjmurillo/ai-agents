@@ -49,7 +49,7 @@ Test these scenarios to ensure path filters work correctly:
 
 #### agent-metrics.yml
 
-- [ ] Runs when `.agents/utilities/metrics/**` changed
+- [ ] Runs when `.claude/skills/metrics/**` changed
 - [ ] Runs when `.github/workflows/agent-metrics.yml` changed
 - [ ] Skips when only `.md` files changed
 - [ ] Manual trigger (`workflow_dispatch`) works
