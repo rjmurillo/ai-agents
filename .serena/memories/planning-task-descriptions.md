@@ -29,6 +29,7 @@
 **Atomicity**: 88% | **Impact**: 8/10
 
 **Application**:
+
 1. Each task completable without waiting for other tasks
 2. If dependencies exist, make them explicit with blocking notation
 3. Include all context needed within the task description

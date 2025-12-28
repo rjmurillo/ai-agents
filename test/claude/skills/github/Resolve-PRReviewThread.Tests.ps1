@@ -92,6 +92,53 @@ Describe 'Resolve-PRReviewThread.ps1' {
         }
     }
 
+    Context 'GraphQL Injection Prevention (ADR-015)' {
+        # Security tests verifying GraphQL variables are used instead of string interpolation
+
+        It 'Should use GraphQL variable for threadId in mutation' {
+            # The mutation should use $threadId variable, not string interpolation
+            $ScriptContent | Should -Match 'mutation\s*\(\s*\$threadId:\s*ID!\s*\)'
+        }
+
+        It 'Should pass threadId as -f parameter to gh api graphql' {
+            # The threadId should be passed via -f flag, not interpolated
+            $ScriptContent | Should -Match '-f\s+threadId='
+        }
+
+        It 'Should use GraphQL variables for owner and name in query' {
+            # The query should use $owner and $name variables
+            $ScriptContent | Should -Match 'query\s*\(\s*\$owner:\s*String!'
+            $ScriptContent | Should -Match '\$name:\s*String!'
+        }
+
+        It 'Should use GraphQL variable for prNumber in query' {
+            # The query should use $prNumber variable
+            $ScriptContent | Should -Match '\$prNumber:\s*Int!'
+        }
+
+        It 'Should pass owner, name, prNumber as parameters to gh api graphql' {
+            # Values should be passed via -f/-F flags
+            $ScriptContent | Should -Match '-f\s+owner='
+            $ScriptContent | Should -Match '-f\s+name='
+            $ScriptContent | Should -Match '-F\s+prNumber='
+        }
+
+        It 'Should NOT use string interpolation in GraphQL mutations' {
+            # Ensure we don't have patterns like threadId: "$Id" (vulnerable to injection)
+            $ScriptContent | Should -Not -Match 'threadId:\s*"\$Id"'
+        }
+
+        It 'Should NOT use string interpolation in GraphQL queries' {
+            # Ensure we don't have patterns like owner: "$($repo.owner.login)" (vulnerable)
+            $ScriptContent | Should -Not -Match 'owner:\s*"\$\(\$repo\.owner'
+            $ScriptContent | Should -Not -Match 'name:\s*"\$\(\$repo\.name'
+        }
+
+        It 'Should include ADR-015 compliance comment' {
+            $ScriptContent | Should -Match 'ADR-015'
+        }
+    }
+
     Context 'Error Handling' {
         It 'Should set ErrorActionPreference to Stop' {
             $ScriptContent | Should -Match "\`$ErrorActionPreference\s*=\s*'Stop'"

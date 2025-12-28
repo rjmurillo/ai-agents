@@ -57,6 +57,34 @@ Before running validator, you MUST:
 
 **Full protocol with RFC 2119 requirements**: [.agents/SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md)
 
+### Branch Operation Verification (MUST)
+
+Before ANY mutating git or GitHub operation, you MUST verify the current branch:
+
+```bash
+# 1. Always verify current branch first
+git branch --show-current
+
+# 2. Confirm it matches your intended PR/issue
+```
+
+**Required flags for external operations**:
+
+| Operation | Required Flag | Example |
+|-----------|---------------|---------|
+| `gh workflow run` | `--ref {branch}` | `gh workflow run ci.yml --ref feat/my-feature` |
+| `gh pr create` | `--base` and `--head` | `gh pr create --base main --head feat/my-feature` |
+
+**Anti-patterns to AVOID**:
+
+| Do NOT | Do Instead |
+|--------|------------|
+| `gh workflow run ci.yml` (no ref) | `gh workflow run ci.yml --ref {branch}` |
+| Assume you're on the right branch | Run `git branch --show-current` first |
+| Switch branches without checking status | Run `git status` before `git checkout` |
+
+**Why**: Branch confusion causes commits to wrong branches, workflows on wrong refs, and PRs from wrong base - wasting significant effort.
+
 ---
 
 Refer to [AGENTS.md](../AGENTS.md) for complete project instructions.
@@ -187,49 +215,5 @@ Agents use `cloudmcp-manager` memory tools for cross-session continuity:
 5. **Follow Plans**: The plan document is authoritative
 6. **Test Everything**: No skipping hard tests
 7. **Commit Atomically**: Small, conventional commits
-
-### Copilot Directive Best Practices
-
-When using @copilot directives in pull requests, use **issue comments** instead of review comments to keep review threads focused on code feedback.
-
-#### Anti-Pattern (Pollutes Review Threads)
-
-```text
-PR Review Comment on line 42:
-@copilot please refactor this function
-```
-
-**Problem**: Review comments should focus on actual code feedback. Directive comments create noise in review threads.
-
-#### Recommended Pattern (Clean Threads)
-
-```text
-Issue Comment (not on a specific line):
-@copilot please refactor the function in src/foo.ps1
-```
-
-**Benefits**:
-
-- Review comments remain focused on code feedback
-- @copilot directives do not require line-specific context
-- Significantly reduces comment noise in review threads
-
-#### Impact Evidence
-
-PR #249 analysis:
-
-- Total rjmurillo comments: 42
-- @copilot directives: 41
-- Actual code feedback: 1
-- Signal-to-noise ratio: 2.4%
-
-Using issue comments for directives would reduce review comment volume by 98% in this case.
-
-#### When to Use Each Comment Type
-
-| Comment Type | Use For | Example |
-|--------------|---------|---------|
-| **Review Comment** | Code-specific feedback requiring context | "This function should validate input before processing" |
-| **Issue Comment** | @copilot directives and general discussion | "@copilot please add tests for the validation logic" |
 
 <!-- END: ai-agents installer -->

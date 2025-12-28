@@ -1,6 +1,7 @@
 # Skill-Validation-004: Test Before Retrospective
 
 **Statement**: Never write a retrospective until implementation has been:
+
 1. Executed and validated in target environment (CI/CD)
 2. All PR review comments addressed or acknowledged
 3. All security scanning alerts remediated (high/critical = blocking)

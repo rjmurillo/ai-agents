@@ -8,3 +8,4 @@
 | zero bugs red flag skepticism verification claim hubris | validation-skepticism |
 | anti-pattern victory lap finish metric fixation vanity verify implement | validation-anti-patterns |
 | validation tooling pattern TDD progressive adoption warning mode | validation-tooling-patterns |
+| domain index table-only format header prose skills-*-index CI | validation-domain-index-format |

@@ -852,6 +852,46 @@ analyst → high-level-advisor → independent-thinker → critic → roadmap �
 
 ---
 
+### ADR Review Requirement (MANDATORY)
+
+**Rule**: ALL ADRs created or updated MUST trigger the adr-review skill before workflow continues.
+
+**Scope**: Applies to ADR files matching `.agents/architecture/ADR-*.md` and `docs/architecture/ADR-*.md`
+
+**Enforcement**:
+
+| Agent | Responsibility |
+|-------|----------------|
+| **architect** | Signal MANDATORY routing to orchestrator when ADR created/updated |
+| **orchestrator** | Detect signal and invoke adr-review skill before routing to next agent |
+| **implementer** | If creating ADR, signal MANDATORY routing to orchestrator |
+| **All agents** | Do NOT bypass adr-review by directly routing to next agent |
+
+**Blocking Gate**:
+
+```text
+IF ADR created/updated:
+  1. Agent returns to orchestrator with MANDATORY routing signal
+  2. Orchestrator invokes adr-review skill
+  3. adr-review completes (may take multiple rounds)
+  4. Orchestrator routes to next agent only after adr-review PASS
+
+VIOLATION: Routing to next agent without adr-review is a protocol violation.
+```
+
+**Skill Invocation**:
+
+```bash
+# Orchestrator invokes adr-review skill
+Skill(skill="adr-review", args="[path to ADR file]")
+```
+
+**Rationale**: All ADRs benefit from multi-agent validation (architect, critic, independent-thinker, security, analyst, high-level-advisor) coordinated by adr-review skill.
+
+**Related**: See `.claude/skills/adr-review/SKILL.md` for debate protocol details.
+
+---
+
 ### Planner – Implementation Planning
 
 **Role**: Turns epics into concrete, implementation-ready plans. Orchestrates impact analysis consultations for multi-domain changes.

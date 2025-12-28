@@ -5,35 +5,37 @@ on:
     - cron: '0 * * * *'  # Hourly at minute 0 (UTC)
   workflow_dispatch:     # Manual trigger
     inputs:
-      dry_run:
-        description: 'Dry run (no changes)'
-        type: boolean
-        default: true
       max_prs:
         description: 'Max PRs to process'
         type: number
         default: 20
+      process_conflicts:
+        description: 'Auto-resolve merge conflicts'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
   pull-requests: write
   issues: write
+  actions: read  # Required for workflow status checks
 
 concurrency:
   group: pr-maintenance
   cancel-in-progress: false
 
 env:
-  PR_PROTECTED_BRANCHES: "main,master,develop"
-  PR_BOT_AUTHORS: "Copilot,coderabbitai[bot],gemini-code-assist[bot],cursor[bot]"
-  PR_ACK_REACTION: "eyes"
   PR_MAX_PRS: ${{ inputs.max_prs || 20 }}
 
 jobs:
-  pr-maintenance:
-    # ADR-014: Use ARM runners for 37.5% cost reduction
+  # Job 1: Discover PRs needing attention
+  discover-prs:
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 45
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+      has-prs: ${{ steps.discover.outputs.has-prs }}
+      summary-json: ${{ steps.discover.outputs.summary }}
 
     steps:
       - name: Checkout
@@ -41,83 +43,377 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate environment
-        shell: pwsh
-        run: |
-          Import-Module ./.github/scripts/PRMaintenanceModule.psm1
-          $result = Test-WorkflowEnvironment
-          $result.SummaryMarkdown | Out-File $env:GITHUB_STEP_SUMMARY -Append
-
       - name: Check API rate limit
         id: ratelimit
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Import-Module ./.github/scripts/PRMaintenanceModule.psm1
-          $result = Test-WorkflowRateLimit
-          $result.SummaryMarkdown | Out-File $env:GITHUB_STEP_SUMMARY -Append
-          "core_remaining=$($result.CoreRemaining)" | Out-File $env:GITHUB_OUTPUT -Append
-          if (-not $result.Success) { exit 1 }
+          $limits = gh api rate_limit 2>&1 | ConvertFrom-Json
+          $core = $limits.resources.core
+          $graphql = $limits.resources.graphql
+          Write-Host "Rate limits - Core: $($core.remaining)/$($core.limit), GraphQL: $($graphql.remaining)/$($graphql.limit)"
 
-      - name: Run PR maintenance
-        id: maintenance
+          if ($core.remaining -lt 100 -or $graphql.remaining -lt 50) {
+            Write-Host "::error::Rate limit too low to proceed"
+            exit 1
+          }
+
+          "core_remaining=$($core.remaining)" | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Discover PRs needing attention
+        id: discover
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          $inputValue = '${{ inputs.dry_run }}'
-          $dryRun = if ($inputValue -eq 'false') { $false } else { $true }
-          $params = @{ MaxPRs = [int]'${{ env.PR_MAX_PRS }}'; LogPath = '.agents/logs/pr-maintenance.log' }
-          if ($dryRun) { $params['DryRun'] = $true }
-          ./scripts/Invoke-PRMaintenance.ps1 @params
+          $result = ./scripts/Invoke-PRMaintenance.ps1 -MaxPRs ([int]'${{ env.PR_MAX_PRS }}') -OutputJson
+          $parsed = $result | ConvertFrom-Json
 
-      - name: Parse results and post summary
-        id: results
-        if: always()
+          # Output for matrix - ALL PRs requiring action (for parallel processing)
+          $actionPRs = @($parsed.prs)
+          $matrixJson = @{ include = $actionPRs } | ConvertTo-Json -Compress -Depth 10
+          "matrix=$matrixJson" | Out-File $env:GITHUB_OUTPUT -Append
+
+          # Check if we have any PRs to process
+          $hasPRs = $actionPRs.Count -gt 0
+          "has-prs=$($hasPRs.ToString().ToLower())" | Out-File $env:GITHUB_OUTPUT -Append
+
+          # Full summary for later steps
+          "summary=$result" | Out-File $env:GITHUB_OUTPUT -Append
+
+          Write-Host "Found $($parsed.summary.total) open PRs"
+          Write-Host "Action Required: $($parsed.summary.actionRequired)"
+          Write-Host "With Conflicts: $(@($actionPRs | Where-Object { $_.hasConflicts }).Count)"
+
+      - name: Write step summary
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Import-Module ./.github/scripts/PRMaintenanceModule.psm1
-          $results = Get-MaintenanceResults -LogPath '.agents/logs/pr-maintenance.log'
-          $coreRemaining = (gh api rate_limit --jq '.resources.core.remaining')
-          $runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
-          $inputValue = '${{ inputs.dry_run }}'
-          $dryRun = $inputValue -ne 'false'
-          $summary = New-MaintenanceSummary -Results $results -DryRun $dryRun -CoreRemaining $coreRemaining -RunUrl $runUrl
+          $json = '${{ steps.discover.outputs.summary }}'
+          $parsed = $json | ConvertFrom-Json
+
+          $summary = @"
+          ## PR Discovery Summary
+
+          | Metric | Count |
+          |--------|-------|
+          | Open PRs Scanned | $($parsed.summary.total) |
+          | PRs Need Action | $($parsed.summary.actionRequired) |
+          | Blocked (human) | $($parsed.summary.blocked) |
+          | Derivative PRs | $($parsed.summary.derivatives) |
+
+          "@
+
+          if ($parsed.prs.Count -gt 0) {
+            $summary += @"
+
+          ### PRs Requiring Action
+
+          | PR | Category | Reason | Has Conflicts |
+          |----|----------|--------|---------------|
+          "@
+            foreach ($pr in $parsed.prs) {
+              $conflictIcon = if ($pr.hasConflicts) { ':warning:' } else { ':white_check_mark:' }
+              $summary += "| #$($pr.number) | $($pr.category) | $($pr.reason) | $conflictIcon |`n"
+            }
+          }
+
           $summary | Out-File $env:GITHUB_STEP_SUMMARY -Append
-          "processed=$($results.Processed)" | Out-File $env:GITHUB_OUTPUT -Append
-          "has_blocked=$($results.HasBlocked.ToString().ToLower())" | Out-File $env:GITHUB_OUTPUT -Append
-          if ($results.HasBlocked) { $results.BlockedPRs -join "`n" | Out-File blocked-prs.txt }
 
-      - name: Create alert issue for blocked PRs
-        if: steps.results.outputs.has_blocked == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
-        run: |
-          Import-Module ./.github/scripts/PRMaintenanceModule.psm1
-          $blockedPRs = Get-Content blocked-prs.txt
-          $runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
-          $body = New-BlockedPRsAlertBody -BlockedPRs $blockedPRs -RunUrl $runUrl
-          ./.claude/skills/github/scripts/issue/New-Issue.ps1 -Title "[PR Maintenance] Blocked PRs Require Human Action" -Body $body -Labels "automation,needs-triage"
+  # Job 2: Process PRs in parallel (matrix strategy)
+  process-prs:
+    needs: discover-prs
+    if: needs.discover-prs.outputs.has-prs == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    strategy:
+      matrix: ${{ fromJson(needs.discover-prs.outputs.matrix) }}
+      fail-fast: false
+      max-parallel: 3
 
-      - name: Upload logs
-        if: always()
-        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
         with:
-          name: pr-maintenance-logs
-          path: .agents/logs/pr-maintenance*.log
-          retention-days: 30
+          fetch-depth: 0
 
-      - name: Notify on failure
-        if: failure()
+      - name: Configure git
+        run: |
+          git config user.name "rjmurillo-bot"
+          git config user.email "rjmurillo-bot@users.noreply.github.com"
+
+      - name: Auto-resolve conflicts for PR #${{ matrix.number }}
+        id: auto-resolve
+        if: matrix.hasConflicts == true && (inputs.process_conflicts != false)
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Import-Module ./.github/scripts/PRMaintenanceModule.psm1
-          $runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
-          $body = New-WorkflowFailureAlertBody -RunUrl $runUrl -TriggerEvent '${{ github.event_name }}'
-          ./.claude/skills/github/scripts/issue/New-Issue.ps1 -Title "[ALERT] PR Maintenance Workflow Failed" -Body $body -Labels "automation,priority:P1"
+          Write-Host "Attempting auto-resolution for PR #${{ matrix.number }}"
+          Write-Host "Branch: ${{ matrix.headRefName }} -> ${{ matrix.baseRefName }}"
+
+          $result = ./.claude/skills/merge-resolver/scripts/Resolve-PRConflicts.ps1 `
+            -PRNumber ${{ matrix.number }} `
+            -BranchName '${{ matrix.headRefName }}' `
+            -TargetBranch '${{ matrix.baseRefName }}'
+
+          $parsed = $result | ConvertFrom-Json
+          if ($parsed.Success) {
+            Write-Host "::notice::PR #${{ matrix.number }}: Auto-resolved - $($parsed.FilesResolved.Count) file(s)"
+            "needs_ai=false" | Out-File $env:GITHUB_OUTPUT -Append
+          } else {
+            Write-Host "::warning::PR #${{ matrix.number }}: Auto-resolution blocked on: $($parsed.FilesBlocked -join ', ')"
+            "needs_ai=true" | Out-File $env:GITHUB_OUTPUT -Append
+            "blocked_files=$($parsed.FilesBlocked | ConvertTo-Json -Compress)" | Out-File $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Prepare conflict context for AI analysis
+        id: conflict-context
+        if: steps.auto-resolve.outputs.needs_ai == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          # Checkout PR branch and attempt merge to get conflict state
+          git fetch origin '${{ matrix.headRefName }}'
+          git checkout '${{ matrix.headRefName }}'
+          git fetch origin '${{ matrix.baseRefName }}'
+
+          # Attempt merge (will create conflict markers)
+          $null = git merge "origin/${{ matrix.baseRefName }}" 2>&1
+
+          # Gather conflict context with git blame analysis
+          $blockedFiles = '${{ steps.auto-resolve.outputs.blocked_files }}' | ConvertFrom-Json
+          $context = @()
+
+          foreach ($file in $blockedFiles) {
+            $context += "### File: $file"
+            $context += ""
+            $context += "#### Conflict markers:"
+            $context += '```'
+            $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
+            if ($content) {
+              # Extract just the conflict sections
+              $content -split "`n" | Where-Object { $_ -match '^(<<<<<<<|=======|>>>>>>>|[^<=>].*)' } |
+                Select-Object -First 100 | ForEach-Object { $context += $_ }
+            }
+            $context += '```'
+            $context += ""
+
+            # Get recent commits for this file on both branches
+            $context += "#### Recent commits (PR branch):"
+            $context += '```'
+            git log --oneline -5 HEAD -- $file 2>$null | ForEach-Object { $context += $_ }
+            $context += '```'
+            $context += ""
+            $context += "#### Recent commits (base branch):"
+            $context += '```'
+            git log --oneline -5 "origin/${{ matrix.baseRefName }}" -- $file 2>$null | ForEach-Object { $context += $_ }
+            $context += '```'
+            $context += ""
+          }
+
+          $contextStr = $context -join "`n"
+          # Escape for GitHub Actions output
+          $contextStr = $contextStr -replace '%', '%25' -replace "`n", '%0A' -replace "`r", '%0D'
+          "conflict_context=$contextStr" | Out-File $env:GITHUB_OUTPUT -Append
+
+          # Abort the merge so we can try again after AI analysis
+          git merge --abort 2>$null
+
+      - name: AI conflict analysis
+        id: ai-analysis
+        if: steps.auto-resolve.outputs.needs_ai == 'true'
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: pr-diff
+          pr-number: ${{ matrix.number }}
+          additional-context: |
+            ## Merge Conflict Analysis Request
+
+            The following files have conflicts that could not be auto-resolved:
+            ${{ steps.auto-resolve.outputs.blocked_files }}
+
+            ${{ steps.conflict-context.outputs.conflict_context }}
+          prompt-file: .github/prompts/merge-conflict-analysis.md
+          timeout-minutes: 5
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Apply AI conflict resolution
+        if: steps.auto-resolve.outputs.needs_ai == 'true' && steps.ai-analysis.outputs.verdict == 'PASS'
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          AI_FINDINGS: ${{ steps.ai-analysis.outputs.findings }}
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          Write-Host "Applying AI-recommended conflict resolutions for PR #${{ matrix.number }}"
+
+          # Parse AI output to find resolutions JSON
+          $findings = $env:AI_FINDINGS
+          $resolutions = $null
+
+          # Extract JSON from AI output (handle markdown code fences if present)
+          $jsonContent = $findings
+          # Remove markdown code fences if present (```json ... ```)
+          if ($findings -match '```(?:json)?\s*([\s\S]*?)```') {
+            $jsonContent = $Matches[1].Trim()
+          }
+
+          # Extract JSON object containing resolutions
+          if ($jsonContent -match '\{[\s\S]*"resolutions"[\s\S]*\}') {
+            try {
+              $resolutions = $Matches[0] | ConvertFrom-Json
+            } catch {
+              Write-Host "::error::Failed to parse AI resolutions JSON: $_"
+              Write-Host "::error::Raw JSON attempted: $($Matches[0].Substring(0, [Math]::Min(500, $Matches[0].Length)))"
+              exit 1
+            }
+          }
+
+          # Validate resolutions exist and are not empty
+          if (-not $resolutions) {
+            Write-Host "::error::No JSON object with 'resolutions' key found in AI output"
+            exit 1
+          }
+          if (-not $resolutions.resolutions) {
+            Write-Host "::error::AI output missing 'resolutions' array"
+            exit 1
+          }
+          if ($resolutions.resolutions.Count -eq 0) {
+            Write-Host "::error::AI returned empty resolutions array - cannot resolve conflicts"
+            exit 1
+          }
+
+          # Checkout PR branch and merge
+          git fetch origin '${{ matrix.headRefName }}'
+          git checkout '${{ matrix.headRefName }}'
+          git fetch origin '${{ matrix.baseRefName }}'
+          $null = git merge "origin/${{ matrix.baseRefName }}" 2>&1
+
+          # Apply each resolution
+          foreach ($res in $resolutions.resolutions) {
+            Write-Host "Resolving $($res.file) with strategy: $($res.strategy)"
+            Write-Host "  Reasoning: $($res.reasoning)"
+
+            switch ($res.strategy) {
+              'theirs' {
+                git checkout --theirs $res.file
+                git add $res.file
+              }
+              'ours' {
+                git checkout --ours $res.file
+                git add $res.file
+              }
+              'combine' {
+                if ($res.combined_content) {
+                  $res.combined_content | Set-Content $res.file -NoNewline
+                  git add $res.file
+                } else {
+                  Write-Host "::error::Combine strategy requires combined_content for $($res.file)"
+                  exit 1
+                }
+              }
+              default {
+                Write-Host "::error::Unknown strategy: $($res.strategy)"
+                exit 1
+              }
+            }
+          }
+
+          # Verify no remaining conflicts
+          $remaining = git diff --name-only --diff-filter=U
+          if ($remaining) {
+            Write-Host "::error::Unresolved conflicts remain: $remaining"
+            git merge --abort
+            exit 1
+          }
+
+          # Commit and push
+          git commit -m "Merge ${{ matrix.baseRefName }} into ${{ matrix.headRefName }} - AI-resolved conflicts"
+          git push origin '${{ matrix.headRefName }}'
+          Write-Host "::notice::PR #${{ matrix.number }}: AI-resolved conflicts successfully"
+
+      - name: Report unresolvable conflicts
+        if: steps.auto-resolve.outputs.needs_ai == 'true' && steps.ai-analysis.outputs.verdict != 'PASS'
+        run: |
+          echo "::error::PR #${{ matrix.number }}: Conflicts require manual resolution"
+          echo "::error::AI verdict: ${{ steps.ai-analysis.outputs.verdict }}"
+          echo "::error::Blocked files: ${{ steps.auto-resolve.outputs.blocked_files }}"
+          echo "Use /merge-resolver ${{ matrix.number }} for manual resolution"
+          exit 1
+
+      - name: Process PR comments for PR #${{ matrix.number }}
+        id: process-comments
+        # Process comments when:
+        # - No conflicts, OR conflicts were resolved successfully
+        if: |
+          matrix.hasConflicts != true ||
+          steps.auto-resolve.outputs.needs_ai != 'true' ||
+          steps.ai-analysis.outputs.verdict == 'PASS'
+        uses: ./.github/actions/ai-review
+        with:
+          agent: pr-comment-responder
+          context-type: pr-diff
+          pr-number: ${{ matrix.number }}
+          prompt-file: .github/prompts/pr-comment-triage.md
+          execute-script: .claude/skills/github/scripts/pr/Invoke-PRCommentProcessing.ps1
+          timeout-minutes: 10
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Comment processing result
+        if: steps.process-comments.outcome == 'success' || steps.process-comments.outcome == 'failure'
+        run: |
+          echo "PR #${{ matrix.number }} comment processing: ${{ steps.process-comments.outcome }}"
+          echo "Verdict: ${{ steps.process-comments.outputs.verdict }}"
+
+  # Job 3: Post-processing summary
+  summarize:
+    needs: [discover-prs, process-prs]
+    if: always()
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+
+      - name: Final summary
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          $json = '${{ needs.discover-prs.outputs.summary-json }}'
+          if (-not $json) {
+            Write-Host "No discovery results available"
+            exit 0
+          }
+
+          $parsed = $json | ConvertFrom-Json
+          $actionRequired = @($parsed.prs | Where-Object { $_.category -eq 'agent-controlled' })
+
+          if ($actionRequired.Count -gt 0) {
+            $prNumbers = ($actionRequired | ForEach-Object { "#$($_.number)" }) -join ", "
+            Write-Host "::notice::Action required for PRs: $prNumbers"
+            Write-Host "Run: /pr-review $(($actionRequired | ForEach-Object { $_.number }) -join ',')"
+
+            $summary = @"
+
+          ---
+          ### Next Steps
+
+          The following PRs require manual review via ``/pr-review``:
+
+          | PR | Reason | Action |
+          |----|--------|--------|
+          "@
+            foreach ($pr in $actionRequired) {
+              $summary += "| #$($pr.number) | $($pr.reason) | ``/pr-review $($pr.number)`` |`n"
+            }
+
+            $summary | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          }
