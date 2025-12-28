@@ -10,11 +10,17 @@
 # - Installation scripts (scripts/)
 # - Build automation (build/)
 # - GitHub Actions helpers (.github/scripts/)
+# - GitHub skill tests (.github/tests/)
 # - Claude skills (.claude/skills/)
 # - Root-level tests (tests/)
+# - Coverage thresholds (.baseline/)
 #
 # Local developers and AI agents can run the same tests using:
 #   pwsh ./build/scripts/Invoke-PesterTests.ps1
+#
+# Code coverage is enabled in CI and checked against baseline thresholds
+# from .baseline/coverage-thresholds.json. The build will fail if coverage
+# drops below the established baseline for any test file.
 
 name: Pester Tests
 
@@ -53,9 +59,11 @@ jobs:
               - 'scripts/**'
               - 'build/**'
               - '.github/scripts/**'
+              - '.github/tests/**'
               - '.github/workflows/pester-tests.yml'
               - '.claude/skills/**'
               - 'tests/**'
+              - '.baseline/**'
 
       - name: Report path check result
         run: |
@@ -82,7 +90,7 @@ jobs:
 
       - name: Run Pester Tests
         shell: pwsh
-        run: ./build/scripts/Invoke-PesterTests.ps1 -CI
+        run: ./build/scripts/Invoke-PesterTests.ps1 -CI -EnableCodeCoverage -CheckCoverageThreshold
 
       - name: Upload Test Results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -90,6 +98,14 @@ jobs:
         with:
           name: pester-test-results
           path: ./artifacts/pester-results.xml
+          retention-days: 30
+
+      - name: Upload Code Coverage Results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: code-coverage-results
+          path: ./artifacts/TestResults/coverage.xml
           retention-days: 30
 
       - name: Publish Test Report
@@ -122,9 +138,11 @@ jobs:
           echo "  - scripts/**"
           echo "  - build/**"
           echo "  - .github/scripts/**"
+          echo "  - .github/tests/**"
           echo "  - .github/workflows/pester-tests.yml"
           echo "  - .claude/skills/**"
           echo "  - tests/**"
+          echo "  - .baseline/**"
 
       - name: Create empty test result for required check
         run: |

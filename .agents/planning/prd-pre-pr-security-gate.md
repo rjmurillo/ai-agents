@@ -136,16 +136,16 @@ permissions: write-all  # AVOID
 
 ### TR-3: Pre-Commit Validation Script
 
-**Location**: `.agents/utilities/security-detection/validate-workflows.ps1`
+**Location**: `.claude/skills/security-detection/validate-workflows.ps1`
 
 **Usage**:
 
 ```powershell
 # Validate all workflow files
-pwsh .agents/utilities/security-detection/validate-workflows.ps1
+pwsh .claude/skills/security-detection/validate-workflows.ps1
 
 # Validate specific file
-pwsh .agents/utilities/security-detection/validate-workflows.ps1 -Path .github/workflows/pester-tests.yml
+pwsh .claude/skills/security-detection/validate-workflows.ps1 -Path .github/workflows/pester-tests.yml
 ```
 
 ### TR-4: Orchestrator Routing Update

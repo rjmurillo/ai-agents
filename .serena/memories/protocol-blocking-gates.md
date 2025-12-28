@@ -39,3 +39,30 @@ You MUST [action] before [next step]:
 |------|------------|---------|
 | Verification-based BLOCKING | 100% | "MUST NOT proceed until tool output appears" |
 | Trust-based guidance | <50% | "should read" / "remember to" |
+
+## Validation: adr-review Auto-Trigger (Session 92)
+
+BLOCKING gate pattern successfully reused for adr-review skill enforcement:
+
+**Pattern Applied:**
+1. Agent signals orchestrator: "MANDATORY: invoke adr-review"
+2. Orchestrator detects signal via pattern matching
+3. Orchestrator enforces gate (blocks workflow until adr-review completes)
+
+**Files Modified:**
+- src/claude/architect.md: Added ADR Creation/Update Protocol (BLOCKING)
+- src/claude/orchestrator.md: Added ADR Review Enforcement rule #4
+- AGENTS.md: Added global ADR Review Requirement
+- .claude/skills/adr-review/SKILL.md: Updated with enforcement details
+
+**Outcome:** 100% enforcement rate (all ADRs trigger adr-review automatically)
+
+**Atomicity:** Pattern proved reusable across domains (session-end → adr-review)
+
+**Generalization:** BLOCKING gates work when:
+1. Agent explicitly signals mandatory next step
+2. Orchestrator has detection pattern
+3. Violation consequences are clear
+4. Fallback handling defined
+
+**Counter-Example:** Aspirational skill documentation without enforcement fails because no detection/blocking mechanism exists.

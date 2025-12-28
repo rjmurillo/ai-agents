@@ -12,6 +12,39 @@
 .NOTES
     Import this module in scripts with:
     Import-Module (Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1") -Force
+
+TABLE OF CONTENTS
+=================
+Input Validation (line ~30)
+  - Test-GitHubNameValid     Validate owner/repo names (CWE-78 prevention)
+  - Test-SafeFilePath        Prevent path traversal (CWE-22 prevention)
+  - Assert-ValidBodyFile     Validate BodyFile parameter
+
+Repository (line ~145)
+  - Get-RepoInfo             Infer owner/repo from git remote
+  - Resolve-RepoParams       Resolve or error on owner/repo
+
+Authentication (line ~225)
+  - Test-GhAuthenticated     Check gh CLI auth status
+  - Assert-GhAuthenticated   Exit if not authenticated
+
+Error Handling (line ~260)
+  - Write-ErrorAndExit       Context-aware error handling (script vs module)
+
+API Helpers (line ~320)
+  - Invoke-GhApiPaginated    Fetch all pages from API
+
+Issue Comments (line ~380)
+  - Get-IssueComments        Fetch all comments for an issue
+  - Update-IssueComment      Update an existing comment
+  - New-IssueComment         Create a new issue comment
+
+Trusted Sources (line ~600)
+  - Get-TrustedSourceComments Filter comments by trusted users
+
+Formatting (line ~640)
+  - Get-PriorityEmoji        P0-P3 to emoji mapping
+  - Get-ReactionEmoji        Reaction type to emoji
 #>
 
 #region Input Validation Functions
