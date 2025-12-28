@@ -9,15 +9,13 @@ description: |
   (10) Create new issues or PRs with validation.
   Do NOT use for: raw git operations, GitHub Actions workflow editing, repository settings.
 allowed-tools: Bash(pwsh:*), Bash(gh api:*), Bash(gh pr:*), Bash(gh issue:*), Read, Write, Grep, Glob
-metadata:
-  generator:
-    keep_headings:
-      - Decision Tree
-      - Script Reference
-      - Quick Examples
-      - Common Patterns
-      - Output Format
-      - See Also
+keep_headings:
+  - Decision Tree
+  - Script Reference
+  - Quick Examples
+  - Common Patterns
+  - Output Format
+  - See Also
 ---
 
 # GitHub Skill
