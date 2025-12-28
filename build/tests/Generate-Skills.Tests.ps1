@@ -359,15 +359,10 @@ Content 2
         }
 
         It "Preserves code blocks" {
-            $body = @"
-## Allowed
-```powershell
-Write-Host "test"
-```
-"@
+            $body = "## Allowed`n" + '```powershell' + "`nWrite-Host `"test`"`n" + '```'
             $result = Extract-Sections -Body $body -AllowedHeadings @("Allowed")
 
-            $result | Should -Match "```powershell"
+            $result | Should -Match '```powershell'
             $result | Should -Match 'Write-Host "test"'
         }
 
@@ -476,7 +471,11 @@ Describe "Build-SkillFrontmatter" {
                 name = "test-skill"
                 description = "Test description"
                 "allowed-tools" = "tool1, tool2"
-                keep_headings = @("H1", "H2")
+                metadata = [ordered]@{
+                    generator = [ordered]@{
+                        keep_headings = @("H1", "H2")
+                    }
+                }
             }
             $result = Build-SkillFrontmatter -Fm $fm -SourceRelPath "test/SKILL.md"
 
@@ -487,10 +486,14 @@ Describe "Build-SkillFrontmatter" {
             $result | Should -Match "generated-from:"
         }
 
-        It "Excludes keep_headings from output" {
+        It "Excludes metadata.generator.keep_headings from output" {
             $fm = [ordered]@{
                 name = "test"
-                keep_headings = @("H1")
+                metadata = [ordered]@{
+                    generator = [ordered]@{
+                        keep_headings = @("H1")
+                    }
+                }
             }
             $result = Build-SkillFrontmatter -Fm $fm -SourceRelPath "test/SKILL.md"
 
@@ -555,9 +558,11 @@ Describe "End-to-End Skill Generation" {
 name: test-skill
 description: Test skill description
 allowed-tools: tool1, tool2
-keep_headings:
-  - Section 1
-  - Section 2
+metadata:
+  generator:
+    keep_headings:
+      - Section 1
+      - Section 2
 ---
 
 # Overview
@@ -598,8 +603,10 @@ This is not extracted.
             $content = @"
 ---
 description: Test
-keep_headings:
-  - Test
+metadata:
+  generator:
+    keep_headings:
+      - Test
 ---
 
 ## Test
@@ -615,7 +622,7 @@ Content
 
         It "Respects -ForceLf parameter" {
             $skillMd = Join-Path $Script:SkillTestDir "SKILL.md"
-            $content = "---`nname: test`nkeep_headings:`n  - H1`n---`n## H1`nContent"
+            $content = "---`nname: test`nmetadata:`n  generator:`n    keep_headings:`n      - H1`n---`n## H1`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
             & "$PSScriptRoot/../Generate-Skills.ps1" -Root $Script:SkillTestDir -ForceLf -ErrorAction Stop
@@ -635,7 +642,7 @@ Content
 
         It "Reports diff when output differs" {
             $skillMd = Join-Path $Script:SkillTestDir "SKILL.md"
-            $content = "---`nname: test`nkeep_headings:`n  - H1`n---`n## H1`nContent"
+            $content = "---`nname: test`nmetadata:`n  generator:`n    keep_headings:`n      - H1`n---`n## H1`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
             # Capture output directly (not via Out-String which may be empty in CI)
@@ -648,7 +655,7 @@ Content
 
         It "Respects -DryRun parameter" {
             $skillMd = Join-Path $Script:SkillTestDir "SKILL.md"
-            $content = "---`nname: dryrun`nkeep_headings:`n  - H1`n---`n## H1`nContent"
+            $content = "---`nname: dryrun`nmetadata:`n  generator:`n    keep_headings:`n      - H1`n---`n## H1`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
             & "$PSScriptRoot/../Generate-Skills.ps1" -Root $Script:SkillTestDir -DryRun -ErrorAction Stop
@@ -657,17 +664,23 @@ Content
             Test-Path $outputPath | Should -Be $false
         }
 
-        It "Throws on missing keep_headings" {
+        It "Skips SKILL.md without metadata.generator.keep_headings" {
             $skillMd = Join-Path $Script:SkillTestDir "SKILL.md"
             $content = "---`nname: test`n---`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
-            { & "$PSScriptRoot/../Generate-Skills.ps1" -Root $Script:SkillTestDir -ErrorAction Stop } | Should -Throw "*keep_headings*"
+            # Should not throw, but should skip (no output file created)
+            $result = & "$PSScriptRoot/../Generate-Skills.ps1" -Root $Script:SkillTestDir -VerboseLog *>&1
+            $output = $result -join "`n"
+            $output | Should -Match "Skipping"
+
+            $outputPath = Join-Path $Script:SkillTestDir "test.skill"
+            Test-Path $outputPath | Should -Be $false
         }
 
         It "Sanitizes invalid filename characters" {
             $skillMd = Join-Path $Script:SkillTestDir "SKILL.md"
-            $content = "---`nname: 'test:skill|name'`nkeep_headings:`n  - H1`n---`n## H1`nContent"
+            $content = "---`nname: 'test:skill|name'`nmetadata:`n  generator:`n    keep_headings:`n      - H1`n---`n## H1`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
             & "$PSScriptRoot/../Generate-Skills.ps1" -Root $Script:SkillTestDir -ErrorAction Stop
@@ -678,7 +691,7 @@ Content
 
         It "Fails verification when output differs" {
             $skillMd = Join-Path $Script:SkillTestDir "SKILL.md"
-            $content = "---`nname: test`nkeep_headings:`n  - H1`n---`n## H1`nContent"
+            $content = "---`nname: test`nmetadata:`n  generator:`n    keep_headings:`n      - H1`n---`n## H1`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
             { & "$PSScriptRoot/../Generate-Skills.ps1" -Root $Script:SkillTestDir -Verify -ErrorAction Stop } | Should -Throw "*Verification failed*"
@@ -686,7 +699,7 @@ Content
 
         It "Passes verification when output matches" {
             $skillMd = Join-Path $Script:SkillTestDir "SKILL.md"
-            $content = "---`nname: test`nkeep_headings:`n  - H1`n---`n## H1`nContent"
+            $content = "---`nname: test`nmetadata:`n  generator:`n    keep_headings:`n      - H1`n---`n## H1`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
             # Generate once
@@ -698,7 +711,7 @@ Content
 
         It "Includes hash when -IncludeHash is specified" {
             $skillMd = Join-Path $Script:SkillTestDir "SKILL.md"
-            $content = "---`nname: test`nkeep_headings:`n  - H1`n---`n## H1`nContent"
+            $content = "---`nname: test`nmetadata:`n  generator:`n    keep_headings:`n      - H1`n---`n## H1`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
             & "$PSScriptRoot/../Generate-Skills.ps1" -Root $Script:SkillTestDir -IncludeHash -ErrorAction Stop
@@ -724,7 +737,7 @@ Content
 
         It "Throws when keep_headings is not a list" {
             $skillMd = Join-Path $Script:ErrorTestDir "SKILL.md"
-            $content = "---`nname: test`nkeep_headings: 'not-a-list'`n---`nContent"
+            $content = "---`nname: test`nmetadata:`n  generator:`n    keep_headings: 'not-a-list'`n---`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
             { & "$PSScriptRoot/../Generate-Skills.ps1" -Root $Script:ErrorTestDir -ErrorAction Stop } | Should -Throw "*must be a YAML list*"
@@ -746,7 +759,7 @@ Describe "Security Considerations" {
             $testDir = Join-Path $Script:TestTempDir "security-test"
             New-Item -ItemType Directory -Path $testDir -Force | Out-Null
             $skillMd = Join-Path $testDir "SKILL.md"
-            $content = "---`nname: test`nkeep_headings:`n  - H1`n---`n## H1`nContent"
+            $content = "---`nname: test`nmetadata:`n  generator:`n    keep_headings:`n      - H1`n---`n## H1`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
             # Should not throw path traversal errors
@@ -757,7 +770,7 @@ Describe "Security Considerations" {
             $testDir = Join-Path $Script:TestTempDir "path-test"
             New-Item -ItemType Directory -Path $testDir -Force | Out-Null
             $skillMd = Join-Path $testDir "SKILL.md"
-            $content = "---`nname: test`nkeep_headings:`n  - H1`n---`n## H1`nContent"
+            $content = "---`nname: test`nmetadata:`n  generator:`n    keep_headings:`n      - H1`n---`n## H1`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
             & "$PSScriptRoot/../Generate-Skills.ps1" -Root $testDir -ErrorAction Stop
@@ -773,7 +786,7 @@ Describe "Security Considerations" {
             $testDir = Join-Path $Script:TestTempDir "bom-test"
             New-Item -ItemType Directory -Path $testDir -Force | Out-Null
             $skillMd = Join-Path $testDir "SKILL.md"
-            $content = "---`nname: test`nkeep_headings:`n  - H1`n---`n## H1`nContent"
+            $content = "---`nname: test`nmetadata:`n  generator:`n    keep_headings:`n      - H1`n---`n## H1`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
             & "$PSScriptRoot/../Generate-Skills.ps1" -Root $testDir -ErrorAction Stop
