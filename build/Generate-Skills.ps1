@@ -4,10 +4,15 @@
 
 .DESCRIPTION
   Generates *.skill from SKILL.md using:
-    - YAML frontmatter: name, description, allowed-tools, keep_headings
+    - YAML frontmatter: name, description, allowed-tools
+    - Generator config: metadata.generator.keep_headings (list of headings to extract)
     - Body extraction: keeps only the headings listed in keep_headings
     - Adds generated metadata and a banner
     - Deterministic output and optional verify mode for CI
+
+  The keep_headings directive MUST be under metadata.generator to comply with
+  Anthropic skill-creator validation (allowed root keys: name, description,
+  license, allowed-tools, metadata, compatibility).
 
 .NOTES
   Requires: powershell-yaml module (Install-Module -Name powershell-yaml)
@@ -231,13 +236,23 @@ foreach ($file in $canonicalFiles) {
   $fm = $split.Frontmatter
   $body = $split.Body
 
-  if (-not $fm.Contains("keep_headings")) {
-    throw "Missing frontmatter key 'keep_headings' in $canonicalPath"
+  # Extract keep_headings from metadata.generator.keep_headings
+  # This path complies with Anthropic skill-creator validation rules
+  $keep = $null
+  if ($fm.Contains("metadata") -and
+      $fm["metadata"] -is [System.Collections.IDictionary] -and
+      $fm["metadata"].Contains("generator") -and
+      $fm["metadata"]["generator"] -is [System.Collections.IDictionary] -and
+      $fm["metadata"]["generator"].Contains("keep_headings")) {
+    $keep = $fm["metadata"]["generator"]["keep_headings"]
   }
 
-  $keep = $fm["keep_headings"]
+  if ($null -eq $keep) {
+    throw "Missing frontmatter key 'metadata.generator.keep_headings' in $canonicalPath"
+  }
+
   if ($keep -isnot [System.Collections.IList]) {
-    throw "'keep_headings' must be a YAML list in $canonicalPath"
+    throw "'metadata.generator.keep_headings' must be a YAML list in $canonicalPath"
   }
 
   $rel = [System.IO.Path]::GetRelativePath($rootPath, $canonicalPath)
