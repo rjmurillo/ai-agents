@@ -1179,24 +1179,79 @@ fi
 
 **Critical**: Repeat this loop until no new comments appear after a commit. Bots like cursor[bot] and Copilot respond to your fixes and may identify issues with your implementation.
 
-#### Phase 8.4: QA Gate Verification
+#### Phase 8.4: CI Check Verification
 
-Before claiming completion, verify CI checks pass:
+**MANDATORY**: Verify ALL CI checks pass before claiming completion. The `mergeable: "MERGEABLE"` field only indicates no merge conflicts, NOT that CI checks are passing.
+
+**Critical**: `gh pr view --json mergeable` returning `"MERGEABLE"` means:
+
+- ✅ No merge conflicts
+- ✅ Branch is compatible with base
+
+It does NOT mean:
+
+- ❌ CI checks passing
+- ❌ Required status checks satisfied
+
+**Always verify CI explicitly**:
 
 ```bash
-# Check PR status
-gh pr checks [number] --watch
+# Check ALL CI checks status
+echo "=== CI Check Verification ==="
 
-# If AI Quality Gate fails, parse actionable items
-CHECKS=$(gh pr checks [number] --json name,state,description)
-FAILED=$(echo "$CHECKS" | jq '[.[] | select(.state == "FAILURE")]')
+# Create a secure temporary file for CI check results (avoids race conditions)
+checks_file=$(mktemp)
+# Ensure the temporary file is removed on exit (handles all exit paths)
+trap 'rm -f "$checks_file"' EXIT
 
-if [ "$(echo "$FAILED" | jq 'length')" -gt 0 ]; then
-  echo "[QA GATE FAIL] Parsing failures for actionable items..."
-  # Add new tasks to task list
-  # Return to Phase 6 for implementation
+# Wait for all checks to complete, fetching all fields in one call
+while true; do
+    gh pr checks [number] --json name,state,conclusion,detailsUrl > "$checks_file"
+
+    # Count checks that are not yet completed
+    pending_checks=$(jq '[.[] | select(.state != "COMPLETED")]' "$checks_file")
+    pending_count=$(echo "$pending_checks" | jq 'length')
+
+    if [ "$pending_count" -eq 0 ]; then
+        echo "All CI checks have completed."
+        break
+    fi
+
+    echo "$pending_count CI checks are not yet complete. Waiting 30 seconds..."
+    echo "$pending_checks" | jq -r '.[] | "  - \(.name): \(.state)"'
+    sleep 30
+done
+
+# Parse for failures (exclude skipped and successful conclusions)
+failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' "$checks_file")
+failed_count=$(echo "$failed_checks" | jq 'length')
+
+if [ "$failed_count" -gt 0 ]; then
+  echo "[BLOCKED] $failed_count CI checks not passing:"
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): \(.conclusion)"'
+
+  # Parse actionable items from failures
+  echo ""
+  echo "Actionable items:"
+  # Extract failure details for each check
+  echo "$failed_checks" | jq -r '.[] | "  - \(.name): Review logs at \(.detailsUrl // "N/A")"'
+
+  # Do NOT claim completion - return to Phase 6 for fixes
+  exit 1
 fi
+
+echo "[PASS] All CI checks passing ($(jq 'length' "$checks_file") checks)"
+# trap handles cleanup automatically
 ```
+
+**Exit codes**:
+
+- `0`: All checks passing (or skipped)
+- `1`: One or more checks failed (blocks completion)
+
+**If CI fails**: Parse failure messages, add new tasks to task list, return to Phase 6 for implementation.
+
+**Skill Reference**: Skill-PR-Review-007 (CI verification before completion, atomicity: 96%)
 
 #### Phase 8.5: Completion Criteria Checklist
 
