@@ -4,10 +4,15 @@
 
 .DESCRIPTION
   Generates *.skill from SKILL.md using:
-    - YAML frontmatter: name, description, allowed-tools, keep_headings
+    - YAML frontmatter: name, description, allowed-tools
+    - Generator config: metadata.generator.keep_headings (list of headings to extract)
     - Body extraction: keeps only the headings listed in keep_headings
     - Adds generated metadata and a banner
     - Deterministic output and optional verify mode for CI
+
+  The keep_headings directive MUST be under metadata.generator to comply with
+  Anthropic skill-creator validation (allowed root keys: name, description,
+  license, allowed-tools, metadata, compatibility).
 
 .NOTES
   Requires: powershell-yaml module (Install-Module -Name powershell-yaml)
@@ -198,8 +203,9 @@ function Build-SkillFrontmatter([hashtable] $Fm, [string] $SourceRelPath, [switc
     } else {
       if ($v -is [string] -and $v.Contains("`n")) {
         # block scalar for multiline description
+        # TrimEnd removes trailing newlines to avoid empty lines in output
         $lines.Add("${k}: |")
-        foreach ($ln in (Normalize-Newlines -Text $v -Lf).Split("`n")) {
+        foreach ($ln in (Normalize-Newlines -Text $v -Lf).TrimEnd("`n").Split("`n")) {
           $lines.Add("  " + $ln)
         }
       } elseif ($v -is [string]) {
@@ -218,7 +224,8 @@ function Build-SkillFrontmatter([hashtable] $Fm, [string] $SourceRelPath, [switc
 
 # Main
 $rootPath = Resolve-Path $Root
-$canonicalFiles = @(Get-ChildItem -Path $rootPath -Recurse -File -Filter $CanonicalName)
+# -Force includes hidden directories (like .claude/)
+$canonicalFiles = @(Get-ChildItem -Path $rootPath -Recurse -Force -File -Filter $CanonicalName)
 if ($canonicalFiles.Count -eq 0) { throw "No $CanonicalName found under $rootPath" }
 
 $anyDiff = $false
@@ -230,17 +237,28 @@ foreach ($file in $canonicalFiles) {
   $split = Split-Frontmatter $md
   $fm = $split.Frontmatter
   $body = $split.Body
-
-  if (-not $fm.Contains("keep_headings")) {
-    throw "Missing frontmatter key 'keep_headings' in $canonicalPath"
-  }
-
-  $keep = $fm["keep_headings"]
-  if ($keep -isnot [System.Collections.IList]) {
-    throw "'keep_headings' must be a YAML list in $canonicalPath"
-  }
-
   $rel = [System.IO.Path]::GetRelativePath($rootPath, $canonicalPath)
+
+  # Extract keep_headings from metadata.generator.keep_headings
+  # This path complies with Anthropic skill-creator validation rules
+  # Skills without this config don't need .skill file generation
+  $keep = $null
+  if ($fm.Contains("metadata") -and
+      $fm["metadata"] -is [System.Collections.IDictionary] -and
+      $fm["metadata"].Contains("generator") -and
+      $fm["metadata"]["generator"] -is [System.Collections.IDictionary] -and
+      $fm["metadata"]["generator"].Contains("keep_headings")) {
+    $keep = $fm["metadata"]["generator"]["keep_headings"]
+  }
+
+  if ($null -eq $keep) {
+    Write-Log "Skipping (no metadata.generator.keep_headings): $rel"
+    continue
+  }
+
+  if ($keep -isnot [System.Collections.IList]) {
+    throw "'metadata.generator.keep_headings' must be a YAML list in $canonicalPath"
+  }
 
   $hashInput = Normalize-Newlines -Text $md -Lf
   $hash = Compute-Sha256Hex $hashInput

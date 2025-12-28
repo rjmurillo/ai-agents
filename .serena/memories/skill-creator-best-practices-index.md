@@ -14,6 +14,7 @@ Index of atomic skill-creator patterns derived from PR #255 (2025-12-22). Use wh
 | 004 | Reference Material Extraction | progressive-disclosure | ~200 |
 | 005 | Schema Redundancy Elimination | token-optimization | ~500 |
 | 006 | TOC Requirement for Long Files | documentation | N/A (navigation) |
+| 007 | Frontmatter Validation Compliance | validation | N/A (compliance) |
 
 ## Memory References
 
@@ -25,6 +26,7 @@ Read individual skills:
 - `skill-creator-004-reference-material-extraction`
 - `skill-creator-005-schema-redundancy-elimination`
 - `skill-creator-006-toc-requirement-long-files`
+- `skill-creator-007-frontmatter-validation-compliance`
 
 ## When to Use This Index
 
@@ -47,7 +49,7 @@ PR #255 demonstrated: **~4,600 tokens saved** from applying all patterns.
 
 ## Activation Vocabulary
 
-skill, creator, optimization, token, frontmatter, trigger, progressive disclosure, SKILL.md, comment stripping, test separation, reference extraction, schema redundancy, TOC, table of contents
+skill, creator, optimization, token, frontmatter, trigger, progressive disclosure, SKILL.md, comment stripping, test separation, reference extraction, schema redundancy, TOC, table of contents, validation, anthropic, metadata, compliance
 
 ## Created
 
