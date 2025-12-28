@@ -69,6 +69,15 @@ if ([string]::IsNullOrWhiteSpace($Body)) { Write-ErrorAndExit "Body cannot be em
 if ($Marker) {
     $markerHtml = "<!-- $Marker -->"
     
+    # Helper: Prepend marker to body if not already present
+    function Add-MarkerToBody {
+        param([string]$BodyContent, [string]$MarkerHtml)
+        if ($BodyContent -notmatch [regex]::Escape($MarkerHtml)) {
+            return "$MarkerHtml`n`n$BodyContent"
+        }
+        return $BodyContent
+    }
+    
     # Get all comments to check for existing marker
     $commentsJson = gh api "repos/$Owner/$Repo/issues/$Issue/comments" 2>$null
     
@@ -81,10 +90,7 @@ if ($Marker) {
                 # Update existing comment (upsert behavior for CI/CD status)
                 Write-Host "Comment with marker '$Marker' exists. Updating..." -ForegroundColor Cyan
                 
-                # Prepend marker if not in body
-                if ($Body -notmatch [regex]::Escape($markerHtml)) {
-                    $Body = "$markerHtml`n`n$Body"
-                }
+                $Body = Add-MarkerToBody -BodyContent $Body -MarkerHtml $markerHtml
                 
                 $response = Update-IssueComment -Owner $Owner -Repo $Repo -CommentId $existingComment.id -Body $Body
                 
@@ -123,10 +129,8 @@ if ($Marker) {
         }
     }
 
-    # Prepend marker if not in body (for new comments)
-    if ($Body -notmatch [regex]::Escape($markerHtml)) {
-        $Body = "$markerHtml`n`n$Body"
-    }
+    # Prepend marker for new comments
+    $Body = Add-MarkerToBody -BodyContent $Body -MarkerHtml $markerHtml
 }
 
 # Post comment

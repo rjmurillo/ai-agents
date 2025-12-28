@@ -224,7 +224,7 @@ jobs:
 
           ---
 
-          💡 See the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) for full context across all agents, or check the PR for the consolidated quality gate comment.
+          <sub>💡 See the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) for full context across all agents, or check the PR for the consolidated quality gate comment.</sub>
           "@
 
           # Write to step summary
@@ -251,9 +251,13 @@ jobs:
             # GitHub Actions annotations have a practical limit of ~200 chars for readability
             # We truncate to 180 chars (177 + "...") to leave room for the prefix "[agent] VERDICT: "
             $maxAnnotationLength = 180
-            $summary = ($findings -replace "`n", " ")
-            if ($summary.Length -gt $maxAnnotationLength) {
-              $summary = $summary.Substring(0, $maxAnnotationLength - 3) + "..."
+            if ([string]::IsNullOrWhiteSpace($findings)) {
+              $summary = "No details available."
+            } else {
+              $summary = ($findings -replace "`n", " ")
+              if ($summary.Length -gt $maxAnnotationLength) {
+                $summary = $summary.Substring(0, $maxAnnotationLength - 3) + "..."
+              }
             }
 
             Write-Output "::error::[$agent] ${verdict}: $summary"
@@ -280,12 +284,13 @@ jobs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
 
     steps:
-      - name: Identify failed agents
+      - name: Check for failed agents
         id: failed-agents
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          # Check which matrix jobs failed by examining the needs context
+          # Check if any matrix jobs failed by examining the needs context
           # This step runs before downloading artifacts to surface failures early
+          # Note: Specific failed agents are identified later by examining individual verdicts
           $reviewResult = "${{ needs.review.result }}"
           Write-Output "Review matrix result: $reviewResult"
 
@@ -609,7 +614,7 @@ jobs:
         run: |
           # Use GitHub skill script for idempotent comment posting
           # PRs are issues in GitHub API, so we use Post-IssueComment with marker
-          # UpdateIfExists ensures comment is updated on each commit (not just first run)
+          # UpdateIfExists updates the existing marked comment if present, ensuring the latest report is reflected
           & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
             -Issue $env:PR_NUMBER `
             -BodyFile $env:REPORT_FILE `
