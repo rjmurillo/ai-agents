@@ -795,6 +795,100 @@ These comments require immediate response before implementation:
 [If tasks have dependencies, document here]
 ```
 
+### Phase 4.5: Copilot Follow-Up Handling
+
+**BLOCKING GATE**: Must complete before Phase 5 begins
+
+This phase detects and handles Copilot's follow-up PR creation pattern. When you reply to Copilot's review comments, Copilot often creates a new PR targeting the original PR's branch.
+
+#### Detection Pattern
+
+Copilot follow-up PRs match:
+
+- **Branch**: `copilot/sub-pr-{original_pr_number}`
+- **Target**: Original PR's base branch (not main)
+- **Announcement**: Issue comment from `app/copilot-swe-agent` containing "I've opened a new pull request"
+
+**Example**: PR #32 → Follow-up PR #33 (copilot/sub-pr-32)
+
+#### Step 4.5.1: Query for Follow-Up PRs
+
+```bash
+# Search for follow-up PR matching pattern
+FOLLOW_UP=$(gh pr list --state=open \
+  --search="head:copilot/sub-pr-${PR_NUMBER}" \
+  --json=number,title,body,headRefName,baseRefName,state,author)
+
+if [ -z "$FOLLOW_UP" ] || [ "$(echo "$FOLLOW_UP" | jq 'length')" -eq 0 ]; then
+  echo "No follow-up PRs found. Proceed to Phase 5."
+  exit 0
+fi
+```
+
+#### Step 4.5.2: Verify Copilot Announcement
+
+```bash
+# Check for Copilot announcement comment on original PR
+ANNOUNCEMENT=$(gh api repos/OWNER/REPO/issues/${PR_NUMBER}/comments \
+  --jq '.[] | select(.user.login == "app/copilot-swe-agent" and .body | contains("opened a new pull request"))')
+
+if [ -z "$ANNOUNCEMENT" ]; then
+  echo "WARNING: Follow-up PR found but no Copilot announcement. May not be official follow-up."
+fi
+```
+
+#### Step 4.5.3: Categorize Follow-Up Intent
+
+Analyze the follow-up PR content to determine intent:
+
+**DUPLICATE**: Follow-up contains same changes as fixes already applied
+
+- Example: PR #32/#33 (both address same 5 comments)
+- Action: Close with explanation linking to original commits
+
+**SUPPLEMENTAL**: Follow-up addresses different/additional issues
+
+- Example: Extra changes needed after initial reply
+- Action: Evaluate for merge or request changes
+
+**INDEPENDENT**: Follow-up unrelated to original review
+
+- Example: Copilot misunderstood context
+- Action: Close with note
+
+#### Step 4.5.4: Execute Decision
+
+**DUPLICATE Decision**:
+
+```bash
+# Close with explanation
+gh pr close ${FOLLOW_UP_PR} --comment "Closing: This follow-up PR duplicates changes already applied in the original PR.
+
+Applied fixes:
+- Commit [hash1]: [description]
+- Commit [hash2]: [description]
+
+See PR #${PR_NUMBER} for details."
+```
+
+**SUPPLEMENTAL Decision**:
+
+```bash
+# Evaluate for merge or request changes
+# Option A: Merge if changes are valid and address new issues
+gh pr merge ${FOLLOW_UP_PR} --auto --squash --delete-branch
+
+# Option B: Leave open for review
+# Post comment on original PR documenting supplemental follow-up
+```
+
+**INDEPENDENT Decision**:
+
+```bash
+# Close with note
+gh pr close ${FOLLOW_UP_PR} --comment "Closing: This PR addresses concerns that were already resolved in PR #${PR_NUMBER}. No action needed."
+```
+
 ### Phase 5: Immediate Replies
 
 Reply to comments that need immediate response BEFORE implementation:

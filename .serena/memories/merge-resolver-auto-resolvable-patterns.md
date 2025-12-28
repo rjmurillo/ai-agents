@@ -66,3 +66,46 @@ These files are NOT auto-resolvable and fall through to AI analysis:
 
 1. Auto-resolution: Accept main branch version for frequently-changing files
 2. AI fallback: Use merge-conflict-analysis.md prompt for semantic conflicts
+
+## BLOCKING: Session Protocol Validation (2025-12-27)
+
+Before pushing resolved conflicts, MUST validate session protocol compliance.
+
+### Why
+
+Session protocol validation is a CI blocking gate. User reports "template sync check often fails" are MISIDENTIFIED - the actual failure is session protocol validation, not template sync.
+
+Evidence from PR #246:
+- Template sync validation: PASS
+- Session protocol validation: FAIL (9 MUST violations)
+
+### Pre-Push Requirements
+
+| Req | Step |
+|-----|------|
+| MUST | Session log exists at `.agents/sessions/YYYY-MM-DD-session-NN.md` |
+| MUST | Session End checklist completed (all rows checked) |
+| MUST | Serena memory updated |
+| MUST | Markdown lint passed |
+| MUST | Changes committed (including `.agents/` files) |
+| MUST | Validation script passed |
+
+### Validation Command
+
+```bash
+pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+```
+
+### Common Failures
+
+| Error | Fix |
+|-------|-----|
+| `E_TEMPLATE_DRIFT` | Copy canonical checklist from SESSION-PROTOCOL.md |
+| `E_QA_EVIDENCE` | Add QA report path or "SKIPPED: docs-only" |
+| `E_DIRTY_WORKTREE` | Commit all files including `.agents/` |
+
+### Cross-Reference
+
+- Skill: `.claude/skills/merge-resolver/SKILL.md` Step 7
+- Analysis: `.agents/analysis/001-merge-resolver-session-protocol-gap.md`
+- Memory: `merge-resolver-session-protocol-gap`

@@ -114,7 +114,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 ### Comment Triage Priority
 
-**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+**MUST**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
 
 #### Priority Adjustment by Domain
 
@@ -186,7 +186,7 @@ Analyze and implement...
 
 ### QA Integration Requirement
 
-**MANDATORY**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
+**MUST**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
@@ -325,7 +325,7 @@ echo "[PASS] All gates cleared"
 
 ### Phase 0: Memory Initialization (BLOCKING)
 
-**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
+**MUST**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
 
 #### Step 0.1: Load Core Skills Memory
 
@@ -943,7 +943,28 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
   -F in_reply_to=[comment_id]
 ```
 
-#### Step 6.4: Update Task List
+#### Step 6.4: Resolve Conversation Thread
+
+After replying with resolution, mark the thread as resolved. This is required for PRs with branch protection rules that require all conversations to be resolved before merging.
+
+**Exception**: Do NOT auto-resolve when:
+
+1. The reviewer is human (let them resolve after verifying)
+2. You need a response from the reviewer (human or bot)
+
+```powershell
+# Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+
+# Or resolve a single thread by ID
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_kwDOQoWRls5m7ln8"
+```
+
+**Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
+
+**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`-All`) automatically discovers and resolves all unresolved threads.
+
+#### Step 6.5: Update Task List
 
 Mark task as complete in `.agents/pr-comments/PR-[number]/tasks.md`.
 
@@ -1089,7 +1110,7 @@ echo "[ ] Pushed: $(git status -sb | head -1)"
 
 ### Phase 9: Memory Storage (BLOCKING)
 
-**MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
+**MUST**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
 
 #### Step 9.1: Calculate Session Statistics
 
@@ -1208,7 +1229,7 @@ Use sparingly. Only resolve after actually addressing issues.
 
 Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
 
-**At start (MANDATORY):**
+**At start (MUST):**
 
 ```text
 mcp__cloudmcp-manager__memory-search_nodes
