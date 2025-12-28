@@ -59,7 +59,7 @@ When running in environments with PowerShell support (Windows, PowerShell Core o
 | Operation | Skill Script | Bash Fallback |
 |-----------|--------------|---------------|
 | PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
+| Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
 | Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq` |
 | Reply to comment | `Post-PRCommentReply.ps1` | `gh api -X POST` |
 | Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
@@ -323,53 +323,9 @@ echo "[PASS] All gates cleared"
 
 ## Workflow Protocol
 
-### Phase 0: Memory Initialization (BLOCKING)
+### Phase 0: Session State Check
 
-**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
-
-#### Step 0.1: Load Core Skills Memory
-
-```python
-# ALWAYS load pr-comment-responder-skills first
-mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
-```
-
-This memory contains:
-
-- Reviewer signal quality statistics (actionability rates)
-- Triage heuristics and learned patterns
-- Per-PR breakdown of comment outcomes
-- Anti-patterns to avoid
-
-#### Step 0.2: Verify Core Memory Loaded
-
-Before proceeding, confirm `pr-comment-responder-skills` is loaded:
-
-- [ ] Memory content appears in context
-- [ ] Reviewer signal quality table visible
-- [ ] Triage heuristics available
-
-**If memory load fails**: Proceed with default heuristics but flag in session log.
-
-#### Step 0.3: Note on Reviewer-Specific Memories
-
-Reviewer-specific memories (e.g., `cursor-bot-review-patterns`) are loaded in **Step 1.2a** after reviewer enumeration completes. Phase 0 focuses only on core skills memory.
-
----
-
-| Reviewer | Memory Name | Content |
-|----------|-------------|---------|
-| cursor[bot] | `cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
-| Copilot | `copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
-| coderabbitai[bot] | - | (Use pr-comment-responder-skills) |
-
----
-
-### Phase 1: Context Gathering
-
-#### Step 1.0: Session State Check
-
-Before fetching new data, check if this is a continuation of a previous session:
+Before starting work, check if this is a continuation of a previous session:
 
 ```bash
 SESSION_DIR=".agents/pr-comments/PR-[number]"
@@ -380,12 +336,12 @@ if [ -d "$SESSION_DIR" ]; then
   PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
   echo "Previous session had $PREVIOUS_COMMENTS comments"
 
-  # Check for NEW comments only
-  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+  # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)
+  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
-    # Proceed to Step 1.1 to fetch new comments only
+    # Proceed to Phase 1 to fetch new comments only
   else
     echo "[NO NEW COMMENTS] Proceeding to Phase 8 for verification"
     # Skip to Phase 8 to verify completion criteria
@@ -404,6 +360,8 @@ fi
 | `tasks.md` | Prioritized task list |
 | `session-summary.md` | Session outcomes and statistics |
 | `[comment_id]-plan.md` | Per-comment implementation plans |
+
+### Phase 1: Context Gathering
 
 **CRITICAL**: Enumerate ALL reviewers and count ALL comments before proceeding. Missing comments wastes tokens on repeated prompts. Missed comments lead to incomplete PR handling and waste tokens on repeated prompts. Replying to incorrect comment threads creates noise and causes confusion.
 
@@ -433,23 +391,18 @@ ALL_REVIEWERS=$(echo "$REVIEWERS $ISSUE_REVIEWERS" | jq -s 'add | unique')
 echo "Reviewers: $ALL_REVIEWERS"
 ```
 
-#### Step 1.2a: Load Reviewer-Specific Memories
+#### Step 1.3: Retrieve ALL Comments (with pagination)
 
-Now that reviewers are enumerated, load memories for each unique reviewer:
+```powershell
+# Using github skill (PREFERRED) - handles pagination automatically
+# IMPORTANT: Use -IncludeIssueComments to capture AI Quality Gate, CodeRabbit summaries, etc.
+pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments
 
-```python
-# For each reviewer, check for dedicated memory
-for reviewer in ALL_REVIEWERS:
-    if reviewer == "cursor[bot]":
-        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
-    elif reviewer == "copilot-pull-request-reviewer":
-        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
-    # Other reviewers use pr-comment-responder-skills (already loaded in Phase 0)
+# Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
 ```
 
-**Reference**: See Phase 0, Step 0.3 for the reviewer memory mapping table.
-
-#### Step 1.3: Retrieve ALL Comments (with pagination)
+<details>
+<summary>Alternative: Raw gh CLI with manual pagination</summary>
 
 ```bash
 # Review comments (code-level) - paginate if needed
@@ -481,7 +434,26 @@ TOTAL_COMMENTS=$((REVIEW_COMMENT_COUNT + ISSUE_COMMENT_COUNT))
 echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $ISSUE_COMMENT_COUNT)"
 ```
 
+</details>
+
 #### Step 1.4: Extract Comment Details
+
+The `Get-PRReviewComments.ps1` script returns full comment details including:
+
+- `id`: Comment ID for reactions and replies
+- `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
+- `author`: Reviewer username
+- `path`: File path (null for issue comments)
+- `line`: Line number (null for issue comments)
+- `body`: Comment text
+- `diff_hunk`: Surrounding code context (null for issue comments)
+- `created_at`: Timestamp
+- `in_reply_to_id`: Parent comment for threads (null for issue comments)
+
+**Note**: Issue comments include AI Quality Gate reviews, spec validation, and CodeRabbit summaries that would otherwise be missed.
+
+<details>
+<summary>Alternative: Raw gh CLI extraction</summary>
 
 ```bash
 # Extract review comments with context
@@ -504,6 +476,8 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
   created_at: .created_at
 }'
 ```
+
+</details>
 
 ### Phase 2: Comment Map Generation
 

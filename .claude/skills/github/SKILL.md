@@ -17,7 +17,7 @@ Unified skill for GitHub CLI operations aligned with the GitHub REST API.
 ├── scripts/
 │   ├── pr/
 │   │   ├── Get-PRContext.ps1         # PR metadata, diff, files
-│   │   ├── Get-PRReviewComments.ps1  # Paginated review comments
+│   │   ├── Get-PRReviewComments.ps1  # Paginated review + issue comments
 │   │   ├── Get-PRReviewers.ps1       # Enumerate unique reviewers
 │   │   └── Post-PRCommentReply.ps1   # Thread-preserving replies
 │   ├── issue/
@@ -42,8 +42,11 @@ Unified skill for GitHub CLI operations aligned with the GitHub REST API.
 # Get PR context with changed files
 pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFiles
 
-# Get all review comments (handles pagination)
+# Get review comments only (handles pagination)
 pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50
+
+# Get review + issue comments (includes AI Quality Gate, CodeRabbit summaries)
+pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50 -IncludeIssueComments
 
 # Enumerate reviewers (prevents single-bot blindness per Skill-PR-001)
 pwsh -NoProfile scripts/pr/Get-PRReviewers.ps1 -PullRequest 50 -ExcludeBots
@@ -185,7 +188,7 @@ pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123 -Body "@c
 | Script | Endpoint |
 |--------|----------|
 | `Get-PRContext` | `gh pr view --json ...` |
-| `Get-PRReviewComments` | `repos/{owner}/{repo}/pulls/{pr}/comments` |
+| `Get-PRReviewComments` | `pulls/{pr}/comments` + `issues/{pr}/comments` (with `-IncludeIssueComments`) |
 | `Get-PRReviewers` | Multiple: pulls/comments, issues/comments, pr view |
 | `Post-PRCommentReply` | `repos/{owner}/{repo}/pulls/{pr}/comments` (with in_reply_to) |
 | `Get-IssueContext` | `gh issue view --json ...` |
