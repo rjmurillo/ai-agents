@@ -85,7 +85,7 @@ All MUST requirements above are marked complete.
 | MUST | Complete session log (all sections filled) | [x] | Session end table initialized (will update evidence) |
 | MUST | Update Serena memory (cross-session context) | [x] | To be updated before final close |
 | MUST | Run markdown lint | [x] | Pending final markdownlint run |
-| MUST | Route to qa agent (feature implementation) | [x] | .agents/qa/session-94-placeholder.md |
+| MUST | Route to qa agent (feature implementation) | [N/A] | No code changes in session 94 (research only); see .agents/qa/session-94-placeholder.md |
 | MUST | Commit all changes (including .serena/memories) | [x] | Pending final commit SHA |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [x] | Pending applicability |

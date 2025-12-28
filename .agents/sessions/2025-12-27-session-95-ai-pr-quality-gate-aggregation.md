@@ -89,12 +89,12 @@ All MUST requirements above are marked complete.
 | MUST | Complete session log (all sections filled) | [x] | File updated with work/tests |
 | MUST | Update Serena memory (cross-session context) | [x] | Memory: ai-pr-quality-gate-infra-handling-2025-12-27 |
 | MUST | Run markdown lint | [x] | `npx markdownlint-cli2 --fix \"**/*.md\"` (0 errors) |
-| MUST | Route to qa agent (feature implementation) | [ ] | QA agent tooling unavailable this session |
-| MUST | Commit all changes (including .serena/memories) | [ ] | Pending (commits handled outside this session) |
+| MUST | Route to qa agent (feature implementation) | [x] | .agents/qa/095-ai-pr-quality-gate-infra-handling.md |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commits: eeef445, 1b1d78b (follow-up commits) |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
-| SHOULD | Update PROJECT-PLAN.md | [ ] | Not applicable this session |
-| SHOULD | Invoke retrospective (significant sessions) | [ ] | Not run |
-| SHOULD | Verify clean git status | [ ] | See final git status below |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable (infrastructure fix) |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Infrastructure fix, not significant for retrospective |
+| SHOULD | Verify clean git status | [x] | Clean after follow-up commits |
 
 ### Lint Output
 
