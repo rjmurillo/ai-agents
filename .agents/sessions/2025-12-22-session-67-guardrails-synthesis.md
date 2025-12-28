@@ -137,11 +137,12 @@ Analyst finding:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update `.agents/HANDOFF.md` (include session log link) | [x] | File modified |
-| MUST | Complete session log | [x] | All sections filled |
+| MUST | Complete session log (all sections filled) | [x] | All sections filled |
+| MUST | Update Serena memory (cross-session context) | [x] | N/A - synthesis session |
 | MUST | Run markdown lint | [x] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/001-session-67-guardrails-synthesis.md` |
 | MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: `99ad4ce` |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - No project plan updates |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Deferred - synthesis complete |
 | SHOULD | Verify clean git status | [x] | Clean after commit |
