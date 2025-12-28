@@ -15,6 +15,12 @@
 
 - `pwsh build/scripts/Invoke-PesterTests.ps1 -CI` (baseline and post-change) passed.
 
+## Session 96 Updates (2025-12-28)
+
+- Simplified retry count tracking: added dedicated `RETRY_COUNT` variable instead of computing from `ATTEMPT`
+- Removed dead timeout check block (exit code 124 already handled by `is_infrastructure_failure()`)
+- Restored `Test-PRMerged.ps1` and tests that were accidentally deleted during merge conflict resolution
+
 ## Impact
 
 - Aggregation job now runs even when Copilot CLI retries exhaust, enabling WARN verdict with infra label instead of workflow failure.
