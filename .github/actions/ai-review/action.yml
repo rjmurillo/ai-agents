@@ -518,6 +518,7 @@ runs:
         MAX_RETRIES=2
         RETRY_DELAYS=(0 10 30)  # seconds before each attempt
         ATTEMPT=0
+        RETRY_COUNT=0
         INFRASTRUCTURE_FAILURE=false
 
         # Function to check if failure is infrastructure-related
@@ -592,6 +593,7 @@ runs:
 
             if [ $ATTEMPT -lt $MAX_RETRIES ]; then
               ATTEMPT=$((ATTEMPT + 1))
+              RETRY_COUNT=$((RETRY_COUNT + 1))
               continue  # Retry
             else
               TOTAL_ATTEMPTS=$((ATTEMPT + 1))
@@ -617,22 +619,10 @@ EOF
         done
 
         # Detailed error analysis
-        # Infrastructure failures are flagged above; this section handles non-infra errors
+        # Infrastructure failures (including timeout exit code 124) are handled in the retry loop
+        # via is_infrastructure_failure(). This section handles non-infra errors only.
         if [ "$INFRASTRUCTURE_FAILURE" != true ]; then
-          if [ $EXIT_CODE -eq 124 ]; then
-            # Timeout - this is an infrastructure issue, fail fast
-            echo ""
-            echo "::error::=== TIMEOUT - JOB FAILED ==="
-            echo "::error::Copilot CLI timed out after ${TIMEOUT_MINUTES} minutes"
-            echo "::error::"
-            echo "::error::LIKELY CAUSES:"
-            echo "::error::  - Copilot API is slow or unresponsive"
-            echo "::error::  - Network connectivity issues"
-            echo "::error::  - Prompt is too large for the timeout setting"
-            echo "::error::"
-            echo "::error::Re-run this job to retry."
-            exit 1
-          elif [ $EXIT_CODE -ne 0 ]; then
+          if [ $EXIT_CODE -ne 0 ]; then
             echo "::error::Copilot CLI exited with code $EXIT_CODE"
 
             # Log stderr for debugging
@@ -707,8 +697,8 @@ EOF
         # Output infrastructure failure flag for labeling
         echo "infrastructure_failure=$INFRASTRUCTURE_FAILURE" >> $GITHUB_OUTPUT
 
-        # Output retry count for observability (ATTEMPT-1 because first attempt is not a retry)
-        echo "retry_count=$((ATTEMPT - 1))" >> $GITHUB_OUTPUT
+        # Output retry count for observability
+        echo "retry_count=$RETRY_COUNT" >> $GITHUB_OUTPUT
 
     - name: Parse output
       id: parse
