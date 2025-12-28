@@ -9,6 +9,23 @@
 - **PR**: #268 (docs(orchestrator): add Phase 4 pre-PR validation workflow)
 - **Issue**: #256 (agent/orchestrator: Add pre-PR validation workflow phase)
 
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Skills available |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| SHOULD | Search relevant Serena memories | [x] | Memory search performed |
+| SHOULD | Verify git status | [x] | Clean state |
+| SHOULD | Note starting commit | [x] | 523391d |
+
 ## Session Summary
 
 Added Phase 4 (Validate Before Review) to the orchestrator agent and created HANDOFF-TERMS.md specification for consistent agent handoff terminology.
