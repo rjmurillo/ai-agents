@@ -33,7 +33,7 @@ For `all-open`, query: `gh pr list --state open --json number,reviewDecision`
 For each PR number, validate using:
 
 ```powershell
-pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 ```
 
 Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
@@ -44,7 +44,7 @@ Before proceeding with review work, verify PR has not been merged via GraphQL (s
 
 ```powershell
 # Check merge state via Test-PRMerged.ps1
-pwsh .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}
+pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}
 $merged = $LASTEXITCODE -eq 1
 
 if ($merged) {
@@ -61,33 +61,32 @@ Before addressing comments, gather full PR context:
 
 **1. Review ALL Comments** (review comments + PR comments):
 
-```bash
-# Get review threads (code comments)
-gh api graphql -f query='
-query($owner: String!, $repo: String!, $pr: Int!) {
-  repository(owner: $owner, name: $repo) {
-    pullRequest(number: $pr) {
-      reviewThreads(first: 100) {
-        nodes { id isResolved path line comments(first: 10) { nodes { author { login } body } } }
-      }
-    }
-  }
-}' -f owner=OWNER -f repo=REPO -F pr={number}
+```powershell
+# Get review threads with resolution status
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewThreads.ps1 -PullRequest {number}
 
-# Get PR comments (non-code comments)
-gh pr view {number} --json comments --jq '.comments[] | {author: .author.login, body: .body}'
+# Get unresolved review threads
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest {number}
+
+# Get unaddressed comments (comments without replies)
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest {number}
+
+# Get full PR context including comments
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 ```
 
 **2. Check Merge Eligibility with Base Branch**:
 
-```bash
-# Check mergeable state and conflicts
-gh pr view {number} --json mergeable,mergeStateStatus,baseRefName,headRefName
+```powershell
+# Get PR context including merge state
+$context = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
 
-# Check if branch is behind base
-gh api repos/{owner}/{repo}/compare/{base}...{head} --jq '.behind_by'
+# Check: $context.Mergeable should be "MERGEABLE"
+# Check: $context.MergeStateStatus for conflicts
 
-# If behind_by > 0, consider merging base into PR branch
+# Verify PR is not already merged
+pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}
+# Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
 ```
 
 **3. Review ALL Failing Checks**:
@@ -282,33 +281,36 @@ done
 
 ### Single Thread Resolution (pr-review-004-thread-resolution-single)
 
-After replying to a review comment, resolve the thread via GraphQL:
+After replying to a review comment, resolve the thread:
 
-```bash
-# Step 1: Reply to comment (handled by pr-comment-responder skill)
+```powershell
+# Step 1: Reply to comment
+pwsh -NoProfile .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest {number} -ThreadId "PRRT_xxx" -Body "Response text"
+
 # Step 2: Resolve thread (REQUIRED separate step)
-gh api graphql -f query='
-mutation($threadId: ID!) {
-  resolveReviewThread(input: {threadId: $threadId}) {
-    thread { isResolved }
-  }
-}' -f threadId="PRRT_xxx"
+pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_xxx"
 ```
 
-**Why this matters**: pr-comment-responder skill replies to comments, but threads remain unresolved unless explicitly resolved via GraphQL. Unresolved threads block PR merge per branch protection rules.
+**Why this matters**: Replying to a comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation. Unresolved threads block PR merge per branch protection rules.
 
 ### Batch Thread Resolution (pr-review-005-thread-resolution-batch)
 
-For 2+ threads, use GraphQL mutation aliases for efficiency:
+For 2+ threads, use the skill with multiple thread IDs:
 
-```bash
+```powershell
+# Resolve multiple threads efficiently
+$threadIds = @("PRRT_xxx", "PRRT_yyy", "PRRT_zzz")
+foreach ($threadId in $threadIds) {
+    pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId $threadId
+}
+
+# Or use GraphQL batch mutation for maximum efficiency (1 API call)
 gh api graphql -f query='
 mutation {
   t1: resolveReviewThread(input: {threadId: "PRRT_xxx"}) { thread { id isResolved } }
   t2: resolveReviewThread(input: {threadId: "PRRT_yyy"}) { thread { id isResolved } }
   t3: resolveReviewThread(input: {threadId: "PRRT_zzz"}) { thread { id isResolved } }
-}
-'
+}'
 ```
 
 **Benefits**:
