@@ -8,10 +8,9 @@ description: |
   merge PRs, (8) Resolve review threads, (9) Synthesize context for Copilot assignment,
   (10) Create new issues or PRs with validation.
   Do NOT use for: raw git operations, GitHub Actions workflow editing, repository settings.
-  
 allowed-tools: "Bash(pwsh:*), Bash(gh api:*), Bash(gh pr:*), Bash(gh issue:*), Read, Write, Grep, Glob"
 generated: true
-generated-from: ".claude/skills/github/SKILL.md"
+generated-from: "SKILL.md"
 ---
 # GENERATED FILE
 # Source of truth: SKILL.md

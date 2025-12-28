@@ -203,8 +203,9 @@ function Build-SkillFrontmatter([hashtable] $Fm, [string] $SourceRelPath, [switc
     } else {
       if ($v -is [string] -and $v.Contains("`n")) {
         # block scalar for multiline description
+        # TrimEnd removes trailing newlines to avoid empty lines in output
         $lines.Add("${k}: |")
-        foreach ($ln in (Normalize-Newlines -Text $v -Lf).Split("`n")) {
+        foreach ($ln in (Normalize-Newlines -Text $v -Lf).TrimEnd("`n").Split("`n")) {
           $lines.Add("  " + $ln)
         }
       } elseif ($v -is [string]) {
