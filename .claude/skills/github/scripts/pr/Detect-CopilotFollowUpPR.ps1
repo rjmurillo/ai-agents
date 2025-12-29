@@ -61,6 +61,7 @@ function Test-FollowUpPattern {
     .PARAMETER OriginalPRNumber
         The original PR number to validate against. If not provided, only pattern matching is performed.
     #>
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [object]$PR,
@@ -89,6 +90,7 @@ function Get-CopilotAnnouncement {
     .SYNOPSIS
         Find Copilot's announcement comment on the original PR.
     #>
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [int]$PRNumber
@@ -110,6 +112,7 @@ function Get-FollowUpPRDiff {
     .SYNOPSIS
         Get unified diff for follow-up PR.
     #>
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [int]$FollowUpPRNumber
@@ -127,6 +130,7 @@ function Get-OriginalPRCommits {
     .SYNOPSIS
         Get commits from original PR for comparison.
     #>
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [int]$PRNumber
@@ -163,6 +167,7 @@ function Compare-DiffContent {
         Compare follow-up diff to original changes.
         Returns likelihood percentage of being duplicate.
     #>
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [AllowEmptyString()]
@@ -179,7 +184,9 @@ function Compare-DiffContent {
     }
 
     # Count file changes in follow-up
-    $followUpFiles = @($FollowUpDiff -split '^diff --git' | Where-Object { $_.Trim() } | Measure-Object).Count
+    # Use multiline mode (?m) to make ^ match line-start, not just string-start
+    # Addresses gemini-code-assist review comment (PR #503, comment ID 2651525060)
+    $followUpFiles = @($FollowUpDiff -split '(?m)^diff --git' | Where-Object { $_.Trim() } | Measure-Object).Count
 
     # If follow-up has 1 file and original also modified that file, likely duplicate
     if ($followUpFiles -eq 1 -and $OriginalCommits.Count -gt 0) {
@@ -197,6 +204,8 @@ function Invoke-FollowUpDetection {
     .SYNOPSIS
         Main detection logic.
     #>
+    [CmdletBinding()]
+    param()
 
     Write-Verbose "Detecting Copilot follow-up PRs for PR #$PRNumber..."
 
