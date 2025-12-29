@@ -29,6 +29,7 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 ```text
 Need GitHub data?
 ├─ PR info/diff → Get-PRContext.ps1
+├─ CI check status → Get-PRChecks.ps1
 ├─ Review comments → Get-PRReviewComments.ps1
 ├─ Review threads → Get-PRReviewThreads.ps1
 ├─ Unique reviewers → Get-PRReviewers.ps1
@@ -58,6 +59,7 @@ Need GitHub data?
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
 | `Get-PRContext.ps1` | PR metadata, diff, files | `-PullRequest`, `-IncludeChangedFiles`, `-IncludeDiff` |
+| `Get-PRChecks.ps1` | CI check status, polling | `-PullRequest`, `-Wait`, `-TimeoutSeconds`, `-RequiredOnly` |
 | `Get-PRReviewComments.ps1` | Paginated review comments | `-PullRequest`, `-IncludeIssueComments` |
 | `Get-PRReviewThreads.ps1` | Thread-level review data | `-PullRequest`, `-UnresolvedOnly` |
 | `Get-PRReviewers.ps1` | Enumerate unique reviewers | `-PullRequest`, `-ExcludeBots` |
@@ -97,6 +99,15 @@ pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFile
 
 # Check if PR is merged before starting work
 pwsh -NoProfile scripts/pr/Test-PRMerged.ps1 -PullRequest 50
+
+# Get CI check status
+pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50
+
+# Wait for CI checks to complete (timeout 10 minutes)
+pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -Wait -TimeoutSeconds 600
+
+# Get only required checks
+pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -RequiredOnly
 
 # Detect Copilot follow-up PRs
 pwsh -NoProfile scripts/pr/Detect-CopilotFollowUpPR.ps1 -PRNumber 50
@@ -174,6 +185,43 @@ $result = pwsh -NoProfile scripts/pr/Test-PRMerged.ps1 -PullRequest 50
 if ($LASTEXITCODE -eq 1) {
     Write-Host "PR already merged, skipping review"
     exit 0
+}
+```
+
+### CI Check Verification
+
+Check CI status before claiming PR review complete:
+
+```powershell
+# Quick check - get current status
+$checks = pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 | ConvertFrom-Json
+
+if ($checks.AllPassing) {
+    Write-Host "All CI checks passing"
+} elseif ($checks.FailedCount -gt 0) {
+    Write-Host "BLOCKED: $($checks.FailedCount) check(s) failed"
+    $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED', $null) } | ForEach-Object {
+        Write-Host "  - $($_.Name): $($_.DetailsUrl)"
+    }
+    exit 1
+} else {
+    Write-Host "Pending: $($checks.PendingCount) check(s) still running"
+}
+```
+
+Wait for checks to complete before merge:
+
+```powershell
+# Poll until all checks complete (or timeout)
+$checks = pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -Wait -TimeoutSeconds 600 | ConvertFrom-Json
+
+if ($LASTEXITCODE -eq 7) {
+    Write-Host "Timeout waiting for checks"
+    exit 1
+}
+
+if ($checks.AllPassing) {
+    pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
 }
 ```
 
