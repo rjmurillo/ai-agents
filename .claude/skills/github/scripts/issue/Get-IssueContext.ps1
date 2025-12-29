@@ -37,27 +37,33 @@ $Repo = $resolved.Repo
 
 Write-Verbose "Fetching issue #$Issue from $Owner/$Repo"
 
-$issueData = gh issue view $Issue --repo "$Owner/$Repo" --json number,title,body,state,author,labels,milestone,assignees,createdAt,updatedAt 2>&1
+# Capture gh output directly - gh outputs valid JSON
+$jsonResponse = gh issue view $Issue --repo "$Owner/$Repo" --json "number,title,body,state,author,labels,milestone,assignees,createdAt,updatedAt"
 
 if ($LASTEXITCODE -ne 0) {
-    if ($issueData -match "not found") { Write-ErrorAndExit "Issue #$Issue not found in $Owner/$Repo" 2 }
-    Write-ErrorAndExit "Failed to get issue: $issueData" 3
+    Write-ErrorAndExit "Issue #$Issue not found or API error (exit code $LASTEXITCODE)" 2
 }
 
-$issue = $issueData | ConvertFrom-Json
+# Parse JSON response
+# NOTE: Use $issueData (not $issue) to avoid conflict with $Issue parameter - PowerShell is case-insensitive!
+$issueData = ConvertFrom-Json -InputObject $jsonResponse
+
+if (-not $issueData) {
+    Write-ErrorAndExit "Failed to parse issue JSON" 3
+}
 
 $output = [PSCustomObject]@{
     Success   = $true
-    Number    = $issue.number
-    Title     = $issue.title
-    Body      = $issue.body
-    State     = $issue.state
-    Author    = $issue.author.login
-    Labels    = @($issue.labels | ForEach-Object { $_.name })
-    Milestone = if ($issue.milestone) { $issue.milestone.title } else { $null }
-    Assignees = @($issue.assignees | ForEach-Object { $_.login })
-    CreatedAt = $issue.createdAt
-    UpdatedAt = $issue.updatedAt
+    Number    = $issueData.number
+    Title     = $issueData.title
+    Body      = $issueData.body
+    State     = $issueData.state
+    Author    = $issueData.author.login
+    Labels    = @($issueData.labels | ForEach-Object { $_.name })
+    Milestone = if ($issueData.milestone) { $issueData.milestone.title } else { $null }
+    Assignees = @($issueData.assignees | ForEach-Object { $_.login })
+    CreatedAt = $issueData.createdAt
+    UpdatedAt = $issueData.updatedAt
     Owner     = $Owner
     Repo      = $Repo
 }
