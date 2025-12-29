@@ -61,8 +61,8 @@ Describe 'Resolve-PRConflicts.ps1' {
             $ScriptContent | Should -Match '\[string\]\$WorktreeBasePath'
         }
 
-        It 'Should define DryRun switch' {
-            $ScriptContent | Should -Match '\[switch\]\$DryRun'
+        It 'Should support WhatIf via SupportsShouldProcess' {
+            $ScriptContent | Should -Match 'SupportsShouldProcess'
         }
     }
 
@@ -234,13 +234,13 @@ Describe 'Resolve-PRConflicts.ps1' {
         }
     }
 
-    Context 'DryRun Mode' {
-        It 'Should support DryRun parameter' {
-            $ScriptContent | Should -Match 'if\s*\(\s*\$DryRun\s*\)'
+    Context 'WhatIf Mode' {
+        It 'Should use PSCmdlet.ShouldProcess' {
+            $ScriptContent | Should -Match '\$PSCmdlet\.ShouldProcess'
         }
 
-        It 'Should return success without changes in DryRun mode' {
-            $ScriptContent | Should -Match '\[DRY-RUN\]'
+        It 'Should have SupportsShouldProcess in CmdletBinding' {
+            $ScriptContent | Should -Match '\[CmdletBinding\(SupportsShouldProcess\)\]'
         }
     }
 
