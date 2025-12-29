@@ -15,7 +15,7 @@ All P0 (Critical) tasks completed:
 
 Additional work:
 
-- ADR-0003 (tool selection criteria)
+- ADR-003 (tool selection criteria)
 - 81 skills extracted
 - All templates synchronized
 

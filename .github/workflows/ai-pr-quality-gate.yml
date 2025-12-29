@@ -39,7 +39,7 @@ jobs:
 
   check-changes:
     name: Check Changes
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
@@ -91,7 +91,7 @@ jobs:
 
   review:
     name: ${{ matrix.agent }} Review
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: check-changes
     if: needs.check-changes.outputs.should-run == 'true'
@@ -274,7 +274,7 @@ jobs:
 
   aggregate:
     name: Aggregate Results
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: [check-changes, review]
     # Always run if check-changes ran and said to run, even if some matrix jobs failed
@@ -683,7 +683,7 @@ jobs:
     name: ${{ matrix.agent }} Review
     needs: check-changes
     if: needs.check-changes.outputs.should-run != 'true'
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -711,7 +711,7 @@ jobs:
     name: Aggregate Results
     needs: check-changes
     if: needs.check-changes.outputs.should-run != 'true'
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read

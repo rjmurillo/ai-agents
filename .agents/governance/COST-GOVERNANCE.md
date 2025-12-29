@@ -20,7 +20,7 @@ This document outlines cost optimization policies and practices for the AI Agent
 
 **Savings**: 37.5% cost reduction on Linux workflows ($0.008 → $0.005 per minute)
 
-**See**: [ADR-014: GitHub Actions Runner Selection](../architecture/ADR-014-github-actions-runner-selection.md)
+**See**: [ADR-024: GitHub Actions Runner Selection](../architecture/ADR-024-github-actions-runner-selection.md)
 
 ### Current Implementation Status
 
@@ -150,6 +150,6 @@ Before migrating to ARM:
 
 ## References
 
-- [ADR-014: GitHub Actions Runner Selection](../architecture/ADR-014-github-actions-runner-selection.md)
+- [ADR-024: GitHub Actions Runner Selection](../architecture/ADR-024-github-actions-runner-selection.md)
 - [GitHub Actions Pricing](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions)
 - [GitHub ARM Runners Documentation](https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories)

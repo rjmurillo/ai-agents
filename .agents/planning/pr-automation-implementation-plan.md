@@ -166,7 +166,7 @@ git push
 
 ## References
 
-- **ADR**: [ADR-015: PR Automation Concurrency and Safety Controls](../architecture/ADR-015-pr-automation-concurrency-and-safety.md)
+- **ADR**: [ADR-026: PR Automation Concurrency and Safety Controls](../architecture/ADR-026-pr-automation-concurrency-and-safety.md)
 - **Security Review**: [SR-002: PR Automation Security Review](../security/SR-002-pr-automation-security-review.md)
 - **DevOps Review**: [`.agents/devops/pr-automation-script-review.md`](../devops/pr-automation-script-review.md)
 - **Session Logs**:

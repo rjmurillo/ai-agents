@@ -6,7 +6,7 @@ consulted: ["implementer", "analyst", "devops"]
 informed: ["all agents"]
 ---
 
-# ADR-0003: Role-Specific Tool Allocation for Multi-Agent System
+# ADR-003: Role-Specific Tool Allocation for Multi-Agent System
 
 ## Context and Problem Statement
 

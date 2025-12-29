@@ -67,7 +67,7 @@ Check the session log for evidence of:
 
 Check the session log for evidence of:
 
-1. **HANDOFF.md Updated**: Evidence that `.agents/HANDOFF.md` was updated with session summary
+1. **HANDOFF.md Unchanged**: Evidence that `.agents/HANDOFF.md` was NOT modified (HANDOFF.md is read-only per SESSION-PROTOCOL.md)
 2. **Markdown Lint**: Evidence that `npx markdownlint-cli2 --fix` was run
 3. **Changes Committed**: Evidence that changes were committed
 
@@ -86,7 +86,7 @@ MUST: Serena Initialization: PASS
 MUST: HANDOFF.md Read: PASS
 MUST: Session Log Created Early: FAIL
 MUST: Protocol Compliance Section: PASS
-MUST: HANDOFF.md Updated: PASS
+MUST: HANDOFF.md Unchanged: PASS
 MUST: Markdown Lint: PASS
 MUST: Changes Committed: PASS
 SHOULD: Memory Search: PASS

@@ -93,7 +93,7 @@ shell: pwsh -NoProfile -Command "& '{0}'"
 - `.serena/memories/skills-powershell.md` - Evidence, impact calculations, anti-patterns
 - `.serena/memories/claude-pwsh-performance-strategy.md` - Problem summary
 - `.agents/analysis/claude-pwsh-performance-strategic.md` - Root cause, appendix
-- `.agents/architecture/ADR-016-github-mcp-agent-isolation.md` - Context
+- `.agents/architecture/ADR-027-github-mcp-agent-isolation.md` - Context
 
 **Reconciled values**:
 - Without -NoProfile: 1,044ms per spawn

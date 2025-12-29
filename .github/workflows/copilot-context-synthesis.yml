@@ -65,7 +65,7 @@ jobs:
   # ===========================================================================
   synthesize-single:
     name: Synthesize Context and Assign Copilot
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
 
     # Run for:
@@ -140,7 +140,7 @@ jobs:
   # ===========================================================================
   sweep-missed:
     name: Sweep Missed Issues
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
 
     # Run for:

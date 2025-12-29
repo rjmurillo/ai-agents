@@ -1,4 +1,4 @@
-# ADR-014: GitHub Actions ARM Runner Migration
+# ADR-025: GitHub Actions ARM Runner Migration
 
 ## Status
 

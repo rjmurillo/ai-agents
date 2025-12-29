@@ -125,7 +125,7 @@ Named pipe daemon (Issue #287) deprioritized due to:
 
 ## Artifacts Created
 
-1. **ADR-016**: `.agents/architecture/ADR-016-github-mcp-agent-isolation.md`
+1. **ADR-027**: `.agents/architecture/ADR-027-github-mcp-agent-isolation.md`
 2. **Session Log**: This file
 
 ---
