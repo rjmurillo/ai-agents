@@ -20,7 +20,7 @@
 
 #Requires -Modules @{ ModuleName='powershell-yaml'; ModuleVersion='0.4.0' }
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
   [Parameter(Mandatory = $false)]
   [string] $Root = ".",
@@ -34,7 +34,6 @@ param(
   # If set, generate <FolderName>.skill; otherwise prefer <frontmatter.name>.skill
   [switch] $UseFolderName,
 
-  [switch] $DryRun,
   [switch] $Verify,
   [switch] $ForceLf,
   [switch] $IncludeHash,
@@ -297,7 +296,7 @@ foreach ($file in $canonicalFiles) {
   if ($differs) {
     $anyDiff = $true
     Write-Host "DIFF: $([System.IO.Path]::GetRelativePath($rootPath, $outPath)) <= $rel"
-    if (-not $DryRun) {
+    if (-not $WhatIfPreference) {
       Set-ContentUtf8 $outPath $out
       Write-Host "WROTE: $([System.IO.Path]::GetRelativePath($rootPath, $outPath))"
     }

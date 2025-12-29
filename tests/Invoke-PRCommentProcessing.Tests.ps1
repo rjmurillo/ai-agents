@@ -42,8 +42,8 @@ Describe "Invoke-PRCommentProcessing Script Structure" {
             $script:scriptContent | Should -Match '\[Parameter\(Mandatory\)\]\s*\[string\]\$FindingsJson'
         }
 
-        It "Has DryRun as optional switch" {
-            $script:scriptContent | Should -Match '\[switch\]\$DryRun'
+        It "Supports WhatIf via SupportsShouldProcess" {
+            $script:scriptContent | Should -Match 'SupportsShouldProcess'
         }
     }
 
@@ -412,15 +412,15 @@ Describe "Edge Case: Empty Findings" {
     }
 }
 
-Describe "Edge Case: DryRun Mode" {
+Describe "Edge Case: WhatIf Mode" {
 
-    Context "DryRun Behavior" {
-        It "Script has DryRun checks for reactions" {
-            $script:scriptContent | Should -Match 'if\s*\(\$DryRun\)'
+    Context "WhatIf Behavior" {
+        It "Script checks WhatIfPreference for reactions" {
+            $script:scriptContent | Should -Match 'if\s*\(\$WhatIfPreference\)'
         }
 
-        It "Script logs DryRun actions" {
-            $script:scriptContent | Should -Match '\[DRY-RUN\]'
+        It "Script logs WhatIf actions" {
+            $script:scriptContent | Should -Match '\[WhatIf\]'
         }
     }
 }

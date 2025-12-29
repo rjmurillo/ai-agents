@@ -12,25 +12,23 @@
 .PARAMETER Pattern
     File pattern to match. Default: *.md
 
-.PARAMETER DryRun
-    Report changes without writing files.
-
 .EXAMPLE
     .\fix_fences.ps1 -Directories docs, src
-    
+
 .EXAMPLE
-    .\fix_fences.ps1 -Directories . -DryRun
+    .\fix_fences.ps1 -Directories . -WhatIf
+
+.NOTES
+    Supports -WhatIf for dry-run mode (issue #461).
 #>
 
+[CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory = $false)]
     [string[]]$Directories = @('vs-code-agents', 'copilot-cli'),
-    
+
     [Parameter(Mandatory = $false)]
-    [string]$Pattern = '*.md',
-    
-    [Parameter(Mandatory = $false)]
-    [switch]$DryRun
+    [string]$Pattern = '*.md'
 )
 
 function Repair-MarkdownFences {
@@ -93,12 +91,12 @@ foreach ($dir in $Directories) {
         $fixedContent = Repair-MarkdownFences -Content $content
         
         if ($content -ne $fixedContent) {
-            $prefix = if ($DryRun) { "[dry-run] " } else { "" }
-            
-            if (-not $DryRun) {
+            $prefix = if ($WhatIfPreference) { "[WhatIf] " } else { "" }
+
+            if (-not $WhatIfPreference) {
                 Set-Content -Path $file -Value $fixedContent -NoNewline -Encoding UTF8
             }
-            
+
             Write-Host "${prefix}Fixed: $file"
             $script:totalFixed++
         }
@@ -109,6 +107,6 @@ if ($totalFixed -eq 0) {
     Write-Host "No files needed fixing"
 }
 else {
-    $action = if ($DryRun) { "would fix" } else { "fixed" }
+    $action = if ($WhatIfPreference) { "would fix" } else { "fixed" }
     Write-Host "`nTotal: $action $totalFixed file(s)"
 }
