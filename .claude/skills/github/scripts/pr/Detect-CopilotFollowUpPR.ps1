@@ -106,35 +106,27 @@ function Get-OriginalPRCommits {
     <#
     .SYNOPSIS
         Get commits from original PR for comparison.
+    .DESCRIPTION
+        Returns commits directly from PR metadata instead of querying repository commits.
+        This optimization eliminates a redundant API call and avoids rate limit risk on large repos (Issue #290).
     #>
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [int]$PRNumber
     )
 
-    $prJson = gh pr view $PRNumber --repo "$script:Owner/$script:Repo" --json commits,baseRefName,headRefName 2>$null
+    $prJson = gh pr view $PRNumber --repo "$script:Owner/$script:Repo" --json commits 2>$null
     if ($LASTEXITCODE -ne 0 -or $null -eq $prJson) {
         return @()
     }
 
     $pr = $prJson | ConvertFrom-Json
-    if ($null -eq $pr) {
+    if ($null -eq $pr -or -not $pr.commits) {
         return @()
     }
 
-    $commits = @()
-    try {
-        $commitData = gh api "repos/$script:Owner/$script:Repo/commits" `
-            --jq ".[] | select(.commit.message | contains(\"PR $PRNumber\") or contains(\"Comment-ID\"))" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $commitData) {
-            $commits = @($commitData | ConvertFrom-Json -ErrorAction SilentlyContinue)
-        }
-    }
-    catch {
-        # No specific commits found, continue
-    }
-
-    return $commits
+    return @($pr.commits)
 }
 
 function Compare-DiffContent {
