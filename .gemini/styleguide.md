@@ -143,11 +143,13 @@ $DestFile = "$DestDir\$($File.Name)"  # Wrong: platform-specific separator
 
 ## Markdown Standards
 
+**Prettier Compatibility Policy**: This repository aligns with [Prettier markdown formatting](https://github.com/DavidAnson/markdownlint/blob/main/doc/Prettier.md) to enable seamless copying of markdown files between projects using PackedPrettier. As a result, certain style rules are delegated to Prettier for automatic formatting rather than being enforced by markdownlint.
+
 ### Heading Style
 
-Use ATX-style headings (hash marks) exclusively. Do not use setext-style (underline) headings.
+**Policy**: Prettier handles heading style formatting. ATX-style headings (`#`) are preferred but not enforced by linting.
 
-**Good**:
+**Preferred** (ATX-style):
 
 ```markdown
 # Top-Level Heading
@@ -157,7 +159,7 @@ Use ATX-style headings (hash marks) exclusively. Do not use setext-style (underl
 ### Third-Level Heading
 ```
 
-**Avoid**:
+**Discouraged** (Setext-style, though not linted):
 
 ```markdown
 Top-Level Heading
@@ -166,6 +168,8 @@ Top-Level Heading
 Second-Level Heading
 --------------------
 ```
+
+**Rationale**: Rule MD003 (heading-style) is disabled for Prettier compatibility. Prettier will normalize heading styles automatically when formatting.
 
 ### Blank Lines
 
@@ -188,9 +192,9 @@ More content.
 
 ### Code Blocks
 
-Use fenced code blocks with language identifiers for syntax highlighting. Use backticks (not tildes) for fences.
+**Policy**: Always use fenced code blocks with language identifiers for syntax highlighting. Prettier handles fence character selection (backticks vs tildes).
 
-**Good**:
+**Good** (language identifier required):
 
 ````markdown
 ```powershell
@@ -207,7 +211,7 @@ on: push
 ```
 ````
 
-**Avoid**:
+**Avoid** (missing language identifier):
 
 ````markdown
 ```
@@ -215,7 +219,7 @@ Get-ChildItem -Path $Directory
 ```
 ````
 
-This example is missing the language identifier.
+**Rationale**: Rule MD048 (code-fence-style) is disabled for Prettier compatibility, so fence character choice (backticks vs tildes) is not enforced. However, MD040 (fenced-code-language) remains enabled to require language identifiers for syntax highlighting.
 
 ### List Style
 
@@ -234,19 +238,21 @@ Use dashes (`-`) for unordered lists. Use sequential numbers for ordered lists.
 
 ### Emphasis
 
-Use asterisks for emphasis and strong emphasis.
+**Policy**: Prettier handles emphasis and strong emphasis style formatting. Asterisks (`*`) are preferred but not enforced by linting.
 
-**Good**:
+**Preferred**:
 
 ```markdown
 This is *italic* and this is **bold**.
 ```
 
-**Avoid**:
+**Acceptable** (Prettier-formatted):
 
 ```markdown
 This is _italic_ and this is __bold__.
 ```
+
+**Rationale**: Rules MD049 (emphasis-style) and MD050 (strong-style) are disabled for Prettier compatibility. Prettier will normalize emphasis styles automatically when formatting.
 
 ### Tables
 
