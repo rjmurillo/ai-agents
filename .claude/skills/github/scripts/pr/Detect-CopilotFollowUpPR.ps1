@@ -71,9 +71,10 @@ function Test-FollowUpPattern {
     )
 
     $headRef = $PR.headRefName
-    # Use word boundary \b to prevent matching branches like "copilot/sub-pr-32a"
+    # Use end-of-string anchor $ to ensure exact match (e.g., "copilot/sub-pr-32")
+    # Prevents matching branches with ANY suffix like "32a", "32-fix", or "32_test"
     # Addresses Issue #507: regex allows non-numeric suffixes
-    $pattern = "copilot/sub-pr-(\d+)\b"
+    $pattern = 'copilot/sub-pr-(\d+)$'
 
     if ($headRef -match $pattern) {
         # If OriginalPRNumber is specified, validate the extracted number matches

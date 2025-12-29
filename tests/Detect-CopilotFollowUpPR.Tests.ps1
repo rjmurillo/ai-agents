@@ -52,6 +52,10 @@ Describe "Detect-CopilotFollowUpPR" {
             # Issue #507: Reject branches with non-numeric suffixes
             $testPR4 = @{ headRefName = "copilot/sub-pr-32a" }
             Test-FollowUpPattern -PR $testPR4 | Should -Be $false
+
+            # Verify that suffixes separated by non-word characters are also rejected
+            $testPR5 = @{ headRefName = "copilot/sub-pr-32-fix" }
+            Test-FollowUpPattern -PR $testPR5 | Should -Be $false
         }
     }
 
