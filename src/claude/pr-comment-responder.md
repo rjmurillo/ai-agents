@@ -462,6 +462,52 @@ PR_BASE=$(echo "$PR_DATA" | jq -r '.baseRefName')
 
 </details>
 
+#### Step 1.1a: Check for needs-split Label
+
+**MUST**: Check if the PR has the `needs-split` label. If present, this indicates the PR exceeded commit thresholds (10/15/20) and requires analysis.
+
+```bash
+# Check for needs-split label
+LABELS=$(gh pr view [number] --json labels --jq '.labels[].name')
+HAS_NEEDS_SPLIT=$(echo "$LABELS" | grep -c -Fx "needs-split")
+
+if [ "$HAS_NEEDS_SPLIT" -gt 0 ]; then
+  echo "[WARNING] PR has needs-split label - commit threshold exceeded"
+  # Proceed to needs-split handling
+fi
+```
+
+**If `needs-split` label is present**:
+
+1. **Run retrospective analysis**: Determine why the PR required so many commits
+
+   ```text
+   #runSubagent with subagentType=retrospective
+   Analyze PR #[number] to determine why it exceeded commit thresholds.
+
+   Focus on:
+   1. What caused the high commit count (scope creep, iterations, rework)?
+   2. Could the work have been split into smaller PRs?
+   3. What patterns led to this situation?
+   4. Recommendations for future work
+
+   Save analysis to: .agents/retrospective/PR-[number]-needs-split-analysis.md
+   ```
+
+2. **Analyze commit history**: Group commits by logical change
+
+   ```bash
+   # Get commit messages to identify logical groupings
+   gh api repos/[owner]/[repo]/pulls/[number]/commits \
+     --jq '.[] | "\(.sha[0:7]) \(.commit.message | split("\n")[0])"'
+   ```
+
+3. **Provide split recommendations**: Suggest how the work could be divided
+
+4. **Document in session log**: Record the analysis and recommendations
+
+**Continue with normal workflow** after completing needs-split handling. The label does not block comment processing.
+
 #### Step 1.2: Enumerate All Reviewers
 
 ```powershell
