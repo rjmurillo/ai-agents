@@ -134,7 +134,7 @@ $repoRoot = Get-RepoRoot (Split-Path -Parent $sessionFullPath)
 
 # Security: Validate session log is under expected directory (CWE-22, see #214)
 $expectedDir = Join-Path $repoRoot ".agents" "sessions"
-if (-not $sessionFullPath.StartsWith($expectedDir)) {
+if (-not $sessionFullPath.StartsWith($expectedDir, [System.StringComparison]::OrdinalIgnoreCase)) {
   Fail 'E_PATH_ESCAPE' "Session log must be under .agents/sessions/: $sessionFullPath"
 }
 
