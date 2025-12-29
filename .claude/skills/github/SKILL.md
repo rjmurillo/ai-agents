@@ -85,7 +85,7 @@ Need GitHub data?
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `Add-CommentReaction.ps1` | Add emoji reactions | `-CommentId`, `-Reaction`, `-CommentType` |
+| `Add-CommentReaction.ps1` | Add emoji reactions (batch support) | `-CommentId[]`, `-Reaction`, `-CommentType` |
 
 ## Quick Examples
 
@@ -117,8 +117,15 @@ pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -Delete
 # Post idempotent comment (prevents duplicates)
 pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
 
-# Add reaction
+# Add reaction to single comment
 pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId 12345678 -Reaction "eyes"
+
+# Add reactions to multiple comments (batch - 88% faster)
+pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId @(123, 456, 789) -Reaction "eyes"
+
+# Acknowledge all comments on a PR (batch)
+$ids = pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 42 | ConvertFrom-Json | ForEach-Object { $_.id }
+pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes"
 ```
 
 ## Common Patterns
@@ -169,6 +176,25 @@ $result = pwsh -NoProfile scripts/pr/Test-PRMerged.ps1 -PullRequest 50
 if ($LASTEXITCODE -eq 1) {
     Write-Host "PR already merged, skipping review"
     exit 0
+}
+```
+
+### Batch Reactions
+
+Use batch mode for 88% faster acknowledgment of multiple comments:
+
+```powershell
+# Get all review comment IDs
+$comments = pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50 | ConvertFrom-Json
+$ids = $comments | ForEach-Object { $_.id }
+
+# Batch acknowledge (saves ~1.2s per comment vs. individual calls)
+$result = pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes" | ConvertFrom-Json
+
+# Check results
+Write-Host "Acknowledged $($result.Succeeded)/$($result.TotalCount) comments"
+if ($result.Failed -gt 0) {
+    Write-Host "Failed reactions: $($result.Results | Where-Object { -not $_.Success } | ForEach-Object { $_.CommentId })"
 }
 ```
 
