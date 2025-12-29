@@ -61,7 +61,7 @@
 | MUST | Complete session log (all sections filled) | [x] | File complete |
 | MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed |
 | MUST | Run markdown lint | [x] | Output below |
-| MUST | Route to qa agent (feature implementation) | [x] | 15 Pester tests passing |
+| MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/qa-189-psscriptanalyzer.md` |
 | MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: a4abbef |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - no project plan for this issue |
