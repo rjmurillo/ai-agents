@@ -282,7 +282,33 @@ Describe "Post-IssueComment Marker Behavior" {
    - Protocol compliance documented
    - Test execution tracked
 
-## Session End Checklist
+## Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | All sections filled above |
+| MUST | Update Serena memory (cross-session context) | [x] | N/A - QA verification session, findings in report |
+| MUST | Run markdown lint | [x] | 0 errors (markdownlint-cli2) |
+| MUST | Route to qa agent (feature implementation) | [x] | This IS a QA session. See .agents/qa/357-ai-quality-gate-comment-behavior-test-report.md |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 075a313 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A - QA verification session |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | N/A - QA test session |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
+
+### Lint Output
+
+0 errors (markdownlint-cli2)
+
+### Final Git Status
+
+Clean after commit 075a313
+
+### Commits This Session
+
+- `075a313` - test(qa): verify AI Quality Gate comment update behavior (#357)
+
+### Legacy QA Checklist (for reference)
 
 | Item | Status | Evidence |
 |------|--------|----------|
@@ -291,10 +317,6 @@ Describe "Post-IssueComment Marker Behavior" {
 | Findings documented | [x] | 5 defects cataloged with priority |
 | Recommendations provided with rationale | [x] | 4 recommendations with implementation code |
 | Issues logged in table | [x] | Issues table with P0/P1/P2 priorities |
-| Memory updated | [x] | Not required - test verification session |
-| Linting passed | [x] | 0 errors (markdownlint-cli2) |
-| Changes committed | [x] | Commit 075a313 |
-| Session log updated | [x] | Final update complete |
 
 ## Next Actions
 
