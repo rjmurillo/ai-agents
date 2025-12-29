@@ -11,12 +11,37 @@ Last updated: 2025-12-29
 | Reviewer | PRs | Comments | Actionable | Signal | Notes |
 |----------|-----|----------|------------|--------|-------|
 | cursor[bot] | - | 28 | 28 | **100%** | All comments identify real bugs (see cursor-bot-review-patterns memory) |
-| gemini-code-assist[bot] | #488 | 1 | 1 | **100%** | Case-sensitivity path bypass (CWE-22) |
+| gemini-code-assist[bot] | #488, #501 | 7 | 7 | **100%** | RFC 2119 compliance, grep exact matching, filename pattern precision |
 | Copilot | #488, #484, #490 | 5 | 5 | **100%** | Path separator bypass (CWE-22), workflow error handling |
-| rjmurillo (owner) | #490 | 1 | 1 | **100%** | Caught missing platform-specific file update |
+| rjmurillo (owner) | #490, #501 | 2 | 2 | **100%** | Template propagation gaps |
 | coderabbitai[bot] | - | 6 | 3 | **50%** | Medium signal quality |
 
 ## Per-PR Breakdown
+
+### PR #505 (2025-12-29)
+
+**PR**: feat(copilot): add merged-PR detection to empty diff categorization
+
+| Reviewer | Comments | Actionable | Rate | Outcomes |
+|----------|----------|------------|------|----------|
+| gemini-code-assist[bot] | 1 | 1 | 100% | Missing try/catch around ConvertFrom-Json |
+
+**Session Notes**:
+
+- **Error Handling**: gemini caught missing try/catch block around JSON parsing (line 172)
+- **Pattern**: Bot correctly referenced repository style guide (lines 72-86) for error handling requirements
+- **Quick Fix Path**: Single-file, single-function change qualified for direct implementation (bypassed orchestrator)
+- **Fix**: Wrapped ConvertFrom-Json in try/catch with Write-Warning fallback
+- **Testing**: All 13 Pester tests pass after fix
+- **Resolution**: Fixed in commit 62b1cd6, thread resolved
+- **CI**: All required checks passing (Pester, AI agents, aggregate)
+
+**Implementation Details**:
+
+- Added try/catch block in Compare-DiffContent function (lines 172-180)
+- Gracefully falls back to default reason string on JSON parse failure
+- Warning logged with error details: `Write-Warning "Failed to parse merge status..."`
+- Maintains robustness when gh returns non-JSON output
 
 ### PR #484 (2025-12-29)
 
@@ -80,10 +105,10 @@ Last updated: 2025-12-29
 
 | Metric | Value |
 |--------|-------|
-| Total PRs Processed | 3 |
-| Total Comments Triaged | 8 |
-| Total Comments Implemented | 7 |
-| Total Comments Resolved | 8 |
+| Total PRs Processed | 4 |
+| Total Comments Triaged | 9 |
+| Total Comments Implemented | 8 |
+| Total Comments Resolved | 9 |
 | Security Vulnerabilities Found | 2 |
 | Critical Workflow Bugs Found | 1 |
 | Performance Improvements | 1 (88% faster reactions) |
