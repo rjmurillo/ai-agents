@@ -701,7 +701,7 @@ runs:
         # Extract verdict using explicit VERDICT: TOKEN pattern only
         # Fix for Issue #470: Removed fallback keyword matching that caused context contamination
         # (keywords like "CRITICAL_FAIL" in issue descriptions were being matched)
-        verdict=$(echo "$output" | sed -n 's/.*VERDICT:[[:space:]]*\([A-Z_]*\).*/\1/p' | head -1)
+        verdict=$(echo "$output" | tac | sed -n 's/.*VERDICT:[[:space:]]*\([A-Z_]*\).*/\1/p' | head -1)
 
         # Validate verdict is a known token
         case "$verdict" in
