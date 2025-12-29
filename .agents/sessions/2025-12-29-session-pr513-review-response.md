@@ -6,14 +6,39 @@
 **Branch**: refactor/273-dry-rate-limit-code
 **Worktree**: /home/richard/worktree-pr-513
 
-## Session Initialization
+## Protocol Compliance
 
-- [x] Serena initial instructions loaded
-- [x] HANDOFF.md read (read-only reference)
-- [x] PROJECT-CONSTRAINTS.md read
-- [x] pr-comment-responder-skills memory loaded
-- [x] cursor-bot-review-patterns memory loaded
-- [x] Session log created
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented below |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | pr-comment-responder-skills, cursor-bot-review-patterns |
+| SHOULD | Verify git status | [x] | Output documented below |
+| SHOULD | Note starting commit | [x] | SHA documented below |
+
+### Skill Inventory
+
+Available GitHub skills:
+- PR operations: `.claude/skills/github/scripts/pr/`
+- Issue operations: `.claude/skills/github/scripts/issue/`
+- Reactions: `.claude/skills/github/scripts/reactions/`
+
+### Git State
+
+- **Status**: Clean
+- **Branch**: refactor/273-dry-rate-limit-code
+- **Starting Commit**: Before 4dd43d2
+
+### Work Blocked Until
+
+All MUST requirements above are marked complete.
 
 ## PR Context
 
@@ -170,7 +195,7 @@ if (-not $result.Success) {
 ## Completion Criteria
 
 - [x] Comment map created
-- [x] All comments acknowledged (👀 reaction)
+- [x] All comments acknowledged (reaction)
 - [x] Implementation complete
 - [x] Tests passing (9/9)
 - [x] Commit pushed (4dd43d2)
@@ -180,6 +205,20 @@ if (-not $result.Success) {
 - [x] CI checks running (pending)
 - [x] Memory updated
 - [x] Session log complete
+
+## Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory updated with learnings |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | Pester tests passed (9/9), no QA report needed for style fixes |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit 4dd43d2 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No project plan for PR review |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Style fix only |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ## Next Session TODO
 
