@@ -153,8 +153,8 @@ function Compare-DiffContent {
         [object[]]$OriginalCommits
     )
 
-    if ($FollowUpDiff -eq '') {
-        # Empty diff = likely duplicate (no changes to add)
+    if ([string]::IsNullOrWhiteSpace($FollowUpDiff)) {
+        # Empty or whitespace-only diff = duplicate (no changes to add)
         return @{similarity = 100; category = 'DUPLICATE'; reason = 'Follow-up PR contains no changes' }
     }
 
@@ -167,9 +167,6 @@ function Compare-DiffContent {
     }
 
     # If follow-up has no file changes but adds comments/replies
-    if ($followUpFiles -eq 0) {
-        return @{similarity = 95; category = 'DUPLICATE'; reason = 'No code changes in follow-up PR' }
-    }
 
     # Multiple files or complex diff = might be supplemental
     return @{similarity = 40; category = 'POSSIBLE_SUPPLEMENTAL'; reason = 'Multiple file changes suggest additional work' }
@@ -181,11 +178,11 @@ function Invoke-FollowUpDetection {
         Main detection logic.
     #>
 
-    Write-Host "Detecting Copilot follow-up PRs for PR #$PRNumber..."
+    Write-Verbose "Detecting Copilot follow-up PRs for PR #$PRNumber..."
 
     # Step 1: Query for follow-up PR matching pattern
     $followUpPRQuery = "head:copilot/sub-pr-$PRNumber"
-    Write-Host "Searching for: $followUpPRQuery"
+    Write-Verbose "Searching for: $followUpPRQuery"
 
     $followUpPRs = @()
     try {
@@ -202,7 +199,7 @@ function Invoke-FollowUpDetection {
         }
     }
     catch {
-        Write-Host "Info: No follow-up PRs found (query may not match any results)"
+        Write-Verbose "Info: No follow-up PRs found (query may not match any results)"
     }
 
     if ($followUpPRs.Count -eq 0) {
@@ -216,22 +213,22 @@ function Invoke-FollowUpDetection {
         }
     }
 
-    Write-Host "Found $($followUpPRs.Count) follow-up PR(s)"
+    Write-Verbose "Found $($followUpPRs.Count) follow-up PR(s)"
 
     # Step 2: Verify Copilot announcement
     $announcement = Get-CopilotAnnouncement -PRNumber $PRNumber
     if ($null -eq $announcement -or $announcement -eq '') {
-        Write-Host "Warning: No Copilot announcement found, but follow-up PR exists"
+        Write-Warning " No Copilot announcement found, but follow-up PR exists"
     }
     else {
-        Write-Host "Verified Copilot announcement"
+        Write-Verbose "Verified Copilot announcement"
     }
 
     # Step 3: Analyze each follow-up PR
     $analysis = @()
     foreach ($followUp in $followUpPRs) {
         $prNum = $followUp.number
-        Write-Host "Analyzing follow-up PR #$prNum..."
+        Write-Verbose "Analyzing follow-up PR #$prNum..."
 
         $diff = Get-FollowUpPRDiff -FollowUpPRNumber $prNum
         $originalCommits = Get-OriginalPRCommits -PRNumber $PRNumber
