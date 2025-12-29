@@ -13,7 +13,7 @@
 ```yaml
 jobs:
   build:
-    # ADR-014: Use ubuntu-24.04-arm to align with standardized ARM runners for CI.
+    # ADR-025: Use ubuntu-24.04-arm to align with standardized ARM runners for CI.
     # ARM runners are selected here for cost-optimized, consistent validation workloads.
     runs-on: ubuntu-24.04-arm
 ```
@@ -23,7 +23,7 @@ jobs:
 | Runner Choice | Requires ADR Comment? | Example ADR |
 |---------------|----------------------|-------------|
 | `ubuntu-latest` | No (default) | N/A |
-| `ubuntu-24.04-arm` | Yes | ADR-014 (cost optimization) |
+| `ubuntu-24.04-arm` | Yes | ADR-025 (cost optimization) |
 | `windows-latest` | Yes | Explain why Windows needed |
 | `macos-latest` | Yes | Explain why macOS needed |
 | `self-hosted` | Yes | Security/compliance ADR |
@@ -48,7 +48,7 @@ runs-on: ubuntu-24.04-arm
 
 ## Related ADRs
 
-- **ADR-014**: ARM Runner Standardization (cost optimization, consistent CI)
+- **ADR-025**: ARM Runner Standardization (cost optimization, consistent CI)
 - **ADR-006**: Thin Workflows, Testable Modules (workflow design patterns)
 
 ## Related Files
