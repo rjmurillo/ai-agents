@@ -131,6 +131,13 @@ function Normalize-Step([string]$s) {
 # --- Load inputs
 $sessionFullPath = (Resolve-Path -LiteralPath $SessionLogPath).Path
 $repoRoot = Get-RepoRoot (Split-Path -Parent $sessionFullPath)
+
+# Security: Validate session log is under expected directory (CWE-22, see #214)
+$expectedDir = Join-Path $repoRoot ".agents" "sessions"
+if (-not $sessionFullPath.StartsWith($expectedDir)) {
+  Fail 'E_PATH_ESCAPE' "Session log must be under .agents/sessions/: $sessionFullPath"
+}
+
 $sessionRel = Get-RelativePath $repoRoot $sessionFullPath
 
 $protocolPath = Join-Path $repoRoot ".agents/SESSION-PROTOCOL.md"
