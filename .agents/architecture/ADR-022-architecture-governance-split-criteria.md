@@ -261,7 +261,7 @@ Trigger a split when:
 ### Why Not Separate Everything?
 
 **Risk**: Creates artificial separation for tightly coupled decisions
-- ADR-014 (runner selection) and COST-GOVERNANCE are inseparable
+- ADR-024 (runner selection) and COST-GOVERNANCE are inseparable
 - Splitting too aggressively creates navigation overhead
 - Some decisions genuinely need both architectural rationale and operational enforcement
 
