@@ -475,7 +475,7 @@ Every implementation plan MUST include pre-PR validation tasks as the final work
 
 Include as final phase in every plan:
 
-````markdown
+```markdown
 ## Work Package: Pre-PR Validation
 
 **Assignee**: QA Agent
@@ -530,7 +530,7 @@ Include as final phase in every plan:
 
 - Blocks: PR creation
 - Depends on: Implementation completion (all prior work packages)
-````
+```
 
 ### Plan Validation Checklist
 
