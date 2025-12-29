@@ -50,6 +50,8 @@ param(
     [Parameter(Mandatory)] [ValidateSet("+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes")] [string]$Reaction
 )
 
+$ErrorActionPreference = "Stop"
+
 Import-Module (Join-Path $PSScriptRoot ".." ".." "modules" "GitHubHelpers.psm1") -Force
 
 Assert-GhAuthenticated
@@ -60,9 +62,7 @@ $Repo = $resolved.Repo
 $emoji = Get-ReactionEmoji -Reaction $Reaction
 $succeeded = 0
 $failed = 0
-$results = @()
-
-foreach ($id in $CommentId) {
+$results = foreach ($id in $CommentId) {
     $endpoint = switch ($CommentType) {
         "review" { "repos/$Owner/$Repo/pulls/comments/$id/reactions" }
         "issue" { "repos/$Owner/$Repo/issues/comments/$id/reactions" }
@@ -76,7 +76,8 @@ foreach ($id in $CommentId) {
 
     if ($success) {
         $succeeded++
-        $results += [PSCustomObject]@{
+        Write-Host "Added $emoji ($Reaction) to $CommentType comment $id" -ForegroundColor Green
+        [PSCustomObject]@{
             Success     = $true
             CommentId   = $id
             CommentType = $CommentType
@@ -88,7 +89,8 @@ foreach ($id in $CommentId) {
     }
     else {
         $failed++
-        $results += [PSCustomObject]@{
+        Write-Host "Failed to add $emoji to $CommentType comment ${id}: $result" -ForegroundColor Red
+        [PSCustomObject]@{
             Success     = $false
             CommentId   = $id
             CommentType = $CommentType
