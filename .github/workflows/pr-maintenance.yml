@@ -349,11 +349,14 @@ jobs:
       - name: Process PR comments for PR #${{ matrix.number }}
         id: process-comments
         # Process comments when:
-        # - No conflicts, OR conflicts were resolved successfully
+        # - PR author is NOT a bot (prevents bot-on-bot review loops, see #360)
+        # - AND (No conflicts, OR conflicts were resolved successfully)
         if: |
-          matrix.hasConflicts != true ||
+          !endsWith(matrix.author, '[bot]') &&
+          matrix.author != 'rjmurillo-bot' &&
+          (matrix.hasConflicts != true ||
           steps.auto-resolve.outputs.needs_ai != 'true' ||
-          steps.ai-analysis.outputs.verdict == 'PASS'
+          steps.ai-analysis.outputs.verdict == 'PASS')
         uses: ./.github/actions/ai-review
         with:
           agent: pr-comment-responder
@@ -364,6 +367,12 @@ jobs:
           timeout-minutes: 10
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Skip comment processing for bot-authored PRs
+        if: endsWith(matrix.author, '[bot]') || matrix.author == 'rjmurillo-bot'
+        run: |
+          echo "::notice::PR #${{ matrix.number }}: Skipping comment processing (bot author: ${{ matrix.author }})"
+          echo "Bot-on-bot review loops are prevented per issue #360"
 
       - name: Comment processing result
         if: steps.process-comments.outcome == 'success' || steps.process-comments.outcome == 'failure'
