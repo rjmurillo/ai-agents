@@ -963,21 +963,21 @@ fi
 
 #### Phase 8.4: QA Gate Verification
 
-Before claiming completion, verify CI checks pass:
+Before claiming completion, verify CI checks pass using Get-PRChecks.ps1:
 
-```bash
-# Check PR status
-gh pr checks [number] --watch
+```powershell
+# Check PR status with wait for completion
+$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] -Wait -TimeoutSeconds 300 | ConvertFrom-Json
 
 # If AI Quality Gate fails, parse actionable items
-CHECKS=$(gh pr checks [number] --json name,state,description)
-FAILED=$(echo "$CHECKS" | jq '[.[] | select(.state == "FAILURE")]')
-
-if [ "$(echo "$FAILED" | jq 'length')" -gt 0 ]; then
-  echo "[QA GATE FAIL] Parsing failures for actionable items..."
-  # Add new tasks to task list
-  # Return to Phase 6 for implementation
-fi
+if ($checks.FailedCount -gt 0) {
+    Write-Host "[QA GATE FAIL] Parsing failures for actionable items..."
+    $checks.Checks | Where-Object { $_.Conclusion -eq 'FAILURE' } | ForEach-Object {
+        Write-Host "  - $($_.Name): $($_.DetailsUrl)"
+    }
+    # Add new tasks to task list
+    # Return to Phase 6 for implementation
+}
 ```
 
 #### Phase 8.5: Completion Criteria Checklist
@@ -988,17 +988,22 @@ fi
 |-----------|-------|--------|
 | All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
-| CI checks pass | `gh pr checks` all green | [ ] |
+| CI checks pass | `Get-PRChecks.ps1 -PullRequest [number]` AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 
-```bash
+```powershell
 # Final verification
-echo "=== Completion Criteria ==="
-echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
-echo "[ ] New comments: None after 45s wait"
-echo "[ ] CI checks: $(gh pr checks [number] --json state -q '[.[] | select(.state != "SUCCESS")] | length') failures"
-echo "[ ] Pushed: $(git status -sb | head -1)"
+Write-Host "=== Completion Criteria ==="
+Write-Host "[ ] Comments: $($ADDRESSED + $WONTFIX)/$TOTAL resolved"
+Write-Host "[ ] New comments: None after 45s wait"
+
+# CI check verification using skill
+$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] | ConvertFrom-Json
+$ciStatus = if ($checks.AllPassing) { "PASS" } else { "$($checks.FailedCount) failures, $($checks.PendingCount) pending" }
+Write-Host "[ ] CI checks: $ciStatus"
+
+Write-Host "[ ] Pushed: $(git status -sb | Select-Object -First 1)"
 ```
 
 **If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.

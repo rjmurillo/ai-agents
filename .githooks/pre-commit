@@ -308,7 +308,8 @@ if [ -n "$STAGED_PLANNING_FILES" ]; then
     elif [ -f "$PLANNING_VALIDATE_SCRIPT" ]; then
         if command -v pwsh &> /dev/null; then
             # Run validation in warning mode (don't block commits, but show issues)
-            if ! pwsh -NoProfile -File "$PLANNING_VALIDATE_SCRIPT" -Path "$REPO_ROOT" 2>&1; then
+            # -ExecutionPolicy Bypass: Ensure consistent execution across all platforms (see #213)
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$PLANNING_VALIDATE_SCRIPT" -Path "$REPO_ROOT" 2>&1; then
                 echo_warning "Planning artifact validation found issues (see above)."
                 echo_info "  Consider running: pwsh build/scripts/Validate-PlanningArtifacts.ps1"
                 # Non-blocking: just warn, don't fail the commit
@@ -351,7 +352,7 @@ if [ -n "$STAGED_PLANNING_FILES" ]; then
         if command -v pwsh &> /dev/null; then
             # Run validation - failures will be reported but won't block commits
             # Note: -CI flag ensures script returns non-zero exit code on failures
-            if ! pwsh -NoProfile -File "$CONSISTENCY_VALIDATE_SCRIPT" -All -CI -Path "$REPO_ROOT" 2>&1; then
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$CONSISTENCY_VALIDATE_SCRIPT" -All -CI -Path "$REPO_ROOT" 2>&1; then
                 echo_warning "Consistency validation found issues (see above)."
                 echo_info "  Consider running: pwsh scripts/Validate-Consistency.ps1 -All"
                 # Non-blocking: just warn, don't fail the commit
@@ -391,7 +392,7 @@ if [ -n "$STAGED_MCP_FILE" ]; then
         elif [ -f "$MCP_SYNC_SCRIPT" ]; then
             if command -v pwsh &> /dev/null; then
             # Run sync script with PassThru to get sync status (returns True/False string)
-            SYNC_OUTPUT=$(pwsh -NoProfile -File "$MCP_SYNC_SCRIPT" -PassThru 2>&1)
+            SYNC_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$MCP_SYNC_SCRIPT" -PassThru 2>&1)
             SYNC_EXIT=$?
 
             if [ $SYNC_EXIT -eq 0 ]; then
@@ -453,7 +454,7 @@ if [ -n "$STAGED_AGENT_TEMPLATES" ]; then
         elif [ -f "$GENERATE_AGENTS_SCRIPT" ]; then
             if command -v pwsh &> /dev/null; then
                 # Run generator script
-                GENERATE_OUTPUT=$(pwsh -NoProfile -File "$GENERATE_AGENTS_SCRIPT" 2>&1)
+                GENERATE_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$GENERATE_AGENTS_SCRIPT" 2>&1)
                 GENERATE_EXIT=$?
 
                 if [ $GENERATE_EXIT -eq 0 ]; then
@@ -524,7 +525,7 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
         elif [ -f "$SKILL_GEN_SCRIPT" ]; then
             if command -v pwsh &> /dev/null; then
                 # Run generator to update *.skill files
-                if pwsh -NoProfile -File "$SKILL_GEN_SCRIPT" -Root "$REPO_ROOT" 2>&1; then
+                if pwsh -NoProfile -ExecutionPolicy Bypass -File "$SKILL_GEN_SCRIPT" -Root "$REPO_ROOT" 2>&1; then
                     # Generator succeeded - check for modified *.skill files
                     # Use while/read loop with proper IFS to handle spaces in filenames
                     while IFS= read -r skill_md; do
@@ -703,7 +704,7 @@ if [ -n "$STAGED_HANDOFF" ]; then
     elif [ -f "$TOKEN_BUDGET_SCRIPT" ]; then
         if command -v pwsh &> /dev/null; then
             # Run token budget validation in CI mode
-            if ! pwsh -NoProfile -File "$TOKEN_BUDGET_SCRIPT" -Path "$REPO_ROOT" -CI 2>&1; then
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$TOKEN_BUDGET_SCRIPT" -Path "$REPO_ROOT" -CI 2>&1; then
                 echo_error "Token budget validation FAILED."
                 echo_info "  HANDOFF.md exceeds 5K token limit."
                 EXIT_STATUS=1
@@ -804,7 +805,7 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
     elif [ -f "$MEMORY_INDEX_SCRIPT" ]; then
         if command -v pwsh &> /dev/null; then
             # Run memory index validation in CI mode
-            if ! pwsh -NoProfile -File "$MEMORY_INDEX_SCRIPT" -Path "$REPO_ROOT/.serena/memories" -CI 2>&1; then
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$MEMORY_INDEX_SCRIPT" -Path "$REPO_ROOT/.serena/memories" -CI 2>&1; then
                 echo_error "Memory index validation FAILED."
                 echo_info "  Run manually: pwsh scripts/Validate-MemoryIndex.ps1"
                 EXIT_STATUS=1
@@ -842,7 +843,7 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
         if command -v pwsh &> /dev/null; then
             # Run skill format validation on staged files only
             # -StagedOnly checks only new/modified files (not legacy bundled files)
-            if ! pwsh -NoProfile -File "$SKILL_FORMAT_SCRIPT" -StagedOnly -CI 2>&1; then
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SKILL_FORMAT_SCRIPT" -StagedOnly -CI 2>&1; then
                 echo_error "Skill format validation FAILED."
                 echo_info "  ADR-017 requires ONE skill per file. Split bundled skills."
                 EXIT_STATUS=1

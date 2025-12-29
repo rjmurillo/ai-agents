@@ -209,15 +209,3 @@
 - [ ] Limitations tested in practice
 - [ ] Capabilities matrix updated
 
----
-
-## Change Log
-
-| Date | Change | Reason |
-|------|--------|--------|
-| [YYYY-MM-DD] | Initial interview | Agent creation |
-
----
-
-*Template Version: 1.0*
-*GitHub Issue: #6*

@@ -36,8 +36,8 @@ Our codebase has **two** locations for decision documentation:
 1. **`.agents/architecture/`** - ADRs with architectural significance
 2. **`.agents/governance/`** - Operational policies, compliance requirements, standards
 
-**Existing successful split**: ADR-014 + COST-GOVERNANCE.md
-- **ADR-014**: Architectural decision (use ARM runners for 37.5% cost savings)
+**Existing successful split**: ADR-024 + COST-GOVERNANCE.md
+- **ADR-024**: Architectural decision (use ARM runners for 37.5% cost savings)
 - **COST-GOVERNANCE.md**: Operational policy (compliance comments, exception process, monitoring)
 
 **Emerging ambiguity**: ADR-021 bundles architectural decision + governance policy
@@ -149,7 +149,7 @@ Negative: [Costs, risks, limitations]
 - Policy derives from architectural decision but evolves independently
 
 **Examples**:
-- ADR-014 (runner selection) + COST-GOVERNANCE.md
+- ADR-024 (runner selection) + COST-GOVERNANCE.md
 - ADR-021 (model routing strategy) + AI-REVIEW-MODEL-POLICY.md (recommended split)
 
 **Pattern**:
@@ -223,7 +223,7 @@ graph TD
    - **Yes** → Continue to step 3
 
 3. **Are architectural decision and enforcement policy tightly coupled?**
-   - **Yes** → Split (ADR + Governance) (e.g., ADR-014 + COST-GOVERNANCE)
+   - **Yes** → Split (ADR + Governance) (e.g., ADR-024 + COST-GOVERNANCE)
    - **No** → ADR-only with operational notes
 
 ### 4. When to Split Existing ADRs
@@ -261,7 +261,7 @@ Trigger a split when:
 ### Why Not Separate Everything?
 
 **Risk**: Creates artificial separation for tightly coupled decisions
-- ADR-014 (runner selection) and COST-GOVERNANCE are inseparable
+- ADR-024 (runner selection) and COST-GOVERNANCE are inseparable
 - Splitting too aggressively creates navigation overhead
 - Some decisions genuinely need both architectural rationale and operational enforcement
 
@@ -398,7 +398,7 @@ Trigger a split when:
 
 ## Related Decisions
 
-- ADR-014: GitHub Actions Runner Selection (architecture) + COST-GOVERNANCE.md (governance) - Exemplar split pattern
+- ADR-024: GitHub Actions Runner Selection (architecture) + COST-GOVERNANCE.md (governance) - Exemplar split pattern
 - ADR-021: Model Routing Policy (currently bundled, candidate for split)
 - Session 90: Multi-agent debate on ADR-021 exposed need for split criteria
 
@@ -416,9 +416,9 @@ Trigger a split when:
 
 ## Appendix A: Real-World Examples
 
-### Example 1: ADR-014 + COST-GOVERNANCE (Split Pattern)
+### Example 1: ADR-024 + COST-GOVERNANCE (Split Pattern)
 
-**ADR-014** (architecture/):
+**ADR-024** (architecture/):
 - **Decision**: Use ARM runners for GitHub Actions
 - **Rationale**: 37.5% cost savings ($0.008 → $0.005/min)
 - **Alternatives**: x64, Windows, self-hosted
@@ -426,7 +426,7 @@ Trigger a split when:
 
 **COST-GOVERNANCE.md** (governance/):
 - **Policy**: "Workflows MUST use ubuntu-24.04-arm"
-- **Compliance**: ADR-014 comment required in all workflows
+- **Compliance**: ADR-024 comment required in all workflows
 - **Exceptions**: Document ARM incompatibility with evidence
 - **Monitoring**: Monthly runner usage review
 

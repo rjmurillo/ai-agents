@@ -2,9 +2,9 @@
 
 **Statement**: Agents get tools matching their responsibilities only
 
-**Context**: Agent tool configuration and ADR-0003
+**Context**: Agent tool configuration and ADR-003
 
-**Evidence**: ADR-0003 reduced tools from ~58 blanket to 3-9 role-specific
+**Evidence**: ADR-003 reduced tools from ~58 blanket to 3-9 role-specific
 
 **Atomicity**: 92%
 
@@ -21,4 +21,4 @@
 - Blanket `github/*` (~77 tools) to all agents
 - Generic tool allocation regardless of role
 
-**Source**: `.agents/architecture/ADR-0003-agent-tool-selection-criteria.md`
+**Source**: `.agents/architecture/ADR-003-agent-tool-selection-criteria.md`

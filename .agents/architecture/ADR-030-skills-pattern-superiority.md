@@ -1,4 +1,4 @@
-# ADR-016 Addendum: Skills Pattern Superiority
+# ADR-030: Skills Pattern Superiority
 
 **Date**: 2025-12-23
 **Status**: Critical Update - Changes Recommendation

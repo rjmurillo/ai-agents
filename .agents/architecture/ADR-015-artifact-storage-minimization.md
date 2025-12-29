@@ -121,7 +121,7 @@ For organizations requiring longer retention:
 
 ## Related Decisions
 
-- ADR-014: GitHub Actions ARM Runner Migration
+- ADR-025: GitHub Actions ARM Runner Migration
 - ADR-016: Workflow Path Filtering Strategy
 
 ## References

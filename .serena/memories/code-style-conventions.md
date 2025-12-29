@@ -71,6 +71,26 @@ Follow conventional commit format:
 <optional body>
 ```
 
+## Document Version Metadata
+
+**DO NOT include version history sections in documentation.**
+
+Git handles versioning; redundant metadata creates:
+- Merge conflicts
+- Stale information
+- Maintenance burden
+
+**Avoid these patterns:**
+- `## Version History` / `## Revision History` / `## Change Log`
+- `| Version | Date | Changes |` tables
+- `*Template Version: 1.0*` footers
+
+**Use instead:**
+- Git log: `git log --oneline -10 -- <file>`
+- Git blame: `git blame <file>`
+
+Reference: Issue #280, Issue #272
+
 ## Agent File Conventions
 
 Agent files define:

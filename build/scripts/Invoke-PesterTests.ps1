@@ -187,16 +187,30 @@ if ($EnableCodeCoverage) {
 }
 Write-Host ""
 
-# Verify Pester is installed
-$pester = Get-Module -ListAvailable -Name Pester | Where-Object { $_.Version -ge [version]"5.0.0" } | Select-Object -First 1
+# Verify Pester is installed - pin to specific version for supply chain security (issue #304)
+$requiredPesterVersion = [version]"5.7.1"
+$pester = Get-Module -ListAvailable -Name Pester | Where-Object { $_.Version -eq $requiredPesterVersion } | Select-Object -First 1
 if (-not $pester) {
-    Write-Host "Pester 5.0+ not found. Installing..." -ForegroundColor Yellow
-    Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
-    Install-Module -Name Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
-    Import-Module Pester -MinimumVersion 5.0.0
-    $pester = Get-Module Pester
+    Write-Host "Pester $requiredPesterVersion not found. Installing..." -ForegroundColor Yellow
+    try {
+        Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
+        Install-Module -Name Pester -RequiredVersion $requiredPesterVersion -Force -Scope CurrentUser
+    }
+    catch {
+        Write-Error "Failed to install required Pester version '$requiredPesterVersion': $_"
+        throw
+    }
 }
-Write-Host "Using Pester version: $($pester.Version)" -ForegroundColor Green
+# Import the module regardless of whether it was just installed or already present
+try {
+    Import-Module Pester -RequiredVersion $requiredPesterVersion -Force -ErrorAction Stop
+    $pester = Get-Module Pester
+    Write-Host "Using Pester version: $($pester.Version)" -ForegroundColor Green
+}
+catch {
+    Write-Error "Failed to import Pester version '$requiredPesterVersion': $_"
+    throw
+}
 
 # Verify at least one test path exists
 if ($TestPath.Count -eq 0) {

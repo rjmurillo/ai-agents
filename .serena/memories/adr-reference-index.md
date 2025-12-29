@@ -2,7 +2,7 @@
 
 **Purpose**: Quick lookup for Architecture Decision Records
 **Location**: `.agents/architecture/ADR-*.md`
-**Updated**: 2025-12-23
+**Updated**: 2025-12-28
 
 This is a REFERENCE index, not a skills index. ADRs live in `.agents/architecture/`, not `.serena/memories/`.
 
@@ -17,7 +17,7 @@ This is a REFERENCE index, not a skills index. ADRs live in `.agents/architectur
 | ADR-007 | Memory-First Architecture | memory context retrieval |
 | ADR-009 | Parallel-Safe Multi-Agent Design | parallel worktree isolation |
 | ADR-010 | Quality Gates with Evaluator-Optimizer | quality gate evaluator |
-| ADR-014a | Distributed Handoff Architecture | handoff session log |
+| ADR-014 | Distributed Handoff Architecture | handoff session log |
 
 ### CI/CD and Workflows
 
@@ -26,9 +26,9 @@ This is a REFERENCE index, not a skills index. ADRs live in `.agents/architectur
 | ADR-004 | Pre-Commit Hook as Validation Orchestration | pre-commit hook validation |
 | ADR-006 | Thin Workflows, Testable Modules | thin workflow bash module |
 | ADR-008 | Protocol Automation via Lifecycle Hooks | protocol automation lifecycle |
-| ADR-014b | GitHub Actions ARM Runner Migration | arm runner macos |
-| ADR-015a | Artifact Storage Minimization | artifact storage retention |
-| ADR-015b | PR Automation Concurrency and Safety | pr automation lock concurrency |
+| ADR-025 | GitHub Actions ARM Runner Migration | arm runner macos |
+| ADR-015 | Artifact Storage Minimization | artifact storage retention |
+| ADR-026 | PR Automation Concurrency and Safety | pr automation lock concurrency |
 | ADR-016 | Workflow Execution Optimization | workflow cache optimization |
 
 ### Standards and Patterns
