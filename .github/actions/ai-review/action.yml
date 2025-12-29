@@ -702,7 +702,7 @@ runs:
         # Fix for Issue #470: Removed fallback keyword matching that caused context contamination
         # (keywords like "CRITICAL_FAIL" in issue descriptions were being matched)
         # Fix: Use [A-Z_][A-Z_]* to require at least one character (prevents empty match)
-        verdict=$(echo "$output" | tac | sed -n 's/.*VERDICT:[[:space:]]*\([A-Z_][A-Z_]*\).*/\1/p' | head -1)
+        verdict=$(echo "$output" | sed -n 's/.*VERDICT:[[:space:]]*\([A-Z_]*\).*/\1/p' | tail -n 1)
 
         # Validate verdict is a known token
         case "$verdict" in
@@ -717,7 +717,7 @@ runs:
             else
               echo "::warning::Unrecognized verdict token: $verdict"
             fi
-            echo "::warning::AI output should end with: VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED]"
+            echo "::warning::AI output should end with: VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL]"
             verdict="NEEDS_REVIEW"
             ;;
         esac
