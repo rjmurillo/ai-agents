@@ -62,7 +62,8 @@ When running in environments with PowerShell support (Windows, PowerShell Core o
 | Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
 | Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq` |
 | Reply to comment | `Post-PRCommentReply.ps1` | `gh api -X POST` |
-| Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
+| Add reaction (batch) | `Add-CommentReaction.ps1 -CommentId @(id1,id2,...)` | Individual `gh api` calls |
+| CI check status | `Get-PRChecks.ps1` | `gh pr checks` (limited) |
 
 The bash examples below work cross-platform; use skill scripts when PowerShell is available.
 
@@ -541,9 +542,28 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 
 Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number]/comments.md`.
 
-#### Step 2.1: Acknowledge Each Comment
+#### Step 2.1: Acknowledge All Comments (Batch)
 
-For each comment, react with eyes emoji to indicate acknowledgment:
+React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster acknowledgment:
+
+```powershell
+# PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
+# Get all comment IDs from the comments retrieved in Phase 1
+$comments = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | ConvertFrom-Json
+$ids = $comments.Comments | ForEach-Object { $_.id }
+
+# Batch acknowledge - single process, all comments
+$result = pwsh -NoProfile .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes" | ConvertFrom-Json
+
+# Verify all acknowledged
+Write-Host "Acknowledged $($result.Succeeded)/$($result.TotalCount) comments"
+if ($result.Failed -gt 0) {
+    Write-Host "Failed: $($result.Results | Where-Object { -not $_.Success } | ForEach-Object { $_.CommentId })"
+}
+```
+
+<details>
+<summary>Alternative: Individual reactions (slower, use only when batching unavailable)</summary>
 
 ```bash
 # React to review comment
@@ -554,6 +574,8 @@ gh api repos/[owner]/[repo]/pulls/comments/[comment_id]/reactions \
 gh api repos/[owner]/[repo]/issues/comments/[comment_id]/reactions \
   -X POST -f content="eyes"
 ```
+
+</details>
 
 #### Step 2.2: Generate Comment Map
 
