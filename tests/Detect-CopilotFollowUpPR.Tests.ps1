@@ -15,8 +15,8 @@ BeforeAll {
     # Read the script content and extract function definitions
     $scriptContent = Get-Content $script:scriptPath -Raw
 
-    # Extract Test-FollowUpPattern function
-    if ($scriptContent -match '(?s)function Test-FollowUpPattern \{.*?\n\}') {
+    # Extract Test-FollowUpPattern function (updated pattern for Issue #292)
+    if ($scriptContent -match '(?s)function Test-FollowUpPattern \{.*?(?=\nfunction)') {
         Invoke-Expression $Matches[0]
     }
 
@@ -48,6 +48,34 @@ Describe "Detect-CopilotFollowUpPR" {
 
             $testPR3 = @{ headRefName = "sub-pr-32" }
             Test-FollowUpPattern -PR $testPR3 | Should -Be $false
+        }
+    }
+
+    Context "PR Number Validation (Issue #292)" {
+        It "Returns true when extracted PR number matches OriginalPRNumber" {
+            $testPR = @{ headRefName = "copilot/sub-pr-32" }
+            Test-FollowUpPattern -PR $testPR -OriginalPRNumber 32 | Should -Be $true
+
+            $testPR2 = @{ headRefName = "copilot/sub-pr-156" }
+            Test-FollowUpPattern -PR $testPR2 -OriginalPRNumber 156 | Should -Be $true
+        }
+
+        It "Returns false when extracted PR number does not match OriginalPRNumber" {
+            # This prevents false positives when multiple follow-up branches exist
+            $testPR = @{ headRefName = "copilot/sub-pr-32" }
+            Test-FollowUpPattern -PR $testPR -OriginalPRNumber 33 | Should -Be $false
+            Test-FollowUpPattern -PR $testPR -OriginalPRNumber 320 | Should -Be $false
+        }
+
+        It "Returns true for pattern-only match when OriginalPRNumber is 0" {
+            $testPR = @{ headRefName = "copilot/sub-pr-99" }
+            Test-FollowUpPattern -PR $testPR | Should -Be $true
+            Test-FollowUpPattern -PR $testPR -OriginalPRNumber 0 | Should -Be $true
+        }
+
+        It "Returns false for invalid patterns even with matching number" {
+            $testPR = @{ headRefName = "feature/sub-pr-32" }
+            Test-FollowUpPattern -PR $testPR -OriginalPRNumber 32 | Should -Be $false
         }
     }
 

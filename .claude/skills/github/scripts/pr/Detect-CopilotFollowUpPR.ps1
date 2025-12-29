@@ -51,17 +51,37 @@ $script:Repo = $resolved.Repo
 function Test-FollowUpPattern {
     <#
     .SYNOPSIS
-        Check if a PR matches Copilot follow-up pattern.
+        Check if a PR matches Copilot follow-up pattern for a specific original PR.
+    .DESCRIPTION
+        Validates that the branch name follows the copilot/sub-pr-{number} pattern
+        AND that the extracted number matches the expected original PR number.
+        This prevents false positives when multiple Copilot follow-up branches exist.
+    .PARAMETER PR
+        The PR object containing headRefName property.
+    .PARAMETER OriginalPRNumber
+        The original PR number to validate against. If not provided, only pattern matching is performed.
     #>
     param(
         [Parameter(Mandatory = $true)]
-        [object]$PR
+        [object]$PR,
+
+        [Parameter(Mandatory = $false)]
+        [int]$OriginalPRNumber = 0
     )
 
     $headRef = $PR.headRefName
-    $pattern = "copilot/sub-pr-\d+"
+    $pattern = "copilot/sub-pr-(\d+)"
 
-    return $headRef -match $pattern
+    if ($headRef -match $pattern) {
+        # If OriginalPRNumber is specified, validate the extracted number matches
+        if ($OriginalPRNumber -gt 0) {
+            $extractedPR = [int]$matches[1]
+            return $extractedPR -eq $OriginalPRNumber
+        }
+        # No validation requested, just pattern match
+        return $true
+    }
+    return $false
 }
 
 function Get-CopilotAnnouncement {
@@ -201,6 +221,12 @@ function Invoke-FollowUpDetection {
     catch {
         Write-Verbose "Info: No follow-up PRs found (query may not match any results)"
     }
+
+    # Step 1.5: Filter results using Test-FollowUpPattern with PR number validation (Issue #292)
+    # This prevents false positives from GitHub search returning partial matches
+    $followUpPRs = @($followUpPRs | Where-Object {
+        Test-FollowUpPattern -PR $_ -OriginalPRNumber $PRNumber
+    })
 
     if ($followUpPRs.Count -eq 0) {
         return @{
