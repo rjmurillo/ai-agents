@@ -85,7 +85,6 @@ $results = foreach ($id in $CommentId) {
             Emoji       = $emoji
             Error       = $null
         }
-        Write-Host "Added $emoji ($Reaction) to $CommentType comment $id" -ForegroundColor Green
     }
     else {
         $failed++
@@ -98,7 +97,6 @@ $results = foreach ($id in $CommentId) {
             Emoji       = $emoji
             Error       = "$result"
         }
-        Write-Host "Failed to add $emoji to $CommentType comment ${id}: $result" -ForegroundColor Red
     }
 }
 
