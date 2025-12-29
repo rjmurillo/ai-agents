@@ -52,7 +52,9 @@ jobs:
 
           if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
             # Compare PR branch against the base branch (three dots for merge-base diff)
-            $diffOutput = git diff --name-only origin/${{ github.base_ref }}...HEAD
+            # Use $env:GITHUB_BASE_REF (runtime) not ${{ github.base_ref }} (parse-time)
+            # to avoid exit code 129 when github.base_ref is empty on non-PR events
+            $diffOutput = git diff --name-only origin/$env:GITHUB_BASE_REF...HEAD
           } elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
             # Handle push event with guards for edge cases
             $beforeSha = '${{ github.event.before }}'
