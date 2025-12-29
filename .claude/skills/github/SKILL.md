@@ -195,7 +195,7 @@ if ($checks.AllPassing) {
     Write-Host "All CI checks passing"
 } elseif ($checks.FailedCount -gt 0) {
     Write-Host "BLOCKED: $($checks.FailedCount) check(s) failed"
-    $checks.Checks | Where-Object { $_.Conclusion -eq 'FAILURE' } | ForEach-Object {
+    $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED', $null) } | ForEach-Object {
         Write-Host "  - $($_.Name): $($_.DetailsUrl)"
     }
     exit 1

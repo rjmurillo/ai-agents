@@ -109,8 +109,6 @@ query($owner: String!, $repo: String!, $number: Int!) {
 
 #endregion
 
-#region Helper Functions
-
 function Get-SafeProperty {
     <#
     .SYNOPSIS
@@ -120,22 +118,16 @@ function Get-SafeProperty {
 
     if ($null -eq $Object) { return $null }
 
-    $value = $null
-
     if ($Object -is [hashtable]) {
         if ($Object.ContainsKey($PropertyName)) {
-            $value = $Object[$PropertyName]
+            return $Object[$PropertyName]
         }
     }
     elseif ($Object.PSObject.Properties.Name -contains $PropertyName) {
-        $value = $Object.$PropertyName
+        return $Object.$PropertyName
     }
 
-    # Preserve arrays when returning
-    if ($null -ne $value -and $value -is [array]) {
-        return @(,$value)
-    }
-    return $value
+    return $null
 }
 
 function Invoke-ChecksQuery {
@@ -230,7 +222,7 @@ function Get-ChecksFromResponse {
     }
 
     $commits = Get-SafeProperty $pr 'commits'
-    $nodes = Get-SafeProperty $commits 'nodes'
+    $nodes = @(Get-SafeProperty $commits 'nodes')
 
     if (-not $nodes -or $nodes.Count -eq 0) {
         return @{
@@ -255,7 +247,7 @@ function Get-ChecksFromResponse {
 
     $overallState = Get-SafeProperty $rollup 'state'
     $contexts = Get-SafeProperty $rollup 'contexts'
-    $contextNodes = Get-SafeProperty $contexts 'nodes'
+    $contextNodes = @(Get-SafeProperty $contexts 'nodes')
 
     $checks = @()
     if ($contextNodes) {

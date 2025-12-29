@@ -97,7 +97,7 @@ $checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -Pul
 
 if ($checks.FailedCount -gt 0) {
     Write-Host "Failed checks:"
-    $checks.Checks | Where-Object { $_.Conclusion -eq 'FAILURE' } | ForEach-Object {
+    $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED', $null) } | ForEach-Object {
         Write-Host "  - $($_.Name): $($_.DetailsUrl)"
     }
 }
