@@ -600,10 +600,10 @@ Describe "Invoke-PRMaintenance.ps1" {
     }
 
     Context "Rate Limit Safety" {
-        It "Test-RateLimitSafe handles API failure gracefully" {
-            Mock gh {
-                $global:LASTEXITCODE = 1
-                return "Error: API error"
+        It "Test-RateLimitSafe handles shared function failure gracefully" {
+            # Mock Test-WorkflowRateLimit to throw
+            Mock Test-WorkflowRateLimit {
+                throw "Failed to fetch rate limits"
             }
 
             # Should return true (assume safe) on failure
@@ -612,14 +612,17 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
 
         It "Test-RateLimitSafe returns false when rate limit is low" {
-            Mock gh {
-                $global:LASTEXITCODE = 0
-                return @{
-                    resources = @{
-                        core = @{ remaining = 50; limit = 5000 }
-                        graphql = @{ remaining = 20; limit = 5000 }
+            # Mock Test-WorkflowRateLimit to return low rate limit
+            Mock Test-WorkflowRateLimit {
+                return [PSCustomObject]@{
+                    Success       = $false
+                    CoreRemaining = 50
+                    Resources     = @{
+                        'core' = @{ Remaining = 50; Passed = $false }
+                        'graphql' = @{ Remaining = 20; Passed = $false }
                     }
-                } | ConvertTo-Json -Depth 10
+                    SummaryMarkdown = "Rate limit too low"
+                }
             }
 
             $result = Test-RateLimitSafe
@@ -627,14 +630,17 @@ Describe "Invoke-PRMaintenance.ps1" {
         }
 
         It "Test-RateLimitSafe returns true when rate limit is sufficient" {
-            Mock gh {
-                $global:LASTEXITCODE = 0
-                return @{
-                    resources = @{
-                        core = @{ remaining = 4500; limit = 5000 }
-                        graphql = @{ remaining = 4500; limit = 5000 }
+            # Mock Test-WorkflowRateLimit to return sufficient rate limit
+            Mock Test-WorkflowRateLimit {
+                return [PSCustomObject]@{
+                    Success       = $true
+                    CoreRemaining = 4500
+                    Resources     = @{
+                        'core' = @{ Remaining = 4500; Passed = $true }
+                        'graphql' = @{ Remaining = 4500; Passed = $true }
                     }
-                } | ConvertTo-Json -Depth 10
+                    SummaryMarkdown = "Rate limit OK"
+                }
             }
 
             $result = Test-RateLimitSafe
