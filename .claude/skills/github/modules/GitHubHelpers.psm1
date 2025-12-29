@@ -42,7 +42,10 @@ Issue Comments (line ~380)
 Trusted Sources (line ~600)
   - Get-TrustedSourceComments Filter comments by trusted users
 
-Formatting (line ~640)
+Bot Configuration (line ~670)
+  - Get-BotAuthors            Centralized bot author list
+
+Formatting (line ~700)
   - Get-PriorityEmoji        P0-P3 to emoji mapping
   - Get-ReactionEmoji        Reaction type to emoji
 #>
@@ -670,6 +673,76 @@ function Get-TrustedSourceComments {
 
 #endregion
 
+#region Bot Configuration Functions
+
+function Get-BotAuthors {
+    <#
+    .SYNOPSIS
+        Returns the centralized list of known bot authors.
+
+    .DESCRIPTION
+        Single source of truth for bot author identification across the repository.
+        Used by workflows, scripts, and agents to distinguish bot vs. human activity.
+
+        Bot categories:
+        - AI Code Reviewers: coderabbitai[bot], github-copilot[bot], gemini-code-assist[bot]
+        - Automation: github-actions[bot], dependabot[bot]
+        - Repository Bots: rjmurillo-bot, copilot-swe-agent[bot]
+        - Other: cursor[bot]
+
+    .PARAMETER Category
+        Optional. Filter by category: 'reviewer', 'automation', 'repository', 'all' (default).
+
+    .OUTPUTS
+        String array of bot author login names.
+
+    .EXAMPLE
+        $bots = Get-BotAuthors
+        if ($comment.user.login -in $bots) { Write-Host "Bot comment" }
+
+    .EXAMPLE
+        $reviewBots = Get-BotAuthors -Category 'reviewer'
+        # Returns only AI code review bots
+
+    .NOTES
+        See #282 for centralization rationale.
+        See .agents/devops/BOT-CONFIGURATION.md for detailed bot documentation.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter()]
+        [ValidateSet('reviewer', 'automation', 'repository', 'all')]
+        [string]$Category = 'all'
+    )
+
+    # Centralized bot author definitions
+    $bots = @{
+        reviewer = @(
+            'coderabbitai[bot]'
+            'github-copilot[bot]'
+            'gemini-code-assist[bot]'
+            'cursor[bot]'
+        )
+        automation = @(
+            'github-actions[bot]'
+            'dependabot[bot]'
+        )
+        repository = @(
+            'rjmurillo-bot'
+            'copilot-swe-agent[bot]'
+        )
+    }
+
+    if ($Category -eq 'all') {
+        return $bots.Values | ForEach-Object { $_ } | Sort-Object -Unique
+    }
+
+    return $bots[$Category]
+}
+
+#endregion
+
 #region Exit Codes
 
 <#
@@ -706,6 +779,8 @@ Export-ModuleMember -Function @(
     'New-IssueComment'
     # Trusted sources
     'Get-TrustedSourceComments'
+    # Bot configuration
+    'Get-BotAuthors'
     # Formatting
     'Get-PriorityEmoji'
     'Get-ReactionEmoji'
