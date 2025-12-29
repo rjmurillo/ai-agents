@@ -61,12 +61,7 @@ $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot ".." ".." "modules" "GitHubHelpers.psm1") -Force
 
-Assert-GhAuthenticated
-$resolved = Resolve-RepoParams -Owner $Owner -Repo $Repo
-$Owner = $resolved.Owner
-$Repo = $resolved.Repo
-
-#region GraphQL Query
+#region Helper Functions
 
 # GraphQL query for status check rollup
 $query = @'
@@ -332,6 +327,18 @@ function Build-Output {
         AllPassing   = $allPassing
     }
 }
+
+# Only execute when invoked directly (not dot-sourced for testing)
+# When dot-sourced, the helper functions above are available but main logic is skipped
+if ($MyInvocation.InvocationName -eq '.') {
+    return
+}
+
+# Verify authentication and resolve parameters
+Assert-GhAuthenticated
+$resolved = Resolve-RepoParams -Owner $Owner -Repo $Repo
+$Owner = $resolved.Owner
+$Repo = $resolved.Repo
 
 # Execute the check
 Write-Verbose "Fetching CI checks for PR #$PullRequest from $Owner/$Repo"
