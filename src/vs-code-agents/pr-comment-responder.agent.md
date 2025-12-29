@@ -1078,65 +1078,49 @@ It does NOT mean:
 - ❌ CI checks passing
 - ❌ Required status checks satisfied
 
-**Always verify CI explicitly**:
+**Always verify CI explicitly** using the Get-PRChecks.ps1 skill:
 
-```bash
-# Check ALL CI checks status
-echo "=== CI Check Verification ==="
+```powershell
+# Check ALL CI checks status with wait for completion
+$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] -Wait -TimeoutSeconds 300 | ConvertFrom-Json
+$exitCode = $LASTEXITCODE
 
-# Create a secure temporary file for CI check results (avoids race conditions)
-checks_file=$(mktemp)
-# Ensure the temporary file is removed on exit (handles all exit paths)
-trap 'rm -f "$checks_file"' EXIT
+# Handle timeout (exit code 7)
+if ($exitCode -eq 7) {
+    Write-Host "[BLOCKED] Timeout waiting for CI checks to complete"
+    Write-Host "  Pending: $($checks.PendingCount) check(s) still running"
+    exit 1
+}
 
-# Wait for all checks to complete, fetching all fields in one call
-while true; do
-    gh pr checks [number] --json name,state,conclusion,detailsUrl > "$checks_file"
+# Handle API errors
+if (-not $checks.Success) {
+    Write-Host "[ERROR] Failed to get CI check status: $($checks.Error)"
+    exit 1
+}
 
-    # Count checks that are not yet completed
-    pending_checks=$(jq '[.[] | select(.state != "COMPLETED")]' "$checks_file")
-    pending_count=$(echo "$pending_checks" | jq 'length')
+# Check for failures
+if ($checks.FailedCount -gt 0) {
+    Write-Host "[BLOCKED] $($checks.FailedCount) CI check(s) not passing:"
+    $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED') } | ForEach-Object {
+        Write-Host "  - $($_.Name): $($_.Conclusion)"
+        Write-Host "    Details: $($_.DetailsUrl)"
+    }
+    # Do NOT claim completion - return to Phase 6 for fixes
+    exit 1
+}
 
-    if [ "$pending_count" -eq 0 ]; then
-        echo "All CI checks have completed."
-        break
-    fi
-
-    echo "$pending_count CI checks are not yet complete. Waiting 30 seconds..."
-    echo "$pending_checks" | jq -r '.[] | "  - \(.name): \(.state)"'
-    sleep 30
-done
-
-# Parse for failures (exclude skipped and successful conclusions)
-failed_checks=$(jq '[.[] | select(.conclusion != "success" and .conclusion != "skipped")]' "$checks_file")
-failed_count=$(echo "$failed_checks" | jq 'length')
-
-if [ "$failed_count" -gt 0 ]; then
-  echo "[BLOCKED] $failed_count CI checks not passing:"
-  echo "$failed_checks" | jq -r '.[] | "  - \(.name): \(.conclusion)"'
-
-  # Parse actionable items from failures
-  echo ""
-  echo "Actionable items:"
-  # Extract failure details for each check
-  echo "$failed_checks" | jq -r '.[] | "  - \(.name): Review logs at \(.detailsUrl // "N/A")"'
-
-  # Do NOT claim completion - return to Phase 6 for fixes
-  exit 1
-fi
-
-echo "[PASS] All CI checks passing ($(jq 'length' "$checks_file") checks)"
-# trap handles cleanup automatically
+Write-Host "[PASS] All CI checks passing ($($checks.PassedCount) checks)"
 ```
 
 **Exit codes**:
 
 - `0`: All checks passing (or skipped)
 - `1`: One or more checks failed (blocks completion)
+- `7`: Timeout waiting for checks (with -Wait)
 
 **If CI fails**: Parse failure messages, add new tasks to task list, return to Phase 6 for implementation.
 
-**Skill Reference**: Skill-PR-Review-007 (CI verification before completion, atomicity: 96%)
+**Skill Reference**: Get-PRChecks.ps1 (uses GraphQL statusCheckRollup for reliable check status)
 
 #### Phase 8.5: Completion Criteria Checklist
 
@@ -1146,17 +1130,22 @@ echo "[PASS] All CI checks passing ($(jq 'length' "$checks_file") checks)"
 |-----------|-------|--------|
 | All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
-| CI checks pass | `gh pr checks` all green | [ ] |
+| CI checks pass | `Get-PRChecks.ps1 -PullRequest [number]` AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 
-```bash
+```powershell
 # Final verification
-echo "=== Completion Criteria ==="
-echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
-echo "[ ] New comments: None after 45s wait"
-echo "[ ] CI checks: $(gh pr checks [number] --json state -q '[.[] | select(.state != "SUCCESS")] | length') failures"
-echo "[ ] Pushed: $(git status -sb | head -1)"
+Write-Host "=== Completion Criteria ==="
+Write-Host "[ ] Comments: $($ADDRESSED + $WONTFIX)/$TOTAL resolved"
+Write-Host "[ ] New comments: None after 45s wait"
+
+# CI check verification using skill
+$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] | ConvertFrom-Json
+$ciStatus = if ($checks.AllPassing) { "PASS" } else { "$($checks.FailedCount) failures, $($checks.PendingCount) pending" }
+Write-Host "[ ] CI checks: $ciStatus"
+
+Write-Host "[ ] Pushed: $(git status -sb | Select-Object -First 1)"
 ```
 
 **If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.

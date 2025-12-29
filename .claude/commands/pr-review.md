@@ -91,9 +91,16 @@ pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest 
 
 **3. Review ALL Failing Checks**:
 
-```bash
-# Get all checks with conclusions
-gh pr checks {number} 2>&1
+```powershell
+# Get all checks with conclusions using Get-PRChecks.ps1
+$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest {number} | ConvertFrom-Json
+
+if ($checks.FailedCount -gt 0) {
+    Write-Host "Failed checks:"
+    $checks.Checks | Where-Object { $_.Conclusion -eq 'FAILURE' } | ForEach-Object {
+        Write-Host "  - $($_.Name): $($_.DetailsUrl)"
+    }
+}
 
 # For each failing check, investigate:
 # - If session validation: Use session-log-fixer skill
@@ -243,7 +250,7 @@ When using `--parallel` with worktrees:
 | All review comments addressed | Each review thread has reply + resolution | Yes |
 | All PR comments acknowledged | Each PR comment has acknowledgment (reply or reaction) | Yes |
 | No new comments | Re-check after 45s wait returned 0 new | Yes |
-| CI checks pass | `gh pr checks` all green (or failures acknowledged) | Yes |
+| CI checks pass | `Get-PRChecks.ps1` AllPassing = true (or failures acknowledged) | Yes |
 | No unresolved threads | GraphQL query for unresolved reviewThreads = 0 | Yes |
 | Merge eligible | `mergeable=MERGEABLE`, no conflicts with base | Yes |
 | PR not merged | Test-PRMerged.ps1 exit code 0 | Yes |
@@ -263,14 +270,22 @@ When using `--parallel` with worktrees:
 
 ### Verification Command
 
-```bash
+```powershell
 # Run after each PR to verify completion
-for pr in pr_numbers; do
-  echo "=== PR #$pr Completion Check ==="
-  gh pr checks $pr --json name,state | jq '[.[] | select(.state != "SUCCESS")]'
-  # Note: reviewThreads requires GraphQL, not gh pr view --json
-  gh api graphql -f query="query { repository(owner: \"OWNER\", name: \"REPO\") { pullRequest(number: $pr) { reviewThreads(first: 50) { nodes { isResolved } } } } }" | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)]'
-done
+foreach ($pr in $pr_numbers) {
+    Write-Host "=== PR #$pr Completion Check ==="
+
+    # Get CI check status using skill
+    $checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest $pr | ConvertFrom-Json
+    if (-not $checks.AllPassing) {
+        $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED') } | ForEach-Object {
+            Write-Host "  FAIL: $($_.Name) - $($_.Conclusion)"
+        }
+    }
+
+    # Note: reviewThreads requires GraphQL
+    gh api graphql -f query="query { repository(owner: `"OWNER`", name: `"REPO`") { pullRequest(number: $pr) { reviewThreads(first: 50) { nodes { isResolved } } } } }" | ConvertFrom-Json | ForEach-Object { $_.data.repository.pullRequest.reviewThreads.nodes | Where-Object { -not $_.isResolved } }
+}
 ```
 
 ## Thread Resolution Protocol
