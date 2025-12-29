@@ -1,5 +1,3 @@
-# Skills - Protocol Index
-
 | Keywords | File |
 |----------|------|
 | blocking gate verification tool output MUST trust compliance | protocol-blocking-gates |

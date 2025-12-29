@@ -1,5 +1,3 @@
-# JQ Skills Index
-
 | Keywords | File |
 |----------|------|
 | jq field access nested array index iterate basic | jq-field-extraction |

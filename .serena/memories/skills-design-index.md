@@ -7,3 +7,4 @@
 | success criteria measurable verification deliverable artifact | design-verifiable-success |
 | interface contract template consistent input output format | design-interface |
 | mermaid diagram ASCII flowchart parseable visual node | design-diagrams |
+| semantic precision state modeling lifecycle acknowledged resolved thread | design-008-semantic-precision |

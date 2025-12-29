@@ -34,7 +34,7 @@
 | git hook pre-commit autofix cross-language grep TOCTOU | skills-git-hooks-index |
 | git branch merge conflict checkout cleanup workflow resolution worktree parallel isolation | skills-git-index |
 | protocol blocking gate RFC MUST verification template legacy | skills-protocol-index |
-| retrospective learning session failure skill persistence extract | retrospective-2025-12-17, retrospective-2025-12-18, retrospective-skill-persistence |
+| retrospective learning session failure skill persistence extract | skills-retrospective-index |
 | regex pattern match escape lookahead anchor quantifier | skills-regex |
 | roadmap epic priority strategic vision business value | skills-roadmap |
 | governance agent consolidation design principle overlap | governance-001-8-question-agent-interview, governance-002-five-consolidation-triggers |

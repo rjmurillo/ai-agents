@@ -1,5 +1,3 @@
-# Session Init Skills Index
-
 | Keywords | File |
 |----------|------|
 | serena activate project instructions mandatory blocking init | session-init-serena |

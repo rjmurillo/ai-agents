@@ -19,3 +19,4 @@
 | status COMPLETE BLOCKED AWAITING_HUMAN decision tree | pr-status-001 |
 | [HARMFUL] assume enumeration complete without verify | anti-pattern-pr-001 |
 | [HARMFUL] conflate task completion PR readiness status | anti-pattern-status-001 |
+| REST API review comment replies GraphQL permission bot mutation | pr-review-009-rest-api-for-review-replies |

@@ -13,4 +13,6 @@
 | wildcard escape bracket `[?]` `[*]` -like operator literal character matching | powershell-testing-patterns |
 | platform document assumption Windows Linux ARM revert migration cross-platform | powershell-testing-patterns |
 | absolute path PSScriptRoot import module test hierarchy directory tree | powershell-testing-patterns |
+| array handling double-nested Write-Output -NoEnumerate wrapper anti-pattern | powershell-array-handling |
+| like pattern matching recursive directory wildcard limitation operator | powershell-like-pattern-matching |
 

@@ -7,3 +7,4 @@
 | clarification timing scope authentication question upfront | implementation-clarification |
 | additive feature section refactor regression isolation | implementation-additive-approach |
 | small commit fast iteration CI cycle feedback rapid refinement | implementation-fast-iteration |
+| GraphQL-first API analysis REST check capabilities isResolved field | implementation-006-graphql-first |
