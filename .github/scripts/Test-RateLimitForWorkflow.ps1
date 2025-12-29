@@ -61,13 +61,13 @@ try {
     $result = Test-WorkflowRateLimit -ResourceThresholds $thresholds
 }
 catch {
-    Write-Host "::error::Failed to check rate limits: $_"
+    Write-Error "Failed to check rate limits: $_"
     exit 1
 }
 
 # Output status
-Write-Host "Rate limits - Core: $($result.CoreRemaining), Thresholds: core=$CoreThreshold, graphql=$GraphQLThreshold"
-Write-Host $result.SummaryMarkdown
+Write-Output "Rate limits - Core: $($result.CoreRemaining), Thresholds: core=$CoreThreshold, graphql=$GraphQLThreshold"
+Write-Output $result.SummaryMarkdown
 
 # Write to GitHub Actions outputs if available
 if ($env:GITHUB_OUTPUT) {
@@ -81,7 +81,7 @@ if ($env:GITHUB_STEP_SUMMARY) {
 
 # Exit with appropriate code
 if (-not $result.Success) {
-    Write-Host "::error::Rate limit too low to proceed"
+    Write-Error "Rate limit too low to proceed"
     exit 1
 }
 
