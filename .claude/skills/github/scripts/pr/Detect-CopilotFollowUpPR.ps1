@@ -142,6 +142,12 @@ function Compare-DiffContent {
     .SYNOPSIS
         Compare follow-up diff to original changes.
         Returns likelihood percentage of being duplicate.
+    .PARAMETER FollowUpDiff
+        The unified diff content of the follow-up PR.
+    .PARAMETER OriginalCommits
+        Commits from the original PR for comparison.
+    .PARAMETER OriginalPRNumber
+        The original PR number to check merge status (Issue #293).
     #>
     param(
         [Parameter(Mandatory = $true)]
@@ -150,12 +156,27 @@ function Compare-DiffContent {
 
         [Parameter(Mandatory = $true)]
         [AllowEmptyCollection()]
-        [object[]]$OriginalCommits
+        [object[]]$OriginalCommits,
+
+        [Parameter(Mandatory = $false)]
+        [int]$OriginalPRNumber = 0
     )
 
     if ([string]::IsNullOrWhiteSpace($FollowUpDiff)) {
-        # Empty or whitespace-only diff = duplicate (no changes to add)
-        return @{similarity = 100; category = 'DUPLICATE'; reason = 'Follow-up PR contains no changes' }
+        # Empty or whitespace-only diff - check if original PR was merged (Issue #293)
+        $reason = 'Follow-up PR contains no changes'
+
+        if ($OriginalPRNumber -gt 0) {
+            $mergedJson = gh pr view $OriginalPRNumber --repo "$script:Owner/$script:Repo" --json merged 2>$null
+            if ($LASTEXITCODE -eq 0 -and $mergedJson) {
+                $mergeData = $mergedJson | ConvertFrom-Json
+                if ($mergeData.merged -eq $true) {
+                    $reason = 'Follow-up contains no changes (original PR already merged)'
+                }
+            }
+        }
+
+        return @{similarity = 100; category = 'DUPLICATE'; reason = $reason }
     }
 
     # Count file changes in follow-up
@@ -233,7 +254,7 @@ function Invoke-FollowUpDetection {
         $diff = Get-FollowUpPRDiff -FollowUpPRNumber $prNum
         $originalCommits = Get-OriginalPRCommits -PRNumber $PRNumber
 
-        $comparison = Compare-DiffContent -FollowUpDiff $diff -OriginalCommits $originalCommits
+        $comparison = Compare-DiffContent -FollowUpDiff $diff -OriginalCommits $originalCommits -OriginalPRNumber $PRNumber
 
         $analysisResult = @{
             followUpPRNumber   = $prNum

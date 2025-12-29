@@ -119,6 +119,32 @@ index 7654321..gfedcba 100644
         }
     }
 
+    Context "Merged PR Detection (Issue #293)" {
+        It "Empty diff without OriginalPRNumber returns default reason" {
+            $result = Compare-DiffContent -FollowUpDiff '' -OriginalCommits @()
+            $result.category | Should -Be 'DUPLICATE'
+            $result.similarity | Should -Be 100
+            $result.reason | Should -Be 'Follow-up PR contains no changes'
+        }
+
+        It "Empty diff with OriginalPRNumber=0 returns default reason (skips merge check)" {
+            $result = Compare-DiffContent -FollowUpDiff '' -OriginalCommits @() -OriginalPRNumber 0
+            $result.category | Should -Be 'DUPLICATE'
+            $result.similarity | Should -Be 100
+            $result.reason | Should -Be 'Follow-up PR contains no changes'
+        }
+
+        It "Whitespace-only diff with OriginalPRNumber=0 returns default reason" {
+            $result = Compare-DiffContent -FollowUpDiff '   ' -OriginalCommits @() -OriginalPRNumber 0
+            $result.category | Should -Be 'DUPLICATE'
+            $result.similarity | Should -Be 100
+            $result.reason | Should -Be 'Follow-up PR contains no changes'
+        }
+
+        # Note: Testing with merged PR requires mocking gh pr view
+        # The actual merge detection logic is integration-tested via script execution
+    }
+
     Context "Output Structure" {
         It "No follow-up result has expected structure" {
             # This tests the expected output structure when no follow-ups are found
