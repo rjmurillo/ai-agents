@@ -7,11 +7,11 @@
 
 ## Summary
 
-Session 81 was an architecture analysis session comparing GitHub operation approaches. No code changes were made - only ADR-016 was created.
+Session 81 was an architecture analysis session comparing GitHub operation approaches. No code changes were made - only ADR-027 was created.
 
 ## Artifacts Created
 
-1. `.agents/architecture/ADR-016-github-mcp-agent-isolation.md` - Architecture decision record
+1. `.agents/architecture/ADR-027-github-mcp-agent-isolation.md` - Architecture decision record
 
 ## Verification
 

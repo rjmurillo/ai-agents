@@ -39,7 +39,7 @@ jobs:
 
   check-changes:
     name: Check Changes
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
@@ -91,7 +91,7 @@ jobs:
 
   review:
     name: ${{ matrix.agent }} Review
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: check-changes
     if: needs.check-changes.outputs.should-run == 'true'
@@ -245,7 +245,8 @@ jobs:
           $findings = $env:FINDINGS
 
           # Check if verdict indicates a blocking failure
-          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL')
+          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict
+          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
 
           if ($verdict -in $blockingVerdicts) {
             # GitHub Actions annotations have a practical limit of ~200 chars for readability
@@ -274,7 +275,7 @@ jobs:
 
   aggregate:
     name: Aggregate Results
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: [check-changes, review]
     # Always run if check-changes ran and said to run, even if some matrix jobs failed
@@ -387,7 +388,7 @@ jobs:
           # Otherwise, it's CODE_QUALITY
           function Get-Category {
             param([string]$Verdict, [bool]$InfraFlag)
-            if ($Verdict -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL') {
+            if ($Verdict -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW') {
               if ($InfraFlag) { return 'INFRASTRUCTURE' } else { return 'CODE_QUALITY' }
             }
             return 'N/A'
@@ -415,7 +416,7 @@ jobs:
           Write-Log "Final verdict: $final"
 
           # If final verdict is failure but no CODE_QUALITY failures, change to WARN
-          if ($final -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL') {
+          if ($final -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW') {
             if (-not $codeQualityFailures) {
               Write-Log "All failures are INFRASTRUCTURE - downgrading to WARN (PR will not be blocked)"
               $final = 'WARN'
@@ -558,7 +559,7 @@ jobs:
 
           </details>
 
-          <sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) - [View Workflow]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID)</sub>
+          <sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) workflow</sub>
           "@
 
           $report | Set-Content $reportFile -Encoding UTF8
@@ -644,7 +645,8 @@ jobs:
           )
 
           # Identify agents with blocking verdicts
-          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL')
+          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict
+          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
           $failedAgents = @()
 
           foreach ($entry in $agentVerdicts) {
@@ -683,7 +685,7 @@ jobs:
     name: ${{ matrix.agent }} Review
     needs: check-changes
     if: needs.check-changes.outputs.should-run != 'true'
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -711,7 +713,7 @@ jobs:
     name: Aggregate Results
     needs: check-changes
     if: needs.check-changes.outputs.should-run != 'true'
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read

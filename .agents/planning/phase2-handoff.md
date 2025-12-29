@@ -47,7 +47,7 @@ No special environment setup required. Standard PowerShell environment sufficien
 
 ### Additional Phase 1 Achievements
 
-- **Agent Tool Optimization**: ADR-0003 created with role-specific tool allocations
+- **Agent Tool Optimization**: ADR-003 created with role-specific tool allocations
 - **Skill Extraction**: 81 skills extracted and persisted to `.serena/memories/`
 - **Template Synchronization**: All 18 shared templates synced with Claude sources
 - **Platform Agent Regeneration**: 36 platform agents regenerated (18 VS Code + 18 Copilot CLI)
@@ -57,7 +57,7 @@ No special environment setup required. Standard PowerShell environment sufficien
 | Commit | Description |
 |--------|-------------|
 | `67df41d` | feat(agents): implement Phase 1 critical security and documentation fixes |
-| `323ba09` | Tool optimization and ADR-0003 updates |
+| `323ba09` | Tool optimization and ADR-003 updates |
 | `6230ecf` | Skill extraction (81 skills) |
 | Multiple | Template sync and regeneration |
 
@@ -401,7 +401,7 @@ graph LR
 
 | Document | Location | Purpose |
 |----------|----------|---------|
-| ADR-0003 | `.agents/architecture/ADR-0003-agent-tool-selection-criteria.md` | Tool allocation decisions |
+| ADR-003 | `.agents/architecture/ADR-003-agent-tool-selection-criteria.md` | Tool allocation decisions |
 | AGENTS.md | `AGENTS.md` | Main agent documentation |
 | CONTRIBUTING.md | `CONTRIBUTING.md` | Contribution guidelines |
 

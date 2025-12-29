@@ -161,7 +161,7 @@ See [AI Review Model Policy](../../governance/AI-REVIEW-MODEL-POLICY.md) for:
 ## Related Decisions
 
 - ADR-010: Quality Gates (provides aggregation framework)
-- ADR-014: GitHub Actions Runner Selection (cost governance pattern)
+- ADR-024: GitHub Actions Runner Selection (cost governance pattern)
 - ADR-020: Architecture vs Governance Split Criteria (defines this split pattern)
 - Issue #164: Failure Categorization (infrastructure noise vs false PASS)
 

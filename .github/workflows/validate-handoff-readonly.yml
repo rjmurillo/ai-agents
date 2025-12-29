@@ -25,7 +25,7 @@ on:
 jobs:
   validate-handoff:
     name: Check HANDOFF.md Not Modified
-    # ADR-014: Use ARM runners for 37.5% cost reduction
+    # ADR-025: Use ARM runners for 37.5% cost reduction
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read

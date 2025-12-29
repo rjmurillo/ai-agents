@@ -31,7 +31,7 @@ env:
 jobs:
   validate-spec:
     name: Validate Spec Coverage
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
 
@@ -258,14 +258,14 @@ jobs:
 
           ---
 
-          <sub>Powered by [AI Spec Validator](https://github.com/$($env:GITHUB_REPOSITORY)) - *Validation skipped - no specs found*</sub>
+          <sub>Powered by [AI Spec Validator](https://github.com/$($env:GITHUB_REPOSITORY)) workflow</sub>
           "@
           } else {
             # Determine final verdict
             # PARTIAL completeness verdict should cause the check to FAIL (block merge)
             # WARN means minor gaps acceptable for merge with follow-up
             $finalVerdict = 'PASS'
-            if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL') {
+            if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'NEEDS_REVIEW' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL', 'NEEDS_REVIEW') {
               $finalVerdict = 'FAIL'
             } elseif ($env:TRACE_VERDICT -eq 'WARN' -or $env:COMPLETENESS_VERDICT -eq 'WARN') {
               $finalVerdict = 'WARN'
@@ -339,7 +339,7 @@ jobs:
 
           </details>
 
-          <sub>Powered by [AI Spec Validator](https://github.com/$($env:GITHUB_REPOSITORY)) - [View Workflow]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID))</sub>
+          <sub>Powered by [AI Spec Validator](https://github.com/$($env:GITHUB_REPOSITORY)) workflow</sub>
           "@
           }
 
@@ -376,7 +376,7 @@ jobs:
         run: |
           # PARTIAL completeness = incomplete implementation = FAIL (blocks merge)
           # WARN = minor gaps = acceptable for merge with follow-up
-          if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL') {
+          if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'NEEDS_REVIEW' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL', 'NEEDS_REVIEW') {
             Write-Output "::error::Spec validation failed - implementation does not fully satisfy requirements"
             exit 1
           }
