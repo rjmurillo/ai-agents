@@ -6,14 +6,8 @@
 # IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
 # but skips actual test execution when no testable files are changed.
 #
-# Testable paths:
-# - Installation scripts (scripts/)
-# - Build automation (build/)
-# - GitHub Actions helpers (.github/scripts/)
-# - GitHub skill tests (.github/tests/)
-# - Claude skills (.claude/skills/)
-# - Root-level tests (tests/)
-# - Coverage thresholds (.baseline/)
+# Testable paths are defined ONCE in the check-paths job filters block.
+# See the 'testable' filter for the authoritative list.
 #
 # Local developers and AI agents can run the same tests using:
 #   pwsh ./build/scripts/Invoke-PesterTests.ps1
@@ -45,6 +39,8 @@ jobs:
     outputs:
       # For workflow_dispatch, always run tests; otherwise use paths-filter result
       should-run-tests: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.testable }}
+      # Export testable paths for skip-tests job to display (issue #144: single source of truth)
+      testable-paths: ${{ steps.filter.outputs.testable_files }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -54,6 +50,17 @@ jobs:
         # Skip paths-filter for workflow_dispatch as it may not have proper context
         if: github.event_name != 'workflow_dispatch'
         with:
+          # SINGLE SOURCE OF TRUTH: All testable paths defined here only (issue #144)
+          # Categories:
+          #   - scripts/**              : Installation scripts
+          #   - build/**                : Build automation
+          #   - .github/scripts/**      : GitHub Actions helpers
+          #   - .github/tests/**        : GitHub skill tests
+          #   - .github/workflows/pester-tests.yml : This workflow
+          #   - .claude/skills/**       : Claude skills
+          #   - tests/**                : Root-level tests
+          #   - .baseline/**            : Coverage thresholds
+          list-files: json
           filters: |
             testable:
               - 'scripts/**'
@@ -71,6 +78,9 @@ jobs:
             echo "Manual trigger - running all tests"
           else
             echo "Testable files changed: ${{ steps.filter.outputs.testable }}"
+            if [ "${{ steps.filter.outputs.testable }}" = "true" ]; then
+              echo "Changed files: ${{ steps.filter.outputs.testable_files }}"
+            fi
           fi
 
   test:
@@ -132,17 +142,10 @@ jobs:
 
       - name: Skip tests (no testable files changed)
         run: |
-          echo "✅ No testable PowerShell files changed - skipping Pester tests"
+          echo "No testable PowerShell files changed - skipping Pester tests"
           echo ""
-          echo "Testable paths that would trigger tests:"
-          echo "  - scripts/**"
-          echo "  - build/**"
-          echo "  - .github/scripts/**"
-          echo "  - .github/tests/**"
-          echo "  - .github/workflows/pester-tests.yml"
-          echo "  - .claude/skills/**"
-          echo "  - tests/**"
-          echo "  - .baseline/**"
+          echo "See the 'testable' filter in check-paths job for paths that trigger tests."
+          echo "Reference: .github/workflows/pester-tests.yml"
 
       - name: Create empty test result for required check
         run: |
