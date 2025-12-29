@@ -402,8 +402,8 @@ if ($warnings.Count -gt 0) {
 
 if ($errors.Count -gt 0) {
     Write-ColorOutput "❌ ERRORS: $($errors.Count)" $ColorRed
-    foreach ($error in $errors) {
-        Write-Host "  - $error"
+    foreach ($err in $errors) {
+        Write-Host "  - $err"
     }
 }
 
