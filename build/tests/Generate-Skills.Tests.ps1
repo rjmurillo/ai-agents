@@ -14,7 +14,7 @@
 
 BeforeAll {
     # Install and import required module
-    # Version pinned for security and reproducibility
+    # Version pinned for security and reproducibility (issue #304)
     $requiredVersion = '0.4.12'
     $module = Get-Module -ListAvailable -Name powershell-yaml | Where-Object { $_.Version -eq $requiredVersion }
     if (-not $module) {
