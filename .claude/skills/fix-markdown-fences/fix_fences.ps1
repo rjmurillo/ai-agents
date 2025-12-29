@@ -89,15 +89,9 @@ foreach ($dir in $Directories) {
         }
         
         $fixedContent = Repair-MarkdownFences -Content $content
-        
+
         if ($content -ne $fixedContent) {
-            $prefix = if ($WhatIfPreference) { "[WhatIf] " } else { "" }
-
-            if (-not $WhatIfPreference) {
-                Set-Content -Path $file -Value $fixedContent -NoNewline -Encoding UTF8
-            }
-
-            Write-Host "${prefix}Fixed: $file"
+            Set-Content -Path $file -Value $fixedContent -NoNewline -Encoding UTF8
             $script:totalFixed++
         }
     }
@@ -107,6 +101,5 @@ if ($totalFixed -eq 0) {
     Write-Host "No files needed fixing"
 }
 else {
-    $action = if ($WhatIfPreference) { "would fix" } else { "fixed" }
-    Write-Host "`nTotal: $action $totalFixed file(s)"
+    Write-Host "`nTotal: fixed $totalFixed file(s)"
 }

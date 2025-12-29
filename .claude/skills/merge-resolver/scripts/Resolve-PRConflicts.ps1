@@ -243,7 +243,7 @@ function Test-IsAutoResolvable {
 #region Main Logic
 
 function Resolve-PRConflicts {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [string]$Owner,
         [string]$Repo,
@@ -278,7 +278,7 @@ function Resolve-PRConflicts {
     if ($isGitHubRunner) {
         Write-Host "Running in GitHub Actions - using direct merge without worktree" -ForegroundColor Cyan
 
-        if ($WhatIfPreference) {
+        if (-not ($PSCmdlet.ShouldProcess("PR #$PRNumber", "Resolve conflicts in GitHub runner mode"))) {
             $result.Message = "[WhatIf] Would resolve conflicts for PR #$PRNumber in GitHub runner mode"
             $result.Success = $true
             return $result
@@ -380,7 +380,7 @@ function Resolve-PRConflicts {
             return $result
         }
 
-        if ($WhatIfPreference) {
+        if (-not ($PSCmdlet.ShouldProcess($worktreePath, "Create worktree and resolve conflicts for PR #$PRNumber"))) {
             $result.Message = "[WhatIf] Would create worktree at $worktreePath and resolve conflicts for PR #$PRNumber"
             $result.Success = $true
             return $result

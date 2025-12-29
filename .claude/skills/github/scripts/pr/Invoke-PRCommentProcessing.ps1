@@ -67,13 +67,13 @@ function Get-Findings {
 # Add reaction to a comment
 # Tries PR review comment endpoint first, then falls back to issue comment endpoint
 function Add-CommentReaction {
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [long]$CommentId,
         [string]$Reaction = 'eyes'
     )
 
-    if ($WhatIfPreference) {
-        Write-Host "[WhatIf] Would add $Reaction reaction to comment $CommentId"
+    if (-not $PSCmdlet.ShouldProcess("comment $CommentId", "Add reaction '$Reaction'")) {
         return
     }
 
