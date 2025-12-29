@@ -146,7 +146,11 @@ function Get-IndexEntries {
 function Test-FileReferences {
     <#
     .SYNOPSIS
-        Validates that all index entries point to existing files
+        Validates that all index entries point to existing files and use correct naming convention
+    .DESCRIPTION
+        Checks:
+        1. Referenced files exist in the memory path
+        2. File names do NOT use deprecated 'skill-' prefix (ADR-017 Gap 1/2)
     #>
     param(
         [array]$Entries,
@@ -158,10 +162,18 @@ function Test-FileReferences {
         Issues = @()
         MissingFiles = @()
         ValidFiles = @()
+        NamingViolations = @()
     }
 
     foreach ($entry in $Entries) {
         $filePath = Join-Path $MemoryPath "$($entry.FileName).md"
+
+        # Check for deprecated skill- prefix (ADR-017 Gap 1/2)
+        if ($entry.FileName -match '^skill-') {
+            $result.Passed = $false
+            $result.NamingViolations += $entry.FileName
+            $result.Issues += "Index references deprecated 'skill-' prefix: $($entry.FileName).md (ADR-017 violation)"
+        }
 
         if (Test-Path $filePath) {
             $result.ValidFiles += $entry.FileName
@@ -250,6 +262,10 @@ function Get-OrphanedFiles {
     <#
     .SYNOPSIS
         Finds atomic skill files not referenced by any domain index
+    .DESCRIPTION
+        Detects:
+        1. Files matching domain prefix pattern not in any index
+        2. Files with deprecated 'skill-' prefix (ADR-017 Gap 4) - flagged as INVALID domain
     #>
     param(
         [array]$AllIndices,
@@ -278,9 +294,21 @@ function Get-OrphanedFiles {
             continue
         }
 
-        # Skip known non-atomic files (memory-index, skills-*, pattern-*, etc.)
+        # Skip known non-atomic files (memory-index)
         if ($baseName -eq 'memory-index') {
             continue
+        }
+
+        # ADR-017 Gap 4: Check for deprecated skill- prefix (silent failure mode)
+        # Files with skill- prefix should be renamed to {domain}-{description} format
+        # Only flag as orphan if NOT already referenced by an index (Gap 1/2 catches indexed ones)
+        if ($baseName -match '^skill-' -and -not $referencedFiles.ContainsKey($baseName)) {
+            [void]$orphans.Add([PSCustomObject]@{
+                File = $baseName
+                Domain = 'INVALID'
+                ExpectedIndex = 'Rename to {domain}-{description} format per ADR-017'
+            })
+            continue  # Skip domain pattern matching for skill- files
         }
 
         # Check if file follows atomic naming pattern (domain prefix)
@@ -301,6 +329,91 @@ function Get-OrphanedFiles {
     }
 
     return ,@($orphans)
+}
+
+function Test-IndexFormat {
+    <#
+    .SYNOPSIS
+        Validates that domain index files are pure lookup tables (ADR-017 token efficiency)
+    .DESCRIPTION
+        Ensures index files contain ONLY the keywords table with no:
+        - Titles (# ...)
+        - Metadata blocks (**Key**: Value)
+        - Prose or explanatory text
+        - Navigation sections (## Index, Parent: ...)
+    #>
+    param(
+        [string]$IndexPath
+    )
+
+    $result = @{
+        Passed = $true
+        Issues = @()
+        ViolationLines = @()
+    }
+
+    if (-not (Test-Path $IndexPath)) {
+        return $result
+    }
+
+    $lines = Get-Content -Path $IndexPath -Encoding UTF8
+    $lineNumber = 0
+    $inTable = $false
+    $tableHeaderFound = $false
+
+    foreach ($line in $lines) {
+        $lineNumber++
+        $trimmedLine = $line.Trim()
+
+        # Skip empty lines
+        if ([string]::IsNullOrWhiteSpace($trimmedLine)) {
+            continue
+        }
+
+        # Check for prohibited patterns
+
+        # Titles: # ...
+        if ($trimmedLine -match '^#+\s+') {
+            $result.Passed = $false
+            $result.ViolationLines += $lineNumber
+            $result.Issues += "Line $lineNumber`: Title detected - '$trimmedLine' (prohibited per ADR-017)"
+            continue
+        }
+
+        # Metadata blocks: **Key**: Value
+        if ($trimmedLine -match '^\*\*[^*]+\*\*:\s*') {
+            $result.Passed = $false
+            $result.ViolationLines += $lineNumber
+            $result.Issues += "Line $lineNumber`: Metadata block detected - '$trimmedLine' (prohibited per ADR-017)"
+            continue
+        }
+
+        # Navigation sections: ## Index, Parent:, etc.
+        if ($trimmedLine -match '^Parent:\s*' -or $trimmedLine -match '^>\s*\[.*\]') {
+            $result.Passed = $false
+            $result.ViolationLines += $lineNumber
+            $result.Issues += "Line $lineNumber`: Navigation section detected - '$trimmedLine' (prohibited per ADR-017)"
+            continue
+        }
+
+        # Check for table structure
+        if ($trimmedLine -match '^\|.*\|$') {
+            # Valid table row (header, separator, or data)
+            $inTable = $true
+            $tableHeaderFound = $true
+            continue
+        }
+
+        # If we're past the table header and see non-table content, it's a violation
+        if ($tableHeaderFound -and -not ($trimmedLine -match '^\|.*\|$')) {
+            # Could be prose or other content after/around the table
+            $result.Passed = $false
+            $result.ViolationLines += $lineNumber
+            $result.Issues += "Line $lineNumber`: Non-table content detected - '$trimmedLine' (prohibited per ADR-017)"
+        }
+    }
+
+    return $result
 }
 
 function Test-MemoryIndexReferences {
@@ -386,13 +499,17 @@ function Invoke-MemoryIndexValidation {
             $validation.Summary.KeywordIssues += $keywordResult.Issues.Count
         }
 
-        $domainPassed = $fileResult.Passed -and $keywordResult.Passed
+        # Test index format (ADR-017 pure lookup table requirement)
+        $formatResult = Test-IndexFormat -IndexPath $index.Path
+
+        $domainPassed = $fileResult.Passed -and $keywordResult.Passed -and $formatResult.Passed
 
         $validation.DomainResults[$index.Domain] = @{
             IndexPath = $index.Path
             Entries = $entries.Count
             FileReferences = $fileResult
             KeywordDensity = $keywordResult
+            IndexFormat = $formatResult
             Passed = $domainPassed
         }
 
@@ -409,6 +526,9 @@ function Invoke-MemoryIndexValidation {
             }
             foreach ($issue in $keywordResult.Issues) {
                 Write-ColorOutput "    - $issue" $ColorYellow
+            }
+            foreach ($issue in $formatResult.Issues) {
+                Write-ColorOutput "    - $issue" $ColorRed
             }
         }
 
