@@ -785,16 +785,26 @@ function Test-WorkflowRateLimit {
     )
 
     foreach ($resource in $ResourceThresholds.Keys) {
-        $remaining = $rateLimit.resources.$resource.remaining
-        $limit = $rateLimit.resources.$resource.limit
-        $reset = $rateLimit.resources.$resource.reset
+        # Check if resource exists in API response (null safety for API changes)
+        $resourceData = $rateLimit.resources.$resource
+        if ($null -eq $resourceData) {
+            Write-Warning "Resource '$resource' not found in rate limit response"
+            $allPassed = $false
+            $summaryLines += "| $resource | N/A | $($ResourceThresholds[$resource]) | X MISSING |"
+            continue
+        }
+
+        $remaining = $resourceData.remaining
+        $limit = $resourceData.limit
+        $reset = $resourceData.reset
         $threshold = $ResourceThresholds[$resource]
         $passed = $remaining -ge $threshold
 
         if (-not $passed) { $allPassed = $false }
 
-        $status = if ($passed) { "OK" } else { "TOO LOW" }
-        $statusIcon = if ($passed) { "+" } else { "X" }
+        # PowerShell 5.1 compatibility: wrap if expressions in script blocks
+        $status = & { if ($passed) { "OK" } else { "TOO LOW" } }
+        $statusIcon = & { if ($passed) { "+" } else { "X" } }
 
         $resources[$resource] = @{
             Remaining = $remaining
