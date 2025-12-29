@@ -45,7 +45,6 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Parse JSON response
-# NOTE: Use $issueData (not $issue) to avoid conflict with $Issue parameter - PowerShell is case-insensitive!
 $issueData = ConvertFrom-Json -InputObject $jsonResponse
 
 if (-not $issueData) {
