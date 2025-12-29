@@ -1,4 +1,4 @@
-# ADR-019: Skill File Line Ending Normalization
+# ADR-029: Skill File Line Ending Normalization
 
 ## Status
 

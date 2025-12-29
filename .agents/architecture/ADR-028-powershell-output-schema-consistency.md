@@ -1,4 +1,4 @@
-# ADR-017: PowerShell Output Schema Consistency
+# ADR-028: PowerShell Output Schema Consistency
 
 ## Status
 

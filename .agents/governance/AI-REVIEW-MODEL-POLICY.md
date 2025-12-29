@@ -415,7 +415,7 @@ This is a **governance policy**, not an agent capability. It sets system-wide de
 
 - [ADR-021: AI Review Model Routing Strategy](../architecture/ADR-021-model-routing-strategy.md) - Architectural decision and rationale
 - [ADR-010: Quality Gates](../architecture/ADR-010-quality-gates.md) - Aggregation framework
-- [ADR-014: GitHub Actions Runner Selection](../architecture/ADR-014-github-actions-runner-selection.md) - Cost governance pattern
+- [ADR-024: GitHub Actions Runner Selection](../architecture/ADR-024-github-actions-runner-selection.md) - Cost governance pattern
 - [ADR-022: Architecture vs Governance Split Criteria](../architecture/ADR-022-architecture-governance-split-criteria.md) - Defines this split pattern
 - [COST-GOVERNANCE.md](COST-GOVERNANCE.md) - Runner selection policy (similar enforcement pattern)
 - Issue #164: Failure Categorization (infrastructure noise vs false PASS)

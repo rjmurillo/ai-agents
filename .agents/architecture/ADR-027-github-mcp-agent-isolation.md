@@ -6,7 +6,7 @@ consulted: Analyst (Session 80), Independent-Thinker
 informed: Implementer, DevOps, Orchestrator
 ---
 
-# ADR-016: GitHub MCP Server with Agent Isolation Pattern
+# ADR-027: GitHub MCP Server with Agent Isolation Pattern
 
 ## Context and Problem Statement
 
@@ -373,7 +373,7 @@ Before Phase 3, validate these operations work via GitHub MCP:
 
 - [ADR-005: PowerShell-Only Scripting](./ADR-005-powershell-only-scripting.md) - Exception for gh CLI phase
 - [ADR-011: Session State MCP](./ADR-011-session-state-mcp.md) - MCP architecture precedent
-- [ADR-0003: Agent Tool Selection](./ADR-0003-agent-tool-selection-criteria.md) - Role-specific tool allocation
+- [ADR-003: Agent Tool Selection](./ADR-003-agent-tool-selection-criteria.md) - Role-specific tool allocation
 
 ## More Information
 

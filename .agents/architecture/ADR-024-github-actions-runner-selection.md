@@ -1,4 +1,4 @@
-# ADR-014: GitHub Actions Runner Selection
+# ADR-024: GitHub Actions Runner Selection
 
 ## Status
 
