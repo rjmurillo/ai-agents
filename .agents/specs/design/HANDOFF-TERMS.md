@@ -194,8 +194,3 @@ Always use the exact terms from this specification. Do not use synonyms:
 | GOOD | APPROVED |
 | BAD | REJECTED |
 
-## Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2024-12-23 | Initial specification |

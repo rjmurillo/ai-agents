@@ -576,22 +576,6 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 ---
 
-## Document History
-
-| Version | Date | Changes |
-|---------|------|---------|
-
-| 1.4 | 2025-12-22 | Added Unattended Execution Protocol (Issue #230) |
-| 1.5 | 2025-12-22 | Added Unattended Execution Protocol (Issue #230) |
-| 1.4 | 2025-12-22 | P0: Changed HANDOFF.md from MUST update to MUST NOT update; agents use session logs and Serena memory |
-
-| 1.3 | 2025-12-20 | Added Phase 2.5 QA Validation BLOCKING gate |
-| 1.2 | 2025-12-18 | Added Phase 1.5 skill validation BLOCKING gate |
-| 1.1 | 2025-12-17 | Added requirement to link session log in HANDOFF.md |
-| 1.0 | 2025-12-17 | Initial canonical protocol with RFC 2119 requirements |
-
----
-
 ## Related Documents
 
 - [AGENTS.md](../AGENTS.md) - Full agent catalog and workflows

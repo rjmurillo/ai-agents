@@ -62,16 +62,16 @@
     Exit Codes:
     0 = Success
     2 = Error (script failure, API errors, fatal exceptions)
+    Supports -WhatIf for dry-run mode (issue #461).
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
     [string]$Owner,
     [string]$Repo,
     [int]$MaxPRs = 20,
     [string]$LogPath,
-    [switch]$OutputJson,
-    [switch]$DryRun
+    [switch]$OutputJson
 )
 
 Set-StrictMode -Version Latest
@@ -526,8 +526,7 @@ function Invoke-PRMaintenance {
     param(
         [string]$Owner,
         [string]$Repo,
-        [int]$MaxPRs,
-        [switch]$DryRun
+        [int]$MaxPRs
     )
 
     $results = @{
@@ -743,7 +742,7 @@ try {
     }
 
     # Run discovery
-    $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs -DryRun:$DryRun
+    $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -MaxPRs $MaxPRs
 
     # JSON Output Mode (for workflow matrix)
     if ($OutputJson) {
