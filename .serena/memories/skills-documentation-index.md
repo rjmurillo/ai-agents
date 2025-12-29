@@ -7,6 +7,6 @@
 | user-facing content internal PR issue session exclude | documentation-user-facing |
 | self-contained operational prompts autonomous agents resource constraints | documentation-006-self-contained-operational-prompts |
 | self-contained artifact handoff agent amnesia general | documentation-007-self-contained-artifacts |
-| index selection domain routing keyword overlap create new | index-selection-decision-tree |
+| index selection domain routing keyword overlap create new | documentation-index-selection-decision-tree |
 | verification critic amnesiac completeness objective PASS FAIL protocol | documentation-verification-protocol |
 | framework constraints limitations pull push SKILL.md automatic invocation | documentation-008-framework-constraints |

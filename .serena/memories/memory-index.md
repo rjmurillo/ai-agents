@@ -38,7 +38,7 @@
 | regex pattern match escape lookahead anchor quantifier | utilities-regex |
 | roadmap epic priority strategic vision business value | roadmap-priorities |
 | governance agent consolidation design principle overlap | governance-001-8-question-agent-interview, governance-002-five-consolidation-triggers |
-| dorny paths-filter checkout base ref PR changes | ci-dorny-paths-filter-checkout |
+| dorny paths-filter checkout base ref PR changes | ci-infrastructure-dorny-paths-filter-checkout |
 | edit file read search replace text operation | edit-001-read-before-edit-pattern, edit-002-unique-context-for-edit-matching |
 | pr validation gate status check blocker merge | validation-pr-gates |
 | process workflow gap missing capability root cause | orchestration-process-workflow-gaps |

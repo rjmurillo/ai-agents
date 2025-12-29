@@ -2,7 +2,7 @@
 |----------|------|
 | pr create review merge list approve squash draft fill auto-merge delete-branch | github-cli-pr-operations |
 | issue create edit close reopen lock pin transfer lifecycle assignee milestone label copilot copilot-swe-agent assign trigger automated resolution context injection | github-cli-issue-operations |
-| bidirectional issue linking cross-reference comment navigation related | github-001-bidirectional-issue-linking |
+| bidirectional issue linking cross-reference comment navigation related | github-cli-001-bidirectional-issue-linking |
 | run workflow list view log-failed watch trigger dispatch inputs status failure | github-cli-workflow-runs |
 | release create upload download assets generate-notes draft prerelease changelog tag | github-cli-releases |
 | api graphql paginate jq query mutation REST endpoint header cache slurp auth login token scope refresh project workflow packages logout switch json output filter transform select sort raw fields scripting | github-cli-api-patterns |

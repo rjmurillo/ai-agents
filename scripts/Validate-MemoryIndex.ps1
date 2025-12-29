@@ -12,13 +12,11 @@
     - Detects deprecated skill- prefix in index entries
     - Detects duplicate entries in same index
 
-    P1 (Blocking with -Strict):
-    - Validates memory-index completeness (all domain indices referenced)
-    - Validates memory-index validity (all references exist)
+    P1 (Warning):
     - Reports orphaned atomic files not referenced by any index
     - Detects unindexed skill- prefixed files
 
-    P2 (Warning only, Blocking with -Strict -SkipP2:$false):
+    P2 (Warning):
     - Minimum keyword count (>=5 per skill)
     - Domain prefix naming convention ({domain}-{description})
 
@@ -36,14 +34,6 @@
 .PARAMETER FixOrphans
     When set, reports orphaned atomic files that should be indexed.
 
-.PARAMETER Strict
-    When set, P1 and P2 validations become blocking (fail CI).
-    Without this flag, P1/P2 issues are reported as warnings.
-
-.PARAMETER SkipP2
-    When set, skips P2 validations (minimum keywords, naming convention).
-    Useful for existing codebases during migration.
-
 .EXAMPLE
     .\Validate-MemoryIndex.ps1
     # Basic validation - P0 blocking, P1/P2 warnings
@@ -51,14 +41,6 @@
 .EXAMPLE
     .\Validate-MemoryIndex.ps1 -CI
     # CI mode - exits non-zero on P0 failures
-
-.EXAMPLE
-    .\Validate-MemoryIndex.ps1 -CI -Strict
-    # Strict CI mode - exits non-zero on P0, P1, or P2 failures
-
-.EXAMPLE
-    .\Validate-MemoryIndex.ps1 -CI -Strict -SkipP2
-    # Strict for P0/P1 only - useful during migration
 
 .EXAMPLE
     .\Validate-MemoryIndex.ps1 -CI -Format json
@@ -78,13 +60,7 @@ param(
     [string]$Format = "console",
 
     [Parameter()]
-    [switch]$FixOrphans,
-
-    [Parameter()]
-    [switch]$Strict,
-
-    [Parameter()]
-    [switch]$SkipP2
+    [switch]$FixOrphans
 )
 
 #region Color Output
@@ -692,32 +668,17 @@ function Invoke-MemoryIndexValidation {
         # P2: Test duplicate entries
         $duplicateResult = Test-DuplicateEntries -Entries $entries
 
-        # P2: Test minimum keywords (skip if SkipP2)
-        $minKeywordResult = if (-not $SkipP2) {
-            Test-MinimumKeywords -Entries $entries -MinKeywords 5
-        } else {
-            @{ Passed = $true; Issues = @(); KeywordCounts = @{} }
-        }
+        # P2: Test minimum keywords (always run, warning only)
+        $minKeywordResult = Test-MinimumKeywords -Entries $entries -MinKeywords 5
 
-        # P2: Test domain prefix naming (skip if SkipP2)
-        $prefixResult = if (-not $SkipP2) {
-            Test-DomainPrefixNaming -Entries $entries -Domain $index.Domain
-        } else {
-            @{ Passed = $true; Issues = @(); NonConforming = @() }
-        }
+        # P2: Test domain prefix naming (always run, warning only)
+        $prefixResult = Test-DomainPrefixNaming -Entries $entries -Domain $index.Domain
 
         # Calculate domain pass status
-        # P0 validations are always blocking
+        # P0 validations are always blocking; P2 are warnings only
         $p0Passed = $fileResult.Passed -and $keywordResult.Passed -and $formatResult.Passed -and $duplicateResult.Passed
 
-        # P2 validations are warnings unless -Strict mode
-        $p2Passed = if ($Strict -and -not $SkipP2) {
-            $minKeywordResult.Passed -and $prefixResult.Passed
-        } else {
-            $true
-        }
-
-        $domainPassed = $p0Passed -and $p2Passed
+        $domainPassed = $p0Passed
 
         $validation.DomainResults[$index.Domain] = @{
             IndexPath = $index.Path
@@ -753,18 +714,12 @@ function Invoke-MemoryIndexValidation {
             }
         }
 
-        # Show P2 warnings even if domain passed
-        if (-not $SkipP2) {
-            foreach ($issue in $minKeywordResult.Issues) {
-                $color = if ($Strict) { $ColorRed } else { $ColorYellow }
-                $prefix = if ($Strict) { "[P2 FAIL]" } else { "[P2 WARN]" }
-                Write-ColorOutput "    - $prefix $issue" $color
-            }
-            foreach ($issue in $prefixResult.Issues) {
-                $color = if ($Strict) { $ColorRed } else { $ColorYellow }
-                $prefix = if ($Strict) { "[P2 FAIL]" } else { "[P2 WARN]" }
-                Write-ColorOutput "    - $prefix $issue" $color
-            }
+        # Show P2 warnings (never blocking)
+        foreach ($issue in $minKeywordResult.Issues) {
+            Write-ColorOutput "    - [P2 WARN] $issue" $ColorYellow
+        }
+        foreach ($issue in $prefixResult.Issues) {
+            Write-ColorOutput "    - [P2 WARN] $issue" $ColorYellow
         }
 
         # Show keyword densities
@@ -800,18 +755,10 @@ function Invoke-MemoryIndexValidation {
     $validation.Orphans = $orphans
 
     if ($orphans.Count -gt 0) {
-        # In Strict mode, orphans are failures; otherwise warnings
-        $orphanColor = if ($Strict) { $ColorRed } else { $ColorYellow }
-        $orphanPrefix = if ($Strict) { "[P1 FAIL]" } else { "[P1 WARN]" }
-
-        Write-ColorOutput "`n${orphanPrefix} Orphaned files detected (not indexed):" $orphanColor
+        # Orphans are always warnings (P1), never blocking
+        Write-ColorOutput "`n[P1 WARN] Orphaned files detected (not indexed):" $ColorYellow
         foreach ($orphan in $orphans) {
-            Write-ColorOutput "  - $($orphan.File) (should be in $($orphan.ExpectedIndex))" $orphanColor
-        }
-
-        # In Strict mode, orphans cause validation failure
-        if ($Strict) {
-            $validation.Passed = $false
+            Write-ColorOutput "  - $($orphan.File) (should be in $($orphan.ExpectedIndex))" $ColorYellow
         }
     }
 
