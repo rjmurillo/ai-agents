@@ -452,7 +452,6 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
 - [ ] Tests pass with CI flags (GITHUB_ACTIONS=true, CI=true)
 - [ ] Build succeeds with /p:ContinuousIntegrationBuild=true
-- [ ] Protected branch behavior verified locally
 - [ ] CI-specific configuration documented
 
 ### Validation Checklist 5: Environment Variable Completeness
