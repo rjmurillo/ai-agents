@@ -13,7 +13,7 @@ Before multi-agent session execution begins, coordination agent MUST verify bran
 
 ### Gate 1: Verify Pre-Commit Hooks Active (2 min)
 
-```
+```text
 Action: git hooks --status
 Verify: All hooks return 0 (active)
 Fallback: If hooks not active, fail fast and escalate
@@ -22,7 +22,7 @@ Success: All hooks confirmed active
 
 ### Gate 2: Assign Explicit Branch per Agent (3 min)
 
-```
+```text
 Pattern: worktree-${AGENT_ROLE}-${PR_NUMBER} -> ${FEATURE_BRANCH}
 Document: HCOM message listing each agent's assigned branch
 Example: "jeta -> feat/pr-162-phase4, onen -> audit/pr-89-protocol"
@@ -31,7 +31,7 @@ Success: Each agent has written confirmation of assigned branch
 
 ### Gate 3: Verification Checkpoint - Confirm Isolation (2 min)
 
-```
+```text
 Action: Require each agent to run: git branch --show-current
 Expected: Output matches assigned branch (e.g., feat/pr-162-phase4)
 Failure: If output != expected, HALT execution and escalate
@@ -40,7 +40,7 @@ Success: All agents confirmed on correct isolated branches
 
 ### Gate 4: Pre-Commit Hook Briefing (2 min)
 
-```
+```text
 Message: "File naming conventions enforced by pre-commit hooks"
 Verify: Each agent can name one file correctly
 Example: ".agents/sessions/YYYY-MM-DD-session-NN.md (correct)"
@@ -49,7 +49,7 @@ Success: All agents understand naming requirements
 
 ### Gate 5: Sign-Off Message (1 min)
 
-```
+```text
 Require: HCOM message from each agent: "Ready on [BRANCH_NAME]"
 Verification: Each agent confirms:
   a) On correct isolated branch

@@ -13,7 +13,7 @@
 
 ### Skill Candidates
 | ID | Statement | Atomicity | Context |
-|----|-----------|-----------|---------|
+|----|-----------|-----------|------------|
 | Skill-X-001 | [statement] | 92% | [context] |
 
 ### Memory Updates

@@ -199,11 +199,82 @@ Remove anything that doesn't aid retrieval:
 
 Compliance verified via:
 
-1. **Pre-commit hook**: Validates new skill files are indexed
+1. **Pre-commit hook**: Validates new skill files are indexed (`Validate-SkillFormat.ps1`)
 2. **CI workflow**: `Validate-MemoryIndex.ps1` checks index ↔ file consistency
 3. **Keyword density check**: Each skill has ≥40% unique keywords
+4. **Index entry naming validation**: Index entries MUST NOT reference `skill-` prefixed files
+5. **Orphan prefix detection**: Detects `skill-` prefixed files not in any index
+6. **Index format validation**: Domain index files MUST be "pure lookup table" format (CI validation)
 
-**Blocking for Phase 3+ rollout**: Issue #307 automation must be complete.
+### Validation Implementation Status
+
+> **Multi-Agent Review**: Session 93 (2025-12-28) - 6-agent debate resolved priorities below.
+
+| Validation | Script | Status | Priority | Gap Reference |
+|------------|--------|--------|----------|---------------|
+| File references exist | `Validate-MemoryIndex.ps1:Test-FileReferences` | ✅ Implemented | - | - |
+| Keyword density ≥40% | `Validate-MemoryIndex.ps1:Test-KeywordDensity` | ✅ Implemented | - | - |
+| Memory-index references | `Validate-MemoryIndex.ps1:Test-MemoryIndexReferences` | ✅ Implemented | - | - |
+| Orphan detection (domain) | `Validate-MemoryIndex.ps1:Get-OrphanedFiles` | ✅ Implemented | - | - |
+| Index entry naming (skill-) | `Validate-MemoryIndex.ps1:Test-FileReferences` | ✅ Implemented | **P0** | Gap 1/2 |
+| Orphan prefix (skill-) | `Validate-MemoryIndex.ps1:Get-OrphanedFiles` | ✅ Implemented | **P0** | Gap 4 |
+| Pure lookup table format | `Validate-MemoryIndex.ps1:Test-IndexFormat` | ✅ Implemented | **P0** | Token efficiency |
+
+### Domain Index Format Validation
+
+> **User Override (2025-12-28)**: Elevated to P0 MUST requirement. Context window efficiency is critical - loading non-lookup content wastes tokens on every retrieval.
+
+Domain index files (`*-index.md` in `.serena/memories/`) MUST contain ONLY:
+
+```markdown
+| Keywords | File |
+|----------|------|
+| keyword1 keyword2 ... | memory-file-name |
+```
+
+The following are PROHIBITED in domain index files:
+
+- Titles (`# ...`)
+- Metadata blocks (`**Date**: ... | **Status**: ...`)
+- Prose or explanatory text
+- Navigation sections (`## Index`, `Parent: ...`)
+- Any content outside the keywords table
+
+**Rationale**: Domain indices are loaded frequently during retrieval. Non-lookup content inflates context window usage without aiding skill discovery. This is a CRITICAL token efficiency requirement.
+
+**Enforcement**: CI validation via `Test-IndexFormat` function in `Validate-MemoryIndex.ps1`. Files with prohibited content MUST fail validation.
+
+### Index Entry Naming Validation
+
+Index entries MUST reference files using the `{domain}-{description}` naming convention. The deprecated `skill-` prefix MUST NOT appear in:
+
+- File references within index tables
+- Atomic skill files in `.serena/memories/`
+
+**Rationale**: Ensures ADR-017 naming migration is complete and prevents regression.
+
+### Orphan Prefix Detection
+
+Files with `skill-` prefix that are not referenced by any index MUST be detected and flagged as:
+
+- Domain: `INVALID`
+- ExpectedIndex: Rename guidance per ADR-017
+
+**Rationale**: Silent failure mode where renamed files remain undetected undermines migration.
+
+### Validation Blocking Status
+
+> **User Override (2025-12-28)**: 3 P0 validations required. Pure lookup format elevated from P2 guideline to P0 requirement.
+
+**Blocking for Phase 3+ rollout**: The following P0 validations must be implemented before expanding tiered architecture to additional domains:
+
+1. **Index entry naming validation** (Gap 1/2): Detect `skill-` prefix in index table entries - ✅ IMPLEMENTED
+2. **Orphan prefix detection** (Gap 4): Detect unindexed `skill-` prefixed files - ✅ IMPLEMENTED
+3. **Pure lookup table format**: Reject index files with titles, metadata, prose - ✅ IMPLEMENTED
+
+**Implementation tracking**: Session 93 implements all P0 validations (Gap 1/2, Gap 4, Pure Lookup Format) in `Validate-MemoryIndex.ps1`.
+
+**Caching Verification (P1)**: Verify MCP session caching behavior in parallel with Phase 3 expansion. Update efficiency claims to verified numbers (currently: 27.6-81.6% range depending on caching).
 
 ---
 
@@ -319,4 +390,8 @@ Before applying to new domain:
 ---
 
 **Supersedes**: PRD-skills-index-registry.md flat registry approach (for high-value domains)
-**Amended by**: None
+**Amended by**:
+
+- Session 93 (2025-12-28) - Added validation implementation status table, index entry naming validation, orphan prefix detection
+- Session 93 6-Agent Debate (2025-12-28) - Resolved priorities: Gap 1/2 and Gap 4 are P0 blockers; Caching verification P1 parallel task
+- Session 93 User Override (2025-12-28) - Elevated Pure lookup format from P2 guideline to P0 MUST requirement; implemented Test-IndexFormat validation

@@ -1,11 +1,12 @@
 <#
 .SYNOPSIS
-    Validates skill files follow the atomic format (one skill per file).
+    Validates skill files follow the atomic format and naming convention.
 
 .DESCRIPTION
     Enforces ADR-017 skill format requirements:
     - One skill per file (no bundled skills)
     - Files with `## Skill-` headers are flagged as bundled format
+    - Files must NOT use 'skill-' prefix (use {domain}-{description} format)
 
     This validation runs on staged .serena/memories/ files during pre-commit.
 
@@ -18,11 +19,17 @@
 .PARAMETER StagedOnly
     Only check staged files (for pre-commit hook).
 
+.PARAMETER ChangedFiles
+    Array of file paths to check (for CI workflow). When specified, only these files are validated.
+
 .EXAMPLE
     pwsh scripts/Validate-SkillFormat.ps1
 
 .EXAMPLE
     pwsh scripts/Validate-SkillFormat.ps1 -StagedOnly
+
+.EXAMPLE
+    pwsh scripts/Validate-SkillFormat.ps1 -CI -ChangedFiles @('.serena/memories/pr-001.md', '.serena/memories/qa-002.md')
 
 .NOTES
     Related: ADR-017, Issue #307
@@ -31,15 +38,31 @@
 param(
     [string]$Path = ".serena/memories",
     [switch]$CI,
-    [switch]$StagedOnly
+    [switch]$StagedOnly,
+    [string[]]$ChangedFiles = @()
 )
 
 $ErrorActionPreference = 'Stop'
 $script:ExitCode = 0
 $script:BundledFiles = @()
+$script:PrefixViolations = @()
 
 # Get files to check
-if ($StagedOnly) {
+if ($ChangedFiles.Count -gt 0) {
+    # Use explicitly passed files (from CI workflow)
+    # Exclude index files (skills-*-index.md and memory-index.md) as they don't contain skill content
+    $memoryFiles = $ChangedFiles |
+        Where-Object { $_ -match '^\.serena/memories/.*\.md$' -and $_ -notmatch 'skills-.*-index\.md$' }
+
+    if (-not $memoryFiles) {
+        Write-Host "No skill files in changed files list. Skipping format validation." -ForegroundColor Gray
+        exit 0
+    }
+
+    # Filter to existing files only (deleted files don't need validation)
+    # Use -ErrorAction SilentlyContinue to skip deleted/renamed files
+    $filesToCheck = $memoryFiles | ForEach-Object { Get-Item $_ -ErrorAction SilentlyContinue }
+} elseif ($StagedOnly) {
     # Get staged memory files from git
     $stagedFiles = git diff --cached --name-only --diff-filter=ACMR 2>$null |
         Where-Object { $_ -match '^\.serena/memories/.*\.md$' -and $_ -notmatch 'skills-.*-index\.md$' }
@@ -79,11 +102,22 @@ foreach ($file in $filesToCheck) {
         }
         $script:ExitCode = 1
     }
+
+    # Check for invalid 'skill-' prefix (ADR-017 requires {domain}-{description} format)
+    if ($file.Name -match '^skill-') {
+        Write-Warning "  PREFIX: $($file.Name) uses invalid 'skill-' prefix"
+        $script:PrefixViolations += $file.Name
+        $script:ExitCode = 1
+    }
 }
 
 # Summary
 Write-Host ""
+
+$hasIssues = $false
+
 if ($script:BundledFiles.Count -gt 0) {
+    $hasIssues = $true
     Write-Host "=== Bundled Format Detected ===" -ForegroundColor Yellow
     Write-Host "The following files contain multiple skills:" -ForegroundColor Yellow
     $script:BundledFiles | ForEach-Object {
@@ -93,15 +127,30 @@ if ($script:BundledFiles.Count -gt 0) {
     Write-Host "ADR-017 requires ONE skill per file. No exceptions." -ForegroundColor Red
     Write-Host "Split bundled skills into separate atomic files." -ForegroundColor Red
     Write-Host ""
+}
 
+if ($script:PrefixViolations.Count -gt 0) {
+    $hasIssues = $true
+    Write-Warning "=== Invalid Naming Convention ==="
+    Write-Warning "The following files use the deprecated 'skill-' prefix:"
+    $script:PrefixViolations | ForEach-Object {
+        Write-Warning "  - $_"
+    }
+    Write-Host ""
+    Write-Host "ADR-017 requires {domain}-{description} naming (no 'skill-' prefix)." -ForegroundColor Red
+    Write-Host "Rename files to use domain prefix (e.g., pr-001-reviewer-enumeration.md)." -ForegroundColor Red
+    Write-Host ""
+}
+
+if ($hasIssues) {
     if ($CI) {
         Write-Host "Result: FAILED" -ForegroundColor Red
         exit 1
     } else {
-        Write-Host "Result: WARNING (non-blocking for legacy files)" -ForegroundColor Yellow
+        Write-Warning "Result: WARNING (non-blocking for local development)"
         exit 0
     }
 } else {
-    Write-Host "Result: PASSED - All skill files are atomic format" -ForegroundColor Green
+    Write-Host "Result: PASSED - All skill files follow atomic format and naming convention" -ForegroundColor Green
     exit 0
 }

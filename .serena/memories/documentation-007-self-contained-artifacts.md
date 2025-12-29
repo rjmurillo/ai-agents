@@ -15,7 +15,7 @@
 **Artifact-Specific Extensions**:
 
 | Artifact Type | Additional Questions |
-|---------------|---------------------|
+|---------------|----------------------|
 | Session Logs | End state? Blocked? Next action? |
 | Handoff Artifacts | Decisions made? What was rejected? |
 | PRDs | Acceptance criteria unambiguous? |

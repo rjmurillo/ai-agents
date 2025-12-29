@@ -34,16 +34,17 @@
 | git hook pre-commit autofix cross-language grep TOCTOU | skills-git-hooks-index |
 | git branch merge conflict checkout cleanup workflow resolution worktree parallel isolation | skills-git-index |
 | protocol blocking gate RFC MUST verification template legacy | skills-protocol-index |
-| retrospective learning session failure skill persistence extract | retrospective-2025-12-17, retrospective-2025-12-18, retrospective-skill-persistence |
-| regex pattern match escape lookahead anchor quantifier | skills-regex |
-| roadmap epic priority strategic vision business value | skills-roadmap |
-| governance agent consolidation design principle overlap | skill-governance-001-8-question-agent-interview, skill-governance-002-five-consolidation-triggers |
-| dorny paths-filter checkout base ref PR changes | skills-dorny-paths-filter-checkout-requirement |
-| edit file read search replace text operation | skill-edit-001-read-before-edit-pattern, skill-edit-002-unique-context-for-edit-matching |
-| pr validation gate status check blocker merge | skills-pr-validation-gates |
-| process workflow gap missing capability root cause | skills-process-workflow-gaps |
-| cva refactoring variant consolidation template generate | skills-cva-refactoring |
-| phase3 agent skill session handoff template verification | skill-agent-workflow-004-proactive-template-sync-verification, skill-agent-workflow-005-structured-handoff-formats |
+| retrospective learning session failure skill persistence extract | skills-retrospective-index |
+| regex pattern match escape lookahead anchor quantifier | utilities-regex |
+| roadmap epic priority strategic vision business value | roadmap-priorities |
+| governance agent consolidation design principle overlap | governance-001-8-question-agent-interview, governance-002-five-consolidation-triggers |
+| dorny paths-filter checkout base ref PR changes | ci-infrastructure-dorny-paths-filter-checkout |
+| edit file read search replace text operation | edit-001-read-before-edit-pattern, edit-002-unique-context-for-edit-matching |
+| pr validation gate status check blocker merge | validation-pr-gates |
+| process workflow gap missing capability root cause | orchestration-process-workflow-gaps |
+| cva refactoring variant consolidation template generate | utilities-cva-refactoring |
+| prompt engineering quality gate AI assessment template | quality-prompt-engineering-gates |
+| phase3 agent skill session handoff template verification | agent-workflow-004-proactive-template-sync-verification, agent-workflow-005-structured-handoff-formats |
 
 ## User Constraints (MUST READ)
 

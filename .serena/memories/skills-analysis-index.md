@@ -1,8 +1,9 @@
 | Keywords | File |
 |----------|------|
 | gap analysis template severity root cause remediation affected | analysis-gap-template |
-| comprehensive analysis options trade-off recommendation specs | analysis-comprehensive-standard |
-| git blame root cause commit PR investigation history context | analysis-git-blame |
-| RCA root cause analysis verify premise before implementation issue | skill-analysis-002-rca-before-implementation |
-| related issue discovery search prerequisites dependencies planning | skill-analysis-003-related-issue-discovery |
-| verify codebase state git grep search missing code claim blocking branch | skill-analysis-004-verify-codebase-state |
+| outline recommendation specs analyst section structure template | analysis-comprehensive-standard |
+| git blame author commit PR investigation history context annotate | analysis-git-blame |
+| RCA verify premise before implementation issue 5-whys fishbone systematic | analysis-002-rca-before-implementation |
+| related issue discovery search prerequisites dependencies planning | analysis-003-related-issue-discovery |
+| verify codebase state git grep search missing code claim blocking branch | analysis-004-verify-codebase-state |
+| comprehensive analyst trade-off evidence 100% implementation accuracy options exhaustive | analysis-001-comprehensive-analysis-standard |
