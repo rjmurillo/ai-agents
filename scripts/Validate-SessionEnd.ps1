@@ -133,8 +133,12 @@ $sessionFullPath = (Resolve-Path -LiteralPath $SessionLogPath).Path
 $repoRoot = Get-RepoRoot (Split-Path -Parent $sessionFullPath)
 
 # Security: Validate session log is under expected directory (CWE-22, see #214)
+# Normalize paths and add trailing separator to prevent prefix bypass (e.g., .agents/sessions-evil)
 $expectedDir = Join-Path $repoRoot ".agents" "sessions"
-if (-not $sessionFullPath.StartsWith($expectedDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+$expectedDirNormalized = [System.IO.Path]::GetFullPath($expectedDir).TrimEnd('\','/')
+$expectedDirWithSep = $expectedDirNormalized + [System.IO.Path]::DirectorySeparatorChar
+$sessionFullPathNormalized = [System.IO.Path]::GetFullPath($sessionFullPath)
+if (-not $sessionFullPathNormalized.StartsWith($expectedDirWithSep, [System.StringComparison]::OrdinalIgnoreCase)) {
   Fail 'E_PATH_ESCAPE' "Session log must be under .agents/sessions/: $sessionFullPath"
 }
 
