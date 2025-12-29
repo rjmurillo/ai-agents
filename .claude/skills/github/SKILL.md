@@ -35,6 +35,7 @@ Need GitHub data?
 ├─ Unique reviewers → Get-PRReviewers.ps1
 ├─ Unaddressed bot comments → Get-UnaddressedComments.ps1
 ├─ PR merged check → Test-PRMerged.ps1
+├─ Copilot follow-up PRs → Detect-CopilotFollowUpPR.ps1
 ├─ Issue info → Get-IssueContext.ps1
 └─ Need to take action?
    ├─ Create issue → New-Issue.ps1
@@ -65,6 +66,7 @@ Need GitHub data?
 | `Get-UnaddressedComments.ps1` | Bot comments needing attention | `-PullRequest` |
 | `Get-UnresolvedReviewThreads.ps1` | Unresolved thread IDs | `-PullRequest` |
 | `Test-PRMerged.ps1` | Check if PR is merged | `-PullRequest` |
+| `Detect-CopilotFollowUpPR.ps1` | Detect Copilot follow-up PRs | `-PRNumber`, `-Owner`, `-Repo` |
 | `Post-PRCommentReply.ps1` | Thread-preserving replies | `-PullRequest`, `-CommentId`, `-Body` |
 | `Resolve-PRReviewThread.ps1` | Mark threads resolved | `-ThreadId` or `-PullRequest -All` |
 | `Invoke-PRCommentProcessing.ps1` | Process AI triage output | `-PRNumber`, `-Verdict`, `-FindingsJson` |
@@ -106,6 +108,9 @@ pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -Wait -TimeoutSecond
 
 # Get only required checks
 pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -RequiredOnly
+
+# Detect Copilot follow-up PRs
+pwsh -NoProfile scripts/pr/Detect-CopilotFollowUpPR.ps1 -PRNumber 50
 
 # Reply to review comment (thread-preserving)
 pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123456 -Body "Fixed."

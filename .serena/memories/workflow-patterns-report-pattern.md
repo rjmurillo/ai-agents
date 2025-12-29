@@ -25,7 +25,7 @@
 </details>
 
 ---
-<sub>Footer with workflow links</sub>
+<sub>Powered by [Workflow Name](https://github.com/repo) workflow</sub>
 ```
 
 ## Why

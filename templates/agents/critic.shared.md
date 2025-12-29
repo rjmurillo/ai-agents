@@ -291,11 +291,6 @@ Save to: `.agents/critique/NNN-[document-name]-critique.md`
 | [Agent] | [Yes/No/Partial] | [Brief concern or N/A] |
 
 **Unanimous Agreement**: [Yes | No - requires escalation]
-
-## Revision History
-| Date | Reviewer | Changes |
-|------|----------|---------|
-| [Date] | Critic | Initial review |
 ```
 
 ## Handoff Options

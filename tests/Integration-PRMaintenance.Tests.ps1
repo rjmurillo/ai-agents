@@ -23,7 +23,7 @@ Describe 'Invoke-PRMaintenance Integration Tests' -Tag 'Integration' {
             return
         }
 
-        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -DryRun
+        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -WhatIf
 
         foreach ($prNum in $prsToTest) {
             $inActionRequired = $results.ActionRequired | Where-Object { $_.PR -eq $prNum }
@@ -35,14 +35,14 @@ Describe 'Invoke-PRMaintenance Integration Tests' -Tag 'Integration' {
     }
 
     It 'PR #247 (copilot PR) triggers synthesis workflow' -Skip:($CopilotPR -notin $OpenPRNumbers) {
-        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -DryRun
+        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -WhatIf
 
         $copilotEntry = $results.ActionRequired | Where-Object { $_.PR -eq $CopilotPR }
         $copilotEntry.Reason | Should -Be 'COPILOT_SYNTHESIS_NEEDED'
     }
 
     It 'No PR appears in both ActionRequired and Blocked' {
-        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -DryRun
+        $results = Invoke-PRMaintenance -Owner $Owner -Repo $Repo -WhatIf
 
         foreach ($actionItem in $results.ActionRequired) {
             $duplicate = $results.Blocked | Where-Object { $_.PR -eq $actionItem.PR }
