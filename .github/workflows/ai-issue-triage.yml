@@ -469,7 +469,7 @@ jobs:
 
           ---
 
-          <sub>Powered by [AI Issue Triage](https://github.com/$($env:GITHUB_REPOSITORY)) - [View Workflow]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID))</sub>
+          <sub>Powered by [AI Issue Triage](https://github.com/$($env:GITHUB_REPOSITORY)) workflow</sub>
           "@
 
           $triageComment | Set-Content /tmp/triage-comment.md -Encoding UTF8

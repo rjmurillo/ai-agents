@@ -558,7 +558,7 @@ jobs:
 
           </details>
 
-          <sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) - [View Workflow]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID)</sub>
+          <sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) workflow</sub>
           "@
 
           $report | Set-Content $reportFile -Encoding UTF8
