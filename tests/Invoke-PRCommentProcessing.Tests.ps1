@@ -415,12 +415,12 @@ Describe "Edge Case: Empty Findings" {
 Describe "Edge Case: WhatIf Mode" {
 
     Context "WhatIf Behavior" {
-        It "Script checks WhatIfPreference for reactions" {
-            $script:scriptContent | Should -Match 'if\s*\(\$WhatIfPreference\)'
+        It "Script uses PSCmdlet.ShouldProcess for reactions" {
+            $script:scriptContent | Should -Match '\$PSCmdlet\.ShouldProcess'
         }
 
-        It "Script logs WhatIf actions" {
-            $script:scriptContent | Should -Match '\[WhatIf\]'
+        It "Function has SupportsShouldProcess" {
+            $script:scriptContent | Should -Match '\[CmdletBinding\(SupportsShouldProcess\)\]'
         }
     }
 }

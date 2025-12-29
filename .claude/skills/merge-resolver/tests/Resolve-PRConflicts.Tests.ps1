@@ -235,12 +235,12 @@ Describe 'Resolve-PRConflicts.ps1' {
     }
 
     Context 'WhatIf Mode' {
-        It 'Should check WhatIfPreference' {
-            $ScriptContent | Should -Match 'if\s*\(\s*\$WhatIfPreference\s*\)'
+        It 'Should use PSCmdlet.ShouldProcess' {
+            $ScriptContent | Should -Match '\$PSCmdlet\.ShouldProcess'
         }
 
-        It 'Should return success without changes in WhatIf mode' {
-            $ScriptContent | Should -Match '\[WhatIf\]'
+        It 'Should have SupportsShouldProcess in CmdletBinding' {
+            $ScriptContent | Should -Match '\[CmdletBinding\(SupportsShouldProcess\)\]'
         }
     }
 
