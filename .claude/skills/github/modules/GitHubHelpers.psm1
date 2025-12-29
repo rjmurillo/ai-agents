@@ -42,7 +42,8 @@ Issue Comments (line ~380)
 Trusted Sources (line ~600)
   - Get-TrustedSourceComments Filter comments by trusted users
 
-Bot Configuration (line ~670)
+Bot Configuration (line ~680)
+  - Get-BotAuthorsConfig      Load bot authors from .github/bot-authors.yml
   - Get-BotAuthors            Centralized bot author list
 
 Rate Limit (line ~740)
@@ -678,37 +679,45 @@ function Get-TrustedSourceComments {
 
 #region Bot Configuration Functions
 
-function Get-BotAuthors {
+# Script-level cache for bot authors config
+$script:BotAuthorsCache = $null
+$script:BotAuthorsCachePath = $null
+
+function Get-BotAuthorsConfig {
     <#
     .SYNOPSIS
-        Returns the centralized list of known bot authors.
+        Loads and caches bot authors configuration from .github/bot-authors.yml.
 
     .DESCRIPTION
-        Single source of truth for bot author identification across the repository.
-        Used by workflows, scripts, and agents to distinguish bot vs. human activity.
+        Reads the bot authors YAML configuration file and parses it into a hashtable.
+        Results are cached at the script level for performance.
 
-    .PARAMETER Category
-        Optional. Filter by category: 'reviewer', 'automation', 'repository', 'all' (default).
+    .PARAMETER ConfigPath
+        Optional. Path to the config file. Defaults to .github/bot-authors.yml in repo root.
+
+    .PARAMETER Force
+        Force reload from disk, ignoring cache.
 
     .OUTPUTS
-        String array of bot author login names.
-
-    .EXAMPLE
-        $bots = Get-BotAuthors
-        if ($comment.user.login -in $bots) { Write-Host "Bot comment" }
+        Hashtable with 'reviewer', 'automation', 'repository' keys.
 
     .NOTES
-        See #282 for centralization rationale.
+        Uses simple YAML parsing since PowerShell doesn't have native YAML support.
+        Falls back to default values if file is missing or invalid.
+        See #276 for dynamic bot author list rationale.
     #>
     [CmdletBinding()]
-    [OutputType([string[]])]
+    [OutputType([hashtable])]
     param(
         [Parameter()]
-        [ValidateSet('reviewer', 'automation', 'repository', 'all')]
-        [string]$Category = 'all'
+        [string]$ConfigPath,
+
+        [Parameter()]
+        [switch]$Force
     )
 
-    $bots = @{
+    # Default config values (fallback)
+    $defaultBots = @{
         reviewer = @(
             'coderabbitai[bot]'
             'github-copilot[bot]'
@@ -724,6 +733,116 @@ function Get-BotAuthors {
             'copilot-swe-agent[bot]'
         )
     }
+
+    # Determine config path
+    if (-not $ConfigPath) {
+        # Find repo root by looking for .git directory
+        $searchPath = $PSScriptRoot
+        while ($searchPath -and -not (Test-Path (Join-Path $searchPath '.git'))) {
+            $searchPath = Split-Path $searchPath -Parent
+        }
+        if ($searchPath) {
+            $ConfigPath = Join-Path $searchPath '.github' 'bot-authors.yml'
+        }
+    }
+
+    # Return cached result if available and not forced
+    if (-not $Force -and $script:BotAuthorsCache -and $script:BotAuthorsCachePath -eq $ConfigPath) {
+        return $script:BotAuthorsCache
+    }
+
+    # Try to read config file
+    if (-not $ConfigPath -or -not (Test-Path $ConfigPath)) {
+        Write-Verbose "Bot authors config not found at $ConfigPath, using defaults"
+        $script:BotAuthorsCache = $defaultBots
+        $script:BotAuthorsCachePath = $ConfigPath
+        return $defaultBots
+    }
+
+    try {
+        $content = Get-Content $ConfigPath -Raw -ErrorAction Stop
+        $bots = @{
+            reviewer = @()
+            automation = @()
+            repository = @()
+        }
+
+        # Simple YAML parsing for our specific format
+        $currentSection = $null
+        foreach ($line in $content -split "`n") {
+            $line = $line.TrimEnd()
+
+            # Skip comments and empty lines
+            if ($line -match '^\s*#' -or $line -match '^\s*$') { continue }
+
+            # Check for section headers (reviewer:, automation:, repository:)
+            if ($line -match '^(reviewer|automation|repository):\s*$') {
+                $currentSection = $matches[1]
+                continue
+            }
+
+            # Check for list items (  - value)
+            if ($currentSection -and $line -match '^\s+-\s+(.+)$') {
+                $value = $matches[1].Trim()
+                $bots[$currentSection] += $value
+            }
+        }
+
+        # Validate we got at least some entries
+        $totalBots = $bots.Values | ForEach-Object { $_.Count } | Measure-Object -Sum | Select-Object -ExpandProperty Sum
+        if ($totalBots -eq 0) {
+            Write-Verbose "Bot authors config was empty, using defaults"
+            $script:BotAuthorsCache = $defaultBots
+            $script:BotAuthorsCachePath = $ConfigPath
+            return $defaultBots
+        }
+
+        $script:BotAuthorsCache = $bots
+        $script:BotAuthorsCachePath = $ConfigPath
+        return $bots
+    }
+    catch {
+        Write-Verbose "Failed to parse bot authors config: $($_.Exception.Message), using defaults"
+        $script:BotAuthorsCache = $defaultBots
+        $script:BotAuthorsCachePath = $ConfigPath
+        return $defaultBots
+    }
+}
+
+function Get-BotAuthors {
+    <#
+    .SYNOPSIS
+        Returns the centralized list of known bot authors.
+
+    .DESCRIPTION
+        Single source of truth for bot author identification across the repository.
+        Used by workflows, scripts, and agents to distinguish bot vs. human activity.
+
+        Reads from .github/bot-authors.yml config file with fallback to hardcoded defaults.
+
+    .PARAMETER Category
+        Optional. Filter by category: 'reviewer', 'automation', 'repository', 'all' (default).
+
+    .OUTPUTS
+        String array of bot author login names.
+
+    .EXAMPLE
+        $bots = Get-BotAuthors
+        if ($comment.user.login -in $bots) { Write-Host "Bot comment" }
+
+    .NOTES
+        See #276 for dynamic bot author list (config-based).
+        See #282 for centralization rationale.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter()]
+        [ValidateSet('reviewer', 'automation', 'repository', 'all')]
+        [string]$Category = 'all'
+    )
+
+    $bots = Get-BotAuthorsConfig
 
     if ($Category -eq 'all') {
         return $bots.Values | ForEach-Object { $_ } | Sort-Object -Unique
@@ -864,6 +983,7 @@ Export-ModuleMember -Function @(
     # Trusted sources
     'Get-TrustedSourceComments'
     # Bot configuration
+    'Get-BotAuthorsConfig'
     'Get-BotAuthors'
     # Rate limit
     'Test-WorkflowRateLimit'
