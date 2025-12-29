@@ -296,10 +296,13 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # Check if label already exists on PR
+          # Check if label already exists on PR (2>$null is safe - PR exists when workflow runs)
           $existingLabels = gh pr view $env:PR_NUMBER --json labels --jq '.labels[].name' 2>$null
+          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
+
           if ($existingLabels -notcontains 'needs-split') {
             gh pr edit $env:PR_NUMBER --add-label "needs-split"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to add needs-split label (exit code: $LASTEXITCODE)" }
             Write-Host "Added 'needs-split' label to PR #$env:PR_NUMBER"
           } else {
             Write-Host "PR #$env:PR_NUMBER already has 'needs-split' label"
@@ -312,9 +315,13 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           # Remove label if it exists and commit count is back below threshold
+          # 2>$null is safe - PR exists when workflow runs
           $existingLabels = gh pr view $env:PR_NUMBER --json labels --jq '.labels[].name' 2>$null
+          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
+
           if ($existingLabels -contains 'needs-split') {
             gh pr edit $env:PR_NUMBER --remove-label "needs-split"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to remove needs-split label (exit code: $LASTEXITCODE)" }
             Write-Host "Removed 'needs-split' label from PR #$env:PR_NUMBER"
           }
 
@@ -332,8 +339,10 @@ jobs:
 
           # Block if commit count exceeds limit (requires human override via bypass label)
           if ($env:COMMIT_STATUS -eq "BLOCKED") {
-            # Check for bypass label
+            # Check for bypass label (2>$null is safe - PR exists when workflow runs)
             $labels = gh pr view $env:PR_NUMBER --json labels --jq '.labels[].name' 2>$null
+            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
+
             if ($labels -contains 'commit-limit-bypass') {
               Write-Host "::warning::Commit limit bypassed via 'commit-limit-bypass' label"
             } else {
