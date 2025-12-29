@@ -429,7 +429,7 @@ PR_BASE=$(echo "$PR_DATA" | jq -r '.baseRefName')
 ```bash
 # Check for needs-split label
 LABELS=$(gh pr view [number] --json labels --jq '.labels[].name')
-HAS_NEEDS_SPLIT=$(echo "$LABELS" | grep -c "needs-split" || echo 0)
+HAS_NEEDS_SPLIT=$(echo "$LABELS" | grep -c -Fx "needs-split" || echo 0)
 
 if [ "$HAS_NEEDS_SPLIT" -gt 0 ]; then
   echo "[WARNING] PR has needs-split label - commit threshold exceeded"
