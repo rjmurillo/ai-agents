@@ -29,6 +29,13 @@ BeforeAll {
     # Import the module for helper functions
     Import-Module $Script:ModulePath -Force
 
+    # Mock authentication functions to prevent script from exiting during dot-source
+    # These mocks must be set BEFORE any test dot-sources the script
+    Mock -ModuleName GitHubHelpers Test-GhAuthenticated { return $true }
+    Mock -ModuleName GitHubHelpers Resolve-RepoParams {
+        return @{ Owner = 'testowner'; Repo = 'testrepo' }
+    }
+
     # Helper function to create mock GraphQL response
     function New-MockGraphQLResponse {
         param(
