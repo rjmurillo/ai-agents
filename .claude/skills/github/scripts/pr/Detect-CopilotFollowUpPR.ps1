@@ -159,7 +159,7 @@ function Compare-DiffContent {
     }
 
     # Count file changes in follow-up
-    $followUpFiles = @($FollowUpDiff -split '^diff --git' | Where-Object { $_.Trim() } | Measure-Object).Count
+    $followUpFiles = @($FollowUpDiff -split '(?m)^diff --git' | Where-Object { $_.Trim() } | Measure-Object).Count
 
     # If follow-up has 1 file and original also modified that file, likely duplicate
     if ($followUpFiles -eq 1 -and $OriginalCommits.Count -gt 0) {
