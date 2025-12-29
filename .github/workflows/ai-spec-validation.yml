@@ -258,7 +258,7 @@ jobs:
 
           ---
 
-          <sub>Powered by [AI Spec Validator](https://github.com/$($env:GITHUB_REPOSITORY)) - *Validation skipped - no specs found*</sub>
+          <sub>Powered by [AI Spec Validator](https://github.com/$($env:GITHUB_REPOSITORY)) workflow</sub>
           "@
           } else {
             # Determine final verdict
@@ -339,7 +339,7 @@ jobs:
 
           </details>
 
-          <sub>Powered by [AI Spec Validator](https://github.com/$($env:GITHUB_REPOSITORY)) - [View Workflow]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID))</sub>
+          <sub>Powered by [AI Spec Validator](https://github.com/$($env:GITHUB_REPOSITORY)) workflow</sub>
           "@
           }
 
