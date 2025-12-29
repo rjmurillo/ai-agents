@@ -141,6 +141,58 @@ $DestFile = Join-Path $DestDir $File.Name
 $DestFile = "$DestDir\$($File.Name)"  # Wrong: platform-specific separator
 ```
 
+### Variable Interpolation
+
+PowerShell variable interpolation has specific rules that must be followed to avoid syntax errors.
+
+**Basic Interpolation** (works for simple cases):
+
+```powershell
+# Correct
+"Hello $Name"
+"Path: $Path\file.txt"
+```
+
+**Subexpression Syntax** (REQUIRED for special characters):
+
+```powershell
+# When variable is followed by colon (: is a scope operator)
+"Error on line $($LineNumber):"  # Correct
+"Error on line $LineNumber:"     # Wrong: colon parsed as scope
+
+# When accessing properties
+"Length: $($Text.Length)"        # Correct
+"Length: $Text.Length"           # May work but subexpression is safer
+
+# When using array indexing
+"First: $($Array[0])"            # Correct
+"First: $Array[0]"               # Wrong: brackets not parsed correctly
+```
+
+**Common Pitfalls**:
+
+| Pattern | Problem | Solution |
+|---------|---------|----------|
+| `$Var:` | Colon parsed as scope operator | `$($Var):` |
+| `$Obj.Prop:` | Colon after property access | `$($Obj.Prop):` |
+| `$Array[0]` in string | Brackets not interpolated | `$($Array[0])` |
+
+**Alternatives for Complex Scenarios**:
+
+```powershell
+# Format operator (preferred for multiple placeholders)
+"Error on line {0}: {1}" -f $LineNumber, $Message
+
+# Join operator for arrays
+$Array -join ", "
+
+# StringBuilder for large string construction
+$Sb = [System.Text.StringBuilder]::new()
+[void]$Sb.Append("Text")
+```
+
+**Reference**: [about_Quoting_Rules](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules)
+
 ## Markdown Standards
 
 **Prettier Compatibility Policy**: This repository aligns with [Prettier markdown formatting](https://github.com/DavidAnson/markdownlint/blob/main/doc/Prettier.md) to enable seamless copying of markdown files between projects using PackedPrettier. As a result, certain style rules are delegated to Prettier for automatic formatting rather than being enforced by markdownlint.
