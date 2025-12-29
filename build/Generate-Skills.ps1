@@ -296,7 +296,7 @@ foreach ($file in $canonicalFiles) {
   if ($differs) {
     $anyDiff = $true
     Write-Host "DIFF: $([System.IO.Path]::GetRelativePath($rootPath, $outPath)) <= $rel"
-    if (-not $WhatIfPreference) {
+    if ($PSCmdlet.ShouldProcess($([System.IO.Path]::GetRelativePath($rootPath, $outPath)), 'Generate skill file')) {
       Set-ContentUtf8 $outPath $out
       Write-Host "WROTE: $([System.IO.Path]::GetRelativePath($rootPath, $outPath))"
     }
