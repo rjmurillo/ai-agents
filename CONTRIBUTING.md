@@ -12,6 +12,7 @@ Thank you for your interest in contributing to this project. This guide explains
 - [Pre-Commit Hooks](#pre-commit-hooks)
 - [Running Tests](#running-tests)
 - [Pull Request Guidelines](#pull-request-guidelines)
+  - [Commit Count Thresholds](#commit-count-thresholds)
 
 ## Getting Started
 
@@ -289,6 +290,47 @@ pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./build/tests/Generate-Agen
 4. **Tests**: Ensure all tests pass
 5. **Documentation**: Update relevant docs if adding new agents
 6. **Commit messages**: Use conventional commit format (e.g., `feat(agent):`, `fix(template):`)
+
+### Commit Count Thresholds
+
+PRs with many commits often indicate scope creep or should be split into smaller PRs. The repository enforces commit thresholds automatically:
+
+| Commit Count | Action | Label Applied |
+|--------------|--------|---------------|
+| 10 commits | Warning notice in PR | `needs-split` |
+| 15 commits | Alert warning in PR | `needs-split` |
+| 20 commits | PR blocked from merge | `needs-split` |
+
+#### What This Means
+
+- **10 commits**: The workflow adds a notice. Consider whether the PR should be split.
+- **15 commits**: The workflow adds an alert. Splitting is strongly recommended.
+- **20 commits**: The workflow blocks the PR. You must either split the PR or add the `commit-limit-bypass` label.
+
+#### Handling `needs-split` Labels
+
+**For contributors**:
+
+1. Review the commit history to identify logical groupings
+2. Split into smaller, focused PRs where possible
+3. If splitting is not practical, add a comment explaining why and request the `commit-limit-bypass` label
+
+**For AI agents (pr-review, pr-comment-responder)**:
+
+When encountering a PR with the `needs-split` label:
+
+1. **Run a retrospective analysis**: Determine why the PR required so many commits
+2. **Analyze commit history**: Group commits by logical change to identify potential split points
+3. **Provide recommendations**: Suggest how the work could be divided into smaller PRs
+4. **Document findings**: Save analysis to `.agents/retrospective/` for future reference
+
+#### Bypassing the Limit
+
+To bypass the 20-commit block:
+
+1. A human maintainer must add the `commit-limit-bypass` label
+2. The bypass is visible in the PR labels and auditable
+3. Use this sparingly for genuinely large, atomic changes that cannot be split
 
 ### Spec Reference Best Practices
 
