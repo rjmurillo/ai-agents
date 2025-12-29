@@ -471,18 +471,38 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 
 Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number]/comments.md`.
 
-#### Step 2.1: Acknowledge Each Comment
+#### Step 2.1: Acknowledge All Comments (Batch)
 
-For each comment, react with eyes emoji to indicate acknowledgment:
+React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster acknowledgment:
 
 ```powershell
-# Using github skill (PREFERRED)
-# Review comment reaction
+# PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
+# Get all comment IDs from the comments retrieved in Phase 1
+$comments = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | ConvertFrom-Json
+$ids = $comments.Comments | ForEach-Object { $_.id }
+
+# Batch acknowledge - single process, all comments
+$result = pwsh -NoProfile .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes" | ConvertFrom-Json
+
+# Verify all acknowledged
+Write-Host "Acknowledged $($result.Succeeded)/$($result.TotalCount) comments"
+if ($result.Failed -gt 0) {
+    Write-Host "Failed: $($result.Results | Where-Object { -not $_.Success } | ForEach-Object { $_.CommentId })"
+}
+```
+
+<details>
+<summary>Alternative: Individual reactions (legacy)</summary>
+
+```powershell
+# Individual comment reaction (slower - use batch above instead)
 pwsh .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId [comment_id] -Reaction "eyes"
 
 # Issue comment reaction
 pwsh .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId [comment_id] -CommentType "issue" -Reaction "eyes"
 ```
+
+</details>
 
 <details>
 <summary>Alternative: Raw gh CLI</summary>
