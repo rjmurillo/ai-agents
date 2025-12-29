@@ -45,6 +45,14 @@ Describe "GitHubHelpers Module" {
         It "Exports Get-ReactionEmoji function" {
             Get-Command -Module GitHubHelpers -Name Get-ReactionEmoji | Should -Not -BeNullOrEmpty
         }
+
+        It "Exports Get-BotAuthors function" {
+            Get-Command -Module GitHubHelpers -Name Get-BotAuthors | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Test-WorkflowRateLimit function" {
+            Get-Command -Module GitHubHelpers -Name Test-WorkflowRateLimit | Should -Not -BeNullOrEmpty
+        }
     }
 
     Context "Get-PriorityEmoji" {
@@ -115,6 +123,114 @@ Describe "GitHubHelpers Module" {
         It "Returns boolean" {
             $result = Test-GhAuthenticated
             $result | Should -BeOfType [bool]
+        }
+    }
+
+    Context "Get-BotAuthors" {
+        It "Returns array of strings" {
+            $result = Get-BotAuthors
+            $result | Should -BeOfType [System.Object[]]
+            $result | ForEach-Object { $_ | Should -BeOfType [string] }
+        }
+
+        It "Returns all bots by default" {
+            $result = Get-BotAuthors
+            $result | Should -Contain "coderabbitai[bot]"
+            $result | Should -Contain "github-actions[bot]"
+            $result | Should -Contain "rjmurillo-bot"
+        }
+
+        It "Returns only reviewer bots for Category 'reviewer'" {
+            $result = Get-BotAuthors -Category 'reviewer'
+            $result | Should -Contain "coderabbitai[bot]"
+            $result | Should -Contain "github-copilot[bot]"
+            $result | Should -Not -Contain "github-actions[bot]"
+            $result | Should -Not -Contain "rjmurillo-bot"
+        }
+
+        It "Returns only automation bots for Category 'automation'" {
+            $result = Get-BotAuthors -Category 'automation'
+            $result | Should -Contain "github-actions[bot]"
+            $result | Should -Contain "dependabot[bot]"
+            $result | Should -Not -Contain "coderabbitai[bot]"
+        }
+
+        It "Returns only repository bots for Category 'repository'" {
+            $result = Get-BotAuthors -Category 'repository'
+            $result | Should -Contain "rjmurillo-bot"
+            $result | Should -Contain "copilot-swe-agent[bot]"
+            $result | Should -Not -Contain "github-actions[bot]"
+        }
+
+        It "Returns all bots for Category 'all'" {
+            $result = Get-BotAuthors -Category 'all'
+            $result | Should -Contain "coderabbitai[bot]"
+            $result | Should -Contain "github-actions[bot]"
+            $result | Should -Contain "rjmurillo-bot"
+        }
+
+        It "Returns sorted list" {
+            $result = Get-BotAuthors
+            $sorted = $result | Sort-Object
+            $result | Should -Be $sorted
+        }
+    }
+
+    Context "Test-WorkflowRateLimit" {
+        It "Returns PSCustomObject with required properties" {
+            Mock gh { '{"resources":{"core":{"remaining":5000,"limit":5000,"reset":1234567890},"search":{"remaining":30,"limit":30,"reset":1234567890},"code_search":{"remaining":10,"limit":10,"reset":1234567890},"graphql":{"remaining":5000,"limit":5000,"reset":1234567890}}}' }
+
+            $result = Test-WorkflowRateLimit
+            $result | Should -BeOfType [PSCustomObject]
+            $result.Success | Should -BeOfType [bool]
+            $result.Resources | Should -BeOfType [hashtable]
+            $result.SummaryMarkdown | Should -BeOfType [string]
+            $result.CoreRemaining | Should -BeOfType [int]
+        }
+
+        It "Returns Success=true when all resources above threshold" {
+            Mock gh { '{"resources":{"core":{"remaining":5000,"limit":5000,"reset":1234567890},"search":{"remaining":30,"limit":30,"reset":1234567890},"code_search":{"remaining":10,"limit":10,"reset":1234567890},"graphql":{"remaining":5000,"limit":5000,"reset":1234567890}}}' }
+
+            $result = Test-WorkflowRateLimit
+            $result.Success | Should -Be $true
+        }
+
+        It "Returns Success=false when any resource below threshold" {
+            Mock gh { '{"resources":{"core":{"remaining":50,"limit":5000,"reset":1234567890},"search":{"remaining":5,"limit":30,"reset":1234567890},"code_search":{"remaining":2,"limit":10,"reset":1234567890},"graphql":{"remaining":50,"limit":5000,"reset":1234567890}}}' }
+
+            $result = Test-WorkflowRateLimit
+            $result.Success | Should -Be $false
+        }
+
+        It "Handles missing resource with warning" {
+            Mock gh { '{"resources":{"core":{"remaining":5000,"limit":5000,"reset":1234567890},"search":{"remaining":30,"limit":30,"reset":1234567890},"graphql":{"remaining":5000,"limit":5000,"reset":1234567890}}}' }
+            Mock Write-Warning { }
+
+            $result = Test-WorkflowRateLimit
+            Should -Invoke Write-Warning -Times 1 -ParameterFilter { $Message -like "*code_search*" }
+            $result.Success | Should -Be $false
+        }
+
+        It "Throws when gh api fails" {
+            Mock gh { $global:LASTEXITCODE = 1; "API error" }
+
+            { Test-WorkflowRateLimit } | Should -Throw "*Failed to fetch rate limits*"
+        }
+
+        It "Uses custom thresholds" {
+            Mock gh { '{"resources":{"core":{"remaining":500,"limit":5000,"reset":1234567890}}}' }
+
+            $result = Test-WorkflowRateLimit -ResourceThresholds @{ 'core' = 100 }
+            $result.Success | Should -Be $true
+        }
+
+        It "Includes SummaryMarkdown with table" {
+            Mock gh { '{"resources":{"core":{"remaining":5000,"limit":5000,"reset":1234567890}}}' }
+
+            $result = Test-WorkflowRateLimit -ResourceThresholds @{ 'core' = 100 }
+            $result.SummaryMarkdown | Should -Match '### API Rate Limit Status'
+            $result.SummaryMarkdown | Should -Match '\| Resource \| Remaining \| Threshold \| Status \|'
+            $result.SummaryMarkdown | Should -Match '\| core \| 5000 \| 100 \|'
         }
     }
 }

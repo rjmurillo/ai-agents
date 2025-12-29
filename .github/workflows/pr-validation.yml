@@ -225,7 +225,7 @@ jobs:
           }
           
           $report += "`n`n---`n`n"
-          $report += "<sub>Powered by [PR Validation](https://github.com/${{ github.repository }}) - [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>`n"
+          $report += "<sub>Powered by [PR Validation](https://github.com/${{ github.repository }}) workflow</sub>`n"
           
           # Save report
           $report | Set-Content "pr-validation-report.md" -Encoding UTF8

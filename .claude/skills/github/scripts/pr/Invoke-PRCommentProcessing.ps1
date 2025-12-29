@@ -18,18 +18,16 @@
 .PARAMETER FindingsJson
     Raw JSON output from AI containing triage decisions.
 
-.PARAMETER DryRun
-    If set, only logs actions without executing them.
-
 .EXAMPLE
     .\Invoke-PRCommentProcessing.ps1 -PRNumber 457 -Verdict "PASS" -FindingsJson $jsonString
 
 .NOTES
     Called by ai-review action's execute-script feature.
     Exit Codes: 0=Success, 1=Invalid params, 2=Parse error, 3=API error
+    Supports -WhatIf for dry-run mode (issue #461).
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory)]
     [int]$PRNumber,
@@ -38,9 +36,7 @@ param(
     [string]$Verdict,
 
     [Parameter(Mandatory)]
-    [string]$FindingsJson,
-
-    [switch]$DryRun
+    [string]$FindingsJson
 )
 
 Set-StrictMode -Version Latest
@@ -71,13 +67,13 @@ function Get-Findings {
 # Add reaction to a comment
 # Tries PR review comment endpoint first, then falls back to issue comment endpoint
 function Add-CommentReaction {
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [long]$CommentId,
         [string]$Reaction = 'eyes'
     )
 
-    if ($DryRun) {
-        Write-Host "[DRY-RUN] Would add $Reaction reaction to comment $CommentId"
+    if (-not $PSCmdlet.ShouldProcess("comment $CommentId", "Add reaction '$Reaction'")) {
         return
     }
 
@@ -143,8 +139,8 @@ function Invoke-CommentProcessing {
                     Write-Warning "  Wontfix comment missing resolution field - cannot post reply"
                     $stats.Skipped++
                 }
-                elseif ($DryRun) {
-                    Write-Host "[DRY-RUN] Would reply declining with: $($comment.resolution)"
+                elseif ($WhatIfPreference) {
+                    Write-Host "[WhatIf] Would reply declining with: $($comment.resolution)"
                     $stats.Skipped++
                 }
                 else {
@@ -184,7 +180,7 @@ function Invoke-CommentProcessing {
 Write-Host "=== PR Comment Processing ===" -ForegroundColor Magenta
 Write-Host "PR Number: $PRNumber"
 Write-Host "Verdict: $Verdict"
-Write-Host "DryRun: $DryRun"
+Write-Host "WhatIf: $WhatIfPreference"
 Write-Host ""
 
 if ($Verdict -notin 'PASS', 'WARN') {
