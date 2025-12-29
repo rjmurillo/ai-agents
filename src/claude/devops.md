@@ -300,6 +300,164 @@ dotnet test Solution.sln -c Release --no-build \
   --filter "TestCategory!=localOnly&TestCategory!=Benchmark"
 ```
 
+## Local CI Simulation
+
+Run CI checks locally before pushing PRs to catch environment-specific issues early.
+
+### CI Environment Setup
+
+Set CI environment variables before running build/test commands:
+
+**PowerShell (Windows/Linux/macOS):**
+
+```powershell
+# Set CI environment
+$env:CI = 'true'
+$env:GITHUB_ACTIONS = 'true'
+$env:GITHUB_REF_PROTECTED = 'false'
+
+# Run build with CI flags
+dotnet build Solution.sln -c Release /p:ContinuousIntegrationBuild=true
+
+# Run tests in CI mode
+dotnet test Solution.sln -c Release --no-build
+
+# Verify PowerShell exit codes
+if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
+```
+
+**Bash (Linux/macOS):**
+
+```bash
+# Set CI environment
+export CI=true
+export GITHUB_ACTIONS=true
+export GITHUB_REF_PROTECTED=false
+
+# Run build with CI flags
+dotnet build Solution.sln -c Release /p:ContinuousIntegrationBuild=true
+
+# Run tests in CI mode
+dotnet test Solution.sln -c Release --no-build
+
+# Verify exit codes
+if [ $? -ne 0 ]; then echo "Build failed"; exit 1; fi
+```
+
+### Protected Branch Simulation
+
+Test behavior when running against protected branches:
+
+```powershell
+# Simulate protected branch
+$env:GITHUB_REF_PROTECTED = 'true'
+$env:GITHUB_REF = 'refs/heads/main'
+
+# Run your script/workflow logic
+# Scripts should detect protected branch and skip destructive operations
+
+# Reset after testing
+$env:GITHUB_REF_PROTECTED = 'false'
+```
+
+### Environment Variable Leak Detection
+
+Scan for hardcoded secrets and environment variable leaks before committing:
+
+```powershell
+# Search for potential leaks
+$patterns = @(
+    'password\s*=\s*[''"][^''"]+[''"]',
+    'secret\s*=\s*[''"][^''"]+[''"]',
+    'api[_-]?key\s*=\s*[''"][^''"]+[''"]',
+    '\$env:.*\s*=\s*[''"][^''"]+[''"]'  # Hardcoded env vars
+)
+
+Get-ChildItem -Recurse -Include *.ps1,*.yml,*.yaml,*.json |
+    Select-String -Pattern $patterns -CaseSensitive:$false |
+    ForEach-Object { Write-Warning "Potential leak: $($_.Path):$($_.LineNumber)" }
+```
+
+### Fail-Safe Testing
+
+Validate that scripts fail gracefully in CI mode:
+
+```powershell
+# Test error handling
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+try {
+    # Run your script
+    ./your-script.ps1
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Script exited with code $LASTEXITCODE"
+    }
+}
+catch {
+    Write-Error "CI validation failed: $_"
+    exit 1
+}
+```
+
+### Pre-PR CI Validation Checklist
+
+Run before creating PRs to catch CI issues locally:
+
+```markdown
+## Pre-PR CI Checklist
+
+- [ ] Set CI environment variables ($env:CI, $env:GITHUB_ACTIONS)
+- [ ] Run build with /p:ContinuousIntegrationBuild=true
+- [ ] Run tests with appropriate filters
+- [ ] Verify exit codes are checked ($LASTEXITCODE)
+- [ ] Scan for hardcoded secrets/credentials
+- [ ] Test protected branch behavior if applicable
+- [ ] Validate error handling with Set-StrictMode
+- [ ] Check that logs use stdout/stderr (not files)
+```
+
+### CI Validation Report Template
+
+Save validation results to: `.agents/devops/ci-validation-[date].md`
+
+```markdown
+# Local CI Validation Report
+
+**Date**: [YYYY-MM-DD]
+**Branch**: [Branch name]
+**Operator**: [Developer name]
+
+## Environment
+
+| Variable | Value |
+|----------|-------|
+| CI | true |
+| GITHUB_ACTIONS | true |
+| GITHUB_REF_PROTECTED | [true/false] |
+
+## Validation Results
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Build (CI mode) | [PASS/FAIL] | [Details] |
+| Unit tests | [PASS/FAIL] | [Details] |
+| Exit code handling | [PASS/FAIL] | [Details] |
+| Secret scan | [PASS/FAIL] | [Details] |
+| Protected branch | [PASS/FAIL] | [Details] |
+
+## Issues Found
+
+| Issue | Severity | Resolution |
+|-------|----------|------------|
+| [Issue] | [P0/P1/P2] | [Fix applied] |
+
+## Recommendation
+
+[READY FOR PR / NEEDS FIXES]
+```
+
 ## Infrastructure Documentation Format
 
 Save to: `.agents/devops/`
