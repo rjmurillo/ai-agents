@@ -260,14 +260,108 @@ jobs:
             Get-Content "pr-validation-report.md" | Add-Content $env:GITHUB_STEP_SUMMARY
           }
 
+      - name: Check PR commit count
+        id: commit-check
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Get commit count for this PR (see #362 for thresholds)
+          # NOTE: Pagination limited to 100 commits. PRs exceeding this are rare given 20-commit block threshold.
+          $commits = gh api "/repos/${{ github.repository }}/pulls/$env:PR_NUMBER/commits?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to fetch commits for PR #$env:PR_NUMBER via 'gh api'. Exit code: $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+
+          if (-not $commits) {
+            Write-Error "No commits were returned for PR #$env:PR_NUMBER. Aborting commit count check."
+            exit 1
+          }
+
+          $commitCount = $commits.Count
+
+          Write-Host "PR #$env:PR_NUMBER has $commitCount commits"
+          "commit_count=$commitCount" >> $env:GITHUB_OUTPUT
+
+          # Define thresholds per issue #362
+          $warningThreshold = 10
+          $alertThreshold = 15
+          $blockThreshold = 20
+
+          if ($commitCount -ge $blockThreshold) {
+            Write-Host "::error::PR exceeds commit limit ($commitCount >= $blockThreshold). Consider splitting this PR."
+            "status=BLOCKED" >> $env:GITHUB_OUTPUT
+          } elseif ($commitCount -ge $alertThreshold) {
+            Write-Host "::warning::PR approaching commit limit ($commitCount >= $alertThreshold). Consider shipping current changes."
+            "status=ALERT" >> $env:GITHUB_OUTPUT
+          } elseif ($commitCount -ge $warningThreshold) {
+            Write-Host "::notice::PR has many commits ($commitCount >= $warningThreshold). Consider squashing or splitting."
+            "status=WARNING" >> $env:GITHUB_OUTPUT
+          } else {
+            "status=OK" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Apply needs-split label
+        if: steps.commit-check.outputs.status == 'WARNING' || steps.commit-check.outputs.status == 'ALERT' || steps.commit-check.outputs.status == 'BLOCKED'
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Check if label already exists on PR (2>$null is safe - PR exists when workflow runs)
+          $existingLabels = gh pr view $env:PR_NUMBER --json labels --jq '.labels[].name' 2>$null
+          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
+
+          if ($existingLabels -notcontains 'needs-split') {
+            gh pr edit $env:PR_NUMBER --add-label "needs-split"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to add needs-split label (exit code: $LASTEXITCODE)" }
+            Write-Host "Added 'needs-split' label to PR #$env:PR_NUMBER"
+          } else {
+            Write-Host "PR #$env:PR_NUMBER already has 'needs-split' label"
+          }
+
+      - name: Remove needs-split label when below threshold
+        if: steps.commit-check.outputs.status == 'OK'
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Remove label if it exists and commit count is back below threshold
+          # 2>$null is safe - PR exists when workflow runs
+          $existingLabels = gh pr view $env:PR_NUMBER --json labels --jq '.labels[].name' 2>$null
+          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
+
+          if ($existingLabels -contains 'needs-split') {
+            gh pr edit $env:PR_NUMBER --remove-label "needs-split"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to remove needs-split label (exit code: $LASTEXITCODE)" }
+            Write-Host "Removed 'needs-split' label from PR #$env:PR_NUMBER"
+          }
+
       - name: Enforce Blocking Issues
         shell: pwsh
         env:
           OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
+          COMMIT_STATUS: ${{ steps.commit-check.outputs.status }}
+          COMMIT_COUNT: ${{ steps.commit-check.outputs.commit_count }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           if ($env:OVERALL_STATUS -eq "FAIL" -or $env:OVERALL_STATUS -eq "ERROR") {
             Write-Error "PR validation failed: $env:OVERALL_STATUS"
             exit 1
           }
-          
+
+          # Block if commit count exceeds limit (requires human override via bypass label)
+          if ($env:COMMIT_STATUS -eq "BLOCKED") {
+            # Check for bypass label (2>$null is safe - PR exists when workflow runs)
+            $labels = gh pr view $env:PR_NUMBER --json labels --jq '.labels[].name' 2>$null
+            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
+
+            if ($labels -contains 'commit-limit-bypass') {
+              Write-Host "::warning::Commit limit bypassed via 'commit-limit-bypass' label"
+            } else {
+              Write-Error "PR has $env:COMMIT_COUNT commits (limit: 20). Add 'commit-limit-bypass' label to override or split this PR."
+              exit 1
+            }
+          }
+
           Write-Host "✓ PR validation passed"
