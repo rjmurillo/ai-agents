@@ -302,8 +302,8 @@ function Build-Output {
     $pendingCount = @($checks | Where-Object { $_.IsPending }).Count
     $passedCount = @($checks | Where-Object { $_.IsPassing }).Count
 
-    # AllPassing: true if no failures AND no pending (all completed successfully or skipped)
-    $allPassing = ($failedCount -eq 0) -and ($pendingCount -eq 0) -and ($checks.Count -gt 0 -or -not $CheckData.HasChecks)
+    # AllPassing: true only if there are checks and none are failing or pending
+    $allPassing = $CheckData.HasChecks -and ($checks.Count -gt 0) -and ($failedCount -eq 0) -and ($pendingCount -eq 0)
 
     return [PSCustomObject]@{
         Success      = $true
