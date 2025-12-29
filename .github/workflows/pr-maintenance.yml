@@ -346,14 +346,123 @@ jobs:
           echo "Use /merge-resolver ${{ matrix.number }} for manual resolution"
           exit 1
 
-      - name: Process PR comments for PR #${{ matrix.number }}
-        id: process-comments
-        # Process comments when:
-        # - No conflicts, OR conflicts were resolved successfully
+      # Gate: Check for human approval before bot responds to reviews (see #361)
+      - name: Check human approval gate for PR #${{ matrix.number }}
+        id: approval-gate
         if: |
           matrix.hasConflicts != true ||
           steps.auto-resolve.outputs.needs_ai != 'true' ||
           steps.ai-analysis.outputs.verdict == 'PASS'
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          # Check if PR has human approval label for bot responses
+          $prData = gh pr view ${{ matrix.number }} --json labels,reviews --jq '{labels: [.labels[].name], reviews: .reviews}'
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::Failed to fetch PR data"
+            exit 1
+          }
+          $pr = $prData | ConvertFrom-Json
+
+          # Check for triage:approved label
+          $hasApproval = $pr.labels -contains 'triage:approved'
+
+          # Check for human CHANGES_REQUESTED (not from bots)
+          $botAuthors = @('coderabbitai[bot]', 'github-actions[bot]', 'copilot-swe-agent[bot]', 'gemini-code-assist[bot]', 'rjmurillo-bot')
+          $humanChangesRequested = $pr.reviews | Where-Object {
+            $_.state -eq 'CHANGES_REQUESTED' -and $_.author.login -notin $botAuthors
+          }
+
+          if ($humanChangesRequested) {
+            Write-Host "::warning::PR #${{ matrix.number }}: Human CHANGES_REQUESTED found - prioritize addressing this feedback first"
+            "human_changes_requested=true" | Out-File $env:GITHUB_OUTPUT -Append
+          } else {
+            "human_changes_requested=false" | Out-File $env:GITHUB_OUTPUT -Append
+          }
+
+          if ($hasApproval) {
+            Write-Host "PR #${{ matrix.number }}: triage:approved label found - proceeding with bot responses"
+            "approved=true" | Out-File $env:GITHUB_OUTPUT -Append
+          } else {
+            Write-Host "PR #${{ matrix.number }}: No triage:approved label - skipping bot responses"
+            Write-Host "Add 'triage:approved' label to allow bot responses"
+            "approved=false" | Out-File $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Post triage summary for PR #${{ matrix.number }}
+        if: |
+          steps.approval-gate.outputs.approved == 'false' &&
+          (matrix.hasConflicts != true ||
+           steps.auto-resolve.outputs.needs_ai != 'true' ||
+           steps.ai-analysis.outputs.verdict == 'PASS')
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          # Post triage summary if not already posted
+          $existingComments = gh pr view ${{ matrix.number }} --json comments --jq '.comments[].body' 2>$null
+          if ($existingComments -match 'TRIAGE-REQUIRED') {
+            Write-Host "Triage summary already posted"
+            exit 0
+          }
+
+          # Get review comments summary
+          $botAuthors = @('coderabbitai[bot]', 'github-actions[bot]', 'copilot-swe-agent[bot]', 'gemini-code-assist[bot]', 'rjmurillo-bot')
+          $reviews = gh api "/repos/${{ github.repository }}/pulls/${{ matrix.number }}/reviews" 2>$null | ConvertFrom-Json
+          $comments = gh api "/repos/${{ github.repository }}/pulls/${{ matrix.number }}/comments" 2>$null | ConvertFrom-Json
+
+          $humanReviews = @($reviews | Where-Object { $_.user.login -notin $botAuthors })
+          $botReviews = @($reviews | Where-Object { $_.user.login -in $botAuthors })
+          $humanComments = @($comments | Where-Object { $_.user.login -notin $botAuthors })
+          $botComments = @($comments | Where-Object { $_.user.login -in $botAuthors })
+
+          $humanChangesRequested = '${{ steps.approval-gate.outputs.human_changes_requested }}' -eq 'true'
+          $priority = if ($humanChangesRequested) { 'CRITICAL' } else { 'NORMAL' }
+          $alertType = if ($humanChangesRequested) { 'CAUTION' } else { 'NOTE' }
+
+          $body = @"
+          <!-- TRIAGE-REQUIRED -->
+          ## Review Triage Required
+
+          > [!$alertType]
+          > **Priority: $priority** - Human approval required before bot responds
+
+          ### Review Summary
+
+          | Source | Reviews | Comments |
+          |--------|---------|----------|
+          | **Human** | $($humanReviews.Count) | $($humanComments.Count) |
+          | Bot | $($botReviews.Count) | $($botComments.Count) |
+
+          $(if ($humanChangesRequested) { @"
+          ### :warning: Human CHANGES_REQUESTED
+
+          A human reviewer has requested changes. **Address this feedback first** before processing bot comments.
+          "@ })
+
+          ### Next Steps
+
+          1. Review human feedback above
+          2. Address any CHANGES_REQUESTED from human reviewers
+          3. Add ``triage:approved`` label when ready for bot to respond to review comments
+
+          ---
+          <sub>Powered by PR Maintenance workflow - [Add triage:approved label](https://github.com/${{ github.repository }}/issues/${{ matrix.number }}/labels)</sub>
+          "@
+
+          gh pr comment ${{ matrix.number }} --body $body
+
+      - name: Process PR comments for PR #${{ matrix.number }}
+        id: process-comments
+        # Process comments when:
+        # - Human approval granted (triage:approved label) AND
+        # - No conflicts, OR conflicts were resolved successfully
+        if: |
+          steps.approval-gate.outputs.approved == 'true' &&
+          (matrix.hasConflicts != true ||
+           steps.auto-resolve.outputs.needs_ai != 'true' ||
+           steps.ai-analysis.outputs.verdict == 'PASS')
         uses: ./.github/actions/ai-review
         with:
           agent: pr-comment-responder
