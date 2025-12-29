@@ -266,7 +266,18 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           # Get commit count for this PR (see #362 for thresholds)
+          # NOTE: Pagination limited to 100 commits. PRs exceeding this are rare given 20-commit block threshold.
           $commits = gh api "/repos/${{ github.repository }}/pulls/$env:PR_NUMBER/commits?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to fetch commits for PR #$env:PR_NUMBER via 'gh api'. Exit code: $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+
+          if (-not $commits) {
+            Write-Error "No commits were returned for PR #$env:PR_NUMBER. Aborting commit count check."
+            exit 1
+          }
+
           $commitCount = $commits.Count
 
           Write-Host "PR #$env:PR_NUMBER has $commitCount commits"
@@ -331,6 +342,7 @@ jobs:
           OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
           COMMIT_STATUS: ${{ steps.commit-check.outputs.status }}
           COMMIT_COUNT: ${{ steps.commit-check.outputs.commit_count }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           if ($env:OVERALL_STATUS -eq "FAIL" -or $env:OVERALL_STATUS -eq "ERROR") {
             Write-Error "PR validation failed: $env:OVERALL_STATUS"

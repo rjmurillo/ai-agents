@@ -40,7 +40,7 @@ None.
 
 ### Important (Should Fix)
 
-- [ ] **Missing LASTEXITCODE check after `gh` commands** (lines 300, 302, 315, 317, 336)
+- [x] **Missing LASTEXITCODE check after `gh` commands** (lines 300, 302, 315, 317, 336)
   - **Location**: Steps "Apply needs-split label", "Remove needs-split label", "Enforce Blocking Issues"
   - **Risk**: `gh` command failures silently ignored (PowerShell doesn't throw on non-zero exit codes)
   - **Evidence**: Memory `validation-pr-gates` Skill-PR-249-002 documents this pattern
