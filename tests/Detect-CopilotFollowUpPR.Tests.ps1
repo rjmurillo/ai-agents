@@ -117,6 +117,29 @@ index 7654321..gfedcba 100644
             $result.category | Should -Be 'POSSIBLE_SUPPLEMENTAL'
             $result.similarity | Should -Be 40
         }
+
+        It "Multi-file diff with original commits returns POSSIBLE_SUPPLEMENTAL (regex now fixed)" {
+            # Fixed: The regex now uses (?m) multiline mode to correctly count multiple files
+            $multiFileDiff = @"
+diff --git a/file1.ps1 b/file1.ps1
+index 1234567..abcdefg 100644
+--- a/file1.ps1
++++ b/file1.ps1
+@@ -1,3 +1,4 @@
+ # Content
+diff --git a/file2.ps1 b/file2.ps1
+index 7654321..gfedcba 100644
+--- a/file2.ps1
++++ b/file2.ps1
+@@ -1,3 +1,4 @@
+ # More content
+"@
+            $originalCommits = @(@{ sha = 'abc123' })
+            $result = Compare-DiffContent -FollowUpDiff $multiFileDiff -OriginalCommits $originalCommits
+            $result.category | Should -Be 'POSSIBLE_SUPPLEMENTAL'
+            $result.similarity | Should -Be 40
+            $result.reason | Should -Be 'Multiple file changes suggest additional work'
+        }
     }
 
     Context "Output Structure" {
