@@ -47,19 +47,8 @@ jobs:
         id: ratelimit
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        run: |
-          $limits = gh api rate_limit 2>&1 | ConvertFrom-Json
-          $core = $limits.resources.core
-          $graphql = $limits.resources.graphql
-          Write-Host "Rate limits - Core: $($core.remaining)/$($core.limit), GraphQL: $($graphql.remaining)/$($graphql.limit)"
-
-          if ($core.remaining -lt 100 -or $graphql.remaining -lt 50) {
-            Write-Host "::error::Rate limit too low to proceed"
-            exit 1
-          }
-
-          "core_remaining=$($core.remaining)" | Out-File $env:GITHUB_OUTPUT -Append
+        shell: pwsh
+        run: .github/scripts/Test-RateLimitForWorkflow.ps1
 
       - name: Discover PRs needing attention
         id: discover

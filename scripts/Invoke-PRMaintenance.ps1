@@ -77,6 +77,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Import shared GitHubHelpers module for rate limit checking (DRY per issue #273)
+$script:GitHubHelpersPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+if (Test-Path $script:GitHubHelpersPath) {
+    Import-Module $script:GitHubHelpersPath -Force
+}
+
 #region Configuration
 
 $script:Config = @{
@@ -141,9 +147,37 @@ function Save-Log {
 #region Security Validation
 
 function Test-RateLimitSafe {
+    <#
+    .SYNOPSIS
+        Check if API rate limit is sufficient for operations.
+    .DESCRIPTION
+        Wrapper around Test-WorkflowRateLimit from GitHubHelpers module.
+        Returns boolean for simple pass/fail check.
+    .NOTES
+        DRY refactor per issue #273. Uses shared function from GitHubHelpers.psm1.
+    #>
     [CmdletBinding()]
     param()
 
+    # Use shared function if module is loaded
+    if (Get-Command -Name Test-WorkflowRateLimit -ErrorAction SilentlyContinue) {
+        try {
+            $result = Test-WorkflowRateLimit -ResourceThresholds @{
+                'core'    = 100
+                'graphql' = 50
+            }
+            if (-not $result.Success) {
+                Write-Log "Rate limit too low: core=$($result.CoreRemaining)" -Level WARN
+            }
+            return $result.Success
+        }
+        catch {
+            Write-Log "Failed to check rate limit via shared function: $_" -Level WARN
+            return $true  # Assume safe if check fails
+        }
+    }
+
+    # Fallback to direct API call if module not loaded
     $limits = gh api rate_limit 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Log "Failed to check rate limit: $limits" -Level WARN
@@ -155,7 +189,6 @@ function Test-RateLimitSafe {
         $core = $parsed.resources.core
         $graphql = $parsed.resources.graphql
 
-        # Need at least 100 core and 50 graphql remaining
         if ($core.remaining -lt 100 -or $graphql.remaining -lt 50) {
             Write-Log "Rate limit too low: core=$($core.remaining), graphql=$($graphql.remaining)" -Level WARN
             return $false
