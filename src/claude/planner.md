@@ -467,6 +467,81 @@ Before finalizing any plan with specialist conditions:
 | TASK-002 | Create test specs | 1h | QA: Needs test specification file |
 ```
 
+## Pre-PR Validation Requirements (MANDATORY)
+
+Every implementation plan MUST include pre-PR validation tasks as the final work package. This is a BLOCKING gate for PR creation.
+
+### Validation Work Package Template
+
+Include as final phase in every plan:
+
+```markdown
+## Work Package: Pre-PR Validation
+
+**Assignee**: QA Agent
+**Blocking**: PR creation
+**Estimated Effort**: 1-2 hours
+
+### Tasks
+
+#### Task 1: Cross-Cutting Concerns Audit
+
+- [ ] Verify no hardcoded values
+- [ ] Verify all environment variables defined
+- [ ] Verify no TODO/FIXME/XXX placeholders
+- [ ] Verify test-only code isolated from production
+
+#### Task 2: Fail-Safe Design Verification
+
+- [ ] Verify exit code validation (LASTEXITCODE checks)
+- [ ] Verify error handling defaults to fail-safe
+- [ ] Verify security defaults to most restrictive
+- [ ] Verify protected branch scenarios tested
+
+#### Task 3: Test-Implementation Alignment
+
+- [ ] Verify test parameters match implementation
+- [ ] Verify no drift between tests and production
+- [ ] Verify code coverage meets threshold
+- [ ] Verify edge cases covered
+
+#### Task 4: CI Environment Simulation
+
+- [ ] Run tests in CI mode (GITHUB_ACTIONS=true)
+- [ ] Verify build succeeds with CI flags
+- [ ] Verify protected branch behavior
+- [ ] Document CI environment differences
+
+#### Task 5: Environment Variable Completeness
+
+- [ ] Verify all required vars documented
+- [ ] Verify default values defined
+- [ ] Verify no missing vars in CI
+- [ ] Verify variable propagation across steps
+
+### Acceptance Criteria
+
+- All 5 validation tasks complete
+- QA agent provides validation evidence
+- Orchestrator receives APPROVED verdict
+- No blocking issues identified
+
+### Dependencies
+
+- Blocks: PR creation
+- Depends on: Implementation completion (all prior work packages)
+```
+
+### Plan Validation Checklist
+
+Before delivering plan to orchestrator, verify:
+
+- [ ] Pre-PR Validation work package included
+- [ ] All 5 validation tasks present
+- [ ] Work package marked as BLOCKING for PR creation
+- [ ] Dependencies documented (blocks PR, depends on implementation)
+- [ ] QA agent assigned to validation work package
+
 ## Output Location
 
 `.agents/planning/`

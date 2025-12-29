@@ -46,6 +46,10 @@ Describe "GitHubHelpers Module" {
             Get-Command -Module GitHubHelpers -Name Get-ReactionEmoji | Should -Not -BeNullOrEmpty
         }
 
+        It "Exports Get-BotAuthorsConfig function" {
+            Get-Command -Module GitHubHelpers -Name Get-BotAuthorsConfig | Should -Not -BeNullOrEmpty
+        }
+
         It "Exports Get-BotAuthors function" {
             Get-Command -Module GitHubHelpers -Name Get-BotAuthors | Should -Not -BeNullOrEmpty
         }
@@ -126,10 +130,46 @@ Describe "GitHubHelpers Module" {
         }
     }
 
+    Context "Get-BotAuthorsConfig" {
+        It "Returns hashtable with required keys" {
+            $result = Get-BotAuthorsConfig
+            $result | Should -BeOfType [hashtable]
+            $result.Keys | Should -Contain 'reviewer'
+            $result.Keys | Should -Contain 'automation'
+            $result.Keys | Should -Contain 'repository'
+        }
+
+        It "Returns arrays for each category" {
+            $result = Get-BotAuthorsConfig
+            # Each category should contain at least one bot
+            @($result['reviewer']).Count | Should -BeGreaterThan 0
+            @($result['automation']).Count | Should -BeGreaterThan 0
+            @($result['repository']).Count | Should -BeGreaterThan 0
+        }
+
+        It "Uses cached result on second call" {
+            $result1 = Get-BotAuthorsConfig
+            $result2 = Get-BotAuthorsConfig
+            $result1 | Should -Be $result2
+        }
+
+        It "Reloads when Force is specified" {
+            $result1 = Get-BotAuthorsConfig
+            $result2 = Get-BotAuthorsConfig -Force
+            $result2 | Should -Not -BeNullOrEmpty
+        }
+
+        It "Falls back to defaults when config file is missing" {
+            $result = Get-BotAuthorsConfig -ConfigPath '/nonexistent/path/config.yml'
+            $result | Should -BeOfType [hashtable]
+            $result['reviewer'] | Should -Contain 'coderabbitai[bot]'
+        }
+    }
+
     Context "Get-BotAuthors" {
-        It "Returns array of strings" {
-            $result = Get-BotAuthors
-            $result | Should -BeOfType [System.Object[]]
+        It "Returns collection of strings" {
+            $result = @(Get-BotAuthors)
+            $result.Count | Should -BeGreaterThan 0
             $result | ForEach-Object { $_ | Should -BeOfType [string] }
         }
 

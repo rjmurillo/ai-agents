@@ -118,7 +118,7 @@ jobs:
           fail-on-error: true
 
   skip-tests:
-    name: Run Pester Tests
+    name: Skip Pester Tests (No Changes)
     needs: check-paths
     if: needs.check-paths.outputs.should-run-tests != 'true'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
