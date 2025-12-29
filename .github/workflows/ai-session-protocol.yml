@@ -25,7 +25,7 @@ jobs:
   # Identify changed session files and build matrix
   detect-changes:
     name: Detect Changed Sessions
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
@@ -41,8 +41,10 @@ jobs:
         id: changed
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          CHANGED_FILES=$(gh pr diff "$PR_NUMBER" --name-only | grep -E '^\.agents/sessions/.*\.md$' || true)
+          # Use files API instead of gh pr diff (no line limit - fixes issue #468)
+          CHANGED_FILES=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER/files" --paginate --jq '.[].filename' | grep -E '^\.agents/sessions/.*\.md$' || true)
 
           if [ -z "$CHANGED_FILES" ]; then
             echo "No session files changed"
@@ -61,7 +63,7 @@ jobs:
   # Validate each session file in parallel using matrix strategy
   validate:
     name: Validate ${{ matrix.session_file }}
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: detect-changes
     if: needs.detect-changes.outputs.has_sessions == 'true'
@@ -143,7 +145,7 @@ jobs:
   # Aggregate results and post comment
   aggregate:
     name: Aggregate Results
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: [detect-changes, validate]
     if: needs.detect-changes.outputs.has_sessions == 'true'
@@ -178,7 +180,7 @@ jobs:
             $verdict = $verdict.Trim()
             Write-Log "Found verdict: $verdict from $($verdictFile.Name)"
 
-            if ($verdict -in 'CRITICAL_FAIL', 'REJECTED') {
+            if ($verdict -in 'CRITICAL_FAIL', 'REJECTED', 'NEEDS_REVIEW') {
               $overallVerdict = "CRITICAL_FAIL"
             } elseif ($verdict -eq 'WARN' -and $overallVerdict -eq 'PASS') {
               $overallVerdict = "WARN"
@@ -298,7 +300,7 @@ jobs:
 
           </details>
 
-          <sub>Powered by [AI Session Protocol Validator](https://github.com/$($env:GITHUB_REPOSITORY)) - [View Workflow]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID))</sub>
+          <sub>Powered by [AI Session Protocol Validator](https://github.com/$($env:GITHUB_REPOSITORY)) workflow</sub>
           "@
 
           $report | Set-Content $reportFile -Encoding UTF8

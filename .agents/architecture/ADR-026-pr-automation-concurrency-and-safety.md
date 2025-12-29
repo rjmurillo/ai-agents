@@ -1,4 +1,4 @@
-# ADR-015: PR Automation Concurrency and Safety Controls
+# ADR-026: PR Automation Concurrency and Safety Controls
 
 ## Status
 

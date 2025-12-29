@@ -204,7 +204,7 @@ Describe "Input Validation Security" {
 
 ## References
 
-- **ADR**: [ADR-015: PR Automation Concurrency and Safety Controls](../architecture/ADR-015-pr-automation-concurrency-and-safety.md)
+- **ADR**: [ADR-026: PR Automation Concurrency and Safety Controls](../architecture/ADR-026-pr-automation-concurrency-and-safety.md)
 - **Implementation Plan**: [`.agents/planning/pr-automation-implementation-plan.md`](../planning/pr-automation-implementation-plan.md)
 - **DevOps Review**: [`.agents/devops/pr-automation-script-review.md`](../devops/pr-automation-script-review.md)
 - **Test Results**: Session 66 - 68/68 tests passing

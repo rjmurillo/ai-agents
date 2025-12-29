@@ -806,10 +806,3 @@ As the project progresses, document lessons learned here following this format:
 - [What was done to resolve]
 ```
 
----
-
-## Document Control
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2025-12-17 | Initial agent instructions for ai-agents enhancement |

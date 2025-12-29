@@ -192,7 +192,7 @@ If path filters cause issues:
 
 ## Related Decisions
 
-- ADR-014: GitHub Actions ARM Runner Migration
+- ADR-025: GitHub Actions ARM Runner Migration
 - ADR-015: Artifact Storage Minimization Strategy
 - ADR-006: Thin Workflows, Testable Modules (related to workflow design)
 

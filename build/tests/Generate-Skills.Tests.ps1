@@ -14,7 +14,7 @@
 
 BeforeAll {
     # Install and import required module
-    # Version pinned for security and reproducibility
+    # Version pinned for security and reproducibility (issue #304)
     $requiredVersion = '0.4.12'
     $module = Get-Module -ListAvailable -Name powershell-yaml | Where-Object { $_.Version -eq $requiredVersion }
     if (-not $module) {
@@ -653,12 +653,12 @@ Content
             $output | Should -Match "WROTE:"
         }
 
-        It "Respects -DryRun parameter" {
+        It "Respects -WhatIf parameter" {
             $skillMd = Join-Path $Script:SkillTestDir "SKILL.md"
             $content = "---`nname: dryrun`nmetadata:`n  generator:`n    keep_headings:`n      - H1`n---`n## H1`nContent"
             Set-ContentUtf8 -Path $skillMd -Text $content
 
-            & "$PSScriptRoot/../Generate-Skills.ps1" -Root $Script:SkillTestDir -DryRun -ErrorAction Stop
+            & "$PSScriptRoot/../Generate-Skills.ps1" -Root $Script:SkillTestDir -WhatIf -ErrorAction Stop
 
             $outputPath = Join-Path $Script:SkillTestDir "dryrun.skill"
             Test-Path $outputPath | Should -Be $false

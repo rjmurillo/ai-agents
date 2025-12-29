@@ -31,7 +31,7 @@ concurrency:
 jobs:
   validate:
     name: Validate Memory Files
-    # ADR-014: Use ubuntu-24.04-arm to align with standardized ARM runners for CI.
+    # ADR-025: Use ubuntu-24.04-arm to align with standardized ARM runners for CI.
     # ARM runners are selected here for cost-optimized, consistent validation workloads.
     runs-on: ubuntu-24.04-arm
     permissions:
