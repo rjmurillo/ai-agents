@@ -193,13 +193,13 @@ foreach ($hook in $hookFiles) {
 
 # Check for hardcoded secrets in staged changes
 $diff = git diff --cached
-if ($diff -match '(api_key|password|secret|token)\s*=\s*[''"][^''"]+[''"]') {
+if ($diff -match '(api_key|password|secret|token)\s*[:=]\s*[''"][^''"]+[''"]') {
     Write-Error "[FAIL] Possible hardcoded secret detected"
 }
 
 # Verify no environment variable leaks
-$envPatterns = @('\$env:[A-Z_]+\s*=\s*[''"][^''"]+[''"]')
-Get-ChildItem -Recurse -Include *.ps1,*.yml,*.yaml |
+$envPatterns = @('\$env:[A-Z0-9_]+\s*=\s*[''"][^''"]+[''"]')
+Get-ChildItem -Recurse -Include *.ps1 |
     Select-String -Pattern $envPatterns |
     ForEach-Object { Write-Warning "[REVIEW] Hardcoded env var: $($_.Path):$($_.LineNumber)" }
 ```
