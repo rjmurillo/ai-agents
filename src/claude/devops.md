@@ -318,12 +318,11 @@ $env:GITHUB_REF_PROTECTED = 'false'
 
 # Run build with CI flags
 dotnet build Solution.sln -c Release /p:ContinuousIntegrationBuild=true
+if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
 
 # Run tests in CI mode
 dotnet test Solution.sln -c Release --no-build
-
-# Verify PowerShell exit codes
-if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
+if ($LASTEXITCODE -ne 0) { throw "Tests failed with exit code $LASTEXITCODE" }
 ```
 
 **Bash (Linux/macOS):**
@@ -336,12 +335,11 @@ export GITHUB_REF_PROTECTED=false
 
 # Run build with CI flags
 dotnet build Solution.sln -c Release /p:ContinuousIntegrationBuild=true
+if [ $? -ne 0 ]; then echo "Build failed"; exit 1; fi
 
 # Run tests in CI mode
 dotnet test Solution.sln -c Release --no-build
-
-# Verify exit codes
-if [ $? -ne 0 ]; then echo "Build failed"; exit 1; fi
+if [ $? -ne 0 ]; then echo "Tests failed"; exit 1; fi
 ```
 
 ### Protected Branch Simulation
