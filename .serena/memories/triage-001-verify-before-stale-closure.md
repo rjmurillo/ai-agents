@@ -2,7 +2,7 @@
 
 ## Problem
 
-In Session 100, issues #238 and #293 were incorrectly closed as "stale" because the referenced functions (`Get-CopilotAnnouncement`, `Detect-CopilotFollowUpPR.ps1`) didn't exist on `main`. However, the code existed on unmerged branches (`feat/pr-162-phase4`, `copilot/add-copilot-context-synthesis`) from PRs #202/#203 that were incorrectly closed by triage bot.
+In Session 100, issues #238 and #293 were incorrectly closed as "stale" because the referenced functions (`Get-CopilotAnnouncement`, `Detect-CopilotFollowUpPR`) didn't exist on `main`. However, the code existed on unmerged branches (`feat/pr-162-phase4`, `copilot/add-copilot-context-synthesis`) from PRs #202/#203 that were incorrectly closed by triage bot.
 
 ## Root Cause
 
