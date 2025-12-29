@@ -719,7 +719,10 @@ function Get-PRChangedFiles {
     )
 
     try {
-        $files = gh pr diff $PRNumber --name-only 2>$null
+        # Use files API instead of gh pr diff (no line limit - fixes issue #468)
+        # gh pr diff fails with HTTP 406 when diff exceeds 20,000 lines
+        $repo = $env:GITHUB_REPOSITORY ?? (gh repo view --json nameWithOwner -q '.nameWithOwner')
+        $files = gh api "repos/$repo/pulls/$PRNumber/files" --paginate --jq '.[].filename' 2>$null
         if ($files) {
             return $files -split "`n" | Where-Object { $_ -match $Pattern }
         }
