@@ -42,7 +42,13 @@ Issue Comments (line ~380)
 Trusted Sources (line ~600)
   - Get-TrustedSourceComments Filter comments by trusted users
 
-Formatting (line ~640)
+Bot Configuration (line ~670)
+  - Get-BotAuthors            Centralized bot author list
+
+Rate Limit (line ~740)
+  - Test-WorkflowRateLimit    Check API rate limits before workflow execution
+
+Formatting (line ~840)
   - Get-PriorityEmoji        P0-P3 to emoji mapping
   - Get-ReactionEmoji        Reaction type to emoji
 #>
@@ -670,6 +676,157 @@ function Get-TrustedSourceComments {
 
 #endregion
 
+#region Bot Configuration Functions
+
+function Get-BotAuthors {
+    <#
+    .SYNOPSIS
+        Returns the centralized list of known bot authors.
+
+    .DESCRIPTION
+        Single source of truth for bot author identification across the repository.
+        Used by workflows, scripts, and agents to distinguish bot vs. human activity.
+
+    .PARAMETER Category
+        Optional. Filter by category: 'reviewer', 'automation', 'repository', 'all' (default).
+
+    .OUTPUTS
+        String array of bot author login names.
+
+    .EXAMPLE
+        $bots = Get-BotAuthors
+        if ($comment.user.login -in $bots) { Write-Host "Bot comment" }
+
+    .NOTES
+        See #282 for centralization rationale.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter()]
+        [ValidateSet('reviewer', 'automation', 'repository', 'all')]
+        [string]$Category = 'all'
+    )
+
+    $bots = @{
+        reviewer = @(
+            'coderabbitai[bot]'
+            'github-copilot[bot]'
+            'gemini-code-assist[bot]'
+            'cursor[bot]'
+        )
+        automation = @(
+            'github-actions[bot]'
+            'dependabot[bot]'
+        )
+        repository = @(
+            'rjmurillo-bot'
+            'copilot-swe-agent[bot]'
+        )
+    }
+
+    if ($Category -eq 'all') {
+        return $bots.Values | ForEach-Object { $_ } | Sort-Object -Unique
+    }
+
+    return $bots[$Category]
+}
+
+#endregion
+
+#region Rate Limit Functions
+
+function Test-WorkflowRateLimit {
+    <#
+    .SYNOPSIS
+        Checks GitHub API rate limits before workflow execution.
+
+    .DESCRIPTION
+        Validates that all required API resource types have sufficient
+        remaining quota. Returns structured results for workflow decisions.
+
+    .PARAMETER ResourceThresholds
+        Hashtable of resource names to minimum remaining threshold.
+
+    .OUTPUTS
+        PSCustomObject with Success, Resources, SummaryMarkdown, CoreRemaining.
+
+    .EXAMPLE
+        $result = Test-WorkflowRateLimit
+        if (-not $result.Success) { Write-Error "Rate limit too low"; exit 1 }
+
+    .NOTES
+        Extracted from PRMaintenanceModule per #275.
+    #>
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [hashtable]$ResourceThresholds = @{
+            'core'        = 100
+            'search'      = 15
+            'code_search' = 5
+            'graphql'     = 100
+        }
+    )
+
+    $rateLimitJson = gh api rate_limit 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to fetch rate limits: $rateLimitJson"
+    }
+
+    $rateLimit = $rateLimitJson | ConvertFrom-Json
+    $resources = @{}
+    $allPassed = $true
+    $summaryLines = @(
+        "### API Rate Limit Status",
+        "",
+        "| Resource | Remaining | Threshold | Status |",
+        "|----------|-----------|-----------|--------|"
+    )
+
+    foreach ($resource in $ResourceThresholds.Keys) {
+        # Check if resource exists in API response (null safety for API changes)
+        $resourceData = $rateLimit.resources.$resource
+        if ($null -eq $resourceData) {
+            Write-Warning "Resource '$resource' not found in rate limit response"
+            $allPassed = $false
+            $summaryLines += "| $resource | N/A | $($ResourceThresholds[$resource]) | X MISSING |"
+            continue
+        }
+
+        $remaining = $resourceData.remaining
+        $limit = $resourceData.limit
+        $reset = $resourceData.reset
+        $threshold = $ResourceThresholds[$resource]
+        $passed = $remaining -ge $threshold
+
+        if (-not $passed) { $allPassed = $false }
+
+        # PowerShell 5.1 compatibility: wrap if expressions in script blocks
+        $status = & { if ($passed) { "OK" } else { "TOO LOW" } }
+        $statusIcon = & { if ($passed) { "+" } else { "X" } }
+
+        $resources[$resource] = @{
+            Remaining = $remaining
+            Limit     = $limit
+            Reset     = $reset
+            Threshold = $threshold
+            Passed    = $passed
+        }
+
+        $summaryLines += "| $resource | $remaining | $threshold | $statusIcon $status |"
+    }
+
+    return [PSCustomObject]@{
+        Success         = $allPassed
+        Resources       = $resources
+        SummaryMarkdown = $summaryLines -join "`n"
+        CoreRemaining   = $rateLimit.resources.core.remaining
+    }
+}
+
+#endregion
+
 #region Exit Codes
 
 <#
@@ -706,6 +863,10 @@ Export-ModuleMember -Function @(
     'New-IssueComment'
     # Trusted sources
     'Get-TrustedSourceComments'
+    # Bot configuration
+    'Get-BotAuthors'
+    # Rate limit
+    'Test-WorkflowRateLimit'
     # Formatting
     'Get-PriorityEmoji'
     'Get-ReactionEmoji'

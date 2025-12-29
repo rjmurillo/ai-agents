@@ -143,8 +143,8 @@ retention-days: 7  # was: 30
 
 ### Architecture Decision Records
 
-1. **ADR-014**: GitHub Actions ARM Runner Migration
-   - Path: `.agents/architecture/ADR-014-github-actions-arm-runners.md`
+1. **ADR-025**: GitHub Actions ARM Runner Migration
+   - Path: `.agents/architecture/ADR-025-github-actions-arm-runners.md`
    - Documents runner selection strategy and cost analysis
 
 2. **ADR-015**: Artifact Storage Minimization Strategy

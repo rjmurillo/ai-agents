@@ -1,4 +1,4 @@
-# ADR-014: GitHub Actions Runner Selection
+# ADR-024: GitHub Actions Runner Selection
 
 ## Status
 
@@ -68,7 +68,7 @@ ARM hardware typically consumes less power for similar workloads. While cost-per
 
 1. **Default**: `ubuntu-24.04-arm` for all Linux workflows
 2. **Exception**: `windows-latest` for Windows-specific requirements (PowerShell on Windows, Windows-only tools)
-3. **Documentation Required**: Any workflow using x64 runners MUST include an ADR-014 compliance comment explaining why
+3. **Documentation Required**: Any workflow using x64 runners MUST include an ADR-024 compliance comment explaining why
 
 ### Compliance Comment Format
 
@@ -77,7 +77,7 @@ Workflows using ARM runners:
 ```yaml
 jobs:
   job-name:
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-024: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
 ```
 
@@ -86,7 +86,7 @@ Workflows requiring Windows or macOS:
 ```yaml
 jobs:
   job-name:
-    # ADR-014 Exception: Windows/macOS runner required for [specific reason]
+    # ADR-024 Exception: Windows/macOS runner required for [specific reason]
     # Issue: [Link to tracking issue or upstream limitation]
     runs-on: windows-latest  # or macos-latest
 ```
@@ -96,7 +96,7 @@ Workflows with ARM compatibility issues (if any):
 ```yaml
 jobs:
   job-name:
-    # ADR-014 Exception: [Specific tool/dependency] lacks ARM support
+    # ADR-024 Exception: [Specific tool/dependency] lacks ARM support
     # Issue: [Link to tracking issue or upstream limitation]
     runs-on: ubuntu-latest
 ```
@@ -165,7 +165,7 @@ For each workflow:
 
 1. Identify current runner configuration
 2. Test on `ubuntu-24.04-arm`
-3. Add ADR-014 compliance comment
+3. Add ADR-024 compliance comment
 4. Update `runs-on:` line
 5. Commit with rationale
 
@@ -179,14 +179,14 @@ For each workflow:
 
 If ARM compatibility issues arise:
 1. Revert to `ubuntu-latest` for affected workflow
-2. Add ADR-014 exception comment with issue link
+2. Add ADR-024 exception comment with issue link
 3. Track upstream ARM support status
 4. Re-evaluate quarterly
 
 ### Documentation Requirements
 
 **Required for ALL workflows**:
-- ADR-014 compliance comment explaining runner choice
+- ADR-024 compliance comment explaining runner choice
 
 **Required for exceptions**:
 - Specific reason (tool name, ARM incompatibility details)
