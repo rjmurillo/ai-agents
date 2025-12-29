@@ -178,7 +178,7 @@ jobs:
             $verdict = $verdict.Trim()
             Write-Log "Found verdict: $verdict from $($verdictFile.Name)"
 
-            if ($verdict -in 'CRITICAL_FAIL', 'REJECTED') {
+            if ($verdict -in 'CRITICAL_FAIL', 'REJECTED', 'NEEDS_REVIEW') {
               $overallVerdict = "CRITICAL_FAIL"
             } elseif ($verdict -eq 'WARN' -and $overallVerdict -eq 'PASS') {
               $overallVerdict = "WARN"
