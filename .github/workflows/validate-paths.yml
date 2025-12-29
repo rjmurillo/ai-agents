@@ -37,7 +37,7 @@ jobs:
       contents: read
     outputs:
       # For workflow_dispatch, always run validation; otherwise use paths-filter result
-      should-validate: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.paths }}
+      should-run-validation: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.paths }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -64,7 +64,7 @@ jobs:
   validate:
     name: Validate Path Normalization
     needs: check-paths
-    if: needs.check-paths.outputs.should-validate == 'true'
+    if: needs.check-paths.outputs.should-run-validation == 'true'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:
@@ -99,7 +99,7 @@ jobs:
   skip-validation:
     name: Validate Path Normalization
     needs: check-paths
-    if: needs.check-paths.outputs.should-validate != 'true'
+    if: needs.check-paths.outputs.should-run-validation != 'true'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:

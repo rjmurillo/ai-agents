@@ -45,7 +45,7 @@ jobs:
 
     outputs:
       # For workflow_dispatch, always run review; otherwise use paths-filter result
-      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run }}
+      should-run-review: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run-review }}
 
     steps:
       - name: Checkout repository
@@ -70,7 +70,7 @@ jobs:
         id: determine
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "should-run=true" >> $GITHUB_OUTPUT
+            echo "should-run-review=true" >> $GITHUB_OUTPUT
             echo "Decision: Run review (manual trigger)"
           else
             RELEVANT="${{ steps.filter.outputs.relevant }}"
@@ -79,10 +79,10 @@ jobs:
 
             # Run review if relevant files changed, skip otherwise
             if [ "$RELEVANT" = "true" ]; then
-              echo "should-run=true" >> $GITHUB_OUTPUT
+              echo "should-run-review=true" >> $GITHUB_OUTPUT
               echo "Decision: Run review (relevant files changed)"
             else
-              echo "should-run=false" >> $GITHUB_OUTPUT
+              echo "should-run-review=false" >> $GITHUB_OUTPUT
               echo "Decision: Skip review (no relevant files changed)"
             fi
           fi
@@ -94,7 +94,7 @@ jobs:
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: check-changes
-    if: needs.check-changes.outputs.should-run == 'true'
+    if: needs.check-changes.outputs.should-run-review == 'true'
     timeout-minutes: 10
 
     strategy:
@@ -279,7 +279,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     needs: [check-changes, review]
     # Always run if check-changes ran and said to run, even if some matrix jobs failed
-    if: always() && needs.check-changes.outputs.should-run == 'true'
+    if: always() && needs.check-changes.outputs.should-run-review == 'true'
 
     outputs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
@@ -684,7 +684,7 @@ jobs:
   skip-agent-reviews:
     name: ${{ matrix.agent }} Review
     needs: check-changes
-    if: needs.check-changes.outputs.should-run != 'true'
+    if: needs.check-changes.outputs.should-run-review != 'true'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:
@@ -712,7 +712,7 @@ jobs:
   skip-aggregate:
     name: Aggregate Results
     needs: check-changes
-    if: needs.check-changes.outputs.should-run != 'true'
+    if: needs.check-changes.outputs.should-run-review != 'true'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:
