@@ -420,6 +420,80 @@ Refs: [Plan task reference]
 
 Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
+## Pre-PR Validation Gate (MANDATORY)
+
+**BLOCKING**: Complete ALL validation checklists before requesting PR creation. This gate prevents premature PR opening that leads to excessive rework.
+
+### Validation Checklist 1: Cross-Cutting Concerns Audit
+
+- [ ] No hardcoded values (all configurable via environment/config)
+- [ ] All environment variables defined and documented
+- [ ] No TODO/FIXME/XXX placeholders remaining
+- [ ] Test-only code isolated from production code
+- [ ] No duplicate code across modules
+
+### Validation Checklist 2: Fail-Safe Design Verification
+
+- [ ] Exit code validation present ($LASTEXITCODE checks in PowerShell)
+- [ ] Error handling defaults to fail-safe (fail-closed, not fail-open)
+- [ ] Security defaults to most restrictive option
+- [ ] Protected branch scenarios tested locally
+- [ ] No silent failures (all errors logged or thrown)
+
+### Validation Checklist 3: Test-Implementation Alignment
+
+- [ ] Test parameters match implementation (no drift)
+- [ ] Unit tests cover all new public methods
+- [ ] Edge cases have explicit test coverage
+- [ ] Code coverage meets project threshold
+- [ ] No mock objects that diverge from real behavior
+
+### Validation Checklist 4: CI Environment Simulation
+
+- [ ] Tests pass with CI flags (GITHUB_ACTIONS=true, CI=true)
+- [ ] Build succeeds with /p:ContinuousIntegrationBuild=true
+- [ ] Protected branch behavior verified locally
+- [ ] CI-specific configuration documented
+
+### Validation Checklist 5: Environment Variable Completeness
+
+- [ ] All required environment variables documented
+- [ ] Default values defined for optional variables
+- [ ] No missing variables when running in CI mode
+- [ ] Variable propagation verified across workflow steps
+
+### Validation Evidence Template
+
+Document validation results before handoff:
+
+```markdown
+## Pre-PR Validation Evidence
+
+**Date**: [YYYY-MM-DD]
+**Implementation**: [Feature/Fix description]
+
+### Checklist Results
+
+| Checklist | Status | Notes |
+|-----------|--------|-------|
+| Cross-Cutting Concerns | [PASS/FAIL] | [Details] |
+| Fail-Safe Design | [PASS/FAIL] | [Details] |
+| Test-Implementation | [PASS/FAIL] | [Details] |
+| CI Environment | [PASS/FAIL] | [Details] |
+| Environment Variables | [PASS/FAIL] | [Details] |
+
+### Blocking Issues
+
+- [Any issues that must be resolved before PR]
+
+### Verdict
+
+- [ ] **READY FOR PR**: All checklists pass
+- [ ] **NOT READY**: Blocking issues identified
+```
+
+**Do NOT proceed to PR creation if ANY checklist fails.**
+
 ## Handoff Options
 
 | Target | When | Purpose |
