@@ -169,9 +169,14 @@ function Compare-DiffContent {
         if ($OriginalPRNumber -gt 0) {
             $mergedJson = gh pr view $OriginalPRNumber --repo "$script:Owner/$script:Repo" --json merged 2>$null
             if ($LASTEXITCODE -eq 0 -and $mergedJson) {
-                $mergeData = $mergedJson | ConvertFrom-Json
-                if ($mergeData.merged -eq $true) {
-                    $reason = 'Follow-up contains no changes (original PR already merged)'
+                try {
+                    $mergeData = $mergedJson | ConvertFrom-Json
+                    if ($mergeData.merged -eq $true) {
+                        $reason = 'Follow-up contains no changes (original PR already merged)'
+                    }
+                }
+                catch {
+                    Write-Warning "Failed to parse merge status for PR #$OriginalPRNumber. Defaulting to standard reason. Error: $_"
                 }
             }
         }
