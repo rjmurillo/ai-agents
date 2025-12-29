@@ -745,7 +745,7 @@ Store root cause entities for future pattern matching:
 
 **Create root cause entity:**
 
-```json
+```text
 mcp__cloudmcp-manager__memory-create_entities
 {
   "entities": [{
@@ -765,7 +765,7 @@ mcp__cloudmcp-manager__memory-create_entities
 
 **Create prevention relations:**
 
-```json
+```text
 mcp__cloudmcp-manager__memory-create_relations
 {
   "relations": [
@@ -801,7 +801,7 @@ Add to retrospective artifact when Five Whys identifies root cause:
 ## Root Cause Pattern
 
 **Pattern ID**: RootCause-{Category}-{NNN}
-**Category**: [Cross-Cutting | Fail-Safe | Test-Drift | Premature | Context | Skill-Gap]
+**Category**: [Cross-Cutting | Fail-Safe | Test-Implementation Drift | Premature | Context | Skill-Gap]
 
 ### Description
 [What failed and why - from Five Whys analysis]
