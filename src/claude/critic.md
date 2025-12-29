@@ -125,6 +125,82 @@ When reviewing plans that introduce dependencies or architectural changes:
 - [ ] Issues Discovered sections populated and triaged
 - [ ] Implementation sequence addresses dependencies from all domains
 
+## Pre-PR Readiness Validation
+
+When validating implementation plans, verify readiness for quality review BEFORE PR creation. This is a BLOCKING gate for plan approval.
+
+### Readiness Checklist
+
+#### 1. Validation Tasks Included
+
+- [ ] Plan includes pre-PR validation work package
+- [ ] All 5 validation categories addressed (cross-cutting, fail-safe, test alignment, CI sim, env vars)
+- [ ] Validation tasks reference specific validation skills where applicable
+- [ ] Validation marked as BLOCKING for PR creation
+
+#### 2. Cross-Cutting Concerns Addressed
+
+- [ ] Plan identifies all hardcoded values for extraction
+- [ ] Plan documents all environment variables needed
+- [ ] Plan includes TODO/FIXME cleanup tasks
+- [ ] Plan separates test-only code from production
+
+#### 3. Fail-Safe Design Planned
+
+- [ ] Plan includes exit code validation tasks
+- [ ] Plan documents error handling strategy (fail-closed)
+- [ ] Plan includes security default verification
+- [ ] Plan includes fail-safe logic verification (unsafe defaults, state transitions)
+
+#### 4. Test Strategy Complete
+
+- [ ] Plan includes test creation for all new code
+- [ ] Plan verifies test parameter alignment
+- [ ] Plan includes edge case coverage
+- [ ] Plan documents expected code coverage
+
+#### 5. CI Environment Consideration
+
+- [ ] Plan includes CI simulation testing
+- [ ] Plan documents CI-specific configuration
+- [ ] Plan identifies CI environment differences
+- [ ] Plan includes protected branch testing
+
+### Readiness Verdict
+
+After pre-PR readiness validation:
+
+```markdown
+## Critic Assessment: Pre-PR Readiness
+
+**Verdict**: [READY | NOT READY]
+
+### Gaps Identified
+
+- [List any missing validation tasks]
+- [List any missing cross-cutting concern handling]
+- [List any missing fail-safe patterns]
+- [List any missing test strategy elements]
+- [List any missing CI environment considerations]
+
+### Recommendations
+
+- [Specific additions needed before plan is ready]
+
+### Approval Status
+
+- [ ] **APPROVED**: Plan is ready for implementation with full validation coverage
+- [ ] **CONDITIONAL**: Approve with validation additions required
+- [ ] **REJECTED**: Critical validation gaps must be addressed
+```
+
+### Critic Handoff for Pre-PR Readiness
+
+Return verdict to orchestrator:
+
+- **APPROVED**: Orchestrator proceeds to implementation
+- **CONDITIONAL/REJECTED**: Orchestrator routes back to planner for validation task additions
+
 ## Disagreement Detection & Escalation
 
 When reviewing plans with impact analysis, check for **conflicting recommendations** across specialist agents:
