@@ -759,8 +759,36 @@ function Get-BotAuthorsConfig {
         return $defaultBots
     }
 
+    # Validate config path to prevent path traversal (CWE-22)
     try {
-        $content = Get-Content $ConfigPath -Raw -ErrorAction Stop
+        # Find repo root
+        $repoRoot = $PSScriptRoot
+        while ($repoRoot -and -not (Test-Path (Join-Path $repoRoot '.git'))) {
+            $repoRoot = Split-Path $repoRoot -Parent
+        }
+
+        if (-not $repoRoot) {
+            throw "Could not determine repository root directory"
+        }
+
+        # Resolve absolute paths for comparison
+        $resolvedConfigPath = [System.IO.Path]::GetFullPath($ConfigPath)
+        $resolvedRepoRoot = [System.IO.Path]::GetFullPath($repoRoot)
+
+        # Ensure config path is within repo root (case-insensitive for Windows)
+        if (-not $resolvedConfigPath.StartsWith($resolvedRepoRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Config path '$ConfigPath' is outside repository root '$repoRoot'"
+        }
+    }
+    catch {
+        Write-Warning "Path validation failed: $($_.Exception.Message), using defaults"
+        $script:BotAuthorsCache = $defaultBots
+        $script:BotAuthorsCachePath = $ConfigPath
+        return $defaultBots
+    }
+
+    try {
+        $lines = Get-Content $ConfigPath -ErrorAction Stop
         $bots = @{
             reviewer = @()
             automation = @()
@@ -769,7 +797,7 @@ function Get-BotAuthorsConfig {
 
         # Simple YAML parsing for our specific format
         $currentSection = $null
-        foreach ($line in $content -split "`n") {
+        foreach ($line in $lines) {
             $line = $line.TrimEnd()
 
             # Skip comments and empty lines
@@ -802,7 +830,7 @@ function Get-BotAuthorsConfig {
         return $bots
     }
     catch {
-        Write-Verbose "Failed to parse bot authors config: $($_.Exception.Message), using defaults"
+        Write-Warning "Failed to parse bot authors config: $($_.Exception.Message), using defaults"
         $script:BotAuthorsCache = $defaultBots
         $script:BotAuthorsCachePath = $ConfigPath
         return $defaultBots
