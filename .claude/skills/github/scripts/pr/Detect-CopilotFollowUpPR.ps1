@@ -51,17 +51,41 @@ $script:Repo = $resolved.Repo
 function Test-FollowUpPattern {
     <#
     .SYNOPSIS
-        Check if a PR matches Copilot follow-up pattern.
+        Check if a PR matches Copilot follow-up pattern for a specific original PR.
+    .DESCRIPTION
+        Validates that the branch name follows the copilot/sub-pr-{number} pattern
+        AND that the extracted number matches the expected original PR number.
+        This prevents false positives when multiple Copilot follow-up branches exist.
+    .PARAMETER PR
+        The PR object containing headRefName property.
+    .PARAMETER OriginalPRNumber
+        The original PR number to validate against. If not provided, only pattern matching is performed.
     #>
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [object]$PR
+        [object]$PR,
+
+        [Parameter(Mandatory = $false)]
+        [int]$OriginalPRNumber = 0
     )
 
     $headRef = $PR.headRefName
-    $pattern = "copilot/sub-pr-\d+"
+    # Use end-of-string anchor $ to ensure exact match (e.g., "copilot/sub-pr-32")
+    # Prevents matching branches with ANY suffix like "32a", "32-fix", or "32_test"
+    # Addresses Issue #507: regex allows non-numeric suffixes
+    $pattern = 'copilot/sub-pr-(\d+)$'
 
-    return $headRef -match $pattern
+    if ($headRef -match $pattern) {
+        # If OriginalPRNumber is specified, validate the extracted number matches
+        if ($OriginalPRNumber -gt 0) {
+            $extractedPR = [int]$matches[1]
+            return $extractedPR -eq $OriginalPRNumber
+        }
+        # No validation requested, just pattern match
+        return $true
+    }
+    return $false
 }
 
 function Get-CopilotAnnouncement {
@@ -69,6 +93,7 @@ function Get-CopilotAnnouncement {
     .SYNOPSIS
         Find Copilot's announcement comment on the original PR.
     #>
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [int]$PRNumber
@@ -90,6 +115,7 @@ function Get-FollowUpPRDiff {
     .SYNOPSIS
         Get unified diff for follow-up PR.
     #>
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [int]$FollowUpPRNumber
@@ -106,35 +132,27 @@ function Get-OriginalPRCommits {
     <#
     .SYNOPSIS
         Get commits from original PR for comparison.
+    .DESCRIPTION
+        Returns commits directly from PR metadata instead of querying repository commits.
+        This optimization eliminates a redundant API call and avoids rate limit risk on large repos (Issue #290).
     #>
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [int]$PRNumber
     )
 
-    $prJson = gh pr view $PRNumber --repo "$script:Owner/$script:Repo" --json commits,baseRefName,headRefName 2>$null
+    $prJson = gh pr view $PRNumber --repo "$script:Owner/$script:Repo" --json commits 2>$null
     if ($LASTEXITCODE -ne 0 -or $null -eq $prJson) {
         return @()
     }
 
     $pr = $prJson | ConvertFrom-Json
-    if ($null -eq $pr) {
+    if ($null -eq $pr -or -not $pr.commits) {
         return @()
     }
 
-    $commits = @()
-    try {
-        $commitData = gh api "repos/$script:Owner/$script:Repo/commits" `
-            --jq ".[] | select(.commit.message | contains(\"PR $PRNumber\") or contains(\"Comment-ID\"))" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $commitData) {
-            $commits = @($commitData | ConvertFrom-Json -ErrorAction SilentlyContinue)
-        }
-    }
-    catch {
-        # No specific commits found, continue
-    }
-
-    return $commits
+    return @($pr.commits)
 }
 
 function Compare-DiffContent {
@@ -143,6 +161,7 @@ function Compare-DiffContent {
         Compare follow-up diff to original changes.
         Returns likelihood percentage of being duplicate.
     #>
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [AllowEmptyString()]
@@ -159,7 +178,9 @@ function Compare-DiffContent {
     }
 
     # Count file changes in follow-up
-    $followUpFiles = @($FollowUpDiff -split '^diff --git' | Where-Object { $_.Trim() } | Measure-Object).Count
+    # Use multiline mode (?m) to make ^ match line-start, not just string-start
+    # Addresses gemini-code-assist review comment (PR #503, comment ID 2651525060)
+    $followUpFiles = @($FollowUpDiff -split '(?m)^diff --git' | Where-Object { $_.Trim() } | Measure-Object).Count
 
     # If follow-up has 1 file and original also modified that file, likely duplicate
     if ($followUpFiles -eq 1 -and $OriginalCommits.Count -gt 0) {
@@ -177,6 +198,8 @@ function Invoke-FollowUpDetection {
     .SYNOPSIS
         Main detection logic.
     #>
+    [CmdletBinding()]
+    param()
 
     Write-Verbose "Detecting Copilot follow-up PRs for PR #$PRNumber..."
 
@@ -201,6 +224,12 @@ function Invoke-FollowUpDetection {
     catch {
         Write-Verbose "Info: No follow-up PRs found (query may not match any results)"
     }
+
+    # Step 1.5: Filter results using Test-FollowUpPattern with PR number validation (Issue #292)
+    # This prevents false positives from GitHub search returning partial matches
+    $followUpPRs = @($followUpPRs | Where-Object {
+        Test-FollowUpPattern -PR $_ -OriginalPRNumber $PRNumber
+    })
 
     if ($followUpPRs.Count -eq 0) {
         return @{

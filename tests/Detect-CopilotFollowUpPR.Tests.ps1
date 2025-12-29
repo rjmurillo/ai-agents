@@ -144,8 +144,8 @@ index 1234567..abcdefg 100644
     # Extract function definitions from the script for unit testing
     $scriptContent = Get-Content $Script:ScriptPath -Raw
 
-    # Extract Test-FollowUpPattern function
-    if ($scriptContent -match '(?s)function Test-FollowUpPattern \{.*?\n\}') {
+    # Extract Test-FollowUpPattern function (updated pattern for Issue #292)
+    if ($scriptContent -match '(?s)function Test-FollowUpPattern \{.*?(?=\nfunction)') {
         Invoke-Expression $Matches[0]
     }
 
@@ -187,13 +187,46 @@ Describe "Detect-CopilotFollowUpPR" {
 
             # Letters instead of numbers
             Test-FollowUpPattern -PR @{ headRefName = "copilot/sub-pr-abc" } | Should -Be $false
+
+            # Issue #507: Reject branches with non-numeric suffixes
+            Test-FollowUpPattern -PR @{ headRefName = "copilot/sub-pr-32a" } | Should -Be $false
+
+            # Verify that suffixes separated by non-word characters are also rejected
+            Test-FollowUpPattern -PR @{ headRefName = "copilot/sub-pr-32-fix" } | Should -Be $false
         }
 
         It "Rejects partial matches" {
-            # PR number must be digits only
-            Test-FollowUpPattern -PR @{ headRefName = "copilot/sub-pr-32a" } | Should -Be $true  # Matches 32, trailing 'a' ignored by regex
+            # PR number must be digits only (after Issue #507 fix)
             Test-FollowUpPattern -PR @{ headRefName = "copilot/sub-pr-" } | Should -Be $false
             Test-FollowUpPattern -PR @{ headRefName = "copilot/sub-pr" } | Should -Be $false
+        }
+    }
+
+    Context "PR Number Validation (Issue #292)" {
+        It "Returns true when extracted PR number matches OriginalPRNumber" {
+            $testPR = @{ headRefName = "copilot/sub-pr-32" }
+            Test-FollowUpPattern -PR $testPR -OriginalPRNumber 32 | Should -Be $true
+
+            $testPR2 = @{ headRefName = "copilot/sub-pr-156" }
+            Test-FollowUpPattern -PR $testPR2 -OriginalPRNumber 156 | Should -Be $true
+        }
+
+        It "Returns false when extracted PR number does not match OriginalPRNumber" {
+            # This prevents false positives when multiple follow-up branches exist
+            $testPR = @{ headRefName = "copilot/sub-pr-32" }
+            Test-FollowUpPattern -PR $testPR -OriginalPRNumber 33 | Should -Be $false
+            Test-FollowUpPattern -PR $testPR -OriginalPRNumber 320 | Should -Be $false
+        }
+
+        It "Returns true for pattern-only match when OriginalPRNumber is 0" {
+            $testPR = @{ headRefName = "copilot/sub-pr-99" }
+            Test-FollowUpPattern -PR $testPR | Should -Be $true
+            Test-FollowUpPattern -PR $testPR -OriginalPRNumber 0 | Should -Be $true
+        }
+
+        It "Returns false for invalid patterns even with matching number" {
+            $testPR = @{ headRefName = "feature/sub-pr-32" }
+            Test-FollowUpPattern -PR $testPR -OriginalPRNumber 32 | Should -Be $false
         }
     }
 
