@@ -6,7 +6,7 @@
 | addressed_count total_comment_count match claim done | pr-003-verification-count |
 | signal quality priority actionability rate cursor copilot | pr-006-reviewer-signal-quality |
 | CI checks verify mergeable status pass green completion | pr-review-007-ci-verification |
-| acknowledgment eyes reaction count match API verify fallback | pr-review-acknowledgment |
+| addressed emoji eyes reaction confirm manual resolved thread fallback | pr-review-acknowledgment |
 | security priority CWE vulnerability injection TOCTOU | pr-review-security |
 | sparse checkout coderabbit .agents/ missing ls-tree | review-001-coderabbit-sparse-checkout-blindness |
 | python string concat PEP 3126 adjacent literals valid | review-002-python-implicit-string-concat |

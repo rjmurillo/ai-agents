@@ -9,3 +9,4 @@
 | scope discipline minimal fix debug investigation constraints | scope-002-minimal-viable-fix |
 | copilot swe prompting constraints templates scope limits | prompt-002-copilot-swe-constraints |
 | copilot anti-patterns scope explosion test mutation signals | copilot-swe-anti-patterns |
+| process workflow gap missing capability root cause consultation validation | orchestration-process-workflow-gaps |

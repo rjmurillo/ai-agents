@@ -3,11 +3,24 @@
     Validates memory index consistency for tiered memory architecture (ADR-017).
 
 .DESCRIPTION
-    Implements validation for the tiered memory index architecture:
-    1. Verifies all domain index entries point to existing files
-    2. Checks keyword density (>=40% unique keywords per skill in domain)
-    3. Validates memory-index references to domain indices
-    4. Reports orphaned atomic files not referenced by any index
+    Implements multi-tier validation for the tiered memory index architecture:
+
+    P0 (Always Blocking):
+    - Verifies all domain index entries point to existing files
+    - Checks keyword density (>=40% unique keywords per skill in domain)
+    - Validates index format (pure lookup table, no titles/metadata)
+    - Detects deprecated skill- prefix in index entries
+    - Detects duplicate entries in same index
+
+    P1 (Blocking with -Strict):
+    - Validates memory-index completeness (all domain indices referenced)
+    - Validates memory-index validity (all references exist)
+    - Reports orphaned atomic files not referenced by any index
+    - Detects unindexed skill- prefixed files
+
+    P2 (Warning only, Blocking with -Strict -SkipP2:$false):
+    - Minimum keyword count (>=5 per skill)
+    - Domain prefix naming convention ({domain}-{description})
 
 .PARAMETER Path
     Base path to the memories directory.
@@ -23,14 +36,33 @@
 .PARAMETER FixOrphans
     When set, reports orphaned atomic files that should be indexed.
 
+.PARAMETER Strict
+    When set, P1 and P2 validations become blocking (fail CI).
+    Without this flag, P1/P2 issues are reported as warnings.
+
+.PARAMETER SkipP2
+    When set, skips P2 validations (minimum keywords, naming convention).
+    Useful for existing codebases during migration.
+
 .EXAMPLE
     .\Validate-MemoryIndex.ps1
+    # Basic validation - P0 blocking, P1/P2 warnings
+
+.EXAMPLE
+    .\Validate-MemoryIndex.ps1 -CI
+    # CI mode - exits non-zero on P0 failures
+
+.EXAMPLE
+    .\Validate-MemoryIndex.ps1 -CI -Strict
+    # Strict CI mode - exits non-zero on P0, P1, or P2 failures
+
+.EXAMPLE
+    .\Validate-MemoryIndex.ps1 -CI -Strict -SkipP2
+    # Strict for P0/P1 only - useful during migration
 
 .EXAMPLE
     .\Validate-MemoryIndex.ps1 -CI -Format json
-
-.EXAMPLE
-    .\Validate-MemoryIndex.ps1 -FixOrphans
+    # JSON output for programmatic consumption
 #>
 
 [CmdletBinding()]
@@ -46,7 +78,13 @@ param(
     [string]$Format = "console",
 
     [Parameter()]
-    [switch]$FixOrphans
+    [switch]$FixOrphans,
+
+    [Parameter()]
+    [switch]$Strict,
+
+    [Parameter()]
+    [switch]$SkipP2
 )
 
 #region Color Output
@@ -187,6 +225,105 @@ function Test-FileReferences {
     return $result
 }
 
+function Test-MinimumKeywords {
+    <#
+    .SYNOPSIS
+        Validates that each skill has a minimum number of keywords for discoverability (P2)
+    .DESCRIPTION
+        ADR-017 recommends 10-15 keywords per skill. Minimum threshold is 5 keywords
+        to ensure adequate activation vocabulary for lexical matching.
+    #>
+    param(
+        [array]$Entries,
+        [int]$MinKeywords = 5
+    )
+
+    $result = @{
+        Passed = $true
+        Issues = @()
+        KeywordCounts = @{}
+    }
+
+    foreach ($entry in $Entries) {
+        $count = $entry.Keywords.Count
+        $result.KeywordCounts[$entry.FileName] = $count
+
+        if ($count -lt $MinKeywords) {
+            $result.Passed = $false
+            $result.Issues += "Insufficient keywords: $($entry.FileName) has $count keywords (need >=$MinKeywords)"
+        }
+    }
+
+    return $result
+}
+
+function Test-DuplicateEntries {
+    <#
+    .SYNOPSIS
+        Detects duplicate file references within a domain index (P2)
+    .DESCRIPTION
+        Each file should be referenced exactly once per index.
+        Duplicates waste tokens and may cause inconsistent keyword coverage.
+    #>
+    param([array]$Entries)
+
+    $result = @{
+        Passed = $true
+        Issues = @()
+        Duplicates = @()
+    }
+
+    $seen = @{}
+    foreach ($entry in $Entries) {
+        if ($seen.ContainsKey($entry.FileName)) {
+            $result.Passed = $false
+            $result.Duplicates += $entry.FileName
+            if ($result.Duplicates.Count -eq 1 -or $result.Duplicates[-1] -ne $result.Duplicates[-2]) {
+                $result.Issues += "Duplicate entry: $($entry.FileName) appears multiple times in index"
+            }
+        }
+        $seen[$entry.FileName] = $true
+    }
+
+    return $result
+}
+
+function Test-DomainPrefixNaming {
+    <#
+    .SYNOPSIS
+        Validates that file references follow {domain}-{description} naming convention (P2)
+    .DESCRIPTION
+        ADR-017 specifies that atomic files should follow {domain}-{description} pattern.
+        This improves discoverability and ensures consistent organization.
+    #>
+    param(
+        [array]$Entries,
+        [string]$Domain
+    )
+
+    $result = @{
+        Passed = $true
+        Issues = @()
+        NonConforming = @()
+    }
+
+    foreach ($entry in $Entries) {
+        $fileName = $entry.FileName
+
+        # Check if file follows {domain}-{description} pattern
+        # Allow common patterns: {domain}-{description}, {domain}-{number}-{description}
+        $expectedPrefix = "$Domain-"
+
+        if (-not $fileName.StartsWith($expectedPrefix)) {
+            $result.Passed = $false
+            $result.NonConforming += $fileName
+            $result.Issues += "Naming violation: $fileName should start with '$expectedPrefix' per ADR-017"
+        }
+    }
+
+    return $result
+}
+
 function Test-KeywordDensity {
     <#
     .SYNOPSIS
@@ -311,6 +448,18 @@ function Get-OrphanedFiles {
             continue  # Skip domain pattern matching for skill- files
         }
 
+        # ADR-017: Check for improperly named skills-* files (not valid index files)
+        # Valid pattern: skills-{domain}-index.md
+        # Invalid patterns: skills-{domain}.md, skills-{random}.md
+        if ($baseName -match '^skills-' -and $baseName -notmatch '-index$') {
+            [void]$orphans.Add([PSCustomObject]@{
+                File = $baseName
+                Domain = 'INVALID'
+                ExpectedIndex = 'Rename to {domain}-{description}-index format or move to atomic file per ADR-017'
+            })
+            continue  # Skip domain pattern matching for invalid skills- files
+        }
+
         # Check if file follows atomic naming pattern (domain prefix)
         $domains = @($AllIndices | ForEach-Object { $_.Domain })
         foreach ($domain in $domains) {
@@ -419,7 +568,11 @@ function Test-IndexFormat {
 function Test-MemoryIndexReferences {
     <#
     .SYNOPSIS
-        Validates that memory-index references existing domain indices
+        Validates that memory-index references existing domain indices (P1)
+    .DESCRIPTION
+        P1 validations:
+        1. All domain indices MUST be referenced in memory-index (completeness)
+        2. All references in memory-index MUST point to existing files (validity)
     #>
     param(
         [string]$MemoryPath,
@@ -429,22 +582,56 @@ function Test-MemoryIndexReferences {
     $result = @{
         Passed = $true
         Issues = @()
+        UnreferencedIndices = @()
+        BrokenReferences = @()
     }
 
     $memoryIndexPath = Join-Path $MemoryPath "memory-index.md"
 
     if (-not (Test-Path $memoryIndexPath)) {
-        $result.Issues += "memory-index.md not found"
-        return $result  # Not a failure, just informational
+        $result.Passed = $false
+        $result.Issues += "CRITICAL: memory-index.md not found - required for tiered architecture"
+        return $result
     }
 
     $content = Get-Content -Path $memoryIndexPath -Raw
+    $lines = $content -split "`n"
 
-    # Check if any domain indices are referenced
+    # P1: Check that ALL domain indices are referenced (completeness)
     foreach ($index in $DomainIndices) {
         $indexBaseName = $index.Name
         if ($content -notmatch [regex]::Escape($indexBaseName)) {
-            $result.Issues += "Domain index not referenced in memory-index: $indexBaseName"
+            $result.Passed = $false
+            $result.UnreferencedIndices += $indexBaseName
+            $result.Issues += "P1 COMPLETENESS: Domain index not referenced in memory-index: $indexBaseName"
+        }
+    }
+
+    # P1: Check that all references in memory-index point to existing files (validity)
+    # Note: memory-index may use comma-separated lists of files in the second column
+    foreach ($line in $lines) {
+        # Match table row: | keywords... | file-name(s) |
+        if ($line -match '^\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|$') {
+            $fileEntry = $Matches[2].Trim()
+
+            # Skip header/separator rows
+            if ($fileEntry -eq 'File' -or $fileEntry -match '^-+$' -or
+                $fileEntry -eq 'Essential Memories' -or $fileEntry -eq 'Memory') {
+                continue
+            }
+
+            # Handle comma-separated file lists (e.g., "file1, file2, file3")
+            $fileNames = @($fileEntry -split ',\s*' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
+            foreach ($fileName in $fileNames) {
+                # Check if reference exists as file
+                $refPath = Join-Path $MemoryPath "$fileName.md"
+                if (-not (Test-Path $refPath)) {
+                    $result.Passed = $false
+                    $result.BrokenReferences += $fileName
+                    $result.Issues += "P1 VALIDITY: memory-index references non-existent file: $fileName.md"
+                }
+            }
         }
     }
 
@@ -488,21 +675,49 @@ function Invoke-MemoryIndexValidation {
         $entries = Get-IndexEntries -IndexPath $index.Path
         Write-ColorOutput "  Entries: $($entries.Count)" $ColorCyan
 
-        # Test file references
+        # P0: Test file references
         $fileResult = Test-FileReferences -Entries $entries -MemoryPath $MemoryPath
         $validation.Summary.TotalFiles += $entries.Count
         $validation.Summary.MissingFiles += $fileResult.MissingFiles.Count
 
-        # Test keyword density
+        # P0: Test keyword density
         $keywordResult = Test-KeywordDensity -Entries $entries
         if (-not $keywordResult.Passed) {
             $validation.Summary.KeywordIssues += $keywordResult.Issues.Count
         }
 
-        # Test index format (ADR-017 pure lookup table requirement)
+        # P0: Test index format (ADR-017 pure lookup table requirement)
         $formatResult = Test-IndexFormat -IndexPath $index.Path
 
-        $domainPassed = $fileResult.Passed -and $keywordResult.Passed -and $formatResult.Passed
+        # P2: Test duplicate entries
+        $duplicateResult = Test-DuplicateEntries -Entries $entries
+
+        # P2: Test minimum keywords (skip if SkipP2)
+        $minKeywordResult = if (-not $SkipP2) {
+            Test-MinimumKeywords -Entries $entries -MinKeywords 5
+        } else {
+            @{ Passed = $true; Issues = @(); KeywordCounts = @{} }
+        }
+
+        # P2: Test domain prefix naming (skip if SkipP2)
+        $prefixResult = if (-not $SkipP2) {
+            Test-DomainPrefixNaming -Entries $entries -Domain $index.Domain
+        } else {
+            @{ Passed = $true; Issues = @(); NonConforming = @() }
+        }
+
+        # Calculate domain pass status
+        # P0 validations are always blocking
+        $p0Passed = $fileResult.Passed -and $keywordResult.Passed -and $formatResult.Passed -and $duplicateResult.Passed
+
+        # P2 validations are warnings unless -Strict mode
+        $p2Passed = if ($Strict -and -not $SkipP2) {
+            $minKeywordResult.Passed -and $prefixResult.Passed
+        } else {
+            $true
+        }
+
+        $domainPassed = $p0Passed -and $p2Passed
 
         $validation.DomainResults[$index.Domain] = @{
             IndexPath = $index.Path
@@ -510,6 +725,9 @@ function Invoke-MemoryIndexValidation {
             FileReferences = $fileResult
             KeywordDensity = $keywordResult
             IndexFormat = $formatResult
+            DuplicateEntries = $duplicateResult
+            MinimumKeywords = $minKeywordResult
+            DomainPrefixNaming = $prefixResult
             Passed = $domainPassed
         }
 
@@ -522,13 +740,30 @@ function Invoke-MemoryIndexValidation {
             Write-ColorOutput "  Status: ${ColorRed}FAIL${ColorReset}"
 
             foreach ($issue in $fileResult.Issues) {
-                Write-ColorOutput "    - $issue" $ColorRed
+                Write-ColorOutput "    - [P0] $issue" $ColorRed
             }
             foreach ($issue in $keywordResult.Issues) {
-                Write-ColorOutput "    - $issue" $ColorYellow
+                Write-ColorOutput "    - [P0] $issue" $ColorYellow
             }
             foreach ($issue in $formatResult.Issues) {
-                Write-ColorOutput "    - $issue" $ColorRed
+                Write-ColorOutput "    - [P0] $issue" $ColorRed
+            }
+            foreach ($issue in $duplicateResult.Issues) {
+                Write-ColorOutput "    - [P0] $issue" $ColorRed
+            }
+        }
+
+        # Show P2 warnings even if domain passed
+        if (-not $SkipP2) {
+            foreach ($issue in $minKeywordResult.Issues) {
+                $color = if ($Strict) { $ColorRed } else { $ColorYellow }
+                $prefix = if ($Strict) { "[P2 FAIL]" } else { "[P2 WARN]" }
+                Write-ColorOutput "    - $prefix $issue" $color
+            }
+            foreach ($issue in $prefixResult.Issues) {
+                $color = if ($Strict) { $ColorRed } else { $ColorYellow }
+                $prefix = if ($Strict) { "[P2 FAIL]" } else { "[P2 WARN]" }
+                Write-ColorOutput "    - $prefix $issue" $color
             }
         }
 
@@ -543,27 +778,40 @@ function Invoke-MemoryIndexValidation {
         }
     }
 
-    # Validate memory-index references
+    # P1: Validate memory-index references (completeness and validity)
     $memoryIndexResult = Test-MemoryIndexReferences -MemoryPath $MemoryPath -DomainIndices $domainIndices
     $validation.MemoryIndexResult = $memoryIndexResult
 
-    if ($memoryIndexResult.Issues.Count -gt 0) {
+    if (-not $memoryIndexResult.Passed) {
+        $validation.Passed = $false
+        Write-ColorOutput "`n[P1] Memory-index validation FAILED:" $ColorRed
+        foreach ($issue in $memoryIndexResult.Issues) {
+            Write-ColorOutput "  - $issue" $ColorRed
+        }
+    } elseif ($memoryIndexResult.Issues.Count -gt 0) {
         Write-ColorOutput "`nMemory-index warnings:" $ColorYellow
         foreach ($issue in $memoryIndexResult.Issues) {
             Write-ColorOutput "  - $issue" $ColorYellow
         }
     }
 
-    # Find orphaned files
-    if ($FixOrphans -or $true) {  # Always check for orphans
-        $orphans = Get-OrphanedFiles -AllIndices $domainIndices -MemoryPath $MemoryPath
-        $validation.Orphans = $orphans
+    # Find orphaned files (always check)
+    $orphans = Get-OrphanedFiles -AllIndices $domainIndices -MemoryPath $MemoryPath
+    $validation.Orphans = $orphans
 
-        if ($orphans.Count -gt 0) {
-            Write-ColorOutput "`nOrphaned files (not indexed):" $ColorYellow
-            foreach ($orphan in $orphans) {
-                Write-ColorOutput "  - $($orphan.File) (should be in $($orphan.ExpectedIndex))" $ColorYellow
-            }
+    if ($orphans.Count -gt 0) {
+        # In Strict mode, orphans are failures; otherwise warnings
+        $orphanColor = if ($Strict) { $ColorRed } else { $ColorYellow }
+        $orphanPrefix = if ($Strict) { "[P1 FAIL]" } else { "[P1 WARN]" }
+
+        Write-ColorOutput "`n${orphanPrefix} Orphaned files detected (not indexed):" $orphanColor
+        foreach ($orphan in $orphans) {
+            Write-ColorOutput "  - $($orphan.File) (should be in $($orphan.ExpectedIndex))" $orphanColor
+        }
+
+        # In Strict mode, orphans cause validation failure
+        if ($Strict) {
+            $validation.Passed = $false
         }
     }
 

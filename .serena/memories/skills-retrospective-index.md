@@ -6,10 +6,10 @@
 | token impact documentation measurement context cost efficiency | retrospective-003-token-impact-documentation |
 | evidence-based validation hypothesis verification data-driven | retrospective-004-evidence-based-validation |
 | atomic skill decomposition granularity reusable focused | retrospective-005-atomic-skill-decomposition |
-| session 2025-12-17 learnings findings patterns decisions | retrospective-2025-12-17 |
-| session 2025-12-18 learnings findings patterns decisions | retrospective-2025-12-18 |
+| december-17 initial skill extraction memory organization prototype | retrospective-2025-12-17 |
+| december-18 linting validation domain index format adoption | retrospective-2025-12-18 |
 | parallel agent learnings 2025-12-24 concurrency coordination | retrospective-2025-12-24-parallel-agent-learnings |
-| session 2025-12-26 learnings findings patterns decisions | retrospective-2025-12-26 |
-| session 2025-12-27 learnings findings patterns decisions | retrospective-2025-12-27 |
+| december-26 PR-402 thread lifecycle acknowledged state merge | retrospective-2025-12-26 |
+| december-27 duplicate entry consolidated index structure cleanup | retrospective-2025-12-27 |
 | PR402 acknowledged resolved thread lifecycle state model | retrospective-pr402-acknowledged-resolved |
 | skill persistence memory durability cross-session storage | retrospective-skill-persistence |

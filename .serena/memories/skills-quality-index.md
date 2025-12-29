@@ -7,3 +7,4 @@
 | requirement count verification N implemented N specified manifest | quality-requirement-count |
 | shift-left agent consultation pre-push 6-agent quality gate | quality-shift-left-gate |
 | remediation priority verdict P0 MUST SHOULD CRITICAL_FAIL evidence | quality-agent-remediation |
+| prompt engineering AI assessment template false positive elimination regression | quality-prompt-engineering-gates |
