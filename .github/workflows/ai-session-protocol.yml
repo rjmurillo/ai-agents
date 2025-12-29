@@ -41,8 +41,10 @@ jobs:
         id: changed
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          CHANGED_FILES=$(gh pr diff "$PR_NUMBER" --name-only | grep -E '^\.agents/sessions/.*\.md$' || true)
+          # Use files API instead of gh pr diff (no line limit - fixes issue #468)
+          CHANGED_FILES=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER/files" --paginate --jq '.[].filename' | grep -E '^\.agents/sessions/.*\.md$' || true)
 
           if [ -z "$CHANGED_FILES" ]; then
             echo "No session files changed"

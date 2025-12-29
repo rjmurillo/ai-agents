@@ -112,9 +112,10 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           Write-Host "Checking for QA report..."
-          
-          # Get changed files in PR
-          $changedFiles = gh pr diff $env:PR_NUMBER --name-only | Out-String
+
+          # Get changed files in PR using files API (no line limit, unlike gh pr diff)
+          # See issue #468: gh pr diff fails with HTTP 406 when diff exceeds 20,000 lines
+          $changedFiles = gh api "repos/$env:GITHUB_REPOSITORY/pulls/$env:PR_NUMBER/files" --paginate --jq '.[].filename' | Out-String
           
           # Check if code files changed (not just docs)
           $codeExtensions = @('.ps1', '.cs', '.ts', '.js', '.py', '.yml', '.yaml', '.json')
