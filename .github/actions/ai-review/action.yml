@@ -74,7 +74,7 @@ inputs:
 
 outputs:
   verdict:
-    description: 'Review verdict (PASS, WARN, CRITICAL_FAIL, REJECTED, etc.)'
+    description: 'Review verdict (PASS, WARN, CRITICAL_FAIL, REJECTED, NEEDS_REVIEW, etc.)'
     value: ${{ steps.parse.outputs.verdict }}
   labels:
     description: 'Labels to apply (JSON array)'
@@ -696,54 +696,63 @@ runs:
       id: parse
       shell: bash
       run: |
-        OUTPUT=$(cat /tmp/ai-review-output.txt 2>/dev/null || echo "")
+        output=$(cat /tmp/ai-review-output.txt 2>/dev/null || echo "")
 
-        # Extract verdict using sed (avoids lookbehind issues with GNU grep)
-        VERDICT=$(echo "$OUTPUT" | sed -n 's/.*VERDICT:[[:space:]]*\([A-Z_]*\).*/\1/p' | head -1)
-        if [ -z "$VERDICT" ]; then
-          # Try alternative patterns
-          if echo "$OUTPUT" | grep -qi "CRITICAL_FAIL\|critical failure\|severe"; then
-            VERDICT="CRITICAL_FAIL"
-          elif echo "$OUTPUT" | grep -qi "REJECTED\|reject\|must fix"; then
-            VERDICT="REJECTED"
-          elif echo "$OUTPUT" | grep -qi "PASS\|approved\|looks good"; then
-            VERDICT="PASS"
-          elif echo "$OUTPUT" | grep -qi "WARN\|warning\|caution"; then
-            VERDICT="WARN"
-          else
-            # No parseable verdict = failure mode, not a warning
-            echo "::error::Could not parse verdict from AI output - treating as failure"
-            VERDICT="CRITICAL_FAIL"
-          fi
-        fi
+        # Extract verdict using explicit VERDICT: TOKEN pattern only
+        # Fix for Issue #470: Removed fallback keyword matching that caused context contamination
+        # (keywords like "CRITICAL_FAIL" in issue descriptions were being matched)
+        # Fix: Use [A-Z_][A-Z_]* to require at least one character (prevents empty match)
+        verdict=$(echo "$output" | sed -n 's/.*VERDICT:[[:space:]]*\([A-Z_]*\).*/\1/p' | tail -n 1)
+
+        # Validate verdict is a known token
+        case "$verdict" in
+          PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL)
+            # Valid verdict token - use as-is
+            ;;
+          *)
+            # No valid verdict found - emit warning and return NEEDS_REVIEW
+            # This is safer than guessing based on keywords that may appear in context
+            if [ -z "$verdict" ]; then
+              echo "::warning::No explicit VERDICT: TOKEN found in AI output"
+            else
+              echo "::warning::Unrecognized verdict token: $verdict"
+            fi
+            echo "::warning::AI output should end with: VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL]"
+            verdict="NEEDS_REVIEW"
+            ;;
+        esac
 
         # Extract labels using sed (avoids lookbehind issues)
-        LABELS_RAW=$(echo "$OUTPUT" | sed -n 's/.*LABEL:[[:space:]]*\([^[:space:]]*\).*/\1/p' | tr '\n' ',' | sed 's/,$//')
-        if [ -n "$LABELS_RAW" ]; then
-          LABELS=$(echo "$LABELS_RAW" | jq -R -c 'split(",") | map(select(length > 0))')
+        labels_raw=$(echo "$output" | sed -n 's/.*LABEL:[[:space:]]*\([^[:space:]]*\).*/\1/p' | tr '\n' ',' | sed 's/,$//')
+        if [ -n "$labels_raw" ]; then
+          labels=$(echo "$labels_raw" | jq -R -c 'split(",") | map(select(length > 0))')
         else
-          LABELS="[]"
+          labels="[]"
         fi
 
         # Extract milestone using sed
-        MILESTONE=$(echo "$OUTPUT" | sed -n 's/.*MILESTONE:[[:space:]]*\([^[:space:]]*\).*/\1/p' | head -1)
+        milestone=$(echo "$output" | sed -n 's/.*MILESTONE:[[:space:]]*\([^[:space:]]*\).*/\1/p' | head -1)
 
-        # Determine exit code
-        EXIT_CODE=0
-        if [ "$VERDICT" = "CRITICAL_FAIL" ] || [ "$VERDICT" = "REJECTED" ]; then
-          EXIT_CODE=1
-        fi
+        # Determine exit code based on verdict
+        # Failure verdicts: CRITICAL_FAIL, REJECTED, FAIL, NON_COMPLIANT, NEEDS_REVIEW
+        # Pass/warning verdicts: PASS, WARN, COMPLIANT, PARTIAL
+        exit_code=0
+        case "$verdict" in
+          CRITICAL_FAIL|REJECTED|FAIL|NON_COMPLIANT|NEEDS_REVIEW)
+            exit_code=1
+            ;;
+        esac
 
-        echo "verdict=$VERDICT" >> $GITHUB_OUTPUT
-        echo "labels=$LABELS" >> $GITHUB_OUTPUT
-        echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
-        echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+        echo "verdict=$verdict" >> $GITHUB_OUTPUT
+        echo "labels=$labels" >> $GITHUB_OUTPUT
+        echo "milestone=$milestone" >> $GITHUB_OUTPUT
+        echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
 
         echo "Parsed results:"
-        echo "  Verdict: $VERDICT"
-        echo "  Labels: $LABELS"
-        echo "  Milestone: $MILESTONE"
-        echo "  Exit Code: $EXIT_CODE"
+        echo "  Verdict: $verdict"
+        echo "  Labels: $labels"
+        echo "  Milestone: $milestone"
+        echo "  Exit Code: $exit_code"
 
     - name: Execute post-analysis script
       if: inputs.execute-script != ''

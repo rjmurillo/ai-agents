@@ -265,7 +265,7 @@ jobs:
             # PARTIAL completeness verdict should cause the check to FAIL (block merge)
             # WARN means minor gaps acceptable for merge with follow-up
             $finalVerdict = 'PASS'
-            if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL') {
+            if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'NEEDS_REVIEW' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL', 'NEEDS_REVIEW') {
               $finalVerdict = 'FAIL'
             } elseif ($env:TRACE_VERDICT -eq 'WARN' -or $env:COMPLETENESS_VERDICT -eq 'WARN') {
               $finalVerdict = 'WARN'
@@ -376,7 +376,7 @@ jobs:
         run: |
           # PARTIAL completeness = incomplete implementation = FAIL (blocks merge)
           # WARN = minor gaps = acceptable for merge with follow-up
-          if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL') {
+          if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'NEEDS_REVIEW' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL', 'NEEDS_REVIEW') {
             Write-Output "::error::Spec validation failed - implementation does not fully satisfy requirements"
             exit 1
           }

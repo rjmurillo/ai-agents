@@ -245,7 +245,8 @@ jobs:
           $findings = $env:FINDINGS
 
           # Check if verdict indicates a blocking failure
-          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL')
+          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict
+          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
 
           if ($verdict -in $blockingVerdicts) {
             # GitHub Actions annotations have a practical limit of ~200 chars for readability
@@ -387,7 +388,7 @@ jobs:
           # Otherwise, it's CODE_QUALITY
           function Get-Category {
             param([string]$Verdict, [bool]$InfraFlag)
-            if ($Verdict -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL') {
+            if ($Verdict -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW') {
               if ($InfraFlag) { return 'INFRASTRUCTURE' } else { return 'CODE_QUALITY' }
             }
             return 'N/A'
@@ -415,7 +416,7 @@ jobs:
           Write-Log "Final verdict: $final"
 
           # If final verdict is failure but no CODE_QUALITY failures, change to WARN
-          if ($final -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL') {
+          if ($final -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW') {
             if (-not $codeQualityFailures) {
               Write-Log "All failures are INFRASTRUCTURE - downgrading to WARN (PR will not be blocked)"
               $final = 'WARN'
@@ -644,7 +645,8 @@ jobs:
           )
 
           # Identify agents with blocking verdicts
-          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL')
+          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict
+          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
           $failedAgents = @()
 
           foreach ($entry in $agentVerdicts) {
