@@ -305,7 +305,7 @@ PRs with many commits often indicate scope creep or should be split into smaller
 
 - **10 commits**: The workflow adds a notice. Consider whether the PR should be split.
 - **15 commits**: The workflow adds an alert. Splitting is strongly recommended.
-- **20 commits**: The workflow blocks the PR. You must either split the PR or add the `commit-limit-bypass` label.
+- **20 commits**: The workflow blocks the PR. You MUST either split the PR or add the `commit-limit-bypass` label.
 
 #### Handling `needs-split` Labels
 
@@ -322,13 +322,13 @@ When encountering a PR with the `needs-split` label:
 1. **Run a retrospective analysis**: Determine why the PR required so many commits
 2. **Analyze commit history**: Group commits by logical change to identify potential split points
 3. **Provide recommendations**: Suggest how the work could be divided into smaller PRs
-4. **Document findings**: Save analysis to `.agents/retrospective/` for future reference
+4. **Document findings**: Save analysis to `.agents/retrospective/PR-[number]-needs-split-analysis.md` for future reference
 
 #### Bypassing the Limit
 
 To bypass the 20-commit block:
 
-1. A human maintainer must add the `commit-limit-bypass` label
+1. A human maintainer MUST add the `commit-limit-bypass` label
 2. The bypass is visible in the PR labels and auditable
 3. Use this sparingly for genuinely large, atomic changes that cannot be split
 
