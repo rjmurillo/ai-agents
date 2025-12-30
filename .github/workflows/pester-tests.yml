@@ -1,7 +1,8 @@
-# Pester Tests for PowerShell Scripts
+# Pester Tests and PowerShell Validation
 #
-# Runs Pester unit tests for all PowerShell scripts in the repository.
-# Uses dorny/paths-filter to determine if tests should run or be skipped.
+# Runs Pester unit tests and PSScriptAnalyzer validation for all PowerShell
+# scripts in the repository. Uses dorny/paths-filter to determine if tests
+# should run or be skipped.
 #
 # IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
 # but skips actual test execution when no testable files are changed.
@@ -11,10 +12,14 @@
 #
 # Local developers and AI agents can run the same tests using:
 #   pwsh ./build/scripts/Invoke-PesterTests.ps1
+#   pwsh ./build/scripts/Invoke-PSScriptAnalyzer.ps1
 #
 # Code coverage is enabled in CI and checked against baseline thresholds
 # from .baseline/coverage-thresholds.json. The build will fail if coverage
 # drops below the established baseline for any test file.
+#
+# PSScriptAnalyzer runs in parallel with Pester tests for faster feedback.
+# Fails on Error-level issues; Warnings are reported but don't fail the build.
 
 name: Pester Tests
 
@@ -120,6 +125,79 @@ jobs:
           path: ./artifacts/pester-results.xml
           reporter: java-junit
           fail-on-error: true
+
+  script-analysis:
+    name: Run PSScriptAnalyzer
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run-tests == 'true'
+    # Use Windows for consistency with Pester tests (same PowerShell environment)
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: ./build/scripts/Invoke-PSScriptAnalyzer.ps1 -CI
+
+      - name: Upload Analysis Results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: psscriptanalyzer-results
+          path: ./artifacts/psscriptanalyzer-results.xml
+          retention-days: 30
+
+      - name: Publish Analysis Report
+        uses: dorny/test-reporter@31a54ee7ebcacc03a09ea97a7e5465a47b84aea5
+        if: always()
+        with:
+          name: PSScriptAnalyzer Report
+          path: ./artifacts/psscriptanalyzer-results.xml
+          reporter: java-junit
+          fail-on-error: true
+
+  skip-script-analysis:
+    name: Skip PSScriptAnalyzer (No Changes)
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run-tests != 'true'
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Skip analysis (no testable files changed)
+        run: |
+          echo "No PowerShell files changed - skipping PSScriptAnalyzer"
+
+      - name: Create empty analysis result for required check
+        run: |
+          mkdir -p ./artifacts
+          cat > ./artifacts/psscriptanalyzer-results.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <testsuites tests="0" failures="0" errors="0" time="0">
+            <testsuite name="PSScriptAnalyzer (Skipped)" tests="0" failures="0" errors="0" time="0">
+              <!-- No PowerShell files changed - analysis skipped -->
+            </testsuite>
+          </testsuites>
+          EOF
+
+      - name: Publish Analysis Report (skipped)
+        uses: dorny/test-reporter@31a54ee7ebcacc03a09ea97a7e5465a47b84aea5
+        if: always()
+        with:
+          name: PSScriptAnalyzer Report
+          path: ./artifacts/psscriptanalyzer-results.xml
+          reporter: java-junit
+          fail-on-error: false
 
   skip-tests:
     name: Skip Pester Tests (No Changes)
