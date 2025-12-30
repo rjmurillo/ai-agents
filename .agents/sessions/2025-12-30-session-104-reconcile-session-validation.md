@@ -95,7 +95,7 @@ Non-canonical formats (bullet lists) are NOT accepted.
 
 | File | Change |
 |------|--------|
-| `scripts/Validate-SessionEnd.ps1` | Added Session Start validation |
+| `scripts/Validate-Session.ps1` | Added Session Start validation (renamed from Validate-SessionEnd.ps1) |
 | `.githooks/pre-commit` | Updated comments and error messages |
 | `.agents/AGENT-INSTRUCTIONS.md` | Reference SESSION-PROTOCOL.md |
 

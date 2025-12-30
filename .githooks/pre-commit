@@ -735,7 +735,7 @@ fi
 # Security: Fail-closed - if validation fails or cannot run, commit is blocked
 # Related: SESSION-PROTOCOL.md v1.4, Skill-Protocol-002, Skill-Validation-006
 #
-SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-SessionEnd.ps1"
+SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-Session.ps1"
 
 # Check if any .agents/ files are staged (indicating an active session)
 STAGED_AGENTS_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/' || true)
@@ -778,7 +778,7 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
                     echo_info "  NOT ACCEPTED: Bullet-list format (- [x] item)"
                     echo_info ""
                     echo_info "  Copy the canonical checklist from: .agents/SESSION-PROTOCOL.md"
-                    echo_info "  Run manually: pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
+                    echo_info "  Run manually: pwsh scripts/Validate-Session.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
                     EXIT_STATUS=1
                 else
                     echo_success "Session Protocol validation: PASS"
