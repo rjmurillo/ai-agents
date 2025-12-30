@@ -126,8 +126,8 @@ jobs:
     name: Run PSScriptAnalyzer
     needs: check-paths
     if: needs.check-paths.outputs.should-run-tests == 'true'
-    # Use Windows for consistency with Pester tests (same PowerShell environment)
-    runs-on: windows-latest
+    # PowerShell Core is cross-platform; Ubuntu has lower queue times
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       checks: write
