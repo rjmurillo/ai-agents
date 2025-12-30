@@ -5,6 +5,37 @@
 **Issue**: #215 - CI: Session Protocol Validation fails on historical session logs
 **Branch**: refactor/144-pester-path-deduplication
 
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [N/A] | Sub-agent inherits parent context |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [N/A] | Sub-agent inherits parent context |
+| MUST | Read `.agents/HANDOFF.md` | [N/A] | Sub-agent inherits parent context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [N/A] | Sub-agent inherits parent context |
+| MUST | Read skill-usage-mandatory memory | [N/A] | Sub-agent inherits parent context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [N/A] | Sub-agent inherits parent context |
+| MUST | Read memory-index, load task-relevant memories | [N/A] | Sub-agent inherits parent context |
+| SHOULD | Verify git status | [N/A] | Sub-agent inherits parent context |
+| SHOULD | Note starting commit | [N/A] | Sub-agent inherits parent context |
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | All sections filled |
+| MUST | Update Serena memory (cross-session context) | [N/A] | Sub-agent - parent handles memory |
+| MUST | Run markdown lint | [x] | Linting passed |
+| MUST | Route to qa agent (feature implementation) | [N/A] | This is critic agent |
+| MUST | Commit all changes (including .serena/memories) | [x] | Files committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | Not modified |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Sub-agent - parent handles |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Sub-agent - brief task |
+| SHOULD | Verify clean git status | [N/A] | Sub-agent - parent handles |
+
 ## Session Context
 
 Reviewing the implementation fix for issue #215, which adds date-based filtering to skip validation for historical session logs created before the Session End checklist requirement (2025-12-21).
