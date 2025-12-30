@@ -217,13 +217,8 @@ function Compare-DiffContent {
     }
 
     # Extract file paths from original commits (Issue #244)
-    $originalFiles = @()
-    foreach ($commit in $OriginalCommits) {
-        if ($commit.changedFiles) {
-            $originalFiles += $commit.changedFiles
-        }
-    }
-    $originalFiles = @($originalFiles | Select-Object -Unique)
+    # Use member-access enumeration to flatten arrays from all commits
+    $originalFiles = @($OriginalCommits.changedFiles | Select-Object -Unique)
 
     # Calculate file overlap for more accurate duplicate detection
     $overlapCount = 0
