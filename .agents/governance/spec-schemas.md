@@ -35,15 +35,31 @@ All spec types share these common fields:
 
 ### Status Transitions
 
-```text
-Requirements/Design:
-draft → review → approved → implemented
-              ↘ rejected
+```mermaid
+stateDiagram-v2
+    direction LR
 
-Tasks:
-todo → in-progress → done
-    ↘ blocked → in-progress
-              ↘ cancelled
+    state "Requirements & Design" as RD {
+        [*] --> draft
+        draft --> review
+        review --> approved
+        review --> rejected
+        approved --> implemented
+        implemented --> [*]
+        rejected --> [*]
+    }
+
+    state "Tasks" as T {
+        [*] --> todo
+        todo --> in_progress: start work
+        todo --> blocked: blocker found
+        in_progress --> done: complete
+        in_progress --> blocked: blocker found
+        blocked --> in_progress: unblocked
+        blocked --> cancelled: abandon
+        done --> [*]
+        cancelled --> [*]
+    }
 ```
 
 ---
@@ -366,12 +382,17 @@ Initialize the Session State MCP project structure...
 
 The spec layer enforces a complete traceability chain:
 
-```text
-REQ-NNN (WHAT/WHY)
-    ↓ traces to
-DESIGN-NNN (HOW)
-    ↓ traces to
-TASK-NNN (IMPLEMENTATION)
+```mermaid
+flowchart TD
+    REQ["REQ-NNN<br/><em>WHAT/WHY</em>"]
+    DESIGN["DESIGN-NNN<br/><em>HOW</em>"]
+    TASK["TASK-NNN<br/><em>IMPLEMENTATION</em>"]
+
+    REQ -->|traces to| DESIGN
+    DESIGN -->|traces to| TASK
+
+    TASK -.->|validates| DESIGN
+    DESIGN -.->|validates| REQ
 ```
 
 ### Validation Rules
