@@ -8,13 +8,6 @@
 | response template reply commit fix won't-fix rationale bot comment | skill-pr-comment-004-bot-response-templates |
 | branch checkout verification state git current uncommitted silent fail | skill-pr-comment-005-branch-state-verification |
 
-## Statistics
-
-- **Total Skills**: 5
-- **Atomicity Range**: 92-96%
-- **Source**: Decomposed from `pr-comment-responder-skills.md` (8.5KB)
-- **Token Savings**: Load 1 skill (~0.5KB) vs entire file (8.5KB) = 94% reduction
-
 ## Skill Summary
 
 | ID | Name | Atomicity | Category |
