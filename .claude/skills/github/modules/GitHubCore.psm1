@@ -11,7 +11,7 @@
 
 .NOTES
     Import this module in scripts with:
-    Import-Module (Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1") -Force
+    Import-Module (Join-Path $PSScriptRoot ".." "modules" "GitHubCore.psm1") -Force
 
 TABLE OF CONTENTS
 =================

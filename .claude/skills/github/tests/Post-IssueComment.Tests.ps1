@@ -15,7 +15,7 @@
 
 BeforeAll {
     $Script:ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "issue" "Post-IssueComment.ps1"
-    $Script:ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
+    $Script:ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubCore.psm1"
 
     # Verify script exists
     if (-not (Test-Path $Script:ScriptPath)) {
@@ -466,7 +466,7 @@ Main content here.
     }
 
     # Note: Full integration tests for UpdateIfExists require mocking gh api PATCH
-    # inside the GitHubHelpers module. However, since Post-IssueComment.ps1 re-imports
+    # inside the GitHubCore module. However, since Post-IssueComment.ps1 re-imports
     # the module with -Force, Pester mocks don't persist into the fresh module scope.
     # These tests verify the update path logic through the Update-IssueComment function unit tests.
     # The "Idempotency Scenarios" context above validates the decision logic.
