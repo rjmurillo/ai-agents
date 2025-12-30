@@ -38,15 +38,22 @@ Execute autonomous development workflow to select, implement, and deliver high-i
 
 ---
 
-## Session Protocol Compliance
+## Protocol Compliance
 
-- [x] Serena initialized (`mcp__serena__activate_project`)
-- [x] Initial instructions read
-- [x] HANDOFF.md read (read-only reference)
-- [x] Session log created
-- [x] Skills listed
-- [x] `usage-mandatory` memory read
-- [x] PROJECT-CONSTRAINTS.md read
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | 23 scripts listed |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | pr-review-core-workflow loaded |
+| SHOULD | Verify git status | [x] | Clean on main |
+| SHOULD | Note starting commit | [x] | SHA: ef60b28 |
 
 ---
 
@@ -68,10 +75,16 @@ Execute autonomous development workflow to select, implement, and deliver high-i
 
 ---
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-- [ ] All iterations complete
-- [ ] Session log finalized
-- [ ] Serena memory updated
-- [ ] Markdown linting passed
-- [ ] All changes committed
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [N/A] | Review-thread-resolution session; PRs validated via CI (not new implementation) |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: (this commit) |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No plan updates needed |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | PR monitoring session |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
