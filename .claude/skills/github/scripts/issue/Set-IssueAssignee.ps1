@@ -43,23 +43,8 @@ $resolved = Resolve-RepoParams -Owner $Owner -Repo $Repo
 $Owner = $resolved.Owner
 $Repo = $resolved.Repo
 
-# Resolve @me to actual username
-$resolvedAssignees = @()
-foreach ($assignee in $Assignees) {
-    if ($assignee -eq '@me') {
-        $currentUser = gh api user --jq '.login' 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to get current user: $currentUser"
-            exit 3
-        }
-        $resolvedAssignees += $currentUser.Trim()
-    }
-    else {
-        $resolvedAssignees += $assignee.Trim()
-    }
-}
-
-if ($resolvedAssignees.Count -eq 0) {
+# gh CLI supports @me natively, no resolution needed
+if ($Assignees.Count -eq 0) {
     Write-Warning "No assignees to add."
     exit 0
 }
@@ -67,7 +52,7 @@ if ($resolvedAssignees.Count -eq 0) {
 $applied = @()
 $failed = @()
 
-foreach ($assignee in $resolvedAssignees) {
+foreach ($assignee in $Assignees) {
     $null = gh issue edit $Issue --repo "$Owner/$Repo" --add-assignee $assignee 2>&1
     if ($LASTEXITCODE -eq 0) {
         $applied += $assignee
