@@ -203,21 +203,61 @@ function Compare-DiffContent {
         return @{similarity = 100; category = 'DUPLICATE'; reason = $reason }
     }
 
-    # Count file changes in follow-up
+    # Extract file paths from follow-up diff
     # Use multiline mode (?m) to make ^ match line-start, not just string-start
     # Addresses gemini-code-assist review comment (PR #503, comment ID 2651525060)
-    # Bug fix (Issue #240): Remove @() wrapper - Measure-Object.Count, not array.Count
-    $followUpFiles = ($FollowUpDiff -split '(?m)^diff --git' | Where-Object { $_.Trim() } | Measure-Object).Count
-
-    # If follow-up has 1 file and original also modified that file, likely duplicate
-    if ($followUpFiles -eq 1 -and $OriginalCommits.Count -gt 0) {
-        return @{similarity = 85; category = 'LIKELY_DUPLICATE'; reason = 'Single file change matching original scope' }
+    # Issue #244: Extract actual file paths for comparison (not just count)
+    $diffSections = @($FollowUpDiff -split '(?m)^diff --git' | Where-Object { $_.Trim() })
+    $followUpFiles = @()
+    foreach ($section in $diffSections) {
+        # Extract file path from "a/path/to/file b/path/to/file" pattern
+        if ($section -match 'a/(.+?)\s+b/') {
+            $followUpFiles += $matches[1]
+        }
     }
 
-    # If follow-up has no file changes but adds comments/replies
+    # Extract file paths from original commits (Issue #244)
+    $originalFiles = @()
+    foreach ($commit in $OriginalCommits) {
+        if ($commit.changedFiles) {
+            $originalFiles += $commit.changedFiles
+        }
+    }
+    $originalFiles = @($originalFiles | Select-Object -Unique)
 
-    # Multiple files or complex diff = might be supplemental
-    return @{similarity = 40; category = 'POSSIBLE_SUPPLEMENTAL'; reason = 'Multiple file changes suggest additional work' }
+    # Calculate file overlap for more accurate duplicate detection
+    $overlapCount = 0
+    foreach ($followUpFile in $followUpFiles) {
+        if ($originalFiles -contains $followUpFile) {
+            $overlapCount++
+        }
+    }
+
+    # Calculate overlap percentage
+    $overlapPercentage = 0
+    if ($followUpFiles.Count -gt 0) {
+        $overlapPercentage = [math]::Round(($overlapCount / $followUpFiles.Count) * 100)
+    }
+
+    # Determine category based on overlap analysis
+    if ($followUpFiles.Count -eq 0) {
+        return @{similarity = 100; category = 'DUPLICATE'; reason = 'No file changes detected in follow-up diff' }
+    }
+
+    if ($overlapPercentage -ge 80) {
+        return @{similarity = $overlapPercentage; category = 'DUPLICATE'; reason = "High file overlap ($overlapCount of $($followUpFiles.Count) files match original PR)" }
+    }
+
+    if ($overlapPercentage -ge 50 -or ($followUpFiles.Count -eq 1 -and $OriginalCommits.Count -gt 0)) {
+        return @{similarity = [math]::Max(85, $overlapPercentage); category = 'LIKELY_DUPLICATE'; reason = "Partial file overlap ($overlapCount of $($followUpFiles.Count) files match original PR)" }
+    }
+
+    if ($overlapPercentage -gt 0) {
+        return @{similarity = $overlapPercentage; category = 'POSSIBLE_SUPPLEMENTAL'; reason = "Some file overlap ($overlapCount of $($followUpFiles.Count) files), may extend original work" }
+    }
+
+    # No overlap - likely independent or supplemental work
+    return @{similarity = 0; category = 'INDEPENDENT'; reason = "No file overlap with original PR ($($followUpFiles.Count) new files)" }
 }
 
 function Invoke-FollowUpDetection {
@@ -312,6 +352,9 @@ function Invoke-FollowUpDetection {
                 $analysisResult.recommendation = 'REVIEW_THEN_CLOSE'
             }
             'POSSIBLE_SUPPLEMENTAL' {
+                $analysisResult.recommendation = 'EVALUATE_FOR_MERGE'
+            }
+            'INDEPENDENT' {
                 $analysisResult.recommendation = 'EVALUATE_FOR_MERGE'
             }
             default {

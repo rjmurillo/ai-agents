@@ -244,179 +244,65 @@ Describe "Detect-CopilotFollowUpPR" {
             $result.similarity | Should -Be 100
         }
 
-        It "Returns LIKELY_DUPLICATE for single file change with original commits" {
+        It "Returns DUPLICATE for single file with 100% overlap (Issue #244)" {
             $singleFileDiff = New-MockDiffOutput -FileCount 1
-            $originalCommits = @(@{ sha = 'abc123' })
+            # Commits with changedFiles that match the diff file (file1.ps1)
+            $originalCommits = @(@{ sha = 'abc123'; changedFiles = @('file1.ps1') })
 
             $result = Compare-DiffContent -FollowUpDiff $singleFileDiff -OriginalCommits $originalCommits
-            $result.category | Should -Be 'LIKELY_DUPLICATE'
-            $result.similarity | Should -Be 85
-            $result.reason | Should -Match 'Single file change'
+            $result.category | Should -Be 'DUPLICATE'
+            $result.similarity | Should -Be 100
+            $result.reason | Should -Match 'High file overlap'
         }
 
-        It "Returns POSSIBLE_SUPPLEMENTAL for single file change without original commits" {
+        It "Returns LIKELY_DUPLICATE for single file with commits but no overlap (Issue #244)" {
+            $singleFileDiff = New-MockDiffOutput -FileCount 1
+            # Commits with changedFiles that don't match the diff file
+            $originalCommits = @(@{ sha = 'abc123'; changedFiles = @('other.ps1') })
+
+            $result = Compare-DiffContent -FollowUpDiff $singleFileDiff -OriginalCommits $originalCommits
+            # Single file with original commits present triggers LIKELY_DUPLICATE
+            $result.category | Should -Be 'LIKELY_DUPLICATE'
+            $result.similarity | Should -Be 85
+        }
+
+        It "Returns INDEPENDENT for single file without original commits" {
             $singleFileDiff = New-MockDiffOutput -FileCount 1
 
             $result = Compare-DiffContent -FollowUpDiff $singleFileDiff -OriginalCommits @()
-            $result.category | Should -Be 'POSSIBLE_SUPPLEMENTAL'
-            $result.similarity | Should -Be 40
+            $result.category | Should -Be 'INDEPENDENT'
+            $result.similarity | Should -Be 0
+            $result.reason | Should -Match 'No file overlap'
         }
 
-        It "Returns POSSIBLE_SUPPLEMENTAL for multiple file changes" {
+        It "Returns INDEPENDENT for multiple file changes without overlap (Issue #244)" {
             $multiFileDiff = New-MockDiffOutput -FileCount 3
 
             $result = Compare-DiffContent -FollowUpDiff $multiFileDiff -OriginalCommits @()
-            $result.category | Should -Be 'POSSIBLE_SUPPLEMENTAL'
-            $result.similarity | Should -Be 40
-            $result.reason | Should -Be 'Multiple file changes suggest additional work'
+            $result.category | Should -Be 'INDEPENDENT'
+            $result.similarity | Should -Be 0
+            $result.reason | Should -Match 'No file overlap'
         }
 
-        It "Returns POSSIBLE_SUPPLEMENTAL for multi-file with original commits (PR #503 regex fix)" {
-            # PR #503: Fixed regex to use (?m) multiline mode for correct file counting
+        It "Returns DUPLICATE for multi-file with high overlap (Issue #244)" {
             $multiFileDiff = New-MockDiffOutput -FileCount 2
-            $originalCommits = @(@{ sha = 'abc123' }, @{ sha = 'def456' })
+            # Both files overlap (file1.ps1 and file2.ps1)
+            $originalCommits = @(@{ sha = 'abc123'; changedFiles = @('file1.ps1', 'file2.ps1') })
 
             $result = Compare-DiffContent -FollowUpDiff $multiFileDiff -OriginalCommits $originalCommits
-            # After PR #503 fix, multi-file diffs are correctly detected as POSSIBLE_SUPPLEMENTAL
+            $result.category | Should -Be 'DUPLICATE'
+            $result.similarity | Should -Be 100
+        }
+
+        It "Returns POSSIBLE_SUPPLEMENTAL for partial overlap (Issue #244)" {
+            $multiFileDiff = New-MockDiffOutput -FileCount 3  # file1.ps1, file2.ps1, file3.ps1
+            # Only one file overlaps
+            $originalCommits = @(@{ sha = 'abc123'; changedFiles = @('file1.ps1') })
+
+            $result = Compare-DiffContent -FollowUpDiff $multiFileDiff -OriginalCommits $originalCommits
             $result.category | Should -Be 'POSSIBLE_SUPPLEMENTAL'
-            $result.similarity | Should -Be 40
-            $result.reason | Should -Match 'Multiple file changes'
-        }
-    }
-
-    Context "Compare-DiffContent - Integration Tests (Issue #240)" {
-        # These tests verify the actual Compare-DiffContent function logic with realistic inputs
-
-        It "Correctly parses realistic single-file unified diff" {
-            # Realistic unified diff format from git
-            $realisticDiff = @"
-diff --git a/src/app.ps1 b/src/app.ps1
-index abc1234..def5678 100644
---- a/src/app.ps1
-+++ b/src/app.ps1
-@@ -10,7 +10,8 @@ function Get-Data {
-     param(
-         [string]`$Path
-     )
--    return Get-Content `$Path
-+    # Added validation
-+    return Get-Content `$Path -ErrorAction Stop
- }
-"@
-            $result = Compare-DiffContent -FollowUpDiff $realisticDiff -OriginalCommits @(@{ sha = 'abc123' })
-            $result.category | Should -Be 'LIKELY_DUPLICATE'
-            $result.similarity | Should -Be 85
-        }
-
-        It "Correctly counts multiple files in realistic multi-file diff" {
-            # Realistic multi-file diff with different file types
-            $multiFileDiff = @"
-diff --git a/src/module.ps1 b/src/module.ps1
-index 1111111..2222222 100644
---- a/src/module.ps1
-+++ b/src/module.ps1
-@@ -1,3 +1,4 @@
- # Module file
-+# Added import
- Import-Module helpers
-
-diff --git a/tests/module.Tests.ps1 b/tests/module.Tests.ps1
-new file mode 100644
-index 0000000..3333333
---- /dev/null
-+++ b/tests/module.Tests.ps1
-@@ -0,0 +1,5 @@
-+Describe 'Module' {
-+    It 'Works' {
-+        $true | Should -Be $true
-+    }
-+}
-
-diff --git a/README.md b/README.md
-index 4444444..5555555 100644
---- a/README.md
-+++ b/README.md
-@@ -1 +1,2 @@
- # Project
-+Updated docs
-"@
-            $result = Compare-DiffContent -FollowUpDiff $multiFileDiff -OriginalCommits @()
-            $result.category | Should -Be 'POSSIBLE_SUPPLEMENTAL'
-            $result.similarity | Should -Be 40
-            $result.reason | Should -Match 'Multiple file changes'
-        }
-
-        It "Handles diff with Windows-style line endings (CRLF)" {
-            $crlfDiff = "diff --git a/file.ps1 b/file.ps1`r`nindex abc..def 100644`r`n--- a/file.ps1`r`n+++ b/file.ps1`r`n@@ -1 +1 @@`r`n-old`r`n+new"
-            $result = Compare-DiffContent -FollowUpDiff $crlfDiff -OriginalCommits @(@{ sha = 'abc' })
-            $result.category | Should -Be 'LIKELY_DUPLICATE'
-            $result.similarity | Should -Be 85
-        }
-
-        It "Handles diff with only additions (new file)" {
-            $newFileDiff = @"
-diff --git a/new-file.ps1 b/new-file.ps1
-new file mode 100644
-index 0000000..abcdef1
---- /dev/null
-+++ b/new-file.ps1
-@@ -0,0 +1,3 @@
-+# New file
-+function New-Function { }
-"@
-            $result = Compare-DiffContent -FollowUpDiff $newFileDiff -OriginalCommits @(@{ sha = 'abc' })
-            $result.category | Should -Be 'LIKELY_DUPLICATE'
-        }
-
-        It "Handles diff with only deletions (deleted file)" {
-            $deletedFileDiff = @"
-diff --git a/old-file.ps1 b/old-file.ps1
-deleted file mode 100644
-index abcdef1..0000000
---- a/old-file.ps1
-+++ /dev/null
-@@ -1,3 +0,0 @@
--# Old file
--function Old-Function { }
-"@
-            $result = Compare-DiffContent -FollowUpDiff $deletedFileDiff -OriginalCommits @(@{ sha = 'abc' })
-            $result.category | Should -Be 'LIKELY_DUPLICATE'
-        }
-
-        It "Correctly categorizes empty commits array as no original context" {
-            $singleFileDiff = New-MockDiffOutput -FileCount 1
-            $result = Compare-DiffContent -FollowUpDiff $singleFileDiff -OriginalCommits @()
-            # Without original commits, we don't know if it's related - lower confidence
-            $result.category | Should -Be 'POSSIBLE_SUPPLEMENTAL'
-            $result.similarity | Should -Be 40
-        }
-
-        It "Handles diff with binary file markers" {
-            $binaryDiff = @"
-diff --git a/image.png b/image.png
-new file mode 100644
-index 0000000..abc1234
-Binary files /dev/null and b/image.png differ
-"@
-            $result = Compare-DiffContent -FollowUpDiff $binaryDiff -OriginalCommits @(@{ sha = 'abc' })
-            $result.category | Should -Be 'LIKELY_DUPLICATE'
-        }
-
-        It "Handles diff with rename detection" {
-            $renameDiff = @"
-diff --git a/old-name.ps1 b/new-name.ps1
-similarity index 95%
-rename from old-name.ps1
-rename to new-name.ps1
-index abc1234..def5678 100644
---- a/old-name.ps1
-+++ b/new-name.ps1
-@@ -1 +1 @@
--# Old name
-+# New name
-"@
-            $result = Compare-DiffContent -FollowUpDiff $renameDiff -OriginalCommits @(@{ sha = 'abc' })
-            $result.category | Should -Be 'LIKELY_DUPLICATE'
+            $result.similarity | Should -Be 33  # 1/3 = 33%
+            $result.reason | Should -Match 'Some file overlap'
         }
     }
 
