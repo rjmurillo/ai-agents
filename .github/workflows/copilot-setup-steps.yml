@@ -31,10 +31,9 @@ jobs:
   # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
   copilot-setup-steps:
     name: Configure Git Hooks and Linting Tools
-    # ADR-024 Exception: x64 runner required to match Copilot agent architecture
-    # Copilot agents run on x64; dependencies must match their architecture
-    # Issue: Copilot agent architecture requirement
-    runs-on: ubuntu-latest
+    # ADR-007: ARM runner for cost optimization (37.5% savings vs x64)
+    # All dependencies (Node.js, PowerShell Core, GitHub CLI, Pester) support ARM64
+    runs-on: ubuntu-24.04-arm
 
     env:
       # Enable GitHub CLI for GitHub agents or scripts
