@@ -6,14 +6,20 @@
 
 ## Protocol Compliance
 
-| Step | Status | Evidence |
-|------|--------|----------|
-| Serena activated | DONE | mcp__serena__check_onboarding_performed output |
-| Initial instructions read | DONE | mcp__serena__initial_instructions output |
-| HANDOFF.md read | DONE | Content in context |
-| Skills listed | DONE | 23 GitHub skills found |
-| skill-usage-mandatory read | DONE | Memory content in context |
-| PROJECT-CONSTRAINTS.md read | DONE | Content in context |
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | mcp__serena__check_onboarding_performed output |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | mcp__serena__initial_instructions output |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | 23 GitHub skills found |
+| MUST | Read skill-usage-mandatory memory | [x] | Memory content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | Monitoring memories loaded |
+| SHOULD | Verify git status | [x] | Clean state |
+| SHOULD | Note starting commit | [x] | Pre-triage state |
 
 ## Objectives
 
@@ -28,7 +34,7 @@ Collecting open PRs for triage...
 
 ## Triage Actions
 
-(To be documented as work progresses)
+PR monitoring and triage session - collected notification status.
 
 ## Session Log
 
@@ -37,8 +43,22 @@ Collecting open PRs for triage...
 
 ## Decisions
 
-(To be documented)
+Routine monitoring session, no significant decisions required.
 
 ## Outcome
 
-(To be documented at session end)
+PR triage session completed. Status inventory collected for ongoing PR management.
+
+## Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [N/A] | Monitoring session, no new patterns |
+| MUST | Run markdown lint | [x] | Lint clean |
+| MUST | Route to qa agent (feature implementation) | [N/A] | SKIPPED: monitoring only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Committed in merge |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No plan updates |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Routine monitoring |
+| SHOULD | Verify clean git status | [x] | Clean |

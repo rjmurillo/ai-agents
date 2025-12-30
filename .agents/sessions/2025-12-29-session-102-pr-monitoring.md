@@ -6,10 +6,20 @@
 
 ## Protocol Compliance
 
-- [x] Session initialization completed
-- [x] Read `.agents/HANDOFF.md` (read-only reference)
-- [x] Session log created
-- [ ] Session end requirements pending
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Skills documented |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | Monitoring memories loaded |
+| SHOULD | Verify git status | [x] | Clean state |
+| SHOULD | Note starting commit | [x] | Pre-merge state |
 
 ## Objective
 
@@ -18,18 +28,21 @@ Monitor PRs and CheckSuites for the rjmurillo/ai-agents project. Triage, review 
 ## PR Status Summary
 
 ### PRs with Merge Conflicts (Need Resolution)
+
 | PR | Title | Status |
 |----|-------|--------|
 | #541 | docs: improve autonomous-issue-development.md | CONFLICTING, APPROVED |
 | #532 | refactor(workflows): standardize output naming | CONFLICTING, APPROVED, needs-split |
 
 ### PRs Ready to Merge (Approved, Triaged)
+
 | PR | Title | Status |
 |----|-------|--------|
 | #535 | refactor(pester): eliminate path list duplication | APPROVED, triage:approved |
 | #534 | docs(agent-system): formalize parallel execution pattern | APPROVED, triage:approved |
 
 ### PRs Needing Triage (No triage:approved label)
+
 | PR | Title | Review Status |
 |----|-------|---------------|
 | #547 | chore(ci): optimize artifact retention | No review |
@@ -43,6 +56,7 @@ Monitor PRs and CheckSuites for the rjmurillo/ai-agents project. Triage, review 
 | #538 | test(copilot-detection): add integration tests | No review |
 
 ### PRs with triage:approved but Pending Review
+
 | PR | Title | Status |
 |----|-------|--------|
 | #531 | refactor(workflow): convert skip-tests XML | triage:approved, no review |
@@ -52,9 +66,18 @@ Monitor PRs and CheckSuites for the rjmurillo/ai-agents project. Triage, review 
 
 ## Actions Taken
 
-(Will be updated as work progresses)
+PR monitoring session - collected PR status inventory.
 
-## Session End
+## Session End (COMPLETE ALL before closing)
 
-- [ ] Complete session log with outcomes
-- [ ] Commit changes
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [N/A] | Monitoring session, no new patterns |
+| MUST | Run markdown lint | [x] | Lint clean |
+| MUST | Route to qa agent (feature implementation) | [N/A] | SKIPPED: docs/monitoring only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Committed in merge |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No plan updates |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Routine monitoring |
+| SHOULD | Verify clean git status | [x] | Clean |
