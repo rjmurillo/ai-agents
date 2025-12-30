@@ -35,23 +35,32 @@ def sanitize_path(user_path: str, allow_absolute: bool = True) -> Path:
     if not user_path:
         raise ValueError("Path cannot be empty")
 
-    # Normalize and resolve the path
+    # String-level validation BEFORE Path creation (CWE-22 mitigation)
+    if '\x00' in user_path:
+        raise ValueError("Path contains null bytes")
+    if '\r' in user_path or '\n' in user_path:
+        raise ValueError("Path contains invalid whitespace")
+
+    # Normalize path string to detect traversal attempts
+    # This catches ../ and ..\ patterns before Path normalization
+    normalized = os.path.normpath(user_path)
+
+    # After normalization, check if path still contains traversal
+    # os.path.normpath resolves .. but we check the result
+    if '..' in normalized.split(os.sep):
+        raise ValueError("Path traversal detected")
+
+    # Now safe to create Path object (input validated)
     path = Path(user_path).expanduser()
-
-    # Check for null bytes (common injection attack)
-    if '\x00' in str(path):
-        raise ValueError("Path contains invalid characters")
-
-    # Resolve to absolute path
     resolved = path.resolve()
 
-    # For relative paths, ensure resolved path doesn't escape current directory
+    # Additional validation: ensure resolved path is within allowed scope
     if not allow_absolute and not path.is_absolute():
         cwd = Path.cwd().resolve()
         try:
             resolved.relative_to(cwd)
         except ValueError:
-            raise ValueError(f"Path traversal detected: {user_path}")
+            raise ValueError(f"Path escapes allowed directory: {user_path}")
 
     return resolved
 
