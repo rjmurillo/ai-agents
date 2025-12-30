@@ -16,13 +16,22 @@ QA verification of workflow refactoring for issue #144 (eliminate path list dupl
 - Validate output format for downstream consumption
 - Test edge cases (workflow_dispatch, PR context)
 
-## Session Protocol
+## Protocol Compliance
 
-- [x] Serena initialization attempted (tool not available)
-- [x] Initial instructions read
-- [x] HANDOFF.md read (read-only reference)
-- [x] PROJECT-CONSTRAINTS.md read
-- [x] Session log created
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present (or N/A if unavailable) |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Skills available |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | QA-relevant memories loaded |
+| SHOULD | Verify git status | [x] | Clean |
+| SHOULD | Note starting commit | [x] | refactor/144-pester-path-deduplication |
 
 ## Work Performed
 
