@@ -231,21 +231,13 @@ Describe "Detect-CopilotFollowUpPR" {
     }
 
     Context "Compare-DiffContent - Categorization Logic" {
-        It "Returns DUPLICATE for empty diff" {
-            $result = Compare-DiffContent -FollowUpDiff '' -OriginalCommits @()
-            $result.category | Should -Be 'DUPLICATE'
-            $result.similarity | Should -Be 100
-            $result.reason | Should -Be 'Follow-up PR contains no changes'
-        }
-
-        It "Returns DUPLICATE for whitespace-only diff" {
-            $result = Compare-DiffContent -FollowUpDiff '   ' -OriginalCommits @()
-            $result.category | Should -Be 'DUPLICATE'
-            $result.similarity | Should -Be 100
-        }
-
-        It "Returns DUPLICATE for newlines-only diff" {
-            $result = Compare-DiffContent -FollowUpDiff "`n`n`n" -OriginalCommits @()
+        # Consolidated from 3 separate tests for empty/whitespace/newlines-only diffs (Issue #525)
+        It "Returns DUPLICATE for <Name>" -ForEach @(
+            @{ Name = 'empty diff'; Diff = '' }
+            @{ Name = 'whitespace-only diff'; Diff = '   ' }
+            @{ Name = 'newlines-only diff'; Diff = "`n`n`n" }
+        ) {
+            $result = Compare-DiffContent -FollowUpDiff $Diff -OriginalCommits @()
             $result.category | Should -Be 'DUPLICATE'
             $result.similarity | Should -Be 100
         }
@@ -290,22 +282,21 @@ Describe "Detect-CopilotFollowUpPR" {
     }
 
     Context "Merged PR Detection (Issue #293)" {
-        It "Empty diff without OriginalPRNumber returns default reason" {
-            $result = Compare-DiffContent -FollowUpDiff '' -OriginalCommits @()
-            $result.category | Should -Be 'DUPLICATE'
-            $result.similarity | Should -Be 100
-            $result.reason | Should -Be 'Follow-up PR contains no changes'
-        }
+        # Consolidated from 3 separate tests for various empty diff scenarios (Issue #525)
+        It "Returns DUPLICATE with default reason for <Name>" -ForEach @(
+            @{ Name = 'empty diff without OriginalPRNumber'; Diff = ''; PRNumber = $null }
+            @{ Name = 'empty diff with OriginalPRNumber=0'; Diff = ''; PRNumber = 0 }
+            @{ Name = 'whitespace-only diff with OriginalPRNumber=0'; Diff = '   '; PRNumber = 0 }
+        ) {
+            $params = @{
+                FollowUpDiff    = $Diff
+                OriginalCommits = @()
+            }
+            if ($null -ne $PRNumber) {
+                $params['OriginalPRNumber'] = $PRNumber
+            }
 
-        It "Empty diff with OriginalPRNumber=0 returns default reason (skips merge check)" {
-            $result = Compare-DiffContent -FollowUpDiff '' -OriginalCommits @() -OriginalPRNumber 0
-            $result.category | Should -Be 'DUPLICATE'
-            $result.similarity | Should -Be 100
-            $result.reason | Should -Be 'Follow-up PR contains no changes'
-        }
-
-        It "Whitespace-only diff with OriginalPRNumber=0 returns default reason" {
-            $result = Compare-DiffContent -FollowUpDiff '   ' -OriginalCommits @() -OriginalPRNumber 0
+            $result = Compare-DiffContent @params
             $result.category | Should -Be 'DUPLICATE'
             $result.similarity | Should -Be 100
             $result.reason | Should -Be 'Follow-up PR contains no changes'
