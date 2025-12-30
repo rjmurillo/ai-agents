@@ -50,6 +50,7 @@ Describe "AIReviewCommon Module" {
                 'ConvertTo-JsonEscaped'
                 'Format-MarkdownTableRow'
                 'Get-FailureCategory'
+                'Test-SpecValidationFailed'
             )
             foreach ($fn in $expectedFunctions) {
                 $module.ExportedFunctions.Keys | Should -Contain $fn
@@ -425,6 +426,94 @@ Summary complete.
         It "Should be case-insensitive for pattern matching" {
             Get-FailureCategory -Message "RATE LIMIT EXCEEDED" | Should -Be 'INFRASTRUCTURE'
             Get-FailureCategory -Message "Rate Limit" | Should -Be 'INFRASTRUCTURE'
+        }
+    }
+
+    Context "Test-SpecValidationFailed" {
+        # Tests for Issue #150 - Extract duplicated verdict evaluation logic
+
+        # Trace verdict failures
+        It "Should return true when TraceVerdict is CRITICAL_FAIL" {
+            Test-SpecValidationFailed -TraceVerdict 'CRITICAL_FAIL' -CompletenessVerdict 'PASS' | Should -Be $true
+        }
+
+        It "Should return true when TraceVerdict is FAIL" {
+            Test-SpecValidationFailed -TraceVerdict 'FAIL' -CompletenessVerdict 'PASS' | Should -Be $true
+        }
+
+        It "Should return true when TraceVerdict is NEEDS_REVIEW" {
+            Test-SpecValidationFailed -TraceVerdict 'NEEDS_REVIEW' -CompletenessVerdict 'PASS' | Should -Be $true
+        }
+
+        # Completeness verdict failures
+        It "Should return true when CompletenessVerdict is CRITICAL_FAIL" {
+            Test-SpecValidationFailed -TraceVerdict 'PASS' -CompletenessVerdict 'CRITICAL_FAIL' | Should -Be $true
+        }
+
+        It "Should return true when CompletenessVerdict is FAIL" {
+            Test-SpecValidationFailed -TraceVerdict 'PASS' -CompletenessVerdict 'FAIL' | Should -Be $true
+        }
+
+        It "Should return true when CompletenessVerdict is PARTIAL" {
+            # PARTIAL completeness = incomplete implementation = should block merge
+            Test-SpecValidationFailed -TraceVerdict 'PASS' -CompletenessVerdict 'PARTIAL' | Should -Be $true
+        }
+
+        It "Should return true when CompletenessVerdict is NEEDS_REVIEW" {
+            Test-SpecValidationFailed -TraceVerdict 'PASS' -CompletenessVerdict 'NEEDS_REVIEW' | Should -Be $true
+        }
+
+        # Success cases (should NOT fail)
+        It "Should return false when both verdicts are PASS" {
+            Test-SpecValidationFailed -TraceVerdict 'PASS' -CompletenessVerdict 'PASS' | Should -Be $false
+        }
+
+        It "Should return false when TraceVerdict is WARN and CompletenessVerdict is PASS" {
+            # WARN = minor gaps = acceptable for merge
+            Test-SpecValidationFailed -TraceVerdict 'WARN' -CompletenessVerdict 'PASS' | Should -Be $false
+        }
+
+        It "Should return false when TraceVerdict is PASS and CompletenessVerdict is WARN" {
+            Test-SpecValidationFailed -TraceVerdict 'PASS' -CompletenessVerdict 'WARN' | Should -Be $false
+        }
+
+        It "Should return false when both verdicts are WARN" {
+            Test-SpecValidationFailed -TraceVerdict 'WARN' -CompletenessVerdict 'WARN' | Should -Be $false
+        }
+
+        # Combined failure scenarios
+        It "Should return true when both verdicts indicate failure" {
+            Test-SpecValidationFailed -TraceVerdict 'FAIL' -CompletenessVerdict 'FAIL' | Should -Be $true
+        }
+
+        It "Should return true when TraceVerdict is WARN but CompletenessVerdict is PARTIAL" {
+            # PARTIAL always blocks, regardless of trace
+            Test-SpecValidationFailed -TraceVerdict 'WARN' -CompletenessVerdict 'PARTIAL' | Should -Be $true
+        }
+
+        # Edge cases
+        It "Should return false for empty verdicts" {
+            # Empty strings should not match any failure pattern
+            Test-SpecValidationFailed -TraceVerdict '' -CompletenessVerdict '' | Should -Be $false
+        }
+
+        It "Should return false for unknown verdicts" {
+            Test-SpecValidationFailed -TraceVerdict 'UNKNOWN' -CompletenessVerdict 'UNKNOWN' | Should -Be $false
+        }
+
+        It "Should be case-insensitive for verdict matching (PowerShell default)" {
+            # PowerShell's -in operator is case-insensitive by default
+            Test-SpecValidationFailed -TraceVerdict 'fail' -CompletenessVerdict 'pass' | Should -Be $true
+            Test-SpecValidationFailed -TraceVerdict 'FAIL' -CompletenessVerdict 'PASS' | Should -Be $true
+            Test-SpecValidationFailed -TraceVerdict 'Fail' -CompletenessVerdict 'Pass' | Should -Be $true
+        }
+
+        It "Should prioritize trace failure over completeness success" {
+            Test-SpecValidationFailed -TraceVerdict 'CRITICAL_FAIL' -CompletenessVerdict 'PASS' | Should -Be $true
+        }
+
+        It "Should prioritize completeness failure over trace success" {
+            Test-SpecValidationFailed -TraceVerdict 'PASS' -CompletenessVerdict 'CRITICAL_FAIL' | Should -Be $true
         }
     }
 

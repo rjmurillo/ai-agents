@@ -42,16 +42,63 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_REPO: ${{ github.repository }}
+          # Issue #215: Session End checklist requirement introduced 2025-12-21
+          # Historical sessions before this date are exempt from validation
+          CUTOFF_DATE: "2025-12-21"
         run: |
           # Use files API instead of gh pr diff (no line limit - fixes issue #468)
-          CHANGED_FILES=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER/files" --paginate --jq '.[].filename' | grep -E '^\.agents/sessions/.*\.md$' || true)
+          ALL_CHANGED=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER/files" --paginate --jq '.[].filename' | grep -E '^\.agents/sessions/.*\.md$' || true)
 
-          if [ -z "$CHANGED_FILES" ]; then
+          if [ -z "$ALL_CHANGED" ]; then
             echo "No session files changed"
             echo "has_sessions=false" >> $GITHUB_OUTPUT
             echo "session_files=[]" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "All changed session files:"
+          echo "$ALL_CHANGED"
+
+          # Filter out historical sessions (issue #215)
+          # Session filename pattern: YYYY-MM-DD-session-NN.md or YYYY-MM-DD-session-NN-description.md
+          CHANGED_FILES=""
+          SKIPPED_FILES=""
+          while IFS= read -r file; do
+            # Extract date from filename (first 10 characters after path)
+            filename=$(basename "$file")
+            file_date="${filename:0:10}"
+
+            # Validate date format (YYYY-MM-DD)
+            if [[ "$file_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+              if [[ "$file_date" < "$CUTOFF_DATE" ]]; then
+                SKIPPED_FILES="${SKIPPED_FILES}${file}"$'\n'
+              else
+                CHANGED_FILES="${CHANGED_FILES}${file}"$'\n'
+              fi
+            else
+              # Non-standard filename, include for validation
+              CHANGED_FILES="${CHANGED_FILES}${file}"$'\n'
+            fi
+          done <<< "$ALL_CHANGED"
+
+          # Remove trailing newlines
+          CHANGED_FILES=$(echo "$CHANGED_FILES" | sed '/^$/d')
+          SKIPPED_FILES=$(echo "$SKIPPED_FILES" | sed '/^$/d')
+
+          if [ -n "$SKIPPED_FILES" ]; then
+            echo ""
+            echo "Skipped historical sessions (before $CUTOFF_DATE):"
+            echo "$SKIPPED_FILES"
+          fi
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo ""
+            echo "No validatable session files (all historical)"
+            echo "has_sessions=false" >> $GITHUB_OUTPUT
+            echo "session_files=[]" >> $GITHUB_OUTPUT
           else
-            echo "Found changed session files:"
+            echo ""
+            echo "Session files to validate:"
             echo "$CHANGED_FILES"
             echo "has_sessions=true" >> $GITHUB_OUTPUT
 
