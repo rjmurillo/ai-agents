@@ -111,21 +111,21 @@ Then provide:
 
 Use cloudmcp-manager memory tools directly for cross-session context:
 
-**Before advising:**
+**Before strategic decisions:**
 
 ```text
 mcp__cloudmcp-manager__memory-search_nodes
-Query: "strategic decisions [topic/domain]"
+Query: "strategic decision [topic/domain]"
 ```
 
-**After advising:**
+**After decisions:**
 
 ```json
 mcp__cloudmcp-manager__memory-add_observations
 {
   "observations": [{
-    "entityName": "Strategy-[Topic]",
-    "contents": ["[Strategic insight and reasoning]"]
+    "entityName": "Strategy-Decision-[Topic]",
+    "contents": ["[Decision rationale and priority changes]"]
   }]
 }
 ```
@@ -212,17 +212,7 @@ For effective advice, I need:
 - Available resources/time
 - Definition of success
 
-## Handoff Protocol
-
-**As a subagent, you CANNOT delegate**. Return guidance to orchestrator who routes to the appropriate agent.
-
-When strategic guidance is complete, return to orchestrator with:
-
-1. Clear assessment and recommended action
-2. Next agent recommendation (if applicable)
-3. Priority level and urgency
-
-## Handoff Options (Recommendations for Orchestrator)
+## Handoff Options
 
 | Target | When | Purpose |
 |--------|------|---------|
@@ -270,3 +260,13 @@ When strategic guidance is complete, return to orchestrator with:
 **Prioritize:** P0 is one thing, everything else is P1+
 
 **Cut:** Sunk cost is not a reason to continue
+
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return strategic advice to orchestrator.
+
+When analysis is complete:
+
+1. Deliver clear verdict with reasoning
+2. Return to orchestrator with decision and recommended next steps
+3. No ambiguity - state exactly what should be done
