@@ -271,6 +271,78 @@ Describe "Exit Codes" {
 
 ---
 
+## Claude Code Hook Exit Codes
+
+Claude Code hooks have **predefined exit code semantics** defined by Claude Code itself. Hook scripts (`.claude/hooks/*.ps1`) are **exempt** from this ADR's standard because Claude interprets these codes specially.
+
+### Hook Exit Code Reference
+
+| Exit Code | Claude Hook Behavior | This ADR Equivalent |
+|-----------|---------------------|---------------------|
+| 0 | Allow action / JSON decision processed | Success (aligned) |
+| 1 | Hook error (fail-open: action allowed) | Logic Error (aligned) |
+| 2 | **Block action immediately** | Config Error (DIFFERENT) |
+
+### JSON Decision Mode (Recommended)
+
+To align hook scripts with this ADR while maintaining Claude semantics, use **JSON decision mode**:
+
+```powershell
+# Block action using JSON decision (ADR-032 aligned)
+$Output = @{
+    decision = "deny"
+    reason = "Validation failed: missing session log"
+}
+$Output | ConvertTo-Json -Compress
+exit 0  # Success exit code, but action blocked via JSON
+```
+
+This approach:
+
+- Uses exit 0 (aligned with this ADR's "success" semantic)
+- Blocks the action via JSON `decision: "deny"`
+- Provides structured error messages to Claude
+
+### When Exit 2 Is Required
+
+Only use exit 2 in hooks when:
+
+1. **Immediate block required** without structured message
+2. **Fallback** when JSON output fails
+
+```powershell
+# Emergency block (hook-specific, not ADR-032 aligned)
+Write-Error "CRITICAL: Cannot proceed"
+exit 2  # Claude blocks action
+```
+
+### Hook Script Documentation
+
+Hook scripts should document this exemption:
+
+```powershell
+<#
+.SYNOPSIS
+    Claude Code PreToolUse hook for routing gates.
+
+.NOTES
+    EXIT CODES (Claude Hook Semantics - exempt from ADR-032):
+    0  - Allow action OR JSON decision (deny/allow)
+    1  - Hook error (fail-open)
+    2  - Block action immediately (hook-specific)
+
+    See: ADR-033 Routing-Level Enforcement Gates
+    See: https://docs.anthropic.com/en/docs/claude-code/hooks
+#>
+```
+
+### Cross-Reference
+
+- [ADR-033: Routing-Level Enforcement Gates](./ADR-033-routing-level-enforcement-gates.md) - Uses Claude hooks for enforcement
+- [Claude Code Hooks Documentation](https://docs.anthropic.com/en/docs/claude-code/hooks) - Official reference
+
+---
+
 ## Related Decisions
 
 - [ADR-005: PowerShell-Only Scripting](./ADR-005-powershell-only-scripting.md) - Language standardization
