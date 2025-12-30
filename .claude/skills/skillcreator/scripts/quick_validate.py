@@ -92,12 +92,14 @@ def validate_skill(skill_path):
         return False, f"Invalid path: {e}"
 
     # Check SKILL.md exists (safe: skill_path is sanitized)
-    skill_md = skill_path / 'SKILL.md'  # nosec B608 - skill_path is sanitized
+    # lgtm[py/path-injection] - skill_path sanitized via sanitize_path() above
+    skill_md = skill_path / 'SKILL.md'
     if not skill_md.exists():
         return False, "SKILL.md not found"
 
     # Read and validate frontmatter (safe: skill_md derived from sanitized path)
-    content = skill_md.read_text()  # nosec B608 - path is sanitized
+    # lgtm[py/path-injection] - skill_md derived from sanitized skill_path
+    content = skill_md.read_text()
     if not content.startswith('---'):
         return False, "No YAML frontmatter found"
 
@@ -118,6 +120,12 @@ def validate_skill(skill_path):
             return False, f"Invalid YAML in frontmatter: {e}"
     else:
         # Basic parsing without yaml library
+        print(
+            "⚠️ Warning: PyYAML not found. Using a basic parser that may not "
+            "handle multi-line values correctly.\n"
+            "For full validation, please run: pip install pyyaml",
+            file=sys.stderr
+        )
         frontmatter = {}
         for line in frontmatter_text.split('\n'):
             if ':' in line and not line.startswith(' '):
@@ -184,6 +192,7 @@ def main():
     # Security: Sanitize and validate path before use
     try:
         sanitized = sanitize_path(skill_path)
+        # lgtm[py/path-injection] - sanitized via sanitize_path() above
         if not sanitized.exists():
             print(f"Error: Path not found: {skill_path}")
             sys.exit(1)
@@ -191,7 +200,8 @@ def main():
         print(f"Error: Invalid path: {e}")
         sys.exit(1)
 
-    valid, message = validate_skill(skill_path)
+    # Pass the sanitized path to validate_skill
+    valid, message = validate_skill(str(sanitized))
 
     if valid:
         print(f"✅ {message}")

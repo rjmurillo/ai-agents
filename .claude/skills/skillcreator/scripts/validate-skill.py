@@ -89,7 +89,8 @@ class SkillValidator:
         """Find the main skill file (SKILL.md or skill.md)."""
         # Safe: skill_path is sanitized in __init__
         for name in ["SKILL.md", "skill.md"]:
-            path = self.skill_path / name  # nosec B608 - skill_path is sanitized
+            # lgtm[py/path-injection] - skill_path sanitized in __init__
+            path = self.skill_path / name
             if path.exists():
                 return path
         return self.skill_path / "SKILL.md"  # Default
@@ -120,6 +121,12 @@ class SkillValidator:
             return True
         except ImportError:
             # Parse basic fields without yaml library
+            print(
+                "⚠️ Warning: PyYAML not found. Using a basic parser that may not "
+                "handle multi-line values correctly.\n"
+                "For full validation, please run: pip install pyyaml",
+                file=sys.stderr
+            )
             frontmatter_text = match.group(1)
             for line in frontmatter_text.split('\n'):
                 if ':' in line:
