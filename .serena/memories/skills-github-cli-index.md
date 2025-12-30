@@ -12,3 +12,4 @@
 | project create list item add field milestone owner close link template | github-cli-projects |
 | extension install search upgrade browse remove exec sub-issue gh-dash gh-notify gh-metrics gh-combine-prs gh-milestone gh-hook gh-gr gh-grep | github-cli-extensions |
 | anti-pattern pitfall rate-limit pagination repository-rename GITHUB_TOKEN error attestation verify provenance supply-chain security artifact OCI container | github-cli-anti-patterns |
+| PR size resilience large diff files API 406 20000 lines | github-cli-pr-size-resilience |
