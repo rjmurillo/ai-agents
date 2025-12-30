@@ -175,16 +175,13 @@ jobs:
           echo "No PowerShell files changed - skipping PSScriptAnalyzer"
 
       - name: Create empty analysis result for required check
+        shell: pwsh
         run: |
-          mkdir -p ./artifacts
-          cat > ./artifacts/psscriptanalyzer-results.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <testsuites tests="0" failures="0" errors="0" time="0">
-            <testsuite name="PSScriptAnalyzer (Skipped)" tests="0" failures="0" errors="0" time="0">
-              <!-- No PowerShell files changed - analysis skipped -->
-            </testsuite>
-          </testsuites>
-          EOF
+          Import-Module ./.github/scripts/TestResultHelpers.psm1
+          New-SkippedTestResult `
+            -OutputPath "./artifacts/psscriptanalyzer-results.xml" `
+            -TestSuiteName "PSScriptAnalyzer (Skipped)" `
+            -SkipReason "No PowerShell files changed - analysis skipped"
 
       - name: Publish Analysis Report (skipped)
         uses: dorny/test-reporter@31a54ee7ebcacc03a09ea97a7e5465a47b84aea5
