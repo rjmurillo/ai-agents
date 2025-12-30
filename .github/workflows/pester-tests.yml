@@ -39,8 +39,6 @@ jobs:
     outputs:
       # For workflow_dispatch, always run tests; otherwise use paths-filter result
       should-run-tests: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.testable }}
-      # Export testable paths for skip-tests job to display (issue #144: single source of truth)
-      testable-paths: ${{ steps.filter.outputs.testable_files }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -60,7 +58,6 @@ jobs:
           #   - .claude/skills/**       : Claude skills
           #   - tests/**                : Root-level tests
           #   - .baseline/**            : Coverage thresholds
-          list-files: json
           filters: |
             testable:
               - 'scripts/**'
@@ -78,9 +75,6 @@ jobs:
             echo "Manual trigger - running all tests"
           else
             echo "Testable files changed: ${{ steps.filter.outputs.testable }}"
-            if [ "${{ steps.filter.outputs.testable }}" = "true" ]; then
-              echo "Changed files: ${{ steps.filter.outputs.testable_files }}"
-            fi
           fi
 
   test:
