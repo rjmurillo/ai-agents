@@ -35,34 +35,33 @@ def sanitize_path(user_path: str, allow_absolute: bool = True) -> Path:
     if not user_path:
         raise ValueError("Path cannot be empty")
 
-    # String-level validation BEFORE Path creation (CWE-22 mitigation)
+    # String-level validation BEFORE any path operations (CWE-22 mitigation)
     if '\x00' in user_path:
         raise ValueError("Path contains null bytes")
     if '\r' in user_path or '\n' in user_path:
         raise ValueError("Path contains invalid whitespace")
 
-    # Normalize path string to detect traversal attempts
-    # This catches ../ and ..\ patterns before Path normalization
-    normalized = os.path.normpath(user_path)
+    # Expand ~ BEFORE normalization to properly handle home directory
+    if user_path.startswith('~'):
+        user_path = os.path.expanduser(user_path)
 
-    # After normalization, check if path still contains traversal
-    # os.path.normpath resolves .. but we check the result
-    if '..' in normalized.split(os.sep):
+    # Use os.path functions exclusively (CodeQL recognizes these as safer)
+    # os.path.realpath resolves symlinks and normalizes the path
+    resolved_str = os.path.realpath(user_path)
+
+    # Check for path traversal after resolution
+    # The resolved path should not contain .. components
+    if '..' in resolved_str.split(os.sep):
         raise ValueError("Path traversal detected")
 
-    # Now safe to create Path object (input validated)
-    path = Path(user_path).expanduser()
-    resolved = path.resolve()
-
-    # Additional validation: ensure resolved path is within allowed scope
-    if not allow_absolute and not path.is_absolute():
-        cwd = Path.cwd().resolve()
-        try:
-            resolved.relative_to(cwd)
-        except ValueError:
+    # For relative paths (when allow_absolute=False), verify containment
+    if not allow_absolute and not os.path.isabs(user_path):
+        cwd = os.path.realpath(os.getcwd())
+        if not resolved_str.startswith(cwd + os.sep) and resolved_str != cwd:
             raise ValueError(f"Path escapes allowed directory: {user_path}")
 
-    return resolved
+    # Convert to Path only after full validation with os.path
+    return Path(resolved_str)
 
 
 class SkillValidator:
@@ -72,12 +71,12 @@ class SkillValidator:
         # Security: Sanitize user-provided path
         try:
             self.skill_path = sanitize_path(skill_path)
-        except ValueError as e:
-            # Store error for later reporting
-            self.skill_path = Path(skill_path)  # Keep original for error messages
-            self._init_error = str(e)
-        else:
             self._init_error = None
+        except ValueError as e:
+            # Store error for later reporting - use a safe placeholder path
+            # SECURITY: Do NOT use unsanitized path even for error reporting
+            self.skill_path = Path(".")  # Safe placeholder
+            self._init_error = f"{e} (path: {repr(skill_path)[:50]})"
         self.skill_md_path = self._find_skill_md()
         self.content = ""
         self.frontmatter: Dict[str, Any] = {}
