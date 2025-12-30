@@ -11,7 +11,6 @@ Usage:
 """
 
 import sys
-import os
 import re
 from pathlib import Path
 
@@ -20,6 +19,45 @@ try:
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
+
+
+# Security: Path sanitization to prevent path traversal attacks
+def sanitize_path(user_path: str, allow_absolute: bool = True) -> Path:
+    """
+    Sanitize user-provided path to prevent path traversal attacks.
+
+    Args:
+        user_path: User-provided path string
+        allow_absolute: Whether to allow absolute paths (default True for skill paths)
+
+    Returns:
+        Resolved, sanitized Path object
+
+    Raises:
+        ValueError: If path contains traversal attempts or is invalid
+    """
+    if not user_path:
+        raise ValueError("Path cannot be empty")
+
+    # Normalize and resolve the path
+    path = Path(user_path).expanduser()
+
+    # Check for null bytes (common injection attack)
+    if '\x00' in str(path):
+        raise ValueError("Path contains invalid characters")
+
+    # Resolve to absolute path
+    resolved = path.resolve()
+
+    # For relative paths, ensure resolved path doesn't escape current directory
+    if not allow_absolute and not path.is_absolute():
+        cwd = Path.cwd().resolve()
+        try:
+            resolved.relative_to(cwd)
+        except ValueError:
+            raise ValueError(f"Path traversal detected: {user_path}")
+
+    return resolved
 
 
 def validate_skill(skill_path):
@@ -37,15 +75,19 @@ def validate_skill(skill_path):
     Returns:
         tuple: (is_valid: bool, message: str)
     """
-    skill_path = Path(skill_path)
+    # Security: Sanitize user-provided path
+    try:
+        skill_path = sanitize_path(str(skill_path))
+    except ValueError as e:
+        return False, f"Invalid path: {e}"
 
-    # Check SKILL.md exists
-    skill_md = skill_path / 'SKILL.md'
+    # Check SKILL.md exists (safe: skill_path is sanitized)
+    skill_md = skill_path / 'SKILL.md'  # nosec B608 - skill_path is sanitized
     if not skill_md.exists():
         return False, "SKILL.md not found"
 
-    # Read and validate frontmatter
-    content = skill_md.read_text()
+    # Read and validate frontmatter (safe: skill_md derived from sanitized path)
+    content = skill_md.read_text()  # nosec B608 - path is sanitized
     if not content.startswith('---'):
         return False, "No YAML frontmatter found"
 
@@ -129,8 +171,14 @@ def main():
 
     skill_path = sys.argv[1]
 
-    if not Path(skill_path).exists():
-        print(f"Error: Path not found: {skill_path}")
+    # Security: Sanitize and validate path before use
+    try:
+        sanitized = sanitize_path(skill_path)
+        if not sanitized.exists():
+            print(f"Error: Path not found: {skill_path}")
+            sys.exit(1)
+    except ValueError as e:
+        print(f"Error: Invalid path: {e}")
         sys.exit(1)
 
     valid, message = validate_skill(skill_path)

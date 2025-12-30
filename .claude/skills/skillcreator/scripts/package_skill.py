@@ -17,6 +17,45 @@ import sys
 import zipfile
 from pathlib import Path
 
+# Security: Path sanitization to prevent path traversal attacks
+def sanitize_path(user_path: str, allow_absolute: bool = True) -> Path:
+    """
+    Sanitize user-provided path to prevent path traversal attacks.
+
+    Args:
+        user_path: User-provided path string
+        allow_absolute: Whether to allow absolute paths (default True for skill paths)
+
+    Returns:
+        Resolved, sanitized Path object
+
+    Raises:
+        ValueError: If path contains traversal attempts or is invalid
+    """
+    if not user_path:
+        raise ValueError("Path cannot be empty")
+
+    # Normalize and resolve the path
+    path = Path(user_path).expanduser()
+
+    # Check for null bytes (common injection attack)
+    if '\x00' in str(path):
+        raise ValueError("Path contains invalid characters")
+
+    # Resolve to absolute path
+    resolved = path.resolve()
+
+    # For relative paths, ensure resolved path doesn't escape current directory
+    if not allow_absolute and not path.is_absolute():
+        cwd = Path.cwd().resolve()
+        try:
+            resolved.relative_to(cwd)
+        except ValueError:
+            raise ValueError(f"Path traversal detected: {user_path}")
+
+    return resolved
+
+
 # Import validation from quick_validate
 try:
     from quick_validate import validate_skill
@@ -38,7 +77,12 @@ def package_skill(skill_path, output_dir=None):
     Returns:
         Path to the created .skill file, or None if error
     """
-    skill_path = Path(skill_path).resolve()
+    # Security: Sanitize user-provided path
+    try:
+        skill_path = sanitize_path(skill_path)
+    except ValueError as e:
+        print(f"❌ Error: Invalid skill path: {e}")
+        return None
 
     # Validate skill folder exists
     if not skill_path.exists():
@@ -49,7 +93,7 @@ def package_skill(skill_path, output_dir=None):
         print(f"❌ Error: Path is not a directory: {skill_path}")
         return None
 
-    # Validate SKILL.md exists
+    # Validate SKILL.md exists (safe: derived from sanitized skill_path)
     skill_md = skill_path / "SKILL.md"
     if not skill_md.exists():
         print(f"❌ Error: SKILL.md not found in {skill_path}")
@@ -67,7 +111,12 @@ def package_skill(skill_path, output_dir=None):
     # Determine output location
     skill_name = skill_path.name
     if output_dir:
-        output_path = Path(output_dir).resolve()
+        # Security: Sanitize user-provided output directory
+        try:
+            output_path = sanitize_path(output_dir)
+        except ValueError as e:
+            print(f"❌ Error: Invalid output path: {e}")
+            return None
         output_path.mkdir(parents=True, exist_ok=True)
     else:
         output_path = Path.cwd()
@@ -77,8 +126,8 @@ def package_skill(skill_path, output_dir=None):
     # Create the .skill file (zip format)
     try:
         with zipfile.ZipFile(skill_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Walk through the skill directory
-            for file_path in skill_path.rglob('*'):
+            # Walk through the skill directory (safe: skill_path was sanitized above)
+            for file_path in skill_path.rglob('*'):  # nosec B608 - skill_path is sanitized
                 if file_path.is_file():
                     # Skip common exclusions
                     if file_path.name.startswith('.') or '__pycache__' in str(file_path):

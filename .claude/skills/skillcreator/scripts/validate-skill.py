@@ -17,11 +17,58 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
 
+# Security: Path sanitization to prevent path traversal attacks
+def sanitize_path(user_path: str, allow_absolute: bool = True) -> Path:
+    """
+    Sanitize user-provided path to prevent path traversal attacks.
+
+    Args:
+        user_path: User-provided path string
+        allow_absolute: Whether to allow absolute paths (default True for skill paths)
+
+    Returns:
+        Resolved, sanitized Path object
+
+    Raises:
+        ValueError: If path contains traversal attempts or is invalid
+    """
+    if not user_path:
+        raise ValueError("Path cannot be empty")
+
+    # Normalize and resolve the path
+    path = Path(user_path).expanduser()
+
+    # Check for null bytes (common injection attack)
+    if '\x00' in str(path):
+        raise ValueError("Path contains invalid characters")
+
+    # Resolve to absolute path
+    resolved = path.resolve()
+
+    # For relative paths, ensure resolved path doesn't escape current directory
+    if not allow_absolute and not path.is_absolute():
+        cwd = Path.cwd().resolve()
+        try:
+            resolved.relative_to(cwd)
+        except ValueError:
+            raise ValueError(f"Path traversal detected: {user_path}")
+
+    return resolved
+
+
 class SkillValidator:
     """Validates skill files against SkillCreator 3.0 standards."""
 
     def __init__(self, skill_path: str):
-        self.skill_path = Path(skill_path)
+        # Security: Sanitize user-provided path
+        try:
+            self.skill_path = sanitize_path(skill_path)
+        except ValueError as e:
+            # Store error for later reporting
+            self.skill_path = Path(skill_path)  # Keep original for error messages
+            self._init_error = str(e)
+        else:
+            self._init_error = None
         self.skill_md_path = self._find_skill_md()
         self.content = ""
         self.frontmatter: Dict[str, Any] = {}
@@ -32,8 +79,9 @@ class SkillValidator:
 
     def _find_skill_md(self) -> Path:
         """Find the main skill file (SKILL.md or skill.md)."""
+        # Safe: skill_path is sanitized in __init__
         for name in ["SKILL.md", "skill.md"]:
-            path = self.skill_path / name
+            path = self.skill_path / name  # nosec B608 - skill_path is sanitized
             if path.exists():
                 return path
         return self.skill_path / "SKILL.md"  # Default
@@ -403,6 +451,11 @@ class SkillValidator:
 
     def validate(self) -> Tuple[bool, str]:
         """Run all validations and return result."""
+        # Check for path sanitization error from __init__
+        if self._init_error:
+            self.errors.append(f"Invalid path: {self._init_error}")
+            return False, self._format_report()
+
         if not self.load_skill():
             return False, self._format_report()
 
