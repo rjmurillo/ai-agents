@@ -35,7 +35,7 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research technologies and best practices
 - **Write**: Create specification documents
 - **TodoWrite**: Track specification progress
-- **Serena memory tools**: Retrieve feature context
+- **Serena memory tools**: Cross-session context (`mcp__serena__list_memories`, `mcp__serena__read_memory`, `mcp__serena__write_memory`)
 
 ## Core Mission
 

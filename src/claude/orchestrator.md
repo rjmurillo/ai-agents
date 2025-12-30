@@ -109,7 +109,7 @@ You have direct access to:
 - **Task**: Delegate to specialized agents
 - **TodoWrite**: Track orchestration progress
 - **Bash**: Execute commands
-- **cloudmcp-manager memory tools**: Cross-session context
+- **Serena memory tools**: Cross-session context (`mcp__serena__list_memories`, `mcp__serena__read_memory`, `mcp__serena__write_memory`)
 
 ## Reliability Principles
 
