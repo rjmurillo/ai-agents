@@ -5,14 +5,22 @@
 **Branch**: docs/191-parallel-execution-pattern
 **Type**: Documentation enhancement
 
-## Session Start Checklist
+## Protocol Compliance
 
-- [x] Serena activated and initial instructions read
-- [x] HANDOFF.md read (read-only reference)
-- [x] Skill-usage-mandatory memory read
-- [x] PROJECT-CONSTRAINTS.md read
-- [x] Session log created
-- [x] Skills listed (.claude/skills/github/scripts/)
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented below |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | orchestration-parallel-execution, parallel-001, parallel-002 |
+| SHOULD | Verify git status | [x] | Clean |
+| SHOULD | Note starting commit | [x] | docs/191-parallel-execution-pattern branch |
 
 ## Objective
 
