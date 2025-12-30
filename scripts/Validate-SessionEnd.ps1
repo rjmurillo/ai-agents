@@ -190,7 +190,20 @@ for ($i = 0; $i -lt $protoKey.Count; $i++) {
 }
 
 # --- Verify MUST rows checked, with QA skip rules
-# Determine doc-only vs code/config changes using Starting Commit if present.
+# Determine doc-only vs code/config changes.
+# Pre-commit mode: check staged files (what's actually being committed)
+# Normal mode: check diff from Starting Commit to HEAD (session's full change set)
+
+function Is-DocsOnly([string[]]$Files) {
+  if (-not $Files -or $Files.Count -eq 0) { return $false } # No files = cannot prove docs-only
+  foreach ($f in $Files) {
+    $ext = [IO.Path]::GetExtension($f).ToLowerInvariant()
+    if ($ext -ne '.md') { return $false }
+  }
+  return $true
+}
+
+# Extract Starting Commit from session log (needed for later validations)
 $startingCommit = $null
 if ($sessionText -match '(?m)^\s*-\s*\*\*Starting Commit\*\*\s*:\s*`?([0-9a-f]{7,40})`?\s*$') {
   $startingCommit = $Matches[1]
@@ -199,30 +212,33 @@ if ($sessionText -match '(?m)^\s*-\s*\*\*Starting Commit\*\*\s*:\s*`?([0-9a-f]{7
 }
 
 $changedFiles = @()
-if ($startingCommit) {
+$docsOnly = $false
+
+if ($PreCommit) {
+  # Pre-commit: check only staged files (fixes false positive on docs-only commits)
+  # Issue #551: Without this, docs-only commits would be detected as "non-doc changes"
+  # because git diff $startingCommit..HEAD includes all session changes, not just staged files
+  try {
+    $stagedFiles = @((& git -C $repoRoot diff --staged --name-only) -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' })
+    if ($stagedFiles.Count -gt 0) {
+      $changedFiles = $stagedFiles
+      $docsOnly = Is-DocsOnly $stagedFiles
+    }
+  } catch {
+    # If staged files check fails, fall back to conservative (not docs-only)
+    $docsOnly = $false
+  }
+} elseif ($startingCommit) {
+  # Normal mode: use Starting Commit to HEAD diff
   try {
     # Wrap in @() to ensure result is always an array (fixes Count property error when single file)
     $changedFiles = @((& git -C $repoRoot diff --name-only "$startingCommit..HEAD") -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' })
+    if ($changedFiles.Count -gt 0) {
+      $docsOnly = Is-DocsOnly $changedFiles
+    }
   } catch {
     Fail 'E_GIT_DIFF_FAIL' "Could not compute changed files from Starting Commit $startingCommit. Ensure Starting Commit is valid."
   }
-}
-
-function Is-DocsOnly([string[]]$Files) {
-  if (-not $Files -or $Files.Count -eq 0) { return $true } # conservative: treat unknown as docs-only? No.
-  foreach ($f in $Files) {
-    $ext = [IO.Path]::GetExtension($f).ToLowerInvariant()
-    if ($ext -ne '.md') { return $false }
-  }
-  return $true
-}
-
-$docsOnly = $false
-if ($startingCommit -and $changedFiles.Count -gt 0) {
-  $docsOnly = Is-DocsOnly $changedFiles
-} else {
-  # If we cannot prove docs-only, treat as NOT docs-only.
-  $docsOnly = $false
 }
 
 $mustRows = $sessionRows | Where-Object { $_.Req -eq 'MUST' }
