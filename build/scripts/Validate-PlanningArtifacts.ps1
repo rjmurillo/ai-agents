@@ -403,7 +403,7 @@ if ($warnings.Count -gt 0) {
 if ($errors.Count -gt 0) {
     Write-ColorOutput "❌ ERRORS: $($errors.Count)" $ColorRed
     foreach ($err in $errors) {
-        Write-Host "  - $err"
+        Write-Error "  - $err" -ErrorAction Continue
     }
 }
 
