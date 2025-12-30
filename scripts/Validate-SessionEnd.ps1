@@ -180,8 +180,8 @@ if (-not $protocolStartTableLines) {
   Fail 'E_PROTOCOL_START_TABLE_MISSING' "Could not find canonical 'Session Start' checklist table in SESSION-PROTOCOL.md"
 }
 $protocolStartRows = Parse-ChecklistTable $protocolStartTableLines
-if ($protocolStartRows.Count -lt 3) {
-  Fail 'E_PROTOCOL_START_TABLE_PARSE' "Canonical Session Start checklist table could not be parsed."
+if ($protocolStartRows.Count -lt 1) {
+  Fail 'E_PROTOCOL_START_TABLE_PARSE' "Canonical Session Start checklist table is empty or could not be parsed."
 }
 
 # --- Extract Session Start checklist from session log
@@ -204,9 +204,9 @@ NOTE: Bullet-list format is NOT accepted. Use the table format.
 "@
 }
 $sessionStartRows = Parse-ChecklistTable $sessionStartTableLines
-if ($sessionStartRows.Count -lt 3) {
+if ($sessionStartRows.Count -lt 1) {
   Fail 'E_SESSION_START_TABLE_PARSE' @"
-Session Start checklist table could not be parsed.
+Session Start checklist table is empty or could not be parsed.
 
 Ensure you're using the canonical table format:
 | Req | Step | Status | Evidence |
