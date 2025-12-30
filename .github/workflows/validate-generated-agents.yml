@@ -31,6 +31,8 @@ jobs:
     name: Check Paths
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
     outputs:
       # For workflow_dispatch, always run validation; otherwise use paths-filter result
       should-validate: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-validate }}
