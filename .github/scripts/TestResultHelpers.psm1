@@ -63,12 +63,16 @@ function New-SkippedTestResult {
         [string]$SkipReason = "No testable files changed - tests skipped"
     )
 
+    # Escape XML-sensitive characters to prevent XML injection (CWE-91)
+    $escapedTestSuiteName = [System.Security.SecurityElement]::Escape($TestSuiteName)
+    $escapedSkipReason = [System.Security.SecurityElement]::Escape($SkipReason)
+
     # Generate JUnit XML content
     $xmlContent = @"
 <?xml version="1.0" encoding="utf-8"?>
 <testsuites tests="0" failures="0" errors="0" time="0">
-  <testsuite name="$TestSuiteName" tests="0" failures="0" errors="0" time="0">
-    <!-- $SkipReason -->
+  <testsuite name="$escapedTestSuiteName" tests="0" failures="0" errors="0" time="0">
+    <!-- $escapedSkipReason -->
   </testsuite>
 </testsuites>
 "@
