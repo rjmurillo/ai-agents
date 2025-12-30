@@ -53,12 +53,13 @@ $applied = @()
 $failed = @()
 
 foreach ($assignee in $Assignees) {
-    $null = gh issue edit $Issue --repo "$Owner/$Repo" --add-assignee $assignee 2>&1
+    $ghOutput = gh issue edit $Issue --repo "$Owner/$Repo" --add-assignee $assignee 2>&1
     if ($LASTEXITCODE -eq 0) {
         $applied += $assignee
     }
     else {
         $failed += $assignee
+        Write-Warning "Failed to assign '$assignee': $($ghOutput.Trim())"
     }
 }
 
