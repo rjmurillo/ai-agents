@@ -111,22 +111,17 @@ query($owner: String!, $repo: String!, $number: Int!) {
 }
 '@
 
-$result = gh api graphql -f query=$query -f owner="$Owner" -f repo="$Repo" -F number=$PullRequest 2>&1
-if ($LASTEXITCODE -ne 0) {
-    if ($result -match "Could not resolve") {
-        Write-ErrorAndExit "PR #$PullRequest not found in $Owner/$Repo" 2
-    }
-    Write-ErrorAndExit "Failed to query PR status: $result" 3
-}
-
 try {
-    $parsed = $result | ConvertFrom-Json
+    $prData = Invoke-GhGraphQL -Query $query -Variables @{ owner = $Owner; repo = $Repo; number = $PullRequest }
 }
 catch {
-    Write-ErrorAndExit "Failed to parse GraphQL response: $result" 3
+    if ($_.Exception.Message -match "Could not resolve") {
+        Write-ErrorAndExit "PR #$PullRequest not found in $Owner/$Repo" 2
+    }
+    Write-ErrorAndExit "Failed to query PR status: $($_.Exception.Message)" 3
 }
 
-$pr = $parsed.data.repository.pullRequest
+$pr = $prData.repository.pullRequest
 if ($null -eq $pr) {
     Write-ErrorAndExit "PR #$PullRequest not found" 2
 }

@@ -88,25 +88,20 @@ mutation($threadId: ID!, $body: String!) {
 }
 '@
 
-$result = gh api graphql -f query=$mutation -f threadId="$ThreadId" -f body="$Body" 2>&1
-if ($LASTEXITCODE -ne 0) {
-    if ($result -match "Could not resolve") {
-        Write-ErrorAndExit "Thread $ThreadId not found" 2
-    }
-    Write-ErrorAndExit "Failed to post thread reply: $result" 3
-}
-
 try {
-    $parsed = $result | ConvertFrom-Json
+    $replyData = Invoke-GhGraphQL -Query $mutation -Variables @{ threadId = $ThreadId; body = $Body }
 }
 catch {
-    Write-ErrorAndExit "Failed to parse GraphQL response: $result" 3
+    if ($_.Exception.Message -match "Could not resolve") {
+        Write-ErrorAndExit "Thread $ThreadId not found" 2
+    }
+    Write-ErrorAndExit "Failed to post thread reply: $($_.Exception.Message)" 3
 }
 
-$comment = $parsed.data.addPullRequestReviewThreadReply.comment
+$comment = $replyData.addPullRequestReviewThreadReply.comment
 
 if ($null -eq $comment) {
-    Write-ErrorAndExit "Reply may not have been posted. Response: $result" 3
+    Write-ErrorAndExit "Reply may not have been posted successfully" 3
 }
 
 # Optionally resolve the thread
@@ -125,18 +120,12 @@ mutation($threadId: ID!) {
 }
 '@
 
-    $resolveResult = gh api graphql -f query=$resolveMutation -f threadId="$ThreadId" 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        try {
-            $resolvedParsed = $resolveResult | ConvertFrom-Json
-            $threadResolved = $resolvedParsed.data.resolveReviewThread.thread.isResolved
-        }
-        catch {
-            Write-Warning "Thread reply posted but resolution status unclear: $resolveResult"
-        }
+    try {
+        $resolveData = Invoke-GhGraphQL -Query $resolveMutation -Variables @{ threadId = $ThreadId }
+        $threadResolved = $resolveData.resolveReviewThread.thread.isResolved
     }
-    else {
-        Write-Warning "Thread reply posted but failed to resolve: $resolveResult"
+    catch {
+        Write-Warning "Thread reply posted but failed to resolve: $($_.Exception.Message)"
     }
 }
 
