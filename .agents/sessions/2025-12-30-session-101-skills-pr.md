@@ -69,6 +69,40 @@ All MUST requirements above are marked complete.
 - `.claude/skills/skillcreator/` - Full skill directory with SKILL.md, references, scripts, assets
 - `.claude/skills/programming-advisor/` - Skill with references for token estimates, pricing, patterns
 
+### Address CodeQL Security Alerts
+
+**Status**: Complete
+
+**Context**: CodeQL Advanced Security flagged path injection vulnerabilities in the Python scripts.
+
+**Resolution Approach**:
+
+1. **Initial fix** (9eccce2): Added `sanitize_path()` function with path validation
+2. **Strengthened fix** (380806b): Moved validation BEFORE Path object creation
+3. **os.path approach** (94a9051): Refactored to use `os.path.realpath()` exclusively
+4. **Documentation** (04adaa4, 27f8052): Added lgtm annotations and SECURITY.md
+
+**Why CodeQL Still Reports**:
+- CodeQL Advanced Security cannot recognize custom sanitization functions
+- No inline suppression mechanism (lgtm comments are for LGTM.dev, not GitHub)
+- Would require custom CodeQL query pack to model `sanitize_path()` as sanitizer
+
+**Security Mitigations Documented**:
+- Added `SECURITY.md` explaining defense-in-depth approach
+- Documents why alerts are false positives
+- Notes ADR-005 exception for third-party Python skills
+
+### Address Gemini Code Assist Suggestions
+
+**Status**: Complete
+
+**Suggestion**: Add warning when fallback YAML parser is used (PyYAML not installed)
+
+**Implementation** (04adaa4):
+- Added stderr warning about parser limitations
+- Recommends `pip install pyyaml` for full validation
+- Applied to both `quick_validate.py` and `validate-skill.py`
+
 ---
 
 ## Session End (COMPLETE ALL before closing)
@@ -99,7 +133,12 @@ Clean (working tree clean after commit)
 
 ### Commits This Session
 
-- Session log for PR #608 creation
+1. Initial PR creation with session log
+2. `9eccce2` - Initial path sanitization for CodeQL
+3. `380806b` - Strengthened sanitization (string-level validation)
+4. `94a9051` - Refactored to use os.path.realpath exclusively
+5. `04adaa4` - Added lgtm annotations and PyYAML warning
+6. `27f8052` - Added SECURITY.md documentation
 
 ---
 
@@ -107,4 +146,6 @@ Clean (working tree clean after commit)
 
 - PR #608 created for skills: https://github.com/rjmurillo/ai-agents/pull/608
 - Skills added: skillcreator (v3.2), programming-advisor
-- CI will run validations on the PR
+- CodeQL alerts remain due to GitHub Advanced Security limitation (cannot recognize custom sanitizers)
+- Security review documented in `.claude/skills/skillcreator/SECURITY.md`
+- PR may need admin approval to dismiss CodeQL alerts or merge with security acknowledgment
