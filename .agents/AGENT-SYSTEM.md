@@ -36,7 +36,7 @@ Task(subagent_type="analyst", prompt="Investigate API latency issues")
 
 ### Agent Count
 
-This system includes **18 specialized agents** organized into 5 categories.
+This system includes **19 specialized agents** organized into 5 categories.
 
 ---
 
@@ -144,6 +144,47 @@ with clear acceptance criteria and dependencies.
 ```text
 @task-generator Generate atomic tasks from the Authentication milestone.
 Include complexity estimates and file impact.
+```
+
+---
+
+#### spec-generator
+
+**File**: `src/claude/spec-generator.md`
+
+**Role**: Transforms vibe-level feature descriptions into structured 3-tier specifications
+
+**Specialization**: EARS requirements format, traceability chains, specification hierarchy
+
+**Input**:
+- Vague feature description or idea
+- User clarifications (gathered via questions)
+- Related context (ADRs, existing features)
+
+**Output**:
+- Requirements documents in `.agents/specs/requirements/REQ-NNN-*.md`
+- Design documents in `.agents/specs/design/DESIGN-NNN-*.md`
+- Task documents in `.agents/specs/tasks/TASK-NNN-*.md`
+
+**Delegates To**: None (returns to orchestrator)
+
+**Called By**: orchestrator
+
+**When to Use**:
+- Converting vague ideas into implementable specs
+- Creating formal requirements with EARS format
+- Establishing traceability between requirements, design, and tasks
+- When "what should this do?" needs a structured answer
+
+**Example Invocation**:
+```text
+@spec-generator Create specifications for a session state persistence feature.
+I need requirements in EARS format, a design doc, and atomic tasks.
+```
+
+**3-Tier Output**:
+```text
+REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
 ```
 
 ---
@@ -945,6 +986,7 @@ flowchart TD
 | "document", "explain", "PRD" | explainer | analyst | Documentation |
 | "plan", "break down", "milestone" | planner | task-generator | Work decomposition |
 | "task", "atomic", "estimate" | task-generator | planner | Task generation |
+| "spec", "requirements", "EARS", "specification" | spec-generator | explainer | Formal specifications |
 | "prioritize", "roadmap", "epic" | roadmap | high-level-advisor | Product strategy |
 | "decide", "verdict", "stuck" | high-level-advisor | independent-thinker | Strategic decisions |
 | "learn", "retro", "what went wrong" | retrospective | analyst | Learning extraction |
@@ -954,6 +996,7 @@ flowchart TD
 
 | Task Type | Primary | Secondary | Validator |
 |-----------|---------|-----------|-----------|
+| Formal specification | spec-generator | architect | critic |
 | New feature | architect | planner | critic |
 | Bug fix | analyst | implementer | qa |
 | Refactor | architect | implementer | critic |
