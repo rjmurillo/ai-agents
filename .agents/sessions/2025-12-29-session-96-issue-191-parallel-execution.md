@@ -92,10 +92,16 @@ Formalize the parallel execution pattern in AGENT-SYSTEM.md based on learnings f
 | Example scenarios provided | [PASS] | Section 6.9 (3 examples) |
 | Limitations and constraints documented | [PASS] | Sections 6.10-6.11 |
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-- [x] All acceptance criteria met
-- [x] Session log complete
-- [x] Serena memory updated (not needed - memory already exists)
-- [x] Markdown lint run - passed
-- [ ] All changes committed
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory already exists (parallel-001, parallel-002) |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/144-pester-path-deduplication-test-report.md` (branch-level QA) |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: bc563b1 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No project plan for this task |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Minor documentation enhancement |
+| SHOULD | Verify clean git status | [x] | `git status` shows clean

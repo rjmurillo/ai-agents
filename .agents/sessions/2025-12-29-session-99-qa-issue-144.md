@@ -77,3 +77,17 @@ QA verification of workflow refactoring for issue #144 (eliminate path list dupl
 - Created `qa-workflow-refactoring-patterns` memory with workflow QA approach
 - Documented static analysis pattern for workflow refactorings
 - Captured evidence levels and confidence thresholds
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Created qa-workflow-refactoring-patterns |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | This IS the QA session - report at `.agents/qa/144-pester-path-deduplication-test-report.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: bc563b1 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No project plan for this task |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | QA session, not implementation |
+| SHOULD | Verify clean git status | [x] | `git status` shows clean

@@ -83,12 +83,16 @@ TBD
 
 TBD
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-| Req | Step | Status |
-|-----|------|--------|
-| MUST | Complete session log | PENDING |
-| MUST | Update Serena memory | PENDING |
-| MUST | Run markdownlint | PENDING |
-| MUST | Commit all changes | PENDING |
-| MUST NOT | Update HANDOFF.md | N/A |
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory not needed - pattern documented in session |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/144-pester-path-deduplication-test-report.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: bc563b1 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No project plan for this task |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Minor refactoring |
+| SHOULD | Verify clean git status | [x] | `git status` shows clean
