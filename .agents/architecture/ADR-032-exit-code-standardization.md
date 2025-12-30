@@ -1,0 +1,309 @@
+# ADR-032: Exit Code Standardization
+
+**Status**: Proposed
+**Date**: 2025-12-29
+**Deciders**: User, Architect Agent
+**Context**: Issue #536 - Standardize exit codes across PowerShell scripts
+
+---
+
+## Context and Problem Statement
+
+PowerShell scripts across the repository use inconsistent exit codes. Analysis of 50+ scripts reveals:
+
+1. **Inconsistent semantics**: `exit 1` means "validation failed" in one script, "merged" in another
+2. **Undocumented codes**: Scripts use exit codes 0-7 without documentation
+3. **Cross-language contract risk**: Bash callers interpret exit codes; inconsistency causes bugs
+4. **Test confusion**: Test assertions check exit codes but meanings vary by script
+
+**Key Question**: What exit code standard should all PowerShell scripts follow?
+
+---
+
+## Decision Drivers
+
+1. **Cross-Platform Contract**: PowerShell scripts called from bash/GitHub Actions must have predictable exit semantics
+2. **Testability**: Pester tests need clear expectations for exit code assertions
+3. **Debugging**: Operators need to interpret exit codes without reading source
+4. **Consistency**: ADR-005 standardized language; this standardizes exit semantics
+5. **Industry Practice**: Exit code conventions from POSIX, sysexits.h, PowerShell best practices
+
+---
+
+## Considered Options
+
+### Option 1: POSIX-Style Standard (CHOSEN)
+
+Standard exit code ranges with documented semantics:
+
+| Code | Meaning | Examples |
+|------|---------|----------|
+| 0 | Success | Operation completed, idempotent skip |
+| 1 | General error / Validation failure | Logic error, assertion failed |
+| 2 | Usage/configuration error | Missing required param, invalid argument, not in git repo |
+| 3 | External service error | GitHub API failure, network error |
+| 4 | Authentication/authorization error | Token expired, permission denied |
+| 5-99 | Reserved for future standard use | |
+| 100+ | Script-specific errors | Must be documented in script header |
+
+**Pros**:
+
+- Aligns with POSIX/sysexits conventions (familiar to operators)
+- Clear separation: 1=logic, 2=config, 3=external, 4=auth
+- Reserved range prevents collision
+- Extensible via 100+ range
+
+**Cons**:
+
+- Requires updating existing scripts (migration effort)
+- More granular than some scripts need
+
+### Option 2: Binary Success/Failure
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Any failure |
+
+**Pros**:
+
+- Simple
+- Already common in some scripts
+
+**Cons**:
+
+- No diagnostic value (caller cannot distinguish failure types)
+- Debugging requires log inspection
+- Cannot implement conditional retry logic
+
+### Option 3: HTTP-Style Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success (200-299 equivalent) |
+| 4 | Client error (400-499 equivalent) |
+| 5 | Server error (500-599 equivalent) |
+
+**Pros**:
+
+- Familiar to web developers
+
+**Cons**:
+
+- Awkward mapping (exit codes are not HTTP codes)
+- Loses granularity (many error types map to 4 or 5)
+- Not conventional for CLI tools
+
+### Option 4: No Standard (Status Quo)
+
+**Pros**:
+
+- No migration effort
+
+**Cons**:
+
+- Continued inconsistency
+- Cross-language bugs persist
+- Test reliability issues continue
+- Debugging remains difficult
+
+---
+
+## Decision Outcome
+
+**Chosen option: Option 1 - POSIX-Style Standard**
+
+### Exit Code Reference
+
+| Code | Category | Semantic Meaning | When to Use |
+|------|----------|------------------|-------------|
+| 0 | Success | Operation completed successfully | All success paths, including idempotent no-ops |
+| 1 | Logic Error | General failure, validation failed | Business logic failures, assertion violations |
+| 2 | Config Error | Usage, configuration, or environment error | Missing params, invalid args, missing dependencies |
+| 3 | External Error | External service or API error | GitHub API failures, network errors, timeouts |
+| 4 | Auth Error | Authentication or authorization failure | Token expired, permission denied, rate limited |
+| 5-99 | Reserved | Future standard use | Do not use until standardized |
+| 100+ | Script-Specific | Custom error codes | Document in script header comment |
+
+### Documentation Requirement
+
+All scripts MUST include exit code documentation in the script header:
+
+```powershell
+<#
+.SYNOPSIS
+    Brief description
+
+.NOTES
+    EXIT CODES:
+    0  - Success: Operation completed
+    1  - Error: Validation failed (specify conditions)
+    2  - Error: Missing required parameter
+    3  - Error: GitHub API returned error
+    4  - Error: Authentication failed
+
+    When called from bash/CI:
+    - Exit 0 = success ($? equals 0)
+    - Exit non-zero = failure ($? non-zero)
+#>
+```
+
+### Rationale
+
+1. **Industry Alignment**: POSIX exit codes and sysexits.h provide proven conventions
+2. **Diagnostic Value**: Operators can triage without logs (2=fix config, 3=check GitHub, 4=renew token)
+3. **Retry Logic**: CI can implement intelligent retry (retry on 3, fail fast on 2)
+4. **Test Clarity**: Pester tests assert specific codes, improving test documentation
+
+### Enforcement
+
+1. **This ADR**: Canonical reference
+2. **Code Review**: Verify exit code documentation and compliance
+3. **Pester Tests**: Include exit code assertions with semantic checks
+4. **PSScriptAnalyzer**: Future custom rule for undocumented exit statements
+
+---
+
+## Migration Plan
+
+### Phase 1: Document Current State (Low Risk)
+
+1. Add exit code documentation to existing scripts without changing behavior
+2. Update scripts that already comply to reference this ADR
+
+### Phase 2: Fix Inconsistencies (Medium Risk)
+
+Priority fixes for semantic confusion:
+
+| Script | Current | Issue | Fix |
+|--------|---------|-------|-----|
+| `Test-PRMerged.ps1` | exit 1 = merged | Success case exits with error code | Change to exit 0 with output property |
+| Scripts using exit 1 for API errors | exit 1 | Should be exit 3 | Update to exit 3 |
+
+### Phase 3: Update Callers
+
+Update bash/workflow callers to handle new exit codes appropriately.
+
+---
+
+## Current State Analysis
+
+### Exit Code Usage Before Standardization
+
+| Exit Code | Count | Current Usage |
+|-----------|-------|---------------|
+| 0 | 30+ | Success (consistent) |
+| 1 | 15+ | Mixed: validation, API error, generic failure |
+| 2 | 12+ | Config/dependency error (mostly consistent) |
+| 3 | 8+ | API error (consistent in newer scripts) |
+| 7 | 1 | Timeout (Get-PRChecks.ps1) |
+
+### Notable Inconsistencies
+
+1. **`Test-PRMerged.ps1`**: Uses `exit 1` for "PR is merged" which is a successful state determination
+2. **`collect-metrics.ps1`**: Uses `exit 1` for both path-not-found and not-a-git-repo (should be exit 2)
+3. **Timeout handling**: Only one script uses exit 7; others use exit 1 or exit 3
+
+---
+
+## Consequences
+
+### Positive
+
+1. **Predictable Cross-Language Behavior**: Bash callers can reliably interpret exit codes
+2. **Improved Debugging**: Exit code alone provides diagnostic category
+3. **Better Test Coverage**: Pester tests can assert semantic correctness
+4. **Consistent Documentation**: All scripts document their exit codes
+5. **Retry Intelligence**: CI can implement category-based retry logic
+
+### Negative
+
+1. **Migration Effort**: Existing scripts need updates (30+ files)
+   - **Mitigation**: Phase over multiple PRs; prioritize high-impact scripts
+2. **Breaking Changes**: Callers expecting specific codes may break
+   - **Mitigation**: Phase 3 updates callers; document in PR
+
+### Neutral
+
+1. **Learning Curve**: Developers must learn standard
+   - This ADR serves as reference
+
+---
+
+## Implementation Notes
+
+### Helper Function Pattern
+
+Consider adding a shared helper for consistent error exit:
+
+```powershell
+function Write-ErrorAndExit {
+    param(
+        [string]$Message,
+        [ValidateRange(1,255)][int]$ExitCode = 1
+    )
+    Write-Error $Message
+    exit $ExitCode
+}
+```
+
+### Testing Pattern
+
+```powershell
+Describe "Exit Codes" {
+    It "Should exit 0 on success" {
+        $result = & $script -ValidParams
+        $LASTEXITCODE | Should -Be 0
+    }
+
+    It "Should exit 2 on missing required parameter" {
+        $result = & $script 2>&1
+        $LASTEXITCODE | Should -Be 2
+    }
+
+    It "Should exit 3 on API error" {
+        Mock gh { throw "API error" }
+        $result = & $script -ValidParams 2>&1
+        $LASTEXITCODE | Should -Be 3
+    }
+}
+```
+
+---
+
+## Related Decisions
+
+- [ADR-005: PowerShell-Only Scripting](./ADR-005-powershell-only-scripting.md) - Language standardization
+- [ADR-006: Thin Workflows, Testable Modules](./ADR-006-thin-workflows-testable-modules.md) - Module patterns
+- **Memory**: `bash-integration-exit-codes` - Cross-language contract documentation
+
+---
+
+## References
+
+- [POSIX Exit Codes](https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html#tag_18_08_02)
+- [sysexits.h](https://man.freebsd.org/cgi/man.cgi?query=sysexits) - BSD exit code conventions
+- [PowerShell Exit Codes Best Practices](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_automatic_variables#lastexitcode)
+- [Issue #536](https://github.com/rjmurillo/ai-agents/issues/536) - Original request
+
+---
+
+## Validation
+
+Before accepting this ADR:
+
+- [ ] Review exit code assignments align with project needs
+- [ ] Confirm migration plan is feasible
+- [ ] Verify no critical workflows depend on current inconsistent codes
+
+After implementation:
+
+- [ ] All scripts document exit codes in header
+- [ ] High-priority inconsistencies resolved
+- [ ] Pester tests include exit code assertions
+- [ ] This ADR referenced in relevant code reviews
+
+---
+
+**Supersedes**: None (new decision)
+**Amended by**: None
