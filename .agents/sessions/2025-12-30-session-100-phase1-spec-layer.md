@@ -1,9 +1,10 @@
 # Session 100: Phase 1 Spec Layer Implementation
 
-**Date**: 2025-12-30
-**Branch**: feat/600-spec-generator-agent
-**Goal**: Complete remaining Phase 1 Spec Layer tasks (S-002, S-006, S-007, S-008)
-**Epic**: #193
+- **Date**: 2025-12-30
+- **Branch**: feat/600-spec-generator-agent
+- **Starting Commit**: 6ed1c1d
+- **Goal**: Complete remaining Phase 1 Spec Layer tasks (S-002, S-006, S-007, S-008)
+- **Epic**: #193
 
 ## Session Start Checklist
 
@@ -109,14 +110,19 @@ All specs have complete traceability: REQ -> DESIGN -> TASK
 
 None encountered.
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-- [x] All tasks completed (S-002, S-006, S-007, S-008)
-- [x] Serena memory updated with cross-session context
-- [x] Markdown lint clean (`npx markdownlint-cli2 --fix "**/*.md"`)
-- [x] All changes committed
-- [x] Session log complete
-- [x] HANDOFF.md NOT updated (read-only)
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | spec-layer-phase1-complete memory written |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: docs-only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 5d9179c |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | Phase 1 tasks marked complete |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | Skipped - straightforward implementation |
+| SHOULD | Verify clean git status | [x] | Clean after commits |
 
 ## Commits
 
