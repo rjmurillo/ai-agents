@@ -261,11 +261,11 @@ jobs:
           <sub>Powered by [AI Spec Validator](https://github.com/$($env:GITHUB_REPOSITORY)) workflow</sub>
           "@
           } else {
-            # Determine final verdict
+            # Determine final verdict using shared function (Issue #150 - DRY principle)
             # PARTIAL completeness verdict should cause the check to FAIL (block merge)
             # WARN means minor gaps acceptable for merge with follow-up
             $finalVerdict = 'PASS'
-            if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'NEEDS_REVIEW' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL', 'NEEDS_REVIEW') {
+            if (Test-SpecValidationFailed -TraceVerdict $env:TRACE_VERDICT -CompletenessVerdict $env:COMPLETENESS_VERDICT) {
               $finalVerdict = 'FAIL'
             } elseif ($env:TRACE_VERDICT -eq 'WARN' -or $env:COMPLETENESS_VERDICT -eq 'WARN') {
               $finalVerdict = 'WARN'
@@ -374,9 +374,12 @@ jobs:
           TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
         run: |
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
+
+          # Use shared function for verdict evaluation (Issue #150 - DRY principle)
           # PARTIAL completeness = incomplete implementation = FAIL (blocks merge)
           # WARN = minor gaps = acceptable for merge with follow-up
-          if ($env:TRACE_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'NEEDS_REVIEW' -or $env:COMPLETENESS_VERDICT -in 'CRITICAL_FAIL', 'FAIL', 'PARTIAL', 'NEEDS_REVIEW') {
+          if (Test-SpecValidationFailed -TraceVerdict $env:TRACE_VERDICT -CompletenessVerdict $env:COMPLETENESS_VERDICT) {
             Write-Output "::error::Spec validation failed - implementation does not fully satisfy requirements"
             exit 1
           }
