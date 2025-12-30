@@ -224,9 +224,9 @@ if ($needThreadResolution) {
 
 ```powershell
 # When you need multiple related pieces of data, prefer GraphQL
-$query = @"
-{
-  repository(owner: "$owner", name: "$repo") {
+$query = '
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
     pullRequest(number: $number) {
       title
       author { login }
@@ -235,8 +235,8 @@ $query = @"
     }
   }
 }
-"@
-$data = gh api graphql -f query="$query" | ConvertFrom-Json
+'
+$data = gh api graphql -f query="$query" -f owner="$owner" -f repo="$repo" -F number="$number" | ConvertFrom-Json
 ```
 
 ## Related Resources
