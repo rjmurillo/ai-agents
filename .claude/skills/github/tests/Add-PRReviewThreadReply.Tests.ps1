@@ -130,6 +130,12 @@ Describe "Add-PRReviewThreadReply.ps1" {
         }
 
         It "Should call GraphQL API with correct mutation" {
+            # Re-mock auth to ensure it's available in this scope
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ''
+            } -ParameterFilter { $args[0] -eq 'auth' -and $args[1] -eq 'status' }
+
             Mock gh {
                 param($args)
                 # Verify the query contains the mutation
