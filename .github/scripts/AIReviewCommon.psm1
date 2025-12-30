@@ -840,6 +840,70 @@ function Get-VerdictEmoji {
     return '❔'
 }
 
+function Test-SpecValidationFailed {
+    <#
+    .SYNOPSIS
+        Evaluate spec validation verdicts to determine if validation failed.
+
+    .DESCRIPTION
+        Determines if spec-to-implementation validation should fail based on
+        trace and completeness verdicts. This logic is extracted from
+        ai-spec-validation.yml to ensure consistent evaluation and testability.
+
+        The semantic rules are:
+        - CRITICAL_FAIL, FAIL, NEEDS_REVIEW on trace verdict = failure
+        - CRITICAL_FAIL, FAIL, PARTIAL, NEEDS_REVIEW on completeness verdict = failure
+        - PARTIAL completeness = incomplete implementation = blocks merge
+        - WARN = minor gaps = acceptable for merge with follow-up
+
+    .PARAMETER TraceVerdict
+        The verdict from the requirements traceability check.
+
+    .PARAMETER CompletenessVerdict
+        The verdict from the implementation completeness check.
+
+    .OUTPUTS
+        System.Boolean - $true if validation failed (should block merge), $false otherwise.
+
+    .EXAMPLE
+        if (Test-SpecValidationFailed -TraceVerdict 'PASS' -CompletenessVerdict 'PARTIAL') {
+            Write-Output "Validation failed - incomplete implementation"
+            exit 1
+        }
+
+    .EXAMPLE
+        $failed = Test-SpecValidationFailed -TraceVerdict 'FAIL' -CompletenessVerdict 'PASS'
+        # Returns: $true (trace failure blocks merge)
+
+    .EXAMPLE
+        $failed = Test-SpecValidationFailed -TraceVerdict 'WARN' -CompletenessVerdict 'WARN'
+        # Returns: $false (warnings do not block merge)
+
+    .NOTES
+        Issue: #150 - Extract duplicated verdict evaluation logic to reusable function
+        Source: CodeRabbit review comment in PR #76
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$TraceVerdict,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$CompletenessVerdict
+    )
+
+    # Trace failures that block merge
+    $traceFailures = @('CRITICAL_FAIL', 'FAIL', 'NEEDS_REVIEW')
+
+    # Completeness failures that block merge (includes PARTIAL = incomplete implementation)
+    $completenessFailures = @('CRITICAL_FAIL', 'FAIL', 'PARTIAL', 'NEEDS_REVIEW')
+
+    return ($TraceVerdict -in $traceFailures) -or ($CompletenessVerdict -in $completenessFailures)
+}
+
 #endregion
 
 #region JSON Parsing Functions (Security Hardened)
@@ -1032,6 +1096,8 @@ Export-ModuleMember -Function @(
     # AI output parsing (JSON format - security hardened)
     'Get-LabelsFromAIOutput'
     'Get-MilestoneFromAIOutput'
+    # Spec validation
+    'Test-SpecValidationFailed'
     # Markdown formatting
     'Format-CollapsibleSection'
     'Format-VerdictAlert'

@@ -1,5 +1,7 @@
 # Autonomous Issue Development Prompt
 
+A system prompt for AI agents that autonomously discover, implement, and ship issues from a GitHub repository.
+
 Use this prompt to start an autonomous development session that continuously selects priority issues, implements solutions, and opens pull requests.
 
 ## Prompt

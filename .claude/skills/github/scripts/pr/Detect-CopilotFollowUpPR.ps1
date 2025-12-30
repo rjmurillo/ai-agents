@@ -71,7 +71,10 @@ function Test-FollowUpPattern {
     )
 
     $headRef = $PR.headRefName
-    $pattern = "copilot/sub-pr-(\d+)"
+    # Use end-of-string anchor $ to ensure exact match (e.g., "copilot/sub-pr-32")
+    # Prevents matching branches with ANY suffix like "32a", "32-fix", or "32_test"
+    # Addresses Issue #507: regex allows non-numeric suffixes
+    $pattern = 'copilot/sub-pr-(\d+)$'
 
     if ($headRef -match $pattern) {
         # If OriginalPRNumber is specified, validate the extracted number matches
@@ -129,6 +132,9 @@ function Get-OriginalPRCommits {
     <#
     .SYNOPSIS
         Get commits from original PR for comparison.
+    .DESCRIPTION
+        Returns commits directly from PR metadata instead of querying repository commits.
+        This optimization eliminates a redundant API call and avoids rate limit risk on large repos (Issue #290).
     #>
     [CmdletBinding()]
     param(
@@ -136,29 +142,17 @@ function Get-OriginalPRCommits {
         [int]$PRNumber
     )
 
-    $prJson = gh pr view $PRNumber --repo "$script:Owner/$script:Repo" --json commits,baseRefName,headRefName 2>$null
+    $prJson = gh pr view $PRNumber --repo "$script:Owner/$script:Repo" --json commits 2>$null
     if ($LASTEXITCODE -ne 0 -or $null -eq $prJson) {
         return @()
     }
 
     $pr = $prJson | ConvertFrom-Json
-    if ($null -eq $pr) {
+    if ($null -eq $pr -or -not $pr.commits) {
         return @()
     }
 
-    $commits = @()
-    try {
-        $commitData = gh api "repos/$script:Owner/$script:Repo/commits" `
-            --jq ".[] | select(.commit.message | contains(\"PR $PRNumber\") or contains(\"Comment-ID\"))" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $commitData) {
-            $commits = @($commitData | ConvertFrom-Json -ErrorAction SilentlyContinue)
-        }
-    }
-    catch {
-        # No specific commits found, continue
-    }
-
-    return $commits
+    return @($pr.commits)
 }
 
 function Compare-DiffContent {
@@ -166,6 +160,12 @@ function Compare-DiffContent {
     .SYNOPSIS
         Compare follow-up diff to original changes.
         Returns likelihood percentage of being duplicate.
+    .PARAMETER FollowUpDiff
+        The unified diff content of the follow-up PR.
+    .PARAMETER OriginalCommits
+        Commits from the original PR for comparison.
+    .PARAMETER OriginalPRNumber
+        The original PR number to check merge status (Issue #293).
     #>
     [CmdletBinding()]
     param(
@@ -175,12 +175,32 @@ function Compare-DiffContent {
 
         [Parameter(Mandatory = $true)]
         [AllowEmptyCollection()]
-        [object[]]$OriginalCommits
+        [object[]]$OriginalCommits,
+
+        [Parameter(Mandatory = $false)]
+        [int]$OriginalPRNumber = 0
     )
 
     if ([string]::IsNullOrWhiteSpace($FollowUpDiff)) {
-        # Empty or whitespace-only diff = duplicate (no changes to add)
-        return @{similarity = 100; category = 'DUPLICATE'; reason = 'Follow-up PR contains no changes' }
+        # Empty or whitespace-only diff - check if original PR was merged (Issue #293)
+        $reason = 'Follow-up PR contains no changes'
+
+        if ($OriginalPRNumber -gt 0) {
+            $mergedJson = gh pr view $OriginalPRNumber --repo "$script:Owner/$script:Repo" --json merged 2>$null
+            if ($LASTEXITCODE -eq 0 -and $mergedJson) {
+                try {
+                    $mergeData = $mergedJson | ConvertFrom-Json
+                    if ($mergeData.merged -eq $true) {
+                        $reason = 'Follow-up contains no changes (original PR already merged)'
+                    }
+                }
+                catch {
+                    Write-Warning "Failed to parse merge status for PR #$OriginalPRNumber. Defaulting to standard reason. Error: $_"
+                }
+            }
+        }
+
+        return @{similarity = 100; category = 'DUPLICATE'; reason = $reason }
     }
 
     # Count file changes in follow-up
@@ -268,7 +288,7 @@ function Invoke-FollowUpDetection {
         $diff = Get-FollowUpPRDiff -FollowUpPRNumber $prNum
         $originalCommits = Get-OriginalPRCommits -PRNumber $PRNumber
 
-        $comparison = Compare-DiffContent -FollowUpDiff $diff -OriginalCommits $originalCommits
+        $comparison = Compare-DiffContent -FollowUpDiff $diff -OriginalCommits $originalCommits -OriginalPRNumber $PRNumber
 
         $analysisResult = @{
             followUpPRNumber   = $prNum
