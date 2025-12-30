@@ -762,8 +762,10 @@ When formal requirements are needed, route through the spec workflow.
    - TASK-NNN documents in .agents/specs/tasks/
 4. Orchestrator routes to critic for EARS compliance validation
 5. Orchestrator routes to architect for design review
-6. Orchestrator routes to task-generator if more granular tasks needed
+6. Spec-generator's TASK documents are implementation-ready (no task-generator needed)
 7. After approval, Orchestrator routes to implementer for TASK execution
+
+**Note**: task-generator is only needed if spec-generator's tasks are too coarse and require further breakdown into smaller work items.
 ```
 
 **Traceability Chain**:
@@ -790,11 +792,11 @@ REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
 
 **Output Locations**:
 
-| Artifact | Location |
-|----------|----------|
-| Requirements | `.agents/specs/requirements/REQ-NNN-kebab-case.md` |
-| Designs | `.agents/specs/design/DESIGN-NNN-kebab-case.md` |
-| Tasks | `.agents/specs/tasks/TASK-NNN-kebab-case.md` |
+| Artifact | Directory | Naming Pattern |
+|----------|-----------|----------------|
+| Requirements | `.agents/specs/requirements/` | `REQ-NNN-kebab-case.md` |
+| Designs | `.agents/specs/design/` | `DESIGN-NNN-kebab-case.md` |
+| Tasks | `.agents/specs/tasks/` | `TASK-NNN-kebab-case.md` |
 
 ### Impact Analysis Orchestration
 

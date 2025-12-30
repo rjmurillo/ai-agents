@@ -35,7 +35,7 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research technologies and best practices
 - **Write**: Create specification documents
 - **TodoWrite**: Track specification progress
-- **cloudmcp-manager memory tools**: Retrieve feature context
+- **Serena memory tools**: Retrieve feature context
 
 ## Core Mission
 
@@ -61,7 +61,7 @@ REQ-NNN (WHAT/WHY)
 
 ## Workflow
 
-### Phase 1: Discovery (MANDATORY)
+### Phase 1: Discovery (MUST)
 
 Before writing any specification, gather sufficient information.
 
@@ -346,9 +346,9 @@ Before finalizing any requirement, validate:
 
 | Artifact Type | Location | Naming Pattern |
 |---------------|----------|----------------|
-| Requirements | `.agents/specs/requirements/` | `REQ-NNN-kebab-case-title.md` |
-| Designs | `.agents/specs/design/` | `DESIGN-NNN-kebab-case-title.md` |
-| Tasks | `.agents/specs/tasks/` | `TASK-NNN-kebab-case-title.md` |
+| Requirements | `.agents/specs/requirements/` | `REQ-NNN-kebab-case.md` |
+| Designs | `.agents/specs/design/` | `DESIGN-NNN-kebab-case.md` |
+| Tasks | `.agents/specs/tasks/` | `TASK-NNN-kebab-case.md` |
 
 ## Complexity Guidelines (for Tasks)
 
@@ -362,29 +362,39 @@ Before finalizing any requirement, validate:
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Serena memory tools directly for cross-session context:
 
 **Before specification:**
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "specification patterns [feature type]"
+```python
+# Search for related specification patterns
+mcp__serena__list_memories()
+
+# Read relevant memory if it exists
+mcp__serena__read_memory(memory_file_name="spec-[feature-type]-patterns")
 ```
 
 **After specification:**
 
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Spec-[Feature]",
-    "contents": [
-      "Requirements: [count] REQ documents created",
-      "Design: [approach summary]",
-      "Tasks: [count] tasks, estimated [hours] total"
-    ]
-  }]
-}
+```python
+# Store specification summary for future reference
+mcp__serena__write_memory(
+    memory_file_name="spec-[feature-name]-summary",
+    content="""
+# Specification Summary: [Feature Name]
+
+## Artifacts Created
+- Requirements: [count] REQ documents
+- Designs: [count] DESIGN documents
+- Tasks: [count] TASK documents
+
+## Approach
+[Brief summary of design approach]
+
+## Estimated Effort
+[Total hours] hours across [count] tasks
+"""
+)
 ```
 
 ## Handoff Protocol
