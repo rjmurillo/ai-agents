@@ -190,7 +190,9 @@ for ($i = 0; $i -lt $protoKey.Count; $i++) {
 }
 
 # --- Verify MUST rows checked, with QA skip rules
-# Determine doc-only vs code/config changes using Starting Commit if present.
+# Determine doc-only vs code/config changes.
+# In pre-commit mode: check staged files (changes not yet committed)
+# In post-commit mode: check diff from Starting Commit to HEAD
 $startingCommit = $null
 if ($sessionText -match '(?m)^\s*-\s*\*\*Starting Commit\*\*\s*:\s*`?([0-9a-f]{7,40})`?\s*$') {
   $startingCommit = $Matches[1]
@@ -199,7 +201,15 @@ if ($sessionText -match '(?m)^\s*-\s*\*\*Starting Commit\*\*\s*:\s*`?([0-9a-f]{7
 }
 
 $changedFiles = @()
-if ($startingCommit) {
+if ($PreCommit) {
+  # Pre-commit: Check what's actually being committed (staged files)
+  try {
+    $changedFiles = @((& git -C $repoRoot diff --cached --name-only) -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' })
+  } catch {
+    Fail 'E_GIT_DIFF_FAIL' "Could not compute staged files for pre-commit validation."
+  }
+} elseif ($startingCommit) {
+  # Post-commit: Check diff from Starting Commit to HEAD
   try {
     # Wrap in @() to ensure result is always an array (fixes Count property error when single file)
     $changedFiles = @((& git -C $repoRoot diff --name-only "$startingCommit..HEAD") -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' })
@@ -209,7 +219,7 @@ if ($startingCommit) {
 }
 
 function Is-DocsOnly([string[]]$Files) {
-  if (-not $Files -or $Files.Count -eq 0) { return $true } # conservative: treat unknown as docs-only? No.
+  if (-not $Files -or $Files.Count -eq 0) { return $false } # conservative: treat unknown as NOT docs-only
   foreach ($f in $Files) {
     $ext = [IO.Path]::GetExtension($f).ToLowerInvariant()
     if ($ext -ne '.md') { return $false }
@@ -218,10 +228,10 @@ function Is-DocsOnly([string[]]$Files) {
 }
 
 $docsOnly = $false
-if ($startingCommit -and $changedFiles.Count -gt 0) {
+if ($changedFiles.Count -gt 0) {
   $docsOnly = Is-DocsOnly $changedFiles
 } else {
-  # If we cannot prove docs-only, treat as NOT docs-only.
+  # If we cannot determine changed files, treat as NOT docs-only (fail-closed).
   $docsOnly = $false
 }
 
