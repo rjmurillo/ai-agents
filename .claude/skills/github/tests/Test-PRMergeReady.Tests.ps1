@@ -159,6 +159,12 @@ Describe "Test-PRMergeReady.ps1" {
     Context "Merge Ready Scenarios" {
 
         BeforeEach {
+            # Mock gh auth status to simulate authenticated state
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ''
+            } -ParameterFilter { $args[0] -eq 'auth' -and $args[1] -eq 'status' }
+
             $global:LASTEXITCODE = 0
         }
 
@@ -219,6 +225,12 @@ Describe "Test-PRMergeReady.ps1" {
     Context "Unresolved Threads" {
 
         BeforeEach {
+            # Mock gh auth status to simulate authenticated state
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ''
+            } -ParameterFilter { $args[0] -eq 'auth' -and $args[1] -eq 'status' }
+
             $global:LASTEXITCODE = 0
         }
 
@@ -252,6 +264,12 @@ Describe "Test-PRMergeReady.ps1" {
     Context "CI Status" {
 
         BeforeEach {
+            # Mock gh auth status to simulate authenticated state
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ''
+            } -ParameterFilter { $args[0] -eq 'auth' -and $args[1] -eq 'status' }
+
             $global:LASTEXITCODE = 0
         }
 

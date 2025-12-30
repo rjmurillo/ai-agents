@@ -138,6 +138,12 @@ Describe "Set-PRAutoMerge.ps1" {
     Context "Enable Auto-Merge" {
 
         BeforeEach {
+            # Mock gh auth status to simulate authenticated state
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ''
+            } -ParameterFilter { $args[0] -eq 'auth' -and $args[1] -eq 'status' }
+
             $Script:CallCount = 0
             $global:LASTEXITCODE = 0
         }
@@ -188,6 +194,12 @@ Describe "Set-PRAutoMerge.ps1" {
     Context "Disable Auto-Merge" {
 
         BeforeEach {
+            # Mock gh auth status to simulate authenticated state
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ''
+            } -ParameterFilter { $args[0] -eq 'auth' -and $args[1] -eq 'status' }
+
             $Script:CallCount = 0
             $global:LASTEXITCODE = 0
         }

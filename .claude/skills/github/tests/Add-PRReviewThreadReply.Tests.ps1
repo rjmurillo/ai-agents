@@ -109,6 +109,12 @@ Describe "Add-PRReviewThreadReply.ps1" {
     Context "GraphQL Mutation" {
 
         BeforeEach {
+            # Mock gh auth status to simulate authenticated state
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ''
+            } -ParameterFilter { $args[0] -eq 'auth' -and $args[1] -eq 'status' }
+
             # Default mock for gh api graphql
             Mock gh {
                 return (New-MockReplyResponse | ConvertTo-Json -Depth 10)
@@ -151,6 +157,12 @@ Describe "Add-PRReviewThreadReply.ps1" {
     Context "Thread Resolution" {
 
         BeforeEach {
+            # Mock gh auth status to simulate authenticated state
+            Mock gh {
+                $global:LASTEXITCODE = 0
+                return ''
+            } -ParameterFilter { $args[0] -eq 'auth' -and $args[1] -eq 'status' }
+
             $Script:CallCount = 0
             Mock gh {
                 param($args)
