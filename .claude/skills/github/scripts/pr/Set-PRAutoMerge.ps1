@@ -110,19 +110,19 @@ query($owner: String!, $repo: String!, $number: Int!) {
 }
 '@
 
-$prResult = gh api graphql -f query=$prQuery -f owner="$Owner" -f repo="$Repo" -F number=$PullRequest 2>&1
-if ($LASTEXITCODE -ne 0) {
-    if ($prResult -match "Could not resolve") {
-        Write-ErrorAndExit "PR #$PullRequest not found in $Owner/$Repo" 2
-    }
-    Write-ErrorAndExit "Failed to get PR info: $prResult" 3
-}
-
 try {
-    $prParsed = $prResult | ConvertFrom-Json
+    $prParsed = Invoke-GhGraphQL -Query $prQuery -Variables @{
+        owner  = $Owner
+        repo   = $Repo
+        number = $PullRequest
+    }
 }
 catch {
-    Write-ErrorAndExit "Failed to parse PR info response: $prResult" 3
+    $errorMsg = $_.Exception.Message
+    if ($errorMsg -match "Could not resolve") {
+        Write-ErrorAndExit "PR #$PullRequest not found in $Owner/$Repo" 2
+    }
+    Write-ErrorAndExit "Failed to get PR info: $errorMsg" 3
 }
 
 $pr = $prParsed.data.repository.pullRequest
@@ -161,16 +161,13 @@ mutation($pullRequestId: ID!) {
 }
 '@
 
-    $disableResult = gh api graphql -f query=$disableMutation -f pullRequestId="$prId" 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-ErrorAndExit "Failed to disable auto-merge: $disableResult" 3
-    }
-
     try {
-        $disableParsed = $disableResult | ConvertFrom-Json
+        $disableParsed = Invoke-GhGraphQL -Query $disableMutation -Variables @{
+            pullRequestId = $prId
+        }
     }
     catch {
-        Write-ErrorAndExit "Failed to parse disable response: $disableResult" 3
+        Write-ErrorAndExit "Failed to disable auto-merge: $($_.Exception.Message)" 3
     }
 
     $disabled = $null -eq $disableParsed.data.disablePullRequestAutoMerge.pullRequest.autoMergeRequest
@@ -215,40 +212,27 @@ mutation($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!, $commitHead
 }
 '@
 
-    # Build gh api command with optional parameters
-    $ghArgs = @('api', 'graphql', '-f', "query=$enableMutation", '-f', "pullRequestId=$prId", '-f', "mergeMethod=$MergeMethod")
-
-    if ($CommitHeadline) {
-        $ghArgs += @('-f', "commitHeadline=$CommitHeadline")
-    }
-    else {
-        $ghArgs += @('-f', 'commitHeadline=')
-    }
-
-    if ($CommitBody) {
-        $ghArgs += @('-f', "commitBody=$CommitBody")
-    }
-    else {
-        $ghArgs += @('-f', 'commitBody=')
-    }
-
-    $enableResult = & gh @ghArgs 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        # Check for common error cases
-        if ($enableResult -match "Auto-merge is not allowed") {
-            Write-ErrorAndExit "Auto-merge is not enabled in repository settings. Enable it in Settings -> General -> Pull Requests." 3
-        }
-        if ($enableResult -match "not mergeable") {
-            Write-ErrorAndExit "PR is not in a mergeable state. Check for conflicts or required reviews." 3
-        }
-        Write-ErrorAndExit "Failed to enable auto-merge: $enableResult" 3
+    # Build variables hashtable with optional parameters
+    $vars = @{
+        pullRequestId = $prId
+        mergeMethod   = $MergeMethod
+        commitHeadline = if ($CommitHeadline) { $CommitHeadline } else { "" }
+        commitBody     = if ($CommitBody) { $CommitBody } else { "" }
     }
 
     try {
-        $enableParsed = $enableResult | ConvertFrom-Json
+        $enableParsed = Invoke-GhGraphQL -Query $enableMutation -Variables $vars
     }
     catch {
-        Write-ErrorAndExit "Failed to parse enable response: $enableResult" 3
+        $errorMsg = $_.Exception.Message
+        # Check for common error cases
+        if ($errorMsg -match "Auto-merge is not allowed") {
+            Write-ErrorAndExit "Auto-merge is not enabled in repository settings. Enable it in Settings -> General -> Pull Requests." 3
+        }
+        if ($errorMsg -match "not mergeable") {
+            Write-ErrorAndExit "PR is not in a mergeable state. Check for conflicts or required reviews." 3
+        }
+        Write-ErrorAndExit "Failed to enable auto-merge: $errorMsg" 3
     }
 
     $autoMerge = $enableParsed.data.enablePullRequestAutoMerge.pullRequest.autoMergeRequest
