@@ -14,21 +14,11 @@ on:
       - main
       - 'feat/**'
       - 'fix/**'
-    paths:
-      - 'templates/**'
-      - 'src/vs-code-agents/**'
-      - 'src/copilot-cli/**'
-      - 'build/Generate-Agents.ps1'
-      - '.github/workflows/validate-generated-agents.yml'
+    # NO paths filter - use dorny/paths-filter internally to satisfy required checks
   pull_request:
     branches:
       - main
-    paths:
-      - 'templates/**'
-      - 'src/vs-code-agents/**'
-      - 'src/copilot-cli/**'
-      - 'build/Generate-Agents.ps1'
-      - '.github/workflows/validate-generated-agents.yml'
+    # NO paths filter - use dorny/paths-filter internally to satisfy required checks
   workflow_dispatch: # Allow manual triggering
 
 concurrency:
@@ -36,11 +26,60 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Check if relevant files changed using paths-filter
+  check-paths:
+    name: Check Paths
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      # For workflow_dispatch, always run validation; otherwise use paths-filter result
+      should-validate: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-validate }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Check for relevant file changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        id: filter
+        # Skip paths-filter for workflow_dispatch as it may not have proper context
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            agents:
+              - 'templates/**'
+              - 'src/vs-code-agents/**'
+              - 'src/copilot-cli/**'
+              - 'build/Generate-Agents.ps1'
+              - '.github/workflows/validate-generated-agents.yml'
+
+      - name: Determine if validation should run
+        id: determine
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should-validate=true" >> $GITHUB_OUTPUT
+            echo "Decision: Run validation (manual trigger)"
+          else
+            AGENTS="${{ steps.filter.outputs.agents }}"
+
+            echo "Agent files changed: $AGENTS"
+
+            # Run validation if agent files changed, skip otherwise
+            if [ "$AGENTS" = "true" ]; then
+              echo "should-validate=true" >> $GITHUB_OUTPUT
+              echo "Decision: Run validation (agent files changed)"
+            else
+              echo "should-validate=false" >> $GITHUB_OUTPUT
+              echo "Decision: Skip validation (no agent files changed)"
+            fi
+          fi
+
   validate:
     name: Validate Generated Files
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    # PowerShell Core (pwsh) is cross-platform and works on ARM Linux
     runs-on: ubuntu-24.04-arm
+    needs: check-paths
+    if: needs.check-paths.outputs.should-validate == 'true'
     permissions:
       contents: read
 
@@ -86,3 +125,31 @@ jobs:
           else {
             Write-Host "No differences detected in git diff (validation may have failed for other reasons)"
           }
+
+  # Skip job that provides passing status when no relevant files changed
+  # Uses the SAME NAME as the real job to satisfy required status checks
+  # (Dual-job same-name pattern from Issue #335)
+  skip:
+    name: Validate Generated Files
+    needs: check-paths
+    if: needs.check-paths.outputs.should-validate != 'true'
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+
+    steps:
+      - name: Skip validation (no agent files changed)
+        run: |
+          echo "✅ Agent file validation skipped - no relevant file changes detected"
+          echo ""
+          echo "This PR/push only contains changes to files that don't affect generated agents."
+          echo ""
+          echo "Monitored paths that would trigger validation:"
+          echo "  - templates/**"
+          echo "  - src/vs-code-agents/**"
+          echo "  - src/copilot-cli/**"
+          echo "  - build/Generate-Agents.ps1"
+          echo "  - .github/workflows/validate-generated-agents.yml"
+          echo ""
+          echo "Status: PASS (skipped - no relevant changes)"
