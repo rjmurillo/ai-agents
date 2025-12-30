@@ -109,25 +109,26 @@ Then provide:
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Serena memory tools for cross-session context:
 
 **Before strategic decisions:**
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "strategic decision [topic/domain]"
+```python
+# Search for relevant memories
+mcp__serena__list_memories()
+
+# Read specific memory
+mcp__serena__read_memory(memory_file_name="[relevant-memory-name]")
 ```
 
 **After decisions:**
 
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Strategy-Decision-[Topic]",
-    "contents": ["[Decision rationale and priority changes]"]
-  }]
-}
+```python
+# Store decision for future reference
+mcp__serena__write_memory(
+    memory_file_name="strategic-decision-[topic]",
+    content="[Decision rationale and priority changes]"
+)
 ```
 
 ## Strategic Frameworks
