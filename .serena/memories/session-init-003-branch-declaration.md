@@ -1,0 +1,49 @@
+# Skill-Session-Init-003: Branch Declaration
+
+**Statement**: Require branch declaration in session log header
+
+**Context**: At session initialization, after creating session log file
+
+**Evidence**: PR #669 analysis - explicit branch tracking creates accountability and prevents confusion
+
+**Atomicity**: 82% | **Impact**: 6/10
+
+## Pattern
+
+**Session Log Header Template**:
+
+```markdown
+# Session YYYY-MM-DD-NN
+
+## Branch
+**Current**: feat/issue-XXX
+**Created**: [YYYY-MM-DD HH:MM] (if new)
+**Base**: main
+
+## Issues in Scope
+- #XXX: [Description]
+```
+
+**Verification at Each Commit**:
+1. Read session log branch declaration
+2. Run `git branch --show-current`
+3. Confirm match before commit
+
+## Anti-Pattern
+
+```markdown
+# WRONG: Missing branch declaration
+# Session 2025-12-31-01
+
+## Issues in Scope
+- #123: Fix bug
+
+# Problem: No explicit branch tracking
+# Agent must infer or remember - prone to error
+```
+
+## Related Skills
+
+- `git-004-branch-verification-before-commit`: Runtime verification
+- `session-scope-002-multi-issue-limit`: Scope management
+- `protocol-template-enforcement`: Template compliance
