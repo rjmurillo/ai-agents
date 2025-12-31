@@ -12,7 +12,7 @@
 BeforeAll {
     # Correct path: from test/claude/skills/github -> .claude/skills/github/scripts/pr
     $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Get-PRReviewComments.ps1"
-    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 
     # Import the module for helper functions
     Import-Module $ModulePath -Force
@@ -74,8 +74,8 @@ Describe "Get-PRReviewComments" {
             $scriptContent | Should -Match '\[switch\]\$IncludeIssueComments'
         }
 
-        It "Should import GitHubHelpers module" {
-            $scriptContent | Should -Match 'Import-Module.*GitHubHelpers\.psm1'
+        It "Should import GitHubCore module" {
+            $scriptContent | Should -Match 'Import-Module.*GitHubCore\.psm1'
         }
 
         It "Should call Assert-GhAuthenticated" {

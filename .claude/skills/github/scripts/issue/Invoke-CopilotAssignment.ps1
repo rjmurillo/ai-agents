@@ -72,7 +72,7 @@ param(
 )
 
 # Import shared helpers - reuse existing functions (DRY)
-$modulePath = Join-Path $PSScriptRoot ".." ".." "modules" "GitHubHelpers.psm1"
+$modulePath = Join-Path $PSScriptRoot ".." ".." "modules" "GitHubCore.psm1"
 Import-Module $modulePath -Force
 
 #region Configuration
