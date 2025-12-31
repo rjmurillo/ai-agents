@@ -5,3 +5,5 @@
 | template exact copy session-log format checklist parse | protocol-template-enforcement |
 | legacy historical session grandfather marker predates format | protocol-legacy-sessions |
 | branch handoff feature validator HANDOFF ADR-014 compliance | protocol-012-branch-handoffs |
+| verification enforcement git branch commit tool output artifact observable | protocol-013-verification-based-enforcement |
+| trust compliance antipattern memory forget context artifact failure | protocol-014-trust-based-compliance-antipattern |
