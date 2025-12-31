@@ -56,7 +56,7 @@ The runner executes validations in optimized order (fast checks first):
 
 ### 1. Session End Validation
 
-**Script**: `scripts/Validate-SessionEnd.ps1`
+**Script**: `scripts/Validate-Session.ps1`
 
 **Checks**:
 
@@ -246,7 +246,7 @@ Future enhancement: Add `-Parallel` flag for independent validations.
 
 - Use `-Quick` flag for rapid iteration
 - Skip tests during markdown-only changes: `-SkipTests`
-- Run individual validations: `pwsh scripts/Validate-SessionEnd.ps1`
+- Run individual validations: `pwsh scripts/Validate-Session.ps1`
 
 ## Metrics
 

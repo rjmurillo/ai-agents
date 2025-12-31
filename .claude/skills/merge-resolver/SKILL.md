@@ -125,6 +125,7 @@ git diff --cached --stat
 ### Why This Matters
 
 Session protocol validation is a CI blocking gate. Pushing without completing session requirements causes:
+
 - CI failures with "MUST requirement(s) not met" errors
 - Wasted review cycles
 - Confusion about root cause (often misidentified as template sync issues)
@@ -140,7 +141,7 @@ if [ -z "$SESSION_LOG" ]; then
 fi
 
 # 2. Run session protocol validator
-pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath "$SESSION_LOG"
+pwsh scripts/Validate-Session.ps1 -SessionLogPath "$SESSION_LOG"
 
 # 3. If validation fails, fix issues before proceeding
 if [ $? -ne 0 ]; then
@@ -176,6 +177,7 @@ Before pushing, verify your session log contains:
 See `references/strategies.md` for detailed patterns:
 
 **Code Conflicts:**
+
 - Combining additive changes
 - Handling moved code
 - Resolving import conflicts
@@ -183,11 +185,13 @@ See `references/strategies.md` for detailed patterns:
 - Conflicting logic resolution
 
 **Infrastructure Conflicts:**
+
 - Package lock files (regenerate, don't merge)
 - Configuration files (JSON/YAML semantic merge)
 - Database migrations (renumber, preserve order)
 
 **Documentation Conflicts:**
+
 - Numbered documentation (ADR, RFC) - renumber incoming to next available
 - Template-generated files - resolve in template, regenerate outputs
 - Rebase add/add conflicts - per-commit resolution during rebase
@@ -246,6 +250,7 @@ Returns JSON:
 ### Security
 
 ADR-015 compliance:
+
 - Branch name validation (prevents command injection)
 - Worktree path validation (prevents path traversal)
 - Handles both GitHub Actions runner and local environments

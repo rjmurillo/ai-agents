@@ -717,6 +717,131 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 
 ---
 
+## Root Cause Pattern Management
+
+After Five Whys analysis identifies root causes, systematically store patterns for future prevention.
+
+### Root Cause Categories
+
+Standard categories based on common failure modes:
+
+| Category | Description | Examples |
+|----------|-------------|----------|
+| **Cross-Cutting Concerns** | Issues affecting multiple components | Missing input validation, inconsistent error handling |
+| **Fail-Safe Design** | Missing defensive patterns | No fallbacks, unhandled edge cases |
+| **Test-Implementation Drift** | Tests don't match actual behavior | Mocks diverge from reality, stale fixtures |
+| **Premature Validation** | Validating before data is complete | Checking state too early, race conditions |
+| **Context Loss** | Information not preserved | Missing handoff data, dropped session state |
+| **Skill Gap** | Missing capability | No existing pattern for scenario |
+
+### Memory Storage Pattern
+
+Store root cause entities for future pattern matching:
+
+**Create root cause entity:**
+
+```text
+mcp__cloudmcp-manager__memory-create_entities
+{
+  "entities": [{
+    "name": "RootCause-{Category}-{NNN}",
+    "entityType": "FailurePattern",
+    "observations": [
+      "Description: [What failed and why]",
+      "Frequency: [How often this occurs]",
+      "Impact: [Severity when it occurs]",
+      "Detection: [How to identify this pattern]",
+      "Prevention: [How to avoid it]",
+      "Source: [PR/Issue/Session reference]"
+    ]
+  }]
+}
+```
+
+**Create prevention relations:**
+
+```text
+mcp__cloudmcp-manager__memory-create_relations
+{
+  "relations": [
+    {"from": "RootCause-{Category}-{NNN}", "to": "Skill-{Prevention}", "relationType": "prevents_by"},
+    {"from": "RootCause-{Category}-{NNN}", "to": "Incident-{Ref}", "relationType": "caused"},
+    {"from": "RootCause-{Category}-{NNN}", "to": "Category-{Name}", "relationType": "belongs_to"}
+  ]
+}
+```
+
+### Failure Prevention Matrix
+
+Maintain cumulative statistics across sessions:
+
+````markdown
+## Failure Prevention Matrix
+
+| Root Cause Category | Incidents | Prevention Skills | Last Occurrence | Trend |
+|---------------------|-----------|-------------------|-----------------|-------|
+| Cross-Cutting Concerns | [N] | Skill-Val-001, Skill-Val-002 | [PR/Session ref] | [Up/Down/Stable] |
+| Fail-Safe Design | [N] | Skill-Safe-001 | [PR/Session ref] | [Up/Down/Stable] |
+| Test-Implementation Drift | [N] | Skill-Test-001 | [PR/Session ref] | [Up/Down/Stable] |
+| Premature Validation | [N] | Skill-Val-003 | [PR/Session ref] | [Up/Down/Stable] |
+| Context Loss | [N] | Skill-Ctx-001 | [PR/Session ref] | [Up/Down/Stable] |
+| Skill Gap | [N] | [New skills added] | [PR/Session ref] | [Up/Down/Stable] |
+````
+
+### Root Cause Pattern Template
+
+Add to retrospective artifact when Five Whys identifies root cause:
+
+````markdown
+## Root Cause Pattern
+
+**Pattern ID**: RootCause-{Category}-{NNN}
+**Category**: [Cross-Cutting | Fail-Safe | Test-Implementation Drift | Premature | Context | Skill-Gap]
+
+### Description
+[What failed and why - from Five Whys analysis]
+
+### Detection Signals
+- [Signal 1]: How to recognize this pattern early
+- [Signal 2]: Warning signs before failure
+
+### Prevention Skill
+**Skill ID**: Skill-{Category}-{NNN}
+**Statement**: [Atomic prevention strategy]
+**Application**: [When and how to apply]
+
+### Evidence
+- **Incident**: [PR/Issue/Session reference]
+- **Root Cause Path**: [Five Whys chain summary]
+- **Resolution**: [What fixed it]
+
+### Relations
+- **Prevents by**: [Prevention skill ID]
+- **Similar to**: [Related root cause patterns]
+- **Supersedes**: [Older patterns this replaces]
+````
+
+### Integration with Skillbook
+
+After storing root cause patterns, delegate to skillbook for skill persistence:
+
+1. **Extract prevention skill** from root cause analysis
+2. **Validate atomicity** (target: >85%)
+3. **Create relation** between root cause and prevention skill
+4. **Update failure prevention matrix** with new incident count
+5. **Query similar patterns** before creating new entries
+
+**Deduplication Query:**
+
+```text
+mcp__cloudmcp-manager__memory-search_nodes
+Query: "RootCause {Category} {Keywords from description}"
+```
+
+If similar pattern exists (>70% similarity), UPDATE existing entity instead of creating new one.
+
+---
+
 ## Phase 5: Recursive Learning Extraction
 
 Transform session learnings into persistent Serena memories using skillbook agent. Continue recursively until all novel learnings worthy of bootstrapping an amnesiac are exhausted.
@@ -1035,35 +1160,47 @@ Meta-learning about the retrospective process.
 
 ---
 
-## Memory Storage
+## Memory Protocol
 
 Use cloudmcp-manager memory tools directly for all persistence operations.
 
-**Tool invocations:**
+**Create new skills:**
 
-````markdown
-## Memory Request
+```json
+mcp__cloudmcp-manager__memory-create_entities
+{
+  "entities": [{
+    "name": "{domain}-{description}",
+    "entityType": "Skill",
+    "observations": ["[Skill statement with context and evidence]"]
+  }]
+}
+```
 
-### Operation Type
-[CREATE | UPDATE | TAG | REMOVE | RELATE]
+**Add observations to existing entities:**
 
-### Entities
-| Entity Type | Name | Content |
-|-------------|------|---------|
-| Skill | {domain}-{description} | [Statement] |
+```json
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "[Skill ID]",
+    "contents": ["[New observation with evidence source]"]
+  }]
+}
+```
 
-### Observations (for updates)
-| Entity | Observation | Evidence |
-|--------|-------------|----------|
-| [Skill ID] | [New observation] | [Source] |
+**Create relations between entities:**
 
-### Relations
-| From | Relation | To |
-|------|----------|-----|
-| [Skill ID] | derived_from | [Learning ID] |
-| [Skill ID] | prevents | [Failure ID] |
-| [Skill ID] | supersedes | [Old Skill ID] |
-````
+```json
+mcp__cloudmcp-manager__memory-create_relations
+{
+  "relations": [
+    {"from": "[Skill ID]", "to": "[Learning ID]", "relationType": "derived_from"},
+    {"from": "[Skill ID]", "to": "[Failure ID]", "relationType": "prevents"},
+    {"from": "[Skill ID]", "to": "[Old Skill ID]", "relationType": "supersedes"}
+  ]
+}
+```
 
 ---
 

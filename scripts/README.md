@@ -161,14 +161,14 @@ The repository includes validation scripts for enforcing protocol compliance and
 
 ### Session Protocol Validation
 
-#### Validate-SessionEnd.ps1
+#### Validate-Session.ps1
 
-Validates Session End protocol compliance for a single session log.
+Validates Session Start and Session End protocol compliance for a single session log.
 
 **Usage**:
 
 ```powershell
-.\scripts\Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/2025-12-22-session-01.md"
+.\scripts\Validate-Session.ps1 -SessionLogPath ".agents/sessions/2025-12-22-session-01.md"
 ```
 
 **Called By**: Pre-commit hook, orchestrator, CI

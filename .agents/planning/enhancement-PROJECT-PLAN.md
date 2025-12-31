@@ -145,16 +145,16 @@ SO THAT [rationale/value]
 
 ### Tasks
 
-| ID | Task | Complexity | Status | Session |
-|----|------|------------|--------|---------|
-| S-001 | Create EARS format template in `.agents/governance/ears-format.md` | S | PENDING | - |
-| S-002 | Create `src/claude/spec-generator.md` agent prompt | L | PENDING | - |
-| S-003 | Create YAML front matter schema for requirements | S | PENDING | - |
-| S-004 | Create YAML front matter schema for design | S | PENDING | - |
-| S-005 | Create YAML front matter schema for tasks | S | PENDING | - |
-| S-006 | Update orchestrator with spec workflow routing | M | PENDING | - |
-| S-007 | Create sample specs for existing feature (dogfood) | M | PENDING | - |
-| S-008 | Document spec workflow in AGENT-SYSTEM.md | S | PENDING | - |
+| ID | Task | Complexity | Status | Session | PR |
+|----|------|------------|--------|---------|-----|
+| S-001 | Create EARS format template in `.agents/governance/ears-format.md` | S | COMPLETE | - | #603 |
+| S-002 | Create `src/claude/spec-generator.md` agent prompt | L | PENDING | - | - |
+| S-003 | Create YAML front matter schema for requirements | S | COMPLETE | - | #604 |
+| S-004 | Create YAML front matter schema for design | S | COMPLETE | - | #604 |
+| S-005 | Create YAML front matter schema for tasks | S | COMPLETE | - | #604 |
+| S-006 | Update orchestrator with spec workflow routing | M | PENDING | - | - |
+| S-007 | Create sample specs for existing feature (dogfood) | M | PENDING | - | - |
+| S-008 | Document spec workflow in AGENT-SYSTEM.md | S | PENDING | - | - |
 
 ### YAML Schema Reference
 
@@ -342,15 +342,15 @@ Steering directory created with 5 placeholder files:
 
 ### Tasks
 
-| ID | Task | Complexity | Status | Session |
-|----|------|------------|--------|---------|
-| ST-001 | Design steering file schema with glob patterns | M | COMPLETE | - |
-| ST-002 | Create steering files for key domains | M | PARTIAL | - |
-| ST-003 | Document steering injection logic in orchestrator | L | PENDING | - |
-| ST-004 | Add token usage tracking to session logs | S | PENDING | - |
-| ST-005 | Measure baseline vs scoped steering token usage | S | PENDING | - |
-| ST-006 | Update agent prompts to reference steering files | M | PENDING | - |
-| ST-007 | Document steering system in AGENT-SYSTEM.md | S | COMPLETE | - |
+| ID | Task | Complexity | Status | Session | PR |
+|----|------|------------|--------|---------|-----|
+| ST-001 | Design steering file schema with glob patterns | M | COMPLETE | - | - |
+| ST-002 | Create steering files for key domains | M | COMPLETE | - | #580, #593 |
+| ST-003 | Document steering injection logic in orchestrator | L | PENDING | - | - |
+| ST-004 | Add token usage tracking to session logs | S | PENDING | - | - |
+| ST-005 | Measure baseline vs scoped steering token usage | S | PENDING | - | - |
+| ST-006 | Update agent prompts to reference steering files | M | PENDING | - | - |
+| ST-007 | Document steering system in AGENT-SYSTEM.md | S | COMPLETE | - | - |
 
 ### Steering File Structure
 

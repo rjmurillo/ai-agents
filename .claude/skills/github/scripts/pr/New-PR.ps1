@@ -108,7 +108,7 @@ function Invoke-Validation {
       Select-Object -Last 1 -ExpandProperty Line
     
     if ($sessionLog) {
-      $validateScript = Join-Path $RepoRoot "scripts/Validate-SessionEnd.ps1"
+      $validateScript = Join-Path $RepoRoot "scripts/Validate-Session.ps1"
       if (Test-Path $validateScript) {
         $sessionLogPath = Join-Path $RepoRoot $sessionLog
         & pwsh -NoProfile -File $validateScript -SessionLogPath $sessionLogPath

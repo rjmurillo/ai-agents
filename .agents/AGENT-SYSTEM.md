@@ -1,7 +1,7 @@
 ---
 title: Agent System Documentation
-version: 2.0
-last_updated: 2025-12-17
+version: 2.1
+last_updated: 2025-12-29
 maintainer: orchestrator
 ---
 
@@ -36,7 +36,7 @@ Task(subagent_type="analyst", prompt="Investigate API latency issues")
 
 ### Agent Count
 
-This system includes **18 specialized agents** organized into 5 categories.
+This system includes **19 specialized agents** organized into 5 categories.
 
 ---
 
@@ -144,6 +144,47 @@ with clear acceptance criteria and dependencies.
 ```text
 @task-generator Generate atomic tasks from the Authentication milestone.
 Include complexity estimates and file impact.
+```
+
+---
+
+#### spec-generator
+
+**File**: `src/claude/spec-generator.md`
+
+**Role**: Transforms vibe-level feature descriptions into structured 3-tier specifications
+
+**Specialization**: EARS requirements format, traceability chains, specification hierarchy
+
+**Input**:
+- Vague feature description or idea
+- User clarifications (gathered via questions)
+- Related context (ADRs, existing features)
+
+**Output**:
+- Requirements documents in `.agents/specs/requirements/REQ-NNN-*.md`
+- Design documents in `.agents/specs/design/DESIGN-NNN-*.md`
+- Task documents in `.agents/specs/tasks/TASK-NNN-*.md`
+
+**Delegates To**: None (returns to orchestrator)
+
+**Called By**: orchestrator
+
+**When to Use**:
+- Converting vague ideas into implementable specs
+- Creating formal requirements with EARS format
+- Establishing traceability between requirements, design, and tasks
+- When "what should this do?" needs a structured answer
+
+**Example Invocation**:
+```text
+@spec-generator Create specifications for a session state persistence feature.
+I need requirements in EARS format, a design doc, and atomic tasks.
+```
+
+**3-Tier Output**:
+```text
+REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
 ```
 
 ---
@@ -945,6 +986,7 @@ flowchart TD
 | "document", "explain", "PRD" | explainer | analyst | Documentation |
 | "plan", "break down", "milestone" | planner | task-generator | Work decomposition |
 | "task", "atomic", "estimate" | task-generator | planner | Task generation |
+| "spec", "requirements", "EARS", "specification" | spec-generator | explainer | Formal specifications |
 | "prioritize", "roadmap", "epic" | roadmap | high-level-advisor | Product strategy |
 | "decide", "verdict", "stuck" | high-level-advisor | independent-thinker | Strategic decisions |
 | "learn", "retro", "what went wrong" | retrospective | analyst | Learning extraction |
@@ -954,6 +996,7 @@ flowchart TD
 
 | Task Type | Primary | Secondary | Validator |
 |-----------|---------|-----------|-----------|
+| Formal specification | spec-generator | architect | critic |
 | New feature | architect | planner | critic |
 | Bug fix | analyst | implementer | qa |
 | Refactor | architect | implementer | critic |
@@ -1066,7 +1109,133 @@ Skills extracted from retrospectives are stored with:
 
 ## 6. Parallel Execution
 
-### 6.1 Sectioning Pattern
+### 6.0 Overview
+
+Parallel execution enables multiple agents to work simultaneously on independent tasks, reducing wall-clock time by 30-50% compared to sequential execution. This pattern was validated in Sessions 19-22 where parallel agent dispatch completed work in approximately 20 minutes versus an estimated 50 minutes for sequential execution.
+
+**Key Benefit**: Time savings come from overlapping execution, not reduced work. Coordination overhead of 10-20% is expected.
+
+### 6.1 When to Use Parallel Execution
+
+#### Use Parallel Execution When
+
+| Condition | Rationale |
+|-----------|-----------|
+| Tasks are independent | No shared state or dependencies between tasks |
+| Tasks can complete in any order | Results do not feed into each other |
+| Wall-clock time is priority | Faster completion outweighs token efficiency |
+| Analyzing same artifact from different perspectives | Multiple agents reviewing same code/design |
+| Tasks modify different files | No staging conflicts possible |
+
+#### Use Sequential Execution When
+
+| Condition | Rationale |
+|-----------|-----------|
+| Tasks have dependencies | Task B requires output from Task A |
+| Shared state modifications | Same files edited (staging conflicts) |
+| Cost optimization priority | Sequential uses fewer total tokens |
+| Learning transfer valuable | Later tasks benefit from earlier findings |
+| Rate limit concerns | Insufficient API budget for parallel calls |
+
+### 6.2 Orchestrator Responsibilities
+
+The orchestrator manages all parallel execution coordination (subagents cannot delegate to each other).
+
+| Responsibility | Description | When |
+|----------------|-------------|------|
+| **Task Analysis** | Identify independent vs dependent tasks | Before dispatch |
+| **Prerequisite Checks** | Verify rate limits, worktree availability | Before dispatch |
+| **Agent Dispatch** | Spawn parallel agents with clear boundaries | Start of parallel phase |
+| **Progress Monitoring** | Track completion status of each agent | During execution |
+| **Result Collection** | Aggregate outputs from all parallel sessions | After all complete |
+| **Conflict Resolution** | Handle any staging conflicts from parallel work | After collection |
+| **Session Coordination** | Single atomic update after all sessions complete | After resolution |
+
+### 6.3 Parallel Execution Pattern Template
+
+#### Prerequisites Checklist
+
+Before launching parallel agents, verify:
+
+```markdown
+## Parallel Execution Readiness
+
+- [ ] Tasks are independent (no dependencies)
+- [ ] No shared file modifications
+- [ ] Rate limit checked (sufficient API budget)
+- [ ] Worktree directories prepared (if needed)
+- [ ] Orchestrator can aggregate results
+- [ ] Session log created for coordination
+```
+
+#### Execution Steps
+
+```text
+1. Orchestrator creates task list with clear boundaries
+2. Orchestrator verifies prerequisites (rate limit, independence)
+3. Orchestrator dispatches N parallel agents
+4. Each agent creates individual session log
+5. Each agent writes results to designated output location
+6. Orchestrator monitors completion (polling or callbacks)
+7. Orchestrator aggregates results after all complete
+8. Orchestrator resolves any conflicts
+9. Orchestrator commits with all session IDs referenced
+```
+
+#### Rate Limit Pre-Check
+
+Before launching parallel operations that make GitHub API calls:
+
+```text
+Required budget = num_agents x calls_per_agent
+Available budget = remaining API calls
+
+If Available < Required:
+  - Reduce parallelism
+  - Wait for reset
+  - Fail fast with clear error
+
+GraphQL limit (5000/hour) is separate from REST limit.
+```
+
+### 6.4 Worktree Isolation Pattern
+
+When parallel agents need to modify files, use git worktrees to prevent conflicts.
+
+#### Correct Pattern
+
+```bash
+# Create dedicated worktree directory
+mkdir -p /path/to/repo-worktrees
+
+# Create worktree with local tracking branch (avoids detached HEAD)
+git fetch origin feature-branch
+git worktree add -b pr-300 ../repo-worktrees/pr-300 origin/feature-branch
+
+# Agent works in isolated directory
+cd /path/to/repo-worktrees/pr-300
+```
+
+#### Why This Matters
+
+| Issue | Problem | Solution |
+|-------|---------|----------|
+| Detached HEAD | Agents don't know their branch | Use `-b` flag to create tracking branch |
+| Push complexity | Must specify remote explicitly | Local branch tracks remote automatically |
+| Directory pollution | Worktrees scattered in home | Use dedicated parent directory |
+| Cleanup difficulty | Hard to find all worktrees | Single parent makes cleanup simple |
+
+#### Cleanup
+
+```bash
+# When done with parallel work
+cd /path/to/main-repo
+git worktree list          # See all worktrees
+git worktree remove ../repo-worktrees/pr-300  # Remove specific
+rm -rf /path/to/repo-worktrees  # Remove parent when all done
+```
+
+### 6.5 Sectioning Pattern
 
 When subtasks are independent, document parallel execution:
 
@@ -1086,7 +1255,7 @@ Agent: qa
 Status: In Progress
 ```
 
-### 6.2 Voting Pattern
+### 6.6 Voting Pattern
 
 For critical decisions, use redundant execution:
 
@@ -1109,13 +1278,128 @@ Confidence: [%]
 Majority: [A] (2/3)
 ```
 
-### 6.3 Aggregation Strategies
+### 6.7 Aggregation Strategies
 
 | Strategy | Use When | Process |
 |----------|----------|---------|
 | **merge** | Non-conflicting outputs | Combine all results |
 | **vote** | Conflicting recommendations | Select majority |
 | **escalate** | Critical conflicts | Route to high-level-advisor |
+
+### 6.8 Session Coordination Protocol
+
+When running parallel agents, coordinate session logs:
+
+#### Individual Agent Sessions
+
+Each parallel agent creates its own session log:
+
+```text
+.agents/sessions/2025-12-29-session-19-parallel-pr-300.md
+.agents/sessions/2025-12-29-session-20-parallel-pr-301.md
+.agents/sessions/2025-12-29-session-21-parallel-pr-302.md
+```
+
+#### Orchestrator Aggregation
+
+After all agents complete, orchestrator:
+
+1. Reads all parallel session logs
+2. Aggregates outcomes into summary
+3. Updates Serena memory with cross-session context
+4. Creates single commit referencing all session IDs
+
+#### Commit Message Format
+
+```text
+docs: parallel execution of PRs #300, #301, #302
+
+Sessions: 19, 20, 21
+- PR #300: [outcome]
+- PR #301: [outcome]
+- PR #302: [outcome]
+```
+
+### 6.9 Example Scenarios
+
+#### Example 1: Multi-PR Review (Sessions 19-22)
+
+**Context**: Four PRs ready for independent review.
+
+**Approach**: Parallel dispatch with worktree isolation.
+
+```text
+Orchestrator Assessment:
+- 4 independent PRs (no shared files)
+- Each PR modifiable without conflicts
+- Rate limit: 4000 remaining (1000 per agent budget)
+
+Dispatch:
+- Agent 1 → PR #300 (worktree: pr-300)
+- Agent 2 → PR #301 (worktree: pr-301)
+- Agent 3 → PR #302 (worktree: pr-302)
+- Agent 4 → PR #303 (worktree: pr-303)
+
+Results:
+- Wall-clock: 20 minutes
+- Sequential estimate: 50 minutes
+- Savings: 60%
+```
+
+#### Example 2: Impact Analysis
+
+**Context**: Feature touches architecture, security, and operations.
+
+**Approach**: Parallel specialist review.
+
+```text
+Orchestrator dispatches (no worktrees needed, read-only analysis):
+- architect → Design impact analysis
+- security → Threat assessment
+- devops → Infrastructure impact
+- qa → Test strategy
+
+Aggregation:
+- Merge non-conflicting findings
+- Escalate architect-security conflict to high-level-advisor
+```
+
+#### Example 3: Documentation Updates
+
+**Context**: Multiple independent documentation files need updates.
+
+**Approach**: Parallel with file isolation.
+
+```text
+Files assigned (no overlap):
+- Agent 1 → README.md
+- Agent 2 → CONTRIBUTING.md
+- Agent 3 → docs/setup.md
+
+No worktrees needed (different files, same branch).
+Commit after all complete.
+```
+
+### 6.10 Limitations and Constraints
+
+| Limitation | Impact | Mitigation |
+|------------|--------|------------|
+| **Rate limit exhaustion** | All agents fail mid-execution | Pre-check and budget allocation |
+| **Staging conflicts** | Merge failures when agents touch same files | Worktree isolation or file-level assignment |
+| **Context loss** | Parallel agents don't share learnings | Post-aggregation synthesis |
+| **Coordination overhead** | 10-20% time spent on dispatch/aggregation | Accept as cost of parallelism |
+| **Error propagation** | One agent failure affects overall result | Independent error handling per agent |
+| **Memory fragmentation** | Multiple session logs to consolidate | Orchestrator aggregation protocol |
+
+### 6.11 Anti-Patterns to Avoid
+
+| Anti-Pattern | Problem | Correct Approach |
+|--------------|---------|------------------|
+| Parallel agents editing same file | Merge conflicts, lost work | Assign exclusive file ownership |
+| No rate limit check before dispatch | API exhaustion mid-execution | Calculate and verify budget first |
+| Detached HEAD worktrees | Push confusion, lost commits | Use `-b` flag for tracking branches |
+| No session coordination | Scattered context, incomplete handoffs | Orchestrator aggregates all results |
+| Parallel for dependent tasks | Incorrect results, wasted work | Sequential execution for dependencies |
 
 ---
 
@@ -1457,4 +1741,4 @@ Glob pattern: `[pattern]`
 
 ---
 
-*Last updated: 2025-12-17 | Version 2.0*
+*Last updated: 2025-12-29 | Version 2.1*

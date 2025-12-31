@@ -63,21 +63,28 @@ Before starting work, complete these steps IN ORDER:
 
 ### 1. Session Initialization (MANDATORY)
 
+> **Canonical Source**: Copy the Session Start checklist from [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md#session-start-checklist)
+
+Use the **table format** (not bullet lists) for validation to pass:
+
 ```markdown
-## Session Start Checklist
-- [ ] Invoke serena initialization:
-  ```text
-  mcp__serena__activate_project  (with project path)
-  mcp__serena__initial_instructions
-  ```
-- [ ] Created session log: `.agents/sessions/YYYY-MM-DD-session-NN.md`. Everything is referred to by "session-NN" from here on.
-- [ ] Read HANDOFF.md from previous session
-- [ ] Identified all tasks in assigned phase from enhancement-PROJECT-PLAN.md
-- [ ] Verified git state is clean: `git status`
-- [ ] Verified branch: `git branch --show-current`
-- [ ] Noted starting commit: `git log --oneline -1`
-- [ ] Read the commits since last session for context: `git log --oneline [last-session-commit]..HEAD`. If that cannot be determined, read the last 5 commits `git log --oneline -5`.
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented below |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | List memories loaded |
+| SHOULD | Verify git status | [x] | Output documented below |
+| SHOULD | Note starting commit | [x] | SHA documented below |
 ```
+
+See [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md) for full requirements and validation rules.
 
 ### 2. Task Execution (FOR EACH TASK)
 
@@ -107,23 +114,24 @@ Before starting work, complete these steps IN ORDER:
 
 ### 3. Session Finalization (MANDATORY)
 
-**Before ending ANY session, you MUST:**
+> **Canonical Source**: Copy the Session End checklist from [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md#session-end-checklist)
+
+**Before ending ANY session, you MUST complete the Session End checklist using the table format:**
 
 ```markdown
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-- [ ] All assigned tasks checked off in enhancement-PROJECT-PLAN.md
-- [ ] Session log complete with all details
-- [ ] HANDOFF.md updated with:
-  - [ ] What was completed
-  - [ ] What's next
-  - [ ] Any blockers or concerns
-- [ ] Linting passes:
-  - [ ] `npx markdownlint-cli2 --fix "**/*.md"` - Fix markdown issues
-- [ ] All files committed (including .agents/ files)
-- [ ] Retrospective agent invoked (for significant sessions or completing pr-comment-responder loop and fixes were made)
-- [ ] Git status is clean (or intentionally dirty with explanation)
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log | [x] | All sections filled |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed |
+| MUST | Run `npx markdownlint-cli2 --fix "**/*.md"` | [x] | Lint clean |
+| MUST | Route to qa agent (feature implementation) | [x] | QA report path or SKIPPED: docs-only |
+| MUST | Commit all changes (including `.serena/memories/`) | [x] | Commit SHA: abc1234 |
+| MUST NOT | Update `.agents/HANDOFF.md` | [x] | HANDOFF.md unchanged |
 ```
+
+See [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md) for full requirements and validation rules.
 
 ---
 

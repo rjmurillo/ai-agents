@@ -46,7 +46,6 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 - OWASP Top 10 scanning
 - Vulnerable dependency detection
 - Code anti-pattern detection
-- See: [Static Analysis Checklist](../.agents/security/static-analysis-checklist.md)
 
 ### Capability 2: Secret Detection & Environment Leak Scanning
 
@@ -54,7 +53,6 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 - Environment variable leaks
 - .env file exposure patterns
 - Credential pattern matching
-- See: [Secret Detection Patterns](../.agents/security/secret-detection-patterns.md)
 
 ### Capability 3: Code Quality Audit (Security Perspective)
 
@@ -62,7 +60,6 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 - Identify overly complex functions
 - Detect tight coupling (environment, dependencies)
 - Module boundary violations
-- See: [Code Quality Security Guide](../.agents/security/code-quality-security.md)
 
 ### Capability 4: Architecture & Boundary Security Audit
 
@@ -70,7 +67,6 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 - Attack surface mapping
 - Trust boundary identification
 - Sensitive data flow analysis
-- See: [Architecture Security Template](../.agents/security/architecture-security-template.md)
 
 ### Capability 5: Best Practices Enforcement
 
@@ -78,7 +74,6 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 - Error handling adequacy
 - Logging of sensitive operations
 - Cryptography usage correctness
-- See: [Security Best Practices](../.agents/security/security-best-practices.md)
 
 ### Capability 6: Impact Analysis (Planning Phase)
 

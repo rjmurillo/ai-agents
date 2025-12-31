@@ -121,7 +121,7 @@ if (-not (Test-Path $RepoRoot)) {
 
 # Resolve script paths
 $ScriptPaths = @{
-    SessionEnd = Join-Path $RepoRoot "scripts" "Validate-SessionEnd.ps1"
+    SessionEnd = Join-Path $RepoRoot "scripts" "Validate-Session.ps1"
     PesterTests = Join-Path $RepoRoot "build" "scripts" "Invoke-PesterTests.ps1"
     PathNormalization = Join-Path $RepoRoot "build" "scripts" "Validate-PathNormalization.ps1"
     PlanningArtifacts = Join-Path $RepoRoot "build" "scripts" "Validate-PlanningArtifacts.ps1"
@@ -260,7 +260,7 @@ Invoke-Validation -Name "Session End Validation" -ScriptBlock {
     Write-Host "Latest session log: $($sessionLog.Name)"
 
     if (-not (Test-Path $ScriptPaths.SessionEnd)) {
-        Write-Status 'FAIL' "Validate-SessionEnd.ps1 not found"
+        Write-Status 'FAIL' "Validate-Session.ps1 not found"
         return $false
     }
 
