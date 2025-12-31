@@ -1221,13 +1221,24 @@ Execution --> Reflection --> Skill Update --> Improved Execution
 
 ## Handoff Protocol
 
-**As a subagent, you CANNOT delegate directly**. Return learnings to orchestrator using the **Structured Handoff Output** format below.
+**As a subagent, you CANNOT delegate directly**. Return learnings to orchestrator.
 
 When retrospective is complete:
 
 1. Save retrospective document to `.agents/retrospective/`
-2. Return structured handoff output to orchestrator (see format below)
-3. Orchestrator will automatically route to downstream agents
+2. Return learnings and recommended skill updates to orchestrator
+3. Recommend orchestrator routes to skillbook for skill persistence (if applicable)
+
+## Handoff Options (Recommendations for Orchestrator)
+
+| Target | When | Purpose |
+|--------|------|---------|
+| **skillbook** | Learnings ready | Store skills |
+| **implementer** | Coding skill found | Apply next time |
+| **planner** | Process improvement | Update approach |
+| **architect** | Design insight | Update guidance |
+
+**Note**: Use cloudmcp-manager memory tools directly to persist skills, relations, and observations - no delegation to memory agent required.
 
 ---
 
