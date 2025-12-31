@@ -36,7 +36,7 @@
     .\Post-IssueComment.ps1 -Issue 123 -BodyFile status.md -Marker "CI-STATUS" -UpdateIfExists
 
 .NOTES
-    Exit Codes: 0=Success (including skip due to marker), 1=Invalid params, 2=File not found, 3=API error, 4=Not authenticated, 5=Permission denied (403)
+    Exit Codes: 0=Success (including skip due to marker), 1=Invalid params, 2=File not found, 3=API error, 4=Auth error (not authenticated OR permission denied 403)
 
     403 Errors:
     - GitHub Apps: May lack "issues": "write" permission in app manifest
@@ -296,9 +296,10 @@ if ($LASTEXITCODE -ne 0) {
     $errorString = $result -join ' '
 
     # Detect 403 permission errors (case-insensitive matching)
+    # Exit code 4 = Auth error (per ADR-035: includes not-authenticated AND permission-denied)
     if ($errorString -imatch 'HTTP 403' -or $errorString -imatch 'status.*403' -or $errorString -match '403' -or $errorString -imatch 'Resource not accessible by integration' -or $errorString -imatch '\bforbidden\b') {
         Write-PermissionDeniedError -Owner $Owner -Repo $Repo -Issue $Issue -Body $Body -RawError $errorString
-        exit 5
+        exit 4
     }
 
     # Generic API error

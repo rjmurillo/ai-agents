@@ -14,8 +14,9 @@
 #>
 
 BeforeAll {
-    $Script:ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "issue" "Post-IssueComment.ps1"
-    $Script:ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubCore.psm1"
+    # Script location relative to repository root tests/ folder
+    $Script:ScriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "scripts" "issue" "Post-IssueComment.ps1"
+    $Script:ModulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 
     # Verify script exists
     if (-not (Test-Path $Script:ScriptPath)) {
@@ -601,11 +602,11 @@ Main content here.
             $scriptContent | Should -Match 'Resource not accessible by integration'
         }
 
-        It "Should exit 5 for permission denied errors" {
+        It "Should exit 4 for permission denied errors (per ADR-035)" {
             $scriptContent = Get-Content $Script:ScriptPath -Raw
 
-            # Permission denied must exit with code 5
-            $scriptContent | Should -Match 'exit\s+5'
+            # Permission denied uses exit code 4 (Auth error per ADR-035)
+            $scriptContent | Should -Match 'exit\s+4'
         }
 
         It "Should save failed comment payload to artifact file" {
