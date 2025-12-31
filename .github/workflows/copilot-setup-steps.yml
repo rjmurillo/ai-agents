@@ -31,9 +31,9 @@ jobs:
   # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
   copilot-setup-steps:
     name: Configure Git Hooks and Linting Tools
-    # ADR-032: ARM runner for cost optimization (37.5% savings vs x64)
-    # All dependencies (Node.js, PowerShell Core, GitHub CLI, Pester) support ARM64
-    runs-on: ubuntu-24.04-arm
+    # NOTE: Copilot agent runtime requires x86_64 architecture (ADR-032 exception)
+    # ARM runners cannot be used here despite cost savings
+    runs-on: ubuntu-latest
 
     env:
       # Enable GitHub CLI for GitHub agents or scripts
