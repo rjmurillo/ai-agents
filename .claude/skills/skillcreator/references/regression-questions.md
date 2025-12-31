@@ -7,6 +7,7 @@ The core methodology for exhaustive skill analysis. These questions are applied 
 Regression questioning prevents premature convergence on suboptimal designs by systematically exploring the problem space. The goal is not just to answer questions, but to discover questions that haven't been asked yet.
 
 **Termination Criteria:**
+
 - Three consecutive rounds produce no new insights
 - All thinking models have been applied
 - At least 3 simulated expert perspectives considered
@@ -29,6 +30,7 @@ These questions identify gaps in the current analysis.
 | "What edge cases haven't I addressed?" | Boundary condition coverage | After main flow defined |
 
 **Red Flag Responses:**
+
 - "I think I've covered everything" → Ask 3 more specific questions
 - "This seems complete" → Apply another thinking model
 
@@ -46,6 +48,7 @@ Simulate domain experts reviewing the design.
 | **Maintenance Engineer** | "Will this be maintainable in 2 years?" | Clarity, documentation, extension points |
 
 **Application Protocol:**
+
 1. For each relevant expert type, fully adopt their perspective
 2. Critique the current design from that viewpoint
 3. Document specific improvements they would suggest
@@ -65,6 +68,7 @@ Proactively identify failure modes.
 | "What would make this skill conflict with others?" | Ecosystem failures |
 
 **For Each Identified Failure Mode:**
+
 1. Assess likelihood (High/Medium/Low)
 2. Assess impact (Critical/Major/Minor)
 3. Design mitigation or prevention
@@ -85,6 +89,7 @@ Evaluate the design across time horizons.
 | **5 years** | "Is the underlying problem still relevant?" | Problem evolution |
 
 **Temporal Analysis Output:**
+
 ```markdown
 ## Temporal Projection
 
@@ -137,6 +142,7 @@ Questions for determining script needs and enabling autonomous operation.
 **Script Decision Protocol:**
 
 For each affirmative answer:
+
 1. **Classify the script category:**
    - Validation (verify artifacts)
    - State Management (persist data)
@@ -154,6 +160,7 @@ For each affirmative answer:
    - Graceful fallback for optional dependencies
 
 3. **Document in specification:**
+
    ```xml
    <script id="S1">
      <name>validate_output.py</name>
@@ -172,6 +179,7 @@ For each affirmative answer:
    - Error messages should be actionable
 
 **Research Existing Scripts:**
+
 ```bash
 # Search for similar scripts in the ecosystem
 find ~/.claude/skills -name "*.py" -path "*/scripts/*" | xargs grep -l "<pattern>"
@@ -236,26 +244,31 @@ ROUND N:
 ## Question Bank by Skill Type
 
 ### For Executor Skills
+
 - "What inputs could cause unexpected behavior?"
 - "What outputs should be validated before returning?"
 - "What side effects need to be documented?"
 
 ### For Analyzer Skills
+
 - "What analysis could give misleading results?"
 - "What context is essential for accurate analysis?"
 - "What confidence level should outputs indicate?"
 
 ### For Generator Skills
+
 - "What templates or patterns should be used?"
 - "What customization points are needed?"
 - "What validation ensures output quality?"
 
 ### For Orchestrator Skills
+
 - "What skills might this need to compose with?"
 - "What handoff format works for all composed skills?"
 - "What happens if a composed skill fails?"
 
 ### For Validator/Checker Skills
+
 - "What false positives are likely?"
 - "What false negatives are dangerous?"
 - "What severity levels are appropriate?"
@@ -277,14 +290,18 @@ ROUND N:
 ## Integration with Other Phases
 
 ### Input to Specification Generation
+
 All insights from regression questioning feed into the specification:
+
 - Requirements discovered → `<requirements><discovered>` section
 - Failure modes → `<anti_patterns>` section
 - Temporal analysis → `<evolution_analysis>` section
 - Expert insights → Architecture and design decisions
 
 ### Feedback from Synthesis Panel
+
 If the synthesis panel rejects the skill:
+
 - Panel feedback becomes new questions
 - Return to Round 1 with feedback as input
 - Re-apply relevant question categories

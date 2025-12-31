@@ -73,6 +73,7 @@ SkillCreator 3.2 introduces a comprehensive script integration framework, enabli
 ![v3.2 Enhancements](assets/images/10-v32-enhancements.png)
 
 **Key Additions:**
+
 - **Phase 1D: Automation Analysis** - Proactively identifies opportunities for Python scripts
 - **Conditional 4th Agent** - Script Agent validates code quality when scripts are present
 - Skills can now possess agentic capabilities like self-verification, error recovery, and state persistence
@@ -130,6 +131,7 @@ cp -r skillcreator ~/.claude/skills/
 ```
 
 **Usage Patterns:**
+
 - `SkillCreator: {goal}` - Full autonomous execution
 - `create skill for {purpose}` - Natural language activation
 - `skillcreator --plan-only` - Generates specification only

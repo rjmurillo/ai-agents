@@ -22,6 +22,7 @@ Before writing a single line of code, determine if the wheel already exists. Vib
 ### Step 1: Capture Intent
 
 Extract from user request:
+
 - **What**: Core functionality needed
 - **Why**: Use case / problem being solved
 - **Constraints**: Language, platform, budget, licensing requirements
@@ -29,13 +30,15 @@ Extract from user request:
 ### Step 2: Search for Existing Solutions
 
 Search strategy (use web_search):
-1. `"{functionality} library {language}"` 
+
+1. `"{functionality} library {language}"`
 2. `"{functionality} open source"`
 3. `"{functionality} SaaS tool"`
 4. `"best {functionality} solution 2024"`
 5. `"{functionality} npm/pip/cargo package"` (based on ecosystem)
 
 Categorize findings:
+
 - **Libraries/Packages**: npm, pip, cargo, etc. (free, integrate into code)
 - **Open Source Tools**: Full applications (free, self-host)
 - **SaaS/Commercial**: Paid services (cost, no maintenance)
@@ -46,6 +49,7 @@ Categorize findings:
 Use the token estimation reference: [references/token-estimates.md](references/token-estimates.md)
 
 Factors to estimate:
+
 | Factor | Low | Medium | High |
 |--------|-----|--------|------|
 | Lines of Code | <200 | 200-1000 | >1000 |
@@ -69,12 +73,14 @@ Always present a decision table:
 ### Step 5: Recommendation Framework
 
 Recommend **existing solutions** when:
+
 - Mature library exists with >1K GitHub stars
 - SaaS solves it for <$20/mo
 - Common problem with well-tested solutions
 - Security-sensitive (auth, crypto, payments)
 
 Recommend **vibe coding** when:
+
 - Highly specific business logic
 - Simple glue code (<50 lines)
 - Learning exercise (explicitly stated)
@@ -84,6 +90,7 @@ Recommend **vibe coding** when:
 ### Step 6: If Vibe Coding Proceeds
 
 If user chooses to build after seeing alternatives:
+
 1. Acknowledge the valid reasons
 2. Suggest existing code as reference/inspiration
 3. Recommend libraries for sub-components
@@ -96,6 +103,7 @@ When the user accepts a recommended solution, provide a complete integration pla
 #### 7.1 Detect Project Context
 
 Before generating the plan, analyze the user's project:
+
 - **Package manager**: Check for `package.json` (npm/yarn/pnpm), `requirements.txt`/`pyproject.toml` (pip/poetry), `Cargo.toml` (cargo), `go.mod` (go)
 - **Framework**: Identify React, Vue, Next.js, Rails, Django, FastAPI, etc.
 - **Existing dependencies**: Check for conflicts or complementary packages
@@ -126,6 +134,7 @@ poetry add <package>
 #### 7.3 Provide Integration Steps
 
 Create a numbered action plan:
+
 1. **Install dependencies** - Exact commands
 2. **Create/update config files** - If the library needs configuration
 3. **Add to existing code** - Where to import and initialize
@@ -135,6 +144,7 @@ Create a numbered action plan:
 #### 7.4 Generate Starter Code
 
 Provide code scaffolding that:
+
 - Matches the user's detected code style (TypeScript/JavaScript, etc.)
 - Uses their existing patterns and conventions
 - Includes necessary imports
@@ -144,6 +154,7 @@ Provide code scaffolding that:
 #### 7.5 Warn About Potential Issues
 
 Flag any concerns:
+
 - **Dependency conflicts**: "Note: This requires React 18+, you have React 17"
 - **Breaking changes**: "This library had major changes in v3, examples are for v3"
 - **Peer dependencies**: "You'll also need to install X"
@@ -156,6 +167,7 @@ For features with meaningful cost implications (auth, payments, email, infrastru
 #### 8.1 When to Include Cost Analysis
 
 Include cost table when:
+
 - SaaS options have monthly fees > $10
 - DIY token estimate > 50K tokens
 - User asks about costs or "is it worth it"
@@ -167,6 +179,7 @@ Include cost table when:
 Use the pricing reference: [references/pricing-data.md](references/pricing-data.md)
 
 **Formula:**
+
 ```
 Year N Cost = Setup Cost + (Monthly × 12 × N) + (Maintenance × N)
 
@@ -195,6 +208,7 @@ Where:
 #### 8.4 Hidden Costs to Surface
 
 Always mention relevant hidden costs:
+
 - **Security audits**: $5K-50K for custom auth systems
 - **Compliance**: SOC2, GDPR, PCI implementation time
 - **On-call burden**: DIY = you're the support team
@@ -204,6 +218,7 @@ Always mention relevant hidden costs:
 #### 8.5 Red Flags to Call Out
 
 Warn users when they say:
+
 - "It's just a simple auth system" → Auth is never simple
 - "We can build it in a weekend" → You can't, securely
 - "We'll add security later" → Security debt is expensive
@@ -299,6 +314,7 @@ import { X } from '[package]'
 ## Anti-Patterns to Flag
 
 Alert users when they're about to reinvent:
+
 - Authentication systems → "Use Auth0, Clerk, Supabase Auth"
 - State management → "Consider Zustand, Redux Toolkit, Jotai"
 - Form validation → "Check out Zod, Yup, React Hook Form"

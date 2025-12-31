@@ -25,6 +25,7 @@ foreach ($file in $stagedFiles) {
 ```
 
 **Why staged content matters**: Validating working tree files can miss errors when:
+
 1. Developer stages broken code
 2. Developer fixes the file in working tree (but doesn't re-stage)
 3. Pre-commit passes because working tree is now valid
