@@ -67,6 +67,9 @@ function New-SkippedTestResult {
     $escapedTestSuiteName = [System.Security.SecurityElement]::Escape($TestSuiteName)
     $escapedSkipReason = [System.Security.SecurityElement]::Escape($SkipReason)
 
+    # XML comments forbid "--" sequence per XML spec; replace with "- -"
+    $escapedSkipReason = $escapedSkipReason -replace '--', '- -'
+
     # Generate JUnit XML content
     $xmlContent = @"
 <?xml version="1.0" encoding="utf-8"?>

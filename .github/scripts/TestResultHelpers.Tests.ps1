@@ -146,6 +146,21 @@ Describe "New-SkippedTestResult" {
             $content = Get-Content -Path $outputPath -Raw
             $content | Should -Match "Custom skip reason"
         }
+
+        It "Escapes double-hyphen in SkipReason for XML comment compliance" {
+            $outputPath = Join-Path $script:testDir "results.xml"
+
+            New-SkippedTestResult -OutputPath $outputPath -SkipReason "Test--reason--with--hyphens"
+
+            $content = Get-Content -Path $outputPath -Raw
+            # XML comments forbid "--" sequence within content; should be escaped to "- -"
+            # The escaped content should appear, proving double-hyphens were replaced
+            $content | Should -Match 'Test- -reason- -with- -hyphens'
+            # Original unescaped content should NOT appear
+            $content | Should -Not -Match 'Test--reason'
+            # Verify still valid XML
+            { [xml]$content } | Should -Not -Throw
+        }
     }
 
     Context "Parameter Validation" {
