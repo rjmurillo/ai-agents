@@ -91,7 +91,14 @@ if ($Marker) {
     $commentsJson = gh api "repos/$Owner/$Repo/issues/$Issue/comments" 2>$null
     
     if ($LASTEXITCODE -eq 0) {
-        $comments = $commentsJson | ConvertFrom-Json
+        try {
+            $comments = $commentsJson | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "Failed to parse comments response from GitHub API: $($_.Exception.Message)"
+            # Continue without marker check - will post as new comment
+            $comments = @()
+        }
         $existingComment = $comments | Where-Object { $_.body -match [regex]::Escape($markerHtml) } | Select-Object -First 1
         
         if ($existingComment) {
@@ -320,7 +327,30 @@ if ($LASTEXITCODE -ne 0) {
     Write-ErrorAndExit "Failed to post comment: $result" 3
 }
 
-$response = $result | ConvertFrom-Json
+try {
+    $response = $result | ConvertFrom-Json -ErrorAction Stop
+}
+catch {
+    # JSON parsing failed but gh succeeded - comment was likely posted but response is malformed
+    Write-Warning "Comment posted but failed to parse API response: $($_.Exception.Message)"
+    Write-Host "Posted comment to issue #$Issue (response parsing failed)" -ForegroundColor Yellow
+
+    # GitHub Actions outputs with degraded information
+    if ($env:GITHUB_OUTPUT -and (Test-Path $env:GITHUB_OUTPUT -PathType Leaf)) {
+        try {
+            @(
+                "success=true",
+                "skipped=false",
+                "issue=$Issue",
+                "parse_error=true"
+            ) | Add-Content -Path $env:GITHUB_OUTPUT -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "Failed to write GitHub Actions outputs: $_"
+        }
+    }
+    exit 0  # Comment was posted successfully, just couldn't parse response
+}
 
 Write-Host "Posted comment to issue #$Issue" -ForegroundColor Green
 Write-Host "  URL: $($response.html_url)" -ForegroundColor Cyan
