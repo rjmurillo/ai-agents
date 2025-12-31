@@ -64,11 +64,11 @@ EXIT_STATUS=0
 # Bypass: git commit --no-verify (use sparingly)
 #
 
-CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
+current_branch=$(git branch --show-current 2>/dev/null || echo "")
 
 # Block commits directly to main
-if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
-    echo_error "Cannot commit directly to branch '$CURRENT_BRANCH'"
+if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+    echo_error "Cannot commit directly to branch '$current_branch'"
     echo_info ""
     echo_info "  Create a feature branch first:"
     echo_info "    git checkout -b feat/your-description"
@@ -81,20 +81,20 @@ fi
 
 # Validate branch matches conventional patterns
 # Patterns: feat/*, fix/*, docs/*, chore/*, refactor/*, test/*, ci/*, build/*, perf/*
-BRANCH_VALID=0
-case "$CURRENT_BRANCH" in
+branch_valid=0
+case "$current_branch" in
     feat/*|fix/*|docs/*|chore/*|refactor/*|test/*|ci/*|build/*|perf/*|tech-debt*)
-        BRANCH_VALID=1
+        branch_valid=1
         ;;
     "")
         # Detached HEAD state - warn but allow (rebasing, etc.)
         echo_warning "Detached HEAD state - no branch name available"
-        BRANCH_VALID=1
+        branch_valid=1
         ;;
 esac
 
-if [ "$BRANCH_VALID" = "0" ]; then
-    echo_warning "Branch '$CURRENT_BRANCH' does not match conventional patterns"
+if [ "$branch_valid" = "0" ]; then
+    echo_warning "Branch '$current_branch' does not match conventional patterns"
     echo_info "  Expected: feat/*, fix/*, docs/*, chore/*, refactor/*, test/*"
     echo_info "  Proceeding anyway (non-blocking warning)"
 fi
