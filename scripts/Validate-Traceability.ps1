@@ -354,8 +354,8 @@ function Format-Results {
             if ($Results.errors.Count -gt 0) {
                 [void]$sb.AppendLine("## Errors")
                 [void]$sb.AppendLine()
-                foreach ($error in $Results.errors) {
-                    [void]$sb.AppendLine("- **$($error.rule)**: $($error.message)")
+                foreach ($errorItem in $Results.errors) {
+                    [void]$sb.AppendLine("- **$($errorItem.rule)**: $($errorItem.message)")
                 }
                 [void]$sb.AppendLine()
             }
@@ -394,8 +394,8 @@ function Format-Results {
 
             if ($Results.errors.Count -gt 0) {
                 Write-ColorOutput "ERRORS ($($Results.errors.Count)):" $ColorRed
-                foreach ($error in $Results.errors) {
-                    Write-ColorOutput "  [$($error.rule)] $($error.message)" $ColorRed
+                foreach ($errorItem in $Results.errors) {
+                    Write-ColorOutput "  [$($errorItem.rule)] $($errorItem.message)" $ColorRed
                 }
                 Write-ColorOutput ""
             }
