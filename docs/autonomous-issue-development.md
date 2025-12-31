@@ -203,7 +203,11 @@ gh issue edit {number} --add-assignee @me
 git checkout -b fix/{number}-description
 
 # Create PR
-gh pr create --title "fix(scope): description" --body "..." --base main
+# DANGER: If the PR title is constructed from untrusted input (like a GitHub issue title),
+# it can lead to command injection if it contains shell metacharacters like `$(...)`.
+# Use `read -r` to safely read the title into a variable.
+read -r pr_title < <(gh issue view {number} --json title --jq -r .title)
+gh pr create --title "fix: ${pr_title}" --body "Fixes #{number}" --base main
 
 # Check PR status
 gh pr view {number} --json statusCheckRollup,reviewDecision
