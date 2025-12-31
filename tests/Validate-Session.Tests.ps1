@@ -218,6 +218,20 @@ Describe "Test-InvestigationOnlyEligibility" {
             $result = Test-InvestigationOnlyEligibility -Files $files
             $result.IsEligible | Should -BeTrue
         }
+
+        It "Returns eligible for Serena memories directory itself" {
+            # Tests the ($|/) pattern matches end-of-string
+            $files = @('.serena/memories')
+            $result = Test-InvestigationOnlyEligibility -Files $files
+            $result.IsEligible | Should -BeTrue
+        }
+
+        It "Rejects .serena/memories prefix bypass" {
+            # .serena/memoriesX should NOT match .serena/memories($|/)
+            $files = @('.serena/memoriesX/evil.md')
+            $result = Test-InvestigationOnlyEligibility -Files $files
+            $result.IsEligible | Should -BeFalse
+        }
     }
 }
 
