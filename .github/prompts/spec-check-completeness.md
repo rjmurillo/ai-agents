@@ -57,9 +57,11 @@ Output your analysis in this format:
 - **Completeness**: X% of acceptance criteria satisfied
 - **Quality**: [assessment of implementation quality]
 
-VERDICT: [PASS|PARTIAL|FAIL]
+VERDICT: PASS
 MESSAGE: [Brief explanation]
 ```
+
+**IMPORTANT**: Output exactly `VERDICT: PASS`, `VERDICT: PARTIAL`, or `VERDICT: FAIL` (no brackets).
 
 ## Verdict Guidelines
 

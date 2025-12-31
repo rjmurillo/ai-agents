@@ -12,7 +12,7 @@
 BeforeAll {
     # Correct path: from .github/tests/skills/github -> .claude/skills/github/scripts/issue
     $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "issue" "New-Issue.ps1"
-    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 
     # Import the module for error handling functions
     Import-Module $ModulePath -Force
@@ -68,8 +68,8 @@ Describe "New-Issue" {
             $scriptContent | Should -Match '\[string\]\$Labels'
         }
 
-        It "Should import GitHubHelpers module" {
-            $scriptContent | Should -Match 'Import-Module.*GitHubHelpers\.psm1'
+        It "Should import GitHubCore module" {
+            $scriptContent | Should -Match 'Import-Module.*GitHubCore\.psm1'
         }
 
         It "Should call Assert-GhAuthenticated" {
