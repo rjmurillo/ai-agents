@@ -323,12 +323,17 @@ Copy this checklist to each session log and verify completion:
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Lint output clean |
-| MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` |
+| MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` OR `SKIPPED: investigation-only` |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
 | SHOULD | Verify clean git status | [ ] | `git status` output |
+
+<!-- Investigation sessions may skip QA with evidence "SKIPPED: investigation-only"
+     when only staging: .agents/sessions/, .agents/analysis/, .agents/retrospective/,
+     .serena/memories/, .agents/security/
+     See ADR-034 for details. -->
 ```
 
 ---
@@ -409,12 +414,17 @@ All MUST requirements above are marked complete.
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Output below |
-| MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` |
+| MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` OR `SKIPPED: investigation-only` |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
 | SHOULD | Verify clean git status | [ ] | Output below |
+
+<!-- Investigation sessions may skip QA with evidence "SKIPPED: investigation-only"
+     when only staging: .agents/sessions/, .agents/analysis/, .agents/retrospective/,
+     .serena/memories/, .agents/security/
+     See ADR-034 for details. -->
 
 ### Lint Output
 
