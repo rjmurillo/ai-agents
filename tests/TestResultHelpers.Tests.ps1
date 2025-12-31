@@ -11,7 +11,7 @@
 
 BeforeAll {
     # Import the module under test
-    $modulePath = Join-Path $PSScriptRoot "TestResultHelpers.psm1"
+    $modulePath = Join-Path $PSScriptRoot ".." ".github" "scripts" "TestResultHelpers.psm1"
     Import-Module $modulePath -Force
 }
 
