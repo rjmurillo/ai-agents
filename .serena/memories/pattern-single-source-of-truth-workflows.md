@@ -9,6 +9,7 @@
 ## Problem
 
 Workflows often duplicate configuration in multiple locations:
+
 - Header documentation
 - Filter definitions
 - Skip/echo messages
