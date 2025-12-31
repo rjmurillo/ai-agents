@@ -96,7 +96,6 @@ if ($Marker) {
         }
         catch {
             Write-Warning "Failed to parse comments response from GitHub API: $($_.Exception.Message)"
-            Write-Warning "Raw response (first 500 chars): $($commentsJson.Substring(0, [Math]::Min(500, $commentsJson.Length)))"
             # Continue without marker check - will post as new comment
             $comments = @()
         }
@@ -320,7 +319,6 @@ try {
 catch {
     # JSON parsing failed but gh succeeded - comment was likely posted but response is malformed
     Write-Warning "Comment posted but failed to parse API response: $($_.Exception.Message)"
-    Write-Warning "Raw response (first 500 chars): $($result.ToString().Substring(0, [Math]::Min(500, $result.ToString().Length)))"
     Write-Host "Posted comment to issue #$Issue (response parsing failed)" -ForegroundColor Yellow
 
     # GitHub Actions outputs with degraded information

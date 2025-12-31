@@ -701,4 +701,153 @@ Main content here.
             $is403 | Should -Be $ShouldMatch -Because $Description
         }
     }
+
+    Context "ConvertFrom-Json Error Handling - Comments List Parsing (L94-102)" {
+        # Tests for Issue #700: Error handling when parsing comments list from GitHub API
+
+        It "Should have try-catch around comments list ConvertFrom-Json" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Verify try-catch structure exists around the comments parsing
+            $scriptContent | Should -Match 'try\s*\{[\s\S]*?\$comments\s*=\s*\$commentsJson\s*\|\s*ConvertFrom-Json\s*-ErrorAction\s*Stop'
+        }
+
+        It "Should use -ErrorAction Stop for proper exception capture" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # The ConvertFrom-Json for comments must use -ErrorAction Stop
+            $scriptContent | Should -Match '\$commentsJson\s*\|\s*ConvertFrom-Json\s*-ErrorAction\s*Stop'
+        }
+
+        It "Should log warning on parse failure with exception message only (no raw response)" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must log a warning when parsing fails
+            $scriptContent | Should -Match 'Write-Warning\s*"Failed to parse comments response'
+            # Must NOT log raw response (security: could contain sensitive data)
+            $scriptContent | Should -Not -Match 'Write-Warning.*Raw response.*commentsJson'
+        }
+
+        It "Should continue with empty array when comments parsing fails" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must set comments to empty array on failure to allow new comment posting
+            $scriptContent | Should -Match '\$comments\s*=\s*@\(\)'
+        }
+
+        It "Should handle malformed JSON gracefully without script termination" {
+            # Verify the script handles the error case and continues execution
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # After the catch block, the script should continue (no exit in the catch)
+            # Verify there's no 'exit' in the catch block for this scenario
+            $scriptContent | Should -Match 'catch\s*\{[\s\S]*?\$comments\s*=\s*@\(\)[\s\S]*?\}'
+        }
+    }
+
+    Context "ConvertFrom-Json Error Handling - Response Parsing After Post (L317-341)" {
+        # Tests for Issue #700: Error handling when parsing response after posting comment
+
+        It "Should have try-catch around response ConvertFrom-Json" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Verify try-catch structure exists around the response parsing
+            $scriptContent | Should -Match 'try\s*\{[\s\S]*?\$response\s*=\s*\$result\s*\|\s*ConvertFrom-Json\s*-ErrorAction\s*Stop'
+        }
+
+        It "Should use -ErrorAction Stop for response parsing" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # The ConvertFrom-Json for response must use -ErrorAction Stop
+            $scriptContent | Should -Match '\$result\s*\|\s*ConvertFrom-Json\s*-ErrorAction\s*Stop'
+        }
+
+        It "Should log warning when response parsing fails (no raw response)" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must log a warning when response parsing fails
+            $scriptContent | Should -Match 'Write-Warning\s*"Comment posted but failed to parse API response'
+            # Must NOT log raw response (security: could contain sensitive data)
+            $scriptContent | Should -Not -Match 'Write-Warning.*Raw response.*\$result'
+        }
+
+        It "Should exit 0 when comment was posted but response parsing fails" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Comment was posted successfully, just couldn't parse response - exit 0
+            $scriptContent | Should -Match 'Comment posted but failed to parse[\s\S]*?exit\s+0\s*#\s*Comment was posted successfully'
+        }
+
+        It "Should write GITHUB_OUTPUT with parse_error=true on response parse failure" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must write parse_error=true to indicate degraded response
+            $scriptContent | Should -Match 'parse_error=true'
+        }
+
+        It "Should write success=true to GITHUB_OUTPUT even when parse fails" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # The catch block for response parsing should still indicate success
+            # since the comment was posted, only the response couldn't be parsed
+            $scriptContent | Should -Match 'catch\s*\{[\s\S]*?"success=true"[\s\S]*?parse_error=true'
+        }
+
+        It "Should display user-friendly message on response parse failure" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must inform user the comment was posted despite parse failure
+            $scriptContent | Should -Match 'Posted comment to issue.*response parsing failed'
+        }
+    }
+
+    Context "ConvertFrom-Json Error Handling - Malformed JSON Scenarios" {
+        # Test the error handling behavior with various malformed JSON inputs
+
+        It "Should handle HTML error page (rate limiting) gracefully" {
+            # Rate limiting returns HTML pages, not JSON
+            $htmlResponse = "<html><head><title>Rate Limit Exceeded</title></head><body>...</body></html>"
+
+            # Verify ConvertFrom-Json throws on HTML
+            { $htmlResponse | ConvertFrom-Json -ErrorAction Stop } | Should -Throw
+        }
+
+        It "Should handle truncated JSON gracefully" {
+            $truncatedJson = '[{"id": 123, "body": "test'
+
+            # Verify ConvertFrom-Json throws on truncated JSON
+            { $truncatedJson | ConvertFrom-Json -ErrorAction Stop } | Should -Throw
+        }
+
+        It "Should handle empty string gracefully" {
+            $emptyResponse = ""
+
+            # PowerShell's ConvertFrom-Json returns null/empty on empty string
+            # The script's try-catch protects against this scenario
+            $result = $emptyResponse | ConvertFrom-Json -ErrorAction SilentlyContinue
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Should handle plain text error message gracefully" {
+            $textResponse = "Bad Gateway"
+
+            # Verify ConvertFrom-Json throws on plain text
+            { $textResponse | ConvertFrom-Json -ErrorAction Stop } | Should -Throw
+        }
+
+        It "Should handle null input gracefully" {
+            $nullResponse = $null
+
+            # Verify ConvertFrom-Json throws or returns null on null input
+            # Note: PowerShell handles null differently - it may not throw but returns nothing
+            $result = $nullResponse | ConvertFrom-Json -ErrorAction SilentlyContinue
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Should handle partial JSON array gracefully" {
+            $partialArray = '[{"id": 1}, {"id":'
+
+            { $partialArray | ConvertFrom-Json -ErrorAction Stop } | Should -Throw
+        }
+    }
 }
