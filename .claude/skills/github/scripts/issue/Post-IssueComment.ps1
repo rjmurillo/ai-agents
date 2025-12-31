@@ -36,7 +36,16 @@
     .\Post-IssueComment.ps1 -Issue 123 -BodyFile status.md -Marker "CI-STATUS" -UpdateIfExists
 
 .NOTES
-    Exit Codes: 0=Success (including skip due to marker), 1=Invalid params, 2=File not found, 3=API error, 4=Not authenticated
+    Exit Codes: 0=Success (including skip due to marker), 1=Invalid params, 2=File not found, 3=API error, 4=Not authenticated, 5=Permission denied (403)
+
+    403 Errors:
+    - GitHub Apps: May lack `issues:write` permission in manifest
+    - GITHUB_TOKEN: In workflows, may need `issues: write` permission block
+    - Fine-grained PATs: May need "Issues" repository permission
+    - Classic PATs: May lack `repo` scope
+
+    When 403 occurs, the intended comment payload is saved to .github/artifacts/failed-comment-{timestamp}.json
+    for manual posting or debugging.
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'BodyText')]
@@ -133,10 +142,93 @@ if ($Marker) {
     $Body = Add-MarkerToBody -BodyContent $Body -MarkerHtml $markerHtml
 }
 
+# Helper: Handle 403 permission errors with actionable guidance
+function Write-PermissionDeniedError {
+    param(
+        [string]$Owner,
+        [string]$Repo,
+        [int]$Issue,
+        [string]$Body,
+        [string]$RawError
+    )
+
+    $guidance = @"
+PERMISSION DENIED (403): Cannot post comment to issue #$Issue in $Owner/$Repo.
+
+LIKELY CAUSES:
+- GitHub Apps: Missing 'issues:write' permission in app manifest
+- Workflow GITHUB_TOKEN: Add 'permissions: issues: write' to workflow YAML
+- Fine-grained PAT: Enable 'Issues' repository permission (Read and Write)
+- Classic PAT: Requires 'repo' scope for private repos or 'public_repo' for public repos
+- Repository rules: May restrict who can comment
+
+RAW ERROR: $RawError
+"@
+
+    Write-Host $guidance -ForegroundColor Red
+
+    # Save payload for manual posting/debugging
+    $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
+    $artifactDir = Join-Path (Get-Location) ".github" "artifacts"
+    if (-not (Test-Path $artifactDir)) {
+        New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
+    }
+
+    $artifactPath = Join-Path $artifactDir "failed-comment-$timestamp.json"
+    $payload = @{
+        timestamp = (Get-Date -Format "o")
+        owner = $Owner
+        repo = $Repo
+        issue = $Issue
+        body = $Body
+        error = $RawError
+        guidance = "Use 'gh api repos/$Owner/$Repo/issues/$Issue/comments -X POST -f body=@body.txt' to post manually"
+    } | ConvertTo-Json -Depth 3
+
+    Set-Content -Path $artifactPath -Value $payload -Encoding UTF8
+    Write-Host "Payload saved to: $artifactPath" -ForegroundColor Yellow
+
+    # Structured error output for programmatic consumption
+    $errorOutput = [PSCustomObject]@{
+        Success = $false
+        Error = "PERMISSION_DENIED"
+        StatusCode = 403
+        Issue = $Issue
+        Owner = $Owner
+        Repo = $Repo
+        ArtifactPath = $artifactPath
+        Guidance = @(
+            "Workflow: Add 'permissions: issues: write'"
+            "Fine-grained PAT: Enable 'Issues' Read/Write"
+            "Classic PAT: Requires 'repo' scope"
+        )
+    }
+    $errorOutput | ConvertTo-Json -Depth 3
+
+    # GitHub Actions outputs for programmatic consumption
+    if ($env:GITHUB_OUTPUT) {
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "success=false"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "error=PERMISSION_DENIED"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "status_code=403"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "artifact_path=$artifactPath"
+    }
+}
+
 # Post comment
 $result = gh api "repos/$Owner/$Repo/issues/$Issue/comments" -X POST -f body=$Body 2>&1
 
-if ($LASTEXITCODE -ne 0) { Write-ErrorAndExit "Failed to post comment: $result" 3 }
+if ($LASTEXITCODE -ne 0) {
+    $errorString = $result -join ' '
+
+    # Detect 403 permission errors
+    if ($errorString -match '403' -or $errorString -match 'Resource not accessible by integration' -or $errorString -match 'forbidden') {
+        Write-PermissionDeniedError -Owner $Owner -Repo $Repo -Issue $Issue -Body $Body -RawError $errorString
+        exit 5
+    }
+
+    # Generic API error
+    Write-ErrorAndExit "Failed to post comment: $result" 3
+}
 
 $response = $result | ConvertFrom-Json
 
