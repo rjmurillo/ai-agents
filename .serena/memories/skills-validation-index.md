@@ -12,3 +12,5 @@
 | domain index table-only format header prose skills-*-index CI | validation-domain-index-format |
 | frontmatter validation anthropic skill-creator metadata root-level compliance | validation-007-frontmatter-validation-compliance |
 | PR validation gate scheduled workflow LASTEXITCODE environment CI parameterize | validation-pr-gates |
+| cross-reference verification renumbering refactoring all references | validation-007-cross-reference-verification |
+| ADR numbering conflicts QA final renumber duplicate verification | validation-474-adr-numbering-qa-final |
