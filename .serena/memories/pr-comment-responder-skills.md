@@ -6,17 +6,59 @@ Memory for tracking reviewer signal quality statistics, triage heuristics, and l
 
 ## Per-Reviewer Performance (Cumulative)
 
-Last updated: 2025-12-30
+Last updated: 2025-12-31
 
 | Reviewer | PRs | Comments | Actionable | Signal | Notes |
 |----------|-----|----------|------------|--------|-------|
 | cursor[bot] | - | 28 | 28 | **100%** | All comments identify real bugs (see cursor-bot-review-patterns memory) |
 | gemini-code-assist[bot] | #488, #501, #505, #530, #566, #568 | 13 | 13 | **100%** | RFC 2119 compliance, grep exact matching, filename pattern precision, command injection prevention, GraphQL injection prevention, helper function adoption |
-| Copilot | #488, #484, #490 | 5 | 5 | **100%** | Path separator bypass (CWE-22), workflow error handling |
+| Copilot | #488, #484, #490, #543 | 8 | 8 | **100%** | Path separator bypass (CWE-22), workflow error handling, regex precision, early return bugs |
 | rjmurillo (owner) | #490, #501 | 2 | 2 | **100%** | Template propagation gaps |
 | coderabbitai[bot] | - | 6 | 3 | **50%** | Medium signal quality |
 
 ## Per-PR Breakdown
+
+### PR #543 (2025-12-31)
+
+**PR**: feat(copilot-detection): implement actual file comparison in Compare-DiffContent
+
+| Reviewer | Comments | Actionable | Rate | Outcomes |
+|----------|----------|------------|------|----------|
+| Copilot | 3 | 3 | 100% | Early return bug, regex precision, heuristic clarity |
+
+**Session Notes**:
+
+- **Critical Bug**: Early return conflated truly empty diff with regex extraction failure - would have caused misclassification of malformed diffs as DUPLICATE
+- **Regex Precision**: Pattern `\s` matches any whitespace (including newlines) - replaced with `[ \t]` for precise matching
+- **Heuristic Clarity**: Reason message for single-file heuristic now distinguishes from actual file overlap
+- All fixes implemented in single commit c8f0ffd
+- All 38 Pester tests pass
+- All 6 review threads resolved
+- CI: All required checks passing (31/32 complete, only CodeRabbit pending - not required)
+
+**Implementation Details**:
+
+1. **Early Return Fix** (lines 239-250):
+   - Added validation to distinguish empty diff from regex extraction failure
+   - Returns `UNKNOWN` category with warning when diff sections exist but no files extracted
+   - Prevents misclassification of binary files or malformed diffs
+
+2. **Regex Pattern Fix** (line 216):
+   - Changed from `'a/(.+?)\s+b/'` to `'(?m)^[ \t]*a/([^\r\n]+?)[ \t]+b/'`
+   - Prevents matching across newlines
+   - More defensive for edge cases (file paths with spaces, special characters)
+
+3. **Reason Message Fix** (lines 259-263):
+   - Conditional reason message: overlap-based vs heuristic-based
+   - Overlap >= 50%: "Partial file overlap (N of M files match original PR)"
+   - Heuristic trigger: "Single file change with original commits present (heuristic: likely addressing review feedback)"
+
+**Copilot Behavior**:
+
+- Identified critical bug that would cause silent failures
+- Provided precise edge case analysis (regex whitespace matching)
+- Caught semantic mismatch between test expectations and reason messages
+- 100% actionable rate continues
 
 ### PR #530 (2025-12-30)
 
@@ -243,12 +285,12 @@ $pr = $data.repository.pullRequest  # NO .data prefix needed
 
 | Metric | Value |
 |--------|-------|
-| Total PRs Processed | 7 |
-| Total Comments Triaged | 16 |
-| Total Comments Implemented | 14 |
-| Total Comments Resolved | 16 |
+| Total PRs Processed | 8 |
+| Total Comments Triaged | 19 |
+| Total Comments Implemented | 17 |
+| Total Comments Resolved | 19 |
 | Security Vulnerabilities Found | 4 |
-| Critical Workflow Bugs Found | 1 |
+| Critical Workflow Bugs Found | 2 |
 | Performance Improvements | 1 (88% faster reactions) |
 | Average Resolution Time | ~45 minutes |
 
