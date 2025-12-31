@@ -42,7 +42,7 @@ Identify ambiguities, technical debt risks, and misalignments BEFORE implementat
 2. **Validate alignment** with project objectives
 3. **Verify** value statements or decision contexts exist
 4. **Assess** scope, debt, and long-term integration impact
-5. **Create/update** critique documents with revision history
+5. **Create/update** critique documents
 
 ## Review Checklist
 
@@ -291,11 +291,6 @@ Save to: `.agents/critique/NNN-[document-name]-critique.md`
 | [Agent] | [Yes/No/Partial] | [Brief concern or N/A] |
 
 **Unanimous Agreement**: [Yes | No - requires escalation]
-
-## Revision History
-| Date | Reviewer | Changes |
-|------|----------|---------|
-| [Date] | Critic | Initial review |
 ```
 
 ## Handoff Options
