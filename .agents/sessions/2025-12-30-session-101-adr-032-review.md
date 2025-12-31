@@ -4,6 +4,23 @@
 **Branch**: docs/595-ears-format-template
 **Status**: COMPLETE
 
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [N/A] | ADR review session, no GitHub operations |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | Loaded adr-reference-index |
+| SHOULD | Verify git status | [x] | Clean |
+| SHOULD | Note starting commit | [x] | Parent of this branch |
+
 ## Objective
 
 Create ADR-032 documenting EARS requirements syntax adoption and conduct multi-agent debate review.
@@ -75,7 +92,7 @@ Added:
 | MUST | Complete session log (all sections filled) | [x] | File complete |
 | MUST | Update Serena memory (cross-session context) | [x] | Memory: adr-032-ears-adoption |
 | MUST | Run markdown lint | [x] | Lint output clean |
-| MUST | Route to qa agent (feature implementation) | [x] | Documentation only (ADR + debate log + memory); no code changes |
+| MUST | Route to qa agent (feature implementation) | [N/A] | Documentation only (ADR + debate log + memory); no code changes |
 | MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: (this commit) |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [N/A] | No plan updates needed |
