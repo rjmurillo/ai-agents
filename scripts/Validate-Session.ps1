@@ -323,16 +323,87 @@ function Is-DocsOnly([string[]]$Files) {
   return $true
 }
 
+# Investigation-only allowlist patterns (ADR-034)
+# Sessions that only modify these paths can skip QA with "SKIPPED: investigation-only"
+$script:InvestigationAllowlist = @(
+  '^\.agents/sessions/',
+  '^\.agents/analysis/',
+  '^\.agents/retrospective/',
+  '^\.serena/memories/',
+  '^\.agents/security/'
+)
+
+function Test-InvestigationOnlyEligibility([string[]]$Files) {
+  <#
+  .SYNOPSIS
+    Tests if all staged files are in the investigation-only allowlist.
+
+  .DESCRIPTION
+    Returns a hashtable with:
+    - IsEligible: $true if all files match allowlist patterns
+    - ImplementationFiles: array of files that don't match (empty if eligible)
+
+  .NOTES
+    Per ADR-034, investigation sessions that only produce analysis artifacts
+    can skip QA validation.
+  #>
+  $result = @{
+    IsEligible = $true
+    ImplementationFiles = @()
+  }
+
+  if (-not $Files -or $Files.Count -eq 0) {
+    # No files = no commit, pass
+    return $result
+  }
+
+  $implementationFiles = @()
+  foreach ($file in $Files) {
+    # Normalize path separators
+    $normalizedFile = $file -replace '\\', '/'
+
+    $isAllowed = $false
+    foreach ($pattern in $script:InvestigationAllowlist) {
+      if ($normalizedFile -match $pattern) {
+        $isAllowed = $true
+        break
+      }
+    }
+
+    if (-not $isAllowed) {
+      $implementationFiles += $file
+    }
+  }
+
+  if ($implementationFiles.Count -gt 0) {
+    $result.IsEligible = $false
+    $result.ImplementationFiles = $implementationFiles
+  }
+
+  return $result
+}
+
 $docsOnly = $false
+$investigationResult = @{ IsEligible = $false; ImplementationFiles = @() }
+
 if ($startingCommit -and $changedFiles.Count -gt 0) {
   $docsOnly = Is-DocsOnly $changedFiles
+  $investigationResult = Test-InvestigationOnlyEligibility $changedFiles
+} elseif ($PreCommit -and $changedFiles.Count -gt 0) {
+  # Pre-commit mode: check staged files
+  $docsOnly = Is-DocsOnly $changedFiles
+  $investigationResult = Test-InvestigationOnlyEligibility $changedFiles
 } else {
   # If we cannot prove docs-only, treat as NOT docs-only.
   $docsOnly = $false
+  $investigationResult = @{ IsEligible = $false; ImplementationFiles = @() }
 }
 
 $mustRows = $sessionRows | Where-Object { $_.Req -eq 'MUST' }
 if ($mustRows.Count -eq 0) { Fail 'E_NO_MUST_ROWS' "No MUST rows found in Session End checklist." }
+
+# Metrics: track QA skip types
+$script:QaSkipType = $null  # 'docs-only', 'investigation-only', or $null (QA required)
 
 foreach ($row in $mustRows) {
   $stepNorm = Normalize-Step $row.Step
@@ -344,9 +415,39 @@ foreach ($row in $mustRows) {
     continue
   }
 
-  # Special handling for QA row: can be skipped ONLY on docs-only sessions, but must be explicitly marked.
+  # Special handling for QA row: can be skipped ONLY on docs-only or investigation-only sessions.
   $isQaRow = $stepNorm -match 'Route to qa agent'
   if ($isQaRow) {
+    # Check if evidence claims investigation-only skip
+    $claimsInvestigationOnly = $row.Evidence -match '(?i)SKIPPED:\s*investigation-only'
+
+    if ($claimsInvestigationOnly) {
+      # Validate investigation-only claim
+      if ($row.Status -ne 'x') {
+        Fail 'E_QA_SKIP_NOT_MARKED' "Investigation-only session: QA may be skipped, but you MUST mark the QA row complete."
+      }
+      if (-not $investigationResult.IsEligible) {
+        # E_INVESTIGATION_HAS_IMPL: Staged files include non-investigation content
+        $implFiles = $investigationResult.ImplementationFiles -join ', '
+        Fail 'E_INVESTIGATION_HAS_IMPL' @"
+Investigation-only QA skip claimed but staged files include implementation:
+  $implFiles
+
+Investigation sessions may ONLY modify files in these directories:
+  - .agents/sessions/
+  - .agents/analysis/
+  - .agents/retrospective/
+  - .serena/memories/
+  - .agents/security/
+
+To fix: Either (1) move implementation to a new session, or (2) complete QA validation.
+"@
+      }
+      # Valid investigation-only skip
+      $script:QaSkipType = 'investigation-only'
+      continue
+    }
+
     if (-not $docsOnly) {
       if ($row.Status -ne 'x') { Fail 'E_QA_REQUIRED' "QA is required (non-doc changes detected). Check the QA row and include QA report path in Evidence." }
       if ($row.Evidence -notmatch '\.agents/qa/.*\.md') { Fail 'E_QA_EVIDENCE' "QA row checked but Evidence missing QA report path under .agents/qa/." }
@@ -357,6 +458,7 @@ foreach ($row in $mustRows) {
       # docs-only: require explicit SKIPPED evidence and the row checked to avoid silent skips
       if ($row.Status -ne 'x') { Fail 'E_QA_SKIP_NOT_MARKED' "Docs-only session: QA may be skipped, but you MUST mark the QA row complete and set Evidence to 'SKIPPED: docs-only'." }
       if ($row.Evidence -notmatch '(?i)SKIPPED:\s*docs-only') { Fail 'E_QA_SKIP_EVIDENCE' "Docs-only QA skip must be explicit. Evidence should include 'SKIPPED: docs-only'." }
+      $script:QaSkipType = 'docs-only'
     }
     continue
   }
@@ -425,4 +527,5 @@ Write-Output "  Session End: $($mustRows.Count) MUST requirements verified"
 Write-Output "  Session: $sessionRel"
 if ($startingCommit) { Write-Output "  StartingCommit: $startingCommit" }
 if (-not $PreCommit -and $sha) { Write-Output "  Commit: $sha" }
+if ($script:QaSkipType) { Write-Output "  QA Skip: $($script:QaSkipType)" }
 exit 0
