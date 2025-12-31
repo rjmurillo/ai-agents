@@ -622,6 +622,11 @@ function Update-IssueComment {
 
     .OUTPUTS
         Updated comment object.
+
+    .NOTES
+        Exit codes:
+        - 3: Generic API error
+        - 4: Permission denied (403) - includes actionable guidance
     #>
     [CmdletBinding()]
     [OutputType([PSCustomObject])]
@@ -649,6 +654,27 @@ function Update-IssueComment {
         $result = gh api "repos/$Owner/$Repo/issues/comments/$CommentId" -X PATCH --input $tempFile.FullName 2>&1
 
         if ($LASTEXITCODE -ne 0) {
+            $errorString = $result -join ' '
+
+            # Detect 403 permission errors (case-insensitive matching)
+            # Exit code 4 = Auth error (per ADR-035: includes not-authenticated AND permission-denied)
+            if ($errorString -imatch 'HTTP 403' -or $errorString -imatch 'status.*403' -or $errorString -match '403' -or $errorString -imatch 'Resource not accessible by integration' -or $errorString -imatch '\bforbidden\b') {
+                $guidance = @"
+PERMISSION DENIED (403): Cannot update comment $CommentId in $Owner/$Repo.
+
+LIKELY CAUSES:
+- GitHub Apps: Missing "issues": "write" permission in app manifest
+- Workflow GITHUB_TOKEN: Add 'permissions: issues: write' to workflow YAML
+- Fine-grained PAT: Enable 'Issues' repository permission (Read and Write)
+- Classic PAT: Requires 'repo' scope for private repos or 'public_repo' for public repos
+- Not the comment author: Only the comment author or repo admin can edit comments
+
+RAW ERROR: $errorString
+"@
+                Write-ErrorAndExit $guidance 4
+            }
+
+            # Generic API error
             Write-ErrorAndExit "Failed to update comment: $result" 3
         }
 
