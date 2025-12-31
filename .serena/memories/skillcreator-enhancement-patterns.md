@@ -49,3 +49,18 @@ Enhanced with:
 - References directory with copy-paste templates
 - PowerShell-only examples (ADR-005 compliant)
 - All 18 validation checks passing
+
+## GitHub Skill v3.0.0
+
+Enhanced in Session 106 with:
+- Frontmatter: version, model, license, metadata.domains
+- Triggers section with 4 activation phrases
+- Process Overview with 3-phase diagram
+- Verification Checklist (6 items)
+- Anti-Patterns table (7 skill-wide patterns)
+- Extension Points section
+- Troubleshooting section
+- Changelog section
+- All 18 validation checks passing
+
+**Note**: Generator bug in build/Generate-Skills.ps1 - manually maintain .skill files when extraction fails

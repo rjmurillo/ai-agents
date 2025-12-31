@@ -1,21 +1,24 @@
 ---
-name: "github"
+name: github
 description: |
   GitHub CLI operations for PRs, Issues, Labels, Milestones, Comments, and Reactions.
+  Unified skill with shared helpers for DRY code.
   Use when Claude needs to: (1) Get PR context, diff, or changed files, (2) Reply to
   PR review comments preserving threads, (3) Post idempotent issue comments, (4) Apply
   or create labels, (5) Assign milestones, (6) Add reactions to comments, (7) Close or
   merge PRs, (8) Resolve review threads, (9) Synthesize context for Copilot assignment,
   (10) Create new issues or PRs with validation.
   Do NOT use for: raw git operations, GitHub Actions workflow editing, repository settings.
-allowed-tools: "Bash(pwsh:*), Bash(gh api:*), Bash(gh pr:*), Bash(gh issue:*), Read, Write, Grep, Glob"
+allowed-tools: Bash(pwsh:*), Bash(gh api:*), Bash(gh pr:*), Bash(gh issue:*), Read, Write, Grep, Glob
 generated: true
-generated-from: ".claude/skills/github/SKILL.md"
+generated-from: .claude/skills/github/SKILL.md
 ---
+
 # GENERATED FILE
-# Source of truth: SKILL.md
-# Do not edit manually
-# Regenerate: pwsh ./scripts/gen-skills.ps1
+
+Source of truth: SKILL.md
+Do not edit manually
+Regenerate: pwsh build/Generate-Skills.ps1
 
 ## Decision Tree
 
@@ -93,17 +96,28 @@ Need GitHub data?
 ## Quick Examples
 
 ```powershell
-## Common Patterns
+# Get PR with changed files
+pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFiles
 
-### Owner/Repo Inference
+# Check CI status
+pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50
 
-All scripts auto-infer from `git remote` when `-Owner` and `-Repo` are omitted.
+# Check merge readiness (CI, threads, approvals)
+pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest 50
 
-### Idempotency with Markers
+# Reply to review thread and resolve it
+pwsh -NoProfile scripts/pr/Add-PRReviewThreadReply.ps1 -ThreadId "PRT_xxx" -Body "Fixed." -Resolve
 
-Use `-Marker` to prevent duplicate comments:
+# Enable auto-merge with squash
+pwsh -NoProfile scripts/pr/Set-PRAutoMerge.ps1 -PullRequest 50 -Enable -MergeMethod squash
 
-```powershell
+# Post idempotent comment
+pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "..." -Marker "AI-TRIAGE"
+
+# Batch reactions (88% faster)
+pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId @(123, 456) -Reaction "eyes"
+```
+
 ## Output Format
 
 All scripts output structured JSON with `Success` boolean:
@@ -115,8 +129,6 @@ if ($result.Success) { ... }
 
 ## See Also
 
+- `SKILL.md`: Complete documentation with all patterns and examples
 - `references/api-reference.md`: Exit codes, API endpoints, troubleshooting
-- `references/copilot-synthesis-guide.md`: Copilot context synthesis documentation
 - `modules/GitHubHelpers.psm1`: Shared helper functions
-- `.claude/agents/prompt-builder.md`: Agent for creating high-quality @copilot prompts
-- `.claude/skills/prompt-engineer/SKILL.md`: Skill for optimizing existing prompts
