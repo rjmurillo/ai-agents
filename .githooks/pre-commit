@@ -720,31 +720,35 @@ if [ -n "$STAGED_HANDOFF" ]; then
 fi
 
 #
-# Session End Validation (BLOCKING)
+# Session Protocol Validation (BLOCKING)
 #
-# Enforces Session Protocol compliance for agent sessions.
+# Enforces BOTH Session Start AND Session End protocol compliance.
+# This reconciles pre-commit validation with CI validation to prevent
+# PRs that pass pre-commit but fail CI's Session Protocol Validation.
+#
 # When .agents/ files are staged (indicating an agent session), requires:
 # - Session log staged under .agents/sessions/
-# - Validate-SessionEnd.ps1 PASS
+# - Session Start checklist complete (Serena init, HANDOFF read, skill list, etc.)
+# - Session End checklist complete (commit, QA, markdown lint, etc.)
 # - HANDOFF.md must NOT be staged (unless on main branch)
 #
 # Security: Fail-closed - if validation fails or cannot run, commit is blocked
 # Related: SESSION-PROTOCOL.md v1.4, Skill-Protocol-002, Skill-Validation-006
 #
-SESSION_END_SCRIPT="$REPO_ROOT/scripts/Validate-SessionEnd.ps1"
+SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-Session.ps1"
 
 # Check if any .agents/ files are staged (indicating an active session)
 STAGED_AGENTS_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/' || true)
 
 if [ -n "$STAGED_AGENTS_FILES" ]; then
-    echo_info "Checking Session End protocol compliance..."
+    echo_info "Checking Session Protocol compliance (Start + End)..."
 
     # MEDIUM-002: Reject symlinks for security
-    if [ -L "$SESSION_END_SCRIPT" ]; then
-        echo_error "Session End validation blocked: script path is a symlink"
+    if [ -L "$SESSION_VALIDATE_SCRIPT" ]; then
+        echo_error "Session Protocol validation blocked: script path is a symlink"
         EXIT_STATUS=1
-    elif [ ! -f "$SESSION_END_SCRIPT" ]; then
-        echo_error "Session End validation blocked: script not found at $SESSION_END_SCRIPT"
+    elif [ ! -f "$SESSION_VALIDATE_SCRIPT" ]; then
+        echo_error "Session Protocol validation blocked: script not found at $SESSION_VALIDATE_SCRIPT"
         EXIT_STATUS=1
     else
         # Require a staged session log
@@ -760,25 +764,34 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
         # Only run validation if session log is present
         if [ -n "$STAGED_SESSION_LOG" ]; then
             if command -v pwsh &> /dev/null; then
-                echo_info "Running Validate-SessionEnd.ps1..."
+                echo_info "Running Session Protocol validation..."
                 # SECURITY: Use -- separator and quote path to prevent injection
-                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_END_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
-                    echo_error "Session End validation FAILED."
+                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
+                    echo_error "Session Protocol validation FAILED."
                     echo_info "  Review errors above and fix session log."
-                    echo_info "  Run manually: pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
+                    echo_info ""
+                    echo_info "  REQUIRED FORMAT: Use the canonical TABLE format from SESSION-PROTOCOL.md"
+                    echo_info "    | Req | Step | Status | Evidence |"
+                    echo_info "    |-----|------|--------|----------|"
+                    echo_info "    | MUST | Initialize Serena... | [x] | Tool output present |"
+                    echo_info ""
+                    echo_info "  NOT ACCEPTED: Bullet-list format (- [x] item)"
+                    echo_info ""
+                    echo_info "  Copy the canonical checklist from: .agents/SESSION-PROTOCOL.md"
+                    echo_info "  Run manually: pwsh scripts/Validate-Session.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
                     EXIT_STATUS=1
                 else
-                    echo_success "Session End validation: PASS"
+                    echo_success "Session Protocol validation: PASS"
                 fi
             else
-                echo_error "Session End validation blocked: PowerShell not available."
+                echo_error "Session Protocol validation blocked: PowerShell not available."
                 echo_info "  Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
                 EXIT_STATUS=1
             fi
         fi
     fi
 else
-    echo_info "No .agents/ files staged. Skipping Session End validation."
+    echo_info "No .agents/ files staged. Skipping Session Protocol validation."
 fi
 
 #
