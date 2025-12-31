@@ -206,7 +206,8 @@ function Compare-DiffContent {
     # Count file changes in follow-up
     # Use multiline mode (?m) to make ^ match line-start, not just string-start
     # Addresses gemini-code-assist review comment (PR #503, comment ID 2651525060)
-    $followUpFiles = @($FollowUpDiff -split '(?m)^diff --git' | Where-Object { $_.Trim() } | Measure-Object).Count
+    # Bug fix (Issue #240): Remove @() wrapper - Measure-Object.Count, not array.Count
+    $followUpFiles = ($FollowUpDiff -split '(?m)^diff --git' | Where-Object { $_.Trim() } | Measure-Object).Count
 
     # If follow-up has 1 file and original also modified that file, likely duplicate
     if ($followUpFiles -eq 1 -and $OriginalCommits.Count -gt 0) {
