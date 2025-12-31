@@ -35,9 +35,9 @@ BeforeAll {
     Import-Module $Script:ModulePath -Force
 
     # Mock authentication functions to prevent script from exiting during tests
-    Mock -ModuleName GitHubHelpers Test-GhAuthenticated { return $true }
-    Mock -ModuleName GitHubHelpers Assert-GhAuthenticated { }
-    Mock -ModuleName GitHubHelpers Resolve-RepoParams {
+    Mock -ModuleName GitHubCore Test-GhAuthenticated { return $true }
+    Mock -ModuleName GitHubCore Assert-GhAuthenticated { }
+    Mock -ModuleName GitHubCore Resolve-RepoParams {
         return @{ Owner = 'testowner'; Repo = 'testrepo' }
     }
 
