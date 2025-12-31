@@ -266,7 +266,7 @@ Describe "Detect-CopilotFollowUpPR" {
             $result = Compare-DiffContent -FollowUpDiff $multiFileDiff -OriginalCommits @()
             $result.category | Should -Be 'POSSIBLE_SUPPLEMENTAL'
             $result.similarity | Should -Be 40
-            $result.reason | Should -Match 'Multiple file changes'
+            $result.reason | Should -Be 'Multiple file changes suggest additional work'
         }
 
         It "Returns LIKELY_DUPLICATE for multi-file with original commits due to regex limitation" {
