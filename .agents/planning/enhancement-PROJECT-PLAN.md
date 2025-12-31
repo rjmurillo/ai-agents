@@ -1,6 +1,6 @@
 # AI Agents Enhancement Project Plan
 
-> **Version**: 2.1
+> **Version**: 2.2
 > **Created**: 2025-12-17
 > **Updated**: 2025-12-31
 > **Repository**: rjmurillo/ai-agents
@@ -129,7 +129,7 @@ This plan consolidates work from:
 
 ---
 
-## Phase 1: Spec Layer (Requirements, Design, Tasks)
+## Phase 1: Spec Layer (Requirements, Design, Tasks) - COMPLETE
 
 **Goal**: Implement Kiro's 3-tier planning hierarchy with EARS format.
 
@@ -148,13 +148,13 @@ SO THAT [rationale/value]
 | ID | Task | Complexity | Status | Session | PR |
 |----|------|------------|--------|---------|-----|
 | S-001 | Create EARS format template in `.agents/governance/ears-format.md` | S | COMPLETE | - | #603 |
-| S-002 | Create `src/claude/spec-generator.md` agent prompt | L | PENDING | - | - |
+| S-002 | Create `src/claude/spec-generator.md` agent prompt | L | COMPLETE | - | #605 |
 | S-003 | Create YAML front matter schema for requirements | S | COMPLETE | - | #604 |
 | S-004 | Create YAML front matter schema for design | S | COMPLETE | - | #604 |
 | S-005 | Create YAML front matter schema for tasks | S | COMPLETE | - | #604 |
-| S-006 | Update orchestrator with spec workflow routing | M | PENDING | - | - |
-| S-007 | Create sample specs for existing feature (dogfood) | M | PENDING | - | - |
-| S-008 | Document spec workflow in AGENT-SYSTEM.md | S | PENDING | - | - |
+| S-006 | Update orchestrator with spec workflow routing | M | COMPLETE | - | #605 |
+| S-007 | Create sample specs for existing feature (dogfood) | M | COMPLETE | - | #605 |
+| S-008 | Document spec workflow in AGENT-SYSTEM.md | S | COMPLETE | - | #690 |
 
 ### YAML Schema Reference
 
@@ -174,10 +174,10 @@ updated: YYYY-MM-DD
 
 ### Acceptance Criteria
 
-- [ ] spec-generator agent produces valid EARS requirements
-- [ ] All spec files have YAML front matter
-- [ ] Orchestrator routes "create spec" requests correctly
-- [ ] Sample specs demonstrate complete workflow
+- [x] spec-generator agent produces valid EARS requirements
+- [x] All spec files have YAML front matter
+- [x] Orchestrator routes "create spec" requests correctly
+- [x] Sample specs demonstrate complete workflow
 
 ---
 
@@ -593,6 +593,7 @@ Project is complete when:
 |---------|------|-------|-------|--------|-----|
 | 1 | 2025-12-17 | 0 | F-001 to F-006 | COMPLETE | `.agents/sessions/2025-12-18-session-01-phase-0-foundation.md` |
 | 44 | 2025-12-20 | N/A | PROJECT-PLAN merge | COMPLETE | Current session |
+| 111+ | 2025-12-31 | 1 | S-001 to S-008 | COMPLETE | PRs #603, #604, #605, #690 |
 | 112 | 2025-12-31 | 1 | Epic #183 cleanup | COMPLETE | `.agents/sessions/2025-12-31-session-112-project-plan-evaluation.md` |
 | 113 | 2025-12-31 | 2 | T-001 to T-007 | COMPLETE | `.agents/sessions/2025-12-31-session-113-phase2-traceability.md` |
 
@@ -604,4 +605,5 @@ Project is complete when:
 |------|---------|---------|
 | 2025-12-17 | 1.0 | Initial project plan |
 | 2025-12-20 | 2.0 | Merged Epic #183 (claude-flow enhancements). Added Phase 2A (Memory), Phase 5A (Automation). Updated Phase 0,1,4 status. Integrated issues #167-#181 into phases. Added dependencies and success criteria for claude-flow metrics. |
-| 2025-12-31 | 2.1 | Marked Phase 1 and Phase 2 (Traceability) COMPLETE. Added PR references for T-001 to T-007. Updated acceptance criteria. |
+| 2025-12-31 | 2.1 | Marked Phase 1 (Spec Layer) COMPLETE. All tasks S-001 through S-008 delivered via PRs #603, #604, #605, #690. Reopened Epic #183 since child issues remain open. |
+| 2025-12-31 | 2.2 | Marked Phase 2 (Traceability) COMPLETE. Tasks T-001 to T-007 delivered via PR #715. Updated acceptance criteria. |

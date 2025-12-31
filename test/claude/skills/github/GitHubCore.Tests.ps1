@@ -398,3 +398,83 @@ Describe "Script Parameter Validation" {
         }
     }
 }
+
+Describe "Update-IssueComment 403 Error Handling" {
+
+    Context "403 Pattern Matching in Module" {
+        BeforeAll {
+            $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $ModulePath -Raw
+        }
+
+        It "Should have 403 detection pattern in Update-IssueComment" {
+            # Must detect 403 pattern with negative lookarounds
+            $content | Should -Match '403'
+        }
+
+        It "Should use case-insensitive matching for forbidden" {
+            # Must use -imatch for the combined pattern
+            $content | Should -Match '-imatch.*forbidden'
+        }
+
+        It "Should detect 'Resource not accessible by integration' message" {
+            # Must detect GitHub's specific error message
+            $content | Should -Match 'Resource not accessible by integration'
+        }
+
+        It "Should exit 4 for permission denied errors (per ADR-035)" {
+            # Permission denied uses exit code 4 (Auth error per ADR-035)
+            # This check validates the function calls Write-ErrorAndExit with code 4
+            $content | Should -Match 'Write-ErrorAndExit.*\$guidance\s+4'
+        }
+
+        It "Should exit 3 for generic API errors" {
+            # Generic API errors use exit code 3
+            $content | Should -Match 'Write-ErrorAndExit.*Failed to update comment.*3'
+        }
+
+        It "Should provide actionable guidance for common permission issues" {
+            # Must include guidance for common scenarios
+            $content | Should -Match '"issues".*"write"'
+            $content | Should -Match 'GITHUB_TOKEN'
+            $content | Should -Match 'Fine-grained PAT'
+        }
+
+        It "Should mention unique Update-specific guidance" {
+            # Update-IssueComment has unique constraint: must be comment author
+            $content | Should -Match 'Not the comment author'
+        }
+
+        It "Should use negative lookarounds for 403 pattern to prevent false positives" {
+            # Pattern should use (?<!\d)403(?!\d) to avoid matching IDs like ID403
+            # Note: Regex escaping - matching literal (?<!\d) in source code
+            $content | Should -Match '\(\?\<!\\d\)403\(\?\!\\d\)'
+        }
+    }
+
+    Context "403 Error Detection Behavioral Tests" {
+        # Test the 403 pattern matching logic directly with the improved regex
+
+        It "Should detect 403 status code in various error formats" -ForEach @(
+            @{ ErrorMsg = "HTTP 403: Forbidden"; ShouldMatch = $true; Description = "HTTP 403 format" }
+            @{ ErrorMsg = "status: 403"; ShouldMatch = $true; Description = "status 403 format" }
+            @{ ErrorMsg = "gh: Resource not accessible by integration (HTTP 403)"; ShouldMatch = $true; Description = "GitHub specific message" }
+            @{ ErrorMsg = "403 Forbidden"; ShouldMatch = $true; Description = "Simple 403" }
+            @{ ErrorMsg = "FORBIDDEN"; ShouldMatch = $true; Description = "Uppercase FORBIDDEN" }
+            @{ ErrorMsg = "Forbidden"; ShouldMatch = $true; Description = "Title case Forbidden" }
+            @{ ErrorMsg = "Error code: 403"; ShouldMatch = $true; Description = "Error code format" }
+            @{ ErrorMsg = "HTTP 401: Not authenticated"; ShouldMatch = $false; Description = "401 should not match" }
+            @{ ErrorMsg = "HTTP 500: Internal Server Error"; ShouldMatch = $false; Description = "500 should not match" }
+            @{ ErrorMsg = "Connection refused"; ShouldMatch = $false; Description = "Network error should not match" }
+            @{ ErrorMsg = "Comment ID 4030 not found"; ShouldMatch = $false; Description = "ID containing 403 should not match" }
+            @{ ErrorMsg = "Reference 1403245 is invalid"; ShouldMatch = $false; Description = "Number containing 403 should not match" }
+        ) {
+            $errorString = $ErrorMsg
+
+            # Apply the same pattern from the module (with negative lookarounds)
+            $is403 = $errorString -imatch '((?<!\d)403(?!\d)|\bforbidden\b|Resource not accessible by integration)'
+
+            $is403 | Should -Be $ShouldMatch -Because $Description
+        }
+    }
+}
