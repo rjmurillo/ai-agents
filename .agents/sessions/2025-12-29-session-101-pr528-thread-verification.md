@@ -6,6 +6,41 @@
 **Branch**: feat/97-review-thread-management
 **PR**: #528 - fix(security): Remove external file references from agent templates
 
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented below |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | pr-comment-responder-skills loaded |
+| SHOULD | Verify git status | [x] | Output documented below |
+| SHOULD | Note starting commit | [x] | SHA documented below |
+
+### Skill Inventory
+
+Available GitHub skills:
+
+- Get-UnresolvedReviewThreads.ps1
+- Get-PRReviewThreads.ps1
+- Get-PRChecks.ps1
+
+### Git State
+
+- **Status**: clean
+- **Branch**: feat/97-review-thread-management
+- **Starting Commit**: bb006de
+
+### Work Blocked Until
+
+All MUST requirements above are marked complete.
+
 ---
 
 ## Session Goal
@@ -63,13 +98,16 @@ All review threads for PR #528 are confirmed resolved. The PR is blocked on merg
 
 ---
 
-## Session End Checklist
+## Session End (COMPLETE ALL before closing)
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| Session log complete | ✅ | All sections filled |
-| Serena memory updated | ✅ | No updates needed - verification task only |
-| Markdown linting | ✅ | npx markdownlint-cli2 - 0 errors |
-| QA routing | N/A | Verification task only |
-| Commit with changes | ✅ | Session log committed |
-| HANDOFF.md unchanged | ✅ | Read-only reference not modified |
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | No updates needed - verification task only |
+| MUST | Run markdown lint | [x] | npx markdownlint-cli2 - 0 errors |
+| MUST | Route to qa agent (feature implementation) | [N/A] | Verification task only - no code changes |
+| MUST | Commit all changes (including .serena/memories) | [x] | Session log committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | Read-only reference not modified |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Trivial verification session |
+| SHOULD | Verify clean git status | [x] | Clean |

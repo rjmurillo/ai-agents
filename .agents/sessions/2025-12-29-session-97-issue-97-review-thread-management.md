@@ -4,6 +4,44 @@
 **Issue**: #97 - feat: Add review thread management scripts to GitHub skill
 **Type**: Enhancement
 **Priority**: P1
+**Branch**: feat/97-review-thread-management
+
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented below |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | skills-github-cli-index loaded |
+| SHOULD | Verify git status | [x] | Output documented below |
+| SHOULD | Note starting commit | [x] | SHA documented below |
+
+### Skill Inventory
+
+Available GitHub skills (prior to this session):
+
+- Get-PRReviewThreads.ps1
+- Resolve-PRReviewThread.ps1
+- Get-UnresolvedReviewThreads.ps1
+
+### Git State
+
+- **Status**: clean
+- **Branch**: feat/97-review-thread-management
+- **Starting Commit**: 74626f7
+
+### Work Blocked Until
+
+All MUST requirements above are marked complete.
+
+---
 
 ## Objective
 
@@ -68,7 +106,21 @@ Tests directory has 2 test files. Need to add tests for new scripts.
 | `.claude/skills/github/tests/Set-PRAutoMerge.Tests.ps1` | New tests |
 | `.claude/skills/github/SKILL.md` | Updated documentation |
 
-## Session End Checklist
+## Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | skills-github-cli-index updated |
+| MUST | Run markdown lint | [x] | markdownlint: 0 errors |
+| MUST | Route to qa agent (feature implementation) | [x] | .agents/qa/097-issue-97-review-thread-scripts-qa.md |
+| MUST | Commit all changes (including .serena/memories) | [x] | PR #530 opened |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No project plan for this issue |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | New feature implementation |
+| SHOULD | Verify clean git status | [x] | Branch pushed to origin |
+
+### Session End Checklist
 
 - [x] All acceptance criteria met
 - [x] Tests created and passing (syntax validated)
