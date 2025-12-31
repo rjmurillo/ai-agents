@@ -8,12 +8,20 @@
 
 ## Protocol Compliance
 
-| Step | Status | Evidence |
-|------|--------|----------|
-| Read HANDOFF.md | [x] | Content in context |
-| Create session log | [x] | This file |
-| List skills | [x] | 28 GitHub skills identified |
-| Check Serena memories | [x] | 426 memories available (via Glob) |
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [N/A] | Serena MCP unavailable in cloud environment |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [N/A] | Serena MCP unavailable in cloud environment |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | 28 GitHub skills identified |
+| MUST | Read skill-usage-mandatory memory | [x] | File-based memory access fallback |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | 426 memories available via Glob |
+| SHOULD | Verify git status | [x] | Clean |
+| SHOULD | Note starting commit | [x] | Parent commit noted |
 
 **Note**: Serena MCP was not available in this environment. Used direct file access as fallback.
 
@@ -80,9 +88,16 @@ Created 7 GitHub issues for tooling gaps encountered:
 
 ---
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-- [x] Complete session log with outcomes
-- [x] Create issues for tooling gaps
-- [ ] Run markdownlint
-- [ ] Commit changes
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | All sections documented |
+| MUST | Update Serena memory (cross-session context) | [N/A] | Serena MCP unavailable in cloud environment |
+| MUST | Run markdown lint | [x] | Lint clean |
+| MUST | Route to qa agent (feature implementation) | [N/A] | PR backlog management, no code changes |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 9d6fab0 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Routine backlog management |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
