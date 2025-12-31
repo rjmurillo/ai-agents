@@ -91,6 +91,57 @@ Git handles versioning; redundant metadata creates:
 
 Reference: Issue #280, Issue #272
 
+## Canonical Source Principle
+
+Documentation MUST follow the single source of truth pattern to prevent drift, duplication, and contradictions.
+
+### What Makes a Document Canonical
+
+A canonical document:
+
+1. **Declares its status**: Contains `> **Status**: Canonical Source of Truth` header
+2. **Owns its domain**: Is the single authoritative reference for a specific topic
+3. **Is referenced, not copied**: Other documents MUST link to it rather than duplicate content
+4. **Uses RFC 2119 language**: MAY/SHOULD/MUST keywords indicate requirement levels
+
+### How to Reference Canonical Sources
+
+| Do | Don't |
+|----|-------|
+| Link to canonical source: "See [SESSION-PROTOCOL.md]" | Copy content from canonical source |
+| Reference specific sections: "Per SESSION-PROTOCOL.md §Session Start" | Paraphrase canonical content |
+| Use "See: X" or "Reference: X" patterns | Create summaries that can drift |
+
+**Exception**: CLAUDE.md and AGENTS.md MAY include minimal excerpts for quick reference, but MUST include links to full canonical source.
+
+### Current Canonical Sources
+
+Documents with formal `> **Status**: Canonical Source of Truth` marker:
+
+| Document | Scope | Location |
+|----------|-------|----------|
+| SESSION-PROTOCOL.md | Session start/end requirements, validation | `.agents/SESSION-PROTOCOL.md` |
+| PROJECT-CONSTRAINTS.md | Hard constraints, language restrictions | `.agents/governance/PROJECT-CONSTRAINTS.md` |
+
+De-facto authoritative sources (scope-specific, widely referenced):
+
+| Document | Scope | Location |
+|----------|-------|----------|
+| AGENT-SYSTEM.md | Agent catalog, routing heuristics | `.agents/AGENT-SYSTEM.md` |
+| ADR-* | Architecture decisions for specific topics | `.agents/architecture/ADR-*.md` |
+| usage-mandatory.md | Skill usage requirements | `.serena/memories/usage-mandatory.md` |
+
+### Creating New Canonical Sources
+
+Before creating a new canonical source:
+
+1. Verify no existing canonical source covers the topic
+2. Define clear scope boundaries
+3. Add `> **Status**: Canonical Source of Truth` header
+4. Update this list if the source is broadly applicable
+
+Reference: Issue #675
+
 ## Agent File Conventions
 
 Agent files define:
