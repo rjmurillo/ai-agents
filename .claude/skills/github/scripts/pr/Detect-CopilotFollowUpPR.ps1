@@ -211,7 +211,9 @@ function Compare-DiffContent {
     $followUpFiles = @()
     foreach ($section in $diffSections) {
         # Extract file path from "a/path/to/file b/path/to/file" pattern
-        if ($section -match 'a/(.+?)\s+b/') {
+        # Use precise whitespace pattern (space/tab only) to avoid matching across newlines
+        # Addresses Copilot review comment (PR #543, comment ID 2654872682)
+        if ($section -match '(?m)^[ \t]*a/([^\r\n]+?)[ \t]+b/') {
             $followUpFiles += $matches[1]
         }
     }
@@ -235,7 +237,15 @@ function Compare-DiffContent {
     }
 
     # Determine category based on overlap analysis
+    # Distinguish between truly empty diff (handled above) and regex extraction failure
+    # Addresses Copilot review comment (PR #543, comment ID 2654872685)
     if ($followUpFiles.Count -eq 0) {
+        # If we have diff sections but no files extracted, regex failed (binary files, malformed diff, etc.)
+        if ($diffSections.Count -gt 0) {
+            Write-Warning "Diff contains $($diffSections.Count) section(s) but file extraction failed. Possible binary files or malformed diff."
+            return @{similarity = 0; category = 'UNKNOWN'; reason = "File extraction failed from diff ($($diffSections.Count) sections, 0 files extracted)" }
+        }
+        # Otherwise, truly no file changes (though this should have been caught by Test-EmptyDiff above)
         return @{similarity = 100; category = 'DUPLICATE'; reason = 'No file changes detected in follow-up diff' }
     }
 
@@ -244,7 +254,14 @@ function Compare-DiffContent {
     }
 
     if ($overlapPercentage -ge 50 -or ($followUpFiles.Count -eq 1 -and $OriginalCommits.Count -gt 0)) {
-        return @{similarity = [math]::Max(85, $overlapPercentage); category = 'LIKELY_DUPLICATE'; reason = "Partial file overlap ($overlapCount of $($followUpFiles.Count) files match original PR)" }
+        # Use different reason message for heuristic vs actual overlap
+        # Addresses Copilot review comment (PR #543, comment ID 2654872678)
+        $reason = if ($overlapPercentage -ge 50) {
+            "Partial file overlap ($overlapCount of $($followUpFiles.Count) files match original PR)"
+        } else {
+            "Single file change with original commits present (heuristic: likely addressing review feedback)"
+        }
+        return @{similarity = [math]::Max(85, $overlapPercentage); category = 'LIKELY_DUPLICATE'; reason = $reason }
     }
 
     if ($overlapPercentage -gt 0) {

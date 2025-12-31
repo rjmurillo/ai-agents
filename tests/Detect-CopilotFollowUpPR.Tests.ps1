@@ -261,9 +261,11 @@ Describe "Detect-CopilotFollowUpPR" {
             $originalCommits = @(@{ sha = 'abc123'; changedFiles = @('other.ps1') })
 
             $result = Compare-DiffContent -FollowUpDiff $singleFileDiff -OriginalCommits $originalCommits
-            # Single file with original commits present triggers LIKELY_DUPLICATE
+            # Single file with original commits present triggers LIKELY_DUPLICATE (heuristic)
+            # Addresses Copilot review comment (PR #543, comment ID 2654872678)
             $result.category | Should -Be 'LIKELY_DUPLICATE'
             $result.similarity | Should -Be 85
+            $result.reason | Should -Match 'Single file change with original commits present'
         }
 
         It "Returns INDEPENDENT for single file without original commits" {
