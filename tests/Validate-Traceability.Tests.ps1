@@ -11,14 +11,15 @@
 #>
 
 BeforeAll {
-    $scriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Traceability.ps1"
+    $script:scriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Traceability.ps1"
 
     # Create temp directory for test data
-    $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "validate-traceability-tests-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
-    New-Item -Path $testRoot -ItemType Directory -Force | Out-Null
+    $script:testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "validate-traceability-tests-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
+    New-Item -Path $script:testRoot -ItemType Directory -Force | Out-Null
 
     # Helper to create test spec structure
-    function New-TestSpecStructure {
+    # Using Initialize- verb instead of New- to avoid PSUseShouldProcessForStateChangingFunctions
+    function Initialize-TestSpecStructure {
         param(
             [string]$BasePath,
             [hashtable]$Requirements,
@@ -53,44 +54,36 @@ BeforeAll {
             $Tasks[$file] | Set-Content -Path $filePath -Encoding UTF8
         }
     }
-
-    # Helper to clean up test directory
-    function Remove-TestSpecStructure {
-        param([string]$BasePath)
-        if (Test-Path $BasePath) {
-            Remove-Item -Path $BasePath -Recurse -Force -ErrorAction SilentlyContinue
-        }
-    }
 }
 
 AfterAll {
     # Clean up test root
-    if (Test-Path $testRoot) {
-        Remove-Item -Path $testRoot -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path $script:testRoot) {
+        Remove-Item -Path $script:testRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
 Describe "Validate-Traceability" {
     BeforeEach {
         # Create fresh test directory for each test
-        $testSpecsPath = Join-Path $testRoot "specs-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
-        New-Item -Path $testSpecsPath -ItemType Directory -Force | Out-Null
+        $script:testSpecsPath = Join-Path $script:testRoot "specs-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
+        New-Item -Path $script:testSpecsPath -ItemType Directory -Force | Out-Null
     }
 
     AfterEach {
         # Clean up test directory
-        if (Test-Path $testSpecsPath) {
-            Remove-Item -Path $testSpecsPath -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path $script:testSpecsPath) {
+            Remove-Item -Path $script:testSpecsPath -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 
     Context "When specs path does not exist" {
         It "Exits gracefully with non-existent path" {
-            { & $scriptPath -SpecsPath "/non/existent/path" -Format "json" } | Should -Not -Throw
+            { & $script:scriptPath -SpecsPath "/non/existent/path" -Format "json" } | Should -Not -Throw
         }
 
         It "Returns exit code 1 for non-existent path" {
-            & $scriptPath -SpecsPath "/non/existent/path" 2>&1 | Out-Null
+            & $script:scriptPath -SpecsPath "/non/existent/path" 2>&1 | Out-Null
             $LASTEXITCODE | Should -Be 1
         }
     }
@@ -98,18 +91,18 @@ Describe "Validate-Traceability" {
     Context "When no spec files exist" {
         It "Reports zero specs found" {
             # Create empty structure
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements @{} -Designs @{} -Tasks @{}
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements @{} -Designs @{} -Tasks @{}
 
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.stats.requirements | Should -Be 0
             $result.stats.designs | Should -Be 0
             $result.stats.tasks | Should -Be 0
         }
 
         It "Passes validation with no specs" {
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements @{} -Designs @{} -Tasks @{}
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements @{} -Designs @{} -Tasks @{}
 
-            & $scriptPath -SpecsPath $testSpecsPath 2>&1 | Out-Null
+            & $script:scriptPath -SpecsPath $script:testSpecsPath 2>&1 | Out-Null
             $LASTEXITCODE | Should -Be 0
         }
     }
@@ -153,33 +146,33 @@ related:
 # TASK-001: Implement Feature
 "@
             }
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Finds all spec files" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.stats.requirements | Should -Be 1
             $result.stats.designs | Should -Be 1
             $result.stats.tasks | Should -Be 1
         }
 
         It "Reports valid chain" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.stats.validChains | Should -Be 1
         }
 
         It "Reports no errors" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.errors.Count | Should -Be 0
         }
 
         It "Reports no warnings" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.warnings.Count | Should -Be 0
         }
 
         It "Passes validation" {
-            & $scriptPath -SpecsPath $testSpecsPath 2>&1 | Out-Null
+            & $script:scriptPath -SpecsPath $script:testSpecsPath 2>&1 | Out-Null
             $LASTEXITCODE | Should -Be 0
         }
     }
@@ -200,28 +193,28 @@ related:
 # TASK-001: References non-existent design
 "@
             }
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Detects broken reference" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             # Expect 1 error for broken reference
             ($result.errors | Where-Object { $_.target -eq "DESIGN-999" }).Count | Should -Be 1
         }
 
         It "Reports Rule 4 violation" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.errors[0].rule | Should -Match "Rule 4"
         }
 
         It "Identifies source and target" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.errors[0].source | Should -Be "TASK-001"
             $result.errors[0].target | Should -Be "DESIGN-999"
         }
 
         It "Returns exit code 1" {
-            & $scriptPath -SpecsPath $testSpecsPath 2>&1 | Out-Null
+            & $script:scriptPath -SpecsPath $script:testSpecsPath 2>&1 | Out-Null
             $LASTEXITCODE | Should -Be 1
         }
     }
@@ -241,21 +234,21 @@ related: []
 # TASK-001: Untraced task
 "@
             }
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Detects untraced task" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.errors.Count | Should -Be 1
         }
 
         It "Reports Rule 2 violation" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.errors[0].rule | Should -Match "Rule 2"
         }
 
         It "Returns exit code 1" {
-            & $scriptPath -SpecsPath $testSpecsPath 2>&1 | Out-Null
+            & $script:scriptPath -SpecsPath $script:testSpecsPath 2>&1 | Out-Null
             $LASTEXITCODE | Should -Be 1
         }
     }
@@ -275,26 +268,26 @@ related: []
             }
             $designs = @{}
             $tasks = @{}
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Detects orphaned requirement" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.warnings.Count | Should -Be 1
         }
 
         It "Reports Rule 1 violation" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.warnings[0].rule | Should -Match "Rule 1"
         }
 
         It "Returns exit code 0 without -Strict" {
-            & $scriptPath -SpecsPath $testSpecsPath 2>&1 | Out-Null
+            & $script:scriptPath -SpecsPath $script:testSpecsPath 2>&1 | Out-Null
             $LASTEXITCODE | Should -Be 0
         }
 
         It "Returns exit code 2 with -Strict" {
-            & $scriptPath -SpecsPath $testSpecsPath -Strict 2>&1 | Out-Null
+            & $script:scriptPath -SpecsPath $script:testSpecsPath -Strict 2>&1 | Out-Null
             $LASTEXITCODE | Should -Be 2
         }
     }
@@ -325,17 +318,17 @@ related:
 "@
             }
             $tasks = @{}
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Detects orphaned design" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             # Should have warning for design with no tasks
             ($result.warnings | Where-Object { $_.source -eq "DESIGN-001" -and $_.rule -match "Rule 3" }) | Should -Not -BeNullOrEmpty
         }
 
         It "Reports valid chains as 0" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.stats.validChains | Should -Be 0
         }
     }
@@ -366,11 +359,11 @@ related:
 # TASK-001
 "@
             }
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Detects design missing REQ reference" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             ($result.warnings | Where-Object { $_.source -eq "DESIGN-001" -and $_.message -match "no REQ reference" }) | Should -Not -BeNullOrEmpty
         }
     }
@@ -413,27 +406,27 @@ related:
 # TASK-001
 "@
             }
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Outputs valid JSON with -Format json" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json"
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json"
             { $result | ConvertFrom-Json } | Should -Not -Throw
         }
 
         It "Outputs markdown with -Format markdown" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "markdown"
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "markdown"
             $result | Should -Match "# Traceability Validation Report"
         }
 
         It "Includes summary table in markdown output" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "markdown"
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "markdown"
             $result | Should -Match "\| Metric \| Count \|"
         }
 
         It "Produces console output with -Format console" {
             # Console output goes to host, not return value - just verify no throw
-            { & $scriptPath -SpecsPath $testSpecsPath -Format "console" } | Should -Not -Throw
+            { & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "console" } | Should -Not -Throw
         }
     }
 
@@ -496,23 +489,23 @@ related:
 # TASK-002
 "@
             }
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Finds all specs" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.stats.requirements | Should -Be 2
             $result.stats.designs | Should -Be 1
             $result.stats.tasks | Should -Be 2
         }
 
         It "Reports valid chain" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.stats.validChains | Should -Be 1
         }
 
         It "Reports no errors or warnings" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.errors.Count | Should -Be 0
             $result.warnings.Count | Should -Be 0
         }
@@ -545,16 +538,16 @@ related:
 # TASK-001
 "@
             }
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Detects broken reference from design" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             ($result.errors | Where-Object { $_.source -eq "DESIGN-001" -and $_.target -eq "REQ-999" }) | Should -Not -BeNullOrEmpty
         }
 
         It "Reports Rule 4 violation" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             ($result.errors | Where-Object { $_.rule -match "Rule 4" }) | Should -Not -BeNullOrEmpty
         }
     }
@@ -573,15 +566,15 @@ status: approved
             }
             $designs = @{}
             $tasks = @{}
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Handles malformed YAML gracefully" {
-            { & $scriptPath -SpecsPath $testSpecsPath -Format "json" } | Should -Not -Throw
+            { & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" } | Should -Not -Throw
         }
 
         It "Does not crash on parse errors" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             # Malformed file might not be parsed, so count could be 0
             $result.stats.requirements | Should -BeIn @(0, 1)
         }
@@ -598,15 +591,15 @@ This requirement has no YAML front matter at all.
             }
             $designs = @{}
             $tasks = @{}
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Handles missing front matter gracefully" {
-            { & $scriptPath -SpecsPath $testSpecsPath -Format "json" } | Should -Not -Throw
+            { & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" } | Should -Not -Throw
         }
 
         It "Does not count file without front matter" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.stats.requirements | Should -Be 0
         }
     }
@@ -649,21 +642,21 @@ related:
 # TASK-001: Status is complete but design is draft
 "@
             }
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Detects status inconsistency" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.info.Count | Should -BeGreaterThan 0
         }
 
         It "Reports Rule 5 in info" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             ($result.info | Where-Object { $_.rule -match "Rule 5" }) | Should -Not -BeNullOrEmpty
         }
 
         It "Does not fail validation for status inconsistency" {
-            & $scriptPath -SpecsPath $testSpecsPath 2>&1 | Out-Null
+            & $script:scriptPath -SpecsPath $script:testSpecsPath 2>&1 | Out-Null
             $LASTEXITCODE | Should -Be 0
         }
     }
@@ -671,20 +664,18 @@ related:
 
 Describe "Edge Cases" {
     BeforeEach {
-        $testSpecsPath = Join-Path $testRoot "edge-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
-        New-Item -Path $testSpecsPath -ItemType Directory -Force | Out-Null
+        $script:testSpecsPath = Join-Path $script:testRoot "edge-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
+        New-Item -Path $script:testSpecsPath -ItemType Directory -Force | Out-Null
     }
 
     AfterEach {
-        if (Test-Path $testSpecsPath) {
-            Remove-Item -Path $testSpecsPath -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path $script:testSpecsPath) {
+            Remove-Item -Path $script:testSpecsPath -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 
     Context "When related field is missing entirely" {
         BeforeEach {
-            $requirements = @{}
-            $designs = @{}
             $tasks = @{
                 "TASK-001-norelated.md" = @"
 ---
@@ -695,11 +686,11 @@ status: pending
 # TASK-001: No related field
 "@
             }
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements @{} -Designs @{} -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements @{} -Designs @{} -Tasks $tasks
         }
 
         It "Treats missing related as empty" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             # Should be treated as untraced task
             ($result.errors | Where-Object { $_.rule -match "Rule 2" }) | Should -Not -BeNullOrEmpty
         }
@@ -718,14 +709,12 @@ related: []
 # REQ-ABC: Non-numeric ID
 "@
             }
-            $designs = @{}
-            $tasks = @{}
             # Note: File pattern REQ-*.md won't match REQ-ABC unless we use different matching
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs @{} -Tasks @{}
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs @{} -Tasks @{}
         }
 
         It "Handles non-numeric IDs" {
-            { & $scriptPath -SpecsPath $testSpecsPath -Format "json" } | Should -Not -Throw
+            { & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" } | Should -Not -Throw
         }
     }
 
@@ -788,16 +777,16 @@ related:
 # TASK-002
 "@
             }
-            New-TestSpecStructure -BasePath $testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
+            Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs $designs -Tasks $tasks
         }
 
         It "Counts multiple valid chains" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.stats.validChains | Should -Be 2
         }
 
         It "Reports no errors for valid multi-chain" {
-            $result = & $scriptPath -SpecsPath $testSpecsPath -Format "json" | ConvertFrom-Json
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
             $result.errors.Count | Should -Be 0
         }
     }
