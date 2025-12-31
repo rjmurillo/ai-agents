@@ -66,13 +66,26 @@ if ($Clear) {
     if (-not $currentMilestone) {
         Write-Host "Issue #$Issue has no milestone to clear." -ForegroundColor Yellow
         $output.Success = $true; $output.Action = 'no_change'
-        Write-Output $output; exit 0
+        Write-Output $output
+        if ($env:GITHUB_OUTPUT) {
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "action=no_change"
+        }
+        exit 0
     }
     $null = gh api "repos/$Owner/$Repo/issues/$Issue" -X PATCH -f milestone= 2>&1
     if ($LASTEXITCODE -ne 0) { Write-ErrorAndExit "Failed to clear milestone" 3 }
     Write-Host "Cleared milestone from issue #$Issue" -ForegroundColor Green
     $output.Success = $true; $output.Action = 'cleared'
-    Write-Output $output; exit 0
+    Write-Output $output
+    if ($env:GITHUB_OUTPUT) {
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "action=cleared"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "previous_milestone=$currentMilestone"
+    }
+    exit 0
 }
 
 # Check milestone exists
@@ -85,7 +98,14 @@ if ($LASTEXITCODE -ne 0 -or $milestones -notcontains $Milestone) {
 if ($currentMilestone -eq $Milestone) {
     Write-Host "Issue #$Issue already has milestone '$Milestone'." -ForegroundColor Yellow
     $output.Success = $true; $output.Milestone = $Milestone; $output.Action = 'no_change'
-    Write-Output $output; exit 0
+    Write-Output $output
+    if ($env:GITHUB_OUTPUT) {
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "milestone=$Milestone"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "action=no_change"
+    }
+    exit 0
 }
 
 if ($currentMilestone -and -not $Force) {
@@ -100,3 +120,12 @@ $action = if ($currentMilestone) { 'replaced' } else { 'assigned' }
 Write-Host "Set milestone '$Milestone' on issue #$Issue" -ForegroundColor Green
 $output.Success = $true; $output.Milestone = $Milestone; $output.Action = $action
 Write-Output $output
+if ($env:GITHUB_OUTPUT) {
+    Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
+    Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
+    Add-Content -Path $env:GITHUB_OUTPUT -Value "milestone=$Milestone"
+    Add-Content -Path $env:GITHUB_OUTPUT -Value "action=$action"
+    if ($currentMilestone) {
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "previous_milestone=$currentMilestone"
+    }
+}
