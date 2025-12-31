@@ -14,7 +14,7 @@
 
 BeforeAll {
     $script:ScriptPath = Join-Path $PSScriptRoot "Test-RateLimitForWorkflow.ps1"
-    $script:ModulePath = Join-Path $PSScriptRoot ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+    $script:ModulePath = Join-Path $PSScriptRoot ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 }
 
 Describe "Test-RateLimitForWorkflow.ps1" {
@@ -33,7 +33,7 @@ Describe "Test-RateLimitForWorkflow.ps1" {
             $errors.Count | Should -Be 0
         }
 
-        It "GitHubHelpers module exists" {
+        It "GitHubCore module exists" {
             Test-Path $script:ModulePath | Should -Be $true
         }
     }
@@ -63,7 +63,7 @@ Describe "Test-RateLimitForWorkflow.ps1" {
         }
 
         AfterAll {
-            Remove-Module GitHubHelpers -Force -ErrorAction SilentlyContinue
+            Remove-Module GitHubCore -Force -ErrorAction SilentlyContinue
         }
     }
 
