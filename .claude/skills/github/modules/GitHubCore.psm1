@@ -33,6 +33,7 @@ Error Handling (line ~260)
 
 API Helpers (line ~320)
   - Invoke-GhApiPaginated    Fetch all pages from API
+  - Invoke-GhGraphQL         Execute GraphQL queries/mutations
 
 Issue Comments (line ~380)
   - Get-IssueComments        Fetch all comments for an issue
@@ -416,6 +417,91 @@ function Invoke-GhApiPaginated {
     } while ($items.Count -eq $PageSize)
 
     return @($allItems)
+}
+
+function Invoke-GhGraphQL {
+    <#
+    .SYNOPSIS
+        Executes a GitHub GraphQL query or mutation.
+
+    .DESCRIPTION
+        Wrapper around gh api graphql that provides consistent error handling
+        and response parsing. Supports query variables for safe parameterization.
+
+    .PARAMETER Query
+        The GraphQL query or mutation string.
+
+    .PARAMETER Variables
+        Hashtable of variables to pass to the query.
+        String values use -f, Integer values use -F.
+
+    .OUTPUTS
+        Parsed JSON response data, or throws on error.
+
+    .EXAMPLE
+        $result = Invoke-GhGraphQL -Query 'query { viewer { login } }'
+        $result.viewer.login
+
+    .EXAMPLE
+        $query = 'query($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { name } }'
+        $vars = @{ owner = "rjmurillo"; repo = "ai-agents" }
+        $result = Invoke-GhGraphQL -Query $query -Variables $vars
+
+    .NOTES
+        Uses GraphQL variables to prevent injection attacks (ADR-015 compliant).
+    #>
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Query,
+
+        [Parameter()]
+        [hashtable]$Variables = @{}
+    )
+
+    # Build gh api graphql command arguments
+    $ghArgs = @('api', 'graphql', '-f', "query=$Query")
+
+    # Add variables with appropriate flag based on type
+    foreach ($key in $Variables.Keys) {
+        $value = $Variables[$key]
+        if ($value -is [int] -or $value -is [long] -or $value -is [bool]) {
+            # Use -F for non-string values
+            $ghArgs += @('-F', "${key}=$value")
+        }
+        else {
+            # Use -f for string values
+            $ghArgs += @('-f', "${key}=$value")
+        }
+    }
+
+    Write-Verbose "Executing GraphQL query with $($Variables.Count) variables"
+
+    $result = & gh @ghArgs 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        # Extract error message for better diagnostics
+        $errorMsg = $result -join ' '
+        if ($errorMsg -match '"message"\s*:\s*"([^"]+)"') {
+            $errorMsg = $Matches[1]
+        }
+        throw "GraphQL request failed: $errorMsg"
+    }
+
+    try {
+        $parsed = $result | ConvertFrom-Json
+    }
+    catch {
+        throw "Failed to parse GraphQL response: $result"
+    }
+
+    # Check for GraphQL-level errors
+    if ($parsed.errors) {
+        $errorMessages = $parsed.errors | ForEach-Object { $_.message }
+        throw "GraphQL errors: $($errorMessages -join '; ')"
+    }
+
+    return $parsed.data
 }
 
 #endregion
@@ -1004,6 +1090,7 @@ Export-ModuleMember -Function @(
     'Write-ErrorAndExit'
     # API helpers
     'Invoke-GhApiPaginated'
+    'Invoke-GhGraphQL'
     # Issue comments
     'Get-IssueComments'
     'Update-IssueComment'

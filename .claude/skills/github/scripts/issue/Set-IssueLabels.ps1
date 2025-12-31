@@ -109,5 +109,5 @@ $output = [PSCustomObject]@{
 }
 
 Write-Output $output
-if ($applied.Count -gt 0) { Write-Host "Applied $($applied.Count) label(s) to issue #$Issue: $($applied -join ', ')" -ForegroundColor Green }
+if ($applied.Count -gt 0) { Write-Host "Applied $($applied.Count) label(s) to issue #${Issue}: $($applied -join ', ')" -ForegroundColor Green }
 if ($failed.Count -gt 0) { Write-Host "Failed: $($failed -join ', ')" -ForegroundColor Red; exit 3 }
