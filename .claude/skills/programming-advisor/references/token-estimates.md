@@ -10,7 +10,7 @@
 
 ### Estimation Formula
 
-```
+```text
 Total Tokens ≈ (Initial Prompt + Code Context) × Iterations + Output Tokens × Iterations
 ```
 

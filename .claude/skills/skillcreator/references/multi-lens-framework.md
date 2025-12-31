@@ -22,7 +22,7 @@ The multi-lens framework ensures comprehensive analysis by requiring explicit ap
 
 **Application to Skill Design:**
 
-```
+```text
 1. Strip away conventional skill patterns
 2. Ask: "If skills didn't exist, how would we solve this?"
 3. Identify the core utility this skill provides
@@ -45,7 +45,7 @@ The multi-lens framework ensures comprehensive analysis by requiring explicit ap
 
 **Application to Skill Design:**
 
-```
+```text
 1. List all ways this skill could fail
 2. Create explicit anti-patterns from each
 3. Design to avoid every failure mode
@@ -71,7 +71,7 @@ The multi-lens framework ensures comprehensive analysis by requiring explicit ap
 
 **Application to Skill Design:**
 
-```
+```text
 1. Identify immediate effects of the skill
 2. For each effect, ask "then what?"
 3. Map the chain 3-4 levels deep
@@ -80,7 +80,7 @@ The multi-lens framework ensures comprehensive analysis by requiring explicit ap
 
 **Example Chain:**
 
-```
+```text
 Skill generates documentation →
   Developers use documentation →
     Documentation becomes outdated →
@@ -98,7 +98,7 @@ Skill generates documentation →
 
 **Application to Skill Design:**
 
-```
+```text
 1. Imagine complete failure 6 months from now
 2. List all reasons it could have failed
 3. Prioritize by likelihood × impact
@@ -133,7 +133,7 @@ Outcome: Skill is unused and deprecated
 
 **Application to Skill Design:**
 
-```
+```text
 1. Map skill as a system (inputs, processes, outputs)
 2. Identify relationships with other system components
 3. Find feedback loops (positive and negative)
@@ -163,7 +163,7 @@ Outcome: Skill is unused and deprecated
 
 **Application to Skill Design:**
 
-```
+```text
 1. State the design decision clearly
 2. Actively argue the opposite
 3. Find legitimate concerns
@@ -187,7 +187,7 @@ For each major design decision:
 
 **Application to Skill Design:**
 
-```
+```text
 1. List all perceived constraints
 2. Classify: Hard (real) vs Soft (assumed)
 3. Challenge soft constraints
@@ -213,7 +213,7 @@ For each major design decision:
 
 **Application to Skill Design:**
 
-```
+```text
 1. List all potential features/capabilities
 2. Estimate value contribution of each
 3. Identify the vital few (20%)
@@ -239,7 +239,7 @@ For each major design decision:
 
 **Application to Skill Design:**
 
-```
+```text
 1. State the need: "We need a skill for X"
 2. Ask "Why?" and answer
 3. For the answer, ask "Why?" again
@@ -249,7 +249,7 @@ For each major design decision:
 
 **Example:**
 
-```
+```text
 Need: "We need a skill to generate API docs"
 Why? → Developers don't document APIs
 Why? → Documentation is tedious
@@ -271,7 +271,7 @@ Skill Should: Integrate seamlessly with coding workflow, not just generate docs
 
 **Application to Skill Design:**
 
-```
+```text
 1. Define evaluation criteria
 2. Weight criteria by importance
 3. Score each option
@@ -306,7 +306,7 @@ Winner: Option C (with consideration for team familiarity)
 
 **Application to Skill Design:**
 
-```
+```text
 1. List all options considered
 2. For each, identify what's sacrificed
 3. Quantify trade-offs

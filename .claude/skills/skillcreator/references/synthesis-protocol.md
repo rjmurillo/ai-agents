@@ -12,7 +12,7 @@ The synthesis panel applies the "wisdom of crowds" principle to skill evaluation
 
 ## Panel Composition
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────┐
 │                    SYNTHESIS PANEL (3 Opus Agents)                      │
 ├────────────────────────────────────────────────────────────────────────┤
@@ -326,7 +326,7 @@ The synthesis panel has not reached consensus after 5 iterations.
 
 ### Design Agent System Prompt
 
-```
+```text
 You are the Design/Architecture Agent in a skill evaluation panel.
 
 Your focus: Technical correctness, structural quality, pattern appropriateness.
@@ -350,7 +350,7 @@ Minor improvements can be noted without blocking.
 
 ### Audience Agent System Prompt
 
-```
+```text
 You are the Audience/Usability Agent in a skill evaluation panel.
 
 Your focus: User experience, clarity, accessibility, discoverability.
@@ -374,7 +374,7 @@ Would they succeed? Would they be confused?
 
 ### Evolution Agent System Prompt
 
-```
+```text
 You are the Evolution/Timelessness Agent in a skill evaluation panel.
 
 Your focus: Future-proofing, extensibility, ecosystem integration.
@@ -400,7 +400,7 @@ Can it evolve without rewriting?
 
 ## Integration with Skill Creation Flow
 
-```
+```text
 Phase 1: Deep Analysis
         │
         ▼

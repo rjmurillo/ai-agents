@@ -30,10 +30,12 @@ Need GitHub data?
 ├─ PR merged check → Test-PRMerged.ps1
 ├─ Copilot follow-up PRs → Detect-CopilotFollowUpPR.ps1
 ├─ Issue info → Get-IssueContext.ps1
+├─ Merge readiness check → Test-PRMergeReady.ps1
 └─ Need to take action?
    ├─ Create issue → New-Issue.ps1
    ├─ Create PR → New-PR.ps1
    ├─ Reply to review → Post-PRCommentReply.ps1
+   ├─ Reply to thread (GraphQL) → Add-PRReviewThreadReply.ps1
    ├─ Comment on issue → Post-IssueComment.ps1
    ├─ Add reaction → Add-CommentReaction.ps1
    ├─ Apply labels → Set-IssueLabels.ps1
@@ -41,6 +43,7 @@ Need GitHub data?
    ├─ Resolve threads → Resolve-PRReviewThread.ps1
    ├─ Process AI triage → Invoke-PRCommentProcessing.ps1
    ├─ Assign Copilot → Invoke-CopilotAssignment.ps1
+   ├─ Enable/disable auto-merge → Set-PRAutoMerge.ps1
    ├─ Close PR → Close-PR.ps1
    └─ Merge PR → Merge-PR.ps1
 ```
@@ -61,7 +64,10 @@ Need GitHub data?
 | `Test-PRMerged.ps1` | Check if PR is merged | `-PullRequest` |
 | `Detect-CopilotFollowUpPR.ps1` | Detect Copilot follow-up PRs | `-PRNumber`, `-Owner`, `-Repo` |
 | `Post-PRCommentReply.ps1` | Thread-preserving replies | `-PullRequest`, `-CommentId`, `-Body` |
+| `Add-PRReviewThreadReply.ps1` | Reply to thread by ID (GraphQL) | `-ThreadId`, `-Body`, `-Resolve` |
 | `Resolve-PRReviewThread.ps1` | Mark threads resolved | `-ThreadId` or `-PullRequest -All` |
+| `Test-PRMergeReady.ps1` | Check merge readiness | `-PullRequest`, `-IgnoreCI`, `-IgnoreThreads` |
+| `Set-PRAutoMerge.ps1` | Enable/disable auto-merge | `-PullRequest`, `-Enable`/`-Disable`, `-MergeMethod` |
 | `Invoke-PRCommentProcessing.ps1` | Process AI triage output | `-PRNumber`, `-Verdict`, `-FindingsJson` |
 | `New-PR.ps1` | Create PR with validation | `-Title`, `-Body`, `-Base` |
 | `Close-PR.ps1` | Close PR with comment | `-PullRequest`, `-Comment` |

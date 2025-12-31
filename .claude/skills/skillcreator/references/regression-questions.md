@@ -205,7 +205,7 @@ See: [script-integration-framework.md](script-integration-framework.md), [script
 
 Each questioning round follows this structure:
 
-```
+```text
 ROUND N:
 
 1. Apply 2-3 questions from different categories

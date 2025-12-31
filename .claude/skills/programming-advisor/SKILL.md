@@ -180,7 +180,7 @@ Use the pricing reference: [references/pricing-data.md](references/pricing-data.
 
 **Formula:**
 
-```
+```text
 Year N Cost = Setup Cost + (Monthly × 12 × N) + (Maintenance × N)
 
 Where:
@@ -226,7 +226,7 @@ Warn users when they say:
 
 ## Response Template
 
-```
+```markdown
 ## 🔍 Existing Solutions Found
 
 I found [N] existing solutions before we write custom code:
@@ -268,7 +268,7 @@ I found [N] existing solutions before we write custom code:
 
 When the user says "let's use [recommended solution]" or "how do I add this?", respond with:
 
-```
+```markdown
 ## 🚀 Integration Plan: [Solution Name]
 
 ### Your Project Context
