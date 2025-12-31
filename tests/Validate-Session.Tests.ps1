@@ -15,8 +15,8 @@ BeforeAll {
     # Extract the functions we need to test
     $scriptContent = Get-Content -Path $scriptPath -Raw
 
-    # Extract the allowlist variable
-    if ($scriptContent -match '\$script:InvestigationAllowlist\s*=\s*@\([^)]+\)') {
+    # Extract the allowlist variable (handles nested parentheses in patterns)
+    if ($scriptContent -match '(?ms)\$script:InvestigationAllowlist\s*=\s*@\(.*?^\)') {
         $allowlistDef = $Matches[0]
         Invoke-Expression $allowlistDef
     }
@@ -41,7 +41,7 @@ Describe "InvestigationAllowlist" {
         $script:InvestigationAllowlist | Should -Contain '^\.agents/sessions/'
         $script:InvestigationAllowlist | Should -Contain '^\.agents/analysis/'
         $script:InvestigationAllowlist | Should -Contain '^\.agents/retrospective/'
-        $script:InvestigationAllowlist | Should -Contain '^\.serena/memories/'
+        $script:InvestigationAllowlist | Should -Contain '^\.serena/memories($|/)'
         $script:InvestigationAllowlist | Should -Contain '^\.agents/security/'
     }
 

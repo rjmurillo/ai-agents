@@ -326,11 +326,11 @@ function Is-DocsOnly([string[]]$Files) {
 # Investigation-only allowlist patterns (ADR-034)
 # Sessions that only modify these paths can skip QA with "SKIPPED: investigation-only"
 $script:InvestigationAllowlist = @(
-  '^\.agents/sessions/',
-  '^\.agents/analysis/',
-  '^\.agents/retrospective/',
-  '^\.serena/memories/',
-  '^\.agents/security/'
+  '^\.agents/sessions/',        # Session logs
+  '^\.agents/analysis/',        # Investigation outputs
+  '^\.agents/retrospective/',   # Learnings
+  '^\.serena/memories($|/)',    # Cross-session context
+  '^\.agents/security/'         # Security assessments
 )
 
 function Test-InvestigationOnlyEligibility {
