@@ -2,6 +2,7 @@
 name: "github"
 description: |
   GitHub CLI operations for PRs, Issues, Labels, Milestones, Comments, and Reactions.
+  Unified skill with shared helpers for DRY code.
   Use when Claude needs to: (1) Get PR context, diff, or changed files, (2) Reply to
   PR review comments preserving threads, (3) Post idempotent issue comments, (4) Apply
   or create labels, (5) Assign milestones, (6) Add reactions to comments, (7) Close or
@@ -15,7 +16,7 @@ generated-from: ".claude/skills/github/SKILL.md"
 # GENERATED FILE
 # Source of truth: SKILL.md
 # Do not edit manually
-# Regenerate: pwsh ./scripts/gen-skills.ps1
+# Regenerate: pwsh ./build/Generate-Skills.ps1
 
 ## Decision Tree
 
@@ -126,3 +127,5 @@ if ($result.Success) { ... }
 - `modules/GitHubCore.psm1`: Shared helper functions (core module)
 - `.claude/agents/prompt-builder.md`: Agent for creating high-quality @copilot prompts
 - `.claude/skills/prompt-engineer/SKILL.md`: Skill for optimizing existing prompts
+
+---
