@@ -40,7 +40,7 @@ You MUST create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` early
 You CANNOT claim session completion until validation PASSES:
 
 ```bash
-pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+pwsh scripts/Validate-Session.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
 ```
 
 Before running validator, you MUST:
