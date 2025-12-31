@@ -263,7 +263,9 @@ The agent MUST route to the qa agent after feature implementation. This is a **b
 
 2. The agent MUST wait for QA validation to complete
 3. The agent MUST NOT commit feature code without QA validation
-4. The agent MAY skip QA validation only when all modified files are documentation files (e.g., Markdown), and changes are strictly editorial (spelling, grammar, or formatting) with no changes to code, configuration, tests, workflows, or code blocks of any kind
+4. The agent MAY skip QA validation when:
+   - **Docs-only**: All modified files are documentation files (e.g., Markdown), and changes are strictly editorial (spelling, grammar, or formatting) with no changes to code, configuration, tests, workflows, or code blocks of any kind. Use evidence: `SKIPPED: docs-only`
+   - **Investigation-only**: Session is investigation-only (no code/config changes), with staged files limited to investigation artifacts: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`. Use evidence: `SKIPPED: investigation-only` (see ADR-034)
 
 **Verification:**
 

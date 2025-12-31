@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2025-12-30
 decision-makers:
   - orchestrator
@@ -17,7 +17,7 @@ informed: []
 
 ## Status
 
-Proposed
+Accepted
 
 ## Date
 
@@ -95,6 +95,8 @@ $investigationAllowlist = @(
 | `.agents/critique/` | Plan reviews gate implementation decisions; consequential artifacts |
 | `.agents/qa/` | QA reports are validation artifacts |
 | `.github/` | CI/workflow changes are infrastructure code |
+| `.claude/agents/` | Agent prompt files are behavioral code |
+| `.github/agents/` | Copilot agent prompts are behavioral code |
 | `src/`, `scripts/`, `*.ps1` | Code files always require QA |
 
 ### Validation Logic
@@ -275,6 +277,8 @@ Implementation compliance verified by:
 | Investigation session with `.agents/critique/` staged | FAIL (consequential artifact) |
 | Investigation session with `.github/workflows/ci.yml` staged | FAIL (infrastructure code) |
 | Investigation session with `src/component.ts` staged | FAIL (code file) |
+| Investigation session with `.claude/agents/agent.md` staged | FAIL (agent prompt file) |
+| Investigation session with `.github/agents/copilot.md` staged | FAIL (copilot agent prompt) |
 | No staged files, investigation-only evidence | PASS (no commit occurs) |
 
 ## Related Decisions

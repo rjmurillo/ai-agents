@@ -58,6 +58,11 @@ Create ADR-034 proposing investigation session QA exemption mechanism, conduct m
 - [x] Conflicts resolved (critique path, security path, evidence verification)
 - [x] Debate log created
 - [x] PR created
+- [x] Documentation synchronized (incoherence skill)
+- [x] ADR-034 status updated to Accepted
+- [x] SESSION-PROTOCOL.md updated with investigation-only pattern
+- [x] CLAUDE.md updated with investigation-only reference
+- [x] Test cases added for agent prompt paths
 
 ## Decisions
 
@@ -66,6 +71,7 @@ Create ADR-034 proposing investigation session QA exemption mechanism, conduct m
 3. Fixed memory regex for subdirectory support
 4. Added reversibility assessment and confirmation sections
 5. Added metrics collection plan
+6. Added `.claude/agents/` and `.github/agents/` to "Not Allowed" table (agent prompts are behavioral code)
 
 ## Outcomes
 
@@ -78,15 +84,17 @@ Create ADR-034 proposing investigation session QA exemption mechanism, conduct m
 | Conflicts resolved | PASS | High-level-advisor rulings applied |
 | Documentation complete | PASS | Debate log created |
 
-### Files Created
+### Files Created/Modified
 
-- `.agents/architecture/ADR-034-investigation-session-qa-exemption.md`
+- `.agents/architecture/ADR-034-investigation-session-qa-exemption.md` (status: accepted)
 - `.agents/critique/ADR-034-debate-log.md`
 - `.agents/analysis/pre-commit-qa-investigation-sessions-gap.md`
 - `.agents/analysis/investigation-session-patterns-analyst-report.md`
 - `.agents/architecture/ASSESSMENT-session-qa-validation-options.md`
 - `.agents/critique/investigation-qa-exemption-proposal-critique.md`
 - `.agents/security/SA-pre-commit-qa-skip-options.md`
+- `.agents/SESSION-PROTOCOL.md` (investigation-only pattern added)
+- `CLAUDE.md` (investigation-only reference added)
 
 ## Learnings
 
