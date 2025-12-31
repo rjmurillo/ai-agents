@@ -658,7 +658,8 @@ function Update-IssueComment {
 
             # Detect 403 permission errors (case-insensitive matching)
             # Exit code 4 = Auth error (per ADR-035: includes not-authenticated AND permission-denied)
-            if ($errorString -imatch 'HTTP 403' -or $errorString -imatch 'status.*403' -or $errorString -match '403' -or $errorString -imatch 'Resource not accessible by integration' -or $errorString -imatch '\bforbidden\b') {
+            # Pattern uses negative lookarounds (?<!\d)403(?!\d) to prevent false positives (e.g., ID403)
+            if ($errorString -imatch '((?<!\d)403(?!\d)|\bforbidden\b|Resource not accessible by integration)') {
                 $guidance = @"
 PERMISSION DENIED (403): Cannot update comment $CommentId in $Owner/$Repo.
 
