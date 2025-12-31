@@ -55,6 +55,11 @@ Before running validator, you MUST:
 
 **If validation fails**: Fix violations and re-run validator. Do NOT claim completion.
 
+**QA Validation Exemptions** (per ADR-034):
+
+- Skip with `SKIPPED: docs-only` for documentation-only changes (no code, config, or test changes)
+- Skip with `SKIPPED: investigation-only` for investigation sessions when only staging: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`
+
 **Full protocol with RFC 2119 requirements**: [.agents/SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md)
 
 ### Branch Operation Verification (MUST)
