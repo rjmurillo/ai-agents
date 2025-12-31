@@ -99,9 +99,35 @@ When planner requests security impact analysis (during planning phase):
 - [ ] Estimate security testing needs
 ```
 
-### Capability 7: Post-Implementation Verification (PIV)
+### Capability 7: Post-Implementation Verification (PIV) - MANDATORY
 
-**CRITICAL**: Security review is a TWO-PHASE process. Pre-implementation analysis is insufficient.
+**BLOCKING GATE**: Security review is a TWO-PHASE process. Pre-implementation analysis is insufficient. PIV is MANDATORY for all security-relevant changes.
+
+**Orchestrator Routing Requirement:**
+
+When any changed file matches security trigger patterns, orchestrator MUST route to security agent AFTER implementation completes:
+
+```python
+# Mandatory routing for security-relevant changes
+SECURITY_TRIGGERS = [
+    "**/Auth/**", "**/Security/**", "*.env*",
+    ".githooks/*", "**/secrets/**", "*password*",
+    "**/token*", "**/oauth/**", "**/jwt/**"
+]
+
+if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
+    Task(subagent_type="security", prompt="""
+    Run Post-Implementation Verification for [feature].
+
+    Implementation completed by implementer.
+    Changed files: [list]
+
+    Verify all security controls from pre-implementation plan.
+    This is a BLOCKING gate - no PR until PIV approved.
+    """)
+```
+
+**No PR Until PIV Approved**: Orchestrator MUST NOT proceed to PR creation until security agent returns APPROVED status.
 
 #### Security-Relevant Change Triggers
 
@@ -139,7 +165,41 @@ When orchestrator routes back to security after implementation:
 - [ ] Test coverage includes security test cases
 ```
 
-3. **PIV Report Template**
+3. **CI Environment Security Testing**
+
+Reproduce CI environment locally to catch security issues before PR:
+
+```powershell
+# Set CI environment
+$env:GITHUB_ACTIONS = 'true'
+$env:CI = 'true'
+
+# Run security-focused tests
+dotnet test --filter "Category=Security"
+
+# Verify exit code validation in hooks (CWE-78 prevention)
+$hookFiles = Get-ChildItem -Path ".githooks" -Filter "*.ps1" -Recurse
+foreach ($hook in $hookFiles) {
+    $content = Get-Content $hook.FullName -Raw
+    if ($content -notmatch '\$LASTEXITCODE') {
+        Write-Warning "[FAIL] Missing exit code validation in $($hook.Name)"
+    }
+}
+
+# Check for hardcoded secrets in staged changes
+$diff = git diff --cached
+if ($diff -match '(api_key|password|secret|token)\s*[:=]\s*[''"][^''"]+[''"]') {
+    Write-Error "[FAIL] Possible hardcoded secret detected"
+}
+
+# Verify no environment variable leaks
+$envPatterns = @('\$env:[A-Z0-9_]+\s*=\s*[''"][^''"]+[''"]')
+Get-ChildItem -Recurse -Include *.ps1 |
+    Select-String -Pattern $envPatterns |
+    ForEach-Object { Write-Warning "[REVIEW] Hardcoded env var: $($_.Path):$($_.LineNumber)" }
+```
+
+4. **PIV Report Template**
 
 Save to: `.agents/security/PIV-[feature].md`
 

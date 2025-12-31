@@ -5,9 +5,12 @@
 .DESCRIPTION
     Performs comprehensive merge readiness check:
     - Verifies all review threads are resolved
-    - Checks CI status (all checks passing)
+    - Checks CI status (required checks passing by default)
     - Validates PR state (open, not draft)
     - Checks for merge conflicts
+
+    By default, only REQUIRED checks block merge. Non-required failing checks
+    are reported but don't affect CanMerge unless -IncludeNonRequired is set.
 
     Returns a structured result with CanMerge boolean and reasons.
 
@@ -21,13 +24,22 @@
     PR number (required).
 
 .PARAMETER IgnoreCI
-    If specified, skips CI check verification.
+    If specified, skips CI check verification entirely.
 
 .PARAMETER IgnoreThreads
     If specified, skips unresolved thread check.
 
+.PARAMETER IncludeNonRequired
+    If specified, non-required check failures also block merge.
+    Default behavior only blocks on required checks.
+
 .EXAMPLE
     ./Test-PRMergeReady.ps1 -PullRequest 50
+    # Only blocks if required checks fail
+
+.EXAMPLE
+    ./Test-PRMergeReady.ps1 -PullRequest 50 -IncludeNonRequired
+    # Blocks if any check (required or not) fails
 
 .EXAMPLE
     ./Test-PRMergeReady.ps1 -PullRequest 50 -IgnoreCI
@@ -48,7 +60,8 @@ param(
     [Parameter(Mandatory)]
     [int]$PullRequest,
     [switch]$IgnoreCI,
-    [switch]$IgnoreThreads
+    [switch]$IgnoreThreads,
+    [switch]$IncludeNonRequired
 )
 
 $ErrorActionPreference = 'Stop'
@@ -159,8 +172,11 @@ if (-not $IgnoreThreads -and $pr.reviewThreads -and $pr.reviewThreads.nodes) {
 }
 
 # Check 4: CI Status
-$failedChecks = @()
-$pendingChecks = @()
+# Separate tracking for required vs non-required checks
+$failedRequiredChecks = [System.Collections.Generic.List[string]]::new()
+$pendingRequiredChecks = [System.Collections.Generic.List[string]]::new()
+$failedNonRequiredChecks = [System.Collections.Generic.List[string]]::new()
+$pendingNonRequiredChecks = [System.Collections.Generic.List[string]]::new()
 $passedChecks = 0
 $ciPassing = $true
 
@@ -181,10 +197,18 @@ if (-not $IgnoreCI) {
                 $checks += $checkInfo
 
                 if ($ctx.status -ne 'COMPLETED') {
-                    $pendingChecks += $ctx.name
+                    if ($ctx.isRequired) {
+                        $pendingRequiredChecks.Add($ctx.name)
+                    } else {
+                        $pendingNonRequiredChecks.Add($ctx.name)
+                    }
                 }
                 elseif ($ctx.conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED')) {
-                    $failedChecks += $ctx.name
+                    if ($ctx.isRequired) {
+                        $failedRequiredChecks.Add($ctx.name)
+                    } else {
+                        $failedNonRequiredChecks.Add($ctx.name)
+                    }
                 }
                 else {
                     $passedChecks++
@@ -199,10 +223,18 @@ if (-not $IgnoreCI) {
                 $checks += $checkInfo
 
                 if ($ctx.state -eq 'PENDING') {
-                    $pendingChecks += $ctx.context
+                    if ($ctx.isRequired) {
+                        $pendingRequiredChecks.Add($ctx.context)
+                    } else {
+                        $pendingNonRequiredChecks.Add($ctx.context)
+                    }
                 }
                 elseif ($ctx.state -notin @('SUCCESS', 'EXPECTED')) {
-                    $failedChecks += $ctx.context
+                    if ($ctx.isRequired) {
+                        $failedRequiredChecks.Add($ctx.context)
+                    } else {
+                        $failedNonRequiredChecks.Add($ctx.context)
+                    }
                 }
                 else {
                     $passedChecks++
@@ -210,13 +242,26 @@ if (-not $IgnoreCI) {
             }
         }
 
-        if ($failedChecks.Count -gt 0) {
-            $reasons.Add("$($failedChecks.Count) CI check(s) failed: $($failedChecks -join ', ')")
+        # Always block on required check failures
+        if ($failedRequiredChecks.Count -gt 0) {
+            $reasons.Add("$($failedRequiredChecks.Count) required CI check(s) failed: $($failedRequiredChecks -join ', ')")
             $ciPassing = $false
         }
-        if ($pendingChecks.Count -gt 0) {
-            $reasons.Add("$($pendingChecks.Count) CI check(s) pending: $($pendingChecks -join ', ')")
+        if ($pendingRequiredChecks.Count -gt 0) {
+            $reasons.Add("$($pendingRequiredChecks.Count) required CI check(s) pending: $($pendingRequiredChecks -join ', ')")
             $ciPassing = $false
+        }
+
+        # Only block on non-required checks if -IncludeNonRequired is specified
+        if ($IncludeNonRequired) {
+            if ($failedNonRequiredChecks.Count -gt 0) {
+                $reasons.Add("$($failedNonRequiredChecks.Count) non-required CI check(s) failed: $($failedNonRequiredChecks -join ', ')")
+                $ciPassing = $false
+            }
+            if ($pendingNonRequiredChecks.Count -gt 0) {
+                $reasons.Add("$($pendingNonRequiredChecks.Count) non-required CI check(s) pending: $($pendingNonRequiredChecks -join ', ')")
+                $ciPassing = $false
+            }
         }
     }
 }
@@ -237,10 +282,13 @@ $output = [PSCustomObject]@{
     MergeStateStatus = $pr.mergeStateStatus
     UnresolvedThreads = $unresolvedCount
     TotalThreads = $pr.reviewThreads.totalCount
-    FailedChecks = @($failedChecks)
-    PendingChecks = @($pendingChecks)
+    FailedRequiredChecks = @($failedRequiredChecks)
+    PendingRequiredChecks = @($pendingRequiredChecks)
+    FailedNonRequiredChecks = @($failedNonRequiredChecks)
+    PendingNonRequiredChecks = @($pendingNonRequiredChecks)
     PassedChecks = $passedChecks
     CIPassing = $ciPassing
+    IncludeNonRequired = $IncludeNonRequired.IsPresent
     Reasons = @($reasons)
 }
 
