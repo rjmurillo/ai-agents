@@ -51,6 +51,7 @@ CodeQL Advanced Security flags these scripts because it cannot recognize custom 
 ## Recommendations for Users
 
 1. **Install PyYAML** - The fallback YAML parser has limitations
+
    ```bash
    pip install pyyaml
    ```

@@ -92,7 +92,8 @@ jobs:
         with:
           name: agent-metrics-${{ github.run_number }}
           path: metrics-report.txt
-          retention-days: 90
+          # Optimized retention per .agents/devops/artifact-retention-policy.md
+          retention-days: 30
 
   # Optional: Create issue if metrics are below targets
   check-thresholds:

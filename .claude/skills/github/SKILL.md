@@ -37,10 +37,12 @@ Need GitHub data?
 ├─ PR merged check → Test-PRMerged.ps1
 ├─ Copilot follow-up PRs → Detect-CopilotFollowUpPR.ps1
 ├─ Issue info → Get-IssueContext.ps1
+├─ Merge readiness check → Test-PRMergeReady.ps1
 └─ Need to take action?
    ├─ Create issue → New-Issue.ps1
    ├─ Create PR → New-PR.ps1
    ├─ Reply to review → Post-PRCommentReply.ps1
+   ├─ Reply to thread (GraphQL) → Add-PRReviewThreadReply.ps1
    ├─ Comment on issue → Post-IssueComment.ps1
    ├─ Add reaction → Add-CommentReaction.ps1
    ├─ Apply labels → Set-IssueLabels.ps1
@@ -48,6 +50,7 @@ Need GitHub data?
    ├─ Resolve threads → Resolve-PRReviewThread.ps1
    ├─ Process AI triage → Invoke-PRCommentProcessing.ps1
    ├─ Assign Copilot → Invoke-CopilotAssignment.ps1
+   ├─ Enable/disable auto-merge → Set-PRAutoMerge.ps1
    ├─ Close PR → Close-PR.ps1
    └─ Merge PR → Merge-PR.ps1
 ```
@@ -68,7 +71,10 @@ Need GitHub data?
 | `Test-PRMerged.ps1` | Check if PR is merged | `-PullRequest` |
 | `Detect-CopilotFollowUpPR.ps1` | Detect Copilot follow-up PRs | `-PRNumber`, `-Owner`, `-Repo` |
 | `Post-PRCommentReply.ps1` | Thread-preserving replies | `-PullRequest`, `-CommentId`, `-Body` |
+| `Add-PRReviewThreadReply.ps1` | Reply to thread by ID (GraphQL) | `-ThreadId`, `-Body`, `-Resolve` |
 | `Resolve-PRReviewThread.ps1` | Mark threads resolved | `-ThreadId` or `-PullRequest -All` |
+| `Test-PRMergeReady.ps1` | Check merge readiness | `-PullRequest`, `-IgnoreCI`, `-IgnoreThreads` |
+| `Set-PRAutoMerge.ps1` | Enable/disable auto-merge | `-PullRequest`, `-Enable`/`-Disable`, `-MergeMethod` |
 | `Invoke-PRCommentProcessing.ps1` | Process AI triage output | `-PRNumber`, `-Verdict`, `-FindingsJson` |
 | `New-PR.ps1` | Create PR with validation | `-Title`, `-Body`, `-Base` |
 | `Close-PR.ps1` | Close PR with comment | `-PullRequest`, `-Comment` |
@@ -117,6 +123,21 @@ pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 12
 
 # Resolve all unresolved review threads
 pwsh -NoProfile scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest 50 -All
+
+# Reply to review thread by thread ID (GraphQL)
+pwsh -NoProfile scripts/pr/Add-PRReviewThreadReply.ps1 -ThreadId "PRRT_kwDOQoWRls5m3L76" -Body "Fixed."
+
+# Reply to thread and resolve in one operation
+pwsh -NoProfile scripts/pr/Add-PRReviewThreadReply.ps1 -ThreadId "PRRT_kwDOQoWRls5m3L76" -Body "Fixed." -Resolve
+
+# Check if PR is ready to merge (threads resolved, CI passing)
+pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest 50
+
+# Enable auto-merge with squash
+pwsh -NoProfile scripts/pr/Set-PRAutoMerge.ps1 -PullRequest 50 -Enable -MergeMethod SQUASH
+
+# Disable auto-merge
+pwsh -NoProfile scripts/pr/Set-PRAutoMerge.ps1 -PullRequest 50 -Disable
 
 # Create new issue
 pwsh -NoProfile scripts/issue/New-Issue.ps1 -Title "Bug: Login fails" -Body "Steps..." -Labels "bug,P1"
@@ -171,16 +192,61 @@ For multi-line content, use `-BodyFile` to avoid escaping issues.
 # 1. Get unresolved threads
 $threads = pwsh -NoProfile scripts/pr/Get-PRReviewThreads.ps1 -PullRequest 50 -UnresolvedOnly | ConvertFrom-Json
 
-# 2. Reply to each thread
+# 2. Reply to each thread using thread ID (recommended for GraphQL)
+foreach ($t in $threads.Threads) {
+    pwsh -NoProfile scripts/pr/Add-PRReviewThreadReply.ps1 -ThreadId $t.ThreadId -Body "Fixed." -Resolve
+}
+
+# 3. Or reply using comment ID (REST API)
 foreach ($t in $threads.Threads) {
     pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId $t.FirstCommentId -Body "Fixed."
 }
-
-# 3. Resolve all threads
 pwsh -NoProfile scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest 50 -All
 
 # 4. Merge
 pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
+```
+
+### Merge Readiness Check
+
+Check all conditions before merging:
+
+```powershell
+# Full merge readiness check
+$ready = pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest 50 | ConvertFrom-Json
+
+if ($ready.CanMerge) {
+    pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
+} else {
+    Write-Host "Cannot merge. Reasons:"
+    $ready.Reasons | ForEach-Object { Write-Host "  - $_" }
+
+    # Check specific blockers
+    if ($ready.UnresolvedThreads -gt 0) {
+        Write-Host "Unresolved threads: $($ready.UnresolvedThreads)"
+    }
+    if (-not $ready.CIPassing) {
+        Write-Host "Failed checks: $($ready.FailedChecks -join ', ')"
+        Write-Host "Pending checks: $($ready.PendingChecks -join ', ')"
+    }
+}
+```
+
+### Auto-Merge Workflow
+
+Enable auto-merge for PRs that meet all requirements when checks pass:
+
+```powershell
+# Check current readiness (threads must be resolved, but CI can be pending)
+$ready = pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest 50 -IgnoreCI | ConvertFrom-Json
+
+if ($ready.CanMerge) {
+    # Enable auto-merge - PR will merge when CI passes
+    pwsh -NoProfile scripts/pr/Set-PRAutoMerge.ps1 -PullRequest 50 -Enable -MergeMethod SQUASH
+    Write-Host "Auto-merge enabled. PR will merge when all checks pass."
+} else {
+    Write-Host "Cannot enable auto-merge: $($ready.Reasons -join '; ')"
+}
 ```
 
 ### Pre-Review Check
@@ -340,6 +406,6 @@ if ($result.Success) { ... }
 
 - `references/api-reference.md`: Exit codes, API endpoints, troubleshooting
 - `references/copilot-synthesis-guide.md`: Copilot context synthesis documentation
-- `modules/GitHubHelpers.psm1`: Shared helper functions
+- `modules/GitHubCore.psm1`: Shared helper functions (core module)
 - `.claude/agents/prompt-builder.md`: Agent for creating high-quality @copilot prompts
 - `.claude/skills/prompt-engineer/SKILL.md`: Skill for optimizing existing prompts

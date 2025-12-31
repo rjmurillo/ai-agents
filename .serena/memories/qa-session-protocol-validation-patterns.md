@@ -13,6 +13,7 @@
 **Rationale**: Lexicographic ordering matches chronological ordering for ISO 8601 format
 
 **Example**:
+
 ```bash
 CUTOFF_DATE="2025-12-21"
 file_date="${filename:0:10}"  # Extract YYYY-MM-DD
@@ -23,6 +24,7 @@ fi
 ```
 
 **Verified Correctness**:
+
 - "2025-12-20" < "2025-12-21" → TRUE
 - "2025-12-21" < "2025-12-21" → FALSE (correctly excludes equality)
 - "2024-12-31" < "2025-01-01" → TRUE
@@ -38,6 +40,7 @@ fi
 **Rationale**: False negatives (skipping validation) are worse than false positives (extra validation)
 
 **Example**:
+
 ```bash
 if [[ "$file_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
   # Valid format, apply date logic
@@ -81,6 +84,7 @@ fi
 **Pattern**: Use jq for safe JSON array construction from bash variables
 
 **Example**:
+
 ```bash
 FILES="file1.md
 file2.md
@@ -91,6 +95,7 @@ JSON_ARRAY=$(echo "$FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))'
 ```
 
 **Flags**:
+
 - `-R`: Raw string input (not JSON)
 - `-s`: Slurp entire input
 - `-c`: Compact output
@@ -107,17 +112,20 @@ JSON_ARRAY=$(echo "$FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))'
 **When**: Validating bash/YAML workflow changes without runtime testing
 
 **Approach**:
+
 1. Extract critical code paths (date comparison, filtering, JSON construction)
 2. Create test scenario matrix (happy path, edge cases)
 3. Manually trace execution for each scenario
 4. Verify correct output for each path
 
 **Advantages**:
+
 - Fast feedback (no CI runtime required)
 - Comprehensive edge case coverage
 - Documents expected behavior
 
 **Limitations**:
+
 - Cannot catch runtime-specific issues (environment variables, GitHub Actions context)
 - Requires deep understanding of bash semantics
 
@@ -130,6 +138,7 @@ JSON_ARRAY=$(echo "$FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))'
 **Implementation**: `.github/workflows/ai-session-protocol.yml` lines 63-82
 
 **Test Coverage**: 6/6 scenarios (100%)
+
 - Before cutoff (2025-12-20)
 - On cutoff (2025-12-21)
 - After cutoff (2025-12-29)
@@ -138,6 +147,7 @@ JSON_ARRAY=$(echo "$FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))'
 - Mix old/new files
 
 **Edge Cases**: 4/4 verified
+
 - Exact boundary (2025-12-21 validated, not skipped)
 - Malformed date (safe default: validate)
 - Empty list (has_sessions=false)
@@ -146,6 +156,7 @@ JSON_ARRAY=$(echo "$FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))'
 **Verdict**: PASS (all scenarios verified via static analysis)
 
 **Recommendations**:
+
 - Add integration test with sample files (P2)
 - Document cutoff date inline (P2)
 

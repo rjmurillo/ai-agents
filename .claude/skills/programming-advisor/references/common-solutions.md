@@ -110,6 +110,7 @@
 ## Search Queries to Find More
 
 When evaluating any task, search:
+
 1. `best {task} library {language} {year}`
 2. `{task} open source alternative`
 3. `{task} vs alternatives comparison`

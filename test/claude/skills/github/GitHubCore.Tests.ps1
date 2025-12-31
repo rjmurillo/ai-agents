@@ -2,60 +2,60 @@
 
 <#
 .SYNOPSIS
-    Tests for GitHubHelpers.psm1 shared module
+    Tests for GitHubCore.psm1 shared module
 #>
 
 BeforeAll {
     # Correct path: from .github/tests/skills/github -> .claude/skills/github/modules
-    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
     Import-Module $ModulePath -Force
 }
 
-Describe "GitHubHelpers Module" {
+Describe "GitHubCore Module" {
 
     Context "Module Loading" {
         It "Exports Get-RepoInfo function" {
-            Get-Command -Module GitHubHelpers -Name Get-RepoInfo | Should -Not -BeNullOrEmpty
+            Get-Command -Module GitHubCore -Name Get-RepoInfo | Should -Not -BeNullOrEmpty
         }
 
         It "Exports Resolve-RepoParams function" {
-            Get-Command -Module GitHubHelpers -Name Resolve-RepoParams | Should -Not -BeNullOrEmpty
+            Get-Command -Module GitHubCore -Name Resolve-RepoParams | Should -Not -BeNullOrEmpty
         }
 
         It "Exports Test-GhAuthenticated function" {
-            Get-Command -Module GitHubHelpers -Name Test-GhAuthenticated | Should -Not -BeNullOrEmpty
+            Get-Command -Module GitHubCore -Name Test-GhAuthenticated | Should -Not -BeNullOrEmpty
         }
 
         It "Exports Assert-GhAuthenticated function" {
-            Get-Command -Module GitHubHelpers -Name Assert-GhAuthenticated | Should -Not -BeNullOrEmpty
+            Get-Command -Module GitHubCore -Name Assert-GhAuthenticated | Should -Not -BeNullOrEmpty
         }
 
         It "Exports Write-ErrorAndExit function" {
-            Get-Command -Module GitHubHelpers -Name Write-ErrorAndExit | Should -Not -BeNullOrEmpty
+            Get-Command -Module GitHubCore -Name Write-ErrorAndExit | Should -Not -BeNullOrEmpty
         }
 
         It "Exports Invoke-GhApiPaginated function" {
-            Get-Command -Module GitHubHelpers -Name Invoke-GhApiPaginated | Should -Not -BeNullOrEmpty
+            Get-Command -Module GitHubCore -Name Invoke-GhApiPaginated | Should -Not -BeNullOrEmpty
         }
 
         It "Exports Get-PriorityEmoji function" {
-            Get-Command -Module GitHubHelpers -Name Get-PriorityEmoji | Should -Not -BeNullOrEmpty
+            Get-Command -Module GitHubCore -Name Get-PriorityEmoji | Should -Not -BeNullOrEmpty
         }
 
         It "Exports Get-ReactionEmoji function" {
-            Get-Command -Module GitHubHelpers -Name Get-ReactionEmoji | Should -Not -BeNullOrEmpty
+            Get-Command -Module GitHubCore -Name Get-ReactionEmoji | Should -Not -BeNullOrEmpty
         }
 
         It "Exports Get-BotAuthorsConfig function" {
-            Get-Command -Module GitHubHelpers -Name Get-BotAuthorsConfig | Should -Not -BeNullOrEmpty
+            Get-Command -Module GitHubCore -Name Get-BotAuthorsConfig | Should -Not -BeNullOrEmpty
         }
 
         It "Exports Get-BotAuthors function" {
-            Get-Command -Module GitHubHelpers -Name Get-BotAuthors | Should -Not -BeNullOrEmpty
+            Get-Command -Module GitHubCore -Name Get-BotAuthors | Should -Not -BeNullOrEmpty
         }
 
         It "Exports Test-WorkflowRateLimit function" {
-            Get-Command -Module GitHubHelpers -Name Test-WorkflowRateLimit | Should -Not -BeNullOrEmpty
+            Get-Command -Module GitHubCore -Name Test-WorkflowRateLimit | Should -Not -BeNullOrEmpty
         }
     }
 
@@ -306,8 +306,8 @@ Describe "Script Parameter Validation" {
             $content | Should -Match '\[switch\]\$IncludeChangedFiles'
         }
 
-        It "Imports GitHubHelpers module" {
-            $content | Should -Match 'Import-Module.*GitHubHelpers\.psm1'
+        It "Imports GitHubCore module" {
+            $content | Should -Match 'Import-Module.*GitHubCore\.psm1'
         }
     }
 

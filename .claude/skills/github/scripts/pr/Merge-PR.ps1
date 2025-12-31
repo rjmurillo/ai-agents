@@ -58,7 +58,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-Import-Module (Join-Path $PSScriptRoot ".." ".." "modules" "GitHubHelpers.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot ".." ".." "modules" "GitHubCore.psm1") -Force
 
 Assert-GhAuthenticated
 $resolved = Resolve-RepoParams -Owner $Owner -Repo $Repo

@@ -14,13 +14,13 @@
     - Error handling
 
 .NOTES
-    These tests mock external dependencies (gh api, GitHubHelpers module)
+    These tests mock external dependencies (gh api, GitHubCore module)
     to enable isolated unit testing without actual API calls.
 #>
 
 BeforeAll {
     $scriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "scripts" "reactions" "Add-CommentReaction.ps1"
-    $modulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+    $modulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 
     # Import module to allow mocking its functions
     Import-Module $modulePath -Force
@@ -29,11 +29,11 @@ BeforeAll {
 Describe "Add-CommentReaction" {
     BeforeEach {
         # Mock the helper functions to avoid external dependencies
-        Mock Assert-GhAuthenticated { } -ModuleName GitHubHelpers
+        Mock Assert-GhAuthenticated { } -ModuleName GitHubCore
         Mock Resolve-RepoParams {
             [PSCustomObject]@{ Owner = "test-owner"; Repo = "test-repo" }
-        } -ModuleName GitHubHelpers
-        Mock Get-ReactionEmoji { "👀" } -ModuleName GitHubHelpers
+        } -ModuleName GitHubCore
+        Mock Get-ReactionEmoji { "👀" } -ModuleName GitHubCore
 
         # Default: mock gh api to succeed
         Mock gh {

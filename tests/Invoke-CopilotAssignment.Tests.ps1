@@ -84,9 +84,9 @@ Describe "Invoke-CopilotAssignment Script Structure" {
     }
 
     Context "Module Dependencies" {
-        It "Imports GitHubHelpers module" {
+        It "Imports GitHubCore module" {
             # Script defines module path and imports it
-            $scriptContent | Should -Match 'GitHubHelpers\.psm1'
+            $scriptContent | Should -Match 'GitHubCore\.psm1'
             $scriptContent | Should -Match 'Import-Module.*\$modulePath'
         }
 

@@ -21,7 +21,7 @@ flowchart TD
         PR[scripts/pr/]
         ISS[scripts/issue/]
         RX[scripts/reactions/]
-        MOD[modules/GitHubHelpers.psm1]
+        MOD[modules/GitHubCore.psm1]
         TST[tests/]
     end
 
@@ -74,7 +74,7 @@ flowchart TD
 
 ### Shared Module
 
-**File**: `modules/GitHubHelpers.psm1`
+**File**: `modules/GitHubCore.psm1`
 
 | Function | Purpose |
 |----------|---------|
@@ -169,7 +169,7 @@ foreach ($s in $steering) {
 sequenceDiagram
     participant Agent
     participant Skill as Skill Script
-    participant Helper as GitHubHelpers.psm1
+    participant Helper as GitHubCore.psm1
     participant GH as GitHub API
 
     Agent->>Skill: Invoke with parameters

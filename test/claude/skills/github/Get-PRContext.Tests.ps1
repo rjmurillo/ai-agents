@@ -13,7 +13,7 @@
 BeforeAll {
     # Correct path: from .github/tests/skills/github -> .claude/skills/github/scripts/pr
     $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Get-PRContext.ps1"
-    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 
     # Import the module for error handling functions
     Import-Module $ModulePath -Force
@@ -69,8 +69,8 @@ Describe "Get-PRContext" {
             $scriptContent | Should -Match '\[switch\]\$DiffStat'
         }
 
-        It "Should import GitHubHelpers module" {
-            $scriptContent | Should -Match 'Import-Module.*GitHubHelpers\.psm1'
+        It "Should import GitHubCore module" {
+            $scriptContent | Should -Match 'Import-Module.*GitHubCore\.psm1'
         }
 
         It "Should call Assert-GhAuthenticated" {
@@ -262,7 +262,7 @@ Describe "Get-PRContext" {
         }
     }
 
-    Context "Integration with GitHubHelpers" {
+    Context "Integration with GitHubCore" {
         BeforeAll {
             $scriptContent = Get-Content $ScriptPath -Raw
         }

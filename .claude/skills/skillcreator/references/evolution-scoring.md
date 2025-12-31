@@ -7,6 +7,7 @@ The Evolution/Timelessness lens is the core evaluative perspective for SkillCrea
 Evolution scoring answers: "How will this skill age?"
 
 Skills that score poorly become:
+
 - Maintenance burdens
 - Sources of confusion as they become outdated
 - Obstacles to ecosystem evolution
@@ -21,12 +22,14 @@ Skills that score poorly become:
 ### Score 1-2: Ephemeral
 
 **Characteristics:**
+
 - Tightly coupled to specific API versions
 - Hardcoded tool versions or paths
 - Addresses a transient trend
 - No consideration of change
 
 **Example:**
+
 ```markdown
 # Skill: Format for GPT-3.5-Turbo
 Formats prompts specifically for the gpt-3.5-turbo-0301 API...
@@ -41,12 +44,14 @@ Formats prompts specifically for the gpt-3.5-turbo-0301 API...
 ### Score 3-4: Short-Lived
 
 **Characteristics:**
+
 - Depends on specific tooling likely to change
 - Addresses problem in way specific to current moment
 - Some structure but no extension consideration
 - May reference volatile external resources
 
 **Example:**
+
 ```markdown
 # Skill: React Class Component Generator
 Generates class components following React 17 patterns...
@@ -61,12 +66,14 @@ Generates class components following React 17 patterns...
 ### Score 5-6: Moderate Longevity
 
 **Characteristics:**
+
 - Sound core approach
 - Some hardcoded elements that may change
 - Missing explicit extension points
 - Limited temporal projection
 
 **Example:**
+
 ```markdown
 # Skill: API Documentation Generator
 Generates OpenAPI 3.0 specifications...
@@ -82,6 +89,7 @@ Generates OpenAPI 3.0 specifications...
 ### Score 7-8: Solid Design
 
 **Characteristics:**
+
 - Principle-based rather than implementation-specific
 - Clear extension points documented
 - Dependencies abstracted appropriately
@@ -89,6 +97,7 @@ Generates OpenAPI 3.0 specifications...
 - Graceful degradation designed
 
 **Example:**
+
 ```markdown
 # Skill: API Documentation Generator
 Generates API documentation following industry standards.
@@ -105,6 +114,7 @@ Pattern-based approach adaptable to new documentation formats.
 ### Score 9-10: Timeless
 
 **Characteristics:**
+
 - Addresses fundamental, unchanging problem
 - Completely principle-based
 - Highly composable with other skills
@@ -112,6 +122,7 @@ Pattern-based approach adaptable to new documentation formats.
 - Could serve as a pattern for other skills
 
 **Example:**
+
 ```markdown
 # Skill: Systematic Problem Decomposition
 Breaks complex problems into verifiable atomic steps.
@@ -206,11 +217,13 @@ Verify these patterns are applied:
 ### Anti-Pattern 1: Version Pinning
 
 **Wrong:**
+
 ```markdown
 Uses claude-3-5-sonnet-20241022 for analysis...
 ```
 
 **Right:**
+
 ```markdown
 Uses configured model (default: claude-opus-4-5-20251101, configurable)...
 ```
@@ -218,12 +231,14 @@ Uses configured model (default: claude-opus-4-5-20251101, configurable)...
 ### Anti-Pattern 2: Tool-Specific Design
 
 **Wrong:**
+
 ```markdown
 # ESLint Config Generator
 Generates .eslintrc.json for ESLint 8...
 ```
 
 **Right:**
+
 ```markdown
 # Linting Configuration Generator
 Generates linting configuration for JavaScript/TypeScript.
@@ -234,6 +249,7 @@ Extension point for future linting tools.
 ### Anti-Pattern 3: Missing Extension Points
 
 **Wrong:**
+
 ```markdown
 ## Supported Patterns
 - Single-Phase
@@ -243,6 +259,7 @@ Extension point for future linting tools.
 ```
 
 **Right:**
+
 ```markdown
 ## Supported Patterns
 Built-in patterns: Single-Phase, Multi-Phase, Orchestrator
@@ -252,11 +269,13 @@ Custom patterns: Add to `patterns/` directory following template
 ### Anti-Pattern 4: Implicit Dependencies
 
 **Wrong:**
+
 ```markdown
 Run `npm run build` to verify...
 ```
 
 **Right:**
+
 ```markdown
 Run verification command (default: `npm run build`,
 configurable via BUILD_COMMAND or skill config)
@@ -265,11 +284,13 @@ configurable via BUILD_COMMAND or skill config)
 ### Anti-Pattern 5: Point-in-Time Assumptions
 
 **Wrong:**
+
 ```markdown
 Since Claude now supports 200K context...
 ```
 
 **Right:**
+
 ```markdown
 Leverage available context window
 (designed to scale with future context increases)

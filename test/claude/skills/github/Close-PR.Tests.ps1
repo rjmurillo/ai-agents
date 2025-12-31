@@ -12,7 +12,7 @@
 BeforeAll {
     # Correct path: from .github/tests/skills/github -> .claude/skills/github/scripts/pr
     $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Close-PR.ps1"
-    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 }
 
 Describe "Close-PR" {
@@ -75,8 +75,8 @@ Describe "Close-PR" {
             $scriptContent | Should -Match '\[string\]\$CommentFile'
         }
 
-        It "Should import GitHubHelpers module" {
-            $scriptContent | Should -Match 'Import-Module.*GitHubHelpers\.psm1'
+        It "Should import GitHubCore module" {
+            $scriptContent | Should -Match 'Import-Module.*GitHubCore\.psm1'
         }
 
         It "Should call Assert-GhAuthenticated" {
@@ -194,7 +194,7 @@ Describe "Close-PR" {
         }
     }
 
-    Context "Integration with GitHubHelpers" {
+    Context "Integration with GitHubCore" {
         BeforeAll {
             $scriptContent = Get-Content $ScriptPath -Raw
         }

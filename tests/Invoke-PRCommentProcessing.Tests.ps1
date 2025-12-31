@@ -48,8 +48,8 @@ Describe "Invoke-PRCommentProcessing Script Structure" {
     }
 
     Context "Module Dependencies" {
-        It "Imports GitHubHelpers module" {
-            $script:scriptContent | Should -Match 'GitHubHelpers\.psm1'
+        It "Imports GitHubCore module" {
+            $script:scriptContent | Should -Match 'GitHubCore\.psm1'
             $script:scriptContent | Should -Match 'Import-Module'
         }
 

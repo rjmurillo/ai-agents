@@ -14,7 +14,7 @@ BeforeAll {
     # tests/ is at repo root, script is at .claude/skills/github/scripts/pr/
     $repoRoot = Join-Path $PSScriptRoot ".."
     $ScriptPath = Join-Path $repoRoot ".claude" "skills" "github" "scripts" "pr" "Test-PRMerged.ps1"
-    $ModulePath = Join-Path $repoRoot ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+    $ModulePath = Join-Path $repoRoot ".claude" "skills" "github" "modules" "GitHubCore.psm1"
     
     # Import the module for error handling functions
     Import-Module $ModulePath -Force
@@ -118,8 +118,8 @@ Describe "Test-PRMerged" {
             $scriptContent | Should -Match '\[string\]\$Repo'
         }
 
-        It "Should import GitHubHelpers module" {
-            $scriptContent | Should -Match 'Import-Module.*GitHubHelpers\.psm1'
+        It "Should import GitHubCore module" {
+            $scriptContent | Should -Match 'Import-Module.*GitHubCore\.psm1'
         }
 
         It "Should call Assert-GhAuthenticated" {
@@ -382,7 +382,7 @@ Describe "Test-PRMerged" {
         }
     }
 
-    Context "Integration with GitHubHelpers" {
+    Context "Integration with GitHubCore" {
         BeforeAll {
             $scriptContent = Get-Content $ScriptPath -Raw
         }

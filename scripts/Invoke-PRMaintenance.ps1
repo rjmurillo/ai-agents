@@ -77,10 +77,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Import shared GitHubHelpers module for rate limit checking (DRY per issue #273)
-$script:GitHubHelpersPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
-if (Test-Path $script:GitHubHelpersPath) {
-    Import-Module $script:GitHubHelpersPath -Force
+# Import shared GitHubCore module for rate limit checking (DRY per issue #273)
+$script:GitHubCorePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+if (Test-Path $script:GitHubCorePath) {
+    Import-Module $script:GitHubCorePath -Force
 }
 
 #region Configuration
@@ -151,10 +151,10 @@ function Test-RateLimitSafe {
     .SYNOPSIS
         Check if API rate limit is sufficient for operations.
     .DESCRIPTION
-        Wrapper around Test-WorkflowRateLimit from GitHubHelpers module.
+        Wrapper around Test-WorkflowRateLimit from GitHubCore module.
         Returns boolean for simple pass/fail check.
     .NOTES
-        DRY refactor per issue #273. Uses shared function from GitHubHelpers.psm1.
+        DRY refactor per issue #273. Uses shared function from GitHubCore.psm1.
     #>
     [CmdletBinding()]
     param()

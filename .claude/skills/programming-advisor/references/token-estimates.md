@@ -10,7 +10,7 @@
 
 ### Estimation Formula
 
-```
+```text
 Total Tokens ≈ (Initial Prompt + Code Context) × Iterations + Output Tokens × Iterations
 ```
 
@@ -71,6 +71,7 @@ Total Tokens ≈ (Initial Prompt + Code Context) × Iterations + Output Tokens �
 ## Hidden Token Costs
 
 Often overlooked:
+
 - **Debugging sessions**: 10-50K per bug hunt
 - **Refactoring**: 50-100% of original cost
 - **Documentation**: 20-50% of code tokens
@@ -92,6 +93,7 @@ At typical API rates (~$3/1M input, ~$15/1M output):
 ## Red Flags: When Vibe Coding Gets Expensive
 
 🚨 **High token burn indicators:**
+
 - "Can you also add..." (scope creep)
 - Complex state management
 - Multiple external API integrations  
@@ -104,6 +106,7 @@ At typical API rates (~$3/1M input, ~$15/1M output):
 ## When Vibe Coding Makes Sense
 
 ✅ **Efficient use cases:**
+
 - Glue code between existing libraries
 - One-off data transformation scripts
 - Prototyping to validate ideas (throw away after)

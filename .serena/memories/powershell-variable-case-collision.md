@@ -30,6 +30,7 @@ Manual tests on issues #497 and #500: Both passed
 ## Test Debt
 
 Get-IssueContext.ps1 has zero Pester tests. Identified coverage gaps:
+
 - Parameter validation tests
 - Error handling paths (auth failure, API error, malformed JSON)
 - Edge cases (missing fields, null values)
@@ -43,6 +44,7 @@ Get-IssueContext.ps1 has zero Pester tests. Identified coverage gaps:
 **Rationale**: PowerShell case-insensitivity makes debugging difficult. Linters may not catch this.
 
 **Best Practice**: Use descriptive variable names that clearly differ from parameters
+
 - Parameter: `$Issue`
 - Variable: `$issueData` or `$issueInfo` (not `$issue`)
 

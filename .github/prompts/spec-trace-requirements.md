@@ -51,9 +51,11 @@ Output your analysis in this format:
 
 1. [Specific gaps or missing implementations]
 
-VERDICT: [PASS|PARTIAL|FAIL]
+VERDICT: PASS
 MESSAGE: [Brief explanation]
 ```
+
+**IMPORTANT**: Output exactly `VERDICT: PASS`, `VERDICT: PARTIAL`, or `VERDICT: FAIL` (no brackets).
 
 ## Verdict Guidelines
 

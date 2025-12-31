@@ -12,7 +12,7 @@
 BeforeAll {
     # Correct path: from .github/tests/skills/github -> .claude/skills/github/scripts/pr
     $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Get-PRReviewThreads.ps1"
-    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 }
 
 Describe "Get-PRReviewThreads" {
@@ -76,8 +76,8 @@ Describe "Get-PRReviewThreads" {
             $scriptContent | Should -Match '\[switch\]\$IncludeComments'
         }
 
-        It "Should import GitHubHelpers module" {
-            $scriptContent | Should -Match 'Import-Module.*GitHubHelpers\.psm1'
+        It "Should import GitHubCore module" {
+            $scriptContent | Should -Match 'Import-Module.*GitHubCore\.psm1'
         }
 
         It "Should call Assert-GhAuthenticated" {
@@ -281,7 +281,7 @@ Describe "Get-PRReviewThreads" {
         }
     }
 
-    Context "Integration with GitHubHelpers" {
+    Context "Integration with GitHubCore" {
         BeforeAll {
             $scriptContent = Get-Content $ScriptPath -Raw
         }
