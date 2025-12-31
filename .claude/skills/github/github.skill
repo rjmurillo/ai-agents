@@ -22,11 +22,13 @@ generated-from: ".claude/skills/github/SKILL.md"
 ```text
 Need GitHub data?
 ├─ PR info/diff → Get-PRContext.ps1
+├─ CI check status → Get-PRChecks.ps1
 ├─ Review comments → Get-PRReviewComments.ps1
 ├─ Review threads → Get-PRReviewThreads.ps1
 ├─ Unique reviewers → Get-PRReviewers.ps1
 ├─ Unaddressed bot comments → Get-UnaddressedComments.ps1
 ├─ PR merged check → Test-PRMerged.ps1
+├─ Copilot follow-up PRs → Detect-CopilotFollowUpPR.ps1
 ├─ Issue info → Get-IssueContext.ps1
 └─ Need to take action?
    ├─ Create issue → New-Issue.ps1
@@ -50,12 +52,14 @@ Need GitHub data?
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
 | `Get-PRContext.ps1` | PR metadata, diff, files | `-PullRequest`, `-IncludeChangedFiles`, `-IncludeDiff` |
+| `Get-PRChecks.ps1` | CI check status, polling | `-PullRequest`, `-Wait`, `-TimeoutSeconds`, `-RequiredOnly` |
 | `Get-PRReviewComments.ps1` | Paginated review comments | `-PullRequest`, `-IncludeIssueComments` |
 | `Get-PRReviewThreads.ps1` | Thread-level review data | `-PullRequest`, `-UnresolvedOnly` |
 | `Get-PRReviewers.ps1` | Enumerate unique reviewers | `-PullRequest`, `-ExcludeBots` |
 | `Get-UnaddressedComments.ps1` | Bot comments needing attention | `-PullRequest` |
 | `Get-UnresolvedReviewThreads.ps1` | Unresolved thread IDs | `-PullRequest` |
 | `Test-PRMerged.ps1` | Check if PR is merged | `-PullRequest` |
+| `Detect-CopilotFollowUpPR.ps1` | Detect Copilot follow-up PRs | `-PRNumber`, `-Owner`, `-Repo` |
 | `Post-PRCommentReply.ps1` | Thread-preserving replies | `-PullRequest`, `-CommentId`, `-Body` |
 | `Resolve-PRReviewThread.ps1` | Mark threads resolved | `-ThreadId` or `-PullRequest -All` |
 | `Invoke-PRCommentProcessing.ps1` | Process AI triage output | `-PRNumber`, `-Verdict`, `-FindingsJson` |
@@ -78,7 +82,7 @@ Need GitHub data?
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `Add-CommentReaction.ps1` | Add emoji reactions | `-CommentId`, `-Reaction`, `-CommentType` |
+| `Add-CommentReaction.ps1` | Add emoji reactions (batch support) | `-CommentId[]`, `-Reaction`, `-CommentType` |
 
 ## Quick Examples
 

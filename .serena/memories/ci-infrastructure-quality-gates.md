@@ -8,17 +8,28 @@
 
 ```powershell
 # .githooks/pre-commit
-$changedFiles = git diff --cached --name-only --diff-filter=ACM |
+# Validates STAGED content (not working tree) to catch all committed errors
+$stagedFiles = git diff --cached --name-only --diff-filter=ACM |
     Where-Object { $_ -match '\.ps1$' }
 
-foreach ($file in $changedFiles) {
-    $result = Invoke-ScriptAnalyzer -Path $file -Severity Error
+foreach ($file in $stagedFiles) {
+    # Get staged content, not working tree file
+    $stagedContent = git show ":$file"
+    $result = Invoke-ScriptAnalyzer -ScriptDefinition $stagedContent -Severity Error
     if ($result) {
-        Write-Host "Syntax errors in $file" -ForegroundColor Red
+        Write-Host "Syntax errors in staged content: $file" -ForegroundColor Red
+        $result | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
         exit 1
     }
 }
 ```
+
+**Why staged content matters**: Validating working tree files can miss errors when:
+
+1. Developer stages broken code
+2. Developer fixes the file in working tree (but doesn't re-stage)
+3. Pre-commit passes because working tree is now valid
+4. Broken staged content gets committed
 
 ## Skill-CI-Infrastructure-003: Quality Gate as Required Check (92%)
 

@@ -5,14 +5,19 @@
 **Branch**: docs/191-parallel-execution-pattern
 **Type**: Documentation enhancement
 
-## Session Start Checklist
+## Protocol Compliance
 
-- [x] Serena activated and initial instructions read
-- [x] HANDOFF.md read (read-only reference)
-- [x] Skill-usage-mandatory memory read
-- [x] PROJECT-CONSTRAINTS.md read
-- [x] Session log created
-- [x] Skills listed (.claude/skills/github/scripts/)
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
 
 ## Objective
 
@@ -92,10 +97,13 @@ Formalize the parallel execution pattern in AGENT-SYSTEM.md based on learnings f
 | Example scenarios provided | [PASS] | Section 6.9 (3 examples) |
 | Limitations and constraints documented | [PASS] | Sections 6.10-6.11 |
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-- [x] All acceptance criteria met
-- [x] Session log complete
-- [x] Serena memory updated (not needed - memory already exists)
-- [x] Markdown lint run - passed
-- [ ] All changes committed
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory already exists (parallel-001, parallel-002) |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [N/A] | Documentation-only change |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit in PR #534 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
