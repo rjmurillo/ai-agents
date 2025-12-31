@@ -5,5 +5,5 @@
 | constraint governance must-not bash python powershell | session-init-constraints |
 | protocol verification trust blocking gate compliance | session-init-verification-gates |
 | memory load monitoring classification status before gate | session-init-003-memory-first-monitoring-gate |
-| branch declaration header session log explicit tracking accountability | session-init-003-branch-declaration |
-| scope limit multi-issue confusion 2-issue maximum context session | session-scope-002-multi-issue-limit |
+| branch declaration header session log explicit tracking accountability verification | session-init-003-branch-declaration |
+| scope limit multi-issue confusion 2-issue maximum context session focus contamination | session-scope-002-multi-issue-limit |

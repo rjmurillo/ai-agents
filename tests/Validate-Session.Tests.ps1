@@ -15,8 +15,8 @@ BeforeAll {
     # Extract the functions we need to test
     $scriptContent = Get-Content -Path $scriptPath -Raw
 
-    # Extract the allowlist variable
-    if ($scriptContent -match '\$script:InvestigationAllowlist\s*=\s*@\([^)]+\)') {
+    # Extract the allowlist variable (handles nested parentheses in patterns)
+    if ($scriptContent -match '(?ms)\$script:InvestigationAllowlist\s*=\s*@\(.*?^\)') {
         $allowlistDef = $Matches[0]
         Invoke-Expression $allowlistDef
     }
@@ -41,7 +41,7 @@ Describe "InvestigationAllowlist" {
         $script:InvestigationAllowlist | Should -Contain '^\.agents/sessions/'
         $script:InvestigationAllowlist | Should -Contain '^\.agents/analysis/'
         $script:InvestigationAllowlist | Should -Contain '^\.agents/retrospective/'
-        $script:InvestigationAllowlist | Should -Contain '^\.serena/memories/'
+        $script:InvestigationAllowlist | Should -Contain '^\.serena/memories($|/)'
         $script:InvestigationAllowlist | Should -Contain '^\.agents/security/'
     }
 
@@ -217,6 +217,20 @@ Describe "Test-InvestigationOnlyEligibility" {
             $files = @('.agents/sessions/2025/12/deep/session.md')
             $result = Test-InvestigationOnlyEligibility -Files $files
             $result.IsEligible | Should -BeTrue
+        }
+
+        It "Returns eligible for Serena memories directory itself" {
+            # Tests the ($|/) pattern matches end-of-string
+            $files = @('.serena/memories')
+            $result = Test-InvestigationOnlyEligibility -Files $files
+            $result.IsEligible | Should -BeTrue
+        }
+
+        It "Rejects .serena/memories prefix bypass" {
+            # .serena/memoriesX should NOT match .serena/memories($|/)
+            $files = @('.serena/memoriesX/evil.md')
+            $result = Test-InvestigationOnlyEligibility -Files $files
+            $result.IsEligible | Should -BeFalse
         }
     }
 }

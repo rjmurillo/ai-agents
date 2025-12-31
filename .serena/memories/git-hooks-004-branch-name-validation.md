@@ -1,14 +1,12 @@
-# Skill-Git-Hooks-004: Branch Name Validation
+# Skill-Git-Hooks-004: Branch Name Validation Pre-Commit Hook
 
-**Statement**: Pre-commit hook validates branch name matches expected pattern
-
-**Context**: Before any git commit (pre-commit hook execution)
-
-**Evidence**: PR #669 analysis - automated validation catches wrong-branch errors before persistence
-
-**Atomicity**: 90% | **Impact**: 9/10
+**Atomicity**: 90%
+**Category**: Git hooks, prevention
+**Source**: PR #669 PR co-mingling retrospective
 
 ## Pattern
+
+Pre-commit hook validates branch name matches expected pattern before allowing commits.
 
 **Pre-commit Hook Implementation**:
 
@@ -19,14 +17,21 @@
 CURRENT_BRANCH=$(git branch --show-current)
 
 # Valid patterns: feat/*, fix/*, chore/*, docs/*
-if [[ ! "$CURRENT_BRANCH" =~ ^(feat|fix|chore|docs)/ ]]; then
+if [[ ! "$CURRENT_BRANCH" =~ ^(feat|fix|chore|docs|refactor|test)/ ]]; then
   echo "ERROR: Invalid branch name: $CURRENT_BRANCH"
-  echo "Expected pattern: {feat|fix|chore|docs}/description"
+  echo "Expected pattern: {feat|fix|chore|docs|refactor|test}/description"
+  exit 1
+fi
+
+# Block commits to main/master
+if [[ "$CURRENT_BRANCH" =~ ^(main|master)$ ]]; then
+  echo "ERROR: Cannot commit to branch '$CURRENT_BRANCH' directly"
+  echo "HINT: Create a feature branch first (git checkout -b feat/description)"
   exit 1
 fi
 
 # Optional: Check against session log if exists
-SESSION_LOG=$(find .agents/sessions -name "*.md" -type f -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-)
+SESSION_LOG=$(find .agents/sessions -name "*.md" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
 if [[ -f "$SESSION_LOG" ]]; then
   DECLARED_BRANCH=$(grep -m1 "^\*\*Current\*\*:" "$SESSION_LOG" | sed 's/\*\*Current\*\*: //')
   if [[ -n "$DECLARED_BRANCH" && "$CURRENT_BRANCH" != "$DECLARED_BRANCH" ]]; then
@@ -39,6 +44,25 @@ fi
 
 exit 0
 ```
+
+## Problem
+
+Commits to wrong branches occur when:
+
+- Agent on unexpected branch (e.g., main, wrong feature branch)
+- No runtime verification before commit
+- Trust-based compliance fails
+
+**Evidence**: PR #669 - 4 PRs contaminated due to wrong-branch commits
+
+## Features
+
+| Feature | Behavior |
+|---------|----------|
+| **Block main** | Reject commits to main/master (exit 1) |
+| **Pattern validation** | Reject non-conventional branch names |
+| **Session match** | Optional: verify against declared branch |
+| **Clear messages** | Error + hint for blocked commits |
 
 ## Anti-Pattern
 
@@ -57,3 +81,10 @@ git commit --no-verify -m "Quick fix"
 - `git-004-branch-verification-before-commit`: Manual verification
 - `session-init-003-branch-declaration`: Session log tracking
 - `git-hooks-fix-hook-errors-never-bypass`: Never use --no-verify
+- `protocol-013-verification-based-enforcement`: Hook is enforcement mechanism
+
+## References
+
+- PR #669: PR co-mingling retrospective
+- Issue #681: Pre-commit hook implementation
+- Issue #684: SESSION-PROTOCOL branch verification

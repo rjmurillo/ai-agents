@@ -1,16 +1,15 @@
 # Skill-Protocol-013: Verification-Based Enforcement
 
-**Statement**: Use verification-based enforcement for git ops instead of trust-based compliance
-
-**Context**: When designing new protocol gates or improving existing compliance mechanisms
-
-**Evidence**: PR #669 analysis identified trust-based compliance as 3rd documented failure type (Session Protocol v1.0-v1.3, HANDOFF.md, git operations)
-
-**Atomicity**: 88% | **Impact**: 9/10
+**Atomicity**: 88%
+**Category**: Protocol design, compliance
+**Source**: PR #669 PR co-mingling retrospective
 
 ## Pattern
 
+Protocol requirements MUST generate observable artifacts that can be verified, not rely on agent memory.
+
 **Verification-Based Enforcement**:
+
 1. Execute verification command FIRST
 2. Check output programmatically
 3. Block operation if verification fails
@@ -26,13 +25,37 @@ fi
 git commit -m "..."
 ```
 
-**Trust-Based Compliance** (AVOID):
-1. Document requirement
-2. Hope agent follows it
-3. No programmatic check
-4. Failures discovered post-facto
+## Problem
 
-## Anti-Pattern
+**Trust-Based Compliance** fails because:
+
+- Agents have no persistent memory across tool calls
+- Context limits cause instruction truncation
+- No way to verify compliance after the fact
+
+**Success rate**: ~0% for non-trivial protocols
+
+**Evidence**: PR #669 - Trust-based "verify branch" requirement led to 4 PRs contaminated
+
+## Design Criteria
+
+For each protocol requirement, ask:
+
+1. **Observable?** Does it generate an artifact (file, output, commit)?
+2. **Verifiable?** Can compliance be checked after the fact?
+3. **Blocking?** Does the next step depend on this artifact?
+
+If "no" to any question, redesign with verification.
+
+## Anti-Patterns to Avoid
+
+| Bad (trust-based) | Good (verification-based) |
+|-------------------|---------------------------|
+| "Agent should..." | "Run [command] and verify output" |
+| "Remember to..." | "Generate [artifact] before proceeding" |
+| "Make sure..." | "Tool output MUST appear in transcript" |
+| No artifact | File, output, commit, API response |
+| Unverifiable | Programmatically checkable |
 
 ```markdown
 # WRONG: Trust-based compliance
@@ -44,8 +67,29 @@ git commit -m "..."
 # Problem: No enforcement mechanism
 ```
 
+## Session Protocol Pattern
+
+```markdown
+## Phase N: [Action Name] (BLOCKING)
+
+Before [next step], perform [action]:
+
+```bash
+[command that generates observable output]
+```
+
+**Exit criteria**: [Artifact] exists and contains [expected content].
+```
+
 ## Related Skills
 
 - `protocol-014-trust-antipattern`: Why trust-based fails
 - `git-004-branch-verification-before-commit`: Application example
 - `protocol-blocking-gates`: Gate design pattern
+- `session-init-003-branch-declaration`: Session log tracking
+
+## References
+
+- PR #669: PR co-mingling retrospective
+- Issue #684: SESSION-PROTOCOL branch verification (verification-based)
+- Issue #686: Trust antipattern documentation
