@@ -37,6 +37,8 @@
 [CmdletBinding()]
 param()
 
+$ErrorActionPreference = 'Stop'
+
 # Investigation-only allowlist patterns (must match Validate-Session.ps1)
 $investigationAllowlist = @(
     '^\.agents/sessions/',        # Session logs
@@ -55,8 +57,9 @@ $allowedPaths = @(
     '.agents/security/'
 )
 
-# Get staged files
-$stagedFiles = @(git diff --cached --name-only 2>$null)
+# Get staged files - split by newlines to get array of individual file paths
+$gitOutput = & git diff --cached --name-only 2>$null
+$stagedFiles = @($gitOutput -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' })
 
 if ($LASTEXITCODE -ne 0) {
     # Not in a git repository or other git error
