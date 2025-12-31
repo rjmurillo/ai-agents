@@ -1,11 +1,18 @@
 # Three-MCP Phase 1 Task List
 
 > **Status**: Ready for Implementation
-> **Version**: 1.0.0
+> **Version**: 1.1.0
 > **Date**: 2025-12-21
+> **Updated**: 2025-12-30 (Added GitHub issue references)
 > **Phase**: Phase 1 (Milestones M1-M3)
 > **Timeline**: Weeks 1-2
 > **Based On**: three-mcp-milestone-plan.md
+>
+> **Parent Issues**:
+>
+> - [#219](https://github.com/rjmurillo/ai-agents/issues/219): Session State MCP
+> - [#220](https://github.com/rjmurillo/ai-agents/issues/220): Skill Catalog MCP
+> - [#221](https://github.com/rjmurillo/ai-agents/issues/221): Agent Orchestration MCP
 
 ---
 
@@ -40,6 +47,7 @@ This document provides atomic, implementable tasks for Phase 1 of the Three-MCP 
 
 ### Task M1-001: Create MCP TypeScript Scaffold
 
+**GitHub Issue**: [#582](https://github.com/rjmurillo/ai-agents/issues/582)
 **Title**: Create TypeScript MCP server scaffold with SDK integration
 **Milestone**: M1
 **Effort**: 2h
@@ -68,6 +76,7 @@ Initialize the Session State MCP project structure using the Model Context Proto
 
 ### Task M1-002: Define State Machine Schema
 
+**GitHub Issue**: [#583](https://github.com/rjmurillo/ai-agents/issues/583)
 **Title**: Define state machine schema and phase transitions
 **Milestone**: M1
 **Effort**: 2h
@@ -95,6 +104,7 @@ Create TypeScript interfaces for session state machine per ADR-011. Define state
 
 ### Task M1-003: Implement Serena Integration Layer
 
+**GitHub Issue**: [#584](https://github.com/rjmurillo/ai-agents/issues/584)
 **Title**: Implement Serena MCP integration for state persistence
 **Milestone**: M1
 **Effort**: 3h
