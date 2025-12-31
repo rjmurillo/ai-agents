@@ -840,6 +840,53 @@ else
 fi
 
 #
+# Traceability Validation (BLOCKING)
+#
+# Validates cross-references between specification artifacts (REQ, DESIGN, TASK).
+# Enforces the traceability schema defined in .agents/governance/traceability-schema.md.
+# Checks:
+# - Forward traceability (REQ -> DESIGN)
+# - Backward traceability (TASK -> DESIGN)
+# - Complete chain (DESIGN has both REQ and TASK)
+# - Reference validity (all referenced IDs exist)
+#
+# Related: Phase 2 Traceability, traceability-schema.md
+#
+TRACEABILITY_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-Traceability.ps1"
+
+# Check if any spec files are staged
+STAGED_SPEC_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/specs/(requirements|design|tasks)/.*\.md$' || true)
+
+if [ -n "$STAGED_SPEC_FILES" ]; then
+    echo_info "Checking specification traceability..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$TRACEABILITY_VALIDATE_SCRIPT" ]; then
+        echo_warning "Skipping traceability validation: script path is a symlink"
+    elif [ -f "$TRACEABILITY_VALIDATE_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run traceability validation
+            # Note: Errors (broken refs, untraced tasks) are blocking
+            # Warnings (orphaned specs) are non-blocking unless -Strict
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$TRACEABILITY_VALIDATE_SCRIPT" -SpecsPath "$REPO_ROOT/.agents/specs" 2>&1; then
+                echo_error "Traceability validation FAILED."
+                echo_info "  Fix broken references or untraced tasks."
+                echo_info "  See: .agents/governance/traceability-schema.md"
+                EXIT_STATUS=1
+            else
+                echo_success "Traceability validation: PASS"
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping traceability validation."
+        fi
+    else
+        echo_info "Traceability validation script not found. Skipping."
+    fi
+else
+    echo_info "No spec files staged. Skipping traceability validation."
+fi
+
+#
 # Memory Index Validation (BLOCKING)
 #
 # Validates tiered memory index consistency (ADR-017).
