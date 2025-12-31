@@ -333,7 +333,11 @@ $script:InvestigationAllowlist = @(
   '^\.agents/security/'
 )
 
-function Test-InvestigationOnlyEligibility([string[]]$Files) {
+function Test-InvestigationOnlyEligibility {
+  [CmdletBinding()]
+  param(
+    [string[]]$Files
+  )
   <#
   .SYNOPSIS
     Tests if all staged files are in the investigation-only allowlist.
@@ -357,7 +361,7 @@ function Test-InvestigationOnlyEligibility([string[]]$Files) {
     return $result
   }
 
-  $implementationFiles = @()
+  $implementationFiles = [System.Collections.Generic.List[string]]::new()
   foreach ($file in $Files) {
     # Normalize path separators
     $normalizedFile = $file -replace '\\', '/'
@@ -371,13 +375,13 @@ function Test-InvestigationOnlyEligibility([string[]]$Files) {
     }
 
     if (-not $isAllowed) {
-      $implementationFiles += $file
+      $implementationFiles.Add($file)
     }
   }
 
   if ($implementationFiles.Count -gt 0) {
     $result.IsEligible = $false
-    $result.ImplementationFiles = $implementationFiles
+    $result.ImplementationFiles = $implementationFiles.ToArray()
   }
 
   return $result
@@ -386,18 +390,12 @@ function Test-InvestigationOnlyEligibility([string[]]$Files) {
 $docsOnly = $false
 $investigationResult = @{ IsEligible = $false; ImplementationFiles = @() }
 
-if ($startingCommit -and $changedFiles.Count -gt 0) {
+# Check if we have files to analyze (from starting commit diff or pre-commit staged files)
+if (($startingCommit -or $PreCommit) -and $changedFiles.Count -gt 0) {
   $docsOnly = Is-DocsOnly $changedFiles
   $investigationResult = Test-InvestigationOnlyEligibility $changedFiles
-} elseif ($PreCommit -and $changedFiles.Count -gt 0) {
-  # Pre-commit mode: check staged files
-  $docsOnly = Is-DocsOnly $changedFiles
-  $investigationResult = Test-InvestigationOnlyEligibility $changedFiles
-} else {
-  # If we cannot prove docs-only, treat as NOT docs-only.
-  $docsOnly = $false
-  $investigationResult = @{ IsEligible = $false; ImplementationFiles = @() }
 }
+# else: If we cannot prove docs-only, treat as NOT docs-only (default values above)
 
 $mustRows = $sessionRows | Where-Object { $_.Req -eq 'MUST' }
 if ($mustRows.Count -eq 0) { Fail 'E_NO_MUST_ROWS' "No MUST rows found in Session End checklist." }
@@ -429,16 +427,14 @@ foreach ($row in $mustRows) {
       if (-not $investigationResult.IsEligible) {
         # E_INVESTIGATION_HAS_IMPL: Staged files include non-investigation content
         $implFiles = $investigationResult.ImplementationFiles -join ', '
+        # Generate allowed directories dynamically from the allowlist
+        $allowedDirs = ($script:InvestigationAllowlist | ForEach-Object { "  - " + ($_ -replace '^\^\\', '' -replace '/$', '') }) -join "`n"
         Fail 'E_INVESTIGATION_HAS_IMPL' @"
 Investigation-only QA skip claimed but staged files include implementation:
   $implFiles
 
 Investigation sessions may ONLY modify files in these directories:
-  - .agents/sessions/
-  - .agents/analysis/
-  - .agents/retrospective/
-  - .serena/memories/
-  - .agents/security/
+$allowedDirs
 
 To fix: Either (1) move implementation to a new session, or (2) complete QA validation.
 "@

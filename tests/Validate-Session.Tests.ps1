@@ -10,7 +10,7 @@
 #>
 
 BeforeAll {
-    $scriptPath = Join-Path $PSScriptRoot ".." "Validate-Session.ps1"
+    $scriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1"
 
     # Extract the functions we need to test
     $scriptContent = Get-Content -Path $scriptPath -Raw
@@ -21,8 +21,8 @@ BeforeAll {
         Invoke-Expression $allowlistDef
     }
 
-    # Extract Test-InvestigationOnlyEligibility function
-    $functionPattern = '(?ms)function Test-InvestigationOnlyEligibility\s*\([^)]*\)\s*\{.*?\n\}'
+    # Extract Test-InvestigationOnlyEligibility function (advanced function with CmdletBinding)
+    $functionPattern = '(?ms)function Test-InvestigationOnlyEligibility\s*\{.*?^\}'
     if ($scriptContent -match $functionPattern) {
         $functionDef = $Matches[0]
         Invoke-Expression $functionDef
