@@ -1,13 +1,67 @@
 ---
 name: merge-resolver
-description: Resolve merge conflicts intelligently using git history. Use when given a PR number (e.g., "#123") to analyze and resolve merge conflicts. Fetches PR context, identifies conflicted files, uses git blame and commit history to infer developer intent, and applies resolution strategies based on change type (bugfix, feature, refactor). Combines non-conflicting changes when appropriate. Stages resolved files for commit.
+version: 2.0.0
+model: claude-opus-4-5-20251101
+license: MIT
+description: >
+  Resolve merge conflicts intelligently using git history.
+  Fetches PR context, identifies conflicted files, uses git blame
+  and commit history to infer developer intent.
+  Applies resolution strategies based on change type (bugfix, feature, refactor).
+  Auto-resolves session artifacts and templates. Validates session protocol before push.
+metadata:
+  domains: [git, github, merge-conflicts, pr-maintenance]
+  type: workflow
+  complexity: advanced
+  adr: ADR-015
 ---
 
 # Merge Resolver
 
 Resolve merge conflicts by analyzing git history and commit intent.
 
-## Workflow
+## Triggers
+
+Use this skill when you encounter:
+
+- `resolve merge conflicts for PR #123`
+- `PR has conflicts with main`
+- `can't merge - conflicts detected`
+- `fix the merge conflicts in this branch`
+- `help me resolve conflicts for this pull request`
+
+## Process
+
+### Phase 1: Context Gathering
+
+| Step | Action | Verification |
+|------|--------|--------------|
+| 1.1 | Fetch PR metadata | JSON response received |
+| 1.2 | Checkout PR branch | `git branch --show-current` matches |
+| 1.3 | Attempt merge with base | Conflict markers created |
+| 1.4 | List conflicted files | `git diff --name-only --diff-filter=U` output |
+
+### Phase 2: Analysis and Resolution
+
+| Step | Action | Verification |
+|------|--------|--------------|
+| 2.1 | Classify files (auto-resolvable vs manual) | Classification logged |
+| 2.2 | Auto-resolve template/session files | Accept --theirs successful |
+| 2.3 | For manual: Run git blame, analyze intent | Commit messages captured |
+| 2.4 | Apply manual resolutions per strategy | Conflict markers removed |
+| 2.5 | Stage all resolved files | `git diff --check` clean |
+
+### Phase 3: Validation (BLOCKING)
+
+| Step | Action | Verification |
+|------|--------|--------------|
+| 3.1 | Verify session log exists | File at `.agents/sessions/` |
+| 3.2 | Run session protocol validator | Exit code 0 |
+| 3.3 | Run markdown lint | No errors |
+| 3.4 | Commit merge resolution | Commit SHA recorded |
+| 3.5 | Push to remote | Push successful |
+
+## Workflow (Quick Reference)
 
 1. **Fetch PR context** - Get title, description, commits
 2. **Identify conflicts** - Find conflicted files in working directory
@@ -254,3 +308,92 @@ ADR-015 compliance:
 - Branch name validation (prevents command injection)
 - Worktree path validation (prevents path traversal)
 - Handles both GitHub Actions runner and local environments
+
+## Verification
+
+### Success Criteria
+
+| Criterion | Evidence |
+|-----------|----------|
+| All conflicts resolved | `git diff --check` returns empty |
+| No merge markers remain | `grep -r "<<<<<<" .` returns nothing |
+| Session protocol valid | `Validate-SessionEnd.ps1` exits 0 |
+| Markdown lint passes | `npx markdownlint-cli2` exits 0 |
+| Push successful | Remote ref updated |
+
+### Completion Checklist
+
+- [ ] All conflicted files staged (`git add`)
+- [ ] No UU status in `git status --porcelain`
+- [ ] Session log at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+- [ ] Session End checklist completed
+- [ ] Serena memory updated
+- [ ] Merge commit created
+- [ ] Branch pushed to origin
+
+## Anti-Patterns
+
+| Anti-Pattern | Why It Fails | Instead |
+|--------------|--------------|---------|
+| Push without session validation | CI blocks with MUST violations | Run `Validate-SessionEnd.ps1` first |
+| Manual edit of generated files | Changes lost on regeneration | Edit template, run generator |
+| Accept --ours for HANDOFF.md | Branch version often stale | Accept --theirs (main is canonical) |
+| Merge lock files manually | JSON corruption, broken deps | Accept base, regenerate with npm/yarn |
+| Skip git blame analysis | Wrong intent inference | Always check commit messages |
+| Resolve before fetching | Missing context, wrong base | Always `gh pr view` first |
+| Forget to stage .agents/ | Dirty worktree CI failure | Include all `.agents/` changes |
+
+## Extension Points
+
+### Custom Auto-Resolvable Patterns
+
+Add patterns to `$script:AutoResolvableFiles` in `Resolve-PRConflicts.ps1`:
+
+```powershell
+$script:AutoResolvableFiles += @(
+    'your/custom/path/*',
+    'another/pattern/**'
+)
+```
+
+### Custom Resolution Strategies
+
+Create new entries in `references/strategies.md` for domain-specific conflicts:
+
+1. Document the conflict pattern
+2. Add investigation commands
+3. Define resolution priority
+4. Provide copy-paste commands
+
+### Integration with CI/CD
+
+The script supports GitHub Actions via environment detection:
+
+```yaml
+# In workflow YAML
+- name: Resolve conflicts
+  env:
+    PR_NUMBER: ${{ github.event.pull_request.number }}
+    HEAD_REF: ${{ github.head_ref }}
+    BASE_REF: ${{ github.base_ref }}
+  run: |
+    pwsh .claude/skills/merge-resolver/scripts/Resolve-PRConflicts.ps1 \
+      -PRNumber "$env:PR_NUMBER" \
+      -BranchName "$env:HEAD_REF" \
+      -TargetBranch "$env:BASE_REF"
+```
+
+### Dry-Run Mode
+
+Use `-WhatIf` for testing without side effects:
+
+```powershell
+pwsh scripts/Resolve-PRConflicts.ps1 -PRNumber 123 -BranchName "fix/test" -WhatIf
+```
+
+## Related
+
+- **ADR-015**: Security validation for branch names and paths
+- **SESSION-PROTOCOL.md**: Session end requirements (blocking gate)
+- **strategies.md**: Detailed resolution patterns for edge cases
+- **merge-resolver-session-protocol-gap**: Memory documenting root cause analysis

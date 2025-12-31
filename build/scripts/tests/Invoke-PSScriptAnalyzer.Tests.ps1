@@ -188,6 +188,24 @@ Describe "Invoke-PSScriptAnalyzer Results Processing" -Tag "Integration" {
         }
     }
 
+    Context "Invalid Script Analysis" {
+        It "Should report issues for a script with PSScriptAnalyzer warnings" {
+            $testFile = Join-Path $Script:TestDir "invalid.ps1"
+            New-InvalidTestScript -Path $testFile
+
+            $result = & $Script:ScriptPath -Path $Script:TestDir -PassThru -Severity Warning
+            $result.TotalIssues | Should -BeGreaterThan 0
+            $result.WarningCount | Should -BeGreaterThan 0
+        }
+
+        It "Should handle scripts with syntax errors gracefully without throwing" {
+            $testFile = Join-Path $Script:TestDir "syntax-error.ps1"
+            New-SyntaxErrorScript -Path $testFile
+
+            { & $Script:ScriptPath -Path $Script:TestDir -PassThru } | Should -Not -Throw
+        }
+    }
+
     Context "Result Object Structure" {
         It "Should return expected result properties with -PassThru" {
             $testFile = Join-Path $Script:TestDir "test.ps1"

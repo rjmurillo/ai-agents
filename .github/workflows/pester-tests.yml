@@ -220,16 +220,13 @@ jobs:
           echo "Reference: .github/workflows/pester-tests.yml"
 
       - name: Create empty test result for required check
+        shell: pwsh
         run: |
-          mkdir -p ./artifacts
-          cat > ./artifacts/pester-results.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <testsuites tests="0" failures="0" errors="0" time="0">
-            <testsuite name="Pester Tests (Skipped)" tests="0" failures="0" errors="0" time="0">
-              <!-- No testable files changed - tests skipped -->
-            </testsuite>
-          </testsuites>
-          EOF
+          Import-Module ./.github/scripts/TestResultHelpers.psm1
+          New-SkippedTestResult `
+            -OutputPath "./artifacts/pester-results.xml" `
+            -TestSuiteName "Pester Tests (Skipped)" `
+            -SkipReason "No testable files changed - tests skipped"
 
       - name: Publish Test Report (skipped)
         uses: dorny/test-reporter@31a54ee7ebcacc03a09ea97a7e5465a47b84aea5

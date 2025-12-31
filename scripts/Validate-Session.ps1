@@ -294,7 +294,18 @@ if ($sessionText -match '(?m)^\s*-\s*\*\*Starting Commit\*\*\s*:\s*`?([0-9a-f]{7
 }
 
 $changedFiles = @()
-if ($startingCommit) {
+# In pre-commit mode, check staged files (not full session diff) to avoid false positives
+# when fixing session log format on branches with prior code changes. Issue #551.
+if ($PreCommit) {
+  try {
+    $changedFiles = @((& git -C $repoRoot diff --staged --name-only) -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' })
+  } catch {
+    # Fallback to starting commit comparison if staged files check fails
+    $changedFiles = @()
+  }
+}
+# If not pre-commit or no staged files, use starting commit comparison
+if ($changedFiles.Count -eq 0 -and $startingCommit) {
   try {
     # Wrap in @() to ensure result is always an array (fixes Count property error when single file)
     $changedFiles = @((& git -C $repoRoot diff --name-only "$startingCommit..HEAD") -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' })

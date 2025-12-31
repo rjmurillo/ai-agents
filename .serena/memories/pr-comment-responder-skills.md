@@ -11,12 +11,85 @@ Last updated: 2025-12-30
 | Reviewer | PRs | Comments | Actionable | Signal | Notes |
 |----------|-----|----------|------------|--------|-------|
 | cursor[bot] | - | 28 | 28 | **100%** | All comments identify real bugs (see cursor-bot-review-patterns memory) |
-| gemini-code-assist[bot] | #488, #501, #505, #566, #568 | 9 | 9 | **100%** | RFC 2119 compliance, grep exact matching, filename pattern precision, command injection prevention, GraphQL injection prevention |
+| gemini-code-assist[bot] | #488, #501, #505, #530, #566, #568 | 13 | 13 | **100%** | RFC 2119 compliance, grep exact matching, filename pattern precision, command injection prevention, GraphQL injection prevention, helper function adoption |
 | Copilot | #488, #484, #490 | 5 | 5 | **100%** | Path separator bypass (CWE-22), workflow error handling |
 | rjmurillo (owner) | #490, #501 | 2 | 2 | **100%** | Template propagation gaps |
 | coderabbitai[bot] | - | 6 | 3 | **50%** | Medium signal quality |
 
 ## Per-PR Breakdown
+
+### PR #530 (2025-12-30)
+
+**PR**: feat/97-review-thread-management
+
+| Reviewer | Comments | Actionable | Rate | Outcomes |
+|----------|----------|------------|------|----------|
+| gemini-code-assist[bot] | 4 | 4 | 100% | GraphQL migration to helper function, test file organization |
+| rjmurillo-bot | 1 | 0 | 0% | False positive - security.md changes from main merge |
+
+**Session Notes**:
+
+- **Invoke-GhGraphQL Migration**: All 4 actionable comments requested migration from raw `gh api graphql` to new Invoke-GhGraphQL helper
+- **Files Changed**: 3 scripts migrated (Test-PRMergeReady.ps1, Set-PRAutoMerge.ps1, Add-PRReviewThreadReply.ps1)
+- **Total GraphQL Calls Migrated**: 6 calls across 3 files
+- **Code Reduction**: -28 lines through consolidation (+44 -72)
+- **Test Organization**: 2 test files moved from `.claude/skills/github/tests/` to top-level `tests/` directory
+- **Resolution**: Fixed in commit 7ce149e, all 4 threads replied and resolved
+- **CI**: 11 checks pending, 2 failures (not related to changes - PR size limit, CodeRabbit)
+
+**Implementation Details**:
+
+**Migration Pattern** (applied to 6 GraphQL calls):
+
+Before:
+
+```powershell
+$result = gh api graphql -f query=$query -f var1="$val1" -F var2=$val2 2>&1
+if ($LASTEXITCODE -ne 0) {
+    if ($result -match "Could not resolve") {
+        Write-ErrorAndExit "Not found" 2
+    }
+    Write-ErrorAndExit "Failed: $result" 3
+}
+try {
+    $parsed = $result | ConvertFrom-Json
+}
+catch {
+    Write-ErrorAndExit "Parse failed: $result" 3
+}
+$data = $parsed.data.repository.pullRequest
+```
+
+After:
+
+```powershell
+try {
+    $data = Invoke-GhGraphQL -Query $query -Variables @{ var1 = $val1; var2 = $val2 }
+}
+catch {
+    if ($_.Exception.Message -match "Could not resolve") {
+        Write-ErrorAndExit "Not found" 2
+    }
+    Write-ErrorAndExit "Failed: $($_.Exception.Message)" 3
+}
+$pr = $data.repository.pullRequest  # NO .data prefix needed
+```
+
+**Key Change**: Helper returns `$parsed.data` directly, eliminating manual JSON parsing and `.data` prefix.
+
+**Benefits**:
+
+- Centralized error handling
+- Improved security (variable parameterization)
+- Consistent response parsing
+- Code reduction (28 fewer lines)
+
+**False Positive**:
+
+- rjmurillo-bot flagged security.md changes as "from other PRs like #528"
+- **Actually expected**: PR rebased from main (commit 445f032), bringing in #528 changes
+- **Key insight**: Rebasing from main brings merged PRs - this is correct behavior
+- **Response**: Explained expected behavior, resolved thread
 
 ### PR #568 (2025-12-30)
 
@@ -170,10 +243,10 @@ Last updated: 2025-12-30
 
 | Metric | Value |
 |--------|-------|
-| Total PRs Processed | 6 |
-| Total Comments Triaged | 11 |
-| Total Comments Implemented | 10 |
-| Total Comments Resolved | 11 |
+| Total PRs Processed | 7 |
+| Total Comments Triaged | 16 |
+| Total Comments Implemented | 14 |
+| Total Comments Resolved | 16 |
 | Security Vulnerabilities Found | 4 |
 | Critical Workflow Bugs Found | 1 |
 | Performance Improvements | 1 (88% faster reactions) |

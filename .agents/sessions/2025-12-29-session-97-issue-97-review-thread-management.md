@@ -12,16 +12,16 @@
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
-| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
-| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
-| MUST | Create this session log | [x] | This file exists |
-| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented below |
-| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
-| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
-| MUST | Read memory-index, load task-relevant memories | [x] | skills-github-cli-index loaded |
-| SHOULD | Verify git status | [x] | Output documented below |
-| SHOULD | Note starting commit | [x] | SHA documented below |
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Invoked with project='ai-agents' at session start |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Manual read confirmed |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Read at session start; informed skill inventory and branch strategy |
+| MUST | Create this session log | [x] | This file exists at `.agents/sessions/2025-12-29-session-97-issue-97-review-thread-management.md` |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented in Skill Inventory section below |
+| MUST | Read skill-usage-mandatory memory | [x] | Memory loaded; confirmed skill-first pattern |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | ADR-005 (PowerShell only), ADR-006 (thin workflows) reviewed |
+| MUST | Read memory-index, load task-relevant memories | [x] | Loaded: skills-github-cli-index, skills-graphql-index |
+| SHOULD | Verify git status | [x] | Clean state documented in Git State section |
+| SHOULD | Note starting commit | [x] | SHA: 74626f7 documented in Git State section |
 
 ### Skill Inventory
 

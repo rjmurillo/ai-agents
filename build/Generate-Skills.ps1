@@ -267,7 +267,7 @@ foreach ($file in $canonicalFiles) {
     "# GENERATED FILE",
     "# Source of truth: SKILL.md",
     "# Do not edit manually",
-    "# Regenerate: pwsh ./scripts/gen-skills.ps1",
+    "# Regenerate: pwsh ./build/Generate-Skills.ps1",
     ""
   ) -join "`n"
 

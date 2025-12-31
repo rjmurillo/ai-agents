@@ -2,6 +2,7 @@
 name: "github"
 description: |
   GitHub CLI operations for PRs, Issues, Labels, Milestones, Comments, and Reactions.
+  Unified skill with shared helpers for DRY code.
   Use when Claude needs to: (1) Get PR context, diff, or changed files, (2) Reply to
   PR review comments preserving threads, (3) Post idempotent issue comments, (4) Apply
   or create labels, (5) Assign milestones, (6) Add reactions to comments, (7) Close or
@@ -15,7 +16,7 @@ generated-from: ".claude/skills/github/SKILL.md"
 # GENERATED FILE
 # Source of truth: SKILL.md
 # Do not edit manually
-# Regenerate: pwsh ./scripts/gen-skills.ps1
+# Regenerate: pwsh ./build/Generate-Skills.ps1
 
 ## Decision Tree
 
@@ -25,6 +26,8 @@ Need GitHub data?
 ├─ CI check status → Get-PRChecks.ps1
 ├─ Review comments → Get-PRReviewComments.ps1
 ├─ Review threads → Get-PRReviewThreads.ps1
+├─ Single thread by ID → Get-ThreadById.ps1
+├─ Thread conversation → Get-ThreadConversationHistory.ps1
 ├─ Unique reviewers → Get-PRReviewers.ps1
 ├─ Unaddressed bot comments → Get-UnaddressedComments.ps1
 ├─ PR merged check → Test-PRMerged.ps1
@@ -41,6 +44,7 @@ Need GitHub data?
    ├─ Apply labels → Set-IssueLabels.ps1
    ├─ Set milestone → Set-IssueMilestone.ps1
    ├─ Resolve threads → Resolve-PRReviewThread.ps1
+   ├─ Unresolve threads → Unresolve-PRReviewThread.ps1
    ├─ Process AI triage → Invoke-PRCommentProcessing.ps1
    ├─ Assign Copilot → Invoke-CopilotAssignment.ps1
    ├─ Enable/disable auto-merge → Set-PRAutoMerge.ps1
@@ -66,6 +70,9 @@ Need GitHub data?
 | `Post-PRCommentReply.ps1` | Thread-preserving replies | `-PullRequest`, `-CommentId`, `-Body` |
 | `Add-PRReviewThreadReply.ps1` | Reply to thread by ID (GraphQL) | `-ThreadId`, `-Body`, `-Resolve` |
 | `Resolve-PRReviewThread.ps1` | Mark threads resolved | `-ThreadId` or `-PullRequest -All` |
+| `Unresolve-PRReviewThread.ps1` | Mark threads unresolved | `-ThreadId` or `-PullRequest -All` |
+| `Get-ThreadById.ps1` | Get single thread by ID | `-ThreadId` |
+| `Get-ThreadConversationHistory.ps1` | Full thread comment history | `-ThreadId`, `-IncludeMinimized` |
 | `Test-PRMergeReady.ps1` | Check merge readiness | `-PullRequest`, `-IgnoreCI`, `-IgnoreThreads` |
 | `Set-PRAutoMerge.ps1` | Enable/disable auto-merge | `-PullRequest`, `-Enable`/`-Disable`, `-MergeMethod` |
 | `Invoke-PRCommentProcessing.ps1` | Process AI triage output | `-PRNumber`, `-Verdict`, `-FindingsJson` |
@@ -120,3 +127,5 @@ if ($result.Success) { ... }
 - `modules/GitHubCore.psm1`: Shared helper functions (core module)
 - `.claude/agents/prompt-builder.md`: Agent for creating high-quality @copilot prompts
 - `.claude/skills/prompt-engineer/SKILL.md`: Skill for optimizing existing prompts
+
+---
