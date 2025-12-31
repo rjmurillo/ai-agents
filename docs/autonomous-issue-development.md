@@ -246,7 +246,11 @@ git checkout -b feat/{number}-description
 gh pr list --search "{number} in:title" --state all --json number,title,state
 
 # Create PR referencing issue
-gh pr create --title "feat: implement issue #{number}" --body "Fixes #{number}"
+# DANGER: If the PR title is constructed from untrusted input (like a GitHub issue title),
+# it can lead to command injection if it contains shell metacharacters like `$(...)`.
+# Use `read -r` to safely read the title into a variable.
+read -r pr_title < <(gh issue view {number} --json title --jq -r .title)
+gh pr create --title "feat: ${pr_title}" --body "Fixes #{number}"
 
 # Run PR review after creation
 /pr-review {pr_number}
