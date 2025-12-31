@@ -1,6 +1,6 @@
-# ADR-007: GitHub Actions Runner Selection
+# ADR-032: GitHub Actions Runner Selection
 
-**Status**: Accepted
+**Status**: Accepted (supersedes ADR-024, ADR-025)
 **Date**: 2025-12-29
 **Authors**: DevOps Agent
 **Related**: Issue #197
@@ -45,7 +45,7 @@ All new workflows MUST use `ubuntu-24.04-arm` unless:
 When x64 or Windows runners required, add comment above `runs-on`:
 
 ```yaml
-# ADR-007 Exception: [Brief reason]
+# ADR-032 Exception: [Brief reason]
 # Dependency: [Specific package/action that requires x64/Windows]
 # Issue: [Link to GitHub issue or documentation]
 runs-on: ubuntu-latest  # or windows-latest

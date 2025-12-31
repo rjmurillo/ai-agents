@@ -23,7 +23,7 @@ env:
 jobs:
   validate-pr:
     name: Validate PR
-    # ADR-007: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-032: ARM runner for cost optimization (37.5% savings vs x64)
     # PowerShell Core and GitHub CLI fully support ARM64
     runs-on: ubuntu-24.04-arm
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
