@@ -28,6 +28,7 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 
 ```text
 Need GitHub data?
+├─ List PRs (filtered) → Get-PullRequests.ps1
 ├─ PR info/diff → Get-PRContext.ps1
 ├─ CI check status → Get-PRChecks.ps1
 ├─ Review comments → Get-PRReviewComments.ps1
@@ -61,6 +62,7 @@ Need GitHub data?
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
+| `Get-PullRequests.ps1` | List PRs with filters | `-State`, `-Label`, `-Author`, `-Base`, `-Head`, `-Limit` |
 | `Get-PRContext.ps1` | PR metadata, diff, files | `-PullRequest`, `-IncludeChangedFiles`, `-IncludeDiff` |
 | `Get-PRChecks.ps1` | CI check status, polling | `-PullRequest`, `-Wait`, `-TimeoutSeconds`, `-RequiredOnly` |
 | `Get-PRReviewComments.ps1` | Paginated review comments | `-PullRequest`, `-IncludeIssueComments` |
@@ -103,6 +105,18 @@ Need GitHub data?
 ## Quick Examples
 
 ```powershell
+# List open PRs (default)
+pwsh -NoProfile scripts/pr/Get-PullRequests.ps1
+
+# List all PRs with custom limit
+pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -State all -Limit 100
+
+# Filter PRs by label and state
+pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -Label "bug,priority:P1" -State open
+
+# Filter PRs by author and base branch
+pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -Author rjmurillo -Base main
+
 # Get PR with changed files
 pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFiles
 
@@ -249,6 +263,24 @@ if ($ready.CanMerge) {
     Write-Host "Auto-merge enabled. PR will merge when all checks pass."
 } else {
     Write-Host "Cannot enable auto-merge: $($ready.Reasons -join '; ')"
+}
+```
+
+### PR Enumeration Workflow
+
+Enumerate PRs for batch processing (merge readiness, maintenance):
+
+```powershell
+# Get all open PRs targeting main
+$prs = pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -State open -Base main | ConvertFrom-Json
+
+# Check each PR for merge readiness
+foreach ($pr in $prs) {
+    $ready = pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest $pr.number | ConvertFrom-Json
+    if ($ready.CanMerge) {
+        Write-Host "PR #$($pr.number) is ready to merge"
+        pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest $pr.number -Strategy squash -DeleteBranch
+    }
 }
 ```
 
