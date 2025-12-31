@@ -1,8 +1,8 @@
 # AI Agents Enhancement Project Plan
 
-> **Version**: 2.0
+> **Version**: 2.1
 > **Created**: 2025-12-17
-> **Updated**: 2025-12-20
+> **Updated**: 2025-12-31
 > **Repository**: rjmurillo/ai-agents
 > **Goal**: Unify Kiro planning patterns, claude-flow capabilities, and Anthropic agent patterns
 
@@ -78,8 +78,8 @@ This plan consolidates work from:
 | Phase | Name | Sessions | Dependencies | Status |
 |-------|------|----------|--------------|--------|
 | 0 | Foundation | 1-2 | None | COMPLETE |
-| 1 | Spec Layer | 2-3 | Phase 0 | PENDING |
-| 2 | Traceability + Metrics | 2-3 | Phase 1 | PENDING |
+| 1 | Spec Layer | 2-3 | Phase 0 | COMPLETE |
+| 2 | Traceability + Metrics | 2-3 | Phase 1 | COMPLETE (Traceability) |
 | 2A | Memory System | 3-4 | Phase 0 | PENDING |
 | 3 | Parallel Execution | 2-3 | Phase 0, 2A | PENDING |
 | 4 | Steering Scoping | 2-3 | Phase 1 | PARTIAL |
@@ -195,25 +195,25 @@ updated: YYYY-MM-DD
 
 ### Tasks
 
-| ID | Task | Complexity | Status | Linked Issue |
-|----|------|------------|--------|--------------|
-| T-001 | Design traceability graph schema | M | PENDING | - |
-| T-002 | Create `scripts/Validate-Traceability.ps1` script | L | PENDING | - |
-| T-003 | Create pre-commit hook for traceability | M | PENDING | - |
-| T-004 | Update critic agent with traceability checklist | M | PENDING | - |
-| T-005 | Create orphan detection report format | S | PENDING | - |
-| T-006 | Add traceability metrics to retrospective | S | PENDING | - |
-| T-007 | Document traceability protocol | S | PENDING | - |
-| T-008 | Design metrics collection schema | M | PENDING | #169 |
-| T-009 | Implement session metrics capture | M | PENDING | #169 |
-| T-010 | Create performance monitoring dashboard spec | L | PENDING | #169 |
+| ID | Task | Complexity | Status | Linked Issue | PR |
+|----|------|------------|--------|--------------|-----|
+| T-001 | Design traceability graph schema | M | COMPLETE | - | #715 |
+| T-002 | Create `scripts/Validate-Traceability.ps1` script | L | COMPLETE | - | #715 |
+| T-003 | Create pre-commit hook for traceability | M | COMPLETE | - | #715 |
+| T-004 | Update critic agent with traceability checklist | M | COMPLETE | - | #715 |
+| T-005 | Create orphan detection report format | S | COMPLETE | - | #715 |
+| T-006 | Add traceability metrics to retrospective | S | COMPLETE | - | #715 |
+| T-007 | Document traceability protocol | S | COMPLETE | - | #715 |
+| T-008 | Design metrics collection schema | M | PENDING | #169 | - |
+| T-009 | Implement session metrics capture | M | PENDING | #169 | - |
+| T-010 | Create performance monitoring dashboard spec | L | PENDING | #169 | - |
 
 ### Acceptance Criteria
 
-- [ ] Validation script catches orphaned artifacts
-- [ ] Pre-commit hook blocks commits with broken refs
-- [ ] Critic validates traceability before approving
-- [ ] Retrospective reports traceability coverage %
+- [x] Validation script catches orphaned artifacts
+- [x] Pre-commit hook blocks commits with broken refs
+- [x] Critic validates traceability before approving
+- [x] Retrospective reports traceability coverage %
 - [ ] Session metrics captured automatically
 - [ ] Performance trends visible in dashboard
 
@@ -593,6 +593,8 @@ Project is complete when:
 |---------|------|-------|-------|--------|-----|
 | 1 | 2025-12-17 | 0 | F-001 to F-006 | COMPLETE | `.agents/sessions/2025-12-18-session-01-phase-0-foundation.md` |
 | 44 | 2025-12-20 | N/A | PROJECT-PLAN merge | COMPLETE | Current session |
+| 112 | 2025-12-31 | 1 | Epic #183 cleanup | COMPLETE | `.agents/sessions/2025-12-31-session-112-project-plan-evaluation.md` |
+| 113 | 2025-12-31 | 2 | T-001 to T-007 | COMPLETE | `.agents/sessions/2025-12-31-session-113-phase2-traceability.md` |
 
 ---
 
@@ -602,3 +604,4 @@ Project is complete when:
 |------|---------|---------|
 | 2025-12-17 | 1.0 | Initial project plan |
 | 2025-12-20 | 2.0 | Merged Epic #183 (claude-flow enhancements). Added Phase 2A (Memory), Phase 5A (Automation). Updated Phase 0,1,4 status. Integrated issues #167-#181 into phases. Added dependencies and success criteria for claude-flow metrics. |
+| 2025-12-31 | 2.1 | Marked Phase 1 and Phase 2 (Traceability) COMPLETE. Added PR references for T-001 to T-007. Updated acceptance criteria. |
