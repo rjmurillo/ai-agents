@@ -146,23 +146,28 @@ The agent MUST create a session log early in the session.
 
 **Rationale:** Late session log creation reduces traceability and often results in incomplete documentation when sessions end unexpectedly.
 
-### Phase 4: Git State Verification (RECOMMENDED)
+### Phase 4: Branch Verification (BLOCKING)
 
-The agent SHOULD verify git state before starting work.
+The agent MUST verify and declare the current branch before starting work. This is a **blocking gate**.
 
 **Requirements:**
 
-1. The agent SHOULD run `git status` to understand current working state
-2. The agent SHOULD run `git branch --show-current` to verify correct branch
-3. The agent SHOULD run `git log --oneline -1` to note starting commit
-4. The agent SHOULD document git state in session log
+1. The agent MUST run `git branch --show-current` to verify correct branch
+2. The agent MUST document the branch name in the session log header
+3. The agent MUST verify the branch matches the intended work context (issue, PR, feature)
+4. The agent MUST NOT proceed with work if on `main` or `master` branch (create feature branch first)
+5. The agent SHOULD run `git status` to understand current working state
+6. The agent SHOULD run `git log --oneline -1` to note starting commit
 
 **Verification:**
 
-- Session log contains git state information
-- Agent is aware of uncommitted changes
+- Session log contains branch name in Session Info section
+- Branch matches conventional naming patterns (feat/*, fix/*, docs/*, etc.)
+- Agent is not working on main/master (unless explicitly approved)
 
-**Rationale:** Understanding git state prevents confusion about what changes belong to the current session vs. prior work.
+**Rationale:** PR #669 retrospective identified that 100% of wrong-branch commits were caused by lack of branch verification gates. Trust-based compliance fails; verification-based enforcement prevents cross-PR contamination.
+
+**Exit Criteria:** Branch name documented in session log before any file modifications.
 
 ---
 
@@ -185,6 +190,8 @@ Copy this checklist to each session log and verify completion:
 | MUST | Read skill-usage-mandatory memory | [ ] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
 | MUST | Read memory-index, load task-relevant memories | [ ] | List memories loaded |
+| MUST | Verify and declare current branch | [ ] | Branch documented below |
+| MUST | Confirm not on main/master | [ ] | On feature branch |
 | SHOULD | Verify git status | [ ] | Output documented below |
 | SHOULD | Note starting commit | [ ] | SHA documented below |
 
@@ -197,8 +204,13 @@ Available GitHub skills:
 ### Git State
 
 - **Status**: [clean/dirty]
-- **Branch**: [branch name]
+- **Branch**: [branch name - REQUIRED]
 - **Starting Commit**: [SHA]
+
+### Branch Verification
+
+**Current Branch**: [output of `git branch --show-current`]
+**Matches Expected Context**: [Yes/No - explain if No]
 
 ### Work Blocked Until
 
@@ -317,15 +329,34 @@ The agent MUST commit changes before ending.
 
 **Requirements:**
 
-1. The agent MUST stage all changed files including `.agents/` files
-2. The agent MUST commit with conventional commit message format
-3. The agent SHOULD verify clean git status after commit
-4. The agent MAY push to remote if appropriate
+1. The agent MUST re-verify current branch before EVERY commit:
+
+   ```bash
+   CURRENT_BRANCH=$(git branch --show-current)
+   # Verify matches session log declaration
+   ```
+
+2. The agent MUST NOT commit if branch mismatch detected (stop and investigate)
+3. The agent MUST stage all changed files including `.agents/` files
+4. The agent MUST commit with conventional commit message format
+5. The agent SHOULD verify clean git status after commit
+6. The agent MAY push to remote if appropriate
 
 **Verification:**
 
+- Branch matches session log declaration before each commit
 - `git status` shows clean state (or intentionally dirty with explanation)
 - Commit exists with conventional format
+
+**Branch Mismatch Recovery:**
+
+If `git branch --show-current` differs from session log declaration:
+
+1. **STOP** - Do not commit
+2. **Document** the discrepancy in session log
+3. **Investigate** - How did branch change?
+4. **Resolve** - Either switch back or update session log with justification
+5. **Resume** - Only after branch is confirmed correct
 
 ### Phase 4: Retrospective (RECOMMENDED)
 
@@ -402,6 +433,8 @@ Create at: `.agents/sessions/YYYY-MM-DD-session-NN.md`
 | MUST | Read skill-usage-mandatory memory | [ ] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
 | MUST | Read memory-index, load task-relevant memories | [ ] | List memories loaded |
+| MUST | Verify and declare current branch | [ ] | Branch documented below |
+| MUST | Confirm not on main/master | [ ] | On feature branch |
 | SHOULD | Verify git status | [ ] | Output documented below |
 | SHOULD | Note starting commit | [ ] | SHA documented below |
 
@@ -414,8 +447,13 @@ Available GitHub skills:
 ### Git State
 
 - **Status**: [clean/dirty]
-- **Branch**: [branch name]
+- **Branch**: [branch name - REQUIRED]
 - **Starting Commit**: [SHA]
+
+### Branch Verification
+
+**Current Branch**: [output of `git branch --show-current`]
+**Matches Expected Context**: [Yes/No - explain if No]
 
 ### Work Blocked Until
 
