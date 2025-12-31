@@ -265,7 +265,6 @@ Location: `.agents/steering/`
 
 For complete documentation, see [AGENTS.md](AGENTS.md).
 
-
 <!-- BEGIN: ai-agents installer -->
 ## AI Agent System
 
@@ -355,7 +354,7 @@ mcp__cloudmcp-manager__memory-add_observations(...)
 mcp__cloudmcp-manager__memory-create_entities(...)
 ```
 
-### Output Directories
+### Agent Output Directories
 
 Agents save artifacts to `.agents/`:
 
