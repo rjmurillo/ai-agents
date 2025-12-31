@@ -96,4 +96,22 @@ Checks: 18/18 passed
 
 ## Commits This Session
 
-- `21b8eb0` - feat(skills): enhance session-log-fixer to skillcreator v3.2 standards
+- `d5279e5` - feat(skills): enhance session-log-fixer to skillcreator v3.2 standards
+- `e1c1a54` - feat(skills): add CI debugging patterns from session transcript analysis
+
+## Additional Enhancement: Session Transcript Analysis
+
+Analyzed `/home/richard/sessions/001/` (Claude Code transcript from PR 534 debugging).
+
+**Insights extracted:**
+
+1. **Job-level diagnostics**: `gh api .../actions/runs/{id}/jobs` provides more detail than `gh run view`
+2. **Stuck job detection**: Filter for `.status != "completed"` and check `runner_name`
+3. **Runner congestion**: `runner_name: null` indicates job waiting for runner
+4. **Matrix output limitation**: Use artifacts instead of outputs for reliable job handoff
+
+**Applied to diagnose.ps1:**
+
+- Added `=== Job-Level Status ===` section with visual indicators
+- Added `=== Stuck/Incomplete Jobs ===` section with runner check
+- Created `references/ci-debugging-patterns.md` reference document
