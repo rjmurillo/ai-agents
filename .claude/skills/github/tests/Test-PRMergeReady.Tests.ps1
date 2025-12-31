@@ -17,7 +17,7 @@
 
 BeforeAll {
     $Script:ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "pr" "Test-PRMergeReady.ps1"
-    $Script:ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
+    $Script:ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubCore.psm1"
 
     # Verify script exists
     if (-not (Test-Path $Script:ScriptPath)) {
@@ -28,9 +28,9 @@ BeforeAll {
     Import-Module $Script:ModulePath -Force
 
     # Mock authentication functions
-    Mock -ModuleName GitHubHelpers Test-GhAuthenticated { return $true }
-    Mock -ModuleName GitHubHelpers Assert-GhAuthenticated { }
-    Mock -ModuleName GitHubHelpers Resolve-RepoParams {
+    Mock -ModuleName GitHubCore Test-GhAuthenticated { return $true }
+    Mock -ModuleName GitHubCore Assert-GhAuthenticated { }
+    Mock -ModuleName GitHubCore Resolve-RepoParams {
         return @{ Owner = 'testowner'; Repo = 'testrepo' }
     }
 
@@ -161,8 +161,8 @@ Describe "Test-PRMergeReady.ps1" {
         BeforeEach {
             # Mock the module functions directly to bypass gh auth check
             # The -Force import in the script causes command mocks to lose scope
-            Mock -ModuleName GitHubHelpers Test-GhAuthenticated { return $true }
-            Mock -ModuleName GitHubHelpers Assert-GhAuthenticated { }
+            Mock -ModuleName GitHubCore Test-GhAuthenticated { return $true }
+            Mock -ModuleName GitHubCore Assert-GhAuthenticated { }
 
             $global:LASTEXITCODE = 0
         }
@@ -231,8 +231,8 @@ Describe "Test-PRMergeReady.ps1" {
 
         BeforeEach {
             # Mock the module functions directly to bypass gh auth check
-            Mock -ModuleName GitHubHelpers Test-GhAuthenticated { return $true }
-            Mock -ModuleName GitHubHelpers Assert-GhAuthenticated { }
+            Mock -ModuleName GitHubCore Test-GhAuthenticated { return $true }
+            Mock -ModuleName GitHubCore Assert-GhAuthenticated { }
 
             $global:LASTEXITCODE = 0
         }
@@ -270,8 +270,8 @@ Describe "Test-PRMergeReady.ps1" {
 
         BeforeEach {
             # Mock the module functions directly to bypass gh auth check
-            Mock -ModuleName GitHubHelpers Test-GhAuthenticated { return $true }
-            Mock -ModuleName GitHubHelpers Assert-GhAuthenticated { }
+            Mock -ModuleName GitHubCore Test-GhAuthenticated { return $true }
+            Mock -ModuleName GitHubCore Assert-GhAuthenticated { }
 
             $global:LASTEXITCODE = 0
         }
