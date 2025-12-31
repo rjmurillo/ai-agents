@@ -406,6 +406,6 @@ if ($result.Success) { ... }
 
 - `references/api-reference.md`: Exit codes, API endpoints, troubleshooting
 - `references/copilot-synthesis-guide.md`: Copilot context synthesis documentation
-- `modules/GitHubHelpers.psm1`: Shared helper functions
+- `modules/GitHubCore.psm1`: Shared helper functions (core module)
 - `.claude/agents/prompt-builder.md`: Agent for creating high-quality @copilot prompts
 - `.claude/skills/prompt-engineer/SKILL.md`: Skill for optimizing existing prompts
