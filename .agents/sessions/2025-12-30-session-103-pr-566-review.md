@@ -5,6 +5,24 @@
 **PR**: #566 - docs/506-autonomous-issue-development
 **Branch**: docs/506-autonomous-issue-development
 **Worktree**: /home/claude/worktree-pr-566
+**Status**: COMPLETE
+
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Skills available |
+| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | Loaded pr-comment-responder memories |
+| SHOULD | Verify git status | [x] | Clean in worktree |
+| SHOULD | Note starting commit | [x] | Parent commit noted |
 
 ## Objective
 
@@ -103,12 +121,16 @@ Documentation for autonomous agents requires higher security standards than typi
 
 **Response Protocol**: Implement fix, reply with commit hash + brief explanation, resolve thread.
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| All review threads resolved | ✅ COMPLETE | Thread PRRT_kwDOQoWRls5nn2pY resolved |
-| Changes committed | ✅ COMPLETE | Commit 9e3c1bb pushed to remote |
-| Session log complete | ✅ COMPLETE | This file |
-| Memory updated | ✅ COMPLETE | pr-comment-responder-skills.md updated with PR #566 |
-| Linting passed | ✅ COMPLETE | Markdown linting clean |
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | All sections documented |
+| MUST | Update Serena memory (cross-session context) | [x] | pr-comment-responder-skills updated |
+| MUST | Run markdown lint | [x] | Lint clean |
+| MUST | Route to qa agent (feature implementation) | [N/A] | PR review session, no code changes |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 9e3c1bb |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Not applicable |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
