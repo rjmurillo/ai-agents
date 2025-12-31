@@ -15,7 +15,7 @@
 
 BeforeAll {
     $Script:ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "pr" "Add-PRReviewThreadReply.ps1"
-    $Script:ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
+    $Script:ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubCore.psm1"
 
     # Verify script exists
     if (-not (Test-Path $Script:ScriptPath)) {
@@ -26,8 +26,8 @@ BeforeAll {
     Import-Module $Script:ModulePath -Force
 
     # Mock authentication functions
-    Mock -ModuleName GitHubHelpers Test-GhAuthenticated { return $true }
-    Mock -ModuleName GitHubHelpers Assert-GhAuthenticated { }
+    Mock -ModuleName GitHubCore Test-GhAuthenticated { return $true }
+    Mock -ModuleName GitHubCore Assert-GhAuthenticated { }
 }
 
 Describe "Add-PRReviewThreadReply.ps1" {
