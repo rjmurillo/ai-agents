@@ -63,9 +63,9 @@ Rationale: Foundational task that enables #654 (investigation-only pattern match
 
 ### Test Results
 
-All 25 tests pass:
+All 27 tests pass:
 - InvestigationAllowlist: 2 tests
-- Test-InvestigationOnlyEligibility: 19 tests
+- Test-InvestigationOnlyEligibility: 21 tests (including 2 new edge cases)
 - Is-DocsOnly vs Test-InvestigationOnlyEligibility: 3 tests
 
 ---
@@ -91,6 +91,7 @@ All 25 tests pass:
 | SHA | Message |
 |-----|---------|
 | 65e685f | feat(validation): complete investigation allowlist per Issue #653 |
+| 69743d3 | test(validation): add edge case tests for memory patterns |
 
 ---
 
@@ -99,9 +100,22 @@ All 25 tests pass:
 **Status**: ✅ COMPLETE
 
 - Issue #653: Define investigation allowlist constant → PR #703
-- All 25 Pester tests pass
+- All 27 Pester tests pass
 - Critic and Security agents approved
 - PR created with full template compliance
+
+---
+
+## Session End Checklist
+
+| Requirement | Status | Evidence |
+|------------|--------|----------|
+| Session log complete | ✅ | All sections filled |
+| Serena memory updated | ✅ | `session-111-investigation-allowlist.md` created |
+| Markdown lint clean | ✅ | `npx markdownlint-cli2 --fix` → 0 errors |
+| QA routing | ✅ | Critic + Security agents reviewed |
+| Changes committed | ✅ | PR #703 pushed |
+| HANDOFF.md unchanged | ✅ | Read-only reference |
 
 ---
 
