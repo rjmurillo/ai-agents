@@ -66,11 +66,7 @@
     - state: PR state (OPEN, CLOSED, MERGED)
 
 .NOTES
-    Exit Codes:
-      0 - Success
-      1 - Invalid parameters
-      3 - API error
-      4 - Not authenticated
+    Exit Codes: 0=Success, 1=Invalid parameters, 3=API error, 4=Not authenticated
 #>
 
 [CmdletBinding()]
@@ -112,6 +108,10 @@ $listArgs = @("--repo", "$Owner/$Repo", "--limit", $Limit, "--json", "number,tit
 if ($State -eq "merged") {
     # For merged PRs, we query closed and filter by merged state
     $listArgs += @("--state", "closed")
+}
+elseif ($State -eq "all") {
+    # Explicitly add --state all to get open, closed, and merged PRs
+    $listArgs += @("--state", "all")
 }
 elseif ($State -ne "all") {
     $listArgs += @("--state", $State)

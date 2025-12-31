@@ -114,19 +114,19 @@ Describe "Get-PullRequests" {
         }
 
         It "Should document exit code 0 for Success" {
-            $scriptContent | Should -Match 'Exit Codes:[\s\S]*0\s*-\s*Success'
+            $scriptContent | Should -Match 'Exit Codes:.*0=Success'
         }
 
         It "Should document exit code 1 for Invalid parameters" {
-            $scriptContent | Should -Match 'Exit Codes:[\s\S]*1\s*-\s*Invalid parameters'
+            $scriptContent | Should -Match 'Exit Codes:.*1=Invalid parameters'
         }
 
         It "Should document exit code 3 for API error" {
-            $scriptContent | Should -Match 'Exit Codes:[\s\S]*3\s*-\s*API error'
+            $scriptContent | Should -Match 'Exit Codes:.*3=API error'
         }
 
         It "Should document exit code 4 for Not authenticated" {
-            $scriptContent | Should -Match 'Exit Codes:[\s\S]*4\s*-\s*Not authenticated'
+            $scriptContent | Should -Match 'Exit Codes:.*4=Not authenticated'
         }
 
         It "Should check LASTEXITCODE after gh pr list command" {
