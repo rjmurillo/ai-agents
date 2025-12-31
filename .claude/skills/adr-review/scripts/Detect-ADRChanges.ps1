@@ -122,7 +122,7 @@ try {
     # Check git diff for each pattern
     foreach ($pattern in $ADRPatterns) {
         # Get diff status
-        $diffOutput = git diff --name-status $SinceCommit -- $pattern 2>$null
+        $diffOutput = git diff --name-status "$SinceCommit" -- $pattern 2>$null
 
         if ($diffOutput) {
             foreach ($line in $diffOutput -split "`n") {

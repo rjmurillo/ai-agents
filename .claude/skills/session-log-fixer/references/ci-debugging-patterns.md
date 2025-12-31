@@ -2,6 +2,8 @@
 
 Patterns extracted from real CI debugging sessions.
 
+**Note**: Replace `$Repo` in examples with your repository in `owner/repo` format (e.g., `rjmurillo/ai-agents`). You can infer this from `git remote get-url origin`.
+
 ---
 
 ## Job-Level Diagnostics
@@ -9,7 +11,8 @@ Patterns extracted from real CI debugging sessions.
 ### Check All Jobs in a Run
 
 ```powershell
-gh api /repos/rjmurillo/ai-agents/actions/runs/$RunId/jobs --jq '.jobs[] | {name: .name, status: .status, conclusion: .conclusion}'
+$Repo = "owner/repo"  # Set to your repository (e.g., rjmurillo/ai-agents)
+gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | {name: .name, status: .status, conclusion: .conclusion}'
 ```
 
 ### Find Stuck or Incomplete Jobs
@@ -21,7 +24,7 @@ gh run view $RunId --json jobs --jq '.jobs[] | select(.status != "completed") | 
 ### Check Runner Assignment
 
 ```powershell
-gh api /repos/rjmurillo/ai-agents/actions/runs/$RunId/jobs --jq '.jobs[] | {name: .name, status: .status, runner: .runner_name}'
+gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | {name: .name, status: .status, runner: .runner_name}'
 ```
 
 A `null` runner_name indicates the job hasn't been assigned to a runner yet.
@@ -41,7 +44,7 @@ A `null` runner_name indicates the job hasn't been assigned to a runner yet.
 **Diagnosis:**
 
 ```powershell
-gh api /repos/rjmurillo/ai-agents/actions/runs/$RunId/jobs --jq '.jobs[] | select(.status == "queued") | {name: .name, runner: .runner_name}'
+gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | select(.status == "queued") | {name: .name, runner: .runner_name}'
 ```
 
 **Resolution:**
@@ -58,7 +61,7 @@ Wait for runners to become available. If persistent, check GitHub Status.
 **Diagnosis:**
 
 ```powershell
-gh api /repos/rjmurillo/ai-agents/actions/runs/$RunId/jobs --jq '.jobs[] | select(.name | contains("Aggregate")) | {name: .name, status: .status, conclusion: .conclusion}'
+gh api /repos/$Repo/actions/runs/$RunId/jobs --jq '.jobs[] | select(.name | contains("Aggregate")) | {name: .name, status: .status, conclusion: .conclusion}'
 ```
 
 **Common Causes:**
@@ -70,6 +73,7 @@ gh api /repos/rjmurillo/ai-agents/actions/runs/$RunId/jobs --jq '.jobs[] | selec
 ### 3. Matrix Job Output Issues
 
 **Symptoms:**
+
 - Matrix jobs complete but downstream job fails
 - Outputs from only one matrix leg visible
 
@@ -87,9 +91,9 @@ Use artifacts instead of outputs for reliable handoff between jobs.
 |---------|---------|
 | Run overview | `gh run view $RunId` |
 | All jobs status | `gh api .../actions/runs/$RunId/jobs --jq '.jobs[]...'` |
-| Failed jobs only | `...--jq '.jobs[] | select(.conclusion == "failure")'` |
-| Incomplete jobs | `...--jq '.jobs[] | select(.status != "completed")'` |
-| Workflow logs | `gh run view $RunId --log 2>&1 | head -100` |
+| Failed jobs only | `...--jq '.jobs[] \| select(.conclusion == "failure")'` |
+| Incomplete jobs | `...--jq '.jobs[] \| select(.status != "completed")'` |
+| Workflow logs | `gh run view $RunId --log 2>&1 \| head -100` |
 | Specific job log | `gh run view $RunId --log --job $JobId` |
 
 ---
@@ -100,7 +104,7 @@ Use artifacts instead of outputs for reliable handoff between jobs.
 
 ```powershell
 $runId = "20608909597"  # Example run ID
-gh api /repos/rjmurillo/ai-agents/actions/runs/$runId/jobs --jq '.jobs[] | select(.name | contains("Aggregate")) | {name: .name, status: .status, conclusion: .conclusion}'
+gh api /repos/$Repo/actions/runs/$runId/jobs --jq '.jobs[] | select(.name | contains("Aggregate")) | {name: .name, status: .status, conclusion: .conclusion}'
 ```
 
 ### Find NON_COMPLIANT Verdict

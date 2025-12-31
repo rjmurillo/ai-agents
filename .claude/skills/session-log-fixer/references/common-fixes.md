@@ -169,7 +169,7 @@ QA validation required but no report found
 ### Find Session Files for Branch
 
 ```powershell
-git log --oneline --name-only -- ".agents/sessions/*.md" | head -20
+git log --oneline --name-only -- ".agents/sessions/*.md" | Select-Object -First 20
 ```
 
 ### Check Current Session Protocol Structure

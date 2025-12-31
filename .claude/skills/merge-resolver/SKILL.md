@@ -369,14 +369,18 @@ Create new entries in `references/strategies.md` for domain-specific conflicts:
 
 The script supports GitHub Actions via environment detection:
 
-```powershell
+```yaml
 # In workflow YAML
 - name: Resolve conflicts
+  env:
+    PR_NUMBER: ${{ github.event.pull_request.number }}
+    HEAD_REF: ${{ github.head_ref }}
+    BASE_REF: ${{ github.base_ref }}
   run: |
     pwsh .claude/skills/merge-resolver/scripts/Resolve-PRConflicts.ps1 \
-      -PRNumber ${{ github.event.pull_request.number }} \
-      -BranchName ${{ github.head_ref }} \
-      -TargetBranch ${{ github.base_ref }}
+      -PRNumber "$env:PR_NUMBER" \
+      -BranchName "$env:HEAD_REF" \
+      -TargetBranch "$env:BASE_REF"
 ```
 
 ### Dry-Run Mode
