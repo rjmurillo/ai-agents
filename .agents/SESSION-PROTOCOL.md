@@ -292,6 +292,25 @@ The agent MUST route to the qa agent after feature implementation. This is a **b
 - Implementation sessions that touch code
 - Critique sessions that gate implementation
 
+#### Mixed Session Recovery
+
+When an investigation session discovers code changes are needed:
+
+1. **Complete investigation artifacts** - Finish analysis docs and session log
+2. **Commit investigation work** - Use `SKIPPED: investigation-only` evidence
+3. **Start NEW session** - Create new session for code changes (with QA validation)
+4. **Reference investigation session** - Link in Related Sessions section
+
+**Branch Strategy**: Continue on SAME branch. The investigation commit clears staged investigation artifacts before the implementation session begins.
+
+**Example Session Log Reference**:
+
+```markdown
+## Related Sessions
+
+- Session 106: Investigation that discovered the issue
+```
+
 ### Phase 3: Git Operations (REQUIRED)
 
 The agent MUST commit changes before ending.
