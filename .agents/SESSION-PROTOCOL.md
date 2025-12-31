@@ -275,6 +275,23 @@ The agent MUST route to the qa agent after feature implementation. This is a **b
 
 **Rationale:** Untested code may contain bugs or security vulnerabilities. QA validation catches issues before they are committed to the repository.
 
+#### Investigation Session Examples
+
+**Valid investigation sessions** (may use `SKIPPED: investigation-only`):
+
+1. **Pure analysis** - Reading code, documenting findings in `.agents/analysis/`
+2. **Memory updates** - Cross-session context updates in `.serena/memories/`
+3. **CI debugging** - Investigating CI failures, documenting in session log
+4. **Security assessments** - Writing security analysis to `.agents/security/`
+5. **Retrospectives** - Extracting learnings to `.agents/retrospective/`
+
+**Not investigation sessions** (require QA validation):
+
+- Planning sessions that produce PRDs
+- Architecture sessions that produce ADRs
+- Implementation sessions that touch code
+- Critique sessions that gate implementation
+
 #### Mixed Session Recovery
 
 When an investigation session discovers code changes are needed:
