@@ -22,7 +22,7 @@ Create categorically the best possible Claude Code skills.
 
 Just tell me what skill you need:
 
-```
+```text
 SkillCreator: create a skill for automated code review
 ```
 
@@ -46,7 +46,7 @@ That's it. The skill will be created autonomously with full analysis, verificati
 
 ## Process Overview
 
-```
+```text
 Your Request
     │
     ▼
@@ -139,7 +139,7 @@ metadata:
 
 ## Skill Output Structure
 
-```
+```text
 ~/.claude/skills/{skill-name}/
 ├── SKILL.md                    # Main entry point (required)
 ├── references/                 # Deep documentation (optional)
@@ -210,7 +210,7 @@ After creation:
 
 Transform user's goal into comprehensive requirements:
 
-```
+```text
 USER INPUT: "Create a skill for X"
                 │
                 ▼
@@ -275,7 +275,7 @@ See: [references/multi-lens-framework.md](references/multi-lens-framework.md)
 
 Iterative self-questioning until no new insights emerge:
 
-```
+```text
 ROUND N:
 │
 ├── "What am I missing?"
@@ -305,7 +305,7 @@ See: [references/regression-questions.md](references/regression-questions.md)
 
 Identify opportunities for scripts that enable agentic operation:
 
-```
+```text
 FOR EACH operation in the skill:
 │
 ├── Is this operation repeatable?
@@ -334,7 +334,7 @@ FOR EACH operation in the skill:
 | Can the skill run overnight autonomously? | All categories |
 | How will Claude verify correct execution? | Verification |
 
-**Decision: Script vs No Script**
+#### Decision: Script vs No Script
 
 | Create Script When | Skip Script When |
 |-------------------|------------------|
@@ -426,7 +426,7 @@ Before proceeding to Phase 3:
 
 ### Generation Order
 
-```
+```bash
 1. Create directory structure
    mkdir -p ~/.claude/skills/{skill-name}/references
    mkdir -p ~/.claude/skills/{skill-name}/assets/templates
@@ -541,7 +541,7 @@ Each agent produces:
 
 ### Consensus Protocol
 
-```
+```text
 IF all agents APPROVED (3/3 or 4/4):
     → Finalize skill
     → Run validate-skill.py
@@ -621,7 +621,7 @@ Select based on task complexity:
 
 ### Selection Decision Tree
 
-```
+```text
 Is it a simple procedure?
 ├── Yes → Single-Phase
 └── No → Does it produce artifacts?

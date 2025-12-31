@@ -96,7 +96,7 @@ A blueprint for agent-centric codebases:
 
 ![Directory Structure](assets/images/12-directory-structure.png)
 
-```
+```text
 skillcreator/
 ├── SKILL.md                          # Main skill definition
 ├── README.md                         # This file
