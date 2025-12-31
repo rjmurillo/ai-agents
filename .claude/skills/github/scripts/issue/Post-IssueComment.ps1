@@ -144,6 +144,7 @@ if ($Marker) {
 
 # Helper: Handle 403 permission errors with actionable guidance
 function Write-PermissionDeniedError {
+    [CmdletBinding()]
     param(
         [string]$Owner,
         [string]$Repo,
@@ -165,11 +166,13 @@ LIKELY CAUSES:
 RAW ERROR: $RawError
 "@
 
-    Write-Host $guidance -ForegroundColor Red
+    Write-Error $guidance -ErrorAction Continue
 
     # Save payload for manual posting/debugging
     $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
-    $artifactDir = Join-Path (Get-Location) ".github" "artifacts"
+    $repoRoot = (git rev-parse --show-toplevel 2>$null)
+    if (-not $repoRoot) { $repoRoot = Get-Location }
+    $artifactDir = Join-Path $repoRoot ".github" "artifacts"
     if (-not (Test-Path $artifactDir)) {
         New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
     }

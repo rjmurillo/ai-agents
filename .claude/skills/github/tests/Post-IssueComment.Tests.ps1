@@ -577,4 +577,69 @@ Main content here.
             $scriptContent | Should -Match 'Write-ErrorAndExit.*Failed to post comment.*3'
         }
     }
+
+    Context "403 Permission Denied Error Handling" {
+
+        It "Should have Write-PermissionDeniedError function with CmdletBinding" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Function must have CmdletBinding attribute
+            $scriptContent | Should -Match 'function Write-PermissionDeniedError\s*\{\s*\[CmdletBinding\(\)\]'
+        }
+
+        It "Should detect 403 status code in error response" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must detect 403 pattern
+            $scriptContent | Should -Match "'403'"
+        }
+
+        It "Should detect 'Resource not accessible by integration' message" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must detect GitHub's specific error message
+            $scriptContent | Should -Match 'Resource not accessible by integration'
+        }
+
+        It "Should exit 5 for permission denied errors" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Permission denied must exit with code 5
+            $scriptContent | Should -Match 'exit\s+5'
+        }
+
+        It "Should save failed comment payload to artifact file" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must save to .github/artifacts directory
+            $scriptContent | Should -Match '\.github.*artifacts'
+            $scriptContent | Should -Match 'failed-comment-.*\.json'
+        }
+
+        It "Should use git rev-parse for artifact directory (not Get-Location)" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must use git rev-parse --show-toplevel for robust path handling
+            $scriptContent | Should -Match 'git rev-parse --show-toplevel'
+        }
+
+        It "Should provide actionable guidance for common permission issues" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must include guidance for common scenarios
+            $scriptContent | Should -Match 'issues:write'
+            $scriptContent | Should -Match 'GITHUB_TOKEN'
+            $scriptContent | Should -Match 'Fine-grained PAT'
+        }
+
+        It "Should write structured GITHUB_OUTPUT for 403 errors" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must write status and artifact path to GITHUB_OUTPUT
+            $scriptContent | Should -Match 'success=false'
+            $scriptContent | Should -Match 'error=PERMISSION_DENIED'
+            $scriptContent | Should -Match 'status_code=403'
+            $scriptContent | Should -Match 'artifact_path='
+        }
+    }
 }
