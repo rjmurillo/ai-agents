@@ -24,7 +24,7 @@
 
 BeforeAll {
     $Script:ScriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "scripts" "pr" "Detect-CopilotFollowUpPR.ps1"
-    $Script:ModulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+    $Script:ModulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 
     # Verify script exists
     if (-not (Test-Path $Script:ScriptPath)) {
@@ -35,8 +35,8 @@ BeforeAll {
     Import-Module $Script:ModulePath -Force
 
     # Mock authentication functions in the module scope
-    Mock -ModuleName GitHubHelpers Test-GhAuthenticated { return $true }
-    Mock -ModuleName GitHubHelpers Resolve-RepoParams {
+    Mock -ModuleName GitHubCore Test-GhAuthenticated { return $true }
+    Mock -ModuleName GitHubCore Resolve-RepoParams {
         return @{ Owner = 'testowner'; Repo = 'testrepo' }
     }
 
@@ -551,9 +551,9 @@ Describe "Detect-CopilotFollowUpPR" {
             $scriptContent | Should -Match '\[int\]\$PRNumber'
         }
 
-        It "Script imports GitHubHelpers module" {
+        It "Script imports GitHubCore module" {
             $scriptContent = Get-Content $Script:ScriptPath -Raw
-            $scriptContent | Should -Match 'Import-Module.*GitHubHelpers\.psm1'
+            $scriptContent | Should -Match 'Import-Module.*GitHubCore\.psm1'
         }
 
         It "Script has proper error handling setup" {

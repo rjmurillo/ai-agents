@@ -3,7 +3,7 @@
     Check GitHub API rate limits before workflow execution.
 
 .DESCRIPTION
-    Wrapper script for Test-WorkflowRateLimit from GitHubHelpers module.
+    Wrapper script for Test-WorkflowRateLimit from GitHubCore module.
     Designed for GitHub Actions workflow integration per ADR-006
     (thin workflows, testable modules).
 
@@ -30,7 +30,7 @@
 
 .NOTES
     Created per issue #273 (DRY rate limit code).
-    Uses Test-WorkflowRateLimit from GitHubHelpers.psm1.
+    Uses Test-WorkflowRateLimit from GitHubCore.psm1.
 #>
 
 [CmdletBinding()]
@@ -43,9 +43,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # Import the shared module
-$modulePath = Join-Path $PSScriptRoot ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+$modulePath = Join-Path $PSScriptRoot ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 if (-not (Test-Path $modulePath)) {
-    Write-Error "GitHubHelpers module not found at: $modulePath"
+    Write-Error "GitHubCore module not found at: $modulePath"
     exit 1
 }
 

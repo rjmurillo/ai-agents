@@ -35,7 +35,7 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 
 ## Shared Module Functions
 
-All scripts import `modules/GitHubHelpers.psm1`:
+All scripts import `modules/GitHubCore.psm1`:
 
 | Function | Purpose |
 |----------|---------|

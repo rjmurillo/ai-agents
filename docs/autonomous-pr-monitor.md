@@ -483,12 +483,12 @@ gh api repos/{owner}/{repo}/labels -X POST \
 
 ```powershell
 # WRONG - Incorrect relative depth
-$ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
+$ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubCore.psm1"
 
 # CORRECT - Navigate from test location to module location
 # From: .github/tests/skills/github/
 # To:   .claude/skills/github/modules/
-$ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+$ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 ```
 
 ### Pattern 6: Document Platform Exceptions (Skill-Testing-Platform-001)

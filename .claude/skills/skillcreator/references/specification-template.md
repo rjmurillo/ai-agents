@@ -5,6 +5,7 @@ The specification is the bridge between analysis and execution. It captures all 
 ## Overview
 
 The specification follows meta-prompting principles:
+
 - **Separation of concerns:** Analysis artifacts stay in analysis; execution gets clean instructions
 - **Explicit WHY:** Every decision includes its rationale
 - **Measurable criteria:** Success is verifiable, not subjective
@@ -337,6 +338,7 @@ The specification follows meta-prompting principles:
 ### Requirements Section
 
 Priority levels:
+
 - `must`: Required for v1.0
 - `should`: Important but can defer
 - `could`: Nice to have
@@ -363,6 +365,7 @@ Priority levels:
 ### Success Criteria Section
 
 Every criterion must be:
+
 - **Specific:** Not vague
 - **Measurable:** Can verify pass/fail
 - **Traceable:** Maps to a requirement
