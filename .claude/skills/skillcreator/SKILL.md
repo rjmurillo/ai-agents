@@ -22,7 +22,7 @@ Create categorically the best possible Claude Code skills.
 
 Just tell me what skill you need:
 
-```
+```text
 SkillCreator: create a skill for automated code review
 ```
 
@@ -46,7 +46,7 @@ That's it. The skill will be created autonomously with full analysis, verificati
 
 ## Process Overview
 
-```
+```text
 Your Request
     │
     ▼
@@ -78,6 +78,7 @@ Production-Ready Agentic Skill
 ```
 
 **Key principles:**
+
 - Evolution/timelessness is the core lens (score ≥ 7 required)
 - Every decision includes WHY
 - Zero tolerance for errors
@@ -138,7 +139,7 @@ metadata:
 
 ## Skill Output Structure
 
-```
+```text
 ~/.claude/skills/{skill-name}/
 ├── SKILL.md                    # Main entry point (required)
 ├── references/                 # Deep documentation (optional)
@@ -165,6 +166,7 @@ Scripts enable skills to be **agentic** - capable of autonomous operation with s
 | **Calculation** | Compute metrics/scores | Scoring or analysis |
 
 **Script Requirements:**
+
 - Python 3.x with standard library only (graceful fallbacks for extras)
 - `Result` dataclass pattern for structured returns
 - Exit codes: 0=success, 1=failure, 10=validation failure, 11=verification failure
@@ -208,7 +210,7 @@ After creation:
 
 Transform user's goal into comprehensive requirements:
 
-```
+```text
 USER INPUT: "Create a skill for X"
                 │
                 ▼
@@ -235,6 +237,7 @@ USER INPUT: "Create a skill for X"
 ```
 
 **Check for overlap with existing skills:**
+
 ```bash
 ls ~/.claude/skills/
 # Grep for similar triggers in existing SKILL.md files
@@ -272,7 +275,7 @@ See: [references/multi-lens-framework.md](references/multi-lens-framework.md)
 
 Iterative self-questioning until no new insights emerge:
 
-```
+```text
 ROUND N:
 │
 ├── "What am I missing?"
@@ -289,6 +292,7 @@ ROUND N:
 ```
 
 **Termination Criteria:**
+
 - Three consecutive rounds produce no new insights
 - All 11 thinking models have been applied
 - At least 3 simulated expert perspectives considered
@@ -301,7 +305,7 @@ See: [references/regression-questions.md](references/regression-questions.md)
 
 Identify opportunities for scripts that enable agentic operation:
 
-```
+```text
 FOR EACH operation in the skill:
 │
 ├── Is this operation repeatable?
@@ -330,7 +334,7 @@ FOR EACH operation in the skill:
 | Can the skill run overnight autonomously? | All categories |
 | How will Claude verify correct execution? | Verification |
 
-**Decision: Script vs No Script**
+#### Decision: Script vs No Script
 
 | Create Script When | Skip Script When |
 |-------------------|------------------|
@@ -422,7 +426,7 @@ Before proceeding to Phase 3:
 
 ### Generation Order
 
-```
+```bash
 1. Create directory structure
    mkdir -p ~/.claude/skills/{skill-name}/references
    mkdir -p ~/.claude/skills/{skill-name}/assets/templates
@@ -537,7 +541,7 @@ Each agent produces:
 
 ### Consensus Protocol
 
-```
+```text
 IF all agents APPROVED (3/3 or 4/4):
     → Finalize skill
     → Run validate-skill.py
@@ -617,7 +621,7 @@ Select based on task complexity:
 
 ### Selection Decision Tree
 
-```
+```text
 Is it a simple procedure?
 ├── Yes → Single-Phase
 └── No → Does it produce artifacts?
@@ -702,6 +706,7 @@ SKILLCREATOR_CONFIG:
 ## Changelog
 
 ### v3.2.0 (Current)
+
 - Added Script Integration Framework for agentic skills
 - Added 4th Script Agent to synthesis panel (conditional)
 - Added Phase 1D: Automation Analysis
@@ -714,12 +719,14 @@ SKILLCREATOR_CONFIG:
 - Skills can now include self-verifying Python scripts
 
 ### v3.1.0
+
 - Added progressive disclosure structure
 - Fixed frontmatter for packaging compatibility
 - Added validation & packaging section
 - Deep dive sections now collapsible
 
 ### v3.0.0
+
 - Complete redesign as ultimate meta-skill
 - Added regression questioning loop
 - Added multi-lens analysis framework (11 models)
@@ -727,8 +734,10 @@ SKILLCREATOR_CONFIG:
 - Added multi-agent synthesis panel
 
 ### v2.0.0
+
 - Pattern selection guide
 - Quality standards checklist
 
 ### v1.0.0
+
 - Basic skill structure

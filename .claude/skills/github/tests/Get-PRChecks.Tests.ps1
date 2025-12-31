@@ -19,7 +19,7 @@
 
 BeforeAll {
     $Script:ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "pr" "Get-PRChecks.ps1"
-    $Script:ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
+    $Script:ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubCore.psm1"
 
     # Verify script exists
     if (-not (Test-Path $Script:ScriptPath)) {
@@ -31,8 +31,8 @@ BeforeAll {
 
     # Mock authentication functions to prevent script from exiting during dot-source
     # These mocks must be set BEFORE any test dot-sources the script
-    Mock -ModuleName GitHubHelpers Test-GhAuthenticated { return $true }
-    Mock -ModuleName GitHubHelpers Resolve-RepoParams {
+    Mock -ModuleName GitHubCore Test-GhAuthenticated { return $true }
+    Mock -ModuleName GitHubCore Resolve-RepoParams {
         return @{ Owner = 'testowner'; Repo = 'testrepo' }
     }
 
