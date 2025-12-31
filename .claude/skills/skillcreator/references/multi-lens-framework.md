@@ -7,6 +7,7 @@ Systematic application of 11 thinking models to skill design. Each lens reveals 
 The multi-lens framework ensures comprehensive analysis by requiring explicit application of each thinking model to the skill being designed. This prevents the common failure mode of designing from a single perspective.
 
 **Minimum Requirements:**
+
 - All 11 lenses must be applied during Phase 1
 - At least 3 lenses must yield actionable insights
 - Conflicting perspectives must be explicitly resolved
@@ -20,6 +21,7 @@ The multi-lens framework ensures comprehensive analysis by requiring explicit ap
 **Core Question:** What is fundamentally needed? What can we build from scratch?
 
 **Application to Skill Design:**
+
 ```
 1. Strip away conventional skill patterns
 2. Ask: "If skills didn't exist, how would we solve this?"
@@ -28,6 +30,7 @@ The multi-lens framework ensures comprehensive analysis by requiring explicit ap
 ```
 
 **Key Questions:**
+
 - What is the atomic unit of value this skill delivers?
 - What assumptions from existing skills are we carrying forward unnecessarily?
 - What would a minimal viable skill look like?
@@ -41,6 +44,7 @@ The multi-lens framework ensures comprehensive analysis by requiring explicit ap
 **Core Question:** What would guarantee this skill fails?
 
 **Application to Skill Design:**
+
 ```
 1. List all ways this skill could fail
 2. Create explicit anti-patterns from each
@@ -49,6 +53,7 @@ The multi-lens framework ensures comprehensive analysis by requiring explicit ap
 ```
 
 **Failure Categories:**
+
 | Category | Example Failures |
 |----------|------------------|
 | Adoption | Too complex, unclear triggers, wrong audience |
@@ -65,6 +70,7 @@ The multi-lens framework ensures comprehensive analysis by requiring explicit ap
 **Core Question:** What happens after the obvious consequences?
 
 **Application to Skill Design:**
+
 ```
 1. Identify immediate effects of the skill
 2. For each effect, ask "then what?"
@@ -73,6 +79,7 @@ The multi-lens framework ensures comprehensive analysis by requiring explicit ap
 ```
 
 **Example Chain:**
+
 ```
 Skill generates documentation →
   Developers use documentation →
@@ -90,6 +97,7 @@ Skill generates documentation →
 **Core Question:** Assuming this skill failed, why did it fail?
 
 **Application to Skill Design:**
+
 ```
 1. Imagine complete failure 6 months from now
 2. List all reasons it could have failed
@@ -98,6 +106,7 @@ Skill generates documentation →
 ```
 
 **Pre-Mortem Template:**
+
 ```markdown
 ## Pre-Mortem Analysis
 
@@ -123,6 +132,7 @@ Outcome: Skill is unused and deprecated
 **Core Question:** How do the parts interact? What are the feedback loops?
 
 **Application to Skill Design:**
+
 ```
 1. Map skill as a system (inputs, processes, outputs)
 2. Identify relationships with other system components
@@ -131,12 +141,14 @@ Outcome: Skill is unused and deprecated
 ```
 
 **System Diagram Elements:**
+
 - Inputs: User goal, context, configuration
 - Processes: Each phase of the skill
 - Outputs: Artifacts, side effects, state changes
 - Connections: Dependencies, triggers, compositions
 
 **Key Questions:**
+
 - What other skills does this interact with?
 - What feedback loops exist (success breeds success, failure cascades)?
 - Where are the leverage points that have outsized impact?
@@ -150,6 +162,7 @@ Outcome: Skill is unused and deprecated
 **Core Question:** What's the strongest argument against this approach?
 
 **Application to Skill Design:**
+
 ```
 1. State the design decision clearly
 2. Actively argue the opposite
@@ -159,6 +172,7 @@ Outcome: Skill is unused and deprecated
 
 **Application Protocol:**
 For each major design decision:
+
 1. Write the strongest possible counterargument
 2. If counterargument wins → change the decision
 3. If original wins → document why counterargument was rejected
@@ -172,6 +186,7 @@ For each major design decision:
 **Core Question:** What are the real constraints? Which are self-imposed?
 
 **Application to Skill Design:**
+
 ```
 1. List all perceived constraints
 2. Classify: Hard (real) vs Soft (assumed)
@@ -180,6 +195,7 @@ For each major design decision:
 ```
 
 **Constraint Categories:**
+
 | Type | Example | Fixed? |
 |------|---------|--------|
 | Platform | Claude's token limits | Hard |
@@ -196,6 +212,7 @@ For each major design decision:
 **Core Question:** Which 20% of features deliver 80% of value?
 
 **Application to Skill Design:**
+
 ```
 1. List all potential features/capabilities
 2. Estimate value contribution of each
@@ -204,6 +221,7 @@ For each major design decision:
 ```
 
 **Pareto Matrix:**
+
 | Feature | Value Contribution | Effort | Include? |
 |---------|-------------------|--------|----------|
 | Core function | 60% | Medium | Yes - Must have |
@@ -220,6 +238,7 @@ For each major design decision:
 **Core Question:** Why is this skill needed? (Asked 5 times)
 
 **Application to Skill Design:**
+
 ```
 1. State the need: "We need a skill for X"
 2. Ask "Why?" and answer
@@ -229,6 +248,7 @@ For each major design decision:
 ```
 
 **Example:**
+
 ```
 Need: "We need a skill to generate API docs"
 Why? → Developers don't document APIs
@@ -250,6 +270,7 @@ Skill Should: Integrate seamlessly with coding workflow, not just generate docs
 **Core Question:** How do design options stack up against each other?
 
 **Application to Skill Design:**
+
 ```
 1. Define evaluation criteria
 2. Weight criteria by importance
@@ -259,6 +280,7 @@ Skill Should: Integrate seamlessly with coding workflow, not just generate docs
 ```
 
 **Comparison Template:**
+
 ```markdown
 ## Architecture Comparison
 
@@ -283,6 +305,7 @@ Winner: Option C (with consideration for team familiarity)
 **Core Question:** What are we giving up by choosing this approach?
 
 **Application to Skill Design:**
+
 ```
 1. List all options considered
 2. For each, identify what's sacrificed
@@ -291,6 +314,7 @@ Winner: Option C (with consideration for team familiarity)
 ```
 
 **Trade-off Documentation:**
+
 ```markdown
 ## Opportunity Costs
 
@@ -343,6 +367,7 @@ Apply each lens for 2-3 minutes to identify which are most relevant:
 ### Phase 2: Deep Dive (High-Relevance Lenses)
 
 For each High-relevance lens, spend 10-15 minutes:
+
 1. Apply the full protocol described above
 2. Document insights in structured format
 3. Integrate insights into design
@@ -351,6 +376,7 @@ For each High-relevance lens, spend 10-15 minutes:
 ### Phase 3: Conflict Resolution
 
 When lenses suggest conflicting approaches:
+
 1. State each perspective clearly
 2. Identify the underlying tension
 3. Determine which lens should dominate for this decision
@@ -383,6 +409,7 @@ Each lens produces structured output that feeds into the specification:
 ### Minimum Coverage
 
 Before proceeding to specification generation:
+
 - [ ] All 11 lenses scanned for relevance
 - [ ] At least 5 lenses applied in depth
 - [ ] At least 3 actionable insights documented

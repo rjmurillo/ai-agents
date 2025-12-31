@@ -78,6 +78,7 @@ Production-Ready Agentic Skill
 ```
 
 **Key principles:**
+
 - Evolution/timelessness is the core lens (score ≥ 7 required)
 - Every decision includes WHY
 - Zero tolerance for errors
@@ -165,6 +166,7 @@ Scripts enable skills to be **agentic** - capable of autonomous operation with s
 | **Calculation** | Compute metrics/scores | Scoring or analysis |
 
 **Script Requirements:**
+
 - Python 3.x with standard library only (graceful fallbacks for extras)
 - `Result` dataclass pattern for structured returns
 - Exit codes: 0=success, 1=failure, 10=validation failure, 11=verification failure
@@ -235,6 +237,7 @@ USER INPUT: "Create a skill for X"
 ```
 
 **Check for overlap with existing skills:**
+
 ```bash
 ls ~/.claude/skills/
 # Grep for similar triggers in existing SKILL.md files
@@ -289,6 +292,7 @@ ROUND N:
 ```
 
 **Termination Criteria:**
+
 - Three consecutive rounds produce no new insights
 - All 11 thinking models have been applied
 - At least 3 simulated expert perspectives considered
@@ -702,6 +706,7 @@ SKILLCREATOR_CONFIG:
 ## Changelog
 
 ### v3.2.0 (Current)
+
 - Added Script Integration Framework for agentic skills
 - Added 4th Script Agent to synthesis panel (conditional)
 - Added Phase 1D: Automation Analysis
@@ -714,12 +719,14 @@ SKILLCREATOR_CONFIG:
 - Skills can now include self-verifying Python scripts
 
 ### v3.1.0
+
 - Added progressive disclosure structure
 - Fixed frontmatter for packaging compatibility
 - Added validation & packaging section
 - Deep dive sections now collapsible
 
 ### v3.0.0
+
 - Complete redesign as ultimate meta-skill
 - Added regression questioning loop
 - Added multi-lens analysis framework (11 models)
@@ -727,8 +734,10 @@ SKILLCREATOR_CONFIG:
 - Added multi-agent synthesis panel
 
 ### v2.0.0
+
 - Pattern selection guide
 - Quality standards checklist
 
 ### v1.0.0
+
 - Basic skill structure

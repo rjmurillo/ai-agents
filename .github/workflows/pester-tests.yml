@@ -107,7 +107,8 @@ jobs:
         with:
           name: pester-test-results
           path: ./artifacts/pester-results.xml
-          retention-days: 30
+          # Optimized retention per .agents/devops/artifact-retention-policy.md
+          retention-days: 7
 
       - name: Upload Code Coverage Results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -115,7 +116,8 @@ jobs:
         with:
           name: code-coverage-results
           path: ./artifacts/TestResults/coverage.xml
-          retention-days: 30
+          # Optimized retention per .agents/devops/artifact-retention-policy.md
+          retention-days: 7
 
       - name: Publish Test Report
         uses: dorny/test-reporter@31a54ee7ebcacc03a09ea97a7e5465a47b84aea5
@@ -150,7 +152,8 @@ jobs:
         with:
           name: psscriptanalyzer-results
           path: ./artifacts/psscriptanalyzer-results.xml
-          retention-days: 30
+          # Optimized retention per .agents/devops/artifact-retention-policy.md
+          retention-days: 7
 
       - name: Publish Analysis Report
         uses: dorny/test-reporter@31a54ee7ebcacc03a09ea97a7e5465a47b84aea5

@@ -65,6 +65,7 @@ The synthesis panel applies the "wisdom of crowds" principle to skill evaluation
 | Code/command accuracy | 15% | All examples valid |
 
 **Key Questions:**
+
 - Is the chosen pattern the right one for this task?
 - Are phases ordered correctly with clear dependencies?
 - Can each step be verified objectively?
@@ -72,6 +73,7 @@ The synthesis panel applies the "wisdom of crowds" principle to skill evaluation
 - Would the commands/code actually work?
 
 **Red Flags:**
+
 - Wrong pattern for complexity level
 - Circular phase dependencies
 - Vague verification ("ensure quality")
@@ -95,6 +97,7 @@ The synthesis panel applies the "wisdom of crowds" principle to skill evaluation
 | Discoverability | 20% | Skill is findable and understandable |
 
 **Key Questions:**
+
 - Would the target audience naturally say these trigger phrases?
 - Can a user follow each step without guessing?
 - Are all technical terms explained or commonly understood?
@@ -102,6 +105,7 @@ The synthesis panel applies the "wisdom of crowds" principle to skill evaluation
 - Would users find this skill when they need it?
 
 **Red Flags:**
+
 - Triggers are too technical or obscure
 - Steps require unstated prerequisite knowledge
 - Jargon without definition
@@ -125,6 +129,7 @@ The synthesis panel applies the "wisdom of crowds" principle to skill evaluation
 | Principle-based design | 10% | WHY documented for decisions |
 
 **Key Questions:**
+
 - Will this skill still be valuable in 2 years?
 - Can it be extended without rewriting?
 - Are external dependencies safely abstracted?
@@ -132,6 +137,7 @@ The synthesis panel applies the "wisdom of crowds" principle to skill evaluation
 - Are design decisions explained, not just stated?
 
 **Red Flags:**
+
 - Timelessness score < 7
 - No documented extension points
 - Hardcoded external dependencies
