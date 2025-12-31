@@ -1,97 +1,56 @@
-# Skill: CI-002 Explicit Retry Timing
+# CI Infrastructure: Explicit Retry Timing
 
-**Atomicity Score**: 88%
-**Source**: Session 04 retrospective - Issue #338 implementation
-**Date**: 2025-12-24
-**Validation Count**: 1 (Commit 888cc39)
-**Tag**: helpful
-**Impact**: 7/10 (Improves debuggability, reduces timing uncertainty)
+**Issue**: #163, #338, #328
+**Component**: AI Review composite action
+**Pattern**: Exponential backoff for transient failures
 
-## Statement
+## Retry Configuration
 
-Use explicit timing arrays (0 10 30) instead of backoff formulas for retry logic.
-
-## Context
-
-When implementing retry mechanisms with specific timing requirements (especially in CI where timing is critical).
-
-## Evidence
-
-Commit 888cc39 - Issue #338 retry implementation:
+### Timing Pattern
 
 ```bash
-# Explicit timing array (RECOMMENDED)
-RETRY_DELAYS=(0 10 30)  # seconds before each attempt
-
-# Timing breakdown:
-# Attempt 1: Wait 0s  (total elapsed: 0s)
-# Attempt 2: Wait 10s (total elapsed: 10s)
-# Attempt 3: Wait 30s (total elapsed: 40s)
-
-for ATTEMPT in "${!RETRY_DELAYS[@]}"; do
-    if [[ $ATTEMPT -gt 0 ]]; then
-        DELAY=${RETRY_DELAYS[$ATTEMPT]}
-        echo "::warning::Retrying in ${DELAY}s..."
-        sleep "$DELAY"
-    fi
-    # ... attempt logic ...
-done
+# Issue #163 spec: Exponential backoff for rate limit recovery
+RETRY_DELAYS=(0 30 60)  # seconds before each attempt
 ```
 
-## Why Explicit Timing Wins
+| Attempt | Delay Before | Cumulative Wait |
+|---------|--------------|-----------------|
+| 1       | 0s           | 0s              |
+| 2       | 30s          | 30s             |
+| 3       | 60s          | 90s             |
 
-### Anti-pattern: Computed Backoff
+### Historical Evolution
 
-```bash
-# AVOID: Backoff formula obscures timing
-MAX_RETRIES=3
-for ATTEMPT in $(seq 1 $MAX_RETRIES); do
-    DELAY=$((2 ** ATTEMPT))  # What are the actual delays?
-    sleep "$DELAY"
-done
-```
+| Issue | Timing | Rationale |
+|-------|--------|-----------|
+| #338  | (0 10 30) | Initial retry with quick backoff (40s total) |
+| #163  | (0 30 60) | Longer backoff for rate limit recovery (90s total) |
 
-**Problems:**
-- Timing not obvious from reading code
-- Requires mental math to understand timing
-- Hard to verify in CI logs
-- Difficult to tune for specific requirements
+## Implementation Location
 
-### Correct Pattern: Explicit Array
+`.github/actions/ai-review/action.yml` lines 516-615
 
-```bash
-# RECOMMENDED: Timing visible at declaration
-RETRY_DELAYS=(0 10 30)  # Clear: 0s, 10s, 30s
-```
+## Key Learnings
 
-**Benefits:**
-- Timing requirements visible in code
-- No mental math required
-- Easy to verify in CI logs
-- Simple to adjust for different contexts
+### "Job-Level Retry" Terminology
 
-## When to Use
+Issue #163 requested "job-level retry for matrix jobs" but investigation revealed:
 
-Apply when:
-- CI timing budgets matter (GitHub Actions minutes)
-- Timing requirements are specific (per issue spec)
-- Debugging retry behavior
-- Communicating timing to stakeholders
+1. **GitHub Actions Limitation**: No native job-level retry for matrix jobs (feature request dormant since 2024)
+2. **Existing Implementation**: Composite action already provides retry at step level
+3. **Actual Gap**: Retry timing didn't match requirements (10s/30s vs 30s/60s)
 
-Consider formula when:
-- Large number of retries (10+)
-- Exponential backoff required by API
-- Timing is secondary concern
+**Lesson**: "Job-level retry" in CI context often means "retry the critical step" not "retry the entire job construct"
 
-## Related Skills
+### Third-Party Options Considered
 
-- skill-ci-001-fail-fast-infrastructure-failures: When to stop retrying
-- ci-quality-gates: Timeout budgets for different checks
-- ci-ai-integration: API-specific retry requirements
+- `nick-fields/retry@v3`: Wraps steps for retry
+- `Wandalen/wretry.action`: Similar functionality
 
-## Success Criteria
+**Decision**: Update existing retry logic rather than add wrapper (simpler, fewer dependencies)
 
-- Retry timing visible in code without calculation
-- CI logs show expected delays
-- Easy to verify compliance with timing specs
-- Simple to adjust timing based on feedback
+## Related
+
+- `issue-338-retry-implementation`: Original retry implementation
+- `ci-infrastructure-001-fail-fast-infrastructure-failures`: Failure categorization
+- `ci-infrastructure-quality-gates`: Overall quality gate design
