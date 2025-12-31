@@ -182,18 +182,6 @@ mcp__cloudmcp-manager__memory-search_nodes(query="[topic]")
 mcp__cloudmcp-manager__memory-create_entities(entities=[...])
 ```
 
-### Output Directories
-
-| Directory | Agent | Purpose |
-|-----------|-------|---------|
-| `.agents/analysis/` | analyst | Research findings |
-| `.agents/architecture/` | architect | ADRs, design decisions |
-| `.agents/planning/` | planner | PRDs, plans |
-| `.agents/critique/` | critic | Plan reviews |
-| `.agents/qa/` | qa | Test reports |
-| `.agents/retrospective/` | retrospective | Learnings |
-| `.agents/sessions/` | all | Session logs |
-
 ---
 
 ## Skill System
