@@ -1,4 +1,4 @@
-# ADR-032: Exit Code Standardization
+# ADR-035: Exit Code Standardization
 
 **Status**: Accepted
 **Date**: 2025-12-30
@@ -319,7 +319,7 @@ Claude Code hooks have **predefined exit code semantics** defined by Claude Code
 To align hook scripts with this ADR while maintaining Claude semantics, use **JSON decision mode**:
 
 ```powershell
-# Block action using JSON decision (ADR-032 aligned)
+# Block action using JSON decision (ADR-035 aligned)
 $Output = @{
     decision = "deny"
     reason = "Validation failed: missing session log"
@@ -342,7 +342,7 @@ Only use exit 2 in hooks when:
 2. **Fallback** when JSON output fails
 
 ```powershell
-# Emergency block (hook-specific, not ADR-032 aligned)
+# Emergency block (hook-specific, not ADR-035 aligned)
 Write-Error "CRITICAL: Cannot proceed"
 exit 2  # Claude blocks action
 ```
@@ -357,7 +357,7 @@ Hook scripts should document this exemption:
     Claude Code PreToolUse hook for routing gates.
 
 .NOTES
-    EXIT CODES (Claude Hook Semantics - exempt from ADR-032):
+    EXIT CODES (Claude Hook Semantics - exempt from ADR-035):
     0  - Allow action OR JSON decision (deny/allow)
     1  - Hook error (fail-open)
     2  - Block action immediately (hook-specific)
