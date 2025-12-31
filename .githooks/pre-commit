@@ -54,6 +54,51 @@ echo_action() {
 # Track overall exit status
 EXIT_STATUS=0
 
+#
+# Branch Validation (Issue #681, PR #669 retrospective)
+#
+# Prevents commits on wrong branches by validating the current branch:
+# - Block: commits directly to main (ERROR)
+# - Warn: unusual branch names that don't match conventional patterns
+#
+# Bypass: git commit --no-verify (use sparingly)
+#
+
+current_branch=$(git branch --show-current 2>/dev/null || echo "")
+
+# Block commits directly to main
+if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+    echo_error "Cannot commit directly to branch '$current_branch'"
+    echo_info ""
+    echo_info "  Create a feature branch first:"
+    echo_info "    git checkout -b feat/your-description"
+    echo_info "    git checkout -b fix/your-description"
+    echo_info "    git checkout -b docs/your-description"
+    echo_info ""
+    echo_info "  Bypass (use sparingly): git commit --no-verify"
+    exit 1
+fi
+
+# Validate branch matches conventional patterns
+# Patterns: feat/*, fix/*, docs/*, chore/*, refactor/*, test/*, ci/*, build/*, perf/*
+branch_valid=0
+case "$current_branch" in
+    feat/*|fix/*|docs/*|chore/*|refactor/*|test/*|ci/*|build/*|perf/*|tech-debt*)
+        branch_valid=1
+        ;;
+    "")
+        # Detached HEAD state - warn but allow (rebasing, etc.)
+        echo_warning "Detached HEAD state - no branch name available"
+        branch_valid=1
+        ;;
+esac
+
+if [ "$branch_valid" = "0" ]; then
+    echo_warning "Branch '$current_branch' does not match conventional patterns"
+    echo_info "  Expected: feat/*, fix/*, docs/*, chore/*, refactor/*, test/*"
+    echo_info "  Proceeding anyway (non-blocking warning)"
+fi
+
 # Track if any files were auto-fixed
 FILES_FIXED=0
 
