@@ -73,6 +73,9 @@ Need GitHub data?
 | `Post-PRCommentReply.ps1` | Thread-preserving replies | `-PullRequest`, `-CommentId`, `-Body` |
 | `Add-PRReviewThreadReply.ps1` | Reply to thread by ID (GraphQL) | `-ThreadId`, `-Body`, `-Resolve` |
 | `Resolve-PRReviewThread.ps1` | Mark threads resolved | `-ThreadId` or `-PullRequest -All` |
+| `Unresolve-PRReviewThread.ps1` | Mark threads unresolved | `-ThreadId` or `-PullRequest -All` |
+| `Get-ThreadById.ps1` | Get single thread by ID | `-ThreadId` |
+| `Get-ThreadConversationHistory.ps1` | Full thread comment history | `-ThreadId`, `-IncludeMinimized` |
 | `Test-PRMergeReady.ps1` | Check merge readiness | `-PullRequest`, `-IgnoreCI`, `-IgnoreThreads` |
 | `Set-PRAutoMerge.ps1` | Enable/disable auto-merge | `-PullRequest`, `-Enable`/`-Disable`, `-MergeMethod` |
 | `Invoke-PRCommentProcessing.ps1` | Process AI triage output | `-PRNumber`, `-Verdict`, `-FindingsJson` |
