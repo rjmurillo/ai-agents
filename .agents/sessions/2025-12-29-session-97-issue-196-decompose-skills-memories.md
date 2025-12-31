@@ -53,7 +53,7 @@
 
 1. **Target file changed**: Original `skills-github-cli.md` (18KB) in issue doesn't exist. GitHub CLI skills already decomposed to `github-cli-*.md` pattern. Used `pr-comment-responder-skills.md` (8.5KB, P1) as proof of concept.
 
-2. **Skill naming pattern**: `skill-pr-comment-NNN-{name}.md` following issue requirement.
+2. **Skill naming pattern**: `pr-comment-NNN-{name}.md` following issue requirement.
 
 3. **Each skill contains**: Statement, Trigger, Action, Benefit, Evidence, Atomicity score, Category, Created date.
 
@@ -61,12 +61,12 @@
 
 | File | Action |
 |------|--------|
-| `.serena/memories/skill-pr-comment-001-reviewer-signal-quality.md` | Created |
-| `.serena/memories/skill-pr-comment-002-security-domain-priority.md` | Created |
-| `.serena/memories/skill-pr-comment-003-path-containment-layers.md` | Created |
-| `.serena/memories/skill-pr-comment-004-bot-response-templates.md` | Created |
-| `.serena/memories/skill-pr-comment-005-branch-state-verification.md` | Created |
-| `.serena/memories/skill-pr-comment-index.md` | Created |
+| `.serena/memories/pr-comment-001-reviewer-signal-quality.md` | Created |
+| `.serena/memories/pr-comment-002-security-domain-priority.md` | Created |
+| `.serena/memories/pr-comment-003-path-containment-layers.md` | Created |
+| `.serena/memories/pr-comment-004-bot-response-templates.md` | Created |
+| `.serena/memories/pr-comment-005-branch-state-verification.md` | Created |
+| `.serena/memories/pr-comment-index.md` | Created |
 
 ## Outcome
 
