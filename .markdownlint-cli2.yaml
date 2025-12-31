@@ -54,6 +54,7 @@ config:
       - sub
       - details
       - summary
+      - strong
       - example
 
   # Multiple H1 - allow in agent templates (frontmatter can create implicit H1)

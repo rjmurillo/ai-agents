@@ -154,12 +154,12 @@ None required. PR #502 is ready for merge by repository owner.
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Complete session log (all sections filled) | ✅ PASS | File complete |
-| MUST | Update Serena memory (cross-session context) | ✅ N/A | No new patterns identified |
-| MUST | Run markdown lint | ✅ PASS | Automated via pre-commit hook |
-| MUST | Route to qa agent (feature implementation) | ✅ N/A | No code changes made |
-| MUST | Commit all changes (including .serena/memories) | ⏳ PENDING | Committing session log now |
-| MUST NOT | Update `.agents/HANDOFF.md` directly | ✅ PASS | HANDOFF.md unchanged |
-| SHOULD | Update PROJECT-PLAN.md | ✅ N/A | No plan tasks completed |
-| SHOULD | Invoke retrospective (significant sessions) | ✅ N/A | Verification-only session |
-| SHOULD | Verify clean git status | ✅ PASS | Only session log to commit |
+| MUST | Complete session log (all sections filled) | PASS | File complete |
+| MUST | Update Serena memory (cross-session context) | N/A | No new patterns identified |
+| MUST | Run markdown lint | PASS | Automated via pre-commit hook |
+| MUST | Route to qa agent (feature implementation) | N/A | No code changes made |
+| MUST | Commit all changes (including .serena/memories) | PASS | Commit SHA recorded |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | PASS | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | N/A | No plan tasks completed |
+| SHOULD | Invoke retrospective (significant sessions) | N/A | Verification-only session |
+| SHOULD | Verify clean git status | PASS | Only session log to commit |
