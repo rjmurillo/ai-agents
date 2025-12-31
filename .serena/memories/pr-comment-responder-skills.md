@@ -6,17 +6,155 @@ Memory for tracking reviewer signal quality statistics, triage heuristics, and l
 
 ## Per-Reviewer Performance (Cumulative)
 
-Last updated: 2025-12-29
+Last updated: 2025-12-30
 
 | Reviewer | PRs | Comments | Actionable | Signal | Notes |
 |----------|-----|----------|------------|--------|-------|
 | cursor[bot] | - | 28 | 28 | **100%** | All comments identify real bugs (see cursor-bot-review-patterns memory) |
-| gemini-code-assist[bot] | #488, #501 | 7 | 7 | **100%** | RFC 2119 compliance, grep exact matching, filename pattern precision |
+| gemini-code-assist[bot] | #488, #501, #505, #530, #566, #568 | 13 | 13 | **100%** | RFC 2119 compliance, grep exact matching, filename pattern precision, command injection prevention, GraphQL injection prevention, helper function adoption |
 | Copilot | #488, #484, #490 | 5 | 5 | **100%** | Path separator bypass (CWE-22), workflow error handling |
 | rjmurillo (owner) | #490, #501 | 2 | 2 | **100%** | Template propagation gaps |
 | coderabbitai[bot] | - | 6 | 3 | **50%** | Medium signal quality |
 
 ## Per-PR Breakdown
+
+### PR #530 (2025-12-30)
+
+**PR**: feat/97-review-thread-management
+
+| Reviewer | Comments | Actionable | Rate | Outcomes |
+|----------|----------|------------|------|----------|
+| gemini-code-assist[bot] | 4 | 4 | 100% | GraphQL migration to helper function, test file organization |
+| rjmurillo-bot | 1 | 0 | 0% | False positive - security.md changes from main merge |
+
+**Session Notes**:
+
+- **Invoke-GhGraphQL Migration**: All 4 actionable comments requested migration from raw `gh api graphql` to new Invoke-GhGraphQL helper
+- **Files Changed**: 3 scripts migrated (Test-PRMergeReady.ps1, Set-PRAutoMerge.ps1, Add-PRReviewThreadReply.ps1)
+- **Total GraphQL Calls Migrated**: 6 calls across 3 files
+- **Code Reduction**: -28 lines through consolidation (+44 -72)
+- **Test Organization**: 2 test files moved from `.claude/skills/github/tests/` to top-level `tests/` directory
+- **Resolution**: Fixed in commit 7ce149e, all 4 threads replied and resolved
+- **CI**: 11 checks pending, 2 failures (not related to changes - PR size limit, CodeRabbit)
+
+**Implementation Details**:
+
+**Migration Pattern** (applied to 6 GraphQL calls):
+
+Before:
+
+```powershell
+$result = gh api graphql -f query=$query -f var1="$val1" -F var2=$val2 2>&1
+if ($LASTEXITCODE -ne 0) {
+    if ($result -match "Could not resolve") {
+        Write-ErrorAndExit "Not found" 2
+    }
+    Write-ErrorAndExit "Failed: $result" 3
+}
+try {
+    $parsed = $result | ConvertFrom-Json
+}
+catch {
+    Write-ErrorAndExit "Parse failed: $result" 3
+}
+$data = $parsed.data.repository.pullRequest
+```
+
+After:
+
+```powershell
+try {
+    $data = Invoke-GhGraphQL -Query $query -Variables @{ var1 = $val1; var2 = $val2 }
+}
+catch {
+    if ($_.Exception.Message -match "Could not resolve") {
+        Write-ErrorAndExit "Not found" 2
+    }
+    Write-ErrorAndExit "Failed: $($_.Exception.Message)" 3
+}
+$pr = $data.repository.pullRequest  # NO .data prefix needed
+```
+
+**Key Change**: Helper returns `$parsed.data` directly, eliminating manual JSON parsing and `.data` prefix.
+
+**Benefits**:
+
+- Centralized error handling
+- Improved security (variable parameterization)
+- Consistent response parsing
+- Code reduction (28 fewer lines)
+
+**False Positive**:
+
+- rjmurillo-bot flagged security.md changes as "from other PRs like #528"
+- **Actually expected**: PR rebased from main (commit 445f032), bringing in #528 changes
+- **Key insight**: Rebasing from main brings merged PRs - this is correct behavior
+- **Response**: Explained expected behavior, resolved thread
+
+### PR #568 (2025-12-30)
+
+**PR**: docs: add GitHub API capability matrix (GraphQL vs REST)
+
+| Reviewer | Comments | Actionable | Rate | Outcomes |
+|----------|----------|------------|------|----------|
+| gemini-code-assist[bot] | 1 | 1 | 100% | Security: GraphQL injection prevention |
+
+**Session Notes**:
+
+- **Security Domain**: Bot flagged string interpolation vulnerability in documentation example
+- **Pattern**: Documentation examples must follow same security standards as production code
+- **Quick Fix Path**: Single-file, single-section change qualified for direct implementation
+- **Fix**: Replaced string interpolation with GraphQL variables using -f/-F flags
+- **Implementation**: Changed from `repository(owner: "$owner")` to `query($owner: String!)` + `-f owner="$owner"`
+- **Resolution**: Fixed in commit 22588c9, replied with explanation, thread resolved
+- **CI**: All required checks passing (CodeQL still running, not required)
+
+**Implementation Details**:
+
+- Changed PowerShell here-string from `@"..."@` (interpolating) to `'...'` (literal)
+- Added GraphQL variable declarations: `query($owner: String!, $repo: String!, $number: Int!)`
+- Used `-f` flag for string parameters (owner, repo)
+- Used `-F` flag for integer parameter (number)
+- Prevents injection attacks by separating query logic from data
+
+**Bot Behavior**:
+
+- gemini-code-assist[bot] provides detailed explanations with style guide references
+- Includes code suggestions in diff format
+- References specific line numbers from repository style guide
+- High-quality signal with security focus
+
+### PR #566 (2025-12-30)
+
+**PR**: docs/506-autonomous-issue-development
+
+| Reviewer | Comments | Actionable | Rate | Outcomes |
+|----------|----------|------------|------|----------|
+| gemini-code-assist[bot] | 1 | 1 | 100% | Command injection vulnerability in documentation example |
+
+**Session Notes**:
+
+- **Security-Critical**: gemini flagged CWE-78 command injection vulnerability in autonomous agent documentation
+- **Pattern**: Documentation example showed hardcoded PR title, but could teach unsafe pattern to autonomous agents
+- **Risk**: If agents construct titles from untrusted issue titles containing shell metacharacters (e.g., `$(reboot)`), arbitrary command execution could occur
+- **Fix**: Replaced hardcoded example with secure `read -r` pattern using process substitution
+- **Security Warning**: Added explicit DANGER comment explaining command injection risk
+- **Resolution**: Fixed in commit 9e3c1bb, thread resolved
+- **Impact**: Prevents autonomous agents from learning vulnerable patterns from documentation
+
+**Implementation Details**:
+
+- Replaced: `gh pr create --title "fix(scope): description"` (hardcoded)
+- With: `read -r pr_title < <(gh issue view {number} --json title --jq -r .title)`
+- Then: `gh pr create --title "fix: ${pr_title}"`
+- Added 3-line security warning comment explaining CWE-78 risk
+- Demonstrates safe handling of external untrusted input (GitHub issue titles)
+
+**Learning**: Documentation for autonomous agents requires higher security standards because:
+
+1. Agents interpret examples literally
+2. Agents operate with elevated privileges (git push, PR creation)
+3. Agents consume untrusted external input (issue titles, PR bodies)
 
 ### PR #505 (2025-12-29)
 
@@ -105,11 +243,11 @@ Last updated: 2025-12-29
 
 | Metric | Value |
 |--------|-------|
-| Total PRs Processed | 4 |
-| Total Comments Triaged | 9 |
-| Total Comments Implemented | 8 |
-| Total Comments Resolved | 9 |
-| Security Vulnerabilities Found | 2 |
+| Total PRs Processed | 7 |
+| Total Comments Triaged | 16 |
+| Total Comments Implemented | 14 |
+| Total Comments Resolved | 16 |
+| Security Vulnerabilities Found | 4 |
 | Critical Workflow Bugs Found | 1 |
 | Performance Improvements | 1 (88% faster reactions) |
 | Average Resolution Time | ~45 minutes |
@@ -142,7 +280,7 @@ Last updated: 2025-12-29
 
 **First appearance**: PR #488
 
-**Signal quality**: 100% (1/1 actionable)
+**Signal quality**: 100% (8/8 actionable across #488, #501, #505, #566)
 
 **Pattern**: Provides style guide references and detailed explanations with suggestions.
 
@@ -180,7 +318,7 @@ If you disagree, please let me know and I'll reconsider.
 
 ## Session Learnings
 
-### PR #488 (2025-12-29)
+### Learning: Branch Verification (PR #488)
 
 **Learning 1**: Branch checkouts can fail silently with uncommitted changes. Always verify current branch with `git branch --show-current` before making edits.
 
@@ -188,7 +326,7 @@ If you disagree, please let me know and I'll reconsider.
 
 **Learning 3**: When bots comment on security fixes, they're often catching edge cases you missed. Both gemini and Copilot found real CWE-22 bypasses in hardening code.
 
-### PR #490 (2025-12-29)
+### Learning: Template Propagation (PR #490)
 
 **Learning 1**: Template propagation requires updating ALL platform-specific files. Owner review caught `src/claude/pr-comment-responder.md` was missed.
 
