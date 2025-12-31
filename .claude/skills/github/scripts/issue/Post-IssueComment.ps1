@@ -108,17 +108,24 @@ if ($Marker) {
                 Write-Host "Success: True, Issue: $Issue, CommentId: $($response.id), Updated: True"
                 
                 # GitHub Actions outputs for programmatic consumption
-                if ($env:GITHUB_OUTPUT) {
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=false"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "updated=true"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "comment_id=$($response.id)"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "html_url=$($response.html_url)"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "updated_at=$($response.updated_at)"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
+                if ($env:GITHUB_OUTPUT -and (Test-Path $env:GITHUB_OUTPUT -PathType Leaf)) {
+                    try {
+                        @(
+                            "success=true",
+                            "skipped=false",
+                            "updated=true",
+                            "issue=$Issue",
+                            "comment_id=$($response.id)",
+                            "html_url=$($response.html_url)",
+                            "updated_at=$($response.updated_at)",
+                            "marker=$Marker"
+                        ) | Add-Content -Path $env:GITHUB_OUTPUT -ErrorAction Stop
+                    }
+                    catch {
+                        Write-Warning "Failed to write GitHub Actions outputs: $_"
+                    }
                 }
-                
+
                 exit 0
             } else {
                 # Skip posting (write-once idempotency)
@@ -126,13 +133,20 @@ if ($Marker) {
                 Write-Host "Success: True, Issue: $Issue, Marker: $Marker, Skipped: True"
                 
                 # GitHub Actions outputs for programmatic consumption
-                if ($env:GITHUB_OUTPUT) {
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=true"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
+                if ($env:GITHUB_OUTPUT -and (Test-Path $env:GITHUB_OUTPUT -PathType Leaf)) {
+                    try {
+                        @(
+                            "success=true",
+                            "skipped=true",
+                            "issue=$Issue",
+                            "marker=$Marker"
+                        ) | Add-Content -Path $env:GITHUB_OUTPUT -ErrorAction Stop
+                    }
+                    catch {
+                        Write-Warning "Failed to write GitHub Actions outputs: $_"
+                    }
                 }
-                
+
                 exit 0  # Idempotent skip is a success
             }
         }
@@ -313,14 +327,21 @@ Write-Host "  URL: $($response.html_url)" -ForegroundColor Cyan
 Write-Host "Success: True, Issue: $Issue, CommentId: $($response.id), Skipped: False"
 
 # GitHub Actions outputs for programmatic consumption
-if ($env:GITHUB_OUTPUT) {
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=false"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "comment_id=$($response.id)"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "html_url=$($response.html_url)"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "created_at=$($response.created_at)"
-    if ($Marker) {
-        Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
+if ($env:GITHUB_OUTPUT -and (Test-Path $env:GITHUB_OUTPUT -PathType Leaf)) {
+    try {
+        # Use array sub-expression for efficient conditional array building (avoids += array re-creation)
+        $outputs = @(
+            "success=true"
+            "skipped=false"
+            "issue=$Issue"
+            "comment_id=$($response.id)"
+            "html_url=$($response.html_url)"
+            "created_at=$($response.created_at)"
+            if ($Marker) { "marker=$Marker" }
+        )
+        $outputs | Add-Content -Path $env:GITHUB_OUTPUT -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Failed to write GitHub Actions outputs: $_"
     }
 }
