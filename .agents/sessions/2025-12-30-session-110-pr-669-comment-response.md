@@ -170,6 +170,8 @@ All 3 review threads replied and resolved:
 | MUST | Read skill-usage-mandatory memory | [x] | Memory not found (file didn't exist) |
 | MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
 | MUST | Read memory-index, load task-relevant memories | [x] | pr-comment-responder-skills loaded |
+| MUST | Verify and declare current branch | [x] | Branch: docs/pr-co-mingling-retrospective |
+| MUST | Confirm not on main/master | [x] | On feature branch (switched from main to PR branch) |
 | SHOULD | Verify git status | [x] | Branch verified, switched to PR branch |
 | SHOULD | Note starting commit | [x] | SHA: 73fbc31 |
 
@@ -190,5 +192,6 @@ Available GitHub skills (partial list):
 | MUST | Complete session log with outcomes | [x] | Actions, Outcomes, Decisions documented |
 | MUST | Update Serena memory (cross-session context) | [x] | 6 skills + 4 index memories updated |
 | MUST | Run markdownlint: `npx markdownlint-cli2 --fix "**/*.md"` | [x] | Fixes applied |
+| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: investigation-only (PR review response session - only session logs and Serena memories staged) |
 | MUST | Commit all changes (including `.serena/memories/`) | [x] | Commit prepared |
 | MUST NOT | Update `.agents/HANDOFF.md` | [x] | HANDOFF.md unchanged (read-only) |
