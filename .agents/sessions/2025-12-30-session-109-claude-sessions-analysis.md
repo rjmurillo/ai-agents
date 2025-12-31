@@ -136,6 +136,29 @@ See full report: `.agents/analysis/session-export-analysis-2025-12-30.md`
 - [x] Created comprehensive analysis report
 - [x] Cross-session memory updated for future reference
 
+### GitHub Issues Created
+
+| Issue | Priority | Title |
+|-------|----------|-------|
+| #670 | P2 | Add session and skill-level progress indicators |
+| #671 | P1 | Add dry-run mode to pr-review skill |
+| #672 | P1 | Simplify pr-review skill prompt (500+ lines to structured config) |
+| #673 | P2 | Standardize skill output format across all skills |
+| #674 | P1 | Require ADR for SESSION-PROTOCOL.md changes |
+| #675 | P1 | Document canonical source principle in code-style-conventions |
+| #676 | P2 | Establish skill prompt size limits with validation |
+
+### Issues Not Created (Duplicate/Covered)
+
+- Pre-commit validation regression tests → Covered by #665, #611
+- Session checkpoint/resume → Covered by existing #174 (recommend priority elevation)
+- Validation-reconciler skill → Covered by #496, #475
+- Git-workflow-validator skill → Add to #611 or #619
+- Validation parity testing → Covered by #611, #665
+- Protocol version tracking → Anti-pattern per conventions
+- Skill usage metrics → Add to existing #169
+- Protocol changelog → Anti-pattern per conventions
+
 ### Session End (COMPLETE ALL before closing)
 
 | Req | Step | Status | Evidence |
@@ -144,7 +167,7 @@ See full report: `.agents/analysis/session-export-analysis-2025-12-30.md`
 | MUST | Update Serena memory (cross-session context) | [x] | session-109-export-analysis-findings written |
 | MUST | Run markdown lint | [x] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: docs-only |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: (pending) |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 9b693a5 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [x] | N/A - investigation session |
 | SHOULD | Invoke retrospective (significant sessions) | [x] | Findings in analysis report |
