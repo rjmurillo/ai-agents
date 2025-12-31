@@ -241,7 +241,8 @@ Location: `.agents/steering/`
 ### QA Validation Is Required
 
 - Route to qa agent after feature implementation
-- Skip only for documentation-only changes (no code, config, or test changes)
+- Skip with `SKIPPED: docs-only` for documentation-only changes (no code, config, or test changes)
+- Skip with `SKIPPED: investigation-only` for investigation sessions (per ADR-034) when only staging: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`
 
 ### Skill Violations Are Protocol Failures
 

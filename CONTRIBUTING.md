@@ -10,6 +10,7 @@ Thank you for your interest in contributing to this project. This guide explains
 - [How to Add a New Agent](#how-to-add-a-new-agent)
 - [Platform Configuration](#platform-configuration)
 - [Pre-Commit Hooks](#pre-commit-hooks)
+- [Session Protocol](#session-protocol)
 - [Running Tests](#running-tests)
 - [Pull Request Guidelines](#pull-request-guidelines)
   - [Commit Count Thresholds](#commit-count-thresholds)
@@ -259,6 +260,33 @@ git config core.hooksPath .githooks
 ```
 
 This automatically fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
+
+## Session Protocol
+
+This project uses a session-based workflow for tracking work. Session logs are required for all significant work.
+
+### Session Logs
+
+Create session logs at `.agents/sessions/YYYY-MM-DD-session-NN.md` to document work done during a session.
+
+### QA Validation
+
+The pre-commit hook validates that QA has been performed for sessions involving code changes. There are two exemptions:
+
+| Exemption Type | When to Use | Evidence Value |
+|----------------|-------------|----------------|
+| **Docs-only** | All changes are documentation files (Markdown) with no code, config, or test changes | `SKIPPED: docs-only` |
+| **Investigation-only** | Session is research/analysis with only investigation artifacts staged | `SKIPPED: investigation-only` |
+
+**Investigation artifacts** (allowlist for investigation-only exemption):
+
+- `.agents/sessions/` - Session logs
+- `.agents/analysis/` - Research findings
+- `.agents/retrospective/` - Learning extractions
+- `.serena/memories/` - AI memory updates
+- `.agents/security/` - Security assessments
+
+See [ADR-034](.agents/architecture/ADR-034-investigation-session-qa-exemption.md) for the full specification.
 
 ## Running Tests
 
