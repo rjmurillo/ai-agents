@@ -1,9 +1,13 @@
 <#
 .SYNOPSIS
-  Validates Session End protocol compliance for a single session log.
+  Validates Session Start and Session End protocol compliance for a single session log.
 
 .DESCRIPTION
-  Verification-based enforcement for Session End, as defined in .agents/SESSION-PROTOCOL.md.
+  Verification-based enforcement for Session Protocol, as defined in .agents/SESSION-PROTOCOL.md.
+
+  This script validates BOTH:
+  - Session Start requirements (Serena init, HANDOFF read, skill list, etc.)
+  - Session End requirements (complete checklist, QA, commit, etc.)
 
   This script is intentionally FAIL-CLOSED:
   - If a requirement cannot be verified, it FAILS.
@@ -155,6 +159,97 @@ $protocolText = Read-AllText $protocolPath
 $sessionLines = $sessionText -split "`r?`n"
 $protocolLines = $protocolText -split "`r?`n"
 
+# =============================================================================
+# SESSION START VALIDATION
+# =============================================================================
+# Validates that Session Start requirements are met before checking Session End.
+# This catches the gap where PRs pass local pre-commit but fail CI.
+#
+# CANONICAL FORMAT ONLY: Session logs MUST use the table format from SESSION-PROTOCOL.md:
+#   | Req | Step | Status | Evidence |
+#   |-----|------|--------|----------|
+#   | MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+#
+# Non-canonical formats (bullet lists, etc.) are NOT accepted.
+
+Write-Output "Validating Session Start requirements..."
+
+# --- Extract canonical Session Start checklist from protocol
+$protocolStartTableLines = Get-HeadingTable -Lines $protocolLines -HeadingRegex '^\s*###\s+Session Start\s*\(COMPLETE ALL before work\)\s*$'
+if (-not $protocolStartTableLines) {
+  Fail 'E_PROTOCOL_START_TABLE_MISSING' "Could not find canonical 'Session Start' checklist table in SESSION-PROTOCOL.md"
+}
+$protocolStartRows = Parse-ChecklistTable $protocolStartTableLines
+if ($protocolStartRows.Count -lt 1) {
+  Fail 'E_PROTOCOL_START_TABLE_PARSE' "Canonical Session Start checklist table is empty or could not be parsed."
+}
+
+# --- Extract Session Start checklist from session log
+$sessionStartTableLines = Get-HeadingTable -Lines $sessionLines -HeadingRegex '^\s*#{2,3}\s+.*Session Start.*$'
+if (-not $sessionStartTableLines) {
+  Fail 'E_SESSION_START_TABLE_MISSING' @"
+Could not find Session Start checklist TABLE in session log.
+
+REQUIRED: Copy the canonical table format from SESSION-PROTOCOL.md:
+
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: ``mcp__serena__activate_project`` | [x] | Tool output present |
+| MUST | Initialize Serena: ``mcp__serena__initial_instructions`` | [x] | Tool output present |
+...
+
+NOTE: Bullet-list format is NOT accepted. Use the table format.
+"@
+}
+$sessionStartRows = Parse-ChecklistTable $sessionStartTableLines
+if ($sessionStartRows.Count -lt 1) {
+  Fail 'E_SESSION_START_TABLE_PARSE' @"
+Session Start checklist table is empty or could not be parsed.
+
+Ensure you're using the canonical table format:
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+
+Copy the template from SESSION-PROTOCOL.md.
+"@
+}
+
+# --- Enforce template match for Session Start (Req, Step) order
+$protoStartKey = $protocolStartRows | ForEach-Object { "$($_.Req)|$(Normalize-Step $_.Step)" }
+$sessStartKey  = $sessionStartRows   | ForEach-Object { "$($_.Req)|$(Normalize-Step $_.Step)" }
+
+if ($protoStartKey.Count -ne $sessStartKey.Count) {
+  Fail 'E_START_TEMPLATE_DRIFT' "Session Start checklist row count mismatch (protocol=$($protoStartKey.Count), session=$($sessStartKey.Count)). Copy the canonical checklist from SESSION-PROTOCOL.md."
+}
+
+for ($i = 0; $i -lt $protoStartKey.Count; $i++) {
+  if ($protoStartKey[$i] -ne $sessStartKey[$i]) {
+    Fail 'E_START_TEMPLATE_DRIFT' ("Session Start checklist mismatch at row {0}. Expected '{1}', got '{2}'. Copy the canonical checklist from SESSION-PROTOCOL.md." -f ($i+1), $protoStartKey[$i], $sessStartKey[$i])
+  }
+}
+
+# --- Verify Session Start MUST rows are checked
+$mustStartRows = $sessionStartRows | Where-Object { $_.Req -eq 'MUST' }
+if ($mustStartRows.Count -eq 0) {
+  Fail 'E_NO_START_MUST_ROWS' "No MUST rows found in Session Start checklist."
+}
+
+foreach ($row in $mustStartRows) {
+  if ($row.Status -ne 'x') {
+    Fail 'E_START_MUST_INCOMPLETE' "Session Start MUST item not complete: $($row.Step)"
+  }
+}
+
+Write-Output "OK: Session Start validation passed ($($mustStartRows.Count) MUST requirements verified)"
+
+# =============================================================================
+# SESSION END VALIDATION
+# =============================================================================
+
+Write-Output "Validating Session End requirements..."
+
 # --- Extract canonical Session End checklist from protocol
 $protocolTableLines = Get-HeadingTable -Lines $protocolLines -HeadingRegex '^\s*##\s+Session End Checklist\s*$'
 if (-not $protocolTableLines) {
@@ -242,6 +337,13 @@ if ($mustRows.Count -eq 0) { Fail 'E_NO_MUST_ROWS' "No MUST rows found in Sessio
 foreach ($row in $mustRows) {
   $stepNorm = Normalize-Step $row.Step
 
+  # Special handling for Commit row: skip during pre-commit since commit hasn't happened yet
+  $isCommitRow = $stepNorm -match 'Commit all changes'
+  if ($isCommitRow -and $PreCommit) {
+    # Pre-commit runs before commit exists; validate commit row in CI only
+    continue
+  }
+
   # Special handling for QA row: can be skipped ONLY on docs-only sessions, but must be explicitly marked.
   $isQaRow = $stepNorm -match 'Route to qa agent'
   if ($isQaRow) {
@@ -264,25 +366,9 @@ foreach ($row in $mustRows) {
   }
 }
 
-# --- Verify HANDOFF contains a link to this session log
-# Skip on feature branches: HANDOFF.md is read-only per ADR-014/SESSION-PROTOCOL v1.4
-$currentBranch = (& git -C $repoRoot branch --show-current).Trim()
-$isMainBranch = $currentBranch -eq 'main'
-
-if ($isMainBranch) {
-  $handoffPath = Join-Path $repoRoot ".agents/HANDOFF.md"
-  if (-not (Test-Path -LiteralPath $handoffPath)) { Fail 'E_HANDOFF_MISSING' "Missing .agents/HANDOFF.md" }
-  $handoff = Read-AllText $handoffPath
-
-  # Accept either [Session NN](./sessions/...) or raw path.
-  if ($handoff -notmatch [Regex]::Escape(($sessionRel -replace '^\.agents/',''))) {
-    # The typical link omits ".agents/" prefix (because HANDOFF lives in .agents/)
-    $relFromHandoff = $sessionRel -replace '^\.agents/',''
-    if ($handoff -notmatch [Regex]::Escape($relFromHandoff)) {
-      Fail 'E_HANDOFF_LINK_MISSING' "HANDOFF.md does not reference this session log: $relFromHandoff"
-    }
-  }
-}
+# NOTE: HANDOFF.md link check removed per SESSION-PROTOCOL v1.4
+# HANDOFF.md is now READ-ONLY - agents must not modify it.
+# Session context goes to session logs and Serena memory instead.
 
 # --- Verify git is clean (skip during pre-commit, which runs before commit)
 if (-not $PreCommit) {
@@ -313,10 +399,10 @@ if (-not $PreCommit) {
   & git -C $repoRoot cat-file -e "$sha^{commit}" 2>$null
   if ($LASTEXITCODE -ne 0) { Fail 'E_COMMIT_SHA_INVALID' "Commit SHA not found in git history: $sha" }
 
-  # Ensure session + handoff changed since Starting Commit (stronger than single-commit containment)
+  # Ensure session log changed since Starting Commit
+  # NOTE: HANDOFF.md check removed per SESSION-PROTOCOL v1.4 (read-only)
   if ($startingCommit) {
     $changed = (& git -C $repoRoot diff --name-only "$startingCommit..HEAD") -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' } | ForEach-Object { $_.Trim() }
-    if ($changed -notcontains ".agents/HANDOFF.md") { Fail 'E_HANDOFF_NOT_UPDATED' "HANDOFF.md was not changed since Starting Commit ($startingCommit)." }
     if ($changed -notcontains $sessionRel) { Fail 'E_SESSION_NOT_UPDATED' "Session log was not changed since Starting Commit ($startingCommit): $sessionRel" }
   }
 }
@@ -332,8 +418,11 @@ if ($LASTEXITCODE -ne 0) {
   Fail 'E_MARKDOWNLINT_FAIL' "markdownlint failed. Run: npx markdownlint-cli2 --fix ""**/*.md"""
 }
 
-Write-Output "OK: Session End validation passed"
-Write-Output "Session: $sessionRel"
-if ($startingCommit) { Write-Output "StartingCommit: $startingCommit" }
-if (-not $PreCommit -and $sha) { Write-Output "Commit: $sha" }
+Write-Output ""
+Write-Output "OK: Session Protocol validation PASSED"
+Write-Output "  Session Start: $($mustStartRows.Count) MUST requirements verified"
+Write-Output "  Session End: $($mustRows.Count) MUST requirements verified"
+Write-Output "  Session: $sessionRel"
+if ($startingCommit) { Write-Output "  StartingCommit: $startingCommit" }
+if (-not $PreCommit -and $sha) { Write-Output "  Commit: $sha" }
 exit 0
