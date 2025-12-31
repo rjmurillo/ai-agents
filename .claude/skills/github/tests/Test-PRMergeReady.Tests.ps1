@@ -46,7 +46,9 @@ BeforeAll {
             [int]$TotalThreads = 0,
             [string]$CIState = 'SUCCESS',
             [array]$FailedChecks = @(),
-            [array]$PendingChecks = @()
+            [array]$PendingChecks = @(),
+            [array]$FailedNonRequiredChecks = @(),
+            [array]$PendingNonRequiredChecks = @()
         )
 
         # Build thread nodes
@@ -67,6 +69,7 @@ BeforeAll {
 
         # Build check run nodes
         $checkNodes = @()
+        # Required failed checks
         foreach ($check in $FailedChecks) {
             $checkNodes += @{
                 __typename = 'CheckRun'
@@ -76,6 +79,7 @@ BeforeAll {
                 isRequired = $true
             }
         }
+        # Required pending checks
         foreach ($check in $PendingChecks) {
             $checkNodes += @{
                 __typename = 'CheckRun'
@@ -85,8 +89,29 @@ BeforeAll {
                 isRequired = $true
             }
         }
+        # Non-required failed checks
+        foreach ($check in $FailedNonRequiredChecks) {
+            $checkNodes += @{
+                __typename = 'CheckRun'
+                name = $check
+                status = 'COMPLETED'
+                conclusion = 'FAILURE'
+                isRequired = $false
+            }
+        }
+        # Non-required pending checks
+        foreach ($check in $PendingNonRequiredChecks) {
+            $checkNodes += @{
+                __typename = 'CheckRun'
+                name = $check
+                status = 'IN_PROGRESS'
+                conclusion = $null
+                isRequired = $false
+            }
+        }
         # Add a passing check if none failed/pending
-        if ($FailedChecks.Count -eq 0 -and $PendingChecks.Count -eq 0) {
+        if ($FailedChecks.Count -eq 0 -and $PendingChecks.Count -eq 0 -and
+            $FailedNonRequiredChecks.Count -eq 0 -and $PendingNonRequiredChecks.Count -eq 0) {
             $checkNodes += @{
                 __typename = 'CheckRun'
                 name = 'build'
@@ -151,6 +176,13 @@ Describe "Test-PRMergeReady.ps1" {
         It "Should have optional -IgnoreThreads switch" {
             $command = Get-Command $Script:ScriptPath
             $param = $command.Parameters['IgnoreThreads']
+            $param | Should -Not -BeNullOrEmpty
+            $param.ParameterType.Name | Should -Be 'SwitchParameter'
+        }
+
+        It "Should have optional -IncludeNonRequired switch" {
+            $command = Get-Command $Script:ScriptPath
+            $param = $command.Parameters['IncludeNonRequired']
             $param | Should -Not -BeNullOrEmpty
             $param.ParameterType.Name | Should -Be 'SwitchParameter'
         }
@@ -317,6 +349,74 @@ Describe "Test-PRMergeReady.ps1" {
             $result = $jsonOutput | ConvertFrom-Json
 
             $result.CanMerge | Should -Be $true
+        }
+    }
+
+    Context "Required vs Non-Required Checks" {
+
+        BeforeEach {
+            Mock -ModuleName GitHubCore Test-GhAuthenticated { return $true }
+            Mock -ModuleName GitHubCore Assert-GhAuthenticated { }
+            $global:LASTEXITCODE = 0
+        }
+
+        It "Should return CanMerge=true when only non-required checks fail (default behavior)" -Skip:$true {
+            # Skip: This test requires real gh CLI or more sophisticated mocking
+            Mock gh {
+                return (New-MockPRResponse -FailedNonRequiredChecks @('optional-lint', 'coverage') | ConvertTo-Json -Depth 10)
+            } -ParameterFilter { $args[0] -eq 'api' }
+
+            $output = & $Script:ScriptPath -PullRequest 50 2>&1
+            $jsonOutput = $output | Where-Object { $_ -match '^\s*\{' } | Out-String
+            $result = $jsonOutput | ConvertFrom-Json
+
+            $result.CanMerge | Should -Be $true
+            $result.FailedNonRequiredChecks | Should -Contain 'optional-lint'
+            $result.FailedNonRequiredChecks | Should -Contain 'coverage'
+            $result.FailedRequiredChecks.Count | Should -Be 0
+        }
+
+        It "Should return CanMerge=false when required checks fail" -Skip:$true {
+            # Skip: This test requires real gh CLI or more sophisticated mocking
+            Mock gh {
+                return (New-MockPRResponse -FailedChecks @('build') -FailedNonRequiredChecks @('optional-lint') | ConvertTo-Json -Depth 10)
+            } -ParameterFilter { $args[0] -eq 'api' }
+
+            $output = & $Script:ScriptPath -PullRequest 50 2>&1
+            $jsonOutput = $output | Where-Object { $_ -match '^\s*\{' } | Out-String
+            $result = $jsonOutput | ConvertFrom-Json
+
+            $result.CanMerge | Should -Be $false
+            $result.FailedRequiredChecks | Should -Contain 'build'
+            $result.Reasons | Should -Contain '1 required CI check(s) failed: build'
+        }
+
+        It "Should return CanMerge=false when -IncludeNonRequired and non-required fails" -Skip:$true {
+            # Skip: This test requires real gh CLI or more sophisticated mocking
+            Mock gh {
+                return (New-MockPRResponse -FailedNonRequiredChecks @('optional-lint') | ConvertTo-Json -Depth 10)
+            } -ParameterFilter { $args[0] -eq 'api' }
+
+            $output = & $Script:ScriptPath -PullRequest 50 -IncludeNonRequired 2>&1
+            $jsonOutput = $output | Where-Object { $_ -match '^\s*\{' } | Out-String
+            $result = $jsonOutput | ConvertFrom-Json
+
+            $result.CanMerge | Should -Be $false
+            $result.IncludeNonRequired | Should -Be $true
+            $result.Reasons | Should -Contain '1 non-required CI check(s) failed: optional-lint'
+        }
+
+        It "Should include IncludeNonRequired flag in output" -Skip:$true {
+            # Skip: This test requires real gh CLI or more sophisticated mocking
+            Mock gh {
+                return (New-MockPRResponse | ConvertTo-Json -Depth 10)
+            } -ParameterFilter { $args[0] -eq 'api' }
+
+            $output = & $Script:ScriptPath -PullRequest 50 2>&1
+            $jsonOutput = $output | Where-Object { $_ -match '^\s*\{' } | Out-String
+            $result = $jsonOutput | ConvertFrom-Json
+
+            $result.IncludeNonRequired | Should -Be $false
         }
     }
 
