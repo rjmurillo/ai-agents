@@ -513,10 +513,11 @@ runs:
         # Calculate timeout in seconds
         TIMEOUT_SECONDS=$((TIMEOUT_MINUTES * 60))
 
-        # Retry configuration (Issue #328, #338: Handle infrastructure failures)
-        # Spec from #338: attempts at 0s, 10s, 30s (total 40s max wait)
+        # Retry configuration (Issue #328, #338, #163: Handle infrastructure failures)
+        # Spec from #163: attempts at 0s, 30s, 60s (total 90s max wait, exponential backoff)
+        # Updated from #338 spec (0s, 10s, 30s) to provide longer backoff for rate limit recovery
         MAX_RETRIES=2
-        RETRY_DELAYS=(0 10 30)  # seconds before each attempt
+        RETRY_DELAYS=(0 30 60)  # seconds before each attempt
         ATTEMPT=0
         RETRY_COUNT=0
         INFRASTRUCTURE_FAILURE=false
