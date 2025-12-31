@@ -5,16 +5,22 @@
 **Branch**: feat/259-pre-pr-validation-workflow
 **Agent**: implementer
 
-## Session Start Checklist
+## Protocol Compliance
 
-| Req | Step | Status |
-|-----|------|--------|
-| MUST | `mcp__serena__initial_instructions` | [COMPLETE] |
-| MUST | Read `.agents/HANDOFF.md` | [COMPLETE] |
-| MUST | Create session log | [COMPLETE] |
-| MUST | List skills | [COMPLETE] |
-| MUST | Read skill-usage-mandatory memory | [N/A - Memory not found] |
-| MUST | Read PROJECT-CONSTRAINTS.md | [COMPLETE] |
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Skills available |
+| MUST | Read skill-usage-mandatory memory | [N/A] | Memory not found |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | Loaded relevant memories |
+| SHOULD | Verify git status | [x] | Clean |
+| SHOULD | Note starting commit | [x] | Parent commit noted |
 
 ## Objective
 
@@ -81,14 +87,19 @@ The pre-PR validation workflow requested in issue #259 already exists in the orc
 
 **Action Taken**: Closed issue #259 with detailed comment explaining implementation already exists at Phase 4 (lines 490-625).
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-| Req | Step | Status |
-|-----|------|--------|
-| MUST | Complete session log | [COMPLETE] |
-| MUST | Update Serena memory | [COMPLETE] |
-| MUST | Run markdownlint | [COMPLETE] |
-| MUST | Commit changes | [COMPLETE] |
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | All sections documented |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory updated |
+| MUST | Run markdown lint | [x] | Lint clean |
+| MUST | Route to qa agent (feature implementation) | [N/A] | Issue already implemented, verification only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit in session |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Not applicable |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Standard verification session |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ## Files Changed
 
