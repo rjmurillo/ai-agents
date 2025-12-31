@@ -165,6 +165,196 @@ Save to: `.agents/planning/impact-analysis-qa-[feature].md`
 - **Total**: [Hours/Days]
 ```
 
+## Pre-PR Quality Gate (MANDATORY)
+
+**Trigger**: Orchestrator routes to QA before PR creation (see Issue #259).
+
+**Purpose**: Validate quality gates before PR. Return APPROVED or BLOCKED verdict.
+
+### Validation Protocol
+
+When orchestrator requests pre-PR validation:
+
+#### Step 1: CI Environment Test Validation
+
+Run tests in CI-equivalent environment:
+
+```powershell
+# Run full test suite
+Invoke-Pester -Path "./tests" -CI -OutputFormat NUnitXml -OutputFile "./test-results.xml"
+
+# For .NET projects
+dotnet test --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+```
+
+**Pass criteria**:
+
+- All tests pass (0 failures)
+- No test errors or infrastructure failures
+- Test execution completes within timeout
+
+**Evidence generation**:
+
+```markdown
+## CI Test Validation
+
+- **Tests run**: [N]
+- **Passed**: [N]
+- **Failed**: [N]
+- **Errors**: [N]
+- **Duration**: [Xm Ys]
+- **Status**: [PASS] / [FAIL]
+```
+
+#### Step 2: Fail-Safe Pattern Verification
+
+Verify defensive coding patterns exist for critical paths:
+
+| Pattern | Check | Evidence |
+|---------|-------|----------|
+| Input validation | Null/bounds checks present | [File:line references] |
+| Error handling | Try-catch with meaningful messages | [File:line references] |
+| Timeout handling | Operations have timeout limits | [File:line references] |
+| Fallback behavior | Graceful degradation defined | [File:line references] |
+
+**Pass criteria**:
+
+- All critical paths have input validation
+- Error handling does not swallow exceptions silently
+- External calls have timeout handling
+- Failure modes documented
+
+**Evidence generation**:
+
+```markdown
+## Fail-Safe Pattern Verification
+
+| Pattern | Status | Evidence |
+|---------|--------|----------|
+| Input validation | [PASS]/[FAIL] | [References or gaps] |
+| Error handling | [PASS]/[FAIL] | [References or gaps] |
+| Timeout handling | [PASS]/[FAIL]/[N/A] | [References or gaps] |
+| Fallback behavior | [PASS]/[FAIL]/[N/A] | [References or gaps] |
+```
+
+#### Step 3: Test-Implementation Alignment
+
+Verify tests cover implemented functionality:
+
+```markdown
+- [ ] All public methods have corresponding tests
+- [ ] All acceptance criteria have test cases
+- [ ] Edge cases from plan are tested
+- [ ] Error conditions have negative tests
+- [ ] Integration points have integration tests
+```
+
+**Pass criteria**:
+
+- Each public method has at least one test
+- Each acceptance criterion maps to test(s)
+- No untested edge cases from plan
+
+**Evidence generation**:
+
+```markdown
+## Test-Implementation Alignment
+
+| Criterion | Test Coverage | Status |
+|-----------|---------------|--------|
+| [AC-1] | [TestName] | [PASS] |
+| [AC-2] | [TestName1, TestName2] | [PASS] |
+| [AC-3] | No test found | [FAIL] |
+
+**Coverage**: [X]/[Y] criteria covered ([Z]%)
+```
+
+#### Step 4: Coverage Threshold Validation
+
+Verify code coverage meets minimum thresholds:
+
+| Metric | Minimum | Target | Measurement |
+|--------|---------|--------|-------------|
+| Line coverage | 70% | 80% | `dotnet test --collect:"XPlat Code Coverage"` |
+| Branch coverage | 60% | 70% | Coverage report |
+| New code coverage | 80% | 90% | Diff coverage analysis |
+
+**Pass criteria**:
+
+- Line coverage >= 70% (minimum)
+- Branch coverage >= 60% (minimum)
+- New code coverage >= 80%
+
+**Evidence generation**:
+
+```markdown
+## Coverage Validation
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Line coverage | [X]% | 70% | [PASS]/[FAIL] |
+| Branch coverage | [X]% | 60% | [PASS]/[FAIL] |
+| New code coverage | [X]% | 80% | [PASS]/[FAIL] |
+```
+
+### Pre-PR Validation Report
+
+Generate validation report at `.agents/qa/pre-pr-validation-[feature].md`:
+
+```markdown
+# Pre-PR Quality Gate Validation
+
+**Feature**: [Feature name]
+**Date**: [YYYY-MM-DD]
+**Validator**: QA Agent
+
+## Validation Summary
+
+| Gate | Status | Blocking |
+|------|--------|----------|
+| CI Environment Tests | [PASS]/[FAIL] | Yes |
+| Fail-Safe Patterns | [PASS]/[FAIL] | Yes |
+| Test-Implementation Alignment | [PASS]/[FAIL] | Yes |
+| Coverage Threshold | [PASS]/[FAIL] | Yes |
+
+## Evidence
+
+[Include Step 1-4 evidence sections above]
+
+## Issues Found
+
+| Issue | Severity | Gate | Resolution Required |
+|-------|----------|------|---------------------|
+| [Description] | [P0/P1/P2] | [Which gate] | [What to fix] |
+
+## Verdict
+
+**Status**: [APPROVED] / [BLOCKED]
+
+**Blocking Issues**: [N]
+
+**Rationale**: [One sentence explanation]
+
+### If APPROVED
+Ready to create PR. Include this validation summary in PR description.
+
+### If BLOCKED
+Return to orchestrator with blocking issues. Do NOT proceed to PR creation.
+Specific fixes required:
+1. [Fix 1]
+2. [Fix 2]
+```
+
+### Verdict Decision Logic
+
+| Condition | Verdict |
+|-----------|---------|
+| All 4 gates PASS | APPROVED |
+| Any gate FAIL | BLOCKED |
+| Coverage < minimum but > 60% AND no other failures | CONDITIONAL (document gap, proceed with warning) |
+
+---
+
 ## Constraints
 
 - **Create** only QA documentation

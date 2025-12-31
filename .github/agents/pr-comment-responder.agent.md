@@ -59,10 +59,11 @@ When running in environments with PowerShell support (Windows, PowerShell Core o
 | Operation | Skill Script | Bash Fallback |
 |-----------|--------------|---------------|
 | PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review comments | `Get-PRReviewComments.ps1` | Manual pagination |
+| Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
 | Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq` |
 | Reply to comment | `Post-PRCommentReply.ps1` | `gh api -X POST` |
-| Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
+| Add reaction (batch) | `Add-CommentReaction.ps1 -CommentId @(id1,id2,...)` | Individual `gh api` calls |
+| CI check status | `Get-PRChecks.ps1` | `gh pr checks` (limited) |
 
 The bash examples below work cross-platform; use skill scripts when PowerShell is available.
 
@@ -114,7 +115,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 ### Comment Triage Priority
 
-**MANDATORY**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
+**MUST**: Process comments in priority order based on domain. Security-domain comments take precedence over all other comment types.
 
 #### Priority Adjustment by Domain
 
@@ -186,7 +187,7 @@ Analyze and implement...
 
 ### QA Integration Requirement
 
-**MANDATORY**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
+**MUST**: Run QA agent after ALL implementer work, regardless of perceived fix complexity.
 
 | Fix Type | QA Required | Rationale |
 |----------|-------------|-----------|
@@ -325,7 +326,7 @@ echo "[PASS] All gates cleared"
 
 ### Phase 0: Memory Initialization (BLOCKING)
 
-**MANDATORY**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
+**MUST**: Load relevant memories before any triage decisions. Skip this phase and you will repeat mistakes from previous sessions.
 
 #### Step 0.1: Load Core Skills Memory
 
@@ -380,8 +381,8 @@ if [ -d "$SESSION_DIR" ]; then
   PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
   echo "Previous session had $PREVIOUS_COMMENTS comments"
 
-  # Check for NEW comments only
-  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] | jq 'length')
+  # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)
+  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
@@ -421,6 +422,52 @@ PR_BRANCH=$(echo "$PR_DATA" | jq -r '.headRefName')
 PR_BASE=$(echo "$PR_DATA" | jq -r '.baseRefName')
 ```
 
+#### Step 1.1a: Check for needs-split Label
+
+**MUST**: Check if the PR has the `needs-split` label. If present, this indicates the PR exceeded commit thresholds (10/15/20) and requires analysis.
+
+```bash
+# Check for needs-split label
+LABELS=$(gh pr view [number] --json labels --jq '.labels[].name')
+HAS_NEEDS_SPLIT=$(echo "$LABELS" | grep -c -Fx "needs-split")
+
+if [ "$HAS_NEEDS_SPLIT" -gt 0 ]; then
+  echo "[WARNING] PR has needs-split label - commit threshold exceeded"
+  # Proceed to needs-split handling
+fi
+```
+
+**If `needs-split` label is present**:
+
+1. **Run retrospective analysis**: Determine why the PR required so many commits
+
+   ```text
+   #runSubagent with subagentType=retrospective
+   Analyze PR #[number] to determine why it exceeded commit thresholds.
+
+   Focus on:
+   1. What caused the high commit count (scope creep, iterations, rework)?
+   2. Could the work have been split into smaller PRs?
+   3. What patterns led to this situation?
+   4. Recommendations for future work
+
+   Save analysis to: .agents/retrospective/PR-[number]-needs-split-analysis.md
+   ```
+
+2. **Analyze commit history**: Group commits by logical change
+
+   ```bash
+   # Get commit messages to identify logical groupings
+   gh api repos/[owner]/[repo]/pulls/[number]/commits \
+     --jq '.[] | "\(.sha[0:7]) \(.commit.message | split("\n")[0])"'
+   ```
+
+3. **Provide split recommendations**: Suggest how the work could be divided
+
+4. **Document in session log**: Record the analysis and recommendations
+
+**Continue with normal workflow** after completing needs-split handling. The label does not block comment processing.
+
 #### Step 1.2: Enumerate All Reviewers
 
 ```bash
@@ -450,6 +497,17 @@ for reviewer in ALL_REVIEWERS:
 **Reference**: See Phase 0, Step 0.3 for the reviewer memory mapping table.
 
 #### Step 1.3: Retrieve ALL Comments (with pagination)
+
+```powershell
+# Using github skill (PREFERRED) - handles pagination automatically
+# IMPORTANT: Use -IncludeIssueComments to capture AI Quality Gate, CodeRabbit summaries, etc.
+pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments
+
+# Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
+```
+
+<details>
+<summary>Alternative: Raw gh CLI with manual pagination</summary>
 
 ```bash
 # Review comments (code-level) - paginate if needed
@@ -481,7 +539,26 @@ TOTAL_COMMENTS=$((REVIEW_COMMENT_COUNT + ISSUE_COMMENT_COUNT))
 echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $ISSUE_COMMENT_COUNT)"
 ```
 
+</details>
+
 #### Step 1.4: Extract Comment Details
+
+The `Get-PRReviewComments.ps1` script returns full comment details including:
+
+- `id`: Comment ID for reactions and replies
+- `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
+- `author`: Reviewer username
+- `path`: File path (null for issue comments)
+- `line`: Line number (null for issue comments)
+- `body`: Comment text
+- `diff_hunk`: Surrounding code context (null for issue comments)
+- `created_at`: Timestamp
+- `in_reply_to_id`: Parent comment for threads (null for issue comments)
+
+**Note**: Issue comments include AI Quality Gate reviews, spec validation, and CodeRabbit summaries that would otherwise be missed.
+
+<details>
+<summary>Alternative: Raw gh CLI extraction</summary>
 
 ```bash
 # Extract review comments with context
@@ -505,13 +582,34 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 }'
 ```
 
+</details>
+
 ### Phase 2: Comment Map Generation
 
 Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number]/comments.md`.
 
-#### Step 2.1: Acknowledge Each Comment
+#### Step 2.1: Acknowledge All Comments (Batch)
 
-For each comment, react with eyes emoji to indicate acknowledgment:
+React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster acknowledgment:
+
+```powershell
+# PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
+# Get all comment IDs from the comments retrieved in Phase 1
+$comments = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | ConvertFrom-Json
+$ids = $comments.Comments | ForEach-Object { $_.id }
+
+# Batch acknowledge - single process, all comments
+$result = pwsh -NoProfile .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes" | ConvertFrom-Json
+
+# Verify all acknowledged
+Write-Host "Acknowledged $($result.Succeeded)/$($result.TotalCount) comments"
+if ($result.Failed -gt 0) {
+    Write-Host "Failed: $($result.Results | Where-Object { -not $_.Success } | ForEach-Object { $_.CommentId })"
+}
+```
+
+<details>
+<summary>Alternative: Individual reactions (slower, use only when batching unavailable)</summary>
 
 ```bash
 # React to review comment
@@ -522,6 +620,8 @@ gh api repos/[owner]/[repo]/pulls/comments/[comment_id]/reactions \
 gh api repos/[owner]/[repo]/issues/comments/[comment_id]/reactions \
   -X POST -f content="eyes"
 ```
+
+</details>
 
 #### Step 2.2: Generate Comment Map
 
@@ -911,7 +1011,28 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
   -F in_reply_to=[comment_id]
 ```
 
-#### Step 6.4: Update Task List
+#### Step 6.4: Resolve Conversation Thread
+
+After replying with resolution, mark the thread as resolved. This is required for PRs with branch protection rules that require all conversations to be resolved before merging.
+
+**Exception**: Do NOT auto-resolve when:
+
+1. The reviewer is human (let them resolve after verifying)
+2. You need a response from the reviewer (human or bot)
+
+```powershell
+# Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+
+# Or resolve a single thread by ID
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_kwDOQoWRls5m7ln8"
+```
+
+**Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
+
+**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`-All`) automatically discovers and resolves all unresolved threads.
+
+#### Step 6.5: Update Task List
 
 Mark task as complete in `.agents/pr-comments/PR-[number]/tasks.md`.
 
@@ -946,27 +1067,162 @@ gh pr edit [number] --body "[updated body]"
 
 ### Phase 8: Completion Verification
 
-**MANDATORY**: Verify all comments addressed before claiming completion.
+**MUST**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
+
+#### Phase 8.1: Comment Status Verification
 
 ```bash
-# Count addressed vs total (both COMPLETE and WONTFIX are valid resolutions)
-COMPLETE=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md || echo 0)
-WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md || echo 0)
-ADDRESSED=$((COMPLETE + WONTFIX))
+# Count addressed vs total
+ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
+WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
 TOTAL=$TOTAL_COMMENTS
 
-echo "Verification: $ADDRESSED / $TOTAL comments addressed (COMPLETE: $COMPLETE, WONTFIX: $WONTFIX)"
+echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
-if [ "$ADDRESSED" -lt "$TOTAL" ]; then
-  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED)) comments remaining"
-  # List unaddressed
+if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
+  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
   grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
+  # Return to Phase 3 for unaddressed comments
 fi
 ```
 
+#### Phase 8.2: Verify Conversation Resolution
+
+**BLOCKING**: All conversations MUST be resolved for the PR to be mergeable with branch protection rules.
+
+**Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
+
+```powershell
+# Run bulk resolution to ensure all threads are resolved
+pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+```
+
+The script will:
+
+1. Query all review threads on the PR
+2. Identify any unresolved threads
+3. Resolve each one via GraphQL API
+4. Report summary: `N resolved, M failed`
+
+**Exit codes**:
+
+- `0`: All threads resolved (or already resolved)
+- `1`: One or more threads failed to resolve
+
+If any threads fail to resolve, investigate and retry before claiming completion.
+
+#### Phase 8.3: Re-check for New Comments
+
+After pushing commits, bots may post new comments. Wait and re-check:
+
+```bash
+# Wait for bot responses (30-60 seconds)
+sleep 45
+
+# Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
+NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
+
+# Compare to original count
+if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
+  echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
+  # Fetch new comments, add to comment map with status [NEW]
+  # Return to Phase 3 for analysis
+fi
+```
+
+**Critical**: Repeat this loop until no new comments appear after a commit. Bots like cursor[bot] and Copilot respond to your fixes and may identify issues with your implementation.
+
+#### Phase 8.4: CI Check Verification
+
+**MANDATORY**: Verify ALL CI checks pass before claiming completion. The `mergeable: "MERGEABLE"` field only indicates no merge conflicts, NOT that CI checks are passing.
+
+**Critical**: `gh pr view --json mergeable` returning `"MERGEABLE"` means:
+
+- ✅ No merge conflicts
+- ✅ Branch is compatible with base
+
+It does NOT mean:
+
+- ❌ CI checks passing
+- ❌ Required status checks satisfied
+
+**Always verify CI explicitly** using the Get-PRChecks.ps1 skill:
+
+```powershell
+# Check ALL CI checks status with wait for completion
+$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] -Wait -TimeoutSeconds 300 | ConvertFrom-Json
+$exitCode = $LASTEXITCODE
+
+# Handle timeout (exit code 7)
+if ($exitCode -eq 7) {
+    Write-Host "[BLOCKED] Timeout waiting for CI checks to complete"
+    Write-Host "  Pending: $($checks.PendingCount) check(s) still running"
+    exit 1
+}
+
+# Handle API errors
+if (-not $checks.Success) {
+    Write-Host "[ERROR] Failed to get CI check status: $($checks.Error)"
+    exit 1
+}
+
+# Check for failures
+if ($checks.FailedCount -gt 0) {
+    Write-Host "[BLOCKED] $($checks.FailedCount) CI check(s) not passing:"
+    $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED') } | ForEach-Object {
+        Write-Host "  - $($_.Name): $($_.Conclusion)"
+        Write-Host "    Details: $($_.DetailsUrl)"
+    }
+    # Do NOT claim completion - return to Phase 6 for fixes
+    exit 1
+}
+
+Write-Host "[PASS] All CI checks passing ($($checks.PassedCount) checks)"
+```
+
+**Exit codes**:
+
+- `0`: All checks passing (or skipped)
+- `1`: One or more checks failed (blocks completion)
+- `7`: Timeout waiting for checks (with -Wait)
+
+**If CI fails**: Parse failure messages, add new tasks to task list, return to Phase 6 for implementation.
+
+**Skill Reference**: Get-PRChecks.ps1 (uses GraphQL statusCheckRollup for reliable check status)
+
+#### Phase 8.5: Completion Criteria Checklist
+
+**ALL criteria must be true before completion**:
+
+| Criterion | Check | Status |
+|-----------|-------|--------|
+| All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
+| No new comments | Re-check returned 0 new | [ ] |
+| CI checks pass | `Get-PRChecks.ps1 -PullRequest [number]` AllPassing = true | [ ] |
+| No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
+| Commits pushed | `git status` shows "up to date with origin" | [ ] |
+
+```powershell
+# Final verification
+Write-Host "=== Completion Criteria ==="
+Write-Host "[ ] Comments: $($ADDRESSED + $WONTFIX)/$TOTAL resolved"
+Write-Host "[ ] New comments: None after 45s wait"
+
+# CI check verification using skill
+$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] | ConvertFrom-Json
+$ciStatus = if ($checks.AllPassing) { "PASS" } else { "$($checks.FailedCount) failures, $($checks.PendingCount) pending" }
+Write-Host "[ ] CI checks: $ciStatus"
+
+Write-Host "[ ] Pushed: $(git status -sb | Select-Object -First 1)"
+```
+
+**If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.
+
+---
+
 ### Phase 9: Memory Storage (BLOCKING)
 
-**MANDATORY**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
+**MUST**: Store updated statistics to memory before completing the workflow. Skip this and signal quality data becomes stale.
 
 #### Step 9.1: Calculate Session Statistics
 
@@ -1085,7 +1341,7 @@ Use sparingly. Only resolve after actually addressing issues.
 
 Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
 
-**At start (MANDATORY):**
+**At start (MUST):**
 
 ```text
 mcp__cloudmcp-manager__memory-search_nodes
