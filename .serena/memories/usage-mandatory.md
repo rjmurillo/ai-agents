@@ -73,7 +73,7 @@ CORRECT:
 
 ## The Process
 
-### Before Writing ANY GitHub Operation:
+### Before Writing ANY GitHub Operation
 
 1. **CHECK**: Does `.claude/skills/github/` have this capability?
 
@@ -89,13 +89,13 @@ CORRECT:
    - Update skill documentation
    - Then use it
 
-### This Applies To:
+### This Applies To
 
 - GitHub operations (`gh` command)
 - File operations (if skill exists)
 - Any operation where a tested, validated skill exists
 
-### This Does NOT Apply To:
+### This Does NOT Apply To
 
 - Git operations (`git` commands) - no skill for this yet
 - Build operations (npm, pwsh for build scripts)
@@ -115,7 +115,7 @@ CORRECT:
 .claude/skills/github/
 |-- SKILL.md (documentation)
 |-- modules/
-|   `-- GitHubHelpers.psm1 (shared functions)
+|   `-- GitHubCore.psm1 (shared functions)
 |-- scripts/
 |   |-- pr/
 |   |   |-- Get-PRContext.ps1
@@ -130,7 +130,7 @@ CORRECT:
 |   `-- reactions/
 |       `-- Add-CommentReaction.ps1
 `-- tests/
-    `-- GitHubHelpers.Tests.ps1
+    `-- GitHubCore.Tests.ps1
 ```
 
 ## Before Every GitHub Operation

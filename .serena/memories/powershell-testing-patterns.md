@@ -420,8 +420,8 @@ Without documentation, future engineers may attempt ARM migration again and face
 
 ```powershell
 # WRONG: Assumes module is nearby
-$ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
-# Resolves to: .github/tests/skills/modules/GitHubHelpers.psm1 (doesn't exist!)
+$ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubCore.psm1"
+# Resolves to: .github/tests/skills/modules/GitHubCore.psm1 (doesn't exist!)
 ```
 
 **Solution**:
@@ -430,7 +430,7 @@ $ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubHelpers.psm1"
 # CORRECT: Explicit path from test location to actual module location
 # From: .github/tests/skills/github/
 # To:   .claude/skills/github/modules/
-$ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
+$ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 ```
 
 **Why It Matters**:
@@ -444,8 +444,8 @@ BeforeAll {
     # Comment explaining the path navigation
     # From: .github/tests/skills/github -> .claude/skills/github/...
     $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Close-PR.ps1"
-    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubHelpers.psm1"
-    
+    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+
     Import-Module $ModulePath -Force
 }
 ```
