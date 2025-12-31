@@ -1,11 +1,12 @@
 # PRD: Skills Index Registry
 
-**Version**: 1.2
+**Version**: 1.3
 **Created**: 2025-12-20
 **Status**: Approved (10-Agent Consensus)
 **Approved Date**: 2025-12-20
-**Updated**: 2025-12-20 (Session 51 - Added Activation Vocabulary principle)
+**Updated**: 2025-12-30 (Added GitHub issue reference)
 **Target Audience**: Junior developers
+**GitHub Issue**: [#581](https://github.com/rjmurillo/ai-agents/issues/581) - Skills Index Registry Epic
 
 ## Introduction/Overview
 
