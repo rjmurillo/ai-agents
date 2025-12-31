@@ -329,17 +329,16 @@ Write-Host "Success: True, Issue: $Issue, CommentId: $($response.id), Skipped: F
 # GitHub Actions outputs for programmatic consumption
 if ($env:GITHUB_OUTPUT -and (Test-Path $env:GITHUB_OUTPUT -PathType Leaf)) {
     try {
+        # Use array sub-expression for efficient conditional array building (avoids += array re-creation)
         $outputs = @(
-            "success=true",
-            "skipped=false",
-            "issue=$Issue",
-            "comment_id=$($response.id)",
-            "html_url=$($response.html_url)",
+            "success=true"
+            "skipped=false"
+            "issue=$Issue"
+            "comment_id=$($response.id)"
+            "html_url=$($response.html_url)"
             "created_at=$($response.created_at)"
+            if ($Marker) { "marker=$Marker" }
         )
-        if ($Marker) {
-            $outputs += "marker=$Marker"
-        }
         $outputs | Add-Content -Path $env:GITHUB_OUTPUT -ErrorAction Stop
     }
     catch {
