@@ -222,6 +222,7 @@ After applying fixes:
 
 - [Common Fixes](references/common-fixes.md) - Fix patterns for common failures
 - [Template Sections](references/template-sections.md) - Copy-paste ready templates
+- [CI Debugging Patterns](references/ci-debugging-patterns.md) - Advanced job-level diagnostics
 
 ---
 

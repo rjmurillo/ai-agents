@@ -2,13 +2,16 @@
 .SYNOPSIS
     Diagnose session protocol validation failures
 .DESCRIPTION
-    Analyzes GitHub Actions run to identify NON_COMPLIANT session files
+    Analyzes GitHub Actions run to identify NON_COMPLIANT session files.
+    Provides job-level status, runner assignment, and stuck job detection.
 .PARAMETER RunId
     GitHub Actions run ID (required)
 .PARAMETER Repo
     Repository in owner/repo format (default: rjmurillo/ai-agents)
 .EXAMPLE
     .\diagnose.ps1 -RunId 20548622722
+.NOTES
+    See references/ci-debugging-patterns.md for advanced debugging patterns.
 #>
 
 [CmdletBinding()]
@@ -30,14 +33,65 @@ gh run view $RunId --repo $Repo --json status,conclusion,jobs --jq '{
 }'
 
 Write-Host ""
-Write-Host "=== NON_COMPLIANT Sessions ===" -ForegroundColor Cyan
-$logs = gh run view $RunId --repo $Repo --log 2>&1
-$matches = $logs | Select-String -Pattern "(Found verdict|NON_COMPLIANT)"
-if ($matches) {
-    $matches | ForEach-Object { Write-Host $_.Line }
+Write-Host "=== Job-Level Status ===" -ForegroundColor Cyan
+$jobStatus = gh api "/repos/$Repo/actions/runs/$RunId/jobs" --jq '.jobs[] | {name: .name, status: .status, conclusion: .conclusion, runner: .runner_name}' 2>&1
+if ($LASTEXITCODE -eq 0) {
+    $jobStatus | ForEach-Object {
+        $job = $_ | ConvertFrom-Json -ErrorAction SilentlyContinue
+        if ($job) {
+            $icon = switch ($job.status) {
+                "completed" {
+                    switch ($job.conclusion) {
+                        "success" { "[OK]" }
+                        "failure" { "[FAIL]" }
+                        "skipped" { "[SKIP]" }
+                        default { "[?]" }
+                    }
+                }
+                "queued" { "[WAIT]" }
+                "in_progress" { "[RUN]" }
+                default { "[?]" }
+            }
+            $color = switch ($job.conclusion) {
+                "success" { "Green" }
+                "failure" { "Red" }
+                "skipped" { "DarkGray" }
+                default { "Yellow" }
+            }
+            Write-Host "  $icon $($job.name)" -ForegroundColor $color
+        }
+        else {
+            Write-Host $_
+        }
+    }
 }
 else {
-    Write-Host "No NON_COMPLIANT sessions found"
+    Write-Host "  (Could not retrieve job details via API, using run view)" -ForegroundColor Yellow
+    gh run view $RunId --repo $Repo --json jobs --jq '.jobs[] | "  \(.status) \(.name)"'
+}
+
+Write-Host ""
+Write-Host "=== Stuck/Incomplete Jobs ===" -ForegroundColor Cyan
+$stuckJobs = gh api "/repos/$Repo/actions/runs/$RunId/jobs" --jq '.jobs[] | select(.status != \"completed\") | {name: .name, status: .status, runner: .runner_name}' 2>&1
+if ($LASTEXITCODE -eq 0 -and $stuckJobs) {
+    Write-Host "  Jobs still running or queued:" -ForegroundColor Yellow
+    $stuckJobs | ForEach-Object { Write-Host "    $_" }
+    Write-Host ""
+    Write-Host "  Note: runner=null means job is waiting for runner assignment" -ForegroundColor DarkGray
+}
+else {
+    Write-Host "  All jobs completed" -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "=== NON_COMPLIANT Sessions ===" -ForegroundColor Cyan
+$logs = gh run view $RunId --repo $Repo --log 2>&1
+$verdictMatches = $logs | Select-String -Pattern "(Found verdict|NON_COMPLIANT)"
+if ($verdictMatches) {
+    $verdictMatches | ForEach-Object { Write-Host $_.Line }
+}
+else {
+    Write-Host "No NON_COMPLIANT sessions found in logs"
 }
 
 Write-Host ""
