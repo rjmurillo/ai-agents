@@ -1,4 +1,4 @@
-# ADR-032: Exit Code Standardization
+# ADR-035: Exit Code Standardization
 
 **Status**: Proposed
 **Date**: 2025-12-29

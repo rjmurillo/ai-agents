@@ -1,4 +1,4 @@
-# ADR-032 Exit Code Standardization - Review Summary
+# ADR-035 Exit Code Standardization - Review Summary
 
 **Date**: 2025-12-30
 **Reviewer**: PR Comment Responder (acting as primary reviewer)
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-ADR-032 provides a comprehensive, well-researched exit code standard for PowerShell scripts. The decision is sound, well-justified, and includes excellent implementation guidance. Minor clarifications recommended before moving to Accepted status.
+ADR-035 provides a comprehensive, well-researched exit code standard for PowerShell scripts. The decision is sound, well-justified, and includes excellent implementation guidance. Minor clarifications recommended before moving to Accepted status.
 
 ## Strengths
 
