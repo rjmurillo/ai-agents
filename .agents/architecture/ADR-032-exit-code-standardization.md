@@ -1,8 +1,8 @@
 # ADR-032: Exit Code Standardization
 
-**Status**: Proposed
-**Date**: 2025-12-29
-**Deciders**: User, Architect Agent
+**Status**: Accepted
+**Date**: 2025-12-30
+**Deciders**: User, Architect Agent, ADR Review Protocol
 **Context**: Issue #536 - Standardize exit codes across PowerShell scripts
 
 ---
@@ -148,6 +148,23 @@ All scripts MUST include exit code documentation in the script header:
 #>
 ```
 
+### Deviation from Original Proposal (Issue #536)
+
+Issue #536 proposed a simpler 0-5 exit code range. This ADR adopts a POSIX-aligned approach instead:
+
+| Issue #536 Proposal | This ADR | Rationale for Change |
+|---------------------|----------|----------------------|
+| 1 (invalid params) | 2 (config error) | Align with POSIX convention (exit 2 = usage error) |
+| 2 (auth failure) | 4 (auth error) | Reserve 2 for config; align auth with sysexits EX_NOUSER (67→4) |
+| 3 (API error) | 3 (external error) | No change (aligned) |
+| 4 (not found) | 3 (external error) | Consolidate into external service category |
+| 5 (permission denied) | 4 (auth error) | Consolidate into authentication/authorization category |
+| N/A | 1 (logic error) | Add general error category for validation failures |
+| N/A | 5-99 (reserved) | Future-proof the standard |
+| N/A | 100+ (script-specific) | Allow documented custom codes |
+
+**Rationale for POSIX alignment**: Cross-language consistency with bash/Python/Ruby conventions reduces operator cognitive load and enables intelligent retry logic in CI workflows. The reserved range (5-99) future-proofs the standard without risking collision with script-specific codes.
+
 ### Rationale
 
 1. **Industry Alignment**: POSIX exit codes and sysexits.h provide proven conventions
@@ -166,12 +183,20 @@ All scripts MUST include exit code documentation in the script header:
 
 ## Migration Plan
 
+Implementation will be tracked via GitHub epic with 3 sub-tasks (see PR comment for issue creation request).
+
 ### Phase 1: Document Current State (Low Risk)
+
+**GitHub Issue**: TBD (epic sub-task 1)
 
 1. Add exit code documentation to existing scripts without changing behavior
 2. Update scripts that already comply to reference this ADR
 
+**Scope**: All scripts in `.claude/skills/`, `.github/scripts/`, `scripts/`
+
 ### Phase 2: Fix Inconsistencies (Medium Risk)
+
+**GitHub Issue**: TBD (epic sub-task 2)
 
 Priority fixes for semantic confusion:
 
@@ -180,9 +205,15 @@ Priority fixes for semantic confusion:
 | `Test-PRMerged.ps1` | exit 1 = merged | Success case exits with error code | Change to exit 0 with output property |
 | Scripts using exit 1 for API errors | exit 1 | Should be exit 3 | Update to exit 3 |
 
-### Phase 3: Update Callers
+**Testing**: Pester tests MUST be updated before changing exit codes to verify no regressions.
+
+### Phase 3: Update Callers (Medium Risk)
+
+**GitHub Issue**: TBD (epic sub-task 3)
 
 Update bash/workflow callers to handle new exit codes appropriately.
+
+**Scope**: GitHub Actions workflows in `.github/workflows/` that invoke PowerShell scripts.
 
 ---
 
