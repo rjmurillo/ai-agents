@@ -109,7 +109,6 @@ $listArgs = @("--repo", "$Owner/$Repo", "--limit", $Limit, "--json", "number,tit
 
 # Apply state filter
 # Note: gh pr list uses --state for open/closed/all, but "merged" requires --state closed plus filtering
-$effectiveState = $State
 if ($State -eq "merged") {
     # For merged PRs, we query closed and filter by merged state
     $listArgs += @("--state", "closed")
