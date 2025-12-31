@@ -1064,12 +1064,12 @@ function Test-WorkflowRateLimit {
 
 <#
 Standard exit codes for GitHub skill scripts:
-    0 - Success
+    0 - Success (includes idempotency skip - e.g., comment already exists)
     1 - Invalid parameters
     2 - Resource not found (PR, issue, label, milestone)
     3 - GitHub API error
     4 - gh CLI not found or not authenticated
-    5 - Idempotency skip (e.g., comment already exists)
+    5 - Permission denied (403 Forbidden)
 #>
 
 #endregion

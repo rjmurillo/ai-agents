@@ -627,7 +627,8 @@ Main content here.
             $scriptContent = Get-Content $Script:ScriptPath -Raw
 
             # Must include guidance for common scenarios
-            $scriptContent | Should -Match 'issues:write'
+            # Note: GitHub App manifest uses "issues": "write" (JSON format)
+            $scriptContent | Should -Match '"issues".*"write"'
             $scriptContent | Should -Match 'GITHUB_TOKEN'
             $scriptContent | Should -Match 'Fine-grained PAT'
         }
@@ -640,6 +641,63 @@ Main content here.
             $scriptContent | Should -Match 'error=PERMISSION_DENIED'
             $scriptContent | Should -Match 'status_code=403'
             $scriptContent | Should -Match 'artifact_path='
+        }
+
+        It "Should use case-insensitive matching for 403 detection" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must use -imatch for case-insensitive matching
+            $scriptContent | Should -Match '-imatch.*forbidden'
+        }
+
+        It "Should have mandatory parameter validation on Write-PermissionDeniedError" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Parameters must have Mandatory attribute
+            $scriptContent | Should -Match '\[Parameter\(Mandatory\)\][\s\S]*?\[ValidateNotNullOrEmpty\(\)\][\s\S]*?\[string\]\$Owner'
+            $scriptContent | Should -Match '\[Parameter\(Mandatory\)\][\s\S]*?\[ValidateNotNullOrEmpty\(\)\][\s\S]*?\[string\]\$Repo'
+        }
+
+        It "Should handle git rev-parse fallback with warning" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must log warning when fallback occurs
+            $scriptContent | Should -Match 'Write-Warning.*git.*rev-parse.*failed'
+        }
+
+        It "Should use -ErrorAction Stop for file operations" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # New-Item and Set-Content must use -ErrorAction Stop
+            $scriptContent | Should -Match 'New-Item.*-ErrorAction Stop'
+            $scriptContent | Should -Match 'Set-Content.*-ErrorAction Stop'
+        }
+    }
+
+    Context "403 Error Detection Behavioral Tests" {
+        # Test the 403 pattern matching logic directly
+
+        It "Should detect 403 status code in various error formats" -ForEach @(
+            @{ ErrorMsg = "HTTP 403: Forbidden"; ShouldMatch = $true; Description = "HTTP 403 format" }
+            @{ ErrorMsg = "status: 403"; ShouldMatch = $true; Description = "status 403 format" }
+            @{ ErrorMsg = "gh: Resource not accessible by integration (HTTP 403)"; ShouldMatch = $true; Description = "GitHub specific message" }
+            @{ ErrorMsg = "403 Forbidden"; ShouldMatch = $true; Description = "Simple 403" }
+            @{ ErrorMsg = "FORBIDDEN"; ShouldMatch = $true; Description = "Uppercase FORBIDDEN" }
+            @{ ErrorMsg = "Forbidden"; ShouldMatch = $true; Description = "Title case Forbidden" }
+            @{ ErrorMsg = "HTTP 401: Not authenticated"; ShouldMatch = $false; Description = "401 should not match" }
+            @{ ErrorMsg = "HTTP 500: Internal Server Error"; ShouldMatch = $false; Description = "500 should not match" }
+            @{ ErrorMsg = "Connection refused"; ShouldMatch = $false; Description = "Network error should not match" }
+        ) {
+            $errorString = $ErrorMsg
+
+            # Apply the same pattern from the script
+            $is403 = $errorString -imatch 'HTTP 403' -or
+                     $errorString -imatch 'status.*403' -or
+                     $errorString -match '403' -or
+                     $errorString -imatch 'Resource not accessible by integration' -or
+                     $errorString -imatch '\bforbidden\b'
+
+            $is403 | Should -Be $ShouldMatch -Because $Description
         }
     }
 }

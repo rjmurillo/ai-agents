@@ -39,10 +39,10 @@
     Exit Codes: 0=Success (including skip due to marker), 1=Invalid params, 2=File not found, 3=API error, 4=Not authenticated, 5=Permission denied (403)
 
     403 Errors:
-    - GitHub Apps: May lack `issues:write` permission in manifest
-    - GITHUB_TOKEN: In workflows, may need `issues: write` permission block
-    - Fine-grained PATs: May need "Issues" repository permission
-    - Classic PATs: May lack `repo` scope
+    - GitHub Apps: May lack "issues": "write" permission in app manifest
+    - GITHUB_TOKEN: In workflows, may need `permissions: issues: write` block
+    - Fine-grained PATs: May need "Issues" repository permission (Read and Write)
+    - Classic PATs: May lack `repo` scope (private) or `public_repo` scope (public repos)
 
     When 403 occurs, the intended comment payload is saved to .github/artifacts/failed-comment-{timestamp}.json
     for manual posting or debugging.
@@ -146,10 +146,21 @@ if ($Marker) {
 function Write-PermissionDeniedError {
     [CmdletBinding()]
     param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string]$Repo,
+
+        [Parameter(Mandatory)]
         [int]$Issue,
+
+        [Parameter(Mandatory)]
         [string]$Body,
+
+        [Parameter(Mandatory)]
         [string]$RawError
     )
 
@@ -157,7 +168,7 @@ function Write-PermissionDeniedError {
 PERMISSION DENIED (403): Cannot post comment to issue #$Issue in $Owner/$Repo.
 
 LIKELY CAUSES:
-- GitHub Apps: Missing 'issues:write' permission in app manifest
+- GitHub Apps: Missing "issues": "write" permission in app manifest
 - Workflow GITHUB_TOKEN: Add 'permissions: issues: write' to workflow YAML
 - Fine-grained PAT: Enable 'Issues' repository permission (Read and Write)
 - Classic PAT: Requires 'repo' scope for private repos or 'public_repo' for public repos
@@ -168,52 +179,113 @@ RAW ERROR: $RawError
 
     Write-Error $guidance -ErrorAction Continue
 
-    # Save payload for manual posting/debugging
+    # Determine repository root for artifact storage
     $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
-    $repoRoot = (git rev-parse --show-toplevel 2>$null)
-    if (-not $repoRoot) { $repoRoot = Get-Location }
-    $artifactDir = Join-Path $repoRoot ".github" "artifacts"
-    if (-not (Test-Path $artifactDir)) {
-        New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
+    $repoRoot = git rev-parse --show-toplevel 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $repoRoot = Get-Location
+        Write-Warning "Could not determine git repository root (git rev-parse failed). Using current directory: $repoRoot"
     }
 
-    $artifactPath = Join-Path $artifactDir "failed-comment-$timestamp.json"
-    $payload = @{
-        timestamp = (Get-Date -Format "o")
-        owner = $Owner
-        repo = $Repo
-        issue = $Issue
-        body = $Body
-        error = $RawError
-        guidance = "Use 'gh api repos/$Owner/$Repo/issues/$Issue/comments -X POST -f body=@body.txt' to post manually"
-    } | ConvertTo-Json -Depth 3
+    $artifactDir = Join-Path $repoRoot ".github" "artifacts"
+    $artifactPath = $null
 
-    Set-Content -Path $artifactPath -Value $payload -Encoding UTF8
-    Write-Host "Payload saved to: $artifactPath" -ForegroundColor Yellow
+    # Create artifact directory with error handling
+    if (-not (Test-Path $artifactDir)) {
+        try {
+            New-Item -ItemType Directory -Path $artifactDir -Force -ErrorAction Stop | Out-Null
+        }
+        catch {
+            Write-Warning "Failed to create artifact directory '$artifactDir': $_"
+            Write-Warning "Artifact payload will be written to console only."
+        }
+    }
+
+    # Build payload JSON with error handling
+    $artifactFilePath = Join-Path $artifactDir "failed-comment-$timestamp.json"
+    try {
+        $payload = @{
+            timestamp = (Get-Date -Format "o")
+            owner     = $Owner
+            repo      = $Repo
+            issue     = $Issue
+            body      = $Body
+            error     = $RawError
+            guidance  = "Use 'gh api repos/$Owner/$Repo/issues/$Issue/comments -X POST -f body=@body.txt' to post manually"
+        } | ConvertTo-Json -Depth 3 -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Failed to serialize payload to JSON: $_"
+        $payload = @"
+{
+  "timestamp": "$(Get-Date -Format "o")",
+  "owner": "$Owner",
+  "repo": "$Repo",
+  "issue": $Issue,
+  "error": "JSON serialization failed - see console output",
+  "body": "<serialization failed>"
+}
+"@
+    }
+
+    # Save payload to artifact file with error handling
+    if (Test-Path $artifactDir) {
+        try {
+            Set-Content -Path $artifactFilePath -Value $payload -Encoding UTF8 -ErrorAction Stop
+            $artifactPath = $artifactFilePath
+            Write-Host "Payload saved to: $artifactPath" -ForegroundColor Yellow
+        }
+        catch {
+            Write-Warning "Failed to save payload to '$artifactFilePath': $_"
+            Write-Host "=== FAILED COMMENT PAYLOAD ===" -ForegroundColor Yellow
+            Write-Host $payload
+            Write-Host "=== END PAYLOAD ===" -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "=== FAILED COMMENT PAYLOAD ===" -ForegroundColor Yellow
+        Write-Host $payload
+        Write-Host "=== END PAYLOAD ===" -ForegroundColor Yellow
+    }
 
     # Structured error output for programmatic consumption
     $errorOutput = [PSCustomObject]@{
-        Success = $false
-        Error = "PERMISSION_DENIED"
-        StatusCode = 403
-        Issue = $Issue
-        Owner = $Owner
-        Repo = $Repo
+        Success      = $false
+        Error        = "PERMISSION_DENIED"
+        StatusCode   = 403
+        Issue        = $Issue
+        Owner        = $Owner
+        Repo         = $Repo
         ArtifactPath = $artifactPath
-        Guidance = @(
+        Guidance     = @(
             "Workflow: Add 'permissions: issues: write'"
             "Fine-grained PAT: Enable 'Issues' Read/Write"
-            "Classic PAT: Requires 'repo' scope"
+            "Classic PAT: Requires 'repo' or 'public_repo' scope"
         )
     }
-    $errorOutput | ConvertTo-Json -Depth 3
+    try {
+        $errorOutput | ConvertTo-Json -Depth 3 -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Failed to serialize error output: $_"
+    }
 
     # GitHub Actions outputs for programmatic consumption
-    if ($env:GITHUB_OUTPUT) {
-        Add-Content -Path $env:GITHUB_OUTPUT -Value "success=false"
-        Add-Content -Path $env:GITHUB_OUTPUT -Value "error=PERMISSION_DENIED"
-        Add-Content -Path $env:GITHUB_OUTPUT -Value "status_code=403"
-        Add-Content -Path $env:GITHUB_OUTPUT -Value "artifact_path=$artifactPath"
+    if ($env:GITHUB_OUTPUT -and (Test-Path $env:GITHUB_OUTPUT -PathType Leaf)) {
+        try {
+            $outputs = @(
+                "success=false",
+                "error=PERMISSION_DENIED",
+                "status_code=403"
+            )
+            if ($artifactPath) {
+                $outputs += "artifact_path=$artifactPath"
+            }
+            $outputs | Add-Content -Path $env:GITHUB_OUTPUT -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "Failed to write GitHub Actions outputs: $_"
+        }
     }
 }
 
@@ -223,8 +295,8 @@ $result = gh api "repos/$Owner/$Repo/issues/$Issue/comments" -X POST -f body=$Bo
 if ($LASTEXITCODE -ne 0) {
     $errorString = $result -join ' '
 
-    # Detect 403 permission errors
-    if ($errorString -match '403' -or $errorString -match 'Resource not accessible by integration' -or $errorString -match 'forbidden') {
+    # Detect 403 permission errors (case-insensitive matching)
+    if ($errorString -imatch 'HTTP 403' -or $errorString -imatch 'status.*403' -or $errorString -match '403' -or $errorString -imatch 'Resource not accessible by integration' -or $errorString -imatch '\bforbidden\b') {
         Write-PermissionDeniedError -Owner $Owner -Repo $Repo -Issue $Issue -Body $Body -RawError $errorString
         exit 5
     }
