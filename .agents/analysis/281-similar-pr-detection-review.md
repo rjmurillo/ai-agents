@@ -80,7 +80,7 @@ This detects:
 
 ## References
 
-- PR #249: Original implementation proposal
+- PR #249 (2025-12-22): Original implementation proposal
 - Review comment r2641294198: Reviewer concern about false positives
-- `Detect-CopilotFollowUpPR.ps1`: Specialized follow-up detection (Issue #244 enhancement)
-- Issue #244: Compare-DiffContent enhancement for file overlap analysis
+- `Detect-CopilotFollowUpPR.ps1`: Specialized follow-up detection (Issue #244 (2025-12-22) enhancement)
+- Issue #244 (2025-12-22): Compare-DiffContent enhancement for file overlap analysis
