@@ -129,14 +129,26 @@ Write-Host "  Created: $ServiceFile" -ForegroundColor Green
 # Reload systemd
 Write-Host "Configuring systemd..." -ForegroundColor Cyan
 & systemctl --user daemon-reload
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to reload systemd daemon (exit code $LASTEXITCODE)"
+    exit 1
+}
 Write-Host "  Reloaded systemd user daemon" -ForegroundColor Green
 
 # Enable service
 & systemctl --user enable forgetful 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to enable forgetful service (exit code $LASTEXITCODE)"
+    exit 1
+}
 Write-Host "  Enabled forgetful service" -ForegroundColor Green
 
 # Start service
 & systemctl --user start forgetful
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to start forgetful service. Check: journalctl --user -u forgetful"
+    exit 1
+}
 Write-Host "  Started forgetful service" -ForegroundColor Green
 
 # Wait for startup
