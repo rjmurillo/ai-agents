@@ -400,7 +400,7 @@ Description=Forgetful MCP Server
 After=network.target
 
 [Service]
-ExecStart=/home/YOUR_USERNAME/.local/bin/uvx forgetful-ai --transport http --port 8020
+ExecStart=%h/.local/bin/uvx forgetful-ai --transport http --port 8020
 Restart=always
 RestartSec=5
 
@@ -420,7 +420,9 @@ systemctl --user enable --now forgetful.service
 
 ```bash
 systemctl --user status forgetful.service
-curl http://localhost:8020/health
+curl -s -X POST http://localhost:8020/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
 ```
 
 4. **Configure MCP client** (`.mcp.json`):
@@ -490,12 +492,18 @@ start /B uvx forgetful-ai --transport http --port 8020
 After setup, verify the MCP connection in your client:
 
 - **Claude Code**: Run `/mcp` to see server status
-- **Test endpoint**: `curl http://localhost:8020/health`
+- **Test endpoint**:
 
-Expected health response:
+```bash
+curl -s -X POST http://localhost:8020/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+```
+
+Expected response (JSON-RPC with available tools):
 
 ```json
-{"status":"healthy","service":"Forgetful","version":"0.1.11"}
+{"jsonrpc":"2.0","id":1,"result":{"tools":[...]}}
 ```
 
 ## Questions?

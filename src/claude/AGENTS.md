@@ -260,7 +260,7 @@ Claude agents reference `.claude/skills/github/`:
 # CORRECT - Use skill scripts
 pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 50
 
-# WRONG - Raw gh commands (see skill-usage-mandatory memory)
+# WRONG - Raw gh commands (see usage-mandatory memory)
 gh pr view 50 --json ...
 ```
 
@@ -344,4 +344,4 @@ Invoke-Pester ./build/tests/
 - [build/AGENTS.md](../../build/AGENTS.md) - Build automation
 - [Root AGENTS.md](../../AGENTS.md) - Agent usage instructions
 - [AGENT-SYSTEM.md](../../.agents/AGENT-SYSTEM.md) - Full system documentation
-- skill-usage-mandatory (use `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`) - GitHub skill rules
+- usage-mandatory (use `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`) - GitHub skill rules

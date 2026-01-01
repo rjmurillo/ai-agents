@@ -22,9 +22,10 @@
 param()
 
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'Stop'
 
 # Check MCP server availability (non-blocking, informational)
+
 $ForgetfulPort = 8020
 $ForgetfulAvailable = $false
 $ForgetfulMessage = ""
@@ -40,13 +41,23 @@ try {
         $ForgetfulAvailable = $true
         $ForgetfulMessage = "Forgetful MCP: AVAILABLE (port $ForgetfulPort)"
     }
-    $tcpClient.Close()
+    else {
+        $ForgetfulMessage = "Forgetful MCP: UNAVAILABLE (Serena-only workflow) - connection timeout"
+    }
 }
 catch {
-    $ForgetfulMessage = "Forgetful MCP: UNAVAILABLE (Serena-only workflow)"
+    # Log exception details for debugging - don't silently swallow errors
+    $exceptionMessage = $_.Exception.Message
+    $ForgetfulMessage = "Forgetful MCP: UNAVAILABLE (Serena-only workflow) - $exceptionMessage"
+}
+finally {
+    if ($null -ne $tcpClient) {
+        $tcpClient.Dispose()
+    }
 }
 
 # Output context that will be injected into Claude's context window
+
 $output = @"
 
 ## ADR-007 Memory-First Enforcement (Session Start)
@@ -60,7 +71,6 @@ $ForgetfulMessage
 
 if (-not $ForgetfulAvailable) {
     $output += @"
-
 
 > **Fallback Mode**: Forgetful is unavailable. Use Serena memory-index for keyword-based discovery.
 > To start Forgetful: ``pwsh scripts/forgetful/Install-ForgetfulLinux.ps1`` (Linux) or ``pwsh scripts/forgetful/Install-ForgetfulWindows.ps1`` (Windows)

@@ -17,7 +17,7 @@ Complete ALL before any work:
 | MUST | Read `.agents/HANDOFF.md` (read-only reference) | Content in context |
 | MUST | Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
 | MUST | List skills: `.claude/skills/github/scripts/` | Output documented |
-| MUST | Read `skill-usage-mandatory` memory | Content in context |
+| MUST | Read `usage-mandatory` memory | Content in context |
 | MUST | Read `.agents/governance/PROJECT-CONSTRAINTS.md` | Content in context |
 
 ### Session End (BLOCKING)
@@ -44,7 +44,7 @@ Complete ALL before closing:
 | Constraint | Source | Violation Response |
 |------------|--------|-------------------|
 | MUST use PowerShell only (.ps1/.psm1) | ADR-005 | No .sh or .py files |
-| MUST NOT use raw `gh` when skill exists | skill-usage-mandatory | Check `.claude/skills/` first |
+| MUST NOT use raw `gh` when skill exists | usage-mandatory | Check `.claude/skills/` first |
 | MUST NOT put logic in workflow YAML | ADR-006 | Logic goes in .psm1 modules |
 | MUST use atomic commits (one logical change) | code-style-conventions | Max 5 files OR single topic |
 

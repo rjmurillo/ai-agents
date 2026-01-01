@@ -129,15 +129,21 @@ $Settings = New-ScheduledTaskSettingsSet `
 $Principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 
 # Register the task
-Register-ScheduledTask `
-    -TaskName $TaskName `
-    -Action $Action `
-    -Trigger $Trigger `
-    -Settings $Settings `
-    -Principal $Principal `
-    -Description "Forgetful MCP Server - Semantic memory for AI agents (HTTP transport on port $Port)" | Out-Null
-
-Write-Host "  Created scheduled task: $TaskName" -ForegroundColor Green
+try {
+    $null = Register-ScheduledTask `
+        -TaskName $TaskName `
+        -Action $Action `
+        -Trigger $Trigger `
+        -Settings $Settings `
+        -Principal $Principal `
+        -Description "Forgetful MCP Server - Semantic memory for AI agents (HTTP transport on port $Port)" `
+        -ErrorAction Stop
+    Write-Host "  Created scheduled task: $TaskName" -ForegroundColor Green
+}
+catch {
+    Write-Error "Failed to create scheduled task '$TaskName': $($_.Exception.Message)"
+    exit 1
+}
 
 # Start now if requested
 if ($StartNow) {

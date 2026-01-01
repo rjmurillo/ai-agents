@@ -135,10 +135,14 @@ try {
     else {
         Write-TestResult -TestName "TCP port $Port reachable" -Passed $false -Message "Connection timeout"
     }
-    $tcpClient.Close()
 }
 catch {
     Write-TestResult -TestName "TCP port $Port reachable" -Passed $false -Message $_.Exception.Message
+}
+finally {
+    if ($null -ne $tcpClient) {
+        $tcpClient.Dispose()
+    }
 }
 
 if (-not $tcpConnected) {

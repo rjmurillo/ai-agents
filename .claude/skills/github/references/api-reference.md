@@ -89,4 +89,4 @@ Check for merge conflicts or failing required checks. Use `Get-PRContext` to see
 - **Agent**: `pr-comment-responder` - Full PR comment handling workflow
 - **Workflow**: `.github/workflows/ai-issue-triage.yml` - Uses issue scripts
 - **Module**: `.github/scripts/AIReviewCommon.psm1` - Simple wrappers for workflows
-- **Memory**: `skill-usage-mandatory` - Enforcement rules for using skills
+- **Memory**: `usage-mandatory` - Enforcement rules for using skills
