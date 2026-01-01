@@ -1,6 +1,6 @@
 # AI Agents Enhancement Project Plan
 
-> **Version**: 2.1
+> **Version**: 2.2
 > **Created**: 2025-12-17
 > **Updated**: 2025-12-31
 > **Repository**: rjmurillo/ai-agents
@@ -56,6 +56,11 @@ This plan consolidates work from:
 | #179 | MCP Tool Ecosystem | Phase 6 |
 | #180 | Reflexion Memory | Phase 2A (Memory) |
 | #181 | CLI Init Command | Phase 0 |
+| #721 | Graph Performance Optimization | Phase 2B (Graph Performance) |
+| #722 | Spec Management Tooling | Phase 2C (Spec Tooling) |
+| #723 | Frontmatter Standardization | Phase 2 (Documentation) |
+| #724 | Programming-Advisor Graph Consultation | Phase 2B (Graph Performance) |
+| #725 | Mermaid Diagram Conversion | Phase 2 (Documentation) |
 
 ---
 
@@ -79,15 +84,17 @@ This plan consolidates work from:
 |-------|------|----------|--------------|--------|
 | 0 | Foundation | 1-2 | None | COMPLETE |
 | 1 | Spec Layer | 2-3 | Phase 0 | COMPLETE |
-| 2 | Traceability + Metrics | 2-3 | Phase 1 | PENDING |
+| 2 | Traceability + Metrics | 2-3 | Phase 1 | COMPLETE (Traceability) |
 | 2A | Memory System | 3-4 | Phase 0 | PENDING |
+| 2B | Graph Performance | 1-2 | Phase 2 | PENDING |
+| 2C | Spec Management Tooling | 1-2 | Phase 2, 2B | PENDING |
 | 3 | Parallel Execution | 2-3 | Phase 0, 2A | PENDING |
 | 4 | Steering Scoping | 2-3 | Phase 1 | PARTIAL |
 | 5 | Evaluator-Optimizer | 2-3 | Phase 2, 3 | PENDING |
 | 5A | Session Automation | 2-3 | Phase 0, 2A | PENDING |
 | 6 | Integration Testing | 2-3 | All phases | PENDING |
 
-**Total Estimated Sessions**: 20-30
+**Total Estimated Sessions**: 22-34
 
 ---
 
@@ -195,25 +202,25 @@ updated: YYYY-MM-DD
 
 ### Tasks
 
-| ID | Task | Complexity | Status | Linked Issue |
-|----|------|------------|--------|--------------|
-| T-001 | Design traceability graph schema | M | PENDING | - |
-| T-002 | Create `scripts/Validate-Traceability.ps1` script | L | PENDING | - |
-| T-003 | Create pre-commit hook for traceability | M | PENDING | - |
-| T-004 | Update critic agent with traceability checklist | M | PENDING | - |
-| T-005 | Create orphan detection report format | S | PENDING | - |
-| T-006 | Add traceability metrics to retrospective | S | PENDING | - |
-| T-007 | Document traceability protocol | S | PENDING | - |
-| T-008 | Design metrics collection schema | M | PENDING | #169 |
-| T-009 | Implement session metrics capture | M | PENDING | #169 |
-| T-010 | Create performance monitoring dashboard spec | L | PENDING | #169 |
+| ID | Task | Complexity | Status | Linked Issue | PR |
+|----|------|------------|--------|--------------|-----|
+| T-001 | Design traceability graph schema | M | COMPLETE | - | #715 |
+| T-002 | Create `scripts/Validate-Traceability.ps1` script | L | COMPLETE | - | #715 |
+| T-003 | Create pre-commit hook for traceability | M | COMPLETE | - | #715 |
+| T-004 | Update critic agent with traceability checklist | M | COMPLETE | - | #715 |
+| T-005 | Create orphan detection report format | S | COMPLETE | - | #715 |
+| T-006 | Add traceability metrics to retrospective | S | COMPLETE | - | #715 |
+| T-007 | Document traceability protocol | S | COMPLETE | - | #715 |
+| T-008 | Design metrics collection schema | M | PENDING | #169 | - |
+| T-009 | Implement session metrics capture | M | PENDING | #169 | - |
+| T-010 | Create performance monitoring dashboard spec | L | PENDING | #169 | - |
 
 ### Acceptance Criteria
 
-- [ ] Validation script catches orphaned artifacts
-- [ ] Pre-commit hook blocks commits with broken refs
-- [ ] Critic validates traceability before approving
-- [ ] Retrospective reports traceability coverage %
+- [x] Validation script catches orphaned artifacts
+- [x] Pre-commit hook blocks commits with broken refs
+- [x] Critic validates traceability before approving
+- [x] Retrospective reports traceability coverage %
 - [ ] Session metrics captured automatically
 - [ ] Performance trends visible in dashboard
 
@@ -267,6 +274,78 @@ Claude-flow demonstrates:
 - [ ] Causal reasoning improves debugging
 - [ ] Pattern learning reduces repeated errors
 - [ ] Integration with existing cloudmcp-manager and Serena
+
+---
+
+## Phase 2B: Graph Performance Optimization
+
+**Goal**: Optimize the traceability graph for speed, robustness, and durability while maintaining markdown-only storage.
+
+### Background
+
+From PR #715 review:
+> This is a fun graph problem that's recomposing itself from the markdown each time. What's programming-advisor skill say about this? If we keep our own implementation of a poor man's graph database that's accessible without extra MCP... how do we make sure this is 1) super fast, 2) robust, 3) durable?
+
+**Project Principle**: Everything should be markdown and accessible without special tools, configuration, or context bloat.
+
+### Tasks
+
+| ID | Task | Complexity | Status | Linked Issue |
+|----|------|------------|--------|--------------|
+| G-001 | Consult programming-advisor on graph implementation | M | PENDING | #724 |
+| G-002 | Analyze algorithmic complexity of current traversal | S | PENDING | #721 |
+| G-003 | Design caching strategy (no external state) | M | PENDING | #721 |
+| G-004 | Implement performance optimizations | L | PENDING | #721 |
+| G-005 | Create performance benchmarks | S | PENDING | #721 |
+| G-006 | Document best practices for markdown-based graphs | S | PENDING | #721 |
+
+### Acceptance Criteria
+
+- [ ] Programming-advisor consultation completed
+- [ ] Graph traversal performance benchmarked
+- [ ] Caching strategy documented (markdown-only)
+- [ ] No external dependencies required
+- [ ] Performance targets met (sub-second for typical repos)
+
+---
+
+## Phase 2C: Spec Management Tooling
+
+**Goal**: Create scripts and tools for managing the traceability graph, enabling easy refactoring without manual find-and-replace.
+
+### Background
+
+From PR #715 review:
+> There's going to need to be a great set of scripts and tools for managing the graph. We need to refactor requirements, designs, and tasks as we iterate and learn. Giant find and replace is going to be too cumbersome and error prone and introduce too much friction. It's crap ergonomics.
+
+### Tasks
+
+| ID | Task | Complexity | Status | Linked Issue |
+|----|------|------------|--------|--------------|
+| SM-001 | Create `Rename-SpecId.ps1` (rename ID, update all refs) | L | PENDING | #722 |
+| SM-002 | Create `Update-SpecReferences.ps1` (bulk ref updates) | M | PENDING | #722 |
+| SM-003 | Create `Show-TraceabilityGraph.ps1` (text/Mermaid output) | M | PENDING | #722 |
+| SM-004 | Create `Resolve-OrphanedSpecs.ps1` (interactive wizard) | M | PENDING | #722 |
+| SM-005 | Add dry-run mode to all mutating operations | S | PENDING | #722 |
+| SM-006 | Add validation before changes (prevent partial updates) | M | PENDING | #722 |
+| SM-007 | Document spec management workflow | S | PENDING | #722 |
+
+### Proposed Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `Rename-SpecId.ps1` | Rename spec ID, update all referencing files |
+| `Update-SpecReferences.ps1` | Bulk update references across specs |
+| `Show-TraceabilityGraph.ps1` | Visualize graph (text or Mermaid output) |
+| `Resolve-OrphanedSpecs.ps1` | Interactive orphan resolution wizard |
+
+### Acceptance Criteria
+
+- [ ] Rename tool safely updates all references atomically
+- [ ] All tools validate before making changes
+- [ ] Dry-run mode available for all mutating operations
+- [ ] Error handling prevents partial updates
+- [ ] Workflow documented with examples
 
 ---
 
@@ -554,6 +633,11 @@ Phase 0 (Foundation) ───────────────────�
     ├──> Phase 1 (Spec Layer)                     │
     │        │                                    │
     │        ├──> Phase 2 (Traceability) ────────>│
+    │        │        │                           │
+    │        │        ├──> Phase 2B (Graph Perf) ─┤
+    │        │        │        │                  │
+    │        │        │        └──> Phase 2C ────>│
+    │        │        │             (Spec Tools)  │
     │        │                                    │
     │        └──> Phase 4 (Steering) [PARTIAL] ──>│
     │                                             │
@@ -594,6 +678,8 @@ Project is complete when:
 | 1 | 2025-12-17 | 0 | F-001 to F-006 | COMPLETE | `.agents/sessions/2025-12-18-session-01-phase-0-foundation.md` |
 | 44 | 2025-12-20 | N/A | PROJECT-PLAN merge | COMPLETE | Current session |
 | 111+ | 2025-12-31 | 1 | S-001 to S-008 | COMPLETE | PRs #603, #604, #605, #690 |
+| 112 | 2025-12-31 | 1 | Epic #183 cleanup | COMPLETE | `.agents/sessions/2025-12-31-session-112-project-plan-evaluation.md` |
+| 113 | 2025-12-31 | 2 | T-001 to T-007 | COMPLETE | `.agents/sessions/2025-12-31-session-113-phase2-traceability.md` |
 
 ---
 
@@ -604,3 +690,4 @@ Project is complete when:
 | 2025-12-17 | 1.0 | Initial project plan |
 | 2025-12-20 | 2.0 | Merged Epic #183 (claude-flow enhancements). Added Phase 2A (Memory), Phase 5A (Automation). Updated Phase 0,1,4 status. Integrated issues #167-#181 into phases. Added dependencies and success criteria for claude-flow metrics. |
 | 2025-12-31 | 2.1 | Marked Phase 1 (Spec Layer) COMPLETE. All tasks S-001 through S-008 delivered via PRs #603, #604, #605, #690. Reopened Epic #183 since child issues remain open. |
+| 2025-12-31 | 2.2 | Marked Phase 2 (Traceability) COMPLETE. Tasks T-001 to T-007 delivered via PR #715. Updated acceptance criteria. |
