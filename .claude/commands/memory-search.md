@@ -45,6 +45,7 @@ Present results clearly:
 User: `/memory-search authentication patterns`
 
 You search and respond:
+
 ```
 Found 3 memories about authentication patterns:
 

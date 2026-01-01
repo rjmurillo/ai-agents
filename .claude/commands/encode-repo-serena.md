@@ -5,6 +5,7 @@ Systematically populate the Forgetful knowledge base using Serena's LSP-powered 
 ## Purpose
 
 Transform an undocumented or lightly-documented codebase into a rich, searchable knowledge repository. Use this when:
+
 - Starting to use Forgetful for an existing project
 - Onboarding a new project into the memory system
 - Preparing a project for AI agent collaboration
@@ -14,6 +15,7 @@ Transform an undocumented or lightly-documented codebase into a rich, searchable
 ## Why Serena?
 
 Unlike heuristic-based encoding, Serena provides:
+
 - **Accurate symbol extraction** via Language Server Protocol (LSP)
 - **Relationship discovery** - find_referencing_symbols shows actual usage
 - **Cross-file analysis** - understand how components connect
@@ -28,6 +30,7 @@ claude plugins list | grep -i serena
 ```
 
 If Serena is not installed:
+
 ```
 STOP! Serena plugin is required for this command.
 
@@ -38,6 +41,7 @@ Then re-run /encode-repo-serena
 ```
 
 Also verify Forgetful MCP is connected by testing:
+
 ```
 execute_forgetful_tool("list_projects", {})
 ```
@@ -49,6 +53,7 @@ If Forgetful errors, run `/context-hub-setup` first.
 $ARGUMENTS
 
 Parse for:
+
 - **Project path**: Directory to encode (default: current working directory)
 - **Project name**: Override auto-detected name (optional)
 - **Phases**: Specific phases to run (optional, default: all)
@@ -65,6 +70,7 @@ Parse for:
 | Large | 8-12 | 2-3 | 15-20 | 20-40 entities | 12-18 | 10-15 | 8-12 | 2-4 docs + 2-4 mems | 1-2 docs + 1-2 mems | 66-112 memories + 3-6 docs + entities |
 
 **Notes**:
+
 - Phase 1 now includes project.notes update (instant context primer)
 - Phase 1B creates 1-3 dependency memories per project
 - Phase 2B creates entities (not memories) for components and their relationships
@@ -107,6 +113,7 @@ execute_forgetful_tool("list_projects", {})
 ```
 
 If project exists, query existing memories:
+
 ```
 execute_forgetful_tool("query_memory", {
   "query": "<project-name> architecture",
@@ -119,6 +126,7 @@ execute_forgetful_tool("query_memory", {
 ### Step 4: Analyze Entry Points
 
 Read key files to understand project:
+
 ```
 mcp__plugin_serena_serena__read_file({"relative_path": "README.md"})
 mcp__plugin_serena_serena__read_file({"relative_path": "pyproject.toml"})
@@ -128,6 +136,7 @@ mcp__plugin_serena_serena__read_file({"relative_path": "pyproject.toml"})
 ### Step 5: Gap Analysis
 
 Compare:
+
 - What's in Forgetful KB?
 - What exists in codebase?
 - What's missing?
@@ -141,6 +150,7 @@ Report findings before proceeding.
 ### Create/Update Project in Forgetful
 
 If project doesn't exist:
+
 ```
 execute_forgetful_tool("create_project", {
   "name": "owner/repo-name",
@@ -153,6 +163,7 @@ execute_forgetful_tool("create_project", {
 ### Update Project Notes
 
 After project creation (or if notes are empty), populate with high-level overview:
+
 ```
 execute_forgetful_tool("update_project", {
   "project_id": <id>,
@@ -165,6 +176,7 @@ Core components: ConnectionPool, Fetchers, Writers, ML Pipeline"
 ```
 
 **Notes format guidance** (500-1000 chars max):
+
 - Entry point command
 - Tech stack summary (language, major frameworks, database)
 - Architecture pattern (layer count, pattern name)
@@ -190,6 +202,7 @@ This provides instant context without querying memories.
 ### Step 1: Detect Manifest Files
 
 Look for dependency manifests:
+
 ```
 mcp__plugin_serena_serena__find_file({
   "file_mask": "package.json",
@@ -198,6 +211,7 @@ mcp__plugin_serena_serena__find_file({
 ```
 
 Common manifests to check:
+
 - `package.json` (Node.js)
 - `pyproject.toml`, `requirements.txt`, `Pipfile` (Python)
 - `Cargo.toml` (Rust)
@@ -208,6 +222,7 @@ Common manifests to check:
 ### Step 2: Parse Dependencies
 
 Read manifest and extract:
+
 - Direct dependencies (name, version)
 - Dev dependencies
 - Categorize by role: framework, library, database, tool
@@ -215,6 +230,7 @@ Read manifest and extract:
 ### Step 3: Validate with Context7 (Major Frameworks Only)
 
 For core frameworks (FastAPI, React, PostgreSQL, etc.), validate usage assumptions:
+
 ```
 mcp__plugin_context7_context7__resolve-library-id({
   "libraryName": "fastapi",
@@ -223,6 +239,7 @@ mcp__plugin_context7_context7__resolve-library-id({
 ```
 
 Then query specific patterns observed in the repo:
+
 ```
 mcp__plugin_context7_context7__query-docs({
   "libraryId": "/tiangolo/fastapi",
@@ -231,6 +248,7 @@ mcp__plugin_context7_context7__query-docs({
 ```
 
 Use Context7 to confirm:
+
 - Observed usage patterns are correct
 - No deprecated APIs being used
 - Best practices being followed
@@ -261,6 +279,7 @@ execute_forgetful_tool("create_memory", {
 ### Step 1: Get Symbol Overview for Key Files
 
 For each major source file:
+
 ```
 mcp__plugin_serena_serena__get_symbols_overview({
   "relative_path": "src/main.py",
@@ -273,6 +292,7 @@ This returns classes, functions, methods with their locations.
 ### Step 2: Analyze Key Classes/Modules
 
 For important symbols discovered:
+
 ```
 mcp__plugin_serena_serena__find_symbol({
   "name_path_pattern": "ClassName",
@@ -284,6 +304,7 @@ mcp__plugin_serena_serena__find_symbol({
 ### Step 3: Discover Relationships
 
 For core classes/functions:
+
 ```
 mcp__plugin_serena_serena__find_referencing_symbols({
   "name_path": "ClassName/method_name",
@@ -292,6 +313,7 @@ mcp__plugin_serena_serena__find_referencing_symbols({
 ```
 
 This reveals:
+
 - Who calls this method?
 - Where is this class used?
 - What depends on what?
@@ -299,6 +321,7 @@ This reveals:
 ### Step 4: Create Architecture Memories
 
 For each architectural layer discovered:
+
 ```
 {
   "title": "[Project] - [Layer] Architecture",
@@ -318,6 +341,7 @@ For each architectural layer discovered:
 ### Entity Deduplication (ALWAYS CHECK FIRST)
 
 Before creating any entity, check if it already exists:
+
 ```
 execute_forgetful_tool("search_entities", {
   "query": "<entity-name>",
@@ -333,6 +357,7 @@ The search checks both `name` and `aka` (aliases) fields.
 ### Standard Entity Types
 
 Use `entity_type: "other"` with these `custom_type` values (allow flexibility for non-standard cases):
+
 - `Library` - external packages/dependencies (npm, pip, cargo packages)
 - `Service` - backend services, APIs, microservices
 - `Component` - major code components, modules
@@ -342,6 +367,7 @@ Use `entity_type: "other"` with these `custom_type` values (allow flexibility fo
 ### Entity Creation Criteria
 
 Only create entities for **major components**:
+
 - High reference count from Serena (agent judges "high" based on project size)
 - Core architectural components (services, modules with many dependents)
 - External dependencies central to the project
@@ -356,6 +382,7 @@ Only create entities for **major components**:
 ### Step 1: Create Entities for Major Components
 
 For each major component discovered via Serena:
+
 ```
 execute_forgetful_tool("create_entity", {
   "name": "AuthenticationService",
@@ -372,6 +399,7 @@ execute_forgetful_tool("create_entity", {
 ### Step 2: Create Entities for Key Dependencies
 
 For external libraries central to the project:
+
 ```
 execute_forgetful_tool("create_entity", {
   "name": "FastAPI",
@@ -387,6 +415,7 @@ execute_forgetful_tool("create_entity", {
 ### Step 3: Create Relationships
 
 Map how components connect using reference counts from Serena:
+
 ```
 execute_forgetful_tool("create_entity_relationship", {
   "source_entity_id": <project_or_component_id>,
@@ -401,6 +430,7 @@ execute_forgetful_tool("create_entity_relationship", {
 ```
 
 **Relationship types**:
+
 - `uses` - project/component uses library
 - `depends_on` - component depends on another
 - `calls` - service calls another service
@@ -409,6 +439,7 @@ execute_forgetful_tool("create_entity_relationship", {
 - `connects_to` - system connects to database/service
 
 **Strength calculation**:
+
 - Based on Serena reference count
 - Normalize to 0.0-1.0 scale within project
 - Higher reference count = higher strength
@@ -416,6 +447,7 @@ execute_forgetful_tool("create_entity_relationship", {
 ### Step 4: Link Entities to Memories
 
 Connect entities to their architecture memories:
+
 ```
 execute_forgetful_tool("link_entity_to_memory", {
   "entity_id": <component_entity_id>,
@@ -424,6 +456,7 @@ execute_forgetful_tool("link_entity_to_memory", {
 ```
 
 This enables bidirectional discovery:
+
 - Find entity → get related memories
 - Query memories → discover linked entities
 
@@ -443,6 +476,7 @@ mcp__plugin_serena_serena__search_for_pattern({
 ```
 
 Useful patterns to search:
+
 - Error handling: `except|catch|Error`
 - Dependency injection: `Depends|@inject|Container`
 - Decorators: `@app\.|@router\.|@middleware`
@@ -451,6 +485,7 @@ Useful patterns to search:
 ### Analyze Pattern Usage
 
 For each pattern found, use symbol analysis:
+
 ```
 mcp__plugin_serena_serena__find_symbol({
   "name_path_pattern": "pattern_name",
@@ -470,6 +505,7 @@ Document recurring patterns with actual code locations and usage counts.
 ### Identify Features via Symbol Analysis
 
 Look for route handlers, API endpoints, main workflows:
+
 ```
 mcp__plugin_serena_serena__search_for_pattern({
   "substring_pattern": "@(app|router)\\.(get|post|put|delete)",
@@ -480,6 +516,7 @@ mcp__plugin_serena_serena__search_for_pattern({
 ### Trace Feature Flow
 
 For each feature:
+
 1. Find the entry point symbol
 2. Use `find_referencing_symbols` to trace downstream
 3. Document the complete flow in a memory
@@ -491,6 +528,7 @@ For each feature:
 **CRITICAL: Only capture explicitly documented decisions.**
 
 Search for decision documentation:
+
 ```
 mcp__plugin_serena_serena__search_for_pattern({
   "substring_pattern": "Decision:|Rationale:|## Why|ADR-",
@@ -505,6 +543,7 @@ If found, create decision memories. If not, skip this phase.
 ## Phase 6: Code Artifacts
 
 For reusable patterns discovered via Serena:
+
 ```
 execute_forgetful_tool("create_code_artifact", {
   "title": "Descriptive name",
@@ -527,6 +566,7 @@ This captures symbol locations, relationships, and reference counts that would o
 ### Step 1: Aggregate Symbol Data
 
 Collect from all `get_symbols_overview` and `find_symbol` calls during Phase 2:
+
 - Classes with file locations and line numbers
 - Interfaces with their implementations
 - Key functions with callers (from `find_referencing_symbols`)
@@ -546,6 +586,7 @@ execute_forgetful_tool("create_document", {
 ```
 
 **Document Format:**
+
 ```markdown
 # [Project] - Symbol Index
 
@@ -577,6 +618,7 @@ Total: X classes, Y interfaces, Z functions
 ### Step 3: Create Entry Memory
 
 Create an atomic memory that summarizes the index and links to the document:
+
 ```
 execute_forgetful_tool("create_memory", {
   "title": "[Project] - Symbol Index Reference",
@@ -602,6 +644,7 @@ execute_forgetful_tool("create_memory", {
 | Large | 150+ | >5000 words | Yes, by layer |
 
 **If splitting** (large projects):
+
 - Create separate docs per architectural layer: `[Project] - Symbol Index: Data Layer`
 - Each doc gets its own entry memory
 - Entry memories link to their respective documents
@@ -611,6 +654,7 @@ execute_forgetful_tool("create_memory", {
 ## Phase 7: Documents (as needed)
 
 For content >400 words (detailed guides, comprehensive analysis):
+
 ```
 execute_forgetful_tool("create_document", {
   "title": "Document name",
@@ -634,6 +678,7 @@ This creates the definitive architecture reference, accessible even when Serena 
 ### Step 1: Synthesize Architecture Content
 
 Combine insights from:
+
 - Phase 2 architecture memories (symbol-level analysis)
 - Phase 2B entity relationships (component graph)
 - Phase 3 pattern discoveries
@@ -653,6 +698,7 @@ execute_forgetful_tool("create_document", {
 ```
 
 **Document Format:**
+
 ```markdown
 # [Project] - Architecture Reference
 
@@ -705,6 +751,7 @@ Generated: [date]
 ### Step 3: Create Entry Memory
 
 Create an atomic memory that summarizes and links to the document:
+
 ```
 execute_forgetful_tool("create_memory", {
   "title": "[Project] - Architecture Reference",
@@ -764,6 +811,7 @@ execute_forgetful_tool("create_memory", {
 After completion, verify coverage:
 
 ### Test Memories
+
 ```
 execute_forgetful_tool("query_memory", {
   "query": "How do I add a new API endpoint?",
@@ -773,6 +821,7 @@ execute_forgetful_tool("query_memory", {
 ```
 
 ### Test Dependencies
+
 ```
 execute_forgetful_tool("query_memory", {
   "query": "What dependencies does this project use?",
@@ -782,6 +831,7 @@ execute_forgetful_tool("query_memory", {
 ```
 
 ### Test Entities (scoped by project)
+
 ```
 execute_forgetful_tool("list_entities", {
   "project_ids": [<project_id>]
@@ -789,6 +839,7 @@ execute_forgetful_tool("list_entities", {
 ```
 
 ### Test Entities by Role
+
 ```
 execute_forgetful_tool("list_entities", {
   "project_ids": [<project_id>],
@@ -797,6 +848,7 @@ execute_forgetful_tool("list_entities", {
 ```
 
 ### Test Relationships
+
 ```
 execute_forgetful_tool("get_entity_relationships", {
   "entity_id": <component_entity_id>,
@@ -805,6 +857,7 @@ execute_forgetful_tool("get_entity_relationships", {
 ```
 
 ### Test Documents
+
 ```
 execute_forgetful_tool("list_documents", {
   "project_id": <project_id>
@@ -814,6 +867,7 @@ execute_forgetful_tool("list_documents", {
 Should show Symbol Index and Architecture Reference documents.
 
 ### Test Document Retrieval
+
 ```
 execute_forgetful_tool("get_document", {
   "document_id": <symbol_index_doc_id>
@@ -823,6 +877,7 @@ execute_forgetful_tool("get_document", {
 Verify symbol table is structured and contains accurate locations.
 
 ### Test Entry Memory Links
+
 ```
 execute_forgetful_tool("query_memory", {
   "query": "symbol index navigation classes",
@@ -834,6 +889,7 @@ execute_forgetful_tool("query_memory", {
 Should return entry memory with `document_ids` populated. The entry memory provides quick context; the linked document provides full detail.
 
 ### Test Project Notes
+
 ```
 execute_forgetful_tool("get_project", {
   "project_id": <project_id>
@@ -849,6 +905,7 @@ Test with architecture questions - Serena-encoded repos should answer accurately
 ## Report Progress
 
 After each phase:
+
 - Symbols analyzed
 - Memories created/updated
 - Relationships discovered

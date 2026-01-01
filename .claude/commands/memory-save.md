@@ -17,6 +17,7 @@ Create an atomic memory from the current conversation context.
 ## Pre-Creation: Check for Existing Memories
 
 Before creating, query for related memories:
+
 ```
 execute_forgetful_tool("query_memory", {
   "query": "<topic of new memory>",
@@ -27,6 +28,7 @@ execute_forgetful_tool("query_memory", {
 ```
 
 Analyze results to determine if the new memory would:
+
 - **Invalidate** an existing memory (mark it obsolete with `mark_memory_obsolete`)
 - **Update** an existing memory (use `update_memory` instead of creating new)
 - **Supersede** an existing memory (create new, then mark old as obsolete with `superseded_by`)
@@ -35,6 +37,7 @@ Analyze results to determine if the new memory would:
 ## Atomic Memory Principles (Zettelkasten)
 
 Before creating, verify the memory passes the atomicity test:
+
 - Can you understand the idea at first glance?
 - Can you easily title it in 5-50 words?
 - Does it represent ONE concept/fact/decision?
@@ -61,6 +64,7 @@ Before creating, verify the memory passes the atomicity test:
 2. **Analyze** if this is new knowledge, an update, or supersedes existing
 3. **Draft** a memory following atomic principles
 4. **Present** the draft with curation plan:
+
    ```
    Existing memories found:
    - Memory #42: "Previous auth decision" - will be marked obsolete (superseded)
@@ -81,9 +85,11 @@ Before creating, verify the memory passes the atomicity test:
 
    Confirm? (y/n/edit)
    ```
+
 5. **Execute** the curation plan after user confirms
 6. **Report** the result including any auto-linked memories
 7. **Review auto-links** - Check if auto-linked memories are relevant:
+
    ```
    Auto-linked memories:
    - #102: "Database connection pooling" - Relevant? (keep)
@@ -91,7 +97,9 @@ Before creating, verify the memory passes the atomicity test:
 
    Unlinking irrelevant auto-links...
    ```
+
    Use `unlink_memories` to remove irrelevant connections:
+
    ```
    execute_forgetful_tool("unlink_memories", {
      "source_id": NEW_MEMORY_ID,
@@ -102,6 +110,7 @@ Before creating, verify the memory passes the atomicity test:
 ## If Content is Too Long
 
 If the concept requires >2000 characters:
+
 1. Suggest using `create_document` for the full content
 2. Extract 3-5 atomic memories from it
 3. Link memories to the document via `document_ids`
@@ -111,6 +120,7 @@ If the concept requires >2000 characters:
 User: `/memory-save`
 
 You query existing memories, find related content, and propose:
+
 ```
 Found 2 related memories:
 - #89: "Plugin strategy: single plugin" (Importance: 7) - OUTDATED by this decision

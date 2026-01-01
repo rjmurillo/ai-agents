@@ -102,6 +102,7 @@ Return a structured summary:
 Present the knowledge graph summary to the user. The subagent has done the heavy lifting - you just need to display its findings.
 
 If the graph is sparse, suggest:
+
 - Broader search terms
 - Different project scope
 - Creating new memories to build the graph

@@ -22,10 +22,12 @@ claude plugins list
 ```
 
 Look for:
+
 - `serena` or similar (for code analysis)
 - `context7` or similar (for framework docs)
 
 **If Serena is not installed:**
+
 ```
 To use /encode-repo-serena, install the Serena plugin:
 
@@ -37,6 +39,7 @@ Or search for it in the marketplace:
 ```
 
 **If Context7 is not installed:**
+
 ```
 For framework documentation in /context_gather, install Context7:
 
@@ -56,6 +59,7 @@ claude mcp list | grep -i forgetful
 ```
 
 If already configured:
+
 - Ask user if they want to reconfigure
 - If no, skip to Step 3
 - If yes, remove existing first: `claude mcp remove forgetful`
@@ -67,6 +71,7 @@ Ask the user which setup they prefer:
 **Question**: "How would you like to configure Forgetful?"
 
 **Options**:
+
 1. **Standard (Recommended)** - Zero config, uses uvx with SQLite storage
 2. **Custom** - Remote HTTP server, PostgreSQL, custom embeddings, etc.
 
@@ -77,6 +82,7 @@ claude mcp add forgetful --scope user -- uvx forgetful-ai
 ```
 
 Confirm success:
+
 ```bash
 claude mcp list | grep -i forgetful
 ```
@@ -88,6 +94,7 @@ Report: "Forgetful is now configured! Your memories will persist in `~/.forgetfu
 If user chose Custom:
 
 1. Fetch configuration docs:
+
 ```
 WebFetch: https://github.com/ScottRBK/forgetful/blob/main/docs/configuration.md
 ```
@@ -121,16 +128,19 @@ Commands available:
 Offer to test the setup:
 
 **Test Forgetful:**
+
 ```
 /memory-list
 ```
 
 **Test Serena (if installed):**
+
 ```
 Ask Claude to use Serena's get_symbols_overview on a file in your project
 ```
 
 **Test Context7 (if installed):**
+
 ```
 Ask about a framework: "How does FastAPI dependency injection work?"
 ```
@@ -138,11 +148,13 @@ Ask about a framework: "How does FastAPI dependency injection work?"
 ## Troubleshooting
 
 **Forgetful issues:**
+
 - Check if `uvx` is installed: `which uvx`
 - For HTTP: verify server is running
 - Check Claude Code logs for MCP errors
 
 **Plugin issues:**
+
 - Re-run: `claude plugins install <plugin-name>`
 - Check marketplace: `claude plugins search <name>`
 

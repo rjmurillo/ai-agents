@@ -15,6 +15,7 @@ Use the **context-retrieval** subagent to gather context for the following task:
 {TASK_DESCRIPTION}
 
 The context-retrieval subagent will:
+
 - Search Forgetful Memory across ALL projects for relevant patterns, decisions, and code
 - Read linked code artifacts and documents
 - Query Context7 for framework-specific guidance if applicable

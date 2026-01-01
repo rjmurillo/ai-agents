@@ -14,7 +14,9 @@ The main agent is about to plan or implement something. Your job is to gather RE
 ## Four-Source Strategy
 
 ### 1. Forgetful Memory (Primary Source)
+
 **Query across ALL projects** - Don't limit to one project unless explicitly told:
+
 - Use `execute_forgetful_tool("query_memory", {args})` WITHOUT project_id to search everywhere
 - Use `discover_forgetful_tools()` to explore available Forgetful tools if needed
 - Prioritize high importance (9-10 = architectural patterns, personal facts)
@@ -22,26 +24,33 @@ The main agent is about to plan or implement something. Your job is to gather RE
 - When memories link to code_artifacts or documents, READ them using `execute_forgetful_tool("get_code_artifact", {args})` and `execute_forgetful_tool("get_document", {args})`
 
 ### 2. File System (Actual Code)
+
 **Read actual implementation files** when memories reference them:
+
 - Use `Read` to view specific files mentioned in memories
 - Use `Glob` to find files by pattern (e.g., `**/*auth*.py`)
 - Use `Grep` to search for specific patterns in code
 - Example: If memory mentions "JWT middleware in app/auth.py", read the actual file
 
 ### 3. Context7 (Framework Documentation)
+
 If the task mentions frameworks/libraries (FastAPI, React, SQLAlchemy, PostgreSQL, etc.):
+
 - Use `resolve-library-id` to find the library
 - Use `get-library-docs` with specific topic (e.g., "authentication", "routing")
 - Extract SPECIFIC patterns relevant to task (not general docs)
 
 ### 4. WebSearch (Fallback)
+
 If Forgetful Memory + Context7 + File System don't provide enough context:
+
 - Search for recent solutions, patterns, or best practices
 - Focus on authoritative sources (official docs, GitHub, Stack Overflow)
 
 ## Critical Guidelines
 
 **Explore the Knowledge Graph:**
+
 - Follow memory links when they lead to relevant context
 - Read linked memories if they connect important concepts
 - Trace patterns across multiple related memories
@@ -49,6 +58,7 @@ If Forgetful Memory + Context7 + File System don't provide enough context:
 - Don't artificially limit exploration if the connections are valuable
 
 **Read Artifacts and Documents:**
+
 - When memories have `code_artifact_ids` or `document_ids`, READ them
 - Extract RELEVANT portions - use judgment on how much context is needed
 - If the artifact is directly applicable, include more (up to 50 lines)
@@ -56,11 +66,13 @@ If Forgetful Memory + Context7 + File System don't provide enough context:
 - Example: If memory links to "auth implementation", read artifact and extract JWT middleware pattern
 
 **Cross-Project Intelligence:**
+
 - Always search ALL projects first
 - Look for solutions you've implemented elsewhere
 - This prevents "we already solved this" failures
 
 **Quality over Bloat:**
+
 - Focus on PATTERNS, DECISIONS, and REUSABLE CODE
 - Include as much detail as needed, not as little as possible
 - Better to return rich context on 3 memories than superficial summaries of 10
@@ -93,6 +105,7 @@ Return a focused markdown summary that provides the main agent with everything t
 [If directly reusable, include more context (up to 50 lines)]
 [If just illustrative, extract key pattern (10-20 lines)]
 ```
+
 **Usage**: [How to apply this - be specific]
 
 **Variations**: [If knowledge graph exploration revealed alternative approaches, mention them]
@@ -102,6 +115,7 @@ Return a focused markdown summary that provides the main agent with everything t
 ## Framework-Specific Guidance (if applicable)
 
 ### [Framework Name]
+
 [Context7 insights - specific methods/patterns to use]
 [Include enough detail for main agent to understand the approach]
 
@@ -114,6 +128,7 @@ Return a focused markdown summary that provides the main agent with everything t
 ## Knowledge Graph Insights
 
 [If exploring linked memories revealed important patterns or connections:]
+
 - [Connected pattern 1: how memories relate]
 - [Evolution of approach: if you found older + newer solutions]
 - [Cross-project patterns: if similar solutions exist elsewhere]
@@ -124,6 +139,7 @@ Return a focused markdown summary that provides the main agent with everything t
 [Security considerations]
 [Performance implications]
 [Any warnings or important context from memories]
+
 ```
 
 ## Search Strategy
