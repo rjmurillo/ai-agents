@@ -163,6 +163,38 @@ The `.githooks/pre-commit` hook (lines 597-649):
 grep -l "Section Name" templates/agents/{agent}.shared.md src/claude/{agent}.md
 ```
 
+## Platform Capability Matrix
+
+Platforms have genuinely different capabilities, justifying intentional divergence in agent prompts:
+
+| Capability | Claude Code | Copilot CLI | VS Code Copilot | GitHub Copilot |
+|------------|-------------|-------------|-----------------|----------------|
+| MCP Tools | ✓ Full | ✗ None | Partial | ✗ None |
+| Serena Integration | ✓ Full | ✗ None | ✗ None | ✗ None |
+| Multi-Agent Orchestration | ✓ Full | ✓ Full | ✓ Full | ✗ Single-agent only |
+| Subagent Invocation | ✓ Task tool | ✓ @agent syntax | ✓ @agent syntax | ✗ Not supported |
+| Persistent Memory | ✓ Serena + MCP | ✗ None | ✗ None | ✗ None |
+
+### Intentional Divergence
+
+Claude agents contain Claude-specific sections (MCP tool references, Serena memory protocols, handoff instructions) that have no equivalent on other platforms. Similarity metrics comparing Claude to templates measure divergence that is **BY DESIGN**, not sync failure.
+
+- **Shared content** (governance sections, validation protocols) → MUST remain synchronized
+- **Platform-specific content** (tool invocation, capability references) → SHOULD NOT be synchronized
+
+Historical drift analysis showing 2-12% similarity between Claude and templates reflects this intentional platform differentiation, not maintenance failure.
+
+## Strategic Dependency
+
+Issue #124 (P1, opened 2025-12-20) requests strategic decision on whether to continue the two-source pattern documented here. This ADR records the **current architecture**. Issue #124 addresses whether that architecture should evolve.
+
+**Relationship**: Complementary
+
+- **ADR-036**: Documents current state ("What is our architecture?")
+- **Issue #124**: Evaluates future state ("Should we change our architecture?")
+
+This ADR does NOT resolve Issue #124. Both documents serve distinct purposes.
+
 ## Related Decisions
 
 - ADR-029: Skill File Line Ending Normalization (related build tooling)
