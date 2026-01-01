@@ -188,7 +188,20 @@ When handing off between agents:
 
 ### Memory System
 
-Agents use `cloudmcp-manager` memory tools for cross-session continuity:
+Agents use multiple memory tools for cross-session continuity:
+
+**Forgetful MCP** (semantic search, knowledge graph):
+
+- `forgetful/memory_create`: Store memories with semantic embeddings
+- `forgetful/memory_search`: Find memories by semantic similarity
+- `forgetful/entity_create`: Create knowledge graph entities
+- `forgetful/entity_search`: Search entities by name/type
+
+> **Note**: Forgetful uses HTTP transport at `http://localhost:8020/mcp`. Stdio transport is broken due to FastMCP banner corruption ([upstream issue #19](https://github.com/ScottRBK/forgetful/issues/19)).
+>
+> **Setup**: See `scripts/forgetful/README.md` for installation. Health check: `pwsh scripts/forgetful/Test-ForgetfulHealth.ps1`
+
+**cloudmcp-manager** (graph-based):
 
 - `cloudmcp-manager/memory-search_nodes`: Find relevant context
 - `cloudmcp-manager/memory-create_entities`: Store new knowledge

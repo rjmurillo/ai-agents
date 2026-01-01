@@ -32,11 +32,11 @@ Single source of truth for project constraints. Index-style document pointing to
 
 | Constraint | Source | Verification |
 |------------|--------|--------------|
-| MUST NOT use raw `gh` commands when skill exists | skill-usage-mandatory | Check-SkillExists.ps1 |
-| MUST check `.claude/skills/` before GitHub operations | skill-usage-mandatory | Phase 1.5 gate |
-| MUST extend skills if capability missing, not write inline | skill-usage-mandatory | Code review |
+| MUST NOT use raw `gh` commands when skill exists | usage-mandatory | Check-SkillExists.ps1 |
+| MUST check `.claude/skills/` before GitHub operations | usage-mandatory | Phase 1.5 gate |
+| MUST extend skills if capability missing, not write inline | usage-mandatory | Code review |
 
-**Reference**: Use `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`
+**Reference**: Use `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`
 
 **Rationale Summary**: Skills are tested, handle errors, have proper parameter validation, and are maintained centrally. Raw commands bypass all quality controls.
 

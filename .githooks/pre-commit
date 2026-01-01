@@ -840,6 +840,56 @@ else
 fi
 
 #
+# Memory Evidence Warning (E4, ADR-007)
+#
+# Lightweight check for memory retrieval evidence in session logs.
+# Warns if the Evidence column for memory-index appears empty or placeholder.
+# Full validation (E2) is done by Validate-Session.ps1.
+#
+# Related: ADR-007, Issue #729, E2 in Validate-Session.ps1
+#
+
+if [ -n "$STAGED_SESSION_LOG" ]; then
+    echo_info "Checking memory retrieval evidence (ADR-007)..."
+
+    # Read the staged session log content
+    if [ -f "$STAGED_SESSION_LOG" ]; then
+        # Look for memory-index row and check its Evidence column
+        # Pattern: | MUST | ... memory-index ... | [x] | <evidence> |
+        MEMORY_ROW=$(grep -E '\|\s*MUST\s*\|.*memory-index.*memories\s*\|' "$STAGED_SESSION_LOG" || true)
+
+        if [ -n "$MEMORY_ROW" ]; then
+            # Extract the Evidence column (4th column)
+            # Split by | and get the 4th field (after Req, Step, Status)
+            EVIDENCE=$(echo "$MEMORY_ROW" | awk -F'|' '{print $5}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+            # Check for placeholder patterns
+            if [ -z "$EVIDENCE" ] || \
+               [ "$EVIDENCE" = "List memories loaded" ] || \
+               echo "$EVIDENCE" | grep -qE '^\[.*\]$' || \
+               echo "$EVIDENCE" | grep -qE '^-+$'; then
+                echo_warning "Memory evidence appears incomplete (ADR-007)"
+                echo_info "  Row: memory-index row"
+                echo_info "  Evidence: '$EVIDENCE'"
+                echo_info "  Expected: Actual memory names like 'memory-index, skills-pr-review-index'"
+                echo_info ""
+                echo_info "  Update the Evidence column with memories you actually read."
+                # Non-blocking warning - E2 validation will catch this if it's a real problem
+            else
+                # Check if evidence contains kebab-case memory names
+                if echo "$EVIDENCE" | grep -qE '[a-z][a-z0-9]*-[a-z0-9-]+'; then
+                    echo_success "Memory evidence looks valid."
+                else
+                    echo_warning "Memory evidence may not contain valid memory names"
+                    echo_info "  Evidence: '$EVIDENCE'"
+                    echo_info "  Expected format: kebab-case names like 'memory-index, skills-pr-review-index'"
+                fi
+            fi
+        fi
+    fi
+fi
+
+#
 # Traceability Validation (BLOCKING)
 #
 # Validates cross-references between specification artifacts (REQ, DESIGN, TASK).

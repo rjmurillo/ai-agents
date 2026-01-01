@@ -114,8 +114,8 @@ The agent MUST validate skill availability before starting work. This is a **blo
    Get-ChildItem -Path ".claude/skills/github/scripts" -Recurse -Filter "*.ps1" | Select-Object -ExpandProperty Name
    ```
 
-3. The agent MUST read the skill-usage-mandatory memory using `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`
-  - If the serena MCP is not available, then the agent MUST read `.serena/memories/skill-usage-mandatory.md`
+3. The agent MUST read the usage-mandatory memory using `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`
+  - If the serena MCP is not available, then the agent MUST read `.serena/memories/usage-mandatory.md`
 4. The agent MUST read `.agents/governance/PROJECT-CONSTRAINTS.md`
 5. The agent MUST document available skills in session log under "Skill Inventory"
 
@@ -187,7 +187,7 @@ Copy this checklist to each session log and verify completion:
 | MUST | Read `.agents/HANDOFF.md` | [ ] | Content in context |
 | MUST | Create this session log | [ ] | This file exists |
 | MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Output documented below |
-| MUST | Read skill-usage-mandatory memory | [ ] | Content in context |
+| MUST | Read usage-mandatory memory | [ ] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
 | MUST | Read memory-index, load task-relevant memories | [ ] | List memories loaded |
 | MUST | Verify and declare current branch | [ ] | Branch documented below |
@@ -434,7 +434,7 @@ Create at: `.agents/sessions/YYYY-MM-DD-session-NN.md`
 | MUST | Read `.agents/HANDOFF.md` | [ ] | Content in context |
 | MUST | Create this session log | [ ] | This file exists |
 | MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Output documented below |
-| MUST | Read skill-usage-mandatory memory | [ ] | Content in context |
+| MUST | Read usage-mandatory memory | [ ] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
 | MUST | Read memory-index, load task-relevant memories | [ ] | List memories loaded |
 | MUST | Verify and declare current branch | [ ] | Branch documented below |

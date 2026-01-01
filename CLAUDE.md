@@ -17,7 +17,7 @@ Complete ALL before any work:
 | MUST | Read `.agents/HANDOFF.md` (read-only reference) | Content in context |
 | MUST | Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
 | MUST | List skills: `.claude/skills/github/scripts/` | Output documented |
-| MUST | Read `skill-usage-mandatory` memory | Content in context |
+| MUST | Read `usage-mandatory` memory | Content in context |
 | MUST | Read `.agents/governance/PROJECT-CONSTRAINTS.md` | Content in context |
 
 ### Session End (BLOCKING)
@@ -44,7 +44,7 @@ Complete ALL before closing:
 | Constraint | Source | Violation Response |
 |------------|--------|-------------------|
 | MUST use PowerShell only (.ps1/.psm1) | ADR-005 | No .sh or .py files |
-| MUST NOT use raw `gh` when skill exists | skill-usage-mandatory | Check `.claude/skills/` first |
+| MUST NOT use raw `gh` when skill exists | usage-mandatory | Check `.claude/skills/` first |
 | MUST NOT put logic in workflow YAML | ADR-006 | Logic goes in .psm1 modules |
 | MUST use atomic commits (one logical change) | code-style-conventions | Max 5 files OR single topic |
 
@@ -172,15 +172,61 @@ Task(subagent_type="retrospective", prompt="Analyze session for learnings")
 ### Memory System
 
 ```python
-# Serena (preferred)
+# Serena (preferred for project-specific memory)
 mcp__serena__list_memories()
 mcp__serena__read_memory(memory_file_name="[name]")
 mcp__serena__write_memory(memory_file_name="[name]", content="...")
 
-# cloudmcp-manager (graph-based)
-mcp__cloudmcp-manager__memory-search_nodes(query="[topic]")
-mcp__cloudmcp-manager__memory-create_entities(entities=[...])
+# Forgetful (semantic search, knowledge graph)
+mcp__forgetful__memory_create(content="...", tags=["..."])
+mcp__forgetful__memory_search(query="[topic]")
+mcp__forgetful__list_projects()
 ```
+
+### Forgetful MCP Server
+
+Forgetful provides semantic search and automatic knowledge graph construction for cross-session memory.
+
+**Connection**: HTTP transport at `http://localhost:8020/mcp`
+
+> **Note**: Stdio transport is broken due to FastMCP banner corruption ([upstream issue #19](https://github.com/ScottRBK/forgetful/issues/19)). Use HTTP transport.
+
+**Key Tools**:
+
+| Tool | Purpose |
+|------|---------|
+| `memory_create` | Store new memories with semantic embeddings |
+| `memory_search` | Find memories by semantic similarity |
+| `memory_get` | Retrieve specific memory by ID |
+| `list_projects` | List all memory projects |
+| `entity_create` | Create knowledge graph entities |
+| `entity_search` | Search entities by name/type |
+
+**Usage Pattern**:
+
+```python
+# Store a learning
+mcp__forgetful__memory_create(
+    content="PowerShell arrays need @() for single-element arrays",
+    tags=["powershell", "arrays", "gotcha"]
+)
+
+# Search for relevant context
+mcp__forgetful__memory_search(query="PowerShell array handling")
+```
+
+**Verification**: If forgetful tools are unavailable, check that the server is running:
+
+```bash
+# Health check
+pwsh scripts/forgetful/Test-ForgetfulHealth.ps1
+
+# Manual status check
+systemctl --user status forgetful  # Linux
+Get-ScheduledTask -TaskName 'ForgetfulMCP' | Get-ScheduledTaskInfo  # Windows
+```
+
+**Setup**: See `scripts/forgetful/README.md` for installation and configuration
 
 ---
 

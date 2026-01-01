@@ -82,6 +82,57 @@ jobs:
           npm install --global markdownlint-cli2
           echo "✓ markdownlint-cli2 installed"
 
+      - name: Install uv (Python package manager)
+        run: |
+          echo "Installing uv..."
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "✓ uv installed"
+
+      - name: Start Forgetful MCP Server
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          # Start Forgetful MCP server for CI environment
+          # Uses HTTP transport due to FastMCP banner corruption issue
+          # See: https://github.com/ScottRBK/forgetful/issues/19
+          # For local development setup, see: scripts/forgetful/README.md
+
+          Write-Host "Starting Forgetful MCP server..."
+          $uvxPath = "$env:HOME/.local/bin/uvx"
+
+          # Start in background
+          $process = Start-Process -FilePath $uvxPath `
+            -ArgumentList "forgetful-ai", "--transport", "http", "--port", "8020" `
+            -PassThru -WindowStyle Hidden
+
+          # Export PID for potential cleanup
+          "FORGETFUL_PID=$($process.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          # Wait for server to be ready (TCP port check)
+          Write-Host "Waiting for server to start..."
+          $maxAttempts = 30
+          $attempt = 0
+          $ready = $false
+
+          while ($attempt -lt $maxAttempts -and -not $ready) {
+            $attempt++
+            try {
+              $tcpClient = New-Object System.Net.Sockets.TcpClient
+              $connectTask = $tcpClient.ConnectAsync("localhost", 8020)
+              if ($connectTask.Wait(1000) -and $tcpClient.Connected) {
+                $ready = $true
+                Write-Host "✓ Forgetful MCP server running on http://localhost:8020/mcp" -ForegroundColor Green
+              }
+              $tcpClient.Close()
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+
+          if (-not $ready) {
+            Write-Host "⚠ Forgetful MCP server may still be starting" -ForegroundColor Yellow
+          }
+
       - name: Install Pester
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
@@ -117,6 +168,20 @@ jobs:
 
           if (Get-Command gh -ErrorAction SilentlyContinue) {
             Write-Host "✓ GitHub CLI is available for workflow monitoring" -ForegroundColor Green
+          }
+
+          # Test Forgetful MCP (TCP port check - MCP protocol requires session init)
+          try {
+            $tcpClient = New-Object System.Net.Sockets.TcpClient
+            $connectTask = $tcpClient.ConnectAsync("localhost", 8020)
+            if ($connectTask.Wait(2000) -and $tcpClient.Connected) {
+              Write-Host "✓ Forgetful MCP server is listening on port 8020" -ForegroundColor Green
+            } else {
+              Write-Host "⚠ Forgetful MCP server not responding" -ForegroundColor Yellow
+            }
+            $tcpClient.Close()
+          } catch {
+            Write-Host "⚠ Forgetful MCP server not responding (may still be starting)" -ForegroundColor Yellow
           }
 
           # Test Pester
