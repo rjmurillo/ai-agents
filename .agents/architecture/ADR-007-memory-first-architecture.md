@@ -89,16 +89,46 @@ The system employs complementary memory systems with **Serena as the canonical l
 
 **Critical insight**: Forgetful and claude-mem tools may be available on hosted platforms (GitHub Copilot), but **the database contents are not**. Only Serena memories (`.serena/memories/*.md`) travel with the repository.
 
-**Memory workflow**:
+**Memory workflow** (Serena-first):
 
-1. **Discover** in Forgetful (if available) → semantic search, auto-linking
-2. **Persist** to Serena → markdown files with explicit cross-references
-3. **Commit** with code → Git synchronizes to all platforms/VMs
+1. **Read** from Serena (canonical, always available) → markdown files with explicit cross-references
+2. **Augment** with Forgetful (if available) → semantic search for related patterns
+3. **Persist** to Serena → new learnings as markdown files
+4. **Commit** with code → Git synchronizes to all platforms/VMs
 
 **Routing heuristic**:
 
 - **Serena**: All important patterns, decisions, cross-references (canonical source)
 - **Forgetful**: Semantic search, knowledge graph (supplementary, local-only)
+
+### Fallback Behavior
+
+When Forgetful MCP is unavailable, agents MUST continue with Serena-only workflow:
+
+| Scenario | Detection | Fallback Behavior |
+|----------|-----------|-------------------|
+| Forgetful not running | `mcp__forgetful__*` tools unavailable | Use Serena `memory-index` for keyword-based discovery |
+| Forgetful timeout | Tool call times out | Proceed with Serena memories already loaded |
+| Forgetful empty results | Search returns no matches | Check Serena skill indexes directly |
+| Fresh environment | No Forgetful database | Full Serena workflow (no semantic search) |
+
+**Graceful degradation**:
+
+```text
+1. Attempt Forgetful semantic search
+2. If unavailable or empty: Fall back to Serena memory-index
+3. Read memories listed in memory-index matching task keywords
+4. Proceed with available context
+```
+
+**MUST NOT**:
+
+- Block work waiting for Forgetful
+- Skip memory retrieval because Forgetful is unavailable
+- Claim memory compliance without reading Serena memories
+
+**Evidence**: When Forgetful is unavailable, session log Evidence column should note:
+`memory-index, skills-xxx-index (Forgetful unavailable - Serena only)`
 
 ## Rationale
 
