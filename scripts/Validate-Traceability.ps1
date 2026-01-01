@@ -32,9 +32,9 @@
 
 .NOTES
     Exit codes:
-    0 = Pass (no errors or warnings)
+    0 = Pass (no errors; warnings allowed unless -Strict)
     1 = Errors found (broken references, untraced tasks)
-    2 = Warnings only (orphaned REQs/DESIGNs) - pass unless -Strict
+    2 = Warnings found with -Strict flag (orphaned REQs/DESIGNs)
 #>
 
 [CmdletBinding()]
@@ -49,6 +49,8 @@ param(
     [ValidateSet("console", "markdown", "json")]
     [string]$Format = "console"
 )
+
+$ErrorActionPreference = "Stop"
 
 #region Color Output
 $ColorReset = "`e[0m"
@@ -103,10 +105,10 @@ function Get-YamlFrontMatter {
             $result.status = $Matches[1].Trim()
         }
 
-        # Parse related (array)
+        # Parse related (array) - supports both numeric and alphanumeric IDs (e.g., REQ-001, REQ-ABC)
         if ($yaml -match '(?s)related:\s*\r?\n((?:\s+-\s+.+\r?\n?)+)') {
             $relatedBlock = $Matches[1]
-            $result.related = [regex]::Matches($relatedBlock, '-\s+([A-Z]+-\d+)') |
+            $result.related = [regex]::Matches($relatedBlock, '-\s+([A-Z]+-[A-Z0-9]+)') |
                 ForEach-Object { $_.Groups[1].Value }
         }
 
@@ -431,6 +433,16 @@ function Format-Results {
 $resolvedPath = Resolve-Path -Path $SpecsPath -ErrorAction SilentlyContinue
 if (-not $resolvedPath) {
     Write-Error "Specs path not found: $SpecsPath"
+    exit 1
+}
+
+# Path traversal protection - ensure path is within repository root
+$repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { (Get-Location).Path }
+$normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
+$allowedBase = [System.IO.Path]::GetFullPath($repoRoot)
+
+if (-not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+    Write-Error "Path traversal attempt detected: '$SpecsPath' is outside the repository root."
     exit 1
 }
 

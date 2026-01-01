@@ -709,11 +709,11 @@ related: []
 # REQ-ABC: Non-numeric ID
 "@
             }
-            # Note: File pattern REQ-*.md won't match REQ-ABC unless we use different matching
+            # Note: File pattern REQ-*.md will match REQ-ABC-feature.md; the real edge case is regexes that only accept numeric-suffix IDs in related fields
             Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs @{} -Tasks @{}
         }
 
-        It "Handles non-numeric IDs" {
+        It "Does not crash on non-numeric ID files" {
             { & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" } | Should -Not -Throw
         }
     }
