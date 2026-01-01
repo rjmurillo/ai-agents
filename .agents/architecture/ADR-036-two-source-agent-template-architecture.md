@@ -165,15 +165,38 @@ grep -l "Section Name" templates/agents/{agent}.shared.md src/claude/{agent}.md
 
 ## Platform Capability Matrix
 
+> **Research Date**: 2026-01-01 | **Methodology**: Web search + codebase analysis | **Review Frequency**: Quarterly recommended
+
 Platforms have genuinely different capabilities, justifying intentional divergence in agent prompts:
 
-| Capability | Claude Code | Copilot CLI | VS Code Copilot | GitHub Copilot |
-|------------|-------------|-------------|-----------------|----------------|
-| MCP Tools | ✓ Full | ✗ None | Partial | ✗ None |
+| Capability | Claude Code | Copilot CLI | VS Code Copilot | GitHub Copilot (Web) |
+|------------|-------------|-------------|-----------------|----------------------|
+| MCP Tools | ✓ Full (500+ servers) | ✓ GitHub + custom | ✓ Custom MCP | ✓ Via MCP config |
 | Serena Integration | ✓ Full | ✗ None | ✗ None | ✗ None |
-| Multi-Agent Orchestration | ✓ Full | ✓ Full | ✓ Full | ✗ Single-agent only |
-| Subagent Invocation | ✓ Task tool | ✓ @agent syntax | ✓ @agent syntax | ✗ Not supported |
-| Persistent Memory | ✓ Serena + MCP | ✗ None | ✗ None | ✗ None |
+| Multi-Agent Orchestration | ✓ Full (Task tool) | ✓ Full (@agent) | ✓ Full (Agent HQ) | ✗ Constrained |
+| Agent Skills | ✓ Skills folder | ✓ Dec 2025 | ✓ Full | ✓ Limited |
+| Repository Scope | Unlimited | Unlimited | Unlimited | **Single repo only** |
+| Branch Access | Any | Any | Any | **copilot/* only** |
+| PR Creation | Unlimited | Unlimited | Unlimited | **One at a time** |
+| Persistent Memory | ✓ Serena + MCP | Limited | Limited | ✗ None (sandbox) |
+
+### Key Platform Constraints (GitHub Copilot Web)
+
+Per [GitHub Docs](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-coding-agent):
+
+- Can only work in **one repository** at a time
+- Can only open **one pull request** per task
+- Can only create branches starting with `copilot/`
+- Cannot push to main/master branches
+- Operates in **sandbox** with firewall-controlled internet
+- Cannot mark PRs ready for review, approve, or merge
+
+### Sources
+
+- [Claude Code MCP Documentation](https://docs.claude.com/en/docs/claude-code/mcp)
+- [GitHub Copilot CLI Changelog (Dec 2025)](https://github.blog/changelog/2025-12-18-github-copilot-now-supports-agent-skills/)
+- [VS Code Multi-Agent Orchestration (Nov 2025)](https://code.visualstudio.com/blogs/2025/11/03/unified-agent-experience)
+- [GitHub Copilot Coding Agent Docs](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-coding-agent)
 
 ### Intentional Divergence
 
