@@ -5,6 +5,7 @@
 .DESCRIPTION
     Claude Code hook that injects memory-first requirements into the session context.
     Outputs blocking gate requirements that Claude receives before processing any user prompts.
+    Also verifies MCP server availability and provides fallback guidance.
     Part of the ADR-007 enforcement mechanism (Issue #729).
 
 .NOTES
@@ -21,14 +22,53 @@
 param()
 
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'SilentlyContinue'
+
+# Check MCP server availability (non-blocking, informational)
+$ForgetfulPort = 8020
+$ForgetfulAvailable = $false
+$ForgetfulMessage = ""
+
+try {
+    # Simple TCP port check - MCP protocol requires session initialization which is complex
+    # Just verify the server is listening on the port
+    $tcpClient = New-Object System.Net.Sockets.TcpClient
+    $connectTask = $tcpClient.ConnectAsync("localhost", $ForgetfulPort)
+    $connected = $connectTask.Wait(1000)  # 1 second timeout
+
+    if ($connected -and $tcpClient.Connected) {
+        $ForgetfulAvailable = $true
+        $ForgetfulMessage = "Forgetful MCP: AVAILABLE (port $ForgetfulPort)"
+    }
+    $tcpClient.Close()
+}
+catch {
+    $ForgetfulMessage = "Forgetful MCP: UNAVAILABLE (Serena-only workflow)"
+}
 
 # Output context that will be injected into Claude's context window
-@"
+$output = @"
 
 ## ADR-007 Memory-First Enforcement (Session Start)
 
 **BLOCKING GATE**: Complete these steps BEFORE any reasoning or implementation:
+
+### MCP Server Status
+
+$ForgetfulMessage
+"@
+
+if (-not $ForgetfulAvailable) {
+    $output += @"
+
+
+> **Fallback Mode**: Forgetful is unavailable. Use Serena memory-index for keyword-based discovery.
+> To start Forgetful: ``pwsh scripts/forgetful/Install-ForgetfulLinux.ps1`` (Linux) or ``pwsh scripts/forgetful/Install-ForgetfulWindows.ps1`` (Windows)
+
+"@
+}
+
+$output += @"
 
 ### Phase 1: Serena Initialization (REQUIRED)
 
@@ -40,6 +80,17 @@ $ErrorActionPreference = 'Stop'
 1. Read ``.agents/HANDOFF.md`` - Previous session context
 2. Read ``memory-index`` from Serena - Identify relevant memories
 3. Read task-relevant memories - Apply learned patterns
+"@
+
+if ($ForgetfulAvailable) {
+    $output += @"
+
+4. (Optional) Query Forgetful for semantic search - Augment with cross-project patterns
+
+"@
+}
+
+$output += @"
 
 ### Verification
 
@@ -50,5 +101,7 @@ Pre-commit validation will fail without proper evidence.
 **Architecture**: ``.agents/architecture/ADR-007-memory-first-architecture.md``
 
 "@
+
+Write-Output $output
 
 exit 0
