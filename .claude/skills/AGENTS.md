@@ -6,7 +6,7 @@ This document describes the automated skill scripts available in the `.claude/sk
 
 The skills system provides tested, validated PowerShell scripts that agents MUST use instead of raw CLI commands. Skills are centrally maintained, handle errors consistently, and prevent duplication of functionality.
 
-**CRITICAL RULE**: Never use raw `gh` commands when a skill exists. See `skill-usage-mandatory` memory.
+**CRITICAL RULE**: Never use raw `gh` commands when a skill exists. See `usage-mandatory` memory.
 
 ## Architecture
 
@@ -44,7 +44,7 @@ flowchart TD
 
 **Location**: `.claude/skills/github/`
 **Documentation**: `SKILL.md`
-**Source Memory**: `skill-usage-mandatory`
+**Source Memory**: `usage-mandatory`
 
 ### Skill Scripts
 
@@ -255,5 +255,5 @@ pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123 -BodyFile
 ## Related Documentation
 
 - [Root AGENTS.md](../../AGENTS.md) - Agent usage instructions
-- skill-usage-mandatory memory (use `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`) - Enforcement rules
+- usage-mandatory memory (use `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`) - Enforcement rules
 - [pr-comment-responder agent](../../src/claude/pr-comment-responder.md) - Primary consumer

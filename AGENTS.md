@@ -733,14 +733,14 @@ When documenting or instructing agents to access Serena memories, the following 
 **Correct Pattern:**
 
 ```markdown
-Read the `skill-usage-mandatory` memory using `mcp__serena__read_memory` with `memory_file_name="skill-usage-mandatory"`
-- If Serena MCP is unavailable, read `.serena/memories/skill-usage-mandatory.md`
+Read the `usage-mandatory` memory using `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`
+- If Serena MCP is unavailable, read `.serena/memories/usage-mandatory.md`
 ```
 
 **Incorrect Pattern:**
 
 ```markdown
-Read `.serena/memories/skill-usage-mandatory.md`
+Read `.serena/memories/usage-mandatory.md`
 ```
 
 **Rationale:** Tool calls abstract the file system, enabling future storage changes without documentation updates. Fallback clauses ensure graceful degradation when Serena MCP is unavailable.
@@ -1138,7 +1138,7 @@ When the Serena MCP is available, agents should call the `mcp_serena_initial_ins
 
 **Why it matters**: The manual provides critical context about efficient code reading strategies, symbolic navigation, and resource-efficient operations that optimize agent performance when working with large codebases.
 
-**Note**: If the Serena MCP is not available, memories can be read directly from `.serena/memories/`. However, when Serena is available, always use `mcp__serena__read_memory` with just the memory name (e.g., `memory_file_name="skill-usage-mandatory"`) rather than file paths.
+**Note**: If the Serena MCP is not available, memories can be read directly from `.serena/memories/`. However, when Serena is available, always use `mcp__serena__read_memory` with just the memory name (e.g., `memory_file_name="usage-mandatory"`) rather than file paths.
 
 ---
 
