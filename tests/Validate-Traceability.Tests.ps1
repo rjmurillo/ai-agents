@@ -713,8 +713,20 @@ related: []
             Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs @{} -Tasks @{}
         }
 
-        It "Handles non-numeric IDs" {
+        It "Does not crash on non-numeric ID files" {
             { & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" } | Should -Not -Throw
+        }
+
+        It "Counts non-numeric ID file as requirement" {
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
+            # REQ-ABC file is loaded and counted, even though its ID has non-numeric suffix
+            $result.stats.requirements | Should -Be 1
+        }
+
+        It "Reports warning for orphaned non-numeric ID requirement" {
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
+            # REQ-ABC has no designs referencing it, so should be reported as orphaned
+            ($result.warnings | Where-Object { $_.source -eq 'REQ-ABC' }) | Should -Not -BeNullOrEmpty
         }
     }
 
