@@ -709,7 +709,7 @@ related: []
 # REQ-ABC: Non-numeric ID
 "@
             }
-            # Note: File pattern REQ-*.md won't match REQ-ABC unless we use different matching
+            # Note: REQ-ABC has non-numeric parts but is still loaded since filename matches REQ-*.md
             Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs @{} -Tasks @{}
         }
 
