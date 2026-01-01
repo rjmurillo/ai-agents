@@ -1,9 +1,10 @@
 # ADR-037: Memory Router Architecture
 
-**Status**: Needs-Revision
+**Status**: Proposed (Revised)
 **Date**: 2026-01-01
+**Revised**: 2026-01-01
 **Author**: Session 123 (Phase 2A Memory System)
-**Decision**: Unified memory access layer integrating Serena and Forgetful
+**Decision**: Unified memory access layer with Serena-first routing, Forgetful augmentation
 
 ---
 
@@ -36,13 +37,16 @@ This cognitive overhead violates the memory-first principle by making retrieval 
 Implement a **Memory Router** that provides:
 
 1. **Unified Interface**: Single entry point for all memory operations
-2. **Fallback Chain**: Forgetful → Serena with graceful degradation
-3. **Result Merging**: Deduplicate and rank results from multiple sources
+2. **Serena-First Routing**: Serena as canonical layer (per ADR-007), Forgetful as augmentation
+3. **Result Augmentation**: Enhance Serena results with Forgetful semantic matches when available
 4. **Availability Detection**: Automatic routing based on system health
+5. **Cross-Platform Guarantee**: Always works via Serena; Forgetful enhances when present
+
+**Architectural Alignment**: Per ADR-007 (Memory-First Architecture) and memory-architecture-serena-primary, Serena is the canonical memory layer because it travels with the Git repository. Forgetful provides supplementary semantic search but its database contents are local-only and unavailable on hosted platforms.
 
 ### Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                     Memory Router                           │
 │  ┌─────────────────────────────────────────────────────┐    │
@@ -54,13 +58,14 @@ Implement a **Memory Router** that provides:
 │           ┌────────────────┴────────────────┐               │
 │           ▼                                 ▼               │
 │  ┌─────────────────┐              ┌─────────────────┐       │
-│  │ Forgetful MCP   │              │ Serena MCP      │       │
-│  │ (Primary)       │              │ (Fallback)      │       │
-│  │ Port 8020       │              │ Port 24282      │       │
+│  │ Serena MCP      │              │ Forgetful MCP   │       │
+│  │ (Canonical)     │              │ (Augmentation)  │       │
+│  │ File-based      │              │ Port 8020       │       │
 │  │                 │              │                 │       │
-│  │ ✓ Semantic      │              │ ✓ Always avail  │       │
-│  │ ✓ Auto-link     │              │ ✓ 460+ memories │       │
-│  │ ✓ Embeddings    │              │ ✓ Lexical match │       │
+│  │ ✓ Always avail  │              │ ✓ Semantic      │       │
+│  │ ✓ Git-synced    │              │ ✓ Auto-link     │       │
+│  │ ✓ 460+ memories │              │ ✓ Embeddings    │       │
+│  │ ✓ Lexical match │              │ ✗ Local-only    │       │
 │  └─────────────────┘              └─────────────────┘       │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -70,59 +75,211 @@ Implement a **Memory Router** that provides:
 ```powershell
 function Search-Memory {
     param(
+        [ValidatePattern('^[a-zA-Z0-9\s\-.,_()&:]+$')]
+        [ValidateLength(1, 500)]
         [string]$Query,
+
+        [ValidateRange(1, 100)]
         [int]$MaxResults = 10,
-        [switch]$ForceSerena,
-        [switch]$ForceForgetful
+
+        [switch]$SemanticOnly,  # Force Forgetful-only (requires availability)
+        [switch]$LexicalOnly    # Force Serena-only (always available)
     )
 
-    # 1. Check Forgetful availability
-    $forgetfulAvailable = Test-ForgetfulAvailable
+    # 1. ALWAYS query Serena first (canonical layer, per ADR-007)
+    $serenaResults = Invoke-SerenaSearch -Query $Query -Limit $MaxResults
 
-    # 2. Primary search (Forgetful if available)
-    $results = @()
-    if (-not $ForceSerena -and $forgetfulAvailable) {
-        $results = Invoke-ForgetfulSearch -Query $Query -Limit $MaxResults
+    # 2. Augment with Forgetful semantic search if available
+    if (-not $LexicalOnly) {
+        $forgetfulAvailable = Test-ForgetfulAvailable  # Cached 30s TTL
+        if ($forgetfulAvailable) {
+            $forgetfulResults = Invoke-ForgetfulSearch -Query $Query -Limit $MaxResults
+            $serenaResults = Merge-MemoryResults `
+                -Canonical $serenaResults `
+                -Augmentation $forgetfulResults
+        }
     }
 
-    # 3. Fallback to Serena if needed
-    if ($results.Count -eq 0 -or $ForceSerena) {
-        $serenaResults = Invoke-SerenaSearch -Query $Query -Limit $MaxResults
-        $results = Merge-MemoryResults -Primary $results -Secondary $serenaResults
-    }
-
-    return $results
+    # 3. Return Serena results (possibly augmented with Forgetful matches)
+    return $serenaResults
 }
 ```
 
+**Key Design Choices**:
+
+1. **Serena always executes first** - Guarantees cross-platform availability
+2. **Forgetful augments, never replaces** - Semantic matches enhance but don't override
+3. **Input validation** - Prevents injection via ValidatePattern
+4. **Cached health check** - 30s TTL prevents per-query latency overhead
+
 ### Result Merging Strategy
 
-| Strategy | When to Use | Behavior |
-|----------|-------------|----------|
-| **Primary-first** | Forgetful available, good results | Return Forgetful results, skip Serena |
-| **Union** | Forgetful unavailable or sparse | Combine both, deduplicate by content hash |
-| **Weighted** | Both return results | Score by semantic similarity + recency |
+**Chosen Strategy**: Serena-first with Forgetful augmentation
+
+| Phase | Action | Result |
+|-------|--------|--------|
+| 1. Canonical | Query Serena (always) | Base result set |
+| 2. Augment | Query Forgetful (if available) | Semantic matches |
+| 3. Merge | Deduplicate by content hash | Enhanced result set |
+| 4. Return | Serena results + unique Forgetful matches | Final results |
+
+**Merge Rules**:
+
+1. **Serena results always included** - They are canonical
+2. **Forgetful adds new matches** - Only if not already in Serena results (by hash)
+3. **Serena wins on collision** - If same content exists in both, use Serena metadata
+4. **Order preserved** - Serena results first, then Forgetful additions
+
+### Deduplication Algorithm
+
+```powershell
+function Merge-MemoryResults {
+    param(
+        [array]$Canonical,      # Serena results (always included)
+        [array]$Augmentation    # Forgetful results (additions only)
+    )
+
+    # Build hash set of canonical content
+    $canonicalHashes = @{}
+    foreach ($memory in $Canonical) {
+        $hash = Get-ContentHash -Content $memory.Content -Algorithm SHA256
+        $canonicalHashes[$hash] = $true
+    }
+
+    # Add unique augmentation results
+    $merged = [System.Collections.ArrayList]::new($Canonical)
+    foreach ($memory in $Augmentation) {
+        $hash = Get-ContentHash -Content $memory.Content -Algorithm SHA256
+        if (-not $canonicalHashes.ContainsKey($hash)) {
+            $null = $merged.Add($memory)
+            $canonicalHashes[$hash] = $true  # Prevent duplicates within augmentation
+        }
+    }
+
+    return $merged
+}
+
+function Get-ContentHash {
+    param([string]$Content, [string]$Algorithm = 'SHA256')
+
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Content)
+    $hashBytes = [System.Security.Cryptography.HashAlgorithm]::Create($Algorithm).ComputeHash($bytes)
+    return [System.BitConverter]::ToString($hashBytes) -replace '-', ''
+}
+```
+
+**Identity Semantics**: Serena file names (e.g., `powershell-array-handling`) are the canonical IDs. Forgetful observation IDs are local-only and not portable across environments.
+
+### Health Check Specification
+
+```powershell
+function Test-ForgetfulAvailable {
+    # Use cached result if within TTL
+    $cacheKey = 'ForgetfulHealthCheck'
+    $cacheTTL = 30  # seconds
+
+    if ($script:HealthCache -and $script:HealthCache.Timestamp -gt (Get-Date).AddSeconds(-$cacheTTL)) {
+        return $script:HealthCache.Available
+    }
+
+    # TCP connect with 500ms timeout
+    $endpoint = Get-ForgetfulEndpoint  # From .mcp.json
+    $tcpClient = [System.Net.Sockets.TcpClient]::new()
+
+    try {
+        $connectTask = $tcpClient.ConnectAsync($endpoint.Host, $endpoint.Port)
+        $completed = $connectTask.Wait(500)  # 500ms timeout
+
+        $available = $completed -and $tcpClient.Connected
+
+        # Cache result
+        $script:HealthCache = @{
+            Available = $available
+            Timestamp = Get-Date
+        }
+
+        return $available
+    }
+    catch {
+        $script:HealthCache = @{ Available = $false; Timestamp = Get-Date }
+        return $false
+    }
+    finally {
+        $tcpClient.Dispose()
+    }
+}
+```
+
+**Health Check Design**:
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| Timeout | 500ms | Fast enough for per-session check; slow services fail early |
+| Cache TTL | 30s | Balances freshness vs latency overhead |
+| Method | TCP connect | Fastest check; HTTP would add 50-100ms |
+| Failure mode | Return false | Graceful degradation to Serena-only |
 
 ### Interface Specification
 
 ```powershell
-# Search across all memory systems
+# Search across all memory systems (Serena-first, Forgetful augmentation)
 Search-Memory -Query "PowerShell array handling" -MaxResults 10
 
-# Force specific system
-Search-Memory -Query "session protocol" -ForceSerena
-Search-Memory -Query "semantic similarity" -ForceForgetful
+# Force lexical-only (Serena, no Forgetful)
+Search-Memory -Query "session protocol" -LexicalOnly
 
-# Get specific memory by ID
-Get-Memory -Id "powershell-array-handling" -System Serena
-Get-Memory -Id "abc123" -System Forgetful
+# Force semantic-only (Forgetful, requires availability)
+Search-Memory -Query "semantic similarity" -SemanticOnly
 
-# Save to primary (Forgetful with Serena backup)
+# Get specific memory by canonical ID (Serena file name)
+Get-Memory -Id "powershell-array-handling"
+
+# Save to Serena (canonical) with optional Forgetful sync
 Save-Memory -Content "..." -Tags @("powershell", "patterns")
 
 # Check system health
 Get-MemoryRouterStatus
+# Returns: @{ Serena = $true; Forgetful = $true|$false; CacheAge = [timespan] }
 ```
+
+---
+
+## Security
+
+### Input Validation
+
+All query inputs are validated before processing:
+
+```powershell
+# Query parameter validation
+[ValidatePattern('^[a-zA-Z0-9\s\-.,_()&:]+$')]  # Alphanumeric + safe punctuation
+[ValidateLength(1, 500)]                         # Reasonable length limits
+[string]$Query
+```
+
+**Prevented Attack Vectors**:
+
+| Attack | Mitigation | CWE |
+|--------|------------|-----|
+| Regex injection | ValidatePattern whitelist | CWE-20 |
+| Buffer overflow | ValidateLength(1, 500) | CWE-120 |
+| Path traversal | No file paths in queries | CWE-22 |
+| Command injection | No shell execution | CWE-78 |
+
+### Transport Security
+
+| Connection | Protocol | Security |
+|------------|----------|----------|
+| Serena MCP | Local file I/O | No network exposure |
+| Forgetful MCP | HTTP localhost:8020 | Localhost-only assumption |
+
+**Localhost Assumption**: Forgetful runs on localhost only. If remote deployment is needed in future, HTTPS with TLS verification would be required (not in current scope).
+
+### Data Handling
+
+- **No secrets in queries**: Queries should not contain credentials, API keys, or PII
+- **Content hashing**: SHA-256 for deduplication (cryptographically secure)
+- **Logging**: Query patterns logged for debugging; content NOT logged
 
 ---
 
@@ -131,20 +288,30 @@ Get-MemoryRouterStatus
 ### Positive
 
 1. **Simplified Agent Logic**: Agents call `Search-Memory` without system awareness
-2. **Graceful Degradation**: Works with Serena-only when Forgetful unavailable
-3. **Best-of-Both**: Semantic search when available, lexical fallback always works
+2. **Cross-Platform Guarantee**: Always works via Serena (Git-synced, travels with repo)
+3. **Enhanced Results**: Semantic augmentation when Forgetful available
 4. **Future-Proof**: Can add more memory backends without changing agent code
+5. **ADR-007 Compliant**: Serena-first routing respects canonical layer decision
 
 ### Negative
 
-1. **Additional Layer**: One more module to maintain
-2. **Latency Overhead**: Health check + routing adds ~10-50ms
-3. **Result Deduplication**: Need content hashing for cross-system dedup
+1. **Additional Layer**: One more module to maintain (~300 lines estimated)
+2. **Latency Overhead**: Health check (cached) + routing adds ~10-50ms
+3. **Complexity**: Deduplication logic required for cross-system merge
 
 ### Neutral
 
-1. **Configuration**: Memory Router needs `.mcp.json` for endpoint discovery
-2. **Logging**: Should log routing decisions for debugging
+1. **Configuration**: Memory Router reads `.mcp.json` for Forgetful endpoint
+2. **Logging**: Routes decisions logged for debugging (query patterns, not content)
+
+### Confirmation
+
+To verify this decision is correctly implemented:
+
+1. **Unit tests**: Each function has Pester tests with ≥80% coverage
+2. **Integration tests**: Serena-only, Forgetful-only, and combined scenarios
+3. **Performance tests**: Measure routing overhead vs baseline (target: <50ms)
+4. **Cross-platform test**: Verify Serena-only mode works when Forgetful unavailable
 
 ---
 
@@ -196,12 +363,27 @@ Get-MemoryRouterStatus
 
 ## Performance Targets
 
-| Metric | Baseline (Serena) | Target (Router) |
-|--------|-------------------|-----------------|
-| Search latency | 530ms | 50-100ms (Forgetful primary) |
-| Fallback latency | N/A | 550ms (Serena after Forgetful timeout) |
-| Availability | 100% | 100% (graceful degradation) |
-| Result relevance | Keyword match | Semantic + keyword |
+**Status**: Baseline measured; targets pending M-008 validation
+
+| Metric | Baseline (Serena) | Target (Router) | Status |
+|--------|-------------------|-----------------|--------|
+| Search latency | 530ms (measured) | ≤580ms (Serena + overhead) | Pending M-008 |
+| Augmented latency | N/A | ≤630ms (Serena + Forgetful) | Pending M-008 |
+| Health check overhead | N/A | <10ms (cached) | Pending M-008 |
+| Availability | 100% | 100% (Serena always available) | By design |
+| Result relevance | Keyword match | Semantic augmentation | Qualitative |
+
+**Notes**:
+
+1. **Serena-first means no latency improvement** - Router adds overhead, doesn't reduce baseline
+2. **Forgetful augmentation adds latency** - Semantic search is additive, not replacement
+3. **M-008 benchmark required** - Measure actual Forgetful query latency before finalizing targets
+
+**Acceptance Criteria** (from M-008):
+
+- Router overhead < 50ms when Forgetful available
+- Router overhead < 20ms when Forgetful unavailable (cached health check)
+- Total latency < 700ms for augmented searches
 
 ---
 
@@ -219,35 +401,34 @@ Get-MemoryRouterStatus
 
 | Reviewer | Status | Date | Notes |
 |----------|--------|------|-------|
-| Architect | BLOCK | 2026-01-01 | 4 P0 gaps: dedup algorithm, identity semantics, routing logic, health check |
-| Critic | BLOCK | 2026-01-01 | Failure modes undefined, query injection risk |
-| Independent-Thinker | BLOCK | 2026-01-01 | **Contradicts ADR-007** - must invert to Serena-first |
-| Security | BLOCK | 2026-01-01 | P1: Input validation missing (CWE-20), HTTP unencrypted (CWE-319) |
-| Analyst | CONDITIONAL | 2026-01-01 | Performance targets unvalidated, M-008 incomplete |
-| High-Level-Advisor | CONDITIONAL | 2026-01-01 | Complete M-008 benchmarks before implementation |
+| Architect | PENDING | | Re-review after revision |
+| Critic | PENDING | | Re-review after revision |
+| Independent-Thinker | PENDING | | Re-review after revision |
+| Security | PENDING | | Re-review after revision |
+| Analyst | PENDING | | Re-review after revision |
+| High-Level-Advisor | PENDING | | Re-review after revision |
 
 ---
 
-## Required Changes (from adr-review)
+## Revision History
+
+### v2.0 (2026-01-01) - Major Revision
+
+Addressed all P0 blocking issues from Round 1 adr-review:
+
+| Issue | Resolution | Section |
+|-------|------------|---------|
+| Contradicts ADR-007 | Inverted to Serena-first routing | Decision, Architecture |
+| Deduplication undefined | Added SHA-256 algorithm with pseudocode | Deduplication Algorithm |
+| Query injection risk | Added ValidatePattern input validation | Security |
+| Health check undefined | Added TCP connect with 500ms timeout, 30s cache | Health Check Specification |
+| Performance unvalidated | Marked targets as "Pending M-008" | Performance Targets |
+| Identity semantics unclear | Declared Serena file names as canonical IDs | Deduplication Algorithm |
+| Result merging undefined | Chose "Serena-first with augmentation" | Result Merging Strategy |
 
 **Debate Log**: `.agents/critique/ADR-037-debate-log.md`
 
-### P0 (Blocking)
+### v1.0 (2026-01-01) - Initial Proposal
 
-1. **Invert routing logic**: Serena-first, Forgetful-supplementary (per ADR-007)
-2. **Specify deduplication**: SHA-256 content hash, Serena-wins on collision
-3. **Add Security section**: Input validation (`ValidatePattern`), localhost assumption
-4. **Define health check**: TCP connect, 500ms timeout, 30s TTL cache
-5. **Validate performance**: Complete M-008 benchmarks before finalizing targets
-
-### P1 (Important)
-
-6. Choose result merging strategy: "Primary-first with augmentation"
-7. Declare Serena file names as canonical IDs
-8. Extract Implementation Plan to separate planning document
-
-### Consensus
-
-- Problem statement is valid (6/6 agree)
-- Fallback design approach is sound (6/6 agree)
-- Unified interface simplifies agent logic (6/6 agree)
+- Status: Needs-Revision (6 agents blocked)
+- Key finding: Routing logic contradicted ADR-007 (Serena-first requirement)
