@@ -86,11 +86,11 @@ Determine next steps for Phase 2 continuation and begin implementation.
 | MUST | Update Serena memory (cross-session context) | [x] | phase2a-memory-router-design.md |
 | MUST | Run markdown lint | [x] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [x] | .agents/qa/session-123-phase2a-qa.md |
-| MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: d53de76 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | ADR-037 needs review first |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Not invoked (foundation work) |
-| SHOULD | Verify clean git status | [ ] | Pending commit |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
 
 ---
 
