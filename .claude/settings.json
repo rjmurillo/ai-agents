@@ -1,5 +1,8 @@
 {
   "enabledPlugins": {
-    "claude-mem@thedotmack": true
+    "claude-mem@thedotmack": true,
+    "forgetful@scottrbk": true,
+    "context7@context7": true,
+    "context-hub@scottrbk": true
   }
 }

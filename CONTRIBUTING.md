@@ -378,6 +378,126 @@ Supported reference formats:
 
 The AI Spec Validation workflow will check for these references on all PRs.
 
+## Forgetful MCP Server
+
+This project uses the [Forgetful MCP](https://github.com/ScottRBK/forgetful) server for AI agent memory. Forgetful provides semantic search, automatic knowledge graph construction, and cross-session memory persistence.
+
+### Why HTTP Transport?
+
+Forgetful's default stdio transport has a known issue where FastMCP prints an ASCII art banner to stdout, corrupting the MCP JSON-RPC protocol. See [upstream issue #19](https://github.com/ScottRBK/forgetful/issues/19).
+
+**Workaround**: Use HTTP transport instead of stdio.
+
+### Setup for Linux
+
+1. **Create systemd user service**:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/forgetful.service << 'EOF'
+[Unit]
+Description=Forgetful MCP Server
+After=network.target
+
+[Service]
+ExecStart=/home/YOUR_USERNAME/.local/bin/uvx forgetful-ai --transport http --port 8020
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+```
+
+2. **Enable and start the service**:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now forgetful.service
+```
+
+3. **Verify it's running**:
+
+```bash
+systemctl --user status forgetful.service
+curl http://localhost:8020/health
+```
+
+4. **Configure MCP client** (`.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "forgetful": {
+      "type": "http",
+      "url": "http://localhost:8020/mcp"
+    }
+  }
+}
+```
+
+### Setup for Windows
+
+1. **Create a startup script** (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\forgetful.bat`):
+
+```batch
+@echo off
+start /B uvx forgetful-ai --transport http --port 8020
+```
+
+2. **Or use Task Scheduler**:
+   - Open Task Scheduler
+   - Create Basic Task → "Forgetful MCP Server"
+   - Trigger: "When I log on"
+   - Action: Start a program
+   - Program: `uvx`
+   - Arguments: `forgetful-ai --transport http --port 8020`
+   - Check "Run whether user is logged on or not"
+
+3. **Configure MCP client** (`.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "forgetful": {
+      "type": "http",
+      "url": "http://localhost:8020/mcp"
+    }
+  }
+}
+```
+
+### Service Commands
+
+**Linux**:
+
+| Command | Purpose |
+|---------|---------|
+| `systemctl --user status forgetful` | Check status |
+| `systemctl --user restart forgetful` | Restart server |
+| `systemctl --user stop forgetful` | Stop server |
+| `journalctl --user -u forgetful -f` | View logs |
+
+**Windows**:
+
+| Command | Purpose |
+|---------|---------|
+| `tasklist /FI "IMAGENAME eq python*"` | Check if running |
+| `taskkill /IM python.exe /F` | Stop server |
+
+### Verifying Connection
+
+After setup, verify the MCP connection in your client:
+
+- **Claude Code**: Run `/mcp` to see server status
+- **Test endpoint**: `curl http://localhost:8020/health`
+
+Expected health response:
+
+```json
+{"status":"healthy","service":"Forgetful","version":"0.1.11"}
+```
+
 ## Questions?
 
 If you have questions about contributing, please open an issue or discussion.

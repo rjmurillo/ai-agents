@@ -172,15 +172,53 @@ Task(subagent_type="retrospective", prompt="Analyze session for learnings")
 ### Memory System
 
 ```python
-# Serena (preferred)
+# Serena (preferred for project-specific memory)
 mcp__serena__list_memories()
 mcp__serena__read_memory(memory_file_name="[name]")
 mcp__serena__write_memory(memory_file_name="[name]", content="...")
 
-# cloudmcp-manager (graph-based)
-mcp__cloudmcp-manager__memory-search_nodes(query="[topic]")
-mcp__cloudmcp-manager__memory-create_entities(entities=[...])
+# Forgetful (semantic search, knowledge graph)
+mcp__forgetful__memory_create(content="...", tags=["..."])
+mcp__forgetful__memory_search(query="[topic]")
+mcp__forgetful__list_projects()
 ```
+
+### Forgetful MCP Server
+
+Forgetful provides semantic search and automatic knowledge graph construction for cross-session memory.
+
+**Connection**: HTTP transport at `http://localhost:8020/mcp`
+
+> **Note**: Stdio transport is broken due to FastMCP banner corruption ([upstream issue #19](https://github.com/ScottRBK/forgetful/issues/19)). Use HTTP transport.
+
+**Key Tools**:
+
+| Tool | Purpose |
+|------|---------|
+| `memory_create` | Store new memories with semantic embeddings |
+| `memory_search` | Find memories by semantic similarity |
+| `memory_get` | Retrieve specific memory by ID |
+| `list_projects` | List all memory projects |
+| `entity_create` | Create knowledge graph entities |
+| `entity_search` | Search entities by name/type |
+
+**Usage Pattern**:
+
+```python
+# Store a learning
+mcp__forgetful__memory_create(
+    content="PowerShell arrays need @() for single-element arrays",
+    tags=["powershell", "arrays", "gotcha"]
+)
+
+# Search for relevant context
+mcp__forgetful__memory_search(query="PowerShell array handling")
+```
+
+**Verification**: If forgetful tools are unavailable, check that the server is running:
+
+- Linux: `systemctl --user status forgetful`
+- Windows: Check Task Manager for `python` process on port 8020
 
 ---
 
