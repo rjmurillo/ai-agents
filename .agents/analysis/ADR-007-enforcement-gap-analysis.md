@@ -56,8 +56,8 @@ ADR-007 mandates: "Memory retrieval MUST precede reasoning in all agent workflow
 | Control | Status | Notes |
 |---------|--------|-------|
 | `.claude/hooks/` directory | ✅ **EXISTS** | Created 2026-01-01 |
-| Session start hook | ✅ **IMPLEMENTED** | `session-start-memory-first.sh` |
-| Pre-prompt hook | ✅ **IMPLEMENTED** | `user-prompt-memory-check.sh` |
+| Session start hook | ✅ **IMPLEMENTED** | `Invoke-SessionStartMemoryFirst.ps1` |
+| Pre-prompt hook | ✅ **IMPLEMENTED** | `Invoke-UserPromptMemoryCheck.ps1` |
 | Hooks registered in settings | ✅ **CONFIGURED** | `.claude/settings.json` updated |
 
 **Resolved**: Claude Code hooks now enforce ADR-007 at runtime. Session start injects Phase 1/2 requirements, user prompt hook provides ongoing reminders for planning/implementation tasks.
@@ -130,7 +130,7 @@ Updated `scripts/Validate-Session.ps1` with `Test-MemoryEvidence` function that:
 
 **Status**: Completed 2026-01-01
 
-Created `skill-usage-mandatory` memory in Serena (`.serena/memories/usage-mandatory.md`):
+Created `usage-mandatory` memory in Serena (`.serena/memories/usage-mandatory.md`):
 
 **Content Summary**:
 

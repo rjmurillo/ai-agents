@@ -274,9 +274,51 @@ mcp__forgetful__execute_forgetful_tool("create_memory", {
 
 Consider adopting BMAD patterns:
 
-1. **Sidecar memories**: Per-agent persistent context in `.claude/agents/{name}-sidecar/memories.md`
+1. **Sidecar memories**: Per-agent persistent context with Serena tiering
 2. **Critical actions**: Pre-task memory loading as blocking gate
 3. **Party Mode**: Multi-agent memory synthesis for complex decisions
+
+#### Sidecar Naming Convention
+
+Agent sidecars combine BMAD's sidecar pattern with Serena's memory tiering:
+
+**Format**: `{agent}-sidecar-{kebab-case-descriptor}.md`
+
+**Location**: `.serena/memories/` (Git-synchronized via Serena)
+
+**Examples**:
+
+| Agent | Sidecar Memory | Purpose |
+|-------|----------------|---------|
+| orchestrator | `orchestrator-sidecar-routing-patterns.md` | Task routing heuristics learned over time |
+| orchestrator | `orchestrator-sidecar-delegation-failures.md` | Failed delegations and corrections |
+| implementer | `implementer-sidecar-code-patterns.md` | Project-specific coding patterns |
+| critic | `critic-sidecar-common-gaps.md` | Frequently missed review points |
+| qa | `qa-sidecar-test-strategies.md` | Effective testing approaches |
+
+**Integration with Tiered Memory**:
+
+```text
+.serena/memories/
+├── memory-index.md                              # Master index (Tier 1)
+├── skills-github-index.md                       # Domain index (Tier 2)
+├── orchestrator-sidecar-routing-patterns.md     # Agent sidecar (Tier 3)
+└── pr-review-011-security-priority.md           # Atomic memory (Tier 4)
+```
+
+**Agent Sidecar Workflow**:
+
+1. **Session Start**: Agent reads own sidecar before task execution
+2. **Task Execution**: Agent applies learned patterns from sidecar
+3. **Session End**: Agent appends new learnings to sidecar
+4. **Commit**: Sidecar changes committed with other work (Git-synchronized)
+
+**Why Serena (not Forgetful)**:
+
+- Sidecars travel with repository (cross-platform)
+- Git history provides audit trail for pattern evolution
+- Other agents can read sidecars for coordination
+- Works on GitHub Copilot, VS Code, and all hosted environments
 
 Example memory-first pattern:
 

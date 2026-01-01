@@ -47,13 +47,14 @@ end {
     # Extract prompt text from JSON
     $PromptText = ''
     try {
-        $InputData = $InputJson | ConvertFrom-Json -ErrorAction SilentlyContinue
+        $InputData = $InputJson | ConvertFrom-Json -ErrorAction Stop
         if ($InputData.prompt) {
             $PromptText = $InputData.prompt
         }
     }
     catch {
-        # If JSON parsing fails, use raw input
+        # If JSON parsing fails, use raw input as fallback
+        # This is expected when input is not valid JSON
         $PromptText = $InputJson
     }
 

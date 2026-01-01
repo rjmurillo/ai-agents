@@ -43,11 +43,13 @@ try {
     }
 }
 catch {
-    $ForgetfulMessage = "Forgetful MCP: UNAVAILABLE (Serena-only workflow)"
+    # Log exception details for debugging - don't silently swallow errors
+    $exceptionMessage = $_.Exception.Message
+    $ForgetfulMessage = "Forgetful MCP: UNAVAILABLE (Serena-only workflow) - $exceptionMessage"
 }
 finally {
     if ($null -ne $tcpClient) {
-        $tcpClient.Close()
+        $tcpClient.Dispose()
     }
 }
 
