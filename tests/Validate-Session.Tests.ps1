@@ -34,6 +34,19 @@ BeforeAll {
         $docsOnlyDef = $Matches[0]
         Invoke-Expression $docsOnlyDef
     }
+
+    # Extract the AuditArtifacts variable for Get-ImplementationFiles tests
+    if ($scriptContent -match '(?ms)\$script:AuditArtifacts\s*=\s*@\(.*?^\)') {
+        $auditArtifactsDef = $Matches[0]
+        Invoke-Expression $auditArtifactsDef
+    }
+
+    # Extract Get-ImplementationFiles function
+    $getImplFilesPattern = '(?ms)function Get-ImplementationFiles\s*\{.*?^\}'
+    if ($scriptContent -match $getImplFilesPattern) {
+        $getImplFilesDef = $Matches[0]
+        Invoke-Expression $getImplFilesDef
+    }
 }
 
 Describe "InvestigationAllowlist" {
@@ -260,5 +273,287 @@ Describe "Is-DocsOnly vs Test-InvestigationOnlyEligibility" {
 
         $investResult = Test-InvestigationOnlyEligibility -Files $files
         $investResult.IsEligible | Should -BeTrue
+    }
+}
+
+Describe "AuditArtifacts" {
+    It "Contains expected audit artifact paths" {
+        $script:AuditArtifacts | Should -Contain '^\.agents/sessions/'
+        $script:AuditArtifacts | Should -Contain '^\.agents/analysis/'
+        $script:AuditArtifacts | Should -Contain '^\.serena/memories($|/)'
+    }
+
+    It "Has exactly 3 audit artifact patterns" {
+        $script:AuditArtifacts.Count | Should -Be 3
+    }
+}
+
+Describe "Get-ImplementationFiles" {
+    Context "Empty or null input" {
+        It "Returns empty array for empty file list" {
+            $result = Get-ImplementationFiles -Files @()
+            $result | Should -BeNullOrEmpty
+            $result.Count | Should -Be 0
+        }
+
+        It "Returns empty array for null file list" {
+            $result = Get-ImplementationFiles -Files $null
+            $result | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Session logs (audit trail)" {
+        It "Filters out session log files" {
+            $files = @('.agents/sessions/2026-01-01-session-01.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Filters out nested session log files" {
+            $files = @('.agents/sessions/2026/01/deep/session.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Analysis artifacts" {
+        It "Filters out analysis files" {
+            $files = @('.agents/analysis/research-findings.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Filters out nested analysis files" {
+            $files = @('.agents/analysis/investigations/deep/report.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Serena memory files" {
+        It "Filters out memory files" {
+            $files = @('.serena/memories/project-context.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Filters out deeply nested memory files" {
+            $files = @('.serena/memories/category/subcategory/memory.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Filters out .serena/memories directory reference" {
+            $files = @('.serena/memories')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Non-audit files preserved" {
+        It "Preserves PowerShell scripts" {
+            $files = @('scripts/Validate-Session.ps1')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain 'scripts/Validate-Session.ps1'
+        }
+
+        It "Preserves ADR files" {
+            $files = @('.agents/architecture/ADR-001.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain '.agents/architecture/ADR-001.md'
+        }
+
+        It "Preserves planning files" {
+            $files = @('.agents/planning/feature-prd.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain '.agents/planning/feature-prd.md'
+        }
+
+        It "Preserves QA reports" {
+            $files = @('.agents/qa/feature-qa-report.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain '.agents/qa/feature-qa-report.md'
+        }
+
+        It "Preserves workflow files" {
+            $files = @('.github/workflows/ci.yml')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain '.github/workflows/ci.yml'
+        }
+
+        It "Preserves test files" {
+            $files = @('tests/Feature.Tests.ps1')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain 'tests/Feature.Tests.ps1'
+        }
+
+        It "Preserves root-level .agents files" {
+            $files = @('.agents/HANDOFF.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain '.agents/HANDOFF.md'
+        }
+
+        It "Preserves critique files" {
+            $files = @('.agents/critique/review.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain '.agents/critique/review.md'
+        }
+
+        It "Preserves retrospective files (not in audit artifacts)" {
+            $files = @('.agents/retrospective/learnings.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain '.agents/retrospective/learnings.md'
+        }
+
+        It "Preserves security assessment files (not in audit artifacts)" {
+            $files = @('.agents/security/threat-model.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain '.agents/security/threat-model.md'
+        }
+    }
+
+    Context "Mixed audit and implementation files" {
+        It "Filters audit, preserves implementation from mixed input" {
+            $files = @(
+                '.agents/sessions/2026-01-01-session-01.md',
+                'scripts/Validate-Session.ps1'
+            )
+            $result = Get-ImplementationFiles -Files $files
+            $result.Count | Should -Be 1
+            $result | Should -Contain 'scripts/Validate-Session.ps1'
+            $result | Should -Not -Contain '.agents/sessions/2026-01-01-session-01.md'
+        }
+
+        It "Correctly separates multiple audit and implementation files" {
+            $files = @(
+                '.agents/sessions/2026-01-01-session-01.md',
+                '.agents/analysis/findings.md',
+                '.serena/memories/context.md',
+                'scripts/Script1.ps1',
+                'scripts/Script2.ps1',
+                '.agents/architecture/ADR-001.md'
+            )
+            $result = Get-ImplementationFiles -Files $files
+            $result.Count | Should -Be 3
+            $result | Should -Contain 'scripts/Script1.ps1'
+            $result | Should -Contain 'scripts/Script2.ps1'
+            $result | Should -Contain '.agents/architecture/ADR-001.md'
+            $result | Should -Not -Contain '.agents/sessions/2026-01-01-session-01.md'
+            $result | Should -Not -Contain '.agents/analysis/findings.md'
+            $result | Should -Not -Contain '.serena/memories/context.md'
+        }
+
+        It "Returns only ADR when session log + ADR staged (docs-only scenario)" {
+            $files = @(
+                '.agents/sessions/2026-01-01-session-01.md',
+                '.agents/architecture/ADR-037.md'
+            )
+            $result = Get-ImplementationFiles -Files $files
+            $result.Count | Should -Be 1
+            $result | Should -Contain '.agents/architecture/ADR-037.md'
+        }
+    }
+
+    Context "Path normalization" {
+        It "Handles Windows-style backslashes" {
+            $files = @('.agents\sessions\2026-01-01-session-01.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Handles mixed path separators" {
+            $files = @(
+                '.agents/sessions\2026-01-01.md',
+                '.serena\memories/context.md'
+            )
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Edge cases - path traversal prevention" {
+        It "Does not filter similar-but-different paths (.agents/sessions-evil)" {
+            $files = @('.agents/sessions-evil/malicious.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain '.agents/sessions-evil/malicious.md'
+        }
+
+        It "Does not filter .serena/memoriesX prefix bypass" {
+            $files = @('.serena/memoriesX/evil.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain '.serena/memoriesX/evil.md'
+        }
+
+        It "Does not filter .agents/analysisX prefix bypass" {
+            $files = @('.agents/analysisX/evil.md')
+            $result = Get-ImplementationFiles -Files $files
+            $result | Should -Contain '.agents/analysisX/evil.md'
+        }
+    }
+}
+
+Describe "Get-ImplementationFiles vs Test-InvestigationOnlyEligibility" {
+    <#
+    .SYNOPSIS
+        Verify the distinction between audit filtering and investigation eligibility
+
+    .NOTES
+        AuditArtifacts filters: sessions, analysis, memories
+        InvestigationAllowlist allows: sessions, analysis, memories, retrospective, security
+
+        Key difference: retrospective and security are investigation-eligible but NOT audit artifacts
+    #>
+
+    It "AuditArtifacts is subset of InvestigationAllowlist" {
+        # Session logs, analysis, memories are in both
+        $auditPatterns = @(
+            '^\.agents/sessions/',
+            '^\.agents/analysis/',
+            '^\.serena/memories($|/)'
+        )
+        foreach ($pattern in $auditPatterns) {
+            $script:InvestigationAllowlist | Should -Contain $pattern
+        }
+    }
+
+    It "Retrospective is investigation-eligible but not audit artifact" {
+        $files = @('.agents/retrospective/learnings.md')
+
+        # Investigation: eligible
+        $investResult = Test-InvestigationOnlyEligibility -Files $files
+        $investResult.IsEligible | Should -BeTrue
+
+        # Audit: NOT filtered (preserved as implementation)
+        $implResult = Get-ImplementationFiles -Files $files
+        $implResult | Should -Contain '.agents/retrospective/learnings.md'
+    }
+
+    It "Security is investigation-eligible but not audit artifact" {
+        $files = @('.agents/security/threat-model.md')
+
+        # Investigation: eligible
+        $investResult = Test-InvestigationOnlyEligibility -Files $files
+        $investResult.IsEligible | Should -BeTrue
+
+        # Audit: NOT filtered (preserved as implementation)
+        $implResult = Get-ImplementationFiles -Files $files
+        $implResult | Should -Contain '.agents/security/threat-model.md'
+    }
+
+    It "Session log + ADR: filtered by audit, rejected by investigation" {
+        $files = @(
+            '.agents/sessions/2026-01-01-session-01.md',
+            '.agents/architecture/ADR-001.md'
+        )
+
+        # Audit filtering: removes session log, keeps ADR
+        $implResult = Get-ImplementationFiles -Files $files
+        $implResult.Count | Should -Be 1
+        $implResult | Should -Contain '.agents/architecture/ADR-001.md'
+
+        # Investigation: NOT eligible (ADR is implementation)
+        $investResult = Test-InvestigationOnlyEligibility -Files $files
+        $investResult.IsEligible | Should -BeFalse
+        $investResult.ImplementationFiles | Should -Contain '.agents/architecture/ADR-001.md'
     }
 }
