@@ -1,6 +1,6 @@
 # ADR-037: Memory Router Architecture
 
-**Status**: Proposed (Revised)
+**Status**: Accepted
 **Date**: 2026-01-01
 **Revised**: 2026-01-01
 **Author**: Session 123 (Phase 2A Memory System)
@@ -401,12 +401,14 @@ To verify this decision is correctly implemented:
 
 | Reviewer | Status | Date | Notes |
 |----------|--------|------|-------|
-| Architect | PENDING | | Re-review after revision |
-| Critic | PENDING | | Re-review after revision |
-| Independent-Thinker | PENDING | | Re-review after revision |
-| Security | PENDING | | Re-review after revision |
-| Analyst | PENDING | | Re-review after revision |
-| High-Level-Advisor | PENDING | | Re-review after revision |
+| Architect | ACCEPT | 2026-01-01 | All P0 concerns resolved |
+| Critic | ACCEPT | 2026-01-01 | Sufficient detail for implementation |
+| Independent-Thinker | ACCEPT | 2026-01-01 | ADR-007 alignment verified |
+| Security | ACCEPT | 2026-01-01 | Risk score 3/10 (Low) |
+| Analyst | D&C | 2026-01-01 | Performance unvalidated; M-008 will validate |
+| High-Level-Advisor | ACCEPT | 2026-01-01 | Proceed to implementation |
+
+**Consensus**: 5 Accept + 1 Disagree-and-Commit = ACCEPTED (Round 2)
 
 ---
 
