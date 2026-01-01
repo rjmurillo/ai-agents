@@ -136,7 +136,7 @@ A validation script should detect patterns like:
 ### ADR Cross-Reference
 
 ```markdown
-This decision supersedes ADR-NNN (commit `abc1234`, YYYY-MM-DD, Issue #NNN) which used the previous approach.
+This decision supersedes ADR-005 (commit `abc1234`, 2025-11-01, Issue #234) which used the previous approach.
 ```
 
 ### Retrospective Finding
