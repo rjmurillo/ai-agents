@@ -333,6 +333,14 @@ $script:InvestigationAllowlist = @(
   '^\.agents/security/'         # Security assessments
 )
 
+# Session audit artifacts that are exempt from QA validation
+# These are audit trail files, not implementation
+$script:AuditArtifacts = @(
+  '^\.agents/sessions/',        # Session logs (audit trail)
+  '^\.agents/analysis/',        # Investigation outputs
+  '^\.serena/memories($|/)'     # Cross-session context
+)
+
 function Test-InvestigationOnlyEligibility {
   [CmdletBinding()]
   param(
@@ -387,12 +395,60 @@ function Test-InvestigationOnlyEligibility {
   return $result
 }
 
+function Get-ImplementationFiles {
+  [CmdletBinding()]
+  param(
+    [string[]]$Files
+  )
+  <#
+  .SYNOPSIS
+    Filters out audit artifacts (session logs, analysis, memories) from file list.
+
+  .DESCRIPTION
+    Returns only files that are implementation (code, ADRs, config, tests, etc.)
+    by filtering out audit trail artifacts.
+    
+    This allows session logs to be committed WITH implementation files without
+    requiring investigation-only skip or separate commits.
+
+  .NOTES
+    Session logs are audit trail, not implementation. They should not trigger
+    QA requirements when committed alongside code changes.
+  #>
+  if (-not $Files -or $Files.Count -eq 0) {
+    return @()
+  }
+
+  $implementationFiles = [System.Collections.Generic.List[string]]::new()
+  foreach ($file in $Files) {
+    # Normalize path separators
+    $normalizedFile = $file -replace '\\', '/'
+
+    $isAuditArtifact = $false
+    foreach ($pattern in $script:AuditArtifacts) {
+      if ($normalizedFile -match $pattern) {
+        $isAuditArtifact = $true
+        break
+      }
+    }
+
+    if (-not $isAuditArtifact) {
+      $implementationFiles.Add($file)
+    }
+  }
+
+  return $implementationFiles.ToArray()
+}
+
 $docsOnly = $false
 $investigationResult = @{ IsEligible = $false; ImplementationFiles = @() }
 
 # Check if we have files to analyze (from starting commit diff or pre-commit staged files)
 if (($startingCommit -or $PreCommit) -and $changedFiles.Count -gt 0) {
-  $docsOnly = Is-DocsOnly $changedFiles
+  # Filter out audit artifacts (session logs, analysis, memories) before checking docs-only
+  # This allows session logs to be committed WITH implementation without triggering false positives
+  $implFiles = Get-ImplementationFiles $changedFiles
+  $docsOnly = Is-DocsOnly $implFiles
   $investigationResult = Test-InvestigationOnlyEligibility $changedFiles
 }
 # else: If we cannot prove docs-only, treat as NOT docs-only (default values above)
