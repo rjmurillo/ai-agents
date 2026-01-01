@@ -790,6 +790,14 @@ If something goes wrong:
 
 ---
 
+## Related Documents
+
+- [SESSION-PROTOCOL.md](./SESSION-PROTOCOL.md) - Session start/end requirements
+- [PROTOCOL-ANTIPATTERNS.md](./governance/PROTOCOL-ANTIPATTERNS.md) - Protocol design antipatterns and replacement patterns
+- [PROJECT-CONSTRAINTS.md](./governance/PROJECT-CONSTRAINTS.md) - Hard constraints
+
+---
+
 ## Lessons Learned
 
 > **Note**: This section captures real issues discovered during development.

@@ -279,6 +279,10 @@ The agent MUST route to the qa agent after feature implementation. This is a **b
    - **Docs-only**: All modified files are documentation files (e.g., Markdown), and changes are strictly editorial (spelling, grammar, or formatting) with no changes to code, configuration, tests, workflows, or code blocks of any kind. Use evidence: `SKIPPED: docs-only`
    - **Investigation-only**: Session is investigation-only (no code/config changes), with staged files limited to investigation artifacts: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`. Use evidence: `SKIPPED: investigation-only` (see ADR-034)
 
+**Session Log Exemption:**
+
+Session logs (`.agents/sessions/`), analysis artifacts (`.agents/analysis/`), and memory updates (`.serena/memories/`) are **audit trail, not implementation**. They are automatically filtered out when determining if QA validation is required. This allows session logs to be committed alongside implementation files without requiring separate commits or investigation-only skips.
+
 **Verification:**
 
 - QA report exists in `.agents/qa/`
@@ -668,3 +672,4 @@ These documents reference this protocol but MUST NOT duplicate it:
 - [CLAUDE.md](../CLAUDE.md) - Claude Code entry point
 - [AGENT-INSTRUCTIONS.md](./AGENT-INSTRUCTIONS.md) - Task execution protocol
 - [HANDOFF.md](./HANDOFF.md) - Session context
+- [PROTOCOL-ANTIPATTERNS.md](./governance/PROTOCOL-ANTIPATTERNS.md) - Protocol design antipatterns and replacement patterns
