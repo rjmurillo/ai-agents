@@ -123,7 +123,7 @@ Test Case 2: Session log + code
 | MUST | Update Serena memory (cross-session context) | [x] | N/A - Serena not available in GitHub Copilot environment |
 | MUST | Run markdown lint | [x] | SKIPPED: docs-only |
 | MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: docs-only |
-| MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 9bbc50f |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A - no project plan for this fix |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Simple fix, no retrospective needed |
@@ -145,7 +145,9 @@ M scripts/Validate-Session.ps1
 
 ### Commits This Session
 
-- `[pending]` - fix(protocol): allow session logs to commit with implementation files
+- `9bbc50f` - fix(protocol): allow session logs to commit with implementation files
+- `7b61a49` - test: verify session log + ADR can commit with docs-only skip
+- `a9a9331` - chore: remove test files
 
 ---
 
