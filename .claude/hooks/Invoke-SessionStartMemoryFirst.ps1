@@ -41,6 +41,9 @@ try {
         $ForgetfulAvailable = $true
         $ForgetfulMessage = "Forgetful MCP: AVAILABLE (port $ForgetfulPort)"
     }
+    else {
+        $ForgetfulMessage = "Forgetful MCP: UNAVAILABLE (Serena-only workflow) - connection timeout"
+    }
 }
 catch {
     # Log exception details for debugging - don't silently swallow errors
