@@ -95,8 +95,8 @@ Complete analysis saved to: `.agents/analysis/037-adr037-independent-review.md`
 | MUST | Complete session log (all sections filled) | [x] | File complete |
 | MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed |
 | MUST | Run markdown lint | [x] | Lint output clean |
-| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: investigation-only |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: TBD |
+| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: adr-review (critique artifacts, no implementation code) |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: de3f77d |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: defer to next session |
@@ -113,7 +113,7 @@ Clean working tree (ready for commit).
 
 ### Commits This Session
 
-- `[TBD]` - analysis(adr-037): Independent review of Memory Router architecture proposal
+- `de3f77d` - analysis(adr-037): Independent review of Memory Router architecture proposal
 
 ---
 

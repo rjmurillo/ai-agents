@@ -1,6 +1,6 @@
 # ADR-037: Memory Router Architecture
 
-**Status**: Proposed
+**Status**: Needs-Revision
 **Date**: 2026-01-01
 **Author**: Session 123 (Phase 2A Memory System)
 **Decision**: Unified memory access layer integrating Serena and Forgetful
@@ -219,6 +219,35 @@ Get-MemoryRouterStatus
 
 | Reviewer | Status | Date | Notes |
 |----------|--------|------|-------|
-| Architect | PENDING | | |
-| Security | PENDING | | Path injection in query? |
-| Analyst | PENDING | | Performance characteristics |
+| Architect | BLOCK | 2026-01-01 | 4 P0 gaps: dedup algorithm, identity semantics, routing logic, health check |
+| Critic | BLOCK | 2026-01-01 | Failure modes undefined, query injection risk |
+| Independent-Thinker | BLOCK | 2026-01-01 | **Contradicts ADR-007** - must invert to Serena-first |
+| Security | BLOCK | 2026-01-01 | P1: Input validation missing (CWE-20), HTTP unencrypted (CWE-319) |
+| Analyst | CONDITIONAL | 2026-01-01 | Performance targets unvalidated, M-008 incomplete |
+| High-Level-Advisor | CONDITIONAL | 2026-01-01 | Complete M-008 benchmarks before implementation |
+
+---
+
+## Required Changes (from adr-review)
+
+**Debate Log**: `.agents/critique/ADR-037-debate-log.md`
+
+### P0 (Blocking)
+
+1. **Invert routing logic**: Serena-first, Forgetful-supplementary (per ADR-007)
+2. **Specify deduplication**: SHA-256 content hash, Serena-wins on collision
+3. **Add Security section**: Input validation (`ValidatePattern`), localhost assumption
+4. **Define health check**: TCP connect, 500ms timeout, 30s TTL cache
+5. **Validate performance**: Complete M-008 benchmarks before finalizing targets
+
+### P1 (Important)
+
+6. Choose result merging strategy: "Primary-first with augmentation"
+7. Declare Serena file names as canonical IDs
+8. Extract Implementation Plan to separate planning document
+
+### Consensus
+
+- Problem statement is valid (6/6 agree)
+- Fallback design approach is sound (6/6 agree)
+- Unified interface simplifies agent logic (6/6 agree)
