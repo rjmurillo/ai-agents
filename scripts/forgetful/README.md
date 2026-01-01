@@ -47,7 +47,7 @@ Description=Forgetful MCP Server
 After=network.target
 
 [Service]
-ExecStart=/home/$USER/.local/bin/uvx forgetful-ai --transport http --port 8020
+ExecStart=%h/.local/bin/uvx forgetful-ai --transport http --port 8020
 Restart=always
 RestartSec=5
 
