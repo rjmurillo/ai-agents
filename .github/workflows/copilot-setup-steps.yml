@@ -82,6 +82,36 @@ jobs:
           npm install --global markdownlint-cli2
           echo "✓ markdownlint-cli2 installed"
 
+      - name: Install uv (Python package manager)
+        run: |
+          echo "Installing uv..."
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "✓ uv installed"
+
+      - name: Start Forgetful MCP Server
+        run: |
+          echo "Starting Forgetful MCP server..."
+          # Install and start forgetful in HTTP mode (stdio has FastMCP banner issue)
+          # See: https://github.com/ScottRBK/forgetful/issues/19
+          $HOME/.local/bin/uvx forgetful-ai --transport http --port 8020 &
+          FORGETFUL_PID=$!
+          echo "FORGETFUL_PID=$FORGETFUL_PID" >> $GITHUB_ENV
+
+          # Wait for server to be ready
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8020/health > /dev/null 2>&1; then
+              echo "✓ Forgetful MCP server running on http://localhost:8020/mcp"
+              break
+            fi
+            sleep 1
+          done
+
+          # Verify health endpoint
+          HEALTH=$(curl -s http://localhost:8020/health 2>&1 || echo '{"status":"error"}')
+          echo "Health check: $HEALTH"
+
       - name: Install Pester
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
@@ -117,6 +147,14 @@ jobs:
 
           if (Get-Command gh -ErrorAction SilentlyContinue) {
             Write-Host "✓ GitHub CLI is available for workflow monitoring" -ForegroundColor Green
+          }
+
+          # Test Forgetful MCP
+          try {
+            $health = Invoke-RestMethod -Uri "http://localhost:8020/health" -Method Get -ErrorAction Stop
+            Write-Host "✓ Forgetful MCP server is running (v$($health.version))" -ForegroundColor Green
+          } catch {
+            Write-Host "⚠ Forgetful MCP server not responding (may still be starting)" -ForegroundColor Yellow
           }
 
           # Test Pester
