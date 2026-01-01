@@ -1,11 +1,12 @@
 <#
 .SYNOPSIS
-    Enforces ADR-007 Memory-First Architecture on user prompts.
+    Enforces ADR-007 Memory-First Architecture and pre-PR validation on user prompts.
 
 .DESCRIPTION
-    Claude Code hook that checks user prompts for planning/implementation keywords
-    and injects a memory-first reminder when detected. Receives JSON input via stdin
-    containing the prompt text.
+    Claude Code hook that:
+    1. Checks user prompts for planning/implementation keywords and injects memory-first reminder
+    2. Detects PR creation requests and injects pre-PR validation checklist
+    Receives JSON input via stdin containing the prompt text.
     Part of the ADR-007 enforcement mechanism (Issue #729).
 
 .PARAMETER InputObject
@@ -80,6 +81,37 @@ end {
 - Query ``memory-index`` for task-relevant memories
 - Check Forgetful for cross-project patterns if applicable
 - Evidence memory retrieval in session log
+
+"@
+    }
+
+    # PR creation keywords that trigger pre-PR validation reminder
+    $PrKeywords = @(
+        'create pr', 'open pr', 'submit pr', 'make pr',
+        'create pull request', 'open pull request',
+        'gh pr create', 'push.*pr'
+    )
+
+    # Check if prompt suggests PR creation
+    $PrMatchFound = $false
+    foreach ($Pattern in $PrKeywords) {
+        if ($PromptText -match "(?i)$Pattern") {
+            $PrMatchFound = $true
+            break
+        }
+    }
+
+    if ($PrMatchFound) {
+        @"
+
+**Pre-PR Validation Gate**: Before creating a PR, complete these checks:
+
+1. **Run local tests**: ``Invoke-Pester -Path 'tests/*.Tests.ps1'``
+2. **Validate script syntax**: All .ps1 files must parse without errors
+3. **Check memory naming**: No ``skill-`` prefix in ``.serena/memories/`` (ADR-017)
+4. **Read validation memory**: ``mcp__serena__read_memory`` with ``memory_file_name="validation-pre-pr-checklist"``
+
+⚠️ **Do NOT run markdownlint on .ps1 files** - it corrupts PowerShell comment terminators
 
 "@
     }

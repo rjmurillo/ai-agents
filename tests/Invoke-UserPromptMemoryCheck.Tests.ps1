@@ -173,4 +173,54 @@ Describe "Invoke-UserPromptMemoryCheck" {
             { $Input | & $ScriptPath } | Should -Not -Throw
         }
     }
+
+    Context "PR creation detection" {
+        It "Detects 'create pr' keyword" {
+            $Input = '{"prompt": "create pr for this feature"}'
+            $Output = ($Input | & $ScriptPath) -join "`n"
+            $Output | Should -Match "Pre-PR Validation Gate"
+        }
+
+        It "Detects 'open pull request' keyword" {
+            $Input = '{"prompt": "open pull request"}'
+            $Output = ($Input | & $ScriptPath) -join "`n"
+            $Output | Should -Match "Pre-PR Validation Gate"
+        }
+
+        It "Detects 'gh pr create' command" {
+            $Input = '{"prompt": "run gh pr create"}'
+            $Output = ($Input | & $ScriptPath) -join "`n"
+            $Output | Should -Match "Pre-PR Validation Gate"
+        }
+
+        It "Includes Pester test reminder" {
+            $Input = '{"prompt": "create pr"}'
+            $Output = ($Input | & $ScriptPath) -join "`n"
+            $Output | Should -Match "Invoke-Pester"
+        }
+
+        It "Includes ADR-017 memory naming check" {
+            $Input = '{"prompt": "create pr"}'
+            $Output = ($Input | & $ScriptPath) -join "`n"
+            $Output | Should -Match "ADR-017"
+        }
+
+        It "Includes validation memory reference" {
+            $Input = '{"prompt": "create pr"}'
+            $Output = ($Input | & $ScriptPath) -join "`n"
+            $Output | Should -Match "validation-pre-pr-checklist"
+        }
+
+        It "Warns about markdownlint on ps1 files" {
+            $Input = '{"prompt": "create pr"}'
+            $Output = ($Input | & $ScriptPath) -join "`n"
+            $Output | Should -Match "markdownlint.*\.ps1"
+        }
+
+        It "Does not trigger on simple 'pr' mention" {
+            $Input = '{"prompt": "review the pr"}'
+            $Output = ($Input | & $ScriptPath) -join "`n"
+            $Output | Should -Not -Match "Pre-PR Validation Gate"
+        }
+    }
 }
