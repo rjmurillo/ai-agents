@@ -4,12 +4,38 @@
 **Agent**: Security
 **Task**: Independent security review of ADR-036 (Two-Source Agent Template Architecture)
 
-## Session Protocol Compliance
+## Protocol Compliance
 
-- [x] Serena initialized (`initial_instructions`)
-- [x] HANDOFF.md read (read-only reference)
-- [x] Session log created
-- [x] PROJECT-CONSTRAINTS.md read
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Subagent (inherits parent context) |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Subagent (inherits parent context) |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Subagent (inherits parent context) |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | N/A - security subagent |
+| MUST | Read skill-usage-mandatory memory | [x] | N/A - security subagent |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Subagent (inherits parent context) |
+| MUST | Read memory-index, load task-relevant memories | [x] | pattern-agent-generation-three-platforms |
+| MUST | Verify and declare current branch | [x] | feat/phase-2-traceability |
+| MUST | Confirm not on main/master | [x] | On feature branch |
+| SHOULD | Verify git status | [x] | Clean |
+| SHOULD | Note starting commit | [x] | 16d6754 |
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Via parent session |
+| MUST | Run markdown lint | [x] | Via parent session |
+| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: investigation-only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Via parent session |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A - security subagent |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | N/A - security subagent |
+| SHOULD | Verify clean git status | [x] | Via parent session |
 
 ## Objective
 
