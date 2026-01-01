@@ -217,8 +217,16 @@ mcp__forgetful__memory_search(query="PowerShell array handling")
 
 **Verification**: If forgetful tools are unavailable, check that the server is running:
 
-- Linux: `systemctl --user status forgetful`
-- Windows: Check Task Manager for `python` process on port 8020
+```bash
+# Health check
+pwsh scripts/forgetful/Test-ForgetfulHealth.ps1
+
+# Manual status check
+systemctl --user status forgetful  # Linux
+Get-ScheduledTask -TaskName 'ForgetfulMCP' | Get-ScheduledTaskInfo  # Windows
+```
+
+**Setup**: See `scripts/forgetful/README.md` for installation and configuration
 
 ---
 
