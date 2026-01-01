@@ -14,11 +14,12 @@ BeforeAll {
     $script:scriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Traceability.ps1"
 
     # Create temp directory for test data
+    # Note: The script allows absolute paths (like /tmp) to bypass path traversal checks,
+    # enabling test isolation without environment variables
     $script:testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "validate-traceability-tests-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
     New-Item -Path $script:testRoot -ItemType Directory -Force | Out-Null
 
-    # Helper to create test spec structure
-    # Using Initialize- verb instead of New- to avoid PSUseShouldProcessForStateChangingFunctions
+    # Helper to initialize test spec directory structure for Pester tests
     function Initialize-TestSpecStructure {
         param(
             [string]$BasePath,
@@ -61,6 +62,9 @@ AfterAll {
     if (Test-Path $script:testRoot) {
         Remove-Item -Path $script:testRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
+
+    # Reset environment variable
+    $env:TRACEABILITY_ALLOW_EXTERNAL_PATHS = $null
 }
 
 Describe "Validate-Traceability" {
@@ -78,13 +82,19 @@ Describe "Validate-Traceability" {
     }
 
     Context "When specs path does not exist" {
-        It "Exits gracefully with non-existent path" {
-            { & $script:scriptPath -SpecsPath "/non/existent/path" -Format "json" } | Should -Not -Throw
+        It "Throws error with descriptive message for non-existent path" {
+            # With $ErrorActionPreference = "Stop", Write-Error becomes terminating
+            { & $script:scriptPath -SpecsPath "/non/existent/path" -Format "json" } |
+                Should -Throw -ExpectedMessage "*Specs path not found*"
         }
 
-        It "Returns exit code 1 for non-existent path" {
-            & $script:scriptPath -SpecsPath "/non/existent/path" 2>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 1
+        It "Error message includes the path that was not found" {
+            try {
+                & $script:scriptPath -SpecsPath "/non/existent/path" -Format "json" 2>&1
+            }
+            catch {
+                $_.Exception.Message | Should -Match "non/existent/path"
+            }
         }
     }
 
@@ -696,7 +706,7 @@ status: pending
         }
     }
 
-    Context "When ID pattern is non-standard" {
+    Context "When ID pattern is non-standard (alphanumeric)" {
         BeforeEach {
             $requirements = @{
                 "REQ-ABC-feature.md" = @"
@@ -709,12 +719,14 @@ related: []
 # REQ-ABC: Non-numeric ID
 "@
             }
-            # Note: File pattern REQ-*.md won't match REQ-ABC unless we use different matching
+            # File pattern REQ-*.md matches REQ-ABC-feature.md; regex pattern [A-Z]+-[A-Z0-9]+ parses alphanumeric IDs
             Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs @{} -Tasks @{}
         }
 
-        It "Handles non-numeric IDs" {
-            { & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" } | Should -Not -Throw
+        It "Parses alphanumeric IDs correctly" {
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
+            # Should find the requirement with alphanumeric ID
+            $result.stats.requirements | Should -Be 1
         }
     }
 

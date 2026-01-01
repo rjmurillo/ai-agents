@@ -32,9 +32,9 @@
 
 .NOTES
     Exit codes:
-    0 = Pass (no errors or warnings)
+    0 = Pass (no errors; warnings allowed unless -Strict)
     1 = Errors found (broken references, untraced tasks)
-    2 = Warnings only (orphaned REQs/DESIGNs) - pass unless -Strict
+    2 = Warnings found with -Strict flag (orphaned REQs/DESIGNs)
 #>
 
 [CmdletBinding()]
@@ -49,6 +49,8 @@ param(
     [ValidateSet("console", "markdown", "json")]
     [string]$Format = "console"
 )
+
+$ErrorActionPreference = "Stop"
 
 #region Color Output
 $ColorReset = "`e[0m"
@@ -103,7 +105,7 @@ function Get-YamlFrontMatter {
             $result.status = $Matches[1].Trim()
         }
 
-        # Parse related (array)
+        # Parse related (array) - supports both numeric and alphanumeric IDs (e.g., REQ-001, REQ-ABC)
         if ($yaml -match '(?s)related:\s*\r?\n((?:\s+-\s+.+\r?\n?)+)') {
             $relatedBlock = $Matches[1]
             $result.related = [regex]::Matches($relatedBlock, '-\s+([A-Z]+-[A-Z0-9]+)') |
@@ -432,6 +434,21 @@ $resolvedPath = Resolve-Path -Path $SpecsPath -ErrorAction SilentlyContinue
 if (-not $resolvedPath) {
     Write-Error "Specs path not found: $SpecsPath"
     exit 1
+}
+
+# Path traversal protection: When running from a git repository, ensure paths stay within repo root
+# Skip this check for absolute paths (e.g., test fixtures in /tmp) to allow legitimate test scenarios
+$repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { $null }
+if ($repoRoot) {
+    $normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
+    $allowedBase = [System.IO.Path]::GetFullPath($repoRoot)
+
+    # Only enforce path traversal check if the original path was relative (not an absolute temp path)
+    $isRelativePath = -not [System.IO.Path]::IsPathRooted($SpecsPath)
+    if ($isRelativePath -and -not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Write-Error "Path traversal attempt detected: '$SpecsPath' is outside the repository root." -ErrorAction Continue
+        exit 1
+    }
 }
 
 # Load all specs
