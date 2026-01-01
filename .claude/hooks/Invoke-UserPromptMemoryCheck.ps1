@@ -116,5 +116,63 @@ end {
 "@
     }
 
+    # GitHub CLI commands that should use skills instead
+    $GhCliPatterns = @(
+        # PR commands - use skills from .claude/skills/github/scripts/pr/
+        'gh pr create',      # Use New-PR.ps1
+        'gh pr list',        # Use Get-PullRequests.ps1
+        'gh pr view',        # Use Get-PRContext.ps1
+        'gh pr merge',       # Use Merge-PR.ps1
+        'gh pr close',       # Use Close-PR.ps1
+        'gh pr checks',      # Use Get-PRChecks.ps1
+        'gh pr review',      # Use Add-PRReviewThreadReply.ps1
+        'gh pr comment',     # Use Post-PRCommentReply.ps1
+        'gh pr diff',        # Check for skill alternative
+        'gh pr ready',       # Use Test-PRMergeReady.ps1
+        'gh pr status',      # Use Get-PRContext.ps1
+        # Issue commands - use skills from .claude/skills/github/scripts/issue/
+        'gh issue create',   # Use New-Issue.ps1
+        'gh issue list',     # Check for skill
+        'gh issue view',     # Use Get-IssueContext.ps1
+        'gh issue close',    # Check for skill
+        'gh issue comment',  # Use Post-IssueComment.ps1
+        'gh issue edit',     # Use Set-IssueLabels.ps1, Set-IssueMilestone.ps1, Set-IssueAssignee.ps1
+        # API commands - often have skill equivalents
+        'gh api',            # Check for skill-based alternative
+        # Run commands - workflow triggers
+        'gh run',            # Workflow management
+        'gh workflow'        # Workflow management
+    )
+
+    # Check if prompt suggests GitHub CLI usage
+    $GhCliMatchFound = $false
+    $MatchedCommand = ''
+    foreach ($Pattern in $GhCliPatterns) {
+        if ($PromptText -match "(?i)$Pattern") {
+            $GhCliMatchFound = $true
+            $MatchedCommand = $Pattern
+            break
+        }
+    }
+
+    if ($GhCliMatchFound) {
+        @"
+
+**Skill Usage Check**: Detected potential ``$MatchedCommand`` usage.
+
+Before using raw ``gh`` CLI, read the GitHub skills documentation:
+
+``Read .claude/skills/github/SKILL.md``
+
+**Available skill categories**:
+- PR operations: New-PR, Merge-PR, Get-PRChecks, Get-PRContext, etc.
+- Issue operations: New-Issue, Post-IssueComment, Set-IssueLabels, etc.
+- Reactions: Add-CommentReaction
+
+⚠️ Using skills ensures consistent error handling and audit logging.
+
+"@
+    }
+
     exit 0
 }
