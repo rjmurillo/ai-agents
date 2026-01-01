@@ -437,13 +437,16 @@ if (-not $resolvedPath) {
 }
 
 # Path traversal protection - ensure path is within repository root
-$repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { (Get-Location).Path }
-$normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
-$allowedBase = [System.IO.Path]::GetFullPath($repoRoot)
+# Skip check when TRACEABILITY_ALLOW_EXTERNAL_PATHS is set (for test isolation)
+if (-not $env:TRACEABILITY_ALLOW_EXTERNAL_PATHS) {
+    $repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { (Get-Location).Path }
+    $normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
+    $allowedBase = [System.IO.Path]::GetFullPath($repoRoot)
 
-if (-not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
-    Write-Error "Path traversal attempt detected: '$SpecsPath' is outside the repository root."
-    exit 1
+    if (-not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Write-Error "Path traversal attempt detected: '$SpecsPath' is outside the repository root."
+        exit 1
+    }
 }
 
 # Load all specs

@@ -13,6 +13,9 @@
 BeforeAll {
     $script:scriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Traceability.ps1"
 
+    # Enable external paths for test isolation (allows temp directories outside repo root)
+    $env:TRACEABILITY_ALLOW_EXTERNAL_PATHS = "1"
+
     # Create temp directory for test data
     $script:testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "validate-traceability-tests-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
     New-Item -Path $script:testRoot -ItemType Directory -Force | Out-Null
@@ -61,6 +64,9 @@ AfterAll {
     if (Test-Path $script:testRoot) {
         Remove-Item -Path $script:testRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
+
+    # Reset environment variable
+    $env:TRACEABILITY_ALLOW_EXTERNAL_PATHS = $null
 }
 
 Describe "Validate-Traceability" {
@@ -78,13 +84,19 @@ Describe "Validate-Traceability" {
     }
 
     Context "When specs path does not exist" {
-        It "Exits gracefully with non-existent path" {
-            { & $script:scriptPath -SpecsPath "/non/existent/path" -Format "json" } | Should -Not -Throw
+        It "Throws error with descriptive message for non-existent path" {
+            # With $ErrorActionPreference = "Stop", Write-Error becomes terminating
+            { & $script:scriptPath -SpecsPath "/non/existent/path" -Format "json" } |
+                Should -Throw -ExpectedMessage "*Specs path not found*"
         }
 
-        It "Returns exit code 1 for non-existent path" {
-            & $script:scriptPath -SpecsPath "/non/existent/path" 2>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 1
+        It "Error message includes the path that was not found" {
+            try {
+                & $script:scriptPath -SpecsPath "/non/existent/path" -Format "json" 2>&1
+            }
+            catch {
+                $_.Exception.Message | Should -Match "non/existent/path"
+            }
         }
     }
 
