@@ -90,27 +90,48 @@ jobs:
           echo "✓ uv installed"
 
       - name: Start Forgetful MCP Server
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          echo "Starting Forgetful MCP server..."
-          # Install and start forgetful in HTTP mode (stdio has FastMCP banner issue)
+          # Start Forgetful MCP server for CI environment
+          # Uses HTTP transport due to FastMCP banner corruption issue
           # See: https://github.com/ScottRBK/forgetful/issues/19
-          $HOME/.local/bin/uvx forgetful-ai --transport http --port 8020 &
-          FORGETFUL_PID=$!
-          echo "FORGETFUL_PID=$FORGETFUL_PID" >> $GITHUB_ENV
+          # For local development setup, see: scripts/forgetful/README.md
 
-          # Wait for server to be ready
-          echo "Waiting for server to start..."
-          for i in {1..30}; do
-            if curl -s http://localhost:8020/health > /dev/null 2>&1; then
-              echo "✓ Forgetful MCP server running on http://localhost:8020/mcp"
-              break
-            fi
-            sleep 1
-          done
+          Write-Host "Starting Forgetful MCP server..."
+          $uvxPath = "$env:HOME/.local/bin/uvx"
 
-          # Verify health endpoint
-          HEALTH=$(curl -s http://localhost:8020/health 2>&1 || echo '{"status":"error"}')
-          echo "Health check: $HEALTH"
+          # Start in background
+          $process = Start-Process -FilePath $uvxPath `
+            -ArgumentList "forgetful-ai", "--transport", "http", "--port", "8020" `
+            -PassThru -WindowStyle Hidden
+
+          # Export PID for potential cleanup
+          "FORGETFUL_PID=$($process.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          # Wait for server to be ready (TCP port check)
+          Write-Host "Waiting for server to start..."
+          $maxAttempts = 30
+          $attempt = 0
+          $ready = $false
+
+          while ($attempt -lt $maxAttempts -and -not $ready) {
+            $attempt++
+            try {
+              $tcpClient = New-Object System.Net.Sockets.TcpClient
+              $connectTask = $tcpClient.ConnectAsync("localhost", 8020)
+              if ($connectTask.Wait(1000) -and $tcpClient.Connected) {
+                $ready = $true
+                Write-Host "✓ Forgetful MCP server running on http://localhost:8020/mcp" -ForegroundColor Green
+              }
+              $tcpClient.Close()
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+
+          if (-not $ready) {
+            Write-Host "⚠ Forgetful MCP server may still be starting" -ForegroundColor Yellow
+          }
 
       - name: Install Pester
         shell: pwsh -NoProfile -Command "& '{0}'"
@@ -149,10 +170,16 @@ jobs:
             Write-Host "✓ GitHub CLI is available for workflow monitoring" -ForegroundColor Green
           }
 
-          # Test Forgetful MCP
+          # Test Forgetful MCP (TCP port check - MCP protocol requires session init)
           try {
-            $health = Invoke-RestMethod -Uri "http://localhost:8020/health" -Method Get -ErrorAction Stop
-            Write-Host "✓ Forgetful MCP server is running (v$($health.version))" -ForegroundColor Green
+            $tcpClient = New-Object System.Net.Sockets.TcpClient
+            $connectTask = $tcpClient.ConnectAsync("localhost", 8020)
+            if ($connectTask.Wait(2000) -and $tcpClient.Connected) {
+              Write-Host "✓ Forgetful MCP server is listening on port 8020" -ForegroundColor Green
+            } else {
+              Write-Host "⚠ Forgetful MCP server not responding" -ForegroundColor Yellow
+            }
+            $tcpClient.Close()
           } catch {
             Write-Host "⚠ Forgetful MCP server not responding (may still be starting)" -ForegroundColor Yellow
           }
