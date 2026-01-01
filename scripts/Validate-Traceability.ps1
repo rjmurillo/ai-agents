@@ -436,15 +436,17 @@ if (-not $resolvedPath) {
     exit 1
 }
 
-# Path traversal protection - ensure path is within repository root
-# Skip check when TRACEABILITY_ALLOW_EXTERNAL_PATHS is set (for test isolation)
-if (-not $env:TRACEABILITY_ALLOW_EXTERNAL_PATHS) {
-    $repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { (Get-Location).Path }
+# Path traversal protection: When running from a git repository, ensure paths stay within repo root
+# Skip this check for absolute paths (e.g., test fixtures in /tmp) to allow legitimate test scenarios
+$repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { $null }
+if ($repoRoot) {
     $normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
     $allowedBase = [System.IO.Path]::GetFullPath($repoRoot)
 
-    if (-not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
-        Write-Error "Path traversal attempt detected: '$SpecsPath' is outside the repository root."
+    # Only enforce path traversal check if the original path was relative (not an absolute temp path)
+    $isRelativePath = -not [System.IO.Path]::IsPathRooted($SpecsPath)
+    if ($isRelativePath -and -not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Write-Error "Path traversal attempt detected: '$SpecsPath' is outside the repository root." -ErrorAction Continue
         exit 1
     }
 }

@@ -708,7 +708,7 @@ status: pending
         }
     }
 
-    Context "When ID pattern is non-standard" {
+    Context "When ID pattern is non-standard (alphanumeric)" {
         BeforeEach {
             $requirements = @{
                 "REQ-ABC-feature.md" = @"
@@ -721,12 +721,14 @@ related: []
 # REQ-ABC: Non-numeric ID
 "@
             }
-            # Note: File pattern REQ-*.md will match REQ-ABC-feature.md; the real edge case is regexes that only accept numeric-suffix IDs in related fields
+            # File pattern REQ-*.md matches REQ-ABC-feature.md; regex pattern [A-Z]+-[A-Z0-9]+ parses alphanumeric IDs
             Initialize-TestSpecStructure -BasePath $script:testSpecsPath -Requirements $requirements -Designs @{} -Tasks @{}
         }
 
-        It "Does not crash on non-numeric ID files" {
-            { & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" } | Should -Not -Throw
+        It "Parses alphanumeric IDs correctly" {
+            $result = & $script:scriptPath -SpecsPath $script:testSpecsPath -Format "json" | ConvertFrom-Json
+            # Should find the requirement with alphanumeric ID
+            $result.stats.requirements | Should -Be 1
         }
     }
 
