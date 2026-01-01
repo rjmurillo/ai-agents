@@ -106,7 +106,7 @@ function Get-YamlFrontMatter {
         # Parse related (array)
         if ($yaml -match '(?s)related:\s*\r?\n((?:\s+-\s+.+\r?\n?)+)') {
             $relatedBlock = $Matches[1]
-            $result.related = [regex]::Matches($relatedBlock, '-\s+([A-Z]+-\d+)') |
+            $result.related = [regex]::Matches($relatedBlock, '-\s+([A-Z]+-[A-Z0-9]+)') |
                 ForEach-Object { $_.Groups[1].Value }
         }
 
