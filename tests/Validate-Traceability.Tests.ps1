@@ -13,15 +13,13 @@
 BeforeAll {
     $script:scriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Traceability.ps1"
 
-    # Enable external paths for test isolation (allows temp directories outside repo root)
-    $env:TRACEABILITY_ALLOW_EXTERNAL_PATHS = "1"
-
     # Create temp directory for test data
+    # Note: The script allows absolute paths (like /tmp) to bypass path traversal checks,
+    # enabling test isolation without environment variables
     $script:testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "validate-traceability-tests-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
     New-Item -Path $script:testRoot -ItemType Directory -Force | Out-Null
 
-    # Helper to create test spec structure
-    # Using Initialize- verb instead of New- to avoid PSUseShouldProcessForStateChangingFunctions
+    # Helper to initialize test spec directory structure for Pester tests
     function Initialize-TestSpecStructure {
         param(
             [string]$BasePath,
