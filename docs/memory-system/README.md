@@ -183,14 +183,18 @@ This memory system is defined by two ADRs:
 
 ## Documentation Structure
 
-| Document | Purpose |
-|----------|---------|
-| [README.md](README.md) | This overview |
-| [memory-router.md](memory-router.md) | Memory Router (Tier 1) |
-| [reflexion-memory.md](reflexion-memory.md) | Reflexion Memory (Tiers 2 & 3) |
-| [benchmarking.md](benchmarking.md) | Performance measurement |
-| [api-reference.md](api-reference.md) | Complete API documentation |
-| [quick-start.md](quick-start.md) | Common usage patterns |
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| [README.md](README.md) | This overview | All |
+| [quick-start.md](quick-start.md) | Common usage patterns | All |
+| [memory-router.md](memory-router.md) | Memory Router (Tier 1) | Developers |
+| [reflexion-memory.md](reflexion-memory.md) | Reflexion Memory (Tiers 2 & 3) | Developers |
+| [api-reference.md](api-reference.md) | Complete API documentation | Developers |
+| [agent-integration.md](agent-integration.md) | Agent workflow integration | AI Agents |
+| [skill-reference.md](skill-reference.md) | Skill script documentation | AI Agents |
+| [troubleshooting.md](troubleshooting.md) | Problem diagnosis and solutions | All |
+| [benchmarking.md](benchmarking.md) | Performance measurement | Developers |
+| [HISTORY.md](HISTORY.md) | Evolution across three versions | All |
 
 ## Related Resources
 
@@ -239,7 +243,9 @@ Causal graph links are derived from actual session data, not inferred or assumed
 
 For issues or questions:
 
-1. Check the [API Reference](api-reference.md) for function signatures
-2. Review [Quick Start Guide](quick-start.md) for common patterns
-3. Consult ADR-037 and ADR-038 for design rationale
-4. File an issue with `memory-system` label
+1. Start with [Troubleshooting Guide](troubleshooting.md) for common problems
+2. Check the [API Reference](api-reference.md) for function signatures
+3. Review [Quick Start Guide](quick-start.md) for common patterns
+4. For agents, see [Agent Integration](agent-integration.md) and [Skill Reference](skill-reference.md)
+5. Consult ADR-037 and ADR-038 for design rationale
+6. File an issue with `memory-system` label
