@@ -81,7 +81,7 @@ Cause-effect relationship graph built from episodic data.
 
 ## Key Components
 
-### Memory Router (scripts/MemoryRouter.psm1)
+### Memory Router (.claude/skills/memory/scripts/MemoryRouter.psm1)
 
 Unified search interface across Serena and Forgetful.
 
@@ -100,7 +100,7 @@ Search-Memory -Query "authentication patterns" -SemanticOnly
 
 **See**: [Memory Router Documentation](memory-router.md)
 
-### Reflexion Memory (scripts/ReflexionMemory.psm1)
+### Reflexion Memory (.claude/skills/memory/scripts/ReflexionMemory.psm1)
 
 Episodic replay and causal reasoning capabilities.
 
@@ -120,17 +120,17 @@ Get-Patterns -MinSuccessRate 0.7
 
 ### Benchmarking
 
-Use `scripts/Measure-MemoryPerformance.ps1` to benchmark memory search performance:
+Use `.claude/skills/memory/scripts/Measure-MemoryPerformance.ps1` to benchmark memory search performance:
 
 ```powershell
 # Run default benchmarks
-pwsh scripts/Measure-MemoryPerformance.ps1
+pwsh .claude/skills/memory/scripts/Measure-MemoryPerformance.ps1
 
 # Custom queries with more iterations
-pwsh scripts/Measure-MemoryPerformance.ps1 -Queries @("PowerShell arrays") -Iterations 10
+pwsh .claude/skills/memory/scripts/Measure-MemoryPerformance.ps1 -Queries @("PowerShell arrays") -Iterations 10
 
 # Markdown report
-pwsh scripts/Measure-MemoryPerformance.ps1 -Format markdown
+pwsh .claude/skills/memory/scripts/Measure-MemoryPerformance.ps1 -Format markdown
 ```
 
 **See**: [Benchmarking Documentation](benchmarking.md)
@@ -168,8 +168,8 @@ $patterns = Get-Patterns -MinSuccessRate 0.7
 pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "git hooks" -Format Table
 
 # Check memory system status
-pwsh -c "Import-Module scripts/MemoryRouter.psm1; Get-MemoryRouterStatus"
-pwsh -c "Import-Module scripts/ReflexionMemory.psm1; Get-ReflexionMemoryStatus"
+pwsh -c "Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1; Get-MemoryRouterStatus"
+pwsh -c "Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1; Get-ReflexionMemoryStatus"
 ```
 
 ## Architecture Decision Records

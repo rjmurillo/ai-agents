@@ -82,7 +82,44 @@ if ($SemanticOnly) {
 }
 
 try {
-    $results = Search-Memory @searchParams
+    # Capture search metadata
+    $searchStatus = @{
+        SerenaQueried    = -not $SemanticOnly
+        ForgetfulQueried = -not $LexicalOnly
+        SerenaSucceeded  = $false
+        ForgetfulSucceeded = $false
+        ForgetfulError   = $null
+    }
+
+    # Get router status before search to know Forgetful availability
+    $routerStatus = Get-MemoryRouterStatus
+    $forgetfulWasAvailable = $routerStatus.Forgetful.Available
+
+    # Perform search and capture any warnings
+    $warningOutput = @()
+    $results = Search-Memory @searchParams -WarningVariable warningOutput
+
+    # Determine success status
+    if (-not $SemanticOnly) {
+        $searchStatus.SerenaSucceeded = $true  # Serena always succeeds if path exists
+    }
+    if (-not $LexicalOnly) {
+        if ($forgetfulWasAvailable) {
+            # Check if there were warnings about Forgetful
+            $forgetfulWarning = $warningOutput | Where-Object { $_ -match 'Forgetful' }
+            if ($forgetfulWarning) {
+                $searchStatus.ForgetfulSucceeded = $false
+                $searchStatus.ForgetfulError = $forgetfulWarning -join '; '
+            }
+            else {
+                $searchStatus.ForgetfulSucceeded = $true
+            }
+        }
+        else {
+            $searchStatus.ForgetfulSucceeded = $false
+            $searchStatus.ForgetfulError = "Forgetful unavailable (TCP health check failed)"
+        }
+    }
 
     if ($Format -eq 'Table') {
         if ($results.Count -eq 0) {
@@ -101,10 +138,11 @@ try {
     else {
         # JSON output for programmatic consumption
         $output = @{
-            Query      = $Query
-            Count      = $results.Count
-            Source     = if ($LexicalOnly) { 'Serena' } elseif ($SemanticOnly) { 'Forgetful' } else { 'Unified' }
-            Results    = @($results | ForEach-Object {
+            Query        = $Query
+            Count        = $results.Count
+            Source       = if ($LexicalOnly) { 'Serena' } elseif ($SemanticOnly) { 'Forgetful' } else { 'Unified' }
+            SearchStatus = $searchStatus
+            Results      = @($results | ForEach-Object {
                     @{
                         Name    = $_.Name
                         Source  = $_.Source
@@ -113,7 +151,7 @@ try {
                         Content = $_.Content
                     }
                 })
-            Diagnostic = Get-MemoryRouterStatus
+            Diagnostic   = Get-MemoryRouterStatus
         }
         $output | ConvertTo-Json -Depth 5
     }

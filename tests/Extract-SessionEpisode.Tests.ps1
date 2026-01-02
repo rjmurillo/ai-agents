@@ -881,7 +881,7 @@ Describe "Script Integration" -Tag "Integration" {
     }
 
     It "Extracts episode from valid session log" {
-        $ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "Extract-SessionEpisode.ps1"
+        $ScriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "memory" "scripts" "Extract-SessionEpisode.ps1"
 
         if (-not (Test-Path $ScriptPath)) {
             Set-ItResult -Skipped -Because "Script not found at $ScriptPath"

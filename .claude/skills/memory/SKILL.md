@@ -283,7 +283,7 @@ $episode = Get-Episode -SessionId "2026-01-01-session-126"
 $failures = Get-Episodes -Outcome "failure" -Since (Get-Date).AddDays(-7)
 
 # Get episodes for a task
-$episodes = Get-Episodes -Task "memory system" -Limit 20
+$episodes = Get-Episodes -Task "memory system" -MaxResults 20
 ```
 
 **Causal Queries (Tier 3):**

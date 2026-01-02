@@ -36,33 +36,42 @@ function Get-CausalGraph {
     <#
     .SYNOPSIS
         Loads the causal graph from disk.
+
+    .PARAMETER AllowEmpty
+        If true, returns empty graph on corruption instead of throwing.
+        Default is false (throws on corruption to prevent silent data loss).
     #>
     [CmdletBinding()]
-    param()
+    param(
+        [switch]$AllowEmpty
+    )
+
+    $emptyGraph = @{
+        version  = "1.0"
+        updated  = (Get-Date).ToString("o")
+        nodes    = @()
+        edges    = @()
+        patterns = @()
+    }
 
     if (-not (Test-Path $script:CausalGraphFile)) {
-        return @{
-            version  = "1.0"
-            updated  = (Get-Date).ToString("o")
-            nodes    = @()
-            edges    = @()
-            patterns = @()
-        }
+        return $emptyGraph
     }
 
     try {
         $content = Get-Content -Path $script:CausalGraphFile -Raw -Encoding UTF8 -ErrorAction Stop
+        if ([string]::IsNullOrWhiteSpace($content)) {
+            return $emptyGraph
+        }
         return $content | ConvertFrom-Json -AsHashtable -ErrorAction Stop
     }
     catch {
-        Write-Warning "Failed to load causal graph from '$($script:CausalGraphFile)': $($_.Exception.Message)"
-        return @{
-            version  = "1.0"
-            updated  = (Get-Date).ToString("o")
-            nodes    = @()
-            edges    = @()
-            patterns = @()
+        $errorMessage = "Causal graph corrupted at '$($script:CausalGraphFile)': $($_.Exception.Message)"
+        if ($AllowEmpty) {
+            Write-Warning $errorMessage
+            return $emptyGraph
         }
+        throw [System.IO.InvalidDataException]::new($errorMessage, $_.Exception)
     }
 }
 
@@ -70,6 +79,16 @@ function Save-CausalGraph {
     <#
     .SYNOPSIS
         Saves the causal graph to disk.
+
+    .DESCRIPTION
+        Saves the causal graph to disk. Throws on failure to prevent silent data loss.
+        Callers should handle errors appropriately.
+
+    .PARAMETER Graph
+        The causal graph hashtable to save.
+
+    .OUTPUTS
+        None. Throws on failure.
     #>
     [CmdletBinding()]
     param(
@@ -79,12 +98,19 @@ function Save-CausalGraph {
 
     $Graph.updated = (Get-Date).ToString("o")
 
+    # Ensure directory exists
+    $directory = Split-Path $script:CausalGraphFile -Parent
+    if (-not (Test-Path $directory)) {
+        New-Item -Path $directory -ItemType Directory -Force | Out-Null
+    }
+
     try {
         $json = $Graph | ConvertTo-Json -Depth 10 -ErrorAction Stop
         Set-Content -Path $script:CausalGraphFile -Value $json -Encoding UTF8 -ErrorAction Stop
     }
     catch {
-        Write-Warning "Failed to save causal graph to '$($script:CausalGraphFile)': $($_.Exception.Message)"
+        $errorMessage = "Failed to save causal graph to '$($script:CausalGraphFile)': $($_.Exception.Message)"
+        throw [System.IO.IOException]::new($errorMessage, $_.Exception)
     }
 }
 
@@ -181,8 +207,14 @@ function Get-Episode {
         return $null
     }
 
-    $content = Get-Content -Path $episodeFile -Raw -Encoding UTF8
-    return $content | ConvertFrom-Json
+    try {
+        $content = Get-Content -Path $episodeFile -Raw -Encoding UTF8 -ErrorAction Stop
+        return $content | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        $errorMessage = "Episode file corrupted at '$episodeFile': $($_.Exception.Message)"
+        throw [System.IO.InvalidDataException]::new($errorMessage, $_.Exception)
+    }
 }
 
 function Get-Episodes {
@@ -192,6 +224,9 @@ function Get-Episodes {
 
     .PARAMETER Outcome
         Filter by outcome: success, partial, failure.
+
+    .PARAMETER Task
+        Filter by task name (substring match, case-insensitive).
 
     .PARAMETER Since
         Filter episodes since this date.
@@ -205,11 +240,16 @@ function Get-Episodes {
 
     .EXAMPLE
         Get-Episodes -Outcome "failure" -Since (Get-Date).AddDays(-7)
+
+    .EXAMPLE
+        Get-Episodes -Task "MemoryRouter" -MaxResults 5
     #>
     [CmdletBinding()]
     param(
         [ValidateSet("success", "partial", "failure")]
         [string]$Outcome,
+
+        [string]$Task,
 
         [datetime]$Since,
 
@@ -237,6 +277,10 @@ function Get-Episodes {
 
         # Apply filters
         if ($Outcome -and $episode.outcome -ne $Outcome) {
+            continue
+        }
+
+        if ($Task -and $episode.task -notlike "*$Task*") {
             continue
         }
 

@@ -395,7 +395,7 @@ time curl -X POST http://localhost:8020/mcp \
 
 ```powershell
 # Test availability manually
-Import-Module scripts/MemoryRouter.psm1
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
 Test-ForgetfulAvailable -Force
 ```
 
@@ -411,7 +411,7 @@ Test-ForgetfulAvailable -Force
 
 ```powershell
 # Baseline measurement
-pwsh scripts/Measure-MemoryPerformance.ps1 -Format json > baseline.json
+pwsh .claude/skills/memory/scripts/Measure-MemoryPerformance.ps1 -Format json > baseline.json
 
 # ... apply optimization ...
 

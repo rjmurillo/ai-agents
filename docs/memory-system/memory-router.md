@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Memory Router (`scripts/MemoryRouter.psm1`) provides unified memory search across Serena (lexical) and Forgetful (semantic) memory systems with Serena-first routing.
+The Memory Router (`.claude/skills/memory/scripts/MemoryRouter.psm1`) provides unified memory search across Serena (lexical) and Forgetful (semantic) memory systems with Serena-first routing.
 
 **ADR**: ADR-037 Memory Router Architecture
 
@@ -63,7 +63,7 @@ The router automatically detects Forgetful availability using a cached TCP healt
 
 ```powershell
 # Import module
-Import-Module scripts/MemoryRouter.psm1
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
 
 # Unified search (Serena + Forgetful if available)
 $results = Search-Memory -Query "PowerShell array handling" -MaxResults 10

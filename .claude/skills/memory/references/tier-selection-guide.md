@@ -110,7 +110,7 @@ When answering "How should I handle authentication errors?":
 $facts = Search-Memory.ps1 -Query "authentication error handling"
 
 # Tier 2: Find relevant past sessions
-$episodes = Get-Episodes -Task "authentication" -Limit 10
+$episodes = Get-Episodes -Task "authentication" -MaxResults 10
 
 # Tier 3: Check what worked
 $patterns = Get-Patterns | Where-Object { $_.name -match "auth" }

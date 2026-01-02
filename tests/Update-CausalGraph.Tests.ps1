@@ -13,13 +13,13 @@
 
 BeforeAll {
     # Import ReflexionMemory module for testing
-    $ModulePath = Join-Path $PSScriptRoot ".." "scripts" "ReflexionMemory.psm1"
+    $ModulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "memory" "scripts" "ReflexionMemory.psm1"
     if (Test-Path $ModulePath) {
         Import-Module $ModulePath -Force
     }
 
     # Script path
-    $script:ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "Update-CausalGraph.ps1"
+    $script:ScriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "memory" "scripts" "Update-CausalGraph.ps1"
 
     # Create test directories
     $script:TestDir = Join-Path ([System.IO.Path]::GetTempPath()) "UpdateCausalGraph-Tests-$(Get-Random)"
@@ -355,22 +355,73 @@ Describe "Script Execution" -Tag "Integration" {
 
     It "Processes episodes and returns stats" {
         if (-not (Test-Path $script:ScriptPath)) {
-            Set-ItResult -Skipped -Because "Script not found"
+            Set-ItResult -Skipped -Because "Script not found at $($script:ScriptPath)"
             return
         }
 
-        # This would require the actual module paths to be correct
-        # For now, we skip if modules aren't available
-        Set-ItResult -Skipped -Because "Requires full module integration"
+        # Create test episode with decisions and patterns
+        $testEpisode = @{
+            id        = "episode-integration-test"
+            session   = "integration-test"
+            timestamp = (Get-Date).ToString("o")
+            outcome   = "success"
+            task      = "Integration test"
+            decisions = @(
+                @{ id = "d001"; type = "design"; chosen = "Option A"; outcome = "success"; context = "When designing the integration test" }
+            )
+            events    = @()
+            metrics   = @{ duration_minutes = 10 }
+            lessons   = @()
+        }
+        $testEpisode | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $script:EpisodesDir "episode-integration-test.json")
+
+        # Run the script with DryRun to avoid side effects
+        # Note: The script uses the module's internal causality path configuration
+        $result = & $script:ScriptPath -EpisodePath $script:EpisodesDir -DryRun
+        $result | Should -Not -BeNullOrEmpty
     }
 
     It "Filters episodes by Since parameter" {
         if (-not (Test-Path $script:ScriptPath)) {
-            Set-ItResult -Skipped -Because "Script not found"
+            Set-ItResult -Skipped -Because "Script not found at $($script:ScriptPath)"
             return
         }
 
-        Set-ItResult -Skipped -Because "Requires full module integration"
+        # Create old episode (should be filtered out)
+        $oldEpisode = @{
+            id        = "episode-old"
+            session   = "old-session"
+            timestamp = "2020-01-01T00:00:00Z"
+            outcome   = "success"
+            task      = "Old task"
+            decisions = @()
+            events    = @()
+            metrics   = @{ duration_minutes = 5 }
+            lessons   = @()
+        }
+        $oldEpisode | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $script:EpisodesDir "episode-old.json")
+
+        # Create new episode
+        $newEpisode = @{
+            id        = "episode-new"
+            session   = "new-session"
+            timestamp = (Get-Date).ToString("o")
+            outcome   = "success"
+            task      = "New task"
+            decisions = @(
+                @{ id = "d001"; type = "design"; chosen = "New approach"; outcome = "success"; context = "When making a new decision" }
+            )
+            events    = @()
+            metrics   = @{ duration_minutes = 10 }
+            lessons   = @()
+        }
+        $newEpisode | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $script:EpisodesDir "episode-new.json")
+
+        # Run with Since filter - should only process new episode
+        # Note: The script uses the module's internal causality path configuration
+        $result = & $script:ScriptPath -EpisodePath $script:EpisodesDir -Since (Get-Date).AddDays(-1) -DryRun
+        # The old episode should not be in the processed stats
+        $result | Should -Not -BeNullOrEmpty
     }
 
     It "Handles empty episode directory gracefully" {

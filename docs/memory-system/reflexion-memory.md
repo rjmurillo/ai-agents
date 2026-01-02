@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Reflexion Memory module (`scripts/ReflexionMemory.psm1`) provides episodic replay and causal reasoning capabilities. This implements Tiers 2 and 3 of the memory architecture.
+The Reflexion Memory module (`.claude/skills/memory/scripts/ReflexionMemory.psm1`) provides episodic replay and causal reasoning capabilities. This implements Tiers 2 and 3 of the memory architecture.
 
 **ADR**: ADR-038 Reflexion Memory Schema
 
@@ -151,7 +151,7 @@ Causal graphs track cause-effect relationships across episodes.
 
 ```powershell
 # Import module
-Import-Module scripts/ReflexionMemory.psm1
+Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
 
 # Get specific episode
 $episode = Get-Episode -SessionId "2026-01-01-session-126"

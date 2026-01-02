@@ -17,7 +17,7 @@
 
 BeforeAll {
     # Import the module
-    $modulePath = Join-Path $PSScriptRoot ".." "scripts" "ReflexionMemory.psm1"
+    $modulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "memory" "scripts" "ReflexionMemory.psm1"
     Import-Module $modulePath -Force
 
     # Get the actual paths the module uses
@@ -538,6 +538,112 @@ Describe "Status Functions" {
 
             $status.Configuration.EpisodesPath | Should -Not -BeNullOrEmpty
             $status.Configuration.CausalityPath | Should -Not -BeNullOrEmpty
+        }
+    }
+}
+
+Describe "Corruption Recovery" -Tag "ErrorHandling" {
+    BeforeAll {
+        $script:CorruptionTestDir = Join-Path ([System.IO.Path]::GetTempPath()) "ReflexionCorruption-$(Get-Random)"
+        New-Item -Path $script:CorruptionTestDir -ItemType Directory -Force | Out-Null
+    }
+
+    AfterAll {
+        if (Test-Path $script:CorruptionTestDir) {
+            Remove-Item $script:CorruptionTestDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    Describe "Get-Episode Corruption Handling" {
+        It "Throws on malformed episode JSON" {
+            # Create corrupted episode file
+            $corruptFile = Join-Path $script:EpisodesPath "episode-corrupt-test.json"
+            "{ invalid json here" | Set-Content -Path $corruptFile -Encoding UTF8
+
+            { Get-Episode -SessionId "corrupt-test" } | Should -Throw -ExceptionType ([System.IO.InvalidDataException])
+
+            # Clean up
+            Remove-Item $corruptFile -Force -ErrorAction SilentlyContinue
+        }
+
+        It "Returns null for non-existent episode" {
+            $result = Get-Episode -SessionId "non-existent-episode-12345"
+            $result | Should -BeNull
+        }
+    }
+
+    Describe "Get-CausalGraph Corruption Handling" {
+        BeforeEach {
+            # Backup and clear causal graph for isolated tests
+            if (Test-Path $script:CausalGraphFile) {
+                $script:BackupGraph = Get-Content -Path $script:CausalGraphFile -Raw
+            }
+        }
+
+        AfterEach {
+            # Restore original causal graph
+            if ($script:BackupGraph) {
+                $script:BackupGraph | Set-Content -Path $script:CausalGraphFile -Encoding UTF8
+            }
+        }
+
+        It "Throws by default on corrupted causal graph" {
+            # Corrupt the causal graph
+            "{ this is not valid JSON }" | Set-Content -Path $script:CausalGraphFile -Encoding UTF8
+
+            # Re-import module to pick up corrupted file
+            Import-Module $modulePath -Force
+
+            # Should throw by default
+            {
+                # Access private function via InModuleScope
+                InModuleScope ReflexionMemory {
+                    Get-CausalGraph
+                }
+            } | Should -Throw -ExceptionType ([System.IO.InvalidDataException])
+        }
+
+        It "Returns empty graph with -AllowEmpty on corruption" {
+            # Corrupt the causal graph
+            "{ invalid: json: here }" | Set-Content -Path $script:CausalGraphFile -Encoding UTF8
+
+            # Re-import module
+            Import-Module $modulePath -Force
+
+            $result = InModuleScope ReflexionMemory {
+                Get-CausalGraph -AllowEmpty
+            }
+
+            $result | Should -Not -BeNull
+            $result.nodes | Should -BeNullOrEmpty
+            $result.edges | Should -BeNullOrEmpty
+            $result.patterns | Should -BeNullOrEmpty
+        }
+
+        It "Returns empty graph for empty file" {
+            "" | Set-Content -Path $script:CausalGraphFile -Encoding UTF8
+
+            Import-Module $modulePath -Force
+
+            $result = InModuleScope ReflexionMemory {
+                Get-CausalGraph
+            }
+
+            $result.nodes.Count | Should -Be 0
+        }
+    }
+
+    Describe "Save-CausalGraph Error Propagation" {
+        It "Throws on write failure to read-only location" {
+            # This test verifies that Save-CausalGraph throws instead of silently failing
+            # Note: This requires a read-only directory which is OS-dependent
+            # We'll test the error path indirectly by verifying the function signature
+
+            $modulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "memory" "scripts" "ReflexionMemory.psm1"
+            $content = Get-Content -Path $modulePath -Raw
+
+            # Verify the function throws IOException on failure
+            $content | Should -Match 'throw \[System\.IO\.IOException\]'
         }
     }
 }

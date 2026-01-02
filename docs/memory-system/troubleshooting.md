@@ -12,11 +12,11 @@ Run these commands to quickly assess system health:
 
 ```powershell
 # Memory Router status
-Import-Module scripts/MemoryRouter.psm1
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
 Get-MemoryRouterStatus | ConvertTo-Json -Depth 3
 
 # Reflexion Memory status
-Import-Module scripts/ReflexionMemory.psm1
+Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
 Get-ReflexionMemoryStatus | ConvertTo-Json -Depth 3
 
 # Forgetful health check
@@ -392,7 +392,7 @@ Get-ChildItem ".claude/skills" -Recurse -Filter "*.ps1"
 
 ```powershell
 # Check module path
-$modulePath = "scripts/MemoryRouter.psm1"
+$modulePath = ".claude/skills/memory/scripts/MemoryRouter.psm1"
 Test-Path $modulePath
 
 # Test import
@@ -404,7 +404,7 @@ Import-Module $modulePath -Force -Verbose
 | Cause | Solution |
 |-------|----------|
 | Wrong working directory | Run from project root |
-| Module file missing | Verify scripts/ directory |
+| Module file missing | Verify .claude/skills/memory/scripts/ directory |
 | Syntax error in module | Check PowerShell syntax |
 
 ## Directory Structure Issues
@@ -526,8 +526,8 @@ Write-Host "`n[Directories]" -ForegroundColor Yellow
 # Check modules
 Write-Host "`n[Modules]" -ForegroundColor Yellow
 @(
-    "scripts/MemoryRouter.psm1",
-    "scripts/ReflexionMemory.psm1"
+    ".claude/skills/memory/scripts/MemoryRouter.psm1",
+    ".claude/skills/memory/scripts/ReflexionMemory.psm1"
 ) | ForEach-Object {
     $exists = Test-Path $_
     $status = if ($exists) { "OK" } else { "MISSING" }
@@ -588,7 +588,7 @@ param(
     [int]$Iterations = 3
 )
 
-Import-Module scripts/MemoryRouter.psm1
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
 
 foreach ($query in $Queries) {
     Write-Host "`nQuery: '$query'" -ForegroundColor Cyan

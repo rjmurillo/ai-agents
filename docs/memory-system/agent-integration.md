@@ -74,8 +74,8 @@ For complex workflows requiring multiple operations:
 
 ```powershell
 # Import modules
-Import-Module scripts/MemoryRouter.psm1
-Import-Module scripts/ReflexionMemory.psm1
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
+Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
 
 # Search across tiers
 $results = Search-Memory -Query "authentication" -MaxResults 10
