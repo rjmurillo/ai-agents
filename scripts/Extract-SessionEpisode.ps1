@@ -17,7 +17,7 @@
     Path to the session log file to extract from.
 
 .PARAMETER OutputPath
-    Output directory for episode JSON. Defaults to .agents/episodes/
+    Output directory for episode JSON. Defaults to .agents/memory/episodes/
 
 .PARAMETER Force
     Overwrite existing episode file if it exists.
@@ -35,7 +35,7 @@ param(
     [ValidateScript({ Test-Path $_ -PathType Leaf })]
     [string]$SessionLogPath,
 
-    [string]$OutputPath = (Join-Path $PSScriptRoot ".." ".agents" "episodes"),
+    [string]$OutputPath = (Join-Path $PSScriptRoot ".." ".agents" "memory" "episodes"),
 
     [switch]$Force
 )
@@ -63,10 +63,13 @@ function Get-SessionIdFromPath {
     return $fileName
 }
 
-function Parse-SessionMetadata {
+function ConvertFrom-SessionMetadata {
     <#
     .SYNOPSIS
         Extracts metadata from session log header.
+
+    .OUTPUTS
+        Hashtable with: title, date, status, objectives, deliverables
     #>
     param([string[]]$Lines)
 
@@ -132,10 +135,13 @@ function Parse-SessionMetadata {
     return $metadata
 }
 
-function Parse-Decisions {
+function ConvertFrom-Decisions {
     <#
     .SYNOPSIS
         Extracts decisions from session log.
+
+    .OUTPUTS
+        Array of hashtable with: id, timestamp, type, context, chosen, rationale, outcome, effects
     #>
     param([string[]]$Lines)
 
@@ -226,10 +232,13 @@ function Get-DecisionType {
     return "implementation"
 }
 
-function Parse-Events {
+function ConvertFrom-Events {
     <#
     .SYNOPSIS
         Extracts events from session log.
+
+    .OUTPUTS
+        Array of hashtable with: id, timestamp, type, content, caused_by, leads_to
     #>
     param([string[]]$Lines)
 
@@ -300,10 +309,13 @@ function Parse-Events {
     return $events
 }
 
-function Parse-Lessons {
+function ConvertFrom-Lessons {
     <#
     .SYNOPSIS
         Extracts lessons learned from session log.
+
+    .OUTPUTS
+        Array of unique lesson strings
     #>
     param([string[]]$Lines)
 
@@ -336,10 +348,13 @@ function Parse-Lessons {
     return $lessons | Select-Object -Unique
 }
 
-function Parse-Metrics {
+function ConvertFrom-Metrics {
     <#
     .SYNOPSIS
         Extracts metrics from session log.
+
+    .OUTPUTS
+        Hashtable with: duration_minutes, tool_calls, errors, recoveries, commits, files_changed
     #>
     param([string[]]$Lines)
 
@@ -420,24 +435,30 @@ function Get-SessionOutcome {
 Write-Host "Extracting episode from: $SessionLogPath" -ForegroundColor Cyan
 
 # Read session log
-$content = Get-Content -Path $SessionLogPath -Encoding UTF8
+try {
+    $content = Get-Content -Path $SessionLogPath -Encoding UTF8 -ErrorAction Stop
+}
+catch {
+    Write-Error "Failed to read session log '$SessionLogPath': $($_.Exception.Message)"
+    exit 1
+}
 $sessionId = Get-SessionIdFromPath -Path $SessionLogPath
 
 # Parse components
 Write-Host "  Parsing metadata..." -ForegroundColor Gray
-$metadata = Parse-SessionMetadata -Lines $content
+$metadata = ConvertFrom-SessionMetadata -Lines $content
 
 Write-Host "  Parsing decisions..." -ForegroundColor Gray
-$decisions = Parse-Decisions -Lines $content
+$decisions = ConvertFrom-Decisions -Lines $content
 
 Write-Host "  Parsing events..." -ForegroundColor Gray
-$events = Parse-Events -Lines $content
+$events = ConvertFrom-Events -Lines $content
 
 Write-Host "  Parsing lessons..." -ForegroundColor Gray
-$lessons = Parse-Lessons -Lines $content
+$lessons = ConvertFrom-Lessons -Lines $content
 
 Write-Host "  Parsing metrics..." -ForegroundColor Gray
-$metrics = Parse-Metrics -Lines $content
+$metrics = ConvertFrom-Metrics -Lines $content
 
 # Determine outcome
 $outcome = Get-SessionOutcome -Metadata $metadata -Events $events
@@ -448,7 +469,10 @@ $episode = @{
     session   = $sessionId
     timestamp = if ($metadata.date) {
         try { [datetime]::Parse($metadata.date).ToString("o") }
-        catch { (Get-Date).ToString("o") }
+        catch {
+            Write-Warning "Could not parse date '$($metadata.date)', using current time"
+            (Get-Date).ToString("o")
+        }
     } else { (Get-Date).ToString("o") }
     outcome   = $outcome
     task      = if ($metadata.objectives.Count -gt 0) { $metadata.objectives[0] } else { $metadata.title }
@@ -472,17 +496,23 @@ if ((Test-Path $episodeFile) -and -not $Force) {
     exit 1
 }
 
-$json = $episode | ConvertTo-Json -Depth 10
-Set-Content -Path $episodeFile -Value $json -Encoding UTF8
+try {
+    $json = $episode | ConvertTo-Json -Depth 10 -ErrorAction Stop
+    Set-Content -Path $episodeFile -Value $json -Encoding UTF8 -ErrorAction Stop
+}
+catch {
+    Write-Error "Failed to write episode file '$episodeFile': $($_.Exception.Message)"
+    exit 1
+}
 
 # Summary
 Write-Host "`nEpisode extracted:" -ForegroundColor Green
 Write-Host "  ID:        $($episode.id)" -ForegroundColor Gray
 Write-Host "  Session:   $sessionId" -ForegroundColor Gray
 Write-Host "  Outcome:   $outcome" -ForegroundColor Gray
-Write-Host "  Decisions: $($decisions.Count)" -ForegroundColor Gray
-Write-Host "  Events:    $($events.Count)" -ForegroundColor Gray
-Write-Host "  Lessons:   $($lessons.Count)" -ForegroundColor Gray
+Write-Host "  Decisions: $(@($decisions).Count)" -ForegroundColor Gray
+Write-Host "  Events:    $(@($events).Count)" -ForegroundColor Gray
+Write-Host "  Lessons:   $(@($lessons).Count)" -ForegroundColor Gray
 Write-Host "  Output:    $episodeFile" -ForegroundColor Gray
 
 # Return episode for pipeline usage

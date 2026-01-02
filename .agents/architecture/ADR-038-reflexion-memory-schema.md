@@ -58,13 +58,13 @@ Implement a **Four-Tier Reflexion Memory Schema** with episodic replay and causa
 ┌───────────────────────────▼─────────────────────────────────┐
 │                   Episodic Memory (Tier 2)                   │
 │      Session transcripts, decision sequences, outcomes       │
-│                    (NEW: .agents/episodes/)                  │
+│               (NEW: .agents/memory/episodes/)                │
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
 │                    Causal Memory (Tier 3)                    │
 │        Cause-effect graphs, counterfactual analysis          │
-│                  (NEW: .agents/causality/)                   │
+│              (NEW: .agents/memory/causality/)                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -72,7 +72,7 @@ Implement a **Four-Tier Reflexion Memory Schema** with episodic replay and causa
 
 Episodes are structured extracts from session logs, optimized for replay and analysis.
 
-**Storage**: `.agents/episodes/{session-id}.json`
+**Storage**: `.agents/memory/episodes/{session-id}.json`
 
 ```json
 {
@@ -121,7 +121,7 @@ Episodes are structured extracts from session logs, optimized for replay and ana
 
 Causal graphs track cause-effect relationships across episodes.
 
-**Storage**: `.agents/causality/causal-graph.json`
+**Storage**: `.agents/memory/causality/causal-graph.json`
 
 ```json
 {
@@ -196,7 +196,7 @@ Session Log (.agents/sessions/*.md)
 └─────────────────────────────┘
          │
          ▼
-Episode JSON (.agents/episodes/*.json)
+Episode JSON (.agents/memory/episodes/*.json)
          │
          ▼
 ┌─────────────────────────────┐
@@ -207,7 +207,7 @@ Episode JSON (.agents/episodes/*.json)
 └─────────────────────────────┘
          │
          ▼
-Causal Graph (.agents/causality/causal-graph.json)
+Causal Graph (.agents/memory/causality/causal-graph.json)
 ```
 
 ### Integration with Existing Systems
@@ -261,8 +261,8 @@ Causal Graph (.agents/causality/causal-graph.json)
 
 ### Phase 1: M-004 Schema (This ADR)
 
-1. Create `.agents/episodes/` directory structure
-2. Create `.agents/causality/` directory structure
+1. Create `.agents/memory/episodes/` directory structure
+2. Create `.agents/memory/causality/` directory structure
 3. Define JSON schema validation
 4. Document episode format
 

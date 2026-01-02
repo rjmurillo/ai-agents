@@ -41,6 +41,7 @@
 param(
     [Parameter(Mandatory, Position = 0)]
     [ValidateLength(1, 500)]
+    [ValidatePattern('^[a-zA-Z0-9\s\-.,_()&:]+$')]
     [string]$Query,
 
     [ValidateRange(1, 100)]

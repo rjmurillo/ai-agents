@@ -416,3 +416,148 @@ Describe "Merge-MemoryResults" {
         $merged | Should -BeNullOrEmpty
     }
 }
+
+Describe "Invoke-ForgetfulSearch Error Handling" {
+    BeforeAll {
+        $module = Get-Module MemoryRouter
+        $invokeForgetfulSearch = & $module { ${function:Invoke-ForgetfulSearch} }
+    }
+
+    Context "Malformed Response Handling" {
+        It "Returns empty array when Forgetful returns empty result" {
+            # When Forgetful is not available, should return empty array
+            $results = & $invokeForgetfulSearch -Query "test" -Endpoint "http://localhost:59999/mcp"
+
+            $results | Should -BeNullOrEmpty
+        }
+
+        It "Returns empty array for connection refused" {
+            # Use a port that's definitely not listening
+            $results = & $invokeForgetfulSearch -Query "test" -Endpoint "http://localhost:59998/mcp"
+
+            $results | Should -BeNullOrEmpty
+        }
+
+        It "Returns empty array for invalid endpoint" {
+            $results = & $invokeForgetfulSearch -Query "test" -Endpoint "http://invalid.localhost.test:8020/mcp"
+
+            $results | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Response Structure Validation" {
+        It "Handles response without result property" {
+            # Mock scenario: response has no 'result' key
+            # This tests the defensive coding in the response parsing
+            Mock Invoke-RestMethod {
+                return @{ error = @{ message = "Method not found" } }
+            } -ModuleName MemoryRouter
+
+            $results = & $invokeForgetfulSearch -Query "test" -Endpoint "http://localhost:8020/mcp"
+
+            $results | Should -BeNullOrEmpty
+        }
+
+        It "Handles response without content array" {
+            Mock Invoke-RestMethod {
+                return @{ result = @{ data = "unexpected format" } }
+            } -ModuleName MemoryRouter
+
+            $results = & $invokeForgetfulSearch -Query "test" -Endpoint "http://localhost:8020/mcp"
+
+            $results | Should -BeNullOrEmpty
+        }
+
+        It "Handles malformed JSON in content text" {
+            Mock Invoke-RestMethod {
+                return @{
+                    result = @{
+                        content = @(
+                            @{
+                                type = "text"
+                                text = "{ invalid json syntax"
+                            }
+                        )
+                    }
+                }
+            } -ModuleName MemoryRouter
+
+            # Should not throw, just return empty or partial results
+            { & $invokeForgetfulSearch -Query "test" -Endpoint "http://localhost:8020/mcp" } | Should -Not -Throw
+        }
+    }
+
+    Context "Timeout Handling" {
+        It "Handles request timeout gracefully" {
+            Mock Invoke-RestMethod {
+                throw [System.Net.WebException]::new("The operation has timed out")
+            } -ModuleName MemoryRouter
+
+            $results = & $invokeForgetfulSearch -Query "test" -Endpoint "http://localhost:8020/mcp"
+
+            $results | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "HTTP Error Responses" {
+        It "Handles HTTP 500 error" {
+            Mock Invoke-RestMethod {
+                throw [System.Net.WebException]::new("The remote server returned an error: (500) Internal Server Error.")
+            } -ModuleName MemoryRouter
+
+            $results = & $invokeForgetfulSearch -Query "test" -Endpoint "http://localhost:8020/mcp"
+
+            $results | Should -BeNullOrEmpty
+        }
+
+        It "Handles HTTP 502 Bad Gateway" {
+            Mock Invoke-RestMethod {
+                throw [System.Net.WebException]::new("The remote server returned an error: (502) Bad Gateway.")
+            } -ModuleName MemoryRouter
+
+            $results = & $invokeForgetfulSearch -Query "test" -Endpoint "http://localhost:8020/mcp"
+
+            $results | Should -BeNullOrEmpty
+        }
+
+        It "Handles HTTP 503 Service Unavailable" {
+            Mock Invoke-RestMethod {
+                throw [System.Net.WebException]::new("The remote server returned an error: (503) Service Unavailable.")
+            } -ModuleName MemoryRouter
+
+            $results = & $invokeForgetfulSearch -Query "test" -Endpoint "http://localhost:8020/mcp"
+
+            $results | Should -BeNullOrEmpty
+        }
+    }
+}
+
+Describe "Invoke-SerenaSearch Error Handling" {
+    BeforeAll {
+        $module = Get-Module MemoryRouter
+        $invokeSerenaSearch = & $module { ${function:Invoke-SerenaSearch} }
+    }
+
+    Context "File System Errors" {
+        It "Returns empty array for non-existent path" {
+            # Test with a path that doesn't exist
+            $results = & $invokeSerenaSearch -Query "test" -MemoryPath "/tmp/nonexistent-path-$(Get-Random)"
+
+            $results | Should -BeNullOrEmpty
+        }
+
+        It "Returns empty array for empty directory" {
+            $emptyDir = Join-Path ([System.IO.Path]::GetTempPath()) "EmptyMemoryDir-$(Get-Random)"
+            New-Item -Path $emptyDir -ItemType Directory -Force | Out-Null
+
+            try {
+                $results = & $invokeSerenaSearch -Query "test" -MemoryPath $emptyDir
+
+                $results | Should -BeNullOrEmpty
+            }
+            finally {
+                Remove-Item $emptyDir -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}

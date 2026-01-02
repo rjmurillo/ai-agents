@@ -6,7 +6,7 @@
     Implements ADR-038 Reflexion Memory Schema with:
     - Episodic memory storage and retrieval
     - Causal graph management
-    - Pattern extraction and what-if analysis
+    - Pattern extraction from decision sequences
 
     Tier Architecture:
     - Tier 0: Working memory (context window - managed by Claude)
@@ -24,8 +24,8 @@ $ErrorActionPreference = 'Stop'
 
 #region Configuration
 
-$script:EpisodesPath = Join-Path $PSScriptRoot ".." ".agents" "episodes"
-$script:CausalityPath = Join-Path $PSScriptRoot ".." ".agents" "causality"
+$script:EpisodesPath = Join-Path $PSScriptRoot ".." ".agents" "memory" "episodes"
+$script:CausalityPath = Join-Path $PSScriptRoot ".." ".agents" "memory" "causality"
 $script:CausalGraphFile = Join-Path $script:CausalityPath "causal-graph.json"
 
 #endregion
@@ -50,8 +50,20 @@ function Get-CausalGraph {
         }
     }
 
-    $content = Get-Content -Path $script:CausalGraphFile -Raw -Encoding UTF8
-    return $content | ConvertFrom-Json -AsHashtable
+    try {
+        $content = Get-Content -Path $script:CausalGraphFile -Raw -Encoding UTF8 -ErrorAction Stop
+        return $content | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Failed to load causal graph from '$($script:CausalGraphFile)': $($_.Exception.Message)"
+        return @{
+            version  = "1.0"
+            updated  = (Get-Date).ToString("o")
+            nodes    = @()
+            edges    = @()
+            patterns = @()
+        }
+    }
 }
 
 function Save-CausalGraph {
@@ -67,8 +79,13 @@ function Save-CausalGraph {
 
     $Graph.updated = (Get-Date).ToString("o")
 
-    $json = $Graph | ConvertTo-Json -Depth 10
-    Set-Content -Path $script:CausalGraphFile -Value $json -Encoding UTF8
+    try {
+        $json = $Graph | ConvertTo-Json -Depth 10 -ErrorAction Stop
+        Set-Content -Path $script:CausalGraphFile -Value $json -Encoding UTF8 -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Failed to save causal graph to '$($script:CausalGraphFile)': $($_.Exception.Message)"
+    }
 }
 
 function Get-NextNodeId {
@@ -145,6 +162,10 @@ function Get-Episode {
     .PARAMETER SessionId
         The session identifier (e.g., "2026-01-01-session-126").
 
+    .OUTPUTS
+        PSCustomObject. Episode object with id, session, timestamp, outcome, task, decisions, events, metrics, lessons.
+        Returns $null if episode not found.
+
     .EXAMPLE
         Get-Episode -SessionId "2026-01-01-session-126"
     #>
@@ -178,6 +199,10 @@ function Get-Episodes {
     .PARAMETER MaxResults
         Maximum number of episodes to return.
 
+    .OUTPUTS
+        PSCustomObject[]. Array of episode objects sorted by timestamp descending.
+        Each episode has: id, session, timestamp, outcome, task, decisions, events, metrics, lessons.
+
     .EXAMPLE
         Get-Episodes -Outcome "failure" -Since (Get-Date).AddDays(-7)
     #>
@@ -201,8 +226,14 @@ function Get-Episodes {
     $files = Get-ChildItem -Path $script:EpisodesPath -Filter "episode-*.json" -ErrorAction SilentlyContinue
 
     foreach ($file in $files) {
-        $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8
-        $episode = $content | ConvertFrom-Json
+        try {
+            $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8 -ErrorAction Stop
+            $episode = $content | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "Failed to read episode file '$($file.FullName)': $($_.Exception.Message)"
+            continue
+        }
 
         # Apply filters
         if ($Outcome -and $episode.outcome -ne $Outcome) {
@@ -210,8 +241,14 @@ function Get-Episodes {
         }
 
         if ($Since) {
-            $episodeDate = [datetime]::Parse($episode.timestamp)
-            if ($episodeDate -lt $Since) {
+            try {
+                $episodeDate = [datetime]::Parse($episode.timestamp)
+                if ($episodeDate -lt $Since) {
+                    continue
+                }
+            }
+            catch {
+                Write-Warning "Episode $($file.FullName) has invalid timestamp, skipping: $($_.Exception.Message)"
                 continue
             }
         }
@@ -251,6 +288,10 @@ function New-Episode {
 
     .PARAMETER Metrics
         Metrics hashtable.
+
+    .OUTPUTS
+        Hashtable. Episode object with id, session, timestamp, outcome, task, decisions, events, metrics, lessons.
+        Also writes episode JSON file to .agents/memory/episodes/.
 
     .EXAMPLE
         New-Episode -SessionId "2026-01-01-session-126" -Task "Implement feature" -Outcome "success"
@@ -308,6 +349,11 @@ function Get-DecisionSequence {
     .PARAMETER EpisodeId
         The episode identifier.
 
+    .OUTPUTS
+        PSCustomObject[]. Array of decision objects sorted by timestamp.
+        Each decision has: id, timestamp, type, context, chosen, rationale, outcome, effects.
+        Returns empty array if episode not found.
+
     .EXAMPLE
         Get-DecisionSequence -EpisodeId "episode-2026-01-01-126"
     #>
@@ -345,6 +391,10 @@ function Add-CausalNode {
     .PARAMETER EpisodeId
         Source episode ID.
 
+    .OUTPUTS
+        Hashtable. Node object with id, type, label, episodes, frequency, success_rate.
+        Returns existing node (with updated frequency) if label already exists.
+
     .EXAMPLE
         Add-CausalNode -Type "decision" -Label "Choose Serena-first routing" -EpisodeId "episode-2026-01-01-126"
     #>
@@ -367,9 +417,12 @@ function Add-CausalNode {
 
     if ($existing) {
         # Update existing node
-        $existing.frequency++
-        if ($EpisodeId -and $existing.episodes -notcontains $EpisodeId) {
-            $existing.episodes += $EpisodeId
+        $existing.frequency = [int]$existing.frequency + 1
+        if ($EpisodeId) {
+            if (-not $existing.episodes) { $existing.episodes = @() }
+            if ($existing.episodes -notcontains $EpisodeId) {
+                $existing.episodes += $EpisodeId
+            }
         }
         Save-CausalGraph -Graph $graph
         return $existing
@@ -408,6 +461,10 @@ function Add-CausalEdge {
     .PARAMETER Weight
         Confidence weight (0-1).
 
+    .OUTPUTS
+        Hashtable. Edge object with source, target, type, weight, evidence_count.
+        Returns existing edge (with updated weight via running average) if edge exists.
+
     .EXAMPLE
         Add-CausalEdge -SourceId "n001" -TargetId "n002" -Type "causes" -Weight 0.9
     #>
@@ -436,9 +493,9 @@ function Add-CausalEdge {
 
     if ($existing) {
         # Update existing edge
-        $existing.evidence_count++
-        # Adjust weight based on evidence
-        $existing.weight = ($existing.weight * ($existing.evidence_count - 1) + $Weight) / $existing.evidence_count
+        $existing.evidence_count = [int]$existing.evidence_count + 1
+        # Adjust weight based on evidence (running average)
+        $existing.weight = ([double]$existing.weight * ($existing.evidence_count - 1) + $Weight) / $existing.evidence_count
         Save-CausalGraph -Graph $graph
         return $existing
     }
@@ -471,6 +528,13 @@ function Get-CausalPath {
 
     .PARAMETER MaxDepth
         Maximum path depth to search.
+
+    .OUTPUTS
+        Hashtable. Result object with:
+        - found: Boolean indicating if path was found
+        - path: Array of node objects along the path
+        - depth: Number of edges in the path (if found)
+        - error: Error message (if not found)
 
     .EXAMPLE
         Get-CausalPath -FromLabel "Choose routing" -ToLabel "Performance target met"
@@ -570,6 +634,10 @@ function Add-Pattern {
     .PARAMETER SuccessRate
         Success rate (0-1).
 
+    .OUTPUTS
+        Hashtable. Pattern object with id, name, description, trigger, action, success_rate, occurrences, last_used.
+        Returns existing pattern (with updated occurrences and success_rate) if name exists.
+
     .EXAMPLE
         Add-Pattern -Name "Lint bypass" -Trigger "Unrelated lint errors" -Action "Use --no-verify with justification"
     #>
@@ -633,6 +701,10 @@ function Get-Patterns {
     .PARAMETER MinOccurrences
         Minimum occurrences filter.
 
+    .OUTPUTS
+        PSCustomObject[]. Array of pattern objects sorted by success_rate descending.
+        Each pattern has: id, name, description, trigger, action, success_rate, occurrences, last_used.
+
     .EXAMPLE
         Get-Patterns -MinSuccessRate 0.7 -MinOccurrences 3
     #>
@@ -660,6 +732,11 @@ function Get-AntiPatterns {
     .PARAMETER MaxSuccessRate
         Maximum success rate to qualify as anti-pattern.
 
+    .OUTPUTS
+        PSCustomObject[]. Array of anti-pattern objects sorted by success_rate ascending.
+        Each pattern has: id, name, description, trigger, action, success_rate, occurrences, last_used.
+        Only includes patterns with at least 2 occurrences.
+
     .EXAMPLE
         Get-AntiPatterns -MaxSuccessRate 0.3
     #>
@@ -684,6 +761,12 @@ function Get-ReflexionMemoryStatus {
     <#
     .SYNOPSIS
         Gets the status of the reflexion memory system.
+
+    .OUTPUTS
+        PSCustomObject. Status object with:
+        - Episodes: Path and count of episode files
+        - CausalGraph: Path, version, updated timestamp, node/edge/pattern counts
+        - Configuration: EpisodesPath and CausalityPath settings
 
     .EXAMPLE
         Get-ReflexionMemoryStatus

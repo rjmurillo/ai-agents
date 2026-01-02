@@ -11,7 +11,7 @@
 
 .PARAMETER EpisodePath
     Path to a specific episode file, or directory containing episodes.
-    Defaults to .agents/episodes/
+    Defaults to .agents/memory/episodes/
 
 .PARAMETER Since
     Only process episodes since this date.
@@ -26,7 +26,7 @@
     ./Update-CausalGraph.ps1 -Since (Get-Date).AddDays(-7)
 
 .EXAMPLE
-    ./Update-CausalGraph.ps1 -EpisodePath ".agents/episodes/episode-2026-01-01-session-126.json"
+    ./Update-CausalGraph.ps1 -EpisodePath ".agents/memory/episodes/episode-2026-01-01-session-126.json"
 
 .NOTES
     Task: M-005 (Phase 2A Memory System)
@@ -34,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$EpisodePath = (Join-Path $PSScriptRoot ".." ".agents" "episodes"),
+    [string]$EpisodePath = (Join-Path $PSScriptRoot ".." ".agents" "memory" "episodes"),
 
     [datetime]$Since,
 
@@ -61,7 +61,7 @@ function Get-EpisodeFile {
     #>
     param(
         [string]$Path,
-        [datetime]$Since
+        [Nullable[datetime]]$Since
     )
 
     if (Test-Path $Path -PathType Leaf) {
@@ -76,9 +76,15 @@ function Get-EpisodeFile {
 
     if ($Since) {
         $files = $files | Where-Object {
-            $content = Get-Content $_.FullName -Raw | ConvertFrom-Json
-            $episodeDate = [datetime]::Parse($content.timestamp)
-            $episodeDate -ge $Since
+            try {
+                $content = Get-Content $_.FullName -Raw | ConvertFrom-Json
+                $episodeDate = [datetime]::Parse($content.timestamp)
+                return $episodeDate -ge $Since
+            }
+            catch {
+                Write-Warning "Skipping malformed episode file: $($_.FullName) - $($_.Exception.Message)"
+                return $false
+            }
         }
     }
 
@@ -198,7 +204,7 @@ if ($DryRun) {
 }
 
 # Get episode files
-$episodeFiles = Get-EpisodeFile -Path $EpisodePath -Since $Since
+$episodeFiles = @(Get-EpisodeFile -Path $EpisodePath -Since $Since)
 
 if ($episodeFiles.Count -eq 0) {
     Write-Host "No episode files found to process." -ForegroundColor Yellow
@@ -217,12 +223,18 @@ $stats = @{
 foreach ($file in $episodeFiles) {
     Write-Host "`nProcessing: $($file.Name)" -ForegroundColor Cyan
 
-    $content = Get-Content $file.FullName -Raw -Encoding UTF8
-    $episode = $content | ConvertFrom-Json
+    try {
+        $content = Get-Content $file.FullName -Raw -Encoding UTF8 -ErrorAction Stop
+        $episode = $content | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Failed to process episode file '$($file.FullName)': $($_.Exception.Message)"
+        continue
+    }
 
     # Add decision nodes
     foreach ($decision in $episode.decisions) {
-        $nodeLabel = "$($decision.type): $($decision.chosen)" -replace '(.{50}).*', '$1...'
+        $nodeLabel = "$($decision.type): $($decision.chosen)"
 
         if (-not $DryRun) {
             $node = Add-CausalNode -Type "decision" -Label $nodeLabel -EpisodeId $episode.id
@@ -235,7 +247,7 @@ foreach ($file in $episodeFiles) {
 
     # Add event nodes
     foreach ($event in $episode.events) {
-        $nodeLabel = "$($event.type): $($event.content)" -replace '(.{50}).*', '$1...'
+        $nodeLabel = "$($event.type): $($event.content)"
 
         if (-not $DryRun) {
             $node = Add-CausalNode -Type $event.type -Label $nodeLabel -EpisodeId $episode.id
@@ -247,7 +259,7 @@ foreach ($file in $episodeFiles) {
     }
 
     # Add outcome node
-    $outcomeLabel = "Outcome: $($episode.outcome) - $($episode.task)" -replace '(.{60}).*', '$1...'
+    $outcomeLabel = "Outcome: $($episode.outcome) - $($episode.task)"
     if (-not $DryRun) {
         $outcomeNode = Add-CausalNode -Type "outcome" -Label $outcomeLabel -EpisodeId $episode.id
         if ($outcomeNode) { $stats.nodes_added++ }

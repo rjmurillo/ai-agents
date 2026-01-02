@@ -92,7 +92,7 @@ $SerenaMemoryPath = ".serena/memories"
 
 # Forgetful MCP endpoint (from .mcp.json)
 
-$ForgetfulEndpoint = "<http://localhost:8020/mcp>"
+$ForgetfulEndpoint = "http://localhost:8020/mcp"
 
 # endregion
 
@@ -160,7 +160,7 @@ function Measure-SerenaSearch {
         $files = @(Get-ChildItem -Path $MemoryPath -Filter "*.md" -ErrorAction SilentlyContinue)
         foreach ($file in $files) {
             $fileName = $file.BaseName.ToLowerInvariant()
-            $matchingKeywords = @($keywords | Where-Object { $fileName -match $_ })
+            $matchingKeywords = @($keywords | Where-Object { $fileName -match [regex]::Escape($_) })
             if ($matchingKeywords.Count -gt 0) {
                 $null = Get-Content -Path $file.FullName -Raw -ErrorAction SilentlyContinue
             }
@@ -188,7 +188,7 @@ function Measure-SerenaSearch {
         $matchedFiles = @()
         foreach ($file in $files) {
             $fileName = $file.BaseName.ToLowerInvariant()
-            $matchingKeywords = @($keywords | Where-Object { $fileName -match $_ })
+            $matchingKeywords = @($keywords | Where-Object { $fileName -match [regex]::Escape($_) })
             if ($matchingKeywords.Count -gt 0) {
                 $matchedFiles += $file
             }

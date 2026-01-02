@@ -80,7 +80,7 @@ function Invoke-SerenaSearch {
 
     .DESCRIPTION
         Searches .serena/memories/ for files matching query keywords.
-        Scoring: filename matches weighted higher than directory matches.
+        Scoring: based on percentage of query keywords matching in filename.
 
     .PARAMETER Query
         Search query string.
@@ -92,7 +92,7 @@ function Invoke-SerenaSearch {
         Maximum results to return.
 
     .OUTPUTS
-        Array of [PSCustomObject] with: Name, Content, Source, Score, Path
+        Array of [PSCustomObject] with: Name, Content, Source, Score, Path, Hash
     #>
     [CmdletBinding()]
     [OutputType([PSCustomObject[]])]
@@ -123,7 +123,13 @@ function Invoke-SerenaSearch {
     }
 
     # Get all memory files
-    $files = @(Get-ChildItem -Path $MemoryPath -Filter "*.md" -ErrorAction SilentlyContinue)
+    try {
+        $files = @(Get-ChildItem -Path $MemoryPath -Filter "*.md" -ErrorAction Stop)
+    }
+    catch {
+        Write-Warning "Failed to enumerate memory files in '$MemoryPath': $($_.Exception.Message)"
+        return @()
+    }
     Write-Verbose "Found $($files.Count) memory files"
 
     # Score each file by keyword matches
@@ -136,7 +142,13 @@ function Invoke-SerenaSearch {
             $score = [math]::Round(($matchingKeywords.Count / $keywords.Count) * 100, 2)
 
             # Read content for return
-            $content = Get-Content -Path $file.FullName -Raw -ErrorAction SilentlyContinue
+            try {
+                $content = Get-Content -Path $file.FullName -Raw -ErrorAction Stop
+            }
+            catch {
+                Write-Warning "Failed to read memory file '$($file.FullName)': $($_.Exception.Message)"
+                continue
+            }
 
             $results += [PSCustomObject]@{
                 Name    = $file.BaseName
@@ -162,7 +174,8 @@ function Invoke-ForgetfulSearch {
         Performs semantic search via Forgetful MCP HTTP endpoint.
 
     .DESCRIPTION
-        Uses JSON-RPC 2.0 protocol to call Forgetful's memory_search tool.
+        Uses JSON-RPC 2.0 protocol via MCP (Model Context Protocol) tool invocation
+        to call Forgetful's memory_search tool.
         Requires Forgetful MCP server running on configured port.
 
     .PARAMETER Query
@@ -175,7 +188,7 @@ function Invoke-ForgetfulSearch {
         Maximum results to return.
 
     .OUTPUTS
-        Array of [PSCustomObject] with: Id, Title, Content, Source, Score
+        Array of [PSCustomObject] with: Id, Name, Content, Source, Score, Hash
     #>
     [CmdletBinding()]
     [OutputType([PSCustomObject[]])]
@@ -234,14 +247,14 @@ function Invoke-ForgetfulSearch {
                         }
                     }
                     catch {
-                        Write-Verbose "Could not parse Forgetful response: $_"
+                        Write-Warning "Forgetful returned unparseable response: $($_.Exception.Message)"
                     }
                 }
             }
         }
     }
     catch {
-        Write-Verbose "Forgetful search failed: $_"
+        Write-Warning "Forgetful search unavailable: $($_.Exception.Message)"
         return @()
     }
 
@@ -350,16 +363,24 @@ function Test-ForgetfulAvailable {
 
     # Perform TCP check
     $available = $false
+    $tcpClient = $null
     try {
         $tcpClient = New-Object System.Net.Sockets.TcpClient
         $connectTask = $tcpClient.ConnectAsync("localhost", $Port)
         if ($connectTask.Wait($script:Config.ForgetfulTimeout) -and $tcpClient.Connected) {
             $available = $true
         }
-        $tcpClient.Close()
+    }
+    catch [System.Net.Sockets.SocketException] {
+        Write-Debug "Forgetful not listening on port $Port"
     }
     catch {
-        Write-Verbose "Forgetful health check failed: $_"
+        Write-Warning "Unexpected error checking Forgetful availability: $($_.Exception.Message)"
+    }
+    finally {
+        if ($tcpClient) {
+            $tcpClient.Close()
+        }
     }
 
     # Update cache

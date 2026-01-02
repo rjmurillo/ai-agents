@@ -21,8 +21,8 @@ BeforeAll {
     Import-Module $modulePath -Force
 
     # Get the actual paths the module uses
-    $script:EpisodesPath = Join-Path $PSScriptRoot ".." ".agents" "episodes"
-    $script:CausalityPath = Join-Path $PSScriptRoot ".." ".agents" "causality"
+    $script:EpisodesPath = Join-Path $PSScriptRoot ".." ".agents" "memory" "episodes"
+    $script:CausalityPath = Join-Path $PSScriptRoot ".." ".agents" "memory" "causality"
     $script:CausalGraphFile = Join-Path $script:CausalityPath "causal-graph.json"
 
     # Backup original causal graph if exists
