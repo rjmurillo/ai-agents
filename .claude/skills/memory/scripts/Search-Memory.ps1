@@ -59,7 +59,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # Import the Memory Router module
-$ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." "scripts" "MemoryRouter.psm1"
+$ModulePath = Join-Path $PSScriptRoot "MemoryRouter.psm1"
 if (-not (Test-Path $ModulePath)) {
     Write-Error "MemoryRouter module not found at: $ModulePath"
     exit 1
