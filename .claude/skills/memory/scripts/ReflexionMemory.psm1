@@ -28,9 +28,71 @@ $script:EpisodesPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".agents" "me
 $script:CausalityPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".agents" "memory" "causality"
 $script:CausalGraphFile = Join-Path $script:CausalityPath "causal-graph.json"
 
+# JSON Schema paths (ADR-038)
+$script:SchemasPath = Join-Path $PSScriptRoot ".." "resources" "schemas"
+$script:EpisodeSchemaFile = Join-Path $script:SchemasPath "episode.schema.json"
+$script:CausalGraphSchemaFile = Join-Path $script:SchemasPath "causal-graph.schema.json"
+
 #endregion
 
 #region Private Functions
+
+function Test-SchemaValid {
+    <#
+    .SYNOPSIS
+        Validates JSON data against a JSON Schema.
+
+    .DESCRIPTION
+        Uses PowerShell 7's Test-Json cmdlet to validate data against JSON Schema.
+        Throws a detailed validation error if the data doesn't conform to the schema.
+
+    .PARAMETER Data
+        The data (hashtable or PSCustomObject) to validate.
+
+    .PARAMETER SchemaFile
+        Path to the JSON Schema file.
+
+    .PARAMETER DataType
+        Human-readable name of the data type for error messages (e.g., "episode", "causal graph").
+
+    .OUTPUTS
+        None. Throws [System.ArgumentException] on validation failure.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        $Data,
+
+        [Parameter(Mandatory)]
+        [string]$SchemaFile,
+
+        [Parameter(Mandatory)]
+        [string]$DataType
+    )
+
+    # Check if schema file exists
+    if (-not (Test-Path $SchemaFile)) {
+        Write-Warning "Schema file not found: $SchemaFile. Skipping validation."
+        return
+    }
+
+    # Convert data to JSON for validation
+    $json = $Data | ConvertTo-Json -Depth 10 -ErrorAction Stop
+
+    # Validate against schema
+    $result = Test-Json -Json $json -SchemaFile $SchemaFile -ErrorAction SilentlyContinue
+
+    if (-not $result) {
+        # Get detailed error by parsing the schema validation
+        try {
+            Test-Json -Json $json -SchemaFile $SchemaFile -ErrorAction Stop | Out-Null
+        }
+        catch {
+            $errorMessage = "Invalid $DataType - JSON Schema validation failed: $($_.Exception.Message)"
+            throw [System.ArgumentException]::new($errorMessage, $_.Exception)
+        }
+    }
+}
 
 function Get-CausalGraph {
     <#
@@ -81,11 +143,15 @@ function Save-CausalGraph {
         Saves the causal graph to disk.
 
     .DESCRIPTION
-        Saves the causal graph to disk. Throws on failure to prevent silent data loss.
+        Saves the causal graph to disk. Validates against JSON Schema before writing.
+        Throws on validation failure or I/O error to prevent silent data loss.
         Callers should handle errors appropriately.
 
     .PARAMETER Graph
         The causal graph hashtable to save.
+
+    .PARAMETER SkipValidation
+        Skip JSON Schema validation (not recommended, use only in tests).
 
     .OUTPUTS
         None. Throws on failure.
@@ -93,10 +159,17 @@ function Save-CausalGraph {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [hashtable]$Graph
+        [hashtable]$Graph,
+
+        [switch]$SkipValidation
     )
 
     $Graph.updated = (Get-Date).ToString("o")
+
+    # Validate against JSON Schema before writing (ADR-038)
+    if (-not $SkipValidation) {
+        Test-SchemaValid -Data $Graph -SchemaFile $script:CausalGraphSchemaFile -DataType "causal graph"
+    }
 
     # Ensure directory exists
     $directory = Split-Path $script:CausalGraphFile -Parent
@@ -312,6 +385,10 @@ function New-Episode {
     .SYNOPSIS
         Creates a new episode from structured data.
 
+    .DESCRIPTION
+        Creates a new episode and writes it to disk. Validates against JSON Schema
+        before writing to ensure data integrity (ADR-038).
+
     .PARAMETER SessionId
         The source session identifier.
 
@@ -332,6 +409,9 @@ function New-Episode {
 
     .PARAMETER Metrics
         Metrics hashtable.
+
+    .PARAMETER SkipValidation
+        Skip JSON Schema validation (not recommended, use only in tests).
 
     .OUTPUTS
         Hashtable. Episode object with id, session, timestamp, outcome, task, decisions, events, metrics, lessons.
@@ -358,7 +438,9 @@ function New-Episode {
 
         [array]$Lessons = @(),
 
-        [hashtable]$Metrics = @{}
+        [hashtable]$Metrics = @{},
+
+        [switch]$SkipValidation
     )
 
     $episode = @{
@@ -371,6 +453,11 @@ function New-Episode {
         events    = $Events
         metrics   = $Metrics
         lessons   = $Lessons
+    }
+
+    # Validate against JSON Schema before writing (ADR-038)
+    if (-not $SkipValidation) {
+        Test-SchemaValid -Data $episode -SchemaFile $script:EpisodeSchemaFile -DataType "episode"
     }
 
     # Ensure directory exists
@@ -473,11 +560,15 @@ function Add-CausalNode {
     }
 
     # Create new node
+    # Note: Must define episodes array outside hashtable to avoid PowerShell null-coalescing bug
+    # PowerShell ternary with empty array returns $null, so use explicit assignment
+    $nodeEpisodes = [string[]]@()
+    if ($EpisodeId) { $nodeEpisodes = @($EpisodeId) }
     $node = @{
         id           = Get-NextNodeId -Graph $graph
         type         = $Type
         label        = $Label
-        episodes     = if ($EpisodeId) { @($EpisodeId) } else { @() }
+        episodes     = $nodeEpisodes
         frequency    = 1
         success_rate = 1.0
     }

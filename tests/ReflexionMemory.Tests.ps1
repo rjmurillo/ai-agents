@@ -79,13 +79,25 @@ Describe "Episode Functions" {
 
         It "Creates episode with decisions and events" {
             $decisions = @(
-                @{ id = "d001"; type = "design"; chosen = "Use pattern A"; outcome = "success" }
+                @{
+                    id        = "d001"
+                    timestamp = (Get-Date).ToString("o")
+                    type      = "design"
+                    context   = "Choosing design pattern"
+                    chosen    = "Use pattern A"
+                    outcome   = "success"
+                }
             )
             $events = @(
-                @{ id = "e001"; type = "commit"; content = "Initial commit" }
+                @{
+                    id        = "e001"
+                    timestamp = (Get-Date).ToString("o")
+                    type      = "commit"
+                    content   = "Initial commit"
+                }
             )
 
-            $episode = New-Episode -SessionId "test-session" -Task "Test" -Outcome "success" -Decisions $decisions -Events $events
+            $episode = New-Episode -SessionId "2026-01-01-test-002" -Task "Test" -Outcome "success" -Decisions $decisions -Events $events
 
             $episode.decisions.Count | Should -Be 1
             $episode.events.Count | Should -Be 1
@@ -94,7 +106,7 @@ Describe "Episode Functions" {
         It "Creates episode with lessons" {
             $lessons = @("Lesson 1", "Lesson 2")
 
-            $episode = New-Episode -SessionId "test-session" -Task "Test" -Outcome "success" -Lessons $lessons
+            $episode = New-Episode -SessionId "2026-01-01-test-003" -Task "Test" -Outcome "success" -Lessons $lessons
 
             $episode.lessons.Count | Should -Be 2
             $episode.lessons[0] | Should -Be "Lesson 1"
@@ -107,7 +119,7 @@ Describe "Episode Functions" {
                 errors           = 1
             }
 
-            $episode = New-Episode -SessionId "test-session" -Task "Test" -Outcome "partial" -Metrics $metrics
+            $episode = New-Episode -SessionId "2026-01-01-test-004" -Task "Test" -Outcome "partial" -Metrics $metrics
 
             $episode.metrics.duration_minutes | Should -Be 30
             $episode.metrics.commits | Should -Be 5
@@ -126,9 +138,9 @@ Describe "Episode Functions" {
 
         It "Retrieves existing episode" {
             # Create episode first
-            New-Episode -SessionId "get-test-session" -Task "Test retrieval" -Outcome "success"
+            New-Episode -SessionId "2026-01-01-test-005" -Task "Test retrieval" -Outcome "success"
 
-            $result = Get-Episode -SessionId "get-test-session"
+            $result = Get-Episode -SessionId "2026-01-01-test-005"
 
             $result | Should -Not -BeNullOrEmpty
             $result.task | Should -Be "Test retrieval"
@@ -137,10 +149,10 @@ Describe "Episode Functions" {
 
     Describe "Get-Episodes" {
         BeforeEach {
-            # Create test episodes
-            New-Episode -SessionId "filter-test-1" -Task "Task 1" -Outcome "success"
-            New-Episode -SessionId "filter-test-2" -Task "Task 2" -Outcome "failure"
-            New-Episode -SessionId "filter-test-3" -Task "Task 3" -Outcome "partial"
+            # Create test episodes with schema-compliant session IDs
+            New-Episode -SessionId "2026-01-01-filter-001" -Task "Task 1" -Outcome "success"
+            New-Episode -SessionId "2026-01-01-filter-002" -Task "Task 2" -Outcome "failure"
+            New-Episode -SessionId "2026-01-01-filter-003" -Task "Task 3" -Outcome "partial"
         }
 
         It "Returns all episodes without filter" {
@@ -180,13 +192,27 @@ Describe "Episode Functions" {
 
         It "Returns decisions sorted by timestamp" {
             $decisions = @(
-                @{ id = "d002"; timestamp = "2026-01-01T10:00:00Z"; type = "test"; chosen = "Second"; outcome = "success" }
-                @{ id = "d001"; timestamp = "2026-01-01T09:00:00Z"; type = "design"; chosen = "First"; outcome = "success" }
+                @{
+                    id        = "d002"
+                    timestamp = "2026-01-01T10:00:00Z"
+                    type      = "test"
+                    context   = "Testing second"
+                    chosen    = "Second"
+                    outcome   = "success"
+                }
+                @{
+                    id        = "d001"
+                    timestamp = "2026-01-01T09:00:00Z"
+                    type      = "design"
+                    context   = "Designing first"
+                    chosen    = "First"
+                    outcome   = "success"
+                }
             )
 
-            New-Episode -SessionId "sequence-test" -Task "Test" -Outcome "success" -Decisions $decisions
+            New-Episode -SessionId "2026-01-01-sequence-001" -Task "Test" -Outcome "success" -Decisions $decisions
 
-            $result = Get-DecisionSequence -EpisodeId "episode-sequence-test"
+            $result = Get-DecisionSequence -EpisodeId "episode-2026-01-01-sequence-001"
 
             $result.Count | Should -Be 2
         }

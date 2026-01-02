@@ -8,8 +8,8 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^episode-\\d{4}-\\d{2}-\\d{2}-\\d+$",
-      "description": "Unique episode identifier"
+      "pattern": "^episode-.+$",
+      "description": "Unique episode identifier (format: episode-{session-id})"
     },
     "session": {
       "type": "string",
