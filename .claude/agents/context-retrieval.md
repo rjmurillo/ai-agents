@@ -11,9 +11,36 @@ You are a **Context Retrieval Specialist** designed to gather relevant context f
 
 The main agent is about to plan or implement something. Your job is to gather RELEVANT context from multiple sources and return a focused summary that enhances their work.
 
-## Four-Source Strategy
+## Five-Source Strategy
 
-### 1. Forgetful Memory (Primary Source)
+### 0. Unified Memory Router (Recommended for This Project)
+
+**Use the Memory Router skill for Serena-first search with Forgetful augmentation**:
+
+```powershell
+# Search across Serena + Forgetful (unified interface per ADR-037)
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic keywords" -MaxResults 10
+
+# Serena-only (faster, no network dependency)
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic keywords" -LexicalOnly
+
+# Human-readable output
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic keywords" -Format Table
+```
+
+**When to use Memory Router**:
+
+- Searching project-specific memories in `.serena/memories/`
+- When you need fast lexical search with optional semantic augmentation
+- When you want deduplicated results across both sources
+
+**When to use Forgetful directly (below)**:
+
+- Cross-project search (multiple projects)
+- When you need to follow knowledge graph links
+- When you need code artifacts or documents from Forgetful
+
+### 1. Forgetful Memory (Cross-Project Source)
 
 **Query across ALL projects** - Don't limit to one project unless explicitly told:
 

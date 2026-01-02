@@ -110,12 +110,27 @@ Skipped: Forgetful integration test (requires specific MCP response format)
 
 ### Commits
 
-- `feat(memory): implement MemoryRouter module (M-003, ADR-037)`
+- `59cabcd` - `feat(memory): implement MemoryRouter module (M-003, ADR-037)`
+
+---
+
+### Phase 5: Agent Workflow Integration
+
+Integrated MemoryRouter with agent workflows:
+
+| Artifact | Description |
+|----------|-------------|
+| `.claude/skills/memory/scripts/Search-Memory.ps1` | Agent-facing skill script |
+| `tests/Search-Memory.Skill.Tests.ps1` | 13 integration tests |
+| `context-retrieval.md` | Added Memory Router as Source 0 |
+| `memory.md` | Added Memory Router to tools |
+
+**Test Results**: 13 passed, 0 failed
 
 ---
 
 ## Next Steps
 
-1. Create follow-up issue for performance optimization (<20ms target)
-2. Continue with Phase 2A remaining tasks
-3. Integration with agent workflows
+1. ~~Create follow-up issue for performance optimization (<20ms target)~~ Done: #734
+2. ~~Integration with agent workflows~~ Done: Phase 5
+3. Continue with Phase 2A remaining tasks (M-004 Reflexion, M-006/M-007 Neural Patterns)
