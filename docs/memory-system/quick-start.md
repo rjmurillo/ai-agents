@@ -10,7 +10,7 @@ This guide provides common usage patterns for the ai-agents memory system (v0.2.
 
 ```powershell
 # Import the Memory Router
-Import-Module scripts/MemoryRouter.psm1
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
 
 # Search for relevant knowledge before making decisions
 $results = Search-Memory -Query "PowerShell array handling" -MaxResults 5
@@ -32,7 +32,7 @@ foreach ($result in $results) {
 $arrayPatterns = Search-Memory -Query "PowerShell arrays" -MaxResults 5
 
 # 2. Review past failures in similar scenarios
-Import-Module scripts/ReflexionMemory.psm1
+Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
 $pastFailures = Get-Episodes -Outcome "failure" | Where-Object {
     $_.task -match "PowerShell" -or $_.task -match "array"
 }
@@ -48,7 +48,7 @@ $patterns = Get-Patterns -MinSuccessRate 0.7 -MinOccurrences 2
 
 ```powershell
 # Before implementing a solution, check for known anti-patterns
-Import-Module scripts/ReflexionMemory.psm1
+Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
 
 $antiPatterns = Get-AntiPatterns -MaxSuccessRate 0.3
 
@@ -79,22 +79,25 @@ pwsh .claude/skills/memory/scripts/Search-Memory.ps1 \
 ### Check System Status
 
 ```bash
+# Run comprehensive health check (recommended)
+pwsh .claude/skills/memory/scripts/Test-MemoryHealth.ps1 -Format Table
+
 # Memory Router status
-pwsh -c "Import-Module scripts/MemoryRouter.psm1; Get-MemoryRouterStatus | ConvertTo-Json"
+pwsh -c "Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1; Get-MemoryRouterStatus | ConvertTo-Json"
 
 # Reflexion Memory status
-pwsh -c "Import-Module scripts/ReflexionMemory.psm1; Get-ReflexionMemoryStatus | ConvertTo-Json"
+pwsh -c "Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1; Get-ReflexionMemoryStatus | ConvertTo-Json"
 ```
 
 ### Extract Episode from Session
 
 ```bash
 # After completing a session
-pwsh scripts/Extract-SessionEpisode.ps1 \
+pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 \
     -SessionLogPath ".agents/sessions/2026-01-01-session-130.md"
 
 # Update causal graph
-pwsh scripts/Update-CausalGraph.ps1
+pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
 ```
 
 ## Common Patterns
@@ -103,8 +106,8 @@ pwsh scripts/Update-CausalGraph.ps1
 
 ```powershell
 # Import both modules
-Import-Module scripts/MemoryRouter.psm1
-Import-Module scripts/ReflexionMemory.psm1
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
+Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
 
 # Step 1: Search for relevant knowledge
 $knowledge = Search-Memory -Query "topic" -MaxResults 5
@@ -126,7 +129,7 @@ $pastAttempts = Get-Episodes | Where-Object { $_.task -match "topic" }
 ### Pattern 2: Failure Analysis
 
 ```powershell
-Import-Module scripts/ReflexionMemory.psm1
+Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
 
 # Get recent failures
 $failures = Get-Episodes -Outcome "failure" -Since (Get-Date).AddDays(-30)
@@ -164,7 +167,7 @@ foreach ($failure in $failures) {
 ### Pattern 3: Pattern Library Maintenance
 
 ```powershell
-Import-Module scripts/ReflexionMemory.psm1
+Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
 
 # Get all patterns
 $allPatterns = Get-Patterns
@@ -191,7 +194,7 @@ foreach ($pattern in $lowSuccess) {
 ### Pattern 4: Causal Tracing
 
 ```powershell
-Import-Module scripts/ReflexionMemory.psm1
+Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
 
 # Find causal path from decision to outcome
 $path = Get-CausalPath `
@@ -225,13 +228,13 @@ else {
 $sessionId = "2026-01-01-session-130"
 $sessionLog = ".agents/sessions/$sessionId.md"
 
-pwsh scripts/Extract-SessionEpisode.ps1 -SessionLogPath $sessionLog
+pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath $sessionLog
 
 # 2. Update causal graph
-pwsh scripts/Update-CausalGraph.ps1 -EpisodePath ".agents/episodes/episode-$sessionId.json"
+pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1 -EpisodePath ".agents/memory/episodes/episode-$sessionId.json"
 
 # 3. Verify extraction
-Import-Module scripts/ReflexionMemory.psm1
+Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
 $episode = Get-Episode -SessionId $sessionId
 
 Write-Host "Episode verified:"
@@ -256,14 +259,14 @@ Write-Host "  Patterns: $($status.CausalGraph.Patterns)"
 # Required step in SESSION-PROTOCOL.md
 
 # 1. Read usage-mandatory memory
-Import-Module scripts/MemoryRouter.psm1
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
 $mandatory = Search-Memory -Query "usage-mandatory" -LexicalOnly
 
 # 2. Search for relevant project memories
 $projectContext = Search-Memory -Query "project phase 2A" -MaxResults 10
 
 # 3. Review recent episodes
-Import-Module scripts/ReflexionMemory.psm1
+Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
 $recentEpisodes = Get-Episodes -Since (Get-Date).AddDays(-7) -MaxResults 5
 
 # Now proceed with session work...
@@ -275,14 +278,14 @@ $recentEpisodes = Get-Episodes -Since (Get-Date).AddDays(-7) -MaxResults 5
 # Required step in SESSION-PROTOCOL.md
 
 # 1. Extract episode
-pwsh scripts/Extract-SessionEpisode.ps1 \
+pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 \
     -SessionLogPath ".agents/sessions/$(Get-Date -Format 'yyyy-MM-dd')-session-*.md"
 
 # 2. Update causal graph
-pwsh scripts/Update-CausalGraph.ps1
+pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
 
 # 3. Commit changes (including episodes and causality)
-git add .agents/episodes/ .agents/causality/
+git add .agents/memory/episodes/ .agents/memory/causality/
 git commit -m "session: Extract episode and update causal graph"
 ```
 
@@ -360,14 +363,14 @@ $results = Search-Memory -Query "PowerShell" -MaxResults 20
 
 ```powershell
 # Check if episode file exists
-$episodePath = ".agents/episodes/episode-2026-01-01-session-126.json"
+$episodePath = ".agents/memory/episodes/episode-2026-01-01-session-126.json"
 if (-not (Test-Path $episodePath)) {
     Write-Warning "Episode not extracted yet"
 
     # Extract from session log
     $sessionLog = ".agents/sessions/2026-01-01-session-126.md"
     if (Test-Path $sessionLog) {
-        pwsh scripts/Extract-SessionEpisode.ps1 -SessionLogPath $sessionLog
+        pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath $sessionLog
     }
 }
 ```
@@ -376,7 +379,7 @@ if (-not (Test-Path $episodePath)) {
 
 ```powershell
 # Check Forgetful health
-Import-Module scripts/MemoryRouter.psm1
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
 
 $available = Test-ForgetfulAvailable -Force
 

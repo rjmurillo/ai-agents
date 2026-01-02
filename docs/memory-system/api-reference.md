@@ -6,8 +6,8 @@ Complete reference for all public functions in the Phase 2A Memory System (v0.2.
 
 | Module | Purpose | Location |
 |--------|---------|----------|
-| [MemoryRouter](#memoryrouter-module) | Unified memory search (Tier 1) | scripts/MemoryRouter.psm1 |
-| [ReflexionMemory](#reflexionmemory-module) | Episodes and causality (Tiers 2 & 3) | scripts/ReflexionMemory.psm1 |
+| [MemoryRouter](#memoryrouter-module) | Unified memory search (Tier 1) | .claude/skills/memory/scripts/MemoryRouter.psm1 |
+| [ReflexionMemory](#reflexionmemory-module) | Episodes and causality (Tiers 2 & 3) | .claude/skills/memory/scripts/ReflexionMemory.psm1 |
 
 ## MemoryRouter Module
 
@@ -564,7 +564,7 @@ Extracts episode data from session logs.
 **Syntax**:
 
 ```powershell
-pwsh scripts/Extract-SessionEpisode.ps1
+pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1
     -SessionLogPath <String>
     [-OutputPath <String>]
     [-Force]
@@ -586,7 +586,7 @@ pwsh scripts/Extract-SessionEpisode.ps1
 **Example**:
 
 ```bash
-pwsh scripts/Extract-SessionEpisode.ps1 \
+pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 \
     -SessionLogPath ".agents/sessions/2026-01-01-session-126.md"
 ```
 
@@ -599,7 +599,7 @@ Updates the causal graph from episode data.
 **Syntax**:
 
 ```powershell
-pwsh scripts/Update-CausalGraph.ps1
+pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
     [-EpisodePath <String>]
     [-Since <DateTime>]
     [-DryRun]
@@ -626,7 +626,7 @@ pwsh scripts/Update-CausalGraph.ps1
 **Example**:
 
 ```bash
-pwsh scripts/Update-CausalGraph.ps1 -Since (Get-Date).AddDays(-7)
+pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1 -Since (Get-Date).AddDays(-7)
 ```
 
 ---

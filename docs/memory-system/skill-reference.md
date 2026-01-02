@@ -133,7 +133,12 @@ Output format for results.
   "Count": 3,
   "Source": "Unified",
   "Results": [...],
-  "Diagnostic": {...}
+  "Diagnostic": {
+    "Serena": { "Available": true, "Path": ".serena/memories" },
+    "Forgetful": { "Available": true, "Endpoint": "http://localhost:8020/mcp" },
+    "Cache": { "AgeSeconds": 5.2, "TTLSeconds": 30 },
+    "Configuration": {...}
+  }
 }
 ```
 
@@ -165,11 +170,24 @@ array-handling          Forgetful 0.85  Common array gotchas include...
     }
   ],
   "Diagnostic": {
-    "SerenaAvailable": true,
-    "ForgetfulAvailable": true,
-    "SerenaPath": "/path/to/.serena/memories",
-    "SerenaMemoryCount": 460,
-    "ForgetfulUrl": "http://localhost:8020"
+    "Serena": {
+      "Available": true,
+      "Path": ".serena/memories"
+    },
+    "Forgetful": {
+      "Available": true,
+      "Endpoint": "http://localhost:8020/mcp"
+    },
+    "Cache": {
+      "AgeSeconds": 5.2,
+      "TTLSeconds": 30
+    },
+    "Configuration": {
+      "SerenaPath": ".serena/memories",
+      "ForgetfulPort": 8020,
+      "ForgetfulTimeout": 500,
+      "MaxResults": 10
+    }
   }
 }
 ```
@@ -368,6 +386,23 @@ if ($LASTEXITCODE -ne 0) {
 }
 ```
 
+## Additional Scripts
+
+The memory skill includes additional scripts beyond Search-Memory.ps1. See the full skill documentation for details:
+
+| Script | Purpose | Documentation |
+|--------|---------|---------------|
+| Test-MemoryHealth.ps1 | System health check | [SKILL.md](.claude/skills/memory/SKILL.md) |
+| Extract-SessionEpisode.ps1 | Episode extraction | [SKILL.md](.claude/skills/memory/SKILL.md) |
+| Update-CausalGraph.ps1 | Causal graph updates | [SKILL.md](.claude/skills/memory/SKILL.md) |
+| Measure-MemoryPerformance.ps1 | Benchmarking | [SKILL.md](.claude/skills/memory/SKILL.md) |
+
+**Module Functions** (ReflexionMemory.psm1):
+
+- `Get-Episode`, `Get-Episodes` - Query episodic memory
+- `Get-CausalPath` - Trace causal relationships
+- `Get-Patterns`, `Get-AntiPatterns` - Pattern discovery
+
 ## Future Skills
 
 The following skills are planned for future releases:
@@ -375,14 +410,6 @@ The following skills are planned for future releases:
 ### Save-Memory.ps1 (Planned)
 
 Store new memories to Serena with optional Forgetful sync.
-
-### Query-Episodes.ps1 (Planned)
-
-Search episodic memory for past session decisions.
-
-### Trace-Causality.ps1 (Planned)
-
-Find causal paths between decisions and outcomes.
 
 ## Related Documentation
 
