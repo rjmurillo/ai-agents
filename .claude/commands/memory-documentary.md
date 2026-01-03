@@ -1,5 +1,9 @@
 # Memory Documentary
 
+> **Note**: This command uses extended thinking (`ultrathink`) for evidence-based analysis.
+
+ultrathink
+
 Generate evidence-based documentary reports by searching across all memory systems.
 
 ## Usage

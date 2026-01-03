@@ -44,6 +44,43 @@ npx tsx scripts/export-memories.ts "" .claude-mem/memories/2026-01-03-project.js
 
 **Note**: The `export-memories.ts` and `import-memories.ts` scripts are wrapper scripts located in the project's `scripts/` directory. They forward to the installed claude-mem plugin scripts at `~/.claude/plugins/marketplaces/thedotmack/scripts/`.
 
+## Full Backup (Institutional Knowledge Export)
+
+Export complete claude-mem database for disaster recovery or onboarding:
+
+```bash
+# RECOMMENDED: Direct SQLite export (100% complete)
+pwsh .claude-mem/scripts/Export-ClaudeMemDirect.ps1
+
+# Single project
+pwsh .claude-mem/scripts/Export-ClaudeMemDirect.ps1 -Project "ai-agents"
+```
+
+**Output**: `.claude-mem/memories/direct-backup-YYYY-MM-DD-HHMM.json` or `direct-backup-YYYY-MM-DD-HHMM-{project}.json`
+
+**Why Direct Export:**
+
+- Exports 100% of data (3500+ observations vs 71 with FTS export)
+- Includes `sdk_session_id` for proper duplicate detection
+- Fixes NULL titles that break import duplicate detection
+- Automatic security review (BLOCKING)
+
+**Requirements**: `sqlite3` command-line tool (installation instructions provided if missing)
+
+**Use Cases:**
+
+- Periodic disaster recovery snapshots
+- Fresh instance setup (portable institutional knowledge)
+- Team onboarding with complete project context
+- Migration between environments
+
+**Restore:**
+
+```bash
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+```
+
+**DEPRECATED**: `Export-ClaudeMemFullBackup.ps1` uses FTS query which only exports ~2% of data. Use `Export-ClaudeMemDirect.ps1` instead.
 ## Import Workflow (Session Start or Onboarding)
 
 ### Automatic Import (Session Start)

@@ -6,6 +6,10 @@ description: Respond to PR review comments for the specified pull request(s)
 
 # PR Review Command
 
+> **Note**: This command uses extended thinking (`ultrathink`) for deep PR analysis.
+
+ultrathink
+
 Respond to PR review comments for the specified pull request(s): $ARGUMENTS
 
 ## Context
