@@ -33,6 +33,18 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Validate input to prevent path traversal (CWE-22)
+# WHY: User-controlled $Name and $Namespace are used in file paths
+# SECURITY: Reject any characters that could enable directory traversal
+if ($Name -notmatch '^[a-zA-Z0-9_-]+$') {
+    Write-Error "Name must contain only alphanumeric characters, hyphens, or underscores"
+    exit 1
+}
+if ($Namespace -and $Namespace -notmatch '^[a-zA-Z0-9_-]+$') {
+    Write-Error "Namespace must contain only alphanumeric characters, hyphens, or underscores"
+    exit 1
+}
+
 # Determine file path
 $baseDir = ".claude/commands"
 $filePath = if ($Namespace) {
@@ -88,8 +100,3 @@ Write-Host "  1. Edit frontmatter (description, argument-hint, allowed-tools)"
 Write-Host "  2. Write prompt body"
 Write-Host "  3. Run: pwsh .claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.ps1 -Path $filePath"
 Write-Host "  4. Test: /$Name [arguments]"
-
-# Open in editor (if EDITOR env var set)
-if ($env:EDITOR) {
-    & $env:EDITOR $filePath
-}
