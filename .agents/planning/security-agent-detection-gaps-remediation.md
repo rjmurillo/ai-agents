@@ -305,6 +305,14 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 
 **Flags**: needs TW rationale, needs conformance check
 
+**Technical Writer Guidance** (add these WHY comments to code examples):
+
+**Command Injection WHY**: PowerShell passes unquoted arguments directly to shell → Shell interprets metacharacters (;|&><) as command separators, not literals → Attack: `$Query = "; rm -rf /"` executes TWO commands → Solution: Quotes force literal string interpretation, metacharacters become data not operators
+
+**Path Traversal WHY**: StartsWith() performs string comparison on raw input → ".." sequences resolve AFTER comparison → "..\..\etc\passwd" passes StartsWith check → File system THEN resolves ".." to parent directory → Solution: GetFullPath() resolves ".." sequences BEFORE comparison, validates resolved path
+
+**Code Execution WHY**: Invoke-Expression treats string as PowerShell code → No input sanitization or command whitelisting → User input passed directly to interpreter → Solution: Hashtable restricts to predefined commands, user selects KEY not syntax, script block execution isolates input from interpreter
+
 **Requirements**:
 - Add "PowerShell Security Checklist" section with 6 subsections: Input Validation, Command Injection Prevention, Path Traversal Prevention, Secrets and Credentials, Error Handling, Code Execution
 - Each subsection has 3-5 checklist items (total 25+ items)
@@ -514,6 +522,10 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 - Updates SECURITY-REVIEW-PROTOCOL.md with immediate trigger documentation ("False negative detected -> Block PR -> Run RCA -> Update agent -> Re-review -> Merge decision")
 - Error handling for Forgetful MCP unavailability: graceful degradation with warning, write to local JSON fallback (`.agents/security/false-negatives.json`)
 - Error handling for Serena MCP unavailability: Fail script (BLOCKING), do not proceed with partial memory storage
+- Error handling for GitHub API rate limit: Exponential backoff (1s, 2s, 4s, max 3 retries), then fail with actionable error ("Rate limit exceeded. Retry after {reset_time}.")
+- Error handling for malformed SR-*.md: Validate markdown structure (YAML frontmatter, required sections), skip malformed files with warning logged to console
+- Error handling for no external review: Distinguish empty findings (no vulnerabilities found) from missing review (no PR comments), log info message "No external review found for PR #{number}"
+- `-WhatIf` mode: Simulate all write operations (Forgetful, JSON), output planned changes to console, exit code 0 (no actual writes)
 - Script parameters: `-PRNumber` (REQUIRED), `-ExternalReviewSource` (Gemini/Manual/Other), `-WhatIf`, `-NonInteractive` (for CI invocation)
 
 **Acceptance Criteria**:
@@ -573,7 +585,12 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
   - Step 4: Generate security report at `.agents/security/SR-{branch}-{timestamp}.md` with agent findings
   - Step 5: Stage security report for commit (`git add .agents/security/SR-*.md`)
   - Step 6: Validate security report exists and is non-empty before allowing commit
-  - Error handling: Pre-commit failures provide actionable error messages with file paths and violation details
+  - Error handling for missing PSScriptAnalyzer: Install via `Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser` at hook start, fail with actionable error if install fails
+  - Error handling for analyzer crashes: Wrap `Invoke-ScriptAnalyzer` in try-catch, log exception + file path, continue with remaining files, mark hook as failed if any crashes
+  - Error handling for no PowerShell files: Skip PSScriptAnalyzer step with info message, hook succeeds (no violations to check)
+  - Error handling for agent unavailable during review: Post error message to console, provide fallback instructions (manual review required)
+  - Error handling for bypass label without approval: Require `security-team-approved` label AND `skip-security-review` label in PR, fail CI if only skip label present
+  - Pre-commit failures provide actionable error messages with file paths and violation details
 - **CI VALIDATION** (verification layer):
   - CI workflow verifies SR-*.md file present in PR (detects hook bypass)
   - Fails PR if security report missing or empty
