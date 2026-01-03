@@ -1,5 +1,7 @@
 ---
-description: Save current context as an atomic memory in Forgetful
+description: Save current context as atomic memory in Forgetful with structured fields. Use when capturing learnings, decisions, or patterns for cross-session retrieval.
+argument-hint: [optional guidance for what to save]
+allowed-tools: [mcp__forgetful__*]
 ---
 
 # Save Memory
@@ -18,7 +20,7 @@ Create an atomic memory from the current conversation context.
 
 Before creating, query for related memories:
 
-```
+```javascript
 execute_forgetful_tool("query_memory", {
   "query": "<topic of new memory>",
   "query_context": "Checking for existing memories before creating new one",
@@ -65,7 +67,7 @@ Before creating, verify the memory passes the atomicity test:
 3. **Draft** a memory following atomic principles
 4. **Present** the draft with curation plan:
 
-   ```
+   ```text
    Existing memories found:
    - Memory #42: "Previous auth decision" - will be marked obsolete (superseded)
 
@@ -90,7 +92,7 @@ Before creating, verify the memory passes the atomicity test:
 6. **Report** the result including any auto-linked memories
 7. **Review auto-links** - Check if auto-linked memories are relevant:
 
-   ```
+   ```text
    Auto-linked memories:
    - #102: "Database connection pooling" - Relevant? (keep)
    - #87: "Unrelated old pattern" - Not relevant (will unlink)
@@ -100,7 +102,7 @@ Before creating, verify the memory passes the atomicity test:
 
    Use `unlink_memories` to remove irrelevant connections:
 
-   ```
+   ```javascript
    execute_forgetful_tool("unlink_memories", {
      "source_id": NEW_MEMORY_ID,
      "target_id": IRRELEVANT_MEMORY_ID
@@ -121,7 +123,7 @@ User: `/memory-save`
 
 You query existing memories, find related content, and propose:
 
-```
+```text
 Found 2 related memories:
 - #89: "Plugin strategy: single plugin" (Importance: 7) - OUTDATED by this decision
 - #45: "MCP scope hierarchy" (Importance: 8) - Related context

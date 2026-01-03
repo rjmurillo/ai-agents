@@ -1,5 +1,8 @@
 ---
-description: Deep exploration of the Forgetful knowledge graph
+description: Deep exploration of Forgetful knowledge graph with entity traversal. Use when investigating relationships between memories or building comprehensive understanding of topic clusters.
+argument-hint: <starting-query>
+allowed-tools: [mcp__forgetful__*]
+model: opus
 ---
 
 # Memory Explore
@@ -10,7 +13,7 @@ Perform deep knowledge graph traversal using a lightweight subagent.
 
 Use the Task tool to launch a subagent:
 
-```
+```python
 Task({
   subagent_type: "general-purpose",
   model: "haiku",
@@ -23,7 +26,7 @@ Task({
 
 Use this prompt, substituting the user's query:
 
-```
+```markdown
 Explore the Forgetful knowledge graph for: "{user query}"
 
 ## Exploration Strategy

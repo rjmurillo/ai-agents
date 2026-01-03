@@ -1,5 +1,7 @@
 ---
-description: List recent memories from Forgetful
+description: Use when exploring stored knowledge or verifying memory creation. Lists recent memories from Forgetful with optional project filtering.
+argument-hint: [project-name]
+allowed-tools: [mcp__forgetful__*]
 ---
 
 # List Recent Memories
@@ -25,7 +27,7 @@ Default: `{"limit": 10}`
 
 Present memories in a clean, scannable format:
 
-```
+```text
 Recent Memories (showing X of Y):
 
 1. [Title] (Importance: X, Created: date)
@@ -43,7 +45,7 @@ If the user asks for more detail on any memory, use `get_memory` to retrieve ful
 
 If filtering by project and no project_id provided, first call:
 
-```
+```javascript
 execute_forgetful_tool("list_projects", {})
 ```
 
@@ -53,7 +55,7 @@ Then let the user select or infer from context.
 
 **Basic usage:**
 
-```
+```text
 /memory-list
 ```
 
@@ -61,7 +63,7 @@ Returns last 10 memories across all projects.
 
 **With count:**
 
-```
+```text
 /memory-list 5
 ```
 
@@ -69,7 +71,7 @@ Returns last 5 memories.
 
 **With project filter:**
 
-```
+```text
 /memory-list forgetful project
 ```
 
