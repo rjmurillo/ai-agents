@@ -61,6 +61,7 @@ This plan consolidates work from:
 | #723 | Frontmatter Standardization | Phase 2 (Documentation) |
 | #724 | Programming-Advisor Graph Consultation | Phase 2B (Graph Performance) |
 | #725 | Mermaid Diagram Conversion | Phase 2 (Documentation) |
+| #739 | Workflow Orchestration Enhancement | Phase 7 (MoAI-inspired) |
 
 ---
 
@@ -93,8 +94,9 @@ This plan consolidates work from:
 | 5 | Evaluator-Optimizer | 2-3 | Phase 2, 3 | PENDING |
 | 5A | Session Automation | 2-3 | Phase 0, 2A | PENDING |
 | 6 | Integration Testing | 2-3 | All phases | PENDING |
+| 7 | Workflow Orchestration UX | 2-3 | Phase 3, 5A | PENDING |
 
-**Total Estimated Sessions**: 22-34
+**Total Estimated Sessions**: 24-37
 
 ---
 
@@ -629,6 +631,55 @@ Use "pr-review-digest" agent as the test case:
 
 ---
 
+## Phase 7: Workflow Orchestration UX (MoAI-inspired)
+
+**Goal**: Provide numbered workflow commands and tiered agent hierarchy for improved developer experience.
+
+### Background: MoAI-ADK Pattern
+
+Inspired by [modu-ai/moai-adk](https://github.com/modu-ai/moai-adk):
+
+- 27 specialized agents in 5-tier hierarchy
+- Numbered workflow commands (/moai:0-project through /moai:4-ship)
+- "Mr. Alfred" central orchestrator
+- Auto-sync documentation
+
+### Tasks
+
+| ID | Task | Complexity | Status | Linked Issue |
+|----|------|------------|--------|--------------|
+| W-001 | Create workflow commands (/0-init through /9-sync) | M | PENDING | #739 |
+| W-002 | Add tier metadata to agent frontmatter | S | PENDING | #739 |
+| W-003 | Document 4-tier agent hierarchy | M | PENDING | #739 |
+| W-004 | Integrate with Agent Orchestration MCP | L | PENDING | #221 |
+| W-005 | Implement /2-impl --parallel variant | L | PENDING | #168 |
+| W-006 | Implement /9-sync auto-documentation | M | PENDING | #739 |
+| W-007 | Create PowerShell orchestration scripts | M | PENDING | #739 |
+
+### Agent Tier Hierarchy
+
+| Tier | Role | Agents |
+|------|------|--------|
+| Expert | Strategic depth | high-level-advisor, independent-thinker, architect, roadmap |
+| Manager | Coordination | orchestrator, planner, critic |
+| Builder | Execution | implementer, qa, devops, security |
+| Integration | Support | analyst, explainer, task-generator, retrospective, memory, skillbook, context-retrieval |
+
+### Acceptance Criteria
+
+- [ ] Numbered commands guide workflow sequence
+- [ ] Agent tiers documented with escalation paths
+- [ ] /0-init integrates with Session State MCP
+- [ ] /2-impl --parallel uses Agent Orchestration MCP
+- [ ] /9-sync auto-generates session documentation
+- [ ] Workflow discovery time reduced by 50%
+
+### PRD Reference
+
+- [prd-workflow-orchestration-enhancement.md](prd-workflow-orchestration-enhancement.md)
+
+---
+
 ## Risk Register
 
 | Risk | Probability | Impact | Mitigation |
@@ -668,6 +719,8 @@ Phase 0 (Foundation) ───────────────────�
                                                   │
          Phase 5 (Evaluator) <────────────────────┤
                                                   │
+         Phase 7 (Workflow UX) <──────────────────┤
+                                                  │
                      Phase 6 (Integration) <──────┘
 ```
 
@@ -687,6 +740,8 @@ Project is complete when:
 - [ ] Session automation reduces manual protocol steps by 80%
 - [ ] Retrospective conducted with learnings persisted
 - [ ] All Epic #183 issues addressed or explicitly deferred
+- [ ] Workflow orchestration commands operational (#739)
+- [ ] Agent tier hierarchy documented and enforced
 
 ---
 
