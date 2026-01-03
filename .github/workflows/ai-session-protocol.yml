@@ -28,6 +28,7 @@ jobs:
     name: Detect Changed Sessions
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 3
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
@@ -137,12 +138,10 @@ jobs:
             -SessionPath $env:SESSION_FILE `
             -Format markdown `
             -CI
-          
+          $exitCode = $LASTEXITCODE  # Capture immediately before any other commands
+
           # Save markdown output for artifact
           $result | Out-File -FilePath "validation-result.md" -Encoding UTF8
-          
-          # Parse results for structured output
-          $exitCode = $LASTEXITCODE
           
           # Create simplified results directory
           New-Item -ItemType Directory -Force -Path "validation-results" | Out-Null
@@ -157,6 +156,7 @@ jobs:
           $result | Out-File -FilePath "validation-results/${fileName}-findings.txt" -Encoding UTF8
           
           # Count MUST failures (look for FAIL in MUST level checks)
+          # Pattern matches markdown table rows: | CheckName | MUST | FAIL |
           $mustFailCount = 0
           if ($result -match '(?m)^\|\s*\w+\s*\|\s*MUST\s*\|\s*FAIL\s*\|') {
             $mustFailCount = ([regex]::Matches($result, '(?m)^\|\s*\w+\s*\|\s*MUST\s*\|\s*FAIL\s*\|')).Count
@@ -184,6 +184,7 @@ jobs:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
     needs: [detect-changes, validate]
     if: needs.detect-changes.outputs.has_sessions == 'true'
 
