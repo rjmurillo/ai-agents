@@ -81,6 +81,7 @@ pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 ```
 
 **DEPRECATED**: `Export-ClaudeMemFullBackup.ps1` uses FTS query which only exports ~2% of data. Use `Export-ClaudeMemDirect.ps1` instead.
+
 ## Import Workflow (Session Start or Onboarding)
 
 ### Automatic Import (Session Start)
