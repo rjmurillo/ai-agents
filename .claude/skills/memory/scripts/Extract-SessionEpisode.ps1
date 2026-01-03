@@ -402,7 +402,8 @@ function Get-SessionOutcome {
         [array]$Events
     )
 
-    $status = $Metadata.status.ToLower()
+    # Null-safe status handling
+    $status = if ($Metadata.status) { $Metadata.status.ToLower() } else { "" }
 
     if ($status -match 'complete|done|success') {
         return "success"

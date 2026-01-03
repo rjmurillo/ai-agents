@@ -17,7 +17,7 @@
 
 BeforeAll {
     # Import the module under test
-    $ModulePath = Join-Path $PSScriptRoot ".." "scripts" "MemoryRouter.psm1"
+    $ModulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "memory" "scripts" "MemoryRouter.psm1"
     Import-Module $ModulePath -Force
 }
 

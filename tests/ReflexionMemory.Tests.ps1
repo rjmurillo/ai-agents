@@ -673,3 +673,192 @@ Describe "Corruption Recovery" -Tag "ErrorHandling" {
         }
     }
 }
+
+Describe "JSON Schema Validation" {
+    BeforeAll {
+        $modulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "memory" "scripts" "ReflexionMemory.psm1"
+        Import-Module $modulePath -Force
+    }
+
+    Describe "Test-SchemaValid Behavior" {
+        It "Throws FileNotFoundException when schema file is missing" {
+            $missingSchemaPath = Join-Path $TestDrive "nonexistent-schema.json"
+
+            {
+                InModuleScope ReflexionMemory -Parameters @{ SchemaPath = $missingSchemaPath } {
+                    param($SchemaPath)
+                    Test-SchemaValid -Data @{ test = "value" } -SchemaFile $SchemaPath -DataType "test data"
+                }
+            } | Should -Throw "*Required schema file not found*"
+        }
+
+        It "Throws ArgumentException for invalid JSON data" {
+            $schemaPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "memory" "resources" "schemas" "episode.schema.json"
+
+            # Invalid episode - missing required fields
+            $invalidEpisode = @{
+                id = "episode-test"
+                # Missing: session, timestamp, outcome, task, decisions, events, metrics
+            }
+
+            {
+                InModuleScope ReflexionMemory -Parameters @{ Episode = $invalidEpisode; SchemaPath = $schemaPath } {
+                    param($Episode, $SchemaPath)
+                    Test-SchemaValid -Data $Episode -SchemaFile $SchemaPath -DataType "episode"
+                }
+            } | Should -Throw "*Invalid episode*"
+        }
+    }
+
+    Describe "New-Episode Schema Validation" {
+        BeforeEach {
+            $script:EpisodesPath = InModuleScope ReflexionMemory { $script:EpisodesPath }
+            if (Test-Path $script:EpisodesPath) {
+                Get-ChildItem -Path $script:EpisodesPath -Filter "episode-schema-test-*.json" | Remove-Item -Force
+            }
+        }
+
+        It "Accepts valid episode data" {
+            $decisions = @(
+                @{
+                    id        = "d001"
+                    timestamp = (Get-Date).ToString("o")
+                    type      = "design"
+                    context   = "Testing schema validation"
+                    chosen    = "Use pattern A"
+                    outcome   = "success"
+                }
+            )
+
+            $events = @(
+                @{
+                    id        = "e001"
+                    timestamp = (Get-Date).ToString("o")
+                    type      = "milestone"
+                    content   = "Test started"
+                }
+            )
+
+            $episode = New-Episode -SessionId "schema-test-valid" -Task "Test task" -Outcome "success" `
+                -Decisions $decisions -Events $events
+
+            $episode | Should -Not -BeNull
+            $episode.id | Should -Be "episode-schema-test-valid"
+        }
+
+        It "Rejects episode with invalid decision type" {
+            $decisions = @(
+                @{
+                    id        = "d001"
+                    timestamp = (Get-Date).ToString("o")
+                    type      = "invalid-type"  # Not in enum: design, implementation, test, recovery, routing
+                    context   = "Testing"
+                    chosen    = "Something"
+                    outcome   = "success"
+                }
+            )
+
+            {
+                New-Episode -SessionId "schema-test-invalid-decision" -Task "Test" -Outcome "success" `
+                    -Decisions $decisions -Events @()
+            } | Should -Throw "*Invalid episode*"
+        }
+
+        It "Rejects episode with invalid outcome" {
+            # This is caught by ValidateSet, not schema - verifying parameter validation
+            {
+                New-Episode -SessionId "schema-test-invalid-outcome" -Task "Test" -Outcome "invalid"
+            } | Should -Throw
+        }
+
+        AfterEach {
+            if (Test-Path $script:EpisodesPath) {
+                Get-ChildItem -Path $script:EpisodesPath -Filter "episode-schema-test-*.json" | Remove-Item -Force
+            }
+        }
+    }
+
+    Describe "Save-CausalGraph Schema Validation" {
+        BeforeAll {
+            $script:CausalGraphFile = InModuleScope ReflexionMemory { $script:CausalGraphFile }
+            if (Test-Path $script:CausalGraphFile) {
+                $script:OriginalGraph = Get-Content -Path $script:CausalGraphFile -Raw
+            }
+        }
+
+        AfterAll {
+            if ($script:OriginalGraph) {
+                $script:OriginalGraph | Set-Content -Path $script:CausalGraphFile -Encoding UTF8
+            }
+        }
+
+        It "Accepts valid causal graph" {
+            $validGraph = @{
+                version  = "1.0"
+                updated  = (Get-Date).ToString("o")
+                nodes    = @()
+                edges    = @()
+                patterns = @()
+            }
+
+            {
+                InModuleScope ReflexionMemory -Parameters @{ Graph = $validGraph } {
+                    param($Graph)
+                    Save-CausalGraph -Graph $Graph
+                }
+            } | Should -Not -Throw
+        }
+
+        It "Rejects graph with invalid node ID pattern" {
+            $invalidGraph = @{
+                version  = "1.0"
+                updated  = (Get-Date).ToString("o")
+                nodes    = @(
+                    @{
+                        id         = "invalid-id"  # Should be n001, n002, etc.
+                        type       = "decision"
+                        label      = "Test node"
+                        episodes   = @()
+                        frequency  = 1
+                        success_rate = 1.0
+                    }
+                )
+                edges    = @()
+                patterns = @()
+            }
+
+            {
+                InModuleScope ReflexionMemory -Parameters @{ Graph = $invalidGraph } {
+                    param($Graph)
+                    Save-CausalGraph -Graph $Graph
+                }
+            } | Should -Throw "*Invalid causal graph*"
+        }
+
+        It "Rejects graph with invalid edge type" {
+            $invalidGraph = @{
+                version  = "1.0"
+                updated  = (Get-Date).ToString("o")
+                nodes    = @()
+                edges    = @(
+                    @{
+                        id        = "e001"
+                        source    = "n001"
+                        target    = "n002"
+                        type      = "invalid-type"  # Not in enum: causes, enables, prevents, correlates
+                        weight    = 0.5
+                        evidence  = 1
+                    }
+                )
+                patterns = @()
+            }
+
+            {
+                InModuleScope ReflexionMemory -Parameters @{ Graph = $invalidGraph } {
+                    param($Graph)
+                    Save-CausalGraph -Graph $Graph
+                }
+            } | Should -Throw "*Invalid causal graph*"
+        }
+    }
+}

@@ -70,27 +70,32 @@ function Test-SchemaValid {
         [string]$DataType
     )
 
-    # Check if schema file exists
+    # Check if schema file exists - fail loudly if missing
     if (-not (Test-Path $SchemaFile)) {
-        Write-Warning "Schema file not found: $SchemaFile. Skipping validation."
-        return
+        $errorMessage = "Required schema file not found: $SchemaFile. " +
+            "Cannot validate $DataType. Ensure schema files exist at $script:SchemasPath"
+        throw [System.IO.FileNotFoundException]::new($errorMessage)
     }
 
     # Convert data to JSON for validation
-    $json = $Data | ConvertTo-Json -Depth 10 -ErrorAction Stop
+    try {
+        $json = $Data | ConvertTo-Json -Depth 10 -ErrorAction Stop
+    }
+    catch {
+        $errorMessage = "Failed to serialize $DataType to JSON: $($_.Exception.Message)"
+        throw [System.ArgumentException]::new($errorMessage, $_.Exception)
+    }
 
-    # Validate against schema
-    $result = Test-Json -Json $json -SchemaFile $SchemaFile -ErrorAction SilentlyContinue
-
-    if (-not $result) {
-        # Get detailed error by parsing the schema validation
-        try {
-            Test-Json -Json $json -SchemaFile $SchemaFile -ErrorAction Stop | Out-Null
+    # Validate against schema - single call with proper error handling
+    try {
+        $isValid = Test-Json -Json $json -SchemaFile $SchemaFile -ErrorAction Stop
+        if (-not $isValid) {
+            throw "Data does not conform to $DataType schema"
         }
-        catch {
-            $errorMessage = "Invalid $DataType - JSON Schema validation failed: $($_.Exception.Message)"
-            throw [System.ArgumentException]::new($errorMessage, $_.Exception)
-        }
+    }
+    catch {
+        $errorMessage = "Invalid $DataType - JSON Schema validation failed: $($_.Exception.Message)"
+        throw [System.ArgumentException]::new($errorMessage, $_.Exception)
     }
 }
 
@@ -331,12 +336,23 @@ function Get-Episodes {
     )
 
     $episodes = @()
+    $skippedCount = 0
 
     if (-not (Test-Path $script:EpisodesPath)) {
         return $episodes
     }
 
-    $files = Get-ChildItem -Path $script:EpisodesPath -Filter "episode-*.json" -ErrorAction SilentlyContinue
+    try {
+        $files = Get-ChildItem -Path $script:EpisodesPath -Filter "episode-*.json" -ErrorAction Stop
+    }
+    catch [System.UnauthorizedAccessException] {
+        Write-Error "Permission denied reading episodes from '$($script:EpisodesPath)': $($_.Exception.Message)"
+        return $episodes
+    }
+    catch {
+        Write-Error "Failed to enumerate episodes: $($_.Exception.Message)"
+        return $episodes
+    }
 
     foreach ($file in $files) {
         try {
@@ -344,7 +360,8 @@ function Get-Episodes {
             $episode = $content | ConvertFrom-Json -ErrorAction Stop
         }
         catch {
-            Write-Warning "Failed to read episode file '$($file.FullName)': $($_.Exception.Message)"
+            Write-Warning "Skipping corrupted episode file '$($file.FullName)': $($_.Exception.Message)"
+            $skippedCount++
             continue
         }
 
@@ -365,7 +382,8 @@ function Get-Episodes {
                 }
             }
             catch {
-                Write-Warning "Episode $($file.FullName) has invalid timestamp, skipping: $($_.Exception.Message)"
+                Write-Warning "Episode '$($file.Name)' has invalid timestamp '$($episode.timestamp)': $($_.Exception.Message)"
+                $skippedCount++
                 continue
             }
         }
@@ -375,6 +393,10 @@ function Get-Episodes {
         if ($episodes.Count -ge $MaxResults) {
             break
         }
+    }
+
+    if ($skippedCount -gt 0) {
+        Write-Warning "Skipped $skippedCount corrupted or invalid episode file(s)"
     }
 
     return $episodes | Sort-Object -Property timestamp -Descending
@@ -466,8 +488,14 @@ function New-Episode {
     }
 
     $episodeFile = Join-Path $script:EpisodesPath "episode-$SessionId.json"
-    $json = $episode | ConvertTo-Json -Depth 10
-    Set-Content -Path $episodeFile -Value $json -Encoding UTF8
+    try {
+        $json = $episode | ConvertTo-Json -Depth 10 -ErrorAction Stop
+        Set-Content -Path $episodeFile -Value $json -Encoding UTF8 -ErrorAction Stop
+    }
+    catch {
+        $errorMessage = "Failed to save episode to '$episodeFile': $($_.Exception.Message)"
+        throw [System.IO.IOException]::new($errorMessage, $_.Exception)
+    }
 
     return $episode
 }
