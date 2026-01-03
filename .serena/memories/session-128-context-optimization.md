@@ -18,12 +18,12 @@ Aggressive cost optimization reducing opus usage from 7 agents to 1.
 | roadmap | opus | sonnet |
 | orchestrator | opus | sonnet |
 | architect | opus | sonnet |
-| security | opus | sonnet |
+| security | opus | sonnet (reverted to opus per ADR-039 debate) |
 
 ## Final Distribution
 
-- opus (1): implementer only
-- sonnet (16): orchestrator, architect, security, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap, high-level-advisor
+- opus (2): implementer, security (security reverted per ADR-039 debate)
+- sonnet (15): orchestrator, architect, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap, high-level-advisor
 - haiku (3): memory, skillbook, context-retrieval
 
 ## Update (2026-01-03)

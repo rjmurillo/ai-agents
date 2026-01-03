@@ -220,6 +220,11 @@ catch [System.IO.IOException] {
     Write-Error "Error: I/O failure: $($_.Exception.Message)"
     exit 3
 }
+catch [System.Management.Automation.CommandNotFoundException] {
+    # Missing external command (git) - external error per ADR-035
+    Write-Error "Error: External dependency not found (git): $($_.Exception.Message)"
+    exit 3
+}
 catch {
     # Logic or unexpected error per ADR-035
     Write-Error "Error detecting ADR changes: $($_.Exception.Message)"

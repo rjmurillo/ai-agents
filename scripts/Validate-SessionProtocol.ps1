@@ -101,10 +101,10 @@ function Test-SessionLogExists {
     }
 
     $fileName = Split-Path -Leaf $FilePath
-    # Pattern: YYYY-MM-DD-session-NN.md or YYYY-MM-DD-session-NN-description.md
+    # Pattern: YYYY-MM-DD-session-N.md or YYYY-MM-DD-session-N-description.md (N = any number of digits)
     if ($fileName -notmatch '^\d{4}-\d{2}-\d{2}-session-\d+(-.+)?\.md$') {
         $result.Passed = $false
-        $result.Issues += "Session log naming violation: $fileName (expected: YYYY-MM-DD-session-NN.md or YYYY-MM-DD-session-NN-description.md)"
+        $result.Issues += "Session log naming violation: $fileName (expected: YYYY-MM-DD-session-N.md or YYYY-MM-DD-session-N-description.md)"
     }
 
     return $result
