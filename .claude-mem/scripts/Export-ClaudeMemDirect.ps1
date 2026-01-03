@@ -47,6 +47,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
+    [ValidatePattern('^[a-zA-Z0-9_-]+$')]
     [string]$Project,
 
     [Parameter(Mandatory = $false)]
