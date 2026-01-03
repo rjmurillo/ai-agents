@@ -179,24 +179,49 @@ VIOLATION: Creating these files directly bypasses multi-agent validation and WIL
 
 ### Layer 2: Pre-Commit Hooks (NEW)
 
-**Purpose**: Detect ADR files staged without evidence of multi-agent review.
+**Purpose**: Shift validation left - catch violations at commit time, not CI time.
 
-**Implementation**: PowerShell pre-commit hook in `.githooks/pre-commit.d/`
+**Principle**: **WIDEST PIT OF SUCCESS** - Run identical validation to CI in pre-commit. If it passes pre-commit, it passes CI.
 
-**File**: `scripts/git-hooks/Validate-ADRCommit.ps1`
+**Implementation**: PowerShell pre-commit hook in `.githooks/pre-commit` calls centralized validation scripts.
 
-**Logic**:
+**Files**:
+- `.githooks/pre-commit` - Orchestrates all validation
+- `scripts/Validate-SessionProtocol.ps1` - Session validation (IDENTICAL to CI)
+- `scripts/git-hooks/Validate-ADRCommit.ps1` - ADR-specific validation
+
+**Logic** (`.githooks/pre-commit`):
 ```powershell
-# 1. Find staged ADR files
+#!/usr/bin/env pwsh
+
+# SHIFT LEFT: Run IDENTICAL validation to CI before allowing commit
+
+# 1. Session protocol validation (if session log staged)
+$stagedSessions = git diff --cached --name-only --diff-filter=ACM |
+    Where-Object { $_ -match '\.agents/sessions/.*\.md$' }
+
+if ($stagedSessions) {
+    foreach ($session in $stagedSessions) {
+        Write-Host "Validating session protocol: $session"
+        pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath $session
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "BLOCKED: Session protocol validation failed"
+            Write-Error "Fix violations before commit. Same check runs in CI."
+            exit 1
+        }
+    }
+}
+
+# 2. ADR debate log validation (if ADR files staged)
 $stagedADRs = git diff --cached --name-only --diff-filter=ACM |
     Where-Object { $_ -match '\.agents/architecture/ADR-\d+-.*\.md$' }
 
 if ($stagedADRs) {
     foreach ($adr in $stagedADRs) {
-        # 2. Extract ADR number
+        # 3. Extract ADR number
         $adrNumber = [regex]::Match($adr, 'ADR-(\d+)').Groups[1].Value
 
-        # 3. Check for debate log in .agents/critique/
+        # 4. Check for debate log in .agents/critique/
         $debateLog = Get-ChildItem .agents/critique -Filter "*adr-$adrNumber*" -File
 
         if (-not $debateLog) {
@@ -206,7 +231,7 @@ if ($stagedADRs) {
             exit 1
         }
 
-        # 4. Verify debate log is also staged
+        # 5. Verify debate log is also staged
         $debateLogStaged = git diff --cached --name-only | Where-Object { $_ -match "critique.*adr-$adrNumber" }
         if (-not $debateLogStaged) {
             Write-Warning "Debate log exists but not staged: $($debateLog.Name)"
