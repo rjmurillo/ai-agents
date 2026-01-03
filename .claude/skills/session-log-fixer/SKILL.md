@@ -1,8 +1,8 @@
 ---
 name: session-log-fixer
-version: 2.0.0
+version: 3.0.0
 model: claude-opus-4-5-20251101
-description: Fix session protocol validation failures in GitHub Actions. Use when a PR fails with "Session protocol validation failed", "MUST requirement(s) not met", "NON_COMPLIANT" verdict, or "Aggregate Results" job failure in the Session Protocol Validation workflow. Analyzes CI logs, identifies non-compliant session files, determines missing requirements, and applies fixes.
+description: Fix session protocol validation failures in GitHub Actions. Use when a PR fails with "Session protocol validation failed", "MUST requirement(s) not met", "NON_COMPLIANT" verdict, or "Aggregate Results" job failure in the Session Protocol Validation workflow. With deterministic validation, failures show exact missing requirements directly in Job Summary - no artifact downloads needed.
 license: MIT
 metadata:
   domains: [ci, session-protocol, compliance, github-actions]
@@ -13,7 +13,7 @@ metadata:
 
 # Session Log Fixer
 
-Fix session protocol validation failures by analyzing CI logs and updating session files.
+Fix session protocol validation failures using deterministic validation feedback from Job Summary.
 
 ---
 
@@ -31,7 +31,7 @@ or
 my PR failed session validation, please fix it
 ```
 
-The skill will diagnose the failure, identify the non-compliant session file, and apply the necessary fixes.
+The skill will read the Job Summary from the failed run, identify the non-compliant session file, and apply the necessary fixes.
 
 ---
 
@@ -56,11 +56,12 @@ GitHub Actions Failure
         │
         ▼
 ┌───────────────────────────────────────────────────┐
-│ Phase 1: DIAGNOSE                                 │
+│ Phase 1: READ JOB SUMMARY                         │
 │ • Extract run ID from URL or PR                   │
-│ • Run scripts/diagnose.ps1                        │
+│ • Read Job Summary from GitHub Actions            │
 │ • Identify NON_COMPLIANT session files            │
 │ • Parse specific missing requirements             │
+│ • View detailed validation results                │
 ├───────────────────────────────────────────────────┤
 │ Phase 2: ANALYZE                                  │
 │ • Read failing session file                       │
@@ -69,15 +70,15 @@ GitHub Actions Failure
 │ • Identify specific missing elements              │
 ├───────────────────────────────────────────────────┤
 │ Phase 3: FIX                                      │
-│ • Apply fixes based on diagnosis                  │
+│ • Apply fixes based on Job Summary details        │
 │ • Copy template sections exactly                  │
 │ • Add evidence to verification steps              │
-│ • Validate fix locally                            │
+│ • Validate fix locally with Validate-SessionProtocol.ps1 │
 ├───────────────────────────────────────────────────┤
 │ Phase 4: VERIFY                                   │
 │ • Commit and push changes                         │
 │ • Monitor re-run status                           │
-│ • Confirm COMPLIANT verdict                       │
+│ • Confirm COMPLIANT verdict in new Job Summary    │
 └───────────────────────────────────────────────────┘
         │
         ▼
@@ -86,38 +87,68 @@ GitHub Actions Failure
 
 ---
 
-## Commands
-
-| Command | Action |
-|---------|--------|
-| `scripts/diagnose.ps1 -RunId {id}` | Diagnose specific run |
-| `scripts/diagnose.ps1 -RunId {id} -Repo owner/repo` | Diagnose in different repo |
-
----
-
 ## Workflow
 
-### Step 1: Diagnose
+### Step 1: Read Job Summary
 
-Extract the run ID from the GitHub Actions URL and run:
+Navigate to the failed GitHub Actions run and click the **Summary** tab. The Session Protocol Compliance Report shows:
 
-```powershell
-& .claude/skills/session-log-fixer/scripts/diagnose.ps1 -RunId 20548622722
+1. **Overall Verdict** - PASS or CRITICAL_FAIL
+2. **Compliance Summary** - Table with each session file, verdict, and MUST failure count
+3. **Detailed Validation Results** - Expandable sections showing exact failures
+
+Example Job Summary output:
+
+```markdown
+## Session Protocol Compliance Report
+
+> [!CAUTION]
+> ❌ **Overall Verdict: CRITICAL_FAIL**
+>
+> 1 MUST requirement(s) not met. These must be addressed before merge.
+
+### Compliance Summary
+
+| Session File | Verdict | MUST Failures |
+|:-------------|:--------|:-------------:|
+| `2025-12-29-session-11.md` | ❌ NON_COMPLIANT | 1 |
+
+### Detailed Validation Results
+
+Click each session to see the complete validation report with specific requirement failures.
+
+<details>
+<summary>📄 2025-12-29-session-11</summary>
+
+| Check | Level | Status | Issues |
+|-------|-------|--------|--------|
+| SessionLogExists | MUST | PASS | - |
+| ProtocolComplianceSection | MUST | FAIL | Missing 'Protocol Compliance' section |
+| MustRequirements | MUST | PASS | - |
+| HandoffUpdated | MUST | PASS | - |
+...
+</details>
 ```
 
-The script outputs:
+The detailed results tell you **exactly** which MUST requirements failed.
 
-- Run status and conclusion
-- List of NON_COMPLIANT sessions
-- Artifact contents with specific failures
+### Step 2: Local Validation (Optional)
 
-### Step 2: Read Failing Session
+Validate locally before pushing:
+
+```powershell
+pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/<session-file>.md" -Format markdown
+```
+
+This uses the **same script** as CI, so results match exactly.
+
+### Step 3: Read Failing Session
 
 Session files are at `.agents/sessions/YYYY-MM-DD-session-NN-*.md`
 
 Identify what's missing by comparing against the Protocol Compliance section structure.
 
-### Step 3: Read Protocol Template
+### Step 4: Read Protocol Template
 
 Read `.agents/SESSION-PROTOCOL.md` to get the canonical checklist templates for:
 
@@ -126,7 +157,7 @@ Read `.agents/SESSION-PROTOCOL.md` to get the canonical checklist templates for:
 
 **CRITICAL**: Copy the exact table structure. Do not recreate from memory.
 
-### Step 4: Apply Fixes
+### Step 5: Apply Fixes
 
 Common fixes by failure type:
 
@@ -142,7 +173,7 @@ Common fixes by failure type:
 
 **For MUST requirements**: Never leave unchecked without explanation.
 
-### Step 5: Commit
+### Step 6: Commit
 
 ```powershell
 git add ".agents/sessions/<session-file>.md"
@@ -152,14 +183,14 @@ Add missing <what was missing> to satisfy session protocol validation."
 git push
 ```
 
-### Step 6: Verify
+### Step 7: Verify
 
 ```powershell
 gh run list --branch (git branch --show-current) --limit 3
 gh run view <new-run-id> --json conclusion
 ```
 
-If validation still fails, re-run `scripts/diagnose.ps1` with the new run ID.
+Check the Job Summary tab again. If validation still fails, the detailed results show what's still missing.
 
 ---
 
@@ -174,6 +205,7 @@ After applying fixes:
 - [ ] Commit SHA is real (not "pending commit")
 - [ ] Push succeeded without conflicts
 - [ ] New workflow run triggered
+- [ ] Job Summary shows COMPLIANT verdict
 
 ---
 
@@ -184,17 +216,8 @@ After applying fixes:
 | Recreating tables from memory | Will miss exact structure | Copy from SESSION-PROTOCOL.md |
 | Marking MUST as N/A without justification | Validation will fail | Provide specific justification |
 | Using placeholder evidence | Validators detect these | Use real evidence text |
-| Fixing without diagnosis | May miss actual failure | Always run diagnose.ps1 first |
+| Fixing without checking Job Summary | May miss actual failure | Always check Job Summary first |
 | Ignoring SHOULD requirements | Creates future tech debt | Mark appropriately |
-
----
-
-## Extension Points
-
-1. **Diagnosis scripts**: Add new scripts to `scripts/` for different failure types
-2. **Fix templates**: Add common fix templates to `references/`
-3. **Validation rules**: Extend diagnose.ps1 for new protocol requirements
-4. **CI integration**: Add GitHub Action for auto-fix PRs
 
 ---
 
@@ -203,9 +226,11 @@ After applying fixes:
 | Problem | Solution |
 |---------|----------|
 | `gh run view` fails | Verify run ID is correct, check authentication |
-| No artifacts found | Run may have been deleted (>90 days), check logs directly |
-| Fix didn't work | Re-run diagnose.ps1 on new run ID to see remaining issues |
+| Can't find Job Summary | Click "Summary" tab at top of workflow run page |
+| Job Summary unclear | Expand detailed validation results for specifics |
+| Fix didn't work | Check new Job Summary for remaining issues |
 | Wrong session file | Verify branch matches PR, check for multiple session files |
+| Local validation differs from CI | Ensure you're using latest SESSION-PROTOCOL.md |
 
 ---
 
@@ -223,25 +248,4 @@ After applying fixes:
 - [Common Fixes](references/common-fixes.md) - Fix patterns for common failures
 - [Template Sections](references/template-sections.md) - Copy-paste ready templates
 - [CI Debugging Patterns](references/ci-debugging-patterns.md) - Advanced job-level diagnostics
-
----
-
-## Changelog
-
-### v2.0.0 (Current)
-
-- Added complete frontmatter with metadata
-- Added triggers section (5 phrases)
-- Added Quick Start section
-- Added Process Overview diagram
-- Added Verification Checklist
-- Added Anti-Patterns section
-- Added Extension Points
-- Added Troubleshooting section
-- Fixed bash examples to PowerShell (ADR-005 compliance)
-- Added references directory structure
-
-### v1.0.0
-
-- Initial release with diagnose.ps1 script
-- Basic workflow documentation
+- [`Validate-SessionProtocol.ps1`](../../../scripts/Validate-SessionProtocol.ps1) - Deterministic validation script
