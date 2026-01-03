@@ -22,12 +22,11 @@ generated-from: ".claude/skills/github/SKILL.md"
 
 ```text
 Need GitHub data?
+├─ List PRs (filtered) → Get-PullRequests.ps1
 ├─ PR info/diff → Get-PRContext.ps1
 ├─ CI check status → Get-PRChecks.ps1
 ├─ Review comments → Get-PRReviewComments.ps1
 ├─ Review threads → Get-PRReviewThreads.ps1
-├─ Single thread by ID → Get-ThreadById.ps1
-├─ Thread conversation → Get-ThreadConversationHistory.ps1
 ├─ Unique reviewers → Get-PRReviewers.ps1
 ├─ Unaddressed bot comments → Get-UnaddressedComments.ps1
 ├─ PR merged check → Test-PRMerged.ps1
@@ -44,7 +43,6 @@ Need GitHub data?
    ├─ Apply labels → Set-IssueLabels.ps1
    ├─ Set milestone → Set-IssueMilestone.ps1
    ├─ Resolve threads → Resolve-PRReviewThread.ps1
-   ├─ Unresolve threads → Unresolve-PRReviewThread.ps1
    ├─ Process AI triage → Invoke-PRCommentProcessing.ps1
    ├─ Assign Copilot → Invoke-CopilotAssignment.ps1
    ├─ Enable/disable auto-merge → Set-PRAutoMerge.ps1
@@ -52,12 +50,15 @@ Need GitHub data?
    └─ Merge PR → Merge-PR.ps1
 ```
 
+---
+
 ## Script Reference
 
 ### PR Operations (`scripts/pr/`)
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
+| `Get-PullRequests.ps1` | List PRs with filters | `-State`, `-Label`, `-Author`, `-Base`, `-Head`, `-Limit` |
 | `Get-PRContext.ps1` | PR metadata, diff, files | `-PullRequest`, `-IncludeChangedFiles`, `-IncludeDiff` |
 | `Get-PRChecks.ps1` | CI check status, polling | `-PullRequest`, `-Wait`, `-TimeoutSeconds`, `-RequiredOnly` |
 | `Get-PRReviewComments.ps1` | Paginated review comments | `-PullRequest`, `-IncludeIssueComments` |
@@ -97,20 +98,8 @@ Need GitHub data?
 |--------|---------|----------------|
 | `Add-CommentReaction.ps1` | Add emoji reactions (batch support) | `-CommentId[]`, `-Reaction`, `-CommentType` |
 
-## Quick Examples
+---
 
-```powershell
-## Common Patterns
-
-### Owner/Repo Inference
-
-All scripts auto-infer from `git remote` when `-Owner` and `-Repo` are omitted.
-
-### Idempotency with Markers
-
-Use `-Marker` to prevent duplicate comments:
-
-```powershell
 ## Output Format
 
 All scripts output structured JSON with `Success` boolean:
@@ -120,12 +109,17 @@ $result = pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 | Convert
 if ($result.Success) { ... }
 ```
 
+---
+
 ## See Also
 
-- `references/api-reference.md`: Exit codes, API endpoints, troubleshooting
-- `references/copilot-synthesis-guide.md`: Copilot context synthesis documentation
-- `modules/GitHubCore.psm1`: Shared helper functions (core module)
-- `.claude/agents/prompt-builder.md`: Agent for creating high-quality @copilot prompts
-- `.claude/skills/prompt-engineer/SKILL.md`: Skill for optimizing existing prompts
+| Document | Content |
+|----------|---------|
+| [examples.md](references/examples.md) | Complete script examples |
+| [patterns.md](references/patterns.md) | Reusable workflow patterns |
+| [copilot-prompts.md](references/copilot-prompts.md) | Creating @copilot directives |
+| [copilot-synthesis-guide.md](references/copilot-synthesis-guide.md) | Copilot context synthesis |
+| [api-reference.md](references/api-reference.md) | Exit codes, API endpoints, troubleshooting |
+| `modules/GitHubCore.psm1` | Shared helper functions |
 
 ---

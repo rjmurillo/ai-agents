@@ -21,8 +21,6 @@ metadata:
     keep_headings:
       - Decision Tree
       - Script Reference
-      - Quick Examples
-      - Common Patterns
       - Output Format
       - See Also
 ---
@@ -35,45 +33,12 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 
 ## Triggers
 
-Use this skill when you encounter:
-
-- `get PR context for #123` - Fetch PR metadata, diff, files
-- `respond to review comments on PR` - Thread-preserving replies
-- `add label to issue #456` - Apply or create labels
-- `merge this PR after checks pass` - Merge with strategy
-
-| Input | Output | Quality Gate |
-|-------|--------|--------------|
-| PR/Issue number | Structured JSON | `Success: true` in response |
-
----
-
-## Process Overview
-
-```text
-GitHub Operation Needed
-        │
-        ▼
-┌───────────────────────────────────────────────────┐
-│ Phase 1: IDENTIFY                                 │
-│ • What operation? (read/write)                    │
-│ • What entity? (PR/issue/comment/label)           │
-│ • Use Decision Tree to select script              │
-├───────────────────────────────────────────────────┤
-│ Phase 2: EXECUTE                                  │
-│ • Run appropriate script with parameters          │
-│ • Owner/Repo auto-inferred from git remote        │
-│ • Parse JSON response                             │
-├───────────────────────────────────────────────────┤
-│ Phase 3: VERIFY                                   │
-│ • Check Success boolean in response               │
-│ • Handle errors per exit code                     │
-│ • Validate state change if mutating               │
-└───────────────────────────────────────────────────┘
-        │
-        ▼
-   Structured Result
-```
+| Phrase | Operation |
+|--------|-----------|
+| `get PR context for #123` | Get-PRContext.ps1 |
+| `respond to review comments` | Post-PRCommentReply.ps1 |
+| `add label to issue #456` | Set-IssueLabels.ps1 |
+| `merge this PR` | Merge-PR.ps1 |
 
 ---
 
@@ -108,6 +73,8 @@ Need GitHub data?
    ├─ Close PR → Close-PR.ps1
    └─ Merge PR → Merge-PR.ps1
 ```
+
+---
 
 ## Script Reference
 
@@ -155,331 +122,7 @@ Need GitHub data?
 |--------|---------|----------------|
 | `Add-CommentReaction.ps1` | Add emoji reactions (batch support) | `-CommentId[]`, `-Reaction`, `-CommentType` |
 
-## Quick Examples
-
-```powershell
-# List open PRs (default)
-pwsh -NoProfile scripts/pr/Get-PullRequests.ps1
-
-# List all PRs with custom limit
-pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -State all -Limit 100
-
-# Filter PRs by label and state
-pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -Label "bug,priority:P1" -State open
-
-# Filter PRs by author and base branch
-pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -Author rjmurillo -Base main
-
-# Get PR with changed files
-pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFiles
-
-# Check if PR is merged before starting work
-pwsh -NoProfile scripts/pr/Test-PRMerged.ps1 -PullRequest 50
-
-# Get CI check status
-pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50
-
-# Wait for CI checks to complete (timeout 10 minutes)
-pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -Wait -TimeoutSeconds 600
-
-# Get only required checks
-pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -RequiredOnly
-
-# Detect Copilot follow-up PRs
-pwsh -NoProfile scripts/pr/Detect-CopilotFollowUpPR.ps1 -PRNumber 50
-
-# Reply to review comment (thread-preserving)
-pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123456 -Body "Fixed."
-
-# Resolve all unresolved review threads
-pwsh -NoProfile scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest 50 -All
-
-# Reply to review thread by thread ID (GraphQL)
-pwsh -NoProfile scripts/pr/Add-PRReviewThreadReply.ps1 -ThreadId "PRRT_kwDOQoWRls5m3L76" -Body "Fixed."
-
-# Reply to thread and resolve in one operation
-pwsh -NoProfile scripts/pr/Add-PRReviewThreadReply.ps1 -ThreadId "PRRT_kwDOQoWRls5m3L76" -Body "Fixed." -Resolve
-
-# Check if PR is ready to merge (threads resolved, CI passing)
-pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest 50
-
-# Enable auto-merge with squash
-pwsh -NoProfile scripts/pr/Set-PRAutoMerge.ps1 -PullRequest 50 -Enable -MergeMethod SQUASH
-
-# Disable auto-merge
-pwsh -NoProfile scripts/pr/Set-PRAutoMerge.ps1 -PullRequest 50 -Disable
-
-# Create new issue
-pwsh -NoProfile scripts/issue/New-Issue.ps1 -Title "Bug: Login fails" -Body "Steps..." -Labels "bug,P1"
-
-# Create PR with validation
-pwsh -NoProfile scripts/pr/New-PR.ps1 -Title "feat: Add feature" -Body "Description"
-
-# Close PR with comment
-pwsh -NoProfile scripts/pr/Close-PR.ps1 -PullRequest 50 -Comment "Superseded by #51"
-
-# Merge PR with squash
-pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
-
-# Post idempotent comment (prevents duplicates)
-pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
-
-# Add reaction to single comment
-pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId 12345678 -Reaction "eyes"
-
-# Add reactions to multiple comments (batch - 88% faster)
-pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId @(123, 456, 789) -Reaction "eyes"
-
-# Acknowledge all comments on a PR (batch)
-$ids = pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 42 | ConvertFrom-Json | ForEach-Object { $_.id }
-pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes"
-```
-
-## Common Patterns
-
-### Owner/Repo Inference
-
-All scripts auto-infer from `git remote` when `-Owner` and `-Repo` are omitted.
-
-### Idempotency with Markers
-
-Use `-Marker` to prevent duplicate comments:
-
-```powershell
-# First call: posts comment with <!-- AI-TRIAGE --> marker
-pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "..." -Marker "AI-TRIAGE"
-
-# Second call: exits with code 5 (already exists)
-```
-
-### Body from File
-
-For multi-line content, use `-BodyFile` to avoid escaping issues.
-
-### Thread Management Workflow
-
-```powershell
-# 1. Get unresolved threads
-$threads = pwsh -NoProfile scripts/pr/Get-PRReviewThreads.ps1 -PullRequest 50 -UnresolvedOnly | ConvertFrom-Json
-
-# 2. Reply to each thread using thread ID (recommended for GraphQL)
-foreach ($t in $threads.Threads) {
-    pwsh -NoProfile scripts/pr/Add-PRReviewThreadReply.ps1 -ThreadId $t.ThreadId -Body "Fixed." -Resolve
-}
-
-# 3. Or reply using comment ID (REST API)
-foreach ($t in $threads.Threads) {
-    pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId $t.FirstCommentId -Body "Fixed."
-}
-pwsh -NoProfile scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest 50 -All
-
-# 4. Merge
-pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
-```
-
-### Merge Readiness Check
-
-Check all conditions before merging:
-
-```powershell
-# Full merge readiness check
-$ready = pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest 50 | ConvertFrom-Json
-
-if ($ready.CanMerge) {
-    pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
-} else {
-    Write-Host "Cannot merge. Reasons:"
-    $ready.Reasons | ForEach-Object { Write-Host "  - $_" }
-
-    # Check specific blockers
-    if ($ready.UnresolvedThreads -gt 0) {
-        Write-Host "Unresolved threads: $($ready.UnresolvedThreads)"
-    }
-    if (-not $ready.CIPassing) {
-        Write-Host "Failed checks: $($ready.FailedChecks -join ', ')"
-        Write-Host "Pending checks: $($ready.PendingChecks -join ', ')"
-    }
-}
-```
-
-### Auto-Merge Workflow
-
-Enable auto-merge for PRs that meet all requirements when checks pass:
-
-```powershell
-# Check current readiness (threads must be resolved, but CI can be pending)
-$ready = pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest 50 -IgnoreCI | ConvertFrom-Json
-
-if ($ready.CanMerge) {
-    # Enable auto-merge - PR will merge when CI passes
-    pwsh -NoProfile scripts/pr/Set-PRAutoMerge.ps1 -PullRequest 50 -Enable -MergeMethod SQUASH
-    Write-Host "Auto-merge enabled. PR will merge when all checks pass."
-} else {
-    Write-Host "Cannot enable auto-merge: $($ready.Reasons -join '; ')"
-}
-```
-
-### PR Enumeration Workflow
-
-Enumerate PRs for batch processing (merge readiness, maintenance):
-
-```powershell
-# Get all open PRs targeting main
-$prs = pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -State open -Base main | ConvertFrom-Json
-
-# Check each PR for merge readiness
-foreach ($pr in $prs) {
-    $ready = pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest $pr.number | ConvertFrom-Json
-    if ($ready.CanMerge) {
-        Write-Host "PR #$($pr.number) is ready to merge"
-        pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest $pr.number -Strategy squash -DeleteBranch
-    }
-}
-```
-
-### Pre-Review Check
-
-Always check if PR is merged before starting review work:
-
-```powershell
-$result = pwsh -NoProfile scripts/pr/Test-PRMerged.ps1 -PullRequest 50
-if ($LASTEXITCODE -eq 1) {
-    Write-Host "PR already merged, skipping review"
-    exit 0
-}
-```
-
-### Batch Reactions
-
-Use batch mode for 88% faster acknowledgment of multiple comments:
-
-```powershell
-# Get all review comment IDs
-$comments = pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50 | ConvertFrom-Json
-$ids = $comments | ForEach-Object { $_.id }
-
-# Batch acknowledge (saves ~1.2s per comment vs. individual calls)
-$result = pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes" | ConvertFrom-Json
-
-# Check results
-Write-Host "Acknowledged $($result.Succeeded)/$($result.TotalCount) comments"
-if ($result.Failed -gt 0) {
-    Write-Host "Failed reactions: $($result.Results | Where-Object { -not $_.Success } | ForEach-Object { $_.CommentId })"
-}
-```
-
-### CI Check Verification
-
-Check CI status before claiming PR review complete:
-
-```powershell
-# Quick check - get current status
-$checks = pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 | ConvertFrom-Json
-
-if ($checks.AllPassing) {
-    Write-Host "All CI checks passing"
-} elseif ($checks.FailedCount -gt 0) {
-    Write-Host "BLOCKED: $($checks.FailedCount) check(s) failed"
-    $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED', $null) } | ForEach-Object {
-        Write-Host "  - $($_.Name): $($_.DetailsUrl)"
-    }
-    exit 1
-} else {
-    Write-Host "Pending: $($checks.PendingCount) check(s) still running"
-}
-```
-
-Wait for checks to complete before merge:
-
-```powershell
-# Poll until all checks complete (or timeout)
-$checks = pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -Wait -TimeoutSeconds 600 | ConvertFrom-Json
-
-if ($LASTEXITCODE -eq 7) {
-    Write-Host "Timeout waiting for checks"
-    exit 1
-}
-
-if ($checks.AllPassing) {
-    pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
-}
-```
-
-### Copilot Directive Prompts
-
-GitHub Copilot is **amnesiac**. It has no memory of the codebase, PR context, or prior work. Every @copilot directive must be a complete, self-contained prompt.
-
-**Before posting any @copilot directive, use the prompt-builder agent to generate a high-quality prompt.**
-
-#### Workflow
-
-1. Gather context (PR diff, review comments, codebase patterns)
-2. Invoke prompt-builder to synthesize a comprehensive prompt
-3. Post the generated prompt via issue comment or PR comment reply
-
-```powershell
-# Step 1: Gather context
-$pr = pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFiles | ConvertFrom-Json
-$threads = pwsh -NoProfile scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest 50 | ConvertFrom-Json
-
-# Step 2: Use prompt-builder agent to generate the directive
-# Pass context to prompt-builder, which will create an actionable, specific prompt
-
-# Step 3: Post the generated prompt
-pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "$generatedPrompt"
-# OR for PR comment reply:
-pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123 -Body "$generatedPrompt"
-```
-
-#### Prompt Quality Requirements
-
-Copilot prompts MUST include:
-
-- **Specific file paths**: Copilot cannot infer which files to modify
-- **Exact requirements**: Use imperative language (MUST, WILL, NEVER)
-- **Success criteria**: Define what "done" looks like
-- **Constraints**: Coding standards, patterns to follow, things to avoid
-- **Context**: Relevant code snippets, error messages, or review feedback
-
-#### Anti-patterns
-
-```text
-BAD:  "@copilot please fix this"
-BAD:  "@copilot refactor the code"
-BAD:  "@copilot address the review comments"
-
-GOOD: "@copilot In src/Services/UserService.cs, refactor the GetUser method 
-       to use async/await. MUST maintain the existing interface signature. 
-       MUST add null checks for the userId parameter. Follow the pattern 
-       in src/Services/OrderService.cs line 45-60."
-```
-
-#### When to Use Each Tool
-
-| Scenario | Tool | Rationale |
-|----------|------|-----------|
-| Creating new @copilot prompt | prompt-builder | Builds from scratch with validation |
-| Refining existing prompt template | prompt-optimizer | Applies research-backed improvements |
-| Complex multi-step task | prompt-builder | Handles context gathering and structure |
-
-#### Prompt-Builder Integration
-
-The prompt-builder agent follows a structured process:
-
-1. **Research**: Analyzes codebase patterns, README, existing code
-2. **Draft**: Creates specific, imperative instructions
-3. **Validate**: Tests prompt clarity through Prompt Tester persona
-4. **Iterate**: Refines until success criteria are met
-
-Invoke prompt-builder with the context you gathered:
-
-```text
-Create a @copilot prompt for:
-- Task: [what Copilot should do]
-- Files: [which files to modify]
-- Context: [PR diff, review comments, error messages]
-- Constraints: [coding standards, patterns to follow]
-```
+---
 
 ## Output Format
 
@@ -490,111 +133,41 @@ $result = pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 | Convert
 if ($result.Success) { ... }
 ```
 
-## See Also
-
-- `references/api-reference.md`: Exit codes, API endpoints, troubleshooting
-- `references/copilot-synthesis-guide.md`: Copilot context synthesis documentation
-- `modules/GitHubCore.psm1`: Shared helper functions (core module)
-- `.claude/agents/prompt-builder.md`: Agent for creating high-quality @copilot prompts
-- `.claude/skills/prompt-engineer/SKILL.md`: Skill for optimizing existing prompts
-
----
-
-## Verification Checklist
-
-Before completing a GitHub operation:
-
-- [ ] Correct script selected from Decision Tree
-- [ ] Required parameters provided (PR/issue number)
-- [ ] Owner/Repo inferred or explicitly passed
-- [ ] Response JSON parsed successfully
-- [ ] `Success: true` in response
-- [ ] State change verified (for mutating operations)
-
 ---
 
 ## Anti-Patterns
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Raw `gh pr view` commands | No structured output, error handling | Use `Get-PRContext.ps1` |
+| Raw `gh pr view` commands | No structured output | Use `Get-PRContext.ps1` |
 | Raw `gh api` for comments | Doesn't preserve threading | Use `Post-PRCommentReply.ps1` |
-| Inline issue creation | Missing validation, labels | Use `New-Issue.ps1` |
-| Multiple individual reactions | 88% slower than batch | Use batch mode in `Add-CommentReaction.ps1` |
-| Hardcoding owner/repo | Breaks in forks, different repos | Let scripts infer from `git remote` |
-| Ignoring exit codes | Missing error handling | Check `$LASTEXITCODE` after each call |
-| Skipping idempotency markers | Duplicate comments on retry | Use `-Marker` parameter |
+| Inline issue creation | Missing validation | Use `New-Issue.ps1` |
+| Multiple individual reactions | 88% slower | Use batch mode in `Add-CommentReaction.ps1` |
+| Hardcoding owner/repo | Breaks in forks | Let scripts infer from `git remote` |
+| Ignoring exit codes | Missing error handling | Check `$LASTEXITCODE` |
+| Skipping idempotency markers | Duplicate comments | Use `-Marker` parameter |
 
 ---
 
-## Extension Points
+## See Also
 
-### Adding New Scripts
-
-1. Create script in appropriate directory (`scripts/pr/`, `scripts/issue/`, `scripts/reactions/`)
-2. Follow naming convention: `Verb-Entity.ps1`
-3. Include standard parameters: `-Owner`, `-Repo`, auto-inference
-4. Output structured JSON with `Success` boolean
-5. Add Pester tests in `tests/`
-6. Update this SKILL.md with new entry
-
-### Customizing Behavior
-
-- **Timeouts**: Adjust `-TimeoutSeconds` in `Get-PRChecks.ps1`
-- **Retry logic**: Modify `GitHubHelpers.psm1`
-- **Output format**: All scripts support JSON output by default
-
-### Integration Patterns
-
-```powershell
-# Chain operations with error handling
-$pr = pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 | ConvertFrom-Json
-if (-not $pr.Success) { throw "Failed to get PR context" }
-
-$checks = pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -Wait | ConvertFrom-Json
-if ($checks.AllPassing) {
-    pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash
-}
-```
+| Document | Content |
+|----------|---------|
+| [examples.md](references/examples.md) | Complete script examples |
+| [patterns.md](references/patterns.md) | Reusable workflow patterns |
+| [copilot-prompts.md](references/copilot-prompts.md) | Creating @copilot directives |
+| [copilot-synthesis-guide.md](references/copilot-synthesis-guide.md) | Copilot context synthesis |
+| [api-reference.md](references/api-reference.md) | Exit codes, API endpoints, troubleshooting |
+| `modules/GitHubCore.psm1` | Shared helper functions |
 
 ---
 
-## Troubleshooting
+## Verification
 
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| `gh: command not found` | GitHub CLI not installed | Install via `brew install gh` or equivalent |
-| `401 Unauthorized` | Token expired or missing | Run `gh auth login` |
-| `404 Not Found` | Wrong owner/repo or PR doesn't exist | Verify PR number and repository |
-| Exit code 5 | Comment already exists (idempotent) | Normal for marker-based comments |
-| Exit code 7 | Timeout waiting for checks | Increase `-TimeoutSeconds` |
-| Empty response | Script error | Check `$Error[0]` for details |
+Before completing a GitHub operation:
 
----
-
-## Changelog
-
-### v3.0.0 (Current)
-
-- Added complete skillcreator v3.2 compliant structure
-- Added Triggers section with 5 activation phrases
-- Added Process Overview with 3-phase diagram
-- Added Verification Checklist (6 items)
-- Added skill-wide Anti-Patterns table
-- Added Extension Points section
-- Added Troubleshooting section
-- Added structured frontmatter (version, model, license)
-- Added metadata with domains and type
-
-### v2.x
-
-- Added Copilot synthesis support
-- Added batch reaction processing
-- Added CI check polling with wait mode
-- Added thread resolution scripts
-
-### v1.x
-
-- Initial release with core PR and issue operations
-- Shared GitHubHelpers.psm1 module
-- Basic comment and label management
+- [ ] Correct script selected from Decision Tree
+- [ ] Required parameters provided (PR/issue number)
+- [ ] Response JSON parsed successfully
+- [ ] `Success: true` in response
+- [ ] State change verified (for mutating operations)
