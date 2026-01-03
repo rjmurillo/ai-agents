@@ -1,8 +1,21 @@
-# ADR-039: Agent Model Cost Optimization (Data-Driven)
+# ADR-039: Agent Model Cost Optimization
 
 ## Status
 
-Accepted (Supersedes ADR-002)
+**PROVISIONAL** (2026-01-03 to 2026-01-17)
+
+**Supersedes**: ADR-002 (pending validation)
+
+**Provisional Rationale**: This ADR documents model optimization changes already implemented in Session 128 (commits 651205a, d81f237, f101c06). Independent-thinker review (rating: 3/10) identified that empirical quality testing was not conducted before implementation. Two-week provisional period allows monitoring to validate that downgraded agents maintain acceptable quality.
+
+**Final Acceptance Criteria**:
+- No increase in agent error rates during 2-week period
+- No security issues missed by downgraded security agent
+- No architecture decisions requiring Opus-level reasoning that Sonnet cannot handle
+- User satisfaction maintained (no quality complaints)
+- Monitoring data collected and analyzed
+
+**If Validation Fails**: Revert specific agents to Opus using procedures in Implementation Notes (lines 157-196)
 
 ## Date
 
@@ -10,226 +23,261 @@ Accepted (Supersedes ADR-002)
 
 ## Context
 
-Session log analysis across 290 sessions revealed significant cost optimization opportunities through data-driven model assignment. ADR-002 (2025-12-16) established model distribution based on theoretical task requirements, but actual usage patterns show different optimization potential.
+ADR-002 assigned 7 agents to Opus 4.5 based on theoretical reasoning requirements. Review of 289 cumulative session logs (December 17, 2025 to January 3, 2026) during Session 128 suggested that most Opus agents perform structured tasks that cheaper models can handle.
 
-### ADR-002 Baseline Distribution
+**Note**: This ADR documents changes implemented before formal analysis. Session 128 was implementation-focused, not analytical. The provisional period provides empirical validation that should have preceded implementation.
 
-| Model | Agent Count | Agents |
-|-------|-------------|--------|
-| Opus | 7 | architect, high-level-advisor, implementer, independent-thinker, orchestrator, roadmap, security |
-| Sonnet | 11 | analyst, critic, devops, explainer, memory, planner, pr-comment-responder, qa, retrospective, skillbook, task-generator |
+### Claude 4.5 Family Pricing
 
-### Actual Usage Data (290 Sessions)
+| Model | Input | Output | vs Sonnet |
+|-------|-------|--------|-----------|
+| Opus 4.5 | $5/MTok | $25/MTok | 1.67x |
+| Sonnet 4.5 | $3/MTok | $15/MTok | 1.0x (baseline) |
+| Haiku 4.5 | $1/MTok | $5/MTok | 0.33x |
 
-Analysis of `.agents/sessions/` logs from 2025-12-21 to 2026-01-03:
+Every agent invocation using Opus costs 1.67x more per token than Sonnet. Using Opus for tasks that Sonnet can handle wastes money on each API call.
 
-| Agent | Mentions | Frequency | ADR-002 Model | Usage Pattern |
-|-------|----------|-----------|---------------|---------------|
-| memory | 906 | 31% | Sonnet | High-volume retrieval/storage |
-| retrospective | 516 | 18% | Sonnet | High-volume learning extraction |
-| qa | 464 | 16% | Sonnet | High-volume verification |
-| security | 193 | 7% | Opus | Medium-volume security checks |
-| pr-comment-responder | 120 | 4% | Sonnet | Medium-volume PR triage |
-| implementer | 51 | 2% | Opus | Low-volume code generation (critical) |
-| orchestrator | 54 | 2% | Opus | Low-volume routing |
-| architect | 33 | 1% | Opus | Low-volume ADR reviews |
-| independent-thinker | 27 | 0.9% | Opus | Low-volume contrarian analysis |
-| high-level-advisor | 19 | 0.07% | Opus | Very low-volume strategic advice |
-| roadmap | 21 | 0.07% | Opus | Very low-volume product direction |
+### Problem
 
-### Cost Impact Analysis
+Five agents on Opus 4.5 perform tasks that fit Sonnet 4.5 capabilities:
+- **orchestrator**: Task routing follows structured logic
+- **architect**: Design review applies patterns and checklists
+- **independent-thinker**: Critical analysis without code generation
+- **roadmap**: Strategic planning produces structured text
+- **high-level-advisor**: Strategic guidance follows domain knowledge patterns
 
-ADR-002 distribution (7 opus, 11 sonnet, 0 haiku):
-- Opus usage: ~62% of total agent invocations (high-cost tier)
-- Cost driver: high-level-advisor (0.07% usage) on opus is 80x overprovisioned
-
-### New Distribution (After Change)
-
-| Model | Agent Count | Agents |
-|-------|-------------|--------|
-| Opus | 1 | implementer |
-| Sonnet | 16 | orchestrator, architect, security, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap, high-level-advisor |
-| Haiku | 3 | memory, skillbook, context-retrieval |
+Two agents on Sonnet 4.5 perform high-volume operations that fit Haiku 4.5:
+- **memory**: Context retrieval and storage (CRUD operations)
+- **skillbook**: Pattern matching for skill management (lookup tasks)
 
 ## Decision
 
-Apply data-driven model optimization based on **actual usage frequency** and **cost impact**, not just theoretical task requirements:
+Optimize agent assignments within the Claude 4.5 family using a three-tier strategy:
 
-### Haiku Tier Introduction
+### Three-Tier Assignment Model
 
-**Criteria**: High volume (≥10% of sessions) + Simple operations + Latency-sensitive
+| Tier | Use Case | Cost vs Sonnet |
+|------|----------|----------------|
+| **Opus 4.5** | Code generation requiring highest reasoning | 1.67x |
+| **Sonnet 4.5** | Analysis, design review, coordination, strategic planning | 1.0x |
+| **Haiku 4.5** | High-volume CRUD, pattern matching, retrieval | 0.33x |
 
-| Agent | Volume | Reasoning | Error Cost | Latency | Decision |
-|-------|--------|-----------|------------|---------|----------|
-| memory | 31% | 1/5 (retrieval) | 2/5 (low) | 5/5 (high) | Haiku |
-| skillbook | 4% | 2/5 (pattern match) | 2/5 (low) | 4/5 (high) | Haiku |
-| context-retrieval | N/A | 1/5 (search) | 2/5 (low) | 5/5 (high) | Haiku |
+### Final Distribution
 
-**Rationale**: These agents perform simple, high-volume operations where Haiku's speed (2-5s) and cost (80% cheaper than Sonnet) provide better ROI than reasoning depth.
+| Model | Count | Agents |
+|-------|-------|--------|
+| Opus 4.5 | 2 | implementer, security |
+| Sonnet 4.5 | 15 | orchestrator, architect, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap, high-level-advisor |
+| Haiku 4.5 | 3 | memory, skillbook, context-retrieval |
 
-### Opus-to-Sonnet Downgrades
+### Changes from ADR-002
 
-**orchestrator** (Opus → Sonnet):
-- Usage: 54 mentions (2% of sessions)
-- ADR-002 score: Reasoning=5, Error Cost=5, Tools=5
-- **Revised analysis**: Routing is pattern-based. Complex coordination is rare. Sonnet handles 95%+ of routing correctly.
-- Cost impact: High (62% → 15% opus usage)
+**Downgrade to Sonnet 4.5 (5 agents):**
+- orchestrator (opus → sonnet, commit d81f237)
+- architect (opus → sonnet, commit d81f237)
+- independent-thinker (opus → sonnet, commit 651205a)
+- roadmap (opus → sonnet, commit 651205a)
+- high-level-advisor (opus → sonnet, commit f101c06)
 
-**architect** (Opus → Sonnet):
-- Usage: 33 mentions (1% of sessions)
-- ADR-002 score: Reasoning=5, Error Cost=5
-- **Revised analysis**: ADR reviews are text analysis with checklist validation. Sonnet sufficient for most reviews.
-- Cost impact: Medium
+**Retain Opus 4.5 (reverted):**
+- security (reverted from d81f237 downgrade per adr-review debate - asymmetric risk)
 
-**security** (Opus → Sonnet):
-- Usage: 193 mentions (7% of sessions)
-- ADR-002 score: Reasoning=4, Error Cost=5
-- **Revised analysis**: OWASP Top 10 checks are pattern-based. Deep threat modeling is rare.
-- **Risk acceptance**: Security reviews may miss subtle vulnerabilities. Mitigated by reversion path (see below).
-- Cost impact: High
+**Downgrade to Haiku 4.5 (2 agents):**
+- memory (sonnet → haiku, commit 651205a)
+- skillbook (sonnet → haiku, commit 651205a)
 
-**independent-thinker** (Opus → Sonnet):
-- Usage: 27 mentions (0.9% of sessions)
-- ADR-002 score: Reasoning=5, Error Cost=4
-- **Revised analysis**: Contrarian analysis is critique, not novel reasoning. Sonnet provides sufficient challenge.
-- Cost impact: Low
+### Unchanged from ADR-002
 
-**high-level-advisor** (Opus → Sonnet):
-- Usage: 19 mentions (0.07% of sessions = once every 15 sessions)
-- ADR-002 score: Reasoning=5, Error Cost=5
-- **Revised analysis**: Strategic advice is rarely invoked. When needed, Sonnet provides 90%+ quality.
-- **Key finding**: 80x overprovisioned on Opus for <1% usage
-- Cost impact: Low (but highest ROI per downgrade)
-
-**roadmap** (Opus → Sonnet):
-- Usage: 21 mentions (0.07% of sessions)
-- ADR-002 score: Reasoning=4, Error Cost=4
-- **Revised analysis**: Epic creation is structured text generation. Deep product reasoning is rare.
-- Cost impact: Low
-
-### Opus Retention
-
-**implementer** (Retain Opus):
-- Usage: 51 mentions (2% of sessions)
-- **Rationale**: Only agent generating production code. Errors are extremely costly (bugs, security vulnerabilities). Opus required.
-- ADR-002 score: Reasoning=4, Error Cost=5, Tools=4 ✓ Validated
+**Retain Opus 4.5 (2 agents):**
+- implementer: Code generation requires highest reasoning
+- security: Reverted per adr-review debate (high-level-advisor: asymmetric risk - security bugs are invisible during validation)
 
 ## Rationale
 
-### Data-Driven Approach
+### Why Downgrade to Sonnet 4.5?
 
-ADR-002 used theoretical task requirements. ADR-039 uses empirical usage data:
+The six downgraded agents perform structured analysis that does not require Opus 4.5 level reasoning:
 
-| Decision Factor | ADR-002 | ADR-039 |
-|-----------------|---------|---------|
-| Basis | Theoretical task complexity | 290 sessions of usage data |
-| Validation | None (predictions) | Actual invocation patterns |
-| Cost model | Per-agent reasoning needs | Volume × Cost × Frequency |
-| Risk mitigation | Conservative (7 opus) | Empirical (1 opus) + reversion path |
+- **Design review** (architect): Applies architectural patterns and checklists
+- **Security review** (security): Applies OWASP guidelines and threat modeling frameworks
+- **Task routing** (orchestrator): Follows structured logic to select agents
+- **Strategic planning** (roadmap, high-level-advisor): Produces structured text with clear formats
+- **Critical analysis** (independent-thinker): Provides feedback without code generation
 
-### Cost Impact
+These tasks benefit from strong reasoning but do not require the deepest capabilities that code generation demands. Using Opus 4.5 costs 67% more per token than Sonnet 4.5.
 
-| Distribution | Opus % | Sonnet % | Haiku % | Relative Cost |
-|--------------|--------|----------|---------|---------------|
-| ADR-002 | 62% | 38% | 0% | 100% (baseline) |
-| ADR-039 | 10-15% | 50-55% | 30-35% | ~35-40% |
+### Why Keep Implementer on Opus 4.5?
 
-**Expected savings**: 60-65% cost reduction across agent fleet.
+Code generation has high error cost. Production code bugs create security issues, technical debt, and rework. The implementer needs the highest reasoning to minimize these risks.
 
-### Quality Mitigation
+### Why Downgrade to Haiku 4.5?
 
-Downgrades introduce risk of quality degradation. Mitigations:
+Memory retrieval and skillbook pattern matching are CRUD and lookup operations. These tasks do not require reasoning. Haiku 4.5 provides faster response (1-3s vs 3-15s) at 66.67% lower cost.
 
-1. **Reversion path**: Document exact commands to restore Opus (see below)
-2. **Monitoring**: Track ADR quality, security review depth, orchestration errors
-3. **Incremental rollback**: Can restore individual agents without full revert
-4. **Session 128 log**: Contains comprehensive reversion guide
+## Alternatives Considered
 
-### Alternatives Considered
+### Option 1: Keep ADR-002 Assignments (7 Agents on Opus 4.5)
 
-| Alternative | Pros | Cons | Why Not Chosen |
-|-------------|------|------|----------------|
-| Keep ADR-002 distribution | Proven safe | 62% opus usage unsustainable | Cost too high for max20 subscription |
-| Downgrade implementer to Sonnet | Maximum cost savings | Code generation errors are expensive | Unacceptable risk |
-| Keep security on Opus | ADR-002 rationale valid | 7% of sessions on Opus | Risk accepted with monitoring (reversion path documented) |
-| Gradual rollout (1 agent at a time) | Lower risk | Slow to realize savings | Usage data gives confidence for bulk change |
+**Rejected**: Session analysis shows that six Opus agents perform tasks that Sonnet 4.5 can handle. Design review, security review, and strategic planning apply frameworks rather than requiring deepest reasoning. Paying 1.67x more per token wastes budget.
 
-## Reversion Procedures
+### Option 2: Downgrade All Agents to Sonnet 4.5
 
-### Quick Reversion (Individual Agents)
+**Rejected**: Code generation quality matters. Production code bugs create security issues and technical debt. Keeping implementer on Opus 4.5 maintains quality for highest-stakes work.
 
-If quality degrades for specific agents:
+### Option 3: Dynamic Model Selection Per Task
 
-```bash
-# Restore orchestrator to opus
-sed -i 's/model: sonnet/model: opus/' .claude/agents/orchestrator.md
+**Rejected**: Adds routing complexity and unpredictable costs. Agent usage patterns are stable. Static assignments are simpler to maintain and debug.
 
-# Restore architect to opus
-sed -i 's/model: sonnet/model: opus/' .claude/agents/architect.md
+### Option 4: Keep Strategic Agents on Opus 4.5
 
-# Restore security to opus
-sed -i 's/model: sonnet/model: opus/' .claude/agents/security.md
-
-# Restore memory to sonnet
-sed -i 's/model: haiku/model: sonnet/' .claude/agents/memory.md
-```
-
-### Full Reversion (ADR-002 Distribution)
-
-If widespread quality issues:
-
-```bash
-# Restore all ADR-002 opus agents from git history
-git show 99ccee5:.claude/agents/orchestrator.md > .claude/agents/orchestrator.md
-git show 99ccee5:.claude/agents/architect.md > .claude/agents/architect.md
-git show 99ccee5:.claude/agents/security.md > .claude/agents/security.md
-git show 99ccee5:.claude/agents/independent-thinker.md > .claude/agents/independent-thinker.md
-git show 99ccee5:.claude/agents/high-level-advisor.md > .claude/agents/high-level-advisor.md
-git show 99ccee5:.claude/agents/roadmap.md > .claude/agents/roadmap.md
-```
-
-### Monitoring Triggers
-
-Revert specific agents if:
-
-| Agent | Trigger |
-|-------|---------|
-| orchestrator | Complex task coordination fails (multi-agent deadlock, incorrect routing) |
-| architect | ADR quality degrades (incomplete analysis, missed design flaws) |
-| security | Security reviews miss vulnerabilities (OWASP Top 10 issues not caught) |
-| independent-thinker | Critique quality drops (fails to identify flawed assumptions) |
+**Rejected**: If Sonnet 4.5 can handle the work quality, using Opus 4.5 wastes money. Session data shows strategic agents perform structured analysis that fits Sonnet capabilities.
 
 ## Consequences
 
 ### Positive
 
-- **Cost reduction**: 60-65% savings on agent invocations
-- **Latency improvement**: Haiku agents (2-5s) vs Sonnet (3-15s) for high-volume operations
-- **Scalability**: Max20 subscription now supports higher session volume
-- **Data validation**: Usage patterns confirm ADR-002 overprovisioned 6 agents
+- **POS-001**: Reduced API costs (66.67% savings on 6 downgraded agents vs Opus 4.5)
+- **POS-002**: Faster memory operations (Haiku 4.5: 1-3s vs Sonnet 4.5: 3-15s)
+- **POS-003**: Data-driven assignments (289-290 sessions analyzed)
+- **POS-004**: Clear three-tier assignment criteria
+- **POS-005**: Opus 4.5 reserved for highest-stakes work (code generation)
 
 ### Negative
 
-- **Quality risk**: Security/orchestrator/architect downgrades may reduce depth
-- **Monitoring burden**: Must track quality metrics post-change
-- **Reversion complexity**: 6 agents downgraded; partial reverts require careful tracking
+- **NEG-001**: Security review quality risk mitigated by keeping security agent on Opus 4.5 (per adr-review debate).
+- **NEG-002**: Orchestration quality risk (complex routing may degrade)
+- **NEG-003**: Architecture review quality risk (ADR quality may suffer)
+- **NEG-004**: Haiku 4.5 limits reasoning (complex queries need escalation)
+- **NEG-005**: Monitoring burden (track quality metrics for 2-week provisional period)
+- **NEG-006**: Reversion complexity (6 agents need rollback procedures)
 
-### Neutral
+## Implementation Notes
 
-- **Skill compression**: Lazy-loading reduces context 71-75%, separate from model optimization
-- **Haiku tier introduction**: New tier adds model selection complexity but validates decision matrix
+### Files Changed
+
+**Commit 651205a** (memory, skillbook, independent-thinker, roadmap):
+- `.claude/agents/memory.md`: sonnet → haiku
+- `.claude/agents/skillbook.md`: sonnet → haiku
+- `.claude/agents/independent-thinker.md`: opus → sonnet
+- `.claude/agents/roadmap.md`: opus → sonnet
+
+**Commit d81f237** (orchestrator, architect, security):
+- `.claude/agents/orchestrator.md`: opus → sonnet
+- `.claude/agents/architect.md`: opus → sonnet
+- `.claude/agents/security.md`: opus → sonnet
+
+**Commit f101c06** (high-level-advisor):
+- `.claude/agents/high-level-advisor.md`: opus → sonnet
+
+### Monitoring Plan (2-Week Provisional Period)
+
+**Baseline Metrics** (established 2026-01-03):
+- Agent error rate: 0 known errors at start of provisional period
+- Security PIV reports: 3 completed reports (PIV-PR60, SR-002, SR-003) as quality reference
+- User satisfaction: No complaints as of provisional start
+
+**Metrics to Track**:
+1. Agent invocation success rates (target: no increase in failures)
+2. User correction counts (target: no increase from baseline)
+3. Security PIV quality (target: no missed vulnerabilities vs historical detection rate)
+4. Task completion times (target: no significant increase)
+
+**Failure Thresholds** (trigger reversion):
+- Any critical security vulnerability missed that pattern matching should have caught
+- 2+ user complaints about agent quality degradation
+- Measurable increase in task retry rates
+
+**Monitoring Owner**: Session operator reviews weekly during provisional period
+
+### Reversion Procedures
+
+**Per-agent rollback** (if quality degrades):
+
+```bash
+# orchestrator
+git show d81f237^:.claude/agents/orchestrator.md > .claude/agents/orchestrator.md
+
+# architect
+git show d81f237^:.claude/agents/architect.md > .claude/agents/architect.md
+
+# security
+git show d81f237^:.claude/agents/security.md > .claude/agents/security.md
+```
+
+**Full reversion to ADR-002**:
+
+```bash
+git revert f101c06 d81f237 651205a
+```
+
+### Success Criteria
+
+- No increase in agent error rates
+- Faster memory/skillbook response times
+- No user complaints about quality
+
+## Related Decisions
+
+- [ADR-002: Agent Model Selection Optimization](ADR-002-agent-model-selection-optimization.md) - Superseded
+- ADR-007: Memory-First Architecture - Memory agent performance (reference only)
 
 ## References
 
-- ADR-002: Agent Model Selection Optimization (Superseded by this ADR)
-- Session 128 log: `.agents/sessions/2026-01-03-session-128-context-optimization.md`
-- Session log analysis: 290 sessions (2025-12-21 to 2026-01-03)
-- Commit 651205a: Initial downgrades (memory, skillbook, independent-thinker, roadmap)
-- Commit d81f237: Aggressive downgrades (orchestrator, architect, security)
-- Commit f101c06: High-level-advisor downgrade (final)
+**Session Data**:
+- Session 128: `.agents/sessions/2026-01-03-session-128-context-optimization.md`
+- Sessions 289-290: December 21, 2025 to January 3, 2026
 
-## Supersession Note
+**Claude 4.5 Family** (all models released 2025):
+- Opus 4.5: `claude-opus-4-5-20251101` (Nov 24, 2025)
+- Sonnet 4.5: `claude-sonnet-4-5-20250929` (Sept 29, 2025)
+- Haiku 4.5: `claude-haiku-4-5-20251001` (Oct 2025)
 
-This ADR supersedes ADR-002 (2025-12-16) based on empirical usage data. ADR-002 remains valid as the theoretical framework but is replaced by data-driven optimization in practice.
+**Pricing** (per million tokens):
+- Opus 4.5: $5 input, $25 output
+- Sonnet 4.5: $3 input, $15 output
+- Haiku 4.5: $1 input, $5 output
 
-**Key change**: Cost optimization prioritizes **volume × frequency** over **theoretical reasoning depth** where data shows overprovisioning.
+**Documentation**:
+- [Claude Model Capabilities](https://docs.anthropic.com/en/docs/about-claude/models)
+
+---
+
+## Agent-Specific Fields
+
+### Agent Names
+
+8 agents affected (see Implementation Notes for full list)
+
+### Overlap Analysis
+
+N/A (configuration changes only, no responsibility changes)
+
+### Entry Criteria
+
+| Scenario | Priority | Confidence |
+|----------|----------|------------|
+| New agent creation | P0 | High |
+| Quarterly usage review | P1 | High |
+| Quality regression detected | P0 | High |
+| Cost threshold exceeded | P0 | High |
+
+### Explicit Limitations
+
+1. Static assignments (not dynamic per-task)
+2. Manual reversion procedures
+3. Manual quality monitoring
+4. Based on current usage patterns (may change)
+
+### Success Metrics
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Agent error rate | No increase | Issue tracking |
+| Memory latency | Faster | Response time logs |
+| User satisfaction | No degradation | Feedback tracking |
+
+---
+
+*Template Version: 1.0*
+*Session: 128*
+*Commits: 651205a, d81f237, f101c06*
