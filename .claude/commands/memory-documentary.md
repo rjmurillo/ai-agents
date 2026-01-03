@@ -1,3 +1,7 @@
+---
+description: Generate evidence-based documentary reports by searching across all memory systems. Use when Claude needs to investigate recurring frustrations, analyze evolution of decisions, create comprehensive reports with full evidence chains, or extract meta-patterns from cross-system searches.
+---
+
 # Memory Documentary
 
 Generate evidence-based documentary reports by searching across all memory systems.
