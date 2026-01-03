@@ -66,7 +66,7 @@ $SensitivePatterns = @{
         'SHA256:[A-Za-z0-9+/=]{43}'                           # SSH key fingerprints
     )
     'File Paths'               = @(
-        '/home/[a-z]+/',
+        '/home/[a-zA-Z0-9_-]+/',
         'C:\\Users\\[^\\]+\\',
         '/Users/[^/]+/'
     )

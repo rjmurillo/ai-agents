@@ -463,7 +463,7 @@ Copy this checklist to each session log and verify completion:
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
 | SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
-| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Lint output clean |
@@ -564,7 +564,7 @@ All MUST requirements above are marked complete.
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
 | SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
-| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Output below |
