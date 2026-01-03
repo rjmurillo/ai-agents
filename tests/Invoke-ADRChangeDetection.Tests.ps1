@@ -16,7 +16,7 @@
 #>
 
 BeforeAll {
-    $Script:HookPath = Join-Path $PSScriptRoot ".." "Invoke-ADRChangeDetection.ps1"
+    $Script:HookPath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "Invoke-ADRChangeDetection.ps1"
 
     # Verify script exists
     if (-not (Test-Path $Script:HookPath)) {

@@ -134,7 +134,7 @@ These were restored after user feedback.
 | Model | Count | Agents |
 |-------|-------|--------|
 | opus | 2 | implementer, high-level-advisor |
-| sonnet | 13 | orchestrator, architect, security, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap |
+| sonnet | 15 | orchestrator, architect, security, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap |
 | haiku | 3 | memory, skillbook, context-retrieval |
 
 **Opus reduction**: 7 → 2 (71% fewer opus agents)
