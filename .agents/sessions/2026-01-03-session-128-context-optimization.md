@@ -133,11 +133,11 @@ These were restored after user feedback.
 
 | Model | Count | Agents |
 |-------|-------|--------|
-| opus | 1 | implementer |
-| sonnet | 14 | orchestrator, architect, security, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap |
+| opus | 2 | implementer, high-level-advisor |
+| sonnet | 13 | orchestrator, architect, security, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap |
 | haiku | 3 | memory, skillbook, context-retrieval |
 
-**Opus reduction**: 7 → 1 (86% fewer opus agents)
+**Opus reduction**: 7 → 2 (71% fewer opus agents)
 
 ---
 
@@ -149,18 +149,18 @@ If quality issues arise, revert specific agents:
 
 1. **orchestrator** (opus → sonnet): If complex task coordination fails
    ```bash
-   git show d81f237:.claude/agents/orchestrator.md > .claude/agents/orchestrator.md
+   git show d81f237^:.claude/agents/orchestrator.md > .claude/agents/orchestrator.md
    # Or manually change model: sonnet → opus
    ```
 
 2. **architect** (opus → sonnet): If ADR quality degrades
    ```bash
-   git show d81f237:.claude/agents/architect.md > .claude/agents/architect.md
+   git show d81f237^:.claude/agents/architect.md > .claude/agents/architect.md
    ```
 
 3. **security** (opus → sonnet): If security reviews miss issues
    ```bash
-   git show d81f237:.claude/agents/security.md > .claude/agents/security.md
+   git show d81f237^:.claude/agents/security.md > .claude/agents/security.md
    ```
 
 ### Medium-Risk Downgrades
