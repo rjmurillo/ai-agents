@@ -38,8 +38,9 @@ pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
 | "search memory for X" | Tier 1: Search-Memory.ps1 |
 | "what do we know about X" | Tier 1: Search-Memory.ps1 |
 | "extract episode from session" | Tier 2: Extract-SessionEpisode.ps1 |
-| "get episode for session X" | Tier 2: Get-Episode |
-| "what happened in session X" | Tier 2: Get-Episodes |
+| "get episode for session X" | Tier 2: Get-Episode -SessionId "X" |
+| "what happened in session X" | Tier 2: Get-Episode -SessionId "X" |
+| "find sessions with failures" | Tier 2: Get-Episodes -Outcome "failure" |
 | "update causal graph" | Tier 3: Update-CausalGraph.ps1 |
 | "what patterns led to success" | Tier 3: Get-Patterns |
 | "why did X lead to Y" | Tier 3: Get-CausalPath |
@@ -49,17 +50,17 @@ pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
 
 ## Quick Reference
 
-| Operation | Script | Key Parameters |
-|-----------|--------|----------------|
-| Search facts/patterns | `Search-Memory.ps1` | `-Query`, `-LexicalOnly` |
-| Get session history | `Get-Episode` | `-SessionId` |
-| Find failure patterns | `Get-Episodes` | `-Outcome "failure"` |
-| Trace causation | `Get-CausalPath` | `-FromLabel`, `-ToLabel` |
-| Find success patterns | `Get-Patterns` | `-MinSuccessRate 0.7` |
-| Extract episode | `Extract-SessionEpisode.ps1` | `-SessionLogPath` |
-| Update patterns | `Update-CausalGraph.ps1` | `-EpisodePath` |
-| Health check | `Test-MemoryHealth.ps1` | `-Format Table` |
-| Benchmark | `Measure-MemoryPerformance.ps1` | `-Iterations` |
+| Operation | Type | Name | Key Parameters |
+|-----------|------|------|----------------|
+| Search facts/patterns | Script | `Search-Memory.ps1` | `-Query`, `-LexicalOnly`, `-MaxResults` |
+| Get single session | Function | `Get-Episode` | `-SessionId` |
+| Find multiple sessions | Function | `Get-Episodes` | `-Outcome`, `-Task`, `-Since`, `-MaxResults` |
+| Trace causation | Function | `Get-CausalPath` | `-FromLabel`, `-ToLabel`, `-MaxDepth` |
+| Find success patterns | Function | `Get-Patterns` | `-MinSuccessRate`, `-PatternType` |
+| Extract episode | Script | `Extract-SessionEpisode.ps1` | `-SessionLogPath`, `-OutputPath` |
+| Update patterns | Script | `Update-CausalGraph.ps1` | `-EpisodePath`, `-DryRun` |
+| Health check | Script | `Test-MemoryHealth.ps1` | `-Format` (Json/Table) |
+| Benchmark | Script | `Measure-MemoryPerformance.ps1` | `-Iterations`, `-IncludeForgetful` |
 
 ---
 
