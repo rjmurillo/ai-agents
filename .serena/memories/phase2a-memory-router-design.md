@@ -35,10 +35,12 @@ Memory Router
 
 | Component | Status |
 |-----------|--------|
-| ADR-037 | Proposed |
+| ADR-037 | Accepted |
 | Benchmark script | Complete |
-| Router module | Not started |
-| Agent integration | Not started |
+| Router module | Complete (MemoryRouter.psm1) |
+| Agent integration | Complete (Search-Memory.ps1 skill) |
+
+**Note**: Implementation completed in PR #735. See memory `phase2a-status` for current status.
 
 ## Related
 
