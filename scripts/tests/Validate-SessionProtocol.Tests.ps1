@@ -263,42 +263,41 @@ Describe "Test-HandoffUpdated" {
         Set-Content -Path $handoffPath -Value "# Handoff"
     }
 
-    It "Passes when HANDOFF.md is updated recently" {
+    It "Fails when HANDOFF.md is updated recently (per protocol v1.4: MUST NOT update)" {
         $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
         New-Item -ItemType File -Path $sessionPath -Force | Out-Null
 
-        # Touch HANDOFF.md to update timestamp
+        # Touch HANDOFF.md to update timestamp (violates protocol)
         $handoffPath = Join-Path $AgentsPath "HANDOFF.md"
         (Get-Item $handoffPath).LastWriteTime = Get-Date
+
+        $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
+        $result.Passed | Should -BeFalse
+        $result.Issues | Should -Match "MUST NOT update HANDOFF.md"
+    }
+
+    It "Passes when HANDOFF.md is older than session (correct behavior per protocol)" {
+        $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
+        New-Item -ItemType File -Path $sessionPath -Force | Out-Null
+
+        # Set HANDOFF.md to older date (correct - not updated during session)
+        $handoffPath = Join-Path $AgentsPath "HANDOFF.md"
+        (Get-Item $handoffPath).LastWriteTime = [DateTime]::Parse("2025-12-16")
 
         $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
         $result.Passed | Should -BeTrue
     }
 
-    It "Fails when HANDOFF.md is older than session" {
+    It "Passes when HANDOFF.md does not exist (optional per current protocol)" {
         $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
         New-Item -ItemType File -Path $sessionPath -Force | Out-Null
 
-        # Set HANDOFF.md to older date
-        $handoffPath = Join-Path $AgentsPath "HANDOFF.md"
-        (Get-Item $handoffPath).LastWriteTime = [DateTime]::Parse("2025-12-16")
-
-        $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
-        $result.Passed | Should -BeFalse
-        $result.Issues | Should -Match "before session date"
-    }
-
-    It "Fails when HANDOFF.md does not exist" {
-        $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
-        New-Item -ItemType File -Path $sessionPath -Force | Out-Null
-
-        # Remove HANDOFF.md
+        # Remove HANDOFF.md (existence not required)
         $handoffPath = Join-Path $AgentsPath "HANDOFF.md"
         Remove-Item $handoffPath -Force
 
         $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
-        $result.Passed | Should -BeFalse
-        $result.Issues | Should -Match "not found"
+        $result.Passed | Should -BeTrue
     }
 }
 
@@ -428,11 +427,12 @@ Describe "Get-SessionLogs" {
 
 Describe "Invoke-SessionValidation" {
     BeforeEach {
-        # Create HANDOFF.md
+        # Create HANDOFF.md with older timestamp (per protocol v1.4: MUST NOT update)
         $handoffPath = Join-Path $AgentsPath "HANDOFF.md"
         New-Item -ItemType File -Path $handoffPath -Force | Out-Null
         Set-Content -Path $handoffPath -Value "# Handoff"
-        (Get-Item $handoffPath).LastWriteTime = Get-Date
+        # Set to older date to simulate not being updated during session
+        (Get-Item $handoffPath).LastWriteTime = [DateTime]::Parse("2025-12-16")
     }
 
     It "Validates complete session log successfully" {
@@ -464,7 +464,7 @@ Did some work.
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update HANDOFF.md | [x] | Updated |
+| MUST NOT | Update HANDOFF.md | [x] | HANDOFF.md unchanged |
 | MUST | Run lint | [x] | Passed |
 | MUST | Commit changes | [x] | abc1234 |
 
@@ -547,7 +547,7 @@ Did some work.
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Update HANDOFF.md | [x] | Done |
+| MUST NOT | Update HANDOFF.md | [x] | HANDOFF.md unchanged |
 | MUST | Run lint | [x] | Done |
 | MUST | Commit changes | [x] | abc1234 |
 
