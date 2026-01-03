@@ -29,12 +29,9 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 /adr-review .agents/architecture/ADR-005-api-versioning.md
 "review this ADR"
 "validate ADR-005"
-
-# Session start detection (orchestrator runs):
-& .claude/skills/adr-review/scripts/Detect-ADRChanges.ps1
 ```
 
-**Note**: The `file_triggers` metadata documents intent. Automatic invocation requires orchestrator to run detection at session start or architect to signal "invoke adr-review" after ADR creation.
+**Automatic Detection**: A Claude Code hook (`Invoke-ADRChangeDetection.ps1`) runs at session start and detects ADR changes, prompting you to invoke this skill. The pre-commit hook also detects staged ADR files and displays a reminder.
 
 | Input | Output | Consensus Required |
 |-------|--------|-------------------|
