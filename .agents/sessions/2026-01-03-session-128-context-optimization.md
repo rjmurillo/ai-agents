@@ -133,11 +133,13 @@ These were restored after user feedback.
 
 | Model | Count | Agents |
 |-------|-------|--------|
-| opus | 2 | implementer, high-level-advisor |
-| sonnet | 15 | orchestrator, architect, security, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap |
+| opus | 1 | implementer |
+| sonnet | 16 | orchestrator, architect, security, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap, high-level-advisor |
 | haiku | 3 | memory, skillbook, context-retrieval |
 
-**Opus reduction**: 7 → 2 (71% fewer opus agents)
+**Opus reduction**: 7 → 1 (86% fewer opus agents)
+
+**Update**: Session log analysis (290 sessions) showed high-level-advisor used <1% (19 mentions). Downgraded opus → sonnet in commit f101c06.
 
 ---
 
