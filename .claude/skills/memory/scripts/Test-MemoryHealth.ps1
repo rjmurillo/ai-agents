@@ -88,9 +88,13 @@ function Test-ForgetfulAvailable {
         Check if Forgetful MCP is accessible.
     #>
     # Forgetful runs on localhost:8020 - check if reachable
+    # Server requires Accept header for both JSON and SSE content types
     try {
         $uri = "http://localhost:8020/mcp"
-        $response = Invoke-WebRequest -Uri $uri -Method Get -TimeoutSec 5 -ErrorAction Stop
+        $headers = @{
+            "Accept" = "application/json, text/event-stream"
+        }
+        $response = Invoke-WebRequest -Uri $uri -Method Get -Headers $headers -TimeoutSec 5 -ErrorAction Stop
         return @{
             available = $true
             message   = "Forgetful MCP reachable at $uri"
