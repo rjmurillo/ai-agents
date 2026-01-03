@@ -57,7 +57,8 @@ You CANNOT claim session completion until validation PASSES. These requirements 
 | Req Level | Step | Verification |
 |-----------|------|--------------|
 | **MUST** | Complete Session End checklist in session log | All `[x]` checked |
-| **MUST** | Update `.agents/HANDOFF.md` with session log link | File modified, link exists |
+| **MUST NOT** | Update `.agents/HANDOFF.md` (read-only reference) | File unchanged |
+| **MUST** | Update Serena memory (cross-session context) | Memory write confirmed |
 | **MUST** | Run `npx markdownlint-cli2 --fix "**/*.md"` | Lint passes |
 | **MUST** | Commit all changes including `.agents/` | Commit SHA in Evidence column |
 | **MUST** | Run `Validate-SessionEnd.ps1` | Exit code 0 (PASS) |
@@ -115,7 +116,7 @@ Orchestrator → Retrospective → complete
 
 **Architecture**: Subagents CANNOT delegate to other subagents. They return results to orchestrator, who handles all routing decisions.
 
-The Memory agent provides long-running context across sessions using `cloudmcp-manager` for persistent memory.
+The Memory agent provides long-running context across sessions using Serena (project-specific memory) and Forgetful (semantic search with knowledge graph) for persistent memory.
 
 ---
 
@@ -592,11 +593,11 @@ Agents have access to multiple memory systems depending on the platform and avai
 
 **Use memory tools in this order of preference:**
 
-1. **Serena Memory** (preferred) - File-based, cross-platform, shared with Claude Code/Desktop
-2. **cloudmcp-manager** - Graph-based entity storage, shared with Claude Code/Desktop  
+1. **Serena Memory** (preferred) - Project-specific file-based memory, cross-platform
+2. **Forgetful MCP** - Semantic search with knowledge graph, cross-project memory
 3. **VS Code `memory` tool** (last resort) - VS Code proprietary, not shared with other AI agents
 
-**Important**: If the VS Code `memory` tool is available alongside Serena or cloudmcp-manager, query it for any existing context that should be synchronized to the shared memory systems. This ensures knowledge is accessible across all AI agent platforms (VS Code, Claude Code, Claude Desktop).
+**Important**: If the VS Code `memory` tool is available alongside Serena or Forgetful, query it for any existing context that should be synchronized to the shared memory systems. This ensures knowledge is accessible across all AI agent platforms (VS Code, Claude Code, Claude Desktop).
 
 ### Serena Memory (Preferred)
 
@@ -619,9 +620,9 @@ list_memories()
 edit_memory(memory_file_name="session-notes.md", needle="IN PROGRESS", repl="COMPLETED", mode="literal")
 ```
 
-### Graph-Based Memory (cloudmcp-manager)
+### Forgetful MCP (Semantic Search + Knowledge Graph)
 
-For environments with `cloudmcp-manager`, use graph-based memory for richer entity relationships:
+Forgetful provides semantic search and automatic knowledge graph construction for cross-session memory using `execute_forgetful_tool(tool_name, arguments)` pattern:
 
 | Operation | Tool | Purpose |
 |-----------|------|---------|
@@ -1280,8 +1281,9 @@ SESSION START (BLOCKING - MUST complete before work):
 
 SESSION END (BLOCKING - MUST complete before closing):
 6. MUST: Complete Session End checklist in session log (all [x] checked)
-7. MUST: Update .agents/HANDOFF.md with session summary and session log link
-8. MUST: Run npx markdownlint-cli2 --fix "**/*.md"
+7. MUST NOT: Update .agents/HANDOFF.md (read-only reference)
+8. MUST: Update Serena memory (cross-session context)
+9. MUST: Run npx markdownlint-cli2 --fix "**/*.md"
 9. MUST: Commit all changes (record SHA in Evidence column)
 10. MUST: Run Validate-SessionEnd.ps1 - PASS required before claiming completion
 11. SHOULD: Check off completed tasks in PROJECT-PLAN.md
