@@ -2,6 +2,51 @@
 
 > **RFC 2119**: MUST = required, SHOULD = recommended, MAY = optional.
 
+## Repository Overview
+
+This repository provides a coordinated **multi-agent system for software development** supporting three platforms:
+
+- **Claude Code** (this file)
+- **GitHub Copilot CLI** (`src/copilot-cli/`)
+- **VS Code Copilot** (`src/vs-code-agents/`)
+
+### Directory Structure
+
+```text
+ai-agents/
+├── .agents/                    # Agent system artifacts
+│   ├── architecture/           # ADRs (Architecture Decision Records)
+│   ├── analysis/               # Research and analysis reports
+│   ├── governance/             # Constraints and policies
+│   ├── planning/               # Plans and PRDs
+│   ├── qa/                     # QA validation reports
+│   ├── retrospective/          # Learning extractions
+│   ├── sessions/               # Session logs (YYYY-MM-DD-session-NN.md)
+│   ├── steering/               # Context-aware file guidance
+│   ├── HANDOFF.md              # Project dashboard (READ-ONLY)
+│   └── SESSION-PROTOCOL.md     # Canonical session protocol
+├── .claude/                    # Claude Code configuration
+│   ├── skills/                 # Skill definitions (PowerShell scripts)
+│   ├── commands/               # Custom slash commands
+│   ├── hooks/                  # Lifecycle hooks
+│   └── settings.json           # Claude Code settings
+├── .serena/                    # Serena MCP memory
+│   ├── memories/               # Project-specific memories
+│   └── project.yml             # Serena configuration
+├── src/                        # Agent prompts by platform
+│   ├── claude/                 # Claude-specific agent prompts
+│   ├── copilot-cli/            # Copilot CLI agents (generated)
+│   └── vs-code-agents/         # VS Code agents (generated)
+├── templates/                  # Shared templates for generation
+│   └── agents/*.shared.md      # Source for Copilot platforms
+├── scripts/                    # PowerShell automation scripts
+├── build/                      # Build scripts (Generate-Agents.ps1)
+├── AGENTS.md                   # Full agent catalog and installation
+└── CONTRIBUTING.md             # Contribution guidelines
+```
+
+---
+
 ## BLOCKING GATE: Session Protocol
 
 > **Canonical Source**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
@@ -19,6 +64,7 @@ Complete ALL before any work:
 | MUST | List skills: `.claude/skills/github/scripts/` | Output documented |
 | MUST | Read `usage-mandatory` memory | Content in context |
 | MUST | Read `.agents/governance/PROJECT-CONSTRAINTS.md` | Content in context |
+| MUST | Verify branch: `git branch --show-current` | Branch documented |
 
 ### Session End (BLOCKING)
 
@@ -47,6 +93,59 @@ Complete ALL before closing:
 | MUST NOT use raw `gh` when skill exists | usage-mandatory | Check `.claude/skills/` first |
 | MUST NOT put logic in workflow YAML | ADR-006 | Logic goes in .psm1 modules |
 | MUST use atomic commits (one logical change) | code-style-conventions | Max 5 files OR single topic |
+| MUST verify branch before git operations | SESSION-PROTOCOL | Run `git branch --show-current` |
+
+---
+
+## MCP Servers
+
+The project uses three MCP servers for extended capabilities:
+
+| Server | Transport | Purpose |
+|--------|-----------|---------|
+| **Serena** | stdio | Code analysis, project memory, symbol lookup |
+| **Forgetful** | HTTP (`localhost:8020/mcp`) | Semantic search, knowledge graph |
+| **DeepWiki** | HTTP (`mcp.deepwiki.com/mcp`) | Documentation lookup |
+
+### Serena (Project Memory)
+
+```python
+# Activate at session start
+mcp__serena__activate_project(project_path=".")
+mcp__serena__initial_instructions()
+
+# Memory operations
+mcp__serena__list_memories()
+mcp__serena__read_memory(memory_file_name="[name]")
+mcp__serena__write_memory(memory_file_name="[name]", content="...")
+
+# Code analysis
+mcp__serena__find_symbol(symbol_name="[class/function]")
+mcp__serena__get_project_context()
+```
+
+### Forgetful (Semantic Memory)
+
+```python
+# Store learnings
+mcp__forgetful__memory_create(
+    content="PowerShell arrays need @() for single-element arrays",
+    tags=["powershell", "arrays", "gotcha"]
+)
+
+# Search for context
+mcp__forgetful__memory_search(query="PowerShell array handling")
+
+# Knowledge graph
+mcp__forgetful__entity_create(name="...", type="...")
+mcp__forgetful__entity_search(query="...")
+```
+
+**Verification**: If forgetful tools are unavailable:
+
+```bash
+pwsh scripts/forgetful/Test-ForgetfulHealth.ps1
+```
 
 ---
 
@@ -109,6 +208,8 @@ git branch --show-current
 
 **Why**: Branch confusion causes commits to wrong branches, workflows on wrong refs, and PRs from wrong base - wasting significant effort.
 
+---
+
 ## Document Hierarchy
 
 Read these in order when starting work:
@@ -121,6 +222,37 @@ Read these in order when starting work:
 | 4 | `.agents/AGENT-INSTRUCTIONS.md` | Task execution protocol |
 | 5 | `.agents/AGENT-SYSTEM.md` | Full agent catalog (18 agents) |
 | 6 | `AGENTS.md` | Installation and usage guide |
+
+---
+
+## Architecture Decision Records (ADRs)
+
+ADRs document significant technical decisions. Located in `.agents/architecture/`.
+
+### Key ADRs
+
+| ADR | Title | Impact |
+|-----|-------|--------|
+| ADR-005 | PowerShell-Only Scripting | No .sh or .py files allowed |
+| ADR-006 | Thin Workflows, Testable Modules | Logic in .psm1, not YAML |
+| ADR-007 | Memory-First Architecture | Always check memory before reasoning |
+| ADR-014 | Distributed Handoff Architecture | Session logs replace centralized HANDOFF.md |
+| ADR-034 | Investigation Session QA Exemption | When QA can be skipped |
+| ADR-036 | Two-Source Agent Template Architecture | Claude vs shared templates |
+
+### Two-Source Architecture (ADR-036)
+
+**CRITICAL**: This project uses two sources for agent prompts:
+
+1. **Claude-specific** (`src/claude/*.md`) - Manual edits only
+2. **Shared templates** (`templates/agents/*.shared.md`) - Auto-generates Copilot platforms
+
+When adding content for ALL platforms:
+
+1. Edit `templates/agents/{agent}.shared.md` (generates Copilot CLI + VS Code)
+2. Edit `src/claude/{agent}.md` (manual for Claude)
+
+Pre-commit hook handles generation but NOT content sync between sources.
 
 ---
 
@@ -164,69 +296,10 @@ Task(subagent_type="retrospective", prompt="Analyze session for learnings")
 
 | Scenario | Flow |
 |----------|------|
-| Quick fix | `implementer → qa` |
-| Standard feature | `analyst → planner → critic → implementer → qa` |
-| Strategic decision | `independent-thinker → high-level-advisor → task-generator` |
-| Security-sensitive | `analyst → security → architect → critic → implementer → qa` |
-
-### Memory System
-
-```python
-# Serena (preferred for project-specific memory)
-mcp__serena__list_memories()
-mcp__serena__read_memory(memory_file_name="[name]")
-mcp__serena__write_memory(memory_file_name="[name]", content="...")
-
-# Forgetful (semantic search, knowledge graph)
-mcp__forgetful__memory_create(content="...", tags=["..."])
-mcp__forgetful__memory_search(query="[topic]")
-mcp__forgetful__list_projects()
-```
-
-### Forgetful MCP Server
-
-Forgetful provides semantic search and automatic knowledge graph construction for cross-session memory.
-
-**Connection**: HTTP transport at `http://localhost:8020/mcp`
-
-> **Note**: Stdio transport is broken due to FastMCP banner corruption ([upstream issue #19](https://github.com/ScottRBK/forgetful/issues/19)). Use HTTP transport.
-
-**Key Tools**:
-
-| Tool | Purpose |
-|------|---------|
-| `memory_create` | Store new memories with semantic embeddings |
-| `memory_search` | Find memories by semantic similarity |
-| `memory_get` | Retrieve specific memory by ID |
-| `list_projects` | List all memory projects |
-| `entity_create` | Create knowledge graph entities |
-| `entity_search` | Search entities by name/type |
-
-**Usage Pattern**:
-
-```python
-# Store a learning
-mcp__forgetful__memory_create(
-    content="PowerShell arrays need @() for single-element arrays",
-    tags=["powershell", "arrays", "gotcha"]
-)
-
-# Search for relevant context
-mcp__forgetful__memory_search(query="PowerShell array handling")
-```
-
-**Verification**: If forgetful tools are unavailable, check that the server is running:
-
-```bash
-# Health check
-pwsh scripts/forgetful/Test-ForgetfulHealth.ps1
-
-# Manual status check
-systemctl --user status forgetful  # Linux
-Get-ScheduledTask -TaskName 'ForgetfulMCP' | Get-ScheduledTaskInfo  # Windows
-```
-
-**Setup**: See `scripts/forgetful/README.md` for installation and configuration
+| Quick fix | `implementer -> qa` |
+| Standard feature | `analyst -> planner -> critic -> implementer -> qa` |
+| Strategic decision | `independent-thinker -> high-level-advisor -> task-generator` |
+| Security-sensitive | `analyst -> security -> architect -> critic -> implementer -> qa` |
 
 ---
 
@@ -238,13 +311,29 @@ Before GitHub operations, check for existing skills:
 Get-ChildItem -Path ".claude/skills/github/scripts" -Recurse -Filter "*.ps1"
 ```
 
-**Skill locations**:
+### Available Skills
 
-- PR operations: `.claude/skills/github/scripts/pr/`
-- Issue operations: `.claude/skills/github/scripts/issue/`
-- Reactions: `.claude/skills/github/scripts/reactions/`
+| Category | Location | Examples |
+|----------|----------|----------|
+| PR operations | `.claude/skills/github/scripts/pr/` | Get-PRContext, New-PR, Merge-PR |
+| Issue operations | `.claude/skills/github/scripts/issue/` | New-Issue, Set-IssueLabels |
+| Reactions | `.claude/skills/github/scripts/reactions/` | Add-CommentReaction |
+| ADR review | `.claude/skills/adr-review/` | Multi-agent ADR debate |
+| Merge resolver | `.claude/skills/merge-resolver/` | Conflict resolution |
+| Session | `.claude/skills/session/` | Investigation eligibility |
 
 **Rule**: If a skill exists, use it. If missing, ADD to skill library (don't write inline).
+
+### Other Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `analyze` | Codebase analysis orchestration |
+| `planner` | Interactive planning and execution |
+| `incoherence` | Detect documentation/code drift |
+| `skillcreator` | Create new skills |
+| `prompt-engineer` | Optimize agent prompts |
+| `doc-sync` | Synchronize CLAUDE.md indexes |
 
 ---
 
@@ -277,11 +366,17 @@ Location: `.agents/steering/`
 - Route to qa agent after feature implementation
 - Skip with `SKIPPED: docs-only` for documentation-only changes (no code, config, or test changes)
 - Skip with `SKIPPED: investigation-only` for investigation sessions (per ADR-034) when only staging: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`
+- Session logs (`.agents/sessions/`) are automatically filtered from QA validation checks
 
 ### Skill Violations Are Protocol Failures
 
 - Session 15 had 5+ skill violations despite documentation
 - Phase 1.5 skill validation gate now enforces compliance
+
+### Branch Verification Prevents Cross-PR Contamination
+
+- PR #669 retrospective: 100% of wrong-branch commits were from missing verification
+- Always run `git branch --show-current` before commits
 
 ---
 
@@ -294,12 +389,14 @@ Location: `.agents/steering/`
 | Linting fails | `npx markdownlint-cli2 --fix "**/*.md"` |
 | Git issues | `git log --oneline -5` for recent commits |
 | Protocol violation | Acknowledge, complete missed step, document |
+| Forgetful unavailable | `pwsh scripts/forgetful/Test-ForgetfulHealth.ps1` |
 
 ---
 
 For complete documentation, see [AGENTS.md](AGENTS.md).
 
 <!-- BEGIN: ai-agents installer -->
+
 ## AI Agent System
 
 This section provides instructions for using the multi-agent system with Claude Code.
@@ -377,15 +474,16 @@ independent-thinker -> high-level-advisor -> task-generator
 
 ### Memory Protocol
 
-Agents use `cloudmcp-manager` for cross-session memory:
+Agents use Serena and Forgetful MCP for cross-session memory:
 
 ```python
-# Search for context
-mcp__cloudmcp-manager__memory-search_nodes(query="[topic]")
+# Serena (project-specific)
+mcp__serena__read_memory(memory_file_name="[topic]")
+mcp__serena__write_memory(memory_file_name="[topic]", content="...")
 
-# Store learnings
-mcp__cloudmcp-manager__memory-add_observations(...)
-mcp__cloudmcp-manager__memory-create_entities(...)
+# Forgetful (semantic search)
+mcp__forgetful__memory_search(query="[topic]")
+mcp__forgetful__memory_create(content="...", tags=["..."])
 ```
 
 ### Agent Output Directories
