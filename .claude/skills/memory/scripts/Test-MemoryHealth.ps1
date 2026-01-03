@@ -38,6 +38,47 @@ $ErrorActionPreference = 'Stop'
 
 #region Helper Functions
 
+function Get-ForgetfulEndpoint {
+    <#
+    .SYNOPSIS
+        Get Forgetful MCP endpoint from .mcp.json configuration.
+    
+    .DESCRIPTION
+        Reads the .mcp.json file from the repository root and extracts the
+        Forgetful server URL. Falls back to default if file or configuration
+        is not found.
+    
+    .OUTPUTS
+        String containing the Forgetful endpoint URL.
+    #>
+    $defaultEndpoint = "http://localhost:8020/mcp"
+    
+    try {
+        # Navigate to repository root (5 levels up from script location)
+        $repoRoot = Join-Path $PSScriptRoot ".." ".." ".." ".."
+        $mcpConfigPath = Join-Path $repoRoot ".mcp.json"
+        
+        if (-not (Test-Path $mcpConfigPath)) {
+            Write-Verbose "MCP config not found at $mcpConfigPath, using default endpoint"
+            return $defaultEndpoint
+        }
+        
+        $mcpConfig = Get-Content -Path $mcpConfigPath -Raw | ConvertFrom-Json
+        
+        if ($mcpConfig.mcpServers -and $mcpConfig.mcpServers.forgetful -and $mcpConfig.mcpServers.forgetful.url) {
+            return $mcpConfig.mcpServers.forgetful.url
+        }
+        else {
+            Write-Verbose "Forgetful configuration not found in .mcp.json, using default endpoint"
+            return $defaultEndpoint
+        }
+    }
+    catch {
+        Write-Verbose "Failed to read .mcp.json: $($_.Exception.Message), using default endpoint"
+        return $defaultEndpoint
+    }
+}
+
 function Test-SerenaAvailable {
     <#
     .SYNOPSIS
@@ -87,9 +128,10 @@ function Test-ForgetfulAvailable {
     .SYNOPSIS
         Check if Forgetful MCP is accessible.
     #>
-    # Forgetful runs on localhost:8020 - check if reachable
+    # Get Forgetful endpoint from .mcp.json
+    $uri = Get-ForgetfulEndpoint
+    
     try {
-        $uri = "http://localhost:8020/mcp"
         $headers = @{
             "Content-Type" = "application/json"
             "Accept" = "application/json, text/event-stream"
@@ -105,7 +147,7 @@ function Test-ForgetfulAvailable {
         return @{
             available = $false
             message   = "Forgetful MCP not reachable: $($_.Exception.Message)"
-            endpoint  = "http://localhost:8020/mcp"
+            endpoint  = $uri
         }
     }
 }
