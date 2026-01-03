@@ -2,7 +2,7 @@
 
 ## Summary
 
-The export-memories.ts and import-memories.ts scripts referenced in Claude-Mem documentation are installed with the claude-mem plugin and accessible via wrapper scripts in the ai-agents repository.
+The claude-mem plugin provides export/import functionality via TypeScript scripts. The ai-agents project wraps these with PowerShell scripts for ADR-005 compliance and consistent interface.
 
 ## Script Locations
 
@@ -13,44 +13,34 @@ The export-memories.ts and import-memories.ts scripts referenced in Claude-Mem d
 
 These are the actual implementation scripts installed with the claude-mem plugin.
 
-### Project Wrapper Scripts (ai-agents)
+### Project PowerShell Wrappers (ai-agents)
 
-- **export-memories.ts**: `scripts/export-memories.ts`
-- **import-memories.ts**: `scripts/import-memories.ts`
+- **Export-ClaudeMemMemories.ps1**: `.claude-mem/scripts/Export-ClaudeMemMemories.ps1`
+- **Import-ClaudeMemMemories.ps1**: `.claude-mem/scripts/Import-ClaudeMemMemories.ps1`
 
-These wrapper scripts forward all arguments to the installed plugin scripts, allowing the documented commands to work from the project root:
-
-```bash
-npx tsx scripts/export-memories.ts "[query]" output.json
-npx tsx scripts/import-memories.ts input.json
-```
+These PowerShell scripts call the plugin scripts directly and provide:
+- ADR-005 compliance (PowerShell-only)
+- Consistent parameter interface
+- Security review integration
+- Idempotent import
 
 ## Wrapper Implementation
 
-```typescript
-#!/usr/bin/env tsx
-import { spawn } from 'child_process';
-import { join } from 'path';
-import { homedir } from 'os';
+```powershell
+#!/usr/bin/env pwsh
+# Export wrapper
+$PluginScript = Join-Path $env:HOME '.claude' 'plugins' 'marketplaces' 'thedotmack' 'scripts' 'export-memories.ts'
 
-const pluginScriptPath = join(
-  homedir(),
-  '.claude/plugins/marketplaces/thedotmack/scripts/export-memories.ts'
-);
-
-const args = process.argv.slice(2);
-const child = spawn('npx', ['tsx', pluginScriptPath, ...args], {
-  stdio: 'inherit',
-  shell: true
-});
+npx tsx $PluginScript $Query $OutputFile
 ```
 
-## Why Wrappers Are Needed
+## Why PowerShell Wrappers
 
-1. **Plugin Location**: Scripts are in `~/.claude/plugins/`, not in the project
-2. **Documentation Consistency**: Allows `npx tsx scripts/export-memories.ts` to work as documented
-3. **Project Portability**: Works from any ai-agents clone without path changes
-4. **Team Onboarding**: New team members don't need to know plugin installation paths
+1. **ADR-005 Compliance**: Project uses PowerShell-only for scripting
+2. **Parameter Interface**: Named parameters (`-Query`, `-Topic`) vs positional
+3. **Security Integration**: Reminds to run security review script
+4. **Consistent UX**: Matches other project PowerShell scripts
+5. **Documentation Clarity**: Clear parameter names vs positional args
 
 ## Usage Examples
 
@@ -58,48 +48,54 @@ All commands work from project root:
 
 ```bash
 # Export session memories
-npx tsx scripts/export-memories.ts "session 229" \
-  .claude-mem/memories/2026-01-03-session-229.json
+pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "session 229" -SessionNumber 229 -Topic "frustrations"
 
-# Import shared memories  
-npx tsx scripts/import-memories.ts \
-  .claude-mem/memories/2026-01-03-shared.json
+# Import all memories
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 
-# Export by project
-npx tsx scripts/export-memories.ts "" all.json --project=ai-agents
+# Security review (REQUIRED before commit)
+pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile .claude-mem/memories/2026-01-03-session-229-frustrations.json
 ```
 
 ## Source Repository
 
-The original scripts are part of the claude-mem plugin:
+The original TypeScript scripts are part of the claude-mem plugin:
 - **GitHub**: https://github.com/thedotmack/claude-mem/tree/main/scripts
 - **Documentation**: https://docs.claude-mem.ai/usage/export-import
 
 ## Integration Points
 
-- `.claude-mem/memories/README.md` - Documents wrapper script location
-- `.agents/governance/MEMORY-MANAGEMENT.md` - Uses wrapper commands
-- `.agents/SESSION-PROTOCOL.md` - References wrapper commands
+- `.claude-mem/memories/README.md` - Documents PowerShell wrapper usage
+- `.claude-mem/memories/AGENTS.md` - Agent instructions for export/import
+- `.agents/governance/MEMORY-MANAGEMENT.md` - Three-tier memory architecture
+- `.agents/SESSION-PROTOCOL.md` - Session start/end requirements
 
 ## Troubleshooting
 
-### "scripts/export-memories.ts not found"
+### "Plugin script not found"
 
-Verify wrapper scripts exist:
+Verify plugin installation:
 ```bash
-ls -l scripts/export-memories.ts scripts/import-memories.ts
+Test-Path ~/.claude/plugins/marketplaces/thedotmack/scripts/export-memories.ts
 ```
 
-If missing, recreate wrappers or use plugin scripts directly:
-```bash
-npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/export-memories.ts
-```
+If missing, reinstall claude-mem plugin.
 
 ### Logger initialization errors
 
-Non-fatal warnings from plugin script. Usage message will still display correctly.
+Non-fatal warnings from plugin script. Exports/imports still complete successfully.
+
+### Security review failures
+
+Run security review script:
+```bash
+pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile [file].json
+```
+
+If sensitive data detected, manually redact before committing.
 
 ## Session Context
 
-Created: January 3, 2026 (Session 229)
-Reason: User questioned where export/import scripts were located
+- **Created**: January 3, 2026 (Session 229)
+- **Updated**: January 3, 2026 (Session 230 - PowerShell migration)
+- **Reason**: User questioned wrapper complexity; replaced TypeScript wrappers with PowerShell for ADR-005 compliance

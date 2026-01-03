@@ -1,5 +1,8 @@
-# Ignore imported memory files (staging area)
-memories/imports/*.json
+# Claude-Mem Memories Directory
+# All .json export files are committed to git for team sharing
+# Import is idempotent - safe to reimport same files
 
-# Keep exports (committed to git for sharing)
-!memories/exports/*.json
+# Ignore temporary files
+*.tmp
+*.swp
+*~
