@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by ADR-039 (2026-01-03)
+
+**Note**: This ADR established the theoretical framework for model selection based on task requirements. ADR-039 supersedes it with data-driven optimization based on 290 sessions of actual usage patterns, introducing the Haiku tier and reducing Opus usage from 7 agents to 1 agent.
 
 ## Date
 
