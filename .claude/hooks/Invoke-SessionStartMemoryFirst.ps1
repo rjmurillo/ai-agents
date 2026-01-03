@@ -24,9 +24,26 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Check MCP server availability (non-blocking, informational)
-
+# Read Forgetful configuration from .mcp.json
+$ForgetfulHost = "localhost"
 $ForgetfulPort = 8020
+$mcpConfigPath = Join-Path $PSScriptRoot ".." ".." ".mcp.json"
+
+if (Test-Path $mcpConfigPath) {
+    try {
+        $mcpConfig = Get-Content $mcpConfigPath -Raw | ConvertFrom-Json -ErrorAction Stop
+        if ($mcpConfig.mcpServers.forgetful.url) {
+            $forgetfulUrl = [System.Uri]::new($mcpConfig.mcpServers.forgetful.url)
+            $ForgetfulHost = $forgetfulUrl.Host
+            $ForgetfulPort = $forgetfulUrl.Port
+        }
+    }
+    catch {
+        # Fall back to defaults if parsing fails - don't block session start
+    }
+}
+
+# Check MCP server availability (non-blocking, informational)
 $ForgetfulAvailable = $false
 $ForgetfulMessage = ""
 
@@ -34,12 +51,12 @@ try {
     # Simple TCP port check - MCP protocol requires session initialization which is complex
     # Just verify the server is listening on the port
     $tcpClient = New-Object System.Net.Sockets.TcpClient
-    $connectTask = $tcpClient.ConnectAsync("localhost", $ForgetfulPort)
+    $connectTask = $tcpClient.ConnectAsync($ForgetfulHost, $ForgetfulPort)
     $connected = $connectTask.Wait(1000)  # 1 second timeout
 
     if ($connected -and $tcpClient.Connected) {
         $ForgetfulAvailable = $true
-        $ForgetfulMessage = "Forgetful MCP: AVAILABLE (port $ForgetfulPort)"
+        $ForgetfulMessage = "Forgetful MCP: AVAILABLE ($ForgetfulHost`:$ForgetfulPort)"
     }
     else {
         $ForgetfulMessage = "Forgetful MCP: UNAVAILABLE (Serena-only workflow) - connection timeout"
