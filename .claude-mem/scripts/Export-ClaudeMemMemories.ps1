@@ -52,6 +52,7 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
     [AllowEmptyString()]
+    [ValidatePattern('^[a-zA-Z0-9\s\-_.,()]*$')]
     [string]$Query,
 
     [Parameter(Mandatory = $false)]

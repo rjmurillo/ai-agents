@@ -45,17 +45,23 @@ $SensitivePatterns = @{
         'access[_-]?token',
         'bearer\s+[a-zA-Z0-9_-]{20,}',
         'github[_-]?token',
-        'gh[ps]_[a-zA-Z0-9]{36}'
+        'gh[ps]_[a-zA-Z0-9]{36}',
+        'AKIA[0-9A-Z]{16}',                                    # AWS Access Keys
+        'xox[baprs]-[0-9a-zA-Z]{10,}',                        # Slack Tokens
+        'npm_[A-Za-z0-9]{36}'                                 # npm Tokens
     )
     'Passwords/Secrets'        = @(
         'password\s*[:=]\s*[\"\x27]?[^\"\s]{8,}',
         'secret\s*[:=]',
         'credential',
-        'auth[_-]?key'
+        'auth[_-]?key',
+        '[a-zA-Z0-9~_.-]{34}',                                # Azure Client Secrets
+        '[A-Za-z0-9+/=]{40,}'                                 # Base64 encoded secrets (40+ chars)
     )
     'Private Keys'             = @(
         'BEGIN\s+(RSA|PRIVATE|ENCRYPTED)\s+KEY',
-        'private[_-]?key'
+        'private[_-]?key',
+        'SHA256:[A-Za-z0-9+/=]{43}'                           # SSH key fingerprints
     )
     'File Paths'               = @(
         '/home/[a-z]+/',
@@ -72,7 +78,8 @@ $SensitivePatterns = @{
     'Email/PII'                = @(
         '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
         'ssn\s*[:=]',
-        'social[_-]?security'
+        'social[_-]?security',
+        '(10|172\.(1[6-9]|2[0-9]|3[01])|192\.168)\.\d+\.\d+' # Private IP addresses
     )
 }
 
@@ -88,17 +95,17 @@ foreach ($Category in $SensitivePatterns.Keys) {
     $Patterns = $SensitivePatterns[$Category]
 
     foreach ($Pattern in $Patterns) {
-        $Matches = Select-String -Path $ExportFile -Pattern $Pattern -AllMatches -CaseSensitive:$false
+        $PatternMatches = Select-String -Path $ExportFile -Pattern $Pattern -AllMatches -CaseSensitive:$false
 
-        if ($Matches) {
-            $MatchCount = ($Matches | Measure-Object).Count
+        if ($PatternMatches) {
+            $MatchCount = ($PatternMatches | Measure-Object).Count
             $TotalMatches += $MatchCount
 
             $FoundIssues += [PSCustomObject]@{
                 Category = $Category
                 Pattern  = $Pattern
                 Count    = $MatchCount
-                Lines    = ($Matches | Select-Object -First 3 -ExpandProperty LineNumber) -join ', '
+                Lines    = ($PatternMatches | Select-Object -First 3 -ExpandProperty LineNumber) -join ', '
             }
         }
     }
