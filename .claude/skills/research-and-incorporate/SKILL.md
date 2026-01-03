@@ -4,6 +4,7 @@ description: Research external topics, create comprehensive analysis, determine 
 metadata:
   version: 1.0.0
   timelessness: 8/10
+  model: opus
   source: Chesterton's Fence research workflow (Session 203)
 ---
 
