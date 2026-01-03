@@ -3,6 +3,7 @@
 | Task Keywords | Essential Memories |
 |---------------|-------------------|
 | session start init handoff protocol serena blocking | skills-session-init-index, project-overview, codebase-structure |
+| session validation diagnose fixer protocol compliance NON_COMPLIANT changelog history | changelog-session-log-fixer |
 | github pr issue cli gh api | skills-github-cli-index, skills-pr-review-index, project-labels-milestones |
 | graphql mutation query resolve thread reply batch nested | skills-graphql-index |
 | jq json parse filter select map array object string | skills-jq-index |

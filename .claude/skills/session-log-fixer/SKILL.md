@@ -87,27 +87,6 @@ GitHub Actions Failure
 
 ---
 
-## What Changed in v3.0.0
-
-**Zero-Token Deterministic Validation** replaced AI-based validation:
-
-| Old Approach (AI) | New Approach (Deterministic) |
-|-------------------|------------------------------|
-| 300K-900K tokens per debug cycle | **0 tokens** |
-| Opaque AI verdicts | Exact requirement failures |
-| Download artifacts to diagnose | Read Job Summary directly |
-| Run diagnose.ps1 script | View GitHub Actions Summary tab |
-| Parse AI prose | Structured table output |
-
-**Benefits:**
-
-- ✅ 10x-100x faster debugging
-- ✅ Zero token cost
-- ✅ Instant feedback in GitHub UI
-- ✅ No scripts needed to diagnose
-
----
-
 ## Workflow
 
 ### Step 1: Read Job Summary
@@ -270,35 +249,3 @@ After applying fixes:
 - [Template Sections](references/template-sections.md) - Copy-paste ready templates
 - [CI Debugging Patterns](references/ci-debugging-patterns.md) - Advanced job-level diagnostics
 - [`Validate-SessionProtocol.ps1`](../../../scripts/Validate-SessionProtocol.ps1) - Deterministic validation script
-
----
-
-## Changelog
-
-### v3.0.0 (Current)
-
-- **BREAKING**: Removed diagnose.ps1 script (obsolete with deterministic validation)
-- Added zero-token deterministic validation using Job Summary
-- Updated workflow to read failures directly from GitHub UI
-- Added local validation instructions using Validate-SessionProtocol.ps1
-- Updated troubleshooting for new validation approach
-- Added "What Changed" section explaining the improvement
-- Removed artifact download steps (no longer needed)
-
-### v2.0.0
-
-- Added complete frontmatter with metadata
-- Added triggers section (5 phrases)
-- Added Quick Start section
-- Added Process Overview diagram
-- Added Verification Checklist
-- Added Anti-Patterns section
-- Added Extension Points
-- Added Troubleshooting section
-- Fixed bash examples to PowerShell (ADR-005 compliance)
-- Added references directory structure
-
-### v1.0.0
-
-- Initial release with diagnose.ps1 script
-- Basic workflow documentation
