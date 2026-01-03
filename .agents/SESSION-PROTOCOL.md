@@ -101,7 +101,7 @@ The `memory-index` maps task keywords to essential memories. Example workflow:
 
 **Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions. Note: HANDOFF.md is a read-only reference; do not modify it during sessions. Without loading relevant memories, agents repeat solved problems or miss established patterns.
 
-### Phase 2.1: Import Shared Memories (RECOMMENDED)
+### Phase 3: Import Shared Memories (RECOMMENDED)
 
 The agent SHOULD import shared memories at session start.
 
@@ -125,7 +125,7 @@ The agent SHOULD import shared memories at session start.
 
 **Detailed Workflow**: See [.claude-mem/memories/AGENTS.md](../.claude-mem/memories/AGENTS.md) and [MEMORY-MANAGEMENT.md](governance/MEMORY-MANAGEMENT.md)
 
-### Phase 1.5: Skill Validation (BLOCKING)
+### Phase 4: Skill Validation (BLOCKING)
 
 The agent MUST validate skill availability before starting work. This is a **blocking gate**.
 
@@ -151,7 +151,7 @@ The agent MUST validate skill availability before starting work. This is a **blo
 
 **Rationale:** Session 15 had 5+ skill violations despite documentation. Trust-based compliance fails; verification-based enforcement (like Serena init) has 100% compliance.
 
-### Phase 3: Session Log Creation (REQUIRED)
+### Phase 5: Session Log Creation (REQUIRED)
 
 The agent MUST create a session log early in the session.
 
