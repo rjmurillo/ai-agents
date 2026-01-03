@@ -211,7 +211,8 @@ function Test-MustRequirements {
 function Test-HandoffUpdated {
     <#
     .SYNOPSIS
-        Validates that HANDOFF.md was updated (based on session date).
+        Validates that HANDOFF.md was NOT updated (per SESSION-PROTOCOL.md: "MUST NOT update HANDOFF.md").
+        Session context MUST go to session log and Serena memory instead.
     #>
     param(
         [string]$SessionPath,
@@ -227,8 +228,7 @@ function Test-HandoffUpdated {
     $handoffPath = Join-Path $BasePath ".agents/HANDOFF.md"
 
     if (-not (Test-Path $handoffPath)) {
-        $result.Passed = $false
-        $result.Issues += "HANDOFF.md not found at $handoffPath"
+        # HANDOFF.md existence is not required by current protocol
         return $result
     }
 
@@ -238,10 +238,10 @@ function Test-HandoffUpdated {
         $sessionDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
         $handoffModified = (Get-Item $handoffPath).LastWriteTime.Date
 
-        # HANDOFF should be modified on or after session date
-        if ($handoffModified -lt $sessionDate) {
+        # HANDOFF.md MUST NOT be modified on or after session date (per protocol v1.4)
+        if ($handoffModified -ge $sessionDate) {
             $result.Passed = $false
-            $result.Issues += "HANDOFF.md last modified ($($handoffModified.ToString('yyyy-MM-dd'))) is before session date ($($sessionDate.ToString('yyyy-MM-dd')))"
+            $result.Issues += "HANDOFF.md was modified ($($handoffModified.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
         }
     }
 
