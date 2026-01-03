@@ -101,9 +101,13 @@ if (-not $OutputFile) {
     $OutputFile = Join-Path $MemoriesDir $Filename
 }
 
-# Ensure output file is in memories directory
-if (-not $OutputFile.StartsWith($MemoriesDir)) {
-    Write-Warning "Output file should be in .claude-mem/memories/ for version control"
+# Ensure output file is in memories directory (prevent path traversal - CWE-22)
+# WHY: Normalize paths before comparison to prevent directory traversal attacks
+# SECURITY: GetFullPath() resolves ".." and ensures paths are absolute
+$NormalizedOutput = [System.IO.Path]::GetFullPath($OutputFile)
+$NormalizedDir = [System.IO.Path]::GetFullPath($MemoriesDir)
+if (-not $NormalizedOutput.StartsWith($NormalizedDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Path traversal attempt detected. Output file must be inside '$MemoriesDir' directory."
 }
 
 Write-Host "🔍 Exporting Claude-Mem observations..." -ForegroundColor Cyan
@@ -112,7 +116,9 @@ Write-Host "   Output: $OutputFile" -ForegroundColor Gray
 Write-Host ""
 
 try {
-    npx tsx $PluginScript $Query $OutputFile
+    # SECURITY: Quote all variables to prevent command injection (CWE-77)
+    # WHY: Unquoted variables allow shell metacharacters to inject commands
+    npx tsx "$PluginScript" "$Query" "$OutputFile"
 
     if (Test-Path $OutputFile) {
         $FileSize = (Get-Item $OutputFile).Length
