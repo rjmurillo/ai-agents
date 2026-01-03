@@ -126,19 +126,31 @@ mcp__serena__get_project_context()
 
 ### Forgetful (Semantic Memory)
 
-```python
-# Store learnings
-mcp__forgetful__memory_create(
-    content="PowerShell arrays need @() for single-element arrays",
-    tags=["powershell", "arrays", "gotcha"]
-)
+All Forgetful tools use `execute_forgetful_tool(tool_name, arguments)` pattern:
 
-# Search for context
-mcp__forgetful__memory_search(query="PowerShell array handling")
+```python
+# Store learnings (requires title, content, context, keywords, tags, importance)
+mcp__forgetful__execute_forgetful_tool("create_memory", {
+    "title": "PowerShell array gotcha",
+    "content": "PowerShell arrays need @() for single-element arrays",
+    "context": "Bug fix during script development",
+    "keywords": ["powershell", "arrays"],
+    "tags": ["gotcha", "powershell"],
+    "importance": 7
+})
+
+# Search for context (requires query and query_context)
+mcp__forgetful__execute_forgetful_tool("query_memory", {
+    "query": "PowerShell array handling",
+    "query_context": "Implementing array logic in script"
+})
+
+# List projects
+mcp__forgetful__execute_forgetful_tool("list_projects", {})
 
 # Knowledge graph
-mcp__forgetful__entity_create(name="...", type="...")
-mcp__forgetful__entity_search(query="...")
+mcp__forgetful__execute_forgetful_tool("create_entity", {"name": "...", "entity_type": "..."})
+mcp__forgetful__execute_forgetful_tool("search_entities", {"query": "..."})
 ```
 
 **Verification**: If forgetful tools are unavailable:
@@ -482,8 +494,8 @@ mcp__serena__read_memory(memory_file_name="[topic]")
 mcp__serena__write_memory(memory_file_name="[topic]", content="...")
 
 # Forgetful (semantic search)
-mcp__forgetful__memory_search(query="[topic]")
-mcp__forgetful__memory_create(content="...", tags=["..."])
+mcp__forgetful__execute_forgetful_tool("query_memory", {"query": "[topic]", "query_context": "why searching"})
+mcp__forgetful__execute_forgetful_tool("create_memory", {"title": "...", "content": "...", "context": "...", "keywords": [...], "tags": [...], "importance": 7})
 ```
 
 ### Agent Output Directories

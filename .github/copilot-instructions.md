@@ -184,14 +184,18 @@ serena/find_symbol - Find code symbols
 
 ### Forgetful (Semantic Memory)
 
+All Forgetful tools use `execute_forgetful_tool(tool_name, arguments)` pattern:
+
 ```text
-forgetful/memory_create - Store memories with semantic embeddings
-forgetful/memory_search - Find memories by semantic similarity
-forgetful/entity_create - Create knowledge graph entities
-forgetful/entity_search - Search entities by name/type
+execute_forgetful_tool("create_memory", {...}) - Store memories with semantic embeddings
+execute_forgetful_tool("query_memory", {...}) - Find memories by semantic similarity
+execute_forgetful_tool("get_memory", {...}) - Retrieve specific memory by ID
+execute_forgetful_tool("list_projects", {...}) - List all memory projects
+execute_forgetful_tool("create_entity", {...}) - Create knowledge graph entities
+execute_forgetful_tool("search_entities", {...}) - Search entities by name/type
 ```
 
-> **Note**: Forgetful uses HTTP transport. Stdio transport is broken due to FastMCP banner corruption ([upstream issue #19](https://github.com/ScottRBK/forgetful/issues/19)).
+> **Note**: Forgetful uses HTTP transport at `http://localhost:8020/mcp`. Stdio transport is broken due to FastMCP banner corruption ([upstream issue #19](https://github.com/ScottRBK/forgetful/issues/19)).
 >
 > **Setup**: See `scripts/forgetful/README.md` for installation. Health check: `pwsh scripts/forgetful/Test-ForgetfulHealth.ps1`
 
