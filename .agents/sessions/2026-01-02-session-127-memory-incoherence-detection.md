@@ -9,6 +9,44 @@
 
 Run incoherence detection on the memory skill documentation at `.claude/skills/memory/references/`
 
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present (inherited from parent session 140) |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present (inherited from parent session 140) |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context (parent session) |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [N/A] | Investigation session - no skill usage |
+| MUST | Read usage-mandatory memory | [x] | Content in context (parent session) |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context (parent session) |
+| MUST | Read memory-index, load task-relevant memories | [x] | Loaded via parent session |
+| MUST | Verify and declare current branch | [x] | Branch: feat/phase-2 |
+| MUST | Confirm not on main/master | [x] | On feature branch |
+| SHOULD | Verify git status | [x] | Clean on feat/phase-2 |
+| SHOULD | Note starting commit | [x] | d526476 |
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Via parent session 140 |
+| MUST | Run markdown lint | [x] | Part of parent session commit |
+| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: investigation-only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: d713734 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No project plan updates needed |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Investigation session |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
+
+<!-- Investigation sessions may skip QA with evidence "SKIPPED: investigation-only"
+     when only staging: .agents/sessions/, .agents/analysis/, .agents/retrospective/,
+     .serena/memories/, .agents/security/
+     See ADR-034 for details. -->
+
 ### Dimensions Analyzed
 
 - **Dimension A (Spec vs Behavior)**: Do the docs match the actual scripts?
