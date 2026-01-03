@@ -1,5 +1,5 @@
 ---
-description: Configure Context Hub dependencies including Forgetful MCP server and plugin prerequisites. Use when setting up new development environment or troubleshooting MCP connectivity.
+description: Use when setting up new development environment or troubleshooting MCP connectivity. Configures Context Hub dependencies including Forgetful MCP server and plugin prerequisites.
 ---
 
 # Context Hub Setup

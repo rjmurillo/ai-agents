@@ -1,5 +1,5 @@
 ---
-description: List recent memories from Forgetful with optional project filtering. Use when exploring stored knowledge or verifying memory creation.
+description: Use when exploring stored knowledge or verifying memory creation. Lists recent memories from Forgetful with optional project filtering.
 argument-hint: [project-name]
 allowed-tools: [mcp__forgetful__*]
 ---
