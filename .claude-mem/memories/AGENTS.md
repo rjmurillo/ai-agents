@@ -22,6 +22,18 @@ When ending sessions with valuable learnings:
 npx tsx scripts/export-memories.ts "[query]" .claude-mem/memories/YYYY-MM-DD-session-NNN-topic.json
 ```
 
+### Full Backup (Optional)
+
+For milestone sessions or periodic backups:
+
+```bash
+pwsh .claude-mem/scripts/Export-ClaudeMemFullBackup.ps1
+```
+
+Exports ALL claude-mem data (observations, sessions, summaries, prompts) for institutional knowledge portability.
+
+**Suggested**: Weekly or after major project milestones.
+
 ## Directory Contents
 
 All `.json` files in this directory are memory exports that will be automatically imported.

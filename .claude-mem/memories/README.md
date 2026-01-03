@@ -44,6 +44,37 @@ npx tsx scripts/export-memories.ts "" .claude-mem/memories/2026-01-03-project.js
 
 **Note**: The `export-memories.ts` and `import-memories.ts` scripts are wrapper scripts located in the project's `scripts/` directory. They forward to the installed claude-mem plugin scripts at `~/.claude/plugins/marketplaces/thedotmack/scripts/`.
 
+## Full Backup (Institutional Knowledge Export)
+
+Export complete claude-mem database for disaster recovery or onboarding:
+
+```bash
+# All projects
+pwsh .claude-mem/scripts/Export-ClaudeMemFullBackup.ps1
+
+# Single project
+pwsh .claude-mem/scripts/Export-ClaudeMemFullBackup.ps1 -Project "ai-agents"
+```
+
+**Output**: `.claude-mem/memories/backup-YYYY-MM-DD-HHMM.json` or `backup-YYYY-MM-DD-HHMM-{project}.json`
+
+**Security Review**: Automatic and BLOCKING. Violations prevent commit.
+
+**Use Cases:**
+
+- Periodic disaster recovery snapshots
+- Fresh instance setup (portable institutional knowledge)
+- Team onboarding with complete project context
+- Migration between environments
+
+**Restore:**
+
+```bash
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+```
+
+**Note**: Uses query="." as workaround for plugin bug where empty query returns 0 results. Single character appears in nearly all observations, ensuring comprehensive backup.
+
 ## Import Workflow (Session Start or Onboarding)
 
 ### Automatic Import (Session Start)
