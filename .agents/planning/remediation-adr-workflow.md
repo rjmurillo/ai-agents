@@ -4,6 +4,7 @@
 **Status**: Draft
 **Priority**: P0 (Critical)
 **Category**: Process Enforcement
+**Epic**: [#741](https://github.com/rjmurillo/ai-agents/issues/741)
 
 ---
 
