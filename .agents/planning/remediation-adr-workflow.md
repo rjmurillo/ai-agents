@@ -109,18 +109,33 @@ Inspired by security defense-in-depth: multiple independent layers so single-poi
 ```markdown
 BLOCKING GATE: Protected File Operations
 
-Before Write/Edit operations matching these patterns, MUST check:
-- `.agents/architecture/ADR-*.md` → Verify delegation to orchestrator occurred
-- `.agents/security/SR-*.md` → Verify delegation to security agent occurred
+Before Write/Edit operations matching these patterns, MUST verify delegation:
+- `.agents/architecture/ADR-*.md` → orchestrator or architect
+- `.agents/security/SR-*.md` → security or orchestrator
 
-If delegation did NOT occur, HALT and delegate to orchestrator.
+Verification Method (Session Log Parsing):
+1. Review current session transcript
+2. Search for: Task tool invocation with matching subagent_type
+3. Pattern: `Task(subagent_type="(orchestrator|architect|security)"`
+4. If NOT found: HALT, explain requirement, await user decision
 
-Evidence: Task tool invocation in current session.
+User Options When Halted:
+- Option A: Delegate to appropriate agent (recommended)
+- Option B: Override (document in session log why Layer 0 bypassed)
+- Option C: Cancel operation
+
+Evidence Required: Session log documents either delegation or documented override.
 ```
 
-**Rationale**: Prevents workflow bypass at the source. If I never delegate, I never create protected files.
+**Implementation Notes**:
 
-**Limitation**: Pull-based (requires me to read prompt). Layer 1+ provides detection/validation.
+This is pull-based enforcement relying on agent prompt compliance. Agents can read current session context to search for delegation evidence.
+
+Alternative (if session parsing unavailable): Memory-based validation using Forgetful to check for recent Task invocations with required subagent_type.
+
+**Rationale**: Prevents workflow bypass at the source. If I never delegate, I never create protected files. Session log parsing is concrete and verifiable.
+
+**Limitation**: Pull-based (requires agent to read and follow prompt). Layers 1-4 provide detection/validation if Layer 0 fails.
 
 ### Layer 1: Agent Prompts with BLOCKING Language (EXISTING - Strengthen)
 
@@ -347,10 +362,66 @@ These operations MUST delegate to orchestrator. NEVER create files matching thes
 
 ### Self-Audit Checklist (Session End)
 
-Before session end, verify:
-- [ ] No orphaned ADR files (created but not committed)
-- [ ] All ADR commits reference debate log
-- [ ] All protected operations delegated (Task tool evidence)
+Before completing session log and ending session, run these verification checks:
+
+**1. Orphaned Architecture Files**
+
+```bash
+# Check for uncommitted ADR files
+git ls-files --others --exclude-standard .agents/architecture/ADR-*.md
+# Expected: Empty output
+# If files found: Either commit with debate log or delete (document reason in session log)
+```
+
+**2. Delegation Evidence for Protected Operations**
+
+Review session log for delegation evidence:
+
+```bash
+# Search current session log for Task invocations
+grep -E 'Task\(subagent_type="(orchestrator|architect|security)"' .agents/sessions/$(date +%Y-%m-%d)-session-*.md
+# Expected: At least one match for each protected file operation
+# If no match but protected files created: VIOLATION (document in session log)
+```
+
+**3. Uncommitted Critique Files**
+
+```bash
+# Check critique directory status
+git status .agents/critique/
+# Expected: All critique files committed or none exist for current session
+# If uncommitted: Commit before ending session
+```
+
+**4. ADR Debate Log References**
+
+```bash
+# For each ADR commit, verify debate log reference
+git log --grep="ADR-" --format="%H %s" | while read commit msg; do
+    git show $commit --name-only | grep -q "debate-log.md" || echo "MISSING: $commit $msg"
+done
+# Expected: No output (all ADR commits include debate log)
+# If missing: VIOLATION (document which ADR and why debate log missing)
+```
+
+**5. Protocol Compliance Verification**
+
+```bash
+# Run session protocol validator
+pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath .agents/sessions/$(date +%Y-%m-%d)-session-*.md
+# Expected: PASS
+# If FAIL: Fix violations before ending session
+```
+
+**Checklist Summary**:
+
+- [ ] Orphaned ADR files: 0 (verified with git ls-files)
+- [ ] Delegation evidence: All protected operations have Task invocations
+- [ ] Critique files: All committed
+- [ ] ADR commits: All reference debate logs
+- [ ] Protocol compliance: PASS (Validate-SessionProtocol.ps1)
+
+**If ANY check fails**: Document in session log, resolve before ending session. Do NOT proceed to session end with unresolved violations.
 ```
 
 **CLAUDE.md Addition**:
@@ -566,6 +637,40 @@ When ADR is created AFTER implementation (retrospective justification):
 
 **Timeline**: 1 session (implement, test, document)
 
+### Wave 1.5: Pre-PR Readiness Validation (P0)
+
+**Goal**: Ensure Wave 1 implementation includes validation work packages (critic requirement)
+
+**Rationale**: Critic agent instructions (lines 223-298 of critic.md) require pre-PR readiness validation as BLOCKING gate. Omitting this from remediation creates inconsistency between critic role and plan approval.
+
+**Deliverables**:
+1. Validation checklist for Wave 1 implementation
+2. Cross-cutting concerns audit (hardcoded values, env vars, TODOs)
+3. Fail-safe verification (exit codes, error handling per ADR-035)
+4. Test strategy for pre-commit hooks (Pester test suite)
+5. Test strategy for CI workflows (simulation testing)
+
+**Validation Categories** (from critic.md):
+
+| Category | What to Validate | Method |
+|----------|------------------|--------|
+| Cross-cutting | No hardcoded paths, TODOs, env vars | grep patterns |
+| Fail-safe | All exit codes per ADR-035 | Manual review + test cases |
+| Test alignment | Hook logic has test coverage | Pester tests exist |
+| CI simulation | Workflow can be tested locally | Docker/pwsh local execution |
+| Env vars | No secrets, proper defaults | Audit script variables |
+
+**Acceptance Criteria**:
+- [ ] Wave 1 implementation plan includes validation tasks
+- [ ] All 5 validation categories addressed
+- [ ] Pre-commit hook has Pester test suite
+- [ ] CI workflow has local simulation test
+- [ ] Validation marked as BLOCKING for Wave 1 PR creation
+
+**Timeline**: 0.5 sessions (validation planning and test creation)
+
+**Integration**: Wave 1.5 completes before Wave 1 PR is created. PR creation triggers validation execution.
+
 ### Wave 2: Quality Gates (P1)
 
 **Goal**: Improve ADR quality through verification workflow
@@ -588,18 +693,38 @@ When ADR is created AFTER implementation (retrospective justification):
 
 **Goal**: Reduce manual verification burden
 
-**Deliverables**:
-1. ADR claim classifier script (experiential vs factual detection)
-2. Fact verification helper (extract claims, suggest web searches)
-3. Debate log validator (ensures all required agents participated)
-4. Session end self-audit script (detect orphaned files, missing delegations)
+**Prerequisites** (BLOCKING Wave 3 Start):
+- [ ] At least 1 ADR created using Wave 2 7-phase workflow
+- [ ] Claim classification template validated (analyst feedback collected)
+- [ ] Fact-check report template validated (manual use in at least 1 ADR)
+- [ ] Automation requirements gathered from Wave 2 learnings
 
-**Acceptance Criteria**:
-- Automated claim detection (at least common patterns: pricing, dates, statistics)
-- Self-audit script catches violations before user feedback
-- Debate log format validated automatically
+**Rationale**: Automate workflows only after manual process proves effective. Premature automation locks in assumptions. If Wave 2 reveals claim classification is more nuanced than "experiential vs factual", automated classifier requires rewrite.
 
-**Timeline**: 2 sessions (script development, testing, integration)
+**Deliverables** (scope adjusted - enforcement first, workflow after validation):
+
+**Phase A: Enforcement Automation** (can proceed without Wave 2 validation):
+1. Debate log format validator (ensures required sections present)
+2. Session end self-audit script (detect orphaned files, missing delegations)
+3. Pre-commit hook test suite (Pester tests for hook logic)
+
+**Phase B: Workflow Automation** (DEFERRED until Wave 2 validated):
+1. ADR claim classifier script (experiential vs factual detection) - DEFER
+2. Fact verification helper (extract claims, suggest web searches) - DEFER
+
+**Acceptance Criteria** (Phase A only - Phase B awaits Wave 2):
+- Session end self-audit script detects orphaned files
+- Debate log validator checks format compliance
+- Pre-commit hook has test coverage (Pester suite)
+
+**Phase B Acceptance Criteria** (deferred):
+- Automated claim detection (pricing, dates, statistics patterns)
+- Fact verification helper suggests relevant web searches
+
+**Timeline**:
+- Phase A: 1 session (enforcement automation only)
+- Phase B: 1 session (AFTER Wave 2 ADR validated)
+- Total: 2 sessions (sequenced, not concurrent)
 
 ---
 
