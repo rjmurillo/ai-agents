@@ -99,12 +99,13 @@ Complete ALL before closing:
 
 ## MCP Servers
 
-The project uses three MCP servers for extended capabilities:
+The project uses four MCP servers for extended capabilities:
 
 | Server | Transport | Purpose |
 |--------|-----------|---------|
 | **Serena** | stdio | Code analysis, project memory, symbol lookup |
 | **Forgetful** | HTTP (`localhost:8020/mcp`) | Semantic search, knowledge graph |
+| **Claude-Mem** | stdio | Session observations, export/import for sharing |
 | **DeepWiki** | HTTP (`mcp.deepwiki.com/mcp`) | Documentation lookup |
 
 ### Serena (Project Memory)
@@ -158,6 +159,36 @@ mcp__forgetful__execute_forgetful_tool("search_entities", {"query": "..."})
 ```bash
 pwsh scripts/forgetful/Test-ForgetfulHealth.ps1
 ```
+
+### Claude-Mem (Session Memory Export/Import)
+
+Claude-Mem provides export/import capabilities for sharing session observations across team members and installations.
+
+**Memory Directory**: `.claude-mem/memories/`
+
+**Scripts**: `.claude-mem/scripts/`
+
+```bash
+# Session End: Export observations
+pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "session NNN" -SessionNumber NNN -Topic "topic"
+
+# Session Start: Import all shared memories
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+
+# Security review before commit (REQUIRED)
+pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile .claude-mem/memories/YYYY-MM-DD-session-NNN-topic.json
+```
+
+**Workflow Integration**:
+
+- **Session Start (SHOULD)**: Import all `.json` files from `.claude-mem/memories/`
+- **Session End (SHOULD)**: Export session memories to `.claude-mem/memories/`
+- **Security Review (MUST)**: Scan exports before committing
+- **Git**: Commit `.json` files to git for team sharing
+
+**Duplicate Prevention**: Automatic composite key matching prevents reimport duplicates.
+
+**Documentation**: See [.claude-mem/memories/README.md](.claude-mem/memories/README.md) and [MEMORY-MANAGEMENT.md](.agents/governance/MEMORY-MANAGEMENT.md) for complete workflow.
 
 ---
 
