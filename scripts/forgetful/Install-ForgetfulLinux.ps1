@@ -162,7 +162,11 @@ if ($Status -eq 'active') {
 
     # Test HTTP endpoint
     try {
-        $Response = Invoke-RestMethod -Uri "http://localhost:$Port/mcp" -Method Post -ContentType "application/json" -Body '{"jsonrpc":"2.0","method":"tools/list","id":1}' -TimeoutSec 5
+        $headers = @{
+            "Content-Type" = "application/json"
+            "Accept" = "application/json, text/event-stream"
+        }
+        $null = Invoke-RestMethod -Uri "http://localhost:$Port/mcp" -Method Post -Headers $headers -Body '{"jsonrpc":"2.0","method":"tools/list","id":1}' -TimeoutSec 5
         Write-Host "  HTTP endpoint responding" -ForegroundColor Green
     }
     catch {
