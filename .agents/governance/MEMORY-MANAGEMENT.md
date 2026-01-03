@@ -14,7 +14,7 @@ This document describes the unified memory management workflow across three memo
 |--------|---------|-------|-------------|---------------|
 | **Serena** | Project-specific context, code symbols | Single project | `.serena/memories/` (git) | Manual (filesystem) |
 | **Forgetful** | Cross-project semantic memory | All projects | PostgreSQL + HNSW | `execute_forgetful_tool` |
-| **Claude-Mem** | Session observations, prompts | Claude Code sessions | SQLite | `npx tsx scripts/export-memories.ts` |
+| **Claude-Mem** | Session observations, prompts | Claude Code sessions | SQLite | `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1` |
 
 ---
 
@@ -98,12 +98,12 @@ mcp__serena__write_memory(
 
 ```markdown
 ### Phase 0.5: Export Session Memories (RECOMMENDED)
-1. Export Claude-Mem observations:
-   npx tsx scripts/export-memories.ts "session NNN" \
-     .claude-mem/memories/exports/YYYY-MM-DD-session-NNN-topic.json
+1. Export Claude-Mem observations using PowerShell wrapper:
+   pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 \
+     -Query "session NNN" -SessionNumber NNN -Topic "topic"
 
-2. Review export for sensitive data (API keys, paths, etc.)
-3. Commit export to git for team sharing
+2. Security review runs automatically (mandatory gate)
+3. Commit export to git if review passes
 4. Document export path in session log
 
 ### Phase 1: Documentation Update (REQUIRED)
@@ -118,63 +118,75 @@ mcp__serena__write_memory(
 
 ### Export Commands
 
-**By session number**:
+**By session number** (using PowerShell wrapper):
 
-```bash
-npx tsx scripts/export-memories.ts "session 229" \
-  .claude-mem/memories/exports/2026-01-03-session-229-frustrations.json
+```powershell
+pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 `
+  -Query "session 229" -SessionNumber 229 -Topic "frustrations"
+# Output: .claude-mem/memories/2026-01-03-session-229-frustrations.json
 ```
 
-**By topic/theme**:
+**By topic/theme** (using PowerShell wrapper):
 
-```bash
-npx tsx scripts/export-memories.ts "frustration pattern" \
-  .claude-mem/memories/exports/2026-01-03-frustrations.json
+```powershell
+pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 `
+  -Query "frustration pattern" -Topic "frustrations"
+# Output: .claude-mem/memories/2026-01-03-frustrations.json
 ```
 
-**By project**:
+**All observations** (filtered by plugin):
 
-```bash
-npx tsx scripts/export-memories.ts "" all-project.json --project=ai-agents
+```powershell
+pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 `
+  -Query "" -Topic "all-memories"
+# NOTE: Empty query exports observations matching plugin filters (project, date, session)
+# Output: .claude-mem/memories/2026-01-03-all-memories.json
 ```
 
-**By date range** (using jq):
+**Direct plugin call** (advanced users only):
 
 ```bash
-# Export all, filter to last 7 days
-npx tsx scripts/export-memories.ts "" all.json
-cat all.json | jq '.observations | map(select(.created_at_epoch >= 1735689600))' > recent.json
+# Bypass PowerShell wrapper for project/date filtering
+npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/export-memories.ts \
+  "" output.json --project=ai-agents
 ```
 
 ### Import Commands
 
-**Single file**:
+**Single file** (direct plugin call):
 
 ```bash
-npx tsx scripts/import-memories.ts .claude-mem/memories/imports/shared-learnings.json
+npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/import-memories.ts \
+  .claude-mem/memories/shared-learnings.json
 ```
 
-**Bulk import**:
+**Bulk import** (using PowerShell wrapper):
+
+```powershell
+# Auto-imports all .json files from .claude-mem/memories/
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+```
+
+**Manual bulk import** (advanced users):
 
 ```bash
-for file in .claude-mem/memories/imports/*.json; do
-    npx tsx scripts/import-memories.ts "$file"
+for file in .claude-mem/memories/*.json; do
+    npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/import-memories.ts "$file"
 done
 ```
 
 ### Privacy Review Before Export
 
-**CRITICAL**: Review exports for sensitive data before committing to git.
+**CRITICAL**: Security review is MANDATORY and runs automatically during export.
 
-```bash
-# Quick scan for common secrets
-grep -i "api_key\|password\|token\|secret" export.json
+```powershell
+# Export script automatically runs security review
+pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "..." -Topic "..."
+# Security review runs automatically after export
+# Export blocked if sensitive data detected
 
-# Review in editor
-code .claude-mem/memories/exports/[file].json
-
-# Use jq to filter sensitive observations
-cat export.json | jq 'del(.observations[] | select(.content | contains("SECRET")))' > filtered.json
+# Manual security review (if needed)
+pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile .claude-mem/memories/[file].json
 ```
 
 ### Naming Conventions
@@ -290,40 +302,44 @@ Serena memories use Markdown with sections:
 ### Importing Teammate's Learnings
 
 1. **Pull latest**: `git pull origin main`
-2. **Check exports**: Review `.claude-mem/memories/exports/` for new files
-3. **Copy to imports**: `cp exports/[file].json imports/`
-4. **Import**: `npx tsx scripts/import-memories.ts imports/[file].json`
-5. **Verify**: Search for imported memories in Claude-Mem
-6. **Clean up**: Delete from `imports/` (directory is gitignored)
+2. **Check exports**: Review `.claude-mem/memories/` for new files
+3. **Auto-import**: `pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1`
+4. **Verify**: Search for imported memories in Claude-Mem
 
 ### Onboarding New Team Members
 
 **Step 1**: Bulk export current knowledge
 
-```bash
-# Export all project-related memories
-npx tsx scripts/export-memories.ts "" all-project.json --project=ai-agents
+```powershell
+# Export all project-related memories using PowerShell wrapper
+pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "" -Topic "onboarding"
+# Output: .claude-mem/memories/YYYY-MM-DD-onboarding.json
 
-# Create onboarding export
-cp all-project.json .claude-mem/memories/exports/onboarding-2026-01-03.json
-git add .claude-mem/memories/exports/onboarding-2026-01-03.json
+# Security review runs automatically
+# Commit if review passes
+git add .claude-mem/memories/YYYY-MM-DD-onboarding.json
 git commit -m "docs(memory): onboarding export for new team members"
+```
+
+**Advanced**: Direct plugin call for project filtering
+
+```bash
+npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/export-memories.ts \
+  "" .claude-mem/memories/onboarding.json --project=ai-agents
 ```
 
 **Step 2**: New team member imports
 
-```bash
+```powershell
 # Clone repo
 git clone https://github.com/user/ai-agents.git
 cd ai-agents
 
-# Import all exports
-for file in .claude-mem/memories/exports/*.json; do
-    npx tsx scripts/import-memories.ts "$file"
-done
+# Auto-import all memories using PowerShell wrapper
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 
-# Verify
-npx tsx scripts/search-memories.ts "frustration pattern"
+# Verify import
+# Use Claude-Mem search tools or check database directly
 ```
 
 ---

@@ -52,7 +52,7 @@ The auto-import script runs idempotently on session start:
 
 ```bash
 # Automatically imports all .json files from .claude-mem/memories/
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 ```
 
 **Session Protocol Integration**: Can be added to SessionStart hook for automatic execution.
@@ -66,7 +66,7 @@ Import specific files or new memories from teammates:
 npx tsx scripts/import-memories.ts .claude-mem/memories/shared-memories.json
 
 # Import all files (same as auto-import script)
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 ```
 
 ## Duplicate Prevention
@@ -119,7 +119,7 @@ Claude-Mem automatically prevents duplicate imports using composite keys:
 
 ```bash
 # Auto-import all memories (idempotent)
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 ```
 
 Can be added to `.claude/hooks/SessionStart.ps1` for automatic execution.
@@ -153,7 +153,7 @@ git clone https://github.com/user/ai-agents.git
 cd ai-agents
 
 # Auto-import all memories (idempotent)
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 
 # Verify import
 npx tsx scripts/search-memories.ts "frustration pattern"
@@ -167,7 +167,7 @@ npx tsx scripts/search-memories.ts "frustration pattern"
 mv ~/Downloads/teammate-learnings.json .claude-mem/memories/
 
 # Auto-import (idempotent, will import the new file)
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 
 # Or import manually
 npx tsx scripts/import-memories.ts .claude-mem/memories/teammate-learnings.json

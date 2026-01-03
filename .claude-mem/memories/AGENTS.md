@@ -9,7 +9,7 @@ This directory contains Claude-Mem memory snapshots that should be imported at s
 Run the import script at session start:
 
 ```bash
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 ```
 
 The script is idempotent. Claude-Mem prevents duplicates using composite keys (`sdk_session_id` + `title` + `created_at_epoch`). Safe to run multiple times.
