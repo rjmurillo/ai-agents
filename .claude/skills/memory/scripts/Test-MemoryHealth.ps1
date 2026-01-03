@@ -53,14 +53,32 @@ function Test-SerenaAvailable {
         }
     }
 
-    $memories = Get-ChildItem -Path $serenaPath -Filter "*.md" -ErrorAction SilentlyContinue
-    $count = @($memories).Count
+    try {
+        $memories = Get-ChildItem -Path $serenaPath -Filter "*.md" -ErrorAction Stop
+        $count = @($memories).Count
 
-    return @{
-        available = $true
-        message   = "Serena available with $count memories"
-        count     = $count
-        path      = $serenaPath
+        return @{
+            available = $true
+            message   = "Serena available with $count memories"
+            count     = $count
+            path      = $serenaPath
+        }
+    }
+    catch [System.UnauthorizedAccessException] {
+        return @{
+            available = $false
+            message   = "Permission denied accessing Serena memories: $($_.Exception.Message)"
+            count     = -1
+            path      = $serenaPath
+        }
+    }
+    catch {
+        return @{
+            available = $false
+            message   = "Failed to enumerate Serena memories: $($_.Exception.Message)"
+            count     = -1
+            path      = $serenaPath
+        }
     }
 }
 
@@ -103,14 +121,32 @@ function Test-EpisodesAvailable {
         }
     }
 
-    $episodes = Get-ChildItem -Path $episodesPath -Filter "episode-*.json" -ErrorAction SilentlyContinue
-    $count = @($episodes).Count
+    try {
+        $episodes = Get-ChildItem -Path $episodesPath -Filter "episode-*.json" -ErrorAction Stop
+        $count = @($episodes).Count
 
-    return @{
-        available = $true
-        message   = "Episodes directory available with $count episodes"
-        count     = $count
-        path      = $episodesPath
+        return @{
+            available = $true
+            message   = "Episodes directory available with $count episodes"
+            count     = $count
+            path      = $episodesPath
+        }
+    }
+    catch [System.UnauthorizedAccessException] {
+        return @{
+            available = $false
+            message   = "Permission denied accessing episodes: $($_.Exception.Message)"
+            count     = -1
+            path      = $episodesPath
+        }
+    }
+    catch {
+        return @{
+            available = $false
+            message   = "Failed to enumerate episodes: $($_.Exception.Message)"
+            count     = -1
+            path      = $episodesPath
+        }
     }
 }
 

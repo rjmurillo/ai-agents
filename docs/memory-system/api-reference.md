@@ -643,7 +643,7 @@ pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1 -Since (Get-Date).AddD
     context   = "Choosing routing"       # String: Decision context
     chosen    = "Serena-first"           # String: Chosen option
     rationale = "Lower latency"          # String: Rationale
-    outcome   = "success"                 # String: success|failure|unknown
+    outcome   = "success"                 # String: success|partial|failure
     effects   = @("d002", "d003")        # Array: IDs of affected decisions/events
 }
 ```
@@ -654,7 +654,7 @@ pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1 -Since (Get-Date).AddD
 @{
     id        = "e001"                    # String: Event ID
     timestamp = "2026-01-01T17:10:00Z"   # String: ISO 8601 timestamp
-    type      = "commit"                  # String: commit|error|milestone|test|handoff
+    type      = "commit"                  # String: tool_call|commit|error|milestone|test|handoff
     content   = "Created module"         # String: Event description
     caused_by = @("d001")                # Array: IDs of causing decisions
     leads_to  = @("e002")                # Array: IDs of resulting events

@@ -156,6 +156,8 @@ function Measure-SerenaSearch {
     $keywords = @($Query.ToLowerInvariant() -split '\s+' | Where-Object { $_.Length -gt 2 })
 
     # Warmup iterations (not measured)
+    # Note: SilentlyContinue is used intentionally during benchmarking to avoid error handling
+    # overhead skewing timing results. Path existence is verified above.
     for ($w = 0; $w -lt $WarmupIterations; $w++) {
         $files = @(Get-ChildItem -Path $MemoryPath -Filter "*.md" -ErrorAction SilentlyContinue)
         foreach ($file in $files) {

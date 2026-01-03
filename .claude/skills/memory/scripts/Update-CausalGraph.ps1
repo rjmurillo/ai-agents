@@ -72,7 +72,13 @@ function Get-EpisodeFile {
         return @()
     }
 
-    $files = Get-ChildItem -Path $Path -Filter "episode-*.json" -ErrorAction SilentlyContinue
+    try {
+        $files = Get-ChildItem -Path $Path -Filter "episode-*.json" -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Failed to read episode files from '$Path': $($_.Exception.Message)"
+        return @()
+    }
 
     if ($Since) {
         $files = $files | Where-Object {
@@ -237,8 +243,13 @@ foreach ($file in $episodeFiles) {
         $nodeLabel = "$($decision.type): $($decision.chosen)"
 
         if (-not $DryRun) {
-            $node = Add-CausalNode -Type "decision" -Label $nodeLabel -EpisodeId $episode.id
-            if ($node) { $stats.nodes_added++ }
+            try {
+                $node = Add-CausalNode -Type "decision" -Label $nodeLabel -EpisodeId $episode.id
+                if ($node) { $stats.nodes_added++ }
+            }
+            catch {
+                Write-Warning "Failed to add decision node '$nodeLabel': $($_.Exception.Message)"
+            }
         }
         else {
             Write-Host "  [DRY] Would add node: $nodeLabel" -ForegroundColor Gray
@@ -250,8 +261,13 @@ foreach ($file in $episodeFiles) {
         $nodeLabel = "$($event.type): $($event.content)"
 
         if (-not $DryRun) {
-            $node = Add-CausalNode -Type $event.type -Label $nodeLabel -EpisodeId $episode.id
-            if ($node) { $stats.nodes_added++ }
+            try {
+                $node = Add-CausalNode -Type $event.type -Label $nodeLabel -EpisodeId $episode.id
+                if ($node) { $stats.nodes_added++ }
+            }
+            catch {
+                Write-Warning "Failed to add event node '$nodeLabel': $($_.Exception.Message)"
+            }
         }
         else {
             Write-Host "  [DRY] Would add node: $nodeLabel" -ForegroundColor Gray
@@ -261,8 +277,13 @@ foreach ($file in $episodeFiles) {
     # Add outcome node
     $outcomeLabel = "Outcome: $($episode.outcome) - $($episode.task)"
     if (-not $DryRun) {
-        $outcomeNode = Add-CausalNode -Type "outcome" -Label $outcomeLabel -EpisodeId $episode.id
-        if ($outcomeNode) { $stats.nodes_added++ }
+        try {
+            $outcomeNode = Add-CausalNode -Type "outcome" -Label $outcomeLabel -EpisodeId $episode.id
+            if ($outcomeNode) { $stats.nodes_added++ }
+        }
+        catch {
+            Write-Warning "Failed to add outcome node '$outcomeLabel': $($_.Exception.Message)"
+        }
     }
 
     # Build and add causal chains
@@ -270,13 +291,18 @@ foreach ($file in $episodeFiles) {
 
     foreach ($chain in $chains) {
         if (-not $DryRun) {
-            # First ensure nodes exist
-            $fromNode = Add-CausalNode -Type $chain.from_type -Label $chain.from_label -EpisodeId $episode.id
-            $toNode = Add-CausalNode -Type $chain.to_type -Label $chain.to_label -EpisodeId $episode.id
+            try {
+                # First ensure nodes exist
+                $fromNode = Add-CausalNode -Type $chain.from_type -Label $chain.from_label -EpisodeId $episode.id
+                $toNode = Add-CausalNode -Type $chain.to_type -Label $chain.to_label -EpisodeId $episode.id
 
-            if ($fromNode -and $toNode) {
-                $edge = Add-CausalEdge -SourceId $fromNode.id -TargetId $toNode.id -Type $chain.edge_type -Weight $chain.weight
-                if ($edge) { $stats.edges_added++ }
+                if ($fromNode -and $toNode) {
+                    $edge = Add-CausalEdge -SourceId $fromNode.id -TargetId $toNode.id -Type $chain.edge_type -Weight $chain.weight
+                    if ($edge) { $stats.edges_added++ }
+                }
+            }
+            catch {
+                Write-Warning "Failed to add causal chain '$($chain.from_label) -> $($chain.to_label)': $($_.Exception.Message)"
             }
         }
         else {
@@ -289,9 +315,14 @@ foreach ($file in $episodeFiles) {
 
     foreach ($pattern in $patterns) {
         if (-not $DryRun) {
-            $successRate = if ($pattern.success) { 1.0 } else { 0.0 }
-            $p = Add-Pattern -Name $pattern.name -Description $pattern.description -Trigger $pattern.trigger -Action $pattern.action -SuccessRate $successRate
-            if ($p) { $stats.patterns_added++ }
+            try {
+                $successRate = if ($pattern.success) { 1.0 } else { 0.0 }
+                $p = Add-Pattern -Name $pattern.name -Description $pattern.description -Trigger $pattern.trigger -Action $pattern.action -SuccessRate $successRate
+                if ($p) { $stats.patterns_added++ }
+            }
+            catch {
+                Write-Warning "Failed to add pattern '$($pattern.name)': $($_.Exception.Message)"
+            }
         }
         else {
             Write-Host "  [DRY] Would add pattern: $($pattern.name)" -ForegroundColor Gray

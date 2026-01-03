@@ -941,7 +941,12 @@ function Get-ReflexionMemoryStatus {
 
     $episodeCount = 0
     if (Test-Path $script:EpisodesPath) {
-        $episodeCount = (Get-ChildItem -Path $script:EpisodesPath -Filter "episode-*.json" -ErrorAction SilentlyContinue).Count
+        try {
+            $episodeCount = (Get-ChildItem -Path $script:EpisodesPath -Filter "episode-*.json" -ErrorAction Stop).Count
+        }
+        catch {
+            Write-Warning "Failed to count episode files: $($_.Exception.Message)"
+        }
     }
 
     return [PSCustomObject]@{

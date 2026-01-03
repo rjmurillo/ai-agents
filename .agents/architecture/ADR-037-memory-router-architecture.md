@@ -87,13 +87,13 @@ function Search-Memory {
     )
 
     # 1. ALWAYS query Serena first (canonical layer, per ADR-007)
-    $serenaResults = Invoke-SerenaSearch -Query $Query -Limit $MaxResults
+    $serenaResults = Invoke-SerenaSearch -Query $Query -MaxResults $MaxResults
 
     # 2. Augment with Forgetful semantic search if available
     if (-not $LexicalOnly) {
         $forgetfulAvailable = Test-ForgetfulAvailable  # Cached 30s TTL
         if ($forgetfulAvailable) {
-            $forgetfulResults = Invoke-ForgetfulSearch -Query $Query -Limit $MaxResults
+            $forgetfulResults = Invoke-ForgetfulSearch -Query $Query -MaxResults $MaxResults
             $serenaResults = Merge-MemoryResults `
                 -Canonical $serenaResults `
                 -Augmentation $forgetfulResults

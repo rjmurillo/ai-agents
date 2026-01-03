@@ -231,7 +231,7 @@ function Invoke-ForgetfulSearch {
                 if ($item.type -eq "text" -and $item.text) {
                     # Parse the text content as JSON if it contains memories
                     try {
-                        $memories = $item.text | ConvertFrom-Json -ErrorAction SilentlyContinue
+                        $memories = $item.text | ConvertFrom-Json -ErrorAction Stop
                         if ($memories -is [array]) {
                             foreach ($memory in $memories) {
                                 $content = $memory.content ?? $memory.text ?? ""
