@@ -23,8 +23,13 @@ Aggressive cost optimization reducing opus usage from 7 agents to 1.
 ## Final Distribution
 
 - opus (1): implementer only
-- sonnet (14): orchestrator, architect, security, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap
+- sonnet (16): orchestrator, architect, security, analyst, planner, critic, qa, devops, explainer, task-generator, retrospective, pr-comment-responder, spec-generator, independent-thinker, roadmap, high-level-advisor
 - haiku (3): memory, skillbook, context-retrieval
+
+## Update (2026-01-03)
+
+Session log analysis (290 sessions) showed high-level-advisor used <1% (19 mentions).
+Downgraded opus → sonnet in commit f101c06.
 
 ## Skill Lazy-Loading
 

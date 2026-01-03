@@ -986,32 +986,32 @@ fi
 #
 # Related: adr-review skill, ADR governance
 #
-ADR_DETECT_SCRIPT="$REPO_ROOT/.claude/skills/adr-review/scripts/Detect-ADRChanges.ps1"
+adr_detect_script="$REPO_ROOT/.claude/skills/adr-review/scripts/Detect-ADRChanges.ps1"
 
 # Check if any ADR files are staged
-STAGED_ADR_FILES=$(echo "$STAGED_FILES" | grep -E '^(\.agents/architecture|docs/architecture)/ADR-.*\.md$' || true)
+staged_adr_files=$(echo "$STAGED_FILES" | grep -E '^(\.agents/architecture|docs/architecture)/ADR-.*\.md$' || true)
 
-if [ -n "$STAGED_ADR_FILES" ]; then
+if [ -n "$staged_adr_files" ]; then
     echo_info "Checking for ADR changes..."
 
     # MEDIUM-002: Reject symlinks for security
-    if [ -L "$ADR_DETECT_SCRIPT" ]; then
+    if [ -L "$adr_detect_script" ]; then
         echo_warning "Skipping ADR detection: script path is a symlink"
-    elif [ -f "$ADR_DETECT_SCRIPT" ]; then
+    elif [ -f "$adr_detect_script" ]; then
         if command -v pwsh &> /dev/null; then
             # Run detection and capture output
-            ADR_RESULT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$ADR_DETECT_SCRIPT" -BasePath "$REPO_ROOT" 2>&1)
-            ADR_EXIT=$?
+            adr_result=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$adr_detect_script" -BasePath "$REPO_ROOT" 2>&1)
+            adr_exit=$?
 
-            if [ $ADR_EXIT -eq 0 ]; then
+            if [ $adr_exit -eq 0 ]; then
                 # Check if changes were detected
-                HAS_CHANGES=$(echo "$ADR_RESULT" | grep -o '"HasChanges":\s*true' || true)
-                if [ -n "$HAS_CHANGES" ]; then
+                has_changes=$(echo "$adr_result" | grep -o '"HasChanges":\s*true' || true)
+                if [ -n "$has_changes" ]; then
                     echo ""
                     echo_warning "BLOCKING GATE: ADR changes detected - invoke /adr-review before commit"
                     echo_info ""
                     echo_info "  ADR files staged:"
-                    echo "$STAGED_ADR_FILES" | while read -r adr; do
+                    echo "$staged_adr_files" | while read -r adr; do
                         echo_info "    - $adr"
                     done
                     echo_info ""
