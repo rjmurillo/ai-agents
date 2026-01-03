@@ -4,100 +4,7 @@
 
 The security agent missed two CRITICAL vulnerabilities (CWE-22 path traversal, CWE-77 command injection) in PR #752 that were caught by Gemini Code Assist. Root cause analysis reveals systematic gaps: incomplete CWE coverage (only 3 CWEs documented), lack of PowerShell-specific security patterns (0.2% coverage despite ADR-005 PowerShell-only mandate), and no feedback loop for missed vulnerabilities.
 
-This plan implements comprehensive CWE-699 framework integration into src/claude/security.md, expands coverage from 3 to 30+ high-priority CWEs across 11 weakness categories, adds PowerShell security checklist with concrete examples, establishes severity calibration criteria, creates feedback loop infrastructure with Forgetful memory integration, implements security benchmark suite for agent capability testing, adds second-pass review gate for critical file paths, and updates documentation. Estimated effort: 38 hours over 3 weeks across 7 milestones (M4 +1 hour per critic recommendation).
-
-## Research Summary (Sessions 307-308)
-
-### CWE-699 Framework Analysis (Session 307)
-
-Session 307 researched the CWE-699 Software Development view and identified:
-
-**Path Traversal CWE Hierarchy**:
-
-| CWE | Name | Relationship |
-|-----|------|--------------|
-| CWE-99 | Resource Injection | Broadest class |
-| CWE-73 | External Control of File Name | Root cause enabling traversal |
-| CWE-22 | Path Traversal | Parent category |
-| CWE-23 | Relative Path Traversal | Child (../ sequences) |
-| CWE-36 | Absolute Path Traversal | Child (/etc/passwd) |
-
-**Codebase Scan Findings**:
-
-| CWE | File | Risk | Line |
-|-----|------|------|------|
-| CWE-94 | Install-Common.psm1 | MEDIUM | 133 |
-| CWE-1333 | detect-infrastructure.ps1 | HIGH | 71-83 |
-| CWE-367 | Sync-McpConfig.ps1 | LOW | 102-105 |
-| CWE-22 | New-Issue.ps1 | MEDIUM | 59-64 |
-| CWE-295 | install.ps1 | LOW | 82-84 |
-
-**Positive Patterns Found**:
-
-- `Test-SafeFilePath` in GitHubCore.psm1 (proper GetFullPath + StartsWith)
-- `Test-PathWithinRoot` in Generate-Agents.Common.psm1 (directory separator appending)
-- GraphQL variables for parameter passing (not string interpolation)
-
-### OWASP Agentic Top 10 Analysis (Session 308)
-
-Session 308 analyzed the OWASP Top 10 for Agentic Applications (2026):
-
-| ID | Name | CWE Mapping | ai-agents Relevance |
-|----|------|-------------|---------------------|
-| ASI01 | Agent Goal Hijack | CWE-94, CWE-77 | Prompt injection in system prompts |
-| ASI02 | Tool Misuse | CWE-22, CWE-78 | MCP tool parameter validation |
-| ASI03 | Identity Abuse | CWE-269, CWE-284 | Agent privilege scope |
-| ASI04 | Supply Chain | CWE-426, CWE-502 | MCP server validation |
-| ASI05 | Code Execution | CWE-94, CWE-78 | ExpandString, Invoke-Expression |
-| ASI06 | Memory Poisoning | CWE-1321, CWE-502 | Four-tier memory system |
-| ASI07 | Inter-Agent Comms | CWE-319, CWE-345 | Task tool delegation (novel) |
-| ASI08 | Cascading Failures | CWE-703, CWE-754 | Orchestrator error propagation |
-| ASI09 | Trust Exploitation | CWE-346, CWE-451 | Human-agent checkpoints |
-| ASI10 | Rogue Agents | CWE-284, CWE-269 | Agent allowlist (novel) |
-
-**Key Finding**: 7 of 10 OWASP agentic categories map to existing CWEs. 3 categories (ASI07, ASI08, ASI10) represent novel agentic-specific threats with limited CWE coverage.
-
-**CRITICAL Priority Patterns (M1 Addition)**:
-
-1. Untrusted input in system prompts (ASI01) - CWE-94
-2. External goal/instruction loading (ASI01) - CWE-94
-3. ExpandString with external input (ASI05) - CWE-94
-4. Credentials in agent context (ASI03) - CWE-522
-5. Unvalidated MCP tool inputs (ASI02) - CWE-20
-
-### Memory Artifacts
-
-**Serena Memories**:
-
-- `cwe-699-security-agent-integration` - CWE hierarchy and detection patterns
-- `owasp-agentic-security-integration` - OWASP ASI01-ASI10 integration guidance
-
-**Forgetful Memories** (IDs 111-127):
-
-- 111: Path Traversal CWE Family Unified Detection (importance: 9)
-- 112: PowerShell StartsWith Path Validation Vulnerability (importance: 10)
-- 113: PowerShell Join-Path Absolute Path Bypass (importance: 8)
-- 114: PowerShell Code Injection via ExpandString (importance: 8)
-- 115: ReDoS Prevention in PowerShell Pattern Matching (importance: 7)
-- 116: TOCTOU Symlink Race Condition Pattern (importance: 6)
-- 117: CWE-699 Software Development View Structure (importance: 7)
-- 118: Safe Path Validation Pattern for PowerShell (importance: 9)
-- 119: Python Subprocess Security Patterns CWE-78 (importance: 8)
-- 120: OWASP Top 10 for Agentic Applications Framework Overview (importance: 9)
-- 121: Agent Goal Hijack Prevention ASI01 (importance: 9)
-- 122: Agent Memory Poisoning Attacks ASI06 (importance: 8)
-- 123: Agent Cascading Failure Prevention ASI08 (importance: 7)
-- 124: Rogue Agent Detection and Prevention ASI10 (importance: 8)
-- 125: MCP Server Supply Chain Security ASI04 (importance: 8)
-- 126: AIVSS AI Vulnerability Scoring System (importance: 6)
-- 127: Inter-Agent Communication Security ASI07 (importance: 7)
-
-### Analysis Documents
-
-- `.agents/analysis/cwe-699-framework-integration.md` - 469 lines, comprehensive CWE analysis
-- `.agents/analysis/owasp-agentic-security-integration.md` - 4200 words, OWASP integration
-
----
+This plan implements comprehensive CWE-699 framework integration into src/claude/security.md, expands coverage from 3 to 30+ high-priority CWEs across 11 weakness categories, adds PowerShell security checklist with concrete examples, establishes severity calibration criteria, creates feedback loop infrastructure with Forgetful memory integration, implements security benchmark suite for agent capability testing, adds second-pass review gate for critical file paths, and updates documentation. Estimated effort: 39 hours across 7 milestones.
 
 ## Planning Context
 
@@ -316,15 +223,8 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 
 **Requirements**:
 - Replace 3-CWE list (CWE-78, CWE-79, CWE-89) with 11 CWE-699 categories
-- Add 30 high-priority CWEs covering: Injection (22, 77, 78, 89, 91, 94), Path Traversal (22, 23, 36, 73, 99), Authentication (287, 798, 640), Authorization (285, 863, 269, 284), Cryptography (327, 759), Input Validation (20, 129), Resource Management (400, 770), Error Handling (209, 532), API Abuse (306, 862), Race Conditions (362, 367), Code Quality (484, 665)
-- **NEW (Session 307-308)**: Add CWEs from codebase scan: CWE-1333 (ReDoS), CWE-295 (Certificate Validation), CWE-502 (Deserialization)
-- **NEW (OWASP Agentic)**: Add agentic-specific patterns:
-  - ASI01/ASI05: System prompt injection (CWE-94 variant)
-  - ASI02: MCP tool parameter validation (CWE-20)
-  - ASI03: Agent credential exposure (CWE-522)
-  - ASI04: MCP server supply chain (CWE-426)
-  - ASI06: Memory poisoning (CWE-1321)
-- Cross-reference each CWE with OWASP Top 10:2021 AND OWASP Agentic Top 10 mapping where applicable
+- Add 30 high-priority CWEs covering: Injection (22, 77, 78, 89, 91, 94), Path Traversal (22, 23), Authentication (287, 798, 640), Authorization (285, 863), Cryptography (327, 759), Input Validation (20, 129), Resource Management (400, 770), Error Handling (209, 532), API Abuse (306, 862), Race Conditions (362, 367), Code Quality (484, 665)
+- Cross-reference each CWE with OWASP Top 10:2021 mapping where applicable
 - Provide 1-sentence description per CWE explaining vulnerability class
 - Organize by CWE-699 category with category labels (e.g., "[Injection]", "[Authentication]")
 
@@ -405,14 +305,6 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 
 **Flags**: needs TW rationale, needs conformance check
 
-**Technical Writer Guidance** (add these WHY comments to code examples):
-
-**Command Injection WHY**: PowerShell passes unquoted arguments directly to shell → Shell interprets metacharacters (;|&><) as command separators, not literals → Attack: `$Query = "; rm -rf /"` executes TWO commands → Solution: Quotes force literal string interpretation, metacharacters become data not operators
-
-**Path Traversal WHY**: StartsWith() performs string comparison on raw input → ".." sequences resolve AFTER comparison → "..\..\etc\passwd" passes StartsWith check → File system THEN resolves ".." to parent directory → Solution: GetFullPath() resolves ".." sequences BEFORE comparison, validates resolved path
-
-**Code Execution WHY**: Invoke-Expression treats string as PowerShell code → No input sanitization or command whitelisting → User input passed directly to interpreter → Solution: Hashtable restricts to predefined commands, user selects KEY not syntax, script block execution isolates input from interpreter
-
 **Requirements**:
 - Add "PowerShell Security Checklist" section with 6 subsections: Input Validation, Command Injection Prevention, Path Traversal Prevention, Secrets and Credentials, Error Handling, Code Execution
 - Each subsection has 3-5 checklist items (total 25+ items)
@@ -434,8 +326,8 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 **Code Changes**:
 
 ```diff
---- src/claude/security.md:200
-+++ src/claude/security.md:200
+--- src/claude/security.md
++++ src/claude/security.md
 @@ -200,6 +200,152 @@ When reviewing code for security vulnerabilities:
  ## Security Testing Approach
 
@@ -470,17 +362,16 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 +# SECURE - Variables quoted, metacharacters treated as literals
 +npx tsx "$PluginScript" "$Query" "$OutputFile"
 +
-+# RECOMMENDED - Use explicit array for commands with 5+ parameters (improves readability)
-+# NOTE: PowerShell splatting (@Args) only works with cmdlets/functions, not external commands
-+$Args = @("$PluginScript", "$Query", "$OutputFile")
-+& npx tsx $Args
++# SAFEST - Use argument splatting for complex commands
++$Args = @($PluginScript, $Query, $OutputFile)
++& npx tsx @Args
 +```
 +
 +**Checklist**:
 +
 +- [ ] All variables in external commands are quoted (`"$Variable"` not `$Variable`)
 +- [ ] Check for unquoted variables in: `npx`, `node`, `python`, `git`, `gh`, `pwsh`, `bash`
-+- [ ] For commands with 5+ parameters, use array variable with quoted elements for readability
++- [ ] Use argument splatting (`@Args`) for commands with 5+ parameters
 +- [ ] Avoid string concatenation for commands: `& "cmd $UserInput"` is UNSAFE
 +
 +### Path Traversal Prevention (CWE-22)
@@ -621,12 +512,8 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 - Updates `src/claude/security.md` prompt IMMEDIATELY with new pattern from false negative (blocking operation, not async)
 - Updates `.agents/security/benchmarks/` with new test case from false negative vulnerability
 - Updates SECURITY-REVIEW-PROTOCOL.md with immediate trigger documentation ("False negative detected -> Block PR -> Run RCA -> Update agent -> Re-review -> Merge decision")
-- Error handling for Forgetful MCP unavailability: graceful degradation with warning, write to local JSON fallback (`.agents/security/false-negatives.json`). **Rationale**: Forgetful provides *semantic/discovery-enhancement* memory only; writing to JSON ensures no loss of false-negative data, with temporary impact limited to semantic search quality rather than correctness or auditability.
-- Error handling for Serena MCP unavailability: Fail script (BLOCKING), do not proceed with partial memory storage. **Rationale**: Serena is the *canonical project memory* for security RCA; proceeding without Serena would create inconsistent state between audit trail and semantic memory, violating M4's "no partial memory storage" guarantee for security false negatives.
-- Error handling for GitHub API rate limit: Exponential backoff (1s, 2s, 4s, max 3 retries), then fail with actionable error ("Rate limit exceeded. Retry after {reset_time}.")
-- Error handling for malformed SR-*.md: Validate markdown structure (YAML frontmatter, required sections), skip malformed files with warning logged to console
-- Error handling for no external review: Distinguish empty findings (no vulnerabilities found) from missing review (no PR comments), log info message "No external review found for PR #{number}"
-- `-WhatIf` mode: Simulate all write operations (Forgetful, JSON), output planned changes to console, exit code 0 (no actual writes)
+- Error handling for Forgetful MCP unavailability: graceful degradation with warning, write to local JSON fallback (`.agents/security/false-negatives.json`)
+- Error handling for Serena MCP unavailability: Fail script (BLOCKING), do not proceed with partial memory storage
 - Script parameters: `-PRNumber` (REQUIRED), `-ExternalReviewSource` (Gemini/Manual/Other), `-WhatIf`, `-NonInteractive` (for CI invocation)
 
 **Acceptance Criteria**:
@@ -686,12 +573,7 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
   - Step 4: Generate security report at `.agents/security/SR-{branch}-{timestamp}.md` with agent findings
   - Step 5: Stage security report for commit (`git add .agents/security/SR-*.md`)
   - Step 6: Validate security report exists and is non-empty before allowing commit
-  - Error handling for missing PSScriptAnalyzer: Install via `Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser` at hook start, fail with actionable error if install fails
-  - Error handling for analyzer crashes: Wrap `Invoke-ScriptAnalyzer` in try-catch, log exception + file path, continue with remaining files, mark hook as failed if any crashes
-  - Error handling for no PowerShell files: Skip PSScriptAnalyzer step with info message, hook succeeds (no violations to check)
-  - Error handling for agent unavailable during review: Post error message to console, provide fallback instructions (manual review required)
-  - Error handling for bypass label without approval: Require `security-team-approved` label AND `skip-security-review` label in PR, fail CI if only skip label present
-  - Pre-commit failures provide actionable error messages with file paths and violation details
+  - Error handling: Pre-commit failures provide actionable error messages with file paths and violation details
 - **CI VALIDATION** (verification layer):
   - CI workflow verifies SR-*.md file present in PR (detects hook bypass)
   - Fails PR if security report missing or empty
@@ -765,21 +647,15 @@ M6 (CI Gate) ──────────────────────�
 
 **Estimated Timeline** (sequential path):
 - Week 1: M1, M2, M3 (parallel, 15 hours total)
-- Week 2: M5, M6 (parallel, 13 hours total) + M4 start (3 hours)
+- Week 2: M5, M6 (parallel, 13 hours total) + M4 start (2 hours)
 - Week 3: M4 completion (4 hours) + M7 (3 hours)
-- Total: 38 hours over 3 weeks (M4 +1 hour per critic recommendation for error handling)
+- Total: 37 hours over 3 weeks
 
 ## Cross-References
 
 - **Root Cause**: [.agents/analysis/security-agent-failure-rca.md](.agents/analysis/security-agent-failure-rca.md)
 - **Evidence**: PR #752, GitHub Issue #755
-- **Epic**: GitHub Issue #756 (Security Agent Detection Gaps Remediation)
-- **OWASP Issue**: GitHub Issue #770 (OWASP Agentic Top 10 patterns)
 - **Memory**: [.serena/memories/security-agent-vulnerability-detection-gaps.md](.serena/memories/security-agent-vulnerability-detection-gaps.md)
 - **Framework**: [CWE-699 Software Development View](https://cwe.mitre.org/data/definitions/699.html)
-- **OWASP Agentic**: [OWASP Top 10 for Agentic Applications (2026)](https://genai.owasp.org/)
 - **Vulnerable Code**: [.claude-mem/scripts/Export-ClaudeMemMemories.ps1](.claude-mem/scripts/Export-ClaudeMemMemories.ps1)
 - **Security Report**: [.agents/security/SR-pr752-memory-system-foundation.md](.agents/security/SR-pr752-memory-system-foundation.md)
-- **CWE Analysis**: [.agents/analysis/cwe-699-framework-integration.md](.agents/analysis/cwe-699-framework-integration.md)
-- **OWASP Analysis**: [.agents/analysis/owasp-agentic-security-integration.md](.agents/analysis/owasp-agentic-security-integration.md)
-- **Session Logs**: Session 307 (CWE-699), Session 308 (OWASP Agentic)

@@ -6,7 +6,7 @@
 
 ## Summary
 
-Plan is implementable with clear requirements, testable acceptance criteria, and systematic approach to remediation. Technical Writer version (explainer TW improvements) significantly enhances actionability through WHY comments in code snippets and error handling expansion. Three non-blocking concerns documented below: M2 code snippet clarity, M4/M6 error handling completeness, and pre-PR validation milestone omission.
+Plan is implementable with clear requirements, testable acceptance criteria, and systematic approach to remediation. SCRUBBED version (explainer TW improvements) significantly enhances actionability through WHY comments in code snippets and error handling expansion. Three non-blocking concerns documented below: M2 code snippet clarity, M4/M6 error handling completeness, and pre-PR validation milestone omission.
 
 Root cause analysis supports comprehensive CWE-699 integration over minimal expansion (P(success)=85% vs 40%). Decision Log provides strong multi-step reasoning chains (all 8 decisions meet 2+ step requirement). 7 milestones with clear dependencies, 39-hour estimate, 3-week timeline is realistic.
 
@@ -196,11 +196,11 @@ M1 acceptance criteria states "At least 8 of 11 CWE-699 categories represented" 
 
 ---
 
-### 2. M4 Importance Scoring - Why 10 Instead of 9?
+### 2. M4 Importance Scoring - Why 9 Instead of 10?
 
-M4 stores false negatives with `importance=10`, and the Forgetful scale defines 10 as "critical project knowledge" and 9 as "high priority". False negatives are confirmed agent failures (direct security impact).
+M4 stores false negatives with `importance=9` but Forgetful scale: 10 = "critical project knowledge", 9 = "high priority". False negatives are confirmed agent failures (direct security impact).
 
-**Context**: Is `importance=10` intentional (treat all false negatives as critical) or should they be `importance=9` to reserve 10 for enduring architectural decisions?
+**Context**: Is `importance=9` intentional (reserve 10 for architectural decisions) or should false negatives be 10?
 
 **Impact**: LOW - semantic difference, both prioritize in search results.
 
@@ -329,7 +329,7 @@ Add CLAUDE.md benchmark/retrospective rows and SECURITY-REVIEW-PROTOCOL.md Autom
 ## Cross-References
 
 - **Plan Source**: `.agents/planning/security-agent-detection-gaps-remediation.md`
-- **SCRUBBED Version**: Merged into main plan; see git history for the previous SCRUBBED variant.
+- **SCRUBBED Version**: `.agents/planning/security-agent-detection-gaps-remediation-SCRUBBED.md`
 - **Root Cause Analysis**: `.agents/analysis/security-agent-failure-rca.md`
 - **PR Evidence**: PR #752 (blocked), GitHub Issue #755 (accountability tracking)
 - **Vulnerable Code**: `.claude-mem/scripts/Export-ClaudeMemMemories.ps1` (CWE-22, CWE-77)
