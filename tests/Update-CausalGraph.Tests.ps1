@@ -264,11 +264,11 @@ Describe "Build-CausalChain Helper" {
             param([PSCustomObject]$Episode)
             $chains = [System.Collections.ArrayList]::new()
             $errors = @($Episode.events | Where-Object { $_.type -eq "error" })
-            foreach ($error in $errors) {
+            foreach ($errorEvent in $errors) {
                 $eventsArray = @($Episode.events)
                 $errorIndex = -1
                 for ($i = 0; $i -lt $eventsArray.Count; $i++) {
-                    if ($eventsArray[$i].id -eq $error.id) {
+                    if ($eventsArray[$i].id -eq $errorEvent.id) {
                         $errorIndex = $i
                         break
                     }
@@ -281,7 +281,7 @@ Describe "Build-CausalChain Helper" {
                 if ($recovery) {
                     [void]$chains.Add([PSCustomObject]@{
                         from_type  = "error"
-                        from_label = $error.content
+                        from_label = $errorEvent.content
                         to_type    = "outcome"
                         to_label   = $recovery.content
                         edge_type  = "causes"
