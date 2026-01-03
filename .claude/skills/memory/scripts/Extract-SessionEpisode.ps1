@@ -149,7 +149,8 @@ function ConvertFrom-Decisions {
     $decisionIndex = 0
     $inDecisionSection = $false
 
-    foreach ($i in 0..($Lines.Count - 1)) {
+    # Use for loop for direct index access needed for context lookups
+    for ($i = 0; $i -lt $Lines.Count; $i++) {
         $line = $Lines[$i]
 
         # Look for decision markers

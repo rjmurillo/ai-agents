@@ -157,7 +157,8 @@ function Measure-SerenaSearch {
 
     # Warmup iterations (not measured)
     # Note: SilentlyContinue is used intentionally during benchmarking to avoid error handling
-    # overhead skewing timing results. Path existence is verified above.
+    # overhead skewing timing results. Path existence is verified above, but file-level errors
+    # during warmup are suppressed since warmup failures don't affect benchmark validity.
     for ($w = 0; $w -lt $WarmupIterations; $w++) {
         $files = @(Get-ChildItem -Path $MemoryPath -Filter "*.md" -ErrorAction SilentlyContinue)
         foreach ($file in $files) {
