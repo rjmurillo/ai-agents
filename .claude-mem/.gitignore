@@ -1,0 +1,5 @@
+# Ignore imported memory files (staging area)
+memories/imports/*.json
+
+# Keep exports (committed to git for sharing)
+!memories/exports/*.json
