@@ -978,6 +978,60 @@ else
 fi
 
 #
+# ADR Change Detection (Non-blocking, AI prompt)
+#
+# Detects ADR file changes and prompts the AI to invoke adr-review skill.
+# This is a reminder to the AI agent, not a blocking validation.
+# The actual adr-review skill provides multi-agent consensus validation.
+#
+# Related: adr-review skill, ADR governance
+#
+adr_detect_script="$REPO_ROOT/.claude/skills/adr-review/scripts/Detect-ADRChanges.ps1"
+
+# Check if any ADR files are staged
+staged_adr_files=$(echo "$STAGED_FILES" | grep -E '^(\.agents/architecture|docs/architecture)/ADR-.*\.md$' || true)
+
+if [ -n "$staged_adr_files" ]; then
+    echo_info "Checking for ADR changes..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$adr_detect_script" ]; then
+        echo_warning "Skipping ADR detection: script path is a symlink"
+    elif [ -f "$adr_detect_script" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run detection and capture output
+            adr_result=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$adr_detect_script" -BasePath "$REPO_ROOT" 2>&1)
+            adr_exit=$?
+
+            if [ $adr_exit -eq 0 ]; then
+                # Check if changes were detected
+                has_changes=$(echo "$adr_result" | grep -o '"HasChanges":\s*true' || true)
+                if [ -n "$has_changes" ]; then
+                    echo ""
+                    echo_warning "BLOCKING GATE: ADR changes detected - invoke /adr-review before commit"
+                    echo_info ""
+                    echo_info "  ADR files staged:"
+                    echo "$staged_adr_files" | while read -r adr; do
+                        echo_info "    - $adr"
+                    done
+                    echo_info ""
+                    echo_info "  Required: Run /adr-review for multi-agent consensus"
+                    echo_info "  Skill: .claude/skills/adr-review/SKILL.md"
+                    echo ""
+                    # Non-blocking - this is a reminder to the AI, not a gate
+                fi
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping ADR detection."
+        fi
+    else
+        echo_info "ADR detection script not found. Skipping."
+    fi
+else
+    echo_info "No ADR files staged. Skipping ADR detection."
+fi
+
+#
 # Skill Format Validation (BLOCKING for new files)
 #
 # Enforces ADR-017 atomic format: ONE skill per file. No bundled skills.

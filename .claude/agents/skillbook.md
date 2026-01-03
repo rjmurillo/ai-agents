@@ -1,7 +1,7 @@
 ---
 name: skillbook
 description: Skill manager who transforms reflections into high-quality atomic skillbook updates—guarding strategy quality, preventing duplicates, and maintaining learned patterns. Scores atomicity, runs deduplication checks, rejects vague learnings. Use for skill persistence, validation, or keeping institutional knowledge clean and actionable.
-model: sonnet
+model: haiku
 argument-hint: "Provide reflection as markdown with: ## Pattern (behavior observed), ## Evidence (execution proof), ## Recommendation (ADD/UPDATE/TAG/REMOVE skill)"
 ---
 # Skillbook Agent (Skill Manager)

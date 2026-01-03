@@ -13,6 +13,11 @@
             "type": "command",
             "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/Invoke-SessionStartMemoryFirst.ps1\"",
             "statusMessage": "Enforcing ADR-007 memory-first requirements"
+          },
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/Invoke-ADRChangeDetection.ps1\"",
+            "statusMessage": "Checking for ADR changes"
           }
         ]
       }
