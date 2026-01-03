@@ -1,0 +1,61 @@
+{
+  "patterns": [
+    {
+      "action": "A1",
+      "last_used": "2026-01-02T22:18:26.5643068-06:00",
+      "id": "p001",
+      "occurrences": 1,
+      "description": "",
+      "success_rate": 0.9,
+      "name": "Good pattern",
+      "trigger": "T1"
+    },
+    {
+      "action": "A2",
+      "last_used": "2026-01-02T22:18:26.5754379-06:00",
+      "id": "p002",
+      "occurrences": 2,
+      "description": "",
+      "success_rate": 0.2,
+      "name": "Bad pattern",
+      "trigger": "T2"
+    },
+    {
+      "action": "A3",
+      "last_used": "2026-01-02T22:18:26.5885182-06:00",
+      "id": "p003",
+      "occurrences": 2,
+      "description": "",
+      "success_rate": 0.1,
+      "name": "Worse pattern",
+      "trigger": "T3"
+    },
+    {
+      "action": "A",
+      "last_used": "2026-01-02T22:18:26.6738111-06:00",
+      "id": "p004",
+      "occurrences": 1,
+      "description": "",
+      "success_rate": 1.0,
+      "name": "Status test pattern",
+      "trigger": "T"
+    }
+  ],
+  "updated": "2026-01-02T22:18:26.6739525-06:00",
+  "edges": [],
+  "version": "1.0",
+  "nodes": [
+    {
+      "episodes": [],
+      "type": "decision",
+      "label": "Status test node",
+      "frequency": 1,
+      "id": "n001",
+      "success_rate": 1.0
+    }
+  ]
+}
+
+
+
+

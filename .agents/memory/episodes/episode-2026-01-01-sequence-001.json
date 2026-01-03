@@ -1,0 +1,28 @@
+{
+  "timestamp": "2026-01-02T22:18:25.3091593-06:00",
+  "id": "episode-2026-01-01-sequence-001",
+  "events": [],
+  "outcome": "success",
+  "lessons": [],
+  "task": "Test",
+  "session": "2026-01-01-sequence-001",
+  "decisions": [
+    {
+      "chosen": "Second",
+      "type": "test",
+      "timestamp": "2026-01-01T10:00:00Z",
+      "outcome": "success",
+      "id": "d002",
+      "context": "Testing second"
+    },
+    {
+      "chosen": "First",
+      "type": "design",
+      "timestamp": "2026-01-01T09:00:00Z",
+      "outcome": "success",
+      "id": "d001",
+      "context": "Designing first"
+    }
+  ],
+  "metrics": {}
+}

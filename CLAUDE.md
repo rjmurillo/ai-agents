@@ -395,9 +395,9 @@ Agents save artifacts to `.agents/`:
 | Directory | Purpose |
 |-----------|---------|
 | `analysis/` | Analyst findings, research |
-| `architecture/` | ADRs, design decisions |
+| `architecture/` | ADRs only (no review documents) |
 | `planning/` | Plans and PRDs |
-| `critique/` | Plan reviews |
+| `critique/` | Plan reviews, ADR reviews, design reviews |
 | `qa/` | Test strategies and reports |
 | `retrospective/` | Learning extractions |
 | `roadmap/` | Epic definitions |

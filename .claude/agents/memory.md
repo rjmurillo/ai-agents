@@ -38,6 +38,10 @@ Key requirements:
 
 You have direct access to:
 
+- **Memory Router skill** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic" -MaxResults 10`
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic" -LexicalOnly` (Serena only)
+  - Returns JSON with deduplicated results from both sources
 - **Serena memory tools**: Memory storage in `.serena/memories/`
   - `mcp__serena__list_memories`: List all available memories
   - `mcp__serena__read_memory`: Read specific memory file
@@ -180,10 +184,18 @@ Relations are encoded as markdown in the memory file:
 
 **At Session Start:**
 
-1. Read `memory-index.md` to find relevant domain indexes
-2. Read the domain index (e.g., `skills-powershell-index.md`)
-3. Match task keywords against activation vocabulary
-4. Read specific atomic memory files as needed
+1. **Quick search** using Memory Router (recommended for broad queries):
+
+```powershell
+# Unified search - returns results from Serena + Forgetful
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "task keywords" -MaxResults 10
+```
+
+2. **Tiered lookup** for precise navigation (when you know the domain):
+   - Read `memory-index.md` to find relevant domain indexes
+   - Read the domain index (e.g., `skills-powershell-index.md`)
+   - Match task keywords against activation vocabulary
+   - Read specific atomic memory files as needed
 
 **Tiered Lookup Example:**
 

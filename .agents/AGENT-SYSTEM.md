@@ -1089,9 +1089,9 @@ Skills extracted from retrospectives are stored with:
 | Directory | Purpose | Agent |
 |-----------|---------|-------|
 | `.agents/analysis/` | Research findings | analyst |
-| `.agents/architecture/` | ADRs, design decisions | architect |
+| `.agents/architecture/` | ADRs only (no review documents) | architect |
 | `.agents/planning/` | PRDs, plans, tasks | planner, explainer |
-| `.agents/critique/` | Plan reviews | critic |
+| `.agents/critique/` | Plan reviews, ADR reviews, design reviews | critic |
 | `.agents/qa/` | Test strategies, reports | qa |
 | `.agents/retrospective/` | Learning extractions | retrospective |
 | `.agents/roadmap/` | Epic definitions | roadmap |
