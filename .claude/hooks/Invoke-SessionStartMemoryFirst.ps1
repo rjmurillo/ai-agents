@@ -32,7 +32,14 @@ $mcpConfigPath = Join-Path $PSScriptRoot ".." ".." ".mcp.json"
 if (Test-Path $mcpConfigPath) {
     try {
         $mcpConfig = Get-Content $mcpConfigPath -Raw | ConvertFrom-Json -ErrorAction Stop
-        if ($mcpConfig.mcpServers.forgetful.url) {
+        # Guard against null nested properties - each level could be missing
+        if ($mcpConfig -and
+            $mcpConfig.PSObject.Properties['mcpServers'] -and
+            $mcpConfig.mcpServers -and
+            $mcpConfig.mcpServers.PSObject.Properties['forgetful'] -and
+            $mcpConfig.mcpServers.forgetful -and
+            $mcpConfig.mcpServers.forgetful.PSObject.Properties['url'] -and
+            $mcpConfig.mcpServers.forgetful.url) {
             $forgetfulUrl = [System.Uri]::new($mcpConfig.mcpServers.forgetful.url)
             $ForgetfulHost = $forgetfulUrl.Host
             $ForgetfulPort = $forgetfulUrl.Port

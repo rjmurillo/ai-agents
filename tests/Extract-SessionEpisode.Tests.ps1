@@ -109,11 +109,12 @@ BeforeAll {
             $decisions = @()
             $decisionIndex = 0
             $inDecisionSection = $false
+            $previousLine = $null
             if ($Lines.Count -eq 0) { return $decisions }
-            foreach ($i in 0..($Lines.Count - 1)) {
-                $line = $Lines[$i]
+            foreach ($line in $Lines) {
                 if ($line -match '^##\s*Decisions?') {
                     $inDecisionSection = $true
+                    $previousLine = $line
                     continue
                 }
                 if ($inDecisionSection -and $line -match '^##\s') {
@@ -134,7 +135,7 @@ BeforeAll {
                         outcome   = "success"
                         effects   = @()
                     }
-                    if ($i -gt 0 -and $Lines[$i-1] -match '^\s*[-*]\s+(.+)$') {
+                    if ($previousLine -and $previousLine -match '^\s*[-*]\s+(.+)$') {
                         $decision.context = $Matches[1]
                     }
                     $decisions += $decision
@@ -152,6 +153,7 @@ BeforeAll {
                         effects   = @()
                     }
                 }
+                $previousLine = $line
             }
             return $decisions
         }

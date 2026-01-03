@@ -588,8 +588,10 @@ function Add-CausalNode {
     }
 
     # Create new node
-    # Note: Must define episodes array outside hashtable to avoid PowerShell null-coalescing bug
-    # PowerShell ternary with empty array returns $null, so use explicit assignment
+    # Note: Must define episodes array outside hashtable to avoid PowerShell null-coalescing bug:
+    #       using an inline conditional can yield $null instead of an empty array.
+    #       For example, this looks correct but returns $null when $EpisodeId is $null:
+    #           $episodes = if ($EpisodeId) { @($EpisodeId) } else { @() }
     $nodeEpisodes = [string[]]@()
     if ($EpisodeId) { $nodeEpisodes = @($EpisodeId) }
     $node = @{
