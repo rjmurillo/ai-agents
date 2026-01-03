@@ -27,10 +27,10 @@ npx tsx scripts/export-memories.ts "[query]" .claude-mem/memories/YYYY-MM-DD-ses
 For milestone sessions or periodic backups:
 
 ```bash
-pwsh .claude-mem/scripts/Export-ClaudeMemFullBackup.ps1
+pwsh .claude-mem/scripts/Export-ClaudeMemDirect.ps1
 ```
 
-Exports ALL claude-mem data (observations, sessions, summaries, prompts) for institutional knowledge portability.
+Exports ALL claude-mem data (observations, sessions, summaries, prompts) directly from SQLite for institutional knowledge portability. Fixes duplicate detection issues that cause 1000s of duplicate imports.
 
 **Suggested**: Weekly or after major project milestones.
 

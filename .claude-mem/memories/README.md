@@ -49,19 +49,24 @@ npx tsx scripts/export-memories.ts "" .claude-mem/memories/2026-01-03-project.js
 Export complete claude-mem database for disaster recovery or onboarding:
 
 ```bash
-# All projects
-pwsh .claude-mem/scripts/Export-ClaudeMemFullBackup.ps1
+# RECOMMENDED: Direct SQLite export (100% complete)
+pwsh .claude-mem/scripts/Export-ClaudeMemDirect.ps1
 
 # Single project
-pwsh .claude-mem/scripts/Export-ClaudeMemFullBackup.ps1 -Project "ai-agents"
+pwsh .claude-mem/scripts/Export-ClaudeMemDirect.ps1 -Project "ai-agents"
 ```
 
-**Output**: `.claude-mem/memories/backup-YYYY-MM-DD-HHMM.json` or `backup-YYYY-MM-DD-HHMM-{project}.json`
+**Output**: `.claude-mem/memories/direct-backup-YYYY-MM-DD-HHMM.json` or `direct-backup-YYYY-MM-DD-HHMM-{project}.json`
 
-**Security Review**: Automatic and BLOCKING. Violations prevent commit.
+**Why Direct Export:**
+- Exports 100% of data (3500+ observations vs 71 with FTS export)
+- Includes `sdk_session_id` for proper duplicate detection
+- Fixes NULL titles that break import duplicate detection
+- Automatic security review (BLOCKING)
+
+**Requirements**: `sqlite3` command-line tool (installation instructions provided if missing)
 
 **Use Cases:**
-
 - Periodic disaster recovery snapshots
 - Fresh instance setup (portable institutional knowledge)
 - Team onboarding with complete project context
@@ -73,7 +78,7 @@ pwsh .claude-mem/scripts/Export-ClaudeMemFullBackup.ps1 -Project "ai-agents"
 pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 ```
 
-**Note**: Uses query="." as workaround for plugin bug where empty query returns 0 results. Single character appears in nearly all observations, ensuring comprehensive backup.
+**DEPRECATED**: `Export-ClaudeMemFullBackup.ps1` uses FTS query which only exports ~2% of data. Use `Export-ClaudeMemDirect.ps1` instead.
 
 ## Import Workflow (Session Start or Onboarding)
 
