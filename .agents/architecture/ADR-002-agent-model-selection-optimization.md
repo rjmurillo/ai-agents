@@ -2,7 +2,9 @@
 
 ## Status
 
-Superseded by ADR-039 (2026-01-03)
+Provisionally Superseded by ADR-039 (2026-01-03 to 2026-01-17)
+
+**Note**: ADR-039 is in 2-week provisional status pending validation. If validation fails, ADR-002 assignments will be restored.
 
 **Note**: This ADR established the theoretical framework for model selection based on task requirements. ADR-039 supersedes it with data-driven optimization based on 290 sessions of actual usage patterns, introducing the Haiku tier and reducing Opus usage from 7 agents to 1 agent.
 
