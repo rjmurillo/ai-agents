@@ -369,7 +369,7 @@ Per ADR-005, any automation scripts use PowerShell:
 - [ADR-013: Agent Orchestration MCP](../architecture/ADR-013-agent-orchestration-mcp.md) - Architecture decision
 - [ADR-011: Session State MCP](../architecture/ADR-011-session-state-mcp.md) - Session state architecture
 - [ADR-007: Memory-First Architecture](../architecture/ADR-007-memory-first-architecture.md) - /0-init foundation
-- [ADR-009: Parallel-Safe Design](../architecture/ADR-009-parallel-safe-design.md) - /2-impl --parallel foundation
+- [ADR-009: Parallel-Safe Multi-Agent Design](../architecture/ADR-009-parallel-safe-multi-agent-design.md) - /2-impl --parallel foundation
 
 ### GitHub Issues
 
