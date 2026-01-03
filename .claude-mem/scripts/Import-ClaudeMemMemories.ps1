@@ -15,6 +15,9 @@
 .NOTES
     Calls the claude-mem plugin import script directly at:
     ~/.claude/plugins/marketplaces/thedotmack/scripts/import-memories.ts
+
+    LIMITATION: Only imports .json files from the top-level memories directory.
+    Files in subdirectories are NOT imported. Organize exports at the root level.
 #>
 
 [CmdletBinding()]
@@ -28,7 +31,10 @@ $PluginScript = Join-Path $env:HOME '.claude' 'plugins' 'marketplaces' 'thedotma
 
 if (-not (Test-Path $PluginScript)) {
     Write-Error "Claude-Mem plugin script not found at: $PluginScript"
-    Write-Error "Install the claude-mem plugin first"
+    Write-Error ""
+    Write-Error "Install the claude-mem plugin:"
+    Write-Error "  1. Visit: https://github.com/thedotmack/claude-mem"
+    Write-Error "  2. Follow installation instructions for Claude Code MCP plugins"
     exit 1
 }
 
@@ -40,6 +46,9 @@ if (-not (Test-Path $MemoriesDir)) {
     exit 0
 }
 
+# NOTE: Only top-level .json files are imported (no subdirectory scanning)
+# WHY: Prevents accidental imports from backup/temp subdirectories
+# LIMITATION: Organize all import files at the root of .claude-mem/memories/
 $Files = @(Get-ChildItem -Path $MemoriesDir -Filter '*.json' -File)
 if ($Files.Count -eq 0) {
     Write-Host "No memory files to import from: $MemoriesDir" -ForegroundColor Cyan
@@ -50,18 +59,57 @@ Write-Host "🔄 Importing $($Files.Count) memory file(s) from .claude-mem/memor
 Write-Host ""
 
 $ImportCount = 0
+$FailedFiles = @()
+
+# Philosophy: Partial import success is acceptable - some files may fail while others succeed
+# We track failures but continue processing remaining files for maximum data recovery
 foreach ($File in $Files) {
     Write-Host "  📁 $($File.Name)" -ForegroundColor Gray
 
     try {
-        npx tsx $PluginScript $File.FullName 2>&1 | Out-Null
-        $ImportCount++
+        # SECURITY: Quote all variables to prevent command injection (CWE-77)
+        # WHY: Unquoted variables allow shell metacharacters to inject commands
+        npx tsx "$PluginScript" "$($File.FullName)"
+
+        # Check exit code to detect silent failures
+        if ($LASTEXITCODE -ne 0) {
+            $FailedFiles += [PSCustomObject]@{
+                File = $File.Name
+                Reason = "Plugin exited with code $LASTEXITCODE"
+            }
+            Write-Warning "Import failed for $($File.Name): Plugin returned exit code $LASTEXITCODE"
+        }
+        else {
+            $ImportCount++
+        }
     }
     catch {
+        $FailedFiles += [PSCustomObject]@{
+            File = $File.Name
+            Reason = $_.Exception.Message
+        }
         Write-Warning "Failed to import $($File.Name): $_"
     }
 }
 
 Write-Host ""
-Write-Host "✅ Import complete: $ImportCount file(s) processed" -ForegroundColor Green
-Write-Host "   Duplicates automatically skipped via composite key matching" -ForegroundColor Gray
+
+if ($FailedFiles.Count -eq 0) {
+    Write-Host "✅ Import complete: $ImportCount file(s) processed successfully" -ForegroundColor Green
+    Write-Host "   Duplicates automatically skipped via composite key matching" -ForegroundColor Gray
+}
+else {
+    Write-Host "⚠️  Import completed with failures: $ImportCount succeeded, $($FailedFiles.Count) failed" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Failed files:" -ForegroundColor Red
+    foreach ($Failed in $FailedFiles) {
+        Write-Host "  ❌ $($Failed.File): $($Failed.Reason)" -ForegroundColor Red
+    }
+    Write-Host ""
+    Write-Host "Troubleshooting:" -ForegroundColor Yellow
+    Write-Host "  1. Verify JSON file syntax is valid" -ForegroundColor Gray
+    Write-Host "  2. Check plugin is installed: Test-Path $PluginScript" -ForegroundColor Gray
+    Write-Host "  3. Ensure no file locks or permission issues" -ForegroundColor Gray
+    Write-Host "  4. Check disk space availability" -ForegroundColor Gray
+    exit 1
+}

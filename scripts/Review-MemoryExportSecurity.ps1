@@ -39,6 +39,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # Sensitive data patterns to scan for
+# NOTE: These are regex patterns - literal special characters must be escaped
+# Example: To match "key.value", use "key\.value" not "key.value"
 $SensitivePatterns = @{
     'API Keys/Tokens'          = @(
         'api[_-]?key',
@@ -56,7 +58,7 @@ $SensitivePatterns = @{
         'credential',
         'auth[_-]?key',
         '[a-zA-Z0-9~_.-]{34}',                                # Azure Client Secrets
-        '[A-Za-z0-9+/=]{40,}'                                 # Base64 encoded secrets (40+ chars)
+        '[A-Za-z0-9+/=]{40,}'                                 # Long base64-like strings (40+ chars, may include legitimate data)
     )
     'Private Keys'             = @(
         'BEGIN\s+(RSA|PRIVATE|ENCRYPTED)\s+KEY',
@@ -95,17 +97,31 @@ foreach ($Category in $SensitivePatterns.Keys) {
     $Patterns = $SensitivePatterns[$Category]
 
     foreach ($Pattern in $Patterns) {
-        $PatternMatches = Select-String -Path $ExportFile -Pattern $Pattern -AllMatches -CaseSensitive:$false
+        try {
+            $PatternMatches = Select-String -Path $ExportFile -Pattern $Pattern -AllMatches -CaseSensitive:$false
 
-        if ($PatternMatches) {
-            $MatchCount = ($PatternMatches | Measure-Object).Count
-            $TotalMatches += $MatchCount
+            if ($PatternMatches) {
+                $MatchCount = ($PatternMatches | Measure-Object).Count
+                $TotalMatches += $MatchCount
+
+                $FoundIssues += [PSCustomObject]@{
+                    Category = $Category
+                    Pattern  = $Pattern
+                    Count    = $MatchCount
+                    Lines    = ($PatternMatches | Select-Object -First 3 -ExpandProperty LineNumber) -join ', '
+                }
+            }
+        }
+        catch {
+            # Pattern may be malformed or file may have issues
+            # FAIL-SAFE: Treat pattern failure as potential security risk
+            Write-Warning "Pattern scanning failed for category '$Category', pattern '$Pattern': $_"
 
             $FoundIssues += [PSCustomObject]@{
-                Category = $Category
+                Category = "$Category (SCAN FAILED)"
                 Pattern  = $Pattern
-                Count    = $MatchCount
-                Lines    = ($PatternMatches | Select-Object -First 3 -ExpandProperty LineNumber) -join ', '
+                Count    = 1
+                Lines    = "Error: $($_.Exception.Message)"
             }
         }
     }
