@@ -9,6 +9,15 @@
 | **Copilot** | ~44% | [IMPROVING] | Review carefully |
 | **coderabbitai[bot]** | ~50% | [STABLE] | Review carefully |
 
+### Priority Matrix
+
+| Priority | Reviewer | Rationale |
+|----------|----------|-----------|
+| **P0** | cursor[bot] | 100% actionable, finds CRITICAL bugs |
+| **P1** | Human reviewers | Domain expertise, project context |
+| **P2** | coderabbitai[bot] | ~50% signal, medium quality |
+| **P2** | Copilot | ~44% signal, improving trend |
+
 ### Signal Quality Thresholds
 
 | Quality | Range | Action |
