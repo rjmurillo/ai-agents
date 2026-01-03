@@ -252,6 +252,7 @@ Claude-flow demonstrates:
 | M-006 | Design neural pattern storage format | M | PENDING | #176 | - |
 | M-007 | Implement pattern extraction from retrospectives | M | PENDING | #176 | - |
 | M-008 | Create memory search benchmarks | S | COMPLETE | #167 | #735 |
+| M-009 | Bootstrap ai-agents project into memory system | L | PENDING | #167 | - |
 
 ### Architecture
 
@@ -276,6 +277,7 @@ Claude-flow demonstrates:
 - [x] Causal reasoning improves debugging (ReflexionMemory.psm1, ADR-038)
 - [ ] Pattern learning reduces repeated errors (M-006, M-007 pending)
 - [x] Integration with existing cloudmcp-manager and Serena (MemoryRouter.psm1, ADR-037)
+- [ ] Project knowledge bootstrapped into memory system (M-009 pending)
 
 ### Implementation Notes (PR #735)
 
@@ -295,6 +297,25 @@ Claude-flow demonstrates:
 - ADR-038: Reflexion Memory Schema
 
 **Test Coverage:** 113 tests passing (MemoryRouter: 38, ReflexionMemory: 62, Search-Memory: 13)
+
+### Bootstrap Task (M-009)
+
+**Objective**: Validate memory infrastructure with real project data.
+
+**Approach**:
+- Use `encode-repo-serena` skill (created in PR #740)
+- Populate Forgetful with existing Serena memories
+- Create entity relationships from `.agents/` artifacts
+- Build knowledge graph from ADRs, session logs, skills
+- Validate search performance with real queries
+
+**Success Criteria**:
+- All Serena memories migrated to Forgetful
+- Entity graph navigable (ADRs ↔ Sessions ↔ Skills)
+- Search latency <100ms for typical queries
+- Memory Router correctly routes project queries
+
+**Blocker**: Phase 2A cannot be marked COMPLETE until M-009 is finished.
 
 ---
 
