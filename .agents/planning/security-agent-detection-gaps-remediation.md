@@ -370,16 +370,17 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 +# SECURE - Variables quoted, metacharacters treated as literals
 +npx tsx "$PluginScript" "$Query" "$OutputFile"
 +
-+# SAFEST - Use argument splatting for complex commands
-+$Args = @($PluginScript, $Query, $OutputFile)
-+& npx tsx @Args
++# RECOMMENDED - Use explicit array for commands with 5+ parameters (improves readability)
++# NOTE: PowerShell splatting (@Args) only works with cmdlets/functions, not external commands
++$Args = @("$PluginScript", "$Query", "$OutputFile")
++& npx tsx $Args
 +```
 +
 +**Checklist**:
 +
 +- [ ] All variables in external commands are quoted (`"$Variable"` not `$Variable`)
 +- [ ] Check for unquoted variables in: `npx`, `node`, `python`, `git`, `gh`, `pwsh`, `bash`
-+- [ ] Use argument splatting (`@Args`) for commands with 5+ parameters
++- [ ] For commands with 5+ parameters, use array variable with quoted elements for readability
 +- [ ] Avoid string concatenation for commands: `& "cmd $UserInput"` is UNSAFE
 +
 +### Path Traversal Prevention (CWE-22)
