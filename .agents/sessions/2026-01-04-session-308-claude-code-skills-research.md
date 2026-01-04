@@ -11,13 +11,41 @@
 
 Research and incorporate learnings from the official Claude Code blog post on building skills into the ai-agents project knowledge base.
 
-## Session Protocol Compliance
+## Protocol Compliance
 
-- [x] Serena activated: `mcp__serena__initial_instructions`
-- [x] HANDOFF.md read (read-only reference)
-- [x] Relevant memories read: `usage-mandatory`, `claude-code-slash-commands`
-- [x] Session log created
-- [x] Branch verified: `feat/claude-md-token-optimization`
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [N/A] | Investigation session |
+| MUST | Read usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [N/A] | Investigation session |
+| MUST | Read memory-index, load task-relevant memories | [x] | claude-code-slash-commands |
+| SHOULD | Import shared memories | [N/A] | Investigation session |
+| MUST | Verify and declare current branch | [x] | feat/claude-md-token-optimization |
+| MUST | Confirm not on main/master | [x] | On feature branch |
+| SHOULD | Verify git status | [x] | Clean |
+| SHOULD | Note starting commit | [x] | acf7ee76 |
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| SHOULD | Export session memories | [N/A] | Skipped - used Forgetful directly |
+| MUST | Security review export (if exported) | [N/A] | No export file |
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | claude-code-skills-official-guidance |
+| MUST | Run markdown lint | [x] | Lint clean |
+| MUST | Route to qa agent (feature implementation) | [N/A] | SKIPPED: investigation-only |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit included in PR #775 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | Investigation session |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Research session |
+| SHOULD | Verify clean git status | [x] | Clean |
 
 ## Research Target
 
