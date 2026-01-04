@@ -1,57 +1,57 @@
 {
+  "edges": [],
+  "updated": "2026-01-04T06:41:18.6420221+00:00",
+  "version": "1.0",
   "patterns": [
     {
-      "action": "A1",
-      "last_used": "2026-01-02T22:18:26.5643068-06:00",
-      "id": "p001",
       "occurrences": 1,
-      "description": "",
       "success_rate": 0.9,
+      "last_used": "2026-01-04T06:41:18.5849488+00:00",
+      "trigger": "T1",
+      "description": "",
+      "action": "A1",
       "name": "Good pattern",
-      "trigger": "T1"
+      "id": "p001"
     },
     {
-      "action": "A2",
-      "last_used": "2026-01-02T22:18:26.5754379-06:00",
-      "id": "p002",
       "occurrences": 2,
-      "description": "",
       "success_rate": 0.2,
+      "last_used": "2026-01-04T06:41:18.5944036+00:00",
+      "trigger": "T2",
+      "description": "",
+      "action": "A2",
       "name": "Bad pattern",
-      "trigger": "T2"
+      "id": "p002"
     },
     {
-      "action": "A3",
-      "last_used": "2026-01-02T22:18:26.5885182-06:00",
-      "id": "p003",
       "occurrences": 2,
-      "description": "",
       "success_rate": 0.1,
+      "last_used": "2026-01-04T06:41:18.6081104+00:00",
+      "trigger": "T3",
+      "description": "",
+      "action": "A3",
       "name": "Worse pattern",
-      "trigger": "T3"
+      "id": "p003"
     },
     {
-      "action": "A",
-      "last_used": "2026-01-02T22:18:26.6738111-06:00",
-      "id": "p004",
       "occurrences": 1,
-      "description": "",
       "success_rate": 1.0,
+      "last_used": "2026-01-04T06:41:18.6419625+00:00",
+      "trigger": "T",
+      "description": "",
+      "action": "A",
       "name": "Status test pattern",
-      "trigger": "T"
+      "id": "p004"
     }
   ],
-  "updated": "2026-01-02T22:18:26.6739525-06:00",
-  "edges": [],
-  "version": "1.0",
   "nodes": [
     {
-      "episodes": [],
-      "type": "decision",
       "label": "Status test node",
+      "type": "decision",
+      "success_rate": 1.0,
       "frequency": 1,
-      "id": "n001",
-      "success_rate": 1.0
+      "episodes": [],
+      "id": "n001"
     }
   ]
 }
