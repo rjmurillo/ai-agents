@@ -1,7 +1,7 @@
 ---
 name: merge-resolver
 version: 2.0.0
-description: ''
+description: Resolve merge conflicts by analyzing git history and commit intent. Use when PR has conflicts with base branch, can't merge due to conflicts, or need to fix merge conflicts systematically with session protocol validation.
 license: MIT
 model: claude-opus-4-5
 metadata:

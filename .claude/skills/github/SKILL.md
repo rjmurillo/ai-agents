@@ -1,7 +1,7 @@
 ---
 name: github
 version: 3.0.0
-description: ''
+description: Execute GitHub operations (PRs, issues, labels, comments, merges) using PowerShell scripts with structured output and error handling. Use when working with pull requests, issues, review comments, or CI checks instead of raw gh commands.
 license: MIT
 model: claude-opus-4-5
 metadata:
