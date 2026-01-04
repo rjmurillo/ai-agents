@@ -145,17 +145,3 @@ After skill invocation:
 | [issue-resolution.md](references/issue-resolution.md) | P0/P1/P2 handling and deferral |
 | [artifacts.md](references/artifacts.md) | Output formats and templates |
 | [agent-prompts.md](references/agent-prompts.md) | Detailed agent prompt templates |
-
-## Changelog
-
-### v2.0.0 (Current)
-
-- Added file_triggers metadata for automatic invocation
-- Added deletion workflow (Phases D1-D4)
-- Added Detect-ADRChanges.ps1 script
-- Optimized for token consumption with references/
-
-### v1.0.0
-
-- Initial multi-agent debate protocol
-- Phases 0-4 workflow

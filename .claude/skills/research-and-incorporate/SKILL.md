@@ -133,12 +133,3 @@ After completion, verify:
 2. **Custom analysis templates**: Topic-specific document structures
 3. **Automated validation**: Scripts to verify memory atomicity
 4. **Integration hooks**: Connect to ADR review for architecture topics
-
-## Changelog
-
-### v1.0.0 (Current)
-
-- Initial skill creation from Chesterton's Fence workflow
-- 5-phase research-to-memory pipeline
-- Research-backed prompt engineering (10 optimizations)
-- Quality gates at each phase

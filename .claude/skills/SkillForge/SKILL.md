@@ -849,39 +849,3 @@ SKILLCREATOR_CONFIG:
 4. **Domain Templates:** Add domain-specific templates to `assets/templates/`
 5. **Script Patterns:** Add new patterns to `references/script-patterns-catalog.md`
 6. **Script Categories:** Extend the 7 script categories for new use cases
-
----
-
-## Changelog
-
-### v3.2.0 (Current)
-- Added Script Integration Framework for agentic skills
-- Added 4th Script Agent to synthesis panel (conditional)
-- Added Phase 1D: Automation Analysis
-- Added Automation Lens questions to regression questioning
-- Created `references/script-integration-framework.md`
-- Created `references/script-patterns-catalog.md`
-- Created `assets/templates/script-template.py`
-- Updated skill-spec-template.xml with `<scripts>` section
-- Updated validate-skill.py with script validation
-- Skills can now include self-verifying Python scripts
-
-### v3.1.0
-- Added progressive disclosure structure
-- Fixed frontmatter for packaging compatibility
-- Added validation & packaging section
-- Deep dive sections now collapsible
-
-### v3.0.0
-- Complete redesign as ultimate meta-skill
-- Added regression questioning loop
-- Added multi-lens analysis framework (11 models)
-- Added evolution/timelessness core lens
-- Added multi-agent synthesis panel
-
-### v2.0.0
-- Pattern selection guide
-- Quality standards checklist
-
-### v1.0.0
-- Basic skill structure
