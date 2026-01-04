@@ -6,17 +6,69 @@ Memory for tracking reviewer signal quality statistics, triage heuristics, and l
 
 ## Per-Reviewer Performance (Cumulative)
 
-Last updated: 2025-12-31
+Last updated: 2026-01-04
 
 | Reviewer | PRs | Comments | Actionable | Signal | Notes |
 |----------|-----|----------|------------|--------|-------|
-| cursor[bot] | - | 28 | 28 | **100%** | All comments identify real bugs (see cursor-bot-review-patterns memory) |
-| gemini-code-assist[bot] | #488, #501, #505, #530, #566, #568 | 13 | 13 | **100%** | RFC 2119 compliance, grep exact matching, filename pattern precision, command injection prevention, GraphQL injection prevention, helper function adoption |
+| cursor[bot] | #752 | 29 | 29 | **100%** | All comments identify real bugs (see cursor-bot-review-patterns memory) |
+| gemini-code-assist[bot] | #488, #501, #505, #530, #566, #568, #752 | 19 | 19 | **100%** | RFC 2119 compliance, grep exact matching, filename pattern precision, command injection prevention, GraphQL injection prevention, helper function adoption, security pattern detection |
 | Copilot | #488, #484, #490, #543 | 8 | 8 | **100%** | Path separator bypass (CWE-22), workflow error handling, regex precision, early return bugs |
 | rjmurillo (owner) | #490, #501 | 2 | 2 | **100%** | Template propagation gaps |
 | coderabbitai[bot] | - | 6 | 3 | **50%** | Medium signal quality |
 
 ## Per-PR Breakdown
+
+### PR #752 (2026-01-04)
+
+**PR**: feat(memory): memory system foundation (Session 230)
+
+| Reviewer | Comments | Actionable | Rate | Outcomes |
+|----------|----------|------------|------|----------|
+| gemini-code-assist[bot] | 6 | 6 | 100% | CWE-22, CWE-77 (already fixed), regex expansion, hardcoded paths (already fixed) |
+| cursor[bot] | 1 | 1 | 100% | Security scan pattern sync |
+
+**Session Notes**:
+
+- **Proactive Security Review**: 5 of 7 comments were **already fixed** in prior commits (5f625e9, 350a3a7)
+- **Critical Security Issues**: CWE-22 path traversal, CWE-77 command injection (both already addressed)
+- **Quick Fixes**: Only 2 minor fixes needed (regex expansion, pattern sync in commit 92237fa)
+- **Resolution Time**: ~60 minutes for 7 comments, 7 threads
+- **All security-domain**: 100% of actionable comments were security-related
+- **CI**: All required checks passing, only non-required warnings (acceptable)
+
+**Implementation Details**:
+
+**Already Fixed (commits 5f625e9, 350a3a7)**:
+1. CWE-22 Path Traversal (gemini #2659183842):
+   - Added `[System.IO.Path]::GetFullPath()` normalization
+   - Case-insensitive comparison with `OrdinalIgnoreCase`
+   - Prevents `..` directory traversal attacks
+
+2. CWE-77 Command Injection (gemini #2659183843, #2659183844):
+   - Quoted all npx arguments: `npx tsx "$PluginScript" "$Query" "$OutputFile"`
+   - Prevents shell metacharacter injection
+
+3. Hardcoded User Paths (gemini #2659183845, #2659183846):
+   - Removed `/home/richard/...` paths from documentation
+   - Ensures portability across environments
+
+**New Fixes (commit 92237fa)**:
+1. Regex Expansion (gemini #2659183847):
+   - Was: `/home/[a-z]+/` (only lowercase)
+   - Now: `/home/[a-zA-Z0-9_-]+/` (includes numbers, underscores, hyphens)
+   - Prevents false negatives for usernames like 'user1', 'admin_user'
+
+2. Security Scan Pattern Sync (cursor #2659185180):
+   - Added `credential` and `private[_-]?key` to checklist pattern
+   - Synced line 466 with detailed instructions at line 268
+   - Ensures consistent credential detection across both patterns
+
+**Key Insights**:
+
+1. **Proactive Security Works**: Most security issues caught and fixed BEFORE bot review
+2. **Bot Review as Validation**: Bots confirmed fixes were correct, found 2 minor gaps
+3. **Pattern Consistency**: cursor[bot] caught pattern drift between documentation sections
+4. **gemini-code-assist Thoroughness**: Reviewed ALL security-sensitive files, not just new code
 
 ### PR #543 (2025-12-31)
 
@@ -285,11 +337,11 @@ $pr = $data.repository.pullRequest  # NO .data prefix needed
 
 | Metric | Value |
 |--------|-------|
-| Total PRs Processed | 8 |
-| Total Comments Triaged | 19 |
-| Total Comments Implemented | 17 |
-| Total Comments Resolved | 19 |
-| Security Vulnerabilities Found | 4 |
+| Total PRs Processed | 9 |
+| Total Comments Triaged | 26 |
+| Total Comments Implemented | 24 |
+| Total Comments Resolved | 26 |
+| Security Vulnerabilities Found | 9 |
 | Critical Workflow Bugs Found | 2 |
 | Performance Improvements | 1 (88% faster reactions) |
 | Average Resolution Time | ~45 minutes |

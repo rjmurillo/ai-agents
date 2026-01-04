@@ -1,3 +1,12 @@
+---
+name: metrics
+description: Collect and report metrics on agent usage from git history implementing the 8 key metrics defined in agent-metrics.md for measuring agent system health effectiveness and adoption.
+license: MIT
+metadata:
+version: 1.0.0
+model: claude-haiku-4-5
+---
+
 # Agent Metrics Collection Utility
 
 ## Purpose
@@ -159,9 +168,3 @@ Update the `INFRASTRUCTURE_PATTERNS` / `$InfrastructurePatterns` arrays for new 
 - [Dashboard Template](../metrics/dashboard-template.md)
 - [Baseline Report](../metrics/baseline-report.md)
 - [CI Workflow](../../../.github/workflows/agent-metrics.yml)
-
----
-
-*Skill Version: 1.0*
-*Created: 2025-12-13*
-*GitHub Issue: #7*

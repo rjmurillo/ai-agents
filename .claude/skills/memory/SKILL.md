@@ -1,12 +1,15 @@
 ---
 name: memory
-description: Unified four-tier memory system for AI agents. Tier 1 Semantic (Serena+Forgetful search), Tier 2 Episodic (session replay), Tier 3 Causal (decision patterns). Enables memory-first architecture per ADR-007.
+version: 0.2.0
+description: Unified four-tier memory system for AI agents. Tier 1 Semantic (Serena+Forgetful
+  search), Tier 2 Episodic (session replay), Tier 3 Causal (decision patterns). Enables
+  memory-first architecture per ADR-007.
+license: MIT
+model: claude-sonnet-4-5
 metadata:
-  version: 0.2.0
   adr: ADR-037, ADR-038
   timelessness: 8/10
 ---
-
 # Memory System Skill
 
 Unified memory operations across four tiers for AI agents.
@@ -28,6 +31,81 @@ pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".
 # Update causal graph (Tier 3)
 pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
 ```
+
+---
+
+## Memory-First as Chesterton's Fence
+
+**Core Insight**: Memory-first architecture implements Chesterton's Fence principle for AI agents.
+
+> "Do not remove a fence until you know why it was put up" - G.K. Chesterton
+
+**Translation for agents**: Do not change code/architecture/protocol until you search memory for why it exists.
+
+### Why This Matters
+
+**Without memory search** (removing fence without investigation):
+- Agent encounters complex code, thinks "this is ugly, I'll refactor it"
+- Removes validation logic that prevents edge case
+- Production incident occurs
+- Memory contains past incident that explains why validation existed
+
+**With memory search** (Chesterton's Fence investigation):
+- Agent encounters complex code
+- Searches memory: `Search-Memory.ps1 -Query "validation logic edge case"`
+- Finds past incident explaining why code exists
+- Makes informed decision: preserve, modify, or replace with equivalent safety
+
+### Investigation Protocol
+
+When you encounter something you want to change:
+
+| Change Type | Memory Search Required |
+|-------------|------------------------|
+| Remove ADR constraint | `Search-Memory.ps1 -Query "[constraint name]"` |
+| Bypass protocol | `Search-Memory.ps1 -Query "[protocol name] why"` |
+| Delete >100 lines | `Search-Memory.ps1 -Query "[component] purpose"` |
+| Refactor complex code | `Search-Memory.ps1 -Query "[component] edge case"` |
+| Change workflow | `Search-Memory.ps1 -Query "[workflow] rationale"` |
+
+### What Memory Contains (Git Archaeology)
+
+**Tier 1 (Semantic)**: Facts, patterns, constraints
+- Why does PowerShell-only constraint exist? (ADR-005)
+- Why do skills exist instead of raw CLI? (usage-mandatory)
+- What incidents led to BLOCKING gates? (protocol-blocking-gates)
+
+**Tier 2 (Episodic)**: Past session outcomes
+- What happened when we tried approach X? (session replay)
+- What edge cases did we encounter? (failure episodes)
+
+**Tier 3 (Causal)**: Decision patterns
+- What decisions led to success? (causal paths)
+- What patterns should we repeat/avoid? (success/failure patterns)
+
+### Memory-First Gate (BLOCKING)
+
+**Before changing existing systems, you MUST**:
+
+1. `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[topic]"`
+2. Review results for historical context
+3. If insufficient, escalate to Tier 2/3
+4. Document findings in decision rationale
+5. Only then proceed with change
+
+**Why BLOCKING**: <50% compliance with "check memory first" guidance. Making it BLOCKING achieves 100% compliance (same pattern as session protocol gates).
+
+**Verification**: Session logs must show memory search BEFORE decisions, not after.
+
+### Connection to Chesterton's Fence Analysis
+
+See `.agents/analysis/chestertons-fence.md` for:
+- 4-phase decision framework (Investigation → Understanding → Evaluation → Action)
+- Application to ai-agents project (ADR-037 recursion guard, skills-first violations)
+- Decision matrix for when to investigate
+- Implementation checklist
+
+**Key takeaway**: Memory IS your investigation tool. It contains the "why" that Chesterton's Fence requires you to discover.
 
 ---
 

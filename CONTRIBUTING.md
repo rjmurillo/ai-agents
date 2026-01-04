@@ -382,129 +382,144 @@ The AI Spec Validation workflow will check for these references on all PRs.
 
 This project uses the [Forgetful MCP](https://github.com/ScottRBK/forgetful) server for AI agent memory. Forgetful provides semantic search, automatic knowledge graph construction, and cross-session memory persistence.
 
-### Why HTTP Transport?
+### Setup
 
-Forgetful's default stdio transport has a known issue where FastMCP prints an ASCII art banner to stdout, corrupting the MCP JSON-RPC protocol. See [upstream issue #19](https://github.com/ScottRBK/forgetful/issues/19).
+Forgetful uses stdio transport with automatic installation via `uvx`. No manual service setup required.
 
-**Workaround**: Use HTTP transport instead of stdio.
-
-### Setup for Linux
-
-1. **Create systemd user service**:
-
-```bash
-mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/forgetful.service << 'EOF'
-[Unit]
-Description=Forgetful MCP Server
-After=network.target
-
-[Service]
-ExecStart=%h/.local/bin/uvx forgetful-ai --transport http --port 8020
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-EOF
-```
-
-2. **Enable and start the service**:
-
-```bash
-systemctl --user daemon-reload
-systemctl --user enable --now forgetful.service
-```
-
-3. **Verify it's running**:
-
-```bash
-systemctl --user status forgetful.service
-curl -s -X POST http://localhost:8020/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
-```
-
-4. **Configure MCP client** (`.mcp.json`):
+**Configure MCP client** (`.mcp.json`):
 
 ```json
 {
   "mcpServers": {
     "forgetful": {
-      "type": "http",
-      "url": "http://localhost:8020/mcp"
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "forgetful-ai"
+      ]
     }
   }
 }
 ```
 
-### Setup for Windows
+### Prerequisites
 
-1. **Create a startup script** (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\forgetful.bat`):
+Install `uv` if not already present:
 
-```batch
-@echo off
-start /B uvx forgetful-ai --transport http --port 8020
+**Linux/macOS:**
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-2. **Or use Task Scheduler**:
-   - Open Task Scheduler
-   - Create Basic Task → "Forgetful MCP Server"
-   - Trigger: "When I log on"
-   - Action: Start a program
-   - Program: `uvx`
-   - Arguments: `forgetful-ai --transport http --port 8020`
-   - Check "Run whether user is logged on or not"
+**Windows:**
 
-3. **Configure MCP client** (`.mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "forgetful": {
-      "type": "http",
-      "url": "http://localhost:8020/mcp"
-    }
-  }
-}
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
-
-### Service Commands
-
-**Linux**:
-
-| Command | Purpose |
-|---------|---------|
-| `systemctl --user status forgetful` | Check status |
-| `systemctl --user restart forgetful` | Restart server |
-| `systemctl --user stop forgetful` | Stop server |
-| `journalctl --user -u forgetful -f` | View logs |
-
-**Windows**:
-
-| Command | Purpose |
-|---------|---------|
-| `tasklist /FI "IMAGENAME eq python*"` | Check if running |
-| `taskkill /IM python.exe /F` | Stop server |
 
 ### Verifying Connection
 
-After setup, verify the MCP connection in your client:
+After configuration, verify the MCP connection in your client:
 
-- **Claude Code**: Run `/mcp` to see server status
-- **Test endpoint**:
+- **Claude Code**: Run `mcp__forgetful__discover_forgetful_tools()` to see available tools
+- Check logs if issues occur (uvx manages the process lifecycle automatically)
+
+## Claude Router Plugin
+
+This project supports the [Claude Router](https://github.com/0xrdan/claude-router) plugin for intelligent model routing and cost optimization.
+
+### What is Claude Router?
+
+Claude Router automatically directs queries to the most cost-effective Claude model (Haiku, Sonnet, or Opus) based on task complexity, reducing costs by up to 98% without sacrificing quality.
+
+### How It Works
+
+**Routing Logic:**
+
+- **Fast (Haiku):** Simple queries, factual questions, syntax help
+- **Standard (Sonnet):** Bug fixes, feature implementation, code review, refactoring
+- **Deep (Opus):** Architecture decisions, security audits, multi-file refactors, system design
+
+**Classification Mechanism:**
+
+1. **Rule-Based (Primary):** Instant pattern matching (~0ms latency, no API costs)
+2. **LLM Fallback (Secondary):** Uses Haiku for edge cases (~100ms latency, ~$0.001 per classification)
+
+### Installation
+
+**Option 1 - Plugin Marketplace (Recommended):**
 
 ```bash
-curl -s -X POST http://localhost:8020/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+# In any Claude Code session:
+/plugin marketplace add 0xrdan/claude-router
+/plugin install claude-router@claude-router-marketplace
 ```
 
-Expected response (JSON-RPC with available tools):
+Then restart Claude Code to load the plugin.
 
-```json
-{"jsonrpc":"2.0","id":1,"result":{"tools":[...]}}
+**Option 2 - One-Command Install:**
+
+```bash
+curl -sSL https://raw.githubusercontent.com/0xrdan/claude-router/main/install.sh | bash
 ```
+
+**Option 3 - Manual Install:**
+
+```bash
+git clone https://github.com/0xrdan/claude-router.git
+cd claude-router && ./install.sh
+```
+
+**Important:** Choose only one installation method to avoid conflicts.
+
+### Configuration
+
+**API Key (Required for LLM Fallback):**
+
+Set your Anthropic API key as an environment variable:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Or add to `.env` file.
+
+**Routing Enforcement:**
+
+The router enforcement rules are already configured in this project's `CLAUDE.md`. When Claude receives a routing directive, it will automatically spawn the appropriate executor subagent.
+
+### Usage
+
+**Automatic Routing (Default):**
+
+Submit queries normally. The UserPromptSubmit hook automatically classifies and routes them.
+
+**Manual Override:**
+
+Force a specific model when needed:
+
+```bash
+/route fast <query>     # Use Haiku
+/route standard <query> # Use Sonnet
+/route deep <query>     # Use Opus
+```
+
+**View Statistics:**
+
+```bash
+/router-stats
+```
+
+Displays routing history and cost savings metrics.
+
+### Notes
+
+- The marketplace must be added per project (updates are automatic thereafter)
+- Classification uses instant rule-matching when possible
+- LLM fallback only triggers for uncertain cases
+- Token overhead optimized to ~3.4k tokens per interaction
+- Slash commands (`/route`, `/router-stats`) and router questions are handled directly, not routed
 
 ## Questions?
 

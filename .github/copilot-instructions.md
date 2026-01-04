@@ -168,7 +168,7 @@ The project uses MCP servers for extended capabilities:
 | Server | Transport | Purpose |
 |--------|-----------|---------|
 | **Serena** | stdio | Code analysis, project memory, symbol lookup |
-| **Forgetful** | HTTP (`localhost:8020/mcp`) | Semantic search, knowledge graph |
+| **Forgetful** | stdio | Semantic search, knowledge graph |
 | **DeepWiki** | HTTP (`mcp.deepwiki.com/mcp`) | Documentation lookup |
 
 ### Serena (Project Memory)
@@ -195,9 +195,9 @@ execute_forgetful_tool("create_entity", {...}) - Create knowledge graph entities
 execute_forgetful_tool("search_entities", {...}) - Search entities by name/type
 ```
 
-> **Note**: Forgetful uses HTTP transport at `http://localhost:8020/mcp`. Stdio transport is broken due to FastMCP banner corruption ([upstream issue #19](https://github.com/ScottRBK/forgetful/issues/19)).
+> **Note**: Forgetful uses stdio transport with automatic installation via `uvx`. No manual service setup required.
 >
-> **Setup**: See `scripts/forgetful/README.md` for installation. Health check: `pwsh scripts/forgetful/Test-ForgetfulHealth.ps1`
+> **Upstream Fix**: [Issue #19](https://github.com/ScottRBK/forgetful/issues/19) (FastMCP banner corruption) has been resolved.
 
 ---
 
@@ -342,9 +342,9 @@ Agents use Serena and Forgetful MCP for cross-session memory:
 - `forgetful/entity_create`: Create knowledge graph entities
 - `forgetful/entity_search`: Search entities by name/type
 
-> **Note**: Forgetful uses HTTP transport at `http://localhost:8020/mcp`. Stdio transport is broken due to FastMCP banner corruption ([upstream issue #19](https://github.com/ScottRBK/forgetful/issues/19)).
+> **Note**: Forgetful uses stdio transport with automatic installation via `uvx`. No manual service setup required.
 >
-> **Setup**: See `scripts/forgetful/README.md` for installation. Health check: `pwsh scripts/forgetful/Test-ForgetfulHealth.ps1`
+> **Upstream Fix**: [Issue #19](https://github.com/ScottRBK/forgetful/issues/19) (FastMCP banner corruption) has been resolved.
 
 ### Routing Heuristics
 

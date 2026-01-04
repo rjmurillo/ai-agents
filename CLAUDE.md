@@ -99,12 +99,13 @@ Complete ALL before closing:
 
 ## MCP Servers
 
-The project uses three MCP servers for extended capabilities:
+The project uses four MCP servers for extended capabilities:
 
 | Server | Transport | Purpose |
 |--------|-----------|---------|
 | **Serena** | stdio | Code analysis, project memory, symbol lookup |
-| **Forgetful** | HTTP (`localhost:8020/mcp`) | Semantic search, knowledge graph |
+| **Forgetful** | stdio | Semantic search, knowledge graph |
+| **Claude-Mem** | stdio | Session observations, export/import for sharing |
 | **DeepWiki** | HTTP (`mcp.deepwiki.com/mcp`) | Documentation lookup |
 
 ### Serena (Project Memory)
@@ -153,11 +154,37 @@ mcp__forgetful__execute_forgetful_tool("create_entity", {"name": "...", "entity_
 mcp__forgetful__execute_forgetful_tool("search_entities", {"query": "..."})
 ```
 
-**Verification**: If forgetful tools are unavailable:
+**Verification**: If forgetful tools are unavailable, check that `uvx` is installed and accessible in your PATH.
+
+### Claude-Mem (Session Memory Export/Import)
+
+Claude-Mem provides export/import capabilities for sharing session observations across team members and installations.
+
+**Memory Directory**: `.claude-mem/memories/`
+
+**Scripts**: `.claude-mem/scripts/`
 
 ```bash
-pwsh scripts/forgetful/Test-ForgetfulHealth.ps1
+# Session End: Export observations
+pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "session NNN" -SessionNumber NNN -Topic "topic"
+
+# Session Start: Import all shared memories
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+
+# Security review before commit (REQUIRED)
+pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile .claude-mem/memories/YYYY-MM-DD-session-NNN-topic.json
 ```
+
+**Workflow Integration**:
+
+- **Session Start (SHOULD)**: Import all `.json` files from `.claude-mem/memories/`
+- **Session End (SHOULD)**: Export session memories to `.claude-mem/memories/`
+- **Security Review (MUST)**: Scan exports before committing
+- **Git**: Commit `.json` files to git for team sharing
+
+**Duplicate Prevention**: Automatic composite key matching prevents reimport duplicates.
+
+**Documentation**: See [.claude-mem/memories/README.md](.claude-mem/memories/README.md) and [MEMORY-MANAGEMENT.md](.agents/governance/MEMORY-MANAGEMENT.md) for complete workflow.
 
 ---
 
@@ -349,6 +376,102 @@ Get-ChildItem -Path ".claude/skills/github/scripts" -Recurse -Filter "*.ps1"
 
 ---
 
+## Custom Slash Commands
+
+Custom slash commands are reusable prompts stored in `.claude/commands/`. They support argument substitution, dynamic context injection, and extended thinking.
+
+### When to Use Slash Commands vs Skills
+
+**Use Slash Command When**:
+
+- Prompt is <200 lines
+- No multi-step conditional logic
+- Simple argument substitution
+- No external script orchestration
+
+**Use Skill When**:
+
+- Prompt is >200 lines
+- Multi-agent coordination required
+- Complex PowerShell logic
+- Requires Pester tests
+
+### Creating Slash Commands
+
+Use the `SlashCommandCreator` skill for guided creation:
+
+```text
+SlashCommandCreator: create command for [purpose]
+```
+
+**Manual Creation**:
+
+1. Create `.claude/commands/[name].md`
+2. Add frontmatter (see template below)
+3. Write prompt body
+4. Run validation: `pwsh scripts/Validate-SlashCommand.ps1 -Path .claude/commands/[name].md`
+5. Test: `/[name] [arguments]`
+
+**Frontmatter Template**:
+
+```yaml
+---
+description: Use when Claude needs to [trigger condition]
+argument-hint: <arg-description>
+allowed-tools: [tool1, tool2]
+model: opus
+---
+```
+
+### Quality Gates
+
+All slash commands MUST pass validation before commit:
+
+| Gate | Validates |
+|------|-----------|
+| Frontmatter | Required fields, trigger-based description |
+| Arguments | `argument-hint` matches `$ARGUMENTS` usage |
+| Security | `allowed-tools` for bash execution (`!` prefix) |
+| Length | <200 lines (or convert to skill) |
+| Lint | Markdown formatting (markdownlint-cli2) |
+
+**Local Validation**: Pre-commit hook automatically runs on staged files
+
+**CI/CD Validation**: GitHub Actions workflow runs on PR
+
+### Extended Thinking
+
+Add `ultrathink` keyword for complex reasoning (>5 steps):
+
+```markdown
+---
+description: Analyze codebase architecture
+model: opus
+---
+
+ultrathink
+
+Perform deep architectural analysis of the codebase...
+```
+
+**Token Budget**: Up to 31,999 tokens for extended thinking
+
+### Why Extended Thinking for These 3 Commands?
+
+Commands with `ultrathink`:
+
+- `/pr-review`: Multi-agent synthesis (orchestrator pattern), deep code analysis across multiple files
+- `/research`: Multi-source context gathering (web, docs, memory), evaluation of conflicting information
+- `/memory-documentary`: Evidence chain construction across 4 memory systems (Claude-Mem, Forgetful, Serena, DeepWiki)
+
+**WHY NOT ALL COMMANDS**: Simple retrieval commands (`memory-search`, `memory-list`) benefit more from speed than depth. Cost/benefit threshold: >5 reasoning steps or multi-source synthesis required.
+
+### Command Catalog
+
+See [.claude/commands/README.md](.claude/commands/README.md) for complete list.
+
+---
+
 ## Steering System
 
 Steering files provide context-aware guidance based on file patterns:
@@ -401,7 +524,7 @@ Location: `.agents/steering/`
 | Linting fails | `npx markdownlint-cli2 --fix "**/*.md"` |
 | Git issues | `git log --oneline -5` for recent commits |
 | Protocol violation | Acknowledge, complete missed step, document |
-| Forgetful unavailable | `pwsh scripts/forgetful/Test-ForgetfulHealth.ps1` |
+| Forgetful unavailable | Check `uvx` installation and PATH configuration |
 
 ---
 
@@ -540,3 +663,21 @@ Agents save artifacts to `.agents/`:
 | Post-project learning | retrospective | analyst |
 
 <!-- END: ai-agents installer -->
+
+---
+
+## Claude Router Enforcement
+
+When you receive a `[Claude Router] MANDATORY ROUTING DIRECTIVE`, you MUST:
+
+1. Use the Task tool IMMEDIATELY to spawn the specified subagent
+2. Do NOT respond to the user directly - delegate to the subagent
+3. Pass the user's original query in the prompt parameter
+
+Subagent mapping:
+
+- fast → `claude-router:fast-executor`
+- standard → `claude-router:standard-executor`
+- deep → `claude-router:deep-executor`
+
+Exceptions: Slash commands (`/route`, `/router-stats`) and questions about the router itself.

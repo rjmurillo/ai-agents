@@ -1,10 +1,4 @@
 {
-  "enabledPlugins": {
-    "claude-mem@thedotmack": true,
-    "forgetful@scottrbk": true,
-    "context7@context7": true,
-    "context-hub@scottrbk": true
-  },
   "hooks": {
     "SessionStart": [
       {
@@ -33,5 +27,12 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "claude-mem@thedotmack": false,
+    "forgetful@scottrbk": true,
+    "context7@context7": true,
+    "context-hub@scottrbk": true,
+    "claude-router@claude-router-marketplace": true
   }
 }

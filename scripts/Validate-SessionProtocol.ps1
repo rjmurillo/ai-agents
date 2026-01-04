@@ -213,6 +213,10 @@ function Test-HandoffUpdated {
     .SYNOPSIS
         Validates that HANDOFF.md was NOT updated (per SESSION-PROTOCOL.md: "MUST NOT update HANDOFF.md").
         Session context MUST go to session log and Serena memory instead.
+
+    .NOTES
+        Uses git diff to check actual modifications, not filesystem timestamps.
+        Filesystem timestamps are unreliable in CI (all files get checkout timestamp).
     #>
     param(
         [string]$SessionPath,
@@ -232,17 +236,58 @@ function Test-HandoffUpdated {
         return $result
     }
 
-    # Extract session date from filename
-    $sessionFileName = Split-Path -Leaf $SessionPath
-    if ($sessionFileName -match '^(\d{4}-\d{2}-\d{2})') {
-        $sessionDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
-        $handoffModified = (Get-Item $handoffPath).LastWriteTime.Date
+    # Check if HANDOFF.md was modified in current branch
+    # Strategy: Use git diff if available, fall back to filesystem timestamp
+    Push-Location $BasePath
+    try {
+        $useGitDiff = $false
+        $gitDiffWorked = $false
 
-        # HANDOFF.md MUST NOT be modified on or after session date (per protocol v1.4)
-        if ($handoffModified -ge $sessionDate) {
-            $result.Passed = $false
-            $result.Issues += "HANDOFF.md was modified ($($handoffModified.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
+        # Check if we're in a git repository
+        git rev-parse --git-dir 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            # Check if origin/main exists (may not in shallow checkout)
+            git rev-parse --verify origin/main 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $useGitDiff = $true
+            }
         }
+
+        if ($useGitDiff) {
+            # Use git diff for reliable detection
+            $gitDiff = git diff --name-only origin/main...HEAD 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                $gitDiffWorked = $true
+                $handoffModified = $gitDiff -contains ".agents/HANDOFF.md"
+
+                if ($handoffModified) {
+                    $result.Passed = $false
+                    $result.Issues += "HANDOFF.md was modified in this branch (detected via git diff). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
+                }
+            }
+        }
+
+        # Fall back to filesystem timestamp if git diff not available
+        # (used for test environments, non-git directories)
+        # IMPORTANT: Skip fallback in CI shallow checkouts (timestamp is unreliable)
+        $isGitRepoWithoutOrigin = (git rev-parse --git-dir 2>$null) -and -not $useGitDiff
+        $skipTimestampFallback = $isGitRepoWithoutOrigin  # Shallow checkout case
+
+        if (-not $gitDiffWorked -and -not $skipTimestampFallback) {
+            $sessionFileName = Split-Path -Leaf $SessionPath
+            if ($sessionFileName -match '^(\d{4}-\d{2}-\d{2})') {
+                $sessionDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
+                $handoffModifiedDate = (Get-Item $handoffPath).LastWriteTime.Date
+
+                if ($handoffModifiedDate -ge $sessionDate) {
+                    $result.Passed = $false
+                    $result.Issues += "HANDOFF.md was modified ($($handoffModifiedDate.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
+                }
+            }
+        }
+    }
+    finally {
+        Pop-Location
     }
 
     return $result
@@ -652,8 +697,12 @@ switch ($Format) {
     }
 }
 
-if ($CI -and $failCount -gt 0) {
-    exit 1
+if ($CI) {
+    if ($failCount -gt 0) {
+        exit 1
+    }
+    # Explicit exit 0 to prevent $LASTEXITCODE pollution from external commands like git
+    exit 0
 }
 
 #endregion

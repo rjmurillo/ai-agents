@@ -4,7 +4,7 @@
 
 **Context**: Setting test coverage targets for PowerShell scripts and modules
 
-**Evidence**: Session 68 (2025-12-22): Generate-Skills.Tests.ps1
+**Evidence**: Session 68 (2025-12-22): Generate-Skills.Tests.ps1 (script deleted in commit d7f2e08, replaced by validate-skill.py)
 - Target: 100% code coverage
 - Achieved: 69.72% with 60 passing tests
 - All critical paths tested (YAML parsing, section extraction, frontmatter generation)
