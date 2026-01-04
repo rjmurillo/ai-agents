@@ -156,14 +156,12 @@ end {
                 return $true
             }
 
-            # Check if all changed files are markdown
+            # Check if all changed files are documentation-only
             # Force to array to handle single-item case
-            # Config files (.json) are often docs-adjacent and don't require QA
             $CodeFiles = @(
                 $ChangedFiles | Where-Object {
                     $_ -notmatch '\.md$' -and
                     $_ -notmatch '\.txt$' -and
-                    $_ -notmatch '\.json$' -and
                     $_ -notmatch 'README' -and
                     $_ -notmatch 'LICENSE' -and
                     $_ -notmatch 'CHANGELOG' -and
