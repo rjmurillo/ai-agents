@@ -24,9 +24,18 @@ From Anthropic's official CLAUDE.md guidance, we identified opportunities to:
 
 ## Phase 2: @imports Implementation
 
-- [ ] Create CRITICAL-CONTEXT.md with blocking gates
-- [ ] Add @import to CLAUDE.md
-- [ ] Measure token impact
+- [x] Create CRITICAL-CONTEXT.md with blocking gates
+- [x] Add @import to CLAUDE.md
+- [x] Measure token impact
+
+### Token Impact
+
+**CRITICAL-CONTEXT.md**: 57 lines, ~400 tokens (auto-loaded each session)
+
+**Expected Benefits**:
+- Eliminates 2-4 tool calls per session for basic constraint retrieval
+- Saves ~12,000 tokens when agents would otherwise read full documents
+- Net positive for quick tasks (fewer tool calls > auto-load cost)
 
 ## Phase 3: Hierarchical Files
 

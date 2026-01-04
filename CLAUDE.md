@@ -5,6 +5,8 @@
 > **Design Philosophy**: CLAUDE.md loads every session. We keep it under 100 lines following Anthropic's guidance.
 > Critical context is auto-loaded via @imports. Use `/clear` between distinct tasks to prevent context pollution.
 
+@CRITICAL-CONTEXT.md
+
 ## Primary Reference
 
 **Read AGENTS.md FIRST** for complete instructions:
