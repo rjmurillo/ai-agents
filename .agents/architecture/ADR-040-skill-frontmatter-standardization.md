@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (pending owner approval)
+Accepted
 
 ## Date
 

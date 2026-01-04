@@ -237,28 +237,7 @@ Before marking skill complete:
 
 ---
 
-## Part 5: Migration Guide
-
-### Skills Needing Immediate Attention (P0)
-
-These skills have empty descriptions and MUST be fixed:
-
-1. **github** - Has triggers table, needs description
-2. **merge-resolver** - Has triggers section, needs description
-3. **programming-advisor** - Needs both description and triggers
-
-**Ownership**: To be assigned
-**Deadline**: 2026-02-01
-
-### Updating Existing Skills
-
-1. **Description**: Add trigger keywords if missing
-2. **Body**: Add missing elements (decision tree, anti-patterns, verification)
-3. **Move deep content** to `references/` if body is verbose
-
----
-
-## Part 6: Examples by Skill Type
+## Part 5: Examples by Skill Type
 
 ### Automation Skills (metrics, security-detection)
 
@@ -295,20 +274,3 @@ These skills have empty descriptions and MUST be fixed:
 - [SkillForge Specification](../../.claude/skills/SkillForge/SKILL.md) - Skill creation framework
 - [Session 372](../sessions/2026-01-03-session-372.md) - Standard creation session
 - [ADR Review Debate Log](../critique/skill-description-trigger-standard-debate-log.md) - P0 issues addressed
-
-## Changelog
-
-### v2.0.0 (2026-01-03)
-
-- **BREAKING**: Changed triggers section from REQUIRED to RECOMMENDED
-- Aligned with Anthropic spec: description is primary trigger
-- Added token efficiency guidance (progressive disclosure)
-- Added security requirements (character whitelist, path restrictions)
-- Fixed validator alignment (10+ words, not char count)
-- Added decision trees, anti-patterns, verification to required elements
-- Documented 3 skills with empty descriptions (P0 migration)
-
-### v1.0.0 (2026-01-03)
-
-- Initial standard based on 28-skill review
-- Established description formula and trigger patterns
