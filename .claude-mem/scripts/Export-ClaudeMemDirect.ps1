@@ -158,9 +158,28 @@ $PromptFilter = if ($Project) { "WHERE content_session_id IN (SELECT content_ses
 # Get counts (simple queries without aliases)
 $CountFilter = if ($Project) { "WHERE project = '$SafeProject'" } else { "" }
 $ObsCount = sqlite3 $DbPath "SELECT COUNT(*) FROM observations $CountFilter;"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to query observations count (sqlite3 exit code: $LASTEXITCODE)"
+    exit 1
+}
+
 $SummaryCount = sqlite3 $DbPath "SELECT COUNT(*) FROM session_summaries $CountFilter;"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to query session summaries count (sqlite3 exit code: $LASTEXITCODE)"
+    exit 1
+}
+
 $PromptCount = sqlite3 $DbPath "SELECT COUNT(*) FROM user_prompts $PromptFilter;"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to query user prompts count (sqlite3 exit code: $LASTEXITCODE)"
+    exit 1
+}
+
 $SessionCount = sqlite3 $DbPath "SELECT COUNT(*) FROM sdk_sessions $SessionFilter;"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to query SDK sessions count (sqlite3 exit code: $LASTEXITCODE)"
+    exit 1
+}
 
 Write-Host "📊 Database contains:" -ForegroundColor Cyan
 Write-Host "   Observations: $ObsCount"
@@ -185,6 +204,11 @@ $ObsFilter
 ORDER BY o.created_at_epoch DESC
 "@
 sqlite3 $DbPath -json $ObsQuery | Out-File $ObsTemp
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to export observations (sqlite3 exit code: $LASTEXITCODE)"
+    if (Test-Path $ObsTemp) { Remove-Item $ObsTemp -Force }
+    exit 1
+}
 $Observations = Get-Content $ObsTemp -Raw | ConvertFrom-Json
 Remove-Item $ObsTemp -Force
 
@@ -215,6 +239,11 @@ $SummaryFilter
 ORDER BY ss.created_at_epoch DESC
 "@
 sqlite3 $DbPath -json $SummQuery | Out-File $SummTemp
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to export session summaries (sqlite3 exit code: $LASTEXITCODE)"
+    if (Test-Path $SummTemp) { Remove-Item $SummTemp -Force }
+    exit 1
+}
 $Summaries = Get-Content $SummTemp -Raw | ConvertFrom-Json
 Remove-Item $SummTemp -Force
 
@@ -222,6 +251,11 @@ Remove-Item $SummTemp -Force
 Write-Host "📦 Exporting user prompts..." -ForegroundColor Cyan
 $PromptTemp = Join-Path $TempDir "prompt-$((Get-Date).Ticks).json"
 sqlite3 $DbPath -json "SELECT * FROM user_prompts $PromptFilter ORDER BY prompt_number DESC;" | Out-File $PromptTemp
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to export user prompts (sqlite3 exit code: $LASTEXITCODE)"
+    if (Test-Path $PromptTemp) { Remove-Item $PromptTemp -Force }
+    exit 1
+}
 $Prompts = Get-Content $PromptTemp -Raw | ConvertFrom-Json
 Remove-Item $PromptTemp -Force
 
@@ -229,6 +263,11 @@ Remove-Item $PromptTemp -Force
 Write-Host "📦 Exporting SDK sessions..." -ForegroundColor Cyan
 $SessTemp = Join-Path $TempDir "sess-$((Get-Date).Ticks).json"
 sqlite3 $DbPath -json "SELECT * FROM sdk_sessions $SessionFilter ORDER BY started_at_epoch DESC;" | Out-File $SessTemp
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to export SDK sessions (sqlite3 exit code: $LASTEXITCODE)"
+    if (Test-Path $SessTemp) { Remove-Item $SessTemp -Force }
+    exit 1
+}
 $Sessions = Get-Content $SessTemp -Raw | ConvertFrom-Json
 Remove-Item $SessTemp -Force
 
@@ -270,8 +309,9 @@ Write-Host "🔒 Running security review..." -ForegroundColor Cyan
 $SecurityScript = Join-Path $PSScriptRoot '..' '..' 'scripts' 'Review-MemoryExportSecurity.ps1'
 
 & $SecurityScript -ExportFile $OutputPath
+$SecurityExitCode = $LASTEXITCODE  # Capture immediately to prevent stale exit code
 
-if ($LASTEXITCODE -ne 0) {
+if ($SecurityExitCode -ne 0) {
     Write-Host ""
     Write-Error "Security review FAILED. Violations must be fixed before commit."
     exit 1

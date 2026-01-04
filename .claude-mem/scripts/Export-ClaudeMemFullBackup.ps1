@@ -156,8 +156,9 @@ if (Test-Path $OutputPath) {
     $SecurityScript = Join-Path $PSScriptRoot '..' '..' 'scripts' 'Review-MemoryExportSecurity.ps1'
 
     & $SecurityScript -ExportFile $OutputPath
+    $SecurityExitCode = $LASTEXITCODE  # Capture immediately to prevent stale exit code
 
-    if ($LASTEXITCODE -ne 0) {
+    if ($SecurityExitCode -ne 0) {
         Write-Host ""
         Write-Error "Security review FAILED. Violations must be fixed before commit."
         exit 1
