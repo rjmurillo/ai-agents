@@ -120,7 +120,9 @@ if (-not $OutputFile) {
 # INVALID: .claude-mem/../export.json (resolves outside memories dir)
 $NormalizedOutput = [System.IO.Path]::GetFullPath($OutputFile)
 $NormalizedDir = [System.IO.Path]::GetFullPath($MemoriesDir)
-if (-not $NormalizedOutput.StartsWith($NormalizedDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+# Add trailing separator to prevent "memories-evil" directory bypass
+$NormalizedDirWithSep = $NormalizedDir.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+if (-not $NormalizedOutput.StartsWith($NormalizedDirWithSep, [System.StringComparison]::OrdinalIgnoreCase)) {
     Write-Error "Path traversal attempt detected. Output file must be inside '$MemoriesDir' directory."
     Write-Error ""
     Write-Error "Attempted path: $OutputFile"
