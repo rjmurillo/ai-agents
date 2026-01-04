@@ -272,7 +272,7 @@ $Sessions = Get-Content $SessTemp -Raw | ConvertFrom-Json
 Remove-Item $SessTemp -Force
 
 # Build export JSON
-$QueryDescription = if ($Project) { "direct-sqlite (project: $Project)" } else { "direct-sqlite (all projects)" }
+$QueryDescription = if ($Project) { "direct-sqlite (project: $($Project))" } else { "direct-sqlite (all projects)" }
 $ExportData = @{
     exportedAt = (Get-Date -Format 'o')
     exportedAtEpoch = [int](Get-Date -UFormat %s)
