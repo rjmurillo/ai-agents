@@ -17,30 +17,37 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
 
-def validate_path_safety(path_str: str, allowed_base: Path = None) -> bool:
+def validate_path_safety(path_str: str, allowed_base: Path) -> bool:
     """
     Validate that a path string is safe before resolving (prevents directory traversal).
 
     Args:
         path_str: Path string to validate (checked before resolution)
-        allowed_base: Base directory that path must be within (defaults to cwd)
+        allowed_base: Base directory that path must be within
 
     Returns:
         True if path is safe, False otherwise
     """
-    # Pre-resolution check: reject obvious traversal attempts in the string
+    # Normalize inputs to strings/Path
     path_str = str(path_str)
+    base = allowed_base.resolve()
+
+    # Optional early rejection of simple traversal attempts
     if '..' in path_str:
         return False
 
-    if allowed_base is None:
-        allowed_base = Path.cwd().resolve()
-    else:
-        allowed_base = allowed_base.resolve()
-
     try:
-        resolved_path = Path(path_str).resolve()
-        resolved_path.relative_to(allowed_base)
+        candidate = Path(path_str)
+
+        # If the user provides an absolute path, ensure it is within the allowed base
+        if candidate.is_absolute():
+            resolved_path = candidate.resolve()
+        else:
+            # Join relative paths to the trusted base before resolving
+            resolved_path = (base / candidate).resolve()
+
+        # Ensure the resolved path is contained within the allowed base
+        resolved_path.relative_to(base)
         return True
     except (ValueError, OSError):
         return False
@@ -51,7 +58,7 @@ class SkillValidator:
 
     def __init__(self, skill_path: str):
         # SECURITY: Validate path safety BEFORE resolution (prevents CWE-22)
-        if not validate_path_safety(str(skill_path)):
+        if not validate_path_safety(str(skill_path), allowed_base=Path.cwd()):
             raise ValueError(f"Invalid path: {skill_path} contains unsafe characters or is outside repository root")
 
         # Now safe to resolve since we validated the string first

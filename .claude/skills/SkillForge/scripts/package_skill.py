@@ -27,35 +27,37 @@ except ImportError:
     from quick_validate import validate_skill
 
 
-def validate_path_safety(path_str: str, allowed_base: Path = None) -> bool:
+def validate_path_safety(path_str: str, allowed_base: Path) -> bool:
     """
     Validate that a path string is safe before resolving (prevents directory traversal).
 
     Args:
         path_str: Path string to validate (checked before resolution)
-        allowed_base: Base directory that path must be within (defaults to cwd)
+        allowed_base: Base directory that path must be within
 
     Returns:
         True if path is safe, False otherwise
     """
-    # Pre-resolution check: reject obvious traversal attempts in the string
+    # Normalize inputs to strings/Path
     path_str = str(path_str)
+    base = allowed_base.resolve()
+
+    # Optional early rejection of simple traversal attempts
     if '..' in path_str:
         return False
 
-    # Reject absolute paths that escape user's home
-    if path_str.startswith('/') and not path_str.startswith(str(Path.home())):
-        # Allow /home/user paths but not /etc, /tmp, etc.
-        pass  # Will be caught by relative_to check below
-
-    if allowed_base is None:
-        allowed_base = Path.cwd().resolve()
-    else:
-        allowed_base = allowed_base.resolve()
-
     try:
-        resolved_path = Path(path_str).resolve()
-        resolved_path.relative_to(allowed_base)
+        candidate = Path(path_str)
+
+        # If the user provides an absolute path, ensure it is within the allowed base
+        if candidate.is_absolute():
+            resolved_path = candidate.resolve()
+        else:
+            # Join relative paths to the trusted base before resolving
+            resolved_path = (base / candidate).resolve()
+
+        # Ensure the resolved path is contained within the allowed base
+        resolved_path.relative_to(base)
         return True
     except (ValueError, OSError):
         return False
@@ -87,7 +89,7 @@ def package_skill(skill_path, output_dir=None):
         user_skill_path = (skills_root / user_skill_path)
 
     try:
-        skill_path = user_skill_path.resolve()
+        skill_path = user_skill_path.resolve()  # lgtm[py/path-injection] - validated above
     except OSError as e:
         print(f"❌ Error: Invalid skill path '{user_skill_path}': {e}")
         return None
@@ -128,7 +130,7 @@ def package_skill(skill_path, output_dir=None):
     skill_name = skill_path.name
     if output_dir:
         # SECURITY: Validate path safety BEFORE resolution (prevents CWE-22)
-        if not validate_path_safety(str(output_dir)):
+        if not validate_path_safety(str(output_dir), allowed_base=Path.cwd()):
             print(f"❌ Error: Output path contains unsafe characters or escapes allowed directory")
             return None
         output_path = Path(output_dir).resolve()
