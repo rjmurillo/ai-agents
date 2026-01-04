@@ -148,6 +148,9 @@ jobs:
           
           $fileName = [System.IO.Path]::GetFileNameWithoutExtension($env:SESSION_FILE)
           
+          # Set output for artifact naming
+          "artifact-name=$fileName" >> $env:GITHUB_OUTPUT
+          
           # Determine verdict based on exit code
           $verdict = if ($exitCode -eq 0) { "COMPLIANT" } else { "NON_COMPLIANT" }
           $verdict | Out-File -FilePath "validation-results/${fileName}-verdict.txt" -Encoding UTF8
@@ -175,7 +178,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: validation-${{ hashFiles(matrix.session_file) }}
+          name: validation-${{ steps.validate.outputs.artifact-name }}
           path: validation-results/
           retention-days: 1
 
