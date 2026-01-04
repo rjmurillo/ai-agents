@@ -1,7 +1,8 @@
 # ADR-005 Amendment 001: SkillForge Python Scripts Exception
 
-**Status**: DRAFT (pending owner approval)
+**Status**: APPROVED
 **Date**: 2026-01-04
+**Approved By**: Owner (Option A selected)
 **Parent ADR**: [ADR-005: PowerShell-Only Scripting Standard](./ADR-005-powershell-only-scripting.md)
 **PR**: #760
 
@@ -126,12 +127,16 @@ This violates [ADR-005: PowerShell-Only Scripting Standard](./ADR-005-powershell
 
 ## Decision
 
-**PENDING OWNER APPROVAL**
+**APPROVED: Option A - Narrow Python Exception**
 
-This amendment requires explicit approval from repository owner before merging PR #760.
+**Approved**: 2026-01-04 by repository owner
 
-**If Approved**: Update ADR-005 with exception language (Option A)
-**If Rejected**: Convert SkillForge scripts to PowerShell (Option B)
+**Scope**: `.claude/skills/SkillForge/scripts/*.py` only
+
+**Next Steps**:
+1. ✅ Path validation implemented (commit 1410ee2)
+2. ✅ Security review complete (CodeQL + gemini-code-assist)
+3. Update ADR-005 with exception language in future PR
 
 ---
 
