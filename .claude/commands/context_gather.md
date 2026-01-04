@@ -1,5 +1,8 @@
 ---
-description: Gather comprehensive context from Forgetful Memory, Context7 docs, and web sources before planning or implementation
+description: Gather comprehensive context from Forgetful Memory, Context7 docs, and web sources before planning or implementation. Use when starting complex tasks requiring multi-source context.
+argument-hint: <task-or-technology>
+allowed-tools: [mcp__forgetful__*, mcp__context7__*, mcp__serena__*, mcp__plugin_claude-mem_mcp-search__*, mcp__deepwiki__*, WebSearch, WebFetch]
+model: opus
 ---
 
 # Context Retrieval Command

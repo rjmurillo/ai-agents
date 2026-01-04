@@ -1,5 +1,7 @@
 ---
-description: Search memories semantically using Forgetful
+description: Search memories semantically using Forgetful with query context for improved ranking. Use when retrieving specific knowledge or verifying memory existence.
+argument-hint: <search-query>
+allowed-tools: [mcp__forgetful__*]
 ---
 
 # Memory Search
@@ -16,7 +18,7 @@ Perform a semantic search using `execute_forgetful_tool("query_memory", {...})` 
 
 Use these parameters for the search:
 
-```
+```json
 {
   "query": "<user's search query>",
   "query_context": "User initiated search via /memory-search command",
@@ -46,7 +48,7 @@ User: `/memory-search authentication patterns`
 
 You search and respond:
 
-```
+```text
 Found 3 memories about authentication patterns:
 
 1. **FastAPI JWT Authentication** (Importance: 9)

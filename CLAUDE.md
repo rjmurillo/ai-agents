@@ -380,6 +380,102 @@ Get-ChildItem -Path ".claude/skills/github/scripts" -Recurse -Filter "*.ps1"
 
 ---
 
+## Custom Slash Commands
+
+Custom slash commands are reusable prompts stored in `.claude/commands/`. They support argument substitution, dynamic context injection, and extended thinking.
+
+### When to Use Slash Commands vs Skills
+
+**Use Slash Command When**:
+
+- Prompt is <200 lines
+- No multi-step conditional logic
+- Simple argument substitution
+- No external script orchestration
+
+**Use Skill When**:
+
+- Prompt is >200 lines
+- Multi-agent coordination required
+- Complex PowerShell logic
+- Requires Pester tests
+
+### Creating Slash Commands
+
+Use the `SlashCommandCreator` skill for guided creation:
+
+```text
+SlashCommandCreator: create command for [purpose]
+```
+
+**Manual Creation**:
+
+1. Create `.claude/commands/[name].md`
+2. Add frontmatter (see template below)
+3. Write prompt body
+4. Run validation: `pwsh scripts/Validate-SlashCommand.ps1 -Path .claude/commands/[name].md`
+5. Test: `/[name] [arguments]`
+
+**Frontmatter Template**:
+
+```yaml
+---
+description: Use when Claude needs to [trigger condition]
+argument-hint: <arg-description>
+allowed-tools: [tool1, tool2]
+model: opus
+---
+```
+
+### Quality Gates
+
+All slash commands MUST pass validation before commit:
+
+| Gate | Validates |
+|------|-----------|
+| Frontmatter | Required fields, trigger-based description |
+| Arguments | `argument-hint` matches `$ARGUMENTS` usage |
+| Security | `allowed-tools` for bash execution (`!` prefix) |
+| Length | <200 lines (or convert to skill) |
+| Lint | Markdown formatting (markdownlint-cli2) |
+
+**Local Validation**: Pre-commit hook automatically runs on staged files
+
+**CI/CD Validation**: GitHub Actions workflow runs on PR
+
+### Extended Thinking
+
+Add `ultrathink` keyword for complex reasoning (>5 steps):
+
+```markdown
+---
+description: Analyze codebase architecture
+model: opus
+---
+
+ultrathink
+
+Perform deep architectural analysis of the codebase...
+```
+
+**Token Budget**: Up to 31,999 tokens for extended thinking
+
+### Why Extended Thinking for These 3 Commands?
+
+Commands with `ultrathink`:
+
+- `/pr-review`: Multi-agent synthesis (orchestrator pattern), deep code analysis across multiple files
+- `/research`: Multi-source context gathering (web, docs, memory), evaluation of conflicting information
+- `/memory-documentary`: Evidence chain construction across 4 memory systems (Claude-Mem, Forgetful, Serena, DeepWiki)
+
+**WHY NOT ALL COMMANDS**: Simple retrieval commands (`memory-search`, `memory-list`) benefit more from speed than depth. Cost/benefit threshold: >5 reasoning steps or multi-source synthesis required.
+
+### Command Catalog
+
+See [.claude/commands/README.md](.claude/commands/README.md) for complete list.
+
+---
+
 ## Steering System
 
 Steering files provide context-aware guidance based on file patterns:
