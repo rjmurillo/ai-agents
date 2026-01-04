@@ -60,12 +60,32 @@ From Anthropic's official CLAUDE.md guidance, we identified opportunities to:
 
 ## Decisions
 
-TBD
+1. **@imports Pattern**: Adopted for CRITICAL-CONTEXT.md auto-loading
+2. **Hierarchical Files**: Created for `.claude/skills/` and `scripts/` subdirectories
+3. **.claude/rules/**: Not implementing; existing structure provides needed modularity
+4. **Token Trade-off**: Accepted +400 token auto-load cost for elimination of 2-4 tool calls
 
 ## Outcomes
 
-TBD
+### Phase 1 (Commit 8e21bbdc)
+
+- Documented /init and /clear built-in commands in AGENTS.md
+- Added design philosophy to CLAUDE.md explaining minimal approach
+
+### Phase 2 (Commit 8d313cfc)
+
+- Created CRITICAL-CONTEXT.md (57 lines) with blocking gates
+- Added @import directive to CLAUDE.md
+- Measured token impact: +400 tokens/session, saves ~12K when avoiding full reads
+
+### Phase 3 (Commit 8bd1b2d8)
+
+- Created .claude/skills/CLAUDE.md (58 lines): Skill development conventions
+- Created scripts/CLAUDE.md (71 lines): PowerShell coding standards
+- Evaluated and rejected .claude/rules/ (not needed)
 
 ## Next Steps
 
-TBD
+- Create pull request
+- Monitor token impact in practice over next 5-10 sessions
+- Consider additional @imports if patterns emerge
