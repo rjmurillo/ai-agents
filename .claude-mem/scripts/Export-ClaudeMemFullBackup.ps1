@@ -32,8 +32,14 @@
     # Custom output path
 
 .NOTES
-    Uses query="." to match all observations via the plugin's search interface.
-    For complete data export without search limitations, use Export-ClaudeMemDirect.ps1.
+    CRITICAL: This script calls the Claude-Mem export plugin using an FTS query of ".".
+    The underlying plugin currently treats an empty query as "match nothing", returning 0 rows.
+    Using "." forces a non-empty FTS query that, in practice, matches all indexed content, but it
+    still relies on the plugin's FTS behavior and may not include non-indexed data.
+    For a guaranteed complete, non-FTS backup, prefer the direct export script provided by this
+    project instead of relying solely on this FTS-based convenience wrapper.
+
+    See Export-ClaudeMemDirect.ps1 for 100% complete SQLite-based export.
 
     Security review runs automatically and blocks commit if violations found.
 #>
