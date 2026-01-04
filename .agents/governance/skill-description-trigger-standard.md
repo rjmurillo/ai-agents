@@ -1,411 +1,314 @@
 # Skill Description and Trigger Standard
 
-**Version**: 1.0
+**Version**: 2.0
 **Date**: 2026-01-03
 **Status**: Canonical Standard
 **Applies To**: All new skills, skill updates
 
 ## Purpose
 
-Define the standard for skill descriptions (frontmatter) and trigger sections to maximize discoverability and usability.
+Maximize skill discoverability through excellent descriptions and efficient body structure.
 
-## TL;DR
+---
 
-**Description**: 150-250 chars, action verb + what + when, no angle brackets
-**Triggers**: 3-5 natural language phrases in table format with operation mapping
+## Core Principle
+
+**The model selects skills based on description**. Description must be excellent. Body is lazy-loaded via progressive disclosure, so keep it concise and practical.
 
 ---
 
 ## Part 1: Description (Frontmatter)
 
-### Required Format
+### Requirements
 
-```yaml
----
-name: skill-name
-description: Action verb + what it does + when to use it + outcome (150-250 chars)
-license: MIT
-metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-5
----
-```
+Per Anthropic Claude Code specification:
 
-### Description Formula
+- **Mandatory**: `name` and `description` only
+- **Description is primary trigger**: Include trigger keywords for discoverability
+- **Length**: 10+ words minimum (validator enforces), 150-250 chars recommended
+- **Format**: Action verb + what + when + trigger keywords + outcome
+- **No angle brackets**: `<` or `>` will fail validation
+
+### Formula
 
 ```
-[ACTION VERB] + [WHAT] + [WHEN/USE CASE] + [OUTCOME]
+[ACTION VERB] + [WHAT] + [WHEN WITH TRIGGER KEYWORDS] + [OUTCOME]
 ```
 
-### Good Examples
+### Excellent Examples
 
-✅ **Excellent** (session-log-fixer):
+**session-log-fixer**:
 ```yaml
 description: Fix session protocol validation failures in GitHub Actions. Use when
   a PR fails with "Session protocol validation failed", "MUST requirement(s) not
   met", "NON_COMPLIANT" verdict, or "Aggregate Results: FAIL".
 ```
 
-- Action verb: "Fix"
-- What: "session protocol validation failures"
-- When: "Use when a PR fails with [specific errors]"
-- Outcome: Implied (passing validation)
+- Trigger keywords: exact error messages users will see
+- When: explicit failure scenarios
+- Outcome: implied (passing validation)
 
-✅ **Excellent** (research-and-incorporate):
+**research-and-incorporate**:
 ```yaml
 description: Research external topics, create comprehensive analysis, determine
   project applicability, and incorporate learnings into Serena and Forgetful
   memory systems. Transforms knowledge into searchable, actionable context.
 ```
 
-- Action verb: "Research"
-- What: "external topics"
-- When: Implied (when needing to incorporate knowledge)
+- What: research, analyze, incorporate
 - Outcome: "searchable, actionable context"
+- Trigger keywords: implicit in workflow verbs
 
 ### Common Mistakes
 
-❌ **Too Vague** (before):
-```yaml
-description: Handles memory operations
-```
-
-✅ **Fixed** (after):
-```yaml
-description: Search and manage memories across Serena and Forgetful. Use when
-  needing past context, creating new memories, or linking related knowledge.
-```
-
-❌ **Too Technical** (before):
-```yaml
-description: Populates Forgetful via LSP symbol analysis
-```
-
-✅ **Fixed** (after):
-```yaml
-description: Encode codebase into searchable knowledge graph using symbol
-  analysis. Use when onboarding to a new repository or refreshing project
-  understanding.
-```
-
-❌ **No Use Case** (before):
-```yaml
-description: Collects metrics from git history
-```
-
-✅ **Fixed** (after):
-```yaml
-description: Collect and report agent usage metrics from git history. Use when
-  measuring agent adoption, effectiveness, or system health over time.
-```
-
-### Description Checklist
-
-- [ ] Starts with action verb (Detect, Generate, Collect, Fix, etc.)
-- [ ] Describes what it does in plain language
-- [ ] Includes "Use when..." or equivalent trigger language
-- [ ] Mentions outcome or benefit
-- [ ] 150-250 characters (optimal)
-- [ ] No angle brackets (`<` or `>`)
-- [ ] No version/date metadata (goes in metadata object)
+| Mistake | Why It Fails | Fix |
+|---------|--------------|-----|
+| "Handles memory operations" | No trigger keywords, vague | "Search and manage memories across Serena and Forgetful. Use when needing past context or creating new memories." |
+| "Populates Forgetful via LSP" | Too technical, no when | "Encode codebase into searchable knowledge graph. Use when onboarding to repository or refreshing project understanding." |
+| "Collects metrics" | No use case | "Collect agent usage metrics from git history. Use when measuring agent adoption or system health over time." |
 
 ---
 
-## Part 2: Triggers Section
+## Part 2: Body Structure (Progressive Disclosure)
 
-### Required Format
+Body is lazy-loaded. Keep it concise and practical.
 
-Every skill MUST have a `## Triggers` section immediately after the frontmatter and title.
+### Required Elements
 
-### Trigger Section Template
+1. **Trigger table or list** (phrase → operation mapping)
+2. **Decision trees** (when to use vs alternatives)
+3. **Anti-patterns** (what NOT to do)
+4. **Verification checklists** (how to validate success)
+
+### Optional Elements (use references/)
+
+- Deep implementation details
+- Advanced scenarios
+- Historical context
+
+### Trigger Table Format
+
+Map user phrases to operations:
 
 ```markdown
 ## Triggers
 
 | Trigger Phrase | Operation |
 |----------------|-----------|
-| "explicit phrase users say" | What happens |
-| "alternative phrasing" | What happens |
-| "third variation" | What happens |
-
----
+| "get PR context for #123" | Get-PRContext.ps1 |
+| "respond to review comments" | Post-PRCommentReply.ps1 |
+| "merge this PR" | Merge-PR.ps1 |
 ```
 
-### Minimum Requirements
+Or categorized lists:
 
-- **3-5 trigger phrases** (minimum 3, recommended 5)
-- **Natural language** (how users actually talk)
-- **Variation** (different ways to ask for same thing)
-- **Specificity** (concrete examples, not generic)
-
-### Good Examples
-
-✅ **Table Format** (github):
 ```markdown
 ## Triggers
 
-| Phrase | Operation |
-|--------|-----------|
-| `get PR context for #123` | Get-PRContext.ps1 |
-| `respond to review comments` | Post-PRCommentReply.ps1 |
-| `add label to issue #456` | Set-IssueLabels.ps1 |
-| `merge this PR` | Merge-PR.ps1 |
-```
-
-✅ **Categorized Triggers** (SkillForge):
-```markdown
-## Triggers
-
-### Creation Triggers
-- `SkillForge: {goal}` - Full autonomous skill creation
+### Creation
 - `create skill` - Natural language activation
 - `design skill for {purpose}` - Purpose-first creation
 
-### Improvement Triggers
-- `SkillForge --improve {skill}` - Enter improvement mode
-- `enhance the {skill} skill` - Natural improvement request
+### Improvement
+- `improve {skill}` - Enter improvement mode
 ```
 
-✅ **Use-When Format** (merge-resolver):
+### Decision Trees
+
+Show when to use this skill vs alternatives:
+
 ```markdown
-## Triggers
+## When to Use
 
-Use this skill when you encounter:
+Use this skill when:
+- [ ] Condition A is true
+- [ ] Condition B is present
+- [ ] You need outcome X
 
-- `resolve merge conflicts for PR #123`
-- `PR has conflicts with main`
-- `can't merge - conflicts detected`
-- `fix the merge conflicts in this branch`
-- `help me resolve conflicts for this pull request`
+Use alternative skill when:
+- [ ] Condition C is true (use skill-Y instead)
 ```
 
-### Trigger Patterns
+### Anti-Patterns
 
-#### Pattern 1: Command + Context
+Prevent common mistakes:
 
-```
-{action} + {target} + {context}
+```markdown
+## Anti-Patterns
 
-Examples:
-- "get PR context for #123"
-- "add label enhancement to issue #456"
-- "search memory for authentication patterns"
-```
-
-#### Pattern 2: Natural Question
-
-```
-{question word} + {subject} + {qualifier}
-
-Examples:
-- "what do we know about error handling?"
-- "show me metrics for the last 30 days"
-- "how do I fix markdown fence errors?"
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Recreating from memory | Miss exact structure | Copy from template |
+| Marking MUST as N/A | Validation fails | Provide justification |
+| Placeholder evidence | Validators detect | Use real evidence text |
 ```
 
-#### Pattern 3: Problem Statement
+### Verification Checklist
 
-```
-{problem} + {constraint}
+Help users validate success:
 
-Examples:
-- "PR has conflicts with main"
-- "session validation failed"
-- "markdown fences are malformed"
-```
+```markdown
+## Verification
 
-#### Pattern 4: Request + Goal
-
-```
-{action verb} + {goal}
-
-Examples:
-- "plan this feature implementation"
-- "create ADR for database choice"
-- "detect security-critical changes"
-```
-
-### Trigger Checklist
-
-- [ ] Minimum 3 trigger phrases
-- [ ] Uses natural language (how users talk)
-- [ ] Includes variations (different ways to ask)
-- [ ] Organized in table or list format
-- [ ] Maps to specific operations or outcomes
-- [ ] Placed immediately after title (before other sections)
-
----
-
-## Part 3: Complete Example
-
-### Exemplar: Well-Structured Skill
-
-```yaml
----
-name: code-review
-description: Automated code review using project standards from CLAUDE.md. Use
-  when ready to review changes before committing or after completing a feature.
-  Checks style, patterns, and best practices.
-license: MIT
-metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-5
----
-
-# Code Review Skill
-
-Brief intro paragraph explaining the skill's purpose and value.
-
-## Triggers
-
-| Trigger Phrase | Action |
-|----------------|--------|
-| "review my code" | Full codebase review |
-| "check code quality" | Standards compliance check |
-| "review changes before commit" | Pre-commit review |
-| "code review this file" | Single file review |
-| "check for style violations" | Style-focused review |
-
----
-
-## Quick Start
-
-[Rest of skill content...]
+After execution:
+- [ ] Output file exists at expected path
+- [ ] Validation script passes
+- [ ] Commit includes all changes
+- [ ] CI workflow triggered
 ```
 
 ---
 
-## Part 4: Validation Rules
+## Part 3: Token Efficiency
+
+### Progressive Disclosure Pattern
+
+**Main SKILL.md**: Concise, practical, complete workflow
+
+**references/ directory**: Deep dives, advanced scenarios, historical context
+
+Example from adr-review:
+
+```
+SKILL.md (token-efficient):
+- Quick Start
+- Triggers table
+- When to Use
+- Anti-Patterns
+- Verification checklist
+
+references/:
+- debate-protocol.md (detailed Phases 0-4)
+- deletion-workflow.md (D1-D4 workflow)
+- issue-resolution.md (P0/P1/P2 handling)
+- artifacts.md (output formats)
+```
+
+### Concise Structure
+
+| Section | Max Lines | Purpose |
+|---------|-----------|---------|
+| Triggers | 10-15 | Phrase mapping |
+| When to Use | 5-10 | Decision criteria |
+| Anti-Patterns | 5-10 | Common mistakes |
+| Verification | 5-10 | Success checklist |
+
+Deep content goes in `references/`.
+
+---
+
+## Part 4: Validation
 
 ### Pre-Commit Validation
 
-The SkillForge validator (`scripts/validate-skill.py`) checks:
+The SkillForge validator (`.claude/skills/SkillForge/scripts/validate-skill.py`) checks:
 
-1. ✅ Description exists and is 1-1024 chars
-2. ✅ Description has no angle brackets
-3. ✅ Triggers section exists
-4. ✅ Minimum 3 trigger phrases present
+1. ✅ Description exists (1-1024 chars)
+2. ✅ Description has 10+ words
+3. ✅ Description has no angle brackets
+4. ✅ Frontmatter is valid YAML
+
+**Note**: Validator checks WORD COUNT (10+ words), not character count. 150-250 chars is recommended for readability but not enforced.
+
+### Security Requirements
+
+Trigger phrases MUST use character whitelist: `[a-zA-Z0-9 \-:,.'"]`
+
+Operation paths in trigger tables MUST:
+- Be relative paths only (no `..`)
+- Reference scripts in skill directory
+- Not execute arbitrary commands
 
 ### Manual Review Checklist
 
 Before marking skill complete:
 
-- [ ] Description follows formula (verb + what + when + outcome)
-- [ ] Description length 150-250 chars (optimal)
-- [ ] Triggers section exists with table or list
-- [ ] Minimum 3 distinct trigger phrases
-- [ ] Triggers use natural language
-- [ ] Triggers show variation (different phrasings)
-- [ ] No version/date in body (only in metadata)
-- [ ] No changelog section
+- [ ] Description has action verb
+- [ ] Description includes trigger keywords (how users will search)
+- [ ] Description has "Use when" or equivalent
+- [ ] Description mentions outcome
+- [ ] Body has trigger table/list
+- [ ] Body has decision tree or "when to use"
+- [ ] Body has anti-patterns table
+- [ ] Body has verification checklist
+- [ ] Deep content moved to references/
+- [ ] No changelog section in body
+- [ ] No version/date metadata in body
 
 ---
 
-## Part 5: Common Patterns by Skill Type
+## Part 5: Migration Guide
+
+### Skills Needing Immediate Attention (P0)
+
+These skills have empty descriptions and MUST be fixed:
+
+1. **github** - Has triggers table, needs description
+2. **merge-resolver** - Has triggers section, needs description
+3. **programming-advisor** - Needs both description and triggers
+
+**Ownership**: To be assigned
+**Deadline**: 2026-02-01
+
+### Updating Existing Skills
+
+1. **Description**: Add trigger keywords if missing
+2. **Body**: Add missing elements (decision tree, anti-patterns, verification)
+3. **Move deep content** to `references/` if body is verbose
+
+---
+
+## Part 6: Examples by Skill Type
 
 ### Automation Skills (metrics, security-detection)
 
-**Description Pattern**:
-```
-Collect/Detect/Monitor + [data source] + Use when [measuring/checking] + [outcome]
-```
+**Description pattern**: `Collect/Detect + [data] + Use when [condition] + [outcome]`
 
-**Trigger Pattern**:
-```
-- "show me [metric]"
-- "check for [condition]"
-- "generate [report type]"
-```
-
-### Guidance Skills (using-forgetful-memory, curating-memories)
-
-**Description Pattern**:
-```
-Guidance for [activity] + Use when [deciding/learning/understanding]
-```
-
-**Trigger Pattern**:
-```
-- "how do I [action]"
-- "when should I [action]"
-- "best practices for [topic]"
-```
+**Body must have**:
+- Trigger phrases for metric types
+- Decision tree (when to use this vs manual)
+- Verification checklist (validate output format)
 
 ### Workflow Skills (planner, research-and-incorporate)
 
-**Description Pattern**:
-```
-[Workflow verb] + [multi-step process] + Use when [starting/executing] + [outcome]
-```
+**Description pattern**: `[Workflow verb] + [multi-step process] + Use when [starting condition] + [outcome]`
 
-**Trigger Pattern**:
-```
-- "plan [feature/task]"
-- "execute [plan]"
-- "[action] this [artifact]"
-```
+**Body must have**:
+- Trigger table mapping phrases to workflow stages
+- Decision tree (when full workflow vs shortcuts)
+- Anti-patterns (common workflow mistakes)
 
 ### Diagnostic Skills (incoherence, analyze)
 
-**Description Pattern**:
-```
-Detect/Analyze/Find + [problems] + Use when [symptoms] + [resolution outcome]
-```
+**Description pattern**: `Detect/Analyze + [problems] + Use when [symptoms] + [outcome]`
 
-**Trigger Pattern**:
-```
-- "find [problem type]"
-- "analyze [target]"
-- "detect [inconsistencies]"
-```
-
----
-
-## Part 6: Migration Guide
-
-### For Existing Skills Missing Triggers
-
-1. Read current description
-2. Extract implicit trigger phrases
-3. Add 2-3 additional natural language variations
-4. Create Triggers section with table format
-5. Validate with checklist
-
-### For Existing Skills with Poor Descriptions
-
-1. Identify the action verb (what does it do?)
-2. Add use-when language (when should it be invoked?)
-3. Clarify outcome (what does user get?)
-4. Trim to 150-250 chars
-5. Validate with checklist
-
----
-
-## Part 7: Enforcement
-
-### When This Standard Applies
-
-- **Required**: All new skills created after 2026-01-03
-- **Recommended**: Update existing skills when modified
-- **Blocked**: SkillForge will reject skills violating this standard
-
-### Validation Tools
-
-1. **Pre-commit hook**: Runs `validate-skill.py` (checks basic structure)
-2. **SkillForge**: Phase 4 synthesis panel (checks quality)
-3. **Manual review**: Use checklists in this document
+**Body must have**:
+- Trigger phrases for symptoms
+- Decision tree (what to analyze vs ignore)
+- Verification checklist (validate findings)
 
 ---
 
 ## References
 
-- [Skill Description Trigger Review](../analysis/skill-description-trigger-review.md) - Analysis of existing skills
+- [Skill Description Trigger Review](../analysis/skill-description-trigger-review.md) - 28-skill analysis
 - [SkillForge Specification](../../.claude/skills/SkillForge/SKILL.md) - Skill creation framework
 - [Session 372](../sessions/2026-01-03-session-372.md) - Standard creation session
+- [ADR Review Debate Log](../critique/skill-description-trigger-standard-debate-log.md) - P0 issues addressed
 
 ## Changelog
 
+### v2.0.0 (2026-01-03)
+
+- **BREAKING**: Changed triggers section from REQUIRED to RECOMMENDED
+- Aligned with Anthropic spec: description is primary trigger
+- Added token efficiency guidance (progressive disclosure)
+- Added security requirements (character whitelist, path restrictions)
+- Fixed validator alignment (10+ words, not char count)
+- Added decision trees, anti-patterns, verification to required elements
+- Documented 3 skills with empty descriptions (P0 migration)
+
 ### v1.0.0 (2026-01-03)
-- Initial standard based on review of 28 existing skills
+
+- Initial standard based on 28-skill review
 - Established description formula and trigger patterns
-- Created validation rules and checklists
