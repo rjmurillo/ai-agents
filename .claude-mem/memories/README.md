@@ -18,10 +18,13 @@ Claude-Mem memories are local to each installation. Export/import enables:
 ├── README.md                                          # This file
 ├── 2026-01-03-session-229-frustrations.json         # Memory snapshots
 ├── 2026-01-03-session-230-testing-philosophy.json
+├── direct-backup-2026-01-03-1434-ai-agents.json     # Full backup (security reviewed)
 └── ...
 ```
 
 All memory exports are stored in this single directory. Auto-import on session start handles idempotent loading.
+
+**Note**: Large backup files (like `direct-backup-*.json`) are intentionally committed after security review to serve as test data and onboarding references. All committed exports have passed automated secret scanning.
 
 ## Export Workflow (Session End)
 
