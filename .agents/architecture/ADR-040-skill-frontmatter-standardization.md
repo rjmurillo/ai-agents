@@ -50,16 +50,17 @@ Adopt the following standardization for all 27 Claude Code skills:
 **Use aliases by default** (`claude-{tier}-4-5`) for most skills:
 
 ```yaml
-model: claude-opus-4-5      # Default: auto-updates
-model: claude-sonnet-4-5    # Default: auto-updates
-model: claude-haiku-4-5     # Default: auto-updates
+metadata:
+  model: claude-opus-4-5      # Default: auto-updates
+  model: claude-sonnet-4-5    # Default: auto-updates
+  model: claude-haiku-4-5     # Default: auto-updates
 ```
 
 **Exception: Security-Critical Skills** may use dated snapshots when deterministic behavior is required:
 
 ```yaml
-# For skills requiring reproducible behavior (security validation, compliance)
-model: claude-sonnet-4-5-20250929  # Pinned version
+metadata:
+  model: claude-sonnet-4-5-20250929  # Pinned version
 ```
 
 **Current Security-Critical Skills** (eligible for snapshot pinning):
@@ -74,17 +75,17 @@ model: claude-sonnet-4-5-20250929  # Pinned version
 
 ### 2. Frontmatter Structure
 
-Adopt consistent top-level structure:
+Adopt consistent structure per SkillForge packaging standards:
 
 ```yaml
 ---
 name: skill-identifier       # Required (Official): matches directory name
-version: X.Y.Z              # Optional (ai-agents convention): semantic versioning
-model: claude-{tier}-4-5    # Optional (Official): model alias
-license: MIT                # Optional (ai-agents convention): SPDX identifier
 description: ...            # Required (Official): trigger mechanism with keywords
+license: MIT                # Optional (SkillForge): SPDX identifier
 allowed-tools: Read, Grep   # Optional (Official): tool restrictions
-metadata:                   # Optional (ai-agents convention): domain-specific fields
+metadata:                   # Optional (SkillForge): all domain-specific fields
+  version: X.Y.Z            # Semantic versioning
+  model: claude-{tier}-4-5  # Model alias or snapshot
   domains: [...]
   type: ...
   complexity: ...
@@ -93,20 +94,21 @@ metadata:                   # Optional (ai-agents convention): domain-specific f
 
 **Field Status**:
 
-| Field | Status | Source |
-|-------|--------|--------|
-| `name` | Required | Official Anthropic spec |
-| `description` | Required | Official Anthropic spec |
-| `model` | Optional | Official Anthropic spec |
-| `allowed-tools` | Optional | Official Anthropic spec |
-| `version` | Optional | ai-agents convention |
-| `license` | Optional | ai-agents convention |
-| `metadata` | Optional | ai-agents convention |
+| Field | Status | Location | Source |
+|-------|--------|----------|--------|
+| `name` | Required | Top-level | Official Anthropic spec |
+| `description` | Required | Top-level | Official Anthropic spec |
+| `license` | Optional | Top-level | SkillForge convention |
+| `allowed-tools` | Optional | Top-level | Official Anthropic spec |
+| `metadata` | Optional | Top-level | SkillForge convention |
+| `metadata.version` | Optional | In metadata | ai-agents convention |
+| `metadata.model` | Optional | In metadata | ai-agents convention |
 
 **Rationale**:
-- Top-level fields (`version`, `model`, `license`) are semantically distinct from domain metadata
-- Consistent structure improves readability and validation
-- Distinguishes official spec from project conventions
+- SkillForge packaging validation defines the authoritative structure for distribution
+- Metadata encapsulates all non-standard fields including version and model configuration
+- Top-level reserved for official Anthropic spec fields and license
+- Consistent structure improves validation and packaging compatibility
 
 ### 3. Three-Tier Model Selection Strategy
 
@@ -129,29 +131,44 @@ Allocate models based on skill complexity:
 | Cost Tolerance | Minimal | Standard | Premium justified |
 | Error Impact | Low (cosmetic) | Medium (workflow) | High (architectural) |
 
-### 4. Description Best Practices
+### 4. Skill Quality Standards
 
-Include three elements for effective triggering:
+**Required Elements**:
+- YAML frontmatter with `name` and `description`
+- Markdown instructions (body content)
 
-1. **What**: Clear statement of functionality
-2. **When**: Explicit trigger conditions
-3. **Keywords**: Natural language terms users would say
+**Description Quality** (YAML frontmatter):
+- MUST include what the skill does AND when to use it (triggers)
+- ALL "when to use" information in description, not body
+- Include keywords users would naturally say
+- Max 1024 characters
 
 **Example**:
 ```yaml
 # ❌ Too generic
 description: Helps with testing
 
-# ✅ Specific with triggers
+# ✅ Specific with what + when + keywords
 description: Execute Pester tests with coverage analysis. Use when asked to "run tests", "check coverage", or "verify test suite".
 ```
 
-### 5. Progressive Disclosure Pattern
+**Body Quality** (Markdown content):
+- Concise (< 500 lines preferred)
+- Only include what Claude doesn't already know
+- Use imperative/infinitive form ("Use this tool...", "Run the script...")
+- No extraneous documentation
 
-For skills exceeding 500 lines:
-- Keep SKILL.md under 500 lines for optimal performance
-- Move detailed documentation to `references/` subdirectory
-- Link from SKILL.md rather than embedding
+**Structure Requirements**:
+- No README.md, INSTALLATION_GUIDE.md, or similar meta-documents
+- Use `references/` subdirectory for detailed content
+- References must be one level deep from SKILL.md
+- Add table of contents (TOC) for files > 100 lines
+
+**Progressive Disclosure**:
+- Keep SKILL.md lean and focused
+- Split content when approaching 500 lines
+- Reference files must have clear, descriptive names
+- Link from SKILL.md rather than embedding large content
 
 ### 6. Security: Tool Restrictions (allowed-tools)
 
@@ -198,18 +215,20 @@ allowed-tools: Bash(gh:*), Bash(pwsh:*), Read, Write
 
 ## Implementation
 
-### Phase 1: Standardization (Completed)
+### Phase 1: Standardization (In Progress)
 
 **Session #S356** (2026-01-03):
-- Updated all 27 skills to use model aliases
-- Restructured frontmatter (version/model/license to top-level)
-- Validated against minimal schema requirements
-- Commit: 303c6d2 on branch `fix/update-skills-valid-frontmatter`
+- Update all 27 skills to use model aliases
+- Restructure frontmatter (version/model into metadata object, per SkillForge validator)
+- Validate against SkillForge packaging requirements
+- Branch: `fix/update-skills-valid-frontmatter`
 
-**Changes**:
-- 11 skills: `claude-opus-4-5-20251101` → `claude-opus-4-5`
-- 12 skills: `claude-sonnet-4-5-20250929` → `claude-sonnet-4-5`
-- 4 skills: `claude-haiku-4-5-20251001` → `claude-haiku-4-5`
+**Changes Required**:
+- 11 skills: Move `model: claude-opus-4-5` from top-level to `metadata.model`
+- 12 skills: Move `model: claude-sonnet-4-5` from top-level to `metadata.model`
+- 4 skills: Move `model: claude-haiku-4-5` from top-level to `metadata.model`
+- All skills: Move `version` from top-level to `metadata.version`
+- All skills: Convert dated snapshots to aliases where appropriate
 
 ### Phase 2: Documentation (Completed)
 
