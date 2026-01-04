@@ -27,16 +27,17 @@ except ImportError:
     from quick_validate import validate_skill
 
 
-def validate_path_safety(path_str: str, allowed_base: Path) -> bool:
+def validate_and_resolve_path(path_str: str, allowed_base: Path) -> Path | None:
     """
-    Validate that a path string is safe before resolving (prevents directory traversal).
+    Validate that a path string is safe and resolve it against a trusted base directory.
+    This prevents directory traversal by ensuring the final path stays within allowed_base.
 
     Args:
-        path_str: Path string to validate (checked before resolution)
-        allowed_base: Base directory that path must be within
+        path_str: Path string provided by the user.
+        allowed_base: Base directory that the resolved path must remain within.
 
     Returns:
-        True if path is safe, False otherwise
+        A resolved Path object if the path is safe, or None otherwise.
     """
     # Normalize inputs
     raw = str(path_str)
@@ -49,10 +50,10 @@ def validate_path_safety(path_str: str, allowed_base: Path) -> bool:
 
         # Ensure the resolved path is contained within the allowed base
         resolved_path.relative_to(base)
-        return True
+        return resolved_path
     except (ValueError, OSError):
         # Any resolution or containment error means the path is unsafe
-        return False
+        return None
 
 
 def package_skill(skill_path, output_dir=None):
@@ -69,28 +70,14 @@ def package_skill(skill_path, output_dir=None):
     # SECURITY: Validate and resolve skill_path to trusted base (prevents CWE-22)
     skills_root = (Path.home() / ".claude" / "skills").resolve()
 
-    # Step 1: Validate path safety before any operations
-    if not validate_path_safety(str(skill_path), skills_root):
+    # Step 1: Validate path safety and resolve to a single trusted path
+    resolved_skill_path = validate_and_resolve_path(str(skill_path), skills_root)
+    if resolved_skill_path is None:
         print(f"❌ Error: Skill path contains unsafe characters or escapes allowed directory")
         print(f"   Allowed root: {skills_root}")
         return None
 
-    # Step 2: Resolve to single validated path variable
-    candidate = Path(skill_path)
-    if candidate.is_absolute():
-        resolved_skill_path = candidate.resolve(strict=False)
-    else:
-        resolved_skill_path = (skills_root / candidate).resolve(strict=False)
-
-    # Step 3: Verify containment within skills_root
-    try:
-        resolved_skill_path.relative_to(skills_root)
-    except ValueError:
-        print(f"❌ Error: Skill path escapes allowed skills directory: {resolved_skill_path}")
-        print(f"   Allowed root: {skills_root}")
-        return None
-
-    # Step 4: Validate skill folder exists (using validated path)
+    # Step 2: Validate skill folder exists (using validated path)
     if not resolved_skill_path.exists():
         print(f"❌ Error: Skill folder not found: {resolved_skill_path}")
         return None
@@ -119,22 +106,9 @@ def package_skill(skill_path, output_dir=None):
     if output_dir:
         # SECURITY: Validate and resolve output_dir to trusted base
         base = Path.cwd().resolve()
-        if not validate_path_safety(str(output_dir), allowed_base=base):
+        resolved_output_path = validate_and_resolve_path(str(output_dir), allowed_base=base)
+        if resolved_output_path is None:
             print(f"❌ Error: Output path contains unsafe characters or escapes allowed directory")
-            return None
-
-        # Resolve output_dir to single validated path
-        candidate = Path(output_dir)
-        if candidate.is_absolute():
-            resolved_output_path = candidate.resolve(strict=False)
-        else:
-            resolved_output_path = (base / candidate).resolve(strict=False)
-
-        # Verify containment within current directory
-        try:
-            resolved_output_path.relative_to(base)
-        except ValueError:
-            print(f"❌ Error: Output path escapes allowed directory")
             return None
 
         resolved_output_path.mkdir(parents=True, exist_ok=True)

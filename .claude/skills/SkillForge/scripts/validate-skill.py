@@ -17,52 +17,44 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
 
-def validate_path_safety(path_str: str, allowed_base: Path) -> bool:
+def validate_and_resolve_path(path_str: str, allowed_base: Path) -> Path | None:
     """
-    Validate that a path string is safe before resolving (prevents directory traversal).
+    Validate that a path string is safe and resolve it against a trusted base directory.
+    This prevents directory traversal by ensuring the final path stays within allowed_base.
 
     Args:
-        path_str: Path string to validate (checked before resolution)
-        allowed_base: Base directory that path must be within
+        path_str: Path string provided by the user.
+        allowed_base: Base directory that the resolved path must remain within.
 
     Returns:
-        True if path is safe, False otherwise
+        A resolved Path object if the path is safe, or None otherwise.
     """
-    # Normalize inputs to strings/Path
-    path_str = str(path_str)
+    # Normalize inputs
+    raw = str(path_str)
     base = allowed_base.resolve()
 
-    # Optional early rejection of simple traversal attempts
-    if '..' in path_str:
-        return False
-
     try:
-        candidate = Path(path_str)
-
-        # If the user provides an absolute path, ensure it is within the allowed base
-        if candidate.is_absolute():
-            resolved_path = candidate.resolve()
-        else:
-            # Join relative paths to the trusted base before resolving
-            resolved_path = (base / candidate).resolve()
+        # Treat all user input as relative to the trusted base and resolve it.
+        # Using strict=False so that existence of the path is not required for validation.
+        resolved_path = (base / raw).resolve(strict=False)
 
         # Ensure the resolved path is contained within the allowed base
         resolved_path.relative_to(base)
-        return True
+        return resolved_path
     except (ValueError, OSError):
-        return False
+        # Any resolution or containment error means the path is unsafe
+        return None
 
 
 class SkillValidator:
     """Validates skill files against SkillForge 4.0 standards."""
 
     def __init__(self, skill_path: str):
-        # SECURITY: Validate path safety BEFORE resolution (prevents CWE-22)
-        if not validate_path_safety(str(skill_path), allowed_base=Path.cwd()):
+        # SECURITY: Validate path safety and resolve to trusted path (prevents CWE-22)
+        skill_path_obj = validate_and_resolve_path(str(skill_path), allowed_base=Path.cwd())
+        if skill_path_obj is None:
             raise ValueError(f"Invalid path: {skill_path} contains unsafe characters or is outside repository root")
 
-        # Now safe to resolve since we validated the string first
-        skill_path_obj = Path(skill_path).resolve()
         self.skill_path = skill_path_obj
         self.skill_md_path = self._find_skill_md()
         self.content = ""

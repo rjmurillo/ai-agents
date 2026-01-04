@@ -22,40 +22,33 @@ except ImportError:
     HAS_YAML = False
 
 
-def validate_path_safety(path_str: str, allowed_base: Path) -> bool:
+def validate_and_resolve_path(path_str: str, allowed_base: Path) -> Path | None:
     """
-    Validate that a path string is safe before resolving (prevents directory traversal).
+    Validate that a path string is safe and resolve it against a trusted base directory.
+    This prevents directory traversal by ensuring the final path stays within allowed_base.
 
     Args:
-        path_str: Path string to validate (checked before resolution)
-        allowed_base: Base directory that path must be within
+        path_str: Path string provided by the user.
+        allowed_base: Base directory that the resolved path must remain within.
 
     Returns:
-        True if path is safe, False otherwise
+        A resolved Path object if the path is safe, or None otherwise.
     """
-    # Normalize inputs to strings/Path
-    path_str = str(path_str)
+    # Normalize inputs
+    raw = str(path_str)
     base = allowed_base.resolve()
 
-    # Optional early rejection of simple traversal attempts
-    if '..' in path_str:
-        return False
-
     try:
-        candidate = Path(path_str)
-
-        # If the user provides an absolute path, ensure it is within the allowed base
-        if candidate.is_absolute():
-            resolved_path = candidate.resolve()
-        else:
-            # Join relative paths to the trusted base before resolving
-            resolved_path = (base / candidate).resolve()
+        # Treat all user input as relative to the trusted base and resolve it.
+        # Using strict=False so that existence of the path is not required for validation.
+        resolved_path = (base / raw).resolve(strict=False)
 
         # Ensure the resolved path is contained within the allowed base
         resolved_path.relative_to(base)
-        return True
+        return resolved_path
     except (ValueError, OSError):
-        return False
+        # Any resolution or containment error means the path is unsafe
+        return None
 
 
 def validate_skill(skill_path: Path):
@@ -171,18 +164,16 @@ def main():
         print("  python quick_validate.py ~/.claude/skills/my-skill/")
         sys.exit(1)
 
-    # SECURITY: Validate path safety BEFORE any resolution (prevents CWE-22)
+    # SECURITY: Validate path safety and resolve to trusted path (prevents CWE-22)
     raw_skill_path = sys.argv[1]
 
     # Expand ~ but don't resolve yet (expanduser is safe, resolve is not)
     expanded_path = str(Path(raw_skill_path).expanduser())
 
-    if not validate_path_safety(expanded_path, allowed_base=Path.cwd()):
+    skill_path_obj = validate_and_resolve_path(expanded_path, allowed_base=Path.cwd())
+    if skill_path_obj is None:
         print(f"❌ Error: Path contains unsafe characters or escapes allowed directory")
         sys.exit(1)
-
-    # Now safe to resolve since we validated the string first
-    skill_path_obj = Path(expanded_path).resolve()
 
     if not skill_path_obj.exists():
         print(f"❌ Error: Path not found: {raw_skill_path}")

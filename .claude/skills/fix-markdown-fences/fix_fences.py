@@ -10,40 +10,33 @@ import sys
 from pathlib import Path
 
 
-def validate_path_safety(path_str: str, allowed_base: Path) -> bool:
+def validate_and_resolve_path(path_str: str, allowed_base: Path) -> Path | None:
     """
-    Validate that a path string is safe before resolving (prevents directory traversal).
+    Validate that a path string is safe and resolve it against a trusted base directory.
+    This prevents directory traversal by ensuring the final path stays within allowed_base.
 
     Args:
-        path_str: Path string to validate (checked before resolution)
-        allowed_base: Base directory that path must be within
+        path_str: Path string provided by the user.
+        allowed_base: Base directory that the resolved path must remain within.
 
     Returns:
-        True if path is safe, False otherwise
+        A resolved Path object if the path is safe, or None otherwise.
     """
-    # Normalize inputs to strings/Path
-    path_str = str(path_str)
+    # Normalize inputs
+    raw = str(path_str)
     base = allowed_base.resolve()
 
-    # Optional early rejection of simple traversal attempts
-    if '..' in path_str:
-        return False
-
     try:
-        candidate = Path(path_str)
-
-        # If the user provides an absolute path, ensure it is within the allowed base
-        if candidate.is_absolute():
-            resolved_path = candidate.resolve()
-        else:
-            # Join relative paths to the trusted base before resolving
-            resolved_path = (base / candidate).resolve()
+        # Treat all user input as relative to the trusted base and resolve it.
+        # Using strict=False so that existence of the path is not required for validation.
+        resolved_path = (base / raw).resolve(strict=False)
 
         # Ensure the resolved path is contained within the allowed base
         resolved_path.relative_to(base)
-        return True
+        return resolved_path
     except (ValueError, OSError):
-        return False
+        # Any resolution or containment error means the path is unsafe
+        return None
 
 
 def fix_markdown_fences(content: str) -> str:
@@ -150,12 +143,12 @@ def main() -> int:
 
     total_fixed = 0
     for dir_path in args.directories:
-        # SECURITY: Validate path safety BEFORE resolution (prevents CWE-22)
-        if not validate_path_safety(dir_path, allowed_base=Path.cwd()):
+        # SECURITY: Validate path safety and resolve to trusted path (prevents CWE-22)
+        directory = validate_and_resolve_path(dir_path, allowed_base=Path.cwd())
+        if directory is None:
             print(f"Error: {dir_path} contains unsafe characters or is outside allowed directory", file=sys.stderr)
             continue
 
-        directory = Path(dir_path).resolve()
         if not directory.exists():
             print(f"Warning: {dir_path} does not exist", file=sys.stderr)
             continue
