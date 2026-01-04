@@ -144,10 +144,12 @@ end {
     #>
     function Test-DocumentationOnly {
         try {
-            # Get list of changed files staged or in working tree
-            $ChangedFiles = & git diff --name-only HEAD 2>$null
+            # Get list of changed files in committed branch changes (vs base)
+            # SECURITY: Must check committed changes, not working tree, to prevent bypass
+            # via uncommitted docs masking committed code changes
+            $ChangedFiles = & git diff --name-only origin/main...HEAD 2>$null
             if ($LASTEXITCODE -ne 0 -or -not $ChangedFiles) {
-                # Try comparing against origin/main if HEAD comparison fails
+                # Fallback to simple comparison if three-dot syntax fails
                 $ChangedFiles = & git diff --name-only origin/main 2>$null
             }
 
@@ -158,13 +160,15 @@ end {
 
             # Check if all changed files are documentation-only
             # Force to array to handle single-item case
+            # SECURITY: Patterns must be anchored to prevent substring matches
+            # (e.g., src/license_validator.cs must not match LICENSE)
             $CodeFiles = @(
                 $ChangedFiles | Where-Object {
                     $_ -notmatch '\.md$' -and
                     $_ -notmatch '\.txt$' -and
-                    $_ -notmatch 'README' -and
-                    $_ -notmatch 'LICENSE' -and
-                    $_ -notmatch 'CHANGELOG' -and
+                    $_ -notmatch '(^|/)README$' -and
+                    $_ -notmatch '(^|/)LICENSE$' -and
+                    $_ -notmatch '(^|/)CHANGELOG$' -and
                     $_ -notmatch '\.gitignore$'
                 }
             )
