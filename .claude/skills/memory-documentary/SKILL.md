@@ -163,7 +163,7 @@ Cross-system synthesis revealing:
 
 ## Output Location
 
-Reports saved to: `/home/richard/sessions/[topic]-documentary-[date].md`
+Reports saved to: `.agents/analysis/[topic]-documentary-[date].md`
 
 ---
 

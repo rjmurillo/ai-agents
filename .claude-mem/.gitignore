@@ -1,0 +1,8 @@
+# Claude-Mem Memories Directory
+# All .json export files are committed to git for team sharing
+# Import is idempotent - safe to reimport same files
+
+# Ignore temporary files
+*.tmp
+*.swp
+*~

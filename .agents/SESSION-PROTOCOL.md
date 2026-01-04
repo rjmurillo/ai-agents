@@ -101,7 +101,7 @@ The `memory-index` maps task keywords to essential memories. Example workflow:
 
 **Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions. Note: HANDOFF.md is a read-only reference; do not modify it during sessions. Without loading relevant memories, agents repeat solved problems or miss established patterns.
 
-### Phase 2.1: Import Shared Memories (RECOMMENDED)
+### Phase 3: Import Shared Memories (RECOMMENDED)
 
 The agent SHOULD import shared memories at session start.
 
@@ -123,9 +123,9 @@ The agent SHOULD import shared memories at session start.
 
 **Rationale:** Shared memory exports enable team collaboration, onboarding, and cross-session knowledge transfer. Script is idempotent with automatic duplicate prevention.
 
-**Detailed Workflow**: See [.claude-mem/memories/README.md](../.claude-mem/memories/README.md) for complete export/import workflow documentation and [MEMORY-MANAGEMENT.md](governance/MEMORY-MANAGEMENT.md) for three-tier memory architecture
+**Detailed Workflow**: See [.claude-mem/memories/AGENTS.md](../.claude-mem/memories/AGENTS.md) and [MEMORY-MANAGEMENT.md](governance/MEMORY-MANAGEMENT.md)
 
-### Phase 1.5: Skill Validation (BLOCKING)
+### Phase 4: Skill Validation (BLOCKING)
 
 The agent MUST validate skill availability before starting work. This is a **blocking gate**.
 
@@ -151,7 +151,7 @@ The agent MUST validate skill availability before starting work. This is a **blo
 
 **Rationale:** Session 15 had 5+ skill violations despite documentation. Trust-based compliance fails; verification-based enforcement (like Serena init) has 100% compliance.
 
-### Phase 3: Session Log Creation (REQUIRED)
+### Phase 5: Session Log Creation (REQUIRED)
 
 The agent MUST create a session log early in the session.
 
@@ -252,29 +252,27 @@ The agent SHOULD export memories created during the session for sharing and vers
 
 **Requirements:**
 
-See [.claude-mem/memories/AGENTS.md](../.claude-mem/memories/AGENTS.md) for agent-specific export instructions.
-
-**Quick reference:**
-
-1. **Session-specific export** - For session learnings:
+1. The agent SHOULD export memories using session-specific naming:
 
    ```bash
-   pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "session NNN" -SessionNumber NNN -Topic "topic"
+   pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"
    ```
 
-2. **Full backup** (institutional knowledge) - For milestone sessions or periodic backups:
+2. The agent MUST perform security review before committing (BLOCKING):
 
    ```bash
-   pwsh .claude-mem/scripts/Export-ClaudeMemFullBackup.ps1
+   # Option 1: PowerShell security review script (recommended)
+   pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile [export-file].json
+
+   # Option 2: Manual grep scan
+   grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [export-file].json
+
+   # If matches found: Review manually, redact/delete sensitive data, re-scan
    ```
 
-3. **Security review**:
-   - For `Export-ClaudeMemFullBackup.ps1`: AUTOMATIC and BLOCKING (violations prevent commit)
-   - For `Export-ClaudeMemMemories.ps1`: MANUAL (run `pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile [file].json`)
-
-4. The agent MUST NOT commit exports containing sensitive data
-5. The agent SHOULD document export file path in session log
-6. The agent MAY skip export for sessions without significant memory creation
+3. The agent MUST NOT commit exports containing sensitive data
+4. The agent SHOULD document export file path in session log
+5. The agent MAY skip export for sessions without significant memory creation
 
 **Security Review Checklist (MUST verify before commit):**
 
@@ -290,9 +288,9 @@ See [.claude-mem/memories/AGENTS.md](../.claude-mem/memories/AGENTS.md) for agen
 - Security scan completed (no sensitive patterns found)
 - Export file path documented in session log
 
-**Rationale:** Export files contain plain text memory data. Committing sensitive information to git creates permanent security risks. Full backup script includes automatic BLOCKING security review. Session-specific exports require manual security review before commit.
+**Rationale:** Export files contain plain text memory data. Committing sensitive information to git creates permanent security risks. Security review is BLOCKING before commit.
 
-**Detailed Workflow**: See [.claude-mem/memories/README.md](../.claude-mem/memories/README.md) for complete export/import workflows, [.claude-mem/memories/AGENTS.md](../.claude-mem/memories/AGENTS.md) for agent-specific instructions, and [MEMORY-MANAGEMENT.md](governance/MEMORY-MANAGEMENT.md) for three-tier memory architecture
+**Detailed Workflow**: See [.claude-mem/memories/AGENTS.md](../.claude-mem/memories/AGENTS.md) and [MEMORY-MANAGEMENT.md](governance/MEMORY-MANAGEMENT.md)
 
 ### Phase 1: Documentation Update (REQUIRED)
 
@@ -465,7 +463,7 @@ Copy this checklist to each session log and verify completion:
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
 | SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
-| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Lint output clean |
@@ -566,7 +564,7 @@ All MUST requirements above are marked complete.
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
 | SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
-| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Output below |

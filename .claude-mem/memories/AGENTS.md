@@ -9,7 +9,7 @@ This directory contains Claude-Mem memory snapshots that should be imported at s
 Run the import script at session start:
 
 ```bash
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 ```
 
 The script is idempotent. Claude-Mem prevents duplicates using composite keys (`sdk_session_id` + `title` + `created_at_epoch`). Safe to run multiple times.
@@ -21,18 +21,6 @@ When ending sessions with valuable learnings:
 ```bash
 npx tsx scripts/export-memories.ts "[query]" .claude-mem/memories/YYYY-MM-DD-session-NNN-topic.json
 ```
-
-### Full Backup (Optional)
-
-For milestone sessions or periodic backups:
-
-```bash
-pwsh .claude-mem/scripts/Export-ClaudeMemDirect.ps1
-```
-
-Exports ALL claude-mem data (observations, sessions, summaries, prompts) directly from SQLite for institutional knowledge portability. Fixes duplicate detection issues that cause 1000s of duplicate imports.
-
-**Suggested**: Weekly or after major project milestones.
 
 ## Directory Contents
 
