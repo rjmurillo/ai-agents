@@ -198,13 +198,14 @@ end {
                 reason = @"
 QA VALIDATION GATE: QA evidence required before PR creation.
 
-Run: Task(subagent_type='qa', prompt='Verify changes for PR')
+Invoke the QA agent to verify changes:
+  #runSubagent with subagentType=qa prompt='Verify changes for PR'
 
-Or create QA report in .agents/qa/
+Or create a QA report file in .agents/qa/
 
 Bypass conditions:
-- Documentation-only PRs (auto-detected)
-- Set SKIP_QA_GATE=true environment variable
+- Documentation-only PRs (auto-detected based on file extensions)
+- Set SKIP_QA_GATE=true environment variable (requires justification)
 "@
             }
             $Output | ConvertTo-Json -Compress

@@ -478,7 +478,7 @@ All tests passed successfully.
                 $TestInput = '{"tool_input": {"command": "gh pr create"}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
                 $Output | Should -Match "qa"
-                $Output | Should -Match "subagent_type"
+                $Output | Should -Match "subagentType"
             }
             finally {
                 Set-Location $OriginalLocation
