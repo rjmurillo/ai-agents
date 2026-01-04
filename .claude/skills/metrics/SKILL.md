@@ -1,9 +1,10 @@
 ---
 name: metrics
+description: Collect and report metrics on agent usage from git history implementing the 8 key metrics defined in agent-metrics.md for measuring agent system health effectiveness and adoption.
+license: MIT
+metadata:
 version: 1.0.0
 model: claude-haiku-4-5
-license: MIT
-description: Collect and report metrics on agent usage from git history implementing the 8 key metrics defined in agent-metrics.md for measuring agent system health effectiveness and adoption.
 ---
 
 # Agent Metrics Collection Utility

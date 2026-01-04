@@ -1,9 +1,10 @@
 ---
 name: security-detection
+description: Detect infrastructure and security-critical file changes to trigger security agent review recommendations ensuring proper security oversight for sensitive modifications.
+license: MIT
+metadata:
 version: 1.0.0
 model: claude-haiku-4-5
-license: MIT
-description: Detect infrastructure and security-critical file changes to trigger security agent review recommendations ensuring proper security oversight for sensitive modifications.
 ---
 
 # Security Detection Utility

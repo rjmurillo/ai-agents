@@ -1,9 +1,7 @@
 ---
 name: adr-review
-version: 2.0.0
-model: claude-opus-4-5
-license: MIT
 description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus.
+license: MIT
 metadata:
   subagent_model: claude-opus-4-5
   domains: [architecture, governance, multi-agent, consensus]

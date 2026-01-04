@@ -1,15 +1,10 @@
 ---
 name: merge-resolver
-version: 2.0.0
-model: claude-opus-4-5
-license: MIT
 description: >
-  Resolve merge conflicts intelligently using git history.
-  Fetches PR context, identifies conflicted files, uses git blame
-  and commit history to infer developer intent.
-  Applies resolution strategies based on change type (bugfix, feature, refactor).
-  Auto-resolves session artifacts and templates. Validates session protocol before push.
+license: MIT
 metadata:
+  version: 2.0.0
+  model: claude-opus-4-5
   domains: [git, github, merge-conflicts, pr-maintenance]
   type: workflow
   complexity: advanced

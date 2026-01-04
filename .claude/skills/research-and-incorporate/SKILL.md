@@ -1,10 +1,10 @@
 ---
 name: research-and-incorporate
-version: 1.0.0
-model: claude-opus-4-5
-license: MIT
 description: Research external topics, create comprehensive analysis, determine project applicability, and incorporate learnings into Serena and Forgetful memory systems. Transforms knowledge into searchable, actionable project context.
+license: MIT
 metadata:
+  version: 1.0.0
+  model: claude-opus-4-5
   timelessness: 8/10
   source: Chesterton's Fence research workflow (Session 203)
 ---

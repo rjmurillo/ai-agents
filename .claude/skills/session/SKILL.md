@@ -1,9 +1,10 @@
 ---
 name: session
+description: Skills for session management and protocol compliance including investigation eligibility checking per ADR-034 to determine when QA validation can be skipped.
+license: MIT
+metadata:
 version: 1.0.0
 model: claude-sonnet-4-5
-license: MIT
-description: Skills for session management and protocol compliance including investigation eligibility checking per ADR-034 to determine when QA validation can be skipped.
 ---
 
 # Session Skills

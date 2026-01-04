@@ -1,17 +1,10 @@
 ---
 name: programming-advisor
+description: >
+license: MIT
+metadata:
 version: 1.0.0
 model: claude-opus-4-5
-license: MIT
-description: >
-  Anti-reinventing-the-wheel advisor that helps users evaluate build vs buy decisions before vibe coding.
-  Use when users describe something they want to build, create, or develop - especially features, tools,
-  apps, scripts, or systems. Searches for existing solutions, estimates vibe coding costs (tokens, time,
-  complexity), and presents comparison tables to enable informed decisions. Includes total cost of ownership
-  analysis comparing Year 1 vs Year 3 costs for SaaS vs DIY. When user accepts a recommendation, provides
-  complete integration planning with install commands, starter code, and project-specific guidance.
-  Triggers on: "I want to build...", "Help me create...", "Can you code...", "I need a [tool/app/script]...",
-  project planning, feature requests, or any coding task that might have existing solutions.
 ---
 
 # Programming Advisor - "Reinventing the Wheel" Detector

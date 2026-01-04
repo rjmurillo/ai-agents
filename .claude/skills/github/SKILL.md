@@ -1,19 +1,10 @@
 ---
 name: github
-version: 3.0.0
-model: claude-opus-4-5
-license: MIT
 description: |
-  GitHub CLI operations for PRs, Issues, Labels, Milestones, Comments, and Reactions.
-  Unified skill with shared helpers for DRY code.
-  Use when Claude needs to: (1) Get PR context, diff, or changed files, (2) Reply to
-  PR review comments preserving threads, (3) Post idempotent issue comments, (4) Apply
-  or create labels, (5) Assign milestones, (6) Add reactions to comments, (7) Close or
-  merge PRs, (8) Resolve review threads, (9) Synthesize context for Copilot assignment,
-  (10) Create new issues or PRs with validation.
-  Do NOT use for: raw git operations, GitHub Actions workflow editing, repository settings.
-allowed-tools: Bash(pwsh:*), Bash(gh api:*), Bash(gh pr:*), Bash(gh issue:*), Read, Write, Grep, Glob
+license: MIT
 metadata:
+  version: 3.0.0
+  model: claude-opus-4-5
   domains: [github, pr, issue, labels, milestones, comments, reactions]
   type: integration
   complexity: intermediate

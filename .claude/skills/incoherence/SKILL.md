@@ -1,9 +1,10 @@
 ---
 name: incoherence
+description: Detect and resolve incoherence in documentation, code, specs vs implementation. Includes reconciliation phase for applying user-provided resolutions.
+license: MIT
+metadata:
 version: 1.0.0
 model: claude-sonnet-4-5
-license: MIT
-description: Detect and resolve incoherence in documentation, code, specs vs implementation. Includes reconciliation phase for applying user-provided resolutions.
 ---
 
 # Incoherence Detector Skill

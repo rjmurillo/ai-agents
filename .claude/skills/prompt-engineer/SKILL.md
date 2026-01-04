@@ -1,9 +1,10 @@
 ---
 name: prompt-engineer
+description: Optimize system prompts for Claude Code agents using proven prompt engineering patterns. Use when users request prompt improvement, optimization, or refinement for agent workflows, tool instructions, or system behaviors.
+license: MIT
+metadata:
 version: 1.0.0
 model: claude-sonnet-4-5
-license: MIT
-description: Optimize system prompts for Claude Code agents using proven prompt engineering patterns. Use when users request prompt improvement, optimization, or refinement for agent workflows, tool instructions, or system behaviors.
 ---
 
 # Prompt Optimizer

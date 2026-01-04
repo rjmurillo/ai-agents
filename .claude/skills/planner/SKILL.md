@@ -1,9 +1,10 @@
 ---
 name: planner
+description: Interactive planning and execution for complex tasks. Use when breaking down multi-step projects (planning) or executing approved plans through delegation (execution). Planning creates milestones with specifications; execution delegates to specialized agents.
+license: MIT
+metadata:
 version: 1.0.0
 model: claude-opus-4-5
-license: MIT
-description: Interactive planning and execution for complex tasks. Use when breaking down multi-step projects (planning) or executing approved plans through delegation (execution). Planning creates milestones with specifications; execution delegates to specialized agents.
 ---
 
 # Planner Skill
