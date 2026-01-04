@@ -4,7 +4,7 @@
 
 The security agent missed two CRITICAL vulnerabilities (CWE-22 path traversal, CWE-77 command injection) in PR #752 that were caught by Gemini Code Assist. Root cause analysis reveals systematic gaps: incomplete CWE coverage (only 3 CWEs documented), lack of PowerShell-specific security patterns (0.2% coverage despite ADR-005 PowerShell-only mandate), and no feedback loop for missed vulnerabilities.
 
-This plan implements comprehensive CWE-699 framework integration into src/claude/security.md, expands coverage from 3 to 30+ high-priority CWEs across 11 weakness categories, adds PowerShell security checklist with concrete examples, establishes severity calibration criteria, creates feedback loop infrastructure with Forgetful memory integration, implements security benchmark suite for agent capability testing, adds second-pass review gate for critical file paths, and updates documentation. Estimated effort: 39 hours across 7 milestones.
+This plan implements comprehensive CWE-699 framework integration into src/claude/security.md, expands coverage from 3 to 30+ high-priority CWEs across 11 weakness categories, adds PowerShell security checklist with concrete examples, establishes severity calibration criteria, creates feedback loop infrastructure with Forgetful memory integration, implements security benchmark suite for agent capability testing, adds second-pass review gate for critical file paths, and updates documentation. Estimated effort: 37 hours over 3 weeks across 7 milestones.
 
 ## Planning Context
 
