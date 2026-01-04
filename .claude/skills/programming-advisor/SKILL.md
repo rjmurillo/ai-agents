@@ -1,17 +1,23 @@
 ---
 name: programming-advisor
-description: >
-  Anti-reinventing-the-wheel advisor that helps users evaluate build vs buy decisions before vibe coding.
-  Use when users describe something they want to build, create, or develop - especially features, tools,
-  apps, scripts, or systems. Searches for existing solutions, estimates vibe coding costs (tokens, time,
-  complexity), and presents comparison tables to enable informed decisions. Includes total cost of ownership
-  analysis comparing Year 1 vs Year 3 costs for SaaS vs DIY. When user accepts a recommendation, provides
-  complete integration planning with install commands, starter code, and project-specific guidance.
-  Triggers on: "I want to build...", "Help me create...", "Can you code...", "I need a [tool/app/script]...",
-  project planning, feature requests, or any coding task that might have existing solutions.
+description: Evaluate existing solutions (libraries, SaaS, open source) before custom development to avoid reinventing the wheel. Use when considering building new features, asking "should I build or use existing", or need build vs buy cost analysis with token estimates.
+license: MIT
+metadata:
+  version: 1.0.0
+  model: claude-opus-4-5
 ---
 
 # Programming Advisor - "Reinventing the Wheel" Detector
+
+## Triggers
+
+| Trigger Phrase | Action |
+|----------------|--------|
+| "should I build X or use a library" | Search existing solutions, provide comparison |
+| "find existing solutions for X" | Web search, categorize findings |
+| "is there a package for X" | Search npm/pip/cargo/etc |
+| "build vs buy for X" | Generate cost comparison table |
+| "check if X exists before building" | Run full wheel detection workflow |
 
 ## Core Philosophy
 

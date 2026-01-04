@@ -8,3 +8,4 @@
 | additive feature section refactor regression isolation | implementation-additive-approach |
 | small commit fast iteration CI cycle feedback rapid refinement | implementation-fast-iteration |
 | GraphQL-first API analysis REST check capabilities isResolved field | implementation-006-graphql-first |
+| verbatim patch mode user-provided code exact character copy no modification | implementation-verbatim-patch-mode |
