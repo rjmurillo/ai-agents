@@ -1,3 +1,12 @@
+---
+name: security-detection
+description: Detect infrastructure and security-critical file changes to trigger security agent review recommendations ensuring proper security oversight for sensitive modifications.
+license: MIT
+metadata:
+version: 1.0.0
+model: claude-haiku-4-5
+---
+
 # Security Detection Utility
 
 ## Purpose
@@ -127,9 +136,3 @@ Edit the pattern lists in either script to add or modify detection patterns:
 - [Infrastructure File Patterns](../../security/infrastructure-file-patterns.md)
 - [Security Agent Capabilities](../../security/static-analysis-checklist.md)
 - [Orchestrator Routing Algorithm](../../../docs/orchestrator-routing-algorithm.md)
-
----
-
-*Skill Version: 1.0*
-*Created: 2025-12-13*
-*GitHub Issue: #9*

@@ -256,7 +256,6 @@ if ($EnableCodeCoverage) {
         else {
             # If it's a specific test file, find the corresponding source file
             # Test file patterns:
-            # - build/tests/Generate-Skills.Tests.ps1 -> build/Generate-Skills.ps1
             # - scripts/tests/Install-Common.Tests.ps1 -> scripts/Install-Common.ps1
             # - .claude/skills/github/tests/Foo.Tests.ps1 -> .claude/skills/github/scripts/Foo.ps1
 
