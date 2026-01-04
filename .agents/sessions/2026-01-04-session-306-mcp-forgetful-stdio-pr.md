@@ -51,6 +51,10 @@ Create a new branch and PR for commit d10dc633 which changes Forgetful MCP serve
 
 - ✅ Branch `feat/mcp-forgetful-stdio` created and pushed
 - ✅ PR #768 opened: https://github.com/rjmurillo/ai-agents/pull/768
+- ✅ HTTP server implementation removed (4 scripts deleted)
+- ✅ CONTRIBUTING.md updated to document stdio setup
+- ✅ CLAUDE.md updated to reflect stdio transport
+- ✅ All changes committed and pushed
 - ✅ Session log created and updated
 
 ## Session End Checklist
@@ -58,9 +62,12 @@ Create a new branch and PR for commit d10dc633 which changes Forgetful MCP serve
 - [x] Complete session log with outcomes
 - [x] Update Serena memory if needed (not required for this simple task)
 - [x] Run `npx markdownlint-cli2 --fix "**/*.md"`
-- [ ] Commit all changes
-- [ ] Verify HANDOFF.md unchanged
+- [x] Commit all changes
+- [x] Verify HANDOFF.md unchanged
 
 ## Notes
 
-- This is a single-commit PR for infrastructure configuration change
+- Upstream issue #19 (https://github.com/ScottRBK/forgetful/issues/19) has been fixed
+- Removed 964 lines of HTTP-specific code (install scripts, health checks)
+- Simplified setup: uvx now handles Forgetful lifecycle automatically
+- PR #768 now has 2 commits total (MCP config + HTTP cleanup)
