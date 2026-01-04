@@ -4,7 +4,7 @@
 
 The security agent missed two CRITICAL vulnerabilities (CWE-22 path traversal, CWE-77 command injection) in PR #752 that were caught by Gemini Code Assist. Root cause analysis reveals systematic gaps: incomplete CWE coverage (only 3 CWEs documented), lack of PowerShell-specific security patterns (0.2% coverage despite ADR-005 PowerShell-only mandate), and no feedback loop for missed vulnerabilities.
 
-This plan implements comprehensive CWE-699 framework integration into src/claude/security.md, expands coverage from 3 to 30+ high-priority CWEs across 11 weakness categories, adds PowerShell security checklist with concrete examples, establishes severity calibration criteria, creates feedback loop infrastructure with Forgetful memory integration, implements security benchmark suite for agent capability testing, adds second-pass review gate for critical file paths, and updates documentation. Estimated effort: 37 hours over 3 weeks across 7 milestones.
+This plan implements comprehensive CWE-699 framework integration into src/claude/security.md, expands coverage from 3 to 30+ high-priority CWEs across 11 weakness categories, adds PowerShell security checklist with concrete examples, establishes severity calibration criteria, creates feedback loop infrastructure with Forgetful memory integration, implements security benchmark suite for agent capability testing, adds second-pass review gate for critical file paths, and updates documentation. Estimated effort: 38 hours over 3 weeks across 7 milestones (M4 +1 hour per critic recommendation).
 
 ## Planning Context
 
@@ -334,8 +334,8 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 **Code Changes**:
 
 ```diff
---- src/claude/security.md
-+++ src/claude/security.md
+--- src/claude/security.md:200
++++ src/claude/security.md:200
 @@ -200,6 +200,152 @@ When reviewing code for security vulnerabilities:
  ## Security Testing Approach
 
@@ -521,8 +521,8 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 - Updates `src/claude/security.md` prompt IMMEDIATELY with new pattern from false negative (blocking operation, not async)
 - Updates `.agents/security/benchmarks/` with new test case from false negative vulnerability
 - Updates SECURITY-REVIEW-PROTOCOL.md with immediate trigger documentation ("False negative detected -> Block PR -> Run RCA -> Update agent -> Re-review -> Merge decision")
-- Error handling for Forgetful MCP unavailability: graceful degradation with warning, write to local JSON fallback (`.agents/security/false-negatives.json`)
-- Error handling for Serena MCP unavailability: Fail script (BLOCKING), do not proceed with partial memory storage
+- Error handling for Forgetful MCP unavailability: graceful degradation with warning, write to local JSON fallback (`.agents/security/false-negatives.json`). **Rationale**: Forgetful provides *semantic/discovery-enhancement* memory only; writing to JSON ensures no loss of false-negative data, with temporary impact limited to semantic search quality rather than correctness or auditability.
+- Error handling for Serena MCP unavailability: Fail script (BLOCKING), do not proceed with partial memory storage. **Rationale**: Serena is the *canonical project memory* for security RCA; proceeding without Serena would create inconsistent state between audit trail and semantic memory, violating M4's "no partial memory storage" guarantee for security false negatives.
 - Error handling for GitHub API rate limit: Exponential backoff (1s, 2s, 4s, max 3 retries), then fail with actionable error ("Rate limit exceeded. Retry after {reset_time}.")
 - Error handling for malformed SR-*.md: Validate markdown structure (YAML frontmatter, required sections), skip malformed files with warning logged to console
 - Error handling for no external review: Distinguish empty findings (no vulnerabilities found) from missing review (no PR comments), log info message "No external review found for PR #{number}"
@@ -665,9 +665,9 @@ M6 (CI Gate) ──────────────────────�
 
 **Estimated Timeline** (sequential path):
 - Week 1: M1, M2, M3 (parallel, 15 hours total)
-- Week 2: M5, M6 (parallel, 13 hours total) + M4 start (2 hours)
+- Week 2: M5, M6 (parallel, 13 hours total) + M4 start (3 hours)
 - Week 3: M4 completion (4 hours) + M7 (3 hours)
-- Total: 37 hours over 3 weeks
+- Total: 38 hours over 3 weeks (M4 +1 hour per critic recommendation for error handling)
 
 ## Cross-References
 
