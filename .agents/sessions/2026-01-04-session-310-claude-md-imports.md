@@ -9,6 +9,42 @@
 
 Implement the three phases from issue #774 to adopt Anthropic's @imports pattern for CLAUDE.md.
 
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Checked usage-mandatory |
+| MUST | Read usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Via CRITICAL-CONTEXT.md |
+| MUST | Read memory-index, load task-relevant memories | [x] | claude-md-anthropic-best-practices, claude-code-slash-commands |
+| SHOULD | Import shared memories | [N/A] | Not applicable |
+| MUST | Verify and declare current branch | [x] | feat/claude-md-token-optimization |
+| MUST | Confirm not on main/master | [x] | On feature branch |
+| SHOULD | Verify git status | [x] | Clean |
+| SHOULD | Note starting commit | [x] | acf7ee76 |
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| SHOULD | Export session memories | [N/A] | Used Serena memory |
+| MUST | Security review export (if exported) | [N/A] | No export file |
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Via skill frontmatter memory |
+| MUST | Run markdown lint | [x] | Lint clean |
+| MUST | Route to qa agent (feature implementation) | [N/A] | Documentation-only PR |
+| MUST | Commit all changes (including .serena/memories) | [x] | Multiple commits in PR #775 |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No project plan for this issue |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Documentation session |
+| SHOULD | Verify clean git status | [x] | Clean after push |
+
 ## Context
 
 From Anthropic's official CLAUDE.md guidance, we identified opportunities to:
