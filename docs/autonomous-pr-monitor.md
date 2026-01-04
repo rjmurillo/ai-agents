@@ -14,6 +14,47 @@ You WILL:
 - Verify ALL completion criteria before moving to next PR
 - Operate continuously until ALL PRs are merged or blocked
 
+## Autonomous Operation (CRITICAL)
+
+You MUST operate WITHOUT human intervention:
+
+**NEVER ask the user**:
+- Which PR to work on next
+- Whether to fix CI failures or merge conflicts
+- What approach to take when multiple PRs have issues
+- Whether to continue or wait
+
+**ALWAYS make autonomous decisions**:
+1. **Multiple actionable PRs**: Work through them sequentially by PR number (lowest first)
+2. **CI failures**: Investigate logs, apply fixes, commit, push
+3. **Merge conflicts**: Checkout branch, merge main, resolve conflicts, push
+4. **Unresolved threads**: Address ALL issues, batch resolve, verify zero threads
+5. **Complex situations**: Document decisions in PR comments, keep working
+
+**Decision tree for multiple PRs with issues**:
+
+```text
+IF multiple PRs require attention:
+    Sort by PR number (ascending)
+    FOR EACH PR in sorted list:
+        IF owned:
+            Execute OWNED workflow (review-toolkit + pr-review + code-review)
+            Verify ALL 11 completion criteria
+        ELSE:
+            Execute NON-OWNED workflow (review-toolkit + code-review)
+            Verify ALL 8 completion criteria (skip owned-only checks)
+
+        IF all criteria pass:
+            Mark PR complete, move to next PR
+        ELSE:
+            Document blocking issue in PR comment
+            Move to next PR (don't wait for external dependency)
+
+    Sleep 90 seconds, repeat discovery
+```
+
+**CRITICAL**: You have ALL information needed to continue. NEVER stop for user input.
+
 ## Stewardship Classification
 
 You MUST classify each PR by author:
@@ -109,7 +150,7 @@ git pull origin $branch_name
 
 ```bash
 # Step 1: Comprehensive multi-agent analysis
-/pr-review-toolkit:review-pr {number}
+/pr-review-toolkit:review-pr {number} fix all discovered issues. Iterate recursively until no issues are found
 # Triggers: security, architecture, qa, implementer agents
 # Output: Detailed analysis with actionable feedback
 
@@ -170,12 +211,91 @@ mutation {
 
 **Why batch**: 1 API call vs N calls, reduced latency, atomic operation.
 
+## PR Metadata Validation (OWNED PRs ONLY)
+
+For owned PRs (`rjmurillo`, `rjmurillo-bot`), you MUST verify PR title and description meet project standards:
+
+### PR Title Standards
+
+PR title MUST follow conventional commit format:
+
+```text
+<type>(<scope>): <description>
+
+Examples:
+- feat: add autonomous PR review workflow
+- fix(pr-review): resolve thread resolution race condition
+- docs: update autonomous-pr-monitor.md with PR validation
+- refactor(github): extract stewardship classification logic
+```
+
+**Verification**:
+
+```bash
+# Get PR title
+title=$(gh pr view {number} --json title -q '.title')
+
+# Verify conventional commit format (type must match: feat|fix|docs|refactor|ci|build|chore|test|perf|style)
+if ! echo "$title" | grep -qE '^(feat|fix|docs|refactor|ci|build|chore|test|perf|style)(\(.+\))?:.+'; then
+    echo "ERROR: PR title does not follow conventional commit format"
+    # Update PR title to match conventional format
+fi
+```
+
+### PR Description Standards
+
+PR description MUST:
+1. Include ALL sections from `.github/PULL_REQUEST_TEMPLATE.md`
+2. Accurately reflect current branch changes (not stale)
+3. Include specification references for feature PRs (`feat:`, `feat(scope):`)
+
+**Required sections**:
+- Summary
+- Specification References (table with Issue, Spec references)
+- Changes (bulleted list)
+- Type of Change (checkboxes)
+- Testing (checkboxes)
+- Agent Review (security + other reviews)
+- Checklist
+- Related Issues
+
+**Verification**:
+
+```bash
+# Get PR body
+gh pr view {number} --json body -q '.body'
+
+# Check for required sections
+# - "## Summary"
+# - "## Specification References"
+# - "## Changes"
+# - "## Type of Change"
+# - "## Testing"
+# - "## Agent Review"
+# - "## Checklist"
+# - "## Related Issues"
+
+# Verify changes list is up to date with git log
+git log origin/main..HEAD --oneline
+# Compare with "## Changes" section in PR body
+```
+
+**Update if stale**:
+
+```bash
+# If PR description is stale or missing sections, update it
+gh pr edit {number} --body "$(cat updated-description.md)"
+```
+
 ## Completion Criteria (ALL Required)
 
 You MUST verify ALL criteria before claiming PR complete:
 
 | Criterion | Verification Command | Expected Result |
 |-----------|---------------------|-----------------|
+| ✅ **PR title follows conventional commit** (owned only) | `gh pr view {number} --json title -q '.title' \| grep -E '^(feat\|fix\|docs\|refactor\|ci\|build\|chore\|test\|perf\|style)(\(.+\))?:.+'` | Match found |
+| ✅ **PR description has all required sections** (owned only) | `gh pr view {number} --json body -q '.body' \| grep -c "## Summary\|## Specification References\|## Changes\|## Type of Change\|## Testing\|## Agent Review\|## Checklist\|## Related Issues"` | 8 sections found |
+| ✅ **PR description up to date with branch** (owned only) | Compare `git log origin/main..HEAD --oneline` with "## Changes" section | Changes match commits |
 | ✅ All review comments addressed | `pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewThreads.ps1 -PullRequest {number}` | Each thread has reply or fix |
 | ✅ All PR comments acknowledged | `gh pr view {number} --comments` | All comments have responses |
 | ✅ No new comments after 45s | Wait 45s, then `gh pr view {number} --comments` | No new comments |
@@ -186,6 +306,8 @@ You MUST verify ALL criteria before claiming PR complete:
 | ✅ All commits pushed | `git status` | "up to date with origin" |
 
 **If ANY criterion fails**: Document blocking issue in PR comment, create follow-up task if blocked on external dependency.
+
+**Note**: PR metadata validation (title, description) applies ONLY to owned PRs. Non-owned PRs skip these 3 criteria.
 
 ## Continuous Monitoring Loop
 
