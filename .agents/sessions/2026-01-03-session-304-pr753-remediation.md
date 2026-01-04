@@ -1,10 +1,14 @@
 # Session 304: PR #753 Comprehensive Review Remediation
 
-**Date**: 2026-01-03
-**Branch**: feat/claude-mem-export
-**PR**: #753
-**Type**: Remediation
-**Agent**: orchestrator
+## Session Info
+
+| Field | Value |
+|-------|-------|
+| Date | 2026-01-03 |
+| Branch | feat/claude-mem-export |
+| PR | #753 |
+| Type | Remediation |
+| Agent | orchestrator |
 
 ## Objective
 
@@ -72,6 +76,42 @@ Remediate all findings from PR #753 comprehensive review (`.agents/qa/pr753-comp
 4. a8628cc - docs: document intentional large backup file commit
 5. 3b0b35c - chore(session): complete PR #753 remediation session log
 6. 32207eb - chore(memory): store PR #753 remediation patterns
+
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Create this session log | [x] | This file exists |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented |
+| MUST | Read usage-mandatory memory | [x] | Content in context |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
+| MUST | Read memory-index, load task-relevant memories | [x] | pr-comment-responder-skills loaded |
+| SHOULD | Import shared memories | [N/A] | Remediation session |
+| MUST | Verify and declare current branch | [x] | Branch: feat/claude-mem-export |
+| MUST | Confirm not on main/master | [x] | On feature branch |
+| SHOULD | Verify git status | [x] | Clean working tree |
+| SHOULD | Note starting commit | [x] | SHA: 49a00db |
+
+### Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| SHOULD | Export session memories | [N/A] | Remediation session |
+| MUST | Security review export | [N/A] | No export created |
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/pr753-comprehensive-review-findings.md` |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 32207eb |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [N/A] | No project plan for this remediation |
+| SHOULD | Invoke retrospective (significant sessions) | [N/A] | Remediation work, retrospective embedded |
+| SHOULD | Verify clean git status | [x] | `git status` output clean |
 
 ## Session End
 
