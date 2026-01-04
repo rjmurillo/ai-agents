@@ -23,7 +23,7 @@ Key findings:
 
 ### 1.1 Context and Scope
 
-The OWASP Top 10 for Agentic Applications (December 2025, v1) addresses security vulnerabilities specific to AI agents that:
+The OWASP Top 10 for Agentic Applications (December 2026, v1) addresses security vulnerabilities specific to AI agents that:
 
 - Operate autonomously with minimal human oversight
 - Execute multi-step workflows using external tools
