@@ -96,6 +96,218 @@ The combination of:
 
 ---
 
+## Commands (Essential Tools)
+
+Common commands you'll reference throughout development. Commands are listed with exact flags and options.
+
+### Session Management
+
+```bash
+# Session start
+mcp__serena__activate_project
+mcp__serena__initial_instructions
+git branch --show-current
+
+# Session end
+npx markdownlint-cli2 --fix "**/*.md"
+pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[log].md"
+```
+
+### Development Tools
+
+```bash
+# Testing
+pwsh ./build/scripts/Invoke-PesterTests.ps1
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
+pytest -v
+
+# Linting
+npx markdownlint-cli2 --fix "**/*.md"
+pwsh scripts/Validate-Consistency.ps1
+
+# Build
+pwsh build/Generate-Agents.ps1
+```
+
+### Git & GitHub Operations
+
+```bash
+# Issue assignment
+gh issue edit <number> --add-assignee @me
+
+# PR operations
+gh pr create --base main --head [branch]
+gh pr merge --auto
+gh pr view [number] --json title,body,state
+
+# Workflow
+gh workflow run [workflow] --ref [branch]
+```
+
+### Installation Commands
+
+```bash
+# VS Code (global)
+.\scripts\install-vscode-global.ps1
+
+# VS Code (per-repo)
+.\scripts\install-vscode-repo.ps1 -RepoPath "C:\Path\To\Repo"
+
+# Copilot CLI (per-repo)
+.\scripts\install-copilot-cli-repo.ps1 -RepoPath "C:\Path\To\Repo"
+
+# Claude Code (global)
+.\scripts\install-claude-global.ps1
+```
+
+---
+
+## Boundaries & Constraints
+
+### ✅ Always Do
+
+- **Use PowerShell (.ps1/.psm1)** for all scripts (ADR-005)
+- **Verify branch** before ANY git/gh operation: `git branch --show-current`
+- **Update Serena memory** at session end with cross-session context
+- **Check for existing skills** before writing inline GitHub operations
+- **Assign issues** before starting work: `gh issue edit <number> --add-assignee @me`
+- **Use PR template** with ALL sections from `.github/PULL_REQUEST_TEMPLATE.md`
+- **Commit atomically** (max 5 files OR single logical change)
+- **Run linting** before commits: `npx markdownlint-cli2 --fix "**/*.md"`
+
+### ⚠️ Ask First
+
+- **Architecture changes** affecting multiple agents or core patterns
+- **New ADRs** or additions to PROJECT-CONSTRAINTS.md
+- **Breaking changes** to workflows, APIs, or agent handoff protocols
+- **Security-sensitive changes** touching auth, credentials, or data handling
+- **Agent routing changes** that modify orchestration patterns
+- **Large refactorings** across multiple domains or subsystems
+
+### 🚫 Never Do
+
+- **Commit secrets or credentials** (use git-secret, environment variables, or secure vaults)
+- **Update HANDOFF.md** (read-only reference, write to session logs instead)
+- **Use bash/python for scripts** (PowerShell-only per ADR-005)
+- **Skip session protocol validation** (`Validate-SessionEnd.ps1` must pass)
+- **Put logic in workflow YAML** (ADR-006: logic goes in .psm1 modules)
+- **Use raw gh commands** when skills exist (check `.claude/skills/` first)
+- **Create PRs without template** (all sections required)
+- **Force push to main/master** (extremely destructive, warn user if requested)
+- **Skip hooks** (no `--no-verify`, `--no-gpg-sign`)
+- **Reference internal PR/issue numbers** in user-facing files (src/, templates/)
+
+**Source**: [.agents/governance/PROJECT-CONSTRAINTS.md](.agents/governance/PROJECT-CONSTRAINTS.md)
+
+---
+
+## Code Style & Examples
+
+### PowerShell Style
+
+✅ **Good: Atomic, testable functions**
+
+```powershell
+function Get-PRContext {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [int]$Number
+    )
+
+    gh pr view $Number --json title,body,state,comments | ConvertFrom-Json
+}
+```
+
+🚫 **Bad: Logic in workflow YAML (violates ADR-006)**
+
+```yaml
+- run: |
+    if [ "${{ matrix.os }}" == "windows" ]; then
+      # Complex branching logic
+      pwsh -Command "..."
+    fi
+```
+
+**Fix**: Move logic to .psm1 module, call from workflow.
+
+### Git Commit Messages
+
+✅ **Good: Conventional commits with context**
+
+```text
+feat: add OAuth 2.0 authentication flow
+
+Implements RFC 6749 authorization code grant with PKCE.
+Includes token refresh and secure storage.
+
+Closes #42
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+```
+
+🚫 **Bad: Vague, no context**
+
+```text
+fix stuff
+```
+
+### File Organization
+
+✅ **Good: Follows conventions**
+
+```text
+.agents/
+├── architecture/ADR-001-database-selection.md
+├── planning/001-oauth-plan.md
+├── sessions/2026-01-04-session-308.md
+```
+
+🚫 **Bad: Non-standard naming**
+
+```text
+.agents/
+├── architecture/database_decision.md
+├── planning/oauth.md
+├── sessions/session308.md
+```
+
+### Memory References
+
+✅ **Good: Tool call with fallback**
+
+```markdown
+Read the `usage-mandatory` memory using `mcp__serena__read_memory`
+with `memory_file_name="usage-mandatory"`
+
+- If Serena MCP is unavailable, read `.serena/memories/usage-mandatory.md`
+```
+
+🚫 **Bad: Direct file path (no tool abstraction)**
+
+```markdown
+Read `.serena/memories/usage-mandatory.md`
+```
+
+---
+
+## Tech Stack & Versions
+
+Specific versions matter for accurate tooling suggestions.
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **.NET** | .NET 9, C# 13 | Target for new work |
+| **PowerShell** | 7.4+ | Cross-platform, required |
+| **Node.js** | LTS (20+) | For markdownlint-cli2 |
+| **Pester** | 5.6+ | Testing framework |
+| **GitHub CLI** | 2.60+ | For gh operations |
+| **Mermaid** | Latest | Diagram generation |
+
+**Platform Support**: Windows, Linux, macOS (PowerShell cross-platform, use -Path parameters for OS-agnostic file handling)
+
+---
+
 ## Overview
 
 This repository provides a coordinated multi-agent system for software development, available for **VS Code (GitHub Copilot)**, **GitHub Copilot CLI**, and **Claude Code CLI**. Each agent focuses on a specific phase or concern with clear responsibilities, constraints, and handoffs.
@@ -213,33 +425,35 @@ Files distributed to end-users (`src/claude/`, `src/copilot-cli/`, `src/vs-code-
 
 ## Agent Catalog
 
+> **Persona-Based Definitions**: Each agent has a specific expertise and persona for focused task execution.
+
 ### Primary Workflow Agents
 
-| Agent | Role | Best For |
-|-------|------|----------|
-| **orchestrator** | Task coordination | Complex multi-step tasks |
-| **analyst** | Pre-implementation research | Root cause analysis, requirements |
-| **architect** | Design governance | ADRs, technical decisions |
-| **planner** | Work package creation | Epic breakdown, milestones |
-| **implementer** | Code execution | Production code, tests |
-| **critic** | Plan validation | Review before implementation |
-| **qa** | Test verification | Test strategy, coverage |
-| **roadmap** | Strategic vision | Epic definition, prioritization |
+| Agent | Persona | Best For |
+|-------|---------|----------|
+| **orchestrator** | Workflow coordinator who routes tasks to specialized agents based on complexity and domain analysis | Complex multi-step tasks requiring multiple specialists |
+| **analyst** | Technical investigator who researches unknowns, benchmarks solutions, and evaluates trade-offs with evidence | Root cause analysis, API research, performance investigation |
+| **architect** | System designer who maintains architectural coherence, enforces patterns, and documents decisions via ADRs | Design governance, technical decisions, pattern enforcement |
+| **planner** | Implementation strategist who breaks epics into milestones with clear acceptance criteria and dependencies | Epic breakdown, work packages, impact analysis coordination |
+| **implementer** | Senior .NET engineer who writes production-ready C# 13 code following SOLID principles with 100% test coverage using Pester | Production code, tests, implementation per approved plans |
+| **critic** | Plan validator who stress-tests proposals, identifies gaps, and blocks approval when risks aren't mitigated | Pre-implementation review, impact analysis validation, quality gate |
+| **qa** | Test engineer who designs test strategies, ensures coverage, and validates implementations against acceptance criteria | Test strategy, verification, coverage analysis |
+| **roadmap** | Product strategist who defines outcomes over outputs, prioritizes by business value using RICE/KANO, and guards against drift | Epic definition, strategic prioritization, product vision |
 
 ### Support Agents
 
-| Agent | Role | Best For |
-|-------|------|----------|
-| **memory** | Context continuity | Cross-session persistence |
-| **skillbook** | Skill management | Learned strategy updates |
-| **devops** | CI/CD pipelines | Build automation, deployment |
-| **security** | Vulnerability assessment | Threat modeling, secure coding |
-| **independent-thinker** | Assumption challenging | Alternative viewpoints |
-| **high-level-advisor** | Strategic decisions | Prioritization, unblocking |
-| **retrospective** | Reflector/learning | Outcome analysis, skill extraction |
-| **explainer** | Documentation | PRDs, technical specs |
-| **task-generator** | Task decomposition | Breaking epics into tasks |
-| **pr-comment-responder** | PR review handler | Addressing bot/human review comments |
+| Agent | Persona | Best For |
+|-------|---------|----------|
+| **memory** | Context manager who retrieves and stores cross-session knowledge using Serena (project) and Forgetful (semantic) memory | Cross-session persistence, context continuity, knowledge retrieval |
+| **skillbook** | Knowledge curator who transforms reflections into atomic, reusable strategies with deduplication and quality scoring | Learned strategy management, skill updates, pattern documentation |
+| **devops** | Infrastructure specialist fluent in CI/CD pipelines, GitHub Actions, and deployment workflows | Build automation, deployment, infrastructure as code |
+| **security** | Security engineer who performs threat modeling, OWASP Top 10 assessment, and vulnerability analysis before approving implementations | Threat modeling, secure coding, penetration testing, compliance |
+| **independent-thinker** | Contrarian analyst who challenges assumptions with evidence, presents alternative viewpoints, and declares uncertainty | Alternative perspectives, assumption validation, devil's advocate |
+| **high-level-advisor** | Strategic advisor who cuts through complexity, prioritizes ruthlessly, and resolves decision paralysis with clear verdicts | Strategic decisions, prioritization, unblocking, P0 identification |
+| **retrospective** | Learning facilitator who extracts actionable insights from completed work using structured frameworks (Five Whys, timeline analysis) | Post-project learning, outcome analysis, skill extraction |
+| **explainer** | Technical writer who creates PRDs, specifications, and documentation that junior developers understand without questions | PRDs, feature docs, technical specifications, user guides |
+| **task-generator** | Task decomposition specialist who breaks PRDs into atomic, estimable work items with clear done criteria | Epic-to-task breakdown, backlog grooming, sprint planning |
+| **pr-comment-responder** | PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures systematic resolution | PR review responses, comment triage, feedback tracking |
 
 ---
 
