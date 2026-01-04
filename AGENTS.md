@@ -110,6 +110,7 @@ git branch --show-current
 
 # Session end
 npx markdownlint-cli2 --fix "**/*.md"
+pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].md"
 pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[log].md"
 ```
 
