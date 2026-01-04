@@ -101,7 +101,7 @@
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
 | SHOULD | Export session memories | [ ] | Skipped (Serena memories created instead) |
-| MUST | Security review export (if exported) | [ ] | N/A |
+| MUST | Security review export (if exported) | [x] | N/A - no Claude-Mem export performed |
 | MUST | Complete session log (all sections filled) | [x] | All sections complete |
 | MUST | Update Serena memory (cross-session context) | [x] | 3 memories created |
 | MUST | Run markdown lint | [x] | 23 errors in pre-existing files (not session artifacts) |
