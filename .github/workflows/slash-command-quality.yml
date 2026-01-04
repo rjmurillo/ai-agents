@@ -35,6 +35,8 @@ jobs:
     runs-on: ubuntu-24.04-arm
     needs: check-paths
     if: needs.check-paths.outputs.should-run == 'true'
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -59,6 +61,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     needs: check-paths
     if: needs.check-paths.outputs.should-run != 'true'
+    permissions: {}
     steps:
       - name: Skip validation
         run: echo "No slash command changes detected, skipping validation"
