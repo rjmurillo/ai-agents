@@ -701,8 +701,8 @@ Aggregated from $PRsAnalyzed PRs over last $DaysAnalyzed days.
     $newTable = $tableHeader + ($tableRows -join "`n")
 
     # Replace the existing Per-Reviewer Performance section
-    # Match from "## Per-Reviewer Performance" to the next "## " heading (or end of file section)
-    $pattern = '(?s)## Per-Reviewer Performance.*?(?=\n## [^#]|\n## Per-PR Breakdown|$)'
+    # Match from "## Per-Reviewer Performance" until the next level-2 heading or end of file
+    $pattern = '(?s)## Per-Reviewer Performance.*?(?=\n## |\z)'
     
     if ($content -match $pattern) {
         $content = $content -replace $pattern, ($newTable + "`n")
