@@ -893,6 +893,78 @@ if [ -n "$STAGED_SESSION_LOG" ]; then
 fi
 
 #
+# Causal Graph Update (Auto-fix)
+#
+# Automatically updates the causal graph when episode files are staged.
+# Processes episode data to build causal chains, decision patterns, and success metrics.
+# Updates .agents/memory/causality/causal-graph.json per ADR-038.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: ADR-038 Reflexion Memory Schema, memory skill
+#
+UPDATE_CAUSAL_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/Update-CausalGraph.ps1"
+CAUSAL_GRAPH_FILE="$REPO_ROOT/.agents/memory/causality/causal-graph.json"
+
+# Check if any episode files are staged
+STAGED_EPISODE_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/memory/episodes/episode-.*\.json$' || true)
+
+if [ -n "$STAGED_EPISODE_FILES" ]; then
+    # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
+    if [ "$AUTOFIX" = "1" ]; then
+        echo_info "Updating causal graph from staged episodes..."
+
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$UPDATE_CAUSAL_SCRIPT" ]; then
+            echo_warning "Skipping causal graph update: script path is a symlink"
+        elif [ -f "$UPDATE_CAUSAL_SCRIPT" ]; then
+            if command -v pwsh &> /dev/null; then
+                # Run causal graph update on the entire episodes directory
+                # This ensures all relationships are captured, not just the new episode
+                UPDATE_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$UPDATE_CAUSAL_SCRIPT" -EpisodePath "$REPO_ROOT/.agents/memory/episodes" 2>&1)
+                UPDATE_EXIT=$?
+
+                if [ $UPDATE_EXIT -eq 0 ]; then
+                    # Check if causal graph was updated and stage it
+                    if [ -f "$CAUSAL_GRAPH_FILE" ]; then
+                        # MEDIUM-002: Defense-in-depth symlink check before staging
+                        if [ -L "$CAUSAL_GRAPH_FILE" ]; then
+                            echo_warning "Skipping causal graph staging: file is a symlink"
+                        else
+                            # Check if file changed
+                            if ! git diff --quiet -- "$CAUSAL_GRAPH_FILE" 2>/dev/null; then
+                                git add -- "$CAUSAL_GRAPH_FILE"
+                                # Extract stats from output
+                                NODES_ADDED=$(echo "$UPDATE_OUTPUT" | grep -oP 'Nodes added:\s+\K\d+' || echo "0")
+                                EDGES_ADDED=$(echo "$UPDATE_OUTPUT" | grep -oP 'Edges added:\s+\K\d+' || echo "0")
+                                PATTERNS_ADDED=$(echo "$UPDATE_OUTPUT" | grep -oP 'Patterns added:\s+\K\d+' || echo "0")
+                                echo_success "Causal graph updated: +$NODES_ADDED nodes, +$EDGES_ADDED edges, +$PATTERNS_ADDED patterns"
+                                FILES_FIXED=1
+                            else
+                                echo_success "Causal graph already up to date"
+                            fi
+                        fi
+                    else
+                        echo_warning "Causal graph file not found after update"
+                    fi
+                else
+                    # Update failed - show warning but don't block commit
+                    echo_warning "Causal graph update failed (non-blocking):"
+                    echo "$UPDATE_OUTPUT" | head -5
+                    echo_info "  Episodes will still be committed."
+                    echo_info "  Update manually: pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1"
+                fi
+            else
+                echo_warning "PowerShell not available. Skipping causal graph update."
+            fi
+        else
+            echo_info "Causal graph update script not found. Skipping."
+        fi
+    else
+        echo_info "Causal graph update skipped (auto-fix disabled)."
+    fi
+fi
+
+#
 # Memory Evidence Warning (E4, ADR-007)
 #
 # Lightweight check for memory retrieval evidence in session logs.
