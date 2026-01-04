@@ -136,9 +136,3 @@ Edit the pattern lists in either script to add or modify detection patterns:
 - [Infrastructure File Patterns](../../security/infrastructure-file-patterns.md)
 - [Security Agent Capabilities](../../security/static-analysis-checklist.md)
 - [Orchestrator Routing Algorithm](../../../docs/orchestrator-routing-algorithm.md)
-
----
-
-*Skill Version: 1.0*
-*Created: 2025-12-13*
-*GitHub Issue: #9*

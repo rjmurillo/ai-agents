@@ -168,9 +168,3 @@ Update the `INFRASTRUCTURE_PATTERNS` / `$InfrastructurePatterns` arrays for new 
 - [Dashboard Template](../metrics/dashboard-template.md)
 - [Baseline Report](../metrics/baseline-report.md)
 - [CI Workflow](../../../.github/workflows/agent-metrics.yml)
-
----
-
-*Skill Version: 1.0*
-*Created: 2025-12-13*
-*GitHub Issue: #7*
