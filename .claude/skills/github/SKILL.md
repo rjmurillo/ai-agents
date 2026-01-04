@@ -1,7 +1,7 @@
 ---
 name: github
 version: 3.0.0
-model: claude-opus-4-5-20251101
+model: claude-opus-4-5
 license: MIT
 description: |
   GitHub CLI operations for PRs, Issues, Labels, Milestones, Comments, and Reactions.

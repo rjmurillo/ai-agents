@@ -1,11 +1,11 @@
 ---
 name: skillcreator
-description: "Ultimate meta-skill for creating production-ready Claude Code skills. Uses deep iterative analysis with 11 thinking models, regression questioning until exhausted, evolution and timelessness as core lens, and multi-agent synthesis panel for unanimous approval. Includes automation analysis for agentic scripts. Fully autonomous execution at maximum depth produces categorically the best possible skills."
+version: 3.2.0
+model: claude-opus-4-5
 license: MIT
+description: "Ultimate meta-skill for creating production-ready Claude Code skills. Uses deep iterative analysis with 11 thinking models, regression questioning until exhausted, evolution and timelessness as core lens, and multi-agent synthesis panel for unanimous approval. Includes automation analysis for agentic scripts. Fully autonomous execution at maximum depth produces categorically the best possible skills."
 metadata:
-  version: 3.2.0
-  model: claude-opus-4-5-20251101
-  subagent_model: claude-opus-4-5-20251101
+  subagent_model: claude-opus-4-5
   domains: [meta-skill, automation, skill-creation, orchestration, agentic]
   type: orchestrator
   inputs: [user-goal, domain-hints]

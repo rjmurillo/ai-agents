@@ -1,5 +1,8 @@
 ---
 name: analyze
+version: 1.0.0
+model: claude-opus-4-5
+license: MIT
 description: Invoke IMMEDIATELY via python script when user requests codebase analysis, architecture review, security assessment, or quality evaluation. Do NOT explore first - the script orchestrates exploration.
 ---
 

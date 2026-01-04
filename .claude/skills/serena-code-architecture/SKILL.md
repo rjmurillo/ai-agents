@@ -1,5 +1,8 @@
 ---
 name: serena-code-architecture
+version: 1.0.0
+model: claude-opus-4-5
+license: MIT
 description: Architectural analysis workflow using Serena symbols and Forgetful memory. Use when analyzing project structure, documenting architecture, creating component entities, or building knowledge graphs from code.
 allowed-tools: mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__list_dir, mcp__plugin_serena_serena__search_for_pattern, mcp__forgetful__execute_forgetful_tool
 ---

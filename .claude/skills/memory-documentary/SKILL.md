@@ -1,8 +1,10 @@
 ---
 name: memory-documentary
+version: 1.0.0
+model: claude-sonnet-4-5
+license: MIT
 description: Generate evidence-based documentary reports by searching across all 4 memory systems (Claude-Mem, Forgetful, Serena, DeepWiki), .agents/ artifacts, and GitHub issues. Produces investigative journalism-style analysis with full citation chains.
 metadata:
-  version: 1.0.0
   timelessness: 8/10
   category: analysis
 ---

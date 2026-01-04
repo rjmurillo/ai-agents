@@ -1,5 +1,8 @@
 ---
 name: exploring-knowledge-graph
+version: 1.0.0
+model: claude-sonnet-4-5
+license: MIT
 description: Guidance for deep knowledge graph traversal across memories, entities, and relationships. Use when needing comprehensive context before planning, investigating connections between concepts, or answering "what do you know about X" questions.
 allowed-tools: mcp__forgetful__discover_forgetful_tools, mcp__forgetful__how_to_use_forgetful_tool, mcp__forgetful__execute_forgetful_tool
 ---

@@ -1,9 +1,9 @@
 ---
 name: session-log-fixer
 version: 3.0.0
-model: claude-opus-4-5-20251101
-description: Fix session protocol validation failures in GitHub Actions. Use when a PR fails with "Session protocol validation failed", "MUST requirement(s) not met", "NON_COMPLIANT" verdict, or "Aggregate Results" job failure in the Session Protocol Validation workflow. With deterministic validation, failures show exact missing requirements directly in Job Summary - no artifact downloads needed.
+model: claude-opus-4-5
 license: MIT
+description: Fix session protocol validation failures in GitHub Actions. Use when a PR fails with "Session protocol validation failed", "MUST requirement(s) not met", "NON_COMPLIANT" verdict, or "Aggregate Results" job failure in the Session Protocol Validation workflow. With deterministic validation, failures show exact missing requirements directly in Job Summary - no artifact downloads needed.
 metadata:
   domains: [ci, session-protocol, compliance, github-actions]
   type: diagnostic-fixer

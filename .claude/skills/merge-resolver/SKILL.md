@@ -1,7 +1,7 @@
 ---
 name: merge-resolver
 version: 2.0.0
-model: claude-opus-4-5-20251101
+model: claude-opus-4-5
 license: MIT
 description: >
   Resolve merge conflicts intelligently using git history.

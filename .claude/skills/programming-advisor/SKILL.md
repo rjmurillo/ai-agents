@@ -1,5 +1,8 @@
 ---
 name: programming-advisor
+version: 1.0.0
+model: claude-opus-4-5
+license: MIT
 description: >
   Anti-reinventing-the-wheel advisor that helps users evaluate build vs buy decisions before vibe coding.
   Use when users describe something they want to build, create, or develop - especially features, tools,

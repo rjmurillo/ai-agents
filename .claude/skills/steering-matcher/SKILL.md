@@ -1,5 +1,8 @@
 ---
 name: steering-matcher
+version: 1.0.0
+model: claude-haiku-4-5
+license: MIT
 description: Match file paths against steering file glob patterns to determine applicable steering guidance. Use when orchestrator needs to inject context-aware guidance based on files being modified.
 allowed-tools: Bash(pwsh:*), Read, Grep, Glob
 ---

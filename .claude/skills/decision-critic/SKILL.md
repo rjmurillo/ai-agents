@@ -1,7 +1,9 @@
 ---
 name: decision-critic
-description: >
-  (user)
+version: 1.0.0
+model: claude-opus-4-5
+license: MIT
+description: Structured decision critic that systematically stress-tests reasoning before commitment surfacing hidden assumptions verifying claims and generating adversarial perspectives to improve decision quality.
 ---
 
 # Decision Critic
