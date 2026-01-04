@@ -19,4 +19,9 @@ artifacts/
 .work-*/
 worktree-*/
 worktree--/
+
+# Flowbaby files
 .flowbaby/
+
+# Local environment configuration
+.env*
