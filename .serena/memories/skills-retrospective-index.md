@@ -13,3 +13,4 @@
 | december-27 duplicate entry consolidated index structure cleanup | retrospective-2025-12-27 |
 | PR402 acknowledged resolved thread lifecycle state model | retrospective-pr402-acknowledged-resolved |
 | skill persistence memory durability cross-session storage | retrospective-skill-persistence |
+| commit threshold trigger 10 commits PR stuck pattern mini-retrospective | retrospective-commit-trigger |
