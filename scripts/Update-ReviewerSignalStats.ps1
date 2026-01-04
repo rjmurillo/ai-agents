@@ -409,9 +409,6 @@ function Get-CommentsByReviewer {
 
                 # Skip self-comments (reviewer commenting on their own PR)
                 if ($commentAuthor -eq $prAuthor) { continue }
-                
-                # Skip specified bot self-comments
-                if ($commentAuthor -in $SelfCommentExcludedAuthors -and $commentAuthor -eq $prAuthor) { continue }
 
                 # Initialize reviewer stats if needed
                 if (-not $reviewerStats.ContainsKey($commentAuthor)) {
@@ -698,7 +695,7 @@ Aggregated from $PRsAnalyzed PRs over last $DaysAnalyzed days.
         $null = $tableRows.Add($row)
     }
 
-    $newTable = $tableHeader + ($tableRows -join "`n")
+    $newTable = $tableHeader + "`n" + ($tableRows -join "`n")
 
     # Replace the existing Per-Reviewer Performance section
     # Match from "## Per-Reviewer Performance" until the next level-2 heading or end of file
