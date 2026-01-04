@@ -38,28 +38,20 @@ def validate_path_safety(path_str: str, allowed_base: Path) -> bool:
     Returns:
         True if path is safe, False otherwise
     """
-    # Normalize inputs to strings/Path
+    # Normalize inputs
     raw = str(path_str)
     base = allowed_base.resolve()
 
-    # Optional early rejection of simple traversal attempts
-    if '..' in raw:
-        return False
-
     try:
-        candidate = Path(raw)
-
-        # If the user provides an absolute path, ensure it is within the allowed base
-        if candidate.is_absolute():
-            resolved_path = candidate.resolve()
-        else:
-            # Join relative paths to the trusted base before resolving
-            resolved_path = (base / Path(raw)).resolve()
+        # Treat all user input as relative to the trusted base and resolve it.
+        # Using strict=False so that existence of the path is not required for validation.
+        resolved_path = (base / raw).resolve(strict=False)
 
         # Ensure the resolved path is contained within the allowed base
         resolved_path.relative_to(base)
         return True
     except (ValueError, OSError):
+        # Any resolution or containment error means the path is unsafe
         return False
 
 
