@@ -16,13 +16,13 @@ Example:
 import sys
 import zipfile
 from pathlib import Path
+import os
 
 # Import validation from quick_validate
 try:
     from quick_validate import validate_skill
 except ImportError:
     # If running from different directory, try relative import
-    import os
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from quick_validate import validate_skill
 
@@ -38,7 +38,26 @@ def package_skill(skill_path, output_dir=None):
     Returns:
         Path to the created .skill file, or None if error
     """
-    skill_path = Path(skill_path).resolve()
+    # Define an allowed root directory for skills and normalize the provided path
+    skills_root = (Path.home() / ".claude" / "skills").resolve()
+    user_skill_path = Path(skill_path)
+    if not user_skill_path.is_absolute():
+        user_skill_path = (skills_root / user_skill_path)
+
+    try:
+        skill_path = user_skill_path.resolve()
+    except OSError as e:
+        print(f"❌ Error: Invalid skill path '{user_skill_path}': {e}")
+        return None
+
+    # Ensure the resolved path is within the allowed skills root
+    try:
+        skill_path.relative_to(skills_root)
+    except ValueError:
+        print(f"❌ Error: Skill path escapes allowed skills directory: {skill_path}")
+        print(f"   Allowed root: {skills_root}")
+        return None
+
 
     # Validate skill folder exists
     if not skill_path.exists():
