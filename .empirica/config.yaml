@@ -1,0 +1,15 @@
+version: '2.0'
+root: /home/richard/ai-agents/.empirica
+paths:
+  sessions: sessions/sessions.db
+  identity: identity/
+  messages: messages/
+  metrics: metrics/
+  personas: personas/
+settings:
+  auto_checkpoint: true
+  git_integration: true
+  log_level: info
+env_overrides:
+- EMPIRICA_DATA_DIR
+- EMPIRICA_SESSION_DB

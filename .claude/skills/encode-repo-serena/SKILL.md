@@ -3,7 +3,7 @@ name: encode-repo-serena
 description: Systematically populate the Forgetful knowledge base using Serena's LSP-powered symbol analysis for accurate, comprehensive codebase understanding.
 metadata:
   version: 1.0.0
-  model: sonnet
+  model: claude-sonnet-4-5
 argument-hint: Project path or name to encode (default: current directory)
 ---
 
