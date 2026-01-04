@@ -1,6 +1,6 @@
 # Claude Code Instructions
 
-> **IMPORTANT**: This file is intentionally minimal to reduce context window bloat. All detailed instructions are in @AGENTS.md.
+> **IMPORTANT**: This file is intentionally minimal to reduce context window bloat. All detailed instructions are in [AGENTS.md](AGENTS.md).
 >
 > **Design Philosophy**: CLAUDE.md loads every session. We keep it under 100 lines following Anthropic's guidance.
 > Critical context is auto-loaded via @imports. Use `/clear` between distinct tasks to prevent context pollution.
@@ -51,7 +51,7 @@
 3. Run `npx markdownlint-cli2 --fix "**/*.md"`
 4. Route to qa agent (features only)
 5. Commit all changes
-6. Run `pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath [log]`
+6. Run `pwsh scripts/Validate-Session.ps1 -SessionLogPath [log]`
 
 ## Default Behavior
 

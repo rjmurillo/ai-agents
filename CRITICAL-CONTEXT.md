@@ -31,7 +31,7 @@
 3. Run `npx markdownlint-cli2 --fix "**/*.md"`
 4. Route to qa agent (features only)
 5. Commit all changes (including `.agents/` and `.serena/`)
-6. Run `pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath [log]`
+6. Run `pwsh scripts/Validate-Session.ps1 -SessionLogPath [log]`
 
 Exit code 0 (PASS) required before claiming completion.
 
@@ -41,7 +41,7 @@ Exit code 0 (PASS) required before claiming completion.
 
 Check `.claude/skills/` before writing inline code:
 
-```bash
+```powershell
 # WRONG: Raw gh command
 gh pr comment 123 --body "Comment"
 
