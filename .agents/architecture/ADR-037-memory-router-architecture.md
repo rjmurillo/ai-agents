@@ -283,6 +283,160 @@ All query inputs are validated before processing:
 
 ---
 
+## Synchronization Strategy
+
+**Added**: 2026-01-03 (Session 205, Issue #747)
+
+### Problem
+
+Memory Router provides unified search across Serena (canonical) and Forgetful (augmentation), but no mechanism ensures Forgetful stays synchronized with Serena changes.
+
+**Impact without synchronization**:
+- Forgetful serves stale content after Serena updates
+- Deleted Serena memories remain in Forgetful (orphaned entries)
+- Search results show inconsistent content between systems
+- Manual database rebuilds required to restore consistency
+
+### Design Decisions
+
+**Serena Remains Canonical** (ADR-037 compliance):
+- Serena is Git-synced, always available, travels with repository
+- Forgetful is local-only, supplementary semantic search
+- All writes go to Serena; Forgetful is read-only from agent perspective
+
+**Synchronization Direction**:
+- **Unidirectional**: Serena → Forgetful only
+- **Rationale**: Serena is authoritative source per ADR-007
+- **Future**: Bidirectional sync (Forgetful annotations → Serena) deferred to Phase 2C
+
+**Deletion Handling**:
+- **Soft delete**: Mark Forgetful memories as obsolete (not hard delete)
+- **Rationale**: Preserves semantic graph, enables audit trail
+- **Implementation**: Set `is_obsolete=true`, `obsolete_reason="Deleted from Serena"`
+
+### Proposed Implementation
+
+**Detailed Plan**: `.agents/planning/phase2b-memory-sync-strategy.md`
+**Tracking Issue**: #747
+
+**Hybrid Approach**:
+
+1. **Primary: Git Hook Sync**
+   - Trigger: Pre-commit hook detects `.serena/memories/` changes
+   - Script: `Sync-MemoryToForgetful.ps1 -Path {file} -Operation {CreateOrUpdate|Delete}`
+   - Coverage: Automatic for all committed Serena changes
+   - Performance: Target <500ms overhead for 10 memories
+   - Failure Mode: Graceful degradation (log warning, allow commit)
+
+2. **Fallback: Manual Sync Command**
+   - Trigger: User runs explicit command
+   - Script: `Sync-SerenaToForgetful.ps1 -Full` or `-Incremental`
+   - Use Case: Recovery from drift, batch sync after git pull
+   - Performance: Target <60s for 500 memories
+
+3. **Validation: Freshness Check**
+   - Script: `Test-MemoryFreshness.ps1`
+   - Output: In-sync, stale, missing, orphaned counts
+   - Frequency: On-demand or periodic (CI integration)
+   - Performance: Target <10s for 500 memories
+
+### Synchronization Algorithm
+
+**Content-Hash Based Deduplication**:
+
+```powershell
+function Sync-MemoryToForgetful {
+    param([string]$Path, [string]$Operation)
+
+    # 1. Check Forgetful availability (graceful degradation)
+    if (-not (Test-ForgetfulAvailable)) {
+        Write-Warning "Forgetful unavailable, skipping sync"
+        return  # Non-blocking
+    }
+
+    # 2. For creates/updates
+    if ($Operation -eq 'CreateOrUpdate') {
+        $content = Get-Content -Path $Path -Raw
+        $newHash = Get-ContentHash -Content $content -Algorithm SHA256
+
+        # 3. Query existing Forgetful entry
+        $existing = Find-ForgetfulMemoryByTitle -Title $memoryName
+
+        # 4. Skip if content unchanged (optimization)
+        if ($existing -and (Get-ContentHash $existing.content) -eq $newHash) {
+            return  # Already in sync
+        }
+
+        # 5. Create or update
+        if ($existing) {
+            Update-ForgetfulMemory -Id $existing.id -Content $content
+        } else {
+            Create-ForgetfulMemory -Content $content
+        }
+    }
+
+    # 6. For deletes
+    if ($Operation -eq 'Delete') {
+        $existing = Find-ForgetfulMemoryByTitle -Title $memoryName
+        if ($existing) {
+            Update-ForgetfulMemory -Id $existing.id `
+                -IsObsolete $true `
+                -ObsoleteReason "Deleted from Serena canonical source"
+        }
+    }
+}
+```
+
+**Key Properties**:
+- **Idempotent**: Running sync multiple times produces same result
+- **Non-blocking**: Failures don't prevent commits
+- **Incremental**: Only syncs changed memories
+- **Verifiable**: Hash comparison proves consistency
+
+### Success Metrics
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Sync coverage | 100% of Serena changes | % commits with successful sync |
+| Drift rate | <1% of memories | Freshness check stale count |
+| Sync latency | <5s per memory | Hook execution time |
+| Manual sync time | <60s for 500 memories | Full sync runtime |
+| Freshness check | <10s | Validation script runtime |
+
+### Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Hook adds commit latency | Medium | Batch processing, timeout after 5s, skip if slow |
+| Forgetful down during sync | Low | Graceful degradation, log warning |
+| Metadata parsing fails | Medium | Default values, Pester test coverage |
+| Hash collision (SHA-256) | Critical (Very Low) | Use full SHA-256 (not truncated) |
+| Orphaned entries accumulate | Low | Periodic cleanup via Test-MemoryFreshness |
+
+### Implementation Status
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Planning | ✅ COMPLETE | `.agents/planning/phase2b-memory-sync-strategy.md` |
+| Core Scripts | 🔲 PENDING | Milestone 1 (Week 1) |
+| Git Hook | 🔲 PENDING | Milestone 2 (Week 2) |
+| Manual Sync | 🔲 PENDING | Milestone 3 (Week 2) |
+| Validation | 🔲 PENDING | Milestone 4 (Week 3) |
+| ADR Update | 🔲 IN PROGRESS | This revision (adr-review pending) |
+
+**Next Steps**:
+1. Get ADR-037 update approved via adr-review (6-agent consensus)
+2. Implement core sync scripts (Milestone 1)
+3. Integrate git hook (Milestone 2)
+4. Validate with Test-MemoryFreshness (Milestone 4)
+
+**Related**:
+- **Issue #747**: Serena-Forgetful Memory Synchronization
+- **PR #746**: M-009 Bootstrap + Memory Sync Strategy
+- **Planning**: `.agents/planning/phase2b-memory-sync-strategy.md`
+
+---
+
 ## Consequences
 
 ### Positive

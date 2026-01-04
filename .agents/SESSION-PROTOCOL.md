@@ -1,7 +1,7 @@
 # Session Protocol
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2025-12-18
+> **Last Updated**: 2026-01-03
 > **RFC 2119**: This document uses RFC 2119 key words to indicate requirement levels.
 
 This document is the **single canonical source** for session protocol requirements. All other documents (CLAUDE.md, AGENTS.md, AGENT-INSTRUCTIONS.md) MUST reference this document rather than duplicate its content.
@@ -101,7 +101,31 @@ The `memory-index` maps task keywords to essential memories. Example workflow:
 
 **Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions. Note: HANDOFF.md is a read-only reference; do not modify it during sessions. Without loading relevant memories, agents repeat solved problems or miss established patterns.
 
-### Phase 1.5: Skill Validation (BLOCKING)
+### Phase 3: Import Shared Memories (RECOMMENDED)
+
+The agent SHOULD import shared memories at session start.
+
+**Requirements:**
+
+1. The agent SHOULD run the import script:
+
+   ```bash
+   pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+   ```
+
+2. The agent SHOULD document import count in session log
+3. The agent MAY skip if no memory files present
+
+**Verification:**
+
+- Import script executed in session transcript
+- Import count documented in session log
+
+**Rationale:** Shared memory exports enable team collaboration, onboarding, and cross-session knowledge transfer. Script is idempotent with automatic duplicate prevention.
+
+**Detailed Workflow**: See [.claude-mem/memories/AGENTS.md](../.claude-mem/memories/AGENTS.md) and [MEMORY-MANAGEMENT.md](governance/MEMORY-MANAGEMENT.md)
+
+### Phase 4: Skill Validation (BLOCKING)
 
 The agent MUST validate skill availability before starting work. This is a **blocking gate**.
 
@@ -127,7 +151,7 @@ The agent MUST validate skill availability before starting work. This is a **blo
 
 **Rationale:** Session 15 had 5+ skill violations despite documentation. Trust-based compliance fails; verification-based enforcement (like Serena init) has 100% compliance.
 
-### Phase 3: Session Log Creation (REQUIRED)
+### Phase 5: Session Log Creation (REQUIRED)
 
 The agent MUST create a session log early in the session.
 
@@ -190,6 +214,7 @@ Copy this checklist to each session log and verify completion:
 | MUST | Read usage-mandatory memory | [ ] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
 | MUST | Read memory-index, load task-relevant memories | [ ] | List memories loaded |
+| SHOULD | Import shared memories: `pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1` | [ ] | Import count: N (or "None") |
 | MUST | Verify and declare current branch | [ ] | Branch documented below |
 | MUST | Confirm not on main/master | [ ] | On feature branch |
 | SHOULD | Verify git status | [ ] | Output documented below |
@@ -220,6 +245,52 @@ All MUST requirements above are marked complete.
 ---
 
 ## Session End Protocol
+
+### Phase 0.5: Export Session Memories (RECOMMENDED)
+
+The agent SHOULD export memories created during the session for sharing and version control.
+
+**Requirements:**
+
+1. The agent SHOULD export memories using session-specific naming:
+
+   ```bash
+   pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"
+   ```
+
+2. The agent MUST perform security review before committing (BLOCKING):
+
+   ```bash
+   # Option 1: PowerShell security review script (recommended)
+   pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile [export-file].json
+
+   # Option 2: Manual grep scan
+   grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [export-file].json
+
+   # If matches found: Review manually, redact/delete sensitive data, re-scan
+   ```
+
+3. The agent MUST NOT commit exports containing sensitive data
+4. The agent SHOULD document export file path in session log
+5. The agent MAY skip export for sessions without significant memory creation
+
+**Security Review Checklist (MUST verify before commit):**
+
+- [ ] No API keys, access tokens, or passwords
+- [ ] No private file paths (e.g., `/home/username/`)
+- [ ] No confidential business logic or proprietary algorithms
+- [ ] No personal identifying information (PII)
+- [ ] No database connection strings or credentials
+
+**Verification:**
+
+- Export file exists at `.claude-mem/memories/[file].json`
+- Security scan completed (no sensitive patterns found)
+- Export file path documented in session log
+
+**Rationale:** Export files contain plain text memory data. Committing sensitive information to git creates permanent security risks. Security review is BLOCKING before commit.
+
+**Detailed Workflow**: See [.claude-mem/memories/AGENTS.md](../.claude-mem/memories/AGENTS.md) and [MEMORY-MANAGEMENT.md](governance/MEMORY-MANAGEMENT.md)
 
 ### Phase 1: Documentation Update (REQUIRED)
 
@@ -391,6 +462,8 @@ Copy this checklist to each session log and verify completion:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
+| SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Lint output clean |
@@ -437,6 +510,7 @@ Create at: `.agents/sessions/YYYY-MM-DD-session-NN.md`
 | MUST | Read usage-mandatory memory | [ ] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
 | MUST | Read memory-index, load task-relevant memories | [ ] | List memories loaded |
+| SHOULD | Import shared memories: `pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1` | [ ] | Import count: N (or "None") |
 | MUST | Verify and declare current branch | [ ] | Branch documented below |
 | MUST | Confirm not on main/master | [ ] | On feature branch |
 | SHOULD | Verify git status | [ ] | Output documented below |
@@ -489,6 +563,8 @@ All MUST requirements above are marked complete.
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
+| SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Output below |
