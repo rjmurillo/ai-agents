@@ -78,4 +78,4 @@ Create a new branch and PR for commit d10dc633 which changes Forgetful MCP serve
 - Upstream issue #19 (https://github.com/ScottRBK/forgetful/issues/19) has been fixed
 - Removed 964 lines of HTTP-specific code (install scripts, health checks)
 - Simplified setup: uvx now handles Forgetful lifecycle automatically
-- PR #768 now has 2 commits total (MCP config + HTTP cleanup)
+- After creating the branch from commit d10dc633, I added a separate HTTP cleanup commit, so PR #768 now has 2 commits total (MCP config + HTTP cleanup)
