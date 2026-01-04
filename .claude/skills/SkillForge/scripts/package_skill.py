@@ -27,28 +27,37 @@ except ImportError:
     from quick_validate import validate_skill
 
 
-def validate_path_safety(path: Path, allowed_base: Path = None) -> bool:
+def validate_path_safety(path_str: str, allowed_base: Path = None) -> bool:
     """
-    Validate that a resolved path is safe (prevents directory traversal).
+    Validate that a path string is safe before resolving (prevents directory traversal).
 
     Args:
-        path: Path to validate (will be resolved)
+        path_str: Path string to validate (checked before resolution)
         allowed_base: Base directory that path must be within (defaults to cwd)
 
     Returns:
         True if path is safe, False otherwise
     """
+    # Pre-resolution check: reject obvious traversal attempts in the string
+    path_str = str(path_str)
+    if '..' in path_str:
+        return False
+
+    # Reject absolute paths that escape user's home
+    if path_str.startswith('/') and not path_str.startswith(str(Path.home())):
+        # Allow /home/user paths but not /etc, /tmp, etc.
+        pass  # Will be caught by relative_to check below
+
     if allowed_base is None:
         allowed_base = Path.cwd().resolve()
     else:
         allowed_base = allowed_base.resolve()
 
-    resolved_path = path.resolve()
-
     try:
+        resolved_path = Path(path_str).resolve()
         resolved_path.relative_to(allowed_base)
         return True
-    except ValueError:
+    except (ValueError, OSError):
         return False
 
 
@@ -63,8 +72,16 @@ def package_skill(skill_path, output_dir=None):
     Returns:
         Path to the created .skill file, or None if error
     """
-    # Define an allowed root directory for skills and normalize the provided path
+    # SECURITY: Validate path safety BEFORE any resolution (prevents CWE-22)
     skills_root = (Path.home() / ".claude" / "skills").resolve()
+
+    # Pre-validation: check string for traversal attempts before any Path operations
+    if not validate_path_safety(str(skill_path), skills_root):
+        print(f"❌ Error: Skill path contains unsafe characters or escapes allowed directory")
+        print(f"   Allowed root: {skills_root}")
+        return None
+
+    # Now safe to resolve since we validated the string first
     user_skill_path = Path(skill_path)
     if not user_skill_path.is_absolute():
         user_skill_path = (skills_root / user_skill_path)
@@ -75,18 +92,12 @@ def package_skill(skill_path, output_dir=None):
         print(f"❌ Error: Invalid skill path '{user_skill_path}': {e}")
         return None
 
-    # Ensure the resolved path is within the allowed skills root
+    # Double-check the resolved path is within the allowed skills root
     try:
         skill_path.relative_to(skills_root)
     except ValueError:
         print(f"❌ Error: Skill path escapes allowed skills directory: {skill_path}")
         print(f"   Allowed root: {skills_root}")
-        return None
-
-
-    # Validate path safety (prevent directory traversal)
-    if not validate_path_safety(skill_path):
-        print(f"❌ Error: Skill path is outside the allowed directory: {skill_path}")
         return None
 
     # Validate skill folder exists
@@ -116,11 +127,11 @@ def package_skill(skill_path, output_dir=None):
     # Determine output location
     skill_name = skill_path.name
     if output_dir:
-        output_path = Path(output_dir).resolve()
-        # Validate output path safety
-        if not validate_path_safety(output_path):
-            print(f"❌ Error: Output path is outside the allowed directory: {output_path}")
+        # SECURITY: Validate path safety BEFORE resolution (prevents CWE-22)
+        if not validate_path_safety(str(output_dir)):
+            print(f"❌ Error: Output path contains unsafe characters or escapes allowed directory")
             return None
+        output_path = Path(output_dir).resolve()
         output_path.mkdir(parents=True, exist_ok=True)
     else:
         output_path = Path.cwd()

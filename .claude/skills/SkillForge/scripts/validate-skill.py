@@ -17,28 +17,32 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
 
-def validate_path_safety(path: Path, allowed_base: Path = None) -> bool:
+def validate_path_safety(path_str: str, allowed_base: Path = None) -> bool:
     """
-    Validate that a resolved path is safe (prevents directory traversal).
+    Validate that a path string is safe before resolving (prevents directory traversal).
 
     Args:
-        path: Path to validate (will be resolved)
+        path_str: Path string to validate (checked before resolution)
         allowed_base: Base directory that path must be within (defaults to cwd)
 
     Returns:
         True if path is safe, False otherwise
     """
+    # Pre-resolution check: reject obvious traversal attempts in the string
+    path_str = str(path_str)
+    if '..' in path_str:
+        return False
+
     if allowed_base is None:
         allowed_base = Path.cwd().resolve()
     else:
         allowed_base = allowed_base.resolve()
 
-    resolved_path = path.resolve()
-
     try:
+        resolved_path = Path(path_str).resolve()
         resolved_path.relative_to(allowed_base)
         return True
-    except ValueError:
+    except (ValueError, OSError):
         return False
 
 
@@ -46,12 +50,12 @@ class SkillValidator:
     """Validates skill files against SkillForge 4.0 standards."""
 
     def __init__(self, skill_path: str):
+        # SECURITY: Validate path safety BEFORE resolution (prevents CWE-22)
+        if not validate_path_safety(str(skill_path)):
+            raise ValueError(f"Invalid path: {skill_path} contains unsafe characters or is outside repository root")
+
+        # Now safe to resolve since we validated the string first
         skill_path_obj = Path(skill_path).resolve()
-
-        # Validate path safety (prevent directory traversal)
-        if not validate_path_safety(skill_path_obj):
-            raise ValueError(f"Invalid path: {skill_path} is outside the repository root")
-
         self.skill_path = skill_path_obj
         self.skill_md_path = self._find_skill_md()
         self.content = ""

@@ -284,6 +284,11 @@ Structural validation: Deferred (separate work item)
 
 ### SMART Validation
 
+See GitHub issues for proposed skill implementations:
+
+- **Issue #762**: [skill: implement Analysis-Provenance-001 via SkillForge](https://github.com/rjmurillo/ai-agents/issues/762)
+- **Issue #763**: [skill: implement Validation-Authority-001 via SkillForge](https://github.com/rjmurillo/ai-agents/issues/763)
+
 #### Proposed Skill 1: Analysis-Provenance-001
 
 **Statement:** Identify code ownership before modifying validators or linters
@@ -298,6 +303,7 @@ Structural validation: Deferred (separate work item)
 
 **Result:**
 - [x] All criteria pass: Accept skill
+- [x] Tracked in Issue #762
 
 #### Proposed Skill 2: Validation-Authority-001
 
@@ -313,6 +319,7 @@ Structural validation: Deferred (separate work item)
 
 **Result:**
 - [x] All criteria pass: Accept skill
+- [x] Tracked in Issue #763
 
 ### Action Sequence
 

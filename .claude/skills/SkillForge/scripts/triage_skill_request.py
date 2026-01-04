@@ -159,8 +159,8 @@ def classify_input(query: str) -> Tuple[str, Dict[str, Any]]:
     for pattern in EXPLICIT_CREATE_PATTERNS:
         if re.search(pattern, query_lower):
             # Extract the purpose/goal
-            # Use non-greedy match with limited character set to prevent polynomial regex
-            purpose_match = re.search(r'skill\s+(?:for|to)\s+([^\.\n]+?)(?:\.|$)', query_lower)
+            # Use character class with explicit length limit to prevent polynomial regex (ReDoS)
+            purpose_match = re.search(r'skill\s+(?:for|to)\s+([a-zA-Z0-9 \-,\'\"]{1,200})', query_lower)
             if purpose_match:
                 signals["extracted_purpose"] = purpose_match.group(1).strip()
             return InputCategory.EXPLICIT_CREATE, signals

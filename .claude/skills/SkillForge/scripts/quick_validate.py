@@ -22,28 +22,32 @@ except ImportError:
     HAS_YAML = False
 
 
-def validate_path_safety(path: Path, allowed_base: Path = None) -> bool:
+def validate_path_safety(path_str: str, allowed_base: Path = None) -> bool:
     """
-    Validate that a resolved path is safe (prevents directory traversal).
+    Validate that a path string is safe before resolving (prevents directory traversal).
 
     Args:
-        path: Path to validate (will be resolved)
+        path_str: Path string to validate (checked before resolution)
         allowed_base: Base directory that path must be within (defaults to cwd)
 
     Returns:
         True if path is safe, False otherwise
     """
+    # Pre-resolution check: reject obvious traversal attempts in the string
+    path_str = str(path_str)
+    if '..' in path_str:
+        return False
+
     if allowed_base is None:
         allowed_base = Path.cwd().resolve()
     else:
         allowed_base = allowed_base.resolve()
 
-    resolved_path = path.resolve()
-
     try:
+        resolved_path = Path(path_str).resolve()
         resolved_path.relative_to(allowed_base)
         return True
-    except ValueError:
+    except (ValueError, OSError):
         return False
 
 
@@ -62,11 +66,12 @@ def validate_skill(skill_path):
     Returns:
         tuple: (is_valid: bool, message: str)
     """
-    skill_path = Path(skill_path).resolve()
+    # SECURITY: Validate path safety BEFORE resolution (prevents CWE-22)
+    if not validate_path_safety(str(skill_path)):
+        return False, f"Invalid path: {skill_path} contains unsafe characters or is outside repository root"
 
-    # Validate path safety (prevent directory traversal)
-    if not validate_path_safety(skill_path):
-        return False, f"Invalid path: {skill_path} is outside the repository root"
+    # Now safe to resolve since we validated the string first
+    skill_path = Path(skill_path).resolve()
 
     # Check SKILL.md exists
     skill_md = skill_path / 'SKILL.md'
@@ -156,22 +161,24 @@ def main():
         print("  python quick_validate.py ~/.claude/skills/my-skill/")
         sys.exit(1)
 
-    # Normalize and resolve the user-provided path
+    # SECURITY: Validate path safety BEFORE any resolution (prevents CWE-22)
     raw_skill_path = sys.argv[1]
-    skill_path_obj = Path(raw_skill_path).expanduser().resolve()
 
-    # Validate path safety (prevent directory traversal)
-    if not validate_path_safety(skill_path_obj):
-        print(f"❌ Error: Path is outside the allowed directory: {skill_path_obj}")
+    # Expand ~ but don't resolve yet (expanduser is safe, resolve is not)
+    expanded_path = str(Path(raw_skill_path).expanduser())
+
+    if not validate_path_safety(expanded_path):
+        print(f"❌ Error: Path contains unsafe characters or escapes allowed directory")
         sys.exit(1)
+
+    # Now safe to resolve since we validated the string first
+    skill_path_obj = Path(expanded_path).resolve()
 
     if not skill_path_obj.exists():
         print(f"❌ Error: Path not found: {raw_skill_path}")
         sys.exit(1)
 
-    skill_path = raw_skill_path
-
-    valid, message = validate_skill(str(skill_path))
+    valid, message = validate_skill(str(skill_path_obj))
 
     if valid:
         print(f"✅ {message}")
