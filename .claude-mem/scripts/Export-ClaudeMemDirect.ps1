@@ -4,10 +4,10 @@
     Export ALL claude-mem data directly from SQLite database (bypasses broken search)
 
 .DESCRIPTION
-    The claude-mem export script uses full-text search which only returns ~2% of data
-    (71 out of 3500+ observations). This script exports EVERYTHING directly from SQLite.
+    This script exports ALL data directly from SQLite database, bypassing the plugin's
+    search-based export which may not return all observations.
 
-    **RECOMMENDED for full backups** - The FTS query approach is fundamentally broken.
+    **RECOMMENDED for complete backups** - Direct database access ensures 100% data recovery.
 
     DUPLICATE DETECTION FIX:
     - Adds sdk_session_id field via JOIN with sdk_sessions table
@@ -35,10 +35,10 @@
     # Exports only ai-agents project observations
 
 .NOTES
-    WARNING: Do NOT use Export-ClaudeMemFullBackup.ps1 - it only exports 2% of data!
-    The FTS query approach (query=".") only matches observations containing periods.
+    This script provides complete data export by querying SQLite directly.
+    Use Export-ClaudeMemFullBackup.ps1 for plugin-based export (may not return all data).
 
-    This script is the ONLY reliable way to export complete institutional knowledge.
+    Direct database access ensures all observations are exported regardless of search indexing.
 
     Exported files are compatible with claude-mem import:
     pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1

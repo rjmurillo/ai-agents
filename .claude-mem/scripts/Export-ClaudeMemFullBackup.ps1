@@ -32,7 +32,9 @@
     # Custom output path
 
 .NOTES
-    CRITICAL: Uses query="." as workaround for plugin bug where empty query returns 0 results.
+    Uses query="." to match all observations via the plugin's search interface.
+    For complete data export without search limitations, use Export-ClaudeMemDirect.ps1.
+
     Security review runs automatically and blocks commit if violations found.
 #>
 
@@ -103,7 +105,8 @@ if (-not $NormalizedOutput.StartsWith($NormalizedDirWithSep, [System.StringCompa
 }
 
 # Build plugin script arguments
-# CRITICAL: Use "." as query (empty string is BROKEN in plugin)
+# Use "." as query to match all observations via search
+# For direct database export without search, use Export-ClaudeMemDirect.ps1
 $PluginArgs = @(".", $OutputPath)
 if ($Project) {
     $PluginArgs += "--project=$Project"
