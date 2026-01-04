@@ -130,10 +130,25 @@ def package_skill(skill_path, output_dir=None):
     skill_name = skill_path.name
     if output_dir:
         # SECURITY: Validate path safety BEFORE resolution (prevents CWE-22)
-        if not validate_path_safety(str(output_dir), allowed_base=Path.cwd()):
+        base = Path.cwd().resolve()
+        if not validate_path_safety(str(output_dir), allowed_base=base):
             print(f"❌ Error: Output path contains unsafe characters or escapes allowed directory")
             return None
-        output_path = Path(output_dir).resolve()
+
+        # Resolve the output path in the same way as in validate_path_safety,
+        # and ensure it stays within the allowed base directory.
+        candidate = Path(output_dir)
+        if candidate.is_absolute():
+            output_path = candidate.resolve()
+        else:
+            output_path = (base / candidate).resolve()
+
+        try:
+            output_path.relative_to(base)
+        except ValueError:
+            print(f"❌ Error: Output path escapes allowed directory")
+            return None
+
         output_path.mkdir(parents=True, exist_ok=True)
     else:
         output_path = Path.cwd()
