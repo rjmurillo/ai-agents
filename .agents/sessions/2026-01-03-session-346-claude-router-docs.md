@@ -53,12 +53,16 @@ The user installed the claude-router plugin via the plugin marketplace and reque
 - Session log: `.agents/sessions/2026-01-03-session-346-claude-router-docs.md`
 - Commit: 651e906 "docs: add claude-router plugin documentation to CONTRIBUTING.md"
 
+## Pull Request
+
+- **PR**: #759 - docs: add claude-router plugin documentation
+- **URL**: https://github.com/rjmurillo/ai-agents/pull/759
+- **Status**: Auto-merge enabled (squash)
+- **Checks**: In progress (11 workflows running)
+
 ## Next Steps
 
-None - documentation task complete. User may want to:
-- Push the branch to remote
-- Create a pull request
-- Test the router with manual override commands
+None - PR created and set to auto-merge. Will merge automatically once all CI checks pass.
 
 ## Learnings
 
