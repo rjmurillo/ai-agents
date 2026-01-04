@@ -52,6 +52,7 @@
 4. Route to qa agent (features only)
 5. Commit all changes
 6. Run `pwsh scripts/Validate-Session.ps1 -SessionLogPath [log]`
+   - If validation fails, use `/session-log-fixer` skill to fix issues
 
 ## Default Behavior
 
