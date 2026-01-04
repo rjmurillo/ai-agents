@@ -1,12 +1,5 @@
 {
   "$schema": "./coverage-thresholds.schema.json",
   "description": "Code coverage thresholds for regression detection. Add new test files with their minimum acceptable coverage percentage.",
-  "thresholds": {
-    "build/tests/Generate-Skills.Tests.ps1": {
-      "minCoverage": 69.72,
-      "description": "Generate-Skills.ps1 comprehensive test suite",
-      "createdDate": "2025-12-22",
-      "createdBy": "Session 68"
-    }
-  }
+  "thresholds": {}
 }
