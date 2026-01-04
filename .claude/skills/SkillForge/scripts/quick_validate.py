@@ -127,13 +127,15 @@ def main():
         print("  python quick_validate.py ~/.claude/skills/my-skill/")
         sys.exit(1)
 
-    skill_path = sys.argv[1]
+    # Normalize and resolve the user-provided path to avoid unexpected traversal issues
+    raw_skill_path = sys.argv[1]
+    skill_path = Path(raw_skill_path).expanduser().resolve()
 
-    if not Path(skill_path).exists():
+    if not skill_path.exists():
         print(f"Error: Path not found: {skill_path}")
         sys.exit(1)
 
-    valid, message = validate_skill(skill_path)
+    valid, message = validate_skill(str(skill_path))
 
     if valid:
         print(f"✅ {message}")
