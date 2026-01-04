@@ -40,8 +40,6 @@ Describe "Update-ReviewerSignalStats.ps1" {
         It "Script has required parameters" {
             $cmd = Get-Command $Script:ScriptPath
             $cmd.Parameters.Keys | Should -Contain "DaysBack"
-            $cmd.Parameters.Keys | Should -Contain "OutputPath"
-            $cmd.Parameters.Keys | Should -Contain "UpdateMemory"
             $cmd.Parameters.Keys | Should -Contain "Owner"
             $cmd.Parameters.Keys | Should -Contain "Repo"
         }
@@ -57,12 +55,6 @@ Describe "Update-ReviewerSignalStats.ps1" {
             $param = $cmd.Parameters['DaysBack']
             $rangeAttr = $param.Attributes | Where-Object { $_.TypeId.Name -eq 'ValidateRangeAttribute' }
             $rangeAttr | Should -Not -BeNullOrEmpty
-        }
-
-        It "UpdateMemory parameter is a switch" {
-            $cmd = Get-Command $Script:ScriptPath
-            $param = $cmd.Parameters['UpdateMemory']
-            $param.ParameterType.Name | Should -Be "SwitchParameter"
         }
     }
 
@@ -374,8 +366,31 @@ Describe "Update-ReviewerSignalStats.ps1" {
         }
     }
 
-    Context "Export-StatsJson Function" {
-        It "Creates output file with correct structure" {
+    Context "Update-SerenaMemory Function" {
+        BeforeEach {
+            # Create a test memory file
+            $Script:TestMemoryPath = Join-Path $Script:TestDir "test-memory.md"
+            $content = @"
+# PR Comment Responder Skills Memory
+
+## Overview
+
+Memory for tracking reviewer signal quality statistics.
+
+## Per-Reviewer Performance (Cumulative)
+
+| Reviewer | PRs | Comments | Actionable | Signal | Notes |
+|----------|-----|----------|------------|--------|-------|
+| old-reviewer | 1 | 1 | 1 | 100% | Old data |
+
+## Per-PR Breakdown
+
+Details here.
+"@
+            Set-Content -Path $Script:TestMemoryPath -Value $content -Encoding UTF8
+        }
+
+        It "Updates the Per-Reviewer Performance table" {
             $stats = @{
                 "reviewer1" = @{
                     total_comments = 10
@@ -391,48 +406,45 @@ Describe "Update-ReviewerSignalStats.ps1" {
                 }
             }
             
-            $outputPath = Join-Path $Script:TestDir "test-stats.json"
-            $result = Export-StatsJson -Stats $stats -PRsAnalyzed 10 -DaysAnalyzed 30 -OutputPath $outputPath
+            $result = Update-SerenaMemory -Stats $stats -PRsAnalyzed 10 -DaysAnalyzed 30 -MemoryPath $Script:TestMemoryPath
             
-            $outputPath | Should -Exist
-            $result.generated_at | Should -Not -BeNullOrEmpty
-            $result.days_analyzed | Should -Be 30
-            $result.prs_analyzed | Should -Be 10
-            $result.reviewers | Should -Not -BeNullOrEmpty
-            $result.priority_matrix | Should -Not -BeNullOrEmpty
+            $result | Should -Be $true
+            $content = Get-Content -Path $Script:TestMemoryPath -Raw
+            $content | Should -Match "reviewer1"
+            $content | Should -Match "80%"
         }
 
-        It "Sorts priority matrix by signal rate descending" {
+        It "Sorts reviewers by signal rate descending" {
             $stats = @{
                 "low_signal" = @{
                     total_comments = 10
+                    prs_with_comments = 3
+                    estimated_actionable = 3
                     signal_rate = 0.3
+                    trend = "stable"
                 }
                 "high_signal" = @{
                     total_comments = 10
+                    prs_with_comments = 5
+                    estimated_actionable = 9
                     signal_rate = 0.9
+                    trend = "stable"
                 }
             }
             
-            $outputPath = Join-Path $Script:TestDir "test-priority.json"
-            $result = Export-StatsJson -Stats $stats -PRsAnalyzed 5 -DaysAnalyzed 30 -OutputPath $outputPath
+            $result = Update-SerenaMemory -Stats $stats -PRsAnalyzed 5 -DaysAnalyzed 30 -MemoryPath $Script:TestMemoryPath
             
-            $result.priority_matrix[0].reviewer | Should -Be "high_signal"
-            $result.priority_matrix[0].priority | Should -Be "P0"
+            $content = Get-Content -Path $Script:TestMemoryPath -Raw
+            # high_signal should appear before low_signal
+            $highPos = $content.IndexOf("high_signal")
+            $lowPos = $content.IndexOf("low_signal")
+            $highPos | Should -BeLessThan $lowPos
         }
 
-        It "Creates output directory if it does not exist" {
-            $stats = @{
-                "reviewer1" = @{
-                    total_comments = 1
-                    signal_rate = 0.5
-                }
-            }
-            
-            $nestedPath = Join-Path $Script:TestDir "nested" "dir" "stats.json"
-            $result = Export-StatsJson -Stats $stats -PRsAnalyzed 1 -DaysAnalyzed 7 -OutputPath $nestedPath
-            
-            $nestedPath | Should -Exist
+        It "Returns false if memory file does not exist" {
+            $nonExistentPath = Join-Path $Script:TestDir "non-existent.md"
+            $result = Update-SerenaMemory -Stats @{} -PRsAnalyzed 0 -DaysAnalyzed 0 -MemoryPath $nonExistentPath
+            $result | Should -Be $false
         }
     }
 }

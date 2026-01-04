@@ -8,7 +8,7 @@
 # - Can be triggered manually with custom days_back parameter
 # - Aggregates PR review comments by reviewer
 # - Calculates actionability scores using heuristics
-# - Outputs JSON statistics to .agents/stats/reviewer-signal.json
+# - Updates the Serena memory file (source of truth)
 # - Commits and pushes changes automatically
 #
 # Related: Issue #768 (Automated daily reviewer signal quality statistics)
@@ -59,10 +59,7 @@ jobs:
           
           Write-Host "Analyzing last $daysBack days of PR history..."
           
-          ./scripts/Update-ReviewerSignalStats.ps1 `
-            -DaysBack ([int]$daysBack) `
-            -OutputPath '.agents/stats/reviewer-signal.json' `
-            -UpdateMemory
+          ./scripts/Update-ReviewerSignalStats.ps1 -DaysBack ([int]$daysBack)
 
       - name: Commit updated stats
         env:
@@ -71,7 +68,7 @@ jobs:
           gh auth setup-git
           
           if [[ -n "$(git status --porcelain)" ]]; then
-            git add .agents/stats/reviewer-signal.json
+            git add .serena/memories/pr-comment-responder-skills.md
             git commit -m "chore(stats): update reviewer signal statistics
 
           Automated daily update of PR reviewer signal quality metrics.

@@ -5,12 +5,12 @@
 
 .DESCRIPTION
     Queries all PRs (open and closed) for review comments, calculates signal quality
-    metrics per reviewer, and optionally updates the pr-comment-responder-skills memory file.
+    metrics per reviewer, and updates the pr-comment-responder-skills memory file.
 
     This script provides:
     - Comprehensive coverage of all PRs with review comments
     - Consistent methodology for actionability scoring
-    - Historical trend tracking via JSON output
+    - Direct updates to the Serena memory file (source of truth)
 
     LIMITATIONS:
     - Maximum of 50 pages of PRs are queried (2500 PRs) due to pagination limits.
@@ -18,12 +18,6 @@
 
 .PARAMETER DaysBack
     Number of days of PR history to analyze. Default: 90
-
-.PARAMETER OutputPath
-    Path to write the statistics JSON. Default: .agents/stats/reviewer-signal.json
-
-.PARAMETER UpdateMemory
-    If set, updates the Serena memory file directly.
 
 .PARAMETER Owner
     Repository owner. Defaults to current repo owner.
@@ -33,11 +27,11 @@
 
 .EXAMPLE
     ./Update-ReviewerSignalStats.ps1 -DaysBack 30
-    # Analyze last 30 days and output JSON stats
+    # Analyze last 30 days and update Serena memory
 
 .EXAMPLE
-    ./Update-ReviewerSignalStats.ps1 -DaysBack 90 -UpdateMemory
-    # Analyze last 90 days and update Serena memory file
+    ./Update-ReviewerSignalStats.ps1 -DaysBack 90
+    # Analyze last 90 days and update Serena memory
 
 .NOTES
     Exit Codes:
@@ -53,12 +47,6 @@ param(
     [Parameter()]
     [ValidateRange(1, 365)]
     [int]$DaysBack = 90,
-
-    [Parameter()]
-    [string]$OutputPath,
-
-    [Parameter()]
-    [switch]$UpdateMemory,
 
     [Parameter()]
     [string]$Owner,
@@ -634,15 +622,20 @@ function Get-ReviewerSignalStats {
 
 #endregion
 
-#region Output Generation
+#region Serena Memory Update
 
-function Export-StatsJson {
+function Update-SerenaMemory {
     <#
     .SYNOPSIS
-        Write statistics JSON file.
+        Update the Serena memory file with computed statistics.
+
+    .DESCRIPTION
+        Updates the Per-Reviewer Performance table in the pr-comment-responder-skills.md
+        memory file with the latest computed statistics. This is the source of truth
+        for reviewer signal quality data used by LLM agents.
 
     .PARAMETER Stats
-        Reviewer statistics hashtable.
+        Reviewer statistics from Get-ReviewerSignalStats.
 
     .PARAMETER PRsAnalyzed
         Number of PRs analyzed.
@@ -650,8 +643,8 @@ function Export-StatsJson {
     .PARAMETER DaysAnalyzed
         Number of days analyzed.
 
-    .PARAMETER OutputPath
-        Path to write JSON file.
+    .PARAMETER MemoryPath
+        Path to the Serena memory file.
     #>
     [CmdletBinding()]
     param(
@@ -665,83 +658,6 @@ function Export-StatsJson {
         [int]$DaysAnalyzed,
 
         [Parameter(Mandatory)]
-        [string]$OutputPath
-    )
-
-    $totalComments = ($Stats.Values | ForEach-Object { $_.total_comments } | Measure-Object -Sum).Sum
-
-    # Sort reviewers by signal rate descending for priority matrix
-    $sortedReviewers = $Stats.GetEnumerator() | Sort-Object { $_.Value.signal_rate } -Descending
-
-    # Generate priority matrix
-    $priorityMatrix = [System.Collections.ArrayList]::new()
-    $priority = 0
-    foreach ($entry in $sortedReviewers) {
-        $reviewer = $entry.Key
-        $signalRate = $entry.Value.signal_rate
-
-        $action = if ($signalRate -ge 0.9) {
-            'Verify then fix'
-        } elseif ($signalRate -ge 0.7) {
-            'Review with care'
-        } elseif ($signalRate -ge 0.5) {
-            'Triage individually'
-        } else {
-            'Low priority'
-        }
-
-        $null = $priorityMatrix.Add(@{
-            priority = "P$priority"
-            reviewer = $reviewer
-            signal_rate = $signalRate
-            action = $action
-        })
-        $priority++
-    }
-
-    $output = [ordered]@{
-        generated_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-        days_analyzed = $DaysAnalyzed
-        prs_analyzed = $PRsAnalyzed
-        total_comments = $totalComments
-        reviewers = $Stats
-        priority_matrix = $priorityMatrix.ToArray()
-    }
-
-    # Ensure output directory exists
-    $dir = Split-Path $OutputPath -Parent
-    if ($dir -and -not (Test-Path $dir)) {
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
-    }
-
-    $output | ConvertTo-Json -Depth 10 | Set-Content -Path $OutputPath -Encoding UTF8
-    Write-Log "Stats written to: $OutputPath" -Level SUCCESS
-
-    return $output
-}
-
-function Update-SerenaMemory {
-    <#
-    .SYNOPSIS
-        Validate the Serena memory file exists.
-
-    .DESCRIPTION
-        Verifies the pr-comment-responder-skills.md file exists and logs stats summary.
-        The memory file itself is not modified - git history tracks file modifications,
-        and adding timestamps would just waste tokens without changing LLM behavior.
-
-    .PARAMETER Stats
-        Reviewer statistics from Get-ReviewerSignalStats.
-
-    .PARAMETER MemoryPath
-        Path to the Serena memory file.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [hashtable]$Stats,
-
-        [Parameter(Mandatory)]
         [string]$MemoryPath
     )
 
@@ -750,14 +666,54 @@ function Update-SerenaMemory {
         return $false
     }
 
-    # Log stats summary for visibility
-    $reviewerCount = $Stats.Count
-    Write-Log "Stats computed for $reviewerCount reviewer(s)" -Level DEBUG
-    Write-Log "Memory file validated: $MemoryPath" -Level SUCCESS
+    $content = Get-Content -Path $MemoryPath -Raw
 
-    # Note: We intentionally don't modify the memory file here.
-    # The JSON output at .agents/stats/reviewer-signal.json is the primary data source.
-    # Git history tracks when files were modified, so adding timestamps wastes tokens.
+    # Build the new Per-Reviewer Performance table
+    $tableHeader = @"
+## Per-Reviewer Performance (Cumulative)
+
+Aggregated from $PRsAnalyzed PRs over last $DaysAnalyzed days.
+
+| Reviewer | PRs | Comments | Actionable | Signal | Trend |
+|----------|-----|----------|------------|--------|-------|
+"@
+
+    $tableRows = [System.Collections.ArrayList]::new()
+    
+    # Sort by signal rate descending
+    $sortedReviewers = $Stats.GetEnumerator() | Sort-Object { $_.Value.signal_rate } -Descending
+
+    foreach ($entry in $sortedReviewers) {
+        $reviewer = $entry.Key
+        $data = $entry.Value
+        $signalPercent = [math]::Round($data.signal_rate * 100)
+        $signalDisplay = if ($signalPercent -ge 90) { "**$signalPercent%**" } else { "$signalPercent%" }
+        $trend = switch ($data.trend) {
+            'improving' { '↑' }
+            'declining' { '↓' }
+            default { '→' }
+        }
+        
+        $row = "| $reviewer | $($data.prs_with_comments) | $($data.total_comments) | $($data.estimated_actionable) | $signalDisplay | $trend |"
+        $null = $tableRows.Add($row)
+    }
+
+    $newTable = $tableHeader + ($tableRows -join "`n")
+
+    # Replace the existing Per-Reviewer Performance section
+    # Match from "## Per-Reviewer Performance" to the next "## " heading (or end of file section)
+    $pattern = '(?s)## Per-Reviewer Performance.*?(?=\n## [^#]|\n## Per-PR Breakdown|$)'
+    
+    if ($content -match $pattern) {
+        $content = $content -replace $pattern, ($newTable + "`n")
+    } else {
+        # If section doesn't exist, insert after Overview
+        $content = $content -replace '(## Overview.*?)(\n## )', "`$1`n`n$newTable`n`$2"
+    }
+
+    Set-Content -Path $MemoryPath -Value $content -Encoding UTF8 -NoNewline
+    Write-Log "Updated Serena memory: $MemoryPath" -Level SUCCESS
+    Write-Log "  Reviewers: $($Stats.Count)" -Level INFO
 
     return $true
 }
@@ -789,12 +745,6 @@ try {
     }
     Write-Log "Repository: $Owner/$Repo" -Level INFO
 
-    # Set default output path
-    if (-not $OutputPath) {
-        $repoRoot = git rev-parse --show-toplevel
-        $OutputPath = Join-Path $repoRoot '.agents/stats/reviewer-signal.json'
-    }
-
     # Calculate date range
     $since = (Get-Date).AddDays(-$DaysBack)
 
@@ -817,15 +767,13 @@ try {
     # Calculate signal quality stats
     $signalStats = Get-ReviewerSignalStats -ReviewerStats $reviewerStats -Heuristics $script:Config.Heuristics
 
-    # Export to JSON
-    $outputData = Export-StatsJson -Stats $signalStats -PRsAnalyzed $prs.Count -DaysAnalyzed $DaysBack -OutputPath $OutputPath
+    # Calculate total comments for summary
+    $totalComments = ($signalStats.Values | ForEach-Object { $_.total_comments } | Measure-Object -Sum).Sum
 
-    # Optionally validate Serena memory
-    if ($UpdateMemory) {
-        $repoRoot = git rev-parse --show-toplevel
-        $memoryPath = Join-Path $repoRoot $script:Config.MemoryPath
-        $null = Update-SerenaMemory -Stats $signalStats -MemoryPath $memoryPath
-    }
+    # Update Serena memory (source of truth)
+    $repoRoot = git rev-parse --show-toplevel
+    $memoryPath = Join-Path $repoRoot $script:Config.MemoryPath
+    $null = Update-SerenaMemory -Stats $signalStats -PRsAnalyzed $prs.Count -DaysAnalyzed $DaysBack -MemoryPath $memoryPath
 
     # Summary
     $duration = (Get-Date) - $script:StartTime
@@ -833,11 +781,14 @@ try {
     Write-Log "=== Aggregation Complete ===" -Level SUCCESS
     Write-Log "PRs analyzed: $($prs.Count)" -Level INFO
     Write-Log "Reviewers found: $($signalStats.Count)" -Level INFO
-    Write-Log "Total comments: $($outputData.total_comments)" -Level INFO
+    Write-Log "Total comments: $totalComments" -Level INFO
     Write-Log "Duration: $([math]::Round($duration.TotalSeconds, 1)) seconds" -Level INFO
 
     # GitHub Actions step summary
     if ($env:GITHUB_STEP_SUMMARY) {
+        # Sort by signal rate descending
+        $sortedReviewers = $signalStats.GetEnumerator() | Sort-Object { $_.Value.signal_rate } -Descending
+
         $summary = @"
 ## Reviewer Signal Stats Update
 
@@ -846,15 +797,23 @@ try {
 | Days Analyzed | $DaysBack |
 | PRs Analyzed | $($prs.Count) |
 | Reviewers Found | $($signalStats.Count) |
-| Total Comments | $($outputData.total_comments) |
+| Total Comments | $totalComments |
 
-### Priority Matrix
+### Reviewer Rankings
 
-| Priority | Reviewer | Signal Rate | Action |
-|----------|----------|-------------|--------|
+| Reviewer | Signal Rate | Trend | Comments |
+|----------|-------------|-------|----------|
 "@
-        foreach ($item in $outputData.priority_matrix) {
-            $summary += "| $($item.priority) | $($item.reviewer) | $([math]::Round($item.signal_rate * 100))% | $($item.action) |`n"
+        foreach ($entry in $sortedReviewers) {
+            $reviewer = $entry.Key
+            $data = $entry.Value
+            $signalPercent = [math]::Round($data.signal_rate * 100)
+            $trend = switch ($data.trend) {
+                'improving' { '↑' }
+                'declining' { '↓' }
+                default { '→' }
+            }
+            $summary += "| $reviewer | $signalPercent% | $trend | $($data.total_comments) |`n"
         }
 
         $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding UTF8
