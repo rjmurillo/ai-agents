@@ -39,22 +39,22 @@ def validate_path_safety(path_str: str, allowed_base: Path) -> bool:
         True if path is safe, False otherwise
     """
     # Normalize inputs to strings/Path
-    path_str = str(path_str)
+    raw = str(path_str)
     base = allowed_base.resolve()
 
     # Optional early rejection of simple traversal attempts
-    if '..' in path_str:
+    if '..' in raw:
         return False
 
     try:
-        candidate = Path(path_str)
+        candidate = Path(raw)
 
         # If the user provides an absolute path, ensure it is within the allowed base
         if candidate.is_absolute():
             resolved_path = candidate.resolve()
         else:
             # Join relative paths to the trusted base before resolving
-            resolved_path = (base / candidate).resolve()
+            resolved_path = (base / Path(raw)).resolve()
 
         # Ensure the resolved path is contained within the allowed base
         resolved_path.relative_to(base)
@@ -83,10 +83,23 @@ def package_skill(skill_path, output_dir=None):
         print(f"   Allowed root: {skills_root}")
         return None
 
+    # Optionally validate the output directory, if provided
+    output_dir_path = None
+    if output_dir is not None:
+        if not validate_path_safety(str(output_dir), skills_root):
+            print(f"❌ Error: Output directory contains unsafe characters or escapes allowed directory")
+            print(f"   Allowed root: {skills_root}")
+            return None
+        output_dir_path = Path(output_dir)
+        if not output_dir_path.is_absolute():
+            output_dir_path = (skills_root / output_dir_path).resolve()
+
     # Now safe to resolve since we validated the string first
     user_skill_path = Path(skill_path)
     if not user_skill_path.is_absolute():
-        user_skill_path = (skills_root / user_skill_path)
+        user_skill_path = (skills_root / user_skill_path).resolve()
+    else:
+        user_skill_path = user_skill_path.resolve()
 
     try:
         skill_path = user_skill_path.resolve()  # lgtm[py/path-injection] - validated above
