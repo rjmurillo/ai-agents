@@ -1,6 +1,9 @@
 # Claude Code Instructions
 
 > **IMPORTANT**: This file is intentionally minimal to reduce context window bloat. All detailed instructions are in @AGENTS.md.
+>
+> **Design Philosophy**: CLAUDE.md loads every session. We keep it under 100 lines following Anthropic's guidance.
+> Critical context is auto-loaded via @imports. Use `/clear` between distinct tasks to prevent context pollution.
 
 ## Primary Reference
 

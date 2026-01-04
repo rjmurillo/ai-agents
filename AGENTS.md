@@ -102,13 +102,31 @@ Common commands you'll reference throughout development. Commands are listed wit
 
 ### Session Management
 
+#### Built-in Commands
+
 ```bash
-# Session start
+# /init - Start new session with fresh context
+# Use at the beginning of a session to load CLAUDE.md and reset context.
+# Useful when switching between different tasks or projects.
+/init
+
+# /clear - Clear conversation history between distinct tasks
+# Use between unrelated tasks to prevent context pollution.
+# Anthropic recommends using this to maintain token efficiency.
+/clear
+```
+
+#### Session Start
+
+```bash
 mcp__serena__activate_project
 mcp__serena__initial_instructions
 git branch --show-current
+```
 
-# Session end
+#### Session End
+
+```bash
 npx markdownlint-cli2 --fix "**/*.md"
 pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].md"
 pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[log].md"
