@@ -19,15 +19,20 @@
 
 .NOTES
     Hook Type: PreToolUse
-    Exit Codes:
-        0 = Allow action (with optional JSON decision output)
+
+    EXIT CODES (Claude Hook Semantics - exempt from ADR-035):
+        0 = Allow action OR JSON decision (deny/allow)
         1 = Hook error (fail-open)
-        2 = Block action immediately
+        2 = Block action immediately (hook-specific)
 
     Per ADR-033, this uses JSON decision mode for structured error messages.
+    Claude Code hooks are exempt from ADR-035 exit code standardization
+    because Claude interprets these codes with special semantics.
+    See ADR-035 section "Claude Code Hook Exit Codes" for details.
 
 .LINK
     .agents/architecture/ADR-033-routing-level-enforcement-gates.md
+    .agents/architecture/ADR-035-exit-code-standardization.md
     .agents/SESSION-PROTOCOL.md
 #>
 [CmdletBinding()]
