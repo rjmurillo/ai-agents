@@ -58,9 +58,13 @@ def validate_path_safety(path_str: str, allowed_base: Path) -> bool:
         return False
 
 
-def validate_skill(skill_path):
+def validate_skill(skill_path: Path):
     """
     Basic validation of a skill for packaging compatibility.
+
+    The provided skill_path is expected to be an absolute, pre-validated
+    Path object. Callers are responsible for validating and resolving
+    any user-provided input before passing it here.
 
     Checks:
     - SKILL.md exists
@@ -73,12 +77,11 @@ def validate_skill(skill_path):
     Returns:
         tuple: (is_valid: bool, message: str)
     """
-    # SECURITY: Validate path safety BEFORE resolution (prevents CWE-22)
-    if not validate_path_safety(str(skill_path), allowed_base=Path.cwd()):
-        return False, f"Invalid path: {skill_path} contains unsafe characters or is outside repository root"
-
-    # Now safe to resolve since we validated the string first
-    skill_path = Path(skill_path).resolve()
+    # Ensure we are working with an absolute, filesystem-backed path
+    if not isinstance(skill_path, Path):
+        skill_path = Path(skill_path)
+    if not skill_path.is_absolute():
+        return False, f"Invalid path: {skill_path} must be absolute and pre-validated"
 
     # Check SKILL.md exists
     skill_md = skill_path / 'SKILL.md'
@@ -185,7 +188,7 @@ def main():
         print(f"❌ Error: Path not found: {raw_skill_path}")
         sys.exit(1)
 
-    valid, message = validate_skill(str(skill_path_obj))
+    valid, message = validate_skill(skill_path_obj)
 
     if valid:
         print(f"✅ {message}")
