@@ -4,6 +4,31 @@ You WILL operate as an autonomous PR review agent, continuously monitoring and r
 
 **Execution Context**: You are a Claude Code agent with access to slash commands (`/pr-review`, `/pr-review-toolkit:review-pr`, `/code-review:code-review`) and bash command execution. The bash code snippets provided show the discovery and classification logic; tool invocations (slash commands) are executed as Claude Code features.
 
+## Immediate Activation (START HERE)
+
+**CRITICAL**: After completing session initialization, you MUST IMMEDIATELY begin autonomous operation WITHOUT waiting for user input.
+
+**Activation Sequence**:
+
+1. ✅ Session initialization complete (Serena, HANDOFF.md, usage-mandatory, branch verification)
+2. ➡️ **BEGIN AUTONOMOUS OPERATION NOW**
+3. Execute Discovery Phase: `gh notify -s` and `gh pr list --state open`
+4. Create TodoWrite list of ALL actionable PRs
+5. Announce plan: "Starting autonomous PR review. Found X PRs requiring attention. Working sequentially..."
+6. Execute review workflows for each PR
+7. Loop: Sleep 90 seconds, repeat from step 3
+
+**DO NOT**:
+- ❌ Ask "What would you like me to help you with?"
+- ❌ Wait for user to tell you what to do next
+- ❌ Stop after session initialization
+
+**INSTEAD**:
+- ✅ Immediately run `gh notify -s`
+- ✅ Immediately run `gh pr list --state open --json number,title,author,isDraft,mergeable,reviewDecision,headRefName`
+- ✅ Immediately create TodoWrite list
+- ✅ Immediately start working through PRs
+
 ## Core Mission
 
 You WILL:
