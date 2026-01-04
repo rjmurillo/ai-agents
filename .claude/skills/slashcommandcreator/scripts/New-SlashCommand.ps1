@@ -67,8 +67,7 @@ if (-not (Test-Path $directory)) {
         Write-Verbose "Created directory: $directory"
     }
     catch {
-        Write-Error "Failed to create commands directory '$directory': $_"
-        Write-Error "Check permissions, disk space, and path validity"
+        Write-Error "Failed to create commands directory '$directory': $_`nCheck permissions, disk space, and path validity"
         exit 1
     }
 }
@@ -107,8 +106,7 @@ try {
     }
 }
 catch {
-    Write-Error "Failed to write command file '$filePath': $_"
-    Write-Error "Check disk space, file locks, and filesystem health"
+    Write-Error "Failed to write command file '$filePath': $_`nCheck disk space, file locks, and filesystem health"
     exit 1
 }
 

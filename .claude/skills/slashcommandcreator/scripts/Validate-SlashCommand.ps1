@@ -145,9 +145,15 @@ if ($usesBashExecution -and $null -ne $frontmatter) {
       catch [System.Management.Automation.CommandNotFoundException] {
         $violations += "WARNING: Bash command '$cmd' not found in PATH (runtime may fail)"
       }
+      catch [System.Security.SecurityException] {
+        Write-Warning "Security policy prevented command verification for '$cmd': $_"
+      }
+      catch [System.UnauthorizedAccessException] {
+        Write-Warning "Access denied when verifying command '$cmd': $_"
+      }
       catch {
-        # Other errors (execution policy, PATH corruption, etc.) should be surfaced
-        Write-Warning "Error checking command '$cmd': $_"
+        # Other unexpected errors (PATH corruption, system issues, etc.)
+        Write-Warning "Unexpected error checking command '$cmd' (type: $($_.Exception.GetType().Name)): $_"
       }
     }
   }
