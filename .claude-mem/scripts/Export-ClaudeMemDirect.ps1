@@ -107,6 +107,35 @@ if (-not (Test-Path $MemoriesDir)) {
     New-Item -ItemType Directory -Path $MemoriesDir -Force | Out-Null
 }
 
+# Ensure output file is in memories directory (prevent path traversal - CWE-22)
+# WHY: Normalize paths before comparison to prevent directory traversal attacks
+# SECURITY: GetFullPath() resolves ".." and ensures paths are absolute
+#
+# ATTACK SCENARIO: Without this check, an attacker could specify:
+#   -OutputFile "../../etc/passwd" or "../../../sensitive-data.json"
+# This would write export data outside the intended directory, potentially:
+#   - Overwriting system files
+#   - Exposing sensitive data to unintended locations
+#   - Bypassing access controls
+#
+# VALID: .claude-mem/memories/export.json
+# INVALID: .claude-mem/../export.json (resolves outside memories dir)
+$NormalizedOutput = [System.IO.Path]::GetFullPath($OutputPath)
+$NormalizedDir = [System.IO.Path]::GetFullPath($MemoriesDir)
+# Add trailing separator to prevent "memories-evil" directory bypass
+$NormalizedDirWithSep = $NormalizedDir.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+if (-not $NormalizedOutput.StartsWith($NormalizedDirWithSep, [System.StringComparison]::OrdinalIgnoreCase)) {
+    Write-Error "Path traversal attempt detected. Output file must be inside '$MemoriesDir' directory."
+    Write-Error ""
+    Write-Error "Attempted path: $OutputFile"
+    Write-Error "Normalized path: $NormalizedOutput"
+    Write-Error "Required parent: $NormalizedDir"
+    Write-Error ""
+    Write-Error "Valid example: .claude-mem/memories/export.json"
+    Write-Error "Invalid example: ../export.json (escapes memories directory)"
+    exit 1
+}
+
 Write-Host "🔍 Exporting from SQLite database..." -ForegroundColor Cyan
 if ($Project) {
     Write-Host "   Scope: Project '$Project'" -ForegroundColor Gray
@@ -118,13 +147,16 @@ Write-Host "   Output: $OutputPath" -ForegroundColor Gray
 Write-Host ""
 
 # Build project filter for different tables
-$ObsFilter = if ($Project) { "WHERE o.project = '$Project'" } else { "" }
-$SummaryFilter = if ($Project) { "WHERE ss.project = '$Project'" } else { "" }
-$SessionFilter = if ($Project) { "WHERE project = '$Project'" } else { "" }
-$PromptFilter = if ($Project) { "WHERE content_session_id IN (SELECT content_session_id FROM sdk_sessions WHERE project = '$Project')" } else { "" }
+# SECURITY: Escape single quotes to prevent SQL injection (CWE-89)
+# Defense-in-depth: ValidatePattern provides first layer, escaping provides second layer
+$SafeProject = if ($Project) { $Project -replace "'", "''" } else { "" }
+$ObsFilter = if ($Project) { "WHERE o.project = '$SafeProject'" } else { "" }
+$SummaryFilter = if ($Project) { "WHERE ss.project = '$SafeProject'" } else { "" }
+$SessionFilter = if ($Project) { "WHERE project = '$SafeProject'" } else { "" }
+$PromptFilter = if ($Project) { "WHERE content_session_id IN (SELECT content_session_id FROM sdk_sessions WHERE project = '$SafeProject')" } else { "" }
 
 # Get counts (simple queries without aliases)
-$CountFilter = if ($Project) { "WHERE project = '$Project'" } else { "" }
+$CountFilter = if ($Project) { "WHERE project = '$SafeProject'" } else { "" }
 $ObsCount = sqlite3 $DbPath "SELECT COUNT(*) FROM observations $CountFilter;"
 $SummaryCount = sqlite3 $DbPath "SELECT COUNT(*) FROM session_summaries $CountFilter;"
 $PromptCount = sqlite3 $DbPath "SELECT COUNT(*) FROM user_prompts $PromptFilter;"

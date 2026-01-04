@@ -73,6 +73,35 @@ if (-not (Test-Path $MemoriesDir)) {
     New-Item -ItemType Directory -Path $MemoriesDir -Force | Out-Null
 }
 
+# Ensure output file is in memories directory (prevent path traversal - CWE-22)
+# WHY: Normalize paths before comparison to prevent directory traversal attacks
+# SECURITY: GetFullPath() resolves ".." and ensures paths are absolute
+#
+# ATTACK SCENARIO: Without this check, an attacker could specify:
+#   -OutputFile "../../etc/passwd" or "../../../sensitive-data.json"
+# This would write export data outside the intended directory, potentially:
+#   - Overwriting system files
+#   - Exposing sensitive data to unintended locations
+#   - Bypassing access controls
+#
+# VALID: .claude-mem/memories/export.json
+# INVALID: .claude-mem/../export.json (resolves outside memories dir)
+$NormalizedOutput = [System.IO.Path]::GetFullPath($OutputPath)
+$NormalizedDir = [System.IO.Path]::GetFullPath($MemoriesDir)
+# Add trailing separator to prevent "memories-evil" directory bypass
+$NormalizedDirWithSep = $NormalizedDir.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+if (-not $NormalizedOutput.StartsWith($NormalizedDirWithSep, [System.StringComparison]::OrdinalIgnoreCase)) {
+    Write-Error "Path traversal attempt detected. Output file must be inside '$MemoriesDir' directory."
+    Write-Error ""
+    Write-Error "Attempted path: $OutputFile"
+    Write-Error "Normalized path: $NormalizedOutput"
+    Write-Error "Required parent: $NormalizedDir"
+    Write-Error ""
+    Write-Error "Valid example: .claude-mem/memories/export.json"
+    Write-Error "Invalid example: ../export.json (escapes memories directory)"
+    exit 1
+}
+
 # Build plugin script arguments
 # CRITICAL: Use "." as query (empty string is BROKEN in plugin)
 $PluginArgs = @(".", $OutputPath)
