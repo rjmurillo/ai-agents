@@ -50,17 +50,15 @@ Adopt the following standardization for all 27 Claude Code skills:
 **Use aliases by default** (`claude-{tier}-4-5`) for most skills:
 
 ```yaml
-metadata:
-  model: claude-opus-4-5      # Default: auto-updates
-  model: claude-sonnet-4-5    # Default: auto-updates
-  model: claude-haiku-4-5     # Default: auto-updates
+model: claude-opus-4-5      # Default: auto-updates
+model: claude-sonnet-4-5    # Default: auto-updates
+model: claude-haiku-4-5     # Default: auto-updates
 ```
 
 **Exception: Security-Critical Skills** may use dated snapshots when deterministic behavior is required:
 
 ```yaml
-metadata:
-  model: claude-sonnet-4-5-20250929  # Pinned version
+model: claude-sonnet-4-5-20250929  # Pinned version
 ```
 
 **Current Security-Critical Skills** (eligible for snapshot pinning):
@@ -75,17 +73,17 @@ metadata:
 
 ### 2. Frontmatter Structure
 
-Adopt consistent structure per SkillForge packaging standards:
+Adopt consistent structure per SkillForge validation standards:
 
 ```yaml
 ---
 name: skill-identifier       # Required (Official): matches directory name
+version: X.Y.Z              # Required (SkillForge): semantic versioning
 description: ...            # Required (Official): trigger mechanism with keywords
-license: MIT                # Optional (SkillForge): SPDX identifier
+license: MIT                # Required (SkillForge): SPDX identifier
+model: claude-{tier}-4-5    # Required (SkillForge): model alias or snapshot
 allowed-tools: Read, Grep   # Optional (Official): tool restrictions
-metadata:                   # Optional (SkillForge): all domain-specific fields
-  version: X.Y.Z            # Semantic versioning
-  model: claude-{tier}-4-5  # Model alias or snapshot
+metadata:                   # Optional (SkillForge): domain-specific fields
   domains: [...]
   type: ...
   complexity: ...
@@ -97,17 +95,18 @@ metadata:                   # Optional (SkillForge): all domain-specific fields
 | Field | Status | Location | Source |
 |-------|--------|----------|--------|
 | `name` | Required | Top-level | Official Anthropic spec |
+| `version` | Required | Top-level | SkillForge validator |
 | `description` | Required | Top-level | Official Anthropic spec |
-| `license` | Optional | Top-level | SkillForge convention |
+| `license` | Required | Top-level | SkillForge validator |
+| `model` | Required | Top-level | SkillForge validator |
 | `allowed-tools` | Optional | Top-level | Official Anthropic spec |
 | `metadata` | Optional | Top-level | SkillForge convention |
-| `metadata.version` | Optional | In metadata | ai-agents convention |
-| `metadata.model` | Optional | In metadata | ai-agents convention |
+| `metadata.*` | Optional | In metadata | Domain-specific fields |
 
 **Rationale**:
-- SkillForge packaging validation defines the authoritative structure for distribution
-- Metadata encapsulates all non-standard fields including version and model configuration
-- Top-level reserved for official Anthropic spec fields and license
+- SkillForge validate-skill.py defines the authoritative structure
+- Required fields (name, version, description, license, model) at top-level
+- Metadata reserved for domain-specific extensions
 - Consistent structure improves validation and packaging compatibility
 
 ### 3. Three-Tier Model Selection Strategy

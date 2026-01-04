@@ -1,13 +1,13 @@
 ---
 name: encode-repo-serena
-description: Systematically populate the Forgetful knowledge base using Serena's LSP-powered symbol analysis for accurate, comprehensive codebase understanding.
+version: 1.0.0
+description: Systematically populate the Forgetful knowledge base using Serena's LSP-powered
+  symbol analysis for accurate, comprehensive codebase understanding.
 license: MIT
+model: claude-sonnet-4-5
 metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-5
-  argument-hint: "Project path or name to encode (default: current directory)"
+  argument-hint: 'Project path or name to encode (default: current directory)'
 ---
-
 # Encode Repository (Serena-Enhanced)
 
 Transform an undocumented codebase into a rich, searchable knowledge repository using Serena's LSP-powered symbol analysis.

@@ -1,16 +1,19 @@
 ---
 name: merge-resolver
-description: >
+version: 2.0.0
+description: ''
 license: MIT
+model: claude-opus-4-5
 metadata:
-  version: 2.0.0
-  model: claude-opus-4-5
-  domains: [git, github, merge-conflicts, pr-maintenance]
+  domains:
+  - git
+  - github
+  - merge-conflicts
+  - pr-maintenance
   type: workflow
   complexity: advanced
   adr: ADR-015
 ---
-
 # Merge Resolver
 
 Resolve merge conflicts by analyzing git history and commit intent.

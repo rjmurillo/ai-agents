@@ -1,21 +1,27 @@
 ---
 name: github
-description: |
+version: 3.0.0
+description: ''
 license: MIT
+model: claude-opus-4-5
 metadata:
-  version: 3.0.0
-  model: claude-opus-4-5
-  domains: [github, pr, issue, labels, milestones, comments, reactions]
+  domains:
+  - github
+  - pr
+  - issue
+  - labels
+  - milestones
+  - comments
+  - reactions
   type: integration
   complexity: intermediate
   generator:
     keep_headings:
-      - Decision Tree
-      - Script Reference
-      - Output Format
-      - See Also
+    - Decision Tree
+    - Script Reference
+    - Output Format
+    - See Also
 ---
-
 # GitHub Skill
 
 Use these scripts instead of raw `gh` commands for consistent error handling and structured output.
