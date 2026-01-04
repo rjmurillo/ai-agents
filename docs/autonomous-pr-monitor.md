@@ -62,11 +62,19 @@ You MUST operate WITHOUT human intervention:
 IF multiple PRs require attention:
     Sort by PR number (ascending)
     FOR EACH PR in sorted list:
-        IF owned:
+        Classify PR by author (owned | mention-triggered | review-bot | human)
+
+        IF human:
+            Document in todo list as "SKIP: PR #{number} (human-authored)"
+            Move to next PR
+        ELSE IF owned:
             Execute OWNED workflow (review-toolkit + pr-review + code-review)
             Verify ALL 11 completion criteria
-        ELSE:
-            Execute NON-OWNED workflow (review-toolkit + code-review)
+        ELSE IF mention-triggered:
+            Execute MENTION-TRIGGERED workflow (review-toolkit + code-review + @copilot comment)
+            Verify ALL 8 completion criteria (skip owned-only checks)
+        ELSE IF review-bot:
+            Execute REVIEW-BOT workflow (review-toolkit + code-review)
             Verify ALL 8 completion criteria (skip owned-only checks)
 
         IF all criteria pass:
@@ -94,12 +102,14 @@ IF multiple PRs require attention:
 
 ## Stewardship Classification
 
-You MUST classify each PR by author:
+You MUST classify each PR by author into ONE of four categories:
 
-| Category | Authors | Actions Allowed | Tools |
-|----------|---------|----------------|-------|
-| **Owned** | `rjmurillo`, `rjmurillo-bot` | Full control: commit, push, resolve threads | `/pr-review-toolkit:review-pr` + `/pr-review` |
-| **Not Owned** | All others | Review only: provide feedback | `/pr-review-toolkit:review-pr` + `/code-review:code-review` |
+| Category | Authors | Actions Allowed | Tools | Special Instructions |
+|----------|---------|----------------|-------|---------------------|
+| **Owned** | `rjmurillo`, `rjmurillo-bot` | Full control: commit, push, resolve threads | `/pr-review-toolkit:review-pr` + `/pr-review` + `/code-review:code-review` | Verify ALL 11 completion criteria |
+| **Mention-Triggered** | `copilot-swe-agent`, `app/copilot-swe-agent`, `copilot` | Review and synthesize feedback with @mention | `/pr-review-toolkit:review-pr` + `/code-review:code-review` | Post feedback as PR comment with `@copilot` mention to trigger response |
+| **Review-Bot** | `coderabbitai`, `cursor[bot]`, `gemini-code-assist` | Read-only: provide feedback in PR comments | `/pr-review-toolkit:review-pr` + `/code-review:code-review` | Do NOT mention bot, just provide feedback |
+| **Human** | All other authors | Skip - requires human action | None | Document in todo list, do not review |
 
 ## Planning Before Action
 
@@ -159,20 +169,30 @@ while read -r pr_data; do
         continue
     fi
 
-    # Classify by stewardship
+    # Classify by stewardship (4 categories)
     if [[ "$author" == "rjmurillo" || "$author" == "rjmurillo-bot" ]]; then
-        owned="true"
+        category="owned"
+    elif [[ "$author" == "copilot-swe-agent" || "$author" == "app/copilot-swe-agent" || "$author" == "copilot" ]]; then
+        category="mention-triggered"
+    elif [[ "$author" == "coderabbitai" || "$author" =~ ^.*\[bot\]$ || "$author" == "gemini-code-assist" ]]; then
+        category="review-bot"
     else
-        owned="false"
+        category="human"
     fi
 
-    # Determine if action required
+    # Determine if action required based on category
+    if [[ "$category" == "human" ]]; then
+        echo "SKIP: PR #$pr_number (human-authored, requires human action)"
+        continue
+    fi
+
+    # All non-human PRs are actionable if they have CHANGES_REQUESTED or conflicts
     if [[ "$review_decision" == "CHANGES_REQUESTED" || "$mergeable" == "CONFLICTING" ]]; then
-        echo "Action required: PR #$pr_number (owned=$owned)"
+        echo "Action required: PR #$pr_number (category=$category)"
         # Add to processing queue
     elif [[ "$review_decision" == "APPROVED" && "$mergeable" == "MERGEABLE" ]]; then
         # Verify CI and enable auto-merge
-        echo "Checking CI for PR #$pr_number"
+        echo "Checking CI for PR #$pr_number (category=$category)"
     fi
 done < <(gh pr list --state open --json number,title,author,isDraft,mergeable,reviewDecision,headRefName | jq -c '.[]')
 ```
@@ -229,18 +249,61 @@ git pull origin $branch_name
 # - Best practices validation
 ```
 
-### For Non-Owned PRs (Others)
+### For Mention-Triggered PRs (copilot-swe-agent, copilot)
 
 ```bash
 # Step 1: Comprehensive multi-agent analysis
 /pr-review-toolkit:review-pr {number}
-# Same as owned PRs
+# Triggers: security, architecture, qa, implementer agents
+
+# Step 2: Code quality review
+/code-review:code-review {number}
+# - Static analysis
+# - Code quality checks
+
+# Step 3: Synthesize feedback and post with @mention
+# Combine findings from all review agents into single coherent comment
+# Post as PR comment with @copilot mention to trigger response
+
+gh pr comment {number} --body "$(cat <<'EOF'
+@copilot Based on comprehensive review:
+
+## Security Findings
+[Summarize security agent findings]
+
+## Architecture Feedback
+[Summarize architecture agent findings]
+
+## Code Quality Issues
+[Summarize code-review findings]
+
+## Recommendations
+[Consolidated list of changes needed]
+
+Please address these issues.
+EOF
+)"
+```
+
+### For Review-Bot PRs (coderabbitai, cursor, gemini)
+
+```bash
+# Step 1: Comprehensive multi-agent analysis
+/pr-review-toolkit:review-pr {number}
+# Triggers: security, architecture, qa, implementer agents
 
 # Step 2: Code quality review and feedback
 /code-review:code-review {number}
 # - Provide detailed feedback in PR comments
 # - Suggest specific changes
-# - CANNOT commit or resolve threads (review only)
+# - Do NOT mention the bot (read-only feedback)
+```
+
+### For Human PRs
+
+```bash
+# Skip - requires human action
+# Document in todo list as "SKIP: PR #{number} (human-authored)"
 ```
 
 ## Thread Resolution Protocol (CRITICAL)
@@ -400,32 +463,48 @@ while true; do
         continue
     fi
 
-    # Classify by stewardship
+    # Classify by stewardship (4 categories)
     if [[ "$author" == "rjmurillo" || "$author" == "rjmurillo-bot" ]]; then
-        owned="true"
+        category="owned"
+    elif [[ "$author" == "copilot-swe-agent" || "$author" == "app/copilot-swe-agent" || "$author" == "copilot" ]]; then
+        category="mention-triggered"
+    elif [[ "$author" == "coderabbitai" || "$author" =~ ^.*\[bot\]$ || "$author" == "gemini-code-assist" ]]; then
+        category="review-bot"
     else
-        owned="false"
+        category="human"
     fi
 
-    # Determine if action required
-    if [[ "$review_decision" == "CHANGES_REQUESTED" || "$mergeable" == "CONFLICTING" ]]; then
-        echo "Processing PR #$pr_number (owned=$owned)"
+    # Skip human-authored PRs
+    if [[ "$category" == "human" ]]; then
+        echo "SKIP: PR #$pr_number (human-authored, requires human action)"
+        continue
+    fi
 
-        # Execute review workflow based on stewardship
-        if [[ "$owned" == "true" ]]; then
+    # Determine if action required (all non-human PRs)
+    if [[ "$review_decision" == "CHANGES_REQUESTED" || "$mergeable" == "CONFLICTING" ]]; then
+        echo "Processing PR #$pr_number (category=$category)"
+
+        # Execute review workflow based on category
+        if [[ "$category" == "owned" ]]; then
             # OWNED workflow
             /pr-review-toolkit:review-pr $pr_number
             /pr-review $pr_number
             /code-review:code-review $pr_number
-        else
-            # NON-OWNED workflow
+        elif [[ "$category" == "mention-triggered" ]]; then
+            # MENTION-TRIGGERED workflow
+            /pr-review-toolkit:review-pr $pr_number
+            /code-review:code-review $pr_number
+            # Post synthesized feedback with @copilot mention
+            # (See "For Mention-Triggered PRs" section for template)
+        elif [[ "$category" == "review-bot" ]]; then
+            # REVIEW-BOT workflow
             /pr-review-toolkit:review-pr $pr_number
             /code-review:code-review $pr_number
         fi
 
         # Verify completion criteria
         echo "Verifying completion criteria for PR #$pr_number"
-        # (Run all 8 verification commands)
+        # (Run all verification commands based on category)
     fi
   done < <(gh pr list --state open --json number,title,author,isDraft,mergeable,reviewDecision,headRefName | jq -c '.[]')
 
