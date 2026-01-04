@@ -10,6 +10,35 @@ import sys
 from pathlib import Path
 
 
+def validate_path_safety(path_str: str, allowed_base: Path = None) -> bool:
+    """
+    Validate that a path string is safe before resolving (prevents directory traversal).
+
+    Args:
+        path_str: Path string to validate (checked before resolution)
+        allowed_base: Base directory that path must be within (defaults to cwd)
+
+    Returns:
+        True if path is safe, False otherwise
+    """
+    # Pre-resolution check: reject obvious traversal attempts in the string
+    path_str = str(path_str)
+    if '..' in path_str:
+        return False
+
+    if allowed_base is None:
+        allowed_base = Path.cwd().resolve()
+    else:
+        allowed_base = allowed_base.resolve()
+
+    try:
+        resolved_path = Path(path_str).resolve()
+        resolved_path.relative_to(allowed_base)
+        return True
+    except (ValueError, OSError):
+        return False
+
+
 def fix_markdown_fences(content: str) -> str:
     """Fix malformed code fence closings in markdown content.
     
@@ -60,17 +89,21 @@ def fix_markdown_files(
     dry_run: bool = False
 ) -> list[str]:
     """Fix all markdown files in directory.
-    
+
     Args:
         directory: Root directory to scan
         pattern: Glob pattern for markdown files
         dry_run: If True, report changes without writing
-        
+
     Returns:
         List of fixed file paths
     """
+    # SECURITY: Validate directory is safe before globbing (prevents CWE-22)
+    if not validate_path_safety(str(directory)):
+        raise ValueError(f"Invalid directory: {directory} contains unsafe characters or is outside allowed directory")
+
     fixed: list[str] = []
-    
+
     for file_path in directory.glob(pattern):
         content = file_path.read_text(encoding='utf-8')
         fixed_content = fix_markdown_fences(content)
@@ -107,10 +140,15 @@ def main() -> int:
     )
     
     args = parser.parse_args()
-    
+
     total_fixed = 0
     for dir_path in args.directories:
-        directory = Path(dir_path)
+        # SECURITY: Validate path safety BEFORE resolution (prevents CWE-22)
+        if not validate_path_safety(dir_path):
+            print(f"Error: {dir_path} contains unsafe characters or is outside allowed directory", file=sys.stderr)
+            continue
+
+        directory = Path(dir_path).resolve()
         if not directory.exists():
             print(f"Warning: {dir_path} does not exist", file=sys.stderr)
             continue
