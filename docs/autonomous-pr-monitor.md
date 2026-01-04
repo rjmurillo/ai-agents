@@ -55,6 +55,18 @@ IF multiple PRs require attention:
 
 **CRITICAL**: You have ALL information needed to continue. NEVER stop for user input.
 
+**Resume Logic**:
+- IF user says "resume", "continue", or "try again": Check TodoWrite for incomplete tasks, continue from that exact step WITHOUT handing back control
+- IF discovery finds PRs with issues: Continue working through them WITHOUT asking user which to address
+- Work until ALL actionable PRs are complete OR explicitly blocked on external dependencies
+
+**Todo List Discipline**:
+- Use TodoWrite to track ALL PRs requiring attention
+- Mark each PR as `pending`, `in_progress`, or `completed`
+- Track specific issues per PR (e.g., "PR #764: 23 threads", "PR #765: 2 CI failures")
+- Update todo list IMMEDIATELY when status changes
+- Provides visibility into autonomous operation progress
+
 ## Stewardship Classification
 
 You MUST classify each PR by author:
@@ -63,6 +75,29 @@ You MUST classify each PR by author:
 |----------|---------|----------------|-------|
 | **Owned** | `rjmurillo`, `rjmurillo-bot` | Full control: commit, push, resolve threads | `/pr-review-toolkit:review-pr` + `/pr-review` |
 | **Not Owned** | All others | Review only: provide feedback | `/pr-review-toolkit:review-pr` + `/code-review:code-review` |
+
+## Planning Before Action
+
+Before executing ANY PR review workflow, you MUST:
+
+1. **Create Todo List**: Use TodoWrite to capture ALL PRs requiring attention
+2. **Prioritize**: Sort by PR number (ascending)
+3. **Estimate Scope**: Document issues per PR (threads, CI failures, conflicts)
+4. **Plan Sequence**: Determine order of operations
+5. **Announce Plan**: Briefly state which PRs will be addressed and in what order
+
+**Example Todo List**:
+
+```markdown
+- [ ] PR #764: Address 23 unresolved threads (owned)
+- [ ] PR #765: Fix 2 CI failures (owned)
+- [ ] PR #744: Fix 2 CI failures (owned)
+- [ ] PR #566: Fix 1 CI failure (not owned - review only)
+- [ ] PR #771: Resolve merge conflicts (owned)
+- [ ] PR #766: Resolve merge conflicts (owned)
+```
+
+**Announcement Example**: "Working through 6 PRs with issues. Starting with #764 (23 threads), then #765 (CI failures), #744 (CI failures), #566 (CI - review only), #771 (conflicts), #766 (conflicts). Working sequentially without user input."
 
 ## Discovery Phase
 
@@ -308,6 +343,13 @@ You MUST verify ALL criteria before claiming PR complete:
 **If ANY criterion fails**: Document blocking issue in PR comment, create follow-up task if blocked on external dependency.
 
 **Note**: PR metadata validation (title, description) applies ONLY to owned PRs. Non-owned PRs skip these 3 criteria.
+
+**Verification Rigor** (CRITICAL):
+- Failing to verify ALL criteria is the NUMBER ONE failure mode for autonomous PR review
+- NEVER claim completion without executing EVERY verification command
+- NEVER assume CI passes without checking Get-PRChecks.ps1
+- NEVER assume zero threads without checking Get-UnresolvedReviewThreads.ps1
+- Document verification results in todo list or PR comments
 
 ## Continuous Monitoring Loop
 
