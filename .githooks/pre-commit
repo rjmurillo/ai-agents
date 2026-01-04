@@ -832,6 +832,67 @@ else
 fi
 
 #
+# Episode Extraction (Auto-fix)
+#
+# Automatically extracts episode data from staged session logs to Tier 2 memory.
+# Creates episode JSON files in .agents/memory/episodes/ for reflexion memory system.
+# Episodes capture session outcomes, decisions, events, and metrics per ADR-038.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: ADR-038 Reflexion Memory Schema, memory skill
+#
+EPISODE_EXTRACT_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/Extract-SessionEpisode.ps1"
+
+if [ -n "$STAGED_SESSION_LOG" ]; then
+    # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
+    if [ "$AUTOFIX" = "1" ]; then
+        echo_info "Extracting episode from session log..."
+
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$EPISODE_EXTRACT_SCRIPT" ]; then
+            echo_warning "Skipping episode extraction: script path is a symlink"
+        elif [ -f "$EPISODE_EXTRACT_SCRIPT" ]; then
+            if command -v pwsh &> /dev/null; then
+                # Run episode extraction
+                EXTRACT_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$EPISODE_EXTRACT_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -Force 2>&1)
+                EXTRACT_EXIT=$?
+
+                if [ $EXTRACT_EXIT -eq 0 ]; then
+                    # Extract episode filename from output (last line with .json)
+                    EPISODE_FILE=$(echo "$EXTRACT_OUTPUT" | grep -oE '\.agents/memory/episodes/episode-.*\.json' | tail -1)
+
+                    if [ -n "$EPISODE_FILE" ] && [ -f "$REPO_ROOT/$EPISODE_FILE" ]; then
+                        # MEDIUM-002: Defense-in-depth symlink check before staging
+                        if [ -L "$REPO_ROOT/$EPISODE_FILE" ]; then
+                            echo_warning "Skipping episode staging: generated file is a symlink"
+                        else
+                            # Stage the generated episode file
+                            git add -- "$REPO_ROOT/$EPISODE_FILE"
+                            echo_success "Extracted and staged: $EPISODE_FILE"
+                            FILES_FIXED=1
+                        fi
+                    else
+                        echo_success "Episode extracted (no new file to stage)"
+                    fi
+                else
+                    # Extraction failed - show warning but don't block commit
+                    echo_warning "Episode extraction failed (non-blocking):"
+                    echo "$EXTRACT_OUTPUT" | head -5
+                    echo_info "  Session log will still be committed."
+                    echo_info "  Extract manually: pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
+                fi
+            else
+                echo_warning "PowerShell not available. Skipping episode extraction."
+            fi
+        else
+            echo_info "Episode extraction script not found. Skipping."
+        fi
+    else
+        echo_info "Episode extraction skipped (auto-fix disabled)."
+    fi
+fi
+
+#
 # Memory Evidence Warning (E4, ADR-007)
 #
 # Lightweight check for memory retrieval evidence in session logs.
