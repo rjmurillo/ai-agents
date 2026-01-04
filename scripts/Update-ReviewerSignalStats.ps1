@@ -12,6 +12,10 @@
     - Consistent methodology for actionability scoring
     - Historical trend tracking via JSON output
 
+    LIMITATIONS:
+    - Maximum of 50 pages of PRs are queried (2500 PRs) due to pagination limits.
+      For repositories with extensive history, consider reducing -DaysBack.
+
 .PARAMETER DaysBack
     Number of days of PR history to analyze. Default: 90
 
@@ -40,6 +44,8 @@
     0 = Success
     1 = Invalid parameters
     2 = API error or script failure
+
+    Pagination: Maximum 50 pages (2500 PRs) are queried to avoid API rate limits.
 #>
 
 [CmdletBinding()]
@@ -465,6 +471,8 @@ function Get-ActionabilityScore {
     }
 
     # Clamp score between 0 and 1
+    # NOTE: [double] cast is required - PowerShell uses integer arithmetic with literal 0/1,
+    # which truncates decimals (e.g., 0.5 becomes 0). See tests for verification.
     $score = [Math]::Max([double]0, [Math]::Min([double]1, $score))
 
     return @{
