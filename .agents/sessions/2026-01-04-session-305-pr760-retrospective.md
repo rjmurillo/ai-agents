@@ -106,7 +106,7 @@
 | MUST | Update Serena memory (cross-session context) | [x] | 3 memories created |
 | MUST | Run markdown lint | [x] | 23 errors in pre-existing files (not session artifacts) |
 | MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: investigation-only |
-| MUST | Commit all changes (including .serena/memories) | [ ] | Pending commit |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: ffcead3 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
 | SHOULD | Invoke retrospective (significant sessions) | [x] | This is retrospective |
