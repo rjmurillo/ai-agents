@@ -25,6 +25,35 @@ from pathlib import Path
 from typing import Any
 
 
+def validate_and_resolve_path(path_str: str, allowed_base: Path) -> Path | None:
+    """
+    Validate that a path string is safe and resolve it against a trusted base directory.
+    This prevents directory traversal by ensuring the final path stays within allowed_base.
+
+    Args:
+        path_str: Path string provided by the user.
+        allowed_base: Base directory that the resolved path must remain within.
+
+    Returns:
+        A resolved Path object if the path is safe, or None otherwise.
+    """
+    # Normalize inputs
+    raw = str(path_str)
+    base = allowed_base.resolve()
+
+    try:
+        # Treat all user input as relative to the trusted base and resolve it.
+        # Using strict=False so that existence of the path is not required for validation.
+        resolved_path = (base / raw).resolve(strict=False)
+
+        # Ensure the resolved path is contained within the allowed base
+        resolved_path.relative_to(base)
+        return resolved_path
+    except (ValueError, OSError):
+        # Any resolution or containment error means the path is unsafe
+        return None
+
+
 # Agent patterns to detect in commit messages and PR descriptions
 AGENT_PATTERNS = [
     r"(?i)\b(orchestrator|analyst|architect|implementer|security|qa|devops|"
@@ -421,8 +450,12 @@ def main():
 
     args = parser.parse_args()
 
-    # Validate repo path
-    repo_path = Path(args.repo).resolve()
+    # SECURITY: Validate path safety and resolve to trusted path (prevents CWE-22)
+    repo_path = validate_and_resolve_path(args.repo, allowed_base=Path.cwd())
+    if repo_path is None:
+        print(f"Error: {args.repo} contains unsafe characters or is outside allowed directory", file=sys.stderr)
+        sys.exit(1)
+
     if not (repo_path / ".git").exists():
         print(f"Error: {repo_path} is not a git repository", file=sys.stderr)
         sys.exit(1)

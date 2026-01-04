@@ -18,10 +18,13 @@ Claude-Mem memories are local to each installation. Export/import enables:
 ├── README.md                                          # This file
 ├── 2026-01-03-session-229-frustrations.json         # Memory snapshots
 ├── 2026-01-03-session-230-testing-philosophy.json
+├── direct-backup-2026-01-03-1434-ai-agents.json     # Full backup (security reviewed)
 └── ...
 ```
 
 All memory exports are stored in this single directory. Auto-import on session start handles idempotent loading.
+
+**Note**: Large backup files (like `direct-backup-*.json`) are intentionally committed after security review to serve as test data and onboarding references. All committed exports have passed automated secret scanning.
 
 ## Export Workflow (Session End)
 
@@ -44,44 +47,6 @@ npx tsx scripts/export-memories.ts "" .claude-mem/memories/2026-01-03-project.js
 
 **Note**: The `export-memories.ts` and `import-memories.ts` scripts are wrapper scripts located in the project's `scripts/` directory. They forward to the installed claude-mem plugin scripts at `~/.claude/plugins/marketplaces/thedotmack/scripts/`.
 
-## Full Backup (Institutional Knowledge Export)
-
-Export complete claude-mem database for disaster recovery or onboarding:
-
-```bash
-# RECOMMENDED: Direct SQLite export (100% complete)
-pwsh .claude-mem/scripts/Export-ClaudeMemDirect.ps1
-
-# Single project
-pwsh .claude-mem/scripts/Export-ClaudeMemDirect.ps1 -Project "ai-agents"
-```
-
-**Output**: `.claude-mem/memories/direct-backup-YYYY-MM-DD-HHMM.json` or `direct-backup-YYYY-MM-DD-HHMM-{project}.json`
-
-**Why Direct Export:**
-
-- Exports 100% of data (3500+ observations vs 71 with FTS export)
-- Includes `sdk_session_id` for proper duplicate detection
-- Fixes NULL titles that break import duplicate detection
-- Automatic security review (BLOCKING)
-
-**Requirements**: `sqlite3` command-line tool (installation instructions provided if missing)
-
-**Use Cases:**
-
-- Periodic disaster recovery snapshots
-- Fresh instance setup (portable institutional knowledge)
-- Team onboarding with complete project context
-- Migration between environments
-
-**Restore:**
-
-```bash
-pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
-```
-
-**DEPRECATED**: `Export-ClaudeMemFullBackup.ps1` uses FTS query which only exports ~2% of data. Use `Export-ClaudeMemDirect.ps1` instead.
-
 ## Import Workflow (Session Start or Onboarding)
 
 ### Automatic Import (Session Start)
@@ -90,7 +55,7 @@ The auto-import script runs idempotently on session start:
 
 ```bash
 # Automatically imports all .json files from .claude-mem/memories/
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 ```
 
 **Session Protocol Integration**: Can be added to SessionStart hook for automatic execution.
@@ -104,7 +69,7 @@ Import specific files or new memories from teammates:
 npx tsx scripts/import-memories.ts .claude-mem/memories/shared-memories.json
 
 # Import all files (same as auto-import script)
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 ```
 
 ## Duplicate Prevention
@@ -157,7 +122,7 @@ Claude-Mem automatically prevents duplicate imports using composite keys:
 
 ```bash
 # Auto-import all memories (idempotent)
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 ```
 
 Can be added to `.claude/hooks/SessionStart.ps1` for automatic execution.
@@ -191,7 +156,7 @@ git clone https://github.com/user/ai-agents.git
 cd ai-agents
 
 # Auto-import all memories (idempotent)
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 
 # Verify import
 npx tsx scripts/search-memories.ts "frustration pattern"
@@ -205,7 +170,7 @@ npx tsx scripts/search-memories.ts "frustration pattern"
 mv ~/Downloads/teammate-learnings.json .claude-mem/memories/
 
 # Auto-import (idempotent, will import the new file)
-pwsh scripts/Import-ClaudeMemMemories.ps1
+pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
 
 # Or import manually
 npx tsx scripts/import-memories.ts .claude-mem/memories/teammate-learnings.json

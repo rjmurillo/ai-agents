@@ -1,13 +1,4 @@
----
-description: Generate evidence-based documentary reports by searching across all memory systems. Use when Claude needs to investigate recurring frustrations, analyze evolution of decisions, create comprehensive reports with full evidence chains, or extract meta-patterns from cross-system searches.
----
-
-
 # Memory Documentary
-
-> **Note**: This command uses extended thinking (`ultrathink`) for evidence-based analysis.
-
-ultrathink
 
 Generate evidence-based documentary reports by searching across all memory systems.
 

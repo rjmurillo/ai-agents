@@ -48,6 +48,15 @@ Labels like "MANDATORY" or "NON-NEGOTIABLE" are insufficient. Each requirement M
 
 ## Session Start Protocol
 
+### Phase 0: Get oriented (BLOCKING)
+
+The agent MUST check recent commits and current branch
+
+1. The agent MUST run `git branch --show-current` to verify correct branch
+2. The agent MUST verify the branch matches the intended work context (issue, PR, feature)
+3. The agent MUST NOT proceed with work if on `main` or `master` branch (create feature branch first)
+4. The agent MUST check recent commits `git log --oneline -5`
+
 ### Phase 1: Serena Initialization (BLOCKING)
 
 The agent MUST complete Serena initialization before any other action. This is a **blocking gate**.
@@ -101,7 +110,7 @@ The `memory-index` maps task keywords to essential memories. Example workflow:
 
 **Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions. Note: HANDOFF.md is a read-only reference; do not modify it during sessions. Without loading relevant memories, agents repeat solved problems or miss established patterns.
 
-### Phase 2.1: Import Shared Memories (RECOMMENDED)
+### Phase 3: Import Shared Memories (RECOMMENDED)
 
 The agent SHOULD import shared memories at session start.
 
@@ -125,7 +134,7 @@ The agent SHOULD import shared memories at session start.
 
 **Detailed Workflow**: See [.claude-mem/memories/AGENTS.md](../.claude-mem/memories/AGENTS.md) and [MEMORY-MANAGEMENT.md](governance/MEMORY-MANAGEMENT.md)
 
-### Phase 1.5: Skill Validation (BLOCKING)
+### Phase 4: Skill Validation (BLOCKING)
 
 The agent MUST validate skill availability before starting work. This is a **blocking gate**.
 
@@ -151,7 +160,7 @@ The agent MUST validate skill availability before starting work. This is a **blo
 
 **Rationale:** Session 15 had 5+ skill violations despite documentation. Trust-based compliance fails; verification-based enforcement (like Serena init) has 100% compliance.
 
-### Phase 3: Session Log Creation (REQUIRED)
+### Phase 5: Session Log Creation (REQUIRED)
 
 The agent MUST create a session log early in the session.
 
@@ -463,7 +472,7 @@ Copy this checklist to each session log and verify completion:
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
 | SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
-| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Lint output clean |
@@ -564,7 +573,7 @@ All MUST requirements above are marked complete.
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
 | SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
-| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Output below |

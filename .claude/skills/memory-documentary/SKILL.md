@@ -1,12 +1,16 @@
 ---
 name: memory-documentary
-description: Generate evidence-based documentary reports by searching across all 4 memory systems (Claude-Mem, Forgetful, Serena, DeepWiki), .agents/ artifacts, and GitHub issues. Produces investigative journalism-style analysis with full citation chains.
+version: 1.0.0
+description: Generate evidence-based documentary reports by searching across all 4
+  memory systems (Claude-Mem, Forgetful, Serena, DeepWiki), .agents/ artifacts, and
+  GitHub issues. Produces investigative journalism-style analysis with full citation
+  chains.
+license: MIT
+model: claude-sonnet-4-5
 metadata:
-  version: 1.0.0
   timelessness: 8/10
   category: analysis
 ---
-
 # Memory Documentary Skill
 
 Generate comprehensive documentary-style reports from your memory systems with full evidence chains.
@@ -163,7 +167,7 @@ Cross-system synthesis revealing:
 
 ## Output Location
 
-Reports saved to: `/home/richard/sessions/[topic]-documentary-[date].md`
+Reports saved to: `.agents/analysis/[topic]-documentary-[date].md`
 
 ---
 

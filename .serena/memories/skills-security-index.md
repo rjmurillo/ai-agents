@@ -10,5 +10,7 @@
 | first-run gap creation exists modification conditional check bypass | security-008-first-run-gap-analysis |
 | review triage signal quality domain-adjusted actionable priority | security-009-domain-adjusted-signal-quality |
 | pre-commit hook bash detection ADR-005 PowerShell CWE-20 CWE-78 | security-010-pre-commit-bash-detection |
-
+| adversarial testing malicious input relative absolute path symlink CWE-22 | security-adversarial-testing |
+| path anchoring anchor base resolve containment CWE-22 path-traversal | security-path-anchoring-pattern |
+| no blind suppression lgtm nosec root cause suppression understand documented | security-no-blind-suppression |
 

@@ -1,14 +1,4 @@
----
-description: Research external topics and incorporate learnings into Serena and Forgetful memory systems. Use when investigating new concepts, evaluating technologies, or building institutional knowledge from external sources.
-allowed-tools: [WebSearch, WebFetch, mcp__forgetful__*, mcp__serena__*, mcp__plugin_claude-mem_mcp-search__*, mcp__deepwiki__*]
-model: opus
----
-
 # Research and Incorporate Command
-
-> **Note**: This command uses extended thinking (`ultrathink`) for comprehensive research.
-
-ultrathink
 
 Research external topics, create comprehensive analysis, and incorporate learnings into memory systems.
 

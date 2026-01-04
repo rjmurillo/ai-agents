@@ -1,21 +1,19 @@
 ---
 name: merge-resolver
 version: 2.0.0
-model: claude-opus-4-5-20251101
+description: Resolve merge conflicts by analyzing git history and commit intent. Use when PR has conflicts with base branch, can't merge due to conflicts, or need to fix merge conflicts systematically with session protocol validation.
 license: MIT
-description: >
-  Resolve merge conflicts intelligently using git history.
-  Fetches PR context, identifies conflicted files, uses git blame
-  and commit history to infer developer intent.
-  Applies resolution strategies based on change type (bugfix, feature, refactor).
-  Auto-resolves session artifacts and templates. Validates session protocol before push.
+model: claude-opus-4-5
 metadata:
-  domains: [git, github, merge-conflicts, pr-maintenance]
+  domains:
+  - git
+  - github
+  - merge-conflicts
+  - pr-maintenance
   type: workflow
   complexity: advanced
   adr: ADR-015
 ---
-
 # Merge Resolver
 
 Resolve merge conflicts by analyzing git history and commit intent.

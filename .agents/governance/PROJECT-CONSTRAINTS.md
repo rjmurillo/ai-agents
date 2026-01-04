@@ -101,7 +101,8 @@ Single source of truth for project constraints. Index-style document pointing to
 | MUST initialize Serena before any other action | SESSION-PROTOCOL | Tool output in transcript |
 | MUST read .agents/HANDOFF.md before starting work | SESSION-PROTOCOL | Content in context |
 | MUST create session log early in session | SESSION-PROTOCOL | File exists |
-| MUST update HANDOFF.md at session end | SESSION-PROTOCOL | Modified timestamp |
+| MUST NOT modify HANDOFF.md during session | SESSION-PROTOCOL, ADR-014 | HANDOFF.md unchanged |
+| MUST update session log at session end | SESSION-PROTOCOL | Session log complete |
 | MUST commit all changes before ending | SESSION-PROTOCOL | Git status clean |
 
 **Reference**: [SESSION-PROTOCOL.md](../SESSION-PROTOCOL.md)
