@@ -22,6 +22,31 @@ except ImportError:
     HAS_YAML = False
 
 
+def validate_path_safety(path: Path, allowed_base: Path = None) -> bool:
+    """
+    Validate that a resolved path is safe (prevents directory traversal).
+
+    Args:
+        path: Path to validate (will be resolved)
+        allowed_base: Base directory that path must be within (defaults to cwd)
+
+    Returns:
+        True if path is safe, False otherwise
+    """
+    if allowed_base is None:
+        allowed_base = Path.cwd().resolve()
+    else:
+        allowed_base = allowed_base.resolve()
+
+    resolved_path = path.resolve()
+
+    try:
+        resolved_path.relative_to(allowed_base)
+        return True
+    except ValueError:
+        return False
+
+
 def validate_skill(skill_path):
     """
     Basic validation of a skill for packaging compatibility.
@@ -37,7 +62,11 @@ def validate_skill(skill_path):
     Returns:
         tuple: (is_valid: bool, message: str)
     """
-    skill_path = Path(skill_path)
+    skill_path = Path(skill_path).resolve()
+
+    # Validate path safety (prevent directory traversal)
+    if not validate_path_safety(skill_path):
+        return False, f"Invalid path: {skill_path} is outside the repository root"
 
     # Check SKILL.md exists
     skill_md = skill_path / 'SKILL.md'
@@ -127,13 +156,20 @@ def main():
         print("  python quick_validate.py ~/.claude/skills/my-skill/")
         sys.exit(1)
 
-    # Normalize and resolve the user-provided path to avoid unexpected traversal issues
+    # Normalize and resolve the user-provided path
     raw_skill_path = sys.argv[1]
-    skill_path = Path(raw_skill_path).expanduser().resolve()
+    skill_path_obj = Path(raw_skill_path).expanduser().resolve()
 
-    if not skill_path.exists():
-        print(f"Error: Path not found: {skill_path}")
+    # Validate path safety (prevent directory traversal)
+    if not validate_path_safety(skill_path_obj):
+        print(f"❌ Error: Path is outside the allowed directory: {skill_path_obj}")
         sys.exit(1)
+
+    if not skill_path_obj.exists():
+        print(f"❌ Error: Path not found: {raw_skill_path}")
+        sys.exit(1)
+
+    skill_path = raw_skill_path
 
     valid, message = validate_skill(str(skill_path))
 

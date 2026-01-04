@@ -17,11 +17,42 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
 
+def validate_path_safety(path: Path, allowed_base: Path = None) -> bool:
+    """
+    Validate that a resolved path is safe (prevents directory traversal).
+
+    Args:
+        path: Path to validate (will be resolved)
+        allowed_base: Base directory that path must be within (defaults to cwd)
+
+    Returns:
+        True if path is safe, False otherwise
+    """
+    if allowed_base is None:
+        allowed_base = Path.cwd().resolve()
+    else:
+        allowed_base = allowed_base.resolve()
+
+    resolved_path = path.resolve()
+
+    try:
+        resolved_path.relative_to(allowed_base)
+        return True
+    except ValueError:
+        return False
+
+
 class SkillValidator:
     """Validates skill files against SkillForge 4.0 standards."""
 
     def __init__(self, skill_path: str):
-        self.skill_path = Path(skill_path)
+        skill_path_obj = Path(skill_path).resolve()
+
+        # Validate path safety (prevent directory traversal)
+        if not validate_path_safety(skill_path_obj):
+            raise ValueError(f"Invalid path: {skill_path} is outside the repository root")
+
+        self.skill_path = skill_path_obj
         self.skill_md_path = self._find_skill_md()
         self.content = ""
         self.frontmatter: Dict[str, Any] = {}

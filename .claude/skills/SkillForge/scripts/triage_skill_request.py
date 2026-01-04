@@ -159,7 +159,8 @@ def classify_input(query: str) -> Tuple[str, Dict[str, Any]]:
     for pattern in EXPLICIT_CREATE_PATTERNS:
         if re.search(pattern, query_lower):
             # Extract the purpose/goal
-            purpose_match = re.search(r'skill\s+(?:for|to)\s+(.+?)(?:\.|$)', query_lower)
+            # Use non-greedy match with limited character set to prevent polynomial regex
+            purpose_match = re.search(r'skill\s+(?:for|to)\s+([^\.\n]+?)(?:\.|$)', query_lower)
             if purpose_match:
                 signals["extracted_purpose"] = purpose_match.group(1).strip()
             return InputCategory.EXPLICIT_CREATE, signals
@@ -313,7 +314,6 @@ def calculate_match_score(query: str, skill: Dict) -> Tuple[float, List[str]]:
     query_domains = detect_query_domains(query)
 
     # Step 2: Check if skill's domains match detected query domains (STRONG signal)
-    domain_matched = False
     for domain, matched_terms in query_domains:
         # Direct domain match (skill has this domain in its domains list)
         if domain in skill_domains:
@@ -321,46 +321,45 @@ def calculate_match_score(query: str, skill: Dict) -> Tuple[float, List[str]]:
             domain_score = min(50, 35 + len(matched_terms) * 5)
             score += domain_score
             reasons.append(f"domain: {domain} ({', '.join(matched_terms[:2])})")
-            domain_matched = True
             break  # Only count best domain match
 
     # Step 3: Check if query domain terms appear in skill keywords/description
-    keyword_matched = False
+    keyword_found = False
     for domain, matched_terms in query_domains:
         # Check if domain synonyms appear in skill's keywords
         for term in matched_terms:
             if term in skill_keywords:
                 score += 15
                 reasons.append(f"keyword: {term}")
-                keyword_matched = True
+                keyword_found = True
                 break
-        if keyword_matched:
+        if keyword_found:
             break
 
         # Also check if the DOMAIN NAME itself is in keywords (e.g., "spreadsheet" domain, skill has "spreadsheet" keyword)
         if domain in skill_keywords or domain.replace("_", " ") in skill_keywords:
             score += 15
             reasons.append(f"keyword: {domain}")
-            keyword_matched = True
+            keyword_found = True
             break
 
     # Check if domain terms appear in skill's description
-    desc_matched = False
+    desc_found = False
     for domain, matched_terms in query_domains:
         for term in matched_terms:
             if term in skill_description:
                 score += 10
                 reasons.append(f"description: {term}")
-                desc_matched = True
+                desc_found = True
                 break
-        if desc_matched:
+        if desc_found:
             break
 
         # Also check domain name in description
         if domain in skill_description:
             score += 10
             reasons.append(f"description: {domain}")
-            desc_matched = True
+            desc_found = True
             break
 
     # Step 4: Direct skill name match (works for any skill name)

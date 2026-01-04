@@ -27,6 +27,31 @@ except ImportError:
     from quick_validate import validate_skill
 
 
+def validate_path_safety(path: Path, allowed_base: Path = None) -> bool:
+    """
+    Validate that a resolved path is safe (prevents directory traversal).
+
+    Args:
+        path: Path to validate (will be resolved)
+        allowed_base: Base directory that path must be within (defaults to cwd)
+
+    Returns:
+        True if path is safe, False otherwise
+    """
+    if allowed_base is None:
+        allowed_base = Path.cwd().resolve()
+    else:
+        allowed_base = allowed_base.resolve()
+
+    resolved_path = path.resolve()
+
+    try:
+        resolved_path.relative_to(allowed_base)
+        return True
+    except ValueError:
+        return False
+
+
 def package_skill(skill_path, output_dir=None):
     """
     Package a skill folder into a .skill file.
@@ -59,6 +84,11 @@ def package_skill(skill_path, output_dir=None):
         return None
 
 
+    # Validate path safety (prevent directory traversal)
+    if not validate_path_safety(skill_path):
+        print(f"❌ Error: Skill path is outside the allowed directory: {skill_path}")
+        return None
+
     # Validate skill folder exists
     if not skill_path.exists():
         print(f"❌ Error: Skill folder not found: {skill_path}")
@@ -87,6 +117,10 @@ def package_skill(skill_path, output_dir=None):
     skill_name = skill_path.name
     if output_dir:
         output_path = Path(output_dir).resolve()
+        # Validate output path safety
+        if not validate_path_safety(output_path):
+            print(f"❌ Error: Output path is outside the allowed directory: {output_path}")
+            return None
         output_path.mkdir(parents=True, exist_ok=True)
     else:
         output_path = Path.cwd()
