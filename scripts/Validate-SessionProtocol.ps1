@@ -213,6 +213,10 @@ function Test-HandoffUpdated {
     .SYNOPSIS
         Validates that HANDOFF.md was NOT updated (per SESSION-PROTOCOL.md: "MUST NOT update HANDOFF.md").
         Session context MUST go to session log and Serena memory instead.
+
+    .NOTES
+        Uses git diff to check actual modifications, not filesystem timestamps.
+        Filesystem timestamps are unreliable in CI (all files get checkout timestamp).
     #>
     param(
         [string]$SessionPath,
@@ -232,17 +236,34 @@ function Test-HandoffUpdated {
         return $result
     }
 
-    # Extract session date from filename
-    $sessionFileName = Split-Path -Leaf $SessionPath
-    if ($sessionFileName -match '^(\d{4}-\d{2}-\d{2})') {
-        $sessionDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
-        $handoffModified = (Get-Item $handoffPath).LastWriteTime.Date
+    # Check if HANDOFF.md was modified in current branch using git diff
+    # This is reliable in both local and CI environments
+    Push-Location $BasePath
+    try {
+        # Get the list of files modified between origin/main and HEAD
+        $gitDiff = git diff --name-only origin/main...HEAD 2>&1
+        $handoffModified = $gitDiff -contains ".agents/HANDOFF.md"
 
-        # HANDOFF.md MUST NOT be modified on or after session date (per protocol v1.4)
-        if ($handoffModified -ge $sessionDate) {
+        if ($handoffModified) {
             $result.Passed = $false
-            $result.Issues += "HANDOFF.md was modified ($($handoffModified.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
+            $result.Issues += "HANDOFF.md was modified in this branch (detected via git diff). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
         }
+    }
+    catch {
+        # If git diff fails (e.g., no origin/main), fall back to filesystem check
+        $sessionFileName = Split-Path -Leaf $SessionPath
+        if ($sessionFileName -match '^(\d{4}-\d{2}-\d{2})') {
+            $sessionDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
+            $handoffModifiedDate = (Get-Item $handoffPath).LastWriteTime.Date
+
+            if ($handoffModifiedDate -ge $sessionDate) {
+                $result.Passed = $false
+                $result.Issues += "HANDOFF.md was modified ($($handoffModifiedDate.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
+            }
+        }
+    }
+    finally {
+        Pop-Location
     }
 
     return $result
