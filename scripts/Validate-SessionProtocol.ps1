@@ -236,20 +236,28 @@ function Test-HandoffUpdated {
         return $result
     }
 
-    # Check if HANDOFF.md was modified in current branch using git diff
-    # This is reliable in both local and CI environments
+    # Check if HANDOFF.md was modified in current branch
+    # Strategy: Use git diff if available, fall back to filesystem timestamp
     Push-Location $BasePath
     try {
-        # Check if origin/main exists (may not in shallow checkout)
-        $originMainExists = git rev-parse --verify origin/main 2>$null
-        $gitExitCode = $LASTEXITCODE
+        $useGitDiff = $false
+        $gitDiffWorked = $false
 
-        if ($gitExitCode -eq 0) {
-            # origin/main exists, use git diff
+        # Check if we're in a git repository
+        git rev-parse --git-dir 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            # Check if origin/main exists (may not in shallow checkout)
+            git rev-parse --verify origin/main 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $useGitDiff = $true
+            }
+        }
+
+        if ($useGitDiff) {
+            # Use git diff for reliable detection
             $gitDiff = git diff --name-only origin/main...HEAD 2>&1
-            $gitExitCode = $LASTEXITCODE
-
-            if ($gitExitCode -eq 0) {
+            if ($LASTEXITCODE -eq 0) {
+                $gitDiffWorked = $true
                 $handoffModified = $gitDiff -contains ".agents/HANDOFF.md"
 
                 if ($handoffModified) {
@@ -257,10 +265,26 @@ function Test-HandoffUpdated {
                     $result.Issues += "HANDOFF.md was modified in this branch (detected via git diff). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
                 }
             }
-            # If git diff fails, we can't determine so we pass (assume not modified)
         }
-        # If origin/main doesn't exist (shallow checkout), skip check (assume not modified)
-        # This is safe because CI shallow checkouts don't have the history to check anyway
+
+        # Fall back to filesystem timestamp if git diff not available
+        # (used for test environments, non-git directories)
+        # IMPORTANT: Skip fallback in CI shallow checkouts (timestamp is unreliable)
+        $isGitRepoWithoutOrigin = (git rev-parse --git-dir 2>$null) -and -not $useGitDiff
+        $skipTimestampFallback = $isGitRepoWithoutOrigin  # Shallow checkout case
+
+        if (-not $gitDiffWorked -and -not $skipTimestampFallback) {
+            $sessionFileName = Split-Path -Leaf $SessionPath
+            if ($sessionFileName -match '^(\d{4}-\d{2}-\d{2})') {
+                $sessionDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
+                $handoffModifiedDate = (Get-Item $handoffPath).LastWriteTime.Date
+
+                if ($handoffModifiedDate -ge $sessionDate) {
+                    $result.Passed = $false
+                    $result.Issues += "HANDOFF.md was modified ($($handoffModifiedDate.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
+                }
+            }
+        }
     }
     finally {
         Pop-Location
