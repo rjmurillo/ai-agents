@@ -45,7 +45,17 @@ $violations = @()
 
 # Validate file exists
 if (-not (Test-Path -Path $Path)) {
+  $resolvedPath = Resolve-Path -Path $Path -ErrorAction SilentlyContinue
+  $currentDir = Get-Location
   Write-Host "[FAIL] File not found: $Path" -ForegroundColor Red
+  Write-Host "  Current directory: $currentDir" -ForegroundColor Yellow
+  if ($resolvedPath) {
+    Write-Host "  Resolved path: $resolvedPath" -ForegroundColor Yellow
+  }
+  Write-Host "  Troubleshooting:" -ForegroundColor Cyan
+  Write-Host "    - Verify file path is correct" -ForegroundColor Cyan
+  Write-Host "    - Check if file has been moved or deleted" -ForegroundColor Cyan
+  Write-Host "    - Use absolute path if relative path is ambiguous" -ForegroundColor Cyan
   exit $EXIT_VIOLATION
 }
 
@@ -129,9 +139,15 @@ if ($usesBashExecution -and $null -ne $frontmatter) {
   $bashCommands = [regex]::Matches($content, '!\s*(\w+)') | ForEach-Object { $_.Groups[1].Value }
   foreach ($cmd in $bashCommands) {
     if ($cmd -in @('git', 'gh', 'npm', 'npx')) {
-      $exists = Get-Command $cmd -ErrorAction SilentlyContinue
-      if (-not $exists) {
+      try {
+        $exists = Get-Command $cmd -ErrorAction Stop
+      }
+      catch [System.Management.Automation.CommandNotFoundException] {
         $violations += "WARNING: Bash command '$cmd' not found in PATH (runtime may fail)"
+      }
+      catch {
+        # Other errors (execution policy, PATH corruption, etc.) should be surfaced
+        Write-Warning "Error checking command '$cmd': $_"
       }
     }
   }
@@ -152,6 +168,9 @@ if (-not $SkipLint) {
   if ($LASTEXITCODE -ne 0) {
     $violations += "BLOCKING: Markdown lint errors:"
     $violations += $lintResult
+    $violations += ""
+    $violations += "  To auto-fix: npx markdownlint-cli2 --fix $Path"
+    $violations += "  Configuration: .markdownlint.json (if exists) or defaults"
   }
 }
 

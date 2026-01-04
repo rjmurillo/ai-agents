@@ -18,7 +18,7 @@ function Invoke-SlashCommandValidation {
         Returns exit code 0 if all pass, exit code 1 if any fail
     #>
 
-    $files = Get-ChildItem -Path '.claude/commands' -Filter '*.md' -Recurse
+    $files = @(Get-ChildItem -Path '.claude/commands' -Filter '*.md' -Recurse -ErrorAction SilentlyContinue)
 
     if ($files.Count -eq 0) {
         Write-Host "No slash command files found, skipping validation"

@@ -62,7 +62,15 @@ if (Test-Path $filePath) {
 # Ensure directory exists
 $directory = Split-Path -Path $filePath -Parent
 if (-not (Test-Path $directory)) {
-    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    try {
+        New-Item -ItemType Directory -Path $directory -Force -ErrorAction Stop | Out-Null
+        Write-Verbose "Created directory: $directory"
+    }
+    catch {
+        Write-Error "Failed to create commands directory '$directory': $_"
+        Write-Error "Check permissions, disk space, and path validity"
+        exit 1
+    }
 }
 
 # Generate frontmatter template
@@ -92,7 +100,17 @@ allowed-tools: []
 ``````
 "@
 
-$template | Out-File -FilePath $filePath -Encoding utf8
+try {
+    $template | Out-File -FilePath $filePath -Encoding utf8 -ErrorAction Stop
+    if (-not (Test-Path $filePath)) {
+        throw "File write succeeded but file does not exist"
+    }
+}
+catch {
+    Write-Error "Failed to write command file '$filePath': $_"
+    Write-Error "Check disk space, file locks, and filesystem health"
+    exit 1
+}
 
 Write-Host "[PASS] Created: $filePath" -ForegroundColor Green
 Write-Host "`nNext steps:" -ForegroundColor Cyan
