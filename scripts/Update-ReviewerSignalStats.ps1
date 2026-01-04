@@ -70,21 +70,35 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Import GitHubCore module for shared functions (rate limiting, repo info)
+$script:GitHubCorePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+if (Test-Path $script:GitHubCorePath) {
+    Import-Module $script:GitHubCorePath -Force
+}
+
 #region Configuration
 
 $script:Config = @{
-    # Authors to exclude from reviewer counts (they can't review their own PRs)
-    ExcludedAuthors = @('rjmurillo', 'rjmurillo-bot', 'dependabot[bot]')
+    # Authors to skip when counting comments ON THEIR OWN PRs
+    # Note: These authors CAN and DO review other authors' PRs (e.g., rjmurillo reviews
+    # rjmurillo-bot PRs and vice versa). This only excludes self-comments on own PRs.
+    SelfCommentExcludedAuthors = @('dependabot[bot]')
 
     # Actionability heuristics scoring
+    # SCORE RANGE: 0.0 to 1.0
+    # - 0.5 = neutral starting point
+    # - Positive adjustments increase actionability likelihood
+    # - Negative adjustments decrease actionability likelihood
+    # - Final score clamped to [0, 1] range
+    # - IsActionable = true when score >= 0.5
     Heuristics = @{
-        # Positive signals
+        # Positive signals (add to score)
         FixedInReply = 1.0         # Reply contains "Fixed in" - confirmed implementation
         WontFixReply = 0.5         # Reply contains "Won't fix" - valid observation, intentional skip
         SeverityHigh = 0.3         # High/Critical severity - likely actionable
         PotentialNull = 0.2        # Contains "potential null" - usually valid
 
-        # Negative signals
+        # Negative signals (subtract from score)
         SeverityLow = -0.1         # Low severity - often style noise
         UnusedRemove = -0.2        # Contains "unused"/"remove" - often false positive
         NoReplyAfterDays = -0.3    # No reply after N days - likely ignored
@@ -130,35 +144,15 @@ function Write-Log {
 
 #endregion
 
-#region Repository Info
-
-function Get-RepoInfo {
-    [CmdletBinding()]
-    param()
-
-    $remote = git remote get-url origin 2>$null
-    if (-not $remote) {
-        throw "Not in a git repository or no origin remote"
-    }
-
-    if ($remote -match 'github\.com[:/]([^/]+)/([^/.]+)') {
-        return @{
-            Owner = $Matches[1]
-            Repo = $Matches[2] -replace '\.git$', ''
-        }
-    }
-
-    throw "Could not parse GitHub repository from remote: $remote"
-}
-
-#endregion
-
 #region Rate Limiting
 
 function Test-RateLimitSafe {
     <#
     .SYNOPSIS
         Check if API rate limit is sufficient for operations.
+    .NOTES
+        If GitHubCore module is loaded, uses Test-WorkflowRateLimit from there.
+        Otherwise falls back to local implementation.
     #>
     [CmdletBinding()]
     param(
@@ -166,6 +160,25 @@ function Test-RateLimitSafe {
         [int]$MinGraphQL = 100
     )
 
+    # Use shared function if GitHubCore module is loaded
+    if (Get-Command -Name Test-WorkflowRateLimit -ErrorAction SilentlyContinue) {
+        try {
+            $result = Test-WorkflowRateLimit -ResourceThresholds @{
+                'core'    = $MinCore
+                'graphql' = $MinGraphQL
+            }
+            if (-not $result.Success) {
+                Write-Log "Rate limit too low: core=$($result.CoreRemaining)" -Level WARN
+            }
+            return $result.Success
+        }
+        catch {
+            Write-Log "Failed to check rate limit via GitHubCore: $_" -Level WARN
+            # Fall through to local implementation
+        }
+    }
+
+    # Local fallback
     $limits = gh api rate_limit 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Log "Failed to check rate limit: $limits" -Level WARN
@@ -188,6 +201,51 @@ function Test-RateLimitSafe {
         Write-Log "Failed to parse rate limit response: $_" -Level WARN
         return $true
     }
+}
+
+#endregion
+
+#region Repository Info
+
+function Get-RepoInfoLocal {
+    <#
+    .SYNOPSIS
+        Get repository owner and repo from git remote.
+    .NOTES
+        If GitHubCore module is loaded, uses Get-RepoInfo from there.
+        Otherwise uses local implementation.
+    #>
+    [CmdletBinding()]
+    param()
+
+    # Use shared function if GitHubCore module is loaded
+    if (Get-Command -Name Get-RepoInfo -ErrorAction SilentlyContinue) {
+        try {
+            $result = Get-RepoInfo
+            if ($result) {
+                return $result
+            }
+        }
+        catch {
+            Write-Log "Failed to get repo info via GitHubCore: $_" -Level WARN
+            # Fall through to local implementation
+        }
+    }
+
+    # Local fallback
+    $remote = git remote get-url origin 2>$null
+    if (-not $remote) {
+        throw "Not in a git repository or no origin remote"
+    }
+
+    if ($remote -match 'github\.com[:/]([^/]+)/([^/.]+)') {
+        return @{
+            Owner = $Matches[1]
+            Repo = $Matches[2] -replace '\.git$', ''
+        }
+    }
+
+    throw "Could not parse GitHub repository from remote: $remote"
 }
 
 #endregion
@@ -327,13 +385,21 @@ query {
 function Get-CommentsByReviewer {
     <#
     .SYNOPSIS
-        Group comments by reviewer, excluding PR authors.
+        Group comments by reviewer.
+
+    .DESCRIPTION
+        Aggregates review comments by reviewer login. Excludes comments where
+        the reviewer is commenting on their own PR (self-comments).
+        
+        Note: Authors CAN review other authors' PRs. For example, rjmurillo
+        reviews rjmurillo-bot PRs and vice versa. Only self-comments are excluded.
 
     .PARAMETER PRs
         Array of PR objects with review threads.
 
-    .PARAMETER ExcludedAuthors
-        List of authors to exclude from reviewer counts.
+    .PARAMETER SelfCommentExcludedAuthors
+        List of bot authors whose self-comments should be excluded.
+        Human authors can still be counted when reviewing other PRs.
     #>
     [CmdletBinding()]
     param(
@@ -341,7 +407,7 @@ function Get-CommentsByReviewer {
         [array]$PRs,
 
         [Parameter()]
-        [string[]]$ExcludedAuthors = @()
+        [string[]]$SelfCommentExcludedAuthors = @()
     )
 
     $reviewerStats = @{}
@@ -353,9 +419,11 @@ function Get-CommentsByReviewer {
             foreach ($comment in $thread.comments.nodes) {
                 $commentAuthor = $comment.author.login
 
-                # Skip if comment author is the PR author or in excluded list
+                # Skip self-comments (reviewer commenting on their own PR)
                 if ($commentAuthor -eq $prAuthor) { continue }
-                if ($commentAuthor -in $ExcludedAuthors) { continue }
+                
+                # Skip specified bot self-comments
+                if ($commentAuthor -in $SelfCommentExcludedAuthors -and $commentAuthor -eq $prAuthor) { continue }
 
                 # Initialize reviewer stats if needed
                 if (-not $reviewerStats.ContainsKey($commentAuthor)) {
@@ -655,11 +723,12 @@ function Export-StatsJson {
 function Update-SerenaMemory {
     <#
     .SYNOPSIS
-        Update the Serena memory file with new statistics.
+        Validate the Serena memory file exists.
 
     .DESCRIPTION
-        Updates specific sections of the pr-comment-responder-skills.md file
-        with the latest statistics. Preserves existing content structure.
+        Verifies the pr-comment-responder-skills.md file exists and logs stats summary.
+        The memory file itself is not modified - git history tracks file modifications,
+        and adding timestamps would just waste tokens without changing LLM behavior.
 
     .PARAMETER Stats
         Reviewer statistics from Get-ReviewerSignalStats.
@@ -681,21 +750,14 @@ function Update-SerenaMemory {
         return $false
     }
 
-    $content = Get-Content -Path $MemoryPath -Raw
-
-    # Update the "Last updated" date in Per-Reviewer Performance section
-    $today = (Get-Date).ToString('yyyy-MM-dd')
-    $content = $content -replace '(Last updated:\s*)\d{4}-\d{2}-\d{2}', "`${1}$today"
-
-    # Log stats summary (uses the Stats parameter)
+    # Log stats summary for visibility
     $reviewerCount = $Stats.Count
-    Write-Log "Updating memory with $reviewerCount reviewer(s) data" -Level DEBUG
+    Write-Log "Stats computed for $reviewerCount reviewer(s)" -Level DEBUG
+    Write-Log "Memory file validated: $MemoryPath" -Level SUCCESS
 
-    # Note: Full table regeneration would require more complex parsing
-    # For now, just update the date. Full table update would be a future enhancement.
-
-    Set-Content -Path $MemoryPath -Value $content -Encoding UTF8 -NoNewline
-    Write-Log "Updated memory file timestamp: $MemoryPath" -Level SUCCESS
+    # Note: We intentionally don't modify the memory file here.
+    # The JSON output at .agents/stats/reviewer-signal.json is the primary data source.
+    # Git history tracks when files were modified, so adding timestamps wastes tokens.
 
     return $true
 }
@@ -721,7 +783,7 @@ try {
 
     # Resolve repo info
     if (-not $Owner -or -not $Repo) {
-        $repoInfo = Get-RepoInfo
+        $repoInfo = Get-RepoInfoLocal
         if (-not $Owner) { $Owner = $repoInfo.Owner }
         if (-not $Repo) { $Repo = $repoInfo.Repo }
     }
@@ -745,10 +807,10 @@ try {
     }
 
     # Group comments by reviewer
-    $reviewerStats = Get-CommentsByReviewer -PRs $prs -ExcludedAuthors $script:Config.ExcludedAuthors
+    $reviewerStats = Get-CommentsByReviewer -PRs $prs -SelfCommentExcludedAuthors $script:Config.SelfCommentExcludedAuthors
 
     if ($reviewerStats.Count -eq 0) {
-        Write-Log "No reviewer comments found (excluding PR authors)" -Level WARN
+        Write-Log "No reviewer comments found (excluding self-comments)" -Level WARN
         exit 0
     }
 
@@ -758,7 +820,7 @@ try {
     # Export to JSON
     $outputData = Export-StatsJson -Stats $signalStats -PRsAnalyzed $prs.Count -DaysAnalyzed $DaysBack -OutputPath $OutputPath
 
-    # Optionally update Serena memory
+    # Optionally validate Serena memory
     if ($UpdateMemory) {
         $repoRoot = git rev-parse --show-toplevel
         $memoryPath = Join-Path $repoRoot $script:Config.MemoryPath

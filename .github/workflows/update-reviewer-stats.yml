@@ -52,7 +52,7 @@ jobs:
       - name: Run statistics aggregation
         shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
           $daysBack = '${{ github.event.inputs.days_back }}'
           if (-not $daysBack -or $daysBack -eq '') { $daysBack = '90' }
@@ -65,13 +65,13 @@ jobs:
             -UpdateMemory
 
       - name: Commit updated stats
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
           
           if [[ -n "$(git status --porcelain)" ]]; then
             git add .agents/stats/reviewer-signal.json
-            git add .serena/memories/pr-comment-responder-skills.md
             git commit -m "chore(stats): update reviewer signal statistics
 
           Automated daily update of PR reviewer signal quality metrics.

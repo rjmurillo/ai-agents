@@ -11,7 +11,7 @@
 #>
 
 BeforeAll {
-    $Script:ScriptPath = Join-Path $PSScriptRoot "..\Update-ReviewerSignalStats.ps1"
+    $Script:ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "Update-ReviewerSignalStats.ps1"
     $Script:TestDir = Join-Path $TestDrive "reviewer-stats-test"
 
     # Load script functions for testing
@@ -67,9 +67,8 @@ Describe "Update-ReviewerSignalStats.ps1" {
     }
 
     Context "Configuration" {
-        It "Defines excluded authors" {
-            $script:Config.ExcludedAuthors | Should -Contain "rjmurillo"
-            $script:Config.ExcludedAuthors | Should -Contain "rjmurillo-bot"
+        It "Defines self-comment excluded authors" {
+            $script:Config.SelfCommentExcludedAuthors | Should -Contain "dependabot[bot]"
         }
 
         It "Defines actionability heuristics" {
@@ -248,7 +247,7 @@ Describe "Update-ReviewerSignalStats.ps1" {
             $result.Keys | Should -Not -Contain "author1"
         }
 
-        It "Excludes specified authors" {
+        It "Allows authors to review OTHER authors' PRs" {
             $prs = @(
                 @{
                     number = 1
@@ -262,7 +261,7 @@ Describe "Update-ReviewerSignalStats.ps1" {
                                     nodes = @(
                                         @{
                                             id = "c1"
-                                            body = "Bot comment"
+                                            body = "Review comment"
                                             author = @{ login = "rjmurillo" }
                                             createdAt = (Get-Date).ToString('o')
                                             path = "file.ps1"
@@ -275,8 +274,10 @@ Describe "Update-ReviewerSignalStats.ps1" {
                 }
             )
             
-            $result = Get-CommentsByReviewer -PRs $prs -ExcludedAuthors @("rjmurillo")
-            $result.Keys | Should -Not -Contain "rjmurillo"
+            # rjmurillo is reviewing someone else's PR - should be counted
+            $result = Get-CommentsByReviewer -PRs $prs
+            $result.Keys | Should -Contain "rjmurillo"
+            $result["rjmurillo"].TotalComments | Should -Be 1
         }
 
         It "Tracks unique PRs per reviewer" {
