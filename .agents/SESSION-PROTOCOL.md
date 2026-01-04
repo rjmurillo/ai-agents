@@ -48,6 +48,15 @@ Labels like "MANDATORY" or "NON-NEGOTIABLE" are insufficient. Each requirement M
 
 ## Session Start Protocol
 
+### Phase 0: Get oriented (BLOCKING)
+
+The agent MUST check recent commits and current branch
+
+1. The agent MUST run `git branch --show-current` to verify correct branch
+2. The agent MUST verify the branch matches the intended work context (issue, PR, feature)
+3. The agent MUST NOT proceed with work if on `main` or `master` branch (create feature branch first)
+4. The agent MUST check recent commits `git log --oneline -5`
+
 ### Phase 1: Serena Initialization (BLOCKING)
 
 The agent MUST complete Serena initialization before any other action. This is a **blocking gate**.
