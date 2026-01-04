@@ -104,7 +104,7 @@ The project uses four MCP servers for extended capabilities:
 | Server | Transport | Purpose |
 |--------|-----------|---------|
 | **Serena** | stdio | Code analysis, project memory, symbol lookup |
-| **Forgetful** | HTTP (`localhost:8020/mcp`) | Semantic search, knowledge graph |
+| **Forgetful** | stdio | Semantic search, knowledge graph |
 | **Claude-Mem** | stdio | Session observations, export/import for sharing |
 | **DeepWiki** | HTTP (`mcp.deepwiki.com/mcp`) | Documentation lookup |
 
@@ -154,11 +154,7 @@ mcp__forgetful__execute_forgetful_tool("create_entity", {"name": "...", "entity_
 mcp__forgetful__execute_forgetful_tool("search_entities", {"query": "..."})
 ```
 
-**Verification**: If forgetful tools are unavailable:
-
-```bash
-pwsh scripts/forgetful/Test-ForgetfulHealth.ps1
-```
+**Verification**: If forgetful tools are unavailable, check that `uvx` is installed and accessible in your PATH.
 
 ### Claude-Mem (Session Memory Export/Import)
 
@@ -528,7 +524,7 @@ Location: `.agents/steering/`
 | Linting fails | `npx markdownlint-cli2 --fix "**/*.md"` |
 | Git issues | `git log --oneline -5` for recent commits |
 | Protocol violation | Acknowledge, complete missed step, document |
-| Forgetful unavailable | `pwsh scripts/forgetful/Test-ForgetfulHealth.ps1` |
+| Forgetful unavailable | Check `uvx` installation and PATH configuration |
 
 ---
 

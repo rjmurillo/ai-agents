@@ -4,9 +4,9 @@ allowed-tools: [WebSearch, WebFetch, mcp__forgetful__*, mcp__serena__*, Skill]
 model: opus
 ---
 
-ultrathink
-
 # Research and Incorporate Command
+
+ultrathink
 
 Research external topics, create comprehensive analysis, and incorporate learnings into memory systems.
 

@@ -21,8 +21,11 @@
       "url": "https://mcp.deepwiki.com/mcp"
     },
     "forgetful": {
-      "type": "http",
-      "url": "http://localhost:8020/mcp"
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "forgetful-ai"
+      ]
     }
   }
 }

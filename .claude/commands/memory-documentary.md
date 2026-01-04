@@ -5,9 +5,9 @@ allowed-tools: [mcp__forgetful__*, mcp__serena__*, mcp__context7__*, WebSearch, 
 model: opus
 ---
 
-ultrathink
-
 # Memory Documentary
+
+ultrathink
 
 Generate evidence-based documentary reports by searching across all memory systems.
 
