@@ -14,10 +14,10 @@
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
 | MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
 | MUST | Create this session log | [x] | This file exists |
-| MUST | List skill scripts in `.claude/skills/github/scripts/` | [N/A] | Security enhancement, no GitHub skills needed |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Listed below |
 | MUST | Read usage-mandatory memory | [x] | Content in context |
-| MUST | Read PROJECT-CONSTRAINTS.md | [N/A] | Content auto-loaded via CRITICAL-CONTEXT.md |
-| MUST | Read memory-index, load task-relevant memories | [x] | Loaded security-infrastructure-review |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content auto-loaded via CRITICAL-CONTEXT.md |
+| MUST | Read memory-index, load task-relevant memories | [x] | Loaded: security-infrastructure-review, usage-mandatory |
 | SHOULD | Import shared memories: `pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1` | [N/A] | Not required for this task |
 | MUST | Verify and declare current branch | [x] | Branch documented below |
 | MUST | Confirm not on main/master | [x] | On feature branch |
@@ -34,6 +34,12 @@
 
 **Current Branch**: fix/claude-workflow-oidc-permission
 **Matches Expected Context**: Yes (fixing OIDC permission issue)
+
+### Skill Inventory
+
+Available GitHub skills (not used in this session):
+- `.claude/skills/github/scripts/` directory exists
+- Various PR, issue, and GitHub CLI automation scripts available
 
 ## Objective
 
