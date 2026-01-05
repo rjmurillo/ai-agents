@@ -82,6 +82,14 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ github.token }}
+          enable-pester: true
+          enable-git-hooks: true
+          skip-autofix: 0
+
       # Pin to v1.0.27 - https://github.com/anthropics/claude-code-action/releases/tag/v1.0.27
       - uses: anthropics/claude-code-action@7145c3e0510bcdbdd29f67cc4a8c1958f1acfa2f
         with:
