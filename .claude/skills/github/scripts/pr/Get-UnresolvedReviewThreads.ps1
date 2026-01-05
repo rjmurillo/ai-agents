@@ -65,6 +65,9 @@ Import-Module $modulePath -Force
 # Auto-detect repo info if not provided
 if (-not $Owner -or -not $Repo) {
     $repoInfo = Get-RepoInfo  # From GitHubCore.psm1
+    if ($null -eq $repoInfo) {
+        Write-Error "Not in a git repository or no origin remote found" -ErrorAction Stop
+    }
     if (-not $Owner) { $Owner = $repoInfo.Owner }
     if (-not $Repo) { $Repo = $repoInfo.Repo }
 }
