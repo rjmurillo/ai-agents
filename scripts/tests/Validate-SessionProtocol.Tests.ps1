@@ -364,19 +364,19 @@ Describe "Test-HandoffUpdated Date Parsing Behavior" {
             param([Parameter(ValueFromRemainingArguments)]$Arguments)
 
             if ($Arguments -contains 'rev-parse' -and $Arguments -contains '--git-dir') {
-                $LASTEXITCODE = 0
+                $global:LASTEXITCODE = 0
                 return ".git"
             }
             elseif ($Arguments -contains 'rev-parse' -and $Arguments -contains '--verify') {
-                $LASTEXITCODE = 0
+                $global:LASTEXITCODE = 0
                 return "abc123"
             }
             elseif ($Arguments -contains 'diff' -and $Arguments -contains '--name-only') {
-                $LASTEXITCODE = 0
+                $global:LASTEXITCODE = 0
                 return "other-file.md"  # HANDOFF.md not in changes
             }
 
-            $LASTEXITCODE = 1
+            $global:LASTEXITCODE = 1
             return ""
         }
 
@@ -401,7 +401,7 @@ Describe "Test-HandoffUpdated Date Parsing Behavior" {
             param([Parameter(ValueFromRemainingArguments)]$Arguments)
 
             # All git commands fail (simulating shallow clone or non-git directory)
-            $LASTEXITCODE = 128
+            $global:LASTEXITCODE = 128
             return "fatal: shallow clone"
         }
 
@@ -427,7 +427,7 @@ Describe "Test-HandoffUpdated Date Parsing Behavior" {
             param([Parameter(ValueFromRemainingArguments)]$Arguments)
 
             # All git commands fail (simulating non-git directory)
-            $LASTEXITCODE = 128
+            $global:LASTEXITCODE = 128
             return "fatal: not a git repository"
         }
 
@@ -437,6 +437,126 @@ Describe "Test-HandoffUpdated Date Parsing Behavior" {
             $result.Passed | Should -BeFalse
             $result.Issues | Should -Match "error parsing session date|invalid date format"
             $result.Issues | Should -Match "Cannot validate HANDOFF.md modification without git diff"
+        }
+        finally {
+            Remove-Item function:\git -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Describe "Test-HandoffUpdated Shallow Checkout Detection" {
+    <#
+    .SYNOPSIS
+        CRITICAL test coverage (Rating 9/10) - Tests shallow clone detection logic.
+        Verifies that shallow checkouts fail validation with clear guidance instead of
+        using unreliable filesystem timestamps.
+    #>
+
+    BeforeEach {
+        # Create HANDOFF.md
+        $handoffPath = Join-Path $AgentsPath "HANDOFF.md"
+        New-Item -ItemType File -Path $handoffPath -Force | Out-Null
+        Set-Content -Path $handoffPath -Value "# Handoff"
+    }
+
+    It "Fails validation when shallow checkout detected (git repo but no origin/main)" {
+        $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
+        New-Item -ItemType File -Path $sessionPath -Force | Out-Null
+
+        # Mock git to simulate shallow checkout (git repo exists, origin/main does not)
+        function global:git {
+            param([Parameter(ValueFromRemainingArguments)]$Arguments)
+
+            if ($Arguments -contains 'rev-parse' -and $Arguments -contains '--git-dir') {
+                # Git repo exists
+                $global:LASTEXITCODE = 0
+                return ".git"
+            }
+            elseif ($Arguments -contains 'rev-parse' -and $Arguments -contains '--verify' -and $Arguments -contains 'origin/main') {
+                # origin/main does not exist (shallow checkout)
+                $global:LASTEXITCODE = 128
+                return "fatal: Needed a single revision"
+            }
+
+            $global:LASTEXITCODE = 1
+            return ""
+        }
+
+        try {
+            # CRITICAL: Should fail with clear guidance
+            $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
+            $result.Passed | Should -BeFalse
+            $result.Issues | Should -Match "Cannot validate HANDOFF.md modification in shallow git checkout"
+            $result.Issues | Should -Match "Git diff requires origin/main reference"
+            $result.Issues | Should -Match "Ensure full clone or fetch origin/main"
+        }
+        finally {
+            Remove-Item function:\git -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "Falls back to filesystem timestamp when git unavailable (not suppressed)" {
+        $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
+        New-Item -ItemType File -Path $sessionPath -Force | Out-Null
+
+        # Set HANDOFF.md to older date so filesystem fallback passes
+        $handoffPath = Join-Path $AgentsPath "HANDOFF.md"
+        (Get-Item $handoffPath).LastWriteTime = [DateTime]::Parse("2025-12-16")
+
+        # Mock git to return error (not suppressed with 2>$null)
+        function global:git {
+            param([Parameter(ValueFromRemainingArguments)]$Arguments)
+
+            if ($Arguments -contains 'rev-parse' -and $Arguments -contains '--git-dir') {
+                # Git command fails with error message
+                $global:LASTEXITCODE = 128
+                return "fatal: not a git repository (or any of the parent directories): .git"
+            }
+
+            $global:LASTEXITCODE = 1
+            return ""
+        }
+
+        try {
+            # CRITICAL: Should fall back to filesystem timestamp and pass
+            # (verifies that git errors don't block fallback path)
+            $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
+            $result.Passed | Should -BeTrue
+            # Warning should indicate filesystem fallback
+            $result.Warnings | Should -Match "filesystem timestamp.*git not available"
+        }
+        finally {
+            Remove-Item function:\git -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "Provides actionable error message mentioning fetch origin/main" {
+        $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
+        New-Item -ItemType File -Path $sessionPath -Force | Out-Null
+
+        # Mock git for shallow checkout scenario
+        function global:git {
+            param([Parameter(ValueFromRemainingArguments)]$Arguments)
+
+            if ($Arguments -contains 'rev-parse' -and $Arguments -contains '--git-dir') {
+                $global:LASTEXITCODE = 0
+                return ".git"
+            }
+            elseif ($Arguments -contains 'rev-parse' -and $Arguments -contains '--verify') {
+                # Shallow checkout - no origin/main
+                $global:LASTEXITCODE = 128
+                return "fatal: Needed a single revision"
+            }
+
+            $global:LASTEXITCODE = 1
+            return ""
+        }
+
+        try {
+            $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
+            $result.Passed | Should -BeFalse
+            # CRITICAL: Error message must be actionable
+            $result.Issues | Should -Match "fetch origin/main"
         }
         finally {
             Remove-Item function:\git -ErrorAction SilentlyContinue
