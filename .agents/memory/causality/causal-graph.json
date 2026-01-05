@@ -1,61 +1,253 @@
 {
-  "edges": [],
-  "updated": "2026-01-04T06:41:18.6420221+00:00",
-  "version": "1.0",
   "patterns": [
     {
-      "occurrences": 1,
-      "success_rate": 0.9,
-      "last_used": "2026-01-04T06:41:18.5849488+00:00",
-      "trigger": "T1",
-      "description": "",
       "action": "A1",
-      "name": "Good pattern",
-      "id": "p001"
-    },
-    {
-      "occurrences": 2,
-      "success_rate": 0.2,
-      "last_used": "2026-01-04T06:41:18.5944036+00:00",
-      "trigger": "T2",
-      "description": "",
-      "action": "A2",
-      "name": "Bad pattern",
-      "id": "p002"
-    },
-    {
-      "occurrences": 2,
-      "success_rate": 0.1,
-      "last_used": "2026-01-04T06:41:18.6081104+00:00",
-      "trigger": "T3",
-      "description": "",
-      "action": "A3",
-      "name": "Worse pattern",
-      "id": "p003"
-    },
-    {
+      "last_used": "2026-01-02T22:18:26.5643068-06:00",
+      "id": "p001",
       "occurrences": 1,
-      "success_rate": 1.0,
-      "last_used": "2026-01-04T06:41:18.6419625+00:00",
-      "trigger": "T",
       "description": "",
+      "success_rate": 0.9,
+      "name": "Good pattern",
+      "trigger": "T1"
+    },
+    {
+      "action": "A2",
+      "last_used": "2026-01-02T22:18:26.5754379-06:00",
+      "id": "p002",
+      "occurrences": 2,
+      "description": "",
+      "success_rate": 0.2,
+      "name": "Bad pattern",
+      "trigger": "T2"
+    },
+    {
+      "action": "A3",
+      "last_used": "2026-01-02T22:18:26.5885182-06:00",
+      "id": "p003",
+      "occurrences": 2,
+      "description": "",
+      "success_rate": 0.1,
+      "name": "Worse pattern",
+      "trigger": "T3"
+    },
+    {
       "action": "A",
+      "last_used": "2026-01-02T22:18:26.6738111-06:00",
+      "id": "p004",
+      "occurrences": 1,
+      "description": "",
+      "success_rate": 1.0,
       "name": "Status test pattern",
-      "id": "p004"
+      "trigger": "T"
     }
   ],
+  "updated": "2026-01-04T01:02:12.7576833-06:00",
+  "edges": [
+    {
+      "target": "n013",
+      "weight": 0.8,
+      "type": "causes",
+      "source": "n012",
+      "evidence_count": 1
+    },
+    {
+      "target": "n013",
+      "weight": 0.8,
+      "type": "causes",
+      "source": "n014",
+      "evidence_count": 1
+    },
+    {
+      "target": "n013",
+      "weight": 0.8,
+      "type": "causes",
+      "source": "n015",
+      "evidence_count": 1
+    },
+    {
+      "target": "n013",
+      "weight": 0.8,
+      "type": "causes",
+      "source": "n016",
+      "evidence_count": 1
+    },
+    {
+      "target": "n013",
+      "weight": 0.8,
+      "type": "causes",
+      "source": "n017",
+      "evidence_count": 1
+    }
+  ],
+  "version": "1.0",
   "nodes": [
     {
-      "label": "Status test node",
-      "type": "decision",
-      "success_rate": 1.0,
-      "frequency": 1,
       "episodes": [],
-      "id": "n001"
+      "type": "decision",
+      "label": "Status test node",
+      "frequency": 1,
+      "id": "n001",
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "error: - **Objective**: Conduct structured retrospective on PR #760 failures to extract atomic learnings",
+      "id": "n002",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "error: - Critical failure: Attempted to suppress legitimate CodeQL security issues instead of applying user-provided patches",
+      "id": "n003",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "error: - Created comprehensive retrospective document at `.agents/retrospective/2026-01-04-pr760-security-suppression-failure.md`",
+      "id": "n004",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "error: 3. **Excessive Iteration**: No circuit breaker after repeated failures (38 commits)",
+      "id": "n005",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "error: - `.agents/retrospective/2026-01-04-pr760-security-suppression-failure.md` (16KB, comprehensive analysis)",
+      "id": "n006",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "error: - `.serena/memories/autonomous-execution-failures-pr760.md`",
+      "id": "n007",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "error: - Circuit breaker threshold: 3 failed attempts (not 5, not 10)",
+      "id": "n008",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "error: - No session logs from actual PR work (couldn't see agent thought process during failures)",
+      "id": "n009",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "error: | MUST | Run markdown lint | [x] | 23 errors in pre-existing files (not session artifacts) |",
+      "id": "n010",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "Outcome: success - Session 305 - 2026-01-04",
+      "id": "n011",
+      "type": "outcome",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "- Created comprehensive retrospective document at `.agents/retrospective/2026-01-04-pr760-security-suppression-failure.md`",
+      "id": "n012",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "Security fixes require adversarial testing before claiming complete",
+      "id": "n013",
+      "type": "outcome",
+      "frequency": 5,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "3. **Excessive Iteration**: No circuit breaker after repeated failures (38 commits)",
+      "id": "n014",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "- `.agents/retrospective/2026-01-04-pr760-security-suppression-failure.md` (16KB, comprehensive analysis)",
+      "id": "n015",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "- `.serena/memories/autonomous-execution-failures-pr760.md`",
+      "id": "n016",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
+    },
+    {
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "label": "- Circuit breaker threshold: 3 failed attempts (not 5, not 10)",
+      "id": "n017",
+      "type": "error",
+      "frequency": 1,
+      "success_rate": 1.0
     }
   ]
 }
-
-
-
-

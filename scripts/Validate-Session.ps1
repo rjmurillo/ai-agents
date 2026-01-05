@@ -111,8 +111,32 @@ function Parse-ChecklistTable([string[]]$TableLines) {
     if ($line -match '^\|\s*-+\s*\|') { continue } # separator row
     if ($line -match '^\|\s*Req\s*\|') { continue } # header row
 
-    # Split 4 columns, trimming outer pipes.
-    $parts = ($line.Trim() -replace '^\|','' -replace '\|$','').Split('|') | ForEach-Object { $_.Trim() }
+    # Smart split: Split by | but not when inside backticks
+    # Use regex to find column boundaries (| not preceded by backtick content)
+    $trimmedLine = $line.Trim() -replace '^\|','' -replace '\|$',''
+    
+    # Parse columns respecting backtick-enclosed content
+    $parts = [System.Collections.Generic.List[string]]::new()
+    $inBacktick = $false
+    $currentPart = [System.Text.StringBuilder]::new()
+    
+    for ($i = 0; $i -lt $trimmedLine.Length; $i++) {
+      $char = $trimmedLine[$i]
+      if ($char -eq '`') {
+        $inBacktick = -not $inBacktick
+        [void]$currentPart.Append($char)
+      }
+      elseif ($char -eq '|' -and -not $inBacktick) {
+        $parts.Add($currentPart.ToString().Trim())
+        $currentPart = [System.Text.StringBuilder]::new()
+      }
+      else {
+        [void]$currentPart.Append($char)
+      }
+    }
+    # Add the last part
+    $parts.Add($currentPart.ToString().Trim())
+    
     if ($parts.Count -lt 4) { continue }
 
     $req = ($parts[0] -replace '\*','').Trim().ToUpperInvariant()
@@ -317,9 +341,9 @@ function Test-MemoryEvidence {
   # Extract memory names from Evidence (kebab-case identifiers)
   # Pattern: word-word or word-word-word-... (minimum 2 segments)
   $memoryPattern = '[a-z][a-z0-9]*(?:-[a-z0-9]+)+'
-  $foundMemories = [regex]::Matches($evidence, $memoryPattern, 'IgnoreCase') |
+  $foundMemories = @([regex]::Matches($evidence, $memoryPattern, 'IgnoreCase') |
     ForEach-Object { $_.Value.ToLowerInvariant() } |
-    Select-Object -Unique
+    Select-Object -Unique)
 
   if ($foundMemories.Count -eq 0) {
     $result.IsValid = $false
