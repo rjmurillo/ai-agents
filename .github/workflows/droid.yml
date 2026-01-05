@@ -10,27 +10,31 @@ on:
   pull_request_review:
     types: [submitted]
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
 jobs:
+  # ADR-006 Compliance: Conditional logic uses github.event.action to prevent duplicate runs
+  # When an issue with @droid is opened and later assigned, we only want to run once (on opened)
   droid:
+    runs-on: ubuntu-latest
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@droid')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@droid')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@droid')) ||
       (github.event_name == 'issues' && github.event.action == 'opened' && (contains(github.event.issue.body, '@droid') || contains(github.event.issue.title, '@droid')))
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      id-token: write
-      actions: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 1
 
+      # Pin to v1 - https://github.com/Factory-AI/droid-action
       - name: Run Droid Exec
-        uses: Factory-AI/droid-action@v1
+        uses: Factory-AI/droid-action@9f0a131f360d914ce6f8d638a237f7ffa4d2ba97 # v1
         with:
           factory_api_key: ${{ secrets.FACTORY_API_KEY }}
