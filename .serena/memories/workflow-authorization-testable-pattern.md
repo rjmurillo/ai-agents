@@ -117,7 +117,7 @@ PowerShell treats `$env:ISSUE_TITLE` as a single string value, preventing inject
 
 ## Real-World Example
 
-See: `.github/workflows/claude.yml` and `scripts/workflows/Test-ClaudeAuthorization.ps1`
+See: `.github/workflows/claude.yml` and `tests/workflows/Test-ClaudeAuthorization.ps1`
 
 **Scenario**: Restrict Claude invocation to MEMBER/OWNER/COLLABORATOR or specific bots
 
@@ -184,7 +184,7 @@ Describe 'Check-Authorization' {
 
 If you find inline YAML authorization:
 
-1. Extract logic to `scripts/workflows/Check-*.ps1`
+1. Extract logic to `tests/workflows/Check-*.ps1`
 2. Add comprehensive Pester tests
 3. Update workflow to two-job pattern
 4. Use environment variables for all GitHub event data

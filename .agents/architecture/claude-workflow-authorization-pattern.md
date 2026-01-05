@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE
 **Date**: 2026-01-04
-**Related**: PR #789, `scripts/workflows/Test-ClaudeAuthorization.ps1`
+**Related**: PR #789, `tests/workflows/Test-ClaudeAuthorization.ps1`
 
 ## Context
 
@@ -10,9 +10,9 @@ The Claude Code workflow (`.github/workflows/claude.yml`) needs to restrict who 
 
 ## Decision
 
-Authorization is handled by a dedicated PowerShell script (`scripts/workflows/Test-ClaudeAuthorization.ps1`) that validates:
+Authorization is handled by a dedicated PowerShell script (`tests/workflows/Test-ClaudeAuthorization.ps1`) that validates:
 
-1. **@claude mention required**: All events must contain "@claude" (case-sensitive, exact match)
+1. **@claude mention required**: All events must contain "@claude" (case-insensitive match with negative lookahead)
 2. **Author association OR bot allowlist**: User must be MEMBER/OWNER/COLLABORATOR, OR be an allowed bot
 
 ### Authorization Logic
@@ -130,7 +130,7 @@ The script includes a deprecation warning in audit logs.
 
 ## Testing
 
-Comprehensive Pester test suite: `scripts/workflows/Test-ClaudeAuthorization.Tests.ps1`
+Comprehensive Pester test suite: `tests/workflows/Test-ClaudeAuthorization.Tests.ps1`
 
 Coverage:
 
@@ -153,6 +153,6 @@ Coverage:
 ## See Also
 
 - ADR-006: No logic in workflow YAML
-- `scripts/workflows/Test-ClaudeAuthorization.ps1`: Implementation
+- `tests/workflows/Test-ClaudeAuthorization.ps1`: Implementation
 - `.github/workflows/claude.yml`: Workflow using this pattern
 - `.serena/memories/security-012-workflow-author-association.md`: Previous pattern

@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   # ADR-006 Compliance: Authorization logic moved to PowerShell script for testability
-  # See: scripts/workflows/Test-ClaudeAuthorization.ps1
+  # See: tests/workflows/Test-ClaudeAuthorization.ps1
   check-authorization:
     runs-on: ubuntu-latest
     outputs:
@@ -43,7 +43,7 @@ jobs:
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
         run: |
-          $authorized = & ./scripts/workflows/Test-ClaudeAuthorization.ps1 `
+          $authorized = & ./tests/workflows/Test-ClaudeAuthorization.ps1 `
             -EventName $env:EVENT_NAME `
             -Actor $env:ACTOR `
             -AuthorAssociation $env:AUTHOR_ASSOCIATION `
@@ -62,8 +62,9 @@ jobs:
           }
 
           # Validate output format to prevent silent failures from unexpected values
-          $authorized = $authorized.Trim()
-          if ($authorized -notin @('true', 'false')) {
+          # Normalize to lowercase for case-sensitive comparison (script returns lowercase)
+          $authorized = $authorized.Trim().ToLower()
+          if ($authorized -cnotin @('true', 'false')) {
             Write-Error "Authorization check returned unexpected value: '$authorized'. Expected 'true' or 'false'."
             Write-Error "This may indicate the script exited without producing valid output."
             exit 1
