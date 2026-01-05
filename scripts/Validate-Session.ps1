@@ -188,7 +188,8 @@ function Parse-ChecklistTable([string[]]$TableLines) {
 
     $rows.Add(@{ Req = $req; Step = $step; Status = $status; Evidence = $evidence; Raw = $line })
   }
-  return $rows.ToArray()
+  # Comma operator prevents PowerShell from unwrapping single-element arrays
+  , $rows.ToArray()
 }
 
 function Normalize-Step([string]$s) {

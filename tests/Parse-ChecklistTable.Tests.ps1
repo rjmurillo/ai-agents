@@ -12,35 +12,40 @@
 
 BeforeAll {
     $scriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1"
-
-    # Extract the functions we need to test
     $scriptContent = Get-Content -Path $scriptPath -Raw
 
-    # Extract Split-TableRow function - it's before Parse-ChecklistTable
-    # Match from function declaration to its closing brace (greedy but constrained by Parse-ChecklistTable start)
-    $splitPattern = '(?ms)function Split-TableRow\s*\{.*?(?=function Parse-ChecklistTable)'
-    if ($scriptContent -match $splitPattern) {
-        $splitTableRowDef = $Matches[0].TrimEnd()
-        # Add closing brace if needed
-        if (-not $splitTableRowDef.EndsWith('}')) {
-            $splitTableRowDef += "`n}"
+    # Extract Split-TableRow function - simpler pattern matching to first occurrence of next function
+    $splitStart = $scriptContent.IndexOf('function Split-TableRow {')
+    $parseStart = $scriptContent.IndexOf('function Parse-ChecklistTable(', $splitStart)
+    
+    if ($splitStart -ge 0 -and $parseStart -gt $splitStart) {
+        $splitFunc = $scriptContent.Substring($splitStart, $parseStart - $splitStart).Trim()
+        # Ensure it ends with a closing brace
+        if (-not $splitFunc.EndsWith('}')) {
+            $splitFunc = $splitFunc.TrimEnd() + "`n}"
         }
-        Invoke-Expression $splitTableRowDef
+        $script:SplitTableRowDef = $splitFunc
+        Invoke-Expression $splitFunc
     }
 
-    # Extract Parse-ChecklistTable function - match to next function or end of functions section
-    $parsePattern = '(?ms)function Parse-ChecklistTable\([^)]+\)\s*\{.*?(?=^function\s|\z)'
-    if ($scriptContent -match $parsePattern) {
-        $parseTableDef = $Matches[0].TrimEnd()
-        # Ensure it ends with closing brace
-        if (-not $parseTableDef.EndsWith('}')) {
-            # Find the last closing brace in the match
-            $lastBrace = $parseTableDef.LastIndexOf('}')
-            if ($lastBrace -gt 0) {
-                $parseTableDef = $parseTableDef.Substring(0, $lastBrace + 1)
-            }
+    # Extract Parse-ChecklistTable function
+    if ($parseStart -ge 0) {
+        # Find next function or a known landmark after Parse-ChecklistTable
+        $normStart = $scriptContent.IndexOf('function Normalize-Step', $parseStart)
+        if ($normStart -lt 0) {
+            # If Normalize-Step not found, search for other landmarks
+            $normStart = $scriptContent.IndexOf("`n# --- Load inputs", $parseStart)
         }
-        Invoke-Expression $parseTableDef
+        if ($normStart -gt $parseStart) {
+            $parseFunc = $scriptContent.Substring($parseStart, $normStart - $parseStart).Trim()
+            # Find the last closing brace in this section
+            $lastBrace = $parseFunc.LastIndexOf('}')
+            if ($lastBrace -gt 0) {
+                $parseFunc = $parseFunc.Substring(0, $lastBrace + 1)
+            }
+            $script:ParseChecklistTableDef = $parseFunc
+            Invoke-Expression $parseFunc
+        }
     }
 }
 
@@ -163,6 +168,23 @@ Describe "Split-TableRow" {
 }
 
 Describe "Parse-ChecklistTable" {
+    Context "Function availability" {
+        It "Should have Split-TableRow function available" {
+            Get-Command Split-TableRow -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+        }
+        
+        It "Should have Parse-ChecklistTable function available" {
+            Get-Command Parse-ChecklistTable -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+        }
+        
+        It "Should be able to call Parse-ChecklistTable" {
+            $testLines = @('| MUST | Test | [x] | Done |')
+            $result = Parse-ChecklistTable $testLines
+            $result | Should -Not -BeNullOrEmpty
+            $result.Count | Should -BeGreaterThan 0
+        }
+    }
+    
     Context "Table header and separator handling" {
         It "Should skip header row" {
             $tableLines = @(
