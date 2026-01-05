@@ -44,12 +44,28 @@ Checking:
 
 ### PR Evolution Context
 
-PR #783 evolved from "add id-token permission" to "add security restrictions":
-- Original: `f54d4ff` added id-token:write for OIDC
-- Security review identified concerns
-- `3490732` removed unnecessary id-token:write
-- `ff6ffad` added author_association guard for trusted users only
-- Bot allowlist changed from wildcard to explicit list
+PR #783 evolved through multiple iterations:
+- Original: `f54d4ff` added id-token:write for OIDC (CORRECT)
+- Security review identified concerns about external triggers
+- `3490732` incorrectly removed id-token:write
+- `ff6ffad` added author_association guard (CORRECT security improvement)
+- Bot allowlist changed from wildcard to explicit list (CORRECT)
+- This session: Re-added id-token:write after verifying it IS required per claude-code-action docs
+
+### Corrected Analysis
+
+The security memory `security-011-workflow-least-privilege` was WRONG about id-token:write.
+
+**Per DeepWiki documentation for claude-code-action:**
+> "`id-token: write` is essential for OIDC authentication. It enables the action to obtain an OIDC token, which is then used to exchange for an app token."
+
+**Final correct configuration:**
+- `id-token: write` - REQUIRED (for OIDC GitHub token exchange)
+- `contents: write` - REQUIRED (for branch/commit operations)
+- `issues: write` - REQUIRED (for issue operations)
+- `pull-requests: write` - REQUIRED (for PR operations)
+- Author association guard - REQUIRED (for security)
+- Explicit bot allowlist - REQUIRED (for security)
 
 ## Protocol Compliance
 
