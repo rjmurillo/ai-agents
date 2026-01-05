@@ -168,8 +168,8 @@ function Get-UnaddressedComments {
     }
 
     # Source and call the thread lookup
-    . $threadsScript
-    $unresolvedThreads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PR $PR
+    . $threadsScript -Owner $Owner -Repo $Repo -PullRequest $PR
+    $unresolvedThreads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PullRequest $PR
 
     # Extract comment IDs from unresolved threads (databaseId field from first comment in each thread)
     $unresolvedCommentIds = @()

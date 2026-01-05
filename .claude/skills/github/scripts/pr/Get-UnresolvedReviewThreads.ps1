@@ -89,7 +89,7 @@ function Get-UnresolvedReviewThreads {
         [string]$Repo,
 
         [Parameter(Mandatory)]
-        [int]$PR
+        [int]$PullRequest
     )
 
     # GraphQL query per FR1 specification
@@ -115,9 +115,9 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
 }
 '@
 
-    $result = gh api graphql -f query=$query -f owner="$Owner" -f name="$Repo" -F prNumber=$PR 2>&1
+    $result = gh api graphql -f query=$query -f owner="$Owner" -f name="$Repo" -F prNumber=$PullRequest 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to query review threads for PR #${PR}: $result"
+        Write-Warning "Failed to query review threads for PR #${PullRequest}: $result"
         return @()  # Return empty array on failure per FR2
     }
 
@@ -158,7 +158,7 @@ if (-not $Owner -or -not $Repo) {
 }
 
 # Get unresolved threads
-$threads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PR $PullRequest
+$threads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PullRequest $PullRequest
 
 # Output as JSON for machine consumption
 $threads | ConvertTo-Json -Depth 5
