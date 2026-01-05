@@ -44,13 +44,13 @@ Responding to PR review comments for PR #776.
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| SHOULD | Export session memories | [ ] | Skipped |
-| MUST | Security review export (if exported) | [ ] | N/A |
+| SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Skipped |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key\|password\|token\|secret\|credential\|private[_-]?key" [file].json` | [ ] | N/A |
 | MUST | Complete session log (all sections filled) | [x] | File complete |
 | MUST | Update Serena memory (cross-session context) | [x] | No new patterns; simple bug fix addressing review feedback |
 | MUST | Run markdown lint | [x] | Output below |
 | MUST | Route to qa agent (feature implementation) | [ ] | SKIPPED: bug fix, not feature |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: b57c7ea8 |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: bdb8e31c |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Not significant |
