@@ -133,7 +133,7 @@ rules:
             try {
                 # Use splatting for external commands to ensure proper argument handling
                 $ghArgs = @('pr', 'view', $PRNumber, '--json', 'title,body')
-                $result = gh @ghArgs 2>&1
+                $result = & gh @ghArgs 2>&1
                 if (-not $?) {
                     throw "Failed to fetch PR #$PRNumber: $result"
                 }
