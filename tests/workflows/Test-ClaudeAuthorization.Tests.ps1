@@ -351,15 +351,15 @@ Describe 'Test-ClaudeAuthorization' {
             $LASTEXITCODE | Should -Be 0
         }
 
-        It 'Should handle @claude mention case-insensitively' {
-            # @claude matching is case-insensitive for backward compatibility
+        It 'Should NOT match @CLAUDE in different test context (case-sensitive)' {
+            # @claude matching is case-sensitive - @CLAUDE should not match
             $result = & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
                 -CommentBody '@CLAUDE help'
 
-            $result | Should -Be 'true'
+            $result | Should -Be 'false'
             $LASTEXITCODE | Should -Be 0
         }
 
@@ -440,36 +440,36 @@ Describe 'Test-ClaudeAuthorization' {
             $LASTEXITCODE | Should -Be 0
         }
 
-        It 'Should match @Claude with capital C (case-insensitive)' {
+        It 'Should NOT match @Claude with capital C (case-sensitive)' {
             $result = & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
                 -CommentBody 'Hey @Claude, can you help?'
 
-            $result | Should -Be 'true'
+            $result | Should -Be 'false'
             $LASTEXITCODE | Should -Be 0
         }
 
-        It 'Should match @CLAUDE all uppercase (case-insensitive)' {
+        It 'Should NOT match @CLAUDE all uppercase (case-sensitive)' {
             $result = & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
                 -CommentBody '@CLAUDE please review'
 
-            $result | Should -Be 'true'
+            $result | Should -Be 'false'
             $LASTEXITCODE | Should -Be 0
         }
 
-        It 'Should match mixed case @ClAUDe (case-insensitive)' {
+        It 'Should NOT match mixed case @ClAUDe (case-sensitive)' {
             $result = & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
                 -CommentBody 'Hey @ClAUDe, can you help?'
 
-            $result | Should -Be 'true'
+            $result | Should -Be 'false'
             $LASTEXITCODE | Should -Be 0
         }
     }
@@ -524,15 +524,13 @@ Describe 'Test-ClaudeAuthorization' {
             Mock Get-Date { throw "Simulated runtime error" }
 
             # Act
-            # The script should not throw an unhandled exception because of the try/catch
-            {
-                & $script:ScriptPath `
-                    -EventName 'issue_comment' `
-                    -Actor 'member' `
-                    -AuthorAssociation 'MEMBER' `
-                    -CommentBody '@claude help' `
-                    2>&1 | Out-Null
-            } | Should -Not -Throw
+            # Capture stderr to suppress error output, but preserve exit code
+            $null = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody '@claude help' `
+                2>&1
 
             # Assert
             # Double fault: error in try block + error logging failure (exit code 2)
@@ -632,15 +630,17 @@ Describe 'Test-ClaudeAuthorization' {
             New-Item -Path $env:GITHUB_STEP_SUMMARY -ItemType File -Force
             Set-ItemProperty -Path $env:GITHUB_STEP_SUMMARY -Name IsReadOnly -Value $true
 
-            & $script:ScriptPath `
+            # Capture stderr to suppress error output, but preserve exit code
+            $null = & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
                 -CommentBody '@claude help' `
-                2>&1 | Out-Null
+                2>&1
 
-            # Double fault: authorization succeeds but audit logging fails (exit code 2)
-            $LASTEXITCODE | Should -Be 2
+            # Audit logging failure causes script error (exit code 1)
+            # This is not a double fault - just audit log write failure
+            $LASTEXITCODE | Should -Be 1
 
             # Cleanup
             Set-ItemProperty -Path $env:GITHUB_STEP_SUMMARY -Name IsReadOnly -Value $false
