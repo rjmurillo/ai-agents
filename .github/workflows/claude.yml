@@ -14,10 +14,17 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  id-token: write  # Required for OIDC authentication to get GitHub App token
 
 jobs:
   claude-response:
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issues' ||
+      github.event_name == 'pull_request_review' ||
+      github.event.comment.author_association == 'MEMBER' ||
+      github.event.comment.author_association == 'OWNER' ||
+      github.event.comment.author_association == 'COLLABORATOR'
     steps:
       # Pin to v1.0.27 - https://github.com/anthropics/claude-code-action/releases/tag/v1.0.27
       - uses: anthropics/claude-code-action@7145c3e0510bcdbdd29f67cc4a8c1958f1acfa2f
@@ -35,8 +42,8 @@ jobs:
           trigger_phrase: "@claude"
           assignee_trigger: "@me"
 
-          # Allow bot users to trigger the action
-          allowed_bots: "*"
+          # Allow specific trusted bot users to trigger the action
+          allowed_bots: "dependabot[bot],renovate[bot],github-actions[bot]"
 
           # Branch configuration
           base_branch: "main"
