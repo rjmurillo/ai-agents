@@ -40,13 +40,18 @@ rules:
             runs-on: ubuntu-latest
             steps:
               - name: Check author
+                id: check-author
                 run: |
                   ASSOCIATION="${{ github.event.pull_request.author_association }}"
-                  if [[ "$ASSOCIATION" != "COLLABORATOR" && "$ASSOCIATION" != "MEMBER" && "$ASSOCIATION" != "OWNER" ]]; then
+                  if [[ "$ASSOCIATION" == "COLLABORATOR" || "$ASSOCIATION" == "MEMBER" || "$ASSOCIATION" == "OWNER" ]]; then
+                    echo "trusted=true" >> $GITHUB_OUTPUT
+                  else
+                    echo "trusted=false" >> $GITHUB_OUTPUT
                     echo "Untrusted author, skipping AI review"
-                    exit 0
                   fi
-              - run: claude review "${{ github.event.pull_request.body }}"
+              - name: Run AI review
+                if: steps.check-author.outputs.trusted == 'true'
+                run: claude review "${{ github.event.pull_request.body }}"
 
     tags:
       - security

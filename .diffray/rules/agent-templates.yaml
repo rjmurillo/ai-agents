@@ -153,5 +153,5 @@ rules:
         ---
 
     tags:
-      - agent-system
-      - configuration
+      - quality
+      - consistency
