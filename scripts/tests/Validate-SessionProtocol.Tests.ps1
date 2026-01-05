@@ -340,6 +340,110 @@ Describe "Test-HandoffUpdated" {
     }
 }
 
+Describe "Test-HandoffUpdated Date Parsing Behavior" {
+    <#
+    .SYNOPSIS
+        CRITICAL test coverage (Rating 9/10) - Tests date parsing fallback logic.
+        Verifies that git validation success makes date parsing failures non-blocking.
+    #>
+
+    BeforeEach {
+        # Create HANDOFF.md
+        $handoffPath = Join-Path $AgentsPath "HANDOFF.md"
+        New-Item -ItemType File -Path $handoffPath -Force | Out-Null
+        Set-Content -Path $handoffPath -Value "# Handoff"
+    }
+
+    It "Passes when git validation succeeds even with invalid date format in filename" {
+        # Session with invalid date format in filename
+        $invalidSessionPath = Join-Path $SessionsPath "INVALID-DATE-session-01.md"
+        New-Item -ItemType File -Path $invalidSessionPath -Force | Out-Null
+
+        # Create a git function in test scope to override external git command
+        function global:git {
+            param([Parameter(ValueFromRemainingArguments)]$Arguments)
+
+            if ($Arguments -contains 'rev-parse' -and $Arguments -contains '--git-dir') {
+                $LASTEXITCODE = 0
+                return ".git"
+            }
+            elseif ($Arguments -contains 'rev-parse' -and $Arguments -contains '--verify') {
+                $LASTEXITCODE = 0
+                return "abc123"
+            }
+            elseif ($Arguments -contains 'diff' -and $Arguments -contains '--name-only') {
+                $LASTEXITCODE = 0
+                return "other-file.md"  # HANDOFF.md not in changes
+            }
+
+            $LASTEXITCODE = 1
+            return ""
+        }
+
+        try {
+            # CRITICAL: Should pass because git validation succeeded
+            $result = Test-HandoffUpdated -SessionPath $invalidSessionPath -BasePath $TestRoot
+            $result.Passed | Should -BeTrue
+        }
+        finally {
+            # Clean up the mock git function
+            Remove-Item function:\git -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "Fails when git unavailable and date format invalid with clear error message" {
+        # Session with invalid date format (month 13, day 32 don't exist)
+        $invalidSessionPath = Join-Path $SessionsPath "2025-13-32-session-01.md"
+        New-Item -ItemType File -Path $invalidSessionPath -Force | Out-Null
+
+        # Create a git function that simulates git not available (shallow checkout)
+        function global:git {
+            param([Parameter(ValueFromRemainingArguments)]$Arguments)
+
+            # All git commands fail (simulating shallow clone or non-git directory)
+            $LASTEXITCODE = 128
+            return "fatal: shallow clone"
+        }
+
+        try {
+            # CRITICAL: Should fail with actionable error
+            $result = Test-HandoffUpdated -SessionPath $invalidSessionPath -BasePath $TestRoot
+            $result.Passed | Should -BeFalse
+            $result.Issues | Should -Match "invalid date format"
+            $result.Issues | Should -Match "2025-13-32"
+        }
+        finally {
+            Remove-Item function:\git -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "Fails when git unavailable and date parsing throws with clear error message" {
+        # Session with date that causes unexpected parsing error
+        $problematicSessionPath = Join-Path $SessionsPath "9999-99-99-session-01.md"
+        New-Item -ItemType File -Path $problematicSessionPath -Force | Out-Null
+
+        # Create a git function that simulates git not available
+        function global:git {
+            param([Parameter(ValueFromRemainingArguments)]$Arguments)
+
+            # All git commands fail (simulating non-git directory)
+            $LASTEXITCODE = 128
+            return "fatal: not a git repository"
+        }
+
+        try {
+            # CRITICAL: Should fail with actionable error
+            $result = Test-HandoffUpdated -SessionPath $problematicSessionPath -BasePath $TestRoot
+            $result.Passed | Should -BeFalse
+            $result.Issues | Should -Match "error parsing session date|invalid date format"
+            $result.Issues | Should -Match "Cannot validate HANDOFF.md modification without git diff"
+        }
+        finally {
+            Remove-Item function:\git -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Describe "Test-GitCommitEvidence" {
     It "Passes when commit SHA is present" {
         $content = @"
