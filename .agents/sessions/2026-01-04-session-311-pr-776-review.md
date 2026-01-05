@@ -45,7 +45,7 @@ Responding to PR review comments for PR #776.
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
 | SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Skipped |
-| MUST | Security review export (if exported): `grep -iE "api[_-]?key\|password\|token\|secret\|credential\|private[_-]?key" [file].json` | [ ] | N/A |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [x] | File complete |
 | MUST | Update Serena memory (cross-session context) | [x] | No new patterns; simple bug fix addressing review feedback |
 | MUST | Run markdown lint | [x] | Output below |
