@@ -44,8 +44,8 @@ function Split-TableRow {
     Array of column strings (not trimmed)
 
   .EXAMPLE
-    Split-TableRow 'MUST | Run: `grep "a|b"` | [x] | Done'
-    Returns: @('MUST ', ' Run: `grep "a|b"` ', ' [x] ', ' Done')
+    Split-TableRow ' MUST | Run: `grep "a|b"` | [x] | Done '
+    Returns: @(' MUST ', ' Run: `grep "a|b"` ', ' [x] ', ' Done ')
   #>
   param([string]$Row)
 

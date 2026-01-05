@@ -262,7 +262,7 @@ Describe "Parse-ChecklistTable" {
             
             $result.Count | Should -Be 1
             $result[0].Req | Should -Be 'MUST'
-            $result[0].Step | Should -Match 'grep.*key\|password\|token'
+            $result[0].Step | Should -Be 'Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json`'
             $result[0].Status | Should -Be ' '
             $result[0].Evidence | Should -Be 'Evidence'
         }
