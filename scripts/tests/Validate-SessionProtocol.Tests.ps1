@@ -67,8 +67,8 @@ Describe "Function Loading Test" {
         Get-Command Get-HeadingTable -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
     }
 
-    It "Parse-ChecklistTable function is loaded" {
-        Get-Command Parse-ChecklistTable -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+    It "ConvertFrom-ChecklistTable function is loaded" {
+        Get-Command ConvertFrom-ChecklistTable -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
     }
 
     It "Can call Get-HeadingTable with simple array" {
@@ -76,10 +76,8 @@ Describe "Function Loading Test" {
         { Get-HeadingTable -Lines $testLines -HeadingRegex '##\s+Test' } | Should -Not -Throw
     }
 
-    It "Function handles arrays with empty strings in real usage" {
-        # Note: PowerShell has a quirk where arrays with empty strings can cause
-        # parameter binding issues in Pester's execution context. The function works
-        # correctly when called directly from the script.
+    It "Function handles arrays with mixed content (headings and tables)" {
+        # Test that function correctly finds table after heading even when multiple headings present
         $testLines = @("# Heading", "## Test", "| Req | Step | Status | Evidence |", "|-----|------|--------|----------|")
         $result = Get-HeadingTable -Lines $testLines -HeadingRegex '##\s+Test'
         $result | Should -Not -BeNullOrEmpty
@@ -1143,7 +1141,7 @@ Describe "Get-HeadingTable" {
     }
 }
 
-Describe "Parse-ChecklistTable" {
+Describe "ConvertFrom-ChecklistTable" {
     It "Parses table rows correctly" {
         $tableLines = @(
             "| Req | Step | Status | Evidence |",
@@ -1152,7 +1150,7 @@ Describe "Parse-ChecklistTable" {
             "| SHOULD | Search memories | [ ] | Skipped |"
         )
 
-        $result = Parse-ChecklistTable -TableLines $tableLines
+        $result = ConvertFrom-ChecklistTable -TableLines $tableLines
         $result.Count | Should -Be 2
         $result[0].Req | Should -Be 'MUST'
         $result[0].Step | Should -Match 'Initialize Serena'
@@ -1168,7 +1166,7 @@ Describe "Parse-ChecklistTable" {
             "| MUST | Do thing | [x] | Done |"
         )
 
-        $result = Parse-ChecklistTable -TableLines $tableLines
+        $result = ConvertFrom-ChecklistTable -TableLines $tableLines
         $result.Count | Should -Be 1  # Only data row
     }
 
@@ -1179,7 +1177,7 @@ Describe "Parse-ChecklistTable" {
             "| **MUST** | Do thing | [x] | Done |"
         )
 
-        $result = Parse-ChecklistTable -TableLines $tableLines
+        $result = ConvertFrom-ChecklistTable -TableLines $tableLines
         $result[0].Req | Should -Be 'MUST'  # Bold removed
     }
 
@@ -1192,36 +1190,36 @@ Describe "Parse-ChecklistTable" {
             "| MUST | Item 3 | [x] | Done |"
         )
 
-        $result = Parse-ChecklistTable -TableLines $tableLines
+        $result = ConvertFrom-ChecklistTable -TableLines $tableLines
         $result[0].Status | Should -Be 'x'  # X normalized to x
         $result[1].Status | Should -Be ' '
         $result[2].Status | Should -Be 'x'
     }
 }
 
-Describe "Normalize-Step" {
+Describe "ConvertTo-NormalizedStep" {
     <#
     .SYNOPSIS
         Tests for step text normalization (whitespace and markdown removal).
     #>
 
     It "Collapses multiple spaces to single space" {
-        $result = Normalize-Step "Do    thing   with   spaces"
+        $result = ConvertTo-NormalizedStep "Do    thing   with   spaces"
         $result | Should -Be "Do thing with spaces"
     }
 
     It "Removes bold markdown" {
-        $result = Normalize-Step "**Initialize** Serena"
+        $result = ConvertTo-NormalizedStep "**Initialize** Serena"
         $result | Should -Be "Initialize Serena"
     }
 
     It "Trims leading and trailing whitespace" {
-        $result = Normalize-Step "  Do thing  "
+        $result = ConvertTo-NormalizedStep "  Do thing  "
         $result | Should -Be "Do thing"
     }
 
     It "Handles combined transformations" {
-        $result = Normalize-Step "  **Read**   HANDOFF.md  "
+        $result = ConvertTo-NormalizedStep "  **Read**   HANDOFF.md  "
         $result | Should -Be "Read HANDOFF.md"
     }
 }

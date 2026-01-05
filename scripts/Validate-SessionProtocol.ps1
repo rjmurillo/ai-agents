@@ -63,6 +63,8 @@ param(
     [string]$Path = "."
 )
 
+$ErrorActionPreference = 'Stop'
+
 #region Color Output
 $ColorReset = "`e[0m"
 $ColorRed = "`e[31m"
@@ -139,10 +141,10 @@ function Get-HeadingTable {
     return $tableLines.ToArray()
 }
 
-function Parse-ChecklistTable {
+function ConvertFrom-ChecklistTable {
     <#
     .SYNOPSIS
-        Parses markdown table rows into structured checklist items.
+        Converts markdown table rows into structured checklist items.
 
     .DESCRIPTION
         Returns array of hashtables with Req, Step, Status ('x' or ' '), Evidence, and Raw properties.
@@ -191,16 +193,16 @@ function Parse-ChecklistTable {
         })
     }
 
-    # Return as array. Comma operator prevents unwrapping at call site when result has single element.
-    # PowerShell unwraps single-element arrays on assignment: $x = @('item') becomes $x = 'item'
-    # The comma forces array preservation: $x = ,@('item') keeps $x as array type
+    # Return as array. Comma operator prevents unwrapping when function returns single-element array.
+    # PowerShell unwraps single-element arrays on function return: return @('item') becomes return 'item'
+    # The comma operator forces array preservation: return ,@('item') keeps array type
     return ,$rows.ToArray()
 }
 
-function Normalize-Step {
+function ConvertTo-NormalizedStep {
     <#
     .SYNOPSIS
-        Normalizes step text by collapsing whitespace and removing markdown.
+        Converts step text to normalized form by collapsing whitespace and removing markdown.
     #>
     param(
         [Parameter(Mandatory)]
@@ -241,7 +243,7 @@ function Test-MemoryEvidence {
 
     # Find the memory-index row
     $memoryRow = $SessionRows | Where-Object {
-        (Normalize-Step $_.Step) -match 'memory-index.*memories'
+        (ConvertTo-NormalizedStep $_.Step) -match 'memory-index.*memories'
     } | Select-Object -First 1
 
     if (-not $memoryRow) {
@@ -536,11 +538,10 @@ function Test-MustRequirements {
 
     # FALLBACK: If primary pattern found nothing, try alternate 4-column table pattern
     # Pattern: | MUST | description | [ ] | evidence |
-    # NOTE: This only runs when primary regex found ZERO matches (not double-count prevention)
-    $tableMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\*?\*?\s*\|[^|]+\|\s*\[([x ])\]\s*\|')
-    foreach ($match in $tableMatches) {
-        # Only use fallback pattern when primary pattern completely failed
-        if ($mustMatches.Count -eq 0) {
+    # Double-count prevention: Only process fallback when primary regex found ZERO matches
+    if ($mustMatches.Count -eq 0) {
+        $tableMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\*?\*?\s*\|[^|]+\|\s*\[([x ])\]\s*\|')
+        foreach ($match in $tableMatches) {
             $result.Details.TotalMust++
             $isComplete = $match.Groups[1].Value -eq 'x'
             if (-not $isComplete) {
@@ -565,12 +566,12 @@ function Test-MustRequirements {
 function Test-HandoffUpdated {
     <#
     .SYNOPSIS
-        Validates that HANDOFF.md was NOT updated (per SESSION-PROTOCOL.md: "MUST NOT update HANDOFF.md").
-        Session context MUST go to session log and Serena memory instead.
+        Checks whether HANDOFF.md was modified during the session (violation of SESSION-PROTOCOL.md).
+        Per protocol: "MUST NOT update HANDOFF.md". Session context goes to log and Serena memory.
 
     .NOTES
-        Uses git diff to check actual modifications, not filesystem timestamps.
-        Filesystem timestamps are unreliable in CI (all files get checkout timestamp).
+        Prefers git diff for reliable detection. Falls back to filesystem timestamps in non-git environments.
+        In shallow clones where git diff fails, validation fails rather than using unreliable timestamps.
     #>
     param(
         [string]$SessionPath,
@@ -632,9 +633,8 @@ function Test-HandoffUpdated {
 
         # Fall back to filesystem timestamp if git diff not available
         # (used for test environments, non-git directories)
-        # IMPORTANT: In shallow checkouts, fail validation rather than using unreliable timestamps
-        # Shallow clones would incorrectly flag HANDOFF.md as modified because all files have
-        # checkout timestamp, potentially newer than session date
+        # IMPORTANT: In shallow checkouts, fail validation explicitly rather than using timestamps
+        # Timestamp comparison is unreliable in shallow clones where all files have checkout timestamp
         $gitDirCheck = git rev-parse --git-dir 2>&1
         $isGitRepo = $LASTEXITCODE -eq 0
 
@@ -882,7 +882,7 @@ function Invoke-SessionValidation {
     $lines = ($content -split "`r?`n") | Where-Object { $_ -ne '' }
     $sessionStartTable = Get-HeadingTable -Lines $lines -HeadingRegex '^\s*##\s+Session\s+Start\s*$'
     if ($sessionStartTable) {
-        $sessionStartRows = Parse-ChecklistTable -TableLines $sessionStartTable
+        $sessionStartRows = ConvertFrom-ChecklistTable -TableLines $sessionStartTable
         $memoryResult = Test-MemoryEvidence -SessionRows $sessionStartRows -RepoRoot $BasePath
         $validation.Results['MemoryEvidence'] = $memoryResult
         if (-not $memoryResult.IsValid) {
@@ -1116,68 +1116,76 @@ function Format-JsonOutput {
 
 #region Main Execution
 
-Write-ColorOutput "=== Session Protocol Validation ===" $ColorCyan
-Write-ColorOutput "Path: $Path" $ColorMagenta
-Write-ColorOutput ""
+try {
+    Write-ColorOutput "=== Session Protocol Validation ===" $ColorCyan
+    Write-ColorOutput "Path: $Path" $ColorMagenta
+    Write-ColorOutput ""
 
-$validations = @()
+    $validations = @()
 
-if ($SessionPath) {
-    # Single session validation
-    $fullPath = if ([System.IO.Path]::IsPathRooted($SessionPath)) {
-        $SessionPath
+    if ($SessionPath) {
+        # Single session validation
+        $fullPath = if ([System.IO.Path]::IsPathRooted($SessionPath)) {
+            $SessionPath
+        } else {
+            Join-Path $Path $SessionPath
+        }
+
+        $validation = Invoke-SessionValidation -SessionFile $fullPath -BasePath $Path
+        $validations += $validation
+    } elseif ($All) {
+        # All sessions
+        $sessions = Get-SessionLogs -BasePath $Path
+        Write-ColorOutput "Found $($sessions.Count) session log(s)" $ColorMagenta
+        Write-ColorOutput ""
+
+        foreach ($session in $sessions) {
+            $validation = Invoke-SessionValidation -SessionFile $session.FullName -BasePath $Path
+            $validations += $validation
+        }
     } else {
-        Join-Path $Path $SessionPath
+        # Recent sessions (default)
+        $sessions = Get-SessionLogs -BasePath $Path -Days $Recent
+        Write-ColorOutput "Found $($sessions.Count) session log(s) from last $Recent days" $ColorMagenta
+        Write-ColorOutput ""
+
+        foreach ($session in $sessions) {
+            $validation = Invoke-SessionValidation -SessionFile $session.FullName -BasePath $Path
+            $validations += $validation
+        }
     }
 
-    $validation = Invoke-SessionValidation -SessionFile $fullPath -BasePath $Path
-    $validations += $validation
-} elseif ($All) {
-    # All sessions
-    $sessions = Get-SessionLogs -BasePath $Path
-    Write-ColorOutput "Found $($sessions.Count) session log(s)" $ColorMagenta
-    Write-ColorOutput ""
+    # Output results
+    $failCount = 0
+    switch ($Format) {
+        "console" {
+            $failCount = Format-ConsoleOutput -Validations $validations
+        }
+        "markdown" {
+            $md = Format-MarkdownOutput -Validations $validations
+            Write-Output $md
+            $failCount = ($validations | Where-Object { -not $_.MustPassed }).Count
+        }
+        "json" {
+            $json = Format-JsonOutput -Validations $validations
+            Write-Output $json
+            $failCount = ($validations | Where-Object { -not $_.MustPassed }).Count
+        }
+    }
 
-    foreach ($session in $sessions) {
-        $validation = Invoke-SessionValidation -SessionFile $session.FullName -BasePath $Path
-        $validations += $validation
+    if ($CI) {
+        if ($failCount -gt 0) {
+            exit 1
+        }
+        # Explicit exit 0 to prevent $LASTEXITCODE pollution from external commands like git
+        exit 0
     }
-} else {
-    # Recent sessions (default)
-    $sessions = Get-SessionLogs -BasePath $Path -Days $Recent
-    Write-ColorOutput "Found $($sessions.Count) session log(s) from last $Recent days" $ColorMagenta
-    Write-ColorOutput ""
-
-    foreach ($session in $sessions) {
-        $validation = Invoke-SessionValidation -SessionFile $session.FullName -BasePath $Path
-        $validations += $validation
-    }
-}
-
-# Output results
-$failCount = 0
-switch ($Format) {
-    "console" {
-        $failCount = Format-ConsoleOutput -Validations $validations
-    }
-    "markdown" {
-        $md = Format-MarkdownOutput -Validations $validations
-        Write-Output $md
-        $failCount = ($validations | Where-Object { -not $_.MustPassed }).Count
-    }
-    "json" {
-        $json = Format-JsonOutput -Validations $validations
-        Write-Output $json
-        $failCount = ($validations | Where-Object { -not $_.MustPassed }).Count
-    }
-}
-
-if ($CI) {
-    if ($failCount -gt 0) {
+} catch {
+    Write-Error "Validation failed: $($_.Exception.Message)"
+    if ($CI) {
         exit 1
     }
-    # Explicit exit 0 to prevent $LASTEXITCODE pollution from external commands like git
-    exit 0
+    throw
 }
 
 #endregion
