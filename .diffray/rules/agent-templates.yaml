@@ -1,0 +1,157 @@
+rules:
+  - id: agent_no_direct_edit
+    agent: consistency
+    title: "Direct edit of generated agent file"
+    description: |
+      Files in src/vs-code-agents/ and src/copilot-cli/ are auto-generated
+      from templates. Edit templates/agents/*.shared.md instead, then run
+      the generation script.
+    importance: 9
+
+    match:
+      file_glob:
+        - "src/vs-code-agents/*.agent.md"
+        - "src/copilot-cli/*.agent.md"
+        - ".github/agents/*.agent.md"
+
+    checklist:
+      - "Check if file is in generated output directories"
+      - "Verify corresponding template exists in templates/agents/"
+      - "Suggest editing template instead: templates/agents/[name].shared.md"
+      - "Remind to run: pwsh build/Generate-Agents.ps1"
+      - "Reference CONTRIBUTING.md for agent modification process"
+
+    examples:
+      bad: |
+        # Editing src/vs-code-agents/analyst.agent.md directly
+      good: |
+        # Edit templates/agents/analyst.shared.md
+        # Then run: pwsh build/Generate-Agents.ps1
+
+    tags:
+      - architecture
+      - consistency
+      - maintainability
+
+    why_important: |
+      Direct edits to generated files will be overwritten on next generation.
+      Changes must be made in templates to persist.
+
+    link: CONTRIBUTING.md
+
+
+  - id: agent_handoff_syntax
+    agent: quality
+    title: "Agent handoff uses incorrect syntax for platform"
+    description: |
+      Different platforms use different handoff syntax.
+      VS Code uses #runSubagent, Copilot CLI uses /agent,
+      Claude uses Task(subagent_type=...).
+    importance: 7
+
+    match:
+      file_glob:
+        - "templates/agents/*.shared.md"
+        - "src/claude/*.md"
+
+    checklist:
+      - "Find handoff syntax in agent definitions"
+      - "Verify syntax matches platform conventions"
+      - "For templates, use platform-agnostic descriptions"
+      - "For Claude agents, verify Task() syntax"
+
+    examples:
+      bad: |
+        # In templates/agents/orchestrator.shared.md:
+        Use #runSubagent to delegate to analyst.
+      good: |
+        # In templates/agents/orchestrator.shared.md:
+        Delegate to analyst for research tasks.
+        
+        # Platform-specific syntax added during generation
+
+    tags:
+      - consistency
+      - agent-system
+
+
+  - id: agent_required_sections
+    agent: quality
+    title: "Agent template missing required sections"
+    description: |
+      Agent templates must include: Core Identity, Core Mission,
+      Key Responsibilities, Constraints, Memory Protocol, Output Format,
+      and Handoff Protocol sections.
+    importance: 6
+
+    match:
+      file_glob:
+        - "templates/agents/*.shared.md"
+
+    checklist:
+      - "Check for ## Core Identity section"
+      - "Check for ## Core Mission section"
+      - "Check for ## Key Responsibilities section"
+      - "Check for ## Constraints section"
+      - "Check for ## Memory Protocol section"
+      - "Check for ## Output Format section"
+      - "Check for ## Handoff Protocol section"
+      - "Verify frontmatter has description, tools_vscode, tools_copilot"
+
+    examples:
+      good: |
+        ---
+        description: Brief description
+        tools_vscode: ['vscode', 'read', 'search']
+        tools_copilot: ['shell', 'read', 'edit']
+        ---
+        
+        # Agent Name
+        
+        ## Core Identity
+        ## Core Mission
+        ## Key Responsibilities
+        ## Constraints
+        ## Memory Protocol
+        ## Output Format
+        ## Handoff Protocol
+
+    tags:
+      - agent-system
+      - documentation
+
+
+  - id: agent_frontmatter_validation
+    agent: quality
+    title: "Agent template frontmatter incomplete"
+    description: |
+      Agent templates require description, tools_vscode, and tools_copilot
+      fields in YAML frontmatter for proper generation.
+    importance: 7
+
+    match:
+      file_glob:
+        - "templates/agents/*.shared.md"
+
+    checklist:
+      - "Verify YAML frontmatter exists between --- markers"
+      - "Check for description field"
+      - "Check for tools_vscode array"
+      - "Check for tools_copilot array"
+      - "Verify tools arrays contain appropriate tool names"
+
+    examples:
+      bad: |
+        ---
+        description: Analyst agent
+        ---
+      good: |
+        ---
+        description: Technical investigator for research and analysis
+        tools_vscode: ['vscode', 'read', 'search', 'cloudmcp-manager/*']
+        tools_copilot: ['shell', 'read', 'edit', 'search', 'cloudmcp-manager/*']
+        ---
+
+    tags:
+      - agent-system
+      - configuration

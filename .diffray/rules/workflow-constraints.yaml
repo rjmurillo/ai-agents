@@ -1,0 +1,233 @@
+rules:
+  - id: wf_no_inline_logic
+    agent: architecture
+    title: "Workflow contains inline logic (ADR-006 violation)"
+    description: |
+      Business logic belongs in .psm1 modules, not workflow YAML.
+      GitHub Actions workflows cannot be tested locally, making
+      inline logic error-prone and difficult to validate.
+    importance: 8
+
+    match:
+      file_glob:
+        - ".github/workflows/*.yml"
+      content_regex:
+        - "if\\s*\\["
+        - "\\|\\s*while"
+        - "\\|\\s*grep"
+        - "\\|\\s*awk"
+        - "\\|\\s*sed"
+
+    checklist:
+      - "Find complex shell logic in run blocks"
+      - "Check for conditionals that should be in modules"
+      - "Look for data processing that belongs in PowerShell"
+      - "Suggest extracting to .psm1 module with Pester tests"
+      - "Reference ADR-006 for thin workflow pattern"
+
+    examples:
+      bad: |
+        - name: Process results
+          run: |
+            if [ "${{ matrix.os }}" == "windows" ]; then
+              result=$(cat output.json | jq -r '.status')
+              if [ "$result" == "success" ]; then
+                echo "Processing success case..."
+              fi
+            fi
+      good: |
+        - name: Process results
+          run: pwsh -File .github/scripts/Process-Results.ps1 -OS ${{ matrix.os }}
+        
+        # .github/scripts/Process-Results.ps1
+        [CmdletBinding()]
+        param([string]$OS)
+        $result = Get-Content output.json | ConvertFrom-Json
+        if ($result.status -eq 'success') {
+            Write-Output "Processing success case..."
+        }
+
+    tags:
+      - architecture
+      - ci-cd
+      - testability
+
+    why_important: |
+      Workflow logic cannot be tested locally. Moving to modules enables
+      fast feedback with Pester tests and reduces CI debug cycles.
+
+    link: .agents/architecture/ADR-006-thin-workflows-testable-modules.md
+
+
+  - id: wf_should_call_modules
+    agent: quality
+    title: "Workflow should delegate to PowerShell modules"
+    description: |
+      Workflows with substantial logic should call .psm1 modules
+      to enable local testing and reusability.
+    importance: 7
+
+    match:
+      file_glob:
+        - ".github/workflows/*.yml"
+      content_regex:
+        - "run:\\s*\\|"
+
+    checklist:
+      - "Check if run block has more than 5 lines"
+      - "Determine if logic is orchestration or business logic"
+      - "If business logic, suggest extracting to module"
+      - "Verify corresponding .psm1 file exists or suggest creating it"
+
+    examples:
+      bad: |
+        - name: Complex validation
+          run: |
+            files=$(git diff --name-only HEAD~1)
+            for file in $files; do
+              if [[ $file == *.ps1 ]]; then
+                pwsh -File $file -WhatIf
+              fi
+            done
+      good: |
+        - name: Complex validation
+          run: pwsh .github/scripts/Validate-Changes.ps1
+        
+        # .github/scripts/Validate-Changes.ps1 (with Pester tests)
+        $files = git diff --name-only HEAD~1
+        foreach ($file in $files) {
+            if ($file -like '*.ps1') {
+                & $file -WhatIf
+            }
+        }
+
+    tags:
+      - architecture
+      - ci-cd
+      - maintainability
+
+
+  - id: wf_max_line_limit
+    agent: quality
+    title: "Workflow exceeds recommended line limit"
+    description: |
+      Workflows over 100 lines suggest too much orchestration complexity
+      or embedded logic. Consider splitting into multiple workflows or
+      extracting to composite actions.
+    importance: 5
+
+    match:
+      file_glob:
+        - ".github/workflows/*.yml"
+
+    checklist:
+      - "Count total lines in workflow file"
+      - "If over 100 lines, suggest splitting strategies"
+      - "Check if reusable workflow pattern applies"
+      - "Suggest composite action for repeated steps"
+
+    examples:
+      bad: |
+        # workflow.yml with 150+ lines of jobs and steps
+      good: |
+        # main-workflow.yml (calls reusable workflows)
+        jobs:
+          build:
+            uses: ./.github/workflows/build-reusable.yml
+          test:
+            uses: ./.github/workflows/test-reusable.yml
+
+    tags:
+      - ci-cd
+      - maintainability
+
+
+  - id: wf_error_handling
+    agent: bugs
+    title: "Workflow steps lack error handling"
+    description: |
+      Critical workflow steps should check exit codes and fail explicitly
+      with descriptive messages rather than continuing on errors.
+    importance: 7
+
+    match:
+      file_glob:
+        - ".github/workflows/*.yml"
+      content_regex:
+        - "gh\\s|git\\s|pwsh|Invoke-"
+
+    checklist:
+      - "Find steps with external commands (gh, git, pwsh)"
+      - "Check if exit codes are verified"
+      - "Verify failure provides descriptive error message"
+      - "Check if continue-on-error is used appropriately"
+
+    examples:
+      bad: |
+        - name: Create PR
+          run: gh pr create --title "Update" --body "Changes"
+          # Fails silently if PR already exists or auth fails
+      good: |
+        - name: Create PR
+          run: |
+            pwsh -File .github/scripts/Create-PR.ps1
+          # Script checks $LASTEXITCODE and throws with context
+          
+        # Or with inline check:
+        - name: Create PR
+          run: |
+            gh pr create --title "Update" --body "Changes"
+            if [ $? -ne 0 ]; then
+              echo "::error::Failed to create PR. Check authentication and branch state."
+              exit 1
+            fi
+
+    tags:
+      - ci-cd
+      - error-handling
+      - bugs
+
+
+  - id: wf_secrets_exposure
+    agent: security
+    title: "Workflow may expose secrets in logs"
+    description: |
+      Secrets should never be echoed, logged, or passed as command-line
+      arguments where they could appear in logs.
+    importance: 9
+
+    match:
+      file_glob:
+        - ".github/workflows/*.yml"
+      content_regex:
+        - "secrets\\."
+
+    checklist:
+      - "Find usage of secrets.*"
+      - "Verify secrets are not echoed or written to logs"
+      - "Check if secrets are passed as environment variables (safe)"
+      - "Ensure secrets are not in command-line arguments"
+      - "Verify no 'set -x' or verbose logging with secrets"
+
+    examples:
+      bad: |
+        - name: Deploy
+          run: |
+            echo "Deploying with token: ${{ secrets.DEPLOY_TOKEN }}"
+            deploy.sh ${{ secrets.DEPLOY_TOKEN }}
+      good: |
+        - name: Deploy
+          env:
+            DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          run: |
+            # Token passed via environment, not CLI args or logs
+            pwsh -File scripts/Deploy.ps1
+
+    tags:
+      - security
+      - secrets
+      - ci-cd
+
+    why_important: |
+      Exposed secrets in logs compromise security and may require
+      secret rotation and incident response.
