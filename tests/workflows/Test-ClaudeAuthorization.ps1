@@ -50,28 +50,35 @@
 
 .NOTES
     This script logs all authorization attempts to GitHub Actions summary for audit trail.
-    Exit code 0 indicates success (result in stdout), non-zero indicates script error.
+
+    Exit Codes:
+    - 0: Success (authorization result in stdout: "true" or "false")
+    - 1: Script error (regex matching failure, audit log failure)
+    - 2: Double fault (authorization check failed AND audit logging failed)
 
     Error Handling:
-    - All errors use Write-Error with -ErrorId for categorization
-    - Script exits 1 on any error condition
-    - Missing required parameters cause immediate failure
+    - All errors are logged to stderr with context information
+    - Empty bodies are allowed - they naturally deny authorization (no @claude mention)
+    - Oversized bodies (>1MB) deny authorization, not script error
     - Regex matching errors are caught and logged
+    - Audit logging failures cause script error (exit code 1)
 
     Audit Logging:
-    - Writes to GITHUB_STEP_SUMMARY when available
-    - Logging failures do not block authorization (continue execution)
+    - Writes to GITHUB_STEP_SUMMARY when available (blocking - required)
     - Includes timestamp, event details, decision, and reasoning
+    - Error scenarios also logged to audit trail
+    - Double fault scenario (authorization + logging failure) exits with code 2
 
     Security:
     - Validates input length to prevent regex DoS (1MB max)
     - Case-sensitive @claude matching with negative lookahead pattern
-    - All parameters validated before processing
+    - Oversized bodies logged and denied (fail-safe approach)
+    - Bot allowlist synchronized with .github/workflows/claude.yml
 
-    Configuration:
-    - Bot allowlist must be synchronized with .github/workflows/claude.yml
-    - Update both locations when modifying allowed bots
-    - See line 109 for bot list definition
+    Diagnostics:
+    - Authorization details logged to stdout for workflow visibility
+    - Error details include event context for troubleshooting
+    - Audit trail available in GitHub Actions summary tab
 #>
 
 [CmdletBinding()]
@@ -125,45 +132,26 @@ try {
     )
 
     # Extract body content based on event type
+    # Note: Empty bodies are allowed - they will naturally deny authorization (no @claude mention)
     $body = switch ($EventName) {
-        'issue_comment' {
-            if ([string]::IsNullOrWhiteSpace($CommentBody)) {
-                Write-Error "Missing required CommentBody for issue_comment event" -ErrorId 'MissingRequiredParameter'
-                exit 1
-            }
-            $CommentBody
-        }
-        'pull_request_review_comment' {
-            if ([string]::IsNullOrWhiteSpace($CommentBody)) {
-                Write-Error "Missing required CommentBody for pull_request_review_comment event" -ErrorId 'MissingRequiredParameter'
-                exit 1
-            }
-            $CommentBody
-        }
-        'pull_request_review' {
-            if ([string]::IsNullOrWhiteSpace($ReviewBody)) {
-                Write-Error "Missing required ReviewBody for pull_request_review event" -ErrorId 'MissingRequiredParameter'
-                exit 1
-            }
-            $ReviewBody
-        }
-        'issues' {
-            # For issues events, check both body and title
-            if ([string]::IsNullOrWhiteSpace($IssueBody) -and [string]::IsNullOrWhiteSpace($IssueTitle)) {
-                Write-Error "Missing required IssueBody or IssueTitle for issues event - authorization will fail without @claude mention" -ErrorId 'MissingRequiredParameter'
-                exit 1
-            }
-            "$IssueBody $IssueTitle"
-        }
+        'issue_comment' { $CommentBody }
+        'pull_request_review_comment' { $CommentBody }
+        'pull_request_review' { $ReviewBody }
+        'issues' { "$IssueBody $IssueTitle" }
     }
 
     # Check for @claude mention (required for all events)
+    # Uses case-sensitive negative lookahead to ensure @claude not followed by a word character
+    # Prevents false positives like @claudette, @claude123, @claude_bot
     # Validate input length to prevent regex DoS
     $maxBodyLength = 1MB
     if ($body.Length -gt $maxBodyLength) {
-        Write-Error "Event body exceeds maximum safe length ($maxBodyLength bytes, received $($body.Length) bytes). This may indicate a malformed webhook or potential attack. Denying authorization." -ErrorId 'EventBodyTooLarge'
+        # Oversized bodies are treated as authorization denials, not script errors
+        # This logs the suspicious payload and denies the request gracefully
+        Write-Verbose "Authorization Denied: Event body exceeds maximum safe length ($maxBodyLength bytes, received $($body.Length) bytes)"
+        Write-Verbose "This may indicate a malformed webhook or potential attack"
 
-        # Log to audit trail if available
+        # Log to audit trail (blocking - required for security compliance)
         if ($env:GITHUB_STEP_SUMMARY) {
             try {
                 $oversizeLog = @"
@@ -180,15 +168,19 @@ This may indicate a malformed webhook payload or a potential attack. Legitimate 
                 Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $oversizeLog -ErrorAction Stop
             }
             catch {
-                Write-Warning "Failed to write oversize body audit log: $_"
+                Write-Error "CRITICAL: Failed to write oversize body audit log to GitHub Actions summary: $_. Authorization cannot proceed without audit trail." -ErrorId 'AuditLogFailed'
+                exit 1
             }
         }
 
-        exit 1
+        # Deny authorization (not a script error)
+        Write-Output "false"
+        exit 0
     }
 
     # Use case-sensitive match with negative lookahead to ensure word boundary
     # Pattern: @claude not followed by a word character (prevents @claudette, @claude123, @claude_bot, etc.)
+    # Case-sensitive to prevent @Claude, @CLAUDE from triggering (security requirement)
     try {
         $hasMention = -not [string]::IsNullOrWhiteSpace($body) -and $body -cmatch '@claude(?!\w)'
     }
@@ -198,11 +190,11 @@ This may indicate a malformed webhook payload or a potential attack. Legitimate 
     }
 
     # Log authorization attempt for audit trail
-    Write-Host "Authorization Check Details:"
-    Write-Host "  Event: $EventName"
-    Write-Host "  Actor: $Actor"
-    Write-Host "  Author Association: $AuthorAssociation"
-    Write-Host "  Has @claude Mention: $hasMention"
+    Write-Verbose "Authorization Check Details:"
+    Write-Verbose "  Event: $EventName"
+    Write-Verbose "  Actor: $Actor"
+    Write-Verbose "  Author Association: $AuthorAssociation"
+    Write-Verbose "  Has @claude Mention: $hasMention"
 
     # Determine authorization
     $isAuthorized = $false
@@ -210,21 +202,21 @@ This may indicate a malformed webhook payload or a potential attack. Legitimate 
 
     if (-not $hasMention) {
         $authReason = "No @claude mention found in event body/title"
-        Write-Host "Result: Not authorized - $authReason"
+        Write-Verbose "Result: Not authorized - $authReason"
     }
     elseif ($allowedBots -contains $Actor) {
         $isAuthorized = $true
         $authReason = "Authorized via bot allowlist: $Actor"
-        Write-Host "Result: Authorized - $authReason"
+        Write-Verbose "Result: Authorized - $authReason"
     }
     elseif ($allowedAssociations -contains $AuthorAssociation) {
         $isAuthorized = $true
         $authReason = "Authorized via author association: $AuthorAssociation"
-        Write-Host "Result: Authorized - $authReason"
+        Write-Verbose "Result: Authorized - $authReason"
     }
     else {
         $authReason = "Access denied: Actor=$Actor is not in bot allowlist, Association=$AuthorAssociation is not in allowed list"
-        Write-Host "Result: Not authorized - $authReason"
+        Write-Verbose "Result: Not authorized - $authReason"
     }
 
     # Write audit log to GitHub Actions summary (if running in GitHub Actions)
@@ -277,7 +269,7 @@ catch {
     }
 
     Write-Error "Authorization check failed: $($errorDetails | ConvertTo-Json -Compress)" -ErrorId 'AuthorizationCheckFailed'
-    Write-Host "Error Details: Event=$EventName, Actor=$Actor, Association=$AuthorAssociation"
+    Write-Verbose "Error Details: Event=$EventName, Actor=$Actor, Association=$AuthorAssociation"
 
     # Log error to summary if available
     if ($env:GITHUB_STEP_SUMMARY) {
@@ -298,6 +290,9 @@ Authorization check failed. Review workflow logs for details.
         catch {
             Write-Error "DOUBLE FAULT: Authorization check failed AND audit logging failed: $_" -ErrorId 'AuditLogDoubleFault'
             Write-Error "Original error: $($_.Exception.Message)"
+            # Defensive: Ensure we output denial and exit with distinct code for double faults
+            Write-Output "false"
+            exit 2
         }
     }
 
