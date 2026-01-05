@@ -101,7 +101,7 @@ runs:
         Import-Module Pester -RequiredVersion 5.7.1
         $pesterVersion = (Get-Module Pester).Version
         echo "✓ Pester $pesterVersion installed"
-        echo "pester_version=$pesterVersion" >> $env:GITHUB_OUTPUT
+        "pester_version=$pesterVersion" >> "$env:GITHUB_OUTPUT"
 
     - name: Set SKIP_AUTOFIX environment variable
       shell: bash
