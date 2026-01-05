@@ -6,6 +6,99 @@ The security agent missed two CRITICAL vulnerabilities (CWE-22 path traversal, C
 
 This plan implements comprehensive CWE-699 framework integration into src/claude/security.md, expands coverage from 3 to 30+ high-priority CWEs across 11 weakness categories, adds PowerShell security checklist with concrete examples, establishes severity calibration criteria, creates feedback loop infrastructure with Forgetful memory integration, implements security benchmark suite for agent capability testing, adds second-pass review gate for critical file paths, and updates documentation. Estimated effort: 38 hours over 3 weeks across 7 milestones (M4 +1 hour per critic recommendation).
 
+## Research Summary (Sessions 307-308)
+
+### CWE-699 Framework Analysis (Session 307)
+
+Session 307 researched the CWE-699 Software Development view and identified:
+
+**Path Traversal CWE Hierarchy**:
+
+| CWE | Name | Relationship |
+|-----|------|--------------|
+| CWE-99 | Resource Injection | Broadest class |
+| CWE-73 | External Control of File Name | Root cause enabling traversal |
+| CWE-22 | Path Traversal | Parent category |
+| CWE-23 | Relative Path Traversal | Child (../ sequences) |
+| CWE-36 | Absolute Path Traversal | Child (/etc/passwd) |
+
+**Codebase Scan Findings**:
+
+| CWE | File | Risk | Line |
+|-----|------|------|------|
+| CWE-94 | Install-Common.psm1 | MEDIUM | 133 |
+| CWE-1333 | detect-infrastructure.ps1 | HIGH | 71-83 |
+| CWE-367 | Sync-McpConfig.ps1 | LOW | 102-105 |
+| CWE-22 | New-Issue.ps1 | MEDIUM | 59-64 |
+| CWE-295 | install.ps1 | LOW | 82-84 |
+
+**Positive Patterns Found**:
+
+- `Test-SafeFilePath` in GitHubCore.psm1 (proper GetFullPath + StartsWith)
+- `Test-PathWithinRoot` in Generate-Agents.Common.psm1 (directory separator appending)
+- GraphQL variables for parameter passing (not string interpolation)
+
+### OWASP Agentic Top 10 Analysis (Session 308)
+
+Session 308 analyzed the OWASP Top 10 for Agentic Applications (2026):
+
+| ID | Name | CWE Mapping | ai-agents Relevance |
+|----|------|-------------|---------------------|
+| ASI01 | Agent Goal Hijack | CWE-94, CWE-77 | Prompt injection in system prompts |
+| ASI02 | Tool Misuse | CWE-22, CWE-78 | MCP tool parameter validation |
+| ASI03 | Identity Abuse | CWE-269, CWE-284 | Agent privilege scope |
+| ASI04 | Supply Chain | CWE-426, CWE-502 | MCP server validation |
+| ASI05 | Code Execution | CWE-94, CWE-78 | ExpandString, Invoke-Expression |
+| ASI06 | Memory Poisoning | CWE-1321, CWE-502 | Four-tier memory system |
+| ASI07 | Inter-Agent Comms | CWE-319, CWE-345 | Task tool delegation (novel) |
+| ASI08 | Cascading Failures | CWE-703, CWE-754 | Orchestrator error propagation |
+| ASI09 | Trust Exploitation | CWE-346, CWE-451 | Human-agent checkpoints |
+| ASI10 | Rogue Agents | CWE-284, CWE-269 | Agent allowlist (novel) |
+
+**Key Finding**: 7 of 10 OWASP agentic categories map to existing CWEs. 3 categories (ASI07, ASI08, ASI10) represent novel agentic-specific threats with limited CWE coverage.
+
+**CRITICAL Priority Patterns (M1 Addition)**:
+
+1. Untrusted input in system prompts (ASI01) - CWE-94
+2. External goal/instruction loading (ASI01) - CWE-94
+3. ExpandString with external input (ASI05) - CWE-94
+4. Credentials in agent context (ASI03) - CWE-522
+5. Unvalidated MCP tool inputs (ASI02) - CWE-20
+
+### Memory Artifacts
+
+**Serena Memories**:
+
+- `cwe-699-security-agent-integration` - CWE hierarchy and detection patterns
+- `owasp-agentic-security-integration` - OWASP ASI01-ASI10 integration guidance
+
+**Forgetful Memories** (IDs 111-127):
+
+- 111: Path Traversal CWE Family Unified Detection (importance: 9)
+- 112: PowerShell StartsWith Path Validation Vulnerability (importance: 10)
+- 113: PowerShell Join-Path Absolute Path Bypass (importance: 8)
+- 114: PowerShell Code Injection via ExpandString (importance: 8)
+- 115: ReDoS Prevention in PowerShell Pattern Matching (importance: 7)
+- 116: TOCTOU Symlink Race Condition Pattern (importance: 6)
+- 117: CWE-699 Software Development View Structure (importance: 7)
+- 118: Safe Path Validation Pattern for PowerShell (importance: 9)
+- 119: Python Subprocess Security Patterns CWE-78 (importance: 8)
+- 120: OWASP Top 10 for Agentic Applications Framework Overview (importance: 9)
+- 121: Agent Goal Hijack Prevention ASI01 (importance: 9)
+- 122: Agent Memory Poisoning Attacks ASI06 (importance: 8)
+- 123: Agent Cascading Failure Prevention ASI08 (importance: 7)
+- 124: Rogue Agent Detection and Prevention ASI10 (importance: 8)
+- 125: MCP Server Supply Chain Security ASI04 (importance: 8)
+- 126: AIVSS AI Vulnerability Scoring System (importance: 6)
+- 127: Inter-Agent Communication Security ASI07 (importance: 7)
+
+### Analysis Documents
+
+- `.agents/analysis/cwe-699-framework-integration.md` - 469 lines, comprehensive CWE analysis
+- `.agents/analysis/owasp-agentic-security-integration.md` - 4200 words, OWASP integration
+
+---
+
 ## Planning Context
 
 ### Decision Log
@@ -223,8 +316,15 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 
 **Requirements**:
 - Replace 3-CWE list (CWE-78, CWE-79, CWE-89) with 11 CWE-699 categories
-- Add 30 high-priority CWEs covering: Injection (22, 77, 78, 89, 91, 94), Path Traversal (22, 23), Authentication (287, 798, 640), Authorization (285, 863), Cryptography (327, 759), Input Validation (20, 129), Resource Management (400, 770), Error Handling (209, 532), API Abuse (306, 862), Race Conditions (362, 367), Code Quality (484, 665)
-- Cross-reference each CWE with OWASP Top 10:2021 mapping where applicable
+- Add 30 high-priority CWEs covering: Injection (22, 77, 78, 89, 91, 94), Path Traversal (22, 23, 36, 73, 99), Authentication (287, 798, 640), Authorization (285, 863, 269, 284), Cryptography (327, 759), Input Validation (20, 129), Resource Management (400, 770), Error Handling (209, 532), API Abuse (306, 862), Race Conditions (362, 367), Code Quality (484, 665)
+- **NEW (Session 307-308)**: Add CWEs from codebase scan: CWE-1333 (ReDoS), CWE-295 (Certificate Validation), CWE-502 (Deserialization)
+- **NEW (OWASP Agentic)**: Add agentic-specific patterns:
+  - ASI01/ASI05: System prompt injection (CWE-94 variant)
+  - ASI02: MCP tool parameter validation (CWE-20)
+  - ASI03: Agent credential exposure (CWE-522)
+  - ASI04: MCP server supply chain (CWE-426)
+  - ASI06: Memory poisoning (CWE-1321)
+- Cross-reference each CWE with OWASP Top 10:2021 AND OWASP Agentic Top 10 mapping where applicable
 - Provide 1-sentence description per CWE explaining vulnerability class
 - Organize by CWE-699 category with category labels (e.g., "[Injection]", "[Authentication]")
 
@@ -673,7 +773,13 @@ M6 (CI Gate) ──────────────────────�
 
 - **Root Cause**: [.agents/analysis/security-agent-failure-rca.md](.agents/analysis/security-agent-failure-rca.md)
 - **Evidence**: PR #752, GitHub Issue #755
+- **Epic**: GitHub Issue #756 (Security Agent Detection Gaps Remediation)
+- **OWASP Issue**: GitHub Issue #770 (OWASP Agentic Top 10 patterns)
 - **Memory**: [.serena/memories/security-agent-vulnerability-detection-gaps.md](.serena/memories/security-agent-vulnerability-detection-gaps.md)
 - **Framework**: [CWE-699 Software Development View](https://cwe.mitre.org/data/definitions/699.html)
+- **OWASP Agentic**: [OWASP Top 10 for Agentic Applications (2026)](https://genai.owasp.org/)
 - **Vulnerable Code**: [.claude-mem/scripts/Export-ClaudeMemMemories.ps1](.claude-mem/scripts/Export-ClaudeMemMemories.ps1)
 - **Security Report**: [.agents/security/SR-pr752-memory-system-foundation.md](.agents/security/SR-pr752-memory-system-foundation.md)
+- **CWE Analysis**: [.agents/analysis/cwe-699-framework-integration.md](.agents/analysis/cwe-699-framework-integration.md)
+- **OWASP Analysis**: [.agents/analysis/owasp-agentic-security-integration.md](.agents/analysis/owasp-agentic-security-integration.md)
+- **Session Logs**: Session 307 (CWE-699), Session 308 (OWASP Agentic)
