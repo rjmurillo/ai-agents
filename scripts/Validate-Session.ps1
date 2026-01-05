@@ -104,6 +104,68 @@ function Get-HeadingTable([string[]]$Lines, [string]$HeadingRegex) {
   return $tableLines.ToArray()
 }
 
+function Split-TableRow {
+  <#
+  .SYNOPSIS
+    Splits a markdown table row by pipe characters, respecting code spans (backticks).
+
+  .DESCRIPTION
+    Character-by-character parser that tracks whether we're inside backticks.
+    Only treats pipe characters as column separators when outside code spans.
+    
+    Handles:
+    - Single backtick code spans: `code|with|pipes`
+    - Multiple code spans in same row
+    - Empty code spans: ``
+    
+    Known limitations:
+    - Does not handle escaped backticks (\`)
+    - Does not handle nested backticks (rare in practice)
+
+  .PARAMETER Row
+    The table row string to split (should have outer pipes already trimmed)
+
+  .OUTPUTS
+    Array of column strings (trimmed)
+
+  .EXAMPLE
+    Split-TableRow 'MUST | Run: `grep "a|b"` | [x] | Done'
+    Returns: @('MUST', 'Run: `grep "a|b"`', '[x]', 'Done')
+  #>
+  param([string]$Row)
+
+  $columns = [System.Collections.Generic.List[string]]::new()
+  $currentColumn = [System.Text.StringBuilder]::new()
+  $inCodeSpan = $false
+
+  for ($i = 0; $i -lt $Row.Length; $i++) {
+    $char = $Row[$i]
+
+    if ($char -eq '`') {
+      # Toggle code span state
+      $inCodeSpan = -not $inCodeSpan
+      [void]$currentColumn.Append($char)
+    }
+    elseif ($char -eq '|' -and -not $inCodeSpan) {
+      # Column separator (only when not in code span)
+      $columns.Add($currentColumn.ToString())
+      [void]$currentColumn.Clear()
+    }
+    else {
+      # Regular character
+      [void]$currentColumn.Append($char)
+    }
+  }
+
+  # Add final column
+  if ($currentColumn.Length -gt 0 -or $columns.Count -gt 0) {
+    $columns.Add($currentColumn.ToString())
+  }
+
+  # Comma operator prevents PowerShell from unwrapping single-element arrays
+  , $columns.ToArray()
+}
+
 function Parse-ChecklistTable([string[]]$TableLines) {
   # Returns ordered rows: @{ Req = 'MUST'; Step='...'; Status='x'/' '; Evidence='...' }
   $rows = New-Object System.Collections.Generic.List[hashtable]
@@ -111,8 +173,9 @@ function Parse-ChecklistTable([string[]]$TableLines) {
     if ($line -match '^\|\s*-+\s*\|') { continue } # separator row
     if ($line -match '^\|\s*Req\s*\|') { continue } # header row
 
-    # Split 4 columns, trimming outer pipes.
-    $parts = ($line.Trim() -replace '^\|','' -replace '\|$','').Split('|') | ForEach-Object { $_.Trim() }
+    # Trim outer pipes and split columns (respecting code spans)
+    $innerContent = ($line.Trim() -replace '^\|','' -replace '\|$','')
+    $parts = Split-TableRow $innerContent | ForEach-Object { $_.Trim() }
     if ($parts.Count -lt 4) { continue }
 
     $req = ($parts[0] -replace '\*','').Trim().ToUpperInvariant()
