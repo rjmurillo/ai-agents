@@ -129,7 +129,7 @@ git branch --show-current
 ```bash
 npx markdownlint-cli2 --fix "**/*.md"
 pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].md"
-pwsh scripts/Validate-Session.ps1 -SessionLogPath ".agents/sessions/[log].md"
+pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath ".agents/sessions/[log].md"
 ```
 
 ### Development Tools
