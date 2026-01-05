@@ -265,6 +265,49 @@ Creates a PR with all guardrails enforced.
 - `Check-SkillExists.ps1` - Skill availability check
 - `Invoke-BatchPRReview.ps1` - Batch PR review automation
 
+#### Sync-McpConfig.ps1
+
+Syncs MCP configuration from Claude Code's `.mcp.json` to Factory Droid and VS Code formats.
+
+**Usage**:
+
+```powershell
+# Sync to VS Code (default behavior)
+.\scripts\Sync-McpConfig.ps1
+
+# Sync to Factory Droid
+.\scripts\Sync-McpConfig.ps1 -Target factory
+
+# Sync to both Factory and VS Code
+.\scripts\Sync-McpConfig.ps1 -SyncAll
+
+# Check what would change without making changes
+.\scripts\Sync-McpConfig.ps1 -WhatIf
+
+# Return boolean indicating whether sync occurred
+$synced = .\scripts\Sync-McpConfig.ps1 -PassThru
+if ($synced) { Write-Host "Configuration was synced" }
+```
+
+**Parameters**:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `-SourcePath` | String | `.mcp.json` | Source Claude .mcp.json path |
+| `-DestinationPath` | String | Auto-detected | Custom destination path (not used with SyncAll) |
+| `-Target` | String | `vscode` | `vscode` or `factory` (mutually exclusive with SyncAll) |
+| `-SyncAll` | Switch | `$false` | Generate both Factory and VS Code configs |
+| `-Force` | Switch | `$false` | Overwrite even if content identical |
+| `-WhatIf` | Switch | `$false` | Show what would change without making changes |
+| `-PassThru` | Switch | `$false` | Return `$true` if files synced, `$false` otherwise |
+
+**Output Formats**:
+
+- Factory (`.factory/mcp.json`): Uses `mcpServers` root key (same as Claude)
+- VS Code (`.vscode/mcp.json`): Uses `servers` root key, transforms serena config
+
+**Note**: This script generates `.factory/mcp.json` for Factory Droid compatibility. For more information on Factory Droid MCP configuration, see <https://docs.factory.ai/cli/configuration/mcp>
+
 See [docs/technical-guardrails.md](../docs/technical-guardrails.md) for complete validation documentation.
 
 ## Full Documentation
