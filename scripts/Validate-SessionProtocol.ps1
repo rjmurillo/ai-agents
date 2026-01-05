@@ -155,12 +155,14 @@ function Parse-ChecklistTable {
     $rows = New-Object System.Collections.Generic.List[hashtable]
 
     foreach ($line in $TableLines) {
-        # Skip separator and header rows (check BEFORE parsing)
+        # Skip separator and header rows
+        # Note: Separator regex is permissive - matches any line with only pipes, dashes, whitespace
+        # This handles various markdown table formats but may accept malformed separators
         $isSeparator = $line -match '^\s*[|\s-]+\s*$'
         $isHeader = $line -match '^\s*\|\s*Req\s*\|'
 
-        if ($isSeparator) { continue }  # separator row (only pipes, dashes, whitespace)
-        if ($isHeader) { continue }  # header row
+        if ($isSeparator) { continue }
+        if ($isHeader) { continue }
 
         # Split into 4 columns, trim outer pipes
         $parts = ($line.Trim() -replace '^\|', '' -replace '\|$', '').Split('|') |
@@ -189,8 +191,9 @@ function Parse-ChecklistTable {
         })
     }
 
-    # Always return an array (even with 0 or 1 elements)
-    # Use comma operator to prevent PowerShell from unwrapping single-element arrays
+    # Return as array. Comma operator prevents unwrapping at call site when result has single element.
+    # PowerShell unwraps single-element arrays on assignment: $x = @('item') becomes $x = 'item'
+    # The comma forces array preservation: $x = ,@('item') keeps $x as array type
     return ,$rows.ToArray()
 }
 
@@ -529,11 +532,12 @@ function Test-MustRequirements {
         }
     }
 
-    # Also check for checklist-style MUST requirements
+    # FALLBACK: If primary pattern found nothing, try alternate 4-column table pattern
     # Pattern: | MUST | description | [ ] | evidence |
+    # NOTE: This only runs when primary regex found ZERO matches (not double-count prevention)
     $tableMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\*?\*?\s*\|[^|]+\|\s*\[([x ])\]\s*\|')
     foreach ($match in $tableMatches) {
-        # Skip if first regex already matched (avoid double-counting)
+        # Only use fallback pattern when primary pattern completely failed
         if ($mustMatches.Count -eq 0) {
             $result.Details.TotalMust++
             $isComplete = $match.Groups[1].Value -eq 'x'
@@ -592,11 +596,15 @@ function Test-HandoffUpdated {
         $gitDiffWorked = $false
 
         # Check if we're in a git repository
-        git rev-parse --git-dir 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) {
+        $gitCheck = git rev-parse --git-dir 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Verbose "Not a git repository or git command failed: $gitCheck"
+        } else {
             # Check if origin/main exists (may not in shallow checkout)
-            git rev-parse --verify origin/main 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) {
+            $originCheck = git rev-parse --verify origin/main 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Verbose "Remote origin/main not found: $originCheck. May be shallow clone or detached state."
+            } else {
                 $useGitDiff = $true
             }
         }
@@ -604,7 +612,9 @@ function Test-HandoffUpdated {
         if ($useGitDiff) {
             # Use git diff for reliable detection
             $gitDiff = git diff --name-only origin/main...HEAD 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "Git diff failed: $gitDiff. Falling back to timestamp comparison (less reliable in CI)."
+            } else {
                 $gitDiffWorked = $true
                 $handoffModified = $gitDiff -contains ".agents/HANDOFF.md"
 
@@ -618,18 +628,40 @@ function Test-HandoffUpdated {
         # Fall back to filesystem timestamp if git diff not available
         # (used for test environments, non-git directories)
         # IMPORTANT: Skip fallback in CI shallow checkouts (timestamp is unreliable)
+        # Without this check, shallow clones would incorrectly flag HANDOFF.md as modified
+        # because all files have checkout timestamp, potentially newer than session date
         $isGitRepoWithoutOrigin = (git rev-parse --git-dir 2>$null) -and -not $useGitDiff
         $skipTimestampFallback = $isGitRepoWithoutOrigin  # Shallow checkout case
 
         if (-not $gitDiffWorked -and -not $skipTimestampFallback) {
             $sessionFileName = Split-Path -Leaf $SessionPath
             if ($sessionFileName -match '^(\d{4}-\d{2}-\d{2})') {
-                $sessionDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
-                $handoffModifiedDate = (Get-Item $handoffPath).LastWriteTime.Date
+                try {
+                    $sessionDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
 
-                if ($handoffModifiedDate -ge $sessionDate) {
+                    try {
+                        $handoffItem = Get-Item -LiteralPath $handoffPath -ErrorAction Stop
+                        $handoffModifiedDate = $handoffItem.LastWriteTime.Date
+
+                        if ($handoffModifiedDate -ge $sessionDate) {
+                            $result.Passed = $false
+                            $result.Issues += "HANDOFF.md was modified ($($handoffModifiedDate.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
+                        }
+                    } catch [System.UnauthorizedAccessException] {
+                        Write-Warning "Permission denied reading HANDOFF.md metadata. Cannot verify modification timestamp."
+                    } catch [System.IO.FileNotFoundException] {
+                        Write-Verbose "HANDOFF.md was deleted between existence check and metadata read (race condition). Treating as not modified."
+                    } catch {
+                        Write-Warning "Failed to read HANDOFF.md metadata: $_. Cannot verify modification timestamp."
+                    }
+                } catch [System.FormatException] {
                     $result.Passed = $false
-                    $result.Issues += "HANDOFF.md was modified ($($handoffModifiedDate.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
+                    $result.Issues += "Session log filename contains invalid date format: '$($Matches[1])'. Expected format: YYYY-MM-DD. Cannot validate HANDOFF.md modification timestamp."
+                    Write-Warning "Failed to parse session date from filename: $sessionFileName"
+                } catch {
+                    $result.Passed = $false
+                    $result.Issues += "Unexpected error parsing session date: $_"
+                    Write-Error "Date parsing failed for session: $sessionFileName. Error: $_"
                 }
             }
         }
@@ -855,17 +887,38 @@ function Get-SessionLogs {
         return @()
     }
 
-    $sessions = Get-ChildItem -Path $sessionsPath -Filter "*.md" -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}-session-\d+(-.+)?\.md$' }
+    try {
+        $sessions = Get-ChildItem -Path $sessionsPath -Filter "*.md" -ErrorAction Stop |
+            Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}-session-\d+(-.+)?\.md$' }
+    } catch [System.UnauthorizedAccessException] {
+        Write-Error "Permission denied reading sessions directory: $sessionsPath"
+        return @()
+    } catch [System.IO.IOException] {
+        Write-Error "IO error reading sessions directory: $sessionsPath. Error: $_"
+        return @()
+    } catch {
+        Write-Error "Failed to read sessions directory: $sessionsPath. Error: $_"
+        return @()
+    }
 
     if ($Days -gt 0) {
         $cutoffDate = (Get-Date).AddDays(-$Days)
+        $excludedCount = 0
         $sessions = $sessions | Where-Object {
             if ($_.Name -match '^(\d{4}-\d{2}-\d{2})') {
-                $fileDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
-                return $fileDate -ge $cutoffDate
+                try {
+                    $fileDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
+                    return $fileDate -ge $cutoffDate
+                } catch {
+                    $excludedCount++
+                    Write-Warning "Excluding session with invalid date format: $($_.Name)"
+                    return $false
+                }
             }
             return $false
+        }
+        if ($excludedCount -gt 0) {
+            Write-Warning "Excluded $excludedCount session(s) due to date parsing errors"
         }
     }
 
