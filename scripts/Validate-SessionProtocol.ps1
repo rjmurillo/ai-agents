@@ -1195,7 +1195,28 @@ try {
         exit 0
     }
 } catch {
-    Write-Error "Validation failed: $($_.Exception.Message)"
+    # Enhanced error context for debugging (HIGH #4 from Round 4 review)
+    $errorContext = @(
+        "Validation failed with error: $($_.Exception.GetType().FullName)",
+        "Message: $($_.Exception.Message)",
+        "Parameter Set: $($PSCmdlet.ParameterSetName)",
+        "Session Path: $(if ($SessionPath) { $SessionPath } else { 'N/A' })",
+        "Validations Completed: $($validations.Count)"
+    )
+
+    # Add current session file context if available from exception data
+    if ($_.Exception.TargetSite -and $_.Exception.TargetSite.Name) {
+        $errorContext += "Failed in: $($_.Exception.TargetSite.Name)"
+    }
+
+    # Add script line number if available
+    if ($_.InvocationInfo.ScriptLineNumber) {
+        $errorContext += "Script Line: $($_.InvocationInfo.ScriptLineNumber)"
+    }
+
+    $fullErrorMessage = $errorContext -join "`n  "
+    Write-Error $fullErrorMessage
+
     if ($CI) {
         exit 1
     }
