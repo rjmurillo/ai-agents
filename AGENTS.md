@@ -14,7 +14,9 @@ Option B (serena/*):
 2. serena/initial_instructions
 ```
 
-If Serena tools are not available in your environment, proceed without Serena and document the unavailability in your session log. For memory fallbacks, read the backing file at `.serena/memories/<memory-name>.md` (the memory name is the filename without `.md`, for example `pr-comment-responder-skills` → `.serena/memories/pr-comment-responder-skills.md`).
+If Serena tools are not available in your environment, proceed without Serena and document the unavailability in your session log.
+
+For memory fallbacks, read the backing file at `.serena/memories/<memory-name>.md`. The memory name is the filename without the `.md` extension. For example: `pr-comment-responder-skills` → `.serena/memories/pr-comment-responder-skills.md`.
 
 **Why this matters**: Without Serena initialization, you lack access to:
 
