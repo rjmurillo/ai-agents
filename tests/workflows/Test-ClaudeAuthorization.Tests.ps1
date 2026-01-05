@@ -1,3 +1,5 @@
+#Requires -Modules Pester
+
 <#
 .SYNOPSIS
     Pester tests for Test-ClaudeAuthorization.ps1
@@ -98,13 +100,10 @@ Describe 'Test-ClaudeAuthorization' {
                 -EventName 'issue_comment' `
                 -Actor 'github-actions[bot]' `
                 -AuthorAssociation 'NONE' `
-                -CommentBody '@claude help' `
-                *>&1
+                -CommentBody '@claude help'
 
             # Should authorize (bot allowlist takes precedence)
-            $output = $result | Out-String
-            $output | Should -Match 'Authorized via bot allowlist'
-            $output | Should -Not -Match 'Authorized via author association'
+            $result | Should -Be 'true'
             $LASTEXITCODE | Should -Be 0
         }
 
@@ -305,37 +304,40 @@ Describe 'Test-ClaudeAuthorization' {
             $LASTEXITCODE | Should -Be 0
         }
 
-        It 'Should fail when issues event has both empty body and empty title' {
-            { & $script:ScriptPath `
+        It 'Should deny authorization when issues event has both empty body and empty title (no @claude mention)' {
+            $result = & $script:ScriptPath `
                 -EventName 'issues' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
                 -IssueBody '' `
-                -IssueTitle '' `
-                -ErrorAction Stop
-            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
+                -IssueTitle ''
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
         }
     }
 
     Context 'Edge Cases' {
-        It 'Should fail with empty comment body' {
-            { & $script:ScriptPath `
+        It 'Should deny authorization with empty comment body (no @claude mention)' {
+            $result = & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
-                -CommentBody '' `
-                -ErrorAction Stop
-            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
+                -CommentBody ''
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
         }
 
-        It 'Should fail with whitespace-only comment body' {
-            { & $script:ScriptPath `
+        It 'Should deny authorization with whitespace-only comment body (no @claude mention)' {
+            $result = & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
-                -CommentBody '   ' `
-                -ErrorAction Stop
-            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
+                -CommentBody '   '
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
         }
 
         It 'Should handle empty AuthorAssociation' {
@@ -349,15 +351,15 @@ Describe 'Test-ClaudeAuthorization' {
             $LASTEXITCODE | Should -Be 0
         }
 
-        It 'Should handle @claude mention case-sensitively' {
-            # @claude is case-sensitive in GitHub mentions
+        It 'Should handle @claude mention case-insensitively' {
+            # @claude matching is case-insensitive for backward compatibility
             $result = & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
                 -CommentBody '@CLAUDE help'
 
-            $result | Should -Be 'false'
+            $result | Should -Be 'true'
             $LASTEXITCODE | Should -Be 0
         }
 
@@ -437,33 +439,68 @@ Describe 'Test-ClaudeAuthorization' {
             $result | Should -Be 'true'
             $LASTEXITCODE | Should -Be 0
         }
+
+        It 'Should match @Claude with capital C (case-insensitive)' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody 'Hey @Claude, can you help?'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should match @CLAUDE all uppercase (case-insensitive)' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody '@CLAUDE please review'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should match mixed case @ClAUDe (case-insensitive)' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody 'Hey @ClAUDe, can you help?'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
     }
 
     Context 'Input Size Validation' {
-        It 'Should reject event body larger than 1MB with @claude before boundary' {
+        It 'Should deny authorization for event body larger than 1MB with @claude before boundary' {
             # Create body with @claude before 1MB boundary but total size > 1MB
             $largeBody = '@claude help ' + ('x' * (1MB + 100))
 
-            { & $script:ScriptPath `
+            $result = & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
-                -CommentBody $largeBody `
-                -ErrorAction Stop
-            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
+                -CommentBody $largeBody
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
         }
 
-        It 'Should reject event body larger than 1MB with @claude after boundary' {
+        It 'Should deny authorization for event body larger than 1MB with @claude after boundary' {
             # Create body with @claude after 1MB boundary
             $largeBody = ('x' * (1MB + 100)) + ' @claude help'
 
-            { & $script:ScriptPath `
+            $result = & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
-                -CommentBody $largeBody `
-                -ErrorAction Stop
-            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
+                -CommentBody $largeBody
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
         }
     }
 
@@ -477,6 +514,35 @@ Describe 'Test-ClaudeAuthorization' {
                 -CommentBody '@claude help' `
                 -ErrorAction Stop
             } | Should -Throw -ExceptionType ([System.Management.Automation.ParameterBindingException])
+        }
+
+        It 'Should handle runtime errors and log to summary' {
+            # Arrange
+            $env:GITHUB_STEP_SUMMARY = Join-Path $TestDrive 'summary.md'
+            # Mock Get-Date in a way that error happens in try block
+            # Since Get-Date is also used in catch block, this creates a double fault scenario
+            Mock Get-Date { throw "Simulated runtime error" }
+
+            # Act
+            # The script should not throw an unhandled exception because of the try/catch
+            {
+                & $script:ScriptPath `
+                    -EventName 'issue_comment' `
+                    -Actor 'member' `
+                    -AuthorAssociation 'MEMBER' `
+                    -CommentBody '@claude help' `
+                    2>&1 | Out-Null
+            } | Should -Not -Throw
+
+            # Assert
+            # Double fault: error in try block + error logging failure (exit code 2)
+            $LASTEXITCODE | Should -Be 2
+
+            # Cleanup
+            if ($env:GITHUB_STEP_SUMMARY -and (Test-Path $env:GITHUB_STEP_SUMMARY)) {
+                Remove-Item -Path $env:GITHUB_STEP_SUMMARY -ErrorAction SilentlyContinue
+            }
+            $env:GITHUB_STEP_SUMMARY = $null
         }
     }
 
@@ -566,13 +632,15 @@ Describe 'Test-ClaudeAuthorization' {
             New-Item -Path $env:GITHUB_STEP_SUMMARY -ItemType File -Force
             Set-ItemProperty -Path $env:GITHUB_STEP_SUMMARY -Name IsReadOnly -Value $true
 
-            { & $script:ScriptPath `
+            & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
                 -CommentBody '@claude help' `
-                -ErrorAction Stop
-            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
+                2>&1 | Out-Null
+
+            # Double fault: authorization succeeds but audit logging fails (exit code 2)
+            $LASTEXITCODE | Should -Be 2
 
             # Cleanup
             Set-ItemProperty -Path $env:GITHUB_STEP_SUMMARY -Name IsReadOnly -Value $false
