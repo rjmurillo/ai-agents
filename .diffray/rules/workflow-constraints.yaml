@@ -154,7 +154,7 @@ rules:
       file_glob:
         - ".github/workflows/*.yml"
       content_regex:
-        - "\\b(?:gh|git|pwsh)\\b\\s|\\bInvoke-"
+        - "\\b(?:gh|git|pwsh)\\b|\\bInvoke-"
 
     checklist:
       - "Find steps with external commands (gh, git, pwsh)"
