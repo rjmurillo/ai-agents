@@ -14,7 +14,7 @@
     to enable testing, debugging, and proper error handling.
 
 .PARAMETER EventName
-    GitHub event name (issue_comment, pull_request_review_comment, pull_request_review, issues)
+    GitHub event name (issue_comment, pull_request_review_comment, pull_request_review, issues, pull_request, workflow_dispatch)
 
 .PARAMETER Actor
     GitHub actor triggering the event (e.g., username or bot name)
@@ -33,6 +33,12 @@
 
 .PARAMETER IssueTitle
     Title of an issue (for issues events)
+
+.PARAMETER PRBody
+    Body text of a pull request (for pull_request events)
+
+.PARAMETER PRTitle
+    Title of a pull request (for pull_request events)
 
 .OUTPUTS
     System.String
@@ -84,7 +90,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('issue_comment', 'pull_request_review_comment', 'pull_request_review', 'issues')]
+    [ValidateSet('issue_comment', 'pull_request_review_comment', 'pull_request_review', 'issues', 'pull_request', 'workflow_dispatch')]
     [string]$EventName,
 
     [Parameter(Mandatory)]
@@ -104,7 +110,13 @@ param(
     [string]$IssueBody = '',
 
     [Parameter()]
-    [string]$IssueTitle = ''
+    [string]$IssueTitle = '',
+
+    [Parameter()]
+    [string]$PRBody = '',
+
+    [Parameter()]
+    [string]$PRTitle = ''
 )
 
 Set-StrictMode -Version Latest
@@ -133,11 +145,14 @@ try {
 
     # Extract body content based on event type
     # Note: Empty bodies are allowed - they will naturally deny authorization (no @claude mention)
+    # Exception: workflow_dispatch and pull_request events can authorize without @claude mention
     $body = switch ($EventName) {
         'issue_comment' { $CommentBody }
         'pull_request_review_comment' { $CommentBody }
         'pull_request_review' { $ReviewBody }
         'issues' { "$IssueBody $IssueTitle" }
+        'pull_request' { "$PRBody $PRTitle" }
+        'workflow_dispatch' { '' }  # workflow_dispatch doesn't have body - authorization via association only
     }
 
     # Check for @claude mention (required for all events)
@@ -200,7 +215,40 @@ This may indicate a malformed webhook payload or a potential attack. Legitimate 
     $isAuthorized = $false
     $authReason = ''
 
-    if (-not $hasMention) {
+    # workflow_dispatch events are authorized by association alone (no @claude mention required)
+    # These are manually triggered by users with appropriate permissions
+    if ($EventName -eq 'workflow_dispatch') {
+        if ($allowedAssociations -contains $AuthorAssociation) {
+            $isAuthorized = $true
+            $authReason = "Authorized via workflow_dispatch by privileged user: $Actor ($AuthorAssociation)"
+            Write-Verbose "Result: Authorized - $authReason"
+        }
+        else {
+            $authReason = "Access denied: workflow_dispatch by Actor=$Actor with Association=$AuthorAssociation (requires MEMBER, OWNER, or COLLABORATOR)"
+            Write-Verbose "Result: Not authorized - $authReason"
+        }
+    }
+    # pull_request events are authorized if:
+    # 1. The PR body/title contains @claude mention AND user is authorized, OR
+    # 2. The user is a bot in the allowlist (for automated PR creation)
+    elseif ($EventName -eq 'pull_request') {
+        if ($allowedBots -contains $Actor) {
+            $isAuthorized = $true
+            $authReason = "Authorized via bot allowlist for pull_request: $Actor"
+            Write-Verbose "Result: Authorized - $authReason"
+        }
+        elseif ($hasMention -and ($allowedAssociations -contains $AuthorAssociation)) {
+            $isAuthorized = $true
+            $authReason = "Authorized via @claude mention in PR by: $Actor ($AuthorAssociation)"
+            Write-Verbose "Result: Authorized - $authReason"
+        }
+        else {
+            $authReason = "Access denied: pull_request from Actor=$Actor requires @claude mention and authorized association"
+            Write-Verbose "Result: Not authorized - $authReason"
+        }
+    }
+    # All other events require @claude mention
+    elseif (-not $hasMention) {
         $authReason = "No @claude mention found in event body/title"
         Write-Verbose "Result: Not authorized - $authReason"
     }
