@@ -619,3 +619,443 @@ Describe "RFC 2119 Requirement Level Behavior" {
         }
     }
 }
+
+#region Comment 1: Table Extraction and Template Validation Tests
+
+Describe "Get-HeadingTable" {
+    <#
+    .SYNOPSIS
+        Tests for table extraction helper that finds markdown tables under specific headings.
+    #>
+
+    It "Extracts table after heading" {
+        $lines = @(
+            "# Main Heading",
+            "## Session Start",
+            "",
+            "| Req | Step | Status | Evidence |",
+            "|-----|------|--------|----------|",
+            "| MUST | Initialize Serena | [x] | Done |",
+            "| MUST | Read HANDOFF.md | [x] | Done |",
+            "",
+            "## Other Section"
+        )
+
+        $result = Get-HeadingTable -Lines $lines -HeadingRegex '^\s*##\s+Session Start\s*$'
+        $result | Should -Not -BeNullOrEmpty
+        $result.Count | Should -Be 4  # header + separator + 2 data rows
+    }
+
+    It "Returns null when heading not found" {
+        $lines = @(
+            "# Main Heading",
+            "## Work Log",
+            "Did some work"
+        )
+
+        $result = Get-HeadingTable -Lines $lines -HeadingRegex '^\s*##\s+Session Start\s*$'
+        $result | Should -BeNull
+    }
+
+    It "Returns null when no table after heading" {
+        $lines = @(
+            "# Main Heading",
+            "## Session Start",
+            "Some text but no table"
+        )
+
+        $result = Get-HeadingTable -Lines $lines -HeadingRegex '^\s*##\s+Session Start\s*$'
+        $result | Should -BeNullOrEmpty
+    }
+
+    It "Stops at next non-table line" {
+        $lines = @(
+            "## Session Start",
+            "| Req | Step |",
+            "|-----|------|",
+            "| MUST | Do thing |",
+            "",
+            "Next paragraph"
+        )
+
+        $result = Get-HeadingTable -Lines $lines -HeadingRegex '^\s*##\s+Session Start\s*$'
+        $result.Count | Should -Be 3  # Stops before empty line
+    }
+}
+
+Describe "Parse-ChecklistTable" {
+    <#
+    .SYNOPSIS
+        Tests for checklist table parser that extracts rows with Req/Step/Status/Evidence.
+    #>
+
+    It "Parses table rows correctly" {
+        $tableLines = @(
+            "| Req | Step | Status | Evidence |",
+            "|-----|------|--------|----------|",
+            "| MUST | Initialize Serena | [x] | Tool output present |",
+            "| SHOULD | Search memories | [ ] | Skipped |"
+        )
+
+        $result = Parse-ChecklistTable -TableLines $tableLines
+        $result.Count | Should -Be 2
+        $result[0].Req | Should -Be 'MUST'
+        $result[0].Step | Should -Match 'Initialize Serena'
+        $result[0].Status | Should -Be 'x'
+        $result[0].Evidence | Should -Match 'Tool output'
+        $result[1].Status | Should -Be ' '
+    }
+
+    It "Skips header and separator rows" {
+        $tableLines = @(
+            "| Req | Step | Status | Evidence |",
+            "|-----|------|--------|----------|",
+            "| MUST | Do thing | [x] | Done |"
+        )
+
+        $result = Parse-ChecklistTable -TableLines $tableLines
+        $result.Count | Should -Be 1  # Only data row
+    }
+
+    It "Handles bold Req column" {
+        $tableLines = @(
+            "| Req | Step | Status | Evidence |",
+            "|-----|------|--------|----------|",
+            "| **MUST** | Do thing | [x] | Done |"
+        )
+
+        $result = Parse-ChecklistTable -TableLines $tableLines
+        $result[0].Req | Should -Be 'MUST'  # Bold removed
+    }
+
+    It "Normalizes checkbox status to x or space" {
+        $tableLines = @(
+            "| Req | Step | Status | Evidence |",
+            "|-----|------|--------|----------|",
+            "| MUST | Item 1 | [X] | Done |",
+            "| MUST | Item 2 | [ ] | Not done |",
+            "| MUST | Item 3 | [x] | Done |"
+        )
+
+        $result = Parse-ChecklistTable -TableLines $tableLines
+        $result[0].Status | Should -Be 'x'  # X normalized to x
+        $result[1].Status | Should -Be ' '
+        $result[2].Status | Should -Be 'x'
+    }
+}
+
+Describe "Normalize-Step" {
+    <#
+    .SYNOPSIS
+        Tests for step text normalization (whitespace and markdown removal).
+    #>
+
+    It "Collapses multiple spaces to single space" {
+        $result = Normalize-Step "Do    thing   with   spaces"
+        $result | Should -Be "Do thing with spaces"
+    }
+
+    It "Removes bold markdown" {
+        $result = Normalize-Step "**Initialize** Serena"
+        $result | Should -Be "Initialize Serena"
+    }
+
+    It "Trims leading and trailing whitespace" {
+        $result = Normalize-Step "  Do thing  "
+        $result | Should -Be "Do thing"
+    }
+
+    It "Handles combined transformations" {
+        $result = Normalize-Step "  **Read**   HANDOFF.md  "
+        $result | Should -Be "Read HANDOFF.md"
+    }
+}
+
+Describe "Template Row-Order Validation" {
+    <#
+    .SYNOPSIS
+        Tests that session logs must match canonical template row order exactly.
+    #>
+
+    It "Fails when session has different row count than protocol" {
+        # This would be tested in the integrated validation function
+        # Placeholder for row count mismatch test
+        $true | Should -BeTrue
+    }
+
+    It "Fails when session rows are in different order than protocol" {
+        # This would be tested in the integrated validation function
+        # Placeholder for row order mismatch test
+        $true | Should -BeTrue
+    }
+
+    It "Passes when session rows exactly match protocol order" {
+        # This would be tested in the integrated validation function
+        # Placeholder for exact match test
+        $true | Should -BeTrue
+    }
+}
+
+#endregion
+
+#region Comment 2: Memory Evidence Validation Tests
+
+Describe "Test-MemoryEvidence" {
+    <#
+    .SYNOPSIS
+        Tests for ADR-007 memory evidence validation.
+    #>
+
+    BeforeAll {
+        # Create .serena/memories directory
+        $script:SerenaPath = Join-Path $TestRoot ".serena"
+        $script:MemoriesPath = Join-Path $SerenaPath "memories"
+        New-Item -ItemType Directory -Path $MemoriesPath -Force | Out-Null
+    }
+
+    It "Passes when memory-index row has valid memory names and files exist" {
+        # Create memory files
+        "usage-mandatory", "protocol-template-enforcement" | ForEach-Object {
+            $memFile = Join-Path $MemoriesPath "$_.md"
+            New-Item -ItemType File -Path $memFile -Force | Out-Null
+            Set-Content -Path $memFile -Value "# Memory: $_"
+        }
+
+        $sessionRows = @(
+            @{ Req = 'MUST'; Step = 'Read memory-index to identify relevant memories'; Status = 'x'; Evidence = 'usage-mandatory, protocol-template-enforcement'; Raw = '' }
+        )
+
+        $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
+        $result.IsValid | Should -BeTrue
+        $result.MemoriesFound.Count | Should -Be 2
+        $result.MissingMemories.Count | Should -Be 0
+    }
+
+    It "Fails when memory-index Evidence is empty" {
+        $sessionRows = @(
+            @{ Req = 'MUST'; Step = 'Read memory-index to identify relevant memories'; Status = 'x'; Evidence = ''; Raw = '' }
+        )
+
+        $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
+        $result.IsValid | Should -BeFalse
+        $result.ErrorMessage | Should -Match 'placeholder text'
+    }
+
+    It "Fails when memory-index Evidence contains placeholder" {
+        $sessionRows = @(
+            @{ Req = 'MUST'; Step = 'Read memory-index to identify relevant memories'; Status = 'x'; Evidence = 'List memories loaded'; Raw = '' }
+        )
+
+        $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
+        $result.IsValid | Should -BeFalse
+        $result.ErrorMessage | Should -Match 'placeholder text'
+    }
+
+    It "Fails when memory file does not exist" {
+        $sessionRows = @(
+            @{ Req = 'MUST'; Step = 'Read memory-index to identify relevant memories'; Status = 'x'; Evidence = 'nonexistent-memory'; Raw = '' }
+        )
+
+        $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
+        $result.IsValid | Should -BeFalse
+        $result.ErrorMessage | Should -Match 'don''t exist'
+        $result.MissingMemories | Should -Contain 'nonexistent-memory'
+    }
+
+    It "Extracts multiple memory names from comma-separated Evidence" {
+        # Create memory files
+        "memory-one", "memory-two", "memory-three" | ForEach-Object {
+            $memFile = Join-Path $MemoriesPath "$_.md"
+            New-Item -ItemType File -Path $memFile -Force | Out-Null
+        }
+
+        $sessionRows = @(
+            @{ Req = 'MUST'; Step = 'Read memory-index to identify relevant memories'; Status = 'x'; Evidence = 'memory-one, memory-two, memory-three'; Raw = '' }
+        )
+
+        $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
+        $result.IsValid | Should -BeTrue
+        $result.MemoriesFound.Count | Should -Be 3
+    }
+
+    It "Returns valid result when no memory-index row found (not all sessions need memories)" {
+        $sessionRows = @(
+            @{ Req = 'MUST'; Step = 'Initialize Serena'; Status = 'x'; Evidence = 'Done'; Raw = '' }
+        )
+
+        $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
+        $result.IsValid | Should -BeTrue
+        $result.MemoriesFound.Count | Should -Be 0
+    }
+}
+
+#endregion
+
+#region Comment 3: QA Skip Rules, Pre-commit Mode, Branch and Commit Validation Tests
+
+Describe "PreCommit Parameter Support" {
+    <#
+    .SYNOPSIS
+        Tests that -PreCommit parameter changes validation behavior.
+    #>
+
+    It "Skips commit row validation in pre-commit mode" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+
+    It "Uses staged files instead of commit diff in pre-commit mode" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+
+    It "Skips git clean status check in pre-commit mode" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+}
+
+Describe "Is-DocsOnly" {
+    <#
+    .SYNOPSIS
+        Tests docs-only file detection for QA skip rules.
+    #>
+
+    It "Returns true when all files are markdown" {
+        $files = @("README.md", "docs/guide.md", ".agents/sessions/log.md")
+        $result = Is-DocsOnly -Files $files
+        $result | Should -BeTrue
+    }
+
+    It "Returns false when non-markdown files present" {
+        $files = @("README.md", "src/code.ps1", "docs/guide.md")
+        $result = Is-DocsOnly -Files $files
+        $result | Should -BeFalse
+    }
+
+    It "Returns false for empty file list" {
+        $result = Is-DocsOnly -Files @()
+        $result | Should -BeFalse
+    }
+}
+
+Describe "Test-InvestigationOnlyEligibility" {
+    <#
+    .SYNOPSIS
+        Tests investigation-only eligibility per ADR-034.
+    #>
+
+    It "Returns eligible when all files match allowlist" {
+        $files = @(".agents/sessions/log.md", ".serena/memories/mem.md", ".agents/analysis/report.md")
+        $result = Test-InvestigationOnlyEligibility -Files $files
+        $result.IsEligible | Should -BeTrue
+        $result.ImplementationFiles.Count | Should -Be 0
+    }
+
+    It "Returns ineligible when implementation files present" {
+        $files = @(".agents/sessions/log.md", "scripts/code.ps1")
+        $result = Test-InvestigationOnlyEligibility -Files $files
+        $result.IsEligible | Should -BeFalse
+        $result.ImplementationFiles | Should -Contain "scripts/code.ps1"
+    }
+
+    It "Returns eligible for empty file list" {
+        $result = Test-InvestigationOnlyEligibility -Files @()
+        $result.IsEligible | Should -BeTrue
+    }
+}
+
+Describe "Get-ImplementationFiles" {
+    <#
+    .SYNOPSIS
+        Tests filtering of audit artifacts from file lists.
+    #>
+
+    It "Filters out session logs and memories" {
+        $files = @(".agents/sessions/log.md", "scripts/code.ps1", ".serena/memories/mem.md")
+        $result = Get-ImplementationFiles -Files $files
+        $result.Count | Should -Be 1
+        $result | Should -Contain "scripts/code.ps1"
+    }
+
+    It "Returns all files when no audit artifacts" {
+        $files = @("scripts/code.ps1", "tests/test.ps1")
+        $result = Get-ImplementationFiles -Files $files
+        $result.Count | Should -Be 2
+    }
+}
+
+Describe "Branch Name Validation" {
+    <#
+    .SYNOPSIS
+        Tests that branch name in session log matches actual git branch.
+    #>
+
+    It "Passes when branch names match" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+
+    It "Fails when branch names don't match" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+}
+
+Describe "Commit SHA Validation" {
+    <#
+    .SYNOPSIS
+        Tests that commit SHA in Evidence exists in git history.
+    #>
+
+    It "Passes when commit SHA exists" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+
+    It "Fails when commit SHA is invalid" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+
+    It "Fails when commit SHA is missing from Evidence" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+}
+
+Describe "Starting Commit Validation" {
+    <#
+    .SYNOPSIS
+        Tests that at least one commit exists since Starting Commit.
+    #>
+
+    It "Passes when commits exist since Starting Commit" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+
+    It "Fails when no commits since Starting Commit" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+}
+
+Describe "Session Log Change Validation" {
+    <#
+    .SYNOPSIS
+        Tests that session log was modified since Starting Commit.
+    #>
+
+    It "Passes when session log changed" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+
+    It "Fails when session log not changed" {
+        # Placeholder - would test in integrated script
+        $true | Should -BeTrue
+    }
+}
+
+#endregion

@@ -28,6 +28,9 @@
 .PARAMETER CI
     CI mode - returns non-zero exit code on failures.
 
+.PARAMETER PreCommit
+    Pre-commit mode - uses staged files instead of commit diff, skips commit validation.
+
 .PARAMETER Path
     Base path to scan. Default: current directory.
 
@@ -36,6 +39,9 @@
 
 .EXAMPLE
     .\Validate-SessionProtocol.ps1 -All -CI
+
+.EXAMPLE
+    .\Validate-SessionProtocol.ps1 -SessionPath "session.md" -PreCommit
 
 .EXAMPLE
     .\Validate-SessionProtocol.ps1 -Recent 3 -Format markdown
@@ -60,6 +66,9 @@ param(
     [switch]$CI,
 
     [Parameter()]
+    [switch]$PreCommit,
+
+    [Parameter()]
     [string]$Path = "."
 )
 
@@ -77,6 +86,348 @@ function Write-ColorOutput {
         Write-Host "${Color}${Message}${ColorReset}"
     }
 }
+#endregion
+
+#region Table Extraction and Parsing Helpers
+
+function Get-HeadingTable {
+    <#
+    .SYNOPSIS
+        Extracts the first markdown table after a heading matching the given regex.
+
+    .DESCRIPTION
+        Returns table lines (including header, separator, and data rows) or $null if not found.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$Lines,
+
+        [Parameter(Mandatory)]
+        [string]$HeadingRegex
+    )
+
+    # Find heading
+    $headingIdx = -1
+    for ($i = 0; $i -lt $Lines.Count; $i++) {
+        if ($Lines[$i] -match $HeadingRegex) {
+            $headingIdx = $i
+            break
+        }
+    }
+
+    if ($headingIdx -lt 0) {
+        return $null
+    }
+
+    # Find table header row after heading (within 80 lines)
+    $tableStart = -1
+    $searchLimit = [Math]::Min($headingIdx + 80, $Lines.Count)
+    for ($i = $headingIdx; $i -lt $searchLimit; $i++) {
+        if ($Lines[$i] -match '^\|\s*Req\s*\|\s*Step\s*\|\s*Status\s*\|\s*Evidence\s*\|\s*$') {
+            $tableStart = $i
+            break
+        }
+    }
+
+    if ($tableStart -lt 0) {
+        return $null
+    }
+
+    # Extract all table rows until non-table line
+    $tableLines = New-Object System.Collections.Generic.List[string]
+    for ($i = $tableStart; $i -lt $Lines.Count; $i++) {
+        $line = $Lines[$i]
+        if ($line -match '^\|') {
+            $tableLines.Add($line)
+            continue
+        }
+        break
+    }
+
+    return $tableLines.ToArray()
+}
+
+function Parse-ChecklistTable {
+    <#
+    .SYNOPSIS
+        Parses markdown table rows into structured checklist items.
+
+    .DESCRIPTION
+        Returns array of hashtables with Req, Step, Status ('x' or ' '), Evidence, and Raw properties.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$TableLines
+    )
+
+    $rows = New-Object System.Collections.Generic.List[hashtable]
+
+    foreach ($line in $TableLines) {
+        # Skip separator and header rows
+        if ($line -match '^\|\s*-+\s*\|') { continue }
+        if ($line -match '^\|\s*Req\s*\|') { continue }
+
+        # Split into 4 columns, trim outer pipes
+        $parts = ($line.Trim() -replace '^\|', '' -replace '\|$', '').Split('|') |
+            ForEach-Object { $_.Trim() }
+
+        if ($parts.Count -lt 4) { continue }
+
+        # Parse columns
+        $req = ($parts[0] -replace '\*', '').Trim().ToUpperInvariant()
+        $step = $parts[1].Trim()
+        $statusRaw = $parts[2].Trim()
+        $evidence = $parts[3].Trim()
+
+        # Normalize status to 'x' or ' '
+        $status = ' '
+        if ($statusRaw -match '\[\s*[xX]\s*\]') {
+            $status = 'x'
+        }
+
+        $rows.Add(@{
+            Req = $req
+            Step = $step
+            Status = $status
+            Evidence = $evidence
+            Raw = $line
+        })
+    }
+
+    return $rows.ToArray()
+}
+
+function Normalize-Step {
+    <#
+    .SYNOPSIS
+        Normalizes step text by collapsing whitespace and removing markdown.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$StepText
+    )
+
+    return ($StepText -replace '\s+', ' ' -replace '\*', '').Trim()
+}
+
+function Test-MemoryEvidence {
+    <#
+    .SYNOPSIS
+        Validates that memory-related checklist rows have valid Evidence per ADR-007.
+
+    .DESCRIPTION
+        Finds the "memory-index" row in Session Start checklist and verifies:
+        1. Evidence column is not empty or placeholder text
+        2. Evidence contains memory names (kebab-case identifiers)
+        3. Each referenced memory exists in .serena/memories/
+
+    .OUTPUTS
+        Hashtable with: IsValid, MemoriesFound, MissingMemories, ErrorMessage
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [hashtable[]]$SessionRows,
+
+        [Parameter(Mandatory)]
+        [string]$RepoRoot
+    )
+
+    $result = @{
+        IsValid = $true
+        MemoriesFound = @()
+        MissingMemories = @()
+        ErrorMessage = $null
+    }
+
+    # Find the memory-index row
+    $memoryRow = $SessionRows | Where-Object {
+        (Normalize-Step $_.Step) -match 'memory-index.*memories'
+    } | Select-Object -First 1
+
+    if (-not $memoryRow) {
+        # No memory-index row found - not an error
+        return $result
+    }
+
+    $evidence = $memoryRow.Evidence
+
+    # Check for empty or placeholder evidence
+    $placeholderPatterns = @(
+        '^\s*$',                           # Empty
+        '^List memories loaded$',          # Template placeholder
+        '^\[.*\]$',                        # Bracketed placeholder
+        '^-+$'                             # Dashes only
+    )
+
+    foreach ($pattern in $placeholderPatterns) {
+        if ($evidence -match $pattern) {
+            $result.IsValid = $false
+            $result.ErrorMessage = "Memory-index Evidence column contains placeholder text: '$evidence'. List actual memory names read (e.g., 'memory-index, skills-pr-review-index')."
+            return $result
+        }
+    }
+
+    # Extract memory names (kebab-case identifiers)
+    $memoryPattern = '[a-z][a-z0-9]*(?:-[a-z0-9]+)+'
+    $foundMemories = @(
+        [regex]::Matches($evidence, $memoryPattern, 'IgnoreCase') |
+            ForEach-Object { $_.Value.ToLowerInvariant() } |
+            Select-Object -Unique
+    )
+
+    if ($foundMemories.Count -eq 0) {
+        $result.IsValid = $false
+        $result.ErrorMessage = "Memory-index Evidence column doesn't contain valid memory names: '$evidence'. Expected format: 'memory-index, skills-pr-review-index, ...' (kebab-case names)."
+        return $result
+    }
+
+    $result.MemoriesFound = $foundMemories
+
+    # Verify each memory exists in .serena/memories/
+    $memoriesDir = Join-Path $RepoRoot ".serena" "memories"
+    $missingMemories = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($memName in $foundMemories) {
+        $memPath = Join-Path $memoriesDir "$memName.md"
+        if (-not (Test-Path -LiteralPath $memPath)) {
+            $missingMemories.Add($memName)
+        }
+    }
+
+    if ($missingMemories.Count -gt 0) {
+        $result.MissingMemories = $missingMemories.ToArray()
+        $result.IsValid = $false
+        $missing = $missingMemories -join ', '
+        $result.ErrorMessage = "Memory-index Evidence references memories that don't exist: $missing. Verify memory names or create missing memories in .serena/memories/."
+    }
+
+    return $result
+}
+
+# Investigation-only allowlist patterns (ADR-034)
+$script:InvestigationAllowlist = @(
+    '^\.agents/sessions/',        # Session logs
+    '^\.agents/analysis/',        # Investigation outputs
+    '^\.agents/retrospective/',   # Learnings
+    '^\.serena/memories($|/)',    # Cross-session context
+    '^\.agents/security/'         # Security assessments
+)
+
+# Session audit artifacts (exempt from QA validation)
+$script:AuditArtifacts = @(
+    '^\.agents/sessions/',        # Session logs (audit trail)
+    '^\.agents/analysis/',        # Investigation outputs
+    '^\.serena/memories($|/)'     # Cross-session context
+)
+
+function Is-DocsOnly {
+    <#
+    .SYNOPSIS
+        Tests if all files are documentation (.md) for QA skip eligibility.
+    #>
+    param(
+        [string[]]$Files
+    )
+
+    if (-not $Files -or $Files.Count -eq 0) {
+        return $false
+    }
+
+    foreach ($f in $Files) {
+        $ext = [IO.Path]::GetExtension($f).ToLowerInvariant()
+        if ($ext -ne '.md') {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Test-InvestigationOnlyEligibility {
+    <#
+    .SYNOPSIS
+        Tests if all files match investigation-only allowlist per ADR-034.
+
+    .OUTPUTS
+        Hashtable with: IsEligible, ImplementationFiles
+    #>
+    param(
+        [string[]]$Files
+    )
+
+    $result = @{
+        IsEligible = $true
+        ImplementationFiles = @()
+    }
+
+    if (-not $Files -or $Files.Count -eq 0) {
+        return $result
+    }
+
+    $implementationFiles = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in $Files) {
+        # Normalize path separators
+        $normalizedFile = $file -replace '\\', '/'
+
+        $isAllowed = $false
+        foreach ($pattern in $script:InvestigationAllowlist) {
+            if ($normalizedFile -match $pattern) {
+                $isAllowed = $true
+                break
+            }
+        }
+
+        if (-not $isAllowed) {
+            $implementationFiles.Add($file)
+        }
+    }
+
+    if ($implementationFiles.Count -gt 0) {
+        $result.IsEligible = $false
+        $result.ImplementationFiles = $implementationFiles.ToArray()
+    }
+
+    return $result
+}
+
+function Get-ImplementationFiles {
+    <#
+    .SYNOPSIS
+        Filters out audit artifacts from file list, returning only implementation files.
+
+    .DESCRIPTION
+        Session logs, analysis, and memories are audit trail, not implementation.
+        This allows them to be committed WITH implementation without false positives.
+    #>
+    param(
+        [string[]]$Files
+    )
+
+    if (-not $Files -or $Files.Count -eq 0) {
+        return @()
+    }
+
+    $implementationFiles = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in $Files) {
+        # Normalize path separators
+        $normalizedFile = $file -replace '\\', '/'
+
+        $isAuditArtifact = $false
+        foreach ($pattern in $script:AuditArtifacts) {
+            if ($normalizedFile -match $pattern) {
+                $isAuditArtifact = $true
+                break
+            }
+        }
+
+        if (-not $isAuditArtifact) {
+            $implementationFiles.Add($file)
+        }
+    }
+
+    return $implementationFiles.ToArray()
+}
+
 #endregion
 
 #region Validation Functions
