@@ -690,17 +690,33 @@ function Test-HandoffUpdated {
                         return $result
                     }
                 } catch [System.FormatException] {
+                    # Date parsing failed - check if git validation already succeeded
+                    if ($gitDiffWorked) {
+                        # Git validation already completed successfully, date parsing failure is non-blocking
+                        Write-Verbose "Date parsing failed but git validation already completed. Session filename: $sessionFileName"
+                        return $result
+                    }
+
+                    # No git validation available and date parsing failed
                     $result.Passed = $false
-                    $errorMsg = "Session log filename contains invalid date format: '$($Matches[1])'. Expected format: YYYY-MM-DD. Cannot validate HANDOFF.md modification timestamp."
+                    $errorMsg = "Session log filename contains invalid date format: '$($Matches[1])'. Expected format: YYYY-MM-DD. Cannot validate HANDOFF.md modification without git diff or valid timestamp."
                     $result.Issues += $errorMsg
                     Write-Error $errorMsg
-                    return $result  # Stop validation - timestamp comparison is unreliable
+                    return $result
                 } catch {
+                    # Unexpected error during date parsing - check if git validation already succeeded
+                    if ($gitDiffWorked) {
+                        # Git validation already completed successfully, date parsing failure is non-blocking
+                        Write-Verbose "Date parsing error but git validation already completed. Error: $($_.Exception.Message)"
+                        return $result
+                    }
+
+                    # No git validation available and unexpected error occurred
                     $result.Passed = $false
-                    $errorMsg = "Unexpected error parsing session date: $($_.Exception.GetType().Name) - $($_.Exception.Message). Cannot validate HANDOFF.md modification timestamp."
+                    $errorMsg = "Unexpected error parsing session date: $($_.Exception.GetType().Name) - $($_.Exception.Message). Cannot validate HANDOFF.md modification without git diff or valid timestamp."
                     $result.Issues += $errorMsg
                     Write-Error $errorMsg
-                    return $result  # Stop validation - timestamp comparison is unreliable
+                    return $result
                 }
             }
         }
