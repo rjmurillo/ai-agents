@@ -28,9 +28,6 @@
 .PARAMETER CI
     CI mode - returns non-zero exit code on failures.
 
-.PARAMETER PreCommit
-    Pre-commit mode - uses staged files instead of commit diff, skips commit validation.
-
 .PARAMETER Path
     Base path to scan. Default: current directory.
 
@@ -39,9 +36,6 @@
 
 .EXAMPLE
     .\Validate-SessionProtocol.ps1 -All -CI
-
-.EXAMPLE
-    .\Validate-SessionProtocol.ps1 -SessionPath "session.md" -PreCommit
 
 .EXAMPLE
     .\Validate-SessionProtocol.ps1 -Recent 3 -Format markdown
@@ -64,9 +58,6 @@ param(
 
     [Parameter()]
     [switch]$CI,
-
-    [Parameter()]
-    [switch]$PreCommit,
 
     [Parameter()]
     [string]$Path = "."
@@ -326,7 +317,7 @@ $script:AuditArtifacts = @(
     '^[.]serena/memories($|/)'     # Cross-session context
 )
 
-function Is-DocsOnly {
+function Test-DocsOnly {
     <#
     .SYNOPSIS
         Tests if all files are documentation (.md) for QA skip eligibility.

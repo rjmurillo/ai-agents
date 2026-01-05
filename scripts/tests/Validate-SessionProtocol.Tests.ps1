@@ -920,31 +920,9 @@ Describe "Test-MemoryEvidence" {
 
 #endregion
 
-#region Comment 3: QA Skip Rules, Pre-commit Mode, Branch and Commit Validation Tests
+#region Comment 3: QA Skip Rules and Branch/Commit Validation Tests
 
-Describe "PreCommit Parameter Support" {
-    <#
-    .SYNOPSIS
-        Tests that -PreCommit parameter changes validation behavior.
-    #>
-
-    It "Skips commit row validation in pre-commit mode" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
-    }
-
-    It "Uses staged files instead of commit diff in pre-commit mode" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
-    }
-
-    It "Skips git clean status check in pre-commit mode" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
-    }
-}
-
-Describe "Is-DocsOnly" {
+Describe "Test-DocsOnly" {
     <#
     .SYNOPSIS
         Tests docs-only file detection for QA skip rules.
@@ -952,18 +930,18 @@ Describe "Is-DocsOnly" {
 
     It "Returns true when all files are markdown" {
         $files = @("README.md", "docs/guide.md", ".agents/sessions/log.md")
-        $result = Is-DocsOnly -Files $files
+        $result = Test-DocsOnly -Files $files
         $result | Should -BeTrue
     }
 
     It "Returns false when non-markdown files present" {
         $files = @("README.md", "src/code.ps1", "docs/guide.md")
-        $result = Is-DocsOnly -Files $files
+        $result = Test-DocsOnly -Files $files
         $result | Should -BeFalse
     }
 
     It "Returns false for empty file list" {
-        $result = Is-DocsOnly -Files @()
+        $result = Test-DocsOnly -Files @()
         $result | Should -BeFalse
     }
 }
