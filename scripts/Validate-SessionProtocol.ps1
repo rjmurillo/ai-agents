@@ -613,7 +613,12 @@ function Test-HandoffUpdated {
             # Use git diff for reliable detection
             $gitDiff = git diff --name-only origin/main...HEAD 2>&1
             if ($LASTEXITCODE -ne 0) {
-                Write-Warning "Git diff failed: $gitDiff. Falling back to timestamp comparison (less reliable in CI)."
+                $warningMsg = "Git diff failed: $gitDiff. Falling back to timestamp comparison (less reliable in CI)."
+                Write-Warning $warningMsg
+                if (-not $result.ContainsKey('Warnings')) {
+                    $result.Warnings = @()
+                }
+                $result.Warnings += $warningMsg
             } else {
                 $gitDiffWorked = $true
                 $handoffModified = $gitDiff -contains ".agents/HANDOFF.md"
@@ -627,13 +632,26 @@ function Test-HandoffUpdated {
 
         # Fall back to filesystem timestamp if git diff not available
         # (used for test environments, non-git directories)
-        # IMPORTANT: Skip fallback in CI shallow checkouts (timestamp is unreliable)
-        # Without this check, shallow clones would incorrectly flag HANDOFF.md as modified
-        # because all files have checkout timestamp, potentially newer than session date
+        # IMPORTANT: In shallow checkouts, fail validation rather than using unreliable timestamps
+        # Shallow clones would incorrectly flag HANDOFF.md as modified because all files have
+        # checkout timestamp, potentially newer than session date
         $isGitRepoWithoutOrigin = (git rev-parse --git-dir 2>$null) -and -not $useGitDiff
-        $skipTimestampFallback = $isGitRepoWithoutOrigin  # Shallow checkout case
 
-        if (-not $gitDiffWorked -and -not $skipTimestampFallback) {
+        if ($isGitRepoWithoutOrigin) {
+            # Shallow checkout detected - cannot reliably validate
+            $result.Passed = $false
+            $result.Issues += "Cannot validate HANDOFF.md modification in shallow git checkout. Git diff requires origin/main reference. Ensure full clone or fetch origin/main before validation."
+            return $result
+        }
+
+        if (-not $gitDiffWorked) {
+            # Not a git repo - use timestamp fallback with warning
+            $warningMsg = "HANDOFF.md validation using filesystem timestamp (git not available). Results may be unreliable in CI environments."
+            Write-Warning $warningMsg
+            if (-not $result.ContainsKey('Warnings')) {
+                $result.Warnings = @()
+            }
+            $result.Warnings += $warningMsg
             $sessionFileName = Split-Path -Leaf $SessionPath
             if ($sessionFileName -match '^(\d{4}-\d{2}-\d{2})') {
                 try {
@@ -648,20 +666,37 @@ function Test-HandoffUpdated {
                             $result.Issues += "HANDOFF.md was modified ($($handoffModifiedDate.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
                         }
                     } catch [System.UnauthorizedAccessException] {
-                        Write-Warning "Permission denied reading HANDOFF.md metadata. Cannot verify modification timestamp."
+                        Write-Warning "Permission denied reading HANDOFF.md metadata. Cannot verify modification timestamp. Check file permissions."
                     } catch [System.IO.FileNotFoundException] {
                         Write-Verbose "HANDOFF.md was deleted between existence check and metadata read (race condition). Treating as not modified."
+                    } catch [System.IO.PathTooLongException] {
+                        $result.Passed = $false
+                        $result.Issues += "HANDOFF.md path exceeds maximum length. This indicates a project structure issue. Move project to shorter path."
+                        Write-Error "HANDOFF.md path too long. Move project to shorter path."
+                        return $result
+                    } catch [System.IO.IOException] {
+                        $result.Passed = $false
+                        $result.Issues += "I/O error reading HANDOFF.md: $($_.Exception.Message). Check disk health, file locks, and retry."
+                        Write-Error "I/O error reading HANDOFF.md: $($_.Exception.Message)"
+                        return $result
                     } catch {
-                        Write-Warning "Failed to read HANDOFF.md metadata: $_. Cannot verify modification timestamp."
+                        $result.Passed = $false
+                        $result.Issues += "Unexpected error reading HANDOFF.md: $($_.Exception.GetType().Name) - $($_.Exception.Message). Contact support if issue persists."
+                        Write-Error "Unexpected error reading HANDOFF.md: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
+                        return $result
                     }
                 } catch [System.FormatException] {
                     $result.Passed = $false
-                    $result.Issues += "Session log filename contains invalid date format: '$($Matches[1])'. Expected format: YYYY-MM-DD. Cannot validate HANDOFF.md modification timestamp."
-                    Write-Warning "Failed to parse session date from filename: $sessionFileName"
+                    $errorMsg = "Session log filename contains invalid date format: '$($Matches[1])'. Expected format: YYYY-MM-DD. Cannot validate HANDOFF.md modification timestamp."
+                    $result.Issues += $errorMsg
+                    Write-Error $errorMsg
+                    return $result  # Stop validation - timestamp comparison is unreliable
                 } catch {
                     $result.Passed = $false
-                    $result.Issues += "Unexpected error parsing session date: $_"
-                    Write-Error "Date parsing failed for session: $sessionFileName. Error: $_"
+                    $errorMsg = "Unexpected error parsing session date: $($_.Exception.GetType().Name) - $($_.Exception.Message). Cannot validate HANDOFF.md modification timestamp."
+                    $result.Issues += $errorMsg
+                    Write-Error $errorMsg
+                    return $result  # Stop validation - timestamp comparison is unreliable
                 }
             }
         }
@@ -822,7 +857,21 @@ function Invoke-SessionValidation {
     # Read content
     $content = Get-Content -Path $SessionFile -Raw
 
-    # Test 2: Protocol Compliance section
+    # Test 2: Memory evidence validation (ADR-007)
+    $lines = ($content -split "`r?`n") | Where-Object { $_ -ne '' }
+    $sessionStartTable = Get-HeadingTable -Lines $lines -HeadingRegex '^\s*##\s+Session\s+Start\s*$'
+    if ($sessionStartTable) {
+        $sessionStartRows = Parse-ChecklistTable -TableLines $sessionStartTable
+        $memoryResult = Test-MemoryEvidence -SessionRows $sessionStartRows -RepoRoot $BasePath
+        $validation.Results['MemoryEvidence'] = $memoryResult
+        if (-not $memoryResult.IsValid) {
+            $validation.Passed = $false
+            $validation.MustPassed = $false
+            $validation.Issues += $memoryResult.ErrorMessage
+        }
+    }
+
+    # Test 3: Protocol Compliance section
     $complianceResult = Test-ProtocolComplianceSection -Content $content
     $validation.Results['ProtocolComplianceSection'] = $complianceResult
     if (-not $complianceResult.Passed) {
@@ -831,7 +880,7 @@ function Invoke-SessionValidation {
         $validation.Issues += $complianceResult.Issues
     }
 
-    # Test 3: MUST requirements completed
+    # Test 4: MUST requirements completed
     $mustResult = Test-MustRequirements -Content $content
     $validation.Results['MustRequirements'] = $mustResult
     if (-not $mustResult.Passed) {
@@ -840,7 +889,7 @@ function Invoke-SessionValidation {
         $validation.Issues += $mustResult.Issues
     }
 
-    # Test 4: HANDOFF.md updated
+    # Test 5: HANDOFF.md updated
     $handoffResult = Test-HandoffUpdated -SessionPath $SessionFile -BasePath $BasePath
     $validation.Results['HandoffUpdated'] = $handoffResult
     if (-not $handoffResult.Passed) {
@@ -849,7 +898,7 @@ function Invoke-SessionValidation {
         $validation.Issues += $handoffResult.Issues
     }
 
-    # Test 5: SHOULD requirements (warnings)
+    # Test 6: SHOULD requirements (warnings)
     $shouldResult = Test-ShouldRequirements -Content $content
     $validation.Results['ShouldRequirements'] = $shouldResult
     if ($shouldResult.Issues.Count -gt 0) {
@@ -857,14 +906,14 @@ function Invoke-SessionValidation {
         $validation.Warnings += $shouldResult.Issues
     }
 
-    # Test 6: Commit evidence
+    # Test 7: Commit evidence
     $commitResult = Test-GitCommitEvidence -Content $content
     $validation.Results['CommitEvidence'] = $commitResult
     if ($commitResult.Issues.Count -gt 0) {
         $validation.Warnings += $commitResult.Issues
     }
 
-    # Test 7: Session log completeness
+    # Test 8: Session log completeness
     $completenessResult = Test-SessionLogCompleteness -Content $content
     $validation.Results['SessionLogCompleteness'] = $completenessResult
     if (-not $completenessResult.Passed) {
@@ -891,34 +940,46 @@ function Get-SessionLogs {
         $sessions = Get-ChildItem -Path $sessionsPath -Filter "*.md" -ErrorAction Stop |
             Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}-session-\d+(-.+)?\.md$' }
     } catch [System.UnauthorizedAccessException] {
-        Write-Error "Permission denied reading sessions directory: $sessionsPath"
-        return @()
+        $errorMsg = "Permission denied reading sessions directory: $sessionsPath. Check file permissions and retry."
+        Write-Error $errorMsg
+        throw $errorMsg
+    } catch [System.IO.PathTooLongException] {
+        $errorMsg = "Sessions directory path exceeds maximum length: $sessionsPath. Move project to shorter path."
+        Write-Error $errorMsg
+        throw $errorMsg
     } catch [System.IO.IOException] {
-        Write-Error "IO error reading sessions directory: $sessionsPath. Error: $_"
-        return @()
+        $errorMsg = "I/O error reading sessions directory: $sessionsPath. Error: $($_.Exception.Message). Check disk health and file locks."
+        Write-Error $errorMsg
+        throw $errorMsg
     } catch {
-        Write-Error "Failed to read sessions directory: $sessionsPath. Error: $_"
-        return @()
+        $errorMsg = "Failed to read sessions directory: $sessionsPath. Error: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
+        Write-Error $errorMsg
+        throw $errorMsg
     }
 
     if ($Days -gt 0) {
         $cutoffDate = (Get-Date).AddDays(-$Days)
-        $excludedCount = 0
+        $excludedSessions = [System.Collections.Generic.List[string]]::new()
+
         $sessions = $sessions | Where-Object {
             if ($_.Name -match '^(\d{4}-\d{2}-\d{2})') {
                 try {
                     $fileDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
                     return $fileDate -ge $cutoffDate
                 } catch {
-                    $excludedCount++
-                    Write-Warning "Excluding session with invalid date format: $($_.Name)"
+                    $excludedSessions.Add($_.Name)
+                    Write-Warning "Excluding session with invalid date format: $($_.Name). Expected: YYYY-MM-DD-session-N.md"
                     return $false
                 }
             }
             return $false
         }
-        if ($excludedCount -gt 0) {
-            Write-Warning "Excluded $excludedCount session(s) due to date parsing errors"
+
+        if ($excludedSessions.Count -gt 0) {
+            Write-Warning "Excluded $($excludedSessions.Count) session(s) due to date parsing errors:"
+            foreach ($excluded in $excludedSessions) {
+                Write-Warning "  - $excluded"
+            }
         }
     }
 

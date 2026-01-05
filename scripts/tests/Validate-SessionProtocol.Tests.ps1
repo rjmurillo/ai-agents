@@ -800,31 +800,6 @@ Describe "Normalize-Step" {
     }
 }
 
-Describe "Template Row-Order Validation" {
-    <#
-    .SYNOPSIS
-        Tests that session logs must match canonical template row order exactly.
-    #>
-
-    It "Fails when session has different row count than protocol" {
-        # This would be tested in the integrated validation function
-        # Placeholder for row count mismatch test
-        $true | Should -BeTrue
-    }
-
-    It "Fails when session rows are in different order than protocol" {
-        # This would be tested in the integrated validation function
-        # Placeholder for row order mismatch test
-        $true | Should -BeTrue
-    }
-
-    It "Passes when session rows exactly match protocol order" {
-        # This would be tested in the integrated validation function
-        # Placeholder for exact match test
-        $true | Should -BeTrue
-    }
-}
-
 #endregion
 
 #region Comment 2: Memory Evidence Validation Tests
@@ -989,79 +964,6 @@ Describe "Get-ImplementationFiles" {
         $files = @("scripts/code.ps1", "tests/test.ps1")
         $result = Get-ImplementationFiles -Files $files
         $result.Count | Should -Be 2
-    }
-}
-
-Describe "Branch Name Validation" {
-    <#
-    .SYNOPSIS
-        Tests that branch name in session log matches actual git branch.
-    #>
-
-    It "Passes when branch names match" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
-    }
-
-    It "Fails when branch names don't match" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
-    }
-}
-
-Describe "Commit SHA Validation" {
-    <#
-    .SYNOPSIS
-        Tests that commit SHA in Evidence exists in git history.
-    #>
-
-    It "Passes when commit SHA exists" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
-    }
-
-    It "Fails when commit SHA is invalid" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
-    }
-
-    It "Fails when commit SHA is missing from Evidence" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
-    }
-}
-
-Describe "Starting Commit Validation" {
-    <#
-    .SYNOPSIS
-        Tests that at least one commit exists since Starting Commit.
-    #>
-
-    It "Passes when commits exist since Starting Commit" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
-    }
-
-    It "Fails when no commits since Starting Commit" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
-    }
-}
-
-Describe "Session Log Change Validation" {
-    <#
-    .SYNOPSIS
-        Tests that session log was modified since Starting Commit.
-    #>
-
-    It "Passes when session log changed" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
-    }
-
-    It "Fails when session log not changed" {
-        # Placeholder - would test in integrated script
-        $true | Should -BeTrue
     }
 }
 
