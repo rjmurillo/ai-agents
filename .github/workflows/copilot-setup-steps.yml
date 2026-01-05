@@ -49,7 +49,6 @@ jobs:
         uses: ./.github/actions/setup-code-env
         with:
           gh-token: ${{ github.token }}
-          enable-forgetful-mcp: true
           enable-pester: true
           enable-git-hooks: true
           skip-autofix: 0

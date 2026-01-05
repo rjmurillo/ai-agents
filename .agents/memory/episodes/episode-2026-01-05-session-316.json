@@ -102,7 +102,7 @@
     {
       "timestamp": "2026-01-05T15:00:26.6191343+00:00",
       "leads_to": [],
-      "content": "*Session Complete**: 2026-01-05",
+      "content": "**Session Complete**: 2026-01-05",
       "type": "milestone",
       "caused_by": [],
       "id": "e014"
@@ -110,7 +110,7 @@
     {
       "timestamp": "2026-01-05T15:00:26.6194810+00:00",
       "leads_to": [],
-      "content": "*Outcome**: SUCCESS - Composite action created and integrated into both workflows",
+      "content": "**Outcome**: SUCCESS - Composite action created and integrated into both workflows",
       "type": "milestone",
       "caused_by": [],
       "id": "e015"

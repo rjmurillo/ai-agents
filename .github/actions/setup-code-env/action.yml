@@ -1,14 +1,10 @@
 name: 'Setup Code Environment'
-description: 'Setup development environment with MCP servers, linting tools, and testing frameworks'
+description: 'Setup development environment with linting tools and testing frameworks'
 
 inputs:
   gh-token:
     description: 'GitHub token for GitHub CLI operations'
     required: true
-  enable-forgetful-mcp:
-    description: 'Enable Forgetful MCP server startup (default: true)'
-    required: false
-    default: 'true'
   enable-pester:
     description: 'Install Pester testing framework (default: true)'
     required: false
@@ -23,12 +19,9 @@ inputs:
     default: '0'
 
 outputs:
-  forgetful-pid:
-    description: 'Process ID of Forgetful MCP server (if started)'
-    value: ${{ steps.forgetful.outputs.forgetful_pid }}
   node-version:
     description: 'Node.js version installed'
-    value: ${{ steps.node-setup.outputs.node_version }}
+    value: ${{ steps.node-version.outputs.node_version }}
   pester-version:
     description: 'Pester version installed (if enabled)'
     value: ${{ steps.pester.outputs.pester_version }}
@@ -56,7 +49,7 @@ runs:
       shell: bash
       run: |
         NODE_VERSION=$(node --version)
-        echo "node_version=$NODE_VERSION" >> $GITHUB_OUTPUT
+        echo "node_version=$NODE_VERSION" >> "$GITHUB_OUTPUT"
 
     - name: Verify GitHub CLI availability
       shell: bash
@@ -93,54 +86,8 @@ runs:
       run: |
         echo "Installing uv..."
         curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         echo "✓ uv installed"
-
-    - name: Start Forgetful MCP Server
-      id: forgetful
-      if: inputs.enable-forgetful-mcp == 'true'
-      shell: pwsh -NoProfile -Command "& '{0}'"
-      run: |
-        # Start Forgetful MCP server for CI environment
-        # Uses HTTP transport due to FastMCP banner corruption issue
-        # See: https://github.com/ScottRBK/forgetful/issues/19
-        # For local development setup, see: scripts/forgetful/README.md
-
-        Write-Host "Starting Forgetful MCP server..."
-        $uvxPath = "$env:HOME/.local/bin/uvx"
-
-        # Start in background
-        $process = Start-Process -FilePath $uvxPath `
-          -ArgumentList "forgetful-ai", "--transport", "http", "--port", "8020" `
-          -PassThru -WindowStyle Hidden
-
-        # Export PID for potential cleanup
-        "forgetful_pid=$($process.Id)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-        # Wait for server to be ready (TCP port check)
-        Write-Host "Waiting for server to start..."
-        $maxAttempts = 30
-        $attempt = 0
-        $ready = $false
-
-        while ($attempt -lt $maxAttempts -and -not $ready) {
-          $attempt++
-          try {
-            $tcpClient = New-Object System.Net.Sockets.TcpClient
-            $connectTask = $tcpClient.ConnectAsync("localhost", 8020)
-            if ($connectTask.Wait(1000) -and $tcpClient.Connected) {
-              $ready = $true
-              Write-Host "✓ Forgetful MCP server running on http://localhost:8020/mcp" -ForegroundColor Green
-            }
-            $tcpClient.Close()
-          } catch {
-            Start-Sleep -Seconds 1
-          }
-        }
-
-        if (-not $ready) {
-          Write-Host "⚠ Forgetful MCP server may still be starting" -ForegroundColor Yellow
-        }
 
     - name: Install Pester
       id: pester
@@ -154,20 +101,19 @@ runs:
         Import-Module Pester -RequiredVersion 5.7.1
         $pesterVersion = (Get-Module Pester).Version
         echo "✓ Pester $pesterVersion installed"
-        "pester_version=$pesterVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        echo "pester_version=$pesterVersion" >> $env:GITHUB_OUTPUT
 
     - name: Set SKIP_AUTOFIX environment variable
       shell: bash
       env:
         SKIP_AUTOFIX_VALUE: ${{ inputs.skip-autofix }}
       run: |
-        echo "SKIP_AUTOFIX=$SKIP_AUTOFIX_VALUE" >> $GITHUB_ENV
+        echo "SKIP_AUTOFIX=$SKIP_AUTOFIX_VALUE" >> "$GITHUB_ENV"
         echo "✓ SKIP_AUTOFIX set to $SKIP_AUTOFIX_VALUE (0=enabled, 1=disabled)"
 
     - name: Verify setup
       shell: pwsh -NoProfile -Command "& '{0}'"
       env:
-        ENABLE_FORGETFUL: ${{ inputs.enable-forgetful-mcp }}
         ENABLE_PESTER: ${{ inputs.enable-pester }}
       run: |
         Write-Host ""
@@ -186,22 +132,6 @@ runs:
 
         if (Get-Command gh -ErrorAction SilentlyContinue) {
           Write-Host "✓ GitHub CLI is available for workflow monitoring" -ForegroundColor Green
-        }
-
-        # Test Forgetful MCP (TCP port check - MCP protocol requires session init)
-        if ($env:ENABLE_FORGETFUL -eq 'true') {
-          try {
-            $tcpClient = New-Object System.Net.Sockets.TcpClient
-            $connectTask = $tcpClient.ConnectAsync("localhost", 8020)
-            if ($connectTask.Wait(2000) -and $tcpClient.Connected) {
-              Write-Host "✓ Forgetful MCP server is listening on port 8020" -ForegroundColor Green
-            } else {
-              Write-Host "⚠ Forgetful MCP server not responding" -ForegroundColor Yellow
-            }
-            $tcpClient.Close()
-          } catch {
-            Write-Host "⚠ Forgetful MCP server not responding (may still be starting)" -ForegroundColor Yellow
-          }
         }
 
         # Test Pester
