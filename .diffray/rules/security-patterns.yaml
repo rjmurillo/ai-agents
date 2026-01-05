@@ -82,9 +82,9 @@ rules:
         # SAFE: All variables quoted
         npx tsx "$PluginScript" "$Query" "$OutputFile"
         
-        # SAFEST: Argument splatting
+        # SAFE: Array with explicit expansion
         $Args = @($PluginScript, $Query, $OutputFile)
-        & npx tsx @Args
+        & npx tsx $Args[0] $Args[1] $Args[2]
 
     tags:
       - security
