@@ -247,6 +247,22 @@ Describe "Test-MustRequirements" {
         $result.Details.TotalMust | Should -Be 2
     }
 
+    It "Correctly ignores MUST NOT requirements in MUST requirement counting" {
+        $content = @"
+## Protocol Compliance
+
+| Req | Step | Status |
+|-----|------|--------|
+| MUST | Do thing | [x] |
+| MUST NOT | Update HANDOFF.md | [x] |
+| MUST | Do other thing | [x] |
+"@
+        $result = Test-MustRequirements -Content $content
+        $result.Passed | Should -BeTrue
+        $result.Details.TotalMust | Should -Be 2  # MUST NOT excluded from count
+        $result.Details.CompletedMust | Should -Be 2
+    }
+
     It "Counts all incomplete MUST requirements" {
         $content = @"
 ## Protocol Compliance
@@ -1194,6 +1210,21 @@ Describe "ConvertFrom-ChecklistTable" {
         $result[0].Status | Should -Be 'x'  # X normalized to x
         $result[1].Status | Should -Be ' '
         $result[2].Status | Should -Be 'x'
+    }
+
+    It "Handles malformed separator with missing column dividers" {
+        # Test that malformed separators are properly handled
+        # Current implementation: Permissive regex skips any line with pipes/dashes/whitespace
+        $tableLines = @(
+            "| Req | Step | Status | Evidence |",
+            "|------------------|",  # Malformed: only one continuous separator
+            "| MUST | Do thing | [x] | Done |"
+        )
+
+        $result = ConvertFrom-ChecklistTable -TableLines $tableLines
+        # Should skip malformed separator and parse data row correctly
+        $result.Count | Should -Be 1
+        $result[0].Req | Should -Be 'MUST'
     }
 }
 
