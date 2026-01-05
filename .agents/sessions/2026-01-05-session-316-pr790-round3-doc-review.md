@@ -364,7 +364,57 @@ Ran 5 specialized agents in parallel:
 - No regressions introduced
 - All CRITICAL issues from Option 2 resolved
 
+### Option 3: HIGH Priority Fixes Applied (6 issues)
+
+**Commit**: `c3b533fc`
+
+1. **Added parameter validation to Get-HeadingTable** (HIGH #2)
+   - Lines 99-101: [ValidateNotNullOrEmpty()] on $Lines parameter
+   - Prevents NullReferenceException on .Count access
+
+2. **Added parameter validation to ConvertFrom-ChecklistTable** (HIGH #3)
+   - Lines 158-160: [ValidateNotNullOrEmpty()] on $TableLines parameter
+   - Prevents foreach on null returning empty array silently
+
+3. **Added parameter validation to ConvertTo-NormalizedStep** (HIGH #4)
+   - Lines 216-218: [ValidateNotNullOrEmpty()] on $StepText parameter
+   - Prevents null propagation through normalization
+
+4. **Added parameter validation to Test-DocsOnly** (HIGH #5)
+   - Lines 348-351: [ValidateNotNull()], [AllowEmptyCollection()]
+   - Maintains existing behavior: empty list = false (not docs-only)
+
+5. **Added directory existence check to Test-MemoryEvidence** (HIGH #1)
+   - Lines 300-305: Verify .serena/memories/ directory exists before checking files
+   - Provides clear error: "Initialize Serena memory system"
+
+**Test Results**: 84/84 tests passing (100%)
+
 ### Status
-- ✅ Option 1: MUST NOT violation detection - COMPLETED
-- ✅ Option 2: All 4 CRITICAL issues - COMPLETED
-- ⏳ Option 3: HIGH priority issues (parameter validation) - PENDING
+- ✅ **Option 1**: MUST NOT violation detection - COMPLETED
+- ✅ **Option 2**: All 4 CRITICAL issues - COMPLETED
+- ✅ **Option 3**: All 5 HIGH priority issues - COMPLETED
+
+## Summary: Options 1-3 All Complete
+
+### Commits Created
+1. **Option 1** (NEW functionality): MUST NOT detection implemented
+2. **Option 2** (`48161086`): 4 CRITICAL error handling and comment fixes
+3. **Option 3** (`c3b533fc`): 5 HIGH priority parameter validation fixes
+
+### Total Fixes Applied
+- **13 issues resolved** (1 NEW feature + 4 CRITICAL + 5 HIGH + 3 MEDIUM)
+- **84/84 tests passing** (100% pass rate maintained throughout)
+- **No regressions introduced**
+
+### Files Modified
+- `scripts/Validate-SessionProtocol.ps1`: +~300 lines (helpers, validation, fixes)
+- `scripts/tests/Validate-SessionProtocol.Tests.ps1`: Verified all tests passing
+- `.agents/sessions/2026-01-05-session-316-pr790-round3-doc-review.md`: Complete audit trail
+
+### Remaining Work (Future PRs)
+From Round 5 review, there are still:
+- **10 MEDIUM/LOW issues** (logging improvements, edge cases)
+- **Code simplification opportunities** (duplicate filtering logic, loop consolidation)
+
+These are deferred to future sessions as they are not blocking production deployment.
