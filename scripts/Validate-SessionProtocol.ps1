@@ -97,6 +97,7 @@ function Get-HeadingTable {
     #>
     param(
         [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string[]]$Lines,
 
         [Parameter(Mandatory)]
@@ -155,6 +156,7 @@ function ConvertFrom-ChecklistTable {
     #>
     param(
         [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string[]]$TableLines
     )
 
@@ -212,6 +214,7 @@ function ConvertTo-NormalizedStep {
     #>
     param(
         [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string]$StepText
     )
 
@@ -293,6 +296,14 @@ function Test-MemoryEvidence {
 
     # Verify each memory exists in .serena/memories/
     $memoriesDir = Join-Path $RepoRoot ".serena" "memories"
+
+    # Check that memories directory exists before checking individual files
+    if (-not (Test-Path -LiteralPath $memoriesDir -PathType Container)) {
+        $result.IsValid = $false
+        $result.ErrorMessage = "Serena memories directory not found: $memoriesDir. Initialize Serena memory system (mcp__serena__activate_project) before validation."
+        return $result
+    }
+
     $missingMemories = [System.Collections.Generic.List[string]]::new()
 
     foreach ($memName in $foundMemories) {
@@ -334,10 +345,15 @@ function Test-DocsOnly {
         Tests if all files are documentation (.md) for QA skip eligibility.
     #>
     param(
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [AllowEmptyCollection()]
         [string[]]$Files
     )
 
-    if (-not $Files -or $Files.Count -eq 0) {
+    if ($Files.Count -eq 0) {
+        # Empty file list is NOT considered "docs only"
+        # Rationale: No files changed could be merge commit, revert, etc. - still need QA
         return $false
     }
 
