@@ -162,8 +162,10 @@ function ConvertFrom-ChecklistTable {
 
     foreach ($line in $TableLines) {
         # Skip separator and header rows
-        # Note: Separator regex is permissive - matches any line with only pipes, dashes, whitespace
-        # This handles various markdown table formats but may accept malformed separators
+        # Note: Separator regex is permissive to handle varied markdown table formats
+        # Matches: lines containing ONLY pipes (|), dashes (-), and/or whitespace
+        # WARNING: Accepts malformed separators like '---' (no pipes) or '|||' (no dashes)
+        # Trade-off: Simplicity over strictness. False positives are harmless (row gets skipped)
         $isSeparator = $line -match '^\s*[|\s-]+\s*$'
         $isHeader = $line -match '^\s*\|\s*Req\s*\|'
 
@@ -541,8 +543,10 @@ function Test-MustRequirements {
     }
 
     # FALLBACK: If primary pattern found nothing, try alternate 4-column table pattern
-    # Pattern: | MUST | description | [ ] | evidence |
-    # Double-count prevention: Only process fallback when primary regex found ZERO matches
+    # Both regexes match same table structure: | MUST | description | [x] | evidence |
+    # Primary captures description (Groups[1]); fallback only captures status (Groups[1])
+    # CRITICAL: Only run fallback when primary found ZERO matches to prevent double-counting
+    # If primary succeeded, fallback would re-match same rows, causing duplicate processing
     if ($mustMatches.Count -eq 0) {
         $tableMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\*?\*?\s*\|[^|]+\|\s*\[([x ])\]\s*\|')
         foreach ($match in $tableMatches) {
@@ -561,6 +565,92 @@ function Test-MustRequirements {
         $result.Issues += "Incomplete MUST requirements: $($result.Details.IncompleteMust.Count) of $($result.Details.TotalMust)"
         foreach ($incomplete in $result.Details.IncompleteMust) {
             $result.Issues += "  - $incomplete"
+        }
+    }
+
+    return $result
+}
+
+function Test-MustNotRequirements {
+    <#
+    .SYNOPSIS
+        Validates that MUST NOT requirements are verified (checked).
+
+    .DESCRIPTION
+        MUST NOT requirements represent prohibited actions per SESSION-PROTOCOL.md.
+        Checkbox semantics for MUST NOT:
+        - [x] = Verified compliance (confirmed did NOT perform prohibited action)
+        - [ ] = Not verified (unknown if prohibited action was performed)
+
+        Examples: "MUST NOT Update HANDOFF.md", "MUST NOT Skip validation"
+
+    .PARAMETER Content
+        Session log content to validate
+
+    .OUTPUTS
+        [PSCustomObject] with Passed, Issues, and Details properties
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Content
+    )
+
+    $result = [PSCustomObject]@{
+        Passed = $true
+        Issues = @()
+        Details = [PSCustomObject]@{
+            TotalMustNot = 0
+            Violations = @()  # MUST NOT requirements that are unchecked (not verified)
+            Compliant = 0      # MUST NOT requirements that are checked (verified compliance)
+        }
+    }
+
+    # Find all MUST NOT requirement rows in tables
+    # Pattern: | MUST NOT | description | [x] or [ ] |
+    # Also matches: | **MUST NOT** | description | [x] or [ ] |
+    # Note: Uses negative lookahead (?!.*NOT) to avoid matching "MUST NOT" in MUST regex
+    $mustNotMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\s+NOT\*?\*?\s*\|([^|]+)\|\s*\[([x ])\]')
+
+    foreach ($match in $mustNotMatches) {
+        $result.Details.TotalMustNot++
+        $description = $match.Groups[1].Value.Trim()
+        $isChecked = $match.Groups[2].Value -eq 'x'
+
+        if ($isChecked) {
+            # Checked MUST NOT = Verified compliance (confirmed did NOT do prohibited action)
+            $result.Details.Compliant++
+        } else {
+            # Unchecked MUST NOT = Not verified (unknown if violated)
+            $result.Details.Violations += $description
+        }
+    }
+
+    # FALLBACK: If primary pattern found nothing, try alternate 4-column table pattern
+    # Pattern: | MUST NOT | description | [x] or [ ] | evidence |
+    # Double-count prevention: Only process fallback when primary regex found ZERO matches
+    if ($mustNotMatches.Count -eq 0) {
+        $tableMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\s+NOT\*?\*?\s*\|[^|]+\|\s*\[([x ])\]\s*\|')
+        foreach ($match in $tableMatches) {
+            $result.Details.TotalMustNot++
+            $isChecked = $match.Groups[1].Value -eq 'x'
+            if ($isChecked) {
+                # Checked MUST NOT = Verified compliance
+                $result.Details.Compliant++
+            } else {
+                # Unchecked MUST NOT = Not verified
+                $result.Details.Violations += "(table row)"
+            }
+        }
+    }
+
+    # Fail validation if any MUST NOT requirements are not verified (unchecked)
+    if ($result.Details.Violations.Count -gt 0) {
+        $result.Passed = $false
+        $result.Issues += "Unverified MUST NOT requirements: $($result.Details.Violations.Count) of $($result.Details.TotalMustNot) not verified"
+        foreach ($unverified in $result.Details.Violations) {
+            $result.Issues += "  - NOT VERIFIED: $unverified"
         }
     }
 
@@ -704,8 +794,10 @@ function Test-HandoffUpdated {
                 } catch [System.FormatException] {
                     # Date parsing failed - check if git validation already succeeded
                     if ($gitDiffWorked) {
-                        # Git validation already completed successfully, date parsing failure is non-blocking
-                        Write-Verbose "Date parsing failed but git validation already completed. Session filename: $sessionFileName"
+                        # Git validation succeeded, but filename is still malformed - warn user
+                        $warningMsg = "Session log filename has invalid date format: '$($Matches[1])'. Expected format: YYYY-MM-DD (e.g., 2026-01-05). Git validation succeeded but filename should be corrected to match naming convention."
+                        Write-Warning $warningMsg
+                        $result.Warnings += $warningMsg
                         return $result
                     }
 
@@ -922,7 +1014,16 @@ function Invoke-SessionValidation {
         $validation.Issues += $mustResult.Issues
     }
 
-    # Test 5: HANDOFF.md updated
+    # Test 5: MUST NOT requirements (violations)
+    $mustNotResult = Test-MustNotRequirements -Content $content
+    $validation.Results['MustNotRequirements'] = $mustNotResult
+    if (-not $mustNotResult.Passed) {
+        $validation.Passed = $false
+        $validation.MustPassed = $false
+        $validation.Issues += $mustNotResult.Issues
+    }
+
+    # Test 6: HANDOFF.md updated
     $handoffResult = Test-HandoffUpdated -SessionPath $SessionFile -BasePath $BasePath
     $validation.Results['HandoffUpdated'] = $handoffResult
     if (-not $handoffResult.Passed) {
@@ -931,7 +1032,7 @@ function Invoke-SessionValidation {
         $validation.Issues += $handoffResult.Issues
     }
 
-    # Test 6: SHOULD requirements (warnings)
+    # Test 7: SHOULD requirements (warnings)
     $shouldResult = Test-ShouldRequirements -Content $content
     $validation.Results['ShouldRequirements'] = $shouldResult
     if ($shouldResult.Issues.Count -gt 0) {
@@ -939,7 +1040,7 @@ function Invoke-SessionValidation {
         $validation.Warnings += $shouldResult.Issues
     }
 
-    # Test 7: Commit evidence
+    # Test 8: Commit evidence
     $commitResult = Test-GitCommitEvidence -Content $content
     $validation.Results['CommitEvidence'] = $commitResult
     if ($commitResult.Issues.Count -gt 0) {
@@ -976,10 +1077,20 @@ function Get-SessionLogs {
         throw "Permission denied reading sessions directory: $sessionsPath. Check file permissions and retry."
     } catch [System.IO.PathTooLongException] {
         throw "Sessions directory path exceeds maximum length: $sessionsPath. Move project to shorter path."
+    } catch [System.IO.DirectoryNotFoundException] {
+        throw "Sessions directory not found: $sessionsPath. Verify .agents folder exists at project root."
     } catch [System.IO.IOException] {
         throw "I/O error reading sessions directory: $sessionsPath. Error: $($_.Exception.Message). Check disk health and file locks."
+    } catch [System.ArgumentException] {
+        throw "Invalid sessions directory path: $sessionsPath. Path contains invalid characters. Verify project location and path formatting."
     } catch {
-        throw "Failed to read sessions directory: $sessionsPath. Error: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
+        # Unexpected error - provide full context and suggest bug report
+        $errorMsg = "Unexpected error reading sessions directory: $sessionsPath`n" +
+                    "Error Type: $($_.Exception.GetType().FullName)`n" +
+                    "Message: $($_.Exception.Message)`n" +
+                    "Stack Trace: $($_.ScriptStackTrace)`n" +
+                    "This is likely a bug. Please report this issue with the above details."
+        throw $errorMsg
     }
 
     if ($Days -gt 0) {
