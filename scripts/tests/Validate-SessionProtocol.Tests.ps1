@@ -12,13 +12,10 @@
 BeforeAll {
     $scriptPath = Join-Path $PSScriptRoot ".." "Validate-SessionProtocol.ps1"
 
-    # Dot-source the script to get access to functions
-    # We need to extract just the functions, not run the main script
+    # Extract function definitions using AST (more reliable than regex)
     $scriptContent = Get-Content -Path $scriptPath -Raw
-
-    # Extract function definitions
-    $functionPattern = '(?ms)(function\s+[\w-]+\s*\{.*?\n\})'
-    $matches = [regex]::Matches($scriptContent, $functionPattern)
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput($scriptContent, [ref]$null, [ref]$null)
+    $functions = $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false)
 
     # Create a temporary module with just the functions
     $functionsOnly = @"
@@ -30,10 +27,27 @@ BeforeAll {
 `$ColorMagenta = '``e[35m'
 `$Format = 'console'
 
+# Investigation-only allowlist patterns (ADR-034)
+`$script:InvestigationAllowlist = @(
+    '^[.]agents/sessions/',
+    '^[.]agents/analysis/',
+    '^[.]agents/retrospective/',
+    '^[.]serena/memories(`$|/)',
+    '^[.]agents/security/'
+)
+
+# Session audit artifacts (exempt from QA validation)
+`$script:AuditArtifacts = @(
+    '^[.]agents/sessions/',
+    '^[.]agents/analysis/',
+    '^[.]serena/memories(`$|/)'
+)
+
 "@
 
-    foreach ($match in $matches) {
-        $functionsOnly += $match.Value + "`n`n"
+    # Extract each function's full text using AST
+    foreach ($function in $functions) {
+        $functionsOnly += $function.Extent.Text + "`n`n"
     }
 
     # Execute the functions in current scope
@@ -671,9 +685,9 @@ Describe "Get-HeadingTable" {
     It "Stops at next non-table line" {
         $lines = @(
             "## Session Start",
-            "| Req | Step |",
-            "|-----|------|",
-            "| MUST | Do thing |",
+            "| Req | Step | Status | Evidence |",
+            "|-----|------|--------|----------|",
+            "| MUST | Do thing | [x] | Done |",
             "",
             "Next paragraph"
         )
