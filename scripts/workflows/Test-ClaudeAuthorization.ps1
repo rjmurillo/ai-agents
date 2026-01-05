@@ -71,7 +71,7 @@
     Configuration:
     - Bot allowlist must be synchronized with .github/workflows/claude.yml
     - Update both locations when modifying allowed bots
-    - See lines 87-88 for bot list definition
+    - See line 109 for bot list definition
 #>
 
 [CmdletBinding()]
@@ -106,7 +106,23 @@ $ErrorActionPreference = 'Stop'
 try {
     # Authorization configuration (single source of truth)
     $allowedAssociations = @('MEMBER', 'OWNER', 'COLLABORATOR')
-    $allowedBots = @('dependabot[bot]', 'renovate[bot]', 'github-actions[bot]')
+    $allowedBots = @(
+        # Dependency management bots
+        'dependabot[bot]'
+        'renovate[bot]'
+
+        # GitHub automation
+        'github-actions[bot]'
+
+        # AI coding assistant bots (permitted to mention @claude)
+        'copilot[bot]'
+        'coderabbitai[bot]'
+        'cursor[bot]'
+        'gemini-ai[bot]'
+        'claude-ai[bot]'
+        'amazonq[bot]'
+        'tabnine[bot]'
+    )
 
     # Extract body content based on event type
     $body = switch ($EventName) {
@@ -139,20 +155,36 @@ try {
             }
             "$IssueBody $IssueTitle"
         }
-        default {
-            # NOTE: Unreachable due to [ValidateSet] on $EventName parameter
-            # Kept for defensive programming in case validation is removed
-            Write-Error "Unexpected event type: $EventName" -ErrorId 'UnexpectedEventType'
-            exit 1
-        }
     }
 
     # Check for @claude mention (required for all events)
     # Validate input length to prevent regex DoS
     $maxBodyLength = 1MB
     if ($body.Length -gt $maxBodyLength) {
-        Write-Warning "Event body exceeds maximum length ($maxBodyLength bytes), truncating for mention check"
-        $body = $body.Substring(0, $maxBodyLength)
+        Write-Error "Event body exceeds maximum safe length ($maxBodyLength bytes, received $($body.Length) bytes). This may indicate a malformed webhook or potential attack. Denying authorization." -ErrorId 'EventBodyTooLarge'
+
+        # Log to audit trail if available
+        if ($env:GITHUB_STEP_SUMMARY) {
+            try {
+                $oversizeLog = @"
+## Authorization Denied: Event Body Too Large
+
+**Maximum Allowed**: $maxBodyLength bytes (1 MB)
+**Received**: $($body.Length) bytes
+**Event Type**: $EventName
+**Actor**: $Actor
+**Timestamp**: $(Get-Date -Format 'o')
+
+This may indicate a malformed webhook payload or a potential attack. Legitimate GitHub webhooks should not exceed 1MB.
+"@
+                Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $oversizeLog -ErrorAction Stop
+            }
+            catch {
+                Write-Warning "Failed to write oversize body audit log: $_"
+            }
+        }
+
+        exit 1
     }
 
     # Use case-sensitive match with negative lookahead to ensure word boundary
@@ -226,8 +258,8 @@ This implementation will need to be updated when that deprecation takes effect.
             Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summary -ErrorAction Stop
         }
         catch {
-            Write-Warning "Failed to write to GitHub Actions summary: $_"
-            # Continue execution - audit logging failure shouldn't block authorization
+            Write-Error "CRITICAL: Failed to write audit log to GitHub Actions summary: $_. Authorization cannot proceed without audit trail." -ErrorId 'AuditLogFailed'
+            exit 1
         }
     }
 
@@ -264,7 +296,8 @@ Authorization check failed. Review workflow logs for details.
             Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $errorSummary -ErrorAction Stop
         }
         catch {
-            Write-Warning "Failed to write error summary: $_"
+            Write-Error "DOUBLE FAULT: Authorization check failed AND audit logging failed: $_" -ErrorId 'AuditLogDoubleFault'
+            Write-Error "Original error: $($_.Exception.Message)"
         }
     }
 

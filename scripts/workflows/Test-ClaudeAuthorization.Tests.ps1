@@ -90,6 +90,56 @@ Describe 'Test-ClaudeAuthorization' {
             $result | Should -Be 'true'
             $LASTEXITCODE | Should -Be 0
         }
+
+        It 'Should prioritize bot allowlist over author association' {
+            # Verify bot allowlist is checked before author association
+            # github-actions[bot] with NONE association should be authorized via bot path
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'github-actions[bot]' `
+                -AuthorAssociation 'NONE' `
+                -CommentBody '@claude help' `
+                *>&1
+
+            # Should authorize (bot allowlist takes precedence)
+            $output = $result | Out-String
+            $output | Should -Match 'Authorized via bot allowlist'
+            $output | Should -Not -Match 'Authorized via author association'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize copilot[bot] with @claude mention' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'copilot[bot]' `
+                -AuthorAssociation 'NONE' `
+                -CommentBody '@claude can you review this?'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize coderabbitai[bot] with @claude mention' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'coderabbitai[bot]' `
+                -AuthorAssociation 'NONE' `
+                -CommentBody '@claude please analyze'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize cursor[bot] with @claude mention' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'cursor[bot]' `
+                -AuthorAssociation 'NONE' `
+                -CommentBody '@claude help with this code'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
     }
 
     Context 'Denied Access' {
@@ -254,11 +304,21 @@ Describe 'Test-ClaudeAuthorization' {
             $result | Should -Be 'false'
             $LASTEXITCODE | Should -Be 0
         }
+
+        It 'Should fail when issues event has both empty body and empty title' {
+            { & $script:ScriptPath `
+                -EventName 'issues' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -IssueBody '' `
+                -IssueTitle '' `
+                -ErrorAction Stop
+            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
+        }
     }
 
     Context 'Edge Cases' {
         It 'Should fail with empty comment body' {
-            # Empty comment body should trigger an error (Phase 1 fix)
             { & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
@@ -269,7 +329,6 @@ Describe 'Test-ClaudeAuthorization' {
         }
 
         It 'Should fail with whitespace-only comment body' {
-            # Whitespace-only comment body should trigger an error (Phase 1 fix)
             { & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
@@ -380,6 +439,34 @@ Describe 'Test-ClaudeAuthorization' {
         }
     }
 
+    Context 'Input Size Validation' {
+        It 'Should reject event body larger than 1MB with @claude before boundary' {
+            # Create body with @claude before 1MB boundary but total size > 1MB
+            $largeBody = '@claude help ' + ('x' * (1MB + 100))
+
+            { & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody $largeBody `
+                -ErrorAction Stop
+            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
+        }
+
+        It 'Should reject event body larger than 1MB with @claude after boundary' {
+            # Create body with @claude after 1MB boundary
+            $largeBody = ('x' * (1MB + 100)) + ' @claude help'
+
+            { & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody $largeBody `
+                -ErrorAction Stop
+            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
+        }
+    }
+
     Context 'Script Error Handling' {
         It 'Should fail with invalid event type' {
             # ValidateSet throws a parameter binding exception before script execution
@@ -471,6 +558,24 @@ Describe 'Test-ClaudeAuthorization' {
             $summary = Get-Content $env:GITHUB_STEP_SUMMARY -Raw
             # ISO 8601 format: 2026-01-04T12:34:56.1234567-08:00
             $summary | Should -Match '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        }
+
+        It 'Should fail when GITHUB_STEP_SUMMARY write fails' {
+            # Create a read-only summary file to force write failure
+            $env:GITHUB_STEP_SUMMARY = Join-Path $TestDrive 'readonly_summary.md'
+            New-Item -Path $env:GITHUB_STEP_SUMMARY -ItemType File -Force
+            Set-ItemProperty -Path $env:GITHUB_STEP_SUMMARY -Name IsReadOnly -Value $true
+
+            { & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody '@claude help' `
+                -ErrorAction Stop
+            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
+
+            # Cleanup
+            Set-ItemProperty -Path $env:GITHUB_STEP_SUMMARY -Name IsReadOnly -Value $false
         }
     }
 }

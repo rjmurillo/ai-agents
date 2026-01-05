@@ -53,14 +53,19 @@ jobs:
             -IssueTitle $env:ISSUE_TITLE
 
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "scripts/workflows/Test-ClaudeAuthorization.ps1 failed with exit code $LASTEXITCODE. Check the Actions summary for authorization details."
+            Write-Error "Authorization check script failed with exit code $LASTEXITCODE."
+            Write-Error "This indicates a script error, not an authorization denial."
+            Write-Error "Review the step output above for specific error messages (e.g., EventBodyTooLarge, AuditLogFailed, RegexMatchFailed)."
+            Write-Error "Check the Actions summary 'Claude Authorization Check' section if available."
+            Write-Error "If the error mentions audit log failure, verify GITHUB_STEP_SUMMARY permissions."
             exit 1
           }
 
-          # Validate output format
+          # Validate output format to prevent silent failures from unexpected values
           $authorized = $authorized.Trim()
           if ($authorized -notin @('true', 'false')) {
             Write-Error "Authorization check returned unexpected value: '$authorized'. Expected 'true' or 'false'."
+            Write-Error "This may indicate the script exited without producing valid output."
             exit 1
           }
 
@@ -86,7 +91,10 @@ jobs:
           assignee_trigger: "@me"
 
           # Allow specific trusted bot users to trigger the action
-          allowed_bots: "dependabot[bot],renovate[bot],github-actions[bot]"
+          # Dependency management bots
+          # GitHub automation bots
+          # AI coding assistant bots (permitted to mention @claude for collaboration)
+          allowed_bots: "dependabot[bot],renovate[bot],github-actions[bot],copilot[bot],coderabbitai[bot],cursor[bot],gemini-ai[bot],claude-ai[bot],amazonq[bot],tabnine[bot]"
 
           # Branch configuration
           base_branch: "main"
