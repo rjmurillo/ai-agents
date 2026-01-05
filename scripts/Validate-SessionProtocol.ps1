@@ -100,7 +100,6 @@ function Get-HeadingTable {
     #>
     param(
         [Parameter(Mandatory)]
-        [ValidateNotNull()]
         [string[]]$Lines,
 
         [Parameter(Mandatory)]
@@ -166,8 +165,11 @@ function Parse-ChecklistTable {
 
     foreach ($line in $TableLines) {
         # Skip separator and header rows (check BEFORE parsing)
-        if ($line -match '^\|\s*-+\s*\|') { continue }  # separator row
-        if ($line -match '^\|\s*Req\s*\|') { continue }  # header row
+        $isSeparator = $line -match '^\s*[|\s-]+\s*$'
+        $isHeader = $line -match '^\s*\|\s*Req\s*\|'
+
+        if ($isSeparator) { continue }  # separator row (only pipes, dashes, whitespace)
+        if ($isHeader) { continue }  # header row
 
         # Split into 4 columns, trim outer pipes
         $parts = ($line.Trim() -replace '^\|', '' -replace '\|$', '').Split('|') |
@@ -196,7 +198,9 @@ function Parse-ChecklistTable {
         })
     }
 
-    return $rows.ToArray()
+    # Always return an array (even with 0 or 1 elements)
+    # Use comma operator to prevent PowerShell from unwrapping single-element arrays
+    return ,$rows.ToArray()
 }
 
 function Normalize-Step {
