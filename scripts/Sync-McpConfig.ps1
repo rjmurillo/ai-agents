@@ -89,7 +89,10 @@ param(
     [switch]$Force,
 
     [Parameter()]
-    [switch]$PassThru
+    [switch]$PassThru,
+
+    [Parameter(DontShow)]
+    [string]$RepoRootOverride
 )
 
 Set-StrictMode -Version Latest
@@ -109,6 +112,10 @@ if ($SyncAll -and $PSBoundParameters.ContainsKey('Target')) {
 
 # Resolve paths relative to script location or current directory
 function Get-RepoRoot {
+    if ($RepoRootOverride) {
+        return $RepoRootOverride
+    }
+
     $gitRoot = git rev-parse --show-toplevel 2>$null
     if ($LASTEXITCODE -eq 0 -and $gitRoot) {
         return $gitRoot
@@ -274,10 +281,26 @@ if (-not $SyncAll) {
 if ($SyncAll) {
     $anySynced = $false
 
+    # Build parameters for recursive call
+    $recursiveParams = @{
+        SourcePath = $SourcePath
+        Force = $Force
+        PassThru = $PassThru
+    }
+    if ($PSBoundParameters.ContainsKey('WhatIf')) {
+        $recursiveParams.WhatIf = $true
+    }
+    if ($PSBoundParameters.ContainsKey('RepoRootOverride')) {
+        $recursiveParams.RepoRootOverride = $RepoRootOverride
+    }
+
     # Sync to Factory
     $factoryPath = Join-Path $repoRoot '.factory'
     $factoryDestPath = Join-Path $factoryPath 'mcp.json'
-    $result = & $PSCommandPath -SourcePath $SourcePath -DestinationPath $factoryDestPath -Force:$Force -WhatIf:$WhatIf -PassThru:$PassThru
+    $recParams = $recursiveParams.Clone()
+    $recParams.DestinationPath = $factoryDestPath
+    $recParams.Target = 'factory'
+    $result = & $PSCommandPath @recParams
     if ($result -eq $true) {
         $anySynced = $true
     }
@@ -285,7 +308,10 @@ if ($SyncAll) {
     # Sync to VS Code
     $vscodePath = Join-Path $repoRoot '.vscode'
     $vscodeDestPath = Join-Path $vscodePath 'mcp.json'
-    $result = & $PSCommandPath -SourcePath $SourcePath -DestinationPath $vscodeDestPath -Target vscode -Force:$Force -WhatIf:$WhatIf -PassThru:$PassThru
+    $recParams = $recursiveParams.Clone()
+    $recParams.DestinationPath = $vscodeDestPath
+    $recParams.Target = 'vscode'
+    $result = & $PSCommandPath @recParams
     if ($result -eq $true) {
         $anySynced = $true
     }
