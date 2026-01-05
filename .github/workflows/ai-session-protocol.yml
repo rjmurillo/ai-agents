@@ -145,8 +145,15 @@ jobs:
           
           # Create simplified results directory
           New-Item -ItemType Directory -Force -Path "validation-results" | Out-Null
-          
-          $fileName = [System.IO.Path]::GetFileNameWithoutExtension($env:SESSION_FILE)
+
+          # Include parent directory to prevent collisions (e.g., sessions vs archive)
+          $fileInfo = Get-Item $env:SESSION_FILE
+          $parentDir = $fileInfo.Directory.Name
+          $baseName = [System.IO.Path]::GetFileNameWithoutExtension($fileInfo.Name)
+          $fileName = "${parentDir}-${baseName}"
+
+          # Set output for artifact naming
+          "artifact-name=$fileName" >> $env:GITHUB_OUTPUT
           
           # Determine verdict based on exit code
           $verdict = if ($exitCode -eq 0) { "COMPLIANT" } else { "NON_COMPLIANT" }
@@ -175,7 +182,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: validation-${{ hashFiles(matrix.session_file) }}
+          name: validation-${{ steps.validate.outputs.artifact-name }}
           path: validation-results/
           retention-days: 1
 
