@@ -145,14 +145,14 @@ try {
 
     # Extract body content based on event type
     # Note: Empty bodies are allowed - they will naturally deny authorization (no @claude mention)
-    # Exception: workflow_dispatch and pull_request events can authorize without @claude mention
+    # Exception: workflow_dispatch events and pull_request events from allowed bots can authorize without @claude mention
     $body = switch ($EventName) {
         'issue_comment' { $CommentBody }
         'pull_request_review_comment' { $CommentBody }
         'pull_request_review' { $ReviewBody }
         'issues' { "$IssueBody $IssueTitle" }
         'pull_request' { "$PRBody $PRTitle" }
-        'workflow_dispatch' { '' }  # workflow_dispatch doesn't have body - authorization via association only
+        'workflow_dispatch' { '' }  # workflow_dispatch doesn't have body - authorization via association only (requires MEMBER, OWNER, or COLLABORATOR)
     }
 
     # Check for @claude mention (required for all events)

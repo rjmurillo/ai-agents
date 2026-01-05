@@ -303,6 +303,61 @@ Describe 'Test-ClaudeAuthorization' {
             $LASTEXITCODE | Should -Be 0
         }
 
+        It 'Should authorize allowed bot even with @claude mention (bot check takes precedence)' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'renovate[bot]' `
+                -AuthorAssociation 'CONTRIBUTOR' `
+                -PRBody '@claude please review this dependency update'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize OWNER with @claude mention in PR body' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'owner' `
+                -AuthorAssociation 'OWNER' `
+                -PRBody '@claude please review this PR'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize OWNER with @claude mention in PR title' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'owner' `
+                -AuthorAssociation 'OWNER' `
+                -PRTitle '@claude: Fix authentication bug'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize COLLABORATOR with @claude mention in PR body' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'collaborator' `
+                -AuthorAssociation 'COLLABORATOR' `
+                -PRBody '@claude please review'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize COLLABORATOR with @claude mention in PR title' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'collaborator' `
+                -AuthorAssociation 'COLLABORATOR' `
+                -PRTitle '@claude: Update dependencies'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
         It 'Should deny pull_request from MEMBER without @claude mention' {
             $result = & $script:ScriptPath `
                 -EventName 'pull_request' `

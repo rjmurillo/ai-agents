@@ -15,20 +15,12 @@ on:
 
   # PR triggers - enable autonomous work on PRs directly
   # This allows Claude to respond to new PRs without waiting for comments
+  # Includes 'labeled' to support label_trigger activation
   pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review, labeled]
 
   # Manual trigger for on-demand Claude invocation
   workflow_dispatch:
-    inputs:
-      issue_number:
-        description: 'Issue or PR number to work on'
-        required: false
-        type: string
-      task:
-        description: 'Task description for Claude'
-        required: false
-        type: string
 
 # Permissions for autonomous operation
 # See: https://github.com/anthropics/claude-code-action
