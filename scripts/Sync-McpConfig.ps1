@@ -80,7 +80,7 @@ param(
 
     [Parameter()]
     [ValidateSet('factory', 'vscode')]
-    [string]$Target = 'factory',
+    [string]$Target = 'vscode',
 
     [Parameter()]
     [switch]$SyncAll,
@@ -98,6 +98,12 @@ $ErrorActionPreference = 'Stop'
 # Validate parameter combinations
 if ($SyncAll -and $DestinationPath) {
     Write-Error "Cannot use SyncAll with DestinationPath parameter. They are mutually exclusive."
+    exit 1
+}
+
+# Validate SyncAll vs Target (Target is meaningless when SyncAll is True)
+if ($SyncAll -and $PSBoundParameters.ContainsKey('Target')) {
+    Write-Error "Cannot use SyncAll with Target parameter. SyncAll generates both Factory and VS Code configs, so Target is ignored."
     exit 1
 }
 
@@ -190,9 +196,9 @@ if ($Target -eq 'vscode') {
 }
 else { # factory
     # Factory uses same format as Claude: mcpServers
-    # No transformation needed, just clone
+    # Deep clone to avoid modifying source
     $destJson = [ordered]@{
-        mcpServers = $sourceJson['mcpServers']
+        mcpServers = $sourceJson['mcpServers'].Clone()
     }
 }
 
@@ -258,6 +264,10 @@ if (-not $SyncAll) {
             if ($PassThru) { return $false }
         }
     }
+    else {
+        # No sync needed (already in sync and not forcing)
+        if ($PassThru) { return $false }
+    }
 }
 
 # Handle SyncAll: sync to both Factory and VS Code
@@ -267,16 +277,16 @@ if ($SyncAll) {
     # Sync to Factory
     $factoryPath = Join-Path $repoRoot '.factory'
     $factoryDestPath = Join-Path $factoryPath 'mcp.json'
-    $result = & $PSCommandPath -SourcePath $SourcePath -DestinationPath $factoryDestPath -Force:$Force -WhatIf:$WhatIf -ErrorAction SilentlyContinue
-    if ($result -or $Force) {
+    $result = & $PSCommandPath -SourcePath $SourcePath -DestinationPath $factoryDestPath -Force:$Force -WhatIf:$WhatIf -PassThru:$PassThru
+    if ($result -eq $true) {
         $anySynced = $true
     }
 
     # Sync to VS Code
     $vscodePath = Join-Path $repoRoot '.vscode'
     $vscodeDestPath = Join-Path $vscodePath 'mcp.json'
-    $result = & $PSCommandPath -SourcePath $SourcePath -DestinationPath $vscodeDestPath -Target vscode -Force:$Force -WhatIf:$WhatIf -ErrorAction SilentlyContinue
-    if ($result -or $Force) {
+    $result = & $PSCommandPath -SourcePath $SourcePath -DestinationPath $vscodeDestPath -Target vscode -Force:$Force -WhatIf:$WhatIf -PassThru:$PassThru
+    if ($result -eq $true) {
         $anySynced = $true
     }
 
