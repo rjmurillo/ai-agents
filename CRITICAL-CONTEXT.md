@@ -33,8 +33,8 @@
 5. Commit all changes (including `.agents/` and `.serena/`)
 6. Run `pwsh scripts/Validate-Session.ps1 -SessionLogPath [log]`
    - If validation fails, use `/session-log-fixer` skill to fix issues
-
-Exit code 0 (PASS) required before claiming completion.
+   - After fixing, re-run `pwsh scripts/Validate-Session.ps1 -SessionLogPath [log]` until it passes
+7. Exit code 0 (PASS) required before claiming completion.
 
 ## Skill-First Pattern
 
