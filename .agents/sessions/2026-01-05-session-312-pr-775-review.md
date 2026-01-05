@@ -66,7 +66,7 @@ Address PR #775 review comments and ensure merge readiness:
 | MUST | Read usage-mandatory memory | [x] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [x] | Via CRITICAL-CONTEXT.md |
 | MUST | Read memory-index, load task-relevant memories | [x] | pr-review-* memories loaded |
-| SHOULD | Import shared memories | [N/A] | PR review session |
+| SHOULD | Import shared memories: `pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1` | [N/A] | PR review session |
 | MUST | Verify and declare current branch | [x] | feat/claude-md-token-optimization |
 | MUST | Confirm not on main/master | [x] | On feature branch |
 | SHOULD | Verify git status | [x] | Clean |
