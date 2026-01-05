@@ -96,8 +96,8 @@ rules:
       - "Check for Closes #issue or spec reference"
 
     tags:
-      - pr-level
-      - documentation
+      - quality
+      - consistency
       - traceability
 
 
@@ -190,9 +190,9 @@ rules:
       - "If none found, flag as missing traceability"
 
     tags:
-      - pr-level
+      - quality
       - traceability
-      - documentation
+      - consistency
 
 
   - id: session_path_normalization

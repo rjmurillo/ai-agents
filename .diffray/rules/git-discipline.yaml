@@ -132,9 +132,9 @@ rules:
         - What would break this pattern?
 
     tags:
-      - git-history
+      - git
+      - quality
       - process
-      - autonomous-execution
 
     why_important: |
       10+ commits without merge indicates pattern blindness or fundamental
