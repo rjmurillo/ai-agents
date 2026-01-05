@@ -15,7 +15,7 @@ The plan correctly identifies 4 changes in AGENTS.md (already in working tree). 
 **Issue**: Plan treats all `Validate-SessionEnd.ps1` references as errors.
 
 **Evidence**:
-- Git commit a4c58192 renamed `Validate-SessionEnd.ps1` to `Validate-Session.ps1` on 2025-12-23
+- Git commit a4c58192 renamed `Validate-SessionEnd.ps1` to `Validate-SessionProtocol.ps1` on 2025-12-23
 - Commit 4a00fca3 shows `Validate-SessionEnd.ps1` was a real, functional script
 - 19 session logs in `.agents/sessions/` correctly reference the script name that existed when sessions occurred
 - 23 memory files in `.serena/memories/` correctly document historical patterns
