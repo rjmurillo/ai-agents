@@ -63,11 +63,6 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-          # Plugin configuration (matching current instance)
-          plugins: |
-            context7@context7
-            claude-router@claude-router-marketplace
-
           # Trigger configuration
           trigger_phrase: "@claude"
           assignee_trigger: "@me"
