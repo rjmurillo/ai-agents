@@ -635,7 +635,14 @@ function Test-HandoffUpdated {
         # IMPORTANT: In shallow checkouts, fail validation rather than using unreliable timestamps
         # Shallow clones would incorrectly flag HANDOFF.md as modified because all files have
         # checkout timestamp, potentially newer than session date
-        $isGitRepoWithoutOrigin = (git rev-parse --git-dir 2>$null) -and -not $useGitDiff
+        $gitDirCheck = git rev-parse --git-dir 2>&1
+        $isGitRepo = $LASTEXITCODE -eq 0
+
+        if (-not $isGitRepo -and $gitDirCheck) {
+            Write-Verbose "Git repository check failed: $gitDirCheck. Treating as non-git directory."
+        }
+
+        $isGitRepoWithoutOrigin = $isGitRepo -and -not $useGitDiff
 
         if ($isGitRepoWithoutOrigin) {
             # Shallow checkout detected - cannot reliably validate
