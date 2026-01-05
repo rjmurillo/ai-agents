@@ -83,6 +83,9 @@ function Write-ColorOutput {
 
 #region Table Extraction and Parsing Helpers
 
+# Maximum lines to search for table after heading
+$MaxTableSearchLines = 80
+
 function Get-HeadingTable {
     <#
     .SYNOPSIS
@@ -90,6 +93,7 @@ function Get-HeadingTable {
 
     .DESCRIPTION
         Returns table lines (including header, separator, and data rows) or $null if not found.
+        Searches up to $MaxTableSearchLines lines after heading for table start.
     #>
     param(
         [Parameter(Mandatory)]
@@ -113,9 +117,9 @@ function Get-HeadingTable {
         return $null
     }
 
-    # Find table header row after heading (within 80 lines)
+    # Find table header row after heading
     $tableStart = -1
-    $searchLimit = [Math]::Min($headingIdx + 80, $Lines.Count)
+    $searchLimit = [Math]::Min($headingIdx + $script:MaxTableSearchLines, $Lines.Count)
     for ($i = $headingIdx; $i -lt $searchLimit; $i++) {
         if ($Lines[$i] -match '^\|\s*Req\s*\|\s*Step\s*\|\s*Status\s*\|\s*Evidence\s*\|\s*$') {
             $tableStart = $i
@@ -306,21 +310,21 @@ function Test-MemoryEvidence {
     return $result
 }
 
-# Investigation-only allowlist patterns (ADR-034)
-$script:InvestigationAllowlist = @(
-    '^[.]agents/sessions/',        # Session logs
-    '^[.]agents/analysis/',        # Investigation outputs
-    '^[.]agents/retrospective/',   # Learnings
-    '^[.]serena/memories($|/)',    # Cross-session context
-    '^[.]agents/security/'         # Security assessments
-)
-
-# Session audit artifacts (exempt from QA validation)
-$script:AuditArtifacts = @(
+# Shared exempt paths (audit artifacts common to investigation and QA skip rules)
+$script:CommonExemptPaths = @(
     '^[.]agents/sessions/',        # Session logs (audit trail)
     '^[.]agents/analysis/',        # Investigation outputs
     '^[.]serena/memories($|/)'     # Cross-session context
 )
+
+# Investigation-only allowlist patterns (ADR-034)
+$script:InvestigationAllowlist = $script:CommonExemptPaths + @(
+    '^[.]agents/retrospective/',   # Learnings
+    '^[.]agents/security/'         # Security assessments
+)
+
+# Session audit artifacts (exempt from QA validation)
+$script:AuditArtifacts = $script:CommonExemptPaths
 
 function Test-DocsOnly {
     <#
@@ -1024,18 +1028,20 @@ function Format-ConsoleOutput {
 
         Write-ColorOutput "Session: $($v.SessionName) - $status"
 
-        foreach ($checkName in $v.Results.Keys) {
-            $check = $v.Results[$checkName]
-            $level = if ($check.Level -eq 'MUST') { $ColorRed } else { $ColorYellow }
-            $checkStatus = if ($check.Passed) { "${ColorGreen}[PASS]${ColorReset}" }
-                          elseif ($check.Level -eq 'MUST') { "${ColorRed}[FAIL]${ColorReset}" }
-                          else { "${ColorYellow}[WARN]${ColorReset}" }
+        if ($null -ne $v.Results) {
+            foreach ($checkName in $v.Results.Keys) {
+                $check = $v.Results[$checkName]
+                $level = if ($check.Level -eq 'MUST') { $ColorRed } else { $ColorYellow }
+                $checkStatus = if ($check.Passed) { "${ColorGreen}[PASS]${ColorReset}" }
+                              elseif ($check.Level -eq 'MUST') { "${ColorRed}[FAIL]${ColorReset}" }
+                              else { "${ColorYellow}[WARN]${ColorReset}" }
 
-            Write-ColorOutput "  $checkStatus $checkName ($($check.Level))"
+                Write-ColorOutput "  $checkStatus $checkName ($($check.Level))"
 
-            if ($check.Issues.Count -gt 0) {
-                foreach ($issue in $check.Issues) {
-                    Write-ColorOutput "    - $issue" $ColorYellow
+                if ($check.Issues.Count -gt 0) {
+                    foreach ($issue in $check.Issues) {
+                        Write-ColorOutput "    - $issue" $ColorYellow
+                    }
                 }
             }
         }

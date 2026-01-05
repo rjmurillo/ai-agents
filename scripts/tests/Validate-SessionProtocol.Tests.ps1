@@ -27,21 +27,24 @@ BeforeAll {
 `$ColorMagenta = '``e[35m'
 `$Format = 'console'
 
-# Investigation-only allowlist patterns (ADR-034)
-`$script:InvestigationAllowlist = @(
-    '^[.]agents/sessions/',
-    '^[.]agents/analysis/',
-    '^[.]agents/retrospective/',
-    '^[.]serena/memories(`$|/)',
-    '^[.]agents/security/'
-)
+# Maximum lines to search for table after heading
+`$script:MaxTableSearchLines = 80
 
-# Session audit artifacts (exempt from QA validation)
-`$script:AuditArtifacts = @(
+# Shared exempt paths (audit artifacts common to investigation and QA skip rules)
+`$script:CommonExemptPaths = @(
     '^[.]agents/sessions/',
     '^[.]agents/analysis/',
     '^[.]serena/memories(`$|/)'
 )
+
+# Investigation-only allowlist patterns (ADR-034)
+`$script:InvestigationAllowlist = `$script:CommonExemptPaths + @(
+    '^[.]agents/retrospective/',
+    '^[.]agents/security/'
+)
+
+# Session audit artifacts (exempt from QA validation)
+`$script:AuditArtifacts = `$script:CommonExemptPaths
 
 "@
 
