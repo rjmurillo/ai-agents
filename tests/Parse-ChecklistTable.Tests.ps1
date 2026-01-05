@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Pester tests for Parse-ChecklistTable function in Validate-Session.ps1
+    Pester tests for Parse-ChecklistTable function in SessionValidation module
 
 .DESCRIPTION
     Tests the table parsing logic that handles markdown tables with code spans
@@ -11,52 +11,19 @@
 #>
 
 BeforeAll {
-    $scriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1"
-    if (-not (Test-Path $scriptPath)) {
-        throw "Validate-Session.ps1 not found at: $scriptPath"
+    # Import the SessionValidation module
+    $modulePath = Join-Path $PSScriptRoot ".." "scripts" "modules" "SessionValidation.psm1"
+    if (-not (Test-Path $modulePath)) {
+        throw "SessionValidation.psm1 not found at: $modulePath"
     }
-    $scriptContent = Get-Content -Path $scriptPath -Raw
-
-    # Extract Split-TableRow function - simpler pattern matching to first occurrence of next function
-    $splitStart = $scriptContent.IndexOf('function Split-TableRow {')
-    $parseStart = $scriptContent.IndexOf('function Parse-ChecklistTable(', $splitStart)
-    
-    if ($splitStart -ge 0 -and $parseStart -gt $splitStart) {
-        $splitFunc = $scriptContent.Substring($splitStart, $parseStart - $splitStart).Trim()
-        # Ensure it ends with a closing brace
-        if (-not $splitFunc.EndsWith('}')) {
-            $splitFunc = $splitFunc.TrimEnd() + "`n}"
-        }
-        $script:SplitTableRowDef = $splitFunc
-        Invoke-Expression $splitFunc
-    }
-
-    # Extract Parse-ChecklistTable function
-    if ($parseStart -ge 0) {
-        # Find next function or a known landmark after Parse-ChecklistTable
-        $normStart = $scriptContent.IndexOf('function Normalize-Step', $parseStart)
-        if ($normStart -lt 0) {
-            # If Normalize-Step not found, search for other landmarks
-            $normStart = $scriptContent.IndexOf("`n# --- Load inputs", $parseStart)
-        }
-        if ($normStart -gt $parseStart) {
-            $parseFunc = $scriptContent.Substring($parseStart, $normStart - $parseStart).Trim()
-            # Find the last closing brace in this section
-            $lastBrace = $parseFunc.LastIndexOf('}')
-            if ($lastBrace -gt 0) {
-                $parseFunc = $parseFunc.Substring(0, $lastBrace + 1)
-            }
-            $script:ParseChecklistTableDef = $parseFunc
-            Invoke-Expression $parseFunc
-        }
-    }
+    Import-Module $modulePath -Force
 
     # Validate that required functions were successfully loaded
     if (-not (Get-Command Split-TableRow -ErrorAction SilentlyContinue)) {
-        throw "Failed to extract Split-TableRow function from $scriptPath"
+        throw "Split-TableRow function not exported from SessionValidation module"
     }
     if (-not (Get-Command Parse-ChecklistTable -ErrorAction SilentlyContinue)) {
-        throw "Failed to extract Parse-ChecklistTable function from $scriptPath"
+        throw "Parse-ChecklistTable function not exported from SessionValidation module"
     }
 }
 
