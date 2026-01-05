@@ -19,7 +19,8 @@ jobs:
   claude-response:
     runs-on: ubuntu-latest
     steps:
-      - uses: anthropics/claude-code-action@v1
+      # Pin to v1.0.27 - https://github.com/anthropics/claude-code-action/releases/tag/v1.0.27
+      - uses: anthropics/claude-code-action@7145c3e0510bcdbdd29f67cc4a8c1958f1acfa2f
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
