@@ -381,9 +381,12 @@ function Test-MemoryEvidence {
   # Extract memory names from Evidence (kebab-case identifiers)
   # Pattern: word-word or word-word-word-... (minimum 2 segments)
   $memoryPattern = '[a-z][a-z0-9]*(?:-[a-z0-9]+)+'
-  $foundMemories = [regex]::Matches($evidence, $memoryPattern, 'IgnoreCase') |
-    ForEach-Object { $_.Value.ToLowerInvariant() } |
-    Select-Object -Unique
+  # Wrap in @() to ensure result is always an array (fixes Count property error when single match)
+  $foundMemories = @(
+    [regex]::Matches($evidence, $memoryPattern, 'IgnoreCase') |
+      ForEach-Object { $_.Value.ToLowerInvariant() } |
+      Select-Object -Unique
+  )
 
   if ($foundMemories.Count -eq 0) {
     $result.IsValid = $false
