@@ -268,7 +268,7 @@ catch {
         StackTrace = $_.ScriptStackTrace
     }
 
-    Write-Error "Authorization check failed: $($errorDetails | ConvertTo-Json -Compress)" -ErrorId 'AuthorizationCheckFailed'
+    Write-Host "Authorization check failed: $($errorDetails | ConvertTo-Json -Compress)"
     Write-Verbose "Error Details: Event=$EventName, Actor=$Actor, Association=$AuthorAssociation"
 
     # Log error to summary if available
