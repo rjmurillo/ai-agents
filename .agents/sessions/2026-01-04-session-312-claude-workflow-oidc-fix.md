@@ -63,6 +63,11 @@ permissions:
 +  id-token: write  # Required for OIDC authentication
 ```
 
+## Outcome
+
+**PR Created**: #783 (https://github.com/rjmurillo/ai-agents/pull/783)
+**Branch**: `fix/claude-workflow-oidc-permission`
+
 ## Session Protocol
 
 - [x] Serena initialized
@@ -71,4 +76,5 @@ permissions:
 - [x] Branch verified (main)
 - [x] Session log created
 - [x] Fix applied
+- [x] PR created
 - [x] Session log completed
