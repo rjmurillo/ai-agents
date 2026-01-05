@@ -674,9 +674,17 @@ function Test-HandoffUpdated {
                             $result.Issues += "HANDOFF.md was modified ($($handoffModifiedDate.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
                         }
                     } catch [System.UnauthorizedAccessException] {
-                        Write-Warning "Permission denied reading HANDOFF.md metadata. Cannot verify modification timestamp. Check file permissions."
+                        $result.Passed = $false
+                        $errorMsg = "Permission denied reading HANDOFF.md metadata. Cannot verify modification timestamp. Check file permissions and retry validation."
+                        $result.Issues += $errorMsg
+                        Write-Error $errorMsg
+                        return $result
                     } catch [System.IO.FileNotFoundException] {
-                        Write-Verbose "HANDOFF.md was deleted between existence check and metadata read (race condition). Treating as not modified."
+                        $result.Passed = $false
+                        $errorMsg = "HANDOFF.md was deleted during validation (race condition detected between existence check and metadata read). File system may be unstable. Retry validation. If issue persists, check for concurrent processes or file system issues."
+                        $result.Issues += $errorMsg
+                        Write-Error $errorMsg
+                        return $result
                     } catch [System.IO.PathTooLongException] {
                         $result.Passed = $false
                         $result.Issues += "HANDOFF.md path exceeds maximum length. This indicates a project structure issue. Move project to shorter path."

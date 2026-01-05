@@ -1090,8 +1090,6 @@ Describe "RFC 2119 Requirement Level Behavior" {
 
 Describe "Get-HeadingTable" {
     It "Extracts table after heading" {
-        # PowerShell quirk: Arrays with empty strings cause parameter binding issues in Pester
-        # Removing empty strings for test, but function handles them correctly in production
         $lines = @(
             "# Main Heading",
             "## Session Start",
@@ -1130,7 +1128,6 @@ Describe "Get-HeadingTable" {
     }
 
     It "Stops at next non-table line" {
-        # PowerShell quirk: Removing empty strings for Pester test context
         $lines = @(
             "## Session Start",
             "| Req | Step | Status | Evidence |",
