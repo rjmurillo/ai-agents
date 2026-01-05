@@ -143,6 +143,11 @@ Use this pattern when:
 - Security guide: https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
 - `security-012-workflow-author-association.md`: Previous pattern (replaced)
 
+## Deprecation Note
+
+GitHub may deprecate `author_association` from webhook payloads in the future (timeline not confirmed).
+Plan migration to alternative authorization methods (team membership API, collaborator API, or GitHub Apps) when deprecation occurs.
+
 ## Testing Template
 
 ```powershell

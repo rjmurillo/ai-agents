@@ -113,7 +113,7 @@ If this proves too restrictive for legitimate external contributors, we can rela
 
 ## Deprecation Warning
 
-GitHub announced in August 2025 that `author_association` will be REMOVED from webhook payloads to improve API response times.
+GitHub announced that `author_association` may be deprecated from webhook payloads in the future to improve API response times. The exact timeline is not publicly confirmed.
 
 **Impact**: This implementation will break when the deprecation takes effect.
 

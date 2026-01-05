@@ -136,6 +136,28 @@ Describe 'Test-ClaudeAuthorization' {
             $result | Should -Be 'false'
             $LASTEXITCODE | Should -Be 0
         }
+
+        It 'Should deny NONE author association with @claude mention' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'anonymous' `
+                -AuthorAssociation 'NONE' `
+                -CommentBody '@claude help please'
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should deny bot not in allowlist even with @claude mention' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'some-other-bot[bot]' `
+                -AuthorAssociation 'CONTRIBUTOR' `
+                -CommentBody '@claude check this'
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
+        }
     }
 
     Context 'pull_request_review_comment event' {
@@ -235,26 +257,26 @@ Describe 'Test-ClaudeAuthorization' {
     }
 
     Context 'Edge Cases' {
-        It 'Should handle empty comment body gracefully' {
-            $result = & $script:ScriptPath `
+        It 'Should fail with empty comment body' {
+            # Empty comment body should trigger an error (Phase 1 fix)
+            { & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
-                -CommentBody ''
-
-            $result | Should -Be 'false'
-            $LASTEXITCODE | Should -Be 0
+                -CommentBody '' `
+                -ErrorAction Stop
+            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
         }
 
-        It 'Should handle whitespace-only comment body' {
-            $result = & $script:ScriptPath `
+        It 'Should fail with whitespace-only comment body' {
+            # Whitespace-only comment body should trigger an error (Phase 1 fix)
+            { & $script:ScriptPath `
                 -EventName 'issue_comment' `
                 -Actor 'member' `
                 -AuthorAssociation 'MEMBER' `
-                -CommentBody '   '
-
-            $result | Should -Be 'false'
-            $LASTEXITCODE | Should -Be 0
+                -CommentBody '   ' `
+                -ErrorAction Stop
+            } | Should -Throw -ExceptionType ([Microsoft.PowerShell.Commands.WriteErrorException])
         }
 
         It 'Should handle empty AuthorAssociation' {
@@ -301,6 +323,61 @@ Describe 'Test-ClaudeAuthorization' {
             $result | Should -Be 'false'
             $LASTEXITCODE | Should -Be 0
         }
+
+        It 'Should not match @claude followed by numbers like @claude123' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody 'Hey @claude123, check this'
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should not match @claude followed by underscore like @claude_bot' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody 'Pinging @claude_bot for help'
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should match @claude followed by punctuation like @claude!' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody 'Hey @claude! Can you help?'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should match @claude at end of string' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody 'Please help @claude'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should match @claude followed by comma' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody '@claude, please review this'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
     }
 
     Context 'Script Error Handling' {
@@ -324,7 +401,9 @@ Describe 'Test-ClaudeAuthorization' {
 
         AfterEach {
             # Clean up
-            Remove-Item -Path $env:GITHUB_STEP_SUMMARY -ErrorAction SilentlyContinue
+            if ($env:GITHUB_STEP_SUMMARY) {
+                Remove-Item -Path $env:GITHUB_STEP_SUMMARY -ErrorAction SilentlyContinue
+            }
             $env:GITHUB_STEP_SUMMARY = $null
         }
 
@@ -359,6 +438,39 @@ Describe 'Test-ClaudeAuthorization' {
             $summary = Get-Content $env:GITHUB_STEP_SUMMARY -Raw
             $summary | Should -Match 'False'
             $summary | Should -Match 'Access denied'
+        }
+
+        It 'Should handle null GITHUB_STEP_SUMMARY gracefully' {
+            # Test without GITHUB_STEP_SUMMARY set
+            # Script should succeed without trying to write audit log
+            Remove-Item -Path $env:GITHUB_STEP_SUMMARY -ErrorAction SilentlyContinue
+            $env:GITHUB_STEP_SUMMARY = $null
+
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody '@claude help'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+            # Verify no summary file was created
+            $env:GITHUB_STEP_SUMMARY | Should -BeNullOrEmpty
+        }
+
+        It 'Should write ISO 8601 timestamp format in audit log' {
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody '@claude help'
+
+            $result | Should -Be 'true'
+            $env:GITHUB_STEP_SUMMARY | Should -Exist
+
+            $summary = Get-Content $env:GITHUB_STEP_SUMMARY -Raw
+            # ISO 8601 format: 2026-01-04T12:34:56.1234567-08:00
+            $summary | Should -Match '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
         }
     }
 }

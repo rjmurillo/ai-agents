@@ -53,7 +53,14 @@ jobs:
             -IssueTitle $env:ISSUE_TITLE
 
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "Authorization check script failed with exit code $LASTEXITCODE"
+            Write-Error "scripts/workflows/Test-ClaudeAuthorization.ps1 failed with exit code $LASTEXITCODE. Check the Actions summary for authorization details."
+            exit 1
+          }
+
+          # Validate output format
+          $authorized = $authorized.Trim()
+          if ($authorized -notin @('true', 'false')) {
+            Write-Error "Authorization check returned unexpected value: '$authorized'. Expected 'true' or 'false'."
             exit 1
           }
 
