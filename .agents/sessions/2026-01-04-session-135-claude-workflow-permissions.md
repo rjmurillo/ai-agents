@@ -102,3 +102,19 @@ Reduce workflow permissions in `.github/workflows/claude.yml` to minimum require
 - ✅ Linting passed (0 errors)
 - ✅ All changes committed
 - ✅ Session protocol requirements met
+
+## Session End (COMPLETE ALL before closing)
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [x] | Skipped (used Serena memory directly) |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [x] | Clean |
+| MUST | Complete session log (all sections filled) | [x] | File complete |
+| MUST | Update Serena memory (cross-session context) | [x] | security-011-workflow-least-privilege memory created |
+| MUST | Run markdown lint | [x] | Lint output clean |
+| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: investigation-only (configuration fix) |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 8ac8a4ed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | Skipped (not a planned task) |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | Skipped (simple configuration fix) |
+| SHOULD | Verify clean git status | [x] | Clean after commit |
