@@ -226,14 +226,19 @@ This refactoring supports:
 
 ## Evidence
 
-**Commit SHA**: (to be added after commit)
+**PR**: #793 (https://github.com/rjmurillo/ai-agents/pull/793)
+**Commits**: 
+- ffca500 - refactor: Extract MCP setup to reusable composite action
+- af4b06e - chore: Update causal graph from session 316
 
 **Files Changed**:
 
 - `.github/actions/setup-code-env/action.yml` (new)
 - `.github/workflows/copilot-setup-steps.yml` (refactored)
 - `.github/workflows/claude.yml` (enhanced)
-- `.agents/sessions/2026-01-05-session-extract-mcp-setup-action.md` (this log)
+- `.agents/sessions/2026-01-05-session-316-extract-mcp-setup-action.md` (this log)
+- `.agents/memory/episodes/episode-2026-01-05-session-316.json` (new)
+- `.agents/memory/causality/causal-graph.json` (updated)
 
 ---
 
