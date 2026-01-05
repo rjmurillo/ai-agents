@@ -65,9 +65,7 @@ jobs:
 
           # Plugin configuration (matching current instance)
           plugins: |
-            forgetful@scottrbk
             context7@context7
-            context-hub@scottrbk
             claude-router@claude-router-marketplace
 
           # Trigger configuration
