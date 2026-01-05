@@ -33,7 +33,9 @@ Import-Module (Join-Path $PSScriptRoot ".." ".." "modules" "GitHubCore.psm1") -F
 $unresolvedThreads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PullRequest $PullRequest
 ```
 
-## Session Start (COMPLETE ALL before work)
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
@@ -128,7 +130,7 @@ pwsh .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullReque
 - Throws clear error message when not in git repository
 - Prevents confusing GraphQL API errors
 
-## Session End (COMPLETE ALL before closing)
+### Session End (COMPLETE ALL before closing)
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
