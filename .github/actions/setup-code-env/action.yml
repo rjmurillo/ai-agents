@@ -1,0 +1,155 @@
+name: 'Setup Code Environment'
+description: 'Setup development environment with linting tools and testing frameworks'
+
+inputs:
+  gh-token:
+    description: 'GitHub token for GitHub CLI operations'
+    required: true
+  enable-pester:
+    description: 'Install Pester testing framework (default: true)'
+    required: false
+    default: 'true'
+  enable-git-hooks:
+    description: 'Enable git hooks configuration (default: true)'
+    required: false
+    default: 'true'
+  skip-autofix:
+    description: 'Set SKIP_AUTOFIX environment variable (0=enabled, 1=disabled, default: 0)'
+    required: false
+    default: '0'
+
+outputs:
+  node-version:
+    description: 'Node.js version installed'
+    value: ${{ steps.node-version.outputs.node_version }}
+  pester-version:
+    description: 'Pester version installed (if enabled)'
+    value: ${{ steps.pester.outputs.pester_version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      id: node-setup
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: "lts/*"
+
+    - name: Verify Node.js installation
+      shell: bash
+      run: |
+        echo "Verifying Node.js installation..."
+        node --version
+        npm --version
+        echo ""
+        echo "✓ Node.js and npm are ready"
+
+    - name: Store Node.js version
+      id: node-version
+      shell: bash
+      run: |
+        NODE_VERSION=$(node --version)
+        echo "node_version=$NODE_VERSION" >> "$GITHUB_OUTPUT"
+
+    - name: Verify GitHub CLI availability
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.gh-token }}
+      run: |
+        echo "Verifying GitHub CLI availability..."
+        gh --version
+        echo ""
+        echo "✓ GitHub CLI is available"
+        echo "✓ GH_TOKEN is configured"
+
+    - name: Enable git hooks
+      if: inputs.enable-git-hooks == 'true'
+      shell: bash
+      run: |
+        echo "Configuring git hooks..."
+        git config core.hooksPath .githooks
+        echo "✓ Git hooks enabled at .githooks/"
+
+        # Verify hooks are configured
+        HOOKS_PATH=$(git config --get core.hooksPath)
+        echo "Current hooks path: $HOOKS_PATH"
+
+    - name: Install markdownlint-cli2
+      shell: bash
+      run: |
+        echo "Installing markdownlint-cli2..."
+        npm install --global markdownlint-cli2
+        echo "✓ markdownlint-cli2 installed"
+
+    - name: Install uv (Python package manager)
+      shell: bash
+      run: |
+        echo "Installing uv..."
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        echo "✓ uv installed"
+
+    - name: Install Pester
+      id: pester
+      if: inputs.enable-pester == 'true'
+      shell: pwsh -NoProfile -Command "& '{0}'"
+      run: |
+        echo "Installing Pester testing framework..."
+        Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
+        # Pin to specific version for supply chain security (issue #304)
+        Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser
+        Import-Module Pester -RequiredVersion 5.7.1
+        $pesterVersion = (Get-Module Pester).Version
+        echo "✓ Pester $pesterVersion installed"
+        "pester_version=$pesterVersion" >> "$env:GITHUB_OUTPUT"
+
+    - name: Set SKIP_AUTOFIX environment variable
+      shell: bash
+      env:
+        SKIP_AUTOFIX_VALUE: ${{ inputs.skip-autofix }}
+      run: |
+        echo "SKIP_AUTOFIX=$SKIP_AUTOFIX_VALUE" >> "$GITHUB_ENV"
+        echo "✓ SKIP_AUTOFIX set to $SKIP_AUTOFIX_VALUE (0=enabled, 1=disabled)"
+
+    - name: Verify setup
+      shell: pwsh -NoProfile -Command "& '{0}'"
+      env:
+        ENABLE_PESTER: ${{ inputs.enable-pester }}
+      run: |
+        Write-Host ""
+        Write-Host "=== Setup Verification ===" -ForegroundColor Cyan
+        Write-Host "Git hooks path: $(git config --get core.hooksPath)"
+        Write-Host "SKIP_AUTOFIX: $($env:SKIP_AUTOFIX ?? '0') (0=enabled, 1=disabled)"
+        Write-Host ""
+
+        # Test that tools are available
+        if (Get-Command npx -ErrorAction SilentlyContinue) {
+          Write-Host "✓ npx is available" -ForegroundColor Green
+          # Check if markdownlint-cli2 is available (--help may return non-zero)
+          $null = npx markdownlint-cli2 --help 2>&1
+          Write-Host "✓ markdownlint-cli2 is installed" -ForegroundColor Green
+        }
+
+        if (Get-Command gh -ErrorAction SilentlyContinue) {
+          Write-Host "✓ GitHub CLI is available for workflow monitoring" -ForegroundColor Green
+        }
+
+        # Test Pester
+        if ($env:ENABLE_PESTER -eq 'true') {
+          $pester = Get-Module -ListAvailable -Name Pester | Select-Object -First 1
+          if ($pester) {
+            Write-Host "✓ Pester $($pester.Version) is installed" -ForegroundColor Green
+          }
+        }
+
+        # Test powershell-yaml (optional)
+        $yaml = Get-Module -ListAvailable -Name powershell-yaml | Select-Object -First 1
+        if ($yaml) {
+          Write-Host "✓ powershell-yaml $($yaml.Version) is installed" -ForegroundColor Green
+        }
+
+        Write-Host ""
+        Write-Host "✓ Setup complete! Development tools ready: Node.js, markdownlint-cli2, GitHub CLI (if available), Pester (if enabled), git hooks (if configured)." -ForegroundColor Green
+
+        # Explicitly exit with success (previous commands may have set $LASTEXITCODE)
+        exit 0
