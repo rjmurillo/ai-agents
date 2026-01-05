@@ -279,6 +279,109 @@ Describe "Test-MustRequirements" {
     }
 }
 
+Describe "Test-MustNotRequirements" {
+    <#
+    .SYNOPSIS
+        Tests MUST NOT verification (NEW functionality from Round 5).
+        MUST NOT requirements represent prohibited actions.
+        Checkbox semantics: [x] = verified compliance (did NOT do it), [ ] = not verified.
+    #>
+
+    It "Passes when MUST NOT requirements are checked (verified compliant)" {
+        $content = @"
+## Protocol Compliance
+
+| Req | Step | Status |
+|-----|------|--------|
+| MUST NOT | Update HANDOFF.md | [x] |
+| MUST NOT | Skip validation | [x] |
+"@
+        $result = Test-MustNotRequirements -Content $content
+        $result.Passed | Should -BeTrue
+        $result.Details.TotalMustNot | Should -Be 2
+        $result.Details.Compliant | Should -Be 2
+        $result.Details.Violations.Count | Should -Be 0
+    }
+
+    It "Fails when MUST NOT requirements are unchecked (not verified)" {
+        $content = @"
+## Protocol Compliance
+
+| Req | Step | Status |
+|-----|------|--------|
+| MUST NOT | Update HANDOFF.md | [ ] |
+| MUST NOT | Skip validation | [x] |
+"@
+        $result = Test-MustNotRequirements -Content $content
+        $result.Passed | Should -BeFalse
+        $result.Details.TotalMustNot | Should -Be 2
+        $result.Details.Violations.Count | Should -Be 1
+        $result.Details.Compliant | Should -Be 1
+        $result.Issues[0] | Should -Match "Unverified MUST NOT requirements: 1 of 2"
+    }
+
+    It "Detects multiple unverified MUST NOT requirements" {
+        $content = @"
+## Protocol Compliance
+
+| Req | Step | Status |
+|-----|------|--------|
+| MUST NOT | Update HANDOFF.md | [ ] |
+| MUST NOT | Skip validation | [ ] |
+| MUST NOT | Edit read-only files | [ ] |
+"@
+        $result = Test-MustNotRequirements -Content $content
+        $result.Passed | Should -BeFalse
+        $result.Details.TotalMustNot | Should -Be 3
+        $result.Details.Violations.Count | Should -Be 3
+        $result.Details.Compliant | Should -Be 0
+        $result.Issues[0] | Should -Match "Unverified MUST NOT requirements: 3 of 3"
+    }
+
+    It "Handles 4-column table format with MUST NOT" {
+        $content = @"
+## Protocol Compliance
+
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST NOT | Update HANDOFF.md | [x] | HANDOFF.md unchanged |
+| MUST NOT | Skip QA | [ ] | (not verified) |
+"@
+        $result = Test-MustNotRequirements -Content $content
+        $result.Passed | Should -BeFalse
+        $result.Details.TotalMustNot | Should -Be 2
+        $result.Details.Violations.Count | Should -Be 1
+    }
+
+    It "Handles bold markdown formatting (**MUST NOT**)" {
+        $content = @"
+## Protocol Compliance
+
+| Req | Step | Status |
+|-----|------|--------|
+| **MUST NOT** | Update HANDOFF.md | [x] |
+"@
+        $result = Test-MustNotRequirements -Content $content
+        $result.Passed | Should -BeTrue
+        $result.Details.Compliant | Should -Be 1
+    }
+
+    It "Returns passing result when no MUST NOT requirements exist" {
+        $content = @"
+## Protocol Compliance
+
+| Req | Step | Status |
+|-----|------|--------|
+| MUST | Do thing | [x] |
+| SHOULD | Do optional thing | [ ] |
+"@
+        $result = Test-MustNotRequirements -Content $content
+        $result.Passed | Should -BeTrue
+        $result.Details.TotalMustNot | Should -Be 0
+        $result.Details.Violations.Count | Should -Be 0
+    }
+}
+
 Describe "Test-ShouldRequirements" {
     It "Reports warnings for unchecked SHOULD requirements" {
         $content = @"
