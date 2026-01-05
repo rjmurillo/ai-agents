@@ -208,6 +208,11 @@ rules:
         - "**/*.md"
         - "!.agents/sessions/**"
         - "!.agents/retrospective/**"
+      content_regex:
+        - 'C:\\'
+        - 'D:\\'
+        - '/Users/'
+        - '/home/'
 
     checklist:
       - "Find absolute path patterns: C:\\, D:\\, /Users/, /home/"

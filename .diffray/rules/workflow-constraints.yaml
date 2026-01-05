@@ -169,18 +169,9 @@ rules:
           # Fails silently if PR already exists or auth fails
       good: |
         - name: Create PR
-          run: |
-            pwsh -File .github/scripts/Create-PR.ps1
-          # Script checks $LASTEXITCODE and throws with context
-          
-        # Or with inline check:
-        - name: Create PR
-          run: |
-            gh pr create --title "Update" --body "Changes"
-            if [ $? -ne 0 ]; then
-              echo "::error::Failed to create PR. Check authentication and branch state."
-              exit 1
-            fi
+          run: pwsh -File .github/scripts/Create-PR.ps1
+          # The PowerShell script is responsible for executing the command,
+          # checking the exit code ($?), and throwing a descriptive error on failure.
 
     tags:
       - ci-cd

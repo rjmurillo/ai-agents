@@ -125,11 +125,16 @@ rules:
       good: |
         function Get-PRData {
             [CmdletBinding()]
-            param([int]$PRNumber)
+            param(
+                [Parameter(Mandatory)]
+                [int]$PRNumber
+            )
             
             try {
-                $result = gh pr view $PRNumber --json title,body 2>&1
-                if ($LASTEXITCODE -ne 0) {
+                # Use splatting for external commands to ensure proper argument handling
+                $ghArgs = @('pr', 'view', $PRNumber, '--json', 'title,body')
+                $result = gh @ghArgs 2>&1
+                if (-not $?) {
                     throw "Failed to fetch PR #$PRNumber: $result"
                 }
                 return $result | ConvertFrom-Json
