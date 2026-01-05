@@ -11,7 +11,7 @@ on:
     types: [submitted]
 
 permissions:
-  contents: write
+  contents: write  # Required by Factory droid-action to push code changes (https://docs.factory.ai/integrations/github-app#github-app-permissions)
   pull-requests: write
   issues: write
   id-token: write
@@ -21,6 +21,9 @@ jobs:
   # ADR-006 Compliance: Conditional logic uses github.event.action to prevent duplicate runs
   # When an issue with @droid is opened and later assigned, we only want to run once (on opened)
   droid:
+    # ADR-024 Exception: Factory droid-action lacks documented ARM64 support
+    # Official examples use ubuntu-latest: https://github.com/Factory-AI/droid-action
+    # Will migrate when Factory confirms ARM64 compatibility
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@droid')) ||
