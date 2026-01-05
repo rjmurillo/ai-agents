@@ -17,41 +17,65 @@ permissions:
   id-token: write  # Required for OIDC authentication to get GitHub App token
 
 jobs:
-  claude-response:
+  # ADR-006 Compliance: Authorization logic moved to PowerShell script for testability
+  # See: tests/workflows/Test-ClaudeAuthorization.ps1
+  check-authorization:
     runs-on: ubuntu-latest
-    if: |
-      (
-        github.event_name == 'issue_comment' &&
-        contains(github.event.comment.body, '@claude') &&
-        (
-          contains(fromJson('["MEMBER","OWNER","COLLABORATOR"]'), github.event.comment.author_association) ||
-          contains(fromJson('["dependabot[bot]","renovate[bot]","github-actions[bot]"]'), github.actor)
-        )
-      ) ||
-      (
-        github.event_name == 'pull_request_review_comment' &&
-        contains(github.event.comment.body, '@claude') &&
-        (
-          contains(fromJson('["MEMBER","OWNER","COLLABORATOR"]'), github.event.comment.author_association) ||
-          contains(fromJson('["dependabot[bot]","renovate[bot]","github-actions[bot]"]'), github.actor)
-        )
-      ) ||
-      (
-        github.event_name == 'pull_request_review' &&
-        contains(github.event.review.body, '@claude') &&
-        (
-          contains(fromJson('["MEMBER","OWNER","COLLABORATOR"]'), github.event.review.author_association) ||
-          contains(fromJson('["dependabot[bot]","renovate[bot]","github-actions[bot]"]'), github.actor)
-        )
-      ) ||
-      (
-        github.event_name == 'issues' &&
-        (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) &&
-        (
-          contains(fromJson('["MEMBER","OWNER","COLLABORATOR"]'), github.event.issue.author_association) ||
-          contains(fromJson('["dependabot[bot]","renovate[bot]","github-actions[bot]"]'), github.actor)
-        )
-      )
+    outputs:
+      authorized: ${{ steps.auth-check.outputs.authorized }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+
+      - name: Check Claude authorization
+        id: auth-check
+        shell: pwsh
+        env:
+          # Safe: Using environment variables to prevent command injection
+          # See: https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association || github.event.review.author_association || github.event.issue.author_association }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          REVIEW_BODY: ${{ github.event.review.body }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          $authorized = & ./tests/workflows/Test-ClaudeAuthorization.ps1 `
+            -EventName $env:EVENT_NAME `
+            -Actor $env:ACTOR `
+            -AuthorAssociation $env:AUTHOR_ASSOCIATION `
+            -CommentBody $env:COMMENT_BODY `
+            -ReviewBody $env:REVIEW_BODY `
+            -IssueBody $env:ISSUE_BODY `
+            -IssueTitle $env:ISSUE_TITLE
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Authorization check script failed with exit code $LASTEXITCODE."
+            Write-Error "This indicates a script error, not an authorization denial."
+            Write-Error "Review the step output above for specific error messages (e.g., EventBodyTooLarge, AuditLogFailed, RegexMatchFailed)."
+            Write-Error "Check the Actions summary 'Claude Authorization Check' section if available."
+            Write-Error "If the error mentions audit log failure, verify GITHUB_STEP_SUMMARY permissions."
+            exit 1
+          }
+
+          # Validate output format to prevent silent failures from unexpected values
+          # Normalize to lowercase for case-sensitive comparison (script returns lowercase)
+          $authorized = $authorized.Trim().ToLower()
+          if ($authorized -cnotin @('true', 'false')) {
+            Write-Error "Authorization check returned unexpected value: '$authorized'. Expected 'true' or 'false'."
+            Write-Error "This may indicate the script exited without producing valid output."
+            exit 1
+          }
+
+          "authorized=$authorized" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+  claude-response:
+    needs: check-authorization
+    runs-on: ubuntu-latest
+    if: needs.check-authorization.outputs.authorized == 'true'
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -68,7 +92,10 @@ jobs:
           assignee_trigger: "@me"
 
           # Allow specific trusted bot users to trigger the action
-          allowed_bots: "dependabot[bot],renovate[bot],github-actions[bot]"
+          # Dependency management bots
+          # GitHub automation bots
+          # AI coding assistant bots (permitted to mention @claude for collaboration)
+          allowed_bots: "dependabot[bot],renovate[bot],github-actions[bot],copilot[bot],coderabbitai[bot],cursor[bot],gemini-ai[bot],claude-ai[bot],amazonq[bot],tabnine[bot]"
 
           # Branch configuration
           base_branch: "main"
