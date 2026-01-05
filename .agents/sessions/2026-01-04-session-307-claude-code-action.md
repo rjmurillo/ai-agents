@@ -55,11 +55,19 @@ Current Claude Code plugins (from `.claude/settings.json`):
 - Configured with same plugins as local instance
 - Allows bot users to trigger (e.g., Dependabot, Renovate)
 
+## Follow-up Actions
+
+**Updated workflow to use OAuth token authentication**:
+
+- Changed from `anthropic_api_key` to `claude_code_oauth_token`
+- Secret name changed from `ANTHROPIC_API_KEY` to `CLAUDE_CODE_OAUTH_TOKEN`
+
 ## Next Session
 
 Consider:
 
-1. Test the workflow by creating a test issue and mentioning @claude
-2. Verify plugin initialization in GitHub Actions logs
-3. Add ANTHROPIC_API_KEY secret to repository settings
-4. Monitor first few runs for any configuration issues
+1. Generate OAuth token: Run `claude setup-token` locally
+2. Add CLAUDE_CODE_OAUTH_TOKEN secret to repository settings
+3. Test the workflow by creating a test issue and mentioning @claude
+4. Verify plugin initialization in GitHub Actions logs
+5. Monitor first few runs for any configuration issues
