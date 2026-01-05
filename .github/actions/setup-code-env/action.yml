@@ -149,7 +149,7 @@ runs:
         }
 
         Write-Host ""
-        Write-Host "✓ Setup complete! Environment is ready for code modifications." -ForegroundColor Green
+        Write-Host "✓ Setup complete! Development tools ready: Node.js, markdownlint-cli2, GitHub CLI (if available), Pester (if enabled), git hooks (if configured)." -ForegroundColor Green
 
         # Explicitly exit with success (previous commands may have set $LASTEXITCODE)
         exit 0
