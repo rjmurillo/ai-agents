@@ -464,6 +464,62 @@ Describe "Get-SessionLogs" {
     }
 }
 
+Describe "Get-SessionLogs Error Handling" {
+    <#
+    .SYNOPSIS
+        CRITICAL test coverage (Rating 10/10) - Tests terminating error behavior.
+        Prevents regression to returning empty array on errors (silent failure).
+    #>
+
+    It "Throws terminating error on directory read failure instead of returning empty array" {
+        # Create a path that will cause Get-ChildItem to fail
+        $invalidPath = Join-Path $TestDrive "nonexistent-path-$(New-Guid)"
+
+        # Create the base directory structure but make sessions directory unreadable
+        $sessionsPath = Join-Path $invalidPath ".agents/sessions"
+        New-Item -ItemType Directory -Path $sessionsPath -Force | Out-Null
+
+        # Mock Get-ChildItem to throw IOException (simulates disk error, file lock, etc.)
+        Mock -CommandName Get-ChildItem -MockWith {
+            throw [System.IO.IOException]::new("Mocked I/O error")
+        } -ModuleName $null
+
+        # CRITICAL: Should throw, not return @()
+        # Previous behavior would return empty array and continue validation
+        { Get-SessionLogs -BasePath $invalidPath } | Should -Throw "*I/O error*"
+    }
+
+    It "Throws with actionable error message for permission denied" {
+        $restrictedPath = Join-Path $TestDrive "restricted-$(New-Guid)"
+        $sessionsPath = Join-Path $restrictedPath ".agents/sessions"
+        New-Item -ItemType Directory -Path $sessionsPath -Force | Out-Null
+
+        # Mock to throw UnauthorizedAccessException
+        Mock -CommandName Get-ChildItem -MockWith {
+            throw [System.UnauthorizedAccessException]::new("Access denied")
+        } -ModuleName $null
+
+        # Should throw with actionable guidance
+        { Get-SessionLogs -BasePath $restrictedPath } | Should -Throw "*Permission denied*"
+        { Get-SessionLogs -BasePath $restrictedPath } | Should -Throw "*Check file permissions*"
+    }
+
+    It "Throws with actionable error message for path too long" {
+        $longPath = Join-Path $TestDrive "path-too-long-$(New-Guid)"
+        $sessionsPath = Join-Path $longPath ".agents/sessions"
+        New-Item -ItemType Directory -Path $sessionsPath -Force | Out-Null
+
+        # Mock to throw PathTooLongException
+        Mock -CommandName Get-ChildItem -MockWith {
+            throw [System.IO.PathTooLongException]::new("Path too long")
+        } -ModuleName $null
+
+        # Should throw with remediation guidance
+        { Get-SessionLogs -BasePath $longPath } | Should -Throw "*exceeds maximum length*"
+        { Get-SessionLogs -BasePath $longPath } | Should -Throw "*Move project to shorter path*"
+    }
+}
+
 Describe "Invoke-SessionValidation" {
     BeforeEach {
         # Create HANDOFF.md with older timestamp (per protocol v1.4: MUST NOT update)
