@@ -139,6 +139,18 @@ Describe 'Test-ClaudeAuthorization' {
             $result | Should -Be 'true'
             $LASTEXITCODE | Should -Be 0
         }
+
+        It 'Should authorize bot with different casing (case-insensitive bot allowlist)' {
+            # Bot allowlist uses case-insensitive matching - Dependabot[bot] == dependabot[bot]
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'Dependabot[bot]' `
+                -AuthorAssociation 'NONE' `
+                -CommentBody '@claude help'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
     }
 
     Context 'Denied Access' {
@@ -472,6 +484,64 @@ Describe 'Test-ClaudeAuthorization' {
             $result | Should -Be 'false'
             $LASTEXITCODE | Should -Be 0
         }
+
+        It 'Should match @claude in multiline comment with code blocks' {
+            # Ensure regex works across line breaks and in markdown code blocks
+            $multilineBody = @"
+Hey @claude, can you review this code?
+
+``python
+def example():
+    pass
+``
+
+Thanks!
+"@
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody $multilineBody
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should match @claude followed by emoji' {
+            # Ensure regex handles Unicode word boundaries correctly
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody '@claude 🤖 please help'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should match @claude with Unicode characters in body' {
+            # Ensure regex handles non-ASCII characters correctly
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody 'Hey @claude, can you help with this naïve implementation?'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize with lowercase author association (case-insensitive)' {
+            # AuthorAssociation allowlist uses case-insensitive matching - 'member' == 'MEMBER'
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'member' `
+                -CommentBody '@claude help'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
     }
 
     Context 'Input Size Validation' {
@@ -500,6 +570,20 @@ Describe 'Test-ClaudeAuthorization' {
                 -CommentBody $largeBody
 
             $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize when body is exactly 1MB with @claude mention' {
+            # Boundary condition: exactly 1MB should be allowed (> not >=)
+            $exactlyOneMB = '@claude help ' + ('x' * (1MB - 13))  # 13 = '@claude help '.Length
+
+            $result = & $script:ScriptPath `
+                -EventName 'issue_comment' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -CommentBody $exactlyOneMB
+
+            $result | Should -Be 'true'
             $LASTEXITCODE | Should -Be 0
         }
     }
