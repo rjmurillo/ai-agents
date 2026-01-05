@@ -1,0 +1,42 @@
+name: Claude Code Assistant
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned, labeled]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  claude-response:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # Plugin configuration (matching current instance)
+          plugins: |
+            forgetful@scottrbk
+            context7@context7
+            context-hub@scottrbk
+            claude-router@claude-router-marketplace
+
+          # Trigger configuration
+          trigger_phrase: "@claude"
+          assignee_trigger: "@me"
+
+          # Allow bot users to trigger the action
+          allowed_bots: "*"
+
+          # Branch configuration
+          base_branch: "main"
+          branch_prefix: "claude/"
