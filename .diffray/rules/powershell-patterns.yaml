@@ -105,7 +105,7 @@ rules:
         - "**/*.psm1"
         - "!**/*.Tests.ps1"
       content_regex:
-        - "Invoke-RestMethod|Invoke-WebRequest|gh\\s|git\\s"
+        - "\\b(Invoke-RestMethod|Invoke-WebRequest|gh|git)\\s"
 
     checklist:
       - "Find functions making external calls (gh, git, API calls)"

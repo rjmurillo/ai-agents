@@ -51,8 +51,8 @@ rules:
         - "!.claude/skills/**"
         - "!**/*.Tests.ps1"
       content_regex:
-        - "gh\\s+pr\\s"
-        - "gh\\s+issue\\s"
+        - "\\bgh\\s+pr\\b"
+        - "\\bgh\\s+issue\\b"
 
     checklist:
       - "Find raw gh pr or gh issue commands"

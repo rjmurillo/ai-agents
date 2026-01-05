@@ -11,7 +11,7 @@ rules:
       file_glob:
         - ".github/workflows/*.yml"
       content_regex:
-        - "anthropic|openai|claude|gpt|llm|ai-"
+        - "\\b(anthropic|openai|claude|gpt|llm)\\b|ai-"
 
     checklist:
       - "Find workflows using AI/LLM services"
@@ -73,7 +73,7 @@ rules:
       file_glob:
         - ".github/workflows/*.yml"
       content_regex:
-        - "gh\\s+(pr|issue)\\s+list|for\\s+.*\\s+in"
+        - "gh\\s+(pr|issue)\\s+list|for\\s+\\S+\\s+in"
 
     checklist:
       - "Find workflows with loops or batch operations"

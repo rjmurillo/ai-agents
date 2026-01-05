@@ -154,7 +154,7 @@ rules:
       file_glob:
         - ".github/workflows/*.yml"
       content_regex:
-        - "gh\\s|git\\s|pwsh|Invoke-"
+        - "\\b(?:gh|git|pwsh)\\b\\s|\\bInvoke-"
 
     checklist:
       - "Find steps with external commands (gh, git, pwsh)"
@@ -168,10 +168,17 @@ rules:
           run: gh pr create --title "Update" --body "Changes"
           # Fails silently if PR already exists or auth fails
       good: |
-        - name: Create PR
+        - name: Create PR (preferred - delegates to script per ADR-006)
           run: pwsh -File .github/scripts/Create-PR.ps1
-          # The PowerShell script is responsible for executing the command,
-          # checking the exit code ($?), and throwing a descriptive error on failure.
+          # Script handles error checking and throws on failure
+        
+        - name: Create PR (inline example showing error checking)
+          shell: pwsh
+          run: |
+            gh pr create --title "Update" --body "Changes"
+            if (-not $?) {
+              throw "Failed to create PR. Exit code: $LASTEXITCODE"
+            }
 
     tags:
       - ci-cd

@@ -14,8 +14,7 @@ rules:
         - "**/*.md"
         - ".github/workflows/*.yml"
       content_regex:
-        - "--no-verify"
-        - "\\-\\-no\\-verify"
+        - "(^|\\s)--no-verify($|\\s)"
 
     checklist:
       - "Flag any --no-verify usage in scripts or docs"
@@ -64,9 +63,9 @@ rules:
         - "**/*.sh"
         - "**/*.md"
       content_regex:
-        - "git\\s+commit"
-        - "git\\s+push"
-        - "git\\s+reset"
+        - "\\bgit\\s+commit\\b"
+        - "\\bgit\\s+push\\b"
+        - "\\bgit\\s+reset\\b"
 
     checklist:
       - "Find git commit/push/reset commands"

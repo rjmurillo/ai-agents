@@ -102,8 +102,8 @@ rules:
       content_regex:
         - "\\.agents/"
         - "\\.serena/"
-        - "Session \\d+"
-        - "session \\d+"
+        - "See Session \\d+ for"
+        - "See session \\d+ for"
 
     checklist:
       - "Find references to .agents/, .serena/, or Session numbers"

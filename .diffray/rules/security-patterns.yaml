@@ -63,7 +63,7 @@ rules:
         - "**/*.psm1"
         - "!**/*.Tests.ps1"
       content_regex:
-        - "npx|node|python|ruby|perl|bash|sh"
+        - "\\b(npx|node|python|ruby|perl|bash|sh)\\b"
 
     checklist:
       - "Find external command invocations (npx, node, python, etc.)"
@@ -133,7 +133,7 @@ rules:
       bad: |
         # WRONG: Blind suppression
         $userInput = Read-Host "Path"
-        Remove-Item $userInput  # lgtm[py/path-injection]
+        Remove-Item $userInput  # nosec - bypasses security check
       good: |
         # RIGHT: Suppression with context
         # CWE-22: Path traversal risk accepted because:
@@ -142,7 +142,7 @@ rules:
         # 3. ADR-042 documents this design decision
         $normalizedPath = [System.IO.Path]::GetFullPath($userInput)
         if ($normalizedPath.StartsWith($SafeDir)) {
-            Remove-Item $normalizedPath  # lgtm[py/path-injection]
+            Remove-Item $normalizedPath  # nosec CWE-22 - validated above
         }
 
     tags:
@@ -170,7 +170,7 @@ rules:
         - "**/*.ps1"
         - "**/*.psm1"
       content_regex:
-        - "AI|LLM|GPT|Claude|Copilot"
+        - "\\b(AI|LLM|GPT|Claude|Copilot)\\b"
 
     checklist:
       - "Find AI output parsing code"
