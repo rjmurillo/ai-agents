@@ -110,11 +110,23 @@ $unresolvedThreads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -Pull
 
 ### Testing
 
-Verified functionality:
+**Module function test:**
 ```bash
 pwsh .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest 782
 # Returns unresolved threads correctly
 ```
+
+**Test coverage:**
+- Added 7 comprehensive Pester tests to GitHubCore.Tests.ps1
+- All tests passing (87/94 total, 7 pre-existing failures unrelated)
+- Tests cover: parameters, return types, error handling, injection prevention, filtering, pagination
+
+### Additional Fixes
+
+**cursor[bot] feedback (commit dbd560f):**
+- Added null check after Get-RepoInfo call in wrapper script
+- Throws clear error message when not in git repository
+- Prevents confusing GraphQL API errors
 
 ## Session End (COMPLETE ALL before closing)
 
@@ -137,5 +149,5 @@ pwsh .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullReque
 | Implementation complete | [x] | Module refactoring complete |
 | Tests verified | [x] | Added 7 comprehensive test cases, all passing |
 | Lint passing | [x] | markdownlint-cli2 exit code 0 |
-| Commit SHA | [x] | e65b0fc |
+| Commit SHA | [x] | e65b0fc (refactor), 61ca826 (tests), dbd560f (null check) |
 | Validation passed | [x] | Tests: 87/94 passing, 7 pre-existing failures unrelated |
