@@ -10,13 +10,19 @@ Diffray provides intelligent, context-aware code review using AI agents. This co
 
 ```text
 .diffray/
-├── config.yaml                    # Main configuration
-├── README.md                      # This file
+├── config.yaml                     # Main configuration
+├── README.md                       # This file
 └── rules/
-    ├── powershell-patterns.yaml   # PowerShell-specific rules (6 rules)
-    ├── workflow-constraints.yaml  # GitHub Actions rules (5 rules)
-    ├── agent-templates.yaml       # Agent template rules (4 rules)
-    └── session-protocol.yaml      # Governance/protocol rules (7 rules)
+    ├── powershell-patterns.yaml    # PowerShell-specific rules (6 rules)
+    ├── workflow-constraints.yaml   # GitHub Actions rules (5 rules)
+    ├── agent-templates.yaml        # Agent template rules (4 rules)
+    ├── session-protocol.yaml       # Governance/protocol rules (7 rules)
+    ├── security-patterns.yaml      # Security-specific rules (4 rules)
+    ├── git-discipline.yaml         # Git workflow rules (3 rules)
+    ├── user-facing-content.yaml    # User content restrictions (3 rules)
+    ├── testing-patterns.yaml       # Testing best practices (3 rules)
+    ├── naming-conventions.yaml     # Naming standards (3 rules)
+    └── workflow-extended.yaml      # Extended workflow rules (2 rules)
 ```
 
 ## Key Features
@@ -31,6 +37,10 @@ Rules directly enforce architectural decisions:
 
 ### 2. Security Focus
 
+- Path traversal prevention (CWE-22)
+- Command injection protection (CWE-77, CWE-78)
+- No blind security suppression
+- AI output validation with hardened regex
 - Secret exposure detection in workflows
 - Path normalization (no absolute paths)
 - Error handling validation
@@ -40,12 +50,21 @@ Rules directly enforce architectural decisions:
 - PowerShell best practices (CmdletBinding, validation)
 - Skill usage enforcement (no raw gh commands)
 - Atomic commits and proper git history
+- Test-first development patterns
+- Pester coverage for modules
+- Git hook discipline (never --no-verify)
 
 ### 4. Template Protection
 
 - Prevents direct edits to generated agent files
 - Validates agent frontmatter
 - Ensures required sections exist
+
+### 5. Content Standards
+
+- No internal PR/Issue references in user-facing files
+- Consistent naming conventions (ADR, session logs, skills)
+- User-facing content restrictions
 
 ## Configuration Tuning
 
@@ -121,6 +140,54 @@ Excluded paths:
 | `session_commit_atomicity` | 6 | Git history quality |
 | `session_spec_reference_required` | 7 | Traceability |
 | `session_path_normalization` | 7 | Security/portability |
+
+### Security Patterns (4 rules)
+
+| Rule ID | Importance | Focus |
+|---------|------------|-------|
+| `sec_path_traversal_prevention` | 9 | GetFullPath() normalization |
+| `sec_command_injection_quoting` | 9 | Variable quoting in commands |
+| `sec_no_blind_suppression` | 9 | No suppression without rationale |
+| `sec_ai_output_hardened_regex` | 8 | AI output validation |
+
+### Git Discipline (3 rules)
+
+| Rule ID | Importance | Focus |
+|---------|------------|-------|
+| `git_no_verify_prohibited` | 10 | Never bypass hooks |
+| `git_branch_verification_required` | 9 | Verify branch before commit |
+| `git_commit_count_threshold` | 7 | Warn on 10+ commits (stuck) |
+
+### User-Facing Content (3 rules)
+
+| Rule ID | Importance | Focus |
+|---------|------------|-------|
+| `ufc_no_internal_pr_refs` | 9 | No PR #NNN in user files |
+| `ufc_no_internal_issue_refs` | 9 | No Issue #NNN in user files |
+| `ufc_no_internal_paths` | 8 | No .agents/, .serena/ refs |
+
+### Testing Patterns (3 rules)
+
+| Rule ID | Importance | Focus |
+|---------|------------|-------|
+| `test_pester_for_modules` | 7 | Pester tests for .psm1 |
+| `test_first_development` | 8 | Tests alongside implementation |
+| `test_no_retrospective_without_validation` | 7 | Validation before retrospective |
+
+### Naming Conventions (3 rules)
+
+| Rule ID | Importance | Focus |
+|---------|------------|-------|
+| `name_adr_format` | 7 | ADR-NNN-kebab-case.md |
+| `name_session_log_format` | 6 | YYYY-MM-DD-session-NN.md |
+| `name_skill_format` | 6 | Skill-[Category]-NNN |
+
+### Extended Workflow (2 rules)
+
+| Rule ID | Importance | Focus |
+|---------|------------|-------|
+| `wf_author_association_check` | 8 | AI workflow security |
+| `wf_rate_limit_precheck` | 6 | Rate limit validation |
 
 ## Testing the Configuration
 

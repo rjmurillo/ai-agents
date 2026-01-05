@@ -1,0 +1,117 @@
+rules:
+  - id: wf_author_association_check
+    agent: security
+    title: "AI workflow missing author association check"
+    description: |
+      Workflows that use AI (LLM, GPT) to process PR/issue content should
+      verify author association to prevent prompt injection from untrusted users.
+    importance: 8
+
+    match:
+      file_glob:
+        - ".github/workflows/*.yml"
+      content_regex:
+        - "anthropic|openai|claude|gpt|llm|ai-"
+
+    checklist:
+      - "Find workflows using AI/LLM services"
+      - "Check if workflow validates author association"
+      - "Verify COLLABORATOR, MEMBER, or OWNER check exists"
+      - "Ensure untrusted users cannot trigger AI processing"
+
+    examples:
+      bad: |
+        # AI workflow without author check
+        on:
+          pull_request:
+            types: [opened]
+        jobs:
+          ai-review:
+            runs-on: ubuntu-latest
+            steps:
+              - run: claude review ${{ github.event.pull_request.body }}
+      good: |
+        # AI workflow with author association check
+        on:
+          pull_request:
+            types: [opened]
+        jobs:
+          ai-review:
+            runs-on: ubuntu-latest
+            steps:
+              - name: Check author
+                run: |
+                  ASSOCIATION="${{ github.event.pull_request.author_association }}"
+                  if [[ "$ASSOCIATION" != "COLLABORATOR" && "$ASSOCIATION" != "MEMBER" && "$ASSOCIATION" != "OWNER" ]]; then
+                    echo "Untrusted author, skipping AI review"
+                    exit 0
+                  fi
+              - run: claude review "${{ github.event.pull_request.body }}"
+
+    tags:
+      - security
+      - ci-cd
+      - ai-safety
+      - workflow
+
+    why_important: |
+      Untrusted users can inject malicious prompts through PR/issue
+      content. Author association check prevents unauthorized AI usage.
+
+    link: .serena/memories/security-012-workflow-author-association.md
+
+
+  - id: wf_rate_limit_precheck
+    agent: performance
+    title: "Batch GitHub API operations lack rate limit check"
+    description: |
+      Workflows making multiple GitHub API calls should check rate limits
+      before starting to avoid workflow failures mid-operation.
+    importance: 6
+
+    match:
+      file_glob:
+        - ".github/workflows/*.yml"
+      content_regex:
+        - "gh\\s+(pr|issue)\\s+list|for\\s+.*\\s+in"
+
+    checklist:
+      - "Find workflows with loops or batch operations"
+      - "Check if rate limit verified before loop"
+      - "Verify graceful handling if rate limit low"
+      - "Suggest adding rate limit precheck script"
+
+    examples:
+      bad: |
+        # Batch operation without rate limit check
+        - name: Process all PRs
+          run: |
+            for pr in $(gh pr list --json number -q '.[].number'); do
+              gh pr comment $pr --body "..."
+            done
+      good: |
+        # Batch operation with rate limit precheck
+        - name: Check rate limit
+          run: |
+            REMAINING=$(gh api rate_limit --jq '.resources.core.remaining')
+            if [ "$REMAINING" -lt 100 ]; then
+              echo "Rate limit too low: $REMAINING remaining"
+              exit 1
+            fi
+        
+        - name: Process PRs
+          run: |
+            for pr in $(gh pr list --json number -q '.[].number'); do
+              gh pr comment $pr --body "..."
+            done
+
+    tags:
+      - ci-cd
+      - performance
+      - reliability
+
+    why_important: |
+      Rate limit exhaustion causes workflow failures mid-operation,
+      leaving work partially complete and hard to recover.
+
+    link: .serena/memories/parallel-002-rate-limit-precheck.md
