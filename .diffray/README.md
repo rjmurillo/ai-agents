@@ -89,9 +89,11 @@ review:
 
 Excluded paths:
 
-- `.agents/sessions/**` - Historical session logs
-- `.agents/retrospective/**` - Historical retrospectives
 - `.serena/memories/**` - AI memory (managed separately)
+- `artifacts/**`, `build/artifacts/**` - Build outputs  
+- `**/test-data/**`, `**/fixtures/**` - Test data
+
+**Note**: `.agents/sessions/**` and `.agents/retrospective/**` are NOT excluded so that naming convention and validation rules can check them.
 
 **When to adjust**:
 
