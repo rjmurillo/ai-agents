@@ -20,12 +20,16 @@ jobs:
   claude-response:
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'issues' ||
-      github.event_name == 'pull_request_review' ||
-      github.event.comment.author_association == 'MEMBER' ||
-      github.event.comment.author_association == 'OWNER' ||
-      github.event.comment.author_association == 'COLLABORATOR'
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+
       # Pin to v1.0.27 - https://github.com/anthropics/claude-code-action/releases/tag/v1.0.27
       - uses: anthropics/claude-code-action@7145c3e0510bcdbdd29f67cc4a8c1958f1acfa2f
         with:
@@ -48,3 +52,7 @@ jobs:
           # Branch configuration
           base_branch: "main"
           branch_prefix: "claude/"
+
+          # This is an optional setting that allows Claude to read CI results on PRs
+          additional_permissions: |
+            actions: read
