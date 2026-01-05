@@ -1,0 +1,133 @@
+rules:
+  - id: test_pester_for_modules
+    agent: testing
+    title: "PowerShell module missing Pester tests"
+    description: |
+      Every .psm1 module should have a corresponding .Tests.ps1 file
+      with 80%+ coverage per ADR-006.
+    importance: 7
+
+    match:
+      file_glob:
+        - "**/*.psm1"
+        - "!**/*.Tests.ps1"
+
+    checklist:
+      - "Find .psm1 files without corresponding .Tests.ps1"
+      - "Check if module is in exempted directory (external dependencies)"
+      - "Suggest creating test file with same base name"
+      - "Reference ADR-006 80% coverage requirement"
+
+    examples:
+      bad: |
+        # File structure:
+        scripts/lib/Common.psm1          # Module
+        # No tests!
+      good: |
+        # File structure:
+        scripts/lib/Common.psm1          # Module
+        scripts/tests/Common.Tests.ps1   # Tests
+        
+        # Or co-located:
+        scripts/lib/Common.psm1
+        scripts/lib/Common.Tests.ps1
+
+    tags:
+      - testing
+      - powershell
+      - quality
+
+    why_important: |
+      Modules without tests accumulate bugs. Local testing with Pester
+      provides fast feedback vs slow CI cycles.
+
+    link: .agents/architecture/ADR-006-thin-workflows-testable-modules.md
+
+
+  - id: test_first_development
+    agent: testing
+    title: "Implementation without corresponding test file"
+    description: |
+      Test-first development: create test file alongside implementation
+      for immediate validation and 100% pass rates before commit.
+    importance: 8
+
+    match:
+      file_glob:
+        - "**/*.ps1"
+        - "!**/*.Tests.ps1"
+        - "!scripts/install*.ps1"
+
+    checklist:
+      - "Find .ps1 script files"
+      - "Check if corresponding .Tests.ps1 exists"
+      - "Verify test file has meaningful coverage"
+      - "Suggest test-first approach for new implementations"
+
+    examples:
+      bad: |
+        # PR adds only implementation:
+        + scripts/Check-SkillExists.ps1 (67 lines)
+        # No tests!
+      good: |
+        # PR adds implementation AND tests:
+        + scripts/Check-SkillExists.ps1 (67 lines)
+        + scripts/tests/Check-SkillExists.Tests.ps1 (13 tests)
+        # 100% pass rate on first run
+
+    tags:
+      - testing
+      - test-driven-development
+      - quality
+
+    why_important: |
+      Writing tests during implementation catches bugs before commit
+      and achieves 100% pass rates vs discovering bugs later.
+
+    link: .serena/memories/testing-002-test-first-development.md
+
+
+  - id: test_no_retrospective_without_validation
+    agent: quality
+    title: "Retrospective written before validation"
+    description: |
+      Never write retrospective or extract skills before validating
+      implementation works. This is the 'victory lap before finish line'
+      anti-pattern.
+    importance: 7
+
+    match:
+      file_glob:
+        - ".agents/retrospective/**/*.md"
+        - ".agents/skillbook/**/*.md"
+
+    checklist:
+      - "Check retrospective date vs implementation date"
+      - "Verify test evidence exists before retrospective"
+      - "Look for validation steps documented"
+      - "Flag if retrospective written same session as implementation"
+
+    examples:
+      bad: |
+        # Session timeline:
+        10:00 - Implementation complete
+        10:15 - Retrospective written
+        10:30 - "Zero bugs!" claims
+        11:00 - PR comments reveal 5 bugs
+      good: |
+        # Session timeline:
+        Day 1 10:00 - Implementation complete
+        Day 1 10:30 - Tests pass
+        Day 2 09:00 - Production validation
+        Day 2 10:00 - Retrospective with real data
+
+    tags:
+      - testing
+      - process
+      - quality
+
+    why_important: |
+      Premature retrospectives claim success without evidence,
+      leading to overconfidence and missed issues.
+
+    link: .serena/memories/validation-anti-patterns.md

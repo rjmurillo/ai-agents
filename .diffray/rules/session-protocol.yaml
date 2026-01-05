@@ -1,0 +1,238 @@
+rules:
+  - id: session_handoff_readonly
+    agent: consistency
+    title: "HANDOFF.md should not be modified"
+    description: |
+      .agents/HANDOFF.md is a read-only reference file.
+      Updates should go in session logs (.agents/sessions/) instead.
+      This is enforced by ADR-014.
+    importance: 9
+
+    match:
+      file_glob:
+        - ".agents/HANDOFF.md"
+
+    checklist:
+      - "Flag any modifications to HANDOFF.md"
+      - "Suggest creating session log instead"
+      - "Reference ADR-014 for handoff architecture"
+      - "Suggest updating session logs and memory instead"
+
+    examples:
+      bad: |
+        # Editing .agents/HANDOFF.md directly
+      good: |
+        # Create .agents/sessions/YYYY-MM-DD-session-NN.md
+        # Update .serena/memories/ for persistent context
+
+    tags:
+      - architecture
+      - session-protocol
+
+    why_important: |
+      HANDOFF.md is a compiled reference. Direct edits create
+      inconsistency with source session logs.
+
+    link: .agents/architecture/ADR-014-distributed-handoff-architecture.md
+
+
+  - id: session_skill_usage_enforcement
+    agent: quality
+    title: "Use skills instead of raw gh commands"
+    description: |
+      Skills in .claude/skills/github/ handle errors, validation,
+      and edge cases. Raw gh commands bypass quality controls.
+    importance: 8
+
+    match:
+      file_glob:
+        - "**/*.ps1"
+        - "**/*.psm1"
+        - "!.claude/skills/**"
+        - "!**/*.Tests.ps1"
+      content_regex:
+        - "\\bgh\\s+pr\\b"
+        - "\\bgh\\s+issue\\b"
+
+    checklist:
+      - "Find raw gh pr or gh issue commands"
+      - "Check if corresponding skill exists in .claude/skills/github/"
+      - "Suggest using skill script instead"
+      - "If skill missing, suggest adding to skills first"
+
+    examples:
+      bad: |
+        # scripts/Update-PR.ps1
+        gh pr view $PRNumber --json title,body
+      good: |
+        # scripts/Update-PR.ps1
+        . .claude/skills/github/scripts/pr/Get-PRContext.ps1
+        Get-PRContext -Number $PRNumber
+
+    tags:
+      - quality
+      - error-handling
+      - maintainability
+
+
+  - id: session_pr_template_required
+    agent: quality
+    title: "PR description should follow template"
+    description: |
+      PRs must include all sections from .github/PULL_REQUEST_TEMPLATE.md
+      for proper review and traceability.
+    importance: 7
+
+    always_run: true
+    match:
+      file_glob:
+        - '**/*'
+
+    checklist:
+      - "Check PR description structure"
+      - "Verify Description section exists"
+      - "Verify Changes Made section with file list"
+      - "Verify Testing section with evidence"
+      - "Check for Closes #issue or spec reference"
+
+    tags:
+      - quality
+      - consistency
+      - traceability
+
+
+  - id: session_adr_changes_trigger_review
+    agent: architecture
+    title: "ADR changes require adr-review skill"
+    description: |
+      Any changes to files matching .agents/architecture/ADR-*.md
+      must trigger the adr-review skill for multi-agent validation.
+    importance: 9
+
+    match:
+      file_glob:
+        - ".agents/architecture/ADR-*.md"
+        - "docs/architecture/ADR-*.md"
+
+    checklist:
+      - "Flag any ADR creation or modification"
+      - "Verify adr-review skill was invoked"
+      - "Check for debate log if applicable"
+      - "Ensure ADR follows MADR 4.0 template"
+
+    examples:
+      bad: |
+        # Created ADR-050-new-pattern.md without review
+      good: |
+        # Created ADR-050-new-pattern.md
+        # Ran: .claude/skills/adr-review/SKILL.md
+        # Debate log: .agents/critique/ADR-050-debate-log.md
+
+    tags:
+      - architecture
+      - governance
+
+    why_important: |
+      ADRs document critical decisions. Multi-agent review catches
+      blind spots and ensures consensus.
+
+
+  - id: session_commit_atomicity
+    agent: quality
+    title: "Commits should be atomic (single logical change)"
+    description: |
+      Each commit should contain one logical change to enable
+      clear history and easy rollback.
+    importance: 6
+
+    always_run: true
+    match:
+      file_glob:
+        - '**/*'
+
+    checklist:
+      - "Use git log to check recent commits"
+      - "Verify each commit message describes one change"
+      - "Check if commits mix unrelated changes"
+      - "Look for commits with >5 files (may indicate scope creep)"
+
+    examples:
+      bad: |
+        commit: "fix bugs and add features and update docs"
+        files: 15 changed across multiple domains
+      good: |
+        commit: "fix(auth): handle null token in refresh flow"
+        files: AuthService.cs, AuthService.Tests.cs
+
+    tags:
+      - git-history
+      - quality
+
+
+  - id: session_spec_reference_required
+    agent: quality
+    title: "Feature PRs should reference specs"
+    description: |
+      PRs with type 'feat:' should link to issue, REQ-*, or
+      planning documents for traceability.
+    importance: 7
+
+    always_run: true
+    match:
+      file_glob:
+        - '**/*'
+
+    checklist:
+      - "Check PR title for 'feat:' prefix"
+      - "Look for issue references (Closes #N, Fixes #N)"
+      - "Look for requirement IDs (REQ-NNN, DESIGN-NNN)"
+      - "Check for .agents/planning/ or .agents/specs/ files"
+      - "If none found, flag as missing traceability"
+
+    tags:
+      - quality
+      - traceability
+      - consistency
+
+
+  - id: session_path_normalization
+    agent: security
+    title: "Documentation uses absolute paths"
+    description: |
+      Documentation should use relative paths to prevent
+      environment-specific contamination (e.g., C:\, /Users/).
+    importance: 7
+
+    match:
+      file_glob:
+        - "**/*.md"
+        - "!.agents/sessions/**"
+        - "!.agents/retrospective/**"
+      content_regex:
+        - 'C:\\'
+        - 'D:\\'
+        - '/Users/'
+        - '/home/'
+
+    checklist:
+      - "Find absolute path patterns: C:\\, D:\\, /Users/, /home/"
+      - "Check if path is in code example or documentation"
+      - "Suggest relative path alternative"
+      - "Verify path validation exists in CI"
+
+    examples:
+      bad: |
+        Install to: C:\Projects\ai-agents\
+        Clone from: /Users/john/repos/
+      good: |
+        Install to: ./ai-agents/
+        Clone from: ../repos/
+
+    tags:
+      - security
+      - documentation
+      - portability
+
+    why_important: |
+      Absolute paths leak user environment details and break
+      cross-platform compatibility.
