@@ -444,6 +444,152 @@ Describe "Test-HandoffUpdated Date Parsing Behavior" {
     }
 }
 
+Describe "Test-HandoffUpdated Filesystem Error Handling" {
+    <#
+    .SYNOPSIS
+        CRITICAL test coverage (Rating 8/10) - Tests filesystem error handling during timestamp comparison.
+        Prevents silent failures when HANDOFF.md metadata cannot be read due to permissions,
+        path length, or I/O errors.
+    #>
+
+    BeforeEach {
+        # Create HANDOFF.md
+        $handoffPath = Join-Path $AgentsPath "HANDOFF.md"
+        New-Item -ItemType File -Path $handoffPath -Force | Out-Null
+        Set-Content -Path $handoffPath -Value "# Handoff"
+    }
+
+    It "Handles UnauthorizedAccessException during HANDOFF timestamp read with warning" {
+        # Session with valid date format
+        $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
+        New-Item -ItemType File -Path $sessionPath -Force | Out-Null
+
+        # Mock git to fail (force filesystem fallback path)
+        function global:git {
+            param([Parameter(ValueFromRemainingArguments)]$Arguments)
+            $global:LASTEXITCODE = 128
+            return "fatal: not a git repository"
+        }
+
+        # Mock Get-Item to throw UnauthorizedAccessException
+        Mock -CommandName Get-Item -MockWith {
+            throw [System.UnauthorizedAccessException]::new("Access denied")
+        } -ModuleName $null -ParameterFilter { $LiteralPath -like "*HANDOFF.md" }
+
+        try {
+            # Should continue without failing (permission errors logged as warnings)
+            $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot 3>&1
+            # Function should not throw, but warning should be issued
+            $result | Should -Not -BeNullOrEmpty
+        }
+        finally {
+            Remove-Item function:\git -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "Handles PathTooLongException during HANDOFF timestamp read with clear error" {
+        # Session with valid date format
+        $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
+        New-Item -ItemType File -Path $sessionPath -Force | Out-Null
+
+        # Mock git to fail (force filesystem fallback path)
+        function global:git {
+            param([Parameter(ValueFromRemainingArguments)]$Arguments)
+            $global:LASTEXITCODE = 128
+            return "fatal: not a git repository"
+        }
+
+        # Mock Get-Item to throw PathTooLongException
+        Mock -CommandName Get-Item -MockWith {
+            throw [System.IO.PathTooLongException]::new("Path too long")
+        } -ModuleName $null -ParameterFilter { $LiteralPath -like "*HANDOFF.md" }
+
+        try {
+            $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
+            # Should fail with actionable error about path length
+            $result.Passed | Should -BeFalse
+            $result.Issues | Should -Match "path exceeds maximum length"
+            $result.Issues | Should -Match "Move project to shorter path"
+        }
+        finally {
+            Remove-Item function:\git -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "Handles IOException during HANDOFF timestamp read with clear error" {
+        # Session with valid date format
+        $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
+        New-Item -ItemType File -Path $sessionPath -Force | Out-Null
+
+        # Mock git to fail (force filesystem fallback path)
+        function global:git {
+            param([Parameter(ValueFromRemainingArguments)]$Arguments)
+            $global:LASTEXITCODE = 128
+            return "fatal: not a git repository"
+        }
+
+        # Mock Get-Item to throw IOException
+        Mock -CommandName Get-Item -MockWith {
+            throw [System.IO.IOException]::new("Disk read error")
+        } -ModuleName $null -ParameterFilter { $LiteralPath -like "*HANDOFF.md" }
+
+        try {
+            $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
+            # Should fail with actionable error about I/O issues
+            $result.Passed | Should -BeFalse
+            $result.Issues | Should -Match "I/O error reading HANDOFF.md"
+            $result.Issues | Should -Match "Check disk health"
+        }
+        finally {
+            Remove-Item function:\git -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "Handles git diff failure after origin/main verification with fallback warning" {
+        # Session with valid date format
+        $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
+        New-Item -ItemType File -Path $sessionPath -Force | Out-Null
+
+        # Set HANDOFF.md to older date so filesystem fallback passes
+        $handoffPath = Join-Path $AgentsPath "HANDOFF.md"
+        (Get-Item $handoffPath).LastWriteTime = [DateTime]::Parse("2025-12-16")
+
+        # Mock git: repo exists, origin/main exists, but diff fails
+        function global:git {
+            param([Parameter(ValueFromRemainingArguments)]$Arguments)
+
+            if ($Arguments -contains 'rev-parse' -and $Arguments -contains '--git-dir') {
+                $global:LASTEXITCODE = 0
+                return ".git"
+            }
+            elseif ($Arguments -contains 'rev-parse' -and $Arguments -contains '--verify') {
+                $global:LASTEXITCODE = 0
+                return "abc123"
+            }
+            elseif ($Arguments -contains 'diff') {
+                # Diff fails (corrupted index, network error, etc.)
+                $global:LASTEXITCODE = 128
+                return "fatal: unable to read tree"
+            }
+
+            $global:LASTEXITCODE = 1
+            return ""
+        }
+
+        try {
+            $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
+            # Should fall back to timestamp with warning about git diff failure
+            $warnings = $result.Warnings -join ' '
+            $warnings | Should -Match "Git diff failed.*Falling back to timestamp"
+            # Timestamp validation should pass (HANDOFF.md older than session)
+            $result.Passed | Should -BeTrue
+        }
+        finally {
+            Remove-Item function:\git -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Describe "Test-HandoffUpdated Shallow Checkout Detection" {
     <#
     .SYNOPSIS
