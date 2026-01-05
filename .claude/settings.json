@@ -26,6 +26,64 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit*|git push*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PreToolUse/Invoke-BranchProtectionGuard.ps1\"",
+            "statusMessage": "Verifying branch protection"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PostToolUse/Invoke-MarkdownAutoLint.ps1\"",
+            "statusMessage": "Auto-linting markdown files"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/Stop/Invoke-SessionValidator.ps1\"",
+            "statusMessage": "Validating session completeness"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/SubagentStop/Invoke-QAAgentValidator.ps1\"",
+            "statusMessage": "Validating QA agent output"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "Bash(Invoke-Pester*|npm test*|npm run test*|pnpm test*|yarn test*|pytest*|dotnet test*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PermissionRequest/Invoke-TestAutoApproval.ps1\"",
+            "statusMessage": "Auto-approving test execution"
+          }
+        ]
+      }
     ]
   },
   "enabledPlugins": {
