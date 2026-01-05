@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Synchronizes MCP configuration from Claude's .mcp.json to Factory and VS Code formats.
+    Synchronizes MCP configuration from Claude's .mcp.json to VS Code and Factory formats.
 
 .DESCRIPTION
     Transforms Claude Code's .mcp.json (using "mcpServers" root key) to Factory's
@@ -25,10 +25,11 @@
 
 .PARAMETER DestinationPath
     Path to the destination mcp.json file (Factory or VS Code). Defaults to
-    .factory/mcp.json in repository root.
+    .vscode/mcp.json in repository root when Target is 'vscode', or .factory/mcp.json
+    when Target is 'factory'.
 
 .PARAMETER Target
-    Target platform: 'factory' (default) or 'vscode'.
+    Target platform: 'factory' or 'vscode' (default 'vscode').
     - factory: Generates .factory/mcp.json (same format as .mcp.json)
     - vscode: Generates .vscode/mcp.json (transformed format)
 
@@ -47,7 +48,7 @@
 
 .EXAMPLE
     .\Sync-McpConfig.ps1
-    # Syncs .mcp.json to .factory/mcp.json in current repository
+    # Syncs .mcp.json to .vscode/mcp.json in current repository (default)
 
 .EXAMPLE
     .\Sync-McpConfig.ps1 -Target vscode
