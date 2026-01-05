@@ -19,10 +19,10 @@ Responding to PR review comments for PR #776.
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
 | MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
 | MUST | Create this session log | [x] | This file exists |
-| MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Skipped (using skills directly) |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Used Get-PRContext.ps1, Get-PRChecks.ps1, Get-UnresolvedReviewThreads.ps1, Post-PRCommentReply.ps1, Resolve-PRReviewThread.ps1, Test-PRMerged.ps1 |
 | MUST | Read usage-mandatory memory | [x] | Content in context |
-| MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Not required for PR review |
-| MUST | Read memory-index, load task-relevant memories | [ ] | Loaded usage-mandatory, pr-review memories implicitly |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Loaded via CRITICAL-CONTEXT.md import |
+| MUST | Read memory-index, load task-relevant memories | [x] | Loaded usage-mandatory, pr-review-007-merge-state-verification |
 | SHOULD | Import shared memories: `pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1` | [ ] | None |
 | MUST | Verify and declare current branch | [x] | Branch documented below |
 | MUST | Confirm not on main/master | [x] | On feature branch |
