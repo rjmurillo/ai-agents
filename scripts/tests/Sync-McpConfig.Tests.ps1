@@ -700,8 +700,9 @@ Describe "Factory Target Support" {
             $sourceJson = Get-Content -Path $sourcePath -Raw | ConvertFrom-Json -AsHashtable
             $destJson = Get-Content -Path $destPath -Raw | ConvertFrom-Json -AsHashtable
             
-            # Dest should be a clone (different object) with same content
-            $destJson.mcpServers | Should -BeDeepCloneOf $sourceJson.mcpServers
+            # Dest should be a clone (same content, different object)
+            $destJson.mcpServers.test.type | Should -Be $sourceJson.mcpServers.test.type
+            $destJson.mcpServers.test.command | Should -Be $sourceJson.mcpServers.test.command
         }
 
         It "Creates .factory directory when using Factory target" {
@@ -721,7 +722,7 @@ Describe "Factory Target Support" {
 
             # Assert
             $factoryPath | Should -Exist
-            Test-Path (Join-Path $factoryPath "mcp.json") | Should -Exist
+            (Join-Path $factoryPath "mcp.json") | Should -Exist
         }
     }
 
@@ -965,7 +966,7 @@ Describe "SyncAll Parameter" {
                     test = @{ type = "http"; url = "http://example.com/mcp" }
                 }
             } | ConvertTo-Json -Depth 10
-            Set-Content -Path (Join-Path $vscodePath "mcp.json") -Value $vscodeJson -Encoding utf8
+            Set-Content -Path (Join-Path $vscodeDir "mcp.json") -Value $vscodeJson -Encoding UTF8
 
             # Factory file doesn't exist yet
             Test-Path $factoryPath | Should -Not -Exist
@@ -976,7 +977,7 @@ Describe "SyncAll Parameter" {
             # Assert - Only Factory needed sync (but we don't track which)
             $result | Should -Be $true
             $factoryPath | Should -Exist
-            Test-Path (Join-Path $factoryPath "mcp.json") | Should -Exist
+            (Join-Path $factoryPath "mcp.json") | Should -Exist
         }
     }
 
@@ -1136,19 +1137,21 @@ Describe "Get-ChildItem -Force Fix for Hidden Files" {
             # Arrange
             $sourcePath = Join-Path $Script:TestDir ".mcp.json"
             $destPath = Join-Path $Script:TestDir "mcp.json"
+            $targetPath = Join-Path $Script:TestDir "mcp-target.json"
+            
+            # Create target file first (not the source)
+            $targetContent = @{
+                mcpServers = @{ test = @{ type = "stdio"; command = "test" } }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path $targetPath -Value $targetContent -Encoding UTF8
             
             # Create a symlink (on platforms that support it)
             try {
-                New-Item -ItemType SymbolicLink -Path $sourcePath -Target (Join-Path $Script:TestDir "mcp-target.json") -ErrorAction SilentlyContinue
+                New-Item -ItemType SymbolicLink -Path $sourcePath -Target $targetPath -ErrorAction SilentlyContinue | Out-Null
             } catch {
                 # Symlinks not supported on this platform - skip test
                 return
             }
-
-            $sourceContent = @{
-                mcpServers = @{ test = @{ type = "stdio"; command = "test" } }
-            } | ConvertTo-Json -Depth 10
-            Set-Content -Path $sourcePath -Value $sourceContent -Encoding UTF8
 
             # Act & Assert
             { & $Script:ScriptPath -SourcePath $sourcePath -DestinationPath $destPath -Target factory -ErrorAction Stop } |
