@@ -4,9 +4,7 @@ version: 1
 filters:
   useDefaults: true           # Use built-in exclusions
   exclude:
-    # Historical artifacts - do not review
-    - '.agents/sessions/**'
-    - '.agents/retrospective/**'
+    # AI memory (managed separately)
     - '.serena/memories/**'
     
     # Build artifacts
@@ -41,8 +39,13 @@ rules:
       - architecture
       - maintainability
       - performance
+      - quality
+      - consistency
+      - git
+      - testing
+      - powershell
+      - ci-cd
     exclude:
-      - documentation          # Handled by markdownlint-cli2
       - style-conventions      # Handled by PSScriptAnalyzer
 
   # Agent-based filtering

@@ -72,7 +72,7 @@ rules:
 
     tags:
       - consistency
-      - agent-system
+      - quality
 
 
   - id: agent_required_sections
@@ -117,8 +117,8 @@ rules:
         ## Handoff Protocol
 
     tags:
-      - agent-system
-      - documentation
+      - consistency
+      - maintainability
 
 
   - id: agent_frontmatter_validation

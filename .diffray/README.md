@@ -13,7 +13,7 @@ Diffray provides intelligent, context-aware code review using AI agents. This co
 ├── config.yaml                     # Main configuration
 ├── README.md                       # This file
 └── rules/
-    ├── powershell-patterns.yaml    # PowerShell-specific rules (6 rules)
+    ├── powershell-patterns.yaml    # PowerShell-specific rules (5 rules)
     ├── workflow-constraints.yaml   # GitHub Actions rules (5 rules)
     ├── agent-templates.yaml        # Agent template rules (4 rules)
     ├── session-protocol.yaml       # Governance/protocol rules (7 rules)
@@ -100,7 +100,7 @@ Excluded paths:
 
 ## Rule Categories
 
-### PowerShell Patterns (6 rules)
+### PowerShell Patterns (5 rules)
 
 | Rule ID | Importance | Focus |
 |---------|------------|-------|
@@ -321,14 +321,14 @@ Track these metrics to tune configuration:
 
 - [Diffray Documentation](https://docs.diffray.ai/)
 - [Writing Effective Rules](https://docs.diffray.ai/configuration/writing-effective-rules)
-- [Project ADRs](.agents/architecture/)
-- [Project Constraints](.agents/governance/PROJECT-CONSTRAINTS.md)
+- [Project ADRs](../.agents/architecture/)
+- [Project Constraints](../.agents/governance/PROJECT-CONSTRAINTS.md)
 
 ## Support
 
 For questions or issues with diffray configuration:
 
 1. Check rule output for suggestions
-2. Review [Project Constraints](.agents/governance/PROJECT-CONSTRAINTS.md)
-3. Consult relevant ADRs in `.agents/architecture/`
+2. Review [Project Constraints](../.agents/governance/PROJECT-CONSTRAINTS.md)
+3. Consult relevant ADRs in `../.agents/architecture/`
 4. Open issue with `diffray` label
