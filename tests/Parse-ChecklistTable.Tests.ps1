@@ -12,6 +12,9 @@
 
 BeforeAll {
     $scriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1"
+    if (-not (Test-Path $scriptPath)) {
+        throw "Validate-Session.ps1 not found at: $scriptPath"
+    }
     $scriptContent = Get-Content -Path $scriptPath -Raw
 
     # Extract Split-TableRow function - simpler pattern matching to first occurrence of next function
@@ -46,6 +49,14 @@ BeforeAll {
             $script:ParseChecklistTableDef = $parseFunc
             Invoke-Expression $parseFunc
         }
+    }
+
+    # Validate that required functions were successfully loaded
+    if (-not (Get-Command Split-TableRow -ErrorAction SilentlyContinue)) {
+        throw "Failed to extract Split-TableRow function from $scriptPath"
+    }
+    if (-not (Get-Command Parse-ChecklistTable -ErrorAction SilentlyContinue)) {
+        throw "Failed to extract Parse-ChecklistTable function from $scriptPath"
     }
 }
 
@@ -86,10 +97,9 @@ Describe "Split-TableRow" {
         It "Should handle the problematic SESSION-PROTOCOL.md security review row" {
             $row = ' MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Evidence '
             $result = Split-TableRow $row | ForEach-Object { $_.Trim() }
-            
+
             $result.Count | Should -Be 4
             $result[0] | Should -Be 'MUST'
-            $result[1] | Should -Match 'grep.*key\|password\|token\|secret'
             $result[1] | Should -Be 'Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json`'
             $result[2] | Should -Be '[ ]'
             $result[3] | Should -Be 'Evidence'
@@ -141,9 +151,10 @@ Describe "Split-TableRow" {
         It "Should handle empty row" {
             $row = ''
             $result = Split-TableRow $row
-            
+
             # Empty row returns array with one empty element
-            $result.Count | Should -BeGreaterOrEqual 0
+            $result.Count | Should -Be 1
+            $result[0] | Should -Be ''
         }
 
         It "Should handle multiple consecutive pipes outside code spans" {

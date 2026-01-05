@@ -126,11 +126,11 @@ function Split-TableRow {
     The table row string to split (should have outer pipes already trimmed)
 
   .OUTPUTS
-    Array of column strings (trimmed)
+    Array of column strings (not trimmed)
 
   .EXAMPLE
     Split-TableRow 'MUST | Run: `grep "a|b"` | [x] | Done'
-    Returns: @('MUST', 'Run: `grep "a|b"`', '[x]', 'Done')
+    Returns: @('MUST ', ' Run: `grep "a|b"` ', ' [x] ', ' Done')
   #>
   param([string]$Row)
 
@@ -157,10 +157,8 @@ function Split-TableRow {
     }
   }
 
-  # Add final column
-  if ($currentColumn.Length -gt 0 -or $columns.Count -gt 0) {
-    $columns.Add($currentColumn.ToString())
-  }
+  # Add final column (always, to handle empty rows and trailing separators)
+  $columns.Add($currentColumn.ToString())
 
   # Comma operator prevents PowerShell from unwrapping single-element arrays
   , $columns.ToArray()
@@ -178,10 +176,10 @@ function Parse-ChecklistTable([string[]]$TableLines) {
     $parts = Split-TableRow $innerContent | ForEach-Object { $_.Trim() }
     if ($parts.Count -lt 4) { continue }
 
-    $req = ($parts[0] -replace '\*','').Trim().ToUpperInvariant()
-    $step = $parts[1].Trim()
-    $statusRaw = $parts[2].Trim()
-    $evidence = $parts[3].Trim()
+    $req = ($parts[0] -replace '\*','').ToUpperInvariant()
+    $step = $parts[1]
+    $statusRaw = $parts[2]
+    $evidence = $parts[3]
 
     $status = ' '
     if ($statusRaw -match '\[\s*[xX]\s*\]') { $status = 'x' }
