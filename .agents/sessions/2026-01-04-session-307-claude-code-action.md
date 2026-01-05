@@ -112,12 +112,33 @@ Current Claude Code plugins (from `.claude/settings.json`):
 - Audit reason: Validation script bug in Test-MemoryEvidence
 - Session log properly formatted with complete Protocol Compliance table
 
+## Validation Bug Discovery
+
+**Issue**: #778 - Validate-Session.ps1 Count property error
+
+**Root Cause**: PowerShell pipeline in `Test-MemoryEvidence` function (lines 320-322) can return `$null` or single object instead of array when regex matches are 0 or 1. Accessing `.Count` property on non-array throws error.
+
+**Impact**: Blocks PR creation via New-PR.ps1 skill for properly formatted session logs.
+
+**Fix**: Wrap `$foundMemories` assignment in `@()` array operator to ensure consistent array type:
+
+```powershell
+$foundMemories = @(
+  [regex]::Matches($evidence, $memoryPattern, 'IgnoreCase') |
+    ForEach-Object { $_.Value.ToLowerInvariant() } |
+    Select-Object -Unique
+)
+```
+
+**Workaround Used**: Bypassed validation with `-SkipValidation` and audit reason.
+
 ## Session End
 
-- [ ] Session log complete
-- [ ] Markdown linting passed
-- [ ] All changes committed
-- [ ] PR created: #777
+- [x] Session log complete
+- [x] Markdown linting passed
+- [x] All changes committed
+- [x] PR created: #777
+- [x] Bug reported: #778
 
 ## Next Session
 
