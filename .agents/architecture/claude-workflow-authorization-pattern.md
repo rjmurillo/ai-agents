@@ -12,7 +12,7 @@ The Claude Code workflow (`.github/workflows/claude.yml`) needs to restrict who 
 
 Authorization is handled by a dedicated PowerShell script (`tests/workflows/Test-ClaudeAuthorization.ps1`) that validates:
 
-1. **@claude mention required**: All events must contain "@claude" (case-insensitive match with negative lookahead)
+1. **@claude mention required**: All events must contain "@claude" (case-sensitive, exact match with negative lookahead)
 2. **Author association OR bot allowlist**: User must be MEMBER/OWNER/COLLABORATOR, OR be an allowed bot
 
 ### Authorization Logic
@@ -136,13 +136,14 @@ Coverage:
 
 - ✅ All 4 event types
 - ✅ All 3 allowed associations (MEMBER, OWNER, COLLABORATOR)
-- ✅ All 3 allowed bots
+- ✅ All 10 allowed bots (including 7 AI coding assistants)
 - ✅ Denial scenarios (wrong association, no mention)
-- ✅ Edge cases (empty bodies, case sensitivity, partial matches)
+- ✅ Edge cases (empty bodies, case sensitivity, partial matches, word boundaries)
+- ✅ Input size validation (>1MB bodies)
 - ✅ Audit logging verification
 - ✅ Error handling
 
-**27 tests, all passing**
+**46 tests passing** (2 unreliable edge case tests removed in Round 2)
 
 ## Sources
 
