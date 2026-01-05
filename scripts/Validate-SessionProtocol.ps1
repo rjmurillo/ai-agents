@@ -100,9 +100,11 @@ function Get-HeadingTable {
     #>
     param(
         [Parameter(Mandatory)]
+        [ValidateNotNull()]
         [string[]]$Lines,
 
         [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string]$HeadingRegex
     )
 
@@ -163,9 +165,9 @@ function Parse-ChecklistTable {
     $rows = New-Object System.Collections.Generic.List[hashtable]
 
     foreach ($line in $TableLines) {
-        # Skip separator and header rows
-        if ($line -match '^\|\s*-+\s*\|') { continue }
-        if ($line -match '^\|\s*Req\s*\|') { continue }
+        # Skip separator and header rows (check BEFORE parsing)
+        if ($line -match '^\|\s*-+\s*\|') { continue }  # separator row
+        if ($line -match '^\|\s*Req\s*\|') { continue }  # header row
 
         # Split into 4 columns, trim outer pipes
         $parts = ($line.Trim() -replace '^\|', '' -replace '\|$', '').Split('|') |
@@ -306,18 +308,18 @@ function Test-MemoryEvidence {
 
 # Investigation-only allowlist patterns (ADR-034)
 $script:InvestigationAllowlist = @(
-    '^\.agents/sessions/',        # Session logs
-    '^\.agents/analysis/',        # Investigation outputs
-    '^\.agents/retrospective/',   # Learnings
-    '^\.serena/memories($|/)',    # Cross-session context
-    '^\.agents/security/'         # Security assessments
+    '^[.]agents/sessions/',        # Session logs
+    '^[.]agents/analysis/',        # Investigation outputs
+    '^[.]agents/retrospective/',   # Learnings
+    '^[.]serena/memories($|/)',    # Cross-session context
+    '^[.]agents/security/'         # Security assessments
 )
 
 # Session audit artifacts (exempt from QA validation)
 $script:AuditArtifacts = @(
-    '^\.agents/sessions/',        # Session logs (audit trail)
-    '^\.agents/analysis/',        # Investigation outputs
-    '^\.serena/memories($|/)'     # Cross-session context
+    '^[.]agents/sessions/',        # Session logs (audit trail)
+    '^[.]agents/analysis/',        # Investigation outputs
+    '^[.]serena/memories($|/)'     # Cross-session context
 )
 
 function Is-DocsOnly {
