@@ -1,0 +1,131 @@
+{
+  "id": "episode-2026-01-05-session-316",
+  "outcome": "success",
+  "session": "2026-01-05-session-316",
+  "events": [
+    {
+      "timestamp": "2026-01-05T15:00:26.6056277+00:00",
+      "leads_to": [],
+      "content": "The Claude Code workflow needs access to MCP servers (Forgetful) and development tools (Node.js, markdownlint-cli2, Pester, uv) to perform code modifications effectively. These setup steps were only present in the Copilot setup workflow. By extracting them to a reusable composite action, both workflows can benefit from consistent environment setup.",
+      "type": "test",
+      "caused_by": [],
+      "id": "e001"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6137208+00:00",
+      "leads_to": [],
+      "content": "- Configurable inputs for toggling components (Forgetful MCP, Pester, git hooks)",
+      "type": "test",
+      "caused_by": [],
+      "id": "e002"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6141399+00:00",
+      "leads_to": [],
+      "content": "- Pester testing framework installation",
+      "type": "test",
+      "caused_by": [],
+      "id": "e003"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6146911+00:00",
+      "leads_to": [],
+      "content": "- Pester for PowerShell testing",
+      "type": "test",
+      "caused_by": [],
+      "id": "e004"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6150703+00:00",
+      "leads_to": [],
+      "content": "- ✓ Ran `npx markdownlint-cli2 --fix \"**/*.md\"` - 0 errors",
+      "type": "error",
+      "caused_by": [],
+      "id": "e005"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6155835+00:00",
+      "leads_to": [],
+      "content": "- `enable-pester: true`",
+      "type": "test",
+      "caused_by": [],
+      "id": "e006"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6163775+00:00",
+      "leads_to": [],
+      "content": "Clear success/failure indicators",
+      "type": "milestone",
+      "caused_by": [],
+      "id": "e008"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6171741+00:00",
+      "leads_to": [],
+      "content": "- ✓ Markdown linting passed (0 errors)",
+      "type": "error",
+      "caused_by": [],
+      "id": "e009"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6176979+00:00",
+      "leads_to": [],
+      "content": "- Verify Pester installation",
+      "type": "test",
+      "caused_by": [],
+      "id": "e010"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6179041+00:00",
+      "leads_to": [],
+      "content": "- Claude workflow has access to tools (gh, markdownlint-cli2, Pester)",
+      "type": "test",
+      "caused_by": [],
+      "id": "e011"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6182271+00:00",
+      "leads_to": [],
+      "content": "| MUST | Run markdown lint | [x] | 0 errors |",
+      "type": "error",
+      "caused_by": [],
+      "id": "e012"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6185734+00:00",
+      "leads_to": [],
+      "content": "[x] All tasks completed",
+      "type": "milestone",
+      "caused_by": [],
+      "id": "e013"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6191343+00:00",
+      "leads_to": [],
+      "content": "*Session Complete**: 2026-01-05",
+      "type": "milestone",
+      "caused_by": [],
+      "id": "e014"
+    },
+    {
+      "timestamp": "2026-01-05T15:00:26.6194810+00:00",
+      "leads_to": [],
+      "content": "*Outcome**: SUCCESS - Composite action created and integrated into both workflows",
+      "type": "milestone",
+      "caused_by": [],
+      "id": "e015"
+    }
+  ],
+  "task": "Session 316 - 2026-01-05",
+  "timestamp": "2026-01-05T15:00:26.6628364+00:00",
+  "decisions": null,
+  "lessons": null,
+  "metrics": {
+    "tool_calls": 0,
+    "recoveries": 0,
+    "files_changed": 0,
+    "errors": 4,
+    "commits": 3,
+    "duration_minutes": 0
+  }
+}
