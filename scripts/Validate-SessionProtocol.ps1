@@ -442,6 +442,7 @@ function Test-SessionLogExists {
     $result = @{
         Passed = $true
         Issues = @()
+        Warnings = @()
         Level = 'MUST'
     }
 
@@ -471,6 +472,7 @@ function Test-ProtocolComplianceSection {
     $result = @{
         Passed = $true
         Issues = @()
+        Warnings = @()
         Level = 'MUST'
     }
 
@@ -578,6 +580,7 @@ function Test-HandoffUpdated {
     $result = @{
         Passed = $true
         Issues = @()
+        Warnings = @()
         Level = 'MUST'
     }
 
@@ -615,9 +618,6 @@ function Test-HandoffUpdated {
             if ($LASTEXITCODE -ne 0) {
                 $warningMsg = "Git diff failed: $gitDiff. Falling back to timestamp comparison (less reliable in CI)."
                 Write-Warning $warningMsg
-                if (-not $result.ContainsKey('Warnings')) {
-                    $result.Warnings = @()
-                }
                 $result.Warnings += $warningMsg
             } else {
                 $gitDiffWorked = $true
@@ -648,9 +648,6 @@ function Test-HandoffUpdated {
             # Not a git repo - use timestamp fallback with warning
             $warningMsg = "HANDOFF.md validation using filesystem timestamp (git not available). Results may be unreliable in CI environments."
             Write-Warning $warningMsg
-            if (-not $result.ContainsKey('Warnings')) {
-                $result.Warnings = @()
-            }
             $result.Warnings += $warningMsg
             $sessionFileName = Split-Path -Leaf $SessionPath
             if ($sessionFileName -match '^(\d{4}-\d{2}-\d{2})') {
@@ -759,6 +756,7 @@ function Test-GitCommitEvidence {
     $result = @{
         Passed = $true
         Issues = @()
+        Warnings = @()
         Level = 'MUST'
     }
 
@@ -940,21 +938,13 @@ function Get-SessionLogs {
         $sessions = Get-ChildItem -Path $sessionsPath -Filter "*.md" -ErrorAction Stop |
             Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}-session-\d+(-.+)?\.md$' }
     } catch [System.UnauthorizedAccessException] {
-        $errorMsg = "Permission denied reading sessions directory: $sessionsPath. Check file permissions and retry."
-        Write-Error $errorMsg
-        throw $errorMsg
+        throw "Permission denied reading sessions directory: $sessionsPath. Check file permissions and retry."
     } catch [System.IO.PathTooLongException] {
-        $errorMsg = "Sessions directory path exceeds maximum length: $sessionsPath. Move project to shorter path."
-        Write-Error $errorMsg
-        throw $errorMsg
+        throw "Sessions directory path exceeds maximum length: $sessionsPath. Move project to shorter path."
     } catch [System.IO.IOException] {
-        $errorMsg = "I/O error reading sessions directory: $sessionsPath. Error: $($_.Exception.Message). Check disk health and file locks."
-        Write-Error $errorMsg
-        throw $errorMsg
+        throw "I/O error reading sessions directory: $sessionsPath. Error: $($_.Exception.Message). Check disk health and file locks."
     } catch {
-        $errorMsg = "Failed to read sessions directory: $sessionsPath. Error: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
-        Write-Error $errorMsg
-        throw $errorMsg
+        throw "Failed to read sessions directory: $sessionsPath. Error: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
     }
 
     if ($Days -gt 0) {
