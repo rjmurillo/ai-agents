@@ -1,15 +1,22 @@
 # Using the Agents
 
-## ⚠️ MANDATORY: Initialize Serena FIRST
+## ⚠️ MANDATORY: Initialize Serena FIRST (when available)
 
-**BEFORE doing ANY work**, you MUST call these Serena MCP tools in order:
+**BEFORE doing ANY work**, if Serena tools are available, you MUST call them in order:
 
 ```text
-1. mcp__serena__activate_project  (with project path)
+Option A (MCP-prefixed):
+1. mcp__serena__activate_project (with project path)
 2. mcp__serena__initial_instructions
+
+Option B (serena/*):
+1. serena/activate_project (with project path)
+2. serena/initial_instructions
 ```
 
-This is NON-NEGOTIABLE. Do not read files, do not search, do not answer questions until Serena is initialized.
+If Serena tools are not available in your environment, proceed without Serena and document the unavailability in your session log.
+
+For memory fallbacks, read the backing file at `.serena/memories/<memory-name>.md`. The memory name is the filename without the `.md` extension. For example: `pr-comment-responder-skills` → `.serena/memories/pr-comment-responder-skills.md`.
 
 **Why this matters**: Without Serena initialization, you lack access to:
 
@@ -44,7 +51,7 @@ These requirements MUST be completed before ANY other work. Work is blocked unti
 
 | Req Level | Step | Verification |
 |-----------|------|--------------|
-| **MUST** | Initialize Serena (`mcp__serena__activate_project`, `mcp__serena__initial_instructions`) | Tool output in transcript |
+| **MUST** | Initialize Serena (`mcp__serena__activate_project` + `mcp__serena__initial_instructions` OR `serena/activate_project` + `serena/initial_instructions`) | Tool output in transcript |
 | **MUST** | Read `.agents/HANDOFF.md` | Content in context |
 | **MUST** | Create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
 | **SHOULD** | Search relevant Serena memories | Memory results present |
@@ -121,6 +128,8 @@ Common commands you'll reference throughout development. Commands are listed wit
 ```bash
 mcp__serena__activate_project
 mcp__serena__initial_instructions
+serena/activate_project
+serena/initial_instructions
 git branch --show-current
 ```
 
@@ -1504,7 +1513,7 @@ Agents violating these standards produce inconsistent, unprofessional output. Re
 
 ```text
 SESSION START (BLOCKING - MUST complete before work):
-1. MUST: Initialize Serena (mcp__serena__activate_project, mcp__serena__initial_instructions)
+1. MUST: Initialize Serena (mcp__serena__activate_project + mcp__serena__initial_instructions OR serena/activate_project + serena/initial_instructions)
 2. MUST: Read .agents/HANDOFF.md for previous session context
 3. MUST: Create session log at .agents/sessions/YYYY-MM-DD-session-NN.md
 4. SHOULD: Search relevant Serena memories
