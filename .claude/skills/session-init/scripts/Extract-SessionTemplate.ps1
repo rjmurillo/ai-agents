@@ -24,8 +24,8 @@
 .NOTES
     Exit Codes:
     - 0: Success
-    - 1: Protocol file not found
-    - 2: Template section not found
+    - 1: Git repository error or protocol file not found
+    - 2: Template section not found or other expected errors
 #>
 
 [CmdletBinding()]
@@ -34,36 +34,94 @@ param(
     [string]$ProtocolPath = ".agents/SESSION-PROTOCOL.md"
 )
 
-$ErrorActionPreference = 'Continue'
+$ErrorActionPreference = 'Stop'
 
-# Resolve path relative to repository root
-$repoRoot = git rev-parse --show-toplevel 2>$null
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Not in a git repository"
+try {
+    # Resolve path relative to repository root
+    $repoRootOutput = git rev-parse --show-toplevel 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $errorDetails = $repoRootOutput -join "`n"
+        throw [System.InvalidOperationException]::new(
+            "Not in a git repository. Git error (exit code $LASTEXITCODE): $errorDetails`n`nEnsure you are in a git repository by running 'git status'."
+        )
+    }
+    $repoRoot = $repoRootOutput.Trim()
+
+    $fullPath = Join-Path $repoRoot $ProtocolPath
+
+    if (-not (Test-Path $fullPath)) {
+        throw [System.IO.FileNotFoundException]::new(
+            "Protocol file not found: $fullPath`n`nEnsure SESSION-PROTOCOL.md exists at $ProtocolPath.`n`nExpected path: $fullPath"
+        )
+    }
+
+    # Read file content with specific error handling
+    try {
+        $content = Get-Content -Path $fullPath -Raw -ErrorAction Stop
+    } catch [System.UnauthorizedAccessException] {
+        throw [System.UnauthorizedAccessException]::new(
+            "Permission denied reading protocol file: $fullPath`n`nEnsure you have read permissions on the file.`n`nTry: chmod +r '$fullPath'",
+            $_.Exception
+        )
+    } catch [System.IO.IOException] {
+        throw [System.IO.IOException]::new(
+            "Failed to read protocol file: $fullPath`n`nPossible causes: file in use, corrupted filesystem, or encoding issues.`n`nError: $($_.Exception.Message)",
+            $_.Exception
+        )
+    }
+
+    # Extract template using regex
+    # Pattern: ## Session Log Template ... ```markdown ... ```
+    $pattern = '(?s)## Session Log Template.*?```markdown\s*(.*?)\s*```'
+
+    if ($content -match $pattern) {
+        $template = $Matches[1]
+        
+        # Validate extracted template is not empty
+        if ([string]::IsNullOrWhiteSpace($template)) {
+            throw [System.InvalidOperationException]::new(
+                "Extracted template is empty.`n`nProtocol file: $fullPath`n`nThe '## Session Log Template' section exists but contains no content."
+            )
+        }
+
+        # Output the template
+        Write-Output $template
+        exit 0
+    } else {
+        throw [System.InvalidOperationException]::new(
+            "Template section not found in $ProtocolPath`n`nProtocol file: $fullPath`n`nExpected section: ## Session Log Template`n`nEnsure the protocol file contains a properly formatted template section with markdown code fence."
+        )
+    }
+
+} catch [System.InvalidOperationException] {
+    # Git repository error OR empty template - both exit code 1
+    if ($_.Exception.Message -match "Not in a git repository") {
+        Write-Host $_.Exception.Message -ForegroundColor Red
+        exit 1
+    } else {
+        # Empty template or template section not found - exit code 2  
+        Write-Host $_.Exception.Message -ForegroundColor Red
+        exit 2
+    }
+} catch [System.IO.FileNotFoundException] {
+    # File not found - exit code 1 per documentation
+    Write-Host $_.Exception.Message -ForegroundColor Red
     exit 1
-}
-
-$fullPath = Join-Path $repoRoot $ProtocolPath
-
-if (-not (Test-Path $fullPath)) {
-    Write-Error "Protocol file not found: $fullPath"
-    exit 1
-}
-
-# Read file content
-$content = Get-Content -Path $fullPath -Raw -ErrorAction Stop
-
-# Extract template using regex
-# Pattern: ## Session Log Template ... ```markdown ... ```
-$pattern = '(?s)## Session Log Template.*?```markdown\s*(.*?)\s*```'
-
-if ($content -match $pattern) {
-    $template = $Matches[1]
-
-    # Output the template
-    Write-Output $template
-    exit 0
-} else {
-    Write-Error "Template section not found in $ProtocolPath"
+} catch [System.UnauthorizedAccessException], [System.IO.IOException] {
+    # File access errors - exit code 2
+    Write-Host $_.Exception.Message -ForegroundColor Red
     exit 2
+} catch {
+    # Unexpected errors - provide full diagnostic information
+    Write-Host "UNEXPECTED ERROR in Extract-SessionTemplate" -ForegroundColor Red
+    Write-Host "Exception Type: $($_.Exception.GetType().FullName)" -ForegroundColor Red
+    Write-Host "Message: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Protocol Path: $ProtocolPath" -ForegroundColor Red
+    if ($fullPath) {
+        Write-Host "Full Path: $fullPath" -ForegroundColor Red
+    }
+    Write-Host "Stack Trace: $($_.ScriptStackTrace)" -ForegroundColor Red
+    Write-Host "" -ForegroundColor Red
+    Write-Host "This is a bug. Please report this error with the above details." -ForegroundColor Red
+    exit 1
 }
