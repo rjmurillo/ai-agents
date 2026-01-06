@@ -115,7 +115,7 @@ All MUST requirements above are marked complete. ✅
 | MUST | Update Serena memory (cross-session context) | [x] | session-375-skillforge-session-skills |
 | MUST | Run markdown lint | [x] | Output below (0 errors) |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report: `.agents/qa/session-skill-enhancements-test-report.md` |
-| MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 6da201b8 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [N/A] | No active project plan |
 | SHOULD | Invoke retrospective (significant sessions) | [N/A] | Standard skill enhancement, no retrospective needed |
@@ -138,7 +138,11 @@ Summary: 0 error(s)
 ### Final Git Status
 
 ```
-[Pending - will be verified after final commit]
+On branch feat/session-init-skill
+Untracked files:
+  coverage.xml (test artifact, not committed)
+
+Clean working tree (all session artifacts committed)
 ```
 
 ### Commits This Session
