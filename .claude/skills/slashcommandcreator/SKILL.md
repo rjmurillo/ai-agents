@@ -45,7 +45,7 @@ Create production-ready custom slash commands following ai-agents quality standa
 3. Frontmatter schema:
    - `description` (trigger-based per creator-001)
    - `argument-hint` (if using arguments)
-   - `allowed-tools` (if using bash `!` or file `@`)
+   - `allowed-tools` (if using bash commands with `!` or file references with `@`)
    - `model` (opus for complex reasoning)
    - `disable-model-invocation` (if pure prompt template)
 4. Dynamic context evaluation:
