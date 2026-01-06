@@ -111,11 +111,11 @@ All MUST requirements above are marked complete. ✅
 | MUST | Update Serena memory (cross-session context) | [x] | Memory below |
 | MUST | Run markdown lint | [x] | Output below |
 | MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: validation-only (QA agent already ran) |
-| MUST | Commit all changes (including .serena/memories) | [ ] | Pending |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: b3ee7997 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [N/A] | No active project plan |
 | SHOULD | Invoke retrospective (significant sessions) | [N/A] | Standard validation, no retrospective needed |
-| SHOULD | Verify clean git status | [ ] | Pending after commit |
+| SHOULD | Verify clean git status | [x] | Output below |
 
 <!-- Investigation sessions may skip QA with evidence "SKIPPED: investigation-only"
      when only staging: .agents/sessions/, .agents/analysis/, .agents/retrospective/,
@@ -125,18 +125,22 @@ All MUST requirements above are marked complete. ✅
 ### Lint Output
 
 ```
-[Pending]
+markdownlint-cli2 v0.20.0 (markdownlint v0.40.0)
+Finding: **/*.md
+Linting: 185 file(s)
+Summary: 0 error(s)
 ```
 
 ### Final Git Status
 
 ```
-[Pending]
+On branch feat/session-init-skill
+nothing to commit, working tree clean
 ```
 
 ### Commits This Session
 
-- [Pending]
+- `b3ee7997` - docs: validation of session-init skill against issue #808
 
 ---
 
