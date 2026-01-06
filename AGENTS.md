@@ -1505,24 +1505,6 @@ Agents violating these standards produce inconsistent, unprofessional output. Re
 
 ---
 
-## Coding Standards
-
-**Read when writing code**: [.gemini/styleguide.md](.gemini/styleguide.md)
-
-**Critical rules** (memorize these):
-
-- PowerShell only (ADR-005). No bash/Python.
-- Quote variables: `"$Var"` not `$Var`. Use `$($Var):` when followed by colon.
-- Normalize paths before comparison: `[IO.Path]::GetFullPath()`
-- Use skills, not raw `gh`: Check `.claude/skills/github/scripts/` first
-- SHA-pin GitHub Actions: `@sha` not `@v4`
-- Exit codes (ADR-035): 0=success, 1=logic, 2=config, 3=external, 4=auth
-- Security-critical code: 100% test coverage
-
-**AI commits**: Include `Co-Authored-By: Claude <noreply@anthropic.com>` (or Copilot/Cursor/Factory Droid/Latta equivalent)
-
----
-
 ## Putting It All Together
 
 ### Every Session (BLOCKING - RFC 2119)

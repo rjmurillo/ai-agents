@@ -484,17 +484,21 @@ test(mcp): add Sync-McpConfig transformation tests
 
 ### AI-Generated Commits
 
-For AI-generated commits, include the signature line:
+Include attribution for AI-generated commits:
 
 ```text
 feat(agents): implement skill extraction workflow
 
-Added retrospective agent with skill scoring and deduplication.
-
-[AI-generated with Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+Co-Authored-By: Claude <noreply@anthropic.com>
 ```
+
+| Tool | Co-Authored-By |
+|------|----------------|
+| Claude | `Claude <noreply@anthropic.com>` |
+| GitHub Copilot | `GitHub Copilot <copilot@github.com>` |
+| Cursor | `Cursor <cursor@cursor.sh>` |
+| Factory Droid | `Factory Droid <droid@factory.ai>` |
+| Latta | `Latta <latta@latta.ai>` |
 
 ## Agent Protocol Patterns
 
@@ -876,30 +880,6 @@ PRs MUST follow `.github/PULL_REQUEST_TEMPLATE.md`:
 | Testing | All PRs | Checkbox for testing approach |
 | Agent Review | Security/Architecture PRs | Checkbox for agent reviews completed |
 | Checklist | All PRs | Style, self-review, documentation |
-
-### AI-Generated Commits
-
-ALL AI-generated commits MUST include attribution:
-
-```text
-feat(agents): implement skill extraction workflow
-
-Added retrospective agent with skill scoring and deduplication.
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-```
-
-**Supported AI Tools and Co-Author Format**:
-
-| Tool | Co-Authored-By |
-|------|----------------|
-| Claude | `Co-Authored-By: Claude <noreply@anthropic.com>` |
-| GitHub Copilot | `Co-Authored-By: GitHub Copilot <copilot@github.com>` |
-| Cursor | `Co-Authored-By: Cursor <cursor@cursor.sh>` |
-| Factory Droid | `Co-Authored-By: Factory Droid <droid@factory.ai>` |
-| Latta | `Co-Authored-By: Latta <latta@latta.ai>` |
 
 ## Skill Usage (MANDATORY)
 
