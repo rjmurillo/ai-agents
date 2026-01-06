@@ -370,6 +370,7 @@ runs:
         ISSUE_NUMBER: ${{ inputs.issue-number }}
         CONTEXT_PATH: ${{ inputs.context-path }}
         MAX_DIFF_LINES: ${{ inputs.max-diff-lines }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
       run: |
         CONTEXT=""
         CONTEXT_MODE="full"
@@ -377,21 +378,28 @@ runs:
         case "$CONTEXT_TYPE" in
           pr-diff)
             if [ -n "$PR_NUMBER" ]; then
-              LINE_COUNT=$(gh pr diff "$PR_NUMBER" 2>/dev/null | wc -l || echo "0")
+              # Fetch PR title for validation
+              PR_TITLE=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title -q '.title' 2>/dev/null || echo "Unknown PR")
+              echo "Building context for PR #$PR_NUMBER: $PR_TITLE"
+              echo "Fetching diff for PR #$PR_NUMBER from repository $GITHUB_REPOSITORY"
+              
+              LINE_COUNT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>/dev/null | wc -l || echo "0")
               echo "PR diff has $LINE_COUNT lines"
 
               if [ "$LINE_COUNT" -gt "$MAX_DIFF_LINES" ]; then
                 CONTEXT_MODE="summary"
-                CONTEXT=$(gh pr diff "$PR_NUMBER" --stat 2>/dev/null || echo "Unable to get PR diff")
+                CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --stat 2>/dev/null || echo "Unable to get PR diff")
                 CONTEXT="[Large PR - $LINE_COUNT lines, showing summary only]"$'\n'"$CONTEXT"
               else
-                CONTEXT=$(gh pr diff "$PR_NUMBER" 2>/dev/null || echo "Unable to get PR diff")
+                CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>/dev/null || echo "Unable to get PR diff")
               fi
 
               # Also get PR description
-              PR_BODY=$(gh pr view "$PR_NUMBER" --json body,title -q '.title + "\n\n" + .body' 2>/dev/null || echo "")
+              PR_BODY=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body,title -q '.title + "\n\n" + .body' 2>/dev/null || echo "")
               if [ -n "$PR_BODY" ]; then
-                CONTEXT="## PR Description"$'\n'"$PR_BODY"$'\n\n'"## Changes"$'\n'"$CONTEXT"
+                CONTEXT="## PR #$PR_NUMBER: $PR_TITLE"$'\n\n'"## PR Description"$'\n'"$PR_BODY"$'\n\n'"## Changes"$'\n'"$CONTEXT"
+              else
+                CONTEXT="## PR #$PR_NUMBER: $PR_TITLE"$'\n\n'"## Changes"$'\n'"$CONTEXT"
               fi
             else
               CONTEXT="No PR number provided"
@@ -419,7 +427,7 @@ runs:
               CONTEXT=$(cat "$CONTEXT_PATH")
               # If PR number also provided, append the diff
               if [ -n "$PR_NUMBER" ]; then
-                PR_DIFF=$(gh pr diff "$PR_NUMBER" 2>/dev/null | head -500 || echo "")
+                PR_DIFF=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>/dev/null | head -500 || echo "")
                 CONTEXT="## Specification"$'\n'"$CONTEXT"$'\n\n'"## Implementation Changes"$'\n'"$PR_DIFF"
               fi
             else
@@ -433,9 +441,9 @@ runs:
         esac
 
         # Save context to file (handles multiline safely)
-        echo "$CONTEXT" > /tmp/ai-review-context.txt
+        echo "$CONTEXT" > /tmp/ai-review-context-pr${PR_NUMBER:-none}.txt
         echo "context_mode=$CONTEXT_MODE" >> $GITHUB_OUTPUT
-        echo "context_file=/tmp/ai-review-context.txt" >> $GITHUB_OUTPUT
+        echo "context_file=/tmp/ai-review-context-pr${PR_NUMBER:-none}.txt" >> $GITHUB_OUTPUT
 
         # Output context for debugging (using heredoc for multiline)
         {
