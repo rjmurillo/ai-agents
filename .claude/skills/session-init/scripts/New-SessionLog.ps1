@@ -305,6 +305,12 @@ function New-PopulatedSessionLog {
     }
     
     if ($missingPlaceholders.Count -gt 0) {
+        # Check if validation is being skipped - dangerous combination
+        if ($SkipValidation) {
+            throw [System.InvalidOperationException]::new(
+                "Template missing required placeholders AND validation is skipped.`n`nMissing: $($missingPlaceholders -join ', ')`n`nThis combination would create an invalid session log. Either fix the template or enable validation to catch these issues."
+            )
+        }
         Write-Warning "Template missing expected placeholders: $($missingPlaceholders -join ', ')"
         Write-Warning "Template may be from an incompatible version of SESSION-PROTOCOL.md."
         Write-Warning "Session log may be invalid. Proceeding anyway, but validation will likely fail."
@@ -347,6 +353,12 @@ function Get-DescriptiveKeywords {
         - Keep domain-specific verbs (implement, debug, fix, refactor, etc.)
         - Convert to kebab-case
         - Limit to 5 keywords maximum
+    .NOTES
+        This function intentionally has no explicit error handling because:
+        - Operates only on in-memory strings (no I/O)
+        - Uses only safe PowerShell string operators
+        - Returns empty string on unexpected input (handled gracefully by caller)
+        - Cannot throw exceptions under normal PowerShell operation
     #>
     param(
         [Parameter(Mandatory)]

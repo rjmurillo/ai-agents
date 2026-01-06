@@ -94,12 +94,13 @@ try {
     }
 
 } catch [System.InvalidOperationException] {
-    # Git repository error OR empty template - both exit code 1
+    # This exception covers both git errors AND template errors
     if ($_.Exception.Message -match "Not in a git repository") {
+        # Git repository error - exit code 1
         Write-Host $_.Exception.Message -ForegroundColor Red
         exit 1
     } else {
-        # Empty template or template section not found - exit code 2  
+        # Empty template or template section not found - exit code 2
         Write-Host $_.Exception.Message -ForegroundColor Red
         exit 2
     }
