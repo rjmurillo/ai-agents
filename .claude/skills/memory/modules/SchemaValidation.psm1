@@ -82,8 +82,8 @@ function Test-SchemaValid {
         Validates JSON data against a JSON schema.
 
     .DESCRIPTION
-        Uses Newtonsoft.Json.Schema for validation (if available).
-        Falls back to basic structure validation if schema library not available.
+        Performs PowerShell-based structural validation against a JSON schema file.
+        Does not currently use external JSON schema libraries; validation is implemented in PowerShell.
 
     .PARAMETER JsonContent
         JSON content to validate (as string or object).
@@ -224,7 +224,7 @@ function Test-SchemaValid {
                     }
                 }
                 "boolean" {
-                    if ($null -ne $fieldValue -and $fieldValue -isnot [bool] -and $fieldValue -isnot [System.Boolean]) {
+                    if ($null -ne $fieldValue -and $fieldValue -isnot [bool]) {
                         $errors += "Field '$fieldName' should be boolean, got $($fieldValue.GetType().Name)"
                     }
                 }
@@ -251,9 +251,12 @@ function Test-SchemaValid {
                     }
                 }
                 "object" {
-                    if ($null -ne $fieldValue -and $fieldValue -isnot [PSCustomObject] -and $fieldValue -isnot [hashtable] -and $fieldValue -isnot [System.Management.Automation.PSObject]) {
+                    if ($null -ne $fieldValue -and $fieldValue -isnot [PSCustomObject] -and $fieldValue -isnot [System.Management.Automation.PSObject]) {
                         $errors += "Field '$fieldName' should be object, got $($fieldValue.GetType().Name)"
                     }
+                }
+                default {
+                    $errors += "Field '$fieldName' has unsupported schema type '$($fieldSchema.type)'"
                 }
             }
 
