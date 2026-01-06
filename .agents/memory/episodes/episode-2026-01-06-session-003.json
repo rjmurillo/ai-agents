@@ -1,0 +1,91 @@
+{
+  "events": [
+    {
+      "leads_to": [],
+      "content": "Spec validation workflow (ai-pr-quality-gate.yml) was analyzing the wrong PR number, causing false FAIL verdicts. Root cause: `gh pr diff` and `gh pr view` commands lacked `--repo` flag, and static temp file caused collision risk.",
+      "caused_by": [],
+      "type": "error",
+      "id": "e001",
+      "timestamp": "2026-01-06T14:13:14.2033402-06:00"
+    },
+    {
+      "leads_to": [],
+      "content": "**copilot-pull-request-reviewer**: Error state - \"Copilot encountered an error and was unable to review this pull request\"",
+      "caused_by": [],
+      "type": "error",
+      "id": "e002",
+      "timestamp": "2026-01-06T14:13:14.2084015-06:00"
+    },
+    {
+      "leads_to": [],
+      "content": "Added verification that fetched PR matches requested PR with fail-fast error handling",
+      "caused_by": [],
+      "type": "error",
+      "id": "e003",
+      "timestamp": "2026-01-06T14:13:14.2088967-06:00"
+    },
+    {
+      "leads_to": [],
+      "content": "Fail fast if PR diff fetch returns empty with clear error messages",
+      "caused_by": [],
+      "type": "error",
+      "id": "e004",
+      "timestamp": "2026-01-06T14:13:14.2090839-06:00"
+    },
+    {
+      "leads_to": [],
+      "content": "0 require implementation (all completed by Claude)",
+      "caused_by": [],
+      "type": "milestone",
+      "id": "e005",
+      "timestamp": "2026-01-06T14:13:14.2093640-06:00"
+    },
+    {
+      "leads_to": [],
+      "content": "0 require replies (all informational or completed)",
+      "caused_by": [],
+      "type": "milestone",
+      "id": "e006",
+      "timestamp": "2026-01-06T14:13:14.2098779-06:00"
+    },
+    {
+      "leads_to": [],
+      "content": "Commit: 83eb1ac",
+      "caused_by": [],
+      "type": "commit",
+      "id": "e007",
+      "timestamp": "2026-01-06T14:13:14.2101327-06:00"
+    },
+    {
+      "leads_to": [],
+      "content": "4. Error handling improvements - ADDED",
+      "caused_by": [],
+      "type": "error",
+      "id": "e008",
+      "timestamp": "2026-01-06T14:13:14.2103270-06:00"
+    },
+    {
+      "leads_to": [],
+      "content": "Commit: 83eb1ac",
+      "caused_by": [],
+      "type": "commit",
+      "id": "e009",
+      "timestamp": "2026-01-06T14:13:14.2111003-06:00"
+    }
+  ],
+  "session": "2026-01-06-session-003",
+  "id": "episode-2026-01-06-session-003",
+  "outcome": "failure",
+  "timestamp": "2026-01-06T00:00:00.0000000",
+  "metrics": {
+    "tool_calls": 0,
+    "duration_minutes": 0,
+    "errors": 5,
+    "files_changed": 0,
+    "recoveries": 0,
+    "commits": 22
+  },
+  "lessons": null,
+  "task": "Session 003: PR #806 Review - Spec Validation PR Context Fix",
+  "decisions": null
+}

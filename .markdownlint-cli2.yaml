@@ -79,12 +79,14 @@ globs:
   - "!.serena/memories/**"
   - "!.flowbaby/**"
   - "!.claude/skills/**"
+  - "!.factory/**"
 
 ignores:
   - "node_modules/**"
   - ".agents/**"
   - ".flowbaby/**"
   - ".serena/memories/**"
+  - ".factory/**"
   - "**/*.ps1"
   - "**/*.psm1"
 
