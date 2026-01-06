@@ -35,7 +35,7 @@ Check if staged files qualify for investigation-only QA skip per ADR-034.
 ### Usage
 
 ```powershell
-pwsh .claude/skills/session/scripts/Test-InvestigationEligibility.ps1
+pwsh .claude/skills/session-qa-eligibility/scripts/Test-InvestigationEligibility.ps1
 ```
 
 ### Output
@@ -155,7 +155,7 @@ SESSION-PROTOCOL.md (Phase 2.5: QA Validation)
 
 2. Run eligibility check
    │
-   └── pwsh .claude/skills/session/scripts/Test-InvestigationEligibility.ps1
+   └── pwsh .claude/skills/session-qa-eligibility/scripts/Test-InvestigationEligibility.ps1
 
 3. Check output
    │
