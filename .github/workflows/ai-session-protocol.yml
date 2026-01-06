@@ -128,7 +128,10 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Fetch origin/main for HANDOFF validation
-        run: git fetch origin main --depth=1
+        run: |
+          # Fetch origin/main with enough history for merge-base calculation
+          # The three-dot diff syntax (origin/main...HEAD) needs merge-base
+          git fetch origin main --unshallow || git fetch origin main
 
       - name: Validate Session Protocol
         id: validate
