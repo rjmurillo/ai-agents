@@ -74,11 +74,17 @@ Claude Code's `/skills` command shows "session" (27 total skills) instead of ind
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Complete session log | [x] | Implementation summary added |
-| MUST | Update Serena memory | [x] | session-377-skill-flattening |
-| MUST | Run markdownlint | [x] | PASS (0 errors) |
-| MUST | Commit all changes | [x] | d2901e9c, a76dc06e |
-| MUST | Validate session | [ ] | Running validation |
+| MUST | Complete session log with outcomes and decisions | [x] | Implementation summary added |
+| MUST | Update Serena memory with cross-session context | [x] | session-377-skill-flattening |
+| SHOULD | Export to claude-mem: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1` | [ ] | Not applicable |
+| MUST | Run markdownlint: `npx markdownlint-cli2 --fix "**/*.md"` | [x] | PASS (0 errors) |
+| SHOULD | Route to qa agent (features only) | [ ] | Not applicable (refactoring) |
+| MUST | Commit all changes (including .serena/memories/) | [x] | d2901e9c, a76dc06e, 5dd80105, 7397aafb, 3beac40c, 27070c56 |
+| MUST | Update HANDOFF.md with session outcome | [ ] | Deprecated (ADR-014) |
+| MUST | Capture session learnings to memory | [x] | session-377-skill-flattening |
+| MUST | Run session validation: `pwsh scripts/Validate-Session.ps1 -SessionLogPath [log]` | [ ] | In progress |
+| SHOULD | If validation fails, use /session-log-fixer skill | [ ] | N/A |
+| SHOULD | Verify final git status | [ ] | Will verify |
 
 ## Notes
 
