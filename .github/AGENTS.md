@@ -75,7 +75,7 @@ flowchart TD
 > **IMPORTANT**: When creating a new AI-powered workflow with concurrency control, you MUST:
 >
 > 1. Add the workflow name to `.github/scripts/Measure-WorkflowCoalescing.ps1` (line 47, `$Workflows` parameter)
-> 2. Follow concurrency group naming pattern: `{prefix}-${{ github.event.pull_request.number }}`
+> 2. Follow concurrency group naming pattern: `{prefix}-${{ github.event.pull_request.number || inputs.pr_number }}` (include `inputs.pr_number` for `workflow_dispatch` runs)
 > 3. Document the workflow in this file
 >
 > This ensures the workflow is included in coalescing effectiveness monitoring.
@@ -192,6 +192,38 @@ flowchart LR
 - Design traces back to requirements
 - Tasks trace back to design
 - No orphaned requirements
+
+### Optional Debouncing
+
+**Feature**: Workflows support optional debouncing to reduce race condition probability.
+
+**How to Enable**:
+
+```bash
+# Manual workflow dispatch with debouncing
+gh workflow run ai-pr-quality-gate.yml \
+  --ref main \
+  -f pr_number=123 \
+  -f enable_debouncing=true
+```
+
+**Tradeoffs**:
+
+| Aspect | Impact |
+|--------|--------|
+| Latency | +10 seconds per run |
+| Race conditions | Reduced by ~50% (estimated) |
+| Coalescing effectiveness | Improved by 5-8% (estimated) |
+| Cost | +10s runner time per run |
+
+**When to Use**:
+
+- Race condition rate consistently >10%
+- Coalescing effectiveness <90%
+- Specific PRs with rapid commit patterns
+- High-value PRs where duplicate runs are costly
+
+**Monitoring**: Use `Measure-WorkflowCoalescing.ps1` to track effectiveness before/after enabling debouncing.
 
 ---
 
@@ -395,9 +427,9 @@ All AI-powered and validation workflows use GitHub Actions `concurrency` groups 
 
 | Workflow | Concurrency Group | Behavior |
 |----------|------------------|----------|
-| ai-pr-quality-gate | `ai-quality-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
+| ai-pr-quality-gate | `ai-quality-${{ github.event.pull_request.number &#124;&#124; inputs.pr_number }}` | Cancels in-progress runs for same PR |
 | ai-session-protocol | `session-protocol-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
-| ai-spec-validation | `spec-validation-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
+| ai-spec-validation | `spec-validation-${{ github.event.pull_request.number &#124;&#124; inputs.pr_number }}` | Cancels in-progress runs for same PR |
 | pr-validation | `pr-validation-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
 | label-pr | `pr-labeler-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
 | memory-validation | `memory-validation-${{ github.ref }}` | Cancels in-progress runs for same branch |
