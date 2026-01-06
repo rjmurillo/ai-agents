@@ -269,6 +269,171 @@ Describe 'Test-ClaudeAuthorization' {
         }
     }
 
+    Context 'pull_request event' {
+        It 'Should authorize MEMBER with @claude mention in PR body' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -PRBody '@claude please review this PR'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize MEMBER with @claude mention in PR title' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -PRTitle '@claude: Fix authentication bug'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize allowed bot for pull_request without @claude mention' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'dependabot[bot]' `
+                -AuthorAssociation 'CONTRIBUTOR' `
+                -PRBody 'Bumps lodash from 4.17.20 to 4.17.21'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize allowed bot even with @claude mention (bot check takes precedence)' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'renovate[bot]' `
+                -AuthorAssociation 'CONTRIBUTOR' `
+                -PRBody '@claude please review this dependency update'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize OWNER with @claude mention in PR body' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'owner' `
+                -AuthorAssociation 'OWNER' `
+                -PRBody '@claude please review this PR'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize OWNER with @claude mention in PR title' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'owner' `
+                -AuthorAssociation 'OWNER' `
+                -PRTitle '@claude: Fix authentication bug'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize COLLABORATOR with @claude mention in PR body' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'collaborator' `
+                -AuthorAssociation 'COLLABORATOR' `
+                -PRBody '@claude please review'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize COLLABORATOR with @claude mention in PR title' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'collaborator' `
+                -AuthorAssociation 'COLLABORATOR' `
+                -PRTitle '@claude: Update dependencies'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should deny pull_request from MEMBER without @claude mention' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER' `
+                -PRBody 'Regular PR without mention' `
+                -PRTitle 'Fix bug'
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should deny pull_request from CONTRIBUTOR even with @claude mention' {
+            $result = & $script:ScriptPath `
+                -EventName 'pull_request' `
+                -Actor 'external' `
+                -AuthorAssociation 'CONTRIBUTOR' `
+                -PRBody '@claude please review'
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
+        }
+    }
+
+    Context 'workflow_dispatch event' {
+        It 'Should authorize MEMBER for workflow_dispatch (no @claude required)' {
+            $result = & $script:ScriptPath `
+                -EventName 'workflow_dispatch' `
+                -Actor 'member' `
+                -AuthorAssociation 'MEMBER'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize OWNER for workflow_dispatch' {
+            $result = & $script:ScriptPath `
+                -EventName 'workflow_dispatch' `
+                -Actor 'repoowner' `
+                -AuthorAssociation 'OWNER'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should authorize COLLABORATOR for workflow_dispatch' {
+            $result = & $script:ScriptPath `
+                -EventName 'workflow_dispatch' `
+                -Actor 'collaborator' `
+                -AuthorAssociation 'COLLABORATOR'
+
+            $result | Should -Be 'true'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should deny workflow_dispatch from CONTRIBUTOR' {
+            $result = & $script:ScriptPath `
+                -EventName 'workflow_dispatch' `
+                -Actor 'external' `
+                -AuthorAssociation 'CONTRIBUTOR'
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It 'Should deny workflow_dispatch with empty association' {
+            $result = & $script:ScriptPath `
+                -EventName 'workflow_dispatch' `
+                -Actor 'unknown' `
+                -AuthorAssociation ''
+
+            $result | Should -Be 'false'
+            $LASTEXITCODE | Should -Be 0
+        }
+    }
+
     Context 'issues event' {
         It 'Should authorize MEMBER with @claude mention in issue body' {
             $result = & $script:ScriptPath `
@@ -591,6 +756,7 @@ Thanks!
     Context 'Script Error Handling' {
         It 'Should fail with invalid event type' {
             # ValidateSet throws a parameter binding exception before script execution
+            # Valid events: issue_comment, pull_request_review_comment, pull_request_review, issues, pull_request, workflow_dispatch
             { & $script:ScriptPath `
                 -EventName 'invalid_event' `
                 -Actor 'user' `
