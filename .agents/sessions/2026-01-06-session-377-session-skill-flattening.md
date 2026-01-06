@@ -28,11 +28,11 @@ Claude Code's `/skills` command shows "session" (27 total skills) instead of ind
 | MUST | Read usage-mandatory memory | [x] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Not applicable (debugging task) |
 | MUST | Read memory-index, load task-relevant memories | [x] | session-375-skillforge-session-skills |
-| SHOULD | Import shared memories | [ ] | None |
-| MUST | Verify and declare current branch | [x] | feat/session-init-skill |
+| SHOULD | Import shared memories: `pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1` | [ ] | Import count: None |
+| MUST | Verify and declare current branch | [x] | Branch documented below |
 | MUST | Confirm not on main/master | [x] | On feature branch |
-| SHOULD | Verify git status | [x] | Clean |
-| SHOULD | Note starting commit | [x] | baac5485 |
+| SHOULD | Verify git status | [x] | Output documented below |
+| SHOULD | Note starting commit | [x] | SHA documented below |
 
 ## Implementation Plan
 
