@@ -127,6 +127,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
+      - name: Fetch origin/main for HANDOFF validation
+        run: git fetch origin main --depth=1
+
       - name: Validate Session Protocol
         id: validate
         shell: pwsh
