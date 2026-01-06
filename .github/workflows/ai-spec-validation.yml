@@ -13,6 +13,18 @@ on:
     # No path filter - workflow runs on ALL PRs to satisfy required check
     # Path filtering done at job level using dorny/paths-filter
 
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to validate'
+        required: true
+        type: number
+      enable_debouncing:
+        description: 'Enable debouncing delay to reduce race conditions (adds 10s latency)'
+        required: false
+        type: boolean
+        default: false
+
 permissions:
   contents: read
   pull-requests: write
@@ -30,16 +42,34 @@ permissions:
 # Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
 
 concurrency:
-  group: spec-validation-${{ github.event.pull_request.number }}
+  group: spec-validation-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
 
 env:
   GH_TOKEN: ${{ secrets.BOT_PAT }}
 
 jobs:
+  # Optional debouncing job - runs only when enable_debouncing=true
+  debounce:
+    name: Debounce Workflow
+    if: (github.event_name == 'workflow_dispatch' && inputs.enable_debouncing == true) || (github.event_name == 'pull_request' && vars.ENABLE_DEBOUNCE == 'true')
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      
+      - name: Apply debouncing delay
+        uses: ./.github/actions/workflow-debounce
+        with:
+          delay-seconds: '10'
+          workflow-name: 'Spec-to-Implementation Validation'
+          concurrency-group: ${{ github.event.pull_request.number || inputs.pr_number }}
+
   check-paths:
     name: Check Changed Paths
     runs-on: ubuntu-24.04-arm
+    needs: debounce
+    if: always() && (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
     outputs:
       has-code-changes: ${{ steps.filter.outputs.code }}
     steps:
