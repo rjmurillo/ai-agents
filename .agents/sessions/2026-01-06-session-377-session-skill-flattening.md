@@ -24,9 +24,9 @@ Claude Code's `/skills` command shows "session" (27 total skills) instead of ind
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
 | MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
 | MUST | Create this session log | [x] | This file exists |
-| MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Not applicable (debugging task) |
+| MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Not applicable (debugging task) |
 | MUST | Read usage-mandatory memory | [x] | Content in context |
-| MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Not applicable (debugging task) |
+| MUST | Read PROJECT-CONSTRAINTS.md | [x] | Not applicable (debugging task) |
 | MUST | Read memory-index, load task-relevant memories | [x] | session-375-skillforge-session-skills |
 | SHOULD | Import shared memories: `pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1` | [ ] | Import count: None |
 | MUST | Verify and declare current branch | [x] | Branch documented below |
