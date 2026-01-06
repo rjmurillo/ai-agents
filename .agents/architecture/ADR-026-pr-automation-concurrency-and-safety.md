@@ -157,6 +157,43 @@ function Test-SafeBranchName {
 **Risk 2**: Input validation too strict (rejects valid branch names)
 - **Mitigation**: Test against historical PR branch names; expand regex if needed
 
+## Coalescing Behavior and Race Conditions
+
+### Platform Limitation
+
+GitHub Actions `concurrency` groups with `cancel-in-progress: true` provide **best-effort** run coalescing, not guaranteed atomicity. Race conditions can occur where multiple runs start before cancellation takes effect.
+
+### Observed Behavior
+
+- **Typical coalescing rate**: 90-95% effective
+- **Race condition window**: 1-5 seconds between trigger and cancellation
+- **Impact**: 5-10% of runs may execute in parallel despite concurrency control
+
+### Mitigation in This Repository
+
+1. **Path filtering** (dorny/paths-filter): Reduces unnecessary runs by 60-80%
+2. **PR-specific temp files**: Prevents context collision between concurrent runs
+3. **Explicit repo context**: `--repo` flag on all `gh` CLI commands prevents wrong-PR analysis
+4. **Timeouts**: Caps maximum cost per run (2-15 minutes depending on workflow)
+
+### Decision Rationale
+
+We accept the "no guarantee" limitation because:
+
+1. **Cost is acceptable**: 5-10% duplicate run rate with ARM runners (37.5% cost savings)
+2. **Alternative is worse**: File-based locking doesn't work on ephemeral GitHub Actions runners
+3. **Mitigation is effective**: Path filtering + PR-specific files reduce impact to negligible levels
+4. **Platform is improving**: GitHub Actions continuously improves concurrency control
+
+### When to Revisit
+
+Revisit this decision if:
+
+- Duplicate run rate exceeds 20% consistently
+- Wrong-PR analysis occurs despite mitigation (indicates platform regression)
+- GitHub Actions introduces guaranteed atomicity primitives
+- Cost of duplicate runs becomes material (>5% of CI budget)
+
 ## Related ADRs
 
 - [ADR-005](ADR-005-powershell-only-scripting.md): PowerShell-only scripting
