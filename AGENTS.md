@@ -1505,67 +1505,21 @@ Agents violating these standards produce inconsistent, unprofessional output. Re
 
 ---
 
-## AI Agent Coding Standards
+## Coding Standards
 
-> **Full Reference**: [.gemini/styleguide.md](.gemini/styleguide.md) contains complete examples and patterns.
+**Read when writing code**: [.gemini/styleguide.md](.gemini/styleguide.md)
 
-These are the blocking rules that cause immediate PR rejection. Internalize them.
+**Critical rules** (memorize these):
 
-### Security (BLOCKING)
+- PowerShell only (ADR-005). No bash/Python.
+- Quote variables: `"$Var"` not `$Var`. Use `$($Var):` when followed by colon.
+- Normalize paths before comparison: `[IO.Path]::GetFullPath()`
+- Use skills, not raw `gh`: Check `.claude/skills/github/scripts/` first
+- SHA-pin GitHub Actions: `@sha` not `@v4`
+- Exit codes (ADR-035): 0=success, 1=logic, 2=config, 3=external, 4=auth
+- Security-critical code: 100% test coverage
 
-| Vulnerability | Wrong | Correct |
-|---------------|-------|---------|
-| **Path Traversal (CWE-22)** | `$Path.StartsWith($Base)` | `[IO.Path]::GetFullPath($Path).StartsWith([IO.Path]::GetFullPath($Base))` |
-| **Command Injection (CWE-78)** | `npx tsx $Script $Arg` | `npx tsx "$Script" "$Arg"` |
-| **Variable Interpolation** | `"Line $Num:"` | `"Line $($Num):"` (colon is scope operator) |
-
-### PowerShell (Per ADR-005)
-
-- **Language**: PowerShell only (.ps1/.psm1). No bash/Python.
-- **Functions**: `Verb-Noun` with approved verbs (Get, Set, New, Test, Invoke)
-- **Parameters**: `[CmdletBinding()]` + `[Parameter(Mandatory)]` + type + validation
-- **Errors**: `$ErrorActionPreference = 'Stop'` + try/catch
-- **Exit codes** (ADR-035): 0=success, 1=logic, 2=config, 3=external, 4=auth
-
-### Skills (Per usage-mandatory Memory)
-
-**NEVER** use raw `gh` commands. Check `.claude/skills/github/scripts/` first.
-
-```powershell
-# WRONG: gh pr view $PR --json title
-# CORRECT:
-& .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest $PR
-```
-
-### Testing
-
-| Code Type | Coverage Target |
-|-----------|-----------------|
-| Security-critical (validation, auth, paths) | **100%** |
-| Business logic | **80%** |
-| Read-only/docs | **60%** |
-
-### Commits
-
-```text
-<type>(<scope>): <description>
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-```
-
-Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`
-
-**AI Co-Author formats**: Claude (`noreply@anthropic.com`), Copilot (`copilot@github.com`), Cursor (`cursor@cursor.sh`), Factory Droid (`droid@factory.ai`), Latta (`latta@latta.ai`)
-
-### GitHub Actions
-
-- **SHA-pin all actions**: `uses: actions/checkout@b4ffde65...` not `@v4`
-- **No shell interpolation**: Use `env:` block, not `${{ }}` in `run:`
-- **Thin workflows**: Logic in .psm1 modules (ADR-006)
-
-### PRs
-
-Follow `.github/PULL_REQUEST_TEMPLATE.md`. Required: Summary, Changes, Type, Testing checklist.
+**AI commits**: Include `Co-Authored-By: Claude <noreply@anthropic.com>` (or Copilot/Cursor/Factory Droid/Latta equivalent)
 
 ---
 
