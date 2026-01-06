@@ -783,28 +783,23 @@ function Test-HandoffUpdated {
                         $result.Passed = $false
                         $errorMsg = "Permission denied reading HANDOFF.md metadata. Cannot verify modification timestamp. Check file permissions and retry validation."
                         $result.Issues += $errorMsg
-                        Write-Error $errorMsg
                         return $result
                     } catch [System.IO.FileNotFoundException] {
                         $result.Passed = $false
                         $errorMsg = "HANDOFF.md was deleted during validation (race condition detected between existence check and metadata read). File system may be unstable. Retry validation. If issue persists, check for concurrent processes or file system issues."
                         $result.Issues += $errorMsg
-                        Write-Error $errorMsg
                         return $result
                     } catch [System.IO.PathTooLongException] {
                         $result.Passed = $false
                         $result.Issues += "HANDOFF.md path exceeds maximum length. This indicates a project structure issue. Move project to shorter path."
-                        Write-Error "HANDOFF.md path too long. Move project to shorter path."
                         return $result
                     } catch [System.IO.IOException] {
                         $result.Passed = $false
                         $result.Issues += "I/O error reading HANDOFF.md: $($_.Exception.Message). Check disk health, file locks, and retry."
-                        Write-Error "I/O error reading HANDOFF.md: $($_.Exception.Message)"
                         return $result
                     } catch {
                         $result.Passed = $false
                         $result.Issues += "Unexpected error reading HANDOFF.md: $($_.Exception.GetType().Name) - $($_.Exception.Message). Contact support if issue persists."
-                        Write-Error "Unexpected error reading HANDOFF.md: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
                         return $result
                     }
                 } catch [System.FormatException] {
@@ -821,7 +816,6 @@ function Test-HandoffUpdated {
                     $result.Passed = $false
                     $errorMsg = "Session log filename contains invalid date format: '$($Matches[1])'. Expected format: YYYY-MM-DD. Cannot validate HANDOFF.md modification without git diff or valid timestamp."
                     $result.Issues += $errorMsg
-                    Write-Error $errorMsg
                     return $result
                 } catch {
                     # Unexpected error during date parsing - check if git validation already succeeded
@@ -835,7 +829,6 @@ function Test-HandoffUpdated {
                     $result.Passed = $false
                     $errorMsg = "Unexpected error parsing session date: $($_.Exception.GetType().Name) - $($_.Exception.Message). Cannot validate HANDOFF.md modification without git diff or valid timestamp."
                     $result.Issues += $errorMsg
-                    Write-Error $errorMsg
                     return $result
                 }
             }
@@ -1090,15 +1083,20 @@ function Get-SessionLogs {
         $sessions = Get-ChildItem -Path $sessionsPath -Filter "*.md" -ErrorAction Stop |
             Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}-session-\d+(-.+)?\.md$' }
     } catch [System.UnauthorizedAccessException] {
-        throw "Permission denied reading sessions directory: $sessionsPath. Check file permissions and retry."
+        Write-Error "Permission denied reading sessions directory: $sessionsPath. Check file permissions and retry."
+        throw
     } catch [System.IO.PathTooLongException] {
-        throw "Sessions directory path exceeds maximum length: $sessionsPath. Move project to shorter path."
+        Write-Error "Sessions directory path exceeds maximum length: $sessionsPath. Move project to shorter path."
+        throw
     } catch [System.IO.DirectoryNotFoundException] {
-        throw "Sessions directory not found: $sessionsPath. Verify .agents folder exists at project root."
+        Write-Error "Sessions directory not found: $sessionsPath. Verify .agents folder exists at project root."
+        throw
     } catch [System.IO.IOException] {
-        throw "I/O error reading sessions directory: $sessionsPath. Error: $($_.Exception.Message). Check disk health and file locks."
+        Write-Error "I/O error reading sessions directory: $sessionsPath. Error: $($_.Exception.Message). Check disk health and file locks."
+        throw
     } catch [System.ArgumentException] {
-        throw "Invalid sessions directory path: $sessionsPath. Path contains invalid characters. Verify project location and path formatting."
+        Write-Error "Invalid sessions directory path: $sessionsPath. Path contains invalid characters. Verify project location and path formatting."
+        throw
     } catch {
         # Unexpected error - provide full context and suggest bug report
         $errorMsg = "Unexpected error reading sessions directory: $sessionsPath`n" +
@@ -1106,7 +1104,8 @@ function Get-SessionLogs {
                     "Message: $($_.Exception.Message)`n" +
                     "Stack Trace: $($_.ScriptStackTrace)`n" +
                     "This is likely a bug. Please report this issue with the above details."
-        throw $errorMsg
+        Write-Error $errorMsg
+        throw
     }
 
     if ($Days -gt 0) {
