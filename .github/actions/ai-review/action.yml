@@ -378,20 +378,47 @@ runs:
         case "$CONTEXT_TYPE" in
           pr-diff)
             if [ -n "$PR_NUMBER" ]; then
-              # Fetch PR title for validation
-              PR_TITLE=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title -q '.title' 2>/dev/null || echo "Unknown PR")
+              # Fetch PR title for validation (sanitize to prevent shell injection)
+              PR_TITLE=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title -q '.title' 2>/dev/null | tr -d '$`"\\' || echo "Unknown PR")
               echo "Building context for PR #$PR_NUMBER: $PR_TITLE"
               echo "Fetching diff for PR #$PR_NUMBER from repository $GITHUB_REPOSITORY"
+
+              # Validate we got the correct PR
+              ACTUAL_PR=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json number -q '.number' 2>/dev/null || echo "0")
+              if [ "$ACTUAL_PR" != "$PR_NUMBER" ]; then
+                echo "::error::PR number mismatch: requested $PR_NUMBER, got $ACTUAL_PR"
+                CONTEXT="ERROR: Failed to fetch PR #$PR_NUMBER from $GITHUB_REPOSITORY"
+                echo "$CONTEXT" > /tmp/ai-review-context-pr${PR_NUMBER:-none}.txt
+                echo "context_mode=error" >> $GITHUB_OUTPUT
+                echo "context_file=/tmp/ai-review-context-pr${PR_NUMBER:-none}.txt" >> $GITHUB_OUTPUT
+                echo "context_built<<EOF_CONTEXT" >> $GITHUB_OUTPUT
+                echo "$CONTEXT" >> $GITHUB_OUTPUT
+                echo "EOF_CONTEXT" >> $GITHUB_OUTPUT
+                exit 1
+              fi
               
               LINE_COUNT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>/dev/null | wc -l || echo "0")
               echo "PR diff has $LINE_COUNT lines"
 
+              if [ "$LINE_COUNT" -eq 0 ]; then
+                echo "::error::Failed to fetch PR diff for #$PR_NUMBER from $GITHUB_REPOSITORY"
+                exit 1
+              fi
+
               if [ "$LINE_COUNT" -gt "$MAX_DIFF_LINES" ]; then
                 CONTEXT_MODE="summary"
-                CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --stat 2>/dev/null || echo "Unable to get PR diff")
+                CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --stat 2>/dev/null)
+                if [ -z "$CONTEXT" ]; then
+                  echo "::error::Failed to fetch PR diff summary for #$PR_NUMBER"
+                  exit 1
+                fi
                 CONTEXT="[Large PR - $LINE_COUNT lines, showing summary only]"$'\n'"$CONTEXT"
               else
-                CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>/dev/null || echo "Unable to get PR diff")
+                CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>/dev/null)
+                if [ -z "$CONTEXT" ]; then
+                  echo "::error::Failed to fetch PR diff for #$PR_NUMBER"
+                  exit 1
+                fi
               fi
 
               # Also get PR description
@@ -506,8 +533,9 @@ runs:
 
         # Add context (PR diff, issue, etc.)
         FULL_PROMPT="$FULL_PROMPT## Context"$'\n\n'
-        if [ -f /tmp/ai-review-context.txt ]; then
-          FULL_PROMPT="$FULL_PROMPT$(cat /tmp/ai-review-context.txt)"
+        CONTEXT_FILE="${{ steps.context.outputs.context_file }}"
+        if [ -n "$CONTEXT_FILE" ] && [ -f "$CONTEXT_FILE" ]; then
+          FULL_PROMPT="$FULL_PROMPT$(cat "$CONTEXT_FILE")"
         fi
 
         # Add additional context if provided
