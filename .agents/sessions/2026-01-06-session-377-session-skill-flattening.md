@@ -75,7 +75,7 @@ Claude Code's `/skills` command shows "session" (27 total skills) instead of ind
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
 | SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Export file: Skipped |
-| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: N/A |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [x] | Scan result: N/A (no export) |
 | MUST | Complete session log (all sections filled) | [x] | File complete |
 | MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed |
 | MUST | Run markdown lint | [x] | Output below |
