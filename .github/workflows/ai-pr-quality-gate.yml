@@ -18,6 +18,11 @@ on:
         description: 'PR number to review'
         required: true
         type: number
+      enable_debouncing:
+        description: 'Enable debouncing delay to reduce race conditions (adds 10s latency)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -48,6 +53,21 @@ env:
   PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 jobs:
+  # Optional debouncing job - runs only when enable_debouncing=true
+  debounce:
+    name: Debounce Workflow
+    if: (github.event_name == 'workflow_dispatch' && inputs.enable_debouncing == true) || (github.event_name == 'pull_request' && vars.ENABLE_DEBOUNCE == 'true')
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      
+      - name: Apply debouncing delay
+        uses: ./.github/actions/workflow-debounce
+        with:
+          delay-seconds: '10'
+          workflow-name: 'AI PR Quality Gate'
+          concurrency-group: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 # Check if relevant files changed using paths-filter
 
@@ -55,7 +75,11 @@ jobs:
     name: Check Changes
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
-    if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+    needs: debounce
+    if: |-
+      always() &&
+      (needs.debounce.result == 'success' || needs.debounce.result == 'skipped') &&
+      github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
       # For workflow_dispatch, always run review; otherwise use paths-filter result
