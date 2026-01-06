@@ -246,10 +246,12 @@ Describe "Measure-WorkflowCoalescing" {
             
             $overlaps = @()
             
+            $workflows = @('ai-pr-quality-gate', 'ai-spec-validation')
+            
             $startDate = [DateTime]::Parse('2026-01-01')
             $endDate = [DateTime]::Parse('2026-01-31')
             
-            $report = Format-MarkdownReport -Metrics $metrics -Runs $runs -Overlaps $overlaps -StartDate $startDate -EndDate $endDate
+            $report = Format-MarkdownReport -Metrics $metrics -Runs $runs -Overlaps $overlaps -StartDate $startDate -EndDate $endDate -Workflows $workflows
             
             $report | Should -Match '# Workflow Run Coalescing Metrics'
             $report | Should -Match '## Report Period'
