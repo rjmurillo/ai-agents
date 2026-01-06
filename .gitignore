@@ -25,3 +25,6 @@ worktree--/
 
 # Local environment configuration
 .env*
+
+# Factory.ai (DROID)
+.factory/
