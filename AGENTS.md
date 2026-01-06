@@ -75,10 +75,21 @@ You CANNOT claim session completion until validation PASSES. These requirements 
 **Validation Command**:
 
 ```bash
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/[session-log].md"
 ```
 
 **If validation fails**: Fix violations and re-run. Do NOT claim completion until PASS.
+
+**Enhanced Validation Features**: The consolidated `Validate-SessionProtocol.ps1` script now includes:
+
+- **Template Enforcement**: Validates exact row order matches SESSION-PROTOCOL.md
+- **Memory Evidence Validation (ADR-007)**: Verifies memory names exist in `.serena/memories/`
+- **QA Skip Validation**: Validates docs-only and investigation-only skip claims
+- **Pre-Commit Mode**: Supports `-PreCommit` parameter for pre-commit hook integration
+- **Branch Verification**: Validates branch name matches session log declaration
+- **Git Commit Validation**: Comprehensive commit SHA verification
+
+**Note**: All features previously in `Validate-Session.ps1` have been merged into this consolidated script. Use `-SessionPath` parameter (not `-SessionLogPath`).
 
 ### Full Protocol Documentation
 
@@ -138,7 +149,7 @@ git branch --show-current
 ```bash
 npx markdownlint-cli2 --fix "**/*.md"
 pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].md"
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath ".agents/sessions/[log].md"
+pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/[log].md"
 ```
 
 ### Development Tools

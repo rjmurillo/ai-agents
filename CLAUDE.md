@@ -51,7 +51,7 @@
 3. Run `npx markdownlint-cli2 --fix "**/*.md"`
 4. Route to qa agent (features only)
 5. Commit all changes
-6. Run `pwsh scripts/Validate-Session.ps1 -SessionLogPath [log]`
+6. Run `pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/[log].md"`
    - If validation fails, use `/session-log-fixer` skill to fix issues
 
 ## Default Behavior

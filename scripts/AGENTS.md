@@ -202,14 +202,15 @@ For backward compatibility, individual scripts wrap the unified installer:
 
 ### Validate-SessionProtocol.ps1
 
-**Role**: Session protocol compliance checker
+**Role**: Session protocol compliance checker with comprehensive validation features
 
 | Attribute | Value |
 |-----------|-------|
 | **Input** | Session logs in `.agents/sessions/` |
-| **Output** | Protocol compliance report |
-| **Trigger** | CI on session log changes |
+| **Output** | Protocol compliance report (console/markdown/json) |
+| **Trigger** | Pre-commit hook, CI on session log changes |
 | **Dependencies** | PowerShell 7.0+ |
+| **Status** | Consolidated - all features from `Validate-Session.ps1` merged |
 
 **Checks Performed**:
 
@@ -218,6 +219,11 @@ For backward compatibility, individual scripts wrap the unified installer:
 | Session log exists | MUST | File at correct path with naming |
 | Protocol Compliance section | MUST | Section present in log |
 | MUST requirements completed | MUST | All mandatory items checked |
+| Template enforcement | MUST | Exact row order matches SESSION-PROTOCOL.md |
+| Memory evidence validation | MUST | Memory names exist in `.serena/memories/` (ADR-007) |
+| QA skip validation | MUST | Docs-only/investigation-only claims validated |
+| Branch verification | MUST | Branch name matches session log declaration |
+| Git commit validation | MUST | Commit SHA verification |
 | HANDOFF.md updated | MUST | Modified timestamp recent |
 | SHOULD requirements | SHOULD | Warnings (not errors) |
 
@@ -225,14 +231,22 @@ For backward compatibility, individual scripts wrap the unified installer:
 
 ```powershell
 # Validate specific session
-.\Validate-SessionProtocol.ps1 -SessionDate "2025-12-18" -SessionNumber 24
+.\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-18-session-24.md"
 
-# CI mode
-.\Validate-SessionProtocol.ps1 -CI
+# Pre-commit mode (validates staged files)
+.\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-18-session-24.md" -PreCommit
+
+# Validate all recent sessions
+.\Validate-SessionProtocol.ps1 -All -Recent 7
+
+# CI mode with markdown output
+.\Validate-SessionProtocol.ps1 -All -CI -Format markdown
 
 # JSON output
-.\Validate-SessionProtocol.ps1 -OutputFormat JSON
+.\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-18-session-24.md" -Format json
 ```
+
+**Note**: `Validate-Session.ps1` is deprecated. All features have been merged into this consolidated script.
 
 ---
 
