@@ -2,7 +2,7 @@
   "patterns": [
     {
       "action": "A1",
-      "last_used": "2026-01-03T04:18:26.5643068+00:00",
+      "last_used": "2026-01-02T22:18:26.5643068-06:00",
       "id": "p001",
       "occurrences": 1,
       "description": "",
@@ -12,7 +12,7 @@
     },
     {
       "action": "A2",
-      "last_used": "2026-01-03T04:18:26.5754379+00:00",
+      "last_used": "2026-01-02T22:18:26.5754379-06:00",
       "id": "p002",
       "occurrences": 2,
       "description": "",
@@ -22,7 +22,7 @@
     },
     {
       "action": "A3",
-      "last_used": "2026-01-03T04:18:26.5885182+00:00",
+      "last_used": "2026-01-02T22:18:26.5885182-06:00",
       "id": "p003",
       "occurrences": 2,
       "description": "",
@@ -32,7 +32,7 @@
     },
     {
       "action": "A",
-      "last_used": "2026-01-03T04:18:26.6738111+00:00",
+      "last_used": "2026-01-02T22:18:26.6738111-06:00",
       "id": "p004",
       "occurrences": 1,
       "description": "",
@@ -43,25 +43,25 @@
     {
       "name": "test pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
-      "occurrences": 8,
+      "occurrences": 17,
       "id": "p005",
       "success_rate": 1.0,
       "trigger": "Testing second",
-      "last_used": "2026-01-05T23:15:41.8080281+00:00",
+      "last_used": "2026-01-06T14:05:36.0908458-06:00",
       "action": "Second"
     },
     {
       "name": "design pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
-      "occurrences": 8,
+      "occurrences": 17,
       "id": "p006",
       "success_rate": 1.0,
       "trigger": "Designing first",
-      "last_used": "2026-01-05T23:15:41.8239353+00:00",
+      "last_used": "2026-01-06T14:05:36.1094894-06:00",
       "action": "First"
     }
   ],
-  "updated": "2026-01-05T23:15:41.9405353+00:00",
+  "updated": "2026-01-06T14:05:36.1586142-06:00",
   "edges": [
     {
       "target": "n013",
@@ -277,7 +277,7 @@
       "episodes": [
         "episode-2026-01-01-filter-001"
       ],
-      "frequency": 8
+      "frequency": 17
     },
     {
       "label": "Outcome: failure - Task 2",
@@ -287,7 +287,7 @@
       "episodes": [
         "episode-2026-01-01-filter-002"
       ],
-      "frequency": 8
+      "frequency": 17
     },
     {
       "label": "Outcome: partial - Task 3",
@@ -297,7 +297,7 @@
       "episodes": [
         "episode-2026-01-01-filter-003"
       ],
-      "frequency": 8
+      "frequency": 17
     },
     {
       "label": "test: Second",
@@ -307,7 +307,7 @@
       "episodes": [
         "episode-2026-01-01-sequence-001"
       ],
-      "frequency": 8
+      "frequency": 17
     },
     {
       "label": "design: First",
@@ -317,7 +317,7 @@
       "episodes": [
         "episode-2026-01-01-sequence-001"
       ],
-      "frequency": 8
+      "frequency": 17
     },
     {
       "label": "Outcome: success - Test",
@@ -327,7 +327,7 @@
       "episodes": [
         "episode-2026-01-01-sequence-001"
       ],
-      "frequency": 8
+      "frequency": 17
     },
     {
       "label": "Outcome: success - Test implementation",
@@ -337,7 +337,7 @@
       "episodes": [
         "episode-2026-01-01-session-001"
       ],
-      "frequency": 8
+      "frequency": 17
     },
     {
       "label": "error: 1. Distribution count error: Table 92 shows 12 Sonnet, actual is 11",
@@ -347,7 +347,7 @@
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 8
+      "frequency": 17
     },
     {
       "label": "error: - Problem correctly identified: Mixed model identifier formats causing 404 errors",
@@ -357,7 +357,7 @@
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 8
+      "frequency": 17
     },
     {
       "label": "error: - 404 errors are eliminated?",
@@ -367,7 +367,7 @@
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 8
+      "frequency": 17
     },
     {
       "label": "error: 4. Metrics Gap: No baseline error rates or success criteria defined",
@@ -377,7 +377,7 @@
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 8
+      "frequency": 17
     },
     {
       "label": "Outcome: success - Session 356 - 2026-01-03",
@@ -387,7 +387,7 @@
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 8
+      "frequency": 17
     }
   ]
 }
