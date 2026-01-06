@@ -139,19 +139,21 @@ Issue #804 has been updated with a comprehensive PRD that clarifies:
 
 ## Protocol Compliance
 
-### Session Start (MUST)
+### Session Start - COMPLETE ALL before any work
+
 - [x] Initialize Serena (mcp__serena__activate_project + initial_instructions)
 - [x] Read HANDOFF.md (read-only reference)
 - [x] Read usage-mandatory memory
 - [x] Create session log
 - [x] Verify branch (copilot/implement-qa-validation-gate)
 
-### Session End (MUST)
+### Session End - COMPLETE ALL before closing
+
 - [x] Complete session log with outcomes
 - [x] Do NOT update HANDOFF.md (read-only)
 - [x] Run markdownlint
 - [x] Commit all changes
-- [x] Run session protocol validation
+- [x] Run session protocol validation (PASS)
 
 ## Session End Checklist
 
@@ -163,7 +165,7 @@ Issue #804 has been updated with a comprehensive PRD that clarifies:
 - [x] Technical design provided
 - [x] Run markdownlint
 - [x] Commit changes
-- [ ] Run session protocol validation
+- [x] Run session protocol validation (PASS)
 
 ## Evidence
 
@@ -173,5 +175,5 @@ Issue #804 has been updated with a comprehensive PRD that clarifies:
 | TOML format documented | Issue body sections: "Codex TOML Format Requirements" |
 | Acceptance criteria | Issue body section: "Acceptance Criteria" (AC1-AC8) |
 | Implementation plan | Issue body section: "Implementation Plan" (4 phases) |
-| Commit SHA | f73f7fba |
+| Commit SHA | 5ef9b46f |
 
