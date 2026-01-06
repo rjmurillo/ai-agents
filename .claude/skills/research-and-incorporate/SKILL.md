@@ -1,13 +1,15 @@
 ---
 name: research-and-incorporate
-description: Research external topics, create comprehensive analysis, determine project applicability, and incorporate learnings into Serena and Forgetful memory systems. Transforms knowledge into searchable, actionable project context.
+version: 1.0.0
+description: Research external topics, create comprehensive analysis, determine project
+  applicability, and incorporate learnings into Serena and Forgetful memory systems.
+  Transforms knowledge into searchable, actionable project context.
+license: MIT
+model: claude-opus-4-5
 metadata:
-  version: 1.0.0
   timelessness: 8/10
-  model: opus
   source: Chesterton's Fence research workflow (Session 203)
 ---
-
 # Research and Incorporate
 
 Transform external knowledge into actionable, searchable project context through structured research, analysis, and memory integration.
@@ -131,12 +133,3 @@ After completion, verify:
 2. **Custom analysis templates**: Topic-specific document structures
 3. **Automated validation**: Scripts to verify memory atomicity
 4. **Integration hooks**: Connect to ADR review for architecture topics
-
-## Changelog
-
-### v1.0.0 (Current)
-
-- Initial skill creation from Chesterton's Fence workflow
-- 5-phase research-to-memory pipeline
-- Research-backed prompt engineering (10 optimizations)
-- Quality gates at each phase

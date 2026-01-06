@@ -1,5 +1,5 @@
 ---
-description: Configure Context Hub dependencies (Forgetful MCP + plugin prerequisites)
+description: Use when setting up new development environment or troubleshooting MCP connectivity. Configures Context Hub dependencies including Forgetful MCP server and plugin prerequisites.
 ---
 
 # Context Hub Setup
@@ -28,7 +28,7 @@ Look for:
 
 **If Serena is not installed:**
 
-```
+```text
 To use /encode-repo-serena, install the Serena plugin:
 
   claude plugins install serena
@@ -40,7 +40,7 @@ Or search for it in the marketplace:
 
 **If Context7 is not installed:**
 
-```
+```text
 For framework documentation in /context_gather, install Context7:
 
   claude plugins install context7 --marketplace pleaseai/claude-code-plugins
@@ -87,7 +87,7 @@ Confirm success:
 claude mcp list | grep -i forgetful
 ```
 
-Report: "Forgetful is now configured! Your memories will persist in `~/.forgetful/` using SQLite."
+Report: "Forgetful is now configured. Your memories will persist in `~/.forgetful/` using SQLite."
 
 ### Custom Setup
 
@@ -95,7 +95,7 @@ If user chose Custom:
 
 1. Fetch configuration docs:
 
-```
+```text
 WebFetch: https://github.com/ScottRBK/forgetful/blob/main/docs/configuration.md
 ```
 
@@ -110,7 +110,7 @@ WebFetch: https://github.com/ScottRBK/forgetful/blob/main/docs/configuration.md
 
 Report status of all components:
 
-```
+```text
 Context Hub Setup Status:
 -------------------------
 Forgetful MCP:  [Configured / Not configured]
@@ -129,19 +129,19 @@ Offer to test the setup:
 
 **Test Forgetful:**
 
-```
+```text
 /memory-list
 ```
 
 **Test Serena (if installed):**
 
-```
+```text
 Ask Claude to use Serena's get_symbols_overview on a file in your project
 ```
 
 **Test Context7 (if installed):**
 
-```
+```text
 Ask about a framework: "How does FastAPI dependency injection work?"
 ```
 

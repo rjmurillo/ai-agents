@@ -57,6 +57,77 @@ Describe "GitHubCore Module" {
         It "Exports Test-WorkflowRateLimit function" {
             Get-Command -Module GitHubCore -Name Test-WorkflowRateLimit | Should -Not -BeNullOrEmpty
         }
+
+        It "Exports Get-UnresolvedReviewThreads function" {
+            Get-Command -Module GitHubCore -Name Get-UnresolvedReviewThreads | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    Context "Get-UnresolvedReviewThreads" {
+        It "Has correct parameter structure" {
+            $params = (Get-Command Get-UnresolvedReviewThreads).Parameters
+            $params.ContainsKey('Owner') | Should -Be $true
+            $params.ContainsKey('Repo') | Should -Be $true
+            $params.ContainsKey('PullRequest') | Should -Be $true
+        }
+
+        It "PullRequest parameter is mandatory" {
+            $param = (Get-Command Get-UnresolvedReviewThreads).Parameters['PullRequest']
+            $param.Attributes.Where({$_ -is [Parameter]}).Mandatory | Should -Be $true
+        }
+
+        It "Returns array type" {
+            # Test with source code analysis since gh is external command
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify it returns arrays (looking for return @() patterns)
+            $content | Should -Match 'return\s+@\(\)'
+            $content | Should -Match 'return\s+\$unresolved'
+        }
+
+        It "Has error handling for API failures" {
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify error handling exists
+            $content | Should -Match 'LASTEXITCODE\s*-ne\s*0'
+            $content | Should -Match 'Write-Warning.*Failed to query review threads'
+        }
+
+        It "Uses GraphQL variables for injection prevention" {
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify GraphQL variables are used
+            $content | Should -Match '-f\s+owner='
+            $content | Should -Match '-f\s+name='
+            $content | Should -Match '-F\s+prNumber='
+        }
+
+        It "Filters for unresolved threads" {
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify filtering logic
+            $content | Should -Match 'Where-Object.*-not\s+\$_\.isResolved'
+        }
+
+        It "Queries first 100 threads" {
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify pagination limit
+            $content | Should -Match 'first:\s*100'
+        }
+
+        It "Documents Skill-PowerShell-002 compliance" {
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify documentation mentions never returning null
+            $content | Should -Match 'Never\s+returns.*null|never.*\$null'
+        }
     }
 
     Context "Get-PriorityEmoji" {

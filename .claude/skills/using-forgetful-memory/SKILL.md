@@ -1,7 +1,10 @@
 ---
 name: using-forgetful-memory
 description: Guidance for using Forgetful semantic memory effectively. Applies Zettelkasten atomic memory principles. Use when deciding whether to query or create memories, structuring memory content, or understanding memory importance scoring.
-allowed-tools: mcp__forgetful__discover_forgetful_tools, mcp__forgetful__how_to_use_forgetful_tool, mcp__forgetful__execute_forgetful_tool
+license: MIT
+metadata:
+version: 1.0.0
+model: claude-sonnet-4-5
 ---
 
 # Using Forgetful Memory

@@ -12,6 +12,7 @@
 | powershell ps1 psm1 module pester test discovery isolation variable scope script BeforeAll It block visibility | skills-powershell-index, skills-pester-testing-index, pester-variable-scoping, pattern-thin-workflows |
 | bash exit code cross-language contract AUTOFIX pre-commit hook | skills-bash-integration-index |
 | security vulnerability TOCTOU secret injection | skills-security-index |
+| autonomous execution guardrails circuit breaker patch signal trust metric | skills-autonomous-execution-index |
 | planning task file path scope breakdown | skills-planning-index |
 | architecture ADR model composite tool allocation producer-consumer | skills-architecture-index |
 | adr decision record active proposed superseded rationale | adr-reference-index |

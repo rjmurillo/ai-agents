@@ -4,7 +4,7 @@
 
 **Context**: Writing Pester tests for PowerShell scripts (.ps1 files) that contain both function definitions and main execution logic
 
-**Evidence**: Session 68 (2025-12-22): Generate-Skills.Tests.ps1
+**Evidence**: Session 68 (2025-12-22): Generate-Skills.Tests.ps1 (script deleted in commit d7f2e08, replaced by validate-skill.py)
 - Dot-sourcing (`. "$PSScriptRoot/../Generate-Skills.ps1"`) executed the main script logic
 - Script looked for SKILL.md files and started processing during test setup
 - Fix: Used regex to extract only function definitions before `# Main` comment
@@ -26,14 +26,14 @@
 ```powershell
 BeforeAll {
     # Read the script content
-    $scriptContent = Get-Content "$PSScriptRoot/../Generate-Skills.ps1" -Raw
-    
+    $scriptContent = Get-Content "$PSScriptRoot/../YourScript.ps1" -Raw
+
     # Extract only function definitions (before "# Main" comment)
     $functionContent = $scriptContent -replace '(?s)# Main.*', ''
-    
+
     # Execute only the function definitions
     Invoke-Expression $functionContent
-    
+
     # Now functions are available for testing without executing main logic
 }
 ```
@@ -57,7 +57,7 @@ BeforeAll {
 
 3. **Separate files** (cleanest):
    - Functions.psm1 (pure functions)
-   - Generate-Skills.ps1 (imports module, calls main function)
+   - YourScript.ps1 (imports module, calls main function)
    - Tests import Functions.psm1
 
 **When to use regex extraction**:
