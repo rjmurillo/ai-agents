@@ -80,7 +80,7 @@ Claude Code's `/skills` command shows "session" (27 total skills) instead of ind
 | MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed |
 | MUST | Run markdown lint | [x] | Output below |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report: .agents/qa/session-377-skill-flattening-qa.md |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: d2901e9c, a76dc06e, 5dd80105, 7397aafb, 3beac40c, 27070c56, 0c1d5263 |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 499ecf4d (and 12 prior commits) |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Not significant |
