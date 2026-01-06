@@ -1,10 +1,10 @@
 ---
 name: session-init
 description: Create protocol-compliant session logs with verification-based enforcement. Prevents recurring CI validation failures by reading canonical template from SESSION-PROTOCOL.md and validating immediately. Use when starting any new session.
+version: 1.0.0
 license: MIT
+model: claude-sonnet-4-5
 metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-5
   domains:
     - session-protocol
     - compliance

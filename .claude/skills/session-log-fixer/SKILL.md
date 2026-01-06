@@ -5,10 +5,10 @@ description: Fix session protocol validation failures in GitHub Actions. Use whe
   "NON_COMPLIANT" verdict, or "Aggregate Results" job failure in the Session Protocol
   Validation workflow. With deterministic validation, failures show exact missing
   requirements directly in Job Summary - no artifact downloads needed.
+version: 3.0.0
 license: MIT
 model: claude-sonnet-4-5
 metadata:
-  version: 3.0.0
   domains:
   - ci
   - session-protocol
@@ -102,7 +102,7 @@ GitHub Actions Failure
 
 ### Step 1: Read Job Summary
 
-**Option A: Use the script (recommended)**
+#### Option A: Use the script (recommended)
 
 ```powershell
 # By run ID
@@ -115,7 +115,7 @@ $errors = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -P
 $errors | ConvertFrom-Json
 ```
 
-**Option B: Manual (web UI)**
+#### Option B: Manual (web UI)
 
 Navigate to the failed GitHub Actions run and click the **Summary** tab. The Session Protocol Compliance Report shows:
 
@@ -289,7 +289,7 @@ $result = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -P
 
 | Skill | Relationship |
 |-------|--------------|
-| [init](../init/) | Prevents need for this skill by correct initialization |
+| [session-init](../session-init/) | Prevents need for this skill by correct initialization |
 | analyze | Deep investigation when fixes aren't obvious |
 
 ---

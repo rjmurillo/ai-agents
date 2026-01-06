@@ -1,15 +1,57 @@
 ---
 name: session-qa-eligibility
 description: Check investigation session QA skip eligibility per ADR-034. Validates if staged files qualify for investigation-only exemption by checking against allowed paths (.agents/sessions/, .agents/analysis/, .serena/memories/, etc).
+version: 1.0.0
 license: MIT
-metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-5
+model: claude-sonnet-4-5
 ---
 
-# Session Skills
+# Session QA Eligibility
 
-Skills for session management and protocol compliance.
+Check investigation session QA skip eligibility per ADR-034.
+
+---
+
+## Triggers
+
+- `Check if I can skip QA`
+- `Am I eligible for investigation-only?`
+- `Verify investigation session eligibility`
+
+---
+
+## Process
+
+```text
+User Request: Check QA eligibility
+    |
+    v
++---------------------------------------------+
+| Phase 1: GET STAGED FILES                   |
+| - Run git diff --cached --name-only        |
+| - Collect all staged file paths            |
++---------------------------------------------+
+    |
+    v
++---------------------------------------------+
+| Phase 2: CHECK ALLOWLIST                    |
+| - Compare against allowed paths:           |
+|   * .agents/sessions/                      |
+|   * .agents/analysis/                      |
+|   * .agents/retrospective/                 |
+|   * .serena/memories/                      |
+|   * .agents/security/                      |
+| - Identify violations                      |
++---------------------------------------------+
+    |
+    v
++---------------------------------------------+
+| Phase 3: RETURN RESULT                      |
+| - Eligible: true if all files in allowlist |
+| - Eligible: false if any violations        |
+| - Include violations list for debugging    |
++---------------------------------------------+
+```
 
 ---
 
@@ -24,13 +66,6 @@ Skills for session management and protocol compliance.
 ## Test Investigation Eligibility
 
 Check if staged files qualify for investigation-only QA skip per ADR-034.
-
-### Triggers
-
-- "Check if I can skip QA"
-- "Am I eligible for investigation-only?"
-- "Verify investigation session eligibility"
-- "Can I use SKIPPED: investigation-only?"
 
 ### Usage
 
