@@ -1,11 +1,15 @@
 # Session 375: Fix Episode Extractor Schema Validation
 
-**Date**: 2026-01-06
-**Branch**: fix/821-extract-session-episode
-**Issue**: #821
-**Agent**: Claude Sonnet 4.5
+## Session Info
 
-## Session Start (COMPLETE ALL before work)
+- **Date**: 2026-01-06
+- **Branch**: fix/821-extract-session-episode
+- **Starting Commit**: 4a2fb866
+- **Objective**: Fix Extract-SessionEpisode.ps1 schema-invalid JSON output
+
+## Protocol Compliance
+
+### Session Start (COMPLETE ALL before work)
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
@@ -23,7 +27,9 @@
 | SHOULD | Verify git status | [x] | Output documented below |
 | SHOULD | Note starting commit | [x] | 4a2fb866 |
 
-## Objective
+## Work Log
+
+### Objective
 
 Fix Extract-SessionEpisode.ps1 schema-invalid JSON output with comprehensive solution:
 
@@ -33,7 +39,7 @@ Fix Extract-SessionEpisode.ps1 schema-invalid JSON output with comprehensive sol
 4. Fail-fast validation before file write
 5. Pester tests for regression coverage
 
-## Context
+### Context
 
 Issue #821 reports schema-invalid JSON causing downstream agent thrashing:
 
@@ -42,7 +48,7 @@ Issue #821 reports schema-invalid JSON causing downstream agent thrashing:
 - Milestone regex `'^[-*]'` matches bold markdown **Status**
 - No schema validation before write
 
-## Plan
+### Plan
 
 1. **Create SchemaValidation.psm1** - Shared validation module
    - Get-SchemaPath (load + cache)
@@ -62,7 +68,7 @@ Issue #821 reports schema-invalid JSON causing downstream agent thrashing:
 
 4. **Create PR** and close PR #822 with explanation
 
-## Progress
+### Progress
 
 - [ ] Read existing Extract-SessionEpisode.ps1
 - [ ] Read episode schema
@@ -74,11 +80,11 @@ Issue #821 reports schema-invalid JSON causing downstream agent thrashing:
 - [ ] Create PR
 - [ ] Close PR #822 with comment
 
-## Decisions
+### Decisions
 
 *To be documented during session*
 
-## Outcomes
+### Outcomes
 
 - Created SchemaValidation.psm1 shared validation module (CVA refactor)
 - Fixed Extract-SessionEpisode.ps1 array handling and regex
@@ -86,7 +92,7 @@ Issue #821 reports schema-invalid JSON causing downstream agent thrashing:
 - QA validation identified and fixed P1 error output issue
 - Supersedes PR #822 with more complete solution
 
-## Session End (COMPLETE ALL before closing)
+### Session End (COMPLETE ALL before closing)
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
