@@ -63,6 +63,8 @@ param(
     [string]$Path = "."
 )
 
+$ErrorActionPreference = 'Stop'
+
 #region Color Output
 $ColorReset = "`e[0m"
 $ColorRed = "`e[31m"
@@ -79,6 +81,380 @@ function Write-ColorOutput {
 }
 #endregion
 
+#region Table Extraction and Parsing Helpers
+
+# Maximum lines to search for table after heading
+$MaxTableSearchLines = 80
+
+function Get-HeadingTable {
+    <#
+    .SYNOPSIS
+        Extracts the first markdown table after a heading matching the given regex.
+
+    .DESCRIPTION
+        Returns table lines (including header, separator, and data rows) or $null if not found.
+        Searches up to $MaxTableSearchLines lines after heading for table start.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string[]]$Lines,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$HeadingRegex
+    )
+
+    # Find heading
+    $headingIdx = -1
+    for ($i = 0; $i -lt $Lines.Count; $i++) {
+        if ($Lines[$i] -match $HeadingRegex) {
+            $headingIdx = $i
+            break
+        }
+    }
+
+    if ($headingIdx -lt 0) {
+        return $null
+    }
+
+    # Find table header row after heading
+    $tableStart = -1
+    $searchLimit = [Math]::Min($headingIdx + $script:MaxTableSearchLines, $Lines.Count)
+    for ($i = $headingIdx; $i -lt $searchLimit; $i++) {
+        if ($Lines[$i] -match '^\|\s*Req\s*\|\s*Step\s*\|\s*Status\s*\|\s*Evidence\s*\|\s*$') {
+            $tableStart = $i
+            break
+        }
+    }
+
+    if ($tableStart -lt 0) {
+        return $null
+    }
+
+    # Extract all table rows until non-table line
+    $tableLines = New-Object System.Collections.Generic.List[string]
+    for ($i = $tableStart; $i -lt $Lines.Count; $i++) {
+        $line = $Lines[$i]
+        if ($line -match '^\|') {
+            $tableLines.Add($line)
+            continue
+        }
+        break
+    }
+
+    return $tableLines.ToArray()
+}
+
+function ConvertFrom-ChecklistTable {
+    <#
+    .SYNOPSIS
+        Converts markdown table rows into structured checklist items.
+
+    .DESCRIPTION
+        Returns array of hashtables with Req, Step, Status ('x' or ' '), Evidence, and Raw properties.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string[]]$TableLines
+    )
+
+    $rows = New-Object System.Collections.Generic.List[hashtable]
+
+    foreach ($line in $TableLines) {
+        # Skip separator and header rows
+        # Note: Separator regex is permissive to handle varied markdown table formats
+        # Matches: lines containing ONLY pipes (|), dashes (-), and/or whitespace
+        # Accepts any line containing only pipes, dashes, and/or whitespace in any combination
+        # (e.g., '---', '|||', '| - | - |'). Trade-off: Simplicity over strictness.
+        # False positives are harmless (row gets skipped)
+        $isSeparator = $line -match '^\s*[|\s-]+\s*$'
+        $isHeader = $line -match '^\s*\|\s*Req\s*\|'
+
+        if ($isSeparator) { continue }
+        if ($isHeader) { continue }
+
+        # Split into 4 columns, trim outer pipes
+        $parts = ($line.Trim() -replace '^\|', '' -replace '\|$', '').Split('|') |
+            ForEach-Object { $_.Trim() }
+
+        if ($parts.Count -lt 4) { continue }
+
+        # Parse columns
+        $req = ($parts[0] -replace '\*', '').Trim().ToUpperInvariant()
+        $step = $parts[1].Trim()
+        $statusRaw = $parts[2].Trim()
+        $evidence = $parts[3].Trim()
+
+        # Normalize status to 'x' or ' '
+        $status = ' '
+        if ($statusRaw -match '\[\s*[xX]\s*\]') {
+            $status = 'x'
+        }
+
+        $rows.Add(@{
+            Req = $req
+            Step = $step
+            Status = $status
+            Evidence = $evidence
+            Raw = $line
+        })
+    }
+
+    # Return as array. Comma operator prevents unwrapping when function returns single-element array.
+    # PowerShell unwraps single-element arrays on function return: return @('item') becomes return 'item'
+    # The comma operator forces array preservation: return ,@('item') keeps array type
+    return ,$rows.ToArray()
+}
+
+function ConvertTo-NormalizedStep {
+    <#
+    .SYNOPSIS
+        Converts step text to normalized form by collapsing whitespace and removing markdown.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$StepText
+    )
+
+    return ($StepText -replace '\s+', ' ' -replace '\*', '').Trim()
+}
+
+function Test-MemoryEvidence {
+    <#
+    .SYNOPSIS
+        Validates that memory-related checklist rows have valid Evidence per ADR-007.
+
+    .DESCRIPTION
+        Finds the "memory-index" row in Session Start checklist and verifies:
+        1. Evidence column is not empty or placeholder text
+        2. Evidence contains memory names (kebab-case identifiers)
+        3. Each referenced memory exists in .serena/memories/
+
+    .OUTPUTS
+        Hashtable with: IsValid, MemoriesFound, MissingMemories, ErrorMessage
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [hashtable[]]$SessionRows,
+
+        [Parameter(Mandatory)]
+        [string]$RepoRoot
+    )
+
+    $result = @{
+        IsValid = $true
+        MemoriesFound = @()
+        MissingMemories = @()
+        ErrorMessage = $null
+    }
+
+    # Find the memory-index row
+    $memoryRow = $SessionRows | Where-Object {
+        (ConvertTo-NormalizedStep $_.Step) -match 'memory-index.*memories'
+    } | Select-Object -First 1
+
+    if (-not $memoryRow) {
+        # No memory-index row found - not an error
+        return $result
+    }
+
+    $evidence = $memoryRow.Evidence
+
+    # Check for empty or placeholder evidence
+    $placeholderPatterns = @(
+        '^\s*$',                           # Empty
+        '^List memories loaded$',          # Template placeholder
+        '^\[.*\]$',                        # Bracketed placeholder
+        '^-+$'                             # Dashes only
+    )
+
+    foreach ($pattern in $placeholderPatterns) {
+        if ($evidence -match $pattern) {
+            $result.IsValid = $false
+            $result.ErrorMessage = "Memory-index Evidence column contains placeholder text: '$evidence'. List actual memory names read (e.g., 'memory-index, skills-pr-review-index')."
+            return $result
+        }
+    }
+
+    # Extract memory names (kebab-case identifiers; allow single-word names as well)
+    $memoryPattern = '[a-z][a-z0-9]*(?:-[a-z0-9]+)*'
+    $foundMemories = @(
+        [regex]::Matches($evidence, $memoryPattern, 'IgnoreCase') |
+            ForEach-Object { $_.Value.ToLowerInvariant() } |
+            Select-Object -Unique
+    )
+
+    if ($foundMemories.Count -eq 0) {
+        $result.IsValid = $false
+        $result.ErrorMessage = "Memory-index Evidence column doesn't contain valid memory names: '$evidence'. Expected format: 'memory-index, skills-pr-review-index, ...' (kebab-case names)."
+        return $result
+    }
+
+    $result.MemoriesFound = $foundMemories
+
+    # Verify each memory exists in .serena/memories/
+    $memoriesDir = Join-Path $RepoRoot ".serena" "memories"
+
+    # Check that memories directory exists before checking individual files
+    if (-not (Test-Path -LiteralPath $memoriesDir -PathType Container)) {
+        $result.IsValid = $false
+        $result.ErrorMessage = "Serena memories directory not found: $memoriesDir. Initialize Serena memory system (mcp__serena__activate_project) before validation."
+        return $result
+    }
+
+    $missingMemories = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($memName in $foundMemories) {
+        $memPath = Join-Path $memoriesDir "$memName.md"
+        if (-not (Test-Path -LiteralPath $memPath)) {
+            $missingMemories.Add($memName)
+        }
+    }
+
+    if ($missingMemories.Count -gt 0) {
+        $result.MissingMemories = $missingMemories.ToArray()
+        $result.IsValid = $false
+        $missing = $missingMemories -join ', '
+        $result.ErrorMessage = "Memory-index Evidence references memories that don't exist: $missing. Verify memory names or create missing memories in .serena/memories/."
+    }
+
+    return $result
+}
+
+# Shared exempt paths (audit artifacts common to investigation and QA skip rules)
+$script:CommonExemptPaths = @(
+    '^[.]agents/sessions/',        # Session logs (audit trail)
+    '^[.]agents/analysis/',        # Investigation outputs
+    '^[.]serena/memories($|/)'     # Cross-session context
+)
+
+# Investigation-only allowlist patterns (ADR-034)
+$script:InvestigationAllowlist = $script:CommonExemptPaths + @(
+    '^[.]agents/retrospective/',   # Learnings
+    '^[.]agents/security/'         # Security assessments
+)
+
+# Session audit artifacts (exempt from QA validation)
+$script:AuditArtifacts = $script:CommonExemptPaths
+
+function Test-DocsOnly {
+    <#
+    .SYNOPSIS
+        Tests if all files are documentation (.md) for QA skip eligibility.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [AllowEmptyCollection()]
+        [string[]]$Files
+    )
+
+    if ($Files.Count -eq 0) {
+        # Empty file list is NOT considered "docs only"
+        # Rationale: No files changed could be merge commit, revert, etc. - still need QA
+        return $false
+    }
+
+    foreach ($f in $Files) {
+        $ext = [IO.Path]::GetExtension($f).ToLowerInvariant()
+        if ($ext -ne '.md') {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Test-InvestigationOnlyEligibility {
+    <#
+    .SYNOPSIS
+        Tests if all files match investigation-only allowlist per ADR-034.
+
+    .OUTPUTS
+        Hashtable with: IsEligible, ImplementationFiles
+    #>
+    param(
+        [string[]]$Files
+    )
+
+    $result = @{
+        IsEligible = $true
+        ImplementationFiles = @()
+    }
+
+    if (-not $Files -or $Files.Count -eq 0) {
+        return $result
+    }
+
+    $implementationFiles = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in $Files) {
+        # Normalize path separators
+        $normalizedFile = $file -replace '\\', '/'
+
+        $isAllowed = $false
+        foreach ($pattern in $script:InvestigationAllowlist) {
+            if ($normalizedFile -match $pattern) {
+                $isAllowed = $true
+                break
+            }
+        }
+
+        if (-not $isAllowed) {
+            $implementationFiles.Add($file)
+        }
+    }
+
+    if ($implementationFiles.Count -gt 0) {
+        $result.IsEligible = $false
+        $result.ImplementationFiles = $implementationFiles.ToArray()
+    }
+
+    return $result
+}
+
+function Get-ImplementationFiles {
+    <#
+    .SYNOPSIS
+        Filters out audit artifacts from file list, returning only implementation files.
+
+    .DESCRIPTION
+        Session logs, analysis, and memories are audit trail, not implementation.
+        This allows them to be committed WITH implementation without false positives.
+    #>
+    param(
+        [string[]]$Files
+    )
+
+    if (-not $Files -or $Files.Count -eq 0) {
+        return @()
+    }
+
+    $implementationFiles = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in $Files) {
+        # Normalize path separators
+        $normalizedFile = $file -replace '\\', '/'
+
+        $isAuditArtifact = $false
+        foreach ($pattern in $script:AuditArtifacts) {
+            if ($normalizedFile -match $pattern) {
+                $isAuditArtifact = $true
+                break
+            }
+        }
+
+        if (-not $isAuditArtifact) {
+            $implementationFiles.Add($file)
+        }
+    }
+
+    return $implementationFiles.ToArray()
+}
+
+#endregion
+
 #region Validation Functions
 
 function Test-SessionLogExists {
@@ -91,6 +467,7 @@ function Test-SessionLogExists {
     $result = @{
         Passed = $true
         Issues = @()
+        Warnings = @()
         Level = 'MUST'
     }
 
@@ -120,6 +497,7 @@ function Test-ProtocolComplianceSection {
     $result = @{
         Passed = $true
         Issues = @()
+        Warnings = @()
         Level = 'MUST'
     }
 
@@ -181,12 +559,14 @@ function Test-MustRequirements {
         }
     }
 
-    # Also check for checklist-style MUST requirements
-    # Pattern: | MUST | description | [ ] | evidence |
-    $tableMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\*?\*?\s*\|[^|]+\|\s*\[([x ])\]\s*\|')
-    foreach ($match in $tableMatches) {
-        # Skip if first regex already matched (avoid double-counting)
-        if ($mustMatches.Count -eq 0) {
+    # FALLBACK: If primary pattern found nothing, try alternate 4-column table pattern
+    # Both regexes match same table structure: | MUST | description | [x] | evidence |
+    # Primary captures description (Groups[1]); fallback only captures status (Groups[1])
+    # CRITICAL: Only run fallback when primary found ZERO matches to prevent double-counting
+    # If primary succeeded, fallback would re-match same rows, causing duplicate processing
+    if ($mustMatches.Count -eq 0) {
+        $tableMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\*?\*?\s*\|[^|]+\|\s*\[([x ])\]\s*\|')
+        foreach ($match in $tableMatches) {
             $result.Details.TotalMust++
             $isComplete = $match.Groups[1].Value -eq 'x'
             if (-not $isComplete) {
@@ -208,15 +588,101 @@ function Test-MustRequirements {
     return $result
 }
 
+function Test-MustNotRequirements {
+    <#
+    .SYNOPSIS
+        Validates that MUST NOT requirements are verified (checked).
+
+    .DESCRIPTION
+        MUST NOT requirements represent prohibited actions per SESSION-PROTOCOL.md.
+        Checkbox semantics for MUST NOT:
+        - [x] = Verified compliance (confirmed did NOT perform prohibited action)
+        - [ ] = Not verified (unknown if prohibited action was performed)
+
+        Examples: "MUST NOT Update HANDOFF.md", "MUST NOT Skip validation"
+
+    .PARAMETER Content
+        Session log content to validate
+
+    .OUTPUTS
+        [PSCustomObject] with Passed, Issues, and Details properties
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Content
+    )
+
+    $result = [PSCustomObject]@{
+        Passed = $true
+        Issues = @()
+        Details = [PSCustomObject]@{
+            TotalMustNot = 0
+            Violations = @()  # MUST NOT requirements that are unchecked (not verified)
+            Compliant = 0      # MUST NOT requirements that are checked (verified compliance)
+        }
+    }
+
+    # Find all MUST NOT requirement rows in tables
+    # Pattern: | MUST NOT | description | [x] or [ ] |
+    # Also matches: | **MUST NOT** | description | [x] or [ ] |
+    # Note: This pattern explicitly matches the "MUST NOT" phrase to distinguish it from the separate MUST-only pattern.
+    $mustNotMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\s+NOT\*?\*?\s*\|([^|]+)\|\s*\[([x ])\]')
+
+    foreach ($match in $mustNotMatches) {
+        $result.Details.TotalMustNot++
+        $description = $match.Groups[1].Value.Trim()
+        $isChecked = $match.Groups[2].Value -eq 'x'
+
+        if ($isChecked) {
+            # Checked MUST NOT = Verified compliance (confirmed did NOT do prohibited action)
+            $result.Details.Compliant++
+        } else {
+            # Unchecked MUST NOT = Not verified (unknown if violated)
+            $result.Details.Violations += $description
+        }
+    }
+
+    # FALLBACK: If primary pattern found nothing, try alternate 4-column table pattern
+    # Pattern: | MUST NOT | description | [x] or [ ] | evidence |
+    # Double-count prevention: Only process fallback when primary regex found ZERO matches
+    if ($mustNotMatches.Count -eq 0) {
+        $tableMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\s+NOT\*?\*?\s*\|[^|]+\|\s*\[([x ])\]\s*\|')
+        foreach ($match in $tableMatches) {
+            $result.Details.TotalMustNot++
+            $isChecked = $match.Groups[1].Value -eq 'x'
+            if ($isChecked) {
+                # Checked MUST NOT = Verified compliance
+                $result.Details.Compliant++
+            } else {
+                # Unchecked MUST NOT = Not verified
+                $result.Details.Violations += "(table row)"
+            }
+        }
+    }
+
+    # Fail validation if any MUST NOT requirements are not verified (unchecked)
+    if ($result.Details.Violations.Count -gt 0) {
+        $result.Passed = $false
+        $result.Issues += "Unverified MUST NOT requirements: $($result.Details.Violations.Count) of $($result.Details.TotalMustNot) not verified"
+        foreach ($unverified in $result.Details.Violations) {
+            $result.Issues += "  - NOT VERIFIED: $unverified"
+        }
+    }
+
+    return $result
+}
+
 function Test-HandoffUpdated {
     <#
     .SYNOPSIS
-        Validates that HANDOFF.md was NOT updated (per SESSION-PROTOCOL.md: "MUST NOT update HANDOFF.md").
-        Session context MUST go to session log and Serena memory instead.
+        Checks whether HANDOFF.md was modified during the session (violation of SESSION-PROTOCOL.md).
+        Per protocol: "MUST NOT update HANDOFF.md". Session context goes to log and Serena memory.
 
     .NOTES
-        Uses git diff to check actual modifications, not filesystem timestamps.
-        Filesystem timestamps are unreliable in CI (all files get checkout timestamp).
+        Prefers git diff for reliable detection. Falls back to filesystem timestamps in non-git environments.
+        In shallow clones where git diff fails, validation fails rather than using unreliable timestamps.
     #>
     param(
         [string]$SessionPath,
@@ -226,6 +692,7 @@ function Test-HandoffUpdated {
     $result = @{
         Passed = $true
         Issues = @()
+        Warnings = @()
         Level = 'MUST'
     }
 
@@ -244,11 +711,15 @@ function Test-HandoffUpdated {
         $gitDiffWorked = $false
 
         # Check if we're in a git repository
-        git rev-parse --git-dir 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) {
+        $gitCheck = git rev-parse --git-dir 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Verbose "Not a git repository or git command failed: $gitCheck"
+        } else {
             # Check if origin/main exists (may not in shallow checkout)
-            git rev-parse --verify origin/main 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) {
+            $originCheck = git rev-parse --verify origin/main 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Verbose "Remote origin/main not found: $originCheck. May be shallow clone or detached state."
+            } else {
                 $useGitDiff = $true
             }
         }
@@ -256,7 +727,11 @@ function Test-HandoffUpdated {
         if ($useGitDiff) {
             # Use git diff for reliable detection
             $gitDiff = git diff --name-only origin/main...HEAD 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if ($LASTEXITCODE -ne 0) {
+                $warningMsg = "Git diff failed: $gitDiff. Falling back to timestamp comparison (less reliable in CI)."
+                Write-Warning $warningMsg
+                $result.Warnings += $warningMsg
+            } else {
                 $gitDiffWorked = $true
                 $handoffModified = $gitDiff -contains ".agents/HANDOFF.md"
 
@@ -269,19 +744,93 @@ function Test-HandoffUpdated {
 
         # Fall back to filesystem timestamp if git diff not available
         # (used for test environments, non-git directories)
-        # IMPORTANT: Skip fallback in CI shallow checkouts (timestamp is unreliable)
-        $isGitRepoWithoutOrigin = (git rev-parse --git-dir 2>$null) -and -not $useGitDiff
-        $skipTimestampFallback = $isGitRepoWithoutOrigin  # Shallow checkout case
+        # IMPORTANT: In shallow checkouts, fail validation explicitly rather than using timestamps
+        # Timestamp comparison is unreliable in shallow clones where all files have checkout timestamp
+        $gitDirCheck = git rev-parse --git-dir 2>&1
+        $isGitRepo = $LASTEXITCODE -eq 0
 
-        if (-not $gitDiffWorked -and -not $skipTimestampFallback) {
+        if (-not $isGitRepo -and $gitDirCheck) {
+            Write-Verbose "Git repository check failed: $gitDirCheck. Treating as non-git directory."
+        }
+
+        $isGitRepoWithoutOrigin = $isGitRepo -and -not $useGitDiff
+
+        if ($isGitRepoWithoutOrigin) {
+            # Shallow checkout detected - cannot reliably validate
+            $result.Passed = $false
+            $result.Issues += "Cannot validate HANDOFF.md modification in shallow git checkout. Git diff requires origin/main reference. Ensure full clone or fetch origin/main before validation."
+            return $result
+        }
+
+        if (-not $gitDiffWorked) {
+            # Not a git repo - use timestamp fallback with warning
+            $warningMsg = "HANDOFF.md validation using filesystem timestamp (git not available). Results may be unreliable in CI environments."
+            Write-Warning $warningMsg
+            $result.Warnings += $warningMsg
             $sessionFileName = Split-Path -Leaf $SessionPath
             if ($sessionFileName -match '^(\d{4}-\d{2}-\d{2})') {
-                $sessionDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
-                $handoffModifiedDate = (Get-Item $handoffPath).LastWriteTime.Date
+                try {
+                    $sessionDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
 
-                if ($handoffModifiedDate -ge $sessionDate) {
+                    try {
+                        $handoffItem = Get-Item -LiteralPath $handoffPath -ErrorAction Stop
+                        $handoffModifiedDate = $handoffItem.LastWriteTime.Date
+
+                        if ($handoffModifiedDate -ge $sessionDate) {
+                            $result.Passed = $false
+                            $result.Issues += "HANDOFF.md was modified ($($handoffModifiedDate.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
+                        }
+                    } catch [System.UnauthorizedAccessException] {
+                        $result.Passed = $false
+                        $errorMsg = "Permission denied reading HANDOFF.md metadata. Cannot verify modification timestamp. Check file permissions and retry validation."
+                        $result.Issues += $errorMsg
+                        return $result
+                    } catch [System.IO.FileNotFoundException] {
+                        $result.Passed = $false
+                        $errorMsg = "HANDOFF.md was deleted during validation (race condition detected between existence check and metadata read). File system may be unstable. Retry validation. If issue persists, check for concurrent processes or file system issues."
+                        $result.Issues += $errorMsg
+                        return $result
+                    } catch [System.IO.PathTooLongException] {
+                        $result.Passed = $false
+                        $result.Issues += "HANDOFF.md path exceeds maximum length. This indicates a project structure issue. Move project to shorter path."
+                        return $result
+                    } catch [System.IO.IOException] {
+                        $result.Passed = $false
+                        $result.Issues += "I/O error reading HANDOFF.md: $($_.Exception.Message). Check disk health, file locks, and retry."
+                        return $result
+                    } catch {
+                        $result.Passed = $false
+                        $result.Issues += "Unexpected error reading HANDOFF.md: $($_.Exception.GetType().Name) - $($_.Exception.Message). Contact support if issue persists."
+                        return $result
+                    }
+                } catch [System.FormatException] {
+                    # Date parsing failed - check if git validation already succeeded
+                    if ($gitDiffWorked) {
+                        # Git validation succeeded, but filename is still malformed - warn user
+                        $warningMsg = "Session log filename has invalid date format: '$($Matches[1])'. Expected format: YYYY-MM-DD (e.g., 2026-01-05). Git validation succeeded but filename should be corrected to match naming convention."
+                        Write-Warning $warningMsg
+                        $result.Warnings += $warningMsg
+                        return $result
+                    }
+
+                    # No git validation available and date parsing failed
                     $result.Passed = $false
-                    $result.Issues += "HANDOFF.md was modified ($($handoffModifiedDate.ToString('yyyy-MM-dd'))) on or after session date ($($sessionDate.ToString('yyyy-MM-dd'))). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
+                    $errorMsg = "Session log filename contains invalid date format: '$($Matches[1])'. Expected format: YYYY-MM-DD. Cannot validate HANDOFF.md modification without git diff or valid timestamp."
+                    $result.Issues += $errorMsg
+                    return $result
+                } catch {
+                    # Unexpected error during date parsing - check if git validation already succeeded
+                    if ($gitDiffWorked) {
+                        # Git validation already completed successfully, date parsing failure is non-blocking
+                        Write-Verbose "Date parsing error but git validation already completed. Error: $($_.Exception.Message)"
+                        return $result
+                    }
+
+                    # No git validation available and unexpected error occurred
+                    $result.Passed = $false
+                    $errorMsg = "Unexpected error parsing session date: $($_.Exception.GetType().Name) - $($_.Exception.Message). Cannot validate HANDOFF.md modification without git diff or valid timestamp."
+                    $result.Issues += $errorMsg
+                    return $result
                 }
             }
         }
@@ -344,6 +893,7 @@ function Test-GitCommitEvidence {
     $result = @{
         Passed = $true
         Issues = @()
+        Warnings = @()
         Level = 'MUST'
     }
 
@@ -442,7 +992,21 @@ function Invoke-SessionValidation {
     # Read content
     $content = Get-Content -Path $SessionFile -Raw
 
-    # Test 2: Protocol Compliance section
+    # Test 2: Memory evidence validation (ADR-007)
+    $lines = ($content -split "`r?`n") | Where-Object { $_ -ne '' }
+    $sessionStartTable = Get-HeadingTable -Lines $lines -HeadingRegex '^\s*##\s+Session\s+Start\s*$'
+    if ($sessionStartTable) {
+        $sessionStartRows = ConvertFrom-ChecklistTable -TableLines $sessionStartTable
+        $memoryResult = Test-MemoryEvidence -SessionRows $sessionStartRows -RepoRoot $BasePath
+        $validation.Results['MemoryEvidence'] = $memoryResult
+        if (-not $memoryResult.IsValid) {
+            $validation.Passed = $false
+            $validation.MustPassed = $false
+            $validation.Issues += $memoryResult.ErrorMessage
+        }
+    }
+
+    # Test 3: Protocol Compliance section
     $complianceResult = Test-ProtocolComplianceSection -Content $content
     $validation.Results['ProtocolComplianceSection'] = $complianceResult
     if (-not $complianceResult.Passed) {
@@ -451,7 +1015,7 @@ function Invoke-SessionValidation {
         $validation.Issues += $complianceResult.Issues
     }
 
-    # Test 3: MUST requirements completed
+    # Test 4: MUST requirements completed
     $mustResult = Test-MustRequirements -Content $content
     $validation.Results['MustRequirements'] = $mustResult
     if (-not $mustResult.Passed) {
@@ -460,7 +1024,16 @@ function Invoke-SessionValidation {
         $validation.Issues += $mustResult.Issues
     }
 
-    # Test 4: HANDOFF.md updated
+    # Test 5: MUST NOT requirements (violations)
+    $mustNotResult = Test-MustNotRequirements -Content $content
+    $validation.Results['MustNotRequirements'] = $mustNotResult
+    if (-not $mustNotResult.Passed) {
+        $validation.Passed = $false
+        $validation.MustPassed = $false
+        $validation.Issues += $mustNotResult.Issues
+    }
+
+    # Test 6: HANDOFF.md updated
     $handoffResult = Test-HandoffUpdated -SessionPath $SessionFile -BasePath $BasePath
     $validation.Results['HandoffUpdated'] = $handoffResult
     if (-not $handoffResult.Passed) {
@@ -469,7 +1042,7 @@ function Invoke-SessionValidation {
         $validation.Issues += $handoffResult.Issues
     }
 
-    # Test 5: SHOULD requirements (warnings)
+    # Test 7: SHOULD requirements (warnings)
     $shouldResult = Test-ShouldRequirements -Content $content
     $validation.Results['ShouldRequirements'] = $shouldResult
     if ($shouldResult.Issues.Count -gt 0) {
@@ -477,14 +1050,14 @@ function Invoke-SessionValidation {
         $validation.Warnings += $shouldResult.Issues
     }
 
-    # Test 6: Commit evidence
+    # Test 8: Commit evidence
     $commitResult = Test-GitCommitEvidence -Content $content
     $validation.Results['CommitEvidence'] = $commitResult
     if ($commitResult.Issues.Count -gt 0) {
         $validation.Warnings += $commitResult.Issues
     }
 
-    # Test 7: Session log completeness
+    # Test 8: Session log completeness
     $completenessResult = Test-SessionLogCompleteness -Content $content
     $validation.Results['SessionLogCompleteness'] = $completenessResult
     if (-not $completenessResult.Passed) {
@@ -507,17 +1080,58 @@ function Get-SessionLogs {
         return @()
     }
 
-    $sessions = Get-ChildItem -Path $sessionsPath -Filter "*.md" -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}-session-\d+(-.+)?\.md$' }
+    try {
+        $sessions = Get-ChildItem -Path $sessionsPath -Filter "*.md" -ErrorAction Stop |
+            Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}-session-\d+(-.+)?\.md$' }
+    } catch [System.UnauthorizedAccessException] {
+        Write-Error "Permission denied reading sessions directory: $sessionsPath. Check file permissions and retry."
+        throw
+    } catch [System.IO.PathTooLongException] {
+        Write-Error "Sessions directory path exceeds maximum length: $sessionsPath. Move project to shorter path."
+        throw
+    } catch [System.IO.DirectoryNotFoundException] {
+        Write-Error "Sessions directory not found: $sessionsPath. Verify .agents folder exists at project root."
+        throw
+    } catch [System.IO.IOException] {
+        Write-Error "I/O error reading sessions directory: $sessionsPath. Error: $($_.Exception.Message). Check disk health and file locks."
+        throw
+    } catch [System.ArgumentException] {
+        Write-Error "Invalid sessions directory path: $sessionsPath. Path contains invalid characters. Verify project location and path formatting."
+        throw
+    } catch {
+        # Unexpected error - provide full context and suggest bug report
+        $errorMsg = "Unexpected error reading sessions directory: $sessionsPath`n" +
+                    "Error Type: $($_.Exception.GetType().FullName)`n" +
+                    "Message: $($_.Exception.Message)`n" +
+                    "Stack Trace: $($_.ScriptStackTrace)`n" +
+                    "This is likely a bug. Please report this issue with the above details."
+        Write-Error $errorMsg
+        throw
+    }
 
     if ($Days -gt 0) {
         $cutoffDate = (Get-Date).AddDays(-$Days)
+        $excludedSessions = [System.Collections.Generic.List[string]]::new()
+
         $sessions = $sessions | Where-Object {
             if ($_.Name -match '^(\d{4}-\d{2}-\d{2})') {
-                $fileDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
-                return $fileDate -ge $cutoffDate
+                try {
+                    $fileDate = [DateTime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
+                    return $fileDate -ge $cutoffDate
+                } catch {
+                    $excludedSessions.Add($_.Name)
+                    Write-Warning "Excluding session with invalid date format: $($_.Name). Expected: YYYY-MM-DD-session-N.md"
+                    return $false
+                }
             }
             return $false
+        }
+
+        if ($excludedSessions.Count -gt 0) {
+            Write-Warning "Excluded $($excludedSessions.Count) session(s) due to date parsing errors:"
+            foreach ($excluded in $excludedSessions) {
+                Write-Warning "  - $excluded"
+            }
         }
     }
 
@@ -549,18 +1163,20 @@ function Format-ConsoleOutput {
 
         Write-ColorOutput "Session: $($v.SessionName) - $status"
 
-        foreach ($checkName in $v.Results.Keys) {
-            $check = $v.Results[$checkName]
-            $level = if ($check.Level -eq 'MUST') { $ColorRed } else { $ColorYellow }
-            $checkStatus = if ($check.Passed) { "${ColorGreen}[PASS]${ColorReset}" }
-                          elseif ($check.Level -eq 'MUST') { "${ColorRed}[FAIL]${ColorReset}" }
-                          else { "${ColorYellow}[WARN]${ColorReset}" }
+        if ($null -ne $v.Results) {
+            foreach ($checkName in $v.Results.Keys) {
+                $check = $v.Results[$checkName]
+                $level = if ($check.Level -eq 'MUST') { $ColorRed } else { $ColorYellow }
+                $checkStatus = if ($check.Passed) { "${ColorGreen}[PASS]${ColorReset}" }
+                              elseif ($check.Level -eq 'MUST') { "${ColorRed}[FAIL]${ColorReset}" }
+                              else { "${ColorYellow}[WARN]${ColorReset}" }
 
-            Write-ColorOutput "  $checkStatus $checkName ($($check.Level))"
+                Write-ColorOutput "  $checkStatus $checkName ($($check.Level))"
 
-            if ($check.Issues.Count -gt 0) {
-                foreach ($issue in $check.Issues) {
-                    Write-ColorOutput "    - $issue" $ColorYellow
+                if ($check.Issues.Count -gt 0) {
+                    foreach ($issue in $check.Issues) {
+                        Write-ColorOutput "    - $issue" $ColorYellow
+                    }
                 }
             }
         }
@@ -641,68 +1257,97 @@ function Format-JsonOutput {
 
 #region Main Execution
 
-Write-ColorOutput "=== Session Protocol Validation ===" $ColorCyan
-Write-ColorOutput "Path: $Path" $ColorMagenta
-Write-ColorOutput ""
+try {
+    Write-ColorOutput "=== Session Protocol Validation ===" $ColorCyan
+    Write-ColorOutput "Path: $Path" $ColorMagenta
+    Write-ColorOutput ""
 
-$validations = @()
+    $validations = @()
 
-if ($SessionPath) {
-    # Single session validation
-    $fullPath = if ([System.IO.Path]::IsPathRooted($SessionPath)) {
-        $SessionPath
+    if ($SessionPath) {
+        # Single session validation
+        $fullPath = if ([System.IO.Path]::IsPathRooted($SessionPath)) {
+            $SessionPath
+        } else {
+            Join-Path $Path $SessionPath
+        }
+
+        $validation = Invoke-SessionValidation -SessionFile $fullPath -BasePath $Path
+        $validations += $validation
+    } elseif ($All) {
+        # All sessions
+        $sessions = Get-SessionLogs -BasePath $Path
+        Write-ColorOutput "Found $($sessions.Count) session log(s)" $ColorMagenta
+        Write-ColorOutput ""
+
+        foreach ($session in $sessions) {
+            $validation = Invoke-SessionValidation -SessionFile $session.FullName -BasePath $Path
+            $validations += $validation
+        }
     } else {
-        Join-Path $Path $SessionPath
+        # Recent sessions (default)
+        $sessions = Get-SessionLogs -BasePath $Path -Days $Recent
+        Write-ColorOutput "Found $($sessions.Count) session log(s) from last $Recent days" $ColorMagenta
+        Write-ColorOutput ""
+
+        foreach ($session in $sessions) {
+            $validation = Invoke-SessionValidation -SessionFile $session.FullName -BasePath $Path
+            $validations += $validation
+        }
     }
 
-    $validation = Invoke-SessionValidation -SessionFile $fullPath -BasePath $Path
-    $validations += $validation
-} elseif ($All) {
-    # All sessions
-    $sessions = Get-SessionLogs -BasePath $Path
-    Write-ColorOutput "Found $($sessions.Count) session log(s)" $ColorMagenta
-    Write-ColorOutput ""
+    # Output results
+    $failCount = 0
+    switch ($Format) {
+        "console" {
+            $failCount = Format-ConsoleOutput -Validations $validations
+        }
+        "markdown" {
+            $md = Format-MarkdownOutput -Validations $validations
+            Write-Output $md
+            $failCount = ($validations | Where-Object { -not $_.MustPassed }).Count
+        }
+        "json" {
+            $json = Format-JsonOutput -Validations $validations
+            Write-Output $json
+            $failCount = ($validations | Where-Object { -not $_.MustPassed }).Count
+        }
+    }
 
-    foreach ($session in $sessions) {
-        $validation = Invoke-SessionValidation -SessionFile $session.FullName -BasePath $Path
-        $validations += $validation
+    if ($CI) {
+        if ($failCount -gt 0) {
+            exit 1
+        }
+        # Explicit exit 0 to prevent $LASTEXITCODE pollution from external commands like git
+        exit 0
     }
-} else {
-    # Recent sessions (default)
-    $sessions = Get-SessionLogs -BasePath $Path -Days $Recent
-    Write-ColorOutput "Found $($sessions.Count) session log(s) from last $Recent days" $ColorMagenta
-    Write-ColorOutput ""
+} catch {
+    # Enhanced error context for debugging (HIGH #4 from Round 4 review)
+    $errorContext = @(
+        "Validation failed with error: $($_.Exception.GetType().FullName)",
+        "Message: $($_.Exception.Message)",
+        "Parameter Set: $($PSCmdlet.ParameterSetName)",
+        "Session Path: $(if ($SessionPath) { $SessionPath } else { 'N/A' })",
+        "Validations Completed: $($validations.Count)"
+    )
 
-    foreach ($session in $sessions) {
-        $validation = Invoke-SessionValidation -SessionFile $session.FullName -BasePath $Path
-        $validations += $validation
+    # Add current session file context if available from exception data
+    if ($_.Exception.TargetSite -and $_.Exception.TargetSite.Name) {
+        $errorContext += "Failed in: $($_.Exception.TargetSite.Name)"
     }
-}
 
-# Output results
-$failCount = 0
-switch ($Format) {
-    "console" {
-        $failCount = Format-ConsoleOutput -Validations $validations
+    # Add script line number if available
+    if ($_.InvocationInfo.ScriptLineNumber) {
+        $errorContext += "Script Line: $($_.InvocationInfo.ScriptLineNumber)"
     }
-    "markdown" {
-        $md = Format-MarkdownOutput -Validations $validations
-        Write-Output $md
-        $failCount = ($validations | Where-Object { -not $_.MustPassed }).Count
-    }
-    "json" {
-        $json = Format-JsonOutput -Validations $validations
-        Write-Output $json
-        $failCount = ($validations | Where-Object { -not $_.MustPassed }).Count
-    }
-}
 
-if ($CI) {
-    if ($failCount -gt 0) {
+    $fullErrorMessage = $errorContext -join "`n  "
+    Write-Error $fullErrorMessage
+
+    if ($CI) {
         exit 1
     }
-    # Explicit exit 0 to prevent $LASTEXITCODE pollution from external commands like git
-    exit 0
+    throw
 }
 
 #endregion
