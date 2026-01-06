@@ -56,14 +56,45 @@ Implement follow-up comments from issue #808 review:
 5. Test skill discovery with `/skills`
 6. Validate with markdownlint
 
+## Implementation Summary
+
+### Changes Made
+
+1. **Flattened skill directories**:
+   - Moved `.claude/skills/session/init/` → `.claude/skills/session-init/`
+   - Moved `.claude/skills/session/log-fixer/` → `.claude/skills/session-log-fixer/`
+   - Moved `.claude/skills/session/qa-eligibility/` → `.claude/skills/session-qa-eligibility/`
+
+2. **Updated frontmatter**:
+   - Fixed `session-qa-eligibility/SKILL.md` name from `qa-eligibility` to `session-qa-eligibility`
+
+3. **Updated references** (13 files):
+   - Test files: `tests/Extract-SessionTemplate.Tests.ps1`, `tests/Get-ValidationErrors.Tests.ps1`
+   - Script documentation: Updated `.EXAMPLE` blocks in both scripts
+   - SKILL.md documentation: Updated path references in usage examples
+
+4. **Removed parent directory**:
+   - Deleted `.claude/skills/session/SKILL.md`
+   - Directory automatically removed after subdirectories moved
+
+### Verification
+
+- Markdownlint: PASS (0 errors)
+- Git rename detection: Working (all files show as renamed, preserving history)
+- Expected outcome: `/skills` command will now show 29 skills (3 new session skills)
+
 ## Session End Checklist
 
-- [ ] Complete session log with outcomes
-- [ ] Update Serena memory
-- [ ] Run markdownlint: `npx markdownlint-cli2 --fix "**/*.md"`
-- [ ] Commit changes
+- [x] Complete session log with outcomes
+- [x] Update Serena memory
+- [x] Run markdownlint: `npx markdownlint-cli2 --fix "**/*.md"`
+- [x] Commit changes (d2901e9c)
 - [ ] Validate session: `pwsh scripts/Validate-Session.ps1`
 
 ## Notes
 
-Created: 2026-01-06T[timestamp]
+**Root Cause**: Claude Code's skill discovery doesn't support nested SKILL.md files. When it finds a SKILL.md at the parent level (`.claude/skills/session/SKILL.md`), it stops and doesn't descend into subdirectories.
+
+**Solution Pattern**: All skills must be flat at `.claude/skills/{name}/SKILL.md` level. No nesting supported.
+
+**Files Affected**: 16 total (3 skill directories moved, 1 parent removed, 4 scripts updated, 2 tests updated, 2 SKILL.md docs updated, 2 session logs, 2 memories)
