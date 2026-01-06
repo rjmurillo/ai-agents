@@ -23,6 +23,20 @@ permissions:
   contents: read
   pull-requests: write
 
+# Concurrency control: Attempts to cancel in-progress runs when new runs start
+
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+
+# where multiple runs start before cancellation takes effect. This is best-effort
+
+# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+# for architectural decision on workflow-level concurrency control
+
+# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
+
+# Note: 6 parallel agents use artifact-based result passing to avoid matrix output limitations
+
 concurrency:
   group: ai-quality-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
@@ -676,11 +690,15 @@ jobs:
           Write-Output "✅ AI Quality Gate passed with verdict: $finalVerdict"
 
 # Skip jobs that provide passing status when no relevant files changed
-# NOTE: We need TWO skip jobs with the SAME names as the real jobs to satisfy
-# required status checks. This follows the dual-job same-name pattern from
-# pester-tests.yml (see Issue #335 for details).
 
-  # Skip job for individual agent reviews - uses matrix to match review job names
+# NOTE: We need TWO skip jobs with the SAME names as the real jobs to satisfy
+
+# required status checks. This follows the dual-job same-name pattern from
+
+# pester-tests.yml (see Issue #335 for details)
+
+# Skip job for individual agent reviews - uses matrix to match review job names
+
   skip-agent-reviews:
     name: ${{ matrix.agent }} Review
     needs: check-changes
@@ -708,7 +726,8 @@ jobs:
           echo "This PR only contains changes to files that don't require AI review."
           echo "Status: PASS (skipped)"
 
-  # Skip job for aggregate results - matches aggregate job name
+# Skip job for aggregate results - matches aggregate job name
+
   skip-aggregate:
     name: Aggregate Results
     needs: check-changes
