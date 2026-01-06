@@ -1,14 +1,14 @@
 ---
 name: session-log-fixer
-version: 3.0.0
 description: Fix session protocol validation failures in GitHub Actions. Use when
   a PR fails with "Session protocol validation failed", "MUST requirement(s) not met",
   "NON_COMPLIANT" verdict, or "Aggregate Results" job failure in the Session Protocol
   Validation workflow. With deterministic validation, failures show exact missing
   requirements directly in Job Summary - no artifact downloads needed.
 license: MIT
-model: claude-opus-4-5
+model: claude-sonnet-4-5
 metadata:
+  version: 3.0.0
   domains:
   - ci
   - session-protocol
@@ -101,6 +101,21 @@ GitHub Actions Failure
 ## Workflow
 
 ### Step 1: Read Job Summary
+
+**Option A: Use the script (recommended)**
+
+```powershell
+# By run ID
+$errors = & .claude/skills/session/log-fixer/scripts/Get-ValidationErrors.ps1 -RunId 20548622722
+
+# By PR number
+$errors = & .claude/skills/session/log-fixer/scripts/Get-ValidationErrors.ps1 -PullRequest 799
+
+# View errors
+$errors | ConvertFrom-Json
+```
+
+**Option B: Manual (web UI)**
 
 Navigate to the failed GitHub Actions run and click the **Summary** tab. The Session Protocol Compliance Report shows:
 
@@ -242,6 +257,31 @@ After applying fixes:
 | Fix didn't work | Check new Job Summary for remaining issues |
 | Wrong session file | Verify branch matches PR, check for multiple session files |
 | Local validation differs from CI | Ensure you're using latest SESSION-PROTOCOL.md |
+
+---
+
+## Scripts
+
+| Script | Purpose | Exit Codes |
+|--------|---------|------------|
+| [Get-ValidationErrors.ps1](scripts/Get-ValidationErrors.ps1) | Extract validation errors from GitHub Actions Job Summary | 0=success, 1=run not found, 2=no errors found |
+
+### Example Usage
+
+```powershell
+# Get errors by run ID
+$result = & .claude/skills/session/log-fixer/scripts/Get-ValidationErrors.ps1 -RunId 20548622722
+$errors = $result | ConvertFrom-Json
+
+# View non-compliant sessions
+$errors.NonCompliantSessions
+
+# View detailed errors for specific session
+$errors.DetailedErrors.'2025-12-29-session-11'
+
+# Get errors by PR number
+$result = & .claude/skills/session/log-fixer/scripts/Get-ValidationErrors.ps1 -PullRequest 799
+```
 
 ---
 

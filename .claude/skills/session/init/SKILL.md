@@ -153,9 +153,13 @@ git status --short
 
 ### Step 2: Read Canonical Template
 
-**CRITICAL**: Read the template from `.agents/SESSION-PROTOCOL.md` lines 494-612.
+**CRITICAL**: Use the Extract-SessionTemplate.ps1 script to read the template from SESSION-PROTOCOL.md.
 
-**DO NOT** generate the template from memory. The template contains exact formatting that must be preserved:
+```powershell
+$template = & .claude/skills/session/init/scripts/Extract-SessionTemplate.ps1
+```
+
+**DO NOT** generate the template from memory or read specific line numbers. The script extracts the canonical template dynamically:
 
 - Header levels (`##` vs `###`)
 - Table structure with pipe separators
@@ -275,9 +279,30 @@ Fix the issues and re-validate.
 
 ---
 
+## Scripts
+
+| Script | Purpose | Exit Codes |
+|--------|---------|------------|
+| [Extract-SessionTemplate.ps1](scripts/Extract-SessionTemplate.ps1) | Extract canonical template from SESSION-PROTOCOL.md | 0=success, 1=file not found, 2=template not found |
+
+### Example Usage
+
+```powershell
+# Extract template
+$template = & .claude/skills/session/init/scripts/Extract-SessionTemplate.ps1
+
+# Populate with session data
+$sessionLog = $template -replace 'NN', '375' -replace 'YYYY-MM-DD', '2026-01-06'
+
+# Write to file
+$sessionLog | Out-File -FilePath '.agents/sessions/2026-01-06-session-375.md'
+```
+
+---
+
 ## References
 
-- [SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md) - Canonical template source (lines 494-612)
+- [SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md) - Canonical template source
 - [Validate-SessionProtocol.ps1](scripts/Validate-SessionProtocol.ps1) - Validation script
 - [Template Extraction](references/template-extraction.md) - How to extract template
 - [Validation Patterns](references/validation-patterns.md) - Common validation issues
