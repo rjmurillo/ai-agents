@@ -41,11 +41,11 @@ $ErrorActionPreference = 'Stop'
 
 # Investigation-only allowlist patterns (must match Validate-SessionProtocol.ps1)
 $investigationAllowlist = @(
-    '^\.agents/sessions/',        # Session logs
-    '^\.agents/analysis/',        # Investigation outputs
-    '^\.agents/retrospective/',   # Learnings
-    '^\.serena/memories($|/)',    # Cross-session context
-    '^\.agents/security/'         # Security assessments
+    '^[.]agents/sessions/',        # Session logs
+    '^[.]agents/analysis/',        # Investigation outputs
+    '^[.]agents/retrospective/',   # Learnings
+    '^[.]serena/memories($|/)',    # Cross-session context
+    '^[.]agents/security/'         # Security assessments
 )
 
 # Human-readable allowed paths (for display)

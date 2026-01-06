@@ -28,11 +28,11 @@ BeforeAll {
 Describe "Test-InvestigationEligibility.ps1" {
     Context "Allowlist Pattern Verification" {
         It "Contains expected investigation-only patterns" {
-            $investigationAllowlist | Should -Contain '^\.agents/sessions/'
-            $investigationAllowlist | Should -Contain '^\.agents/analysis/'
-            $investigationAllowlist | Should -Contain '^\.agents/retrospective/'
-            $investigationAllowlist | Should -Contain '^\.serena/memories($|/)'
-            $investigationAllowlist | Should -Contain '^\.agents/security/'
+            $investigationAllowlist | Should -Contain '^[.]agents/sessions/'
+            $investigationAllowlist | Should -Contain '^[.]agents/analysis/'
+            $investigationAllowlist | Should -Contain '^[.]agents/retrospective/'
+            $investigationAllowlist | Should -Contain '^[.]serena/memories($|/)'
+            $investigationAllowlist | Should -Contain '^[.]agents/security/'
         }
 
         It "Has exactly 5 allowlist patterns matching Validate-SessionProtocol.ps1" {
@@ -58,11 +58,11 @@ Describe "Test-InvestigationEligibility.ps1" {
         BeforeEach {
             # Patterns to test against
             $patterns = @(
-                '^\.agents/sessions/',
-                '^\.agents/analysis/',
-                '^\.agents/retrospective/',
-                '^\.serena/memories($|/)',
-                '^\.agents/security/'
+                '^[.]agents/sessions/',
+                '^[.]agents/analysis/',
+                '^[.]agents/retrospective/',
+                '^[.]serena/memories($|/)',
+                '^[.]agents/security/'
             )
         }
 
