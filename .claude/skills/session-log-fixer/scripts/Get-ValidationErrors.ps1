@@ -17,10 +17,10 @@
     PSCustomObject with validation error details
 
 .EXAMPLE
-    & .claude/skills/session/log-fixer/scripts/Get-ValidationErrors.ps1 -RunId 20548622722
+    & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -RunId 20548622722
 
 .EXAMPLE
-    & .claude/skills/session/log-fixer/scripts/Get-ValidationErrors.ps1 -PullRequest 799
+    & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -PullRequest 799
 
 .NOTES
     Exit Codes:

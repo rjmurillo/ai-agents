@@ -106,10 +106,10 @@ GitHub Actions Failure
 
 ```powershell
 # By run ID
-$errors = & .claude/skills/session/log-fixer/scripts/Get-ValidationErrors.ps1 -RunId 20548622722
+$errors = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -RunId 20548622722
 
 # By PR number
-$errors = & .claude/skills/session/log-fixer/scripts/Get-ValidationErrors.ps1 -PullRequest 799
+$errors = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -PullRequest 799
 
 # View errors
 $errors | ConvertFrom-Json
@@ -270,7 +270,7 @@ After applying fixes:
 
 ```powershell
 # Get errors by run ID
-$result = & .claude/skills/session/log-fixer/scripts/Get-ValidationErrors.ps1 -RunId 20548622722
+$result = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -RunId 20548622722
 $errors = $result | ConvertFrom-Json
 
 # View non-compliant sessions
@@ -280,7 +280,7 @@ $errors.NonCompliantSessions
 $errors.DetailedErrors.'2025-12-29-session-11'
 
 # Get errors by PR number
-$result = & .claude/skills/session/log-fixer/scripts/Get-ValidationErrors.ps1 -PullRequest 799
+$result = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -PullRequest 799
 ```
 
 ---

@@ -15,11 +15,11 @@
     String containing the session log template
 
 .EXAMPLE
-    $template = & .claude/skills/session/init/scripts/Extract-SessionTemplate.ps1
+    $template = & .claude/skills/session-init/scripts/Extract-SessionTemplate.ps1
     Write-Output $template
 
 .EXAMPLE
-    & .claude/skills/session/init/scripts/Extract-SessionTemplate.ps1 -ProtocolPath /custom/path/SESSION-PROTOCOL.md
+    & .claude/skills/session-init/scripts/Extract-SessionTemplate.ps1 -ProtocolPath /custom/path/SESSION-PROTOCOL.md
 
 .NOTES
     Exit Codes:

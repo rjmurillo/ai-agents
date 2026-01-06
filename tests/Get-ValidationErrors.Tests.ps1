@@ -1,5 +1,5 @@
 BeforeAll {
-    $scriptPath = Join-Path $PSScriptRoot '../.claude/skills/session/log-fixer/scripts/Get-ValidationErrors.ps1'
+    $scriptPath = Join-Path $PSScriptRoot '../.claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1'
 }
 
 Describe 'Get-ValidationErrors' {

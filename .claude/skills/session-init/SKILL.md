@@ -20,17 +20,28 @@ Create protocol-compliant session logs with verification-based enforcement.
 
 ## Quick Start
 
-```text
-/session-init
+### Automated (Recommended)
+
+```powershell
+pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
 ```
 
-The skill will:
+The script will:
 
 1. Prompt for session number and objective
 2. Auto-detect git state (branch, commit, date)
 3. Read canonical template from SESSION-PROTOCOL.md
 4. Write session log with EXACT template format
 5. Validate immediately with Validate-SessionProtocol.ps1
+6. Exit nonzero on validation failure
+
+### Manual (If Needed)
+
+```text
+/session-init
+```
+
+Follow the manual workflow below if the automated script doesn't meet your needs.
 
 ---
 
@@ -156,7 +167,7 @@ git status --short
 **CRITICAL**: Use the Extract-SessionTemplate.ps1 script to read the template from SESSION-PROTOCOL.md.
 
 ```powershell
-$template = & .claude/skills/session/init/scripts/Extract-SessionTemplate.ps1
+$template = & .claude/skills/session-init/scripts/Extract-SessionTemplate.ps1
 ```
 
 **DO NOT** generate the template from memory or read specific line numbers. The script extracts the canonical template dynamically:
@@ -283,13 +294,26 @@ Fix the issues and re-validate.
 
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
+| [New-SessionLog.ps1](scripts/New-SessionLog.ps1) | Automated session log creation with validation | 0=success, 1=git error, 2=template failed, 3=write failed, 4=validation failed |
 | [Extract-SessionTemplate.ps1](scripts/Extract-SessionTemplate.ps1) | Extract canonical template from SESSION-PROTOCOL.md | 0=success, 1=file not found, 2=template not found |
 
 ### Example Usage
 
+**Automated (Recommended)**:
+
+```powershell
+# Create session log with interactive prompts
+pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
+
+# Create session log with parameters
+pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -Objective "Implement feature X"
+```
+
+**Manual Template Extraction** (for custom workflows):
+
 ```powershell
 # Extract template
-$template = & .claude/skills/session/init/scripts/Extract-SessionTemplate.ps1
+$template = & .claude/skills/session-init/scripts/Extract-SessionTemplate.ps1
 
 # Populate with session data
 $sessionLog = $template -replace 'NN', '375' -replace 'YYYY-MM-DD', '2026-01-06'

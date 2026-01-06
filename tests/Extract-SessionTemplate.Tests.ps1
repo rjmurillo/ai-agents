@@ -1,5 +1,5 @@
 BeforeAll {
-    $scriptPath = Join-Path $PSScriptRoot '../.claude/skills/session/init/scripts/Extract-SessionTemplate.ps1'
+    $scriptPath = Join-Path $PSScriptRoot '../.claude/skills/session-init/scripts/Extract-SessionTemplate.ps1'
 }
 
 Describe 'Extract-SessionTemplate' {
