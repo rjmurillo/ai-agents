@@ -47,6 +47,7 @@ concurrency:
 
 env:
   GH_TOKEN: ${{ secrets.BOT_PAT }}
+  PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 jobs:
   # Optional debouncing job - runs only when enable_debouncing=true
@@ -107,16 +108,18 @@ jobs:
       - name: Extract Spec References
         id: spec-ref
         run: |
-          # Save PR context to files safely using quoted heredoc
-          # This prevents shell expansion of any characters in the title/body (SEC-001 fix)
+          # Capture PR context; fallback to gh for workflow_dispatch runs
+          PR_TITLE_INPUT="${{ github.event.pull_request.title }}"
+          PR_BODY_INPUT="${{ github.event.pull_request.body }}"
 
-          cat > /tmp/pr-title.txt << 'EOF_TITLE'
-          ${{ github.event.pull_request.title }}
-          EOF_TITLE
+          if [ -z "$PR_TITLE_INPUT" ] && [ -z "$PR_BODY_INPUT" ]; then
+            PR_TITLE_INPUT=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title -q .title 2>/dev/null || true)
+            PR_BODY_INPUT=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null || true)
+          fi
 
-          cat > /tmp/pr-body.txt << 'EOF_BODY'
-          ${{ github.event.pull_request.body }}
-          EOF_BODY
+          # Save PR context to files safely (avoids shell expansion)
+          printf '%s\n' "$PR_TITLE_INPUT" > /tmp/pr-title.txt
+          printf '%s\n' "$PR_BODY_INPUT" > /tmp/pr-body.txt
 
           # Read from files (now safe from injection)
           PR_TITLE=$(cat /tmp/pr-title.txt)
@@ -240,7 +243,7 @@ jobs:
         with:
           agent: analyst
           context-type: pr-diff
-          pr-number: ${{ github.event.pull_request.number }}
+          pr-number: ${{ env.PR_NUMBER }}
           additional-context: ${{ steps.prepare-context.outputs.spec_context }}
           prompt-file: .github/prompts/spec-trace-requirements.md
           timeout-minutes: 3
@@ -254,7 +257,7 @@ jobs:
         with:
           agent: critic
           context-type: pr-diff
-          pr-number: ${{ github.event.pull_request.number }}
+          pr-number: ${{ env.PR_NUMBER }}
           additional-context: ${{ steps.prepare-context.outputs.spec_context }}
           prompt-file: .github/prompts/spec-check-completeness.md
           timeout-minutes: 3
@@ -413,7 +416,7 @@ jobs:
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
           # Use GitHub skill script for idempotent comment posting
