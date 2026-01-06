@@ -129,9 +129,9 @@ See: [.claude/skills/session/init/SKILL.md](.claude/skills/session/init/SKILL.md
 
 The agent MUST create a session log early in the session.
 
-**SHOULD Use session-init Skill**: Agents SHOULD use the `/session-init` skill to create session logs with verification-based enforcement. This prevents recurring CI validation failures.
+**MUST Use session-init Skill**: Agents MUST use the `/session-init` skill to create session logs with verification-based enforcement. This prevents recurring CI validation failures.
 
-See: `.claude/skills/session/init/SKILL.md`
+See: `.claude/skills/session-init/SKILL.md`
 
 **Manual Creation**: If creating manually, agents MUST:
 1. Read canonical template from SESSION-PROTOCOL.md
