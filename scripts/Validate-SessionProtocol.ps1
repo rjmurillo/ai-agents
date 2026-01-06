@@ -166,8 +166,9 @@ function ConvertFrom-ChecklistTable {
         # Skip separator and header rows
         # Note: Separator regex is permissive to handle varied markdown table formats
         # Matches: lines containing ONLY pipes (|), dashes (-), and/or whitespace
-        # WARNING: Accepts malformed separators like '---' (no pipes) or '|||' (no dashes)
-        # Trade-off: Simplicity over strictness. False positives are harmless (row gets skipped)
+        # Accepts any line containing only pipes, dashes, and/or whitespace in any combination
+        # (e.g., '---', '|||', '| - | - |'). Trade-off: Simplicity over strictness.
+        # False positives are harmless (row gets skipped)
         $isSeparator = $line -match '^\s*[|\s-]+\s*$'
         $isHeader = $line -match '^\s*\|\s*Req\s*\|'
 
@@ -278,8 +279,8 @@ function Test-MemoryEvidence {
         }
     }
 
-    # Extract memory names (kebab-case identifiers)
-    $memoryPattern = '[a-z][a-z0-9]*(?:-[a-z0-9]+)+'
+    # Extract memory names (kebab-case identifiers; allow single-word names as well)
+    $memoryPattern = '[a-z][a-z0-9]*(?:-[a-z0-9]+)*'
     $foundMemories = @(
         [regex]::Matches($evidence, $memoryPattern, 'IgnoreCase') |
             ForEach-Object { $_.Value.ToLowerInvariant() } |
