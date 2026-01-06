@@ -155,7 +155,7 @@ BeforeAll {
                 }
                 $previousLine = $line
             }
-            return $decisions
+            return @($decisions)
         }
 
         function ConvertFrom-Events {
@@ -187,7 +187,7 @@ BeforeAll {
                         leads_to  = @()
                     }
                 }
-                if ($line -match '✅|completed?|done|finished|success' -and $line -match '^[-*]') {
+                if ($line -match '✅|completed?|done|finished|success' -and $line -match '^[-*]\s+(?!\*)') {
                     $eventIndex++
                     $evt = @{
                         id        = "e{0:D3}" -f $eventIndex
@@ -213,7 +213,7 @@ BeforeAll {
                     $events += $evt
                 }
             }
-            return $events
+            return @($events)
         }
 
         function ConvertFrom-Lessons {
@@ -235,7 +235,7 @@ BeforeAll {
                     $lessons += $line.Trim()
                 }
             }
-            return $lessons | Select-Object -Unique
+            return @($lessons | Select-Object -Unique)
         }
 
         function ConvertFrom-Metrics {
@@ -562,6 +562,20 @@ Describe "ConvertFrom-Decisions" {
             @($result) | Should -BeNullOrEmpty
         }
 
+        It "Returns empty array for zero decisions" {
+            $lines = @("# Title", "Just text")
+            $result = ConvertFrom-Decisions -Lines $lines
+            # Wrapped in @(), so count should work even if empty
+            @($result).Count | Should -Be 0
+        }
+
+        It "Returns single-element array for one decision" {
+            $lines = @("**Decision**: Use atomic commits")
+            $result = ConvertFrom-Decisions -Lines $lines
+            # Should not unroll to scalar
+            @($result).Count | Should -Be 1
+        }
+
         It "Handles empty lines array" {
             $result = ConvertFrom-Decisions -Lines @()
             @($result) | Should -BeNullOrEmpty
@@ -624,6 +638,18 @@ Describe "ConvertFrom-Events" {
             $milestone = $result | Where-Object { $_.type -eq "milestone" } | Select-Object -First 1
             $milestone.content | Should -Not -Match '^[-*]'
         }
+
+        It "Does not match bold markdown status headers (regression test for #821)" {
+            $lines = @("**Status**: success")
+            $result = ConvertFrom-Events -Lines $lines
+            ($result | Where-Object { $_.type -eq "milestone" }) | Should -BeNullOrEmpty
+        }
+
+        It "Does not match bold markdown without list marker" {
+            $lines = @("**Complete** - all tasks done")
+            $result = ConvertFrom-Events -Lines $lines
+            ($result | Where-Object { $_.type -eq "milestone" }) | Should -BeNullOrEmpty
+        }
     }
 
     Context "Test events" {
@@ -645,6 +671,20 @@ Describe "ConvertFrom-Events" {
             $lines = @("# Title", "Just some text")
             $result = ConvertFrom-Events -Lines $lines
             @($result) | Should -BeNullOrEmpty
+        }
+
+        It "Returns empty array for zero events (regression test for #821)" {
+            $lines = @("# Title", "Just text")
+            $result = ConvertFrom-Events -Lines $lines
+            # Wrapped in @(), so count should work even if empty
+            @($result).Count | Should -Be 0
+        }
+
+        It "Returns single-element array for one event (regression test for #821)" {
+            $lines = @("- ✅ Task complete")
+            $result = ConvertFrom-Events -Lines $lines
+            # Should not unroll to scalar
+            @($result).Count | Should -Be 1
         }
 
         It "Assigns sequential IDs" {
@@ -738,6 +778,20 @@ Describe "ConvertFrom-Lessons" {
             $lines = @("# Title", "Some content")
             $result = ConvertFrom-Lessons -Lines $lines
             @($result) | Should -BeNullOrEmpty
+        }
+
+        It "Returns empty array for zero lessons (regression test for #821)" {
+            $lines = @("# Title", "Just text")
+            $result = ConvertFrom-Lessons -Lines $lines
+            # Wrapped in @(), so count should work even if empty
+            @($result).Count | Should -Be 0
+        }
+
+        It "Returns single-element array for one lesson (regression test for #821)" {
+            $lines = @("## Lessons Learned", "- Always validate input")
+            $result = ConvertFrom-Lessons -Lines $lines
+            # Should not unroll to scalar
+            @($result).Count | Should -Be 1
         }
 
         It "Handles empty lines array" {
