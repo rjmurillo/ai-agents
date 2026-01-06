@@ -277,7 +277,7 @@ function ConvertFrom-Events {
         }
 
         # Milestone events
-        if ($line -match '✅|completed?|done|finished|success' -and $line -match '^[-*]') {
+        if ($line -match '✅|completed?|done|finished|success' -and $line -match '^[-*]\s') {
             $eventIndex++
             $evt = @{
                 id        = "e{0:D3}" -f $eventIndex
@@ -451,13 +451,13 @@ Write-Host "  Parsing metadata..." -ForegroundColor Gray
 $metadata = ConvertFrom-SessionMetadata -Lines $content
 
 Write-Host "  Parsing decisions..." -ForegroundColor Gray
-$decisions = ConvertFrom-Decisions -Lines $content
+$decisions = @(ConvertFrom-Decisions -Lines $content)
 
 Write-Host "  Parsing events..." -ForegroundColor Gray
-$events = ConvertFrom-Events -Lines $content
+$events = @(ConvertFrom-Events -Lines $content)
 
 Write-Host "  Parsing lessons..." -ForegroundColor Gray
-$lessons = ConvertFrom-Lessons -Lines $content
+$lessons = @(ConvertFrom-Lessons -Lines $content)
 
 Write-Host "  Parsing metrics..." -ForegroundColor Gray
 $metrics = ConvertFrom-Metrics -Lines $content
