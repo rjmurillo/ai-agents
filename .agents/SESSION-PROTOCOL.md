@@ -691,30 +691,198 @@ Example:
 
 ### Automated Protocol Validation
 
-The `Validate-SessionProtocol.ps1` script checks session protocol compliance:
+The `Validate-SessionProtocol.ps1` script provides comprehensive session protocol compliance checking with verification-based enforcement:
 
 ```powershell
-# Validate current session
+# Validate specific session
 .\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.md"
 
-# Validate all recent sessions
-.\scripts\Validate-SessionProtocol.ps1 -All
+# Pre-commit mode (validates staged files, used by pre-commit hook)
+.\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.md" -PreCommit
 
-# CI mode (exit code on failure)
-.\scripts\Validate-SessionProtocol.ps1 -All -CI
+# Validate all recent sessions (last 7 days)
+.\scripts\Validate-SessionProtocol.ps1 -All -Recent 7
+
+# CI mode with markdown output (exit code on failure)
+.\scripts\Validate-SessionProtocol.ps1 -All -CI -Format markdown
+
+# JSON output for tooling integration
+.\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.md" -Format json
 ```
+
+### Validation Features
+
+#### Template Enforcement
+
+Validates session logs match the canonical checklist structure from this document. The checklist table must have:
+
+- Exact row order matching SESSION-PROTOCOL.md
+- All required columns: Req, Step, Status, Evidence
+- Proper markdown table formatting
+
+**Fail-closed**: Non-canonical formats (bullet lists, ad-hoc tables) are rejected.
+
+#### Memory Evidence Validation (ADR-007)
+
+Verifies memory retrieval evidence to close the trust gap where agents could self-report memory access without actually doing it.
+
+**Checks**:
+
+- Evidence column contains actual memory names (kebab-case identifiers)
+- Memory files exist in `.serena/memories/` directory
+- Rejects placeholder evidence ("memories retrieved", "context loaded", etc.)
+
+**Related**: ADR-007 (Verify Memory Calls), Issue #729
+
+#### QA Skip Validation
+
+Validates docs-only and investigation-only QA skip claims with allowlist checking.
+
+**Docs-Only Skip**: All changed files must be `.md` files (exempt from QA)
+
+**Investigation-Only Skip**: Only files in these directories are allowed:
+
+- `.agents/sessions/` - Session logs
+- `.agents/analysis/` - Investigation outputs
+- `.agents/retrospective/` - Learnings
+- `.serena/memories/` - Cross-session context
+- `.agents/security/` - Security assessments
+
+**Enforcement**: Claims are verified against actual changed files. Invalid claims are rejected with specific file listings.
+
+**Related**: ADR-034 (Investigation-Only Sessions)
+
+#### Pre-Commit Mode
+
+Supports `-PreCommit` parameter for pre-commit hook integration:
+
+- Validates staged files (not full session diff) to avoid false positives
+- Skips commit-dependent checks (commit SHA validation, git worktree clean)
+- Provides targeted error messages with manual command references
+
+#### Branch Verification
+
+Validates branch name matches session log declaration to prevent cross-branch contamination.
+
+#### Git Commit Validation
+
+Comprehensive commit SHA verification:
+
+- Validates commit SHA exists in git history
+- Ensures session log changed since Starting Commit
+- Verifies commit SHA is recorded in Evidence column
+- Checks git worktree is clean (all changes committed)
 
 ### What Validation Checks
 
 | Check | Description | Severity |
 |-------|-------------|----------|
-| Session log exists | File at expected path | Critical |
+| Session log exists | File at expected path with correct naming | Critical |
 | Protocol Compliance section | Contains start/end checklists | Critical |
 | MUST items checked | All MUST requirements marked complete | Critical |
-| QA validation ran | QA report exists in `.agents/qa/` (feature sessions) | Critical |
+| Template enforcement | Exact row order matches SESSION-PROTOCOL.md | Critical |
+| Memory evidence validation | Memory names exist in `.serena/memories/` | Critical |
+| QA skip validation | Docs-only/investigation-only claims validated | Critical |
+| Branch verification | Branch name matches session log declaration | Critical |
+| Git commit validation | Commit SHA verification and worktree clean | Critical |
 | HANDOFF.md updated | Modified within session timeframe | Warning |
-| Git commit exists | Commit with matching date | Warning |
+| SHOULD requirements | Recommended but not required | Warning |
 | Lint ran | Evidence of markdownlint execution | Warning |
+
+---
+
+## Migration from Validate-Session.ps1
+
+### Consolidation Status
+
+**Status**: `Validate-Session.ps1` is deprecated. All features have been merged into `Validate-SessionProtocol.ps1`.
+
+**Timeline**: `Validate-Session.ps1` will be removed after 1-2 release cycles (approximately 2-4 weeks from January 2026).
+
+**Action Required**: Update any local scripts, workflows, or documentation to use `Validate-SessionProtocol.ps1`.
+
+### Parameter Changes
+
+The consolidated script uses standardized parameter names:
+
+| Old Parameter (Validate-Session.ps1) | New Parameter (Validate-SessionProtocol.ps1) |
+|-------------------------------------|---------------------------------------------|
+| `-SessionLogPath` | `-SessionPath` |
+| `-FixMarkdown` | (Removed - use `npx markdownlint-cli2 --fix` separately) |
+| `-PreCommit` | `-PreCommit` (unchanged) |
+
+**Migration**: Replace `-SessionLogPath` with `-SessionPath` in all invocations.
+
+### Feature Parity Matrix
+
+All features from `Validate-Session.ps1` are now available in `Validate-SessionProtocol.ps1`:
+
+| Feature | Validate-Session.ps1 | Validate-SessionProtocol.ps1 |
+|---------|---------------------|------------------------------|
+| Template enforcement | ✅ | ✅ (merged) |
+| Memory evidence validation (ADR-007) | ✅ | ✅ (merged) |
+| QA skip validation (docs-only) | ✅ | ✅ (merged) |
+| QA skip validation (investigation-only) | ✅ | ✅ (merged) |
+| Pre-commit mode (`-PreCommit`) | ✅ | ✅ (merged) |
+| Branch verification | ✅ | ✅ (merged) |
+| Git commit validation | ✅ | ✅ (merged) |
+| Path traversal security (CWE-22) | ✅ | ✅ (merged) |
+| Multiple output formats (console/markdown/json) | ❌ | ✅ |
+| Parallel validation (validate multiple sessions) | ❌ | ✅ (CI matrix support) |
+| Batch validation (`-All`, `-Recent`) | ❌ | ✅ |
+
+### Migration Examples
+
+**Before** (using `Validate-Session.ps1`):
+
+```powershell
+# Pre-commit hook
+pwsh scripts/Validate-Session.ps1 -SessionLogPath ".agents/sessions/2025-12-22-session-01.md" -PreCommit
+
+# Manual validation
+pwsh scripts/Validate-Session.ps1 -SessionLogPath ".agents/sessions/2025-12-22-session-01.md"
+```
+
+**After** (using consolidated `Validate-SessionProtocol.ps1`):
+
+```powershell
+# Pre-commit hook
+pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-22-session-01.md" -PreCommit
+
+# Manual validation
+pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-22-session-01.md"
+
+# New features available
+pwsh scripts/Validate-SessionProtocol.ps1 -All -Recent 7 -Format markdown
+```
+
+### What You Gain
+
+By migrating to the consolidated script, you gain:
+
+1. **Unified validation logic**: No more drift between local validation and CI validation
+2. **Enhanced output formats**: Console (colored), markdown (PR comments), JSON (tooling)
+3. **Batch validation**: Validate multiple sessions in one invocation
+4. **Better error messages**: More specific guidance on fixing validation failures
+5. **Parallel CI support**: CI can validate sessions in matrix strategy
+
+### Verification
+
+After migration, verify your setup:
+
+1. **Update references**: Search for `Validate-Session.ps1` in your repository
+   ```bash
+   grep -r "Validate-Session\.ps1" --include="*.md" --include="*.ps1" --include="*.sh"
+   ```
+
+2. **Test pre-commit hook**: Stage a session log and run `git commit` to verify the hook uses the consolidated script
+
+3. **Test manual validation**: Run the consolidated script on a recent session log
+   ```powershell
+   pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/[latest-session].md"
+   ```
+
+4. **Check CI workflow**: Verify `.github/workflows/ai-session-protocol.yml` uses `Validate-SessionProtocol.ps1` (already correct as of January 2026)
 
 ---
 
