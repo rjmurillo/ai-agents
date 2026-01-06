@@ -1507,482 +1507,65 @@ Agents violating these standards produce inconsistent, unprofessional output. Re
 
 ## AI Agent Coding Standards
 
-This section defines the coding standards that AI agents MUST follow to produce code that passes review on the first attempt. Following these standards eliminates the review cycles caused by security vulnerabilities, incorrect patterns, and style violations.
+> **Full Reference**: [.gemini/styleguide.md](.gemini/styleguide.md) contains complete examples and patterns.
 
-### PowerShell Standards (MANDATORY)
+These are the blocking rules that cause immediate PR rejection. Internalize them.
 
-Per ADR-005, all scripts MUST be PowerShell (.ps1/.psm1). No bash or Python.
+### Security (BLOCKING)
 
-#### Function Naming
+| Vulnerability | Wrong | Correct |
+|---------------|-------|---------|
+| **Path Traversal (CWE-22)** | `$Path.StartsWith($Base)` | `[IO.Path]::GetFullPath($Path).StartsWith([IO.Path]::GetFullPath($Base))` |
+| **Command Injection (CWE-78)** | `npx tsx $Script $Arg` | `npx tsx "$Script" "$Arg"` |
+| **Variable Interpolation** | `"Line $Num:"` | `"Line $($Num):"` (colon is scope operator) |
 
-Use PascalCase with approved PowerShell verbs following Verb-Noun pattern.
+### PowerShell (Per ADR-005)
 
-| Approved Verbs | Purpose |
-|----------------|---------|
-| `Get`, `Set`, `New`, `Remove` | CRUD operations |
-| `Test`, `Assert` | Validation (Test returns bool, Assert throws) |
-| `Invoke`, `Start`, `Stop` | Execution operations |
-| `Import`, `Export` | Data transfer |
-| `Initialize`, `Resolve` | Setup operations |
+- **Language**: PowerShell only (.ps1/.psm1). No bash/Python.
+- **Functions**: `Verb-Noun` with approved verbs (Get, Set, New, Test, Invoke)
+- **Parameters**: `[CmdletBinding()]` + `[Parameter(Mandatory)]` + type + validation
+- **Errors**: `$ErrorActionPreference = 'Stop'` + try/catch
+- **Exit codes** (ADR-035): 0=success, 1=logic, 2=config, 3=external, 4=auth
 
-```powershell
-# CORRECT
-function Get-PRContext { }
-function Test-GhAuthenticated { }
-function Assert-ValidBodyFile { }
+### Skills (Per usage-mandatory Memory)
 
-# WRONG - causes review rejection
-function getPRContext { }      # camelCase
-function CheckAuth { }          # non-approved verb
-function DoValidation { }       # non-approved verb
-```
-
-#### Parameter Declaration
-
-ALWAYS use `[CmdletBinding()]`, type annotations, and validation attributes:
+**NEVER** use raw `gh` commands. Check `.claude/skills/github/scripts/` first.
 
 ```powershell
-[CmdletBinding()]
-param(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [string]$Owner,
-
-    [Parameter(Mandatory)]
-    [ValidateRange(1, [int]::MaxValue)]
-    [int]$PullRequest,
-
-    [Parameter()]
-    [ValidateSet("P0", "P1", "P2", "P3")]
-    [string]$Priority,
-
-    [switch]$IncludeDiff
-)
+# WRONG: gh pr view $PR --json title
+# CORRECT:
+& .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest $PR
 ```
 
-#### Variable Interpolation (Critical for Security)
+### Testing
 
-PowerShell variable interpolation has security-critical rules:
+| Code Type | Coverage Target |
+|-----------|-----------------|
+| Security-critical (validation, auth, paths) | **100%** |
+| Business logic | **80%** |
+| Read-only/docs | **60%** |
 
-| Scenario | WRONG | CORRECT | Why |
-|----------|-------|---------|-----|
-| Variable followed by colon | `"Line $LineNumber:"` | `"Line $($LineNumber):"` | Colon is scope operator |
-| Property access | `"Length: $Text.Length"` | `"Length: $($Text.Length)"` | May fail to interpolate |
-| Array indexing | `"First: $Array[0]"` | `"First: $($Array[0])"` | Brackets not parsed |
-| Method calls | `"Upper: $Text.ToUpper()"` | `"Upper: $($Text.ToUpper())"` | Parentheses not parsed |
-
-**Rule**: When in doubt, use subexpression syntax `$()`.
-
-#### Error Handling
-
-ALWAYS set `$ErrorActionPreference = 'Stop'` and use try/catch:
-
-```powershell
-$ErrorActionPreference = 'Stop'
-
-try {
-    $result = Get-Content -Path $FilePath -ErrorAction Stop
-    Write-Verbose "Successfully read file: $FilePath"
-    return $result
-}
-catch {
-    Write-Error "Failed to read file '$FilePath': $_"
-    exit 1
-}
-```
-
-#### Exit Codes (Per ADR-035)
-
-MUST document exit codes in script header and use consistent semantics:
-
-| Code | Category | When to Use |
-|------|----------|-------------|
-| 0 | Success | All success paths, including idempotent no-ops |
-| 1 | Logic Error | Validation failures, assertion violations |
-| 2 | Config Error | Missing params, invalid args, missing dependencies |
-| 3 | External Error | GitHub API failures, network errors |
-| 4 | Auth Error | Token expired, permission denied (403), rate limited |
-
-```powershell
-<#
-.SYNOPSIS
-    Brief description
-
-.NOTES
-    EXIT CODES:
-    0  - Success: Operation completed
-    1  - Error: Validation failed
-    2  - Error: Missing required parameter
-    3  - Error: GitHub API returned error
-    4  - Error: Authentication/authorization failed
-#>
-```
-
-#### Output Schema Consistency (Per ADR-028)
-
-ALWAYS include all properties in output objects, even when null/0:
-
-```powershell
-# CORRECT - Consistent schema
-[PSCustomObject]@{
-    ReviewCommentCount = $reviewCount
-    IssueCommentCount  = 0  # Not requested, but property exists
-}
-
-# WRONG - Variable schema causes consumer issues
-$output = [PSCustomObject]@{ ReviewCommentCount = $reviewCount }
-if ($IncludeIssueComments) {
-    $output | Add-Member -NotePropertyName IssueCommentCount -NotePropertyValue $count
-}
-```
-
-### Security Standards (BLOCKING)
-
-Security violations cause immediate PR rejection. These patterns prevent CWE vulnerabilities.
-
-#### Path Traversal Prevention (CWE-22)
-
-ALWAYS normalize paths before comparison:
-
-```powershell
-# WRONG - Vulnerable to path traversal
-if ($Path.StartsWith($AllowedBase)) { }
-
-# CORRECT - Normalize both paths first
-$NormalizedPath = [System.IO.Path]::GetFullPath($Path)
-$NormalizedBase = [System.IO.Path]::GetFullPath($AllowedBase)
-if ($NormalizedPath.StartsWith($NormalizedBase, [System.StringComparison]::OrdinalIgnoreCase)) { }
-```
-
-#### Command Injection Prevention (CWE-77, CWE-78)
-
-ALWAYS quote variables and use parameter arrays:
-
-```powershell
-# WRONG - Command injection vulnerability
-npx tsx $PluginScript $Query $OutputFile
-Invoke-Expression "Get-Content $UserInput"
-
-# CORRECT - Quoted variables prevent injection
-npx tsx "$PluginScript" "$Query" "$OutputFile"
-
-# CORRECT - Parameter splatting for complex commands
-$params = @{
-    Path  = $UserProvidedPath
-    Force = $true
-}
-Copy-Item @params
-```
-
-#### GitHub Name Validation
-
-ALWAYS validate owner/repo names before use in commands:
-
-```powershell
-# Pattern for owner: alphanumeric and hyphens, 1-39 chars
-$ownerPattern = '^[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$'
-
-# Pattern for repo: alphanumeric, hyphens, underscores, periods, 1-100 chars
-$repoPattern = '^[a-zA-Z0-9._-]{1,100}$'
-
-if (-not ($Owner -match $ownerPattern)) {
-    Write-ErrorAndExit "Invalid GitHub owner name: $Owner" 1
-}
-```
-
-#### Secure String Handling
-
-NEVER log or display sensitive data:
-
-```powershell
-# WRONG - Exposes secrets
-Write-Host "Using token: $env:GITHUB_TOKEN"
-Write-Verbose "API key: $ApiKey"
-
-# CORRECT - Mask sensitive data
-Write-Verbose "Authenticating with token: ***"
-Write-Verbose "Using API key ending in: $($ApiKey.Substring($ApiKey.Length - 4))"
-```
-
-### Skill Usage (MANDATORY)
-
-Per the `usage-mandatory` memory, NEVER use raw `gh` commands when a skill exists.
-
-#### Before ANY GitHub Operation
-
-1. **CHECK**: Does `.claude/skills/github/scripts/` have this capability?
-2. **USE**: If exists, use the skill script
-3. **EXTEND**: If missing, add to skill (not inline), then use it
-
-```powershell
-# WRONG - Raw gh command (causes PR rejection)
-gh pr view $PR --json title,body,files
-
-# CORRECT - Use skill script
-& .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest $PR -IncludeChangedFiles
-```
-
-#### Skill Directory Structure
+### Commits
 
 ```text
-.claude/skills/github/scripts/
-├── pr/           # Pull request operations
-├── issue/        # Issue operations
-└── reactions/    # Comment reactions
-```
-
-### Testing Standards
-
-Per Issue #749, testing follows evidence-based philosophy with security-first coverage.
-
-#### Coverage Targets by Code Category
-
-| Category | Target | Examples |
-|----------|--------|----------|
-| **Security-critical** | **100%** | Input validation, path sanitization, command execution, auth checks |
-| **Business logic** | **80%** | Text parsing, workflow orchestration, non-sensitive utilities |
-| **Read-only/docs** | **60-70%** | Documentation generation, read-only analysis |
-
-#### Pester Test Structure
-
-Use Arrange-Act-Assert pattern:
-
-```powershell
-Describe "Function-Name" {
-    Context "When condition" {
-        It "Should expected behavior" {
-            # Arrange
-            $input = "test-value"
-            Mock gh { return '{"data": "mock"}' }
-
-            # Act
-            $result = Function-Name -Input $input
-
-            # Assert
-            $result | Should -Be "expected"
-            Should -Invoke gh -Times 1
-        }
-    }
-}
-```
-
-#### Test Anti-Patterns (Avoid)
-
-| Anti-Pattern | Problem | Correct Approach |
-|--------------|---------|------------------|
-| Tests for coverage only | No evidence value | Test critical paths and edge cases |
-| Mocking everything | Tests don't verify behavior | Mock only external dependencies |
-| No error path tests | Misses failure scenarios | Test both success and failure paths |
-| Ignoring exit codes | Misses exit code regressions | Assert exit codes per ADR-035 |
-
-### Git Commit Standards
-
-#### Conventional Commit Format
-
-```text
-<type>(<scope>): <short description>
-
-<optional body>
-
-<optional footer>
-```
-
-#### Commit Types
-
-| Type | Purpose | Example |
-|------|---------|---------|
-| `feat` | New feature | `feat(workflow): add parallel AI review` |
-| `fix` | Bug fix | `fix(security): prevent code injection via PR title` |
-| `docs` | Documentation only | `docs(agents): update orchestrator handoff protocol` |
-| `refactor` | Code change without feature/fix | `refactor(scripts): extract common installation functions` |
-| `test` | Adding or updating tests | `test(mcp): add Sync-McpConfig transformation tests` |
-| `chore` | Maintenance tasks | `chore(deps): update markdownlint-cli2 to v0.15.0` |
-| `ci` | CI/CD changes | `ci(workflows): add SHA-pinning for actions` |
-
-#### AI-Generated Commits
-
-ALL AI-generated commits MUST include attribution:
-
-```text
-feat(agents): implement skill extraction workflow
-
-Added retrospective agent with skill scoring and deduplication.
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
+<type>(<scope>): <description>
 
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-**Supported AI Tools and Co-Author Format**:
+Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`
 
-| Tool | Co-Authored-By |
-|------|----------------|
-| Claude | `Co-Authored-By: Claude <noreply@anthropic.com>` |
-| GitHub Copilot | `Co-Authored-By: GitHub Copilot <copilot@github.com>` |
-| Cursor | `Co-Authored-By: Cursor <cursor@cursor.sh>` |
-| Factory Droid | `Co-Authored-By: Factory Droid <droid@factory.ai>` |
-| Latta | `Co-Authored-By: Latta <latta@latta.ai>` |
+**AI Co-Author formats**: Claude (`noreply@anthropic.com`), Copilot (`copilot@github.com`), Cursor (`cursor@cursor.sh`), Factory Droid (`droid@factory.ai`), Latta (`latta@latta.ai`)
 
-### Pull Request Standards
+### GitHub Actions
 
-#### PR Title Format
+- **SHA-pin all actions**: `uses: actions/checkout@b4ffde65...` not `@v4`
+- **No shell interpolation**: Use `env:` block, not `${{ }}` in `run:`
+- **Thin workflows**: Logic in .psm1 modules (ADR-006)
 
-Use conventional commit format for PR titles:
+### PRs
 
-```text
-feat(scope): short description
-fix(scope): short description
-docs: short description
-```
-
-#### PR Template Compliance
-
-ALL PRs MUST follow `.github/PULL_REQUEST_TEMPLATE.md`:
-
-| Section | Required For | Content |
-|---------|--------------|---------|
-| Summary | All PRs | 1-3 bullet points describing changes |
-| Specification References | Feature PRs | Link to issue, REQ-*, or spec file |
-| Changes | All PRs | Bulleted list of changes |
-| Type of Change | All PRs | Checkbox for PR category |
-| Testing | All PRs | Checkbox for testing approach |
-| Agent Review | Security/Architecture PRs | Checkbox for agent reviews completed |
-| Checklist | All PRs | Style, self-review, documentation |
-
-#### Specification Reference Formats
-
-| Type | Format | Example |
-|------|--------|---------|
-| Issue | `Closes #NNN` | `Closes #755` |
-| Requirement | `REQ-NNN` | `REQ-001` |
-| Spec File | Path to spec | `.agents/planning/feature-plan.md` |
-
-### GitHub Actions Standards
-
-#### SHA-Pinning (MANDATORY)
-
-Per Issue #820, ALL third-party actions MUST use SHA-pinned versions:
-
-```yaml
-# WRONG - Tag reference (mutable, security risk)
-- uses: actions/checkout@v4
-- uses: actions/setup-node@v4
-
-# CORRECT - SHA-pinned (immutable, auditable)
-- uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
-- uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.0.2
-```
-
-#### Shell Interpolation Security
-
-NEVER use direct `${{ }}` interpolation in shell scripts:
-
-```yaml
-# WRONG - Vulnerable to injection via PR title
-- run: echo "Processing: ${{ github.event.pull_request.title }}"
-
-# CORRECT - Use environment variable
-- env:
-    PR_TITLE: ${{ github.event.pull_request.title }}
-  run: echo "Processing: $PR_TITLE"
-```
-
-#### Multi-line Outputs
-
-Use HEREDOC syntax for `$GITHUB_OUTPUT`:
-
-```yaml
-- name: Set output
-  id: result
-  run: |
-    {
-      echo "content<<EOF"
-      echo "Line 1"
-      echo "Line 2"
-      echo "EOF"
-    } >> "$GITHUB_OUTPUT"
-```
-
-#### Workflow Logic (Per ADR-006)
-
-Keep workflows thin (orchestration only). Put logic in PowerShell modules:
-
-```yaml
-# WRONG - Logic in workflow (untestable)
-- run: |
-    if [[ "${{ matrix.os }}" == "windows" ]]; then
-      # Complex parsing logic
-    fi
-
-# CORRECT - Call module function (testable)
-- shell: pwsh
-  run: |
-    Import-Module .github/scripts/BuildModule.psm1
-    Invoke-BuildStep -OS $env:MATRIX_OS
-```
-
-### Markdown Standards
-
-#### Code Blocks
-
-ALWAYS include language identifier:
-
-````markdown
-```powershell
-Get-ChildItem -Path $Directory
-```
-````
-
-#### Tables
-
-Use tables for structured data with aligned columns:
-
-```markdown
-| Column 1 | Column 2 | Column 3 |
-|----------|----------|----------|
-| Value 1  | Value 2  | Value 3  |
-```
-
-#### Cross-References
-
-Use relative paths only. NEVER use absolute paths:
-
-```markdown
-# CORRECT
-See [naming conventions](../governance/naming-conventions.md)
-
-# WRONG - Absolute path exposes machine structure
-See [naming conventions](C:\Users\dev\repo\.agents\governance\naming-conventions.md)
-```
-
-#### Prohibited Patterns
-
-| Pattern | Problem | Alternative |
-|---------|---------|-------------|
-| Internal PR numbers in user-facing docs | Users don't know internal PRs | Use generic descriptions |
-| Em dashes | Inconsistent rendering | Use commas or parentheses |
-| Emojis in status | Accessibility issues | Use `[PASS]`, `[FAIL]`, `[BLOCKED]` |
-
-### Documentation Standards
-
-#### ADR Format (Per MADR 4.0)
-
-All ADRs MUST include:
-
-| Section | Content |
-|---------|---------|
-| Status | Proposed, Accepted, Deprecated, Superseded |
-| Context | Problem being addressed |
-| Decision | What was decided |
-| Consequences | Tradeoffs and implications |
-
-#### Artifact Naming
-
-| Artifact | Pattern | Example |
-|----------|---------|---------|
-| ADR | `ADR-NNN-kebab-case.md` | `ADR-005-powershell-only-scripting.md` |
-| Plan | `NNN-feature-plan.md` | `001-authentication-plan.md` |
-| Epic | `EPIC-NNN-kebab-case.md` | `EPIC-001-user-authentication.md` |
+Follow `.github/PULL_REQUEST_TEMPLATE.md`. Required: Summary, Changes, Type, Testing checklist.
 
 ---
 

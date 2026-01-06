@@ -729,7 +729,68 @@ jobs:
           merge-multiple: true
 ```
 
+## Exit Code Standards (Per ADR-035)
+
+All PowerShell scripts MUST document and use consistent exit codes:
+
+| Code | Category | When to Use |
+|------|----------|-------------|
+| 0 | Success | All success paths, including idempotent no-ops |
+| 1 | Logic Error | Validation failures, assertion violations |
+| 2 | Config Error | Missing params, invalid args, missing dependencies |
+| 3 | External Error | GitHub API failures, network errors |
+| 4 | Auth Error | Token expired, permission denied (403), rate limited |
+| 5-99 | Reserved | Future standard use |
+| 100+ | Script-Specific | Must be documented in script header |
+
+**Documentation requirement** - Include in script header:
+
+```powershell
+<#
+.SYNOPSIS
+    Brief description
+
+.NOTES
+    EXIT CODES:
+    0  - Success: Operation completed
+    1  - Error: Validation failed
+    2  - Error: Missing required parameter
+    3  - Error: GitHub API returned error
+    4  - Error: Authentication/authorization failed
+#>
+```
+
+## Output Schema Consistency (Per ADR-028)
+
+Include all properties in output objects with null/0 values when not populated:
+
+**Good** (consistent schema):
+
+```powershell
+[PSCustomObject]@{
+    ReviewCommentCount = $reviewCount
+    IssueCommentCount  = 0  # Property exists even when not requested
+}
+```
+
+**Avoid** (variable schema):
+
+```powershell
+$output = [PSCustomObject]@{ ReviewCommentCount = $reviewCount }
+if ($IncludeIssueComments) {
+    $output | Add-Member -NotePropertyName IssueCommentCount -NotePropertyValue $count
+}
+```
+
 ## Testing Standards
+
+### Coverage Targets by Code Category
+
+| Category | Target | Examples |
+|----------|--------|----------|
+| **Security-critical** | **100%** | Input validation, path sanitization, command execution, auth checks |
+| **Business logic** | **80%** | Text parsing, workflow orchestration, non-sensitive utilities |
+| **Read-only/docs** | **60-70%** | Documentation generation, read-only analysis |
 
 ### Pester Tests
 
@@ -737,7 +798,7 @@ PowerShell tests use Pester framework. Tests should be located alongside source 
 
 **Naming**: `<ScriptName>.Tests.ps1`
 
-**Structure**:
+**Structure** (Arrange-Act-Assert):
 
 ```powershell
 Describe "Function-Name" {
@@ -745,20 +806,49 @@ Describe "Function-Name" {
         It "Should expected behavior" {
             # Arrange
             $input = "test"
+            Mock gh { return '{"data": "mock"}' }
 
             # Act
             $result = Function-Name -Input $input
 
             # Assert
             $result | Should -Be "expected"
+            Should -Invoke gh -Times 1
         }
     }
 }
 ```
 
-### Test Coverage
+### Test Anti-Patterns (Avoid)
 
-Aim for 80% or higher test coverage for PowerShell scripts. Critical security functions require 100% coverage.
+| Anti-Pattern | Problem | Correct Approach |
+|--------------|---------|------------------|
+| Tests for coverage only | No evidence value | Test critical paths and edge cases |
+| Mocking everything | Tests don't verify behavior | Mock only external dependencies |
+| No error path tests | Misses failure scenarios | Test both success and failure paths |
+| Ignoring exit codes | Misses exit code regressions | Assert exit codes per ADR-035 |
+
+### Exit Code Testing
+
+```powershell
+Describe "Exit Codes" {
+    It "Should exit 0 on success" {
+        $result = & $script -ValidParams
+        $LASTEXITCODE | Should -Be 0
+    }
+
+    It "Should exit 2 on missing required parameter" {
+        $result = & $script 2>&1
+        $LASTEXITCODE | Should -Be 2
+    }
+
+    It "Should exit 3 on API error" {
+        Mock gh { throw "API error" }
+        $result = & $script -ValidParams 2>&1
+        $LASTEXITCODE | Should -Be 3
+    }
+}
+```
 
 ## Version Control
 
@@ -775,12 +865,99 @@ Use descriptive branch names with type prefix.
 
 ### Pull Request Requirements
 
-PRs should include:
+PRs MUST follow `.github/PULL_REQUEST_TEMPLATE.md`:
 
-- Descriptive title following conventional commit format
-- Summary of changes
-- Link to related issues
-- Test plan or verification steps
+| Section | Required For | Content |
+|---------|--------------|---------|
+| Summary | All PRs | 1-3 bullet points describing changes |
+| Specification References | Feature PRs | Link to issue, REQ-*, or spec file |
+| Changes | All PRs | Bulleted list of changes |
+| Type of Change | All PRs | Checkbox for PR category |
+| Testing | All PRs | Checkbox for testing approach |
+| Agent Review | Security/Architecture PRs | Checkbox for agent reviews completed |
+| Checklist | All PRs | Style, self-review, documentation |
+
+### AI-Generated Commits
+
+ALL AI-generated commits MUST include attribution:
+
+```text
+feat(agents): implement skill extraction workflow
+
+Added retrospective agent with skill scoring and deduplication.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+**Supported AI Tools and Co-Author Format**:
+
+| Tool | Co-Authored-By |
+|------|----------------|
+| Claude | `Co-Authored-By: Claude <noreply@anthropic.com>` |
+| GitHub Copilot | `Co-Authored-By: GitHub Copilot <copilot@github.com>` |
+| Cursor | `Co-Authored-By: Cursor <cursor@cursor.sh>` |
+| Factory Droid | `Co-Authored-By: Factory Droid <droid@factory.ai>` |
+| Latta | `Co-Authored-By: Latta <latta@latta.ai>` |
+
+## Skill Usage (MANDATORY)
+
+Per the `usage-mandatory` Serena memory, NEVER use raw `gh` commands when a skill exists.
+
+### Before ANY GitHub Operation
+
+1. **CHECK**: Does `.claude/skills/github/scripts/` have this capability?
+2. **USE**: If exists, use the skill script
+3. **EXTEND**: If missing, add to skill (not inline), then use it
+
+**Good**:
+
+```powershell
+& .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest $PR -IncludeChangedFiles
+& .claude/skills/github/scripts/issue/Post-IssueComment.ps1 -Issue $Issue -Body $Comment
+```
+
+**Avoid**:
+
+```powershell
+gh pr view $PR --json title,body,files  # Wrong: raw gh command
+gh issue comment $Issue --body $Comment  # Wrong: raw gh command
+```
+
+### Skill Directory Structure
+
+```text
+.claude/skills/github/scripts/
+├── pr/           # Pull request operations
+│   ├── Get-PRContext.ps1
+│   ├── Post-PRCommentReply.ps1
+│   └── ...
+├── issue/        # Issue operations
+│   ├── Post-IssueComment.ps1
+│   ├── Set-IssueLabels.ps1
+│   └── ...
+└── reactions/    # Comment reactions
+    └── Add-CommentReaction.ps1
+```
+
+## GitHub Actions SHA-Pinning (MANDATORY)
+
+ALL third-party actions MUST use SHA-pinned versions for security:
+
+**Good** (SHA-pinned):
+
+```yaml
+- uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+- uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.0.2
+```
+
+**Avoid** (tag reference):
+
+```yaml
+- uses: actions/checkout@v4  # Wrong: mutable tag
+- uses: actions/setup-node@v4  # Wrong: security risk
+```
 
 ## Code Review Focus Areas
 
