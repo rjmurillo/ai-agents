@@ -59,7 +59,7 @@ function Get-SchemaPath {
         # Find git root
         $gitRoot = git rev-parse --show-toplevel 2>$null
         if (-not $gitRoot) {
-            throw "Cannot determine git root. Run from within a git repository or provide -SchemaDirectory."
+            throw [System.Management.Automation.ItemNotFoundException]::new("Cannot determine git root. Run from within a git repository or provide -SchemaDirectory.")
         }
         $SchemaDirectory = Join-Path $gitRoot ".claude" "skills" "memory" "resources" "schemas"
     }
@@ -68,7 +68,7 @@ function Get-SchemaPath {
     $schemaFile = Join-Path $SchemaDirectory "$SchemaName.schema.json"
 
     if (-not (Test-Path $schemaFile -PathType Leaf)) {
-        throw "Schema file not found: $schemaFile"
+        throw [System.IO.FileNotFoundException]::new("Schema file not found: $schemaFile")
     }
 
     # Cache and return
