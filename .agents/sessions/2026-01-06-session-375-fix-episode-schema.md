@@ -96,8 +96,8 @@ Issue #821 reports schema-invalid JSON causing downstream agent thrashing:
 | MUST | Update Serena memory (cross-session context) | [x] | No cross-session context for this fix |
 | MUST | Run markdown lint | [x] | Passing via pre-commit |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report: .agents/qa/pre-pr-validation-fix-821.md (P1 fixed) |
-| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 856a4596 |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: c354218e |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | No project plan |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Not needed |
-| SHOULD | Verify clean git status | [ ] | Will verify after commit |
+| SHOULD | Verify clean git status | [x] | Status clean after commit |
