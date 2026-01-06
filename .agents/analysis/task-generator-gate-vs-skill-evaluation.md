@@ -18,7 +18,7 @@ The task-generator agent consistently produces TASK-NNN format and is being invo
 2. **Agent compliance**: Task-generator definition explicitly requires TASK-NNN format (line 103)
 3. **Quality issues are content-related**: Critique feedback targets task prompt self-containment and specificity, NOT format standardization or generation enforcement
 
-**Recommendation**: Close issue #766 with NO ACTION verdict. Task-generator does not need a gate (it's being invoked) or skill (format is standardized).
+**Recommendation**: Close issue #766 with NO ACTION verdict. Task-generator does not need a gate (it's being invoked) or skill (agent output is standardized), but at least one task breakdown file uses a different numeric scheme than TASK-NNN.
 
 ---
 
@@ -52,7 +52,7 @@ The task-generator agent consistently produces TASK-NNN format and is being invo
 
 ### Q2: Is the problem "task format varies"?
 
-**Answer**: NO
+**Answer**: YES
 
 **Evidence**:
 
@@ -67,14 +67,14 @@ The task-generator agent consistently produces TASK-NNN format and is being invo
    **ID**: TASK-[NNN]
    ```
 
-3. **Task breakdown files comply**:
+3. **Task breakdown files mostly comply**:
    - `tasks-agent-consolidation.md`: TASK-001 through TASK-021 (line 40, 61, 101, etc.)
    - `tasks-pr365-remediation.md`: TASK-001 through TASK-014 (line 36, 54, 85, etc.)
-   - `tasks-pr-maintenance-authority.md`: Uses TASK-1.1, TASK-2.1 format (nested milestones)
+   - `tasks-pr-maintenance-authority.md`: Uses TASK-1.1, TASK-2.1 format (nested milestones), which differs from TASK-NNN
 
-4. **No format deviation found**: All inspected task files use numeric IDs with zero variation
+4. **Deviation exists**: At least one inspected task file uses a different numeric scheme (TASK-1.1 style) than the documented standard (TASK-NNN)
 
-**Verdict**: Format is standardized. No skill needed.
+**Verdict**: Format is mostly standardized (TASK-NNN), but not uniform across all task breakdown files. This is a standardization issue, not a gate-worthy enforcement gap.
 
 ---
 
@@ -372,7 +372,7 @@ Each task prompt must be executable by an amnesiac agent with zero prior context
 **Reasoning**:
 
 1. **Task generation happening**: 227 TASK-NNN instances, 4 task breakdown files, 5 session log references
-2. **Format standardized**: Agent definition mandates TASK-NNN, all outputs comply
+2. **Format mostly standardized**: Agent definition mandates TASK-NNN, but at least one inspected task breakdown file uses a different numeric scheme (TASK-1.1 style)
 3. **Quality issues NOT gate-worthy**: Content self-containment is critic feedback, not protocol bypass
 4. **Existing mechanisms work**: Critic reviews tasks, Session 88 shows iterative improvement
 
@@ -387,7 +387,7 @@ Each task prompt must be executable by an amnesiac agent with zero prior context
 | Evidence Type | Source | Finding |
 |---------------|--------|---------|
 | **Agent Definition** | `src/claude/task-generator.md:103` | TASK-NNN format mandated |
-| **Planning Artifacts** | 12 files with TASK-NNN | Format consistently applied |
+| **Planning Artifacts** | 12 files with TASK-NNN | Format mostly consistent, with at least one inspected deviation |
 | **Session Logs** | 5 sessions reference task-generator | Agent being invoked |
 | **Critique Feedback** | `tasks-pr-maintenance-authority-critique.md` | Quality issues are content-related, NOT format |
 | **Retrospective** | Session 88 | Workflow includes task-generator step |
