@@ -31,6 +31,10 @@
 .PARAMETER Path
     Base path to scan. Default: current directory.
 
+.PARAMETER PreCommit
+    Pre-commit hook mode. Enables lightweight validation optimized for git hooks.
+    When specified, validation focuses on blocking errors only.
+
 .EXAMPLE
     .\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.md"
 
@@ -60,7 +64,11 @@ param(
     [switch]$CI,
 
     [Parameter()]
-    [string]$Path = "."
+    [string]$Path = ".",
+
+    [Parameter()]
+    [Alias("SessionLogPath")]
+    [switch]$PreCommit
 )
 
 $ErrorActionPreference = 'Stop'
@@ -1256,6 +1264,12 @@ function Format-JsonOutput {
 #endregion
 
 #region Main Execution
+
+# Guard: Skip main execution when script is dot-sourced (for testing)
+# This allows test files to access script-scoped variables/functions without running validation
+if ($MyInvocation.InvocationName -eq '.') {
+    return
+}
 
 try {
     Write-ColorOutput "=== Session Protocol Validation ===" $ColorCyan
