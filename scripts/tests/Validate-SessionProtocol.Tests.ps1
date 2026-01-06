@@ -27,6 +27,11 @@ BeforeAll {
 `$ColorMagenta = '``e[35m'
 `$Format = 'console'
 
+# NOTE: Script-scoped variables below must be kept in sync with Validate-SessionProtocol.ps1
+# These are manually recreated because the test harness uses AST extraction to load only
+# function definitions. If these variables change in the main script, update them here too.
+# See lines 31-47 for variable definitions.
+
 # Maximum lines to search for table after heading
 `$script:MaxTableSearchLines = 80
 
@@ -80,7 +85,7 @@ Describe "Function Loading Test" {
     }
 
     It "Function handles arrays with mixed content (headings and tables)" {
-        # Test that function correctly finds table after heading even when multiple headings present
+        # Test that function correctly finds table after H2 heading when both H1 and H2 present
         $testLines = @("# Heading", "## Test", "| Req | Step | Status | Evidence |", "|-----|------|--------|----------|")
         $result = Get-HeadingTable -Lines $testLines -HeadingRegex '##\s+Test'
         $result | Should -Not -BeNullOrEmpty
