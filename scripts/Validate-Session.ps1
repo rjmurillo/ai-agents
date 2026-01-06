@@ -44,6 +44,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Import session validation module
+$ModulePath = Join-Path $PSScriptRoot "modules" "SessionValidation.psm1"
+Import-Module $ModulePath -Force
+
 function Fail([string]$Code, [string]$Message) {
   Write-Error "${Code}: $Message"
   exit 1
@@ -104,33 +108,8 @@ function Get-HeadingTable([string[]]$Lines, [string]$HeadingRegex) {
   return $tableLines.ToArray()
 }
 
-function Parse-ChecklistTable([string[]]$TableLines) {
-  # Returns ordered rows: @{ Req = 'MUST'; Step='...'; Status='x'/' '; Evidence='...' }
-  $rows = New-Object System.Collections.Generic.List[hashtable]
-  foreach ($line in $TableLines) {
-    if ($line -match '^\|\s*-+\s*\|') { continue } # separator row
-    if ($line -match '^\|\s*Req\s*\|') { continue } # header row
-
-    # Split 4 columns, trimming outer pipes.
-    $parts = ($line.Trim() -replace '^\|','' -replace '\|$','').Split('|') | ForEach-Object { $_.Trim() }
-    if ($parts.Count -lt 4) { continue }
-
-    $req = ($parts[0] -replace '\*','').Trim().ToUpperInvariant()
-    $step = $parts[1].Trim()
-    $statusRaw = $parts[2].Trim()
-    $evidence = $parts[3].Trim()
-
-    $status = ' '
-    if ($statusRaw -match '\[\s*[xX]\s*\]') { $status = 'x' }
-
-    $rows.Add(@{ Req = $req; Step = $step; Status = $status; Evidence = $evidence; Raw = $line })
-  }
-  return $rows.ToArray()
-}
-
-function Normalize-Step([string]$s) {
-  return ($s -replace '\s+',' ' -replace '\*','').Trim()
-}
+# Functions Split-TableRow, Parse-ChecklistTable, Normalize-Step, and Test-MemoryEvidence
+# are now imported from scripts/modules/SessionValidation.psm1
 
 # --- Load inputs
 $sessionFullPath = (Resolve-Path -LiteralPath $SessionLogPath).Path
@@ -250,108 +229,7 @@ foreach ($row in $mustStartRows) {
 # agents could self-report memory retrieval without actually doing it.
 #
 # Related: ADR-007, Issue #729, Session 63 (E2 implementation)
-
-function Test-MemoryEvidence {
-  [CmdletBinding()]
-  param(
-    [Parameter(Mandatory)]
-    [hashtable[]]$SessionRows,
-
-    [Parameter(Mandatory)]
-    [string]$RepoRoot
-  )
-
-  <#
-  .SYNOPSIS
-    Validates that memory-related checklist rows have valid Evidence.
-
-  .DESCRIPTION
-    Finds the "memory-index" row in Session Start checklist and verifies:
-    1. Evidence column is not empty or placeholder text
-    2. Evidence contains memory names (kebab-case identifiers)
-    3. Each referenced memory exists in .serena/memories/
-
-  .OUTPUTS
-    Returns hashtable with validation results:
-    - IsValid: $true if validation passed
-    - MemoriesFound: Array of memory names found in Evidence
-    - MissingMemories: Array of memory names not found on disk
-    - ErrorMessage: Explanation if validation failed
-  #>
-
-  $result = @{
-    IsValid = $true
-    MemoriesFound = @()
-    MissingMemories = @()
-    ErrorMessage = $null
-  }
-
-  # Find the memory-index row (matches "memory-index" in Step column)
-  $memoryRow = $SessionRows | Where-Object {
-    (Normalize-Step $_.Step) -match 'memory-index.*memories'
-  } | Select-Object -First 1
-
-  if (-not $memoryRow) {
-    # No memory-index row found - this is a template issue, not evidence issue
-    return $result
-  }
-
-  $evidence = $memoryRow.Evidence
-
-  # Check for empty or placeholder evidence
-  $placeholderPatterns = @(
-    '^\s*$',                           # Empty
-    '^List memories loaded$',          # Template placeholder
-    '^\[.*\]$',                         # Bracketed placeholder like [memories]
-    '^-+$'                              # Dashes only
-  )
-
-  foreach ($pattern in $placeholderPatterns) {
-    if ($evidence -match $pattern) {
-      $result.IsValid = $false
-      $result.ErrorMessage = "Memory-index Evidence column contains placeholder text: '$evidence'. List actual memory names read (e.g., 'memory-index, skills-pr-review-index')."
-      return $result
-    }
-  }
-
-  # Extract memory names from Evidence (kebab-case identifiers)
-  # Pattern: word-word or word-word-word-... (minimum 2 segments)
-  $memoryPattern = '[a-z][a-z0-9]*(?:-[a-z0-9]+)+'
-  # Wrap in @() to ensure result is always an array (fixes Count property error when single match)
-  $foundMemories = @(
-    [regex]::Matches($evidence, $memoryPattern, 'IgnoreCase') |
-      ForEach-Object { $_.Value.ToLowerInvariant() } |
-      Select-Object -Unique
-  )
-
-  if ($foundMemories.Count -eq 0) {
-    $result.IsValid = $false
-    $result.ErrorMessage = "Memory-index Evidence column doesn't contain valid memory names: '$evidence'. Expected format: 'memory-index, skills-pr-review-index, ...' (kebab-case names)."
-    return $result
-  }
-
-  $result.MemoriesFound = $foundMemories
-
-  # Verify each memory exists in .serena/memories/
-  $memoriesDir = Join-Path $RepoRoot ".serena" "memories"
-  $missingMemories = [System.Collections.Generic.List[string]]::new()
-
-  foreach ($memName in $foundMemories) {
-    $memPath = Join-Path $memoriesDir "$memName.md"
-    if (-not (Test-Path -LiteralPath $memPath)) {
-      $missingMemories.Add($memName)
-    }
-  }
-
-  if ($missingMemories.Count -gt 0) {
-    $result.MissingMemories = $missingMemories.ToArray()
-    $result.IsValid = $false
-    $missing = $missingMemories -join ', '
-    $result.ErrorMessage = "Memory-index Evidence references memories that don't exist: $missing. Verify memory names or create missing memories in .serena/memories/."
-  }
-
-  return $result
-}
+# Function Test-MemoryEvidence is now imported from scripts/modules/SessionValidation.psm1
 
 # Run memory evidence validation
 Write-Output "Validating memory retrieval evidence (ADR-007)..."
