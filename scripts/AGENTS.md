@@ -210,7 +210,7 @@ For backward compatibility, individual scripts wrap the unified installer:
 | **Output** | Protocol compliance report (console/markdown/json) |
 | **Trigger** | Pre-commit hook, CI on session log changes |
 | **Dependencies** | PowerShell 7.0+ |
-| **Status** | Consolidated - all features from `Validate-Session.ps1` merged |
+| **Status** | Active consolidation script |
 
 **Checks Performed**:
 
@@ -246,7 +246,7 @@ For backward compatibility, individual scripts wrap the unified installer:
 .\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-18-session-24.md" -Format json
 ```
 
-**Note**: `Validate-Session.ps1` is deprecated. All features have been merged into this consolidated script.
+**Note**: Use this script for all session protocol validation.
 
 ---
 

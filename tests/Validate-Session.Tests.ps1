@@ -10,43 +10,12 @@
 #>
 
 BeforeAll {
-    $scriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1"
+    # Import the consolidated session validation module
+    $modulePath = Join-Path $PSScriptRoot ".." "scripts" "modules" "SessionValidation.psm1"
+    Import-Module $modulePath -Force
 
-    # Extract the functions we need to test
-    $scriptContent = Get-Content -Path $scriptPath -Raw
-
-    # Extract the allowlist variable (handles nested parentheses in patterns)
-    if ($scriptContent -match '(?ms)\$script:InvestigationAllowlist\s*=\s*@\(.*?^\)') {
-        $allowlistDef = $Matches[0]
-        Invoke-Expression $allowlistDef
-    }
-
-    # Extract Test-InvestigationOnlyEligibility function (advanced function with CmdletBinding)
-    $functionPattern = '(?ms)function Test-InvestigationOnlyEligibility\s*\{.*?^\}'
-    if ($scriptContent -match $functionPattern) {
-        $functionDef = $Matches[0]
-        Invoke-Expression $functionDef
-    }
-
-    # Also extract Is-DocsOnly for comparison tests
-    $docsOnlyPattern = '(?ms)function Is-DocsOnly\s*\([^)]*\)\s*\{.*?\n\}'
-    if ($scriptContent -match $docsOnlyPattern) {
-        $docsOnlyDef = $Matches[0]
-        Invoke-Expression $docsOnlyDef
-    }
-
-    # Extract the AuditArtifacts variable for Get-ImplementationFiles tests
-    if ($scriptContent -match '(?ms)\$script:AuditArtifacts\s*=\s*@\(.*?^\)') {
-        $auditArtifactsDef = $Matches[0]
-        Invoke-Expression $auditArtifactsDef
-    }
-
-    # Extract Get-ImplementationFiles function
-    $getImplFilesPattern = '(?ms)function Get-ImplementationFiles\s*\{.*?^\}'
-    if ($scriptContent -match $getImplFilesPattern) {
-        $getImplFilesDef = $Matches[0]
-        Invoke-Expression $getImplFilesDef
-    }
+    # The functions Test-InvestigationOnlyEligibility and Get-ImplementationFiles
+    # have been moved to scripts/modules/SessionValidation.psm1 during consolidation
 }
 
 Describe "InvestigationAllowlist" {

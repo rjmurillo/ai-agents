@@ -194,8 +194,6 @@ Validates session protocol compliance for session logs with comprehensive verifi
 
 **Called By**: Pre-commit hook, orchestrator, CI
 
-**Note**: This script consolidates all validation features previously split between `Validate-Session.ps1` and `Validate-SessionProtocol.ps1`. The older `Validate-Session.ps1` is deprecated.
-
 **Usage**:
 
 ```powershell

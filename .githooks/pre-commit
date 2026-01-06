@@ -969,9 +969,9 @@ fi
 #
 # Lightweight check for memory retrieval evidence in session logs.
 # Warns if the Evidence column for memory-index appears empty or placeholder.
-# Full validation (E2) is done by Validate-Session.ps1.
+# Full validation (E2) is done by Validate-SessionProtocol.ps1.
 #
-# Related: ADR-007, Issue #729, E2 in Validate-Session.ps1
+# Related: ADR-007, Issue #729, E2 in Validate-SessionProtocol.ps1
 #
 
 if [ -n "$STAGED_SESSION_LOG" ]; then

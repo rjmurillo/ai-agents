@@ -89,8 +89,6 @@ pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/[sessio
 - **Branch Verification**: Validates branch name matches session log declaration
 - **Git Commit Validation**: Comprehensive commit SHA verification
 
-**Note**: All features previously in `Validate-Session.ps1` have been merged into this consolidated script. Use `-SessionPath` parameter (not `-SessionLogPath`).
-
 ### Full Protocol Documentation
 
 For complete protocol with:

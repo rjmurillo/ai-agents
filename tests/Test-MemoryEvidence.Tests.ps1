@@ -11,24 +11,9 @@
 #>
 
 BeforeAll {
-    # Load the Validate-Session.ps1 script to get the function
-    $ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1"
-
-    # We need to source only the functions, not run the script
-    # Extract the Test-MemoryEvidence function
-    $scriptContent = Get-Content -Path $ScriptPath -Raw
-
-    # Extract Normalize-Step function (dependency)
-    $normalizeStepMatch = [regex]::Match($scriptContent, 'function Normalize-Step\([^\)]*\)\s*\{[^}]+\}')
-    if ($normalizeStepMatch.Success) {
-        Invoke-Expression $normalizeStepMatch.Value
-    }
-
-    # Extract Test-MemoryEvidence function
-    $functionMatch = [regex]::Match($scriptContent, 'function Test-MemoryEvidence\s*\{[\s\S]*?^\}', [System.Text.RegularExpressions.RegexOptions]::Multiline)
-    if ($functionMatch.Success) {
-        Invoke-Expression $functionMatch.Value
-    }
+    # Import the consolidated session validation module to get the Test-MemoryEvidence function
+    $modulePath = Join-Path $PSScriptRoot ".." "scripts" "modules" "SessionValidation.psm1"
+    Import-Module $modulePath -Force
 
     # Create test memory directory
     $TestRoot = Join-Path $TestDrive "test-repo"
