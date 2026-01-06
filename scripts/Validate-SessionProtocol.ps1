@@ -627,8 +627,7 @@ function Test-MustNotRequirements {
     # Find all MUST NOT requirement rows in tables
     # Pattern: | MUST NOT | description | [x] or [ ] |
     # Also matches: | **MUST NOT** | description | [x] or [ ] |
-    # Note: The corresponding MUST regex requires a pipe immediately after whitespace following "MUST",
-    #       so it does not match "MUST NOT"; this pattern explicitly matches the "MUST NOT" phrase.
+    # Note: This pattern explicitly matches the "MUST NOT" phrase to distinguish it from the separate MUST-only pattern.
     $mustNotMatches = [regex]::Matches($Content, '\|\s*\*?\*?MUST\s+NOT\*?\*?\s*\|([^|]+)\|\s*\[([x ])\]')
 
     foreach ($match in $mustNotMatches) {
