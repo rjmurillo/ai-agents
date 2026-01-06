@@ -74,6 +74,36 @@ Follow the manual workflow below if the automated script doesn't meet your needs
 
 ---
 
+## Session Naming Protocol
+
+**Format**: `YYYY-MM-DD-session-NN-keyword1-keyword2-keyword3-keyword4-keyword5.md`
+
+The script automatically generates human-readable filenames by extracting up to 5 keywords from the session objective using NLP heuristics:
+
+- **Remove stop words**: Common words like "the", "a", "to", "for" are filtered out
+- **Keep domain terms**: Technical verbs like "implement", "debug", "fix", "refactor" are preserved
+- **Convert to kebab-case**: Words are joined with hyphens for readability
+- **Limit to 5 keywords**: Most relevant terms from the start of the objective
+
+### Examples
+
+| Session Objective | Generated Filename |
+|-------------------|--------------------|
+| "Debug recurring session validation failures" | `2026-01-06-session-374-debug-recurring-session-validation-failures.md` |
+| "Implement OAuth 2.0 authentication flow" | `2026-01-06-session-375-implement-oauth-authentication-flow.md` |
+| "Fix test coverage gaps in UserService" | `2026-01-06-session-376-fix-test-coverage-gaps-userservice.md` |
+| "Refactor PaymentProcessor for better error handling" | `2026-01-06-session-377-refactor-paymentprocessor-better-error-handling.md` |
+
+### Benefits
+
+- **Human-readable discovery**: Browse session history with `ls .agents/sessions/` and instantly understand content
+- **Grep-friendly search**: Find sessions by topic with `grep -l "oauth" .agents/sessions/*.md`
+- **Self-documenting**: No need to open files to understand what each session covers
+- **Chronological order**: YYYY-MM-DD prefix preserves time-based sorting
+- **Pattern identification**: Keyword clustering reveals recurring themes across sessions
+
+---
+
 ## Process Overview
 
 ```text
@@ -114,8 +144,10 @@ User Request: /session-init
     v
 +---------------------------------------------+
 | Phase 4: WRITE SESSION LOG                  |
+| - Generate descriptive filename with        |
+|   keywords from objective                   |
 | - Write to .agents/sessions/YYYY-MM-DD-    |
-|   session-NN.md                            |
+|   session-NN-keyword1-keyword2-...md       |
 | - Preserve all template sections           |
 +---------------------------------------------+
     |
@@ -198,6 +230,22 @@ Leave these unchanged:
 - Comment blocks
 
 ### Step 4: Write Session Log File
+
+Write the populated session log to a file with descriptive naming:
+
+**Filename Format**: `YYYY-MM-DD-session-NN-keyword1-keyword2-keyword3-keyword4-keyword5.md`
+
+The script automatically:
+
+1. Extracts up to 5 keywords from the objective
+2. Filters out common stop words (the, a, to, for, etc.)
+3. Converts to kebab-case
+4. Generates human-readable filename
+
+**Example**:
+
+For objective "Debug recurring session validation failures", the filename becomes:
+`2026-01-06-session-374-debug-recurring-session-validation-failures.md`
 
 Construct filename: `.agents/sessions/YYYY-MM-DD-session-NN.md`
 

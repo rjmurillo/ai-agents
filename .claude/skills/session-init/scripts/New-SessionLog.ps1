@@ -193,10 +193,56 @@ function New-PopulatedSessionLog {
     return $populated
 }
 
+function Get-DescriptiveKeywords {
+    <#
+    .SYNOPSIS
+        Extract descriptive keywords from session objective for filename
+    .DESCRIPTION
+        Extracts up to 5 most relevant keywords from objective using NLP heuristics:
+        - Remove common stop words (the, a, an, to, for, with, etc.)
+        - Keep domain-specific verbs (implement, debug, fix, refactor, etc.)
+        - Convert to kebab-case
+        - Limit to 5 keywords maximum
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$Objective
+    )
+
+    # Stop words to remove (common English words with low information value)
+    $stopWords = @(
+        'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+        'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during',
+        'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+        'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might',
+        'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it',
+        'we', 'they', 'what', 'which', 'who', 'when', 'where', 'why', 'how',
+        'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other', 'some',
+        'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too',
+        'very', 's', 't', 'just', 'now', 'before', 'after', 'new'
+    )
+
+    # Split objective into words, convert to lowercase, remove punctuation
+    $words = $Objective -replace '[^\w\s-]', '' -split '\s+' | ForEach-Object { $_.ToLower() }
+
+    # Filter out stop words and empty strings
+    $keywords = $words | Where-Object {
+        $_ -and                              # Not empty
+        $_.Length -gt 2 -and                 # At least 3 characters
+        $_ -notin $stopWords                 # Not a stop word
+    }
+
+    # Take first 5 keywords (most relevant are usually at the start)
+    $keywords = $keywords | Select-Object -First 5
+
+    # Join with hyphens for kebab-case
+    return ($keywords -join '-')
+}
+
 function Write-SessionLogFile {
     <#
     .SYNOPSIS
-        Write session log to file
+        Write session log to file with descriptive filename
     #>
     param(
         [Parameter(Mandatory)]
@@ -206,7 +252,10 @@ function Write-SessionLogFile {
         [string]$RepoRoot,
 
         [Parameter(Mandatory)]
-        [int]$SessionNumber
+        [int]$SessionNumber,
+
+        [Parameter(Mandatory)]
+        [string]$Objective
     )
 
     $currentDate = Get-Date -Format "yyyy-MM-dd"
@@ -216,10 +265,10 @@ function Write-SessionLogFile {
         New-Item -ItemType Directory -Path $sessionDir -Force | Out-Null
     }
 
-    # Generate filename - use objective from content if available
-    # For now, use generic naming. Skill description suggests using objective in filename
-    # but template uses generic pattern. Following template pattern.
-    $fileName = "$currentDate-session-$SessionNumber.md"
+    # Generate descriptive filename with keywords from objective
+    $keywords = Get-DescriptiveKeywords -Objective $Objective
+    $keywordSuffix = if ($keywords) { "-$keywords" } else { "" }
+    $fileName = "$currentDate-session-$SessionNumber$keywordSuffix.md"
     $filePath = Join-Path $sessionDir $fileName
 
     try {
@@ -305,7 +354,7 @@ try {
 
     # Phase 4: Write session log
     Write-Host "Phase 4: Writing session log..." -ForegroundColor Yellow
-    $sessionLogPath = Write-SessionLogFile -Content $sessionLog -RepoRoot $gitInfo.RepoRoot -SessionNumber $userInput.SessionNumber
+    $sessionLogPath = Write-SessionLogFile -Content $sessionLog -RepoRoot $gitInfo.RepoRoot -SessionNumber $userInput.SessionNumber -Objective $userInput.Objective
     Write-Host "  File: $sessionLogPath" -ForegroundColor Gray
     Write-Host ""
 
