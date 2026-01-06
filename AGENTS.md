@@ -231,7 +231,7 @@ gh workflow run [workflow] --ref [branch]
 
 ## Code Style & Examples
 
-> **Before writing code**: Read [.gemini/styleguide.md](.gemini/styleguide.md) for security patterns (CWE prevention), exit codes (ADR-035), test coverage targets, skill usage rules, and AI commit attribution formats.
+> **Before writing code**: Read [.gemini/styleguide.md](.gemini/styleguide.md) for blocking security patterns and canonical source index.
 
 ### PowerShell Style
 
