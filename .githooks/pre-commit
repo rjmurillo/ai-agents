@@ -772,7 +772,7 @@ fi
 # Security: Fail-closed - if validation fails or cannot run, commit is blocked
 # Related: SESSION-PROTOCOL.md v1.4, Skill-Protocol-002, Skill-Validation-006
 #
-SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-Session.ps1"
+SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-SessionProtocol.ps1"
 
 # Check if any .agents/ files are staged (indicating an active session)
 STAGED_AGENTS_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/' || true)
@@ -803,7 +803,7 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
             if command -v pwsh &> /dev/null; then
                 echo_info "Running Session Protocol validation..."
                 # SECURITY: Use -- separator and quote path to prevent injection
-                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
+                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
                     echo_error "Session Protocol validation FAILED."
                     echo_info "  Review errors above and fix session log."
                     echo_info ""
@@ -815,7 +815,7 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
                     echo_info "  NOT ACCEPTED: Bullet-list format (- [x] item)"
                     echo_info ""
                     echo_info "  Copy the canonical checklist from: .agents/SESSION-PROTOCOL.md"
-                    echo_info "  Run manually: pwsh scripts/Validate-Session.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
+                    echo_info "  Run manually: pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath \"$STAGED_SESSION_LOG\" -PreCommit"
                     EXIT_STATUS=1
                 else
                     echo_success "Session Protocol validation: PASS"

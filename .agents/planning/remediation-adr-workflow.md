@@ -203,7 +203,7 @@ $stagedSessions = git diff --cached --name-only --diff-filter=ACM |
 if ($stagedSessions) {
     foreach ($session in $stagedSessions) {
         Write-Host "Validating session protocol: $session"
-        pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath $session
+        pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath $session
         if ($LASTEXITCODE -ne 0) {
             Write-Error "BLOCKED: Session protocol validation failed"
             Write-Error "Fix violations before commit. Same check runs in CI."
@@ -433,7 +433,7 @@ done
 
 ```bash
 # Run session protocol validator
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath .agents/sessions/$(date +%Y-%m-%d)-session-*.md
+pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath .agents/sessions/$(date +%Y-%m-%d)-session-*.md
 # Expected: PASS
 # If FAIL: Fix violations before ending session
 ```
