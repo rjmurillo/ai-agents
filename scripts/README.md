@@ -161,21 +161,40 @@ The repository includes validation scripts for enforcing protocol compliance and
 
 ### Session Protocol Validation
 
-#### Validate-Session.ps1
+#### Validate-SessionProtocol.ps1
 
-Validates Session Start and Session End protocol compliance for a single session log.
+Validates session protocol compliance for session logs with comprehensive verification features.
+
+**Features**:
+
+- **Template Enforcement**: Validates session logs match canonical checklist structure from SESSION-PROTOCOL.md
+- **Memory Evidence Validation (ADR-007)**: Verifies memory names exist in `.serena/memories/` directory
+- **QA Skip Validation**: Validates docs-only and investigation-only skip claims with allowlist checking
+- **Pre-Commit Mode**: Supports `-PreCommit` parameter for pre-commit hook integration
+- **Branch Verification**: Validates branch name matches session log declaration
+- **Git Commit Validation**: Comprehensive commit SHA verification
+- **Multiple Output Formats**: Console (default), markdown, or JSON
+- **Parallel Validation**: Can validate multiple sessions (CI matrix support)
 
 **Usage**:
 
 ```powershell
-.\scripts\Validate-Session.ps1 -SessionLogPath ".agents/sessions/2025-12-22-session-01.md"
+# Validate specific session
+.\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-22-session-01.md"
+
+# Pre-commit mode (validates staged files)
+.\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-22-session-01.md" -PreCommit
+
+# Validate all recent sessions
+.\scripts\Validate-SessionProtocol.ps1 -All -Recent 7
+
+# CI mode with JSON output
+.\scripts\Validate-SessionProtocol.ps1 -All -CI -Format json
 ```
 
 **Called By**: Pre-commit hook, orchestrator, CI
 
-#### Validate-SessionProtocol.ps1
-
-Validates session protocol compliance across multiple sessions.
+**Note**: This script consolidates all validation features previously split between `Validate-Session.ps1` and `Validate-SessionProtocol.ps1`. The older `Validate-Session.ps1` is deprecated.
 
 **Usage**:
 
