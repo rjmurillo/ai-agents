@@ -149,8 +149,9 @@ end {
             # via uncommitted docs masking committed code changes
             $ChangedFiles = & git diff --name-only origin/main...HEAD 2>$null
             if ($LASTEXITCODE -ne 0 -or -not $ChangedFiles) {
-                # Fallback to simple comparison if three-dot syntax fails
-                $ChangedFiles = & git diff --name-only origin/main 2>$null
+                # Fallback to two-dot comparison if three-dot syntax fails
+                # SECURITY: Must use origin/main..HEAD to compare commits, not working tree
+                $ChangedFiles = & git diff --name-only origin/main..HEAD 2>$null
             }
 
             if (-not $ChangedFiles) {
