@@ -458,6 +458,7 @@ function Format-MarkdownReport {
 
     if ($Metrics.RaceConditionRate -gt 10) {
         $report += "- **HIGH PRIORITY**: Race condition rate ($($Metrics.RaceConditionRate)%) exceeds 10% threshold. Investigate trigger patterns and consider implementing debouncing.`n"
+        $report += "- **MITIGATION**: Consider enabling debouncing for affected workflows using enable_debouncing=true in workflow_dispatch. This adds 10s latency but reduces race condition probability.`n"
     }
     
     if ($Metrics.AvgCancellationTime -gt 5) {
