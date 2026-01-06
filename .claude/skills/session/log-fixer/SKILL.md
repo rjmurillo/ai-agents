@@ -249,7 +249,7 @@ After applying fixes:
 
 | Skill | Relationship |
 |-------|--------------|
-| session-init | Prevents need for this skill by correct initialization |
+| [init](../init/) | Prevents need for this skill by correct initialization |
 | analyze | Deep investigation when fixes aren't obvious |
 
 ---

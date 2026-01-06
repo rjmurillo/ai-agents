@@ -270,8 +270,8 @@ Fix the issues and re-validate.
 
 | Skill | Relationship |
 |-------|--------------|
-| session-log-fixer | Reactive fix after failure (this skill prevents need) |
-| session | QA eligibility checking (different purpose) |
+| [log-fixer](../log-fixer/) | Reactive fix after failure (this skill prevents need) |
+| [qa-eligibility](../qa-eligibility/) | QA eligibility checking (different purpose) |
 
 ---
 
