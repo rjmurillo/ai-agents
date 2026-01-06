@@ -290,8 +290,46 @@ See: `.github/workflows/agent-metrics.yml`
 
 - [Dashboard Template](../.agents/metrics/dashboard-template.md)
 - [Baseline Report](../.agents/metrics/baseline-report.md)
+- [Workflow Coalescing Metrics](../.agents/metrics/workflow-coalescing.md)
 - [Orchestrator Routing Algorithm](./orchestrator-routing-algorithm.md)
 - [Agent Governance](./agent-governance.md)
+
+---
+
+## Extended Metrics
+
+### Metric 9: Workflow Coalescing Effectiveness
+
+**Description**: Percentage of workflow runs successfully cancelled vs. running in parallel due to race conditions.
+
+**Formula**:
+
+```text
+Coalescing Effectiveness = (Cancelled Runs / (Cancelled Runs + Parallel Runs)) * 100
+```
+
+**Measurement Method**:
+
+- Query GitHub Actions API for workflow runs
+- Detect overlapping runs in same concurrency group
+- Classify as cancelled (successful coalescing) or parallel (race condition)
+
+**Targets**:
+
+| Metric | Target |
+|--------|--------|
+| Coalescing effectiveness | 90%+ |
+| Race condition rate | <10% |
+| Avg cancellation time | <5 seconds |
+
+**Dashboard Display**: Line chart showing effectiveness over time, table of race condition incidents.
+
+**Related**:
+
+- Script: `.github/scripts/Measure-WorkflowCoalescing.ps1`
+- Report: `.agents/metrics/workflow-coalescing.md`
+- Workflow: `.github/workflows/workflow-coalescing-metrics.yml`
+- ADR: [ADR-026](../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
 
 ---
 

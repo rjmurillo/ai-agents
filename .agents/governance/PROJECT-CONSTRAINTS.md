@@ -57,8 +57,7 @@ Single source of truth for project constraints. Index-style document pointing to
 | MUST NOT put business logic in workflow YAML | ADR-006 | Code review |
 | SHOULD keep workflows under 100 lines (orchestration only) | ADR-006 | Lint check |
 | MUST put complex logic in .psm1 modules | ADR-006 | Code review |
-| MUST have Pester tests for modules (80%+ coverage) | ADR-006 | CI coverage check |
-
+| MUST have Pester tests for modules (80%+ coverage) | ADR-006 | CI coverage check || MUST add new AI-powered workflows to monitoring list | workflow-coalescing | Code review, manual validation |
 **Reference**: [ADR-006-thin-workflows-testable-modules.md](../architecture/ADR-006-thin-workflows-testable-modules.md)
 
 **Rationale Summary**: GitHub Actions workflows cannot be tested locally. The feedback loop (edit -> push -> wait -> check) is slow. Extracting logic to modules enables fast local testing with Pester.
@@ -68,6 +67,14 @@ Single source of truth for project constraints. Index-style document pointing to
 - Workflow YAML: Orchestration only (calls, parameters, artifacts)
 - PowerShell Module (.psm1): All business logic
 - Pester Tests (.Tests.ps1): Fast local feedback
+
+**New AI-Powered Workflow Checklist**:
+
+When creating a new AI-powered workflow with concurrency control:
+
+1. Add workflow name to monitoring list in `.github/scripts/Measure-WorkflowCoalescing.ps1` (line 47, `$Workflows` parameter default)
+2. Document workflow in `.github/AGENTS.md`
+3. Ensure concurrency group follows naming pattern: `{prefix}-${{ github.event.pull_request.number }}`
 
 ---
 

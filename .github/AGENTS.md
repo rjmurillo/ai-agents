@@ -72,6 +72,14 @@ flowchart TD
 
 ## AI-Powered Workflow Agents
 
+> **IMPORTANT**: When creating a new AI-powered workflow with concurrency control, you MUST:
+>
+> 1. Add the workflow name to `.github/scripts/Measure-WorkflowCoalescing.ps1` (line 47, `$Workflows` parameter)
+> 2. Follow concurrency group naming pattern: `{prefix}-${{ github.event.pull_request.number }}`
+> 3. Document the workflow in this file
+>
+> This ensures the workflow is included in coalescing effectiveness monitoring.
+
 ### ai-pr-quality-gate.yml
 
 **Role**: AI-powered parallel PR review using 6 specialist agents
@@ -377,6 +385,7 @@ sequenceDiagram
 | drift-detection | `issues: write` only for issue creation |
 | All workflows | Bot actor exclusion (dependabot, actions) |
 | All workflows | Concurrency groups prevent duplicate runs |
+| All workflows | **Actions pinned to SHA** (supply chain security) - See [security-practices.md](../.agents/steering/security-practices.md#github-actions-security) |
 
 ## Workflow Concurrency and Coalescing Behavior
 
@@ -484,6 +493,36 @@ The repository implements several strategies to reduce the impact of race condit
 - [ADR-026](../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md) - Architectural decision on concurrency control
 - [Issue #803](https://github.com/rjmurillo/ai-agents/issues/803) - Real-world example of race condition impact
 - [PR #806](https://github.com/rjmurillo/ai-agents/pull/806) - Fix for PR context confusion
+
+### Monitoring Coalescing Effectiveness
+
+The repository includes automated monitoring of workflow run coalescing effectiveness:
+
+**Script**: `.github/scripts/Measure-WorkflowCoalescing.ps1`
+
+**Usage**:
+
+```bash
+# Analyze last 30 days
+pwsh .github/scripts/Measure-WorkflowCoalescing.ps1
+
+# Analyze last 90 days with JSON output
+pwsh .github/scripts/Measure-WorkflowCoalescing.ps1 -Since 90 -Output Json
+
+# Analyze specific workflows
+pwsh .github/scripts/Measure-WorkflowCoalescing.ps1 -Workflows @('ai-pr-quality-gate', 'ai-spec-validation')
+```
+
+**Metrics Collected**:
+
+- Coalescing effectiveness rate (target: 90%+)
+- Race condition rate (target: <10%)
+- Average time to cancellation (target: <5 seconds)
+- Per-workflow and per-PR breakdown
+
+**Report Location**: `.agents/metrics/workflow-coalescing.md`
+
+**Automated Collection**: Weekly via `.github/workflows/workflow-coalescing-metrics.yml`
 
 ## Monitoring
 
