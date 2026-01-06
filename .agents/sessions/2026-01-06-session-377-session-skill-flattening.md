@@ -39,13 +39,16 @@ Implement follow-up comments from issue #808 review:
 
 **Solution**: Update SKILL.md to reference correct path or add wrapper at documented location.
 
-## Session Start Checklist
+### Session Start (COMPLETE ALL before work)
 
-- [x] Initialize Serena MCP
-- [x] Read HANDOFF.md
-- [x] Verify branch: `feat/session-init-skill`
-- [x] Create session log
-- [x] Read usage-mandatory memory
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
+| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
+| MUST | Read HANDOFF.md | [x] | File read |
+| MUST | Read usage-mandatory memory | [x] | Memory read |
+| MUST | Verify branch | [x] | `feat/session-init-skill` |
+| MUST | Create session log | [x] | This file |
 
 ## Implementation Plan
 
@@ -83,13 +86,15 @@ Implement follow-up comments from issue #808 review:
 - Git rename detection: Working (all files show as renamed, preserving history)
 - Expected outcome: `/skills` command will now show 29 skills (3 new session skills)
 
-## Session End Checklist
+### Session End (COMPLETE ALL before closing)
 
-- [x] Complete session log with outcomes
-- [x] Update Serena memory
-- [x] Run markdownlint: `npx markdownlint-cli2 --fix "**/*.md"`
-- [x] Commit changes (d2901e9c)
-- [ ] Validate session: `pwsh scripts/Validate-Session.ps1`
+| Req | Step | Status | Evidence |
+|-----|------|--------|----------|
+| MUST | Complete session log | [x] | Implementation summary added |
+| MUST | Update Serena memory | [x] | session-377-skill-flattening |
+| MUST | Run markdownlint | [x] | PASS (0 errors) |
+| MUST | Commit all changes | [x] | d2901e9c, a76dc06e |
+| MUST | Validate session | [ ] | Running validation |
 
 ## Notes
 
