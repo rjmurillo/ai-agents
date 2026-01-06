@@ -200,9 +200,10 @@ Describe "New-SessionLog.ps1" {
             $content | Should -Match 'catch\s*\{'
         }
 
-        It "Should handle git errors" {
+        It "Should handle git errors with specific exception types" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'Git error:'
+            $content | Should -Match 'InvalidOperationException'
+            $content | Should -Match 'Git error \(exit code'
         }
     }
 

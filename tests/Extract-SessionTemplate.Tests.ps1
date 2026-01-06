@@ -106,8 +106,8 @@ Create at: `.agents/sessions/YYYY-MM-DD-session-NN.md`
         }
 
         It 'Should output error message' {
-            $result = & $scriptPath 2>&1
-            $result | Should -Match 'Protocol file not found'
+            $result = & $scriptPath *>&1
+            ($result | Out-String) | Should -Match 'Protocol file not found'
         }
     }
 
@@ -147,8 +147,8 @@ This file has no template section.
         }
 
         It 'Should output error message' {
-            $result = & $scriptPath 2>&1
-            $result | Should -Match 'Template section not found'
+            $result = & $scriptPath *>&1
+            ($result | Out-String) | Should -Match 'Template section not found'
         }
     }
 
@@ -169,8 +169,8 @@ This file has no template section.
         }
 
         It 'Should output error message about git' {
-            $result = & $scriptPath 2>&1
-            $result | Should -Match 'Not in a git repository'
+            $result = & $scriptPath *>&1
+            ($result | Out-String) | Should -Match 'Not in a git repository'
         }
     }
 
