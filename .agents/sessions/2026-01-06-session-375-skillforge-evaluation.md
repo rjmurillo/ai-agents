@@ -110,7 +110,7 @@ All MUST requirements above are marked complete. ✅
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
 | SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [N/A] | Skipped (learnings captured in Serena) |
-| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [N/A] | No export performed |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [x] | N/A: No export performed |
 | MUST | Complete session log (all sections filled) | [x] | All sections populated |
 | MUST | Update Serena memory (cross-session context) | [x] | session-375-skillforge-session-skills |
 | MUST | Run markdown lint | [x] | Output below (0 errors) |
@@ -119,7 +119,7 @@ All MUST requirements above are marked complete. ✅
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [N/A] | No active project plan |
 | SHOULD | Invoke retrospective (significant sessions) | [N/A] | Standard skill enhancement, no retrospective needed |
-| SHOULD | Verify clean git status | [ ] | Output below |
+| SHOULD | Verify clean git status | [x] | Output below |
 
 <!-- Investigation sessions may skip QA with evidence "SKIPPED: investigation-only"
      when only staging: .agents/sessions/, .agents/analysis/, .agents/retrospective/,
