@@ -5,7 +5,7 @@
 #>
 
 BeforeAll {
-    $scriptPath = Join-Path $PSScriptRoot "../scripts/New-SessionLog.ps1"
+    $scriptPath = Join-Path $PSScriptRoot "../.claude/skills/session-init/scripts/New-SessionLog.ps1"
     $repoRoot = git rev-parse --show-toplevel
 }
 
