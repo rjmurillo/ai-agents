@@ -47,7 +47,7 @@ grep -q 'local/bin' "$HOME/.bashrc" 2>/dev/null || echo 'export PATH="$HOME/.loc
 echo "=== markdownlint-cli2 ==="
 if ! command -v markdownlint-cli2 &>/dev/null; then
     if command -v npm &>/dev/null; then
-        if [[ "$(id -u)" == "0" ]]; then
+        if [[ "$(id -u)" -eq 0 ]]; then
             npm install -g markdownlint-cli2
         else
             sudo env PATH="$PATH" npm install -g markdownlint-cli2
