@@ -256,6 +256,8 @@ gh workflow run [workflow] --ref [branch]
 
 ## Code Style & Examples
 
+> **Before writing code**: Read [.gemini/styleguide.md](.gemini/styleguide.md) for blocking security patterns and canonical source index.
+
 ### PowerShell Style
 
 ✅ **Good: Atomic, testable functions**
