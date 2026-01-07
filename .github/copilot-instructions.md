@@ -2,6 +2,33 @@
 
 > **IMPORTANT**: This file is intentionally minimal to reduce context window bloat. All detailed instructions are in AGENTS.md.
 
+## Agent Delegation for Complex Tasks
+
+For tasks requiring multiple steps, specialized expertise, or extensive context, delegate using `#runSubagent` rather than handling everything inline:
+
+| When to Delegate | Agent | Example Prompt |
+|------------------|-------|----------------|
+| Multi-step coordination | `orchestrator` | "Implement OAuth 2.0 with tests and docs" |
+| Codebase exploration | `analyst` | "Investigate why cache invalidation fails" |
+| Architecture decisions | `architect` | "Design the event sourcing pattern for orders" |
+| Implementation work | `implementer` | "Implement the UserService per approved plan" |
+| Plan validation | `critic` | "Review the migration plan for gaps" |
+| Security review | `security` | "Assess auth flow for vulnerabilities" |
+
+**Why delegate:**
+
+- Manages context window efficiently (agents start fresh)
+- Provides specialized system prompts and constraints
+- Returns focused results you can synthesize
+
+**Delegation pattern:**
+
+```text
+#runSubagent orchestrator "Help me implement feature X end-to-end"
+```
+
+**Keep inline:** Simple, single-file edits or quick lookups that don't require specialized reasoning.
+
 ## Primary Reference
 
 **Read AGENTS.md FIRST** for complete instructions:
