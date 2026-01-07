@@ -13,8 +13,12 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-class ApplicationFailedException : System.ApplicationException {
-    ApplicationFailedException([string]$Message, [Exception]$InnerException) : base($Message, $InnerException) {}
+# Only define ApplicationFailedException if not already defined (e.g., by TemplateHelpers.psm1)
+# This prevents type redefinition errors when both modules are imported
+if (-not ([System.Management.Automation.PSTypeName]'ApplicationFailedException').Type) {
+    class ApplicationFailedException : System.ApplicationException {
+        ApplicationFailedException([string]$Message, [Exception]$InnerException) : base($Message, $InnerException) {}
+    }
 }
 
 function Get-GitInfo {
