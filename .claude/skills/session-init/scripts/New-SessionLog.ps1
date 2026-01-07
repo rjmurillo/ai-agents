@@ -56,79 +56,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Import shared modules
+$ScriptDir = Split-Path -Parent $PSCommandPath
+Import-Module (Join-Path $ScriptDir "../modules/GitHelpers.psm1") -Force
+Import-Module (Join-Path $ScriptDir "../modules/TemplateHelpers.psm1") -Force
+
 #region Helper Functions
 
-function Get-GitInfo {
-    <#
-    .SYNOPSIS
-        Gather git repository information
-    .NOTES
-        Throws:
-        - InvalidOperationException: Not in a git repository or git operations failed
-        - ApplicationFailedException: Git command execution failed
-    #>
-    param()
-
-    try {
-        # Capture git output and errors separately
-        $repoRootOutput = git rev-parse --show-toplevel 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            $errorDetails = $repoRootOutput -join "`n"
-            throw [System.InvalidOperationException]::new(
-                "Not in a git repository. Git error (exit code $LASTEXITCODE): $errorDetails`n`nEnsure you are in a git repository by running 'git status'. If you are in a git repository, check for corruption with 'git fsck'."
-            )
-        }
-        $repoRoot = $repoRootOutput
-
-        $branchOutput = git branch --show-current 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            $errorDetails = $branchOutput -join "`n"
-            throw [System.InvalidOperationException]::new(
-                "Failed to get current branch. Git error (exit code $LASTEXITCODE): $errorDetails`n`nThis usually means you are in a detached HEAD state or the repository is corrupted. Run 'git branch --show-current' manually to investigate."
-            )
-        }
-        $branch = $branchOutput
-
-        $commitOutput = git log --oneline -1 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            $errorDetails = $commitOutput -join "`n"
-            throw [System.InvalidOperationException]::new(
-                "Failed to get commit history. Git error (exit code $LASTEXITCODE): $errorDetails`n`nThis usually means the repository has no commits yet. Create an initial commit with 'git commit --allow-empty -m \"Initial commit\"'."
-            )
-        }
-        $commit = $commitOutput
-
-        $statusOutput = git status --short 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            $errorDetails = $statusOutput -join "`n"
-            throw [System.InvalidOperationException]::new(
-                "Failed to get git status. Git error (exit code $LASTEXITCODE): $errorDetails`n`nThis indicates repository corruption or permission issues. Run 'git status' manually to investigate."
-            )
-        }
-
-        $gitStatus = if ([string]::IsNullOrWhiteSpace($statusOutput)) { "clean" } else { "dirty" }
-
-        return @{
-            RepoRoot = $repoRoot.Trim()
-            Branch = $branch.Trim()
-            Commit = $commit.Trim()
-            Status = $gitStatus
-        }
-    } catch [System.InvalidOperationException] {
-        # Expected git operation failures - already have detailed messages
-        Write-Error $_.Exception.Message
-        exit 1
-    } catch {
-        # Unexpected errors - provide full diagnostic information
-        Write-Error "UNEXPECTED ERROR in Get-GitInfo"
-        Write-Error "Exception Type: $($_.Exception.GetType().FullName)"
-        Write-Error "Message: $($_.Exception.Message)"
-        Write-Error "Stack Trace: $($_.ScriptStackTrace)"
-        Write-Error ""
-        Write-Error "This is a bug. Please report this error with the above details."
-        throw
-    }
-}
+# Note: Get-GitInfo is provided by GitHelpers.psm1 module
+# Note: New-PopulatedSessionLog and Get-DescriptiveKeywords are provided by TemplateHelpers.psm1 module
 
 function Get-UserInput {
     <#
@@ -268,133 +204,6 @@ function Invoke-TemplateExtraction {
     }
 }
 
-function New-PopulatedSessionLog {
-    <#
-    .SYNOPSIS
-        Replace template placeholders with actual values
-    .NOTES
-        Validates that template contains expected placeholders before replacement
-        and verifies successful replacement afterward.
-    #>
-    param(
-        [Parameter(Mandatory)]
-        [string]$Template,
-
-        [Parameter(Mandatory)]
-        [hashtable]$GitInfo,
-
-        [Parameter(Mandatory)]
-        [hashtable]$UserInput
-    )
-
-    # Verify template has expected placeholders before replacement
-    $requiredPlaceholders = @(
-        @{ Pattern = '\bNN\b'; Name = 'NN (session number)' },
-        @{ Pattern = 'YYYY-MM-DD'; Name = 'YYYY-MM-DD (date)' },
-        @{ Pattern = '\[branch name\]'; Name = '[branch name]' },
-        @{ Pattern = '\[SHA\]'; Name = '[SHA]' },
-        @{ Pattern = '\[What this session aims to accomplish\]'; Name = '[What this session aims to accomplish]' },
-        @{ Pattern = '\[clean/dirty\]'; Name = '[clean/dirty]' }
-    )
-    
-    $missingPlaceholders = @()
-    foreach ($placeholder in $requiredPlaceholders) {
-        if ($Template -notmatch $placeholder.Pattern) {
-            $missingPlaceholders += $placeholder.Name
-        }
-    }
-    
-    if ($missingPlaceholders.Count -gt 0) {
-        # Check if validation is being skipped - dangerous combination
-        if ($SkipValidation) {
-            throw [System.InvalidOperationException]::new(
-                "Template missing required placeholders AND validation is skipped.`n`nMissing: $($missingPlaceholders -join ', ')`n`nThis combination would create an invalid session log. Either fix the template or enable validation to catch these issues."
-            )
-        }
-        Write-Warning "Template missing expected placeholders: $($missingPlaceholders -join ', ')"
-        Write-Warning "Template may be from an incompatible version of SESSION-PROTOCOL.md."
-        Write-Warning "Session log may be invalid. Proceeding anyway, but validation will likely fail."
-    }
-
-    $currentDate = Get-Date -Format "yyyy-MM-dd"
-
-    # Replace placeholders
-    $populated = $Template `
-        -replace '\bNN\b', $UserInput.SessionNumber `
-        -replace 'YYYY-MM-DD', $currentDate `
-        -replace '\[branch name\]', $GitInfo.Branch `
-        -replace '\[SHA\]', $GitInfo.Commit `
-        -replace '\[What this session aims to accomplish\]', $UserInput.Objective `
-        -replace '\[clean/dirty\]', $GitInfo.Status
-
-    # Verify replacements occurred
-    $unreplacedPlaceholders = @()
-    if ($populated -match '\bNN\b') { $unreplacedPlaceholders += 'NN' }
-    if ($populated -match '\[branch name\]') { $unreplacedPlaceholders += '[branch name]' }
-    if ($populated -match '\[SHA\]') { $unreplacedPlaceholders += '[SHA]' }
-    if ($populated -match '\[What this session aims to accomplish\]') { $unreplacedPlaceholders += '[objective]' }
-    if ($populated -match '\[clean/dirty\]') { $unreplacedPlaceholders += '[clean/dirty]' }
-    
-    if ($unreplacedPlaceholders.Count -gt 0) {
-        Write-Warning "Some placeholders were not replaced: $($unreplacedPlaceholders -join ', ')"
-        Write-Warning "Session log may be invalid. Verify content manually."
-    }
-
-    return $populated
-}
-
-function Get-DescriptiveKeywords {
-    <#
-    .SYNOPSIS
-        Extract descriptive keywords from session objective for filename
-    .DESCRIPTION
-        Extracts up to 5 most relevant keywords from objective using NLP heuristics:
-        - Remove common stop words (the, a, an, to, for, with, etc.)
-        - Keep domain-specific verbs (implement, debug, fix, refactor, etc.)
-        - Convert to kebab-case
-        - Limit to 5 keywords maximum
-    .NOTES
-        This function intentionally has no explicit error handling because:
-        - Operates only on in-memory strings (no I/O)
-        - Uses only safe PowerShell string operators
-        - Returns empty string on unexpected input (handled gracefully by caller)
-        - Cannot throw exceptions under normal PowerShell operation
-    #>
-    param(
-        [Parameter(Mandatory)]
-        [string]$Objective
-    )
-
-    # Stop words to remove (common English words with low information value)
-    $stopWords = @(
-        'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-        'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during',
-        'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
-        'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might',
-        'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it',
-        'we', 'they', 'what', 'which', 'who', 'when', 'where', 'why', 'how',
-        'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other', 'some',
-        'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too',
-        'very', 's', 't', 'just', 'now', 'before', 'after', 'new'
-    )
-
-    # Split objective into words, convert to lowercase, remove punctuation
-    $words = $Objective -replace '[^\w\s-]', '' -split '\s+' | ForEach-Object { $_.ToLower() }
-
-    # Filter out stop words and empty strings
-    $keywords = $words | Where-Object {
-        $_ -and                              # Not empty
-        $_.Length -gt 2 -and                 # At least 3 characters
-        $_ -notin $stopWords                 # Not a stop word
-    }
-
-    # Take first 5 keywords (most relevant are usually at the start)
-    $keywords = $keywords | Select-Object -First 5
-
-    # Join with hyphens for kebab-case
-    return ($keywords -join '-')
-}
-
 function Write-SessionLogFile {
     <#
     .SYNOPSIS
@@ -481,6 +290,11 @@ function Write-SessionLogFile {
         Write-Error "Ensure you have write permissions to the .agents/sessions/ directory."
         Write-Error "Try: chmod +w `"$sessionDir`" (Linux/Mac) or check folder permissions (Windows)"
         exit 3
+    } catch [System.IO.PathTooLongException] {
+        Write-Error "Path too long for session log file: $filePath"
+        Write-Error "File path length: $($filePath.Length) characters"
+        Write-Error "Consider using a shorter objective description or moving the repository to a shallower directory."
+        exit 3
     } catch [System.IO.IOException] {
         Write-Error "File I/O error writing session log to: $filePath"
         Write-Error "Possible causes:"
@@ -489,11 +303,6 @@ function Write-SessionLogFile {
         Write-Error "  - Corrupted filesystem"
         Write-Error "  - Antivirus blocking write"
         Write-Error "Error details: $($_.Exception.Message)"
-        exit 3
-    } catch [System.IO.PathTooLongException] {
-        Write-Error "Path too long for session log file: $filePath"
-        Write-Error "File path length: $($filePath.Length) characters"
-        Write-Error "Consider using a shorter objective description or moving the repository to a shallower directory."
         exit 3
     } catch {
         Write-Error "UNEXPECTED ERROR writing session log"
@@ -595,7 +404,20 @@ try {
 
     # Phase 1: Gather inputs
     Write-Host "Phase 1: Gathering inputs..." -ForegroundColor Yellow
-    $gitInfo = Get-GitInfo
+    try {
+        $gitInfo = Get-GitInfo
+    } catch [System.InvalidOperationException] {
+        Write-Error $_.Exception.Message
+        exit 1
+    } catch {
+        Write-Error "UNEXPECTED ERROR in Get-GitInfo"
+        Write-Error "Exception Type: $($_.Exception.GetType().FullName)"
+        Write-Error "Message: $($_.Exception.Message)"
+        Write-Error "Stack Trace: $($_.ScriptStackTrace)"
+        Write-Error ""
+        Write-Error "This is a bug. Please report this error with the above details."
+        throw
+    }
     Write-Host "  Repository: $($gitInfo.RepoRoot)" -ForegroundColor Gray
     Write-Host "  Branch: $($gitInfo.Branch)" -ForegroundColor Gray
     Write-Host "  Commit: $($gitInfo.Commit)" -ForegroundColor Gray
@@ -615,7 +437,7 @@ try {
 
     # Phase 3: Populate template
     Write-Host "Phase 3: Populating template..." -ForegroundColor Yellow
-    $sessionLog = New-PopulatedSessionLog -Template $template -GitInfo $gitInfo -UserInput $userInput
+    $sessionLog = New-PopulatedSessionLog -Template $template -GitInfo $gitInfo -UserInput $userInput -SkipValidation:$SkipValidation
     Write-Host "  Placeholders replaced" -ForegroundColor Gray
     Write-Host ""
 
