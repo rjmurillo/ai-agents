@@ -1018,7 +1018,8 @@ if [ -n "$STAGED_SESSION_LOG" ]; then
         elif [ -f "$EPISODE_EXTRACT_SCRIPT" ]; then
             if command -v pwsh &> /dev/null; then
                 # Run episode extraction
-                EXTRACT_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$EPISODE_EXTRACT_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -Force 2>&1)
+                # Guard against set -e aborting the hook on non-blocking extraction failures
+                EXTRACT_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$EPISODE_EXTRACT_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -Force 2>&1 || true)
                 EXTRACT_EXIT=$?
 
                 if [ $EXTRACT_EXIT -eq 0 ]; then
@@ -1084,7 +1085,8 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
             if command -v pwsh &> /dev/null; then
                 # Run causal graph update on the entire episodes directory
                 # This ensures all relationships are captured, not just the new episode
-                UPDATE_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$UPDATE_CAUSAL_SCRIPT" -EpisodePath "$REPO_ROOT/.agents/memory/episodes" 2>&1)
+                # Guard against set -e aborting the hook on non-blocking update failures
+                UPDATE_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$UPDATE_CAUSAL_SCRIPT" -EpisodePath "$REPO_ROOT/.agents/memory/episodes" 2>&1 || true)
                 UPDATE_EXIT=$?
 
                 if [ $UPDATE_EXIT -eq 0 ]; then

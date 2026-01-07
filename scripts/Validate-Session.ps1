@@ -60,10 +60,17 @@ function RequireCommand([string]$Name) {
 }
 
 function Get-RepoRoot([string]$StartDir) {
-  RequireCommand 'git'
-  $root = (& git -C $StartDir rev-parse --show-toplevel 2>$null)
-  if (-not $root) { Fail 'E_GIT_ROOT' "Could not find git repo root from: $StartDir" }
-  return $root.Trim()
+  # Walk up from StartDir until a .git directory is found
+  $dir = [System.IO.Path]::GetFullPath($StartDir)
+  while ($true) {
+    $gitDir = Join-Path $dir '.git'
+    if (Test-Path -LiteralPath $gitDir) {
+      return $dir.TrimEnd('\','/')
+    }
+    $parent = Split-Path -Parent $dir
+    if (-not $parent -or $parent -eq $dir) { Fail 'E_GIT_ROOT' "Could not find git repo root from: $StartDir" }
+    $dir = $parent
+  }
 }
 
 function Read-AllText([string]$Path) {
@@ -117,12 +124,23 @@ $repoRoot = Get-RepoRoot (Split-Path -Parent $sessionFullPath)
 
 # Security: Validate session log is under expected directory (CWE-22, see #214)
 # Normalize paths and add trailing separator to prevent prefix bypass (e.g., .agents/sessions-evil)
-$expectedDir = Join-Path $repoRoot ".agents" "sessions"
+$expectedDir = [System.IO.Path]::Combine($repoRoot, '.agents', 'sessions')
 $expectedDirNormalized = [System.IO.Path]::GetFullPath($expectedDir).TrimEnd('\','/')
-$expectedDirWithSep = $expectedDirNormalized + [System.IO.Path]::DirectorySeparatorChar
 $sessionFullPathNormalized = [System.IO.Path]::GetFullPath($sessionFullPath)
-if (-not $sessionFullPathNormalized.StartsWith($expectedDirWithSep, [System.StringComparison]::OrdinalIgnoreCase)) {
-  Fail 'E_PATH_ESCAPE' "Session log must be under .agents/sessions/: $sessionFullPath"
+
+# Diagnostics (visible with -Verbose)
+Write-Verbose ("repoRoot={0}" -f $repoRoot)
+Write-Verbose ("expectedDirNormalized={0}" -f $expectedDirNormalized)
+Write-Verbose ("sessionFullPathNormalized={0}" -f $sessionFullPathNormalized)
+
+# Robust containment check: ensure session path is inside expectedDir
+$ds = [System.IO.Path]::DirectorySeparatorChar
+$ads = [System.IO.Path]::AltDirectorySeparatorChar
+$prefix1 = "$expectedDirNormalized$ds"
+$prefix2 = "$expectedDirNormalized$ads"
+$isContained = $sessionFullPathNormalized.StartsWith($prefix1) -or $sessionFullPathNormalized.StartsWith($prefix2)
+if (-not $isContained) {
+  Fail 'E_PATH_ESCAPE' "Session log must be under .agents/sessions/: $sessionFullPath`n  repoRoot=$repoRoot`n  expectedDirNormalized=$expectedDirNormalized`n  sessionFullPathNormalized=$sessionFullPathNormalized"
 }
 
 $sessionRel = Get-RelativePath $repoRoot $sessionFullPath
