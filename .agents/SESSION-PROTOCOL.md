@@ -697,9 +697,6 @@ The `Validate-SessionProtocol.ps1` script provides comprehensive session protoco
 # Validate specific session
 .\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.md"
 
-# Pre-commit mode (validates staged files, used by pre-commit hook)
-.\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.md" -PreCommit
-
 # Validate all recent sessions (last 7 days)
 .\scripts\Validate-SessionProtocol.ps1 -All -Recent 7
 
@@ -751,14 +748,6 @@ Validates docs-only and investigation-only QA skip claims with allowlist checkin
 **Enforcement**: Claims are verified against actual changed files. Invalid claims are rejected with specific file listings.
 
 **Related**: ADR-034 (Investigation-Only Sessions)
-
-#### Pre-Commit Mode
-
-Supports `-PreCommit` parameter for pre-commit hook integration:
-
-- Validates staged files (not full session diff) to avoid false positives
-- Skips commit-dependent checks (commit SHA validation, git worktree clean)
-- Provides targeted error messages with manual command references
 
 #### Branch Verification
 

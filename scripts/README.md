@@ -182,9 +182,6 @@ Validates session protocol compliance for session logs with comprehensive verifi
 # Validate specific session
 .\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-22-session-01.md"
 
-# Pre-commit mode (validates staged files)
-.\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-22-session-01.md" -PreCommit
-
 # Validate all recent sessions
 .\scripts\Validate-SessionProtocol.ps1 -All -Recent 7
 
@@ -193,19 +190,6 @@ Validates session protocol compliance for session logs with comprehensive verifi
 ```
 
 **Called By**: Pre-commit hook, orchestrator, CI
-
-**Usage**:
-
-```powershell
-# Validate specific session
-.\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.md"
-
-# Validate all recent sessions
-.\scripts\Validate-SessionProtocol.ps1 -All
-
-# CI mode
-.\scripts\Validate-SessionProtocol.ps1 -All -CI
-```
 
 ### PR and Code Quality
 

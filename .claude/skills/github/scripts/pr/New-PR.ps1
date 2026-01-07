@@ -111,7 +111,7 @@ function Invoke-Validation {
       $validateScript = Join-Path $RepoRoot "scripts/Validate-SessionProtocol.ps1"
       if (Test-Path $validateScript) {
         $sessionLogPath = Join-Path $RepoRoot $sessionLog
-        & pwsh -NoProfile -File $validateScript -SessionLogPath $sessionLogPath
+        & pwsh -NoProfile -File $validateScript -SessionPath $sessionLogPath
         if ($LASTEXITCODE -ne 0) {
           throw "Session End validation failed"
         }

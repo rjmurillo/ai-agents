@@ -146,7 +146,7 @@ Describe "Test-InvestigationEligibility.ps1" {
 
     Context "Path Normalization" {
         BeforeEach {
-            $patterns = @('^\.agents/sessions/')
+            $patterns = @('^[.]agents/sessions/')
         }
 
         It "Normalizes Windows backslashes to forward slashes" {

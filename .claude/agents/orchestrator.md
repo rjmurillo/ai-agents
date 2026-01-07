@@ -1655,7 +1655,7 @@ You CANNOT claim "session complete", "done", "finished", or any completion langu
 Before claiming completion, run:
 
 ```bash
-pwsh scripts/Validate-Session.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/[session-log].md"
 ```
 
 ### Gate Outcomes
