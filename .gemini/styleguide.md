@@ -25,7 +25,9 @@ These cause immediate rejection. Memorize them.
 $Path.StartsWith($Base)
 
 # CORRECT
-[IO.Path]::GetFullPath($Path).StartsWith([IO.Path]::GetFullPath($Base), [StringComparison]::OrdinalIgnoreCase)
+$resolvedPath = [IO.Path]::GetFullPath($Path)
+$resolvedBase = [IO.Path]::GetFullPath($Base) + [IO.Path]::DirectorySeparatorChar
+$resolvedPath.StartsWith($resolvedBase, [StringComparison]::OrdinalIgnoreCase)
 ```
 
 ### Command Injection (CWE-78)
@@ -54,13 +56,13 @@ npx tsx "$Script" "$Arg"
 |-----------|----------|
 | Security-critical | 100% |
 | Business logic | 80% |
-| Docs/read-only | 60% |
+| Documentation/Read-only | 60% |
 
 ## Commits
 
 Format: `<type>(<scope>): <description>`
 
-Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`
+Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore` (use scopes such as `ci` as needed, e.g., `chore(ci)` for CI changes)
 
 AI attribution:
 
@@ -69,12 +71,12 @@ AI attribution:
 | Claude | `noreply@anthropic.com` |
 | Copilot | `copilot@github.com` |
 | Cursor | `cursor@cursor.sh` |
-| Factory Droid | `droid@factory.ai` |
-| Latta | `latta@latta.ai` |
+| Factory Droid | UNVERIFIED (see tool docs) |
+| Latta | UNVERIFIED (see tool docs) |
 
 ## GitHub Actions
 
-- SHA-pin all actions (Issue #820)
+- SHA-pin all actions
 - No `${{ }}` in `run:` blocks - use `env:` instead
 - Logic in .psm1 modules, not YAML (ADR-006)
 
