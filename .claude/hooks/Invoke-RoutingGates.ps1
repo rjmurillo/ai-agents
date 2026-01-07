@@ -152,6 +152,11 @@ end {
                 # Fallback to two-dot comparison if three-dot syntax fails
                 # SECURITY: Must use origin/main..HEAD to compare commits, not working tree
                 $ChangedFiles = & git diff --name-only origin/main..HEAD 2>$null
+                if ($LASTEXITCODE -ne 0) {
+                    # If both diff attempts fail, we cannot reliably determine changed files.
+                    # SECURITY: Fail safely by treating this as NOT documentation-only.
+                    return $false
+                }
             }
 
             if (-not $ChangedFiles) {
@@ -177,8 +182,8 @@ end {
             return ($CodeFiles.Count -eq 0)
         }
         catch {
-            # On error, fail-open (allow)
-            return $true
+            # On error, fail safely (do NOT bypass QA gate)
+            return $false
         }
     }
 

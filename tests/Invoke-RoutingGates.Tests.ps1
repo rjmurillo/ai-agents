@@ -108,7 +108,10 @@ Describe "Invoke-RoutingGates" {
                 "test" | Set-Content "test.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title test"}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
@@ -136,7 +139,10 @@ Describe "Invoke-RoutingGates" {
                 "test" | Set-Content "test.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title \"Feature\" --body \"Description\""}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
@@ -174,7 +180,10 @@ Describe "Invoke-RoutingGates" {
                 "test" | Set-Content "test.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 # Create a recent QA report
                 $QAReport = Join-Path $TempDir ".agents" "qa" "test-qa-report.md"
@@ -207,7 +216,10 @@ Describe "Invoke-RoutingGates" {
                 "test" | Set-Content "test.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 # Create an old QA report
                 $QAReport = Join-Path $TempDir ".agents" "qa" "old-qa-report.md"
@@ -251,7 +263,10 @@ Describe "Invoke-RoutingGates" {
                 "test" | Set-Content "test.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 # Create today's session log with QA section
                 $Today = Get-Date -Format "yyyy-MM-dd"
@@ -290,7 +305,10 @@ QA agent was invoked and tests passed.
                 "test" | Set-Content "test.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 $Today = Get-Date -Format "yyyy-MM-dd"
                 $SessionLog = Join-Path $TempDir ".agents" "sessions" "$Today-session-01.md"
@@ -326,7 +344,10 @@ Invoked the qa agent to verify the implementation.
                 "test" | Set-Content "test.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 $Today = Get-Date -Format "yyyy-MM-dd"
                 $SessionLog = Join-Path $TempDir ".agents" "sessions" "$Today-session-01.md"
@@ -374,7 +395,10 @@ All tests passed successfully.
                 "# Initial" | Set-Content "README.md"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "# Updated" | Set-Content "README.md"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title \"Update docs\""}}'
                 $Output = $TestInput | & $ScriptPath
@@ -403,8 +427,11 @@ All tests passed successfully.
                 "test" | Set-Content "script.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "# Updated" | Set-Content "README.md"
                 "changed" | Set-Content "script.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title \"Update\""}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
@@ -433,7 +460,10 @@ All tests passed successfully.
                 "test" | Set-Content "test.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 $env:SKIP_QA_GATE = 'true'
                 $TestInput = '{"tool_input": {"command": "gh pr create --title test"}}'
@@ -473,7 +503,10 @@ All tests passed successfully.
                 "test" | Set-Content "test.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 $TestInput = '{"tool_input": {"command": "gh pr create"}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
@@ -501,7 +534,10 @@ All tests passed successfully.
                 "test" | Set-Content "test.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 $TestInput = '{"tool_input": {"command": "gh pr create"}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
@@ -528,13 +564,58 @@ All tests passed successfully.
                 "test" | Set-Content "test.ps1"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git branch "origin/main" HEAD 2>$null
                 "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
 
                 $TestInput = '{"tool_input": {"command": "gh pr create"}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
                 $Parsed = $Output | ConvertFrom-Json
                 $Parsed.decision | Should -Be "deny"
                 $Parsed.reason | Should -Not -BeNullOrEmpty
+            }
+            finally {
+                Set-Location $OriginalLocation
+                Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    Context "Documentation-only detection hardening" {
+        BeforeEach {
+            $env:SKIP_QA_GATE = $null
+        }
+
+        AfterEach {
+            $env:SKIP_QA_GATE = $null
+        }
+
+        It "Blocks PR creation when git diff base comparison fails (fail safely)" {
+            $OriginalLocation = Get-Location
+            $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "test-routing-gates-$([Guid]::NewGuid())"
+            New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents" "sessions") -Force | Out-Null
+
+            try {
+                Set-Location $TempDir
+                & git init --quiet 2>$null
+                & git config user.email "test@test.com" 2>$null
+                & git config user.name "Test" 2>$null
+
+                "test" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "initial" --quiet 2>$null
+
+                # Commit a code change, but do NOT create origin/main ref.
+                "changed" | Set-Content "test.ps1"
+                & git add . 2>$null
+                & git commit -m "change" --quiet 2>$null
+
+                $TestInput = '{"tool_input": {"command": "gh pr create --title test"}}'
+                $Output = ($TestInput | & $ScriptPath) -join "`n"
+                $Output | Should -Match "QA VALIDATION GATE"
             }
             finally {
                 Set-Location $OriginalLocation
