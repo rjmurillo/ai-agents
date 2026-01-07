@@ -65,6 +65,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Import shared validation functions
+$sessionValidationModule = Join-Path $PSScriptRoot "modules/SessionValidation.psm1"
+Import-Module $sessionValidationModule -Force
+
 #region Color Output
 $ColorReset = "`e[0m"
 $ColorRed = "`e[31m"
@@ -152,7 +156,7 @@ function ConvertFrom-ChecklistTable {
         Converts markdown table rows into structured checklist items.
 
     .DESCRIPTION
-        Returns array of hashtables with Req, Step, Status ('x' or ' '), Evidence, and Raw properties.
+        Delegates to Parse-ChecklistTable in SessionValidation.psm1.
     #>
     param(
         [Parameter(Mandatory)]
@@ -160,52 +164,7 @@ function ConvertFrom-ChecklistTable {
         [string[]]$TableLines
     )
 
-    $rows = New-Object System.Collections.Generic.List[hashtable]
-
-    foreach ($line in $TableLines) {
-        # Skip separator and header rows
-        # Note: Separator regex is permissive to handle varied markdown table formats
-        # Matches: lines containing ONLY pipes (|), dashes (-), and/or whitespace
-        # Accepts any line containing only pipes, dashes, and/or whitespace in any combination
-        # (e.g., '---', '|||', '| - | - |'). Trade-off: Simplicity over strictness.
-        # False positives are harmless (row gets skipped)
-        $isSeparator = $line -match '^\s*[|\s-]+\s*$'
-        $isHeader = $line -match '^\s*\|\s*Req\s*\|'
-
-        if ($isSeparator) { continue }
-        if ($isHeader) { continue }
-
-        # Split into 4 columns, trim outer pipes
-        $parts = ($line.Trim() -replace '^\|', '' -replace '\|$', '').Split('|') |
-            ForEach-Object { $_.Trim() }
-
-        if ($parts.Count -lt 4) { continue }
-
-        # Parse columns
-        $req = ($parts[0] -replace '\*', '').Trim().ToUpperInvariant()
-        $step = $parts[1].Trim()
-        $statusRaw = $parts[2].Trim()
-        $evidence = $parts[3].Trim()
-
-        # Normalize status to 'x' or ' '
-        $status = ' '
-        if ($statusRaw -match '\[\s*[xX]\s*\]') {
-            $status = 'x'
-        }
-
-        $rows.Add(@{
-            Req = $req
-            Step = $step
-            Status = $status
-            Evidence = $evidence
-            Raw = $line
-        })
-    }
-
-    # Return as array. Comma operator prevents unwrapping when function returns single-element array.
-    # PowerShell unwraps single-element arrays on function return: return @('item') becomes return 'item'
-    # The comma operator forces array preservation: return ,@('item') keeps array type
-    return ,$rows.ToArray()
+    return ,(Parse-ChecklistTable -TableLines $TableLines)
 }
 
 function ConvertTo-NormalizedStep {
@@ -897,23 +856,27 @@ function Test-GitCommitEvidence {
         Level = 'MUST'
     }
 
-    # Look for commit SHA patterns (7+ hex characters)
-    $commitPattern = '[0-9a-f]{7,40}'
-
-    # Check for commits section or commit references
-    if ($Content -match '(?i)commit.*SHA|commits.*session|Commit SHA:') {
-        if ($Content -notmatch $commitPattern) {
-            $result.Issues += "Commits section exists but no commit SHA found"
-        }
+    $commitCandidate = $null
+    $commitSectionMatch = [regex]::Match($Content, '(?im)^\s*commit\s*[:\-]?\s*([^\s]+)')
+    if ($commitSectionMatch.Success) {
+        $commitCandidate = $commitSectionMatch.Groups[1].Value.Trim()
     } else {
-        # Check if commit evidence appears anywhere
-        if ($Content -notmatch "(?i)commit.*$commitPattern|$commitPattern.*-\s+") {
-            $result.Issues += "No commit evidence found in session log"
+        $shaMatch = [regex]::Match($Content, '[0-9a-f]{7,40}')
+        if ($shaMatch.Success) {
+            $commitCandidate = $shaMatch.Value
         }
     }
 
-    # This is informational, not a hard failure
-    # The actual commit check should be done via git log
+    if (-not $commitCandidate) {
+        $result.Issues += 'No commit evidence found in session log'
+        return $result
+    }
+
+    $shaResult = Test-CommitSHAFormat -CommitSHA $commitCandidate
+    if (-not $shaResult.IsValid) {
+        $result.Passed = $false
+        $result.Issues += $shaResult.Error
+    }
 
     return $result
 }
@@ -935,24 +898,44 @@ function Test-SessionLogCompleteness {
         }
     }
 
+    $missingSet = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $foundSections = [System.Collections.Generic.List[string]]::new()
+
+    $requiredCheck = Test-RequiredSections -SessionLogContent $Content
+    foreach ($section in $requiredCheck.MissingSections) {
+        [void]$missingSet.Add($section)
+    }
+
     $expectedSections = @(
-        @{ Pattern = '(?i)##\s*Session\s+Info'; Name = 'Session Info' }
-        @{ Pattern = '(?i)##\s*Protocol\s+Compliance'; Name = 'Protocol Compliance' }
-        @{ Pattern = '(?i)##\s*Work\s+Log|##\s*Tasks?\s+Completed'; Name = 'Work Log' }
-        @{ Pattern = '(?i)##\s*Session\s+End|Session\s+End.*COMPLETE'; Name = 'Session End' }
+        @{ Pattern = '(?i)##+\s*Session\s+Info'; Name = 'Session Info' }
+        @{ Pattern = '(?i)##+\s*Protocol\s+Compliance'; Name = 'Protocol Compliance' }
+        @{ Pattern = '(?i)(##+\s*Work\s+Log|##+\s*Tasks?\s+Completed)'; Name = 'Work Log' }
+        @{ Pattern = '(?i)(##+\s*Session\s+End|Session\s+End.*COMPLETE)'; Name = 'Session End' }
+        @{ Pattern = '(?i)##+\s*Session\s+Start'; Name = 'Session Start' }
+        @{ Pattern = '(?i)##+\s*Evidence'; Name = 'Evidence' }
     )
 
     foreach ($section in $expectedSections) {
         if ($Content -match $section.Pattern) {
-            $result.Sections.Found += $section.Name
+            $foundSections.Add($section.Name)
         } else {
-            $result.Sections.Missing += $section.Name
-            $result.Issues += "Missing section: $($section.Name)"
+            [void]$missingSet.Add($section.Name)
         }
     }
 
-    if ($result.Sections.Missing.Count -gt 0) {
+    $missing = @($missingSet)
+    $result.Sections.Found = $foundSections.ToArray()
+    $result.Sections.Missing = $missing
+
+    if ($missing.Count -gt 0) {
         $result.Passed = $false
+        foreach ($item in $missing) {
+            $result.Issues += "Missing section: $item"
+        }
+    }
+
+    if (-not $requiredCheck.IsValid -and $requiredCheck.Errors) {
+        $result.Issues += $requiredCheck.Errors
     }
 
     return $result

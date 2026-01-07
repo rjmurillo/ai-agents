@@ -262,5 +262,399 @@ function Test-MemoryEvidence {
   return $result
 }
 
+function Test-RequiredSections {
+  <#
+  .SYNOPSIS
+    Validates that required sections exist in the session log content.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [string]$SessionLogContent,
+
+    [string[]]$RequiredSections = @(
+      '## Session Start',
+      '## Session End',
+      '## Evidence'
+    )
+  )
+
+  $missingSections = @()
+  foreach ($section in $RequiredSections) {
+    $pattern = [regex]::Escape($section)
+    if ($section -like '##*') {
+      $pattern = $pattern -replace '^##','##+'
+    }
+
+    if ($SessionLogContent -notmatch $pattern) {
+      $missingSections += $section
+    }
+  }
+
+  return @{
+    IsValid = ($missingSections.Count -eq 0)
+    MissingSections = $missingSections
+    Errors = if ($missingSections.Count -gt 0) {
+      @("Missing required sections: $($missingSections -join ', ')")
+    } else { @() }
+  }
+}
+
+function Test-TableStructure {
+  <#
+  .SYNOPSIS
+    Validates checklist table structure.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [string[]]$TableLines
+  )
+
+  $errors = @()
+
+  if ($TableLines.Count -lt 2) {
+    $errors += 'Table has insufficient rows (need header and separator).'
+  } else {
+    if ($TableLines[0] -notmatch '^\|\s*Req\s*\|') {
+      $errors += 'Table missing header row (expected: | Req | Step | Status | Evidence |).'
+    }
+
+    if ($TableLines[1] -notmatch '^\|\s*-+\s*\|') {
+      $errors += 'Table missing separator row.'
+    }
+  }
+
+  $parsedRows = Parse-ChecklistTable -TableLines $TableLines
+
+  foreach ($row in $parsedRows) {
+    if (-not $row.Req -or -not $row.Step -or -not $row.Status -or -not $row.Evidence) {
+      $errors += "Table row missing required columns: $($row.Raw)"
+    }
+  }
+
+  return @{
+    IsValid = ($errors.Count -eq 0)
+    Errors = $errors
+    ParsedRows = $parsedRows
+  }
+}
+
+function Test-PathNormalization {
+  <#
+  .SYNOPSIS
+    Detects absolute paths that violate path normalization rules.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [string]$SessionLogContent
+  )
+
+  $absolutePathPatterns = @(
+    '[A-Z]:\\',
+    '/home/',
+    '/Users/'
+  )
+
+  $absolutePaths = @()
+  foreach ($pattern in $absolutePathPatterns) {
+    $matches = [regex]::Matches($SessionLogContent, $pattern)
+    foreach ($match in $matches) {
+      $start = [Math]::Max(0, $match.Index - 20)
+      $length = [Math]::Min(60, $SessionLogContent.Length - $start)
+      $context = $SessionLogContent.Substring($start, $length)
+      $absolutePaths += $context
+    }
+  }
+
+  return @{
+    IsValid = ($absolutePaths.Count -eq 0)
+    AbsolutePaths = $absolutePaths
+    Errors = if ($absolutePaths.Count -gt 0) {
+      @("Found $($absolutePaths.Count) absolute path(s). Use repo-relative paths.")
+    } else { @() }
+  }
+}
+
+function Test-CommitSHAFormat {
+  <#
+  .SYNOPSIS
+    Validates commit SHA format (7-40 lowercase hex characters).
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [AllowEmptyString()]
+    [string]$CommitSHA
+  )
+
+  if ([string]::IsNullOrWhiteSpace($CommitSHA)) {
+    return @{
+      IsValid = $false
+      Error = 'Commit SHA is empty'
+    }
+  }
+
+  if ($CommitSHA -notmatch '^[a-f0-9]{7,40}$') {
+    if ($CommitSHA -match '^[a-f0-9]{7,12}\s+.+') {
+      return @{
+        IsValid = $false
+        Error = "Commit SHA includes subject line. Use SHA only (e.g., 'abc1234' not 'abc1234 Fix bug')."
+      }
+    }
+
+    return @{
+      IsValid = $false
+      Error = "Commit SHA format invalid. Expected 7-40 hex chars, got: '$CommitSHA'"
+    }
+  }
+
+  return @{
+    IsValid = $true
+    Error = $null
+  }
+}
+
+function Test-EvidencePopulation {
+  <#
+  .SYNOPSIS
+    Ensures evidence fields are populated and not placeholders.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [hashtable]$EvidenceFields
+  )
+
+  $emptyFields = @()
+  $placeholderFields = @()
+
+  $placeholderPatterns = @(
+    '^\[.*\]$',
+    '^-+$',
+    '^\s*$'
+  )
+
+  foreach ($field in $EvidenceFields.Keys) {
+    $value = $EvidenceFields[$field]
+
+    if ([string]::IsNullOrWhiteSpace($value)) {
+      $emptyFields += $field
+      continue
+    }
+
+    foreach ($pattern in $placeholderPatterns) {
+      if ($value -match $pattern) {
+        $placeholderFields += "$field='$value'"
+        break
+      }
+    }
+  }
+
+  $errors = @()
+  if ($emptyFields.Count -gt 0) {
+    $errors += "Empty evidence fields: $($emptyFields -join ', ')"
+  }
+  if ($placeholderFields.Count -gt 0) {
+    $errors += "Placeholder evidence: $($placeholderFields -join ', ')"
+  }
+
+  return @{
+    IsValid = ($errors.Count -eq 0)
+    EmptyFields = $emptyFields
+    PlaceholderFields = $placeholderFields
+    Errors = $errors
+  }
+}
+
+function Test-TemplateStructure {
+  <#
+  .SYNOPSIS
+    Checkpoint 1: validates template structure for required sections and tables.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [string]$Template
+  )
+
+  $errors = @()
+  $warnings = @()
+
+  $sectionsResult = Test-RequiredSections -SessionLogContent $Template
+  if (-not $sectionsResult.IsValid) {
+    $errors += $sectionsResult.Errors
+  }
+
+  $sessionStartTable = $Template -match '(?s)## Session Start.*?\|.*?Req.*?\|'
+  $sessionEndTable = $Template -match '(?s)## Session End.*?\|.*?Req.*?\|'
+
+  if (-not $sessionStartTable) {
+    $errors += 'Session Start section missing checklist table'
+  }
+  if (-not $sessionEndTable) {
+    $errors += 'Session End section missing checklist table'
+  }
+
+  $evidenceTable = $Template -match '(?s)## Evidence.*?\|.*?\|'
+  if (-not $evidenceTable) {
+    $warnings += 'Evidence section missing table (may be populated later)'
+  }
+
+  return @{
+    IsValid = ($errors.Count -eq 0)
+    Checkpoint = 'TemplateStructure'
+    Errors = $errors
+    Warnings = $warnings
+  }
+}
+
+function Test-EvidenceFields {
+  <#
+  .SYNOPSIS
+    Checkpoint 2: validates evidence fields and path normalization.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [string]$SessionLog,
+
+    [Parameter(Mandatory)]
+    [hashtable]$GitInfo
+  )
+
+  $errors = @()
+  $warnings = @()
+  $fixableIssues = @()
+
+  $evidenceMatch = [regex]::Match($SessionLog, '## Evidence.*?(?=##|$)', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+  if (-not $evidenceMatch.Success) {
+    $evidenceMatch = [regex]::Match($SessionLog, '## Evidence.*', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+  }
+  if (-not $evidenceMatch.Success) {
+    $errors += 'Evidence section not found'
+    return @{
+      IsValid = $false
+      Checkpoint = 'EvidenceFields'
+      Errors = $errors
+      Warnings = $warnings
+      FixableIssues = $fixableIssues
+    }
+  }
+
+  $evidenceContent = $evidenceMatch.Value
+
+  $pathResult = Test-PathNormalization -SessionLogContent $evidenceContent
+  if (-not $pathResult.IsValid) {
+    $errors += $pathResult.Errors
+    $fixableIssues += @{
+      Type = 'PathNormalization'
+      Description = 'Convert absolute paths to repo-relative links'
+      AbsolutePaths = $pathResult.AbsolutePaths
+    }
+  }
+
+  $commitMatch = [regex]::Match($evidenceContent, 'Commit:\s*([^\s\n]+)')
+  if ($commitMatch.Success) {
+    $commitSHA = $commitMatch.Groups[1].Value
+    $shaResult = Test-CommitSHAFormat -CommitSHA $commitSHA
+    if (-not $shaResult.IsValid) {
+      $errors += $shaResult.Error
+      $fixableIssues += @{
+        Type = 'CommitSHAFormat'
+        Description = "Extract SHA from 'SHA subject' format"
+        OldValue = $commitSHA
+      }
+    }
+  } else {
+    $warnings += 'Commit SHA not found in Evidence section'
+  }
+
+  $evidenceFields = @{
+    Branch = [regex]::Match($evidenceContent, 'Branch:\s*([^\n]+)').Groups[1].Value
+    Commit = [regex]::Match($evidenceContent, 'Commit:\s*([^\n]+)').Groups[1].Value
+    Status = [regex]::Match($evidenceContent, 'Status:\s*([^\n]+)').Groups[1].Value
+  }
+
+  $populationResult = Test-EvidencePopulation -EvidenceFields $evidenceFields
+  if (-not $populationResult.IsValid) {
+    $errors += $populationResult.Errors
+    if ($populationResult.EmptyFields.Count -gt 0) {
+      $fixableIssues += @{
+        Type = 'MissingEvidence'
+        Description = 'Populate empty evidence fields from git state'
+        EmptyFields = $populationResult.EmptyFields
+      }
+    }
+  }
+
+  return @{
+    IsValid = ($errors.Count -eq 0)
+    Checkpoint = 'EvidenceFields'
+    Errors = $errors
+    Warnings = $warnings
+    FixableIssues = $fixableIssues
+  }
+}
+
+function Invoke-FullValidation {
+  <#
+  .SYNOPSIS
+    Checkpoint 3: executes full validation script.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [string]$SessionLogPath,
+
+    [Parameter(Mandatory)]
+    [string]$RepoRoot
+  )
+
+  $validationScript = Join-Path $RepoRoot 'scripts/Validate-SessionProtocol.ps1'
+
+  if (-not (Test-Path $validationScript)) {
+    return @{
+      IsValid = $false
+      Checkpoint = 'FullValidation'
+      Errors = @("Validation script not found: $validationScript")
+      Warnings = @()
+    }
+  }
+
+  try {
+    $global:LASTEXITCODE = 0
+    $output = & $validationScript -SessionPath $SessionLogPath -Format markdown 2>&1
+    $exitCode = if ($null -ne $LASTEXITCODE) { $LASTEXITCODE } else { 0 }
+
+    $errors = $output | Where-Object { $_ -match 'ERROR|FAIL' } | ForEach-Object { $_.ToString() }
+    $hasErrors = $errors -ne $null -and $errors.Count -gt 0
+
+    if (($exitCode -eq 0 -or $null -eq $exitCode) -and -not $hasErrors) {
+      return @{
+        IsValid = $true
+        Checkpoint = 'FullValidation'
+        Errors = @()
+        Warnings = @()
+      }
+    }
+
+    return @{
+      IsValid = $false
+      Checkpoint = 'FullValidation'
+      Errors = if ($errors) { $errors } else { @('Validation script reported failure with no ERROR/FAIL output.') }
+      Warnings = @()
+    }
+  } catch {
+    return @{
+      IsValid = $false
+      Checkpoint = 'FullValidation'
+      Errors = @("Validation script execution failed: $($_.Exception.Message)")
+      Warnings = @()
+    }
+  }
+}
+
 # Export all functions
-Export-ModuleMember -Function Split-TableRow, Parse-ChecklistTable, Normalize-Step, Test-MemoryEvidence
+Export-ModuleMember -Function Split-TableRow, Parse-ChecklistTable, Normalize-Step, Test-MemoryEvidence, Test-RequiredSections, Test-TableStructure, Test-PathNormalization, Test-CommitSHAFormat, Test-EvidencePopulation, Test-TemplateStructure, Test-EvidenceFields, Invoke-FullValidation

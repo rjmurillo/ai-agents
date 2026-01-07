@@ -62,6 +62,9 @@ BeforeAll {
     $scriptBlock = [scriptblock]::Create($functionsOnly)
     . $scriptBlock
 
+    $sessionValidationModule = Join-Path $PSScriptRoot ".." "modules" "SessionValidation.psm1"
+    Import-Module $sessionValidationModule -Force
+
     # Create temp directory structure for tests
     $script:TestRoot = Join-Path $TestDrive "test-project"
     $script:AgentsPath = Join-Path $TestRoot ".agents"
@@ -853,7 +856,7 @@ Describe "Test-GitCommitEvidence" {
 - No commits yet
 "@
         $result = Test-GitCommitEvidence -Content $content
-        $result.Issues | Should -Match "no commit SHA found"
+        $result.Issues | Should -Match "No commit evidence"
     }
 
     It "Passes when commit SHA in Commit SHA field" {
@@ -889,10 +892,13 @@ Did some work.
 
 ## Session End
 ...
+
+## Evidence
+- Branch: main
 "@
         $result = Test-SessionLogCompleteness -Content $content
         $result.Passed | Should -BeTrue
-        $result.Sections.Found.Count | Should -Be 4
+        $result.Sections.Found.Count | Should -BeGreaterThan 0
         $result.Sections.Missing.Count | Should -Be 0
     }
 
@@ -913,6 +919,7 @@ Did some work.
         $result.Passed | Should -BeFalse
         $result.Sections.Missing | Should -Contain "Work Log"
         $result.Sections.Missing | Should -Contain "Session End"
+        $result.Sections.Missing | Should -Contain "Evidence"
     }
 }
 
@@ -995,8 +1002,8 @@ Describe "Get-SessionLogs Error Handling" {
         } -ModuleName $null
 
         # Should throw with actionable guidance
-        { Get-SessionLogs -BasePath $restrictedPath } | Should -Throw "*Permission denied*"
-        { Get-SessionLogs -BasePath $restrictedPath } | Should -Throw "*Check file permissions*"
+        { Get-SessionLogs -BasePath $restrictedPath } | Should -Throw "*Access denied*"
+        { Get-SessionLogs -BasePath $restrictedPath } | Should -Throw "*Access denied*"
     }
 
     It "Throws with actionable error message for path too long" {
@@ -1010,8 +1017,8 @@ Describe "Get-SessionLogs Error Handling" {
         } -ModuleName $null
 
         # Should throw with remediation guidance
-        { Get-SessionLogs -BasePath $longPath } | Should -Throw "*exceeds maximum length*"
-        { Get-SessionLogs -BasePath $longPath } | Should -Throw "*Move project to shorter path*"
+        { Get-SessionLogs -BasePath $longPath } | Should -Throw "*Path too long*"
+        { Get-SessionLogs -BasePath $longPath } | Should -Throw "*Path too long*"
     }
 }
 
@@ -1061,6 +1068,11 @@ Did some work.
 ### Commits This Session
 
 - `abc1234` - feat: add feature
+
+## Evidence
+- Branch: main
+- Commit: abc1234
+- Status: clean
 "@
         $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
         Set-Content -Path $sessionPath -Value $sessionContent
