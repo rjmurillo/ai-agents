@@ -5,6 +5,13 @@
 > **Design Philosophy**: CLAUDE.md loads every session. We keep it under 100 lines following Anthropic's guidance.
 > Critical context is auto-loaded via @imports. Use `/clear` between distinct tasks to prevent context pollution.
 
+For non-trivial tasks, delegate to specialized agents using the Task tool:
+
+- Use Task(subagent_type="orchestrator") for multi-step coordination
+- Use Task(subagent_type="Explore") for codebase exploration
+- Use specialized agents (implementer, architect, analyst, etc.) for focused work
+- This manages context efficiently and provides specialized capabilities
+
 @CRITICAL-CONTEXT.md
 
 ## Primary Reference
