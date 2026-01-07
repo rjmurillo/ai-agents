@@ -90,6 +90,29 @@ function Write-ColorOutput {
 # Maximum lines to search for table after heading
 $MaxTableSearchLines = 80
 
+function ConvertTo-NormalizedStep {
+    <#
+    .SYNOPSIS
+        Normalizes checklist step text for comparison.
+
+    .DESCRIPTION
+        Wrapper for Normalize-Step from SessionValidation.psm1.
+        Maintains backward compatibility with existing tests and callers.
+
+    .PARAMETER StepText
+        The step text to normalize
+
+    .OUTPUTS
+        String containing normalized step text
+
+    .EXAMPLE
+        ConvertTo-NormalizedStep '  Read **file**  '
+        Returns: 'Read file'
+    #>
+    param([string]$StepText)
+    return Normalize-Step -StepText $StepText
+}
+
 function Get-HeadingTable {
     <#
     .SYNOPSIS
@@ -165,122 +188,6 @@ function ConvertFrom-ChecklistTable {
     )
 
     return ,(Parse-ChecklistTable -TableLines $TableLines)
-}
-
-function ConvertTo-NormalizedStep {
-    <#
-    .SYNOPSIS
-        Converts step text to normalized form by collapsing whitespace and removing markdown.
-    #>
-    param(
-        [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
-        [string]$StepText
-    )
-
-    return ($StepText -replace '\s+', ' ' -replace '\*', '').Trim()
-}
-
-function Test-MemoryEvidence {
-    <#
-    .SYNOPSIS
-        Validates that memory-related checklist rows have valid Evidence per ADR-007.
-
-    .DESCRIPTION
-        Finds the "memory-index" row in Session Start checklist and verifies:
-        1. Evidence column is not empty or placeholder text
-        2. Evidence contains memory names (kebab-case identifiers)
-        3. Each referenced memory exists in .serena/memories/
-
-    .OUTPUTS
-        Hashtable with: IsValid, MemoriesFound, MissingMemories, ErrorMessage
-    #>
-    param(
-        [Parameter(Mandatory)]
-        [hashtable[]]$SessionRows,
-
-        [Parameter(Mandatory)]
-        [string]$RepoRoot
-    )
-
-    $result = @{
-        IsValid = $true
-        MemoriesFound = @()
-        MissingMemories = @()
-        ErrorMessage = $null
-    }
-
-    # Find the memory-index row
-    $memoryRow = $SessionRows | Where-Object {
-        (ConvertTo-NormalizedStep $_.Step) -match 'memory-index.*memories'
-    } | Select-Object -First 1
-
-    if (-not $memoryRow) {
-        # No memory-index row found - not an error
-        return $result
-    }
-
-    $evidence = $memoryRow.Evidence
-
-    # Check for empty or placeholder evidence
-    $placeholderPatterns = @(
-        '^\s*$',                           # Empty
-        '^List memories loaded$',          # Template placeholder
-        '^\[.*\]$',                        # Bracketed placeholder
-        '^-+$'                             # Dashes only
-    )
-
-    foreach ($pattern in $placeholderPatterns) {
-        if ($evidence -match $pattern) {
-            $result.IsValid = $false
-            $result.ErrorMessage = "Memory-index Evidence column contains placeholder text: '$evidence'. List actual memory names read (e.g., 'memory-index, skills-pr-review-index')."
-            return $result
-        }
-    }
-
-    # Extract memory names (kebab-case identifiers; allow single-word names as well)
-    $memoryPattern = '[a-z][a-z0-9]*(?:-[a-z0-9]+)*'
-    $foundMemories = @(
-        [regex]::Matches($evidence, $memoryPattern, 'IgnoreCase') |
-            ForEach-Object { $_.Value.ToLowerInvariant() } |
-            Select-Object -Unique
-    )
-
-    if ($foundMemories.Count -eq 0) {
-        $result.IsValid = $false
-        $result.ErrorMessage = "Memory-index Evidence column doesn't contain valid memory names: '$evidence'. Expected format: 'memory-index, skills-pr-review-index, ...' (kebab-case names)."
-        return $result
-    }
-
-    $result.MemoriesFound = $foundMemories
-
-    # Verify each memory exists in .serena/memories/
-    $memoriesDir = Join-Path $RepoRoot ".serena" "memories"
-
-    # Check that memories directory exists before checking individual files
-    if (-not (Test-Path -LiteralPath $memoriesDir -PathType Container)) {
-        $result.IsValid = $false
-        $result.ErrorMessage = "Serena memories directory not found: $memoriesDir. Initialize Serena memory system (mcp__serena__activate_project) before validation."
-        return $result
-    }
-
-    $missingMemories = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($memName in $foundMemories) {
-        $memPath = Join-Path $memoriesDir "$memName.md"
-        if (-not (Test-Path -LiteralPath $memPath)) {
-            $missingMemories.Add($memName)
-        }
-    }
-
-    if ($missingMemories.Count -gt 0) {
-        $result.MissingMemories = $missingMemories.ToArray()
-        $result.IsValid = $false
-        $missing = $missingMemories -join ', '
-        $result.ErrorMessage = "Memory-index Evidence references memories that don't exist: $missing. Verify memory names or create missing memories in .serena/memories/."
-    }
-
-    return $result
 }
 
 # Shared exempt paths (audit artifacts common to investigation and QA skip rules)
@@ -415,12 +322,26 @@ function Get-ImplementationFiles {
 #endregion
 
 #region Validation Functions
-# Extracted to scripts/modules/SessionValidation.psm1
+# All validation functions imported from scripts/modules/SessionValidation.psm1
+# Script-specific helpers (table extraction, QA skip rules) remain in this file
 #endregion
 
 #region Main Validation Logic
 
 function Invoke-SessionValidation {
+    <#
+    .SYNOPSIS
+        Orchestrates session protocol validation by delegating to checkpoint functions.
+
+    .DESCRIPTION
+        Uses checkpoint functions from SessionValidation.psm1:
+        - Test-TemplateStructure (Checkpoint 1): Required sections and table structure
+        - Test-EvidenceFields (Checkpoint 2): Evidence population and path normalization
+        - Invoke-FullValidation (Checkpoint 3): Complete validation script execution
+
+        Preserves existing parameters, exit codes, and output formatting.
+        Maintains backward compatibility with existing callers and tests.
+    #>
     param(
         [string]$SessionFile,
         [string]$BasePath
@@ -450,12 +371,50 @@ function Invoke-SessionValidation {
     # Read content
     $content = Get-Content -Path $SessionFile -Raw
 
+    # Checkpoint 1: Template structure validation
+    $templateResult = Test-TemplateStructure -Template $content
+    $validation.Results['TemplateStructure'] = @{
+        Passed = $templateResult.IsValid
+        Level = 'MUST'
+        Issues = $templateResult.Errors
+    }
+    if (-not $templateResult.IsValid) {
+        $validation.Passed = $false
+        $validation.MustPassed = $false
+        $validation.Issues += $templateResult.Errors
+    }
+    if ($templateResult.Warnings.Count -gt 0) {
+        $validation.ShouldPassed = $false
+        $validation.Warnings += $templateResult.Warnings
+    }
+
     # Test 2: Memory evidence validation (ADR-007)
     $lines = ($content -split "`r?`n") | Where-Object { $_ -ne '' }
     $sessionStartTable = Get-HeadingTable -Lines $lines -HeadingRegex '^\s*##\s+Session\s+Start\s*$'
     if ($sessionStartTable) {
         $sessionStartRows = ConvertFrom-ChecklistTable -TableLines $sessionStartTable
-        $memoryResult = Test-MemoryEvidence -SessionRows $sessionStartRows -RepoRoot $BasePath
+        $moduleResult = Test-MemoryEvidence -SessionRows $sessionStartRows -RepoRoot $BasePath
+        
+        # Wrap module result to include MissingMemories array for backward compatibility
+        $memoryResult = @{
+            IsValid = $moduleResult.IsValid
+            Passed = $moduleResult.IsValid
+            Level = 'MUST'
+            Issues = if ($moduleResult.ErrorMessage) { @($moduleResult.ErrorMessage) } else { @() }
+            Errors = $moduleResult.Errors
+            Warnings = $moduleResult.Warnings
+            FixableIssues = $moduleResult.FixableIssues
+            ErrorMessage = $moduleResult.ErrorMessage
+            MemoriesFound = $moduleResult.MemoriesFound
+            MissingMemories = @()  # Initialize as empty array
+        }
+        
+        # Extract MissingMemories from FixableIssues if present
+        $missingMemoryIssue = $moduleResult.FixableIssues | Where-Object { $_.Type -eq 'MissingMemories' } | Select-Object -First 1
+        if ($missingMemoryIssue -and $missingMemoryIssue.Memories) {
+            $memoryResult.MissingMemories = $missingMemoryIssue.Memories
+        }
+        
         $validation.Results['MemoryEvidence'] = $memoryResult
         if (-not $memoryResult.IsValid) {
             $validation.Passed = $false
@@ -508,14 +467,36 @@ function Invoke-SessionValidation {
         $validation.Warnings += $shouldResult.Issues
     }
 
-    # Test 8: Commit evidence
+    # Checkpoint 2: Evidence fields validation
+    $gitInfo = @{
+        Branch = 'unknown'
+        Commit = 'unknown'
+        Status = 'unknown'
+    }
+    $evidenceResult = Test-EvidenceFields -SessionLog $content -GitInfo $gitInfo
+    $validation.Results['EvidenceFields'] = @{
+        Passed = $evidenceResult.IsValid
+        Level = 'MUST'
+        Issues = $evidenceResult.Errors
+    }
+    if (-not $evidenceResult.IsValid) {
+        $validation.Passed = $false
+        $validation.MustPassed = $false
+        $validation.Issues += $evidenceResult.Errors
+    }
+    if ($evidenceResult.Warnings.Count -gt 0) {
+        $validation.ShouldPassed = $false
+        $validation.Warnings += $evidenceResult.Warnings
+    }
+
+    # Test 8: Commit evidence (legacy check, now also covered by Checkpoint 2)
     $commitResult = Test-GitCommitEvidence -Content $content
     $validation.Results['CommitEvidence'] = $commitResult
     if ($commitResult.Issues.Count -gt 0) {
         $validation.Warnings += $commitResult.Issues
     }
 
-    # Test 8: Session log completeness
+    # Test 9: Session log completeness
     $completenessResult = Test-SessionLogCompleteness -Content $content
     $validation.Results['SessionLogCompleteness'] = $completenessResult
     if (-not $completenessResult.Passed) {
