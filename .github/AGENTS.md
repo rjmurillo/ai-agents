@@ -72,6 +72,14 @@ flowchart TD
 
 ## AI-Powered Workflow Agents
 
+> **IMPORTANT**: When creating a new AI-powered workflow with concurrency control, you MUST:
+>
+> 1. Add the workflow name to `.github/scripts/Measure-WorkflowCoalescing.ps1` (line 47, `$Workflows` parameter)
+> 2. Follow concurrency group naming pattern: `{prefix}-${{ github.event.pull_request.number || inputs.pr_number }}` (include `inputs.pr_number` for `workflow_dispatch` runs)
+> 3. Document the workflow in this file
+>
+> This ensures the workflow is included in coalescing effectiveness monitoring.
+
 ### ai-pr-quality-gate.yml
 
 **Role**: AI-powered parallel PR review using 6 specialist agents
@@ -184,6 +192,38 @@ flowchart LR
 - Design traces back to requirements
 - Tasks trace back to design
 - No orphaned requirements
+
+### Optional Debouncing
+
+**Feature**: Workflows support optional debouncing to reduce race condition probability.
+
+**How to Enable**:
+
+```bash
+# Manual workflow dispatch with debouncing
+gh workflow run ai-pr-quality-gate.yml \
+  --ref main \
+  -f pr_number=123 \
+  -f enable_debouncing=true
+```
+
+**Tradeoffs**:
+
+| Aspect | Impact |
+|--------|--------|
+| Latency | +10 seconds per run |
+| Race conditions | Reduced by ~50% (estimated) |
+| Coalescing effectiveness | Improved by 5-8% (estimated) |
+| Cost | +10s runner time per run |
+
+**When to Use**:
+
+- Race condition rate consistently >10%
+- Coalescing effectiveness <90%
+- Specific PRs with rapid commit patterns
+- High-value PRs where duplicate runs are costly
+
+**Monitoring**: Use `Measure-WorkflowCoalescing.ps1` to track effectiveness before/after enabling debouncing.
 
 ---
 
@@ -377,6 +417,144 @@ sequenceDiagram
 | drift-detection | `issues: write` only for issue creation |
 | All workflows | Bot actor exclusion (dependabot, actions) |
 | All workflows | Concurrency groups prevent duplicate runs |
+| All workflows | **Actions pinned to SHA** (supply chain security) - See [security-practices.md](../.agents/steering/security-practices.md#github-actions-security) |
+
+## Workflow Concurrency and Coalescing Behavior
+
+All AI-powered and validation workflows use GitHub Actions `concurrency` groups with `cancel-in-progress: true` to prevent duplicate runs when multiple events trigger rapidly (e.g., rapid commits to a PR).
+
+### How Concurrency Control Works
+
+| Workflow | Concurrency Group | Behavior |
+|----------|------------------|----------|
+| ai-pr-quality-gate | `ai-quality-${{ github.event.pull_request.number &#124;&#124; inputs.pr_number }}` | Cancels in-progress runs for same PR |
+| ai-session-protocol | `session-protocol-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
+| ai-spec-validation | `spec-validation-${{ github.event.pull_request.number &#124;&#124; inputs.pr_number }}` | Cancels in-progress runs for same PR |
+| pr-validation | `pr-validation-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
+| label-pr | `pr-labeler-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
+| memory-validation | `memory-validation-${{ github.ref }}` | Cancels in-progress runs for same branch |
+| auto-assign-reviewer | `auto-reviewer-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
+
+### The "No Guarantee" Limitation
+
+**Important**: GitHub Actions does **not guarantee** that runs will be coalesced. Race conditions can occur where multiple runs start before cancellation takes effect.
+
+#### Race Condition Scenarios
+
+##### Scenario 1: Rapid Commits
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant GH as GitHub
+    participant W1 as Workflow Run 1
+    participant W2 as Workflow Run 2
+
+    Dev->>GH: Push commit A
+    GH->>W1: Start run 1
+    Note over W1: Starting up...
+    Dev->>GH: Push commit B (1 second later)
+    GH->>W2: Queue run 2
+    Note over W1,W2: Both runs may execute in parallel
+    W2-->>W1: Attempt cancel (may be too late)
+```
+
+##### Scenario 2: Upstream Workflow Triggers
+
+```mermaid
+sequenceDiagram
+    participant PR as PR Event
+    participant QG as ai-pr-quality-gate
+    participant SV as ai-spec-validation
+    participant PV as pr-validation
+
+    PR->>QG: Trigger (t=0)
+    PR->>SV: Trigger (t=0)
+    PR->>PV: Trigger (t=0)
+    Note over QG,PV: All start simultaneously
+    Note over QG,PV: Concurrency groups are per-workflow
+    Note over QG,PV: No cross-workflow coordination
+```
+
+### Mitigation Strategies
+
+The repository implements several strategies to reduce the impact of race conditions:
+
+| Strategy | Implementation | Effectiveness |
+|----------|---------------|---------------|
+| **Path filtering** | `dorny/paths-filter` action skips runs when irrelevant files change | High - Reduces unnecessary runs by 60-80% |
+| **Timeouts** | All jobs have `timeout-minutes` (2-15 min) | Medium - Prevents runaway costs |
+| **PR-specific temp files** | `/tmp/ai-review-context-pr${PR_NUMBER}.txt` | High - Prevents context collision |
+| **Explicit repo context** | `--repo "$GITHUB_REPOSITORY"` on all `gh` CLI commands | High - Prevents wrong-PR analysis |
+| **Artifact-based passing** | Matrix jobs use artifacts instead of outputs | High - Avoids matrix output limitations |
+
+### Cost Impact
+
+**Acceptable duplicate run rate**: 5-10% of workflow runs may execute in parallel despite `cancel-in-progress: true`
+
+**Cost mitigation**:
+
+- ARM runners (ADR-025): 37.5% cost savings vs x64
+- Path filtering: Skips 60-80% of potential runs
+- Timeouts: Caps maximum cost per run
+
+**Example**: ai-pr-quality-gate workflow
+
+- 6 parallel agents × 10 minutes = 60 agent-minutes per run
+- 10% duplicate rate = 6 extra agent-minutes per PR
+- ARM runners reduce cost by 37.5%
+- **Net impact**: Acceptable given merge velocity benefits
+
+### When to Worry
+
+**Normal behavior** (no action needed):
+
+- Occasional duplicate runs (5-10%)
+- Runs cancelled within 30 seconds
+- No wrong-PR analysis (validated by PR number checks)
+
+**Investigate if**:
+
+- Duplicate run rate exceeds 20%
+- Runs not cancelled within 2 minutes
+- Wrong-PR analysis detected (check logs for "PR number mismatch")
+- Multiple PRs consistently analyze each other's contexts
+
+### Further Reading
+
+- [ADR-026](../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md) - Architectural decision on concurrency control
+- [Issue #803](https://github.com/rjmurillo/ai-agents/issues/803) - Real-world example of race condition impact
+- [PR #806](https://github.com/rjmurillo/ai-agents/pull/806) - Fix for PR context confusion
+
+### Monitoring Coalescing Effectiveness
+
+The repository includes automated monitoring of workflow run coalescing effectiveness:
+
+**Script**: `.github/scripts/Measure-WorkflowCoalescing.ps1`
+
+**Usage**:
+
+```bash
+# Analyze last 30 days
+pwsh .github/scripts/Measure-WorkflowCoalescing.ps1
+
+# Analyze last 90 days with JSON output
+pwsh .github/scripts/Measure-WorkflowCoalescing.ps1 -Since 90 -Output Json
+
+# Analyze specific workflows
+pwsh .github/scripts/Measure-WorkflowCoalescing.ps1 -Workflows @('ai-pr-quality-gate', 'ai-spec-validation')
+```
+
+**Metrics Collected**:
+
+- Coalescing effectiveness rate (target: 90%+)
+- Race condition rate (target: <10%)
+- Average time to cancellation (target: <5 seconds)
+- Per-workflow and per-PR breakdown
+
+**Report Location**: `.agents/metrics/workflow-coalescing.md`
+
+**Automated Collection**: Weekly via `.github/workflows/workflow-coalescing-metrics.yml`
 
 ## Monitoring
 

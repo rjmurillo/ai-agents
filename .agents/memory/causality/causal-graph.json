@@ -43,25 +43,25 @@
     {
       "name": "test pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
-      "occurrences": 9,
+      "occurrences": 28,
       "id": "p005",
       "success_rate": 1.0,
       "trigger": "Testing second",
-      "last_used": "2026-01-06T03:04:54.4949587-06:00",
+      "last_used": "2026-01-08T12:19:54.0875839-06:00",
       "action": "Second"
     },
     {
       "name": "design pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
-      "occurrences": 9,
+      "occurrences": 28,
       "id": "p006",
       "success_rate": 1.0,
       "trigger": "Designing first",
-      "last_used": "2026-01-06T03:04:54.5163404-06:00",
+      "last_used": "2026-01-08T12:19:54.1231759-06:00",
       "action": "First"
     }
   ],
-  "updated": "2026-01-06T03:04:54.5780182-06:00",
+  "updated": "2026-01-08T12:19:54.2190613-06:00",
   "edges": [
     {
       "target": "n013",
@@ -277,7 +277,7 @@
       "episodes": [
         "episode-2026-01-01-filter-001"
       ],
-      "frequency": 9
+      "frequency": 28
     },
     {
       "label": "Outcome: failure - Task 2",
@@ -287,7 +287,7 @@
       "episodes": [
         "episode-2026-01-01-filter-002"
       ],
-      "frequency": 9
+      "frequency": 28
     },
     {
       "label": "Outcome: partial - Task 3",
@@ -297,7 +297,7 @@
       "episodes": [
         "episode-2026-01-01-filter-003"
       ],
-      "frequency": 9
+      "frequency": 28
     },
     {
       "label": "test: Second",
@@ -307,7 +307,7 @@
       "episodes": [
         "episode-2026-01-01-sequence-001"
       ],
-      "frequency": 9
+      "frequency": 28
     },
     {
       "label": "design: First",
@@ -317,7 +317,7 @@
       "episodes": [
         "episode-2026-01-01-sequence-001"
       ],
-      "frequency": 9
+      "frequency": 28
     },
     {
       "label": "Outcome: success - Test",
@@ -327,7 +327,7 @@
       "episodes": [
         "episode-2026-01-01-sequence-001"
       ],
-      "frequency": 9
+      "frequency": 28
     },
     {
       "label": "Outcome: success - Test implementation",
@@ -337,7 +337,7 @@
       "episodes": [
         "episode-2026-01-01-session-001"
       ],
-      "frequency": 9
+      "frequency": 28
     },
     {
       "label": "error: 1. Distribution count error: Table 92 shows 12 Sonnet, actual is 11",
@@ -347,7 +347,7 @@
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 9
+      "frequency": 28
     },
     {
       "label": "error: - Problem correctly identified: Mixed model identifier formats causing 404 errors",
@@ -357,7 +357,7 @@
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 9
+      "frequency": 28
     },
     {
       "label": "error: - 404 errors are eliminated?",
@@ -367,7 +367,7 @@
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 9
+      "frequency": 28
     },
     {
       "label": "error: 4. Metrics Gap: No baseline error rates or success criteria defined",
@@ -377,7 +377,7 @@
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 9
+      "frequency": 28
     },
     {
       "label": "Outcome: success - Session 356 - 2026-01-03",
@@ -387,7 +387,7 @@
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 9
+      "frequency": 28
     }
   ]
 }

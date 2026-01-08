@@ -1,8 +1,11 @@
 name: Session Protocol Validation
 
 # Deterministic session log validation using Validate-SessionProtocol.ps1
+
 # Verifies session logs comply with RFC 2119 requirements in SESSION-PROTOCOL.md
+
 # Blocks merge if MUST requirements are not met
+
 # Zero-token validation: outputs structured data directly to Job Summary
 
 on:
@@ -15,6 +18,20 @@ permissions:
   contents: read
   pull-requests: write
 
+# Concurrency control: Attempts to cancel in-progress runs when new runs start
+
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+
+# where multiple runs start before cancellation takes effect. This is best-effort
+
+# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+# for architectural decision on workflow-level concurrency control
+
+# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
+
+# Note: Matrix strategy with fail-fast: false allows independent validation
+
 concurrency:
   group: session-protocol-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -23,7 +40,9 @@ env:
   GH_TOKEN: ${{ secrets.BOT_PAT }}
 
 jobs:
-  # Identify changed session files and build matrix
+
+# Identify changed session files and build matrix
+
   detect-changes:
     name: Detect Changed Sessions
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
@@ -109,7 +128,8 @@ jobs:
             echo "session_files=$JSON_ARRAY" >> $GITHUB_OUTPUT
           fi
 
-  # Validate each session file in parallel using matrix strategy
+# Validate each session file in parallel using matrix strategy
+
   validate:
     name: Validate ${{ matrix.session_file }}
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
@@ -192,7 +212,8 @@ jobs:
           path: validation-results/
           retention-days: 1
 
-  # Aggregate results and post comment
+# Aggregate results and post comment
+
   aggregate:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)

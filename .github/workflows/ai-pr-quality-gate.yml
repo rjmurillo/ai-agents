@@ -18,10 +18,29 @@ on:
         description: 'PR number to review'
         required: true
         type: number
+      enable_debouncing:
+        description: 'Enable debouncing delay to reduce race conditions (adds 10s latency)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   pull-requests: write
+
+# Concurrency control: Attempts to cancel in-progress runs when new runs start
+
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+
+# where multiple runs start before cancellation takes effect. This is best-effort
+
+# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+# for architectural decision on workflow-level concurrency control
+
+# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
+
+# Note: 6 parallel agents use artifact-based result passing to avoid matrix output limitations
 
 concurrency:
   group: ai-quality-${{ github.event.pull_request.number || inputs.pr_number }}
@@ -34,6 +53,21 @@ env:
   PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 jobs:
+  # Optional debouncing job - runs only when enable_debouncing=true
+  debounce:
+    name: Debounce Workflow
+    if: (github.event_name == 'workflow_dispatch' && inputs.enable_debouncing == true) || (github.event_name == 'pull_request' && vars.ENABLE_DEBOUNCE == 'true')
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      
+      - name: Apply debouncing delay
+        uses: ./.github/actions/workflow-debounce
+        with:
+          delay-seconds: '10'
+          workflow-name: 'AI PR Quality Gate'
+          concurrency-group: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 # Check if relevant files changed using paths-filter
 
@@ -41,7 +75,11 @@ jobs:
     name: Check Changes
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
-    if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+    needs: debounce
+    if: |-
+      always() &&
+      (needs.debounce.result == 'success' || needs.debounce.result == 'skipped') &&
+      github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
       # For workflow_dispatch, always run review; otherwise use paths-filter result
@@ -601,7 +639,7 @@ jobs:
             Write-Output "Retry attempts: $($retryAttempts -join ', ')"
 
             # Add infrastructure-failure label to PR
-            gh pr edit $env:PR_NUMBER --add-label "infrastructure-failure"
+            gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "infrastructure-failure"
           } else {
             Write-Output "No infrastructure failures detected"
           }
@@ -676,11 +714,15 @@ jobs:
           Write-Output "✅ AI Quality Gate passed with verdict: $finalVerdict"
 
 # Skip jobs that provide passing status when no relevant files changed
-# NOTE: We need TWO skip jobs with the SAME names as the real jobs to satisfy
-# required status checks. This follows the dual-job same-name pattern from
-# pester-tests.yml (see Issue #335 for details).
 
-  # Skip job for individual agent reviews - uses matrix to match review job names
+# NOTE: We need TWO skip jobs with the SAME names as the real jobs to satisfy
+
+# required status checks. This follows the dual-job same-name pattern from
+
+# pester-tests.yml (see Issue #335 for details)
+
+# Skip job for individual agent reviews - uses matrix to match review job names
+
   skip-agent-reviews:
     name: ${{ matrix.agent }} Review
     needs: check-changes
@@ -708,7 +750,8 @@ jobs:
           echo "This PR only contains changes to files that don't require AI review."
           echo "Status: PASS (skipped)"
 
-  # Skip job for aggregate results - matches aggregate job name
+# Skip job for aggregate results - matches aggregate job name
+
   skip-aggregate:
     name: Aggregate Results
     needs: check-changes
