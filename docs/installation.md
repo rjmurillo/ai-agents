@@ -209,6 +209,43 @@ When prompted about existing files:
 - Enter `n` to skip
 - Use `-Force` flag to skip all prompts
 
+### Worktrunk Setup (Optional)
+
+For parallel agent workflows using git worktrees, install Worktrunk:
+
+**Homebrew (macOS and Linux):**
+
+```bash
+brew install max-sixty/worktrunk/wt && wt config shell install
+```
+
+**Cargo:**
+
+```bash
+cargo install worktrunk && wt config shell install
+```
+
+**Shell integration** is required for `wt switch` command.
+
+**Claude Code Plugin:**
+
+```bash
+claude plugin marketplace add max-sixty/worktrunk
+claude plugin install worktrunk@worktrunk
+```
+
+The plugin provides visual status indicators in `wt list` output.
+
+**Configuration:**
+
+The repository includes `.config/wt.toml` with lifecycle hooks that:
+
+- Configure git hooks automatically on worktree creation
+- Copy dependencies (node_modules, .cache) from main worktree
+- Run markdown linting before merge
+
+**See**: [AGENTS.md Worktrunk Setup](../AGENTS.md#worktrunk-setup) for complete workflow documentation.
+
 ## Post-Installation
 
 ### Restart Your Editor
