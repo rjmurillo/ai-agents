@@ -1,66 +1,98 @@
-# Worktrunk Post-Create Hook for Git Hooks Configuration
+# Worktrunk Integration Guide
 
-**Atomicity**: 95%
-**Category**: Git Operations, Worktree Management
+**Atomicity**: 98%
+**Category**: Git Operations, Worktree Management, Agent Coordination
 **Date**: 2026-01-08
+**Source**: https://worktrunk.dev/
 
-## Context
+## Overview
 
-When using Worktrunk (git worktree management tool) to create worktrees, git hooks path configuration must be set in each worktree to ensure pre-commit and other hooks work correctly.
+Worktrunk is a CLI tool for git worktree management designed for running multiple AI agents in parallel. It makes "worktrees as easy as branches."
 
-## Pattern
+## Installation
 
-Configure post-create hook in `.config/wt.toml` at repository root:
+```bash
+# Homebrew (macOS & Linux)
+brew install max-sixty/worktrunk/wt && wt config shell install
 
-```toml
-# Worktrunk Configuration
-# Documentation: https://worktrunk.dev/hook/
-
-[post-create]
-# Configure git hooks path to .githooks directory
-# This ensures pre-commit and other hooks work in worktrees
-configure-hooks = "git config core.hooksPath .githooks"
+# Cargo
+cargo install worktrunk && wt config shell install
 ```
 
-## Worktrunk Hook Types
+## Core Commands
 
-Available hook types (from https://worktrunk.dev/hook/):
+| Command | Purpose |
+|---------|---------|
+| `wt switch <branch>` | Navigate to worktree (creates if needed) |
+| `wt switch -c <branch>` | Create new branch and worktree |
+| `wt switch ^` | Switch to default branch |
+| `wt switch -` | Return to previous worktree |
+| `wt list` | Show all worktrees with status |
+| `wt list --full` | Include CI status and diffs |
+| `wt remove` | Remove current worktree |
+| `wt merge` | Merge to default branch |
+| `wt select` | Interactive picker with preview |
+| `wt step <op>` | Execute single operation |
 
-- **post-create**: Runs after worktree creation, blocks until complete (use for required setup)
-- **post-start**: Runs after creation in background (parallel execution)
-- **post-switch**: Runs after every switch operation in background
-- **pre-commit**: Runs before committing during merge, fail-fast
-- **pre-merge**: Runs before merging to target, fail-fast
-- **post-merge**: Runs after successful merge, best-effort
-- **pre-remove**: Runs before worktree removal, fail-fast
+## Configuration Files
 
-## Configuration Location
+- **User config**: `~/.config/worktrunk/config.toml` (no approval needed)
+- **Project config**: `.config/wt.toml` (requires approval)
 
-- **Project hooks**: `.config/wt.toml` in repository root
-- **User hooks**: `~/.config/worktrunk/config.toml` (applies to all repositories)
+## Hook Types
+
+| Hook | Timing | Blocking | Fail-fast |
+|------|--------|----------|-----------|
+| `post-create` | After worktree creation | Yes | No |
+| `post-start` | After worktree creation | No (background) | No |
+| `post-switch` | After every switch | No (background) | No |
+| `pre-commit` | Before commit during merge | Yes | Yes |
+| `pre-merge` | Before merging to target | Yes | Yes |
+| `post-merge` | After successful merge | Yes | No |
+| `pre-remove` | Before worktree removal | Yes | Yes |
+
+## Hook Configuration
+
+```toml
+# Single command
+post-create = "npm install"
+
+# Multiple commands (sequential)
+[pre-merge]
+lint = "npm run lint"
+test = "npm test"
+```
 
 ## Template Variables
 
-Worktrunk supports template variables that expand at runtime:
+| Variable | Description |
+|----------|-------------|
+| `{{ branch }}` | Current branch name |
+| `{{ repo }}` | Repository name |
+| `{{ worktree_path }}` | Absolute worktree path |
+| `{{ default_branch }}` | Default branch name |
+| `{{ branch \| sanitize }}` | Branch with `/` replaced by `-` |
+| `{{ branch \| hash_port }}` | Unique port (10000-19999) |
 
-- `{{ repo }}`: Repository name
-- `{{ branch }}`: Branch name
-- `{{ worktree_path }}`: Path to worktree
-- `{{ commit }}`: Commit SHA
-- `{{ branch | sanitize }}`: Branch name with slashes replaced by dashes
-- `{{ branch | hash_port }}`: Deterministic port (10000-19999) from branch name
+## ai-agents Configuration
 
-## Decision Rationale
+```toml
+# .config/wt.toml
+[post-create]
+configure-hooks = "git config core.hooksPath .githooks"
+```
 
-**Why post-create over post-start**:
-- post-create blocks until complete, ensuring hooks are configured before worktree use
-- post-start runs in background, could race with first commit attempt
+## Claude Code Integration
 
-**Why named command format**:
-- `configure-hooks = "command"` is more semantic than just `"command"`
-- Easier to understand and maintain with multiple hooks
+Install plugin: `claude plugin marketplace add max-sixty/worktrunk`
+
+Status indicators in `wt list`:
+
+- 🤖 = Claude actively working
+- 💬 = Claude waiting for input
 
 ## Related
 
-- parallel-001-worktree-isolation: Worktree isolation patterns
+- git-worktree-parallel: Worktree isolation patterns
 - git-hooks-001-pre-commit-branch-validation: Pre-commit hook patterns
+- Analysis: `.agents/analysis/worktrunk-integration.md`
