@@ -422,7 +422,7 @@ runs:
               fi
 
               # Also get PR description
-              PR_BODY=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body,title -q '.title + "\n\n" + .body' 2>/dev/null || echo "")
+              PR_BODY=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q '.body' 2>/dev/null || echo "")
               if [ -n "$PR_BODY" ]; then
                 CONTEXT="## PR #$PR_NUMBER: $PR_TITLE"$'\n\n'"## PR Description"$'\n'"$PR_BODY"$'\n\n'"## Changes"$'\n'"$CONTEXT"
               else
