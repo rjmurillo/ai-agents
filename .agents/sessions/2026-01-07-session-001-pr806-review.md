@@ -58,14 +58,14 @@
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber 001 -Topic "pr806-review"` | [ ] | Pending |
-| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Pending |
-| MUST | Complete session log (all sections filled) | [ ] | Pending |
-| MUST | Update Serena memory (cross-session context) | [ ] | Pending |
-| MUST | Run markdown lint | [ ] | Pending |
-| MUST | Route to qa agent (feature implementation) | [ ] | Pending or SKIPPED: investigation-only |
-| MUST | Commit all changes (including .serena/memories) | [ ] | Pending |
-| MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] | HANDOFF.md unchanged |
-| SHOULD | Update PROJECT-PLAN.md | [ ] | Pending |
-| SHOULD | Invoke retrospective (significant sessions) | [ ] | Pending |
-| SHOULD | Verify clean git status | [ ] | Pending |
+| SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [x] | SKIPPED: investigation session |
+| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [x] | N/A - no export |
+| MUST | Complete session log (all sections filled) | [x] | All sections complete |
+| MUST | Update Serena memory (cross-session context) | [x] | pr-comment-responder-skills in memory |
+| MUST | Run markdown lint | [x] | Linting passes |
+| MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: investigation-only session |
+| MUST | Commit all changes (including .serena/memories) | [x] | Session log committed |
+| MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
+| SHOULD | Update PROJECT-PLAN.md | [x] | N/A for PR review |
+| SHOULD | Invoke retrospective (significant sessions) | [x] | SKIPPED: routine PR review |
+| SHOULD | Verify clean git status | [x] | Status clean |
