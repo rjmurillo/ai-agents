@@ -630,7 +630,7 @@ Describe "Test-HandoffUpdated Filesystem Error Handling" {
         # Mock Get-Item to throw PathTooLongException
         Mock -CommandName Get-Item -MockWith {
             throw [System.IO.PathTooLongException]::new("Path too long")
-        } -ModuleName $null -ParameterFilter { $LiteralPath -like "*HANDOFF.md" }
+        } -ModuleName SessionValidation -ParameterFilter { $LiteralPath -like "*HANDOFF.md" }
 
         try {
             $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
@@ -659,7 +659,7 @@ Describe "Test-HandoffUpdated Filesystem Error Handling" {
         # Mock Get-Item to throw IOException
         Mock -CommandName Get-Item -MockWith {
             throw [System.IO.IOException]::new("Disk read error")
-        } -ModuleName $null -ParameterFilter { $LiteralPath -like "*HANDOFF.md" }
+        } -ModuleName SessionValidation -ParameterFilter { $LiteralPath -like "*HANDOFF.md" }
 
         try {
             $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
@@ -1070,9 +1070,16 @@ Did some work.
 - `abc1234` - feat: add feature
 
 ## Evidence
-- Branch: main
-- Commit: abc1234
-- Status: clean
+
+| Field | Value |
+|-------|-------|
+| Branch | main |
+| Commit | abc1234 |
+| Status | clean |
+
+Branch: main
+Commit: abc1234
+Status: clean
 "@
         $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
         Set-Content -Path $sessionPath -Value $sessionContent
@@ -1156,6 +1163,18 @@ Did some work.
 ### Commits This Session
 
 - `abc1234` - feat: add feature
+
+## Evidence
+
+| Field | Value |
+|-------|-------|
+| Branch | main |
+| Commit | abc1234 |
+| Status | clean |
+
+Branch: main
+Commit: abc1234
+Status: clean
 "@
         $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
         Set-Content -Path $sessionPath -Value $sessionContent

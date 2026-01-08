@@ -489,11 +489,11 @@ function Test-CommitSHAFormat {
     $errors += 'Commit SHA is empty'
   }
 
-  if ($CommitSHA -and $CommitSHA -notmatch '^[a-f0-9]{7,40}$') {
-    if ($CommitSHA -match '^[a-f0-9]{7,12}\s+.+') {
+  if ($CommitSHA -and $CommitSHA -notmatch '^[a-f0-9]{6,40}$') {
+    if ($CommitSHA -match '^[a-f0-9]{6,12}\s+.+') {
       $errors += "Commit SHA includes subject line. Use SHA only (e.g., 'abc1234' not 'abc1234 Fix bug')."
     } else {
-      $errors += "Commit SHA format invalid. Expected 7-40 hex chars, got: '$CommitSHA'"
+      $errors += "Commit SHA format invalid. Expected 6-40 hex chars, got: '$CommitSHA'"
     }
   }
 
@@ -824,8 +824,11 @@ function Test-HandoffUpdated {
   if (-not (Test-Path $handoffPath)) {
     return @{
       IsValid = $true
+      Passed = $true
+      Level = 'MUST'
       Errors = $errors
       Warnings = $warnings
+      Issues = @()
       FixableIssues = $fixableIssues
     }
   }
@@ -1077,7 +1080,8 @@ function Test-GitCommitEvidence {
   if ($commitSectionMatch.Success) {
     $commitCandidate = $commitSectionMatch.Groups[1].Value.Trim()
   } else {
-    $shaMatch = [regex]::Match($Content, '[0-9a-f]{7,40}')
+    # Look for 6-40 hex digits (GitHub shows abbreviated SHAs as short as 6 chars)
+    $shaMatch = [regex]::Match($Content, '[0-9a-f]{6,40}')
     if ($shaMatch.Success) {
       $commitCandidate = $shaMatch.Value
     }
