@@ -122,7 +122,15 @@ $expectedDirNormalized = [System.IO.Path]::GetFullPath($expectedDir).TrimEnd('\'
 $expectedDirWithSep = $expectedDirNormalized + [System.IO.Path]::DirectorySeparatorChar
 $sessionFullPathNormalized = [System.IO.Path]::GetFullPath($sessionFullPath)
 if (-not $sessionFullPathNormalized.StartsWith($expectedDirWithSep, [System.StringComparison]::OrdinalIgnoreCase)) {
-  Fail 'E_PATH_ESCAPE' "Session log must be under .agents/sessions/: $sessionFullPath"
+  $startsWithResult = $sessionFullPathNormalized.StartsWith($expectedDirWithSep, [System.StringComparison]::OrdinalIgnoreCase)
+  Fail 'E_PATH_ESCAPE' @"
+Session log path validation failed.
+  Current directory: $PWD
+  Repo root: $repoRoot
+  Expected directory: $expectedDirWithSep
+  Normalized path: $sessionFullPathNormalized
+  Starts with check: $startsWithResult
+"@
 }
 
 $sessionRel = Get-RelativePath $repoRoot $sessionFullPath
