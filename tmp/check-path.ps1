@@ -1,0 +1,10 @@
+$repoRoot = (git rev-parse --show-toplevel)
+$sessionFullPath = (Resolve-Path -LiteralPath '.agents/sessions/2026-01-07-session-381-extract-validation-functions-module.md').Path
+$expectedDir = [System.IO.Path]::GetFullPath((Join-Path $repoRoot '.agents' 'sessions')).TrimEnd('\','/')
+$expectedDirWithSep = $expectedDir + [System.IO.Path]::DirectorySeparatorChar
+$sessionNorm = [System.IO.Path]::GetFullPath($sessionFullPath)
+Write-Output "repoRoot=$repoRoot"
+Write-Output "expectedDir=$expectedDir"
+Write-Output "expectedDirWithSep=$expectedDirWithSep"
+Write-Output "sessionPath=$sessionNorm"
+Write-Output "startsWith=$($sessionNorm.StartsWith($expectedDirWithSep, [System.StringComparison]::OrdinalIgnoreCase))"

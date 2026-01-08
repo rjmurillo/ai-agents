@@ -209,16 +209,9 @@ function Test-MemoryEvidence {
     # No memory-index row found - this is a template issue, not evidence issue
     return @{
       IsValid = $true
-      Passed = $true
-      Level = 'MUST'
       Errors = $errors
       Warnings = $warnings
-      Issues = @()
       FixableIssues = $fixableIssues
-      ErrorMessage = ''
-      MemoriesFound = @()
-      MissingMemories = @()
-      Details = @{ MemoriesFound = @(); MissingCount = 0 }
     }
   }
 
@@ -237,16 +230,9 @@ function Test-MemoryEvidence {
       $errors += "Memory-index Evidence column contains placeholder text: '$evidence'. List actual memory names read (e.g., 'memory-index, skills-pr-review-index')."
       return @{
         IsValid = $false
-        Passed = $false
-        Level = 'MUST'
         Errors = $errors
         Warnings = $warnings
-        Issues = $errors
         FixableIssues = $fixableIssues
-        ErrorMessage = ($errors -join "`n")
-        MemoriesFound = @()
-        MissingMemories = @()
-        Details = @{ MemoriesFound = @(); MissingCount = 0 }
       }
     }
   }
@@ -265,16 +251,9 @@ function Test-MemoryEvidence {
     $errors += "Memory-index Evidence column doesn't contain valid memory names: '$evidence'. Expected format: 'memory-index, skills-pr-review-index, ...' (kebab-case names)."
     return @{
       IsValid = $false
-      Passed = $false
-      Level = 'MUST'
       Errors = $errors
       Warnings = $warnings
-      Issues = $errors
       FixableIssues = $fixableIssues
-      ErrorMessage = ($errors -join "`n")
-      MemoriesFound = @()
-      MissingMemories = @()
-      Details = @{ MemoriesFound = @(); MissingCount = 0 }
     }
   }
 
@@ -300,23 +279,12 @@ function Test-MemoryEvidence {
   }
 
   $isValid = ($errors.Count -eq 0)
-  $allIssues = $errors + $warnings
 
   return @{
     IsValid = $isValid
-    Passed = $isValid
-    Level = 'MUST'
     Errors = $errors
     Warnings = $warnings
-    Issues = $allIssues
     FixableIssues = $fixableIssues
-    ErrorMessage = ($errors -join "`n")
-    MemoriesFound = $foundMemories
-    MissingMemories = $missingMemories.ToArray()  # Backward compatibility
-    Details = @{
-      MemoriesFound = $foundMemories
-      MissingCount = $missingMemories.Count
-    }
   }
 }
 
@@ -598,12 +566,9 @@ function Test-SessionLogExists {
 
   return @{
     IsValid = ($errors.Count -eq 0)
-    Passed = ($errors.Count -eq 0)
-    Level = 'MUST'
     Errors = $errors
     Warnings = $warnings
     FixableIssues = $fixableIssues
-    Issues = $errors
   }
 }
 
@@ -636,12 +601,9 @@ function Test-ProtocolComplianceSection {
 
   return @{
     IsValid = ($errors.Count -eq 0)
-    Passed = ($errors.Count -eq 0)
-    Level = 'MUST'
     Errors = $errors
     Warnings = $warnings
     FixableIssues = $fixableIssues
-    Issues = $errors
   }
 }
 
@@ -699,17 +661,9 @@ function Test-MustRequirements {
 
   return @{
     IsValid = ($errors.Count -eq 0)
-    Passed = ($errors.Count -eq 0)
-    Level = 'MUST'
     Errors = $errors
     Warnings = $warnings
     FixableIssues = $fixableIssues
-    Issues = $errors
-    Details = @{
-      TotalMust = $totalMust
-      CompletedMust = $completedMust
-      IncompleteMust = $incompleteMust
-    }
   }
 }
 
@@ -782,17 +736,9 @@ function Test-MustNotRequirements {
 
   return @{
     IsValid = ($errors.Count -eq 0)
-    Passed = ($errors.Count -eq 0)
-    Level = 'MUST'
     Errors = $errors
     Warnings = $warnings
     FixableIssues = $fixableIssues
-    Issues = $errors
-    Details = @{
-      TotalMustNot = $totalMustNot
-      Compliant = $compliant
-      Violations = $violations
-    }
   }
 }
 
@@ -824,11 +770,8 @@ function Test-HandoffUpdated {
   if (-not (Test-Path $handoffPath)) {
     return @{
       IsValid = $true
-      Passed = $true
-      Level = 'MUST'
       Errors = $errors
       Warnings = $warnings
-      Issues = @()
       FixableIssues = $fixableIssues
     }
   }
@@ -864,12 +807,9 @@ function Test-HandoffUpdated {
       $errors += "Cannot validate HANDOFF.md modification in shallow git checkout. Git diff requires origin/main reference. Ensure full clone or fetch origin/main before validation."
       return @{
         IsValid = ($errors.Count -eq 0)
-        Passed = ($errors.Count -eq 0)
-        Level = 'MUST'
         Errors = $errors
         Warnings = $warnings
         FixableIssues = $fixableIssues
-        Issues = $errors
       }
     }
 
@@ -891,56 +831,41 @@ function Test-HandoffUpdated {
             $errors += 'Permission denied reading HANDOFF.md metadata. Cannot verify modification timestamp. Check file permissions and retry validation.'
             return @{
               IsValid = ($errors.Count -eq 0)
-              Passed = ($errors.Count -eq 0)
-              Level = 'MUST'
               Errors = $errors
               Warnings = $warnings
               FixableIssues = $fixableIssues
-              Issues = $errors
             }
           } catch [System.IO.FileNotFoundException] {
             $errors += 'HANDOFF.md was deleted during validation (race condition detected between existence check and metadata read). File system may be unstable. Retry validation. If issue persists, check for concurrent processes or file system issues.'
             return @{
               IsValid = ($errors.Count -eq 0)
-              Passed = ($errors.Count -eq 0)
-              Level = 'MUST'
               Errors = $errors
               Warnings = $warnings
               FixableIssues = $fixableIssues
-              Issues = $errors
             }
           } catch [System.IO.PathTooLongException] {
             $errors += 'HANDOFF.md path exceeds maximum length. This indicates a project structure issue. Move project to shorter path.'
             return @{
               IsValid = ($errors.Count -eq 0)
-              Passed = ($errors.Count -eq 0)
-              Level = 'MUST'
               Errors = $errors
               Warnings = $warnings
               FixableIssues = $fixableIssues
-              Issues = $errors
             }
           } catch [System.IO.IOException] {
             $errors += "I/O error reading HANDOFF.md: $($_.Exception.Message). Check disk health, file locks, and retry."
             return @{
               IsValid = ($errors.Count -eq 0)
-              Passed = ($errors.Count -eq 0)
-              Level = 'MUST'
               Errors = $errors
               Warnings = $warnings
               FixableIssues = $fixableIssues
-              Issues = $errors
             }
           } catch {
             $errors += "Unexpected error reading HANDOFF.md: $($_.Exception.GetType().Name) - $($_.Exception.Message). Contact support if issue persists."
             return @{
               IsValid = ($errors.Count -eq 0)
-              Passed = ($errors.Count -eq 0)
-              Level = 'MUST'
               Errors = $errors
               Warnings = $warnings
               FixableIssues = $fixableIssues
-              Issues = $errors
             }
           }
         } catch [System.FormatException] {
@@ -948,47 +873,35 @@ function Test-HandoffUpdated {
             $warnings += "Session log filename has invalid date format: '$($Matches[1])'. Expected format: YYYY-MM-DD (e.g., 2026-01-05). Git validation succeeded but filename should be corrected to match naming convention."
             return @{
               IsValid = ($errors.Count -eq 0)
-              Passed = ($errors.Count -eq 0)
-              Level = 'MUST'
               Errors = $errors
               Warnings = $warnings
               FixableIssues = $fixableIssues
-              Issues = $errors
             }
           }
 
           $errors += "Session log filename contains invalid date format: '$($Matches[1])'. Expected format: YYYY-MM-DD. Cannot validate HANDOFF.md modification without git diff or valid timestamp."
           return @{
             IsValid = ($errors.Count -eq 0)
-            Passed = ($errors.Count -eq 0)
-            Level = 'MUST'
             Errors = $errors
             Warnings = $warnings
             FixableIssues = $fixableIssues
-            Issues = $errors
           }
         } catch {
           if ($gitDiffWorked) {
             return @{
               IsValid = ($errors.Count -eq 0)
-              Passed = ($errors.Count -eq 0)
-              Level = 'MUST'
               Errors = $errors
               Warnings = $warnings
               FixableIssues = $fixableIssues
-              Issues = $errors
             }
           }
 
           $errors += "Unexpected error parsing session date: $($_.Exception.GetType().Name) - $($_.Exception.Message). Cannot validate HANDOFF.md modification without git diff or valid timestamp."
           return @{
             IsValid = ($errors.Count -eq 0)
-            Passed = ($errors.Count -eq 0)
-            Level = 'MUST'
             Errors = $errors
             Warnings = $warnings
             FixableIssues = $fixableIssues
-            Issues = $errors
           }
         }
       }
@@ -999,12 +912,9 @@ function Test-HandoffUpdated {
   }
   return @{
     IsValid = ($errors.Count -eq 0)
-    Passed = ($errors.Count -eq 0)
-    Level = 'MUST'
     Errors = $errors
     Warnings = $warnings
     FixableIssues = $fixableIssues
-    Issues = $errors
   }
 }
 
@@ -1046,17 +956,9 @@ function Test-ShouldRequirements {
 
   return @{
     IsValid = ($errors.Count -eq 0)
-    Passed = $true  # SHOULD never fails
-    Level = 'SHOULD'
     Errors = $errors
     Warnings = $warnings
     FixableIssues = $fixableIssues
-    Issues = $warnings
-    Details = @{
-      TotalShould = $totalShould
-      CompletedShould = $completedShould
-      IncompleteShould = $incompleteShould
-    }
   }
 }
 
@@ -1091,12 +993,9 @@ function Test-GitCommitEvidence {
     $errors += 'No commit evidence found in session log'
     return @{
       IsValid = $false
-      Passed = $false
-      Level = 'SHOULD'
       Errors = $errors
       Warnings = $warnings
       FixableIssues = $fixableIssues
-      Issues = $errors
     }
   }
 
@@ -1107,12 +1006,9 @@ function Test-GitCommitEvidence {
 
   return @{
     IsValid = ($errors.Count -eq 0)
-    Passed = ($errors.Count -eq 0)
-    Level = 'SHOULD'
     Errors = $errors
     Warnings = $warnings
     FixableIssues = $fixableIssues
-    Issues = if ($errors.Count -gt 0) { $errors } else { $warnings }
   }
 }
 
@@ -1160,39 +1056,11 @@ function Test-SessionLogCompleteness {
     $errors += $requiredCheck.Errors
   }
 
-  # Calculate found vs missing sections for Details
-  $allExpectedSections = @('Session Info', 'Protocol Compliance', 'Work Log', 'Session End', 'Session Start', 'Evidence')
-  $foundSections = @()
-  $missingSections = @()
-  
-  foreach ($sectionName in $allExpectedSections) {
-    $isFound = $false
-    foreach ($section in $expectedSections) {
-      if ($section.Name -eq $sectionName) {
-        if ($Content -match $section.Pattern) {
-          $foundSections += $sectionName
-          $isFound = $true
-        }
-        break
-      }
-    }
-    if (-not $isFound) {
-      $missingSections += $sectionName
-    }
-  }
-
   return @{
     IsValid = ($errors.Count -eq 0)
-    Passed = ($errors.Count -eq 0)
-    Level = 'SHOULD'
     Errors = $errors
     Warnings = $warnings
     FixableIssues = $fixableIssues
-    Issues = $errors
-    Sections = @{
-      Found = $foundSections
-      Missing = $missingSections
-    }
   }
 }
 

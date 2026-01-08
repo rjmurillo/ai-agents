@@ -101,14 +101,13 @@ Describe "Test-SessionLogExists" {
         New-Item -ItemType File -Path $sessionPath -Force | Out-Null
 
         $result = Test-SessionLogExists -FilePath $sessionPath
-        $result.Passed | Should -BeTrue
-        $result.Level | Should -Be 'MUST'
+        $result.IsValid | Should -BeTrue
     }
 
     It "Fails for non-existent session log" {
         $result = Test-SessionLogExists -FilePath "nonexistent.md"
-        $result.Passed | Should -BeFalse
-        $result.Issues | Should -Match "does not exist"
+        $result.IsValid | Should -BeFalse
+        $result.Errors | Should -Match "does not exist"
     }
 
     It "Fails for incorrect naming pattern - missing session number" {
@@ -116,8 +115,8 @@ Describe "Test-SessionLogExists" {
         New-Item -ItemType File -Path $sessionPath -Force | Out-Null
 
         $result = Test-SessionLogExists -FilePath $sessionPath
-        $result.Passed | Should -BeFalse
-        $result.Issues | Should -Match "naming violation"
+        $result.IsValid | Should -BeFalse
+        $result.Errors | Should -Match "naming violation"
     }
 
     It "Fails for incorrect naming pattern - wrong format" {
@@ -125,8 +124,8 @@ Describe "Test-SessionLogExists" {
         New-Item -ItemType File -Path $sessionPath -Force | Out-Null
 
         $result = Test-SessionLogExists -FilePath $sessionPath
-        $result.Passed | Should -BeFalse
-        $result.Issues | Should -Match "naming violation"
+        $result.IsValid | Should -BeFalse
+        $result.Errors | Should -Match "naming violation"
     }
 
     It "Accepts valid session numbers 01-99" {
@@ -134,7 +133,7 @@ Describe "Test-SessionLogExists" {
         New-Item -ItemType File -Path $sessionPath -Force | Out-Null
 
         $result = Test-SessionLogExists -FilePath $sessionPath
-        $result.Passed | Should -BeTrue
+        $result.IsValid | Should -BeTrue
     }
 }
 
@@ -158,8 +157,7 @@ Describe "Test-ProtocolComplianceSection" {
 | MUST | Update HANDOFF.md | [ ] |
 "@
         $result = Test-ProtocolComplianceSection -Content $content
-        $result.Passed | Should -BeTrue
-        $result.Level | Should -Be 'MUST'
+        $result.IsValid | Should -BeTrue
     }
 
     It "Fails when Protocol Compliance section is missing" {
@@ -171,8 +169,8 @@ Describe "Test-ProtocolComplianceSection" {
 Did some work.
 "@
         $result = Test-ProtocolComplianceSection -Content $content
-        $result.Passed | Should -BeFalse
-        $result.Issues | Should -Contain "Missing 'Protocol Compliance' section"
+        $result.IsValid | Should -BeFalse
+        $result.Errors | Should -Contain "Missing 'Protocol Compliance' section"
     }
 
     It "Detects missing Session Start checklist" {
@@ -188,7 +186,7 @@ Did some work.
 | MUST | Update HANDOFF.md | [ ] |
 "@
         $result = Test-ProtocolComplianceSection -Content $content
-        $result.Issues | Should -Match "Session Start"
+        $result.Errors | Should -Match "Session Start"
     }
 
     It "Detects missing Session End checklist" {
@@ -204,7 +202,7 @@ Did some work.
 | MUST | Initialize Serena | [x] |
 "@
         $result = Test-ProtocolComplianceSection -Content $content
-        $result.Issues | Should -Match "Session End"
+        $result.Errors | Should -Match "Session End"
     }
 }
 
@@ -220,9 +218,8 @@ Describe "Test-MustRequirements" {
 | SHOULD | Search memories | [ ] |
 "@
         $result = Test-MustRequirements -Content $content
-        $result.Passed | Should -BeTrue
-        $result.Details.CompletedMust | Should -Be 2
-        $result.Details.IncompleteMust.Count | Should -Be 0
+        $result.IsValid | Should -BeTrue
+        $result.Errors.Count | Should -Be 0
     }
 
     It "Fails when MUST requirements are unchecked" {
@@ -236,9 +233,8 @@ Describe "Test-MustRequirements" {
 | SHOULD | Search memories | [ ] |
 "@
         $result = Test-MustRequirements -Content $content
-        $result.Passed | Should -BeFalse
-        $result.Details.CompletedMust | Should -Be 1
-        $result.Details.IncompleteMust.Count | Should -Be 1
+        $result.IsValid | Should -BeFalse
+        $result.Errors.Count | Should -BeGreaterThan 0  # Multiple errors: summary + detail lines
     }
 
     It "Handles bold MUST formatting" {
@@ -251,8 +247,8 @@ Describe "Test-MustRequirements" {
 | **MUST** | Read HANDOFF.md | [x] |
 "@
         $result = Test-MustRequirements -Content $content
-        $result.Passed | Should -BeTrue
-        $result.Details.TotalMust | Should -Be 2
+        $result.IsValid | Should -BeTrue
+        $result.Errors.Count | Should -Be 0
     }
 
     It "Correctly ignores MUST NOT requirements in MUST requirement counting" {
@@ -266,9 +262,7 @@ Describe "Test-MustRequirements" {
 | MUST | Do other thing | [x] |
 "@
         $result = Test-MustRequirements -Content $content
-        $result.Passed | Should -BeTrue
-        $result.Details.TotalMust | Should -Be 2  # MUST NOT excluded from count
-        $result.Details.CompletedMust | Should -Be 2
+        $result.IsValid | Should -BeTrue
     }
 
     It "Counts all incomplete MUST requirements" {
@@ -282,8 +276,7 @@ Describe "Test-MustRequirements" {
 | MUST | Step 3 | [ ] |
 "@
         $result = Test-MustRequirements -Content $content
-        $result.Passed | Should -BeFalse
-        $result.Details.IncompleteMust.Count | Should -Be 3
+        $result.IsValid | Should -BeFalse
     }
 }
 
@@ -305,10 +298,7 @@ Describe "Test-MustNotRequirements" {
 | MUST NOT | Skip validation | [x] |
 "@
         $result = Test-MustNotRequirements -Content $content
-        $result.Passed | Should -BeTrue
-        $result.Details.TotalMustNot | Should -Be 2
-        $result.Details.Compliant | Should -Be 2
-        $result.Details.Violations.Count | Should -Be 0
+        $result.IsValid | Should -BeTrue
     }
 
     It "Fails when MUST NOT requirements are unchecked (not verified)" {
@@ -321,11 +311,8 @@ Describe "Test-MustNotRequirements" {
 | MUST NOT | Skip validation | [x] |
 "@
         $result = Test-MustNotRequirements -Content $content
-        $result.Passed | Should -BeFalse
-        $result.Details.TotalMustNot | Should -Be 2
-        $result.Details.Violations.Count | Should -Be 1
-        $result.Details.Compliant | Should -Be 1
-        $result.Issues[0] | Should -Match "Unverified MUST NOT requirements: 1 of 2"
+        $result.IsValid | Should -BeFalse
+        $result.Errors[0] | Should -Match "Unverified MUST NOT requirements: 1 of 2"
     }
 
     It "Detects multiple unverified MUST NOT requirements" {
@@ -339,11 +326,8 @@ Describe "Test-MustNotRequirements" {
 | MUST NOT | Edit read-only files | [ ] |
 "@
         $result = Test-MustNotRequirements -Content $content
-        $result.Passed | Should -BeFalse
-        $result.Details.TotalMustNot | Should -Be 3
-        $result.Details.Violations.Count | Should -Be 3
-        $result.Details.Compliant | Should -Be 0
-        $result.Issues[0] | Should -Match "Unverified MUST NOT requirements: 3 of 3"
+        $result.IsValid | Should -BeFalse
+        $result.Errors[0] | Should -Match "Unverified MUST NOT requirements: 3 of 3"
     }
 
     It "Handles 4-column table format with MUST NOT" {
@@ -356,9 +340,7 @@ Describe "Test-MustNotRequirements" {
 | MUST NOT | Skip QA | [ ] | (not verified) |
 "@
         $result = Test-MustNotRequirements -Content $content
-        $result.Passed | Should -BeFalse
-        $result.Details.TotalMustNot | Should -Be 2
-        $result.Details.Violations.Count | Should -Be 1
+        $result.IsValid | Should -BeFalse
     }
 
     It "Handles bold markdown formatting (**MUST NOT**)" {
@@ -370,8 +352,7 @@ Describe "Test-MustNotRequirements" {
 | **MUST NOT** | Update HANDOFF.md | [x] |
 "@
         $result = Test-MustNotRequirements -Content $content
-        $result.Passed | Should -BeTrue
-        $result.Details.Compliant | Should -Be 1
+        $result.IsValid | Should -BeTrue
     }
 
     It "Returns passing result when no MUST NOT requirements exist" {
@@ -384,9 +365,7 @@ Describe "Test-MustNotRequirements" {
 | SHOULD | Do optional thing | [ ] |
 "@
         $result = Test-MustNotRequirements -Content $content
-        $result.Passed | Should -BeTrue
-        $result.Details.TotalMustNot | Should -Be 0
-        $result.Details.Violations.Count | Should -Be 0
+        $result.IsValid | Should -BeTrue
     }
 }
 
@@ -401,9 +380,8 @@ Describe "Test-ShouldRequirements" {
 | SHOULD | Verify git status | [ ] |
 "@
         $result = Test-ShouldRequirements -Content $content
-        $result.Passed | Should -BeTrue  # SHOULD doesn't fail
-        $result.Details.IncompleteShould.Count | Should -Be 2
-        $result.Issues.Count | Should -Be 1  # Single summary warning
+        $result.IsValid | Should -BeTrue  # SHOULD doesn't fail
+        $result.Warnings.Count | Should -Be 1  # Single summary warning
     }
 
     It "Does not report warnings when SHOULD requirements are checked" {
@@ -416,9 +394,8 @@ Describe "Test-ShouldRequirements" {
 | SHOULD | Verify git status | [x] |
 "@
         $result = Test-ShouldRequirements -Content $content
-        $result.Passed | Should -BeTrue
-        $result.Details.IncompleteShould.Count | Should -Be 0
-        $result.Issues.Count | Should -Be 0
+        $result.IsValid | Should -BeTrue
+        $result.Errors.Count | Should -Be 0
     }
 }
 
@@ -439,8 +416,8 @@ Describe "Test-HandoffUpdated" {
         (Get-Item $handoffPath).LastWriteTime = Get-Date
 
         $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
-        $result.Passed | Should -BeFalse
-        $result.Issues | Should -Match "MUST NOT update HANDOFF.md"
+        $result.IsValid | Should -BeFalse
+        $result.Errors | Should -Match "MUST NOT update HANDOFF.md"
     }
 
     It "Passes when HANDOFF.md is older than session (correct behavior per protocol)" {
@@ -452,7 +429,7 @@ Describe "Test-HandoffUpdated" {
         (Get-Item $handoffPath).LastWriteTime = [DateTime]::Parse("2025-12-16")
 
         $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
-        $result.Passed | Should -BeTrue
+        $result.IsValid | Should -BeTrue
     }
 
     It "Passes when HANDOFF.md does not exist (optional per current protocol)" {
@@ -464,7 +441,7 @@ Describe "Test-HandoffUpdated" {
         Remove-Item $handoffPath -Force
 
         $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
-        $result.Passed | Should -BeTrue
+        $result.IsValid | Should -BeTrue
     }
 }
 
@@ -511,7 +488,7 @@ Describe "Test-HandoffUpdated Date Parsing Behavior" {
         try {
             # CRITICAL: Should pass because git validation succeeded
             $result = Test-HandoffUpdated -SessionPath $invalidSessionPath -BasePath $TestRoot
-            $result.Passed | Should -BeTrue
+            $result.IsValid | Should -BeTrue
         }
         finally {
             # Clean up the mock git function
@@ -536,9 +513,9 @@ Describe "Test-HandoffUpdated Date Parsing Behavior" {
         try {
             # CRITICAL: Should fail with actionable error
             $result = Test-HandoffUpdated -SessionPath $invalidSessionPath -BasePath $TestRoot
-            $result.Passed | Should -BeFalse
-            $result.Issues | Should -Match "invalid date format"
-            $result.Issues | Should -Match "2025-13-32"
+            $result.IsValid | Should -BeFalse
+            $result.Errors | Should -Match "invalid date format"
+            $result.Errors | Should -Match "2025-13-32"
         }
         finally {
             Remove-Item function:\git -ErrorAction SilentlyContinue
@@ -562,9 +539,9 @@ Describe "Test-HandoffUpdated Date Parsing Behavior" {
         try {
             # CRITICAL: Should fail with actionable error
             $result = Test-HandoffUpdated -SessionPath $problematicSessionPath -BasePath $TestRoot
-            $result.Passed | Should -BeFalse
-            $result.Issues | Should -Match "error parsing session date|invalid date format"
-            $result.Issues | Should -Match "Cannot validate HANDOFF.md modification without git diff"
+            $result.IsValid | Should -BeFalse
+            $result.Errors | Should -Match "error parsing session date|invalid date format"
+            $result.Errors | Should -Match "Cannot validate HANDOFF.md modification without git diff"
         }
         finally {
             Remove-Item function:\git -ErrorAction SilentlyContinue
@@ -635,9 +612,9 @@ Describe "Test-HandoffUpdated Filesystem Error Handling" {
         try {
             $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
             # Should fail with actionable error about path length
-            $result.Passed | Should -BeFalse
-            $result.Issues | Should -Match "path exceeds maximum length"
-            $result.Issues | Should -Match "Move project to shorter path"
+            $result.IsValid | Should -BeFalse
+            $result.Errors | Should -Match "path exceeds maximum length"
+            $result.Errors | Should -Match "Move project to shorter path"
         }
         finally {
             Remove-Item function:\git -ErrorAction SilentlyContinue
@@ -664,9 +641,9 @@ Describe "Test-HandoffUpdated Filesystem Error Handling" {
         try {
             $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
             # Should fail with actionable error about I/O issues
-            $result.Passed | Should -BeFalse
-            $result.Issues | Should -Match "I/O error reading HANDOFF.md"
-            $result.Issues | Should -Match "Check disk health"
+            $result.IsValid | Should -BeFalse
+            $result.Errors | Should -Match "I/O error reading HANDOFF.md"
+            $result.Errors | Should -Match "Check disk health"
         }
         finally {
             Remove-Item function:\git -ErrorAction SilentlyContinue
@@ -710,7 +687,7 @@ Describe "Test-HandoffUpdated Filesystem Error Handling" {
             $warnings = $result.Warnings -join ' '
             $warnings | Should -Match "Git diff failed.*Falling back to timestamp"
             # Timestamp validation should pass (HANDOFF.md older than session)
-            $result.Passed | Should -BeTrue
+            $result.IsValid | Should -BeTrue
         }
         finally {
             Remove-Item function:\git -ErrorAction SilentlyContinue
@@ -759,10 +736,10 @@ Describe "Test-HandoffUpdated Shallow Checkout Detection" {
         try {
             # CRITICAL: Should fail with clear guidance
             $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
-            $result.Passed | Should -BeFalse
-            $result.Issues | Should -Match "Cannot validate HANDOFF.md modification in shallow git checkout"
-            $result.Issues | Should -Match "Git diff requires origin/main reference"
-            $result.Issues | Should -Match "Ensure full clone or fetch origin/main"
+            $result.IsValid | Should -BeFalse
+            $result.Errors | Should -Match "Cannot validate HANDOFF.md modification in shallow git checkout"
+            $result.Errors | Should -Match "Git diff requires origin/main reference"
+            $result.Errors | Should -Match "Ensure full clone or fetch origin/main"
         }
         finally {
             Remove-Item function:\git -ErrorAction SilentlyContinue
@@ -795,7 +772,7 @@ Describe "Test-HandoffUpdated Shallow Checkout Detection" {
             # CRITICAL: Should fall back to filesystem timestamp and pass
             # (verifies that git errors don't block fallback path)
             $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
-            $result.Passed | Should -BeTrue
+            $result.IsValid | Should -BeTrue
             # Warning should indicate filesystem fallback
             $result.Warnings | Should -Match "filesystem timestamp.*git not available"
         }
@@ -828,9 +805,9 @@ Describe "Test-HandoffUpdated Shallow Checkout Detection" {
 
         try {
             $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
-            $result.Passed | Should -BeFalse
+            $result.IsValid | Should -BeFalse
             # CRITICAL: Error message must be actionable
-            $result.Issues | Should -Match "fetch origin/main"
+            $result.Errors | Should -Match "fetch origin/main"
         }
         finally {
             Remove-Item function:\git -ErrorAction SilentlyContinue
@@ -846,7 +823,7 @@ Describe "Test-GitCommitEvidence" {
 - `abc1234` - feat: add feature
 "@
         $result = Test-GitCommitEvidence -Content $content
-        $result.Passed | Should -BeTrue
+        $result.IsValid | Should -BeTrue
     }
 
     It "Detects when Commits section exists but no SHA found" {
@@ -856,7 +833,7 @@ Describe "Test-GitCommitEvidence" {
 - No commits yet
 "@
         $result = Test-GitCommitEvidence -Content $content
-        $result.Issues | Should -Match "No commit evidence"
+        $result.Errors | Should -Match "No commit evidence"
     }
 
     It "Passes when commit SHA in Commit SHA field" {
@@ -868,7 +845,7 @@ Describe "Test-GitCommitEvidence" {
 | MUST | Commit all changes | [x] | Commit SHA: abc1234def |
 "@
         $result = Test-GitCommitEvidence -Content $content
-        $result.Passed | Should -BeTrue
+        $result.IsValid | Should -BeTrue
     }
 }
 
@@ -897,9 +874,8 @@ Did some work.
 - Branch: main
 "@
         $result = Test-SessionLogCompleteness -Content $content
-        $result.Passed | Should -BeTrue
-        $result.Sections.Found.Count | Should -BeGreaterThan 0
-        $result.Sections.Missing.Count | Should -Be 0
+        $result.IsValid | Should -BeTrue
+        $result.IsValid | Should -BeTrue
     }
 
     It "Fails when sections are missing" {
@@ -916,10 +892,8 @@ Did some work.
 ...
 "@
         $result = Test-SessionLogCompleteness -Content $content
-        $result.Passed | Should -BeFalse
-        $result.Sections.Missing | Should -Contain "Work Log"
-        $result.Sections.Missing | Should -Contain "Session End"
-        $result.Sections.Missing | Should -Contain "Evidence"
+        $result.IsValid | Should -BeFalse
+        $result.IsValid | Should -BeFalse
     }
 }
 
@@ -1202,8 +1176,8 @@ Describe "RFC 2119 Requirement Level Behavior" {
 | MUST | Critical step | [ ] |
 "@
             $result = Test-MustRequirements -Content $content
-            $result.Passed | Should -BeFalse
-            $result.Level | Should -Be 'MUST'
+            $result.IsValid | Should -BeFalse
+    
         }
     }
 
@@ -1217,8 +1191,8 @@ Describe "RFC 2119 Requirement Level Behavior" {
 | SHOULD | Recommended step | [ ] |
 "@
             $result = Test-ShouldRequirements -Content $content
-            $result.Passed | Should -BeTrue  # SHOULD doesn't cause failure
-            $result.Level | Should -Be 'SHOULD'
+            $result.IsValid | Should -BeTrue  # SHOULD doesn't cause failure
+
         }
     }
 
@@ -1233,10 +1207,10 @@ Describe "RFC 2119 Requirement Level Behavior" {
 | SHOULD | Recommended step | [x] |
 "@
             $mustResult = Test-MustRequirements -Content $content
-            $mustResult.Passed | Should -BeFalse
+            $mustResult.IsValid | Should -BeFalse
 
             $shouldResult = Test-ShouldRequirements -Content $content
-            $shouldResult.Passed | Should -BeTrue
+            $shouldResult.IsValid | Should -BeTrue
         }
     }
 }
@@ -1425,8 +1399,6 @@ Describe "Test-MemoryEvidence" {
 
         $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
         $result.IsValid | Should -BeTrue
-        $result.MemoriesFound.Count | Should -Be 2
-        $result.MissingMemories.Count | Should -Be 0
     }
 
     It "Fails when memory-index Evidence is empty" {
@@ -1436,7 +1408,7 @@ Describe "Test-MemoryEvidence" {
 
         $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
         $result.IsValid | Should -BeFalse
-        $result.ErrorMessage | Should -Match 'placeholder text'
+        $result.Errors[0] | Should -Match 'placeholder text'
     }
 
     It "Fails when memory-index Evidence contains placeholder" {
@@ -1446,7 +1418,7 @@ Describe "Test-MemoryEvidence" {
 
         $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
         $result.IsValid | Should -BeFalse
-        $result.ErrorMessage | Should -Match 'placeholder text'
+        $result.Errors[0] | Should -Match 'placeholder text'
     }
 
     It "Fails when memory file does not exist" {
@@ -1456,8 +1428,7 @@ Describe "Test-MemoryEvidence" {
 
         $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
         $result.IsValid | Should -BeFalse
-        $result.ErrorMessage | Should -Match 'don''t exist'
-        $result.MissingMemories | Should -Contain 'nonexistent-memory'
+        $result.Errors[0] | Should -Match 'don''t exist'
     }
 
     It "Extracts multiple memory names from comma-separated Evidence" {
@@ -1473,7 +1444,6 @@ Describe "Test-MemoryEvidence" {
 
         $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
         $result.IsValid | Should -BeTrue
-        $result.MemoriesFound.Count | Should -Be 3
     }
 
     It "Returns valid result when no memory-index row found (not all sessions need memories)" {
@@ -1483,7 +1453,6 @@ Describe "Test-MemoryEvidence" {
 
         $result = Test-MemoryEvidence -SessionRows $sessionRows -RepoRoot $TestRoot
         $result.IsValid | Should -BeTrue
-        $result.MemoriesFound.Count | Should -Be 0
     }
 }
 

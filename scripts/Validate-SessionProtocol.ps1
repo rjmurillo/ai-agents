@@ -361,10 +361,10 @@ function Invoke-SessionValidation {
     # Test 1: Session log exists and naming
     $existsResult = Test-SessionLogExists -FilePath $SessionFile
     $validation.Results['SessionLogExists'] = $existsResult
-    if (-not $existsResult.Passed) {
+    if (-not $existsResult.IsValid) {
         $validation.Passed = $false
         $validation.MustPassed = $false
-        $validation.Issues += $existsResult.Issues
+        $validation.Issues += $existsResult.Errors
         return $validation  # Can't continue without file
     }
 
@@ -373,11 +373,8 @@ function Invoke-SessionValidation {
 
     # Checkpoint 1: Template structure validation
     $templateResult = Test-TemplateStructure -Template $content
-    $validation.Results['TemplateStructure'] = @{
-        Passed = $templateResult.IsValid
-        Level = 'MUST'
-        Issues = $templateResult.Errors
-    }
+    # Preserve full 4-key contract result, including FixableIssues
+    $validation.Results['TemplateStructure'] = $templateResult
     if (-not $templateResult.IsValid) {
         $validation.Passed = $false
         $validation.MustPassed = $false
@@ -395,76 +392,59 @@ function Invoke-SessionValidation {
         $sessionStartRows = ConvertFrom-ChecklistTable -TableLines $sessionStartTable
         $moduleResult = Test-MemoryEvidence -SessionRows $sessionStartRows -RepoRoot $BasePath
         
-        # Wrap module result to include MissingMemories array for backward compatibility
-        $memoryResult = @{
-            IsValid = $moduleResult.IsValid
-            Passed = $moduleResult.IsValid
-            Level = 'MUST'
-            Issues = if ($moduleResult.ErrorMessage) { @($moduleResult.ErrorMessage) } else { @() }
-            Errors = $moduleResult.Errors
-            Warnings = $moduleResult.Warnings
-            FixableIssues = $moduleResult.FixableIssues
-            ErrorMessage = $moduleResult.ErrorMessage
-            MemoriesFound = $moduleResult.MemoriesFound
-            MissingMemories = @()  # Initialize as empty array
-        }
-        
-        # Extract MissingMemories from FixableIssues if present
-        $missingMemoryIssue = $moduleResult.FixableIssues | Where-Object { $_.Type -eq 'MissingMemories' } | Select-Object -First 1
-        if ($missingMemoryIssue -and $missingMemoryIssue.Memories) {
-            $memoryResult.MissingMemories = $missingMemoryIssue.Memories
-        }
+        # Use module result directly (4-key contract)
+        $memoryResult = $moduleResult
         
         $validation.Results['MemoryEvidence'] = $memoryResult
         if (-not $memoryResult.IsValid) {
             $validation.Passed = $false
             $validation.MustPassed = $false
-            $validation.Issues += $memoryResult.ErrorMessage
+            $validation.Issues += $memoryResult.Errors
         }
     }
 
     # Test 3: Protocol Compliance section
     $complianceResult = Test-ProtocolComplianceSection -Content $content
     $validation.Results['ProtocolComplianceSection'] = $complianceResult
-    if (-not $complianceResult.Passed) {
+    if (-not $complianceResult.IsValid) {
         $validation.Passed = $false
         $validation.MustPassed = $false
-        $validation.Issues += $complianceResult.Issues
+        $validation.Issues += $complianceResult.Errors
     }
 
     # Test 4: MUST requirements completed
     $mustResult = Test-MustRequirements -Content $content
     $validation.Results['MustRequirements'] = $mustResult
-    if (-not $mustResult.Passed) {
+    if (-not $mustResult.IsValid) {
         $validation.Passed = $false
         $validation.MustPassed = $false
-        $validation.Issues += $mustResult.Issues
+        $validation.Issues += $mustResult.Errors
     }
 
     # Test 5: MUST NOT requirements (violations)
     $mustNotResult = Test-MustNotRequirements -Content $content
     $validation.Results['MustNotRequirements'] = $mustNotResult
-    if (-not $mustNotResult.Passed) {
+    if (-not $mustNotResult.IsValid) {
         $validation.Passed = $false
         $validation.MustPassed = $false
-        $validation.Issues += $mustNotResult.Issues
+        $validation.Issues += $mustNotResult.Errors
     }
 
     # Test 6: HANDOFF.md updated
     $handoffResult = Test-HandoffUpdated -SessionPath $SessionFile -BasePath $BasePath
     $validation.Results['HandoffUpdated'] = $handoffResult
-    if (-not $handoffResult.Passed) {
+    if (-not $handoffResult.IsValid) {
         $validation.Passed = $false
         $validation.MustPassed = $false
-        $validation.Issues += $handoffResult.Issues
+        $validation.Issues += $handoffResult.Errors
     }
 
     # Test 7: SHOULD requirements (warnings)
     $shouldResult = Test-ShouldRequirements -Content $content
     $validation.Results['ShouldRequirements'] = $shouldResult
-    if ($shouldResult.Issues.Count -gt 0) {
+    if ($shouldResult.Warnings.Count -gt 0) {
         $validation.ShouldPassed = $false
-        $validation.Warnings += $shouldResult.Issues
+        $validation.Warnings += $shouldResult.Warnings
     }
 
     # Checkpoint 2: Evidence fields validation
@@ -474,11 +454,7 @@ function Invoke-SessionValidation {
         Status = 'unknown'
     }
     $evidenceResult = Test-EvidenceFields -SessionLog $content -GitInfo $gitInfo
-    $validation.Results['EvidenceFields'] = @{
-        Passed = $evidenceResult.IsValid
-        Level = 'MUST'
-        Issues = $evidenceResult.Errors
-    }
+    $validation.Results['EvidenceFields'] = $evidenceResult
     if (-not $evidenceResult.IsValid) {
         $validation.Passed = $false
         $validation.MustPassed = $false
@@ -492,16 +468,16 @@ function Invoke-SessionValidation {
     # Test 8: Commit evidence (legacy check, now also covered by Checkpoint 2)
     $commitResult = Test-GitCommitEvidence -Content $content
     $validation.Results['CommitEvidence'] = $commitResult
-    if ($commitResult.Issues.Count -gt 0) {
-        $validation.Warnings += $commitResult.Issues
+    if ($commitResult.Errors.Count -gt 0) {
+        $validation.Warnings += $commitResult.Errors
     }
 
     # Test 9: Session log completeness
     $completenessResult = Test-SessionLogCompleteness -Content $content
     $validation.Results['SessionLogCompleteness'] = $completenessResult
-    if (-not $completenessResult.Passed) {
+    if (-not $completenessResult.IsValid) {
         $validation.ShouldPassed = $false
-        $validation.Warnings += $completenessResult.Issues
+        $validation.Warnings += $completenessResult.Errors
     }
 
     return $validation
@@ -603,18 +579,45 @@ function Format-ConsoleOutput {
         Write-ColorOutput "Session: $($v.SessionName) - $status"
 
         if ($null -ne $v.Results) {
+            # Map check names to requirement levels (RFC 2119)
+            $checkLevels = @{
+                'SessionLogExists'       = 'MUST'
+                'TemplateStructure'      = 'MUST'
+                'MemoryEvidence'         = 'MUST'
+                'ProtocolComplianceSection' = 'MUST'
+                'MustRequirements'       = 'MUST'
+                'MustNotRequirements'    = 'MUST'
+                'HandoffUpdated'         = 'MUST'
+                'EvidenceFields'         = 'MUST'
+                'ShouldRequirements'     = 'SHOULD'
+                'CommitEvidence'         = 'SHOULD'
+                'SessionLogCompleteness' = 'SHOULD'
+            }
+
             foreach ($checkName in $v.Results.Keys) {
                 $check = $v.Results[$checkName]
-                $level = if ($check.Level -eq 'MUST') { $ColorRed } else { $ColorYellow }
-                $checkStatus = if ($check.Passed) { "${ColorGreen}[PASS]${ColorReset}" }
-                              elseif ($check.Level -eq 'MUST') { "${ColorRed}[FAIL]${ColorReset}" }
+
+                # Derive level and status from 4-key or legacy shapes
+                $levelStr = if ($checkLevels.ContainsKey($checkName)) { $checkLevels[$checkName] } else { 'SHOULD' }
+                $passed = if ($check.PSObject.Properties['IsValid']) { $check.IsValid } elseif ($check.PSObject.Properties['Passed']) { $check.Passed } else { $false }
+                $issuesArr = if ($check.PSObject.Properties['Errors']) { $check.Errors } elseif ($check.PSObject.Properties['Issues']) { $check.Issues } else { @() }
+                $warnArr = if ($check.PSObject.Properties['Warnings']) { $check.Warnings } else { @() }
+
+                $levelColor = if ($levelStr -eq 'MUST') { $ColorRed } else { $ColorYellow }
+                $checkStatus = if ($passed) { "${ColorGreen}[PASS]${ColorReset}" }
+                              elseif ($levelStr -eq 'MUST') { "${ColorRed}[FAIL]${ColorReset}" }
                               else { "${ColorYellow}[WARN]${ColorReset}" }
 
-                Write-ColorOutput "  $checkStatus $checkName ($($check.Level))"
+                Write-ColorOutput "  $checkStatus $checkName ($levelStr)"
 
-                if ($check.Issues.Count -gt 0) {
-                    foreach ($issue in $check.Issues) {
-                        Write-ColorOutput "    - $issue" $ColorYellow
+                if ($issuesArr.Count -gt 0) {
+                    foreach ($issue in $issuesArr) {
+                        Write-ColorOutput "    - $issue" $levelColor
+                    }
+                }
+                if ($warnArr.Count -gt 0 -and $passed) {
+                    foreach ($w in $warnArr) {
+                        Write-ColorOutput "    ~ $w" $ColorYellow
                     }
                 }
             }
@@ -661,11 +664,29 @@ function Format-MarkdownOutput {
         [void]$sb.AppendLine("| Check | Level | Status | Issues |")
         [void]$sb.AppendLine("|-------|-------|--------|--------|")
 
+        # Map check names to requirement levels (RFC 2119)
+        $checkLevels = @{
+            'SessionLogExists'       = 'MUST'
+            'TemplateStructure'      = 'MUST'
+            'MemoryEvidence'         = 'MUST'
+            'ProtocolComplianceSection' = 'MUST'
+            'MustRequirements'       = 'MUST'
+            'MustNotRequirements'    = 'MUST'
+            'HandoffUpdated'         = 'MUST'
+            'EvidenceFields'         = 'MUST'
+            'ShouldRequirements'     = 'SHOULD'
+            'CommitEvidence'         = 'SHOULD'
+            'SessionLogCompleteness' = 'SHOULD'
+        }
+
         foreach ($checkName in $v.Results.Keys) {
             $check = $v.Results[$checkName]
-            $checkStatus = if ($check.Passed) { "PASS" } else { "FAIL" }
-            $issues = if ($check.Issues.Count -gt 0) { $check.Issues -join "; " } else { "-" }
-            [void]$sb.AppendLine("| $checkName | $($check.Level) | $checkStatus | $issues |")
+            $levelStr = if ($checkLevels.ContainsKey($checkName)) { $checkLevels[$checkName] } else { 'SHOULD' }
+            $passed = if ($check.PSObject.Properties['IsValid']) { $check.IsValid } elseif ($check.PSObject.Properties['Passed']) { $check.Passed } else { $false }
+            $issuesArr = if ($check.PSObject.Properties['Errors']) { $check.Errors } elseif ($check.PSObject.Properties['Issues']) { $check.Issues } else { @() }
+            $checkStatus = if ($passed) { "PASS" } else { if ($levelStr -eq 'MUST') { "FAIL" } else { "WARN" } }
+            $issues = if ($issuesArr.Count -gt 0) { $issuesArr -join "; " } else { "-" }
+            [void]$sb.AppendLine("| $checkName | $levelStr | $checkStatus | $issues |")
         }
 
         [void]$sb.AppendLine("")
