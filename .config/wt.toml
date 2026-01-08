@@ -1,0 +1,7 @@
+# Worktrunk Configuration
+# Documentation: https://worktrunk.dev/hook/
+
+[post-create]
+# Configure git hooks path to .githooks directory
+# This ensures pre-commit and other hooks work in worktrees
+configure-hooks = "git config core.hooksPath .githooks"
