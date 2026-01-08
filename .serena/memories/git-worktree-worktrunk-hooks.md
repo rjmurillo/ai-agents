@@ -91,7 +91,7 @@ copy = "wt step copy-ignored"
 
 [pre-merge]
 # Run markdown linting before merge to catch documentation issues
-# Note: Runs in check-only mode (no --fix flag) to avoid uncommitted changes
+# Fails on violations without modifying files (no --fix flag prevents uncommitted changes during merge)
 lint = "npx markdownlint-cli2 \"**/*.md\""
 ```
 

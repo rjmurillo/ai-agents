@@ -246,6 +246,13 @@ The repository includes `.config/wt.toml` with lifecycle hooks that:
 
 **See**: [AGENTS.md Worktrunk Setup](../AGENTS.md#worktrunk-setup) for complete workflow documentation.
 
+**Troubleshooting:**
+
+- **"Hooks require approval"**: Project hooks require explicit user approval on first run for security. Review `.config/wt.toml` and approve when prompted.
+- **"wt switch: command not found"**: Shell integration not installed. Run `wt config shell install` and restart shell.
+- **Windows hook failures**: Hooks use bash syntax. Use Git Bash or WSL instead of PowerShell for hook execution.
+- **Dependencies not copying**: Verify directories exist in main worktree. Check `.worktreeinclude` lists correct paths.
+
 ## Post-Installation
 
 ### Restart Your Editor
