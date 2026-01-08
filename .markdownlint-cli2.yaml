@@ -89,6 +89,7 @@ ignores:
   - ".factory/**"
   - "**/*.ps1"
   - "**/*.psm1"
+  - ".factory/**"
 
   # User instruction files - these are APPENDED to existing user files during installation
   # and cannot start with H1 (MD041). They are simple, controlled content that we manually

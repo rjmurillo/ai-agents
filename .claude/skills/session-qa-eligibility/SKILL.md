@@ -1,15 +1,57 @@
 ---
-name: session
-description: Skills for session management and protocol compliance including investigation eligibility checking per ADR-034 to determine when QA validation can be skipped.
-license: MIT
-metadata:
+name: session-qa-eligibility
+description: Check investigation session QA skip eligibility per ADR-034. Validates if staged files qualify for investigation-only exemption by checking against allowed paths (.agents/sessions/, .agents/analysis/, .serena/memories/, etc).
 version: 1.0.0
+license: MIT
 model: claude-sonnet-4-5
 ---
 
-# Session Skills
+# Session QA Eligibility
 
-Skills for session management and protocol compliance.
+Check investigation session QA skip eligibility per ADR-034.
+
+---
+
+## Triggers
+
+- `Check if I can skip QA`
+- `Am I eligible for investigation-only?`
+- `Verify investigation session eligibility`
+
+---
+
+## Process
+
+```text
+User Request: Check QA eligibility
+    |
+    v
++---------------------------------------------+
+| Phase 1: GET STAGED FILES                   |
+| - Run git diff --cached --name-only        |
+| - Collect all staged file paths            |
++---------------------------------------------+
+    |
+    v
++---------------------------------------------+
+| Phase 2: CHECK ALLOWLIST                    |
+| - Compare against allowed paths:           |
+|   * .agents/sessions/                      |
+|   * .agents/analysis/                      |
+|   * .agents/retrospective/                 |
+|   * .serena/memories/                      |
+|   * .agents/security/                      |
+| - Identify violations                      |
++---------------------------------------------+
+    |
+    v
++---------------------------------------------+
+| Phase 3: RETURN RESULT                      |
+| - Eligible: true if all files in allowlist |
+| - Eligible: false if any violations        |
+| - Include violations list for debugging    |
++---------------------------------------------+
+```
 
 ---
 
@@ -25,17 +67,10 @@ Skills for session management and protocol compliance.
 
 Check if staged files qualify for investigation-only QA skip per ADR-034.
 
-### Triggers
-
-- "Check if I can skip QA"
-- "Am I eligible for investigation-only?"
-- "Verify investigation session eligibility"
-- "Can I use SKIPPED: investigation-only?"
-
 ### Usage
 
 ```powershell
-pwsh .claude/skills/session/scripts/Test-InvestigationEligibility.ps1
+pwsh .claude/skills/session-qa-eligibility/scripts/Test-InvestigationEligibility.ps1
 ```
 
 ### Output
@@ -155,7 +190,7 @@ SESSION-PROTOCOL.md (Phase 2.5: QA Validation)
 
 2. Run eligibility check
    │
-   └── pwsh .claude/skills/session/scripts/Test-InvestigationEligibility.ps1
+   └── pwsh .claude/skills/session-qa-eligibility/scripts/Test-InvestigationEligibility.ps1
 
 3. Check output
    │
@@ -227,8 +262,8 @@ After using this skill:
 
 | Reference | Description |
 |-----------|-------------|
-| [ADR-034](../../.agents/architecture/decisions/adr-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption architecture decision |
-| [SESSION-PROTOCOL.md](../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
+| [ADR-034](../../../../.agents/architecture/ADR-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption architecture decision |
+| [SESSION-PROTOCOL.md](../../../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
 | [Issue #662](https://github.com/rjmurillo/ai-agents/issues/662) | Create QA skip eligibility check skill |
-| [Validate-Session.ps1](../../scripts/Validate-Session.ps1) | Uses same allowlist for CI validation |
-| [Test-InvestigationEligibility.Tests.ps1](../../tests/Test-InvestigationEligibility.Tests.ps1) | Pester tests ensuring pattern consistency |
+| [Validate-Session.ps1](../../../../scripts/Validate-Session.ps1) | Uses same allowlist for CI validation |
+| [Test-InvestigationEligibility.Tests.ps1](../../../../tests/Test-InvestigationEligibility.Tests.ps1) | Pester tests ensuring pattern consistency |

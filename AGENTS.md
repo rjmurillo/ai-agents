@@ -123,6 +123,31 @@ Common commands you'll reference throughout development. Commands are listed wit
 /clear
 ```
 
+#### Session Initialization
+
+Use the session-init skill to create protocol-compliant session logs:
+
+```bash
+# Automated (recommended)
+pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
+
+# With parameters
+pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -Objective "Implement feature X"
+
+# Manual trigger via slash command
+/session-init
+```
+
+**Benefits**:
+
+- Reads canonical template from SESSION-PROTOCOL.md
+- Auto-detects git state (branch, commit, status)
+- Validates immediately with Validate-SessionProtocol.ps1
+- Prevents CI validation failures at source
+- Deterministic invocation via `/session-init` slash command
+
+See: [.claude/skills/session-init/SKILL.md](.claude/skills/session-init/SKILL.md) and [.claude/commands/session-init.md](.claude/commands/session-init.md)
+
 #### Session Start
 
 ```bash
@@ -230,6 +255,8 @@ gh workflow run [workflow] --ref [branch]
 ---
 
 ## Code Style & Examples
+
+> **Before writing code**: Read [.gemini/styleguide.md](.gemini/styleguide.md) for blocking security patterns and canonical source index.
 
 ### PowerShell Style
 

@@ -164,6 +164,30 @@ The agent MUST validate skill availability before starting work. This is a **blo
 
 The agent MUST create a session log early in the session.
 
+**MUST Use session-init Skill**: Agents MUST use the session-init skill to create session logs with verification-based enforcement. This prevents recurring CI validation failures.
+
+**Automated Creation** (Recommended):
+
+```bash
+# Using slash command (Claude Code)
+/session-init
+
+# Using PowerShell script
+pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -Objective "Implement feature X"
+```
+
+The script will:
+
+1. Prompt for session number and objective (if not provided)
+2. Auto-detect git state (branch, commit, date, status)
+3. Read canonical template from SESSION-PROTOCOL.md (lines 494-612)
+4. Replace placeholders with actual values
+5. Write session log with EXACT template format
+6. Validate immediately with Validate-SessionProtocol.ps1
+7. Exit nonzero on validation failure
+
+See: `.claude/skills/session-init/SKILL.md`
+
 **Requirements:**
 
 1. The agent MUST create a session log file at `.agents/sessions/YYYY-MM-DD-session-NN.md`

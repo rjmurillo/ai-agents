@@ -43,6 +43,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Import SchemaValidation module
+$ModulePath = Join-Path $PSScriptRoot ".." "modules" "SchemaValidation.psm1"
+Import-Module $ModulePath -Force
+
 #region Helper Functions
 
 function Get-SessionIdFromPath {
@@ -276,8 +280,8 @@ function ConvertFrom-Events {
             }
         }
 
-        # Milestone events
-        if ($line -match '✅|completed?|done|finished|success' -and $line -match '^[-*]') {
+        # Milestone events (exclude bold markdown like **Status**: success)
+        if ($line -match '✅|completed?|done|finished|success' -and $line -match '^[-*]\s+(?!\*)') {
             $eventIndex++
             $evt = @{
                 id        = "e{0:D3}" -f $eventIndex
@@ -451,13 +455,13 @@ Write-Host "  Parsing metadata..." -ForegroundColor Gray
 $metadata = ConvertFrom-SessionMetadata -Lines $content
 
 Write-Host "  Parsing decisions..." -ForegroundColor Gray
-$decisions = ConvertFrom-Decisions -Lines $content
+$decisions = @(ConvertFrom-Decisions -Lines $content)
 
 Write-Host "  Parsing events..." -ForegroundColor Gray
-$events = ConvertFrom-Events -Lines $content
+$events = @(ConvertFrom-Events -Lines $content)
 
 Write-Host "  Parsing lessons..." -ForegroundColor Gray
-$lessons = ConvertFrom-Lessons -Lines $content
+$lessons = @(ConvertFrom-Lessons -Lines $content)
 
 Write-Host "  Parsing metrics..." -ForegroundColor Gray
 $metrics = ConvertFrom-Metrics -Lines $content
@@ -489,21 +493,18 @@ if (-not (Test-Path $OutputPath)) {
     New-Item -Path $OutputPath -ItemType Directory -Force | Out-Null
 }
 
-# Write episode file
+# Write episode file with schema validation
 $episodeFile = Join-Path $OutputPath "episode-$sessionId.json"
 
-if ((Test-Path $episodeFile) -and -not $Force) {
-    Write-Warning "Episode file already exists: $episodeFile"
-    Write-Warning "Use -Force to overwrite."
-    exit 1
-}
+Write-Host "  Validating against episode schema..." -ForegroundColor Gray
+$writeResult = Write-ValidatedJson -Data $episode -FilePath $episodeFile -SchemaName "episode" -Force:$Force
 
-try {
-    $json = $episode | ConvertTo-Json -Depth 10 -ErrorAction Stop
-    Set-Content -Path $episodeFile -Value $json -Encoding UTF8 -ErrorAction Stop
-}
-catch {
-    Write-Error "Failed to write episode file '$episodeFile': $($_.Exception.Message)"
+if (-not $writeResult.Success) {
+    Write-Host "Schema validation failed:" -ForegroundColor Red
+    foreach ($validationError in $writeResult.ValidationResult.Errors) {
+        Write-Host "  - $validationError" -ForegroundColor Red
+    }
+    Write-Error "Episode validation failed. See errors above."
     exit 1
 }
 
