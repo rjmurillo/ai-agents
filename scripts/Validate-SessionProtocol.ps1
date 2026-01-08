@@ -390,7 +390,7 @@ function Invoke-SessionValidation {
 
     # Test 2: Memory evidence validation (ADR-007)
     $lines = ($content -split "`r?`n") | Where-Object { $_ -ne '' }
-    $sessionStartTable = Get-HeadingTable -Lines $lines -HeadingRegex '^\s*##\s+Session\s+Start\s*$'
+    $sessionStartTable = Get-HeadingTable -Lines $lines -HeadingRegex '^\s*###?\s+Session\s+Start(?:\s+\(COMPLETE ALL before work\))?\s*$'
     if ($sessionStartTable) {
         $sessionStartRows = ConvertFrom-ChecklistTable -TableLines $sessionStartTable
         $moduleResult = Test-MemoryEvidence -SessionRows $sessionStartRows -RepoRoot $BasePath
