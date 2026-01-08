@@ -66,7 +66,7 @@ function Get-GitInfo {
         # Capture git output and errors separately
         $repoRootOutput = git rev-parse --show-toplevel 2>&1
         if ($LASTEXITCODE -ne 0) {
-            $errorDetails = $repoRootOutput -join "`n"
+            $errorDetails = ($repoRootOutput | Out-String).Trim()
             $msg = @"
 Not in a git repository. Git error (exit code $LASTEXITCODE): $errorDetails
 
@@ -78,7 +78,7 @@ Ensure you are in a git repository by running 'git status'. If you are in a git 
 
         $branchOutput = git branch --show-current 2>&1
         if ($LASTEXITCODE -ne 0) {
-            $errorDetails = $branchOutput -join "`n"
+            $errorDetails = ($branchOutput | Out-String).Trim()
             $msg = @"
 Failed to get current branch. Git error (exit code $LASTEXITCODE): $errorDetails
 
@@ -94,7 +94,7 @@ This usually means you are in a detached HEAD state or the repository is corrupt
         # 'git rev-parse --short HEAD' returns: "abc1234"
         $commitOutput = git rev-parse --short HEAD 2>&1
         if ($LASTEXITCODE -ne 0) {
-            $errorDetails = $commitOutput -join "`n"
+            $errorDetails = ($commitOutput | Out-String).Trim()
             $msg = @"
 Failed to get commit SHA. Git error (exit code $LASTEXITCODE): $errorDetails
 

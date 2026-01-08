@@ -112,20 +112,13 @@ function New-PopulatedSessionLog {
         }
         
         if ($missingPlaceholders.Count -gt 0) {
-            # When SkipValidation is set AND placeholders are missing, this is a dangerous
-            # combination that would create an invalid session log with no safety net.
-            # Throw to enforce the skip-validation safeguard.
-            if ($SkipValidation) {
-                throw [System.InvalidOperationException]::new(
-                    "Template missing required placeholders AND validation is skipped.`n`n" +
-                    "Missing: $($missingPlaceholders -join ', ')`n`n" +
-                    "This combination would create an invalid session log. " +
-                    "Either fix the template or enable validation to catch these issues."
-                )
-            }
-            Write-Warning "Template missing expected placeholders: $($missingPlaceholders -join ', ')"
-            Write-Warning "Template may be from an incompatible version of SESSION-PROTOCOL.md."
-            Write-Warning "Session log may be invalid. Proceeding anyway, but validation will likely fail."
+            # Missing placeholders indicate version mismatch with SESSION-PROTOCOL.md
+            # Fail immediately to prevent creating invalid session logs
+            throw [System.InvalidOperationException]::new(
+                "Template missing required placeholders: $($missingPlaceholders -join ', ')`n`n" +
+                "This indicates a version mismatch with SESSION-PROTOCOL.md. " +
+                "Session log cannot be created. Update template or fix protocol file."
+            )
         }
 
         $currentDate = Get-Date -Format "yyyy-MM-dd"

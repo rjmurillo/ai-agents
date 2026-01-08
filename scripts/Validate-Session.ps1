@@ -272,9 +272,11 @@ if (-not $memoryValidation.IsValid) {
   Fail 'E_MEMORY_EVIDENCE_INVALID' $memoryErrors
 }
 
-if ($memoryValidation.Warnings -and @($memoryValidation.Warnings).Count -gt 0) {
-  $warningText = ($memoryValidation.Warnings -join '; ')
-  Write-Output "  Memory evidence warnings: $warningText"
+if ($memoryValidation.Warnings) {
+  $warningArray = @($memoryValidation.Warnings)
+  if ($warningArray.Count -gt 0) {
+    Write-Warning "Memory evidence warnings: $($warningArray -join '; ')"
+  }
 }
 
 Write-Output "OK: Session Start validation passed ($($mustStartRows.Count) MUST requirements verified)"
@@ -350,7 +352,7 @@ if ($changedFiles.Count -eq 0 -and $startingCommit) {
   }
 }
 
-function Is-DocsOnly([string[]]$Files) {
+function Test-DocsOnly([string[]]$Files) {
   if (-not $Files -or $Files.Count -eq 0) { return $true } # conservative: treat unknown as docs-only? No.
   foreach ($f in $Files) {
     $ext = [IO.Path]::GetExtension($f).ToLowerInvariant()
@@ -484,7 +486,7 @@ if (($startingCommit -or $PreCommit) -and $changedFiles.Count -gt 0) {
   # Filter out audit artifacts (session logs, analysis, memories) before checking docs-only
   # This allows session logs to be committed WITH implementation without triggering false positives
   $implFiles = Get-ImplementationFiles $changedFiles
-  $docsOnly = Is-DocsOnly $implFiles
+  $docsOnly = Test-DocsOnly $implFiles
   $investigationResult = Test-InvestigationOnlyEligibility $changedFiles
 }
 # else: If we cannot prove docs-only, treat as NOT docs-only (default values above)

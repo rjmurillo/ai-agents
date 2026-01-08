@@ -802,7 +802,7 @@ function Test-HandoffUpdated {
           $errors += "HANDOFF.md was modified in this branch (detected via git diff). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
         }
       } else {
-        $warnings += "Git diff failed: $gitDiff. Falling back to timestamp comparison (less reliable in CI)."
+        $errors += "Cannot verify HANDOFF.md compliance (git diff failed in shallow clone?). Re-run in full clone with: git fetch --unshallow"
       }
     }
 

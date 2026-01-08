@@ -3,6 +3,12 @@
 # Pre-commit hook for vs-code-agents repository
 # AUTOMATICALLY FIXES markdown linting issues and re-stages corrected files.
 #
+# NOTE: This is a bash script, which is an exception to ADR-005 (PowerShell-only).
+# Rationale: Git hooks require shell scripts on non-Windows platforms. A PowerShell
+# implementation would require pwsh to be installed and in PATH, creating a barrier
+# to contribution. This is a grandfathered exception for cross-platform git integration.
+# The hook delegates to PowerShell scripts for all logic beyond basic file detection.
+#
 # Linter:
 #   - markdownlint-cli2 for markdown files (auto-fix enabled)
 #
