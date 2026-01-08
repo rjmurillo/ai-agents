@@ -60,12 +60,24 @@ function RequireCommand([string]$Name) {
 }
 
 function Get-RepoRoot([string]$StartDir) {
-  # Walk up from StartDir until a .git directory is found
+  RequireCommand 'git'
+  # Use git rev-parse for robustness (handles worktrees, bare repos, etc.)
+  try {
+    $repoRoot = & git -C $StartDir rev-parse --show-toplevel 2>$null
+    if ($LASTEXITCODE -eq 0 -and $repoRoot) {
+      return $repoRoot.Trim().TrimEnd('\\','/')
+    }
+  } catch {
+    # Fall through to fallback
+  }
+
+  # Fallback: walk up from StartDir until a .git directory or file is found
+  # Note: .git can be a file (gitdir reference) in worktrees
   $dir = [System.IO.Path]::GetFullPath($StartDir)
   while ($true) {
-    $gitDir = Join-Path $dir '.git'
-    if (Test-Path -LiteralPath $gitDir) {
-      return $dir.TrimEnd('\','/')
+    $gitPath = Join-Path $dir '.git'
+    if (Test-Path -LiteralPath $gitPath) {
+      return $dir.TrimEnd('\\','/')
     }
     $parent = Split-Path -Parent $dir
     if (-not $parent -or $parent -eq $dir) { Fail 'E_GIT_ROOT' "Could not find git repo root from: $StartDir" }
@@ -134,11 +146,13 @@ Write-Verbose ("expectedDirNormalized={0}" -f $expectedDirNormalized)
 Write-Verbose ("sessionFullPathNormalized={0}" -f $sessionFullPathNormalized)
 
 # Robust containment check: ensure session path is inside expectedDir
+# Use case-insensitive comparison for Windows filesystem compatibility
 $ds = [System.IO.Path]::DirectorySeparatorChar
 $ads = [System.IO.Path]::AltDirectorySeparatorChar
 $prefix1 = "$expectedDirNormalized$ds"
 $prefix2 = "$expectedDirNormalized$ads"
-$isContained = $sessionFullPathNormalized.StartsWith($prefix1) -or $sessionFullPathNormalized.StartsWith($prefix2)
+$isContained = $sessionFullPathNormalized.StartsWith($prefix1, [System.StringComparison]::OrdinalIgnoreCase) -or `
+               $sessionFullPathNormalized.StartsWith($prefix2, [System.StringComparison]::OrdinalIgnoreCase)
 if (-not $isContained) {
   Fail 'E_PATH_ESCAPE' "Session log must be under .agents/sessions/: $sessionFullPath`n  repoRoot=$repoRoot`n  expectedDirNormalized=$expectedDirNormalized`n  sessionFullPathNormalized=$sessionFullPathNormalized"
 }
@@ -322,6 +336,7 @@ if ($PreCommit) {
     $changedFiles = @((& git -C $repoRoot diff --staged --name-only) -split "`r?`n" | Where-Object { $_ -and $_.Trim() -ne '' })
   } catch {
     # Fallback to starting commit comparison if staged files check fails
+    Write-Warning "Git staged diff failed: $($_.Exception.Message). Falling back to starting commit comparison."
     $changedFiles = @()
   }
 }

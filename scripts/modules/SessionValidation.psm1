@@ -310,12 +310,17 @@ function Test-RequiredSections {
 
   $missingSections = @()
   foreach ($section in $RequiredSections) {
-    $pattern = [regex]::Escape($section)
-    if ($section -like '##*') {
-      $pattern = $pattern -replace '^##','##+'
+    # Build pattern: for headings like '## Section', match ##+ to accept ## or ###
+    if ($section -match '^##\s') {
+      # Extract heading text and create flexible pattern
+      $headingText = $section -replace '^##\s+', ''
+      $escapedText = [regex]::Escape($headingText)
+      $pattern = "^##+\s+$escapedText"
+    } else {
+      $pattern = [regex]::Escape($section)
     }
 
-    if ($SessionLogContent -notmatch $pattern) {
+    if ($SessionLogContent -notmatch "(?m)$pattern") {
       $missingSections += $section
     }
   }
@@ -457,11 +462,11 @@ function Test-CommitSHAFormat {
     $errors += 'Commit SHA is empty'
   }
 
-  if ($CommitSHA -and $CommitSHA -notmatch '^[a-f0-9]{6,40}$') {
-    if ($CommitSHA -match '^[a-f0-9]{6,12}\s+.+') {
+  if ($CommitSHA -and $CommitSHA -notmatch '^[a-f0-9]{7,40}$') {
+    if ($CommitSHA -match '^[a-f0-9]{7,12}\s+.+') {
       $errors += "Commit SHA includes subject line. Use SHA only (e.g., 'abc1234' not 'abc1234 Fix bug')."
     } else {
-      $errors += "Commit SHA format invalid. Expected 6-40 hex chars, got: '$CommitSHA'"
+      $errors += "Commit SHA format invalid. Expected 7-40 hex chars, got: '$CommitSHA'"
     }
   }
 
@@ -1088,8 +1093,8 @@ function Test-TemplateStructure {
     $errors += $sectionsResult.Errors
   }
 
-  $sessionStartTable = $Template -match '(?s)## Session Start.*?\|.*?Req.*?\|'
-  $sessionEndTable = $Template -match '(?s)## Session End.*?\|.*?Req.*?\|'
+  $sessionStartTable = $Template -match '(?s)##+ Session Start.*?\|.*?Req.*?\|'
+  $sessionEndTable = $Template -match '(?s)##+ Session End.*?\|.*?Req.*?\|'
 
   if (-not $sessionStartTable) {
     $errors += 'Session Start section missing checklist table'

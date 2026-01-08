@@ -848,7 +848,7 @@ if [ "${SKIP_QA:-}" = "1" ]; then
     echo_info "QA tests skipped (SKIP_QA=1)."
 else
     # Determine if relevant files are staged
-    STAGED_PS_CODE_FILES=$(echo "$STAGED_FILES" | grep -E '\\.(ps1|psm1)$' || true)
+    STAGED_PS_CODE_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 
     if [ -z "$STAGED_PS_CODE_FILES" ]; then
         echo_info "No PowerShell changes. Skipping QA tests."
@@ -875,10 +875,13 @@ else
                 echo_info "Running targeted QA tests (Pester)..."
 
                 # Optional runtime cap using coreutils timeout if present (default 5 min)
+                # Security: Validate QA_TIMEOUT_SEC as numeric to prevent command injection
                 QA_TIMEOUT_SEC=${QA_TIMEOUT_SEC:-300}
-                TIMEOUT_CMD=""
-                if command -v timeout >/dev/null 2>&1; then
-                    TIMEOUT_CMD="timeout --preserve-status ${QA_TIMEOUT_SEC}"
+                USE_TIMEOUT=false
+                if [[ "$QA_TIMEOUT_SEC" =~ ^[0-9]+$ ]] && command -v timeout >/dev/null 2>&1; then
+                    USE_TIMEOUT=true
+                elif [ -n "${QA_TIMEOUT_SEC:-}" ] && ! [[ "$QA_TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
+                    echo_warning "Invalid QA_TIMEOUT_SEC value '$QA_TIMEOUT_SEC'; running QA tests without timeout."
                 fi
 
                 # Build TestPath arguments safely using arrays
@@ -967,23 +970,36 @@ else
                     # shellcheck disable=SC2016
                     PS_CMD='param([string]$Runner,[string]$ListPath) $paths = Get-Content -LiteralPath $ListPath; & $Runner -CI -Verbosity Normal -TestPath $paths'
 
-                    # Execute with optional timeout
-                    if ! eval $TIMEOUT_CMD pwsh -NoProfile -Command "$PS_CMD" -- "$PESTER_RUNNER" "$TESTARGS_FILE" 2>&1; then
-                        RC=$?
-                        if [ -n "$TIMEOUT_CMD" ] && [ $RC -eq 124 ]; then
+                    # Execute with optional timeout, capture output for display
+                    RC=0
+                    TEST_OUTPUT=$(mktemp)
+                    if $USE_TIMEOUT; then
+                        timeout --preserve-status "${QA_TIMEOUT_SEC}" pwsh -NoProfile -Command "$PS_CMD" -- "$PESTER_RUNNER" "$TESTARGS_FILE" > "$TEST_OUTPUT" 2>&1 || RC=$?
+                    else
+                        pwsh -NoProfile -Command "$PS_CMD" -- "$PESTER_RUNNER" "$TESTARGS_FILE" > "$TEST_OUTPUT" 2>&1 || RC=$?
+                    fi
+
+                    if [ $RC -ne 0 ]; then
+                        if $USE_TIMEOUT && [ $RC -eq 124 ]; then
                             echo_error "QA tests timed out after ${QA_TIMEOUT_SEC}s."
                         else
                             echo_error "QA tests failed. Fix failing tests before committing."
+                            echo_info ""
+                            echo_info "Test output (last 50 lines):"
+                            tail -50 "$TEST_OUTPUT"
+                            echo_info ""
                         fi
                         echo_info "  Re-run locally for details:"
-                        echo_info "    pwsh $PESTER_RUNNER -CI -Verbosity Normal \\" 
+                        echo_info "    pwsh $PESTER_RUNNER -CI -Verbosity Normal \\"
                         for t in "${UNIQUE_TESTPATHS[@]}"; do
-                            echo_info "      -TestPath '$t' \\" 
+                            echo_info "      -TestPath '$t' \\"
                         done
                         echo_info ""
+                        rm -f "$TEST_OUTPUT"
                         rm -f "$TESTARGS_FILE"
                         EXIT_STATUS=1
                     else
+                        rm -f "$TEST_OUTPUT"
                         rm -f "$TESTARGS_FILE"
                         echo_success "QA tests passed."
                     fi
