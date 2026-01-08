@@ -236,7 +236,7 @@ claude plugin install worktrunk@worktrunk
 
 **Configuration:**
 
-The project includes `.config/wt.toml` with hooks for:
+The project includes `.config/wt.toml` with lifecycle hooks (automated tasks that run at specific points in the worktree lifecycle):
 
 - Post-create: Configures git hooks automatically
 - Post-create: Copies dependencies (node_modules, .cache) from main worktree

@@ -374,7 +374,7 @@ db-stop = "docker stop {{ repo }}-{{ branch | sanitize }}-postgres 2>/dev/null |
 
 The ai-agents project already has:
 
-- Post-create hook for git hooks configuration (implemented in session 808)
+- Post-create hook for git hooks configuration
 - Pre-commit hooks in `.githooks/` directory
 - `core.hooksPath` set to `.githooks`
 
