@@ -332,7 +332,8 @@ $script:InvestigationAllowlist = @(
   '^\.agents/analysis/',        # Investigation outputs
   '^\.agents/retrospective/',   # Learnings
   '^\.serena/memories($|/)',    # Cross-session context
-  '^\.agents/security/'         # Security assessments
+  '^\.agents/security/',        # Security assessments
+  '^\.agents/memory($|/)'       # Memory infrastructure (causal graphs, etc.)
 )
 
 # Session audit artifacts that are exempt from QA validation
