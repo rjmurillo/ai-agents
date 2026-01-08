@@ -57,7 +57,8 @@ Single source of truth for project constraints. Index-style document pointing to
 | MUST NOT put business logic in workflow YAML | ADR-006 | Code review |
 | SHOULD keep workflows under 100 lines (orchestration only) | ADR-006 | Lint check |
 | MUST put complex logic in .psm1 modules | ADR-006 | Code review |
-| MUST have Pester tests for modules (80%+ coverage) | ADR-006 | CI coverage check || MUST add new AI-powered workflows to monitoring list | workflow-coalescing | Code review, manual validation |
+| MUST have Pester tests for modules (80%+ coverage) | ADR-006 | CI coverage check |
+| MUST add new AI-powered workflows to monitoring list | workflow-coalescing | Code review, manual validation |
 **Reference**: [ADR-006-thin-workflows-testable-modules.md](../architecture/ADR-006-thin-workflows-testable-modules.md)
 
 **Rationale Summary**: GitHub Actions workflows cannot be tested locally. The feedback loop (edit -> push -> wait -> check) is slow. Extracting logic to modules enables fast local testing with Pester.

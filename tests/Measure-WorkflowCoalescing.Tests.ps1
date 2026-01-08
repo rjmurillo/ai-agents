@@ -150,16 +150,16 @@ Describe "Measure-WorkflowCoalescing" {
             )
             
             $overlaps = @(
-                @{ Run1Cancelled = $true; IsRaceCondition = $false }
-                @{ Run1Cancelled = $true; IsRaceCondition = $false }
-                @{ Run1Cancelled = $true; IsRaceCondition = $false }
-                @{ Run1Cancelled = $true; IsRaceCondition = $false }
-                @{ Run1Cancelled = $true; IsRaceCondition = $false }
-                @{ Run1Cancelled = $true; IsRaceCondition = $false }
-                @{ Run1Cancelled = $true; IsRaceCondition = $false }
-                @{ Run1Cancelled = $true; IsRaceCondition = $false }
-                @{ Run1Cancelled = $true; IsRaceCondition = $false }
-                @{ Run1Cancelled = $false; IsRaceCondition = $true }
+                @{ Run1 = @{ id = 1 }; Run2 = @{ id = 2 }; Run1Cancelled = $true; IsRaceCondition = $false }
+                @{ Run1 = @{ id = 2 }; Run2 = @{ id = 3 }; Run1Cancelled = $true; IsRaceCondition = $false }
+                @{ Run1 = @{ id = 3 }; Run2 = @{ id = 4 }; Run1Cancelled = $true; IsRaceCondition = $false }
+                @{ Run1 = @{ id = 4 }; Run2 = @{ id = 5 }; Run1Cancelled = $true; IsRaceCondition = $false }
+                @{ Run1 = @{ id = 5 }; Run2 = @{ id = 6 }; Run1Cancelled = $true; IsRaceCondition = $false }
+                @{ Run1 = @{ id = 6 }; Run2 = @{ id = 7 }; Run1Cancelled = $true; IsRaceCondition = $false }
+                @{ Run1 = @{ id = 7 }; Run2 = @{ id = 8 }; Run1Cancelled = $true; IsRaceCondition = $false }
+                @{ Run1 = @{ id = 8 }; Run2 = @{ id = 9 }; Run1Cancelled = $true; IsRaceCondition = $false }
+                @{ Run1 = @{ id = 9 }; Run2 = @{ id = 10 }; Run1Cancelled = $true; IsRaceCondition = $false }
+                @{ Run1 = @{ id = 10 }; Run2 = @{ id = 11 }; Run1Cancelled = $false; IsRaceCondition = $true }
             )
             
             $metrics = Get-CoalescingMetrics -Runs $runs -Overlaps $overlaps
@@ -258,7 +258,7 @@ Describe "Measure-WorkflowCoalescing" {
             $startDate = [DateTime]::Parse('2026-01-01')
             $endDate = [DateTime]::Parse('2026-01-31')
             
-            $report = Format-MarkdownReport -Metrics $metrics -Runs $runs -Overlaps $overlaps -StartDate $startDate -EndDate $endDate -Workflows $workflows
+            $report = Format-MarkdownReport -Metrics $metrics -Runs $runs -Overlaps $overlaps -StartDate $startDate -EndDate $endDate -Workflows $workflows -Workflows $workflows
             
             $report | Should -Match '# Workflow Run Coalescing Metrics'
             $report | Should -Match '## Report Period'
