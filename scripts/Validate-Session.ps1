@@ -254,12 +254,13 @@ Write-Output "Validating memory retrieval evidence (ADR-007)..."
 $memoryValidation = Test-MemoryEvidence -SessionRows $sessionStartRows -RepoRoot $repoRoot
 
 if (-not $memoryValidation.IsValid) {
-  Fail 'E_MEMORY_EVIDENCE_INVALID' $memoryValidation.ErrorMessage
+  $memoryErrors = if ($memoryValidation.Errors -and $memoryValidation.Errors.Count -gt 0) { $memoryValidation.Errors -join '; ' } else { 'Memory evidence validation failed.' }
+  Fail 'E_MEMORY_EVIDENCE_INVALID' $memoryErrors
 }
 
-if ($memoryValidation.MemoriesFound.Count -gt 0) {
-  $memList = $memoryValidation.MemoriesFound -join ', '
-  Write-Output "  Memories evidenced: $memList"
+if ($memoryValidation.Warnings -and @($memoryValidation.Warnings).Count -gt 0) {
+  $warningText = ($memoryValidation.Warnings -join '; ')
+  Write-Output "  Memory evidence warnings: $warningText"
 }
 
 Write-Output "OK: Session Start validation passed ($($mustStartRows.Count) MUST requirements verified)"

@@ -976,8 +976,8 @@ Describe "Get-SessionLogs Error Handling" {
         } -ModuleName $null
 
         # Should throw with actionable guidance
-        { Get-SessionLogs -BasePath $restrictedPath } | Should -Throw "*Access denied*"
-        { Get-SessionLogs -BasePath $restrictedPath } | Should -Throw "*Access denied*"
+        { Get-SessionLogs -BasePath $restrictedPath } | Should -Throw "*Permission denied reading sessions directory*"
+        { Get-SessionLogs -BasePath $restrictedPath } | Should -Throw "*Permission denied reading sessions directory*"
     }
 
     It "Throws with actionable error message for path too long" {
@@ -991,8 +991,8 @@ Describe "Get-SessionLogs Error Handling" {
         } -ModuleName $null
 
         # Should throw with remediation guidance
-        { Get-SessionLogs -BasePath $longPath } | Should -Throw "*Path too long*"
-        { Get-SessionLogs -BasePath $longPath } | Should -Throw "*Path too long*"
+        { Get-SessionLogs -BasePath $longPath } | Should -Throw "*Sessions directory path exceeds maximum length*"
+        { Get-SessionLogs -BasePath $longPath } | Should -Throw "*Sessions directory path exceeds maximum length*"
     }
 }
 
@@ -1157,6 +1157,54 @@ Status: clean
         $result.MustPassed | Should -BeTrue
         $result.ShouldPassed | Should -BeFalse
         $result.Warnings.Count | Should -BeGreaterThan 0
+    }
+}
+
+Describe "Output formatting" {
+    It "Maps formatter levels for console output" {
+        $script:captured = @()
+        Mock -CommandName Write-ColorOutput -MockWith {
+            param($Message, $Color)
+            $script:captured += $Message
+        }
+
+        $validations = @(
+            [pscustomobject]@{
+                SessionName  = 'session-1'
+                MustPassed   = $false
+                ShouldPassed = $true
+                Results      = @{
+                    'SessionLogExists' = [pscustomobject]@{ IsValid = $false; Errors = @('missing session log'); Warnings = @() }
+                    'CustomCheck'      = [pscustomobject]@{ IsValid = $false; Errors = @('custom issue'); Warnings = @() }
+                }
+            }
+        )
+
+        Format-ConsoleOutput -Validations $validations | Out-Null
+
+        $log = $script:captured -join "`n"
+        $log | Should -Match "\[FAIL\].*SessionLogExists \(MUST\)"
+        $log | Should -Match "\[WARN\].*CustomCheck \(SHOULD\)"
+    }
+
+    It "Renders markdown status and level columns" {
+        $validations = @(
+            [pscustomobject]@{
+                SessionName  = 'session-1'
+                MustPassed   = $true
+                ShouldPassed = $false
+                Results      = @{
+                    'SessionLogExists' = [pscustomobject]@{ IsValid = $true; Errors = @(); Warnings = @() }
+                    'CustomCheck'      = [pscustomobject]@{ IsValid = $false; Errors = @('custom issue'); Warnings = @() }
+                }
+            }
+        )
+
+        $md = Format-MarkdownOutput -Validations $validations
+
+        $md | Should -Match "\*\*Status\*\*: PASSED"
+        $md | Should -Match "\| SessionLogExists \| MUST \| PASS \| - \|"
+        $md | Should -Match "\| CustomCheck \| SHOULD \| WARN \| custom issue \|"
     }
 }
 

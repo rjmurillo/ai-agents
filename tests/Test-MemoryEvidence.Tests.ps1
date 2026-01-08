@@ -11,24 +11,8 @@
 #>
 
 BeforeAll {
-    # Load the Validate-Session.ps1 script to get the function
-    $ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1"
-
-    # We need to source only the functions, not run the script
-    # Extract the Test-MemoryEvidence function
-    $scriptContent = Get-Content -Path $ScriptPath -Raw
-
-    # Extract Normalize-Step function (dependency)
-    $normalizeStepMatch = [regex]::Match($scriptContent, 'function Normalize-Step\([^\)]*\)\s*\{[^}]+\}')
-    if ($normalizeStepMatch.Success) {
-        Invoke-Expression $normalizeStepMatch.Value
-    }
-
-    # Extract Test-MemoryEvidence function
-    $functionMatch = [regex]::Match($scriptContent, 'function Test-MemoryEvidence\s*\{[\s\S]*?^\}', [System.Text.RegularExpressions.RegexOptions]::Multiline)
-    if ($functionMatch.Success) {
-        Invoke-Expression $functionMatch.Value
-    }
+    $ModulePath = Join-Path $PSScriptRoot ".." "scripts" "modules" "SessionValidation.psm1"
+    Import-Module $ModulePath -Force
 
     # Create test memory directory
     $TestRoot = Join-Path $TestDrive "test-repo"
@@ -48,9 +32,9 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Read memory-index, load task-relevant memories'; Status = 'x'; Evidence = 'memory-index, skills-pr-review-index' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $true
-            $result.MemoriesFound | Should -Contain 'memory-index'
-            $result.MemoriesFound | Should -Contain 'skills-pr-review-index'
+            $result.IsValid | Should -BeTrue
+            $result.Errors | Should -BeNullOrEmpty
+            $result.FixableIssues | Should -BeNullOrEmpty
         }
 
         It "Passes with single memory name" {
@@ -58,8 +42,8 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Read memory-index, load task-relevant memories'; Status = 'x'; Evidence = 'memory-index' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $true
-            $result.MemoriesFound.Count | Should -Be 1
+            $result.IsValid | Should -BeTrue
+            $result.Errors | Should -BeNullOrEmpty
         }
 
         It "Extracts memory names from narrative evidence" {
@@ -67,9 +51,8 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Read memory-index, load task-relevant memories'; Status = 'x'; Evidence = 'Read memory-index and skills-pr-review-index for PR review context' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $true
-            $result.MemoriesFound | Should -Contain 'memory-index'
-            $result.MemoriesFound | Should -Contain 'skills-pr-review-index'
+            $result.IsValid | Should -BeTrue
+            $result.Errors | Should -BeNullOrEmpty
         }
     }
 
@@ -79,8 +62,8 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Read memory-index, load task-relevant memories'; Status = 'x'; Evidence = '' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $false
-            $result.ErrorMessage | Should -Match 'placeholder'
+            $result.IsValid | Should -BeFalse
+            $result.Errors[0] | Should -Match 'placeholder'
         }
 
         It "Fails on template placeholder text" {
@@ -88,8 +71,8 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Read memory-index, load task-relevant memories'; Status = 'x'; Evidence = 'List memories loaded' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $false
-            $result.ErrorMessage | Should -Match 'placeholder'
+            $result.IsValid | Should -BeFalse
+            $result.Errors[0] | Should -Match 'placeholder'
         }
 
         It "Fails on bracketed placeholder" {
@@ -97,8 +80,8 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Read memory-index, load task-relevant memories'; Status = 'x'; Evidence = '[memories]' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $false
-            $result.ErrorMessage | Should -Match 'placeholder'
+            $result.IsValid | Should -BeFalse
+            $result.Errors[0] | Should -Match 'placeholder'
         }
 
         It "Fails on dashes placeholder" {
@@ -106,8 +89,8 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Read memory-index, load task-relevant memories'; Status = 'x'; Evidence = '---' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $false
-            $result.ErrorMessage | Should -Match 'placeholder'
+            $result.IsValid | Should -BeFalse
+            $result.Errors[0] | Should -Match 'placeholder'
         }
     }
 
@@ -117,8 +100,8 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Read memory-index, load task-relevant memories'; Status = 'x'; Evidence = 'yes done completed' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $false
-            $result.ErrorMessage | Should -Match 'valid memory names'
+            $result.IsValid | Should -BeFalse
+            $result.Errors[0] | Should -Match 'valid memory names'
         }
 
         It "Fails when referenced memory does not exist" {
@@ -126,9 +109,11 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Read memory-index, load task-relevant memories'; Status = 'x'; Evidence = 'memory-index, nonexistent-memory' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $false
-            $result.MissingMemories | Should -Contain 'nonexistent-memory'
-            $result.ErrorMessage | Should -Match 'nonexistent-memory'
+            $result.IsValid | Should -BeFalse
+            $result.Errors[0] | Should -Match 'nonexistent-memory'
+            $result.FixableIssues | Should -Not -BeNullOrEmpty
+            $result.FixableIssues[0].Type | Should -Be 'MissingMemories'
+            $result.FixableIssues[0].Memories | Should -Contain 'nonexistent-memory'
         }
     }
 
@@ -138,7 +123,7 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Initialize Serena'; Status = 'x'; Evidence = 'Tool output present' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $true
+            $result.IsValid | Should -BeTrue
         }
 
         It "Handles case-insensitive memory names" {
@@ -146,7 +131,7 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Read memory-index, load task-relevant memories'; Status = 'x'; Evidence = 'Memory-Index, Skills-PR-Review-Index' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $true
+            $result.IsValid | Should -BeTrue
         }
 
         It "Deduplicates repeated memory names" {
@@ -154,8 +139,8 @@ Describe "Test-MemoryEvidence" {
                 @{ Req = 'MUST'; Step = 'Read memory-index, load task-relevant memories'; Status = 'x'; Evidence = 'memory-index, memory-index, memory-index' }
             )
             $result = Test-MemoryEvidence -SessionRows $rows -RepoRoot $TestRoot
-            $result.IsValid | Should -Be $true
-            $result.MemoriesFound.Count | Should -Be 1
+            $result.IsValid | Should -BeTrue
+            $result.Errors | Should -BeNullOrEmpty
         }
     }
 }

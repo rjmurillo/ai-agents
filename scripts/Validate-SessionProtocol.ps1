@@ -499,20 +499,25 @@ function Get-SessionLogs {
         $sessions = Get-ChildItem -Path $sessionsPath -Filter "*.md" -ErrorAction Stop |
             Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}-session-\d+(-.+)?\.md$' }
     } catch [System.UnauthorizedAccessException] {
-        Write-Error "Permission denied reading sessions directory: $sessionsPath. Check file permissions and retry."
-        throw
+        $message = "Permission denied reading sessions directory: $sessionsPath. Check file permissions and retry."
+        Write-Error $message
+        throw [System.UnauthorizedAccessException]::new($message, $_.Exception)
     } catch [System.IO.PathTooLongException] {
-        Write-Error "Sessions directory path exceeds maximum length: $sessionsPath. Move project to shorter path."
-        throw
+        $message = "Sessions directory path exceeds maximum length: $sessionsPath. Move project to shorter path."
+        Write-Error $message
+        throw [System.IO.PathTooLongException]::new($message, $_.Exception)
     } catch [System.IO.DirectoryNotFoundException] {
-        Write-Error "Sessions directory not found: $sessionsPath. Verify .agents folder exists at project root."
-        throw
+        $message = "Sessions directory not found: $sessionsPath. Verify .agents folder exists at project root."
+        Write-Error $message
+        throw [System.IO.DirectoryNotFoundException]::new($message, $_.Exception)
     } catch [System.IO.IOException] {
-        Write-Error "I/O error reading sessions directory: $sessionsPath. Error: $($_.Exception.Message). Check disk health and file locks."
-        throw
+        $message = "I/O error reading sessions directory: $sessionsPath. Error: $($_.Exception.Message). Check disk health and file locks."
+        Write-Error $message
+        throw [System.IO.IOException]::new($message, $_.Exception)
     } catch [System.ArgumentException] {
-        Write-Error "Invalid sessions directory path: $sessionsPath. Path contains invalid characters. Verify project location and path formatting."
-        throw
+        $message = "Invalid sessions directory path: $sessionsPath. Path contains invalid characters. Verify project location and path formatting."
+        Write-Error $message
+        throw [System.ArgumentException]::new($message, $_.Exception)
     } catch {
         # Unexpected error - provide full context and suggest bug report
         $errorMsg = "Unexpected error reading sessions directory: $sessionsPath`n" +
