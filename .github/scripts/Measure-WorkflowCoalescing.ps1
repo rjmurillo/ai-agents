@@ -302,19 +302,18 @@ function Get-CoalescingMetrics {
     
     # Deduplicate by run ID to avoid double-counting in multi-run overlaps
     $uniqueCancelledRunIds = [System.Collections.Generic.HashSet[int]]::new()
-    $uniqueRaceConditionRunIds = [System.Collections.Generic.HashSet[int]]::new()
+    $raceConditionOverlapCount = 0
     
     foreach ($overlap in $Overlaps) {
         if ($overlap.Run1Cancelled) {
             [void]$uniqueCancelledRunIds.Add($overlap.Run1.id)
         }
         if ($overlap.IsRaceCondition) {
-            [void]$uniqueRaceConditionRunIds.Add($overlap.Run1.id)
-            [void]$uniqueRaceConditionRunIds.Add($overlap.Run2.id)
+            $raceConditionOverlapCount++
         }
     }
     
-    $raceConditions = $uniqueRaceConditionRunIds.Count
+    $raceConditions = $raceConditionOverlapCount
     $successfulCoalescing = $uniqueCancelledRunIds.Count
     
     $coalescingEffectiveness = if ($successfulCoalescing + $raceConditions -gt 0) {
