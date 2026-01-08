@@ -639,7 +639,7 @@ jobs:
             Write-Output "Retry attempts: $($retryAttempts -join ', ')"
 
             # Add infrastructure-failure label to PR
-            gh pr edit $env:PR_NUMBER --add-label "infrastructure-failure"
+            gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "infrastructure-failure"
           } else {
             Write-Output "No infrastructure failures detected"
           }

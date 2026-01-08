@@ -235,8 +235,8 @@ function Test-RunsOverlap {
     $run2Start = [DateTime]::Parse($Run2.created_at)
     $run2End = [DateTime]::Parse($Run2.updated_at)
 
-    # Run2 started before Run1 finished
-    return ($run2Start -lt $run1End -and $run2Start -gt $run1Start)
+    # Run2 started before Run1 finished and not before Run1 started (treat equal start as overlap)
+    return ($run2Start -lt $run1End -and $run2Start -ge $run1Start)
 }
 
 function Get-OverlappingRuns {

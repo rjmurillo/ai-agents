@@ -25,6 +25,13 @@ Describe "Measure-WorkflowCoalescing" {
             $result | Should -Be $true
         }
         
+        It "Treats equal start time as overlap" {
+            $run1 = @{ id = 1; created_at = '2026-01-01T10:00:00Z'; updated_at = '2026-01-01T10:05:00Z'; conclusion = 'success' }
+            $run2 = @{ id = 2; created_at = '2026-01-01T10:00:00Z'; updated_at = '2026-01-01T10:06:00Z'; conclusion = 'success' }
+            $result = Test-RunsOverlap -Run1 $run1 -Run2 $run2
+            $result | Should -Be $true
+        }
+        
         It "Does not detect non-overlapping runs" {
             $run1 = @{
                 id = 1

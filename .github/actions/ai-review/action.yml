@@ -388,9 +388,9 @@ runs:
               if [ "$ACTUAL_PR" != "$PR_NUMBER" ]; then
                 echo "::error::PR number mismatch: requested $PR_NUMBER, got $ACTUAL_PR"
                 CONTEXT="ERROR: Failed to fetch PR #$PR_NUMBER from $GITHUB_REPOSITORY"
-                echo "$CONTEXT" > /tmp/ai-review-context-pr${PR_NUMBER:-none}.txt
+                echo "$CONTEXT" > /tmp/ai-review-context-pr${PR_NUMBER:-$GITHUB_RUN_ID}.txt
                 echo "context_mode=error" >> $GITHUB_OUTPUT
-                echo "context_file=/tmp/ai-review-context-pr${PR_NUMBER:-none}.txt" >> $GITHUB_OUTPUT
+                echo "context_file=/tmp/ai-review-context-pr${PR_NUMBER:-$GITHUB_RUN_ID}.txt" >> $GITHUB_OUTPUT
                 echo "context_built<<EOF_CONTEXT" >> $GITHUB_OUTPUT
                 echo "$CONTEXT" >> $GITHUB_OUTPUT
                 echo "EOF_CONTEXT" >> $GITHUB_OUTPUT
@@ -468,9 +468,9 @@ runs:
         esac
 
         # Save context to file (handles multiline safely)
-        echo "$CONTEXT" > /tmp/ai-review-context-pr${PR_NUMBER:-none}.txt
+        echo "$CONTEXT" > /tmp/ai-review-context-pr${PR_NUMBER:-$GITHUB_RUN_ID}.txt
         echo "context_mode=$CONTEXT_MODE" >> $GITHUB_OUTPUT
-        echo "context_file=/tmp/ai-review-context-pr${PR_NUMBER:-none}.txt" >> $GITHUB_OUTPUT
+        echo "context_file=/tmp/ai-review-context-pr${PR_NUMBER:-$GITHUB_RUN_ID}.txt" >> $GITHUB_OUTPUT
 
         # Output context for debugging (using heredoc for multiline)
         {
