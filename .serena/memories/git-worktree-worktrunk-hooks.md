@@ -1,10 +1,9 @@
 # Worktrunk Integration Guide
 
-**Atomicity**: 98%
+**Atomicity**: 65% (comprehensive reference covering multiple concepts)
 **Category**: Git Operations, Worktree Management, Agent Coordination
 **Date**: 2026-01-08
 **Source**: https://worktrunk.dev/
-**Last Updated**: 2026-01-08 (Session 05, Issue #834)
 
 ## Overview
 
@@ -75,9 +74,11 @@ test = "npm test"
 | `{{ branch \| sanitize }}` | Branch with `/` replaced by `-` |
 | `{{ branch \| hash_port }}` | Unique port (10000-19999) |
 
-## ai-agents Configuration
+## ai-agents Configuration Pattern
 
-**Current implementation** (as of Session 05, Issue #834):
+**For current configuration**, see `.config/wt.toml` and `.worktreeinclude` in repository.
+
+**Example implementation pattern**:
 
 ```toml
 # .config/wt.toml
@@ -90,15 +91,18 @@ copy = "wt step copy-ignored"
 
 [pre-merge]
 # Run markdown linting before merge to catch documentation issues
-lint = "npx markdownlint-cli2 '**/*.md'"
+# Note: Check-only mode (no --fix) to avoid uncommitted changes
+lint = "npx markdownlint-cli2 \"**/*.md\""
 ```
 
-**Copy-ignored files** (`.worktreeinclude`):
+**Example copy-ignored configuration** (`.worktreeinclude`):
 
 ```text
 node_modules/
 .cache/
 ```
+
+**Pattern**: Configure hooks and copy dependencies on worktree creation. Validate before merge.
 
 ## Claude Code Integration
 
