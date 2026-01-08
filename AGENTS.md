@@ -213,6 +213,59 @@ gh workflow run [workflow] --ref [branch]
 .\scripts\install-claude-global.ps1
 ```
 
+### Worktrunk Setup
+
+Worktrunk simplifies git worktree management for parallel agent workflows.
+
+**Installation:**
+
+```bash
+# Homebrew (macOS & Linux)
+brew install max-sixty/worktrunk/wt && wt config shell install
+
+# Cargo
+cargo install worktrunk && wt config shell install
+```
+
+**Claude Code Plugin:**
+
+```bash
+claude plugin marketplace add max-sixty/worktrunk
+claude plugin install worktrunk@worktrunk
+```
+
+**Configuration:**
+
+The project includes `.config/wt.toml` with hooks for:
+
+- Post-create: Configures git hooks automatically
+- Post-create: Copies dependencies (node_modules, .cache) from main worktree
+- Pre-merge: Runs markdown linting before merging
+
+**Workflow:**
+
+```bash
+# Create feature worktree
+wt switch --create feat/feature-name
+
+# Work on feature (hooks configure environment automatically)
+# ...
+
+# Merge when done (pre-merge hooks validate)
+wt merge
+
+# Cleanup is automatic
+```
+
+**Benefits:**
+
+- Parallel agent isolation (each agent gets own worktree)
+- Automated setup (hooks configure git hooks, copy dependencies)
+- Local CI gates (pre-merge validation catches issues early)
+- Visual tracking (see Claude activity across worktrees with `wt list`)
+
+**See also**: [Worktrunk Documentation](https://worktrunk.dev/), `.agents/analysis/worktrunk-integration.md`
+
 ---
 
 ## Boundaries & Constraints

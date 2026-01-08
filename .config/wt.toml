@@ -5,3 +5,11 @@
 # Configure git hooks path to .githooks directory
 # This ensures pre-commit and other hooks work in worktrees
 configure-hooks = "git config core.hooksPath .githooks"
+
+# Copy gitignored files from main worktree to eliminate cold starts
+# Files listed in .worktreeinclude (node_modules, .cache, etc.)
+copy = "wt step copy-ignored"
+
+[pre-merge]
+# Run markdown linting before merge to catch documentation issues
+lint = "npx markdownlint-cli2 '**/*.md'"

@@ -1,0 +1,10 @@
+# Worktrunk Copy-Ignored Configuration
+# Files and directories listed here will be copied from the main worktree
+# to new worktrees during post-create, eliminating cold starts.
+# Documentation: https://worktrunk.dev/tips-patterns/#copy-ignored-files
+
+# Node.js dependencies
+node_modules/
+
+# Build cache
+.cache/

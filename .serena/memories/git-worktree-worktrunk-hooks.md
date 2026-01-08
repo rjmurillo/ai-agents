@@ -4,6 +4,7 @@
 **Category**: Git Operations, Worktree Management, Agent Coordination
 **Date**: 2026-01-08
 **Source**: https://worktrunk.dev/
+**Last Updated**: 2026-01-08 (Session 05, Issue #834)
 
 ## Overview
 
@@ -76,10 +77,27 @@ test = "npm test"
 
 ## ai-agents Configuration
 
+**Current implementation** (as of Session 05, Issue #834):
+
 ```toml
 # .config/wt.toml
 [post-create]
+# Configure git hooks path to .githooks directory
 configure-hooks = "git config core.hooksPath .githooks"
+
+# Copy gitignored files from main worktree to eliminate cold starts
+copy = "wt step copy-ignored"
+
+[pre-merge]
+# Run markdown linting before merge to catch documentation issues
+lint = "npx markdownlint-cli2 '**/*.md'"
+```
+
+**Copy-ignored files** (`.worktreeinclude`):
+
+```text
+node_modules/
+.cache/
 ```
 
 ## Claude Code Integration
@@ -91,8 +109,34 @@ Status indicators in `wt list`:
 - 🤖 = Claude actively working
 - 💬 = Claude waiting for input
 
+## Workflow Example
+
+```bash
+# Create feature worktree
+wt switch --create feat/feature-name
+
+# Work on feature (hooks configure environment automatically)
+# - git hooks configured
+# - node_modules copied from main worktree
+# - ready to work immediately
+
+# Merge when done (pre-merge hooks validate)
+wt merge  # Runs markdown linting before merge
+
+# Cleanup is automatic
+```
+
+## Benefits
+
+- **Parallel agent isolation**: Each agent gets own worktree
+- **Automated setup**: Hooks configure git hooks, copy dependencies
+- **No cold starts**: Dependencies copied from main worktree
+- **Local CI gates**: Pre-merge validation catches issues before remote push
+- **Visual tracking**: See Claude activity across worktrees with `wt list`
+
 ## Related
 
-- git-worktree-parallel: Worktree isolation patterns
+- parallel-001-worktree-isolation: Worktree isolation patterns
 - git-hooks-001-pre-commit-branch-validation: Pre-commit hook patterns
 - Analysis: `.agents/analysis/worktrunk-integration.md`
+- Documentation: AGENTS.md Worktrunk Setup section
