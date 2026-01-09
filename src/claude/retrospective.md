@@ -465,7 +465,7 @@ When the session involves specification artifacts (requirements, designs, tasks)
 **Run validation:**
 
 ```powershell
-pwsh scripts/Validate-Traceability.ps1 -Format markdown
+pwsh scripts/Validate-Traceability.ps1 
 ```
 
 **Metrics to capture:**
