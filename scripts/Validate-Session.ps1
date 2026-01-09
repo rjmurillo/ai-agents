@@ -65,7 +65,7 @@ function Get-RepoRoot([string]$StartDir) {
   try {
     $repoRoot = & git -C $StartDir rev-parse --show-toplevel 2>$null
     if ($LASTEXITCODE -eq 0 -and $repoRoot) {
-      return $repoRoot.Trim().TrimEnd('\\','/')
+      return $repoRoot.Trim().TrimEnd([char]'\', [char]'/')
     }
   } catch {
     # Fall through to fallback
@@ -77,7 +77,7 @@ function Get-RepoRoot([string]$StartDir) {
   while ($true) {
     $gitPath = Join-Path $dir '.git'
     if (Test-Path -LiteralPath $gitPath) {
-      return $dir.TrimEnd('\\','/')
+      return $dir.TrimEnd([char]'\', [char]'/')
     }
     $parent = Split-Path -Parent $dir
     if (-not $parent -or $parent -eq $dir) { Fail 'E_GIT_ROOT' "Could not find git repo root from: $StartDir" }
