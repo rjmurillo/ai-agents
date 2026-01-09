@@ -12,7 +12,7 @@ Run all 6 quality gate agents sequentially on your current changes.
 ## Pre-flight Checks
 
 - Current branch: !`git branch --show-current`
-- Changed files: !`git diff HEAD --name-only | wc -l`
+- Changed files: !`git diff "${1:-main}" --name-only | wc -l`
 - Base branch: ${1:-main}
 
 If no changes detected, exit early with PASS.
@@ -40,7 +40,7 @@ Parse each agent's `VERDICT: TOKEN` output and merge using these rules:
 
 ## Output Summary
 
-Generate consolidated report:
+Generate consolidated report in EXACTLY this format. Do not add preambles or explanations before the table:
 
 | Agent | Verdict | Status | Key Findings |
 |-------|---------|--------|--------------|

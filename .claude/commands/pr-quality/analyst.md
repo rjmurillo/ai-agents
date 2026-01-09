@@ -16,21 +16,21 @@ Run the analyst quality gate locally on your current changes before pushing.
 - Current branch: !`git branch --show-current`
 - Base branch: ${1:-main}
 
-### Changed Files
-
-!`git diff HEAD --name-only`
-
-### Full Diff
-
-!`git diff HEAD`
-
 ### Review Criteria
 
 Apply the criteria from: @.github/prompts/pr-quality-gate-analyst.md
 
+### Changed Files
+
+!`git diff "${1:-main}" --name-only`
+
+### Full Diff
+
+!`git diff "${1:-main}"`
+
 ## Output Format
 
-Provide verdict in this format:
+Provide your verdict in EXACTLY this format. Do not add preambles, explanations, or additional text before the verdict:
 
 ```text
 VERDICT: [PASS|WARN|CRITICAL_FAIL]
