@@ -580,42 +580,42 @@ jobs:
             $finalEmoji = Get-VerdictEmoji -Verdict $finalVerdict
 
             # Build report content
-            $report = @"
-            <!-- AI-PR-QUALITY-GATE -->
-
-            ## AI Quality Gate Review
-
-            > [!$alertType]
-            > $finalEmoji **Final Verdict: $finalVerdict**
-
-            <details>
-            <summary>Walkthrough</summary>
-
-            This PR was reviewed by six AI agents **in parallel**, analyzing different aspects of the changes:
-
-            - **Security Agent**: Scans for vulnerabilities, secrets exposure, and security anti-patterns
-            - **QA Agent**: Evaluates test coverage, error handling, and code quality
-            - **Analyst Agent**: Assesses code quality, impact analysis, and maintainability
-            - **Architect Agent**: Reviews design patterns, system boundaries, and architectural concerns
-            - **DevOps Agent**: Evaluates CI/CD, build pipelines, and infrastructure changes
-            - **Roadmap Agent**: Assesses strategic alignment, feature scope, and user value
-
-            </details>
-
-            ### Review Summary
-
-            | Agent | Verdict | Category | Status |
-            |:------|:--------|:---------|:------:|
-            | Security | $securityVerdict | $securityCategory | $securityEmoji |
-            | QA | $qaVerdict | $qaCategory | $qaEmoji |
-            | Analyst | $analystVerdict | $analystCategory | $analystEmoji |
-            | Architect | $architectVerdict | $architectCategory | $architectEmoji |
-            | DevOps | $devopsVerdict | $devopsCategory | $devopsEmoji |
-            | Roadmap | $roadmapVerdict | $roadmapCategory | $roadmapEmoji |
-
-            💡 **Quick Access**: Click on individual agent jobs (e.g., "🔒 security Review", "🧪 qa Review") in the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) to see detailed findings and step summaries.
-
-"@
+            $report = @(
+              '<!-- AI-PR-QUALITY-GATE -->',
+              '',
+              '## AI Quality Gate Review',
+              '',
+              "> [!$alertType]",
+              "> $finalEmoji **Final Verdict: $finalVerdict**",
+              '',
+              '<details>',
+              '<summary>Walkthrough</summary>',
+              '',
+              'This PR was reviewed by six AI agents **in parallel**, analyzing different aspects of the changes:',
+              '',
+              '- **Security Agent**: Scans for vulnerabilities, secrets exposure, and security anti-patterns',
+              '- **QA Agent**: Evaluates test coverage, error handling, and code quality',
+              '- **Analyst Agent**: Assesses code quality, impact analysis, and maintainability',
+              '- **Architect Agent**: Reviews design patterns, system boundaries, and architectural concerns',
+              '- **DevOps Agent**: Evaluates CI/CD, build pipelines, and infrastructure changes',
+              '- **Roadmap Agent**: Assesses strategic alignment, feature scope, and user value',
+              '',
+              '</details>',
+              '',
+              '### Review Summary',
+              '',
+              '| Agent | Verdict | Category | Status |',
+              '|:------|:--------|:---------|:------:|',
+              "| Security | $securityVerdict | $securityCategory | $securityEmoji |",
+              "| QA | $qaVerdict | $qaCategory | $qaEmoji |",
+              "| Analyst | $analystVerdict | $analystCategory | $analystEmoji |",
+              "| Architect | $architectVerdict | $architectCategory | $architectEmoji |",
+              "| DevOps | $devopsVerdict | $devopsCategory | $devopsEmoji |",
+              "| Roadmap | $roadmapVerdict | $roadmapCategory | $roadmapEmoji |",
+              '',
+              "💡 **Quick Access**: Click on individual agent jobs (e.g., ""🔒 security Review"", ""🧪 qa Review"") in the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) to see detailed findings and step summaries.",
+              ''
+            ) -join "`n"
 
             # Add findings sections
             $findingsMap = @{
@@ -653,23 +653,23 @@ jobs:
             }
 
             # Add footer
-            $report += @"
-
-            ---
-
-            <details>
-            <summary>Run Details</summary>
-
-            | Property | Value |
-            |:---------|:------|
-            | **Run ID** | [$env:RUN_ID]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) |
-            | **Triggered by** | ``$env:EVENT_NAME`` on ``$env:REF_NAME`` |
-            | **Commit** | ``$env:SHA`` |
-
-            </details>
-
-            <sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) workflow</sub>
-"@
+            $report += "`n" + (@(
+              '',
+              '---',
+              '',
+              '<details>',
+              '<summary>Run Details</summary>',
+              '',
+              '| Property | Value |',
+              '|:---------|:------|',
+              "| **Run ID** | [$env:RUN_ID]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) |",
+              "| **Triggered by** | ``$env:EVENT_NAME`` on ``$env:REF_NAME`` |",
+              "| **Commit** | ``$env:SHA`` |",
+              '',
+              '</details>',
+              '',
+              "<sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) workflow</sub>"
+            ) -join "`n")
 
             $report | Set-Content $reportFile -Encoding UTF8 -ErrorAction Stop
 
