@@ -80,6 +80,7 @@ globs:
   - "!.flowbaby/**"
   - "!.claude/skills/**"
   - "!tmp/**"
+  - "!.factory/**"
 
 ignores:
   - "node_modules/**"
@@ -87,6 +88,7 @@ ignores:
   - ".flowbaby/**"
   - ".serena/memories/**"
   - "tmp/**"
+  - ".factory/**"
   - "**/*.ps1"
   - "**/*.psm1"
   - ".factory/**"
@@ -105,3 +107,9 @@ ignores:
 
   # Skills treated as third-party plugins per PR #331 - excluded via glob pattern above
   # - ".claude/skills/adr-review/agent-prompts.md"  # No longer needed with glob exclusion
+  - ".claude/skills/decision-critic/**"
+  - ".claude/skills/doc-sync/**"
+  - ".claude/skills/incoherence/**"
+  - ".claude/skills/programming-advisor/**"
+  - ".claude/skills/prompt-engineer/**"
+  - ".claude/skills/SkillForge/**"
