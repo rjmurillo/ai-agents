@@ -47,14 +47,9 @@ Describe "New-SessionLog.ps1" {
             $content | Should -Match 'exit 1'
         }
 
-        It "Should define exit code 2 for template extraction failure" {
+        It "Should define exit code 2 for JSON creation failure" {
             $content = Get-Content $scriptPath -Raw
             $content | Should -Match 'exit 2'
-        }
-
-        It "Should define exit code 3 for write failure" {
-            $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'exit 3'
         }
 
         It "Should define exit code 4 for validation failure" {
@@ -79,14 +74,9 @@ Describe "New-SessionLog.ps1" {
             $content | Should -Match 'function Get-UserInput'
         }
 
-        It "Should define Invoke-TemplateExtraction function" {
+        It "Should define New-JsonSessionLog function" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'function Invoke-TemplateExtraction'
-        }
-
-        It "Should define Write-SessionLogFile function" {
-            $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'function Write-SessionLogFile'
+            $content | Should -Match 'function New-JsonSessionLog'
         }
 
         It "Should define Invoke-ValidationScript function" {
@@ -123,44 +113,39 @@ Describe "New-SessionLog.ps1" {
         }
     }
 
-    Context "Template Processing" {
+    Context "JSON Creation" {
         BeforeAll {
             $templateHelpersPath = Join-Path $PSScriptRoot "../.claude/skills/session-init/modules/TemplateHelpers.psm1"
             $templateHelpersContent = Get-Content $templateHelpersPath -Raw
         }
 
-        It "Should call Extract-SessionTemplate.ps1" {
-            $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'Extract-SessionTemplate\.ps1'
-        }
-
-        It "Should import TemplateHelpers module for template processing" {
+        It "Should import TemplateHelpers module for keyword extraction" {
             $content = Get-Content $scriptPath -Raw
             $content | Should -Match 'Import-Module.*TemplateHelpers\.psm1'
         }
 
-        It "TemplateHelpers module should replace NN placeholder" {
-            $templateHelpersContent | Should -Match "-replace '\\bNN\\b'"
+        It "TemplateHelpers module should export Get-DescriptiveKeywords function" {
+            $templateHelpersContent | Should -Match 'function Get-DescriptiveKeywords'
         }
 
-        It "TemplateHelpers module should replace YYYY-MM-DD placeholder" {
-            $templateHelpersContent | Should -Match "-replace 'YYYY-MM-DD'"
+        It "Should create JSON structure with schemaVersion" {
+            $content = Get-Content $scriptPath -Raw
+            $content | Should -Match 'schemaVersion'
         }
 
-        It "TemplateHelpers module should replace branch name placeholder" {
-            $templateHelpersContent | Should -Match "-replace '\\\[branch name\\\]'"
+        It "Should create JSON structure with session metadata" {
+            $content = Get-Content $scriptPath -Raw
+            $content | Should -Match 'session\s*=\s*@\{'
         }
 
-        It "TemplateHelpers module should replace SHA placeholder" {
-            $templateHelpersContent | Should -Match "-replace '\\\[SHA\\\]'"
+        It "Should create JSON structure with protocolCompliance" {
+            $content = Get-Content $scriptPath -Raw
+            $content | Should -Match 'protocolCompliance\s*=\s*@\{'
         }
 
-        It "TemplateHelpers module should replace objective placeholder" {
-            $templateHelpersContent | Should -Match "-replace '\\\[What this session aims to accomplish\\\]'"
-        }
-
-        It "TemplateHelpers module should replace git status placeholder" {
-            $templateHelpersContent | Should -Match "-replace '\\\[clean/dirty\\\]'"
+        It "Should convert hashtable to JSON" {
+            $content = Get-Content $scriptPath -Raw
+            $content | Should -Match 'ConvertTo-Json'
         }
     }
 
@@ -170,9 +155,9 @@ Describe "New-SessionLog.ps1" {
             $content | Should -Match '\.agents/sessions'
         }
 
-        It "Should create session log filename with pattern YYYY-MM-DD-session-NN.md" {
+        It "Should create session log filename with pattern YYYY-MM-DD-session-NN.json" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'session-\$'
+            $content | Should -Match '\.json'
         }
     }
 
@@ -230,8 +215,6 @@ Describe "New-SessionLog.ps1" {
             $content | Should -Match 'Phase 1:'
             $content | Should -Match 'Phase 2:'
             $content | Should -Match 'Phase 3:'
-            $content | Should -Match 'Phase 4:'
-            $content | Should -Match 'Phase 5:'
         }
 
         It "Should display success message" {
