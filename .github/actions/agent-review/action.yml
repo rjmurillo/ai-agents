@@ -1,6 +1,10 @@
 name: 'Agent Review'
 description: 'Runs AI-powered review for a specific agent with conditional execution'
 
+# Required permissions (must be set in calling workflow):
+#   contents: read       - For checkout
+#   pull-requests: write - For posting review comments (via ai-review action)
+
 inputs:
   agent:
     description: 'Agent name (security, qa, analyst, architect, devops, roadmap)'
@@ -62,7 +66,7 @@ runs:
 
     - name: Save review results
       if: inputs.should-run == 'true'
-      shell: bash
+      shell: pwsh -NoProfile -Command "& '{0}'"
       env:
         AGENT: ${{ inputs.agent }}
         VERDICT: ${{ steps.review.outputs.verdict }}
@@ -70,16 +74,16 @@ runs:
         INFRASTRUCTURE_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
         RETRY_COUNT: ${{ steps.review.outputs.retry-count }}
       run: |
-        mkdir -p ai-review-results
-        echo "$VERDICT" > "ai-review-results/${AGENT}-verdict.txt"
-        echo "$FINDINGS" > "ai-review-results/${AGENT}-findings.txt"
-        echo "$INFRASTRUCTURE_FAILURE" > "ai-review-results/${AGENT}-infrastructure-failure.txt"
-        echo "$RETRY_COUNT" > "ai-review-results/${AGENT}-retry-count.txt"
-        echo "Saved ${AGENT} results:"
-        echo "  Verdict: $VERDICT"
-        echo "  Findings: $(wc -c < ai-review-results/${AGENT}-findings.txt) bytes"
-        echo "  Infrastructure failure: $INFRASTRUCTURE_FAILURE"
-        echo "  Retry count: $RETRY_COUNT"
+        New-Item -ItemType Directory -Path "ai-review-results" -Force | Out-Null
+        $env:VERDICT | Set-Content "ai-review-results/$($env:AGENT)-verdict.txt" -NoNewline
+        $env:FINDINGS | Set-Content "ai-review-results/$($env:AGENT)-findings.txt" -NoNewline
+        $env:INFRASTRUCTURE_FAILURE | Set-Content "ai-review-results/$($env:AGENT)-infrastructure-failure.txt" -NoNewline
+        $env:RETRY_COUNT | Set-Content "ai-review-results/$($env:AGENT)-retry-count.txt" -NoNewline
+        Write-Output "Saved $($env:AGENT) results:"
+        Write-Output "  Verdict: $($env:VERDICT)"
+        Write-Output "  Findings: $((Get-Item "ai-review-results/$($env:AGENT)-findings.txt").Length) bytes"
+        Write-Output "  Infrastructure failure: $($env:INFRASTRUCTURE_FAILURE)"
+        Write-Output "  Retry count: $($env:RETRY_COUNT)"
 
     - name: Upload review results
       if: always() && inputs.should-run == 'true'
@@ -102,37 +106,52 @@ runs:
         REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ inputs.pr-number }}
       run: |
-        Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
+        $ErrorActionPreference = 'Stop'
 
-        $verdict = $env:VERDICT
-        $agent = $env:AGENT
-        $emoji = $env:EMOJI
-        $findings = $env:FINDINGS
-        $prNumber = $env:PR_NUMBER
+        try {
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force -ErrorAction Stop
 
-        $alertType = Get-VerdictAlertType -Verdict $verdict
-        $verdictEmoji = Get-VerdictEmoji -Verdict $verdict
-        $agentDisplay = if ($agent) { (Get-Culture).TextInfo.ToTitleCase($agent.ToLower()) } else { "Unknown" }
+          if ([string]::IsNullOrWhiteSpace($env:VERDICT)) {
+            Write-Output "::error::VERDICT environment variable is missing or empty"
+            exit 1
+          }
 
-        $summary = @"
-        ## $emoji $agentDisplay Review
+          $verdict = $env:VERDICT
+          $agent = $env:AGENT
+          $emoji = $env:EMOJI
+          $findings = $env:FINDINGS
+          $prNumber = $env:PR_NUMBER
 
-        > [!$alertType]
-        > $verdictEmoji **Verdict: $verdict**
+          $alertType = Get-VerdictAlertType -Verdict $verdict
+          $verdictEmoji = Get-VerdictEmoji -Verdict $verdict
+          $agentDisplay = if ($agent) { (Get-Culture).TextInfo.ToTitleCase($agent.ToLower()) } else { "Unknown" }
 
-        <details>
-        <summary>Review Findings</summary>
+          $summary = @"
+          ## $emoji $agentDisplay Review
 
-        $findings
+          > [!$alertType]
+          > $verdictEmoji **Verdict: $verdict**
 
-        </details>
+          <details>
+          <summary>Review Findings</summary>
 
-        ---
+          $findings
 
-        <sub>💡 See the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) for full context across all agents, or check the PR for the consolidated quality gate comment.</sub>
-        "@
+          </details>
 
-        $summary | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding UTF8
+          ---
+
+          <sub>💡 See the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) for full context across all agents, or check the PR for the consolidated quality gate comment.</sub>
+          "@
+
+          $summary | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding UTF8
+        }
+        catch {
+          Write-Output "::error::Failed to generate step summary: $_"
+          Write-Output "::error::Verdict: $env:VERDICT"
+          Write-Output "::error::Agent: $env:AGENT"
+          exit 1
+        }
 
     - name: Check verdict and fail if needed
       if: always() && inputs.should-run == 'true'
@@ -153,7 +172,13 @@ runs:
         if ($verdict -in $blockingVerdicts) {
           $maxAnnotationLength = 180
           if ([string]::IsNullOrWhiteSpace($findings)) {
-            $summary = "No details available."
+            if ($null -eq $findings) {
+              $summary = "Findings data is missing (possible infrastructure failure)"
+              Write-Output "::warning::[$agent] Verdict is $verdict but findings are null"
+            } else {
+              $summary = "Review failed but no details were provided by the AI model"
+              Write-Output "::warning::[$agent] Verdict is $verdict but findings are empty"
+            }
           } else {
             $summary = ($findings -replace "`n", " ")
             if ($summary.Length -gt $maxAnnotationLength) {
@@ -173,9 +198,9 @@ runs:
 
     - name: Skip ${{ inputs.agent }} review (no relevant changes)
       if: inputs.should-run != 'true'
-      shell: bash
+      shell: pwsh -NoProfile -Command "& '{0}'"
       run: |
-        echo "✅ ${{ inputs.agent }} review skipped - no relevant file changes detected"
-        echo ""
-        echo "This PR only contains changes to files that don't require AI review."
-        echo "Status: PASS (skipped)"
+        Write-Output "✅ ${{ inputs.agent }} review skipped - no relevant file changes detected"
+        Write-Output ""
+        Write-Output "This PR only contains changes to files that don't require AI review."
+        Write-Output "Status: PASS (skipped)"

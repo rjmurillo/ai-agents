@@ -32,15 +32,15 @@ permissions:
 
 # NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
 
-# where multiple runs start before cancellation takes effect. This is best-effort
+# where multiple runs start before cancellation takes effect. Multiple review runs
+
+# may execute simultaneously, wasting compute until cancellation completes.
 
 # See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
 
 # for architectural decision on workflow-level concurrency control
 
 # Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
-
-# Note: 6 parallel agents use artifact-based result passing to avoid matrix output limitations
 
 concurrency:
   group: ai-quality-${{ github.event.pull_request.number || inputs.pr_number }}
@@ -82,7 +82,7 @@ jobs:
       github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
-      # For workflow_dispatch, always run review; otherwise use paths-filter result
+      # For workflow_dispatch, always run review (manual trigger assumes user intent regardless of files changed); otherwise use paths-filter result
       should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run }}
 
     steps:
@@ -92,7 +92,7 @@ jobs:
       - name: Check for relevant file changes
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
         id: filter
-        # Skip paths-filter for workflow_dispatch as it may not have proper context
+        # Skip paths-filter for workflow_dispatch (path filter requires pull_request event context; manual dispatch lacks base/head ref information)
         if: github.event_name != 'workflow_dispatch'
         with:
           filters: |
@@ -299,26 +299,31 @@ jobs:
         run: |
           # Check if any agent review jobs failed by examining the needs context
           # This step runs before downloading artifacts to surface failures early
-          # Note: Specific failed agents are identified later by examining individual verdicts
-          $securityResult = "${{ needs.security-review.result }}"
-          $qaResult = "${{ needs.qa-review.result }}"
-          $analystResult = "${{ needs.analyst-review.result }}"
-          $architectResult = "${{ needs.architect-review.result }}"
-          $devopsResult = "${{ needs.devops-review.result }}"
-          $roadmapResult = "${{ needs.roadmap-review.result }}"
+          # Note: Specific failed agents are identified later by examining individual verdicts (lines 673-682 in 'Check for Critical Failures' step)
+          $agentResults = @(
+            @{ Name = 'Security'; Result = "${{ needs.security-review.result }}" }
+            @{ Name = 'QA'; Result = "${{ needs.qa-review.result }}" }
+            @{ Name = 'Analyst'; Result = "${{ needs.analyst-review.result }}" }
+            @{ Name = 'Architect'; Result = "${{ needs.architect-review.result }}" }
+            @{ Name = 'DevOps'; Result = "${{ needs.devops-review.result }}" }
+            @{ Name = 'Roadmap'; Result = "${{ needs.roadmap-review.result }}" }
+          )
 
-          $allResults = @($securityResult, $qaResult, $analystResult, $architectResult, $devopsResult, $roadmapResult)
           Write-Output "Individual review results:"
-          Write-Output "  Security: $securityResult"
-          Write-Output "  QA: $qaResult"
-          Write-Output "  Analyst: $analystResult"
-          Write-Output "  Architect: $architectResult"
-          Write-Output "  DevOps: $devopsResult"
-          Write-Output "  Roadmap: $roadmapResult"
+          $failedAgents = @()
 
-          if ($allResults -contains "failure" -or $allResults -contains "cancelled") {
+          foreach ($agent in $agentResults) {
+            Write-Output "  $($agent.Name): $($agent.Result)"
+            if ($agent.Result -in @('failure', 'cancelled')) {
+              $failedAgents += $agent.Name
+              Write-Output "::error::$($agent.Name) agent failed with result: $($agent.Result)"
+            }
+          }
+
+          if ($failedAgents.Count -gt 0) {
             "has_failures=true" >> $env:GITHUB_OUTPUT
-            Write-Output "::warning::One or more agent review jobs failed - see individual job logs for details"
+            Write-Output "::warning::Failed agents: $($failedAgents -join ', ')"
+            Write-Output "::warning::Check individual job logs for details"
           } else {
             "has_failures=false" >> $env:GITHUB_OUTPUT
           }
@@ -333,48 +338,56 @@ jobs:
           path: ai-review-results
           merge-multiple: true
 
+      - name: Validate artifact download
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          Write-Output "Checking for required verdict files..."
+
+          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
+          $missingFiles = @()
+
+          foreach ($agent in $agents) {
+            $verdictFile = "ai-review-results/$agent-verdict.txt"
+            if (-not (Test-Path $verdictFile)) {
+              $missingFiles += "$agent-verdict.txt"
+            }
+          }
+
+          if ($missingFiles.Count -gt 0) {
+            Write-Output "::error::Artifact download incomplete - missing files:"
+            foreach ($file in $missingFiles) {
+              Write-Output "::error::  - $file"
+            }
+            Write-Output "::error::This indicates agent review jobs failed or artifacts were not uploaded"
+            exit 1
+          }
+
+          Write-Output "✓ All required verdict files present"
+
       - name: Load review results
         id: load-results
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          # Read verdicts from artifact files
-          SECURITY_VERDICT=$(cat ai-review-results/security-verdict.txt 2>/dev/null || echo "UNKNOWN")
-          QA_VERDICT=$(cat ai-review-results/qa-verdict.txt 2>/dev/null || echo "UNKNOWN")
-          ANALYST_VERDICT=$(cat ai-review-results/analyst-verdict.txt 2>/dev/null || echo "UNKNOWN")
-          ARCHITECT_VERDICT=$(cat ai-review-results/architect-verdict.txt 2>/dev/null || echo "UNKNOWN")
-          DEVOPS_VERDICT=$(cat ai-review-results/devops-verdict.txt 2>/dev/null || echo "UNKNOWN")
-          ROADMAP_VERDICT=$(cat ai-review-results/roadmap-verdict.txt 2>/dev/null || echo "UNKNOWN")
+          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
 
-          # Read infrastructure failure flags
-          SECURITY_INFRA=$(cat ai-review-results/security-infrastructure-failure.txt 2>/dev/null || echo "false")
-          QA_INFRA=$(cat ai-review-results/qa-infrastructure-failure.txt 2>/dev/null || echo "false")
-          ANALYST_INFRA=$(cat ai-review-results/analyst-infrastructure-failure.txt 2>/dev/null || echo "false")
-          ARCHITECT_INFRA=$(cat ai-review-results/architect-infrastructure-failure.txt 2>/dev/null || echo "false")
-          DEVOPS_INFRA=$(cat ai-review-results/devops-infrastructure-failure.txt 2>/dev/null || echo "false")
-          ROADMAP_INFRA=$(cat ai-review-results/roadmap-infrastructure-failure.txt 2>/dev/null || echo "false")
+          Write-Output "Loaded verdicts:"
 
-          echo "Loaded verdicts:"
-          echo "  Security: $SECURITY_VERDICT (infra: $SECURITY_INFRA)"
-          echo "  QA: $QA_VERDICT (infra: $QA_INFRA)"
-          echo "  Analyst: $ANALYST_VERDICT (infra: $ANALYST_INFRA)"
-          echo "  Architect: $ARCHITECT_VERDICT (infra: $ARCHITECT_INFRA)"
-          echo "  DevOps: $DEVOPS_VERDICT (infra: $DEVOPS_INFRA)"
-          echo "  Roadmap: $ROADMAP_VERDICT (infra: $ROADMAP_INFRA)"
+          foreach ($agent in $agents) {
+            $verdictFile = "ai-review-results/$agent-verdict.txt"
+            $infraFile = "ai-review-results/$agent-infrastructure-failure.txt"
 
-          # Export verdicts for subsequent steps
-          echo "security_verdict=$SECURITY_VERDICT" >> $GITHUB_OUTPUT
-          echo "qa_verdict=$QA_VERDICT" >> $GITHUB_OUTPUT
-          echo "analyst_verdict=$ANALYST_VERDICT" >> $GITHUB_OUTPUT
-          echo "architect_verdict=$ARCHITECT_VERDICT" >> $GITHUB_OUTPUT
-          echo "devops_verdict=$DEVOPS_VERDICT" >> $GITHUB_OUTPUT
-          echo "roadmap_verdict=$ROADMAP_VERDICT" >> $GITHUB_OUTPUT
+            # Read verdict (file existence already validated)
+            $verdict = (Get-Content $verdictFile -Raw).Trim()
 
-          # Export infrastructure failure flags
-          echo "security_infra=$SECURITY_INFRA" >> $GITHUB_OUTPUT
-          echo "qa_infra=$QA_INFRA" >> $GITHUB_OUTPUT
-          echo "analyst_infra=$ANALYST_INFRA" >> $GITHUB_OUTPUT
-          echo "architect_infra=$ARCHITECT_INFRA" >> $GITHUB_OUTPUT
-          echo "devops_infra=$DEVOPS_INFRA" >> $GITHUB_OUTPUT
-          echo "roadmap_infra=$ROADMAP_INFRA" >> $GITHUB_OUTPUT
+            # Read infrastructure flag
+            $infra = if (Test-Path $infraFile) { (Get-Content $infraFile -Raw).Trim() } else { "false" }
+
+            Write-Output "  ${agent}: $verdict (infra: $infra)"
+
+            # Export to GITHUB_OUTPUT
+            "${agent}_verdict=$verdict" >> $env:GITHUB_OUTPUT
+            "${agent}_infra=$infra" >> $env:GITHUB_OUTPUT
+          }
 
       - name: Aggregate Verdicts
         id: aggregate
@@ -405,8 +418,8 @@ jobs:
           Write-Log "DevOps verdict: $devopsVerdict (infra: $devopsInfra)"
           Write-Log "Roadmap verdict: $roadmapVerdict (infra: $roadmapInfra)"
 
-          # Categorize failures: if verdict is failure AND infrastructure flag is true, it's INFRASTRUCTURE
-          # Otherwise, it's CODE_QUALITY
+          # Categorize failures: if verdict is failure AND infrastructure flag is true, it's INFRASTRUCTURE; otherwise, it's CODE_QUALITY
+          # Infrastructure failures are downgraded to WARN (line 443) to prevent blocking PRs for transient service issues
           function Get-Category {
             param([string]$Verdict, [bool]$InfraFlag)
             if ($Verdict -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW') {
@@ -471,10 +484,18 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           SHA: ${{ github.sha }}
         run: |
-          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
+          $ErrorActionPreference = 'Stop'
 
-          $reportDir = Initialize-AIReview
-          $reportFile = Join-Path $reportDir "pr-quality-report.md"
+          try {
+            Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force -ErrorAction Stop
+
+            $reportDir = Initialize-AIReview
+            if (-not (Test-Path $reportDir)) {
+              Write-Output "::error::Failed to initialize AI review directory: $reportDir"
+              exit 1
+            }
+
+            $reportFile = Join-Path $reportDir "pr-quality-report.md"
           $finalVerdict = "${{ steps.aggregate.outputs.final_verdict }}"
           $alertType = Get-VerdictAlertType -Verdict $finalVerdict
 
@@ -551,49 +572,72 @@ jobs:
             'roadmap' = 'Roadmap Review Details'
           }
 
-          foreach ($agent in $findingsMap.Keys) {
-            $findingsFile = "ai-review-results/$agent-findings.txt"
-            if (Test-Path $findingsFile) {
-              $findings = Get-Content $findingsFile -Raw
-              if ($findings) {
-                $title = $findingsMap[$agent]
-                $report += "`n<details>`n<summary>$title</summary>`n`n$findings`n`n</details>`n"
+            foreach ($agent in $findingsMap.Keys) {
+              $findingsFile = "ai-review-results/$agent-findings.txt"
+              if (Test-Path $findingsFile) {
+                try {
+                  $findings = Get-Content $findingsFile -Raw -ErrorAction Stop
+                  if ($findings) {
+                    $title = $findingsMap[$agent]
+                    $report += "`n<details>`n<summary>$title</summary>`n`n$findings`n`n</details>`n"
+                  } else {
+                    Write-Warning "Findings file for $agent is empty"
+                    $report += "`n<details>`n<summary>$($findingsMap[$agent])</summary>`n`n⚠️ No findings available (empty file)`n`n</details>`n"
+                  }
+                }
+                catch {
+                  Write-Output "::error::Failed to read findings file for ${agent}: $_"
+                  $report += "`n<details>`n<summary>$($findingsMap[$agent])</summary>`n`n❌ Error reading findings file: $_`n`n</details>`n"
+                }
+              } else {
+                Write-Warning "No $agent findings file found"
+                $report += "`n<details>`n<summary>$($findingsMap[$agent])</summary>`n`n⚠️ Findings file not found (agent review may have failed)`n`n</details>`n"
               }
-            } else {
-              Write-Warning "No $agent findings file found"
             }
+
+            # Add footer
+            $report += @"
+
+            ---
+
+            <details>
+            <summary>Run Details</summary>
+
+            | Property | Value |
+            |:---------|:------|
+            | **Run ID** | [$env:RUN_ID]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) |
+            | **Triggered by** | ``$env:EVENT_NAME`` on ``$env:REF_NAME`` |
+            | **Commit** | ``$env:SHA`` |
+
+            </details>
+
+            <sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) workflow</sub>
+            "@
+
+            $report | Set-Content $reportFile -Encoding UTF8 -ErrorAction Stop
+
+            if (-not (Test-Path $reportFile)) {
+              Write-Output "::error::Failed to write report file: $reportFile"
+              exit 1
+            }
+
+            "report_file=$reportFile" >> $env:GITHUB_OUTPUT
+          }
+          catch {
+            Write-Output "::error::Failed to generate report: $_"
+            Write-Output "::error::Module: AIReviewCommon.psm1"
+            exit 1
           }
 
-          # Add footer
-          $report += @"
-
-          ---
-
-          <details>
-          <summary>Run Details</summary>
-
-          | Property | Value |
-          |:---------|:------|
-          | **Run ID** | [$env:RUN_ID]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) |
-          | **Triggered by** | ``$env:EVENT_NAME`` on ``$env:REF_NAME`` |
-          | **Commit** | ``$env:SHA`` |
-
-          </details>
-
-          <sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) workflow</sub>
-          "@
-
-          $report | Set-Content $reportFile -Encoding UTF8
-          "report_file=$reportFile" >> $env:GITHUB_OUTPUT
-
       - name: Check for infrastructure failures and add label
-        continue-on-error: true
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
         run: |
-          # Check if any agent had infrastructure failure (Issue #328)
+          $ErrorActionPreference = 'Stop'
+
+          # Check if any agent had infrastructure failure (Issue #328: Add infrastructure-failure label when retry logic exhausted)
           $infrastructureFailureDetected = $false
           $retryAttempts = @()
 
@@ -621,8 +665,30 @@ jobs:
             Write-Output "::warning::Infrastructure failures detected - adding infrastructure-failure label"
             Write-Output "Retry attempts: $($retryAttempts -join ', ')"
 
-            # Add infrastructure-failure label to PR
-            gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "infrastructure-failure"
+            try {
+              # Verify gh CLI is authenticated
+              $authStatus = gh auth status 2>&1
+              if ($LASTEXITCODE -ne 0) {
+                Write-Output "::error::gh CLI authentication failed: $authStatus"
+                Write-Output "::error::Cannot add infrastructure-failure label"
+                exit 1
+              }
+
+              # Add label with error handling
+              gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "infrastructure-failure"
+
+              if ($LASTEXITCODE -ne 0) {
+                Write-Output "::error::Failed to add infrastructure-failure label (exit code: $LASTEXITCODE)"
+                Write-Output "::error::Ensure 'infrastructure-failure' label exists in repository"
+                exit 1
+              }
+
+              Write-Output "✓ Successfully added infrastructure-failure label"
+            }
+            catch {
+              Write-Output "::error::Failed to add label: $_"
+              exit 1
+            }
           } else {
             Write-Output "No infrastructure failures detected"
           }
@@ -634,14 +700,48 @@ jobs:
           PR_NUMBER: ${{ env.PR_NUMBER }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          # Use GitHub skill script for idempotent comment posting
-          # PRs are issues in GitHub API, so we use Post-IssueComment with marker
-          # UpdateIfExists updates the existing marked comment if present, ensuring the latest report is reflected
-          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
-            -Issue $env:PR_NUMBER `
-            -BodyFile $env:REPORT_FILE `
-            -Marker "AI-PR-QUALITY-GATE" `
-            -UpdateIfExists
+          $ErrorActionPreference = 'Stop'
+
+          if ([string]::IsNullOrWhiteSpace($env:PR_NUMBER)) {
+            Write-Output "::error::PR_NUMBER environment variable is missing"
+            exit 1
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:REPORT_FILE)) {
+            Write-Output "::error::REPORT_FILE environment variable is missing"
+            exit 1
+          }
+
+          if (-not (Test-Path $env:REPORT_FILE)) {
+            Write-Output "::error::Report file not found: $env:REPORT_FILE"
+            exit 1
+          }
+
+          $skillScript = ".claude/skills/github/scripts/issue/Post-IssueComment.ps1"
+          if (-not (Test-Path $skillScript)) {
+            Write-Output "::error::Skill script not found: $skillScript"
+            exit 1
+          }
+
+          try {
+            # Use GitHub skill script for idempotent comment posting
+            # PRs are issues in GitHub API (pull requests are a superset of issues), so we use Post-IssueComment with marker `AI-PR-QUALITY-GATE`
+            # UpdateIfExists updates the existing marked comment if present, ensuring the latest report is reflected
+            & $skillScript `
+              -Issue $env:PR_NUMBER `
+              -BodyFile $env:REPORT_FILE `
+              -Marker "AI-PR-QUALITY-GATE" `
+              -UpdateIfExists
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Output "::error::Post-IssueComment.ps1 failed with exit code $LASTEXITCODE"
+              exit $LASTEXITCODE
+            }
+          }
+          catch {
+            Write-Output "::error::Failed to post PR comment: $_"
+            exit 1
+          }
 
       - name: Set Job Summary
         shell: pwsh -NoProfile -Command "& '{0}'"
@@ -655,7 +755,7 @@ jobs:
         run: |
           $finalVerdict = "${{ steps.aggregate.outputs.final_verdict }}"
 
-          # Use ordered array for deterministic output (dictionary Keys property is unordered)
+          # Use ordered array for deterministic output (PowerShell dictionary Keys property is unordered, which would cause agent order to vary across runs, complicating comparisons)
           $agentVerdicts = @(
             @{ Name = '🔒 Security'; Verdict = "${{ steps.aggregate.outputs.security_verdict }}" }
             @{ Name = '🧪 QA'; Verdict = "${{ steps.aggregate.outputs.qa_verdict }}" }
@@ -666,19 +766,34 @@ jobs:
           )
 
           # Identify agents with blocking verdicts
-          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict
+          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict (occurs when AI response doesn't match expected verdict format, treating ambiguity as blocking)
           $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
           $failedAgents = @()
+          $missingVerdicts = @()
 
           foreach ($entry in $agentVerdicts) {
             if ([string]::IsNullOrWhiteSpace($entry.Verdict)) {
-              Write-Output "::warning::$($entry.Name): No verdict received from aggregate step"
+              $missingVerdicts += $entry.Name
+              Write-Output "::error::$($entry.Name): No verdict received from aggregate step"
               continue
             }
             if ($entry.Verdict -in $blockingVerdicts) {
               $failedAgents += "$($entry.Name): $($entry.Verdict)"
               Write-Output "::error::$($entry.Name): $($entry.Verdict)"
             }
+          }
+
+          if ($missingVerdicts.Count -gt 0) {
+            Write-Output ""
+            Write-Output "❌ Quality gate failed - missing verdicts"
+            Write-Output ""
+            Write-Output "Agents with missing verdicts:"
+            foreach ($missing in $missingVerdicts) {
+              Write-Output "  - $missing"
+            }
+            Write-Output ""
+            Write-Output "This indicates agent review jobs failed or artifacts are incomplete"
+            exit 1
           }
 
           if ($finalVerdict -in $blockingVerdicts) {
@@ -695,5 +810,3 @@ jobs:
           }
 
           Write-Output "✅ AI Quality Gate passed with verdict: $finalVerdict"
-
-# Skip jobs that provide passing status when no relevant files changed
