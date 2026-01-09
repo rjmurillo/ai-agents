@@ -15,7 +15,7 @@ Created two scripts that eliminate manual/fragile operations:
 
 1. **Extract-SessionTemplate.ps1**: Dynamic template extraction
    - **Problem**: Hardcoded line numbers (494-612) break when SESSION-PROTOCOL.md changes
-   - **Solution**: Regex pattern `## Session Log Template.*?```markdown\s*(.*?)\s*```
+   - **Solution**: Regex pattern `## session log in JSON\s*(.*?)\s*```
    - **Benefits**: Zero maintenance, self-adapting
    - **Exit codes**: 0=success, 1=file not found, 2=template not found
 

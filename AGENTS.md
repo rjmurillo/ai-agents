@@ -53,7 +53,7 @@ These requirements MUST be completed before ANY other work. Work is blocked unti
 |-----------|------|--------------|
 | **MUST** | Initialize Serena (`mcp__serena__activate_project` + `mcp__serena__initial_instructions` OR `serena/activate_project` + `serena/initial_instructions`) | Tool output in transcript |
 | **MUST** | Read `.agents/HANDOFF.md` | Content in context |
-| **MUST** | Create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
+| **MUST** | Create session log at `.agents/sessions/YYYY-MM-DD-session-NN.json` | File exists |
 | **SHOULD** | Search relevant Serena memories | Memory results present |
 | **SHOULD** | Verify git status and note starting commit | Output documented |
 
@@ -75,7 +75,7 @@ You CANNOT claim session completion until validation PASSES. These requirements 
 **Validation Command**:
 
 ```bash
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[session-log].json"
 ```
 
 **If validation fails**: Fix violations and re-run. Do NOT claim completion until PASS.
@@ -162,8 +162,8 @@ git branch --show-current
 
 ```bash
 npx markdownlint-cli2 --fix "**/*.md"
-pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].md"
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath ".agents/sessions/[log].md"
+pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].json"
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[log].json"
 ```
 
 ### Development Tools
@@ -1595,7 +1595,7 @@ Agents violating these standards produce inconsistent, unprofessional output. Re
 SESSION START (BLOCKING - MUST complete before work):
 1. MUST: Initialize Serena (mcp__serena__activate_project + mcp__serena__initial_instructions OR serena/activate_project + serena/initial_instructions)
 2. MUST: Read .agents/HANDOFF.md for previous session context
-3. MUST: Create session log at .agents/sessions/YYYY-MM-DD-session-NN.md
+3. MUST: Create session log at .agents/sessions/YYYY-MM-DD-session-NN.json
 4. SHOULD: Search relevant Serena memories
 5. SHOULD: Verify git status and note starting commit
 

@@ -94,7 +94,7 @@ pwsh -c "Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1; Get-R
 ```bash
 # After completing a session
 pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 \
-    -SessionLogPath ".agents/sessions/2026-01-01-session-130.md"
+    -SessionLogPath ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
 
 # Update causal graph
 pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
@@ -368,7 +368,7 @@ if (-not (Test-Path $episodePath)) {
     Write-Warning "Episode not extracted yet"
 
     # Extract from session log
-    $sessionLog = ".agents/sessions/2026-01-01-session-126.md"
+    $sessionLog = ".agents/sessions/.agents/sessions/2026-01-01-session-126.json"
     if (Test-Path $sessionLog) {
         pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath $sessionLog
     }

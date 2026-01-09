@@ -1,0 +1,118 @@
+{
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {
+        "Evidence": "Content reviewed",
+        "level": "MUST",
+        "Complete": true
+      },
+      "branchVerified": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "startingCommitNoted": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "memoriesLoaded": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "constraintsRead": {
+        "Evidence": "ADR-006 reviewed",
+        "level": "MUST",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "notOnMain": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "skillScriptsListed": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "usageMandatoryRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "serenaActivated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "gitStatusVerified": {
+        "Evidence": "Working tree clean",
+        "level": "SHOULD",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "validationPassed": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "Evidence": "`npx markdownlint-cli2 --fix` passed",
+        "level": "MUST",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "handoffNotUpdated": {
+        "evidence": "",
+        "level": "MUST NOT",
+        "complete": false
+      }
+    }
+  },
+  "session": {
+    "branch": "copilot/fix-parameter-mismatch-in-script",
+    "objective": "Refactor Get-UnresolvedReviewThreads function to GitHubCore.psm1 module per ADR-006, eliminating dot-sourcing anti-pattern.",
+    "date": "2026-01-05",
+    "number": 1,
+    "startingCommit": ""
+  },
+  "endingCommit": "",
+  "nextSteps": [],
+  "workLog": []
+}

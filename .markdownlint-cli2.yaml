@@ -79,6 +79,7 @@ globs:
   - "!.serena/memories/**"
   - "!.flowbaby/**"
   - "!.claude/skills/**"
+  - "!tmp/**"
   - "!.factory/**"
 
 ignores:
@@ -86,6 +87,7 @@ ignores:
   - ".agents/**"
   - ".flowbaby/**"
   - ".serena/memories/**"
+  - "tmp/**"
   - ".factory/**"
   - "**/*.ps1"
   - "**/*.psm1"

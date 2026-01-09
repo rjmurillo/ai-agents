@@ -1,0 +1,118 @@
+{
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {
+        "Evidence": "Commit 34596c3",
+        "level": "MUST",
+        "Complete": true
+      },
+      "branchVerified": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "startingCommitNoted": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "serenaInstructions": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "memoriesLoaded": {
+        "Evidence": "Commit SHA: 34596c3",
+        "level": "MUST",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "sessionLogCreated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "notOnMain": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "skillScriptsListed": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "usageMandatoryRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "serenaActivated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "gitStatusVerified": {
+        "Evidence": "Clean after commit",
+        "level": "SHOULD",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "validationPassed": {
+        "Evidence": "N/A - analysis session",
+        "level": "MUST",
+        "Complete": true
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "Evidence": "LEGACY: Predates requirement",
+        "level": "MUST",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "handoffNotUpdated": {
+        "evidence": "Commit 34596c3",
+        "level": "MUST NOT",
+        "complete": false
+      }
+    }
+  },
+  "session": {
+    "branch": "",
+    "objective": "Quantify token efficiency trade-offs for memory architecture decision:",
+    "date": "2025-12-20",
+    "number": 50,
+    "startingCommit": "34596c3"
+  },
+  "endingCommit": "",
+  "nextSteps": [],
+  "workLog": []
+}
