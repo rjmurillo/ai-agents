@@ -578,7 +578,7 @@ jobs:
 
           💡 **Quick Access**: Click on individual agent jobs (e.g., "🔒 security Review", "🧪 qa Review") in the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) to see detailed findings and step summaries.
 
-          "@
+"@
 
           # Add findings sections
           $findingsMap = @{
@@ -630,7 +630,7 @@ jobs:
             </details>
 
             <sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) workflow</sub>
-            "@
+"@
 
             $report | Set-Content $reportFile -Encoding UTF8 -ErrorAction Stop
 
