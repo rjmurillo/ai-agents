@@ -1,20 +1,37 @@
 name: Claude Code Assistant
 
 on:
+  # Comment-based triggers - respond to @claude mentions
   issue_comment:
     types: [created]
   pull_request_review_comment:
     types: [created]
-  issues:
-    types: [opened, assigned, labeled]
   pull_request_review:
     types: [submitted]
 
+  # Issue triggers - respond to new issues or assignments
+  issues:
+    types: [opened, assigned, labeled]
+
+  # PR triggers - enable autonomous work on PRs directly
+  # This allows Claude to respond to new PRs without waiting for comments
+  # Includes 'labeled' to support label_trigger activation
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, labeled]
+
+  # Manual trigger for on-demand Claude invocation
+  workflow_dispatch:
+
+# Permissions for autonomous operation
+# See: https://github.com/anthropics/claude-code-action
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  id-token: write  # Required for OIDC authentication to get GitHub App token
+  contents: write       # Read/write repository files, create commits and branches
+  issues: write         # Read/write issues, add comments and labels
+  pull-requests: write  # Read/write PRs, create reviews, merge
+  id-token: write       # Required for OIDC authentication to get GitHub App token
+  actions: write        # Approve and trigger workflow runs autonomously
+  checks: write         # Create and update check runs for CI feedback
+  statuses: write       # Update commit statuses for build/test results
 
 jobs:
   # ADR-006 Compliance: Authorization logic moved to PowerShell script for testability
@@ -37,11 +54,16 @@ jobs:
           # See: https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
           EVENT_NAME: ${{ github.event_name }}
           ACTOR: ${{ github.actor }}
-          AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association || github.event.review.author_association || github.event.issue.author_association }}
+          # Author association from various event types
+          # For workflow_dispatch: actor must have write access to trigger, so we default to MEMBER
+          # For pull_request: use PR author association
+          AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association || github.event.review.author_association || github.event.issue.author_association || github.event.pull_request.author_association || (github.event_name == 'workflow_dispatch' && 'MEMBER') || '' }}
           COMMENT_BODY: ${{ github.event.comment.body }}
           REVIEW_BODY: ${{ github.event.review.body }}
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           $authorized = & ./tests/workflows/Test-ClaudeAuthorization.ps1 `
             -EventName $env:EVENT_NAME `
@@ -50,7 +72,9 @@ jobs:
             -CommentBody $env:COMMENT_BODY `
             -ReviewBody $env:REVIEW_BODY `
             -IssueBody $env:ISSUE_BODY `
-            -IssueTitle $env:ISSUE_TITLE
+            -IssueTitle $env:ISSUE_TITLE `
+            -PRBody $env:PR_BODY `
+            -PRTitle $env:PR_TITLE
 
           if ($LASTEXITCODE -ne 0) {
             Write-Error "Authorization check script failed with exit code $LASTEXITCODE."
@@ -82,14 +106,24 @@ jobs:
         with:
           fetch-depth: 1
 
-      # Pin to v1.0.27 - https://github.com/anthropics/claude-code-action/releases/tag/v1.0.27
-      - uses: anthropics/claude-code-action@7145c3e0510bcdbdd29f67cc4a8c1958f1acfa2f
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ github.token }}
+          enable-pester: true
+          enable-git-hooks: true
+          skip-autofix: 0
+
+      # Pin to v1.0.28 - https://github.com/anthropics/claude-code-action/releases/tag/v1.0.28
+      # Fixes orphaned installer processes causing race conditions (Issue #804)
+      - uses: anthropics/claude-code-action@c9ec2b02b40ac0444c6716e51d5e19ef2e0b8d00
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
           # Trigger configuration
           trigger_phrase: "@claude"
           assignee_trigger: "@me"
+          label_trigger: "claude"
 
           # Allow specific trusted bot users to trigger the action
           # Dependency management bots
@@ -101,6 +135,8 @@ jobs:
           base_branch: "main"
           branch_prefix: "claude/"
 
-          # This is an optional setting that allows Claude to read CI results on PRs
-          additional_permissions: |
-            actions: read
+          # Enable progress tracking for visibility
+          track_progress: true
+
+          # Enable commit signing for security
+          use_commit_signing: true

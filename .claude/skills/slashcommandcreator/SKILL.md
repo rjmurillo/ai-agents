@@ -1,5 +1,9 @@
 ---
+name: slashcommandcreator
 description: Autonomous meta-skill for creating high-quality custom slash commands using 5-phase workflow with multi-agent validation and quality gates. Use when user requests new slash command, reusable prompt automation, or wants to convert repetitive workflows into documented commands.
+version: 1.0.0
+license: MIT
+model: claude-opus-4-5
 trigger: SlashCommandCreator
 ---
 
@@ -8,6 +12,12 @@ trigger: SlashCommandCreator
 ## Purpose
 
 Create production-ready custom slash commands following ai-agents quality standards.
+
+## Triggers
+
+- `create slash command for [purpose]`
+- `SlashCommandCreator: [description]`
+- `design slash command that [does something]`
 
 ## When to Use
 
@@ -45,7 +55,7 @@ Create production-ready custom slash commands following ai-agents quality standa
 3. Frontmatter schema:
    - `description` (trigger-based per creator-001)
    - `argument-hint` (if using arguments)
-   - `allowed-tools` (if using bash `!` or file `@`)
+   - `allowed-tools` (if using bash commands with `!` or file references with `@`)
    - `model` (opus for complex reasoning)
    - `disable-model-invocation` (if pure prompt template)
 4. Dynamic context evaluation:
@@ -160,7 +170,7 @@ create slash command that summarizes recent PR comments
 - Complex PowerShell logic
 - Requires Pester tests
 
-## Quality Gates Checklist
+## Verification/Success Criteria
 
 Before marking complete:
 
@@ -174,6 +184,24 @@ Before marking complete:
 - [ ] Passes `Validate-SlashCommand.ps1` validation
 - [ ] Tested with sample arguments
 - [ ] Committed with conventional commit message
+
+**Success Criteria:**
+
+| Metric | Target |
+|--------|--------|
+| Validation | Exit code 0 from Validate-SlashCommand.ps1 |
+| Testing | Command runs without errors with sample arguments |
+| Documentation | Description clearly explains when to use command |
+| Security | All bash/file refs have explicit allowed-tools entries |
+
+## Quality Gates Checklist
+
+All checks from Verification section plus:
+
+- [ ] Multi-agent approval (security, architect, independent-thinker, critic)
+- [ ] No duplication with existing commands
+- [ ] Appropriate scope (not too broad/narrow)
+- [ ] Frontmatter completeness validated
 
 ## References
 

@@ -1,14 +1,20 @@
-# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# yaml-language-server: $schema=<https://json.schemastore.org/github-workflow.json>
 
 name: Label PR
 
 # Automatically applies labels to PRs based on file paths and branch names
+
 # Uses static configuration from .github/labeler.yml instead of AI analysis
+
 #
-# SECURITY NOTE: This workflow uses pull_request_target intentionally.
+
+# SECURITY NOTE: This workflow uses pull_request_target intentionally
+
 # The actions/labeler action only reads file paths from the PR diff metadata
-# and does not execute any code from the PR branch, making this safe for fork PRs.
-# See: https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
+
+# and does not execute any code from the PR branch, making this safe for fork PRs
+
+# See: <https://securitylab.github.com/research/github-actions-preventing-pwn-requests/>
 
 on:
   pull_request_target:
@@ -17,6 +23,18 @@ on:
 permissions:
   contents: read
   pull-requests: write
+
+# Concurrency control: Attempts to cancel in-progress runs when new runs start
+
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+
+# where multiple runs start before cancellation takes effect. This is best-effort
+
+# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+# for architectural decision on workflow-level concurrency control
+
+# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
 
 concurrency:
   group: pr-labeler-${{ github.event.pull_request.number }}
