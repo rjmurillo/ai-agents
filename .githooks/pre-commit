@@ -171,8 +171,12 @@ if [ -n "$STAGED_MD_FILES" ]; then
         echo_warning "Or install Node.js and npm to enable npx fallback."
     else
         # CRITICAL-001: Build array safely to prevent command injection
-        # Use mapfile to read newline-separated file list into array
-        mapfile -t MD_FILES <<< "$STAGED_MD_FILES"
+        # Bash 3 compatibility (macOS default): avoid mapfile/readarray
+        MD_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            MD_FILES+=("$file")
+        done <<< "$STAGED_MD_FILES"
 
         # Validate array is not empty
         if [ ${#MD_FILES[@]} -eq 0 ]; then
@@ -259,8 +263,12 @@ if [ -n "$STAGED_PS_FILES" ]; then
     
     if command -v pwsh &> /dev/null; then
         # CRITICAL-001: Build array safely to prevent command injection
-        # Use mapfile to read newline-separated file list into array
-        mapfile -t PS_FILES <<< "$STAGED_PS_FILES"
+        # Bash 3 compatibility (macOS default): avoid mapfile/readarray
+        PS_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            PS_FILES+=("$file")
+        done <<< "$STAGED_PS_FILES"
         
         # Validate array is not empty
         if [ ${#PS_FILES[@]} -eq 0 ]; then
@@ -650,9 +658,12 @@ STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|scr
 if [ -n "$STAGED_WORKFLOW_FILES" ]; then
     echo_info "Checking for bash usage in workflow files (ADR-005)..."
 
-    # SECURITY: Use mapfile to safely convert newline-separated file list to array
-    # This prevents command injection via malicious filenames containing shell metacharacters
-    mapfile -t WORKFLOW_FILES_ARRAY <<< "$STAGED_WORKFLOW_FILES"
+    # SECURITY: Convert newline-separated file list to array (bash 3 compatible)
+    WORKFLOW_FILES_ARRAY=()
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        WORKFLOW_FILES_ARRAY+=("$file")
+    done <<< "$STAGED_WORKFLOW_FILES"
 
     # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
     # Use -- separator to prevent filenames starting with - from being interpreted as options
@@ -680,9 +691,12 @@ fi
 STAGED_GITHUB_SCRIPT_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/scripts/' || true)
 
 if [ -n "$STAGED_GITHUB_SCRIPT_FILES" ]; then
-    # SECURITY: Use mapfile to safely convert newline-separated file list to array
-    # This prevents command injection via malicious filenames containing shell metacharacters
-    mapfile -t GITHUB_SCRIPT_FILES_ARRAY <<< "$STAGED_GITHUB_SCRIPT_FILES"
+    # SECURITY: Convert newline-separated file list to array (bash 3 compatible)
+    GITHUB_SCRIPT_FILES_ARRAY=()
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        GITHUB_SCRIPT_FILES_ARRAY+=("$file")
+    done <<< "$STAGED_GITHUB_SCRIPT_FILES"
 
     # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
     # Use -- separator to prevent filenames starting with - from being interpreted as options
@@ -937,10 +951,9 @@ else
                 [ -d "$REPO_ROOT/build/tests" ] && TESTPATHS+=("$REPO_ROOT/build/tests")
             fi
 
-            # Deduplicate paths while preserving order
+            # Deduplicate paths while preserving order (bash 3 compatible)
             if [ ${#TESTPATHS[@]} -gt 0 ]; then
-                declare -A seen
-                declare -a UNIQUE_TESTPATHS
+                UNIQUE_TESTPATHS=()
                 for p in "${TESTPATHS[@]}"; do
                     # Normalize to absolute paths relative to repo root
                     if [ -d "$p" ] || [ -f "$p" ]; then
@@ -948,8 +961,16 @@ else
                     else
                         key="$REPO_ROOT/$p"
                     fi
-                    if [ -z "${seen[$key]:-}" ]; then
-                        seen[$key]=1
+
+                    already=0
+                    for existing in "${UNIQUE_TESTPATHS[@]}"; do
+                        if [ "$existing" = "$key" ]; then
+                            already=1
+                            break
+                        fi
+                    done
+
+                    if [ $already -eq 0 ]; then
                         UNIQUE_TESTPATHS+=("$key")
                     fi
                 done
