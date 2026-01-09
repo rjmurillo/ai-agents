@@ -52,10 +52,10 @@ gh api repos/{owner}/{repo}/pulls/comments/{id}
 
 | Phrase | Action |
 |--------|--------|
-| Any `github.com` URL in user input | Parse URL type and route |
-| `check this PR` + GitHub URL | Route to Get-PRContext.ps1 |
-| `what's in this issue` + GitHub URL | Route to Get-IssueContext.ps1 |
-| `show me this file` + GitHub URL | Route to gh api contents |
+| Any `github.com` URL in user input (even bare URL pasted alone) | Parse URL type and route to API |
+| `analyze` / `research` / `scan` + GitHub URL | Route based on URL type |
+| URL + question (e.g., "...#r123 what's the tracking issue?") | Extract fragment, call specific API |
+| Multiple GitHub URLs in one prompt | Process each URL, batch API calls |
 
 ---
 
@@ -64,15 +64,19 @@ gh api repos/{owner}/{repo}/pulls/comments/{id}
 | Pattern | Example | Why Intercept |
 |---------|---------|---------------|
 | `github.com/.../pull/` | `https://github.com/owner/repo/pull/123` | PR HTML is 5-10MB |
+| `github.com/.../pull/.../checks` | `https://github.com/owner/repo/pull/123/checks?check_run_id=...` | CI checks page bloat |
+| `github.com/.../pull/.../files` or `/changes` | `https://github.com/owner/repo/pull/123/files#r123456` | Diff view with comment fragment |
 | `github.com/.../issues/` | `https://github.com/owner/repo/issues/456` | Issue HTML is 2-5MB |
+| `github.com/.../actions/runs/` | `https://github.com/owner/repo/actions/runs/123/job/456` | Workflow run page bloat |
 | `github.com/.../blob/` | `https://github.com/owner/repo/blob/main/file.py` | File page has nav bloat |
 | `github.com/.../tree/` | `https://github.com/owner/repo/tree/main/src` | Directory listing bloat |
 | `github.com/.../commit/` | `https://github.com/owner/repo/commit/abc123` | Commit page overhead |
 | `github.com/.../compare/` | `https://github.com/owner/repo/compare/main...feat` | Diff page overhead |
 | `github.com/.../discussions/` | `https://github.com/owner/repo/discussions/789` | Discussion page bloat |
-| Fragment `#discussion_r{id}` | Review comment ID | Extract ID, call API directly |
+| Fragment `#discussion_r{id}` | Review comment ID in `/changes` or `/files` URL | Extract ID, call API directly |
 | Fragment `#issuecomment-{id}` | Issue comment ID | Extract ID, call API directly |
 | Fragment `#pullrequestreview-{id}` | Review ID | Extract ID, call API directly |
+| Fragment `#r{id}` (short form) | Review comment in `/changes#r123` | Same as `#discussion_r{id}` |
 
 ---
 
@@ -156,8 +160,12 @@ Use only when no script exists for the operation:
 |-------------|----------|
 | `/pull/{n}#pullrequestreview-{id}` | `gh api repos/{o}/{r}/pulls/{n}/reviews/{id}` |
 | `/pull/{n}#discussion_r{id}` | `gh api repos/{o}/{r}/pulls/comments/{id}` |
+| `/pull/{n}/files#r{id}` or `/changes#r{id}` | `gh api repos/{o}/{r}/pulls/comments/{id}` |
 | `/pull/{n}#issuecomment-{id}` | `gh api repos/{o}/{r}/issues/comments/{id}` |
+| `/pull/{n}/checks` | `gh api repos/{o}/{r}/check-runs?head_sha=...` or use `Get-PRChecks.ps1` |
 | `/issues/{n}#issuecomment-{id}` | `gh api repos/{o}/{r}/issues/comments/{id}` |
+| `/actions/runs/{run_id}` | `gh api repos/{o}/{r}/actions/runs/{run_id}` |
+| `/actions/runs/{run_id}/job/{job_id}` | `gh api repos/{o}/{r}/actions/jobs/{job_id}` |
 | `/blob/{ref}/{path}` | `gh api repos/{o}/{r}/contents/{path}?ref={ref}` |
 | `/tree/{ref}/{path}` | `gh api repos/{o}/{r}/contents/{path}?ref={ref}` |
 | `/commit/{sha}` | `gh api repos/{o}/{r}/commits/{sha}` |
@@ -211,6 +219,58 @@ https://github.com/{owner}/{repo}/compare/{base}...{head}
 
 ## Examples
 
+### Bare URL Pasted (Most Common!)
+
+```text
+Input: "https://github.com/rjmurillo/ai-agents/pull/735/checks?check_run_id=59355308734"
+
+Action:
+  1. Parse: owner=rjmurillo, repo=ai-agents, pr=735, type=checks
+  2. Route: pwsh .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest 735 -Owner rjmurillo -Repo ai-agents
+```
+
+### URL with Question After It
+
+```text
+Input: "https://github.com/owner/repo/pull/715/changes#r2656144507 are the graph refactoring items part of Issue 722?"
+
+Action:
+  1. Extract fragment: r2656144507 (review comment ID)
+  2. Call: gh api repos/owner/repo/pulls/comments/2656144507
+  3. Answer user's question using the comment content
+```
+
+### Multiple URLs in One Prompt
+
+```text
+Input: "https://github.com/owner/repo/pull/715#discussion_r123 https://github.com/owner/repo/pull/715#discussion_r456"
+
+Action:
+  1. Parse each URL
+  2. Batch: gh api repos/owner/repo/pulls/comments/123
+  3. Batch: gh api repos/owner/repo/pulls/comments/456
+```
+
+### Research/Analyze Pattern
+
+```text
+Input: "analyze https://github.com/modu-ai/moai-adk for insights"
+
+Action:
+  1. Use deepwiki MCP or gh api to get repo info
+  2. Call: gh api repos/modu-ai/moai-adk (NOT web_fetch!)
+```
+
+### CI/Actions Run URL
+
+```text
+Input: "https://github.com/owner/repo/actions/runs/20675405338/job/59362398542?pr=740"
+
+Action:
+  1. Extract: run_id=20675405338, job_id=59362398542
+  2. Call: gh api repos/owner/repo/actions/jobs/59362398542
+```
+
 ### PR URL → Script
 
 ```text
@@ -220,31 +280,13 @@ Action:
   pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 123 -Owner owner -Repo repo
 ```
 
-### Issue URL → Script
-
-```text
-Input: "What's the status of https://github.com/owner/repo/issues/456"
-
-Action:
-  pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue 456 -Owner owner -Repo repo
-```
-
-### PR with Comment Fragment → API
-
-```text
-Input: "Respond to https://github.com/owner/repo/pull/123#discussion_r987654321"
-
-Action:
-  gh api repos/owner/repo/pulls/comments/987654321
-```
-
 ### File URL → API
 
 ```text
-Input: "Show me https://github.com/owner/repo/blob/main/src/app.py"
+Input: "would a hook like https://github.com/ruvnet/claude-flow/blob/main/.claude/settings.json help?"
 
 Action:
-  gh api repos/owner/repo/contents/src/app.py?ref=main
+  gh api repos/ruvnet/claude-flow/contents/.claude/settings.json?ref=main
 ```
 
 ---
