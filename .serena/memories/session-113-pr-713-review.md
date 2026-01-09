@@ -57,4 +57,4 @@ $ErrorActionPreference = 'Stop'
 
 - ADR-034: Investigation Session QA Exemption
 - SESSION-PROTOCOL.md Phase 2.5: QA Validation
-- Validate-Session.ps1: Source of truth for allowlist patterns
+- Validate-SessionJson.ps1: Source of truth for allowlist patterns

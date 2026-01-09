@@ -1,0 +1,53 @@
+{
+  "session": {
+    "number": 385,
+    "date": "2026-01-09",
+    "branch": "feat/session-init-skill",
+    "startingCommit": "abc1234",
+    "objective": "Migrate session logs from markdown to JSON format"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "complete": true, "evidence": "Project activated" },
+      "serenaInstructions": { "level": "MUST", "complete": true, "evidence": "Instructions loaded" },
+      "handoffRead": { "level": "MUST", "complete": true, "evidence": "Content in context" },
+      "sessionLogCreated": { "level": "MUST", "complete": true, "evidence": "This file" },
+      "skillScriptsListed": { "level": "MUST", "complete": true, "evidence": "Scripts present" },
+      "usageMandatoryRead": { "level": "MUST", "complete": true, "evidence": "Memory loaded" },
+      "constraintsRead": { "level": "MUST", "complete": true, "evidence": "Constraints in context" },
+      "memoriesLoaded": { "level": "MUST", "complete": true, "evidence": "Loaded relevant memories" },
+      "branchVerified": { "level": "MUST", "complete": true, "evidence": "feat/session-init-skill" },
+      "notOnMain": { "level": "MUST", "complete": true, "evidence": "On feature branch" },
+      "gitStatusVerified": { "level": "SHOULD", "complete": true, "evidence": "Clean" },
+      "startingCommitNoted": { "level": "SHOULD", "complete": true, "evidence": "abc1234" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "complete": true, "evidence": "All items checked" },
+      "handoffNotUpdated": { "level": "MUST NOT", "complete": false, "evidence": "HANDOFF.md unchanged" },
+      "serenaMemoryUpdated": { "level": "MUST", "complete": true, "evidence": "Memory written" },
+      "markdownLintRun": { "level": "MUST", "complete": true, "evidence": "0 errors" },
+      "changesCommitted": { "level": "MUST", "complete": true, "evidence": "def5678" },
+      "validationPassed": { "level": "MUST", "complete": true, "evidence": "Exit code 0" },
+      "tasksUpdated": { "level": "SHOULD", "complete": false, "evidence": "" },
+      "retrospectiveInvoked": { "level": "SHOULD", "complete": false, "evidence": "" }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Created JSON schema for session logs",
+      "result": "Schema at .agents/schemas/session-log.schema.json",
+      "files": [".agents/schemas/session-log.schema.json"]
+    },
+    {
+      "action": "Created JSON validator script",
+      "result": "Validator at scripts/Validate-SessionJson.ps1",
+      "files": ["scripts/Validate-SessionJson.ps1"]
+    }
+  ],
+  "endingCommit": "def5678",
+  "nextSteps": [
+    "Update session-init skill to generate JSON",
+    "Update CI to use JSON validator",
+    "Migrate or deprecate markdown session logs"
+  ]
+}
