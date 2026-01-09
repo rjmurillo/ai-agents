@@ -751,4 +751,55 @@ Describe 'Script Execution (End-to-End)' {
             $LASTEXITCODE | Should -Be 0
         }
     }
+
+    Context 'Security - Command Injection Prevention (CWE-78)' {
+        It 'Rejects owner with shell metacharacters' {
+            $output = pwsh -NoProfile -File $ScriptPath -Url 'https://github.com/owner";echo%20pwned/repo/pull/1' 2>&1
+            $result = $output | Where-Object { $_ -notmatch 'WARNING' } | ConvertFrom-Json
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -Be 'Invalid GitHub URL format'
+        }
+
+        It 'Rejects repo with backtick injection' {
+            $output = pwsh -NoProfile -File $ScriptPath -Url 'https://github.com/owner/repo`$(whoami)/pull/1' 2>&1
+            $result = $output | Where-Object { $_ -notmatch 'WARNING' } | ConvertFrom-Json
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -Be 'Invalid GitHub URL format'
+        }
+
+        It 'Rejects path with path traversal attack' {
+            $output = pwsh -NoProfile -File $ScriptPath -Url 'https://github.com/owner/repo/blob/main/../../../etc/passwd' 2>&1
+            $result = $output | Where-Object { $_ -notmatch 'WARNING' } | ConvertFrom-Json
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -Be 'Invalid GitHub URL format'
+        }
+
+        It 'Rejects ref with semicolon injection' {
+            $output = pwsh -NoProfile -File $ScriptPath -Url 'https://github.com/owner/repo/blob/main;rm%20-rf/file.txt' 2>&1
+            $result = $output | Where-Object { $_ -notmatch 'WARNING' } | ConvertFrom-Json
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -Be 'Invalid GitHub URL format'
+        }
+
+        It 'Allows valid compare URL with triple dots' {
+            $output = pwsh -NoProfile -File $ScriptPath -Url 'https://github.com/owner/repo/compare/main...feature'
+            $result = $output | ConvertFrom-Json
+
+            $result.Success | Should -BeTrue
+            $result.ParsedUrl.UrlType | Should -Be 'Compare'
+            $result.ParsedUrl.ResourceId | Should -Be 'main...feature'
+        }
+
+        It 'Rejects compare URL with path traversal embedded' {
+            $output = pwsh -NoProfile -File $ScriptPath -Url 'https://github.com/owner/repo/compare/main..%2F..%2Fetc' 2>&1
+            $result = $output | Where-Object { $_ -notmatch 'WARNING' } | ConvertFrom-Json
+
+            $result.Success | Should -BeFalse
+            $result.Error | Should -Be 'Invalid GitHub URL format'
+        }
+    }
 }

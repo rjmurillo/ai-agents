@@ -69,6 +69,80 @@ $ScriptRoutes = @{
     }
 }
 
+# Input validation patterns (CWE-78 mitigation)
+# GitHub naming rules: https://docs.github.com/en/get-started/learning-about-github/types-of-github-accounts
+$SafeOwnerRepoPattern = '^[a-zA-Z0-9][-a-zA-Z0-9_.]*$'
+$SafeRefPattern = '^[a-zA-Z0-9][-a-zA-Z0-9_./]*$'
+$SafePathPattern = '^[a-zA-Z0-9][-a-zA-Z0-9_./%+@]*$'
+$DangerousChars = @('"', "'", '`', '$', ';', '&', '|', '>', '<', '(', ')', '{', '}', '[', ']', '!', '\')
+
+function Test-SafeInput {
+    <#
+    .SYNOPSIS
+        Validate input against command injection attacks.
+
+    .DESCRIPTION
+        Checks that input matches safe patterns and contains no dangerous
+        shell metacharacters. Returns $true if safe, $false if dangerous.
+
+    .PARAMETER Value
+        The string value to validate.
+
+    .PARAMETER Pattern
+        Regex pattern the value must match.
+
+    .PARAMETER AllowEmpty
+        If $true, empty/null values are considered safe.
+
+    .PARAMETER AllowTripleDot
+        If $true, allows '...' (used in compare syntax like main...feature).
+
+    .OUTPUTS
+        Boolean indicating if the input is safe.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string]$Value,
+
+        [Parameter(Mandatory)]
+        [string]$Pattern,
+
+        [switch]$AllowEmpty,
+
+        [switch]$AllowTripleDot
+    )
+
+    if ([string]::IsNullOrEmpty($Value)) {
+        return $AllowEmpty.IsPresent
+    }
+
+    # Check for dangerous characters
+    foreach ($char in $DangerousChars) {
+        if ($Value.Contains($char)) {
+            return $false
+        }
+    }
+
+    # Check for path traversal (../ or ..\)
+    # Allow ... for compare syntax if AllowTripleDot is set
+    if ($AllowTripleDot.IsPresent) {
+        # Temporarily replace ... with placeholder, check for .., then restore
+        $testValue = $Value -replace '\.\.\.', '__TRIPLE_DOT__'
+        if ($testValue -match '\.\.') {
+            return $false
+        }
+    } else {
+        if ($Value -match '\.\.') {
+            return $false
+        }
+    }
+
+    # Check pattern match
+    return $Value -match $Pattern
+}
+
 function ConvertFrom-GitHubUrl {
     <#
     .SYNOPSIS
@@ -98,6 +172,16 @@ function ConvertFrom-GitHubUrl {
     $owner = $Matches[1]
     $repo = $Matches[2]
     $rest = $Matches[3]
+
+    # Validate owner and repo against command injection (CWE-78)
+    if (-not (Test-SafeInput -Value $owner -Pattern $SafeOwnerRepoPattern)) {
+        Write-Warning "Invalid owner name: contains dangerous characters"
+        return $null
+    }
+    if (-not (Test-SafeInput -Value $repo -Pattern $SafeOwnerRepoPattern)) {
+        Write-Warning "Invalid repo name: contains dangerous characters"
+        return $null
+    }
 
     # Check for fragments
     $fragmentType = $null
@@ -137,11 +221,29 @@ function ConvertFrom-GitHubUrl {
         $urlType = [UrlType]::Blob
         $ref = $Matches[1]
         $path = $Matches[2]
+        # Validate ref and path against command injection (CWE-78)
+        if (-not (Test-SafeInput -Value $ref -Pattern $SafeRefPattern)) {
+            Write-Warning "Invalid ref: contains dangerous characters"
+            return $null
+        }
+        if (-not (Test-SafeInput -Value $path -Pattern $SafePathPattern)) {
+            Write-Warning "Invalid path: contains dangerous characters"
+            return $null
+        }
     }
     elseif ($rest -match '^tree/([^/]+)/(.*)$') {
         $urlType = [UrlType]::Tree
         $ref = $Matches[1]
         $path = $Matches[2]
+        # Validate ref and path against command injection (CWE-78)
+        if (-not (Test-SafeInput -Value $ref -Pattern $SafeRefPattern)) {
+            Write-Warning "Invalid ref: contains dangerous characters"
+            return $null
+        }
+        if ($path -and -not (Test-SafeInput -Value $path -Pattern $SafePathPattern -AllowEmpty)) {
+            Write-Warning "Invalid path: contains dangerous characters"
+            return $null
+        }
     }
     elseif ($rest -match '^commit/([a-f0-9]+)') {
         $urlType = [UrlType]::Commit
@@ -150,6 +252,12 @@ function ConvertFrom-GitHubUrl {
     elseif ($rest -match '^compare/(.+)$') {
         $urlType = [UrlType]::Compare
         $resourceId = $Matches[1]
+        # Validate compare range against command injection (CWE-78)
+        # Compare format: base...head or base..head (allow triple dots)
+        if (-not (Test-SafeInput -Value $resourceId -Pattern $SafeRefPattern -AllowTripleDot)) {
+            Write-Warning "Invalid compare range: contains dangerous characters"
+            return $null
+        }
     }
 
     return [PSCustomObject]@{
