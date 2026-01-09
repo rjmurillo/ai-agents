@@ -46,14 +46,24 @@ function Get-CommandFromInput {
 function Test-IsSafeTestCommand {
     param([string]$Command)
 
+    # Security check: Block compound commands with shell metacharacters
+    # Prevents command injection like: npm test; rm -rf /
+    $dangerousMetachars = @(';', '|', '&', '<', '>', '$', '`', "`n", "`r")
+    foreach ($char in $dangerousMetachars) {
+        if ($Command.Contains($char)) {
+            Write-Warning "Test auto-approval: Rejected command containing dangerous metacharacter '$char': $Command"
+            return $false
+        }
+    }
+
     $safeTestPatterns = @(
-        '^pwsh.*Invoke-Pester',
+        '^pwsh\s+.*Invoke-Pester',
         '^npm\s+test',
         '^npm\s+run\s+test',
         '^pnpm\s+test',
         '^yarn\s+test',
         '^pytest(\s|$)',
-        '^python.*pytest',
+        '^python\s+.*pytest',
         '^dotnet\s+test',
         '^mvn\s+test',
         '^gradle\s+test',
