@@ -53,12 +53,11 @@ function New-PopulatedSessionLog {
     .NOTES
         Throws:
         - InvalidOperationException: Template missing required placeholders when
-          SkipValidation is specified (dangerous combination that would create
-          invalid session logs without any safety net)
+          SkipValidation is NOT specified (fail-safe default)
         - ApplicationFailedException: Unexpected errors during processing
 
         The SkipValidation switch controls whether missing placeholders trigger
-        an exception (when true) or just a warning (when false/default). This
+        an exception (when false/default) or just a warning (when true). This
         enforces the skip-validation safeguard documented in SESSION-PROTOCOL.md.
 
         Placeholder Patterns:
@@ -112,13 +111,19 @@ function New-PopulatedSessionLog {
         }
         
         if ($missingPlaceholders.Count -gt 0) {
-            # Missing placeholders indicate version mismatch with SESSION-PROTOCOL.md
-            # Fail immediately to prevent creating invalid session logs
-            throw [System.InvalidOperationException]::new(
-                "Template missing required placeholders: $($missingPlaceholders -join ', ')`n`n" +
-                "This indicates a version mismatch with SESSION-PROTOCOL.md. " +
-                "Session log cannot be created. Update template or fix protocol file."
-            )
+            if ($SkipValidation) {
+                # When SkipValidation is set, warn instead of failing
+                Write-Warning ("Template missing required placeholders: $($missingPlaceholders -join ', '). " +
+                    "This indicates a version mismatch with SESSION-PROTOCOL.md. " +
+                    "Proceeding anyway due to -SkipValidation flag.")
+            } else {
+                # Default: Fail immediately to prevent creating invalid session logs
+                throw [System.InvalidOperationException]::new(
+                    "Template missing required placeholders: $($missingPlaceholders -join ', ')`n`n" +
+                    "This indicates a version mismatch with SESSION-PROTOCOL.md. " +
+                    "Session log cannot be created. Update template or fix protocol file."
+                )
+            }
         }
 
         $currentDate = Get-Date -Format "yyyy-MM-dd"
