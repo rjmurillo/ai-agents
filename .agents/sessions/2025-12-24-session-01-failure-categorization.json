@@ -1,0 +1,118 @@
+{
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {
+        "Evidence": "Added to Recent Sessions (last 5 list)",
+        "level": "MUST",
+        "Complete": true
+      },
+      "branchVerified": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "startingCommitNoted": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "serenaInstructions": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "memoriesLoaded": {
+        "Evidence": "Memory updated: `ai-quality-gate-failure-categorization`",
+        "level": "MUST",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "sessionLogCreated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "notOnMain": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "skillScriptsListed": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "usageMandatoryRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "serenaActivated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "gitStatusVerified": {
+        "Evidence": "`git status` shows clean",
+        "level": "SHOULD",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "validationPassed": {
+        "Evidence": "`.agents/qa/329-failure-categorization-qa-deferred.md`",
+        "level": "MUST",
+        "Complete": true
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "handoffNotUpdated": {
+        "evidence": "Added to Recent Sessions (last 5 list)",
+        "level": "MUST NOT",
+        "complete": false
+      }
+    }
+  },
+  "session": {
+    "branch": "docs/velocity",
+    "objective": "Implement failure categorization to distinguish INFRASTRUCTURE failures from CODE_QUALITY failures in the AI Quality Gate workflow per Issue",
+    "date": "2025-12-24",
+    "number": 1,
+    "startingCommit": ""
+  },
+  "endingCommit": "",
+  "nextSteps": [],
+  "workLog": []
+}

@@ -22,7 +22,7 @@ pwsh scripts/Measure-MemoryPerformance.ps1 \
     -Iterations 10
 
 # Markdown report for documentation
-pwsh scripts/Measure-MemoryPerformance.ps1 -Format markdown > benchmark-report.md
+pwsh scripts/Measure-MemoryPerformance.ps1  > benchmark-report.md
 
 # JSON output for programmatic analysis
 pwsh scripts/Measure-MemoryPerformance.ps1 -Format json | ConvertFrom-Json
