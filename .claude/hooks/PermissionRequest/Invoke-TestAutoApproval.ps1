@@ -12,9 +12,9 @@
 
 .NOTES
     Hook Type: PermissionRequest
-    Matcher: Bash(Invoke-Pester*|pwsh.*Invoke-Pester|npm test*|npm run test*|pnpm test*|yarn test*|pytest*|python.*pytest|dotnet test*|mvn test*|gradle test*|cargo test*|go test*)
+    Matcher: Bash(Invoke-Pester*|pwsh*Invoke-Pester*|npm test*|npm run test*|pnpm test*|yarn test*|pytest*|python*pytest*|dotnet test*|mvn test*|gradle test*|cargo test*|go test*)
     Supported Test Frameworks:
-        PowerShell: Invoke-Pester (direct and via pwsh)
+        PowerShell: pwsh with Invoke-Pester
         JavaScript: npm, pnpm, yarn
         Python: pytest (direct and via python)
         .NET: dotnet test
@@ -47,7 +47,6 @@ function Test-IsSafeTestCommand {
     param([string]$Command)
 
     $safeTestPatterns = @(
-        '^Invoke-Pester(\s|$)',
         '^pwsh.*Invoke-Pester',
         '^npm\s+test',
         '^npm\s+run\s+test',
