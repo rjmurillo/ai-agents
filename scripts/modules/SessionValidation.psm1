@@ -988,8 +988,8 @@ function Test-GitCommitEvidence {
   if ($commitSectionMatch.Success) {
     $commitCandidate = $commitSectionMatch.Groups[1].Value.Trim()
   } else {
-    # Look for 6-40 hex digits (GitHub shows abbreviated SHAs as short as 6 chars)
-    $shaMatch = [regex]::Match($Content, '[0-9a-f]{6,40}')
+    # Look for 7-40 hex digits (consistent with Test-CommitSHAFormat minimum of 7 chars)
+    $shaMatch = [regex]::Match($Content, '[0-9a-f]{7,40}')
     if ($shaMatch.Success) {
       $commitCandidate = $shaMatch.Value
     }
