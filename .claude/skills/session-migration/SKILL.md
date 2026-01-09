@@ -2,9 +2,9 @@
 name: session-migration
 description: Migrate session logs from markdown to JSON format. Use when PRs contain markdown session logs that need conversion to the new JSON schema, or when batch-migrating historical sessions.
 license: MIT
+version: 1.0.0
+model: claude-sonnet-4-5
 metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-20250514
   domains:
     - session-protocol
     - migration
@@ -162,18 +162,29 @@ scripts/Validate-SessionJson.ps1
 
 ## Output
 
-The script returns an array of migrated file paths and prints a summary:
+The script returns an array of migrated file paths (`string[]`) and prints a summary:
 
-```
+```text
 === Migration Summary ===
 Migrated: 356
 Skipped (JSON exists): 0
 Failed: 0
 ```
 
-Exit codes:
-- `0` - Success (all files migrated)
-- `1` - Failure (some files failed)
+### Exit Codes
+
+| Code | Meaning | Action |
+|------|---------|--------|
+| `0` | Success | All files migrated or skipped (expected behavior) |
+| `1` | Failure | One or more files failed migration (check error output) |
+
+### Return Value
+
+```powershell
+# Returns array of paths to migrated JSON files
+$migratedPaths = & .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/"
+$migratedPaths | ForEach-Object { Write-Host "Created: $_" }
+```
 
 ---
 
@@ -208,25 +219,37 @@ For PRs with in-flight markdown sessions:
 
 ## Checklist Mapping
 
-The migration script maps markdown checklist patterns to JSON keys:
+The migration script maps markdown checklist patterns to JSON keys.
 
-| Markdown Pattern | JSON Key |
-|------------------|----------|
-| `activate_project` | `serenaActivated` |
-| `initial_instructions` | `serenaInstructions` |
-| `HANDOFF.md` | `handoffRead` |
-| `session log` | `sessionLogCreated` |
-| `usage-mandatory` | `usageMandatoryRead` |
-| `CONSTRAINTS` | `constraintsRead` |
-| `memory` | `memoriesLoaded` |
-| `verify branch` | `branchVerified` |
-| `not main` | `notOnMain` |
-| `git status` | `gitStatusVerified` |
-| `starting commit` | `startingCommitNoted` |
-| `markdownlint` | `markdownLintRun` |
-| `Commit change` | `changesCommitted` |
-| `Validate Session` | `validationPassed` |
-| `retrospective` | `retrospectiveInvoked` |
+### Session Start Items
+
+| Regex Pattern | JSON Key | Level |
+|---------------|----------|-------|
+| `activate_project` | `serenaActivated` | MUST |
+| `initial_instructions` | `serenaInstructions` | MUST |
+| `HANDOFF\.md` | `handoffRead` | MUST |
+| `Create.*session.*log\|session.*log.*exist\|this.*file` | `sessionLogCreated` | MUST |
+| `skill.*script` | `skillScriptsListed` | MUST |
+| `usage-mandatory` | `usageMandatoryRead` | MUST |
+| `CONSTRAINTS` | `constraintsRead` | MUST |
+| `memor` | `memoriesLoaded` | MUST |
+| `verify.*branch\|branch.*verif\|declare.*branch` | `branchVerified` | MUST |
+| `not.*main\|Confirm.*main` | `notOnMain` | MUST |
+| `git.*status` | `gitStatusVerified` | SHOULD |
+| `starting.*commit\|Note.*commit` | `startingCommitNoted` | SHOULD |
+
+### Session End Items
+
+| Regex Pattern | JSON Key | Level |
+|---------------|----------|-------|
+| `Complete.*session.*log\|session.*log.*complete\|all.*section` | `checklistComplete` | MUST |
+| `HANDOFF.*read-only\|Update.*HANDOFF` | `handoffNotUpdated` | MUST NOT |
+| `Serena.*memory\|Update.*memory\|memory.*updat` | `serenaMemoryUpdated` | MUST |
+| `markdownlint\|markdown.*lint\|Run.*lint` | `markdownLintRun` | MUST |
+| `Commit.*change\|change.*commit` | `changesCommitted` | MUST |
+| `Validate.*Session\|validation.*pass\|Route.*qa` | `validationPassed` | MUST |
+| `PROJECT-PLAN\|task.*checkbox` | `tasksUpdated` | SHOULD |
+| `retrospective` | `retrospectiveInvoked` | SHOULD |
 
 ---
 
@@ -251,7 +274,21 @@ If a checklist item isn't detected, the markdown format may be non-standard. The
 
 ## Related
 
-- [session-init](../session-init/SKILL.md) - Create new sessions in JSON format
-- [session-log-fixer](../session-log-fixer/SKILL.md) - Fix validation failures
-- Schema: `.agents/schemas/session-log.schema.json`
-- Validator: `scripts/Validate-SessionJson.ps1`
+### Skills
+
+| Skill | Purpose |
+|-------|---------|
+| [session-init](../session-init/SKILL.md) | Create new sessions in JSON format |
+| [session-log-fixer](../session-log-fixer/SKILL.md) | Fix validation failures |
+
+### Schema and Validation
+
+| Resource | Location | Purpose |
+|----------|----------|---------|
+| JSON Schema | `.agents/schemas/session-log.schema.json` | Defines required structure |
+| JSON Validator | `scripts/Validate-SessionJson.ps1` | Validates migrated JSON files |
+| Legacy Validator | `scripts/Validate-Session.ps1` | Validates markdown (deprecated) |
+
+### Architecture
+
+- [ADR-014](../.agents/architecture/ADR-014-distributed-handoff-architecture.md): Distributed handoff architecture (context for migration)
