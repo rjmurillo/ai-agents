@@ -76,14 +76,20 @@ runs:
         INFRASTRUCTURE_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
         RETRY_COUNT: ${{ steps.review.outputs.retry-count }}
       run: |
-        New-Item -ItemType Directory -Path "ai-review-results" -Force | Out-Null
-        $env:VERDICT | Set-Content "ai-review-results/$($env:AGENT)-verdict.txt" -NoNewline
-        $env:FINDINGS | Set-Content "ai-review-results/$($env:AGENT)-findings.txt" -NoNewline
-        $env:INFRASTRUCTURE_FAILURE | Set-Content "ai-review-results/$($env:AGENT)-infrastructure-failure.txt" -NoNewline
-        $env:RETRY_COUNT | Set-Content "ai-review-results/$($env:AGENT)-retry-count.txt" -NoNewline
+        # CWE-22 mitigation: Validate agent name to prevent path traversal
+        if ($env:AGENT -match '[\\/.]') {
+          throw "Invalid agent name: $($env:AGENT)"
+        }
+
+        $basePath = "ai-review-results"
+        New-Item -ItemType Directory -Path $basePath -Force | Out-Null
+        $env:VERDICT | Set-Content "$basePath/$($env:AGENT)-verdict.txt" -NoNewline
+        $env:FINDINGS | Set-Content "$basePath/$($env:AGENT)-findings.txt" -NoNewline
+        $env:INFRASTRUCTURE_FAILURE | Set-Content "$basePath/$($env:AGENT)-infrastructure-failure.txt" -NoNewline
+        $env:RETRY_COUNT | Set-Content "$basePath/$($env:AGENT)-retry-count.txt" -NoNewline
         Write-Output "Saved $($env:AGENT) results:"
         Write-Output "  Verdict: $($env:VERDICT)"
-        Write-Output "  Findings: $((Get-Item "ai-review-results/$($env:AGENT)-findings.txt").Length) bytes"
+        Write-Output "  Findings: $((Get-Item "$basePath/$($env:AGENT)-findings.txt").Length) bytes"
         Write-Output "  Infrastructure failure: $($env:INFRASTRUCTURE_FAILURE)"
         Write-Output "  Retry count: $($env:RETRY_COUNT)"
 
@@ -163,6 +169,7 @@ runs:
         EMOJI: ${{ inputs.emoji }}
         VERDICT: ${{ steps.review.outputs.verdict }}
         FINDINGS: ${{ steps.review.outputs.findings }}
+        INFRASTRUCTURE_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
       run: |
         $agent = $env:AGENT
         $emoji = $env:EMOJI
@@ -174,7 +181,7 @@ runs:
         if ($verdict -in $blockingVerdicts) {
           $maxAnnotationLength = 180
           if ([string]::IsNullOrWhiteSpace($findings)) {
-            if ($null -eq $findings) {
+            if ($env:INFRASTRUCTURE_FAILURE -eq 'true') {
               $summary = "Findings data is missing (possible infrastructure failure)"
               Write-Output "::warning::[$agent] Verdict is $verdict but findings are null"
             } else {
@@ -201,8 +208,10 @@ runs:
     - name: Skip ${{ inputs.agent }} review (no relevant changes)
       if: inputs.should-run != 'true'
       shell: pwsh -NoProfile -Command "& '{0}'"
+      env:
+        AGENT: ${{ inputs.agent }}
       run: |
-        Write-Output "✅ ${{ inputs.agent }} review skipped - no relevant file changes detected"
+        Write-Output "✅ $env:AGENT review skipped - no relevant file changes detected"
         Write-Output ""
         Write-Output "This PR only contains changes to files that don't require AI review."
         Write-Output "Status: PASS (skipped)"
