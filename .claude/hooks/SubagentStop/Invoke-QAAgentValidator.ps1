@@ -12,8 +12,7 @@
 .NOTES
     Hook Type: SubagentStop
     Exit Codes:
-        0 = Success, validation result in stdout
-        Other = Warning (non-blocking)
+        0 = Always (non-blocking hook, all errors are warnings)
 
 .LINK
     .agents/SESSION-PROTOCOL.md
@@ -25,11 +24,53 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Continue'  # Non-blocking validation
 
+function Test-IsQAAgent {
+    param($HookInput)
+
+    if ($HookInput.PSObject.Properties['subagent_type']) {
+        return $HookInput.subagent_type -eq 'qa'
+    }
+    return $false
+}
+
+function Get-TranscriptPath {
+    param($HookInput)
+
+    if ($HookInput.PSObject.Properties['transcript_path']) {
+        $path = $HookInput.transcript_path
+        if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path $path)) {
+            return $path
+        }
+    }
+    return $null
+}
+
+function Get-MissingQASections {
+    param([string]$Transcript)
+
+    $missing = @()
+
+    # Use more specific patterns that match actual section headers (markdown h1-h3)
+    # to avoid false positives from keywords appearing elsewhere
+    $hasTestStrategy = ($Transcript -match '(?m)^#{1,3}\s*(Test Strategy|Testing Approach|Test Plan)\s*$')
+    $hasTestResults = ($Transcript -match '(?m)^#{1,3}\s*(Test Results|Validation Results|Test Execution)\s*$')
+    $hasCoverage = ($Transcript -match '(?m)^#{1,3}\s*(Coverage|Test Coverage|Acceptance Criteria)\s*$')
+
+    if (-not $hasTestStrategy) {
+        $missing += 'Test Strategy/Testing Approach/Test Plan (as section header)'
+    }
+    if (-not $hasTestResults) {
+        $missing += 'Test Results/Validation Results/Test Execution (as section header)'
+    }
+    if (-not $hasCoverage) {
+        $missing += 'Coverage/Test Coverage/Acceptance Criteria (as section header)'
+    }
+
+    return $missing
+}
+
 try {
-    # Parse hook input from stdin (JSON)
-    $hookInput = $null
     if (-not [Console]::IsInputRedirected) {
-        # No input, allow stop
         exit 0
     }
 
@@ -40,66 +81,53 @@ try {
 
     $hookInput = $inputJson | ConvertFrom-Json -ErrorAction Stop
 
-    # Check if this is a qa agent (subagent_type)
-    $isQAAgent = $false
-    if ($hookInput.PSObject.Properties['subagent_type']) {
-        $subagentType = $hookInput.subagent_type
-        if ($subagentType -eq 'qa') {
-            $isQAAgent = $true
+    if (-not (Test-IsQAAgent -HookInput $hookInput)) {
+        exit 0
+    }
+
+    $transcriptPath = Get-TranscriptPath -HookInput $hookInput
+    if ($null -eq $transcriptPath) {
+        # Issue #15: Log why transcript path is null for troubleshooting
+        if (-not ($hookInput.PSObject.Properties['transcript_path'])) {
+            Write-Warning "QA validator: No transcript_path property in hook input. Agent may not have provided transcript. Validation skipped."
         }
-    }
-
-    if (-not $isQAAgent) {
-        # Not a QA agent, allow stop
+        elseif ([string]::IsNullOrWhiteSpace($hookInput.transcript_path)) {
+            Write-Warning "QA validator: transcript_path property exists but is empty/whitespace. Validation skipped."
+        }
+        else {
+            Write-Warning "QA validator: Transcript file does not exist at '$($hookInput.transcript_path)'. Agent may have failed or transcript not written. Validation skipped."
+        }
         exit 0
     }
 
-    # Get transcript path to analyze QA output
-    $transcriptPath = $null
-    if ($hookInput.PSObject.Properties['transcript_path']) {
-        $transcriptPath = $hookInput.transcript_path
-    }
-
-    if ([string]::IsNullOrWhiteSpace($transcriptPath) -or -not (Test-Path $transcriptPath)) {
-        # No transcript available, allow stop
-        exit 0
-    }
-
-    # Read transcript and check for QA report indicators
     $transcript = Get-Content $transcriptPath -Raw -ErrorAction Stop
+    $missingSections = Get-MissingQASections -Transcript $transcript
 
-    # Check for required QA report sections
-    $hasTestStrategy = $transcript -match 'Test Strategy|Testing Approach|Test Plan'
-    $hasTestResults = $transcript -match 'Test Results|Validation Results|Test Execution'
-    $hasCoverage = $transcript -match 'Coverage|Test Coverage|Acceptance Criteria'
-
-    if (-not ($hasTestStrategy -and $hasTestResults -and $hasCoverage)) {
-        # QA report incomplete - provide specific feedback
-        $missingSections = @()
-        if (-not $hasTestStrategy) { $missingSections += 'Test Strategy/Testing Approach/Test Plan' }
-        if (-not $hasTestResults) { $missingSections += 'Test Results/Validation Results/Test Execution' }
-        if (-not $hasCoverage) { $missingSections += 'Coverage/Test Coverage/Acceptance Criteria' }
-
+    if ($missingSections.Count -gt 0) {
         $missingList = $missingSections -join ', '
         Write-Output "`n**QA VALIDATION FAILURE**: QA agent report is incomplete and does NOT meet SESSION-PROTOCOL requirements.`n`nMissing required sections: $missingList`n`nACTION REQUIRED: Re-run QA agent with complete report including all required sections per .agents/SESSION-PROTOCOL.md`n"
         Write-Warning "QA validation failed: Missing sections - $missingList"
     }
     else {
-        # All required sections present
         Write-Output "`n**QA Validation PASSED**: All required sections present in QA report.`n"
     }
 
-    # Allow stop (SubagentStop hooks are non-blocking by design)
+    # Issue #13: Add JSON output for machine-readable validation results
+    $validationResult = @{
+        validation_passed = ($missingSections.Count -eq 0)
+        missing_sections = $missingSections
+        transcript_path = $transcriptPath
+    }
+    Write-Output ($validationResult | ConvertTo-Json -Compress)
+
     exit 0
 }
 catch [System.IO.IOException], [System.UnauthorizedAccessException] {
-    # File system errors - allow stop but provide clear feedback
     Write-Error "QA validator file error: Cannot read transcript at $transcriptPath - $($_.Exception.Message)"
     Write-Output "`n**QA Validation ERROR**: Cannot access QA agent transcript file. Validation skipped.`n"
     exit 0
 }
 catch {
-    # Unexpected errors - allow stop but log details
     Write-Error "QA validator unexpected error: $($_.Exception.GetType().FullName) - $($_.Exception.Message)"
     Write-Output "`n**QA Validation ERROR**: Unexpected error during validation. MUST investigate: $($_.Exception.Message)`n"
     exit 0

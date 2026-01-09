@@ -22,8 +22,7 @@
         Rust: cargo test
         Go: go test
     Exit Codes:
-        0 = Success, decision in stdout JSON
-        Other = Warning (defaults to normal permission flow)
+        0 = Always (non-blocking hook, all errors are warnings)
 
 .LINK
     .agents/analysis/claude-code-hooks-opportunity-analysis.md
@@ -34,35 +33,19 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Continue'  # Non-blocking
 
-try {
-    # Parse hook input from stdin (JSON)
-    $hookInput = $null
-    if (-not [Console]::IsInputRedirected) {
-        # No input, use normal permission flow
-        exit 0
+function Get-CommandFromInput {
+    param($HookInput)
+
+    if ($HookInput.PSObject.Properties['tool_input'] -and
+        $HookInput.tool_input.PSObject.Properties['command']) {
+        return $HookInput.tool_input.command
     }
+    return $null
+}
 
-    $inputJson = [Console]::In.ReadToEnd()
-    if ([string]::IsNullOrWhiteSpace($inputJson)) {
-        exit 0
-    }
+function Test-IsSafeTestCommand {
+    param([string]$Command)
 
-    $hookInput = $inputJson | ConvertFrom-Json -ErrorAction Stop
-
-    # Extract command from tool input
-    $command = $null
-    if ($hookInput.PSObject.Properties['tool_input'] -and
-        $hookInput.tool_input.PSObject.Properties['command']) {
-        $command = $hookInput.tool_input.command
-    }
-
-    if ([string]::IsNullOrWhiteSpace($command)) {
-        # No command, use normal permission flow
-        exit 0
-    }
-
-    # Define safe test command patterns
-    # Use (\s|$) to match commands with or without arguments
     $safeTestPatterns = @(
         '^Invoke-Pester(\s|$)',
         '^pwsh.*Invoke-Pester',
@@ -79,17 +62,40 @@ try {
         '^go\s+test'
     )
 
-    # Check if command matches any safe pattern
-    $isSafeTest = $false
     foreach ($pattern in $safeTestPatterns) {
-        if ($command -match $pattern) {
-            $isSafeTest = $true
-            break
+        try {
+            if ($Command -match $pattern) {
+                return $true
+            }
+        }
+        catch [System.ArgumentException] {
+            # Invalid regex pattern - log and continue
+            Write-Warning "Test auto-approval: Invalid regex pattern '$pattern' - $($_.Exception.Message)"
+            continue
         }
     }
 
-    if ($isSafeTest) {
-        # Auto-approve test execution
+    return $false
+}
+
+try {
+    if (-not [Console]::IsInputRedirected) {
+        exit 0
+    }
+
+    $inputJson = [Console]::In.ReadToEnd()
+    if ([string]::IsNullOrWhiteSpace($inputJson)) {
+        exit 0
+    }
+
+    $hookInput = $inputJson | ConvertFrom-Json -ErrorAction Stop
+    $command = Get-CommandFromInput -HookInput $hookInput
+
+    if ([string]::IsNullOrWhiteSpace($command)) {
+        exit 0
+    }
+
+    if (Test-IsSafeTestCommand -Command $command) {
         $response = @{
             decision = "approve"
             reason = "Auto-approved test execution (safe read-only operation)"
@@ -99,11 +105,10 @@ try {
         exit 0
     }
 
-    # Not a recognized test command, use normal permission flow
     exit 0
 }
 catch {
-    # On error, use normal permission flow (fail safe)
-    Write-Warning "Test auto-approval check failed: $($_.Exception.Message)"
+    Write-Warning "Test auto-approval check failed: $($_.Exception.GetType().FullName) - $($_.Exception.Message)"
+    Write-Output "`n**Test Auto-Approval Hook ERROR**: Auto-approval failed. You'll see standard permission prompts. Error: $($_.Exception.Message)`n"
     exit 0
 }

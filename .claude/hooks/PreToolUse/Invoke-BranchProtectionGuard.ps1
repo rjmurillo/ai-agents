@@ -26,11 +26,32 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Write-BlockResponse {
+    param([string]$Reason)
+
+    $response = @{
+        decision = "block"
+        reason = $Reason
+    } | ConvertTo-Json -Compress
+
+    Write-Output $response
+    exit 2
+}
+
+function Get-WorkingDirectory {
+    param($HookInput)
+
+    if (-not [string]::IsNullOrWhiteSpace($HookInput.cwd)) {
+        return $HookInput.cwd
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PROJECT_DIR)) {
+        return $env:CLAUDE_PROJECT_DIR
+    }
+    return Get-Location
+}
+
 try {
-    # Parse hook input from stdin (JSON)
-    $hookInput = $null
     if (-not [Console]::IsInputRedirected) {
-        # No input provided, allow operation
         exit 0
     }
 
@@ -40,52 +61,37 @@ try {
     }
 
     $hookInput = $inputJson | ConvertFrom-Json -ErrorAction Stop
+    $cwd = Get-WorkingDirectory -HookInput $hookInput
 
-    # Get current working directory
-    $cwd = $hookInput.cwd
-    if ([string]::IsNullOrWhiteSpace($cwd)) {
-        $cwd = $env:CLAUDE_PROJECT_DIR
-    }
-    if ([string]::IsNullOrWhiteSpace($cwd)) {
-        $cwd = Get-Location
-    }
-
-    # Get current branch
     $previousLocation = Get-Location
     try {
         Set-Location $cwd
 
-        $currentBranch = git branch --show-current 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            # Git command failed - fail closed, block operation
-            $blockResponse = @{
-                decision = "block"
-                reason = "Cannot determine current git branch (git command failed with exit code $LASTEXITCODE). Verify manually: git branch --show-current. Output: $currentBranch"
-            } | ConvertTo-Json -Compress
+        # Critical: git branch --show-current fails (LASTEXITCODE != 0) if:
+        # - Not in a git repository
+        # - Detached HEAD state (during rebase, checkout of commit SHA)
+        # - Git binary not found or execution error
+        # We block operations in these cases because we cannot verify branch safety.
+        $gitOutput = git branch --show-current 2>&1
 
-            Write-Error "Branch protection: git command failed (exit $LASTEXITCODE): $currentBranch"
-            Write-Output $blockResponse
-            exit 2
+        if ($LASTEXITCODE -eq 128) {
+            # Fatal error: not a git repository
+            Write-Error "Branch protection: Not a git repository in '$cwd'"
+            Write-BlockResponse "Not a git repository or git not installed in '$cwd'. Cannot verify branch safety. Check: git status"
+        }
+        elseif ($LASTEXITCODE -ne 0) {
+            # Other git errors
+            Write-Error "Branch protection: git command failed (exit $LASTEXITCODE) in '$cwd': $gitOutput"
+            Write-BlockResponse "Cannot determine current git branch in '$cwd' (git failed with exit code $LASTEXITCODE). Verify manually: git branch --show-current. Output: $gitOutput"
         }
 
-        $currentBranch = $currentBranch.Trim()
-
-        # Check if on protected branch
+        $currentBranch = $gitOutput.Trim()
         $protectedBranches = @('main', 'master')
+
         if ($currentBranch -in $protectedBranches) {
-            # Block the operation - output JSON decision
-            $blockResponse = @{
-                decision = "block"
-                reason = "Cannot commit or push directly to protected branch '$currentBranch'. Create a feature branch first: git checkout -b feature/your-feature-name"
-            } | ConvertTo-Json -Compress
-
-            Write-Output $blockResponse
-
-            # Exit code 2 blocks the operation
-            exit 2
+            Write-BlockResponse "Cannot commit or push directly to protected branch '$currentBranch'. Create a feature branch first: git checkout -b feature/your-feature-name"
         }
 
-        # Not on protected branch, allow operation
         exit 0
     }
     finally {
@@ -93,13 +99,7 @@ try {
     }
 }
 catch {
-    # CRITICAL: Fail closed - block operation if we can't verify branch safety
-    $blockResponse = @{
-        decision = "block"
-        reason = "Branch protection check failed and cannot verify branch safety. Verify manually: git branch --show-current. Error: $($_.Exception.Message)"
-    } | ConvertTo-Json -Compress
-
-    Write-Error "Branch protection check failed: $($_.Exception.Message)"
-    Write-Output $blockResponse
-    exit 2
+    $errorMsg = "Branch protection check failed in '$cwd': $($_.Exception.Message)"
+    Write-Error $errorMsg
+    Write-BlockResponse "Branch protection check failed and cannot verify branch safety in '$cwd'. Verify manually: git branch --show-current. Error: $($_.Exception.Message)"
 }

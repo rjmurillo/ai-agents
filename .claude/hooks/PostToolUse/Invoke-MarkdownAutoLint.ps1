@@ -14,8 +14,7 @@
     Matcher: Write|Edit
     Filter: .md files only (NOT .ps1!)
     Exit Codes:
-        0 = Success, linting completed or skipped (file not markdown)
-        Other = Warning (non-blocking)
+        0 = Always (non-blocking hook, all errors are warnings)
 
 .LINK
     .agents/analysis/claude-code-hooks-opportunity-analysis.md
@@ -26,11 +25,46 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Continue'  # Non-blocking hook
 
+function Get-FilePathFromInput {
+    param($HookInput)
+
+    if ($HookInput.PSObject.Properties['tool_input'] -and
+        $HookInput.tool_input.PSObject.Properties['file_path']) {
+        return $HookInput.tool_input.file_path
+    }
+    return $null
+}
+
+function Get-ProjectDirectory {
+    param($HookInput)
+
+    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PROJECT_DIR)) {
+        return $env:CLAUDE_PROJECT_DIR
+    }
+    return $HookInput.cwd
+}
+
+function Test-ShouldLintFile {
+    param([string]$FilePath)
+
+    if ([string]::IsNullOrWhiteSpace($FilePath)) {
+        return $false
+    }
+
+    if (-not $FilePath.EndsWith('.md', [StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+
+    if (-not (Test-Path $FilePath)) {
+        Write-Warning "Markdown file does not exist: $FilePath"
+        return $false
+    }
+
+    return $true
+}
+
 try {
-    # Parse hook input from stdin (JSON)
-    $hookInput = $null
     if (-not [Console]::IsInputRedirected) {
-        # No input provided, exit gracefully
         exit 0
     }
 
@@ -40,54 +74,38 @@ try {
     }
 
     $hookInput = $inputJson | ConvertFrom-Json -ErrorAction Stop
+    $filePath = Get-FilePathFromInput -HookInput $hookInput
 
-    # Extract file path from tool input
-    $filePath = $null
-    if ($hookInput.PSObject.Properties['tool_input'] -and
-        $hookInput.tool_input.PSObject.Properties['file_path']) {
-        $filePath = $hookInput.tool_input.file_path
-    }
-
-    # Skip if no file path or not a markdown file
-    if ([string]::IsNullOrWhiteSpace($filePath)) {
+    if (-not (Test-ShouldLintFile -FilePath $filePath)) {
         exit 0
     }
 
-    if (-not $filePath.EndsWith('.md', [StringComparison]::OrdinalIgnoreCase)) {
-        exit 0
-    }
-
-    # Verify file exists
-    if (-not (Test-Path $filePath)) {
-        Write-Warning "Markdown file does not exist: $filePath"
-        exit 0
-    }
-
-    # Get project directory
-    $projectDir = $env:CLAUDE_PROJECT_DIR
-    if ([string]::IsNullOrWhiteSpace($projectDir)) {
-        $projectDir = $hookInput.cwd
-    }
-
-    # Run markdownlint-cli2 --fix
+    $projectDir = Get-ProjectDirectory -HookInput $hookInput
     $previousLocation = Get-Location
+
     try {
         if (-not [string]::IsNullOrWhiteSpace($projectDir)) {
             Set-Location $projectDir
         }
 
-        # Run linter and check exit code
         $lintOutput = npx markdownlint-cli2 --fix "$filePath" 2>&1
         $lintExitCode = $LASTEXITCODE
 
         if ($lintExitCode -ne 0) {
-            # Linting failed - inform Claude
-            $errorSummary = ($lintOutput | Out-String).Substring(0, [Math]::Min(200, ($lintOutput | Out-String).Length))
-            Write-Warning "Markdown linting failed for $filePath (exit $lintExitCode): $errorSummary"
-            Write-Output "`n**Markdown Auto-Lint WARNING**: Failed to lint ``$filePath``. Exit code: $lintExitCode. Run manually: ``npx markdownlint-cli2 --fix '$filePath'```n"
+            # Validate output before processing
+            $outputString = $lintOutput | Out-String
+            if ([string]::IsNullOrWhiteSpace($outputString)) {
+                Write-Warning "Markdown linting failed for $filePath (exit $lintExitCode) with no output. Linter may not be installed."
+                Write-Output "`n**Markdown Auto-Lint WARNING**: Linter failed with no output. Verify installation: ``npm list markdownlint-cli2```n"
+            }
+            else {
+                # Safe substring with length validation
+                $errorSummary = $outputString.Substring(0, [Math]::Min(200, $outputString.Length))
+                Write-Warning "Markdown linting failed for $filePath (exit $lintExitCode): $errorSummary"
+                Write-Output "`n**Markdown Auto-Lint WARNING**: Failed to lint ``$filePath``. Exit code: $lintExitCode. Run manually: ``npx markdownlint-cli2 --fix '$filePath'```n"
+            }
         }
         else {
-            # Output success message for Claude's context
             Write-Output "`n**Markdown Auto-Lint**: Fixed formatting in ``$filePath```n"
         }
     }
@@ -95,17 +113,15 @@ try {
         Set-Location $previousLocation
     }
 }
-catch [System.Management.Automation.PSInvalidCastException] {
-    # JSON parsing failed
+catch [System.ArgumentException], [System.InvalidOperationException] {
+    # JSON parsing failures from ConvertFrom-Json
     Write-Warning "Markdown auto-lint: Failed to parse hook input JSON - $($_.Exception.Message)"
 }
 catch [System.IO.IOException], [System.UnauthorizedAccessException] {
-    # File system errors
     Write-Warning "Markdown auto-lint: File system error for $filePath - $($_.Exception.Message)"
     Write-Output "`n**Markdown Auto-Lint ERROR**: Cannot access file ``$filePath``. Check permissions.`n"
 }
 catch {
-    # Unexpected errors - log with context
     Write-Warning "Markdown auto-lint unexpected error: $($_.Exception.GetType().FullName) - $($_.Exception.Message)"
     Write-Output "`n**Markdown Auto-Lint ERROR**: Unexpected error. Hook may need attention.`n"
 }

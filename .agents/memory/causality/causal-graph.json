@@ -39,9 +39,29 @@
       "success_rate": 1.0,
       "name": "Status test pattern",
       "trigger": "T"
+    },
+    {
+      "occurrences": 3,
+      "name": "test pattern",
+      "action": "Second",
+      "success_rate": 1.0,
+      "description": "Pattern from episode-2026-01-01-sequence-001",
+      "last_used": "2026-01-09T03:19:06.010261-06:00",
+      "trigger": "Testing second",
+      "id": "p005"
+    },
+    {
+      "occurrences": 3,
+      "name": "design pattern",
+      "action": "First",
+      "success_rate": 1.0,
+      "description": "Pattern from episode-2026-01-01-sequence-001",
+      "last_used": "2026-01-09T03:19:06.0457169-06:00",
+      "trigger": "Designing first",
+      "id": "p006"
     }
   ],
-  "updated": "2026-01-04T01:02:12.7576833-06:00",
+  "updated": "2026-01-09T03:19:06.1467067-06:00",
   "edges": [
     {
       "target": "n013",
@@ -248,6 +268,126 @@
       "type": "error",
       "frequency": 1,
       "success_rate": 1.0
+    },
+    {
+      "id": "n018",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-01-filter-001"
+      ],
+      "label": "Outcome: success - Task 1",
+      "frequency": 3,
+      "type": "outcome"
+    },
+    {
+      "id": "n019",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-01-filter-002"
+      ],
+      "label": "Outcome: failure - Task 2",
+      "frequency": 3,
+      "type": "outcome"
+    },
+    {
+      "id": "n020",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-01-filter-003"
+      ],
+      "label": "Outcome: partial - Task 3",
+      "frequency": 3,
+      "type": "outcome"
+    },
+    {
+      "id": "n021",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-01-sequence-001"
+      ],
+      "label": "test: Second",
+      "frequency": 3,
+      "type": "decision"
+    },
+    {
+      "id": "n022",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-01-sequence-001"
+      ],
+      "label": "design: First",
+      "frequency": 3,
+      "type": "decision"
+    },
+    {
+      "id": "n023",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-01-sequence-001"
+      ],
+      "label": "Outcome: success - Test",
+      "frequency": 3,
+      "type": "outcome"
+    },
+    {
+      "id": "n024",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-01-session-001"
+      ],
+      "label": "Outcome: success - Test implementation",
+      "frequency": 3,
+      "type": "outcome"
+    },
+    {
+      "id": "n025",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "label": "error: 1. Distribution count error: Table 92 shows 12 Sonnet, actual is 11",
+      "frequency": 3,
+      "type": "error"
+    },
+    {
+      "id": "n026",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "label": "error: - Problem correctly identified: Mixed model identifier formats causing 404 errors",
+      "frequency": 3,
+      "type": "error"
+    },
+    {
+      "id": "n027",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "label": "error: - 404 errors are eliminated?",
+      "frequency": 3,
+      "type": "error"
+    },
+    {
+      "id": "n028",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "label": "error: 4. Metrics Gap: No baseline error rates or success criteria defined",
+      "frequency": 3,
+      "type": "error"
+    },
+    {
+      "id": "n029",
+      "success_rate": 1.0,
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "label": "Outcome: success - Session 356 - 2026-01-03",
+      "frequency": 3,
+      "type": "outcome"
     }
   ]
 }

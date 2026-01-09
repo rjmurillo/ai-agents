@@ -12,8 +12,7 @@
 .NOTES
     Hook Type: Stop
     Exit Codes:
-        0 = Success, validation result in stdout JSON
-        Other = Warning (non-blocking)
+        0 = Always (non-blocking hook, all errors are warnings)
 
 .LINK
     .agents/SESSION-PROTOCOL.md
@@ -25,56 +24,51 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Continue'  # Non-blocking validation
 
-try {
-    # Parse hook input from stdin (JSON)
-    $hookInput = $null
-    if (-not [Console]::IsInputRedirected) {
-        # No input, allow stop
-        exit 0
+function Write-ContinueResponse {
+    param([string]$Reason)
+
+    $response = @{
+        continue = $true
+        reason = $Reason
+    } | ConvertTo-Json -Compress
+
+    Write-Output $response
+    exit 0
+}
+
+function Get-ProjectDirectory {
+    param($HookInput)
+
+    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PROJECT_DIR)) {
+        return $env:CLAUDE_PROJECT_DIR
+    }
+    return $HookInput.cwd
+}
+
+function Get-TodaySessionLogs {
+    param([string]$SessionsDir)
+
+    # Return different sentinel values to distinguish cases
+    if (-not (Test-Path $SessionsDir)) {
+        # Directory doesn't exist - not an error (project may not use sessions)
+        return @{ DirectoryMissing = $true }
     }
 
-    $inputJson = [Console]::In.ReadToEnd()
-    if ([string]::IsNullOrWhiteSpace($inputJson)) {
-        exit 0
-    }
-
-    $hookInput = $inputJson | ConvertFrom-Json -ErrorAction Stop
-
-    # Get project directory
-    $projectDir = $env:CLAUDE_PROJECT_DIR
-    if ([string]::IsNullOrWhiteSpace($projectDir)) {
-        $projectDir = $hookInput.cwd
-    }
-
-    # Check for session log
-    $sessionsDir = Join-Path $projectDir ".agents" "sessions"
-    if (-not (Test-Path $sessionsDir)) {
-        # No sessions directory, allow stop (might be investigation session)
-        exit 0
-    }
-
-    # Find today's session logs
     $today = Get-Date -Format "yyyy-MM-dd"
-    $todaySessionLogs = Get-ChildItem -Path $sessionsDir -Filter "$today-session-*.md" -File -ErrorAction SilentlyContinue
+    $logs = Get-ChildItem -Path $SessionsDir -Filter "$today-session-*.md" -File -ErrorAction SilentlyContinue
 
-    if ($todaySessionLogs.Count -eq 0) {
-        # No session log for today - force continuation
-        $response = @{
-            continue = $true
-            reason = "Session log missing. MUST create session log at .agents/sessions/$today-session-NN.md per SESSION-PROTOCOL.md"
-        } | ConvertTo-Json -Compress
-
-        Write-Output $response
-        exit 0
+    if ($logs.Count -eq 0) {
+        # Directory exists but no log for today - protocol violation
+        return @{ LogMissing = $true; Today = $today }
     }
 
-    # Get the most recent session log
-    $latestLog = $todaySessionLogs | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    # Return the most recent log file
+    return $logs | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+}
 
-    # Read session log content
-    $logContent = Get-Content $latestLog.FullName -Raw -ErrorAction Stop
+function Get-MissingSections {
+    param([string]$LogContent)
 
-    # Check for required sections
     $requiredSections = @(
         '## Session Context',
         '## Implementation Plan',
@@ -85,50 +79,82 @@ try {
         '## Follow-up Actions'
     )
 
-    $missingSections = @()
+    $missing = @()
     foreach ($section in $requiredSections) {
-        if ($logContent -notmatch [regex]::Escape($section)) {
-            $missingSections += $section
+        if ($LogContent -notmatch [regex]::Escape($section)) {
+            $missing += $section
         }
     }
 
-    # Check if Outcomes section is filled (not just header)
-    if ($logContent -match '## Outcomes\s*\n\s*\(To be filled') {
-        $missingSections += '## Outcomes (content required, not just placeholder)'
+    # Robust placeholder detection: Check if ## Outcomes section exists but is suspiciously short
+    # or contains common placeholder patterns (TBD, TODO, To be filled, Coming soon, etc.)
+    if ($LogContent -match '## Outcomes([^\#]*?)(?=\n##|\z)') {
+        $outcomesSection = $Matches[1]
+        $placeholderPatterns = @('to be filled', 'TBD', 'TODO', 'coming soon', '\(pending\)', '\[pending\]')
+
+        $hasPlaceholder = $false
+        foreach ($pattern in $placeholderPatterns) {
+            if ($outcomesSection -match $pattern) {
+                $hasPlaceholder = $true
+                break
+            }
+        }
+
+        # Also check if section is suspiciously short (less than 50 chars excluding heading)
+        $isTooShort = $outcomesSection.Trim().Length -lt 50
+
+        if ($hasPlaceholder -or $isTooShort) {
+            $missing += '## Outcomes (section incomplete or contains placeholder text)'
+        }
     }
 
-    if ($missingSections.Count -gt 0) {
-        # Session log incomplete - force continuation
-        $missingList = $missingSections -join ', '
-        $response = @{
-            continue = $true
-            reason = "Session log incomplete in $($latestLog.Name). Missing or incomplete sections: $missingList. MUST complete per SESSION-PROTOCOL.md"
-        } | ConvertTo-Json -Compress
+    return $missing
+}
 
-        Write-Output $response
+try {
+    if (-not [Console]::IsInputRedirected) {
         exit 0
     }
 
-    # Session log is complete, allow stop
+    $inputJson = [Console]::In.ReadToEnd()
+    if ([string]::IsNullOrWhiteSpace($inputJson)) {
+        exit 0
+    }
+
+    $hookInput = $inputJson | ConvertFrom-Json -ErrorAction Stop
+    $projectDir = Get-ProjectDirectory -HookInput $hookInput
+    $sessionsDir = Join-Path $projectDir ".agents" "sessions"
+
+    $result = Get-TodaySessionLogs -SessionsDir $sessionsDir
+
+    # Handle different return cases
+    if ($result -is [hashtable]) {
+        if ($result.DirectoryMissing) {
+            # Directory doesn't exist - project may not use sessions, exit silently
+            exit 0
+        }
+        if ($result.LogMissing) {
+            # Directory exists but no log - protocol violation
+            Write-ContinueResponse "Session log missing. MUST create session log at .agents/sessions/$($result.Today)-session-NN.md per SESSION-PROTOCOL.md"
+        }
+    }
+
+    # At this point, $result should be a FileInfo object
+    $logContent = Get-Content $result.FullName -Raw -ErrorAction Stop
+    $missingSections = Get-MissingSections -LogContent $logContent
+
+    if ($missingSections.Count -gt 0) {
+        $missingList = $missingSections -join ', '
+        Write-ContinueResponse "Session log incomplete in $($result.Name). Missing or incomplete sections: $missingList. MUST complete per SESSION-PROTOCOL.md"
+    }
+
     exit 0
 }
 catch [System.IO.IOException], [System.UnauthorizedAccessException] {
-    # File system errors - force continuation with explicit warning
-    $response = @{
-        continue = $true
-        reason = "Session validation failed: Cannot read session log. MUST investigate file system issue. Error: $($_.Exception.Message)"
-    } | ConvertTo-Json -Compress
     Write-Error "Session validator file error: $($_.Exception.Message)"
-    Write-Output $response
-    exit 0
+    Write-ContinueResponse "Session validation failed: Cannot read session log. MUST investigate file system issue. Error: $($_.Exception.Message)"
 }
 catch {
-    # Unexpected errors - force continuation to ensure protocol awareness
-    $response = @{
-        continue = $true
-        reason = "Session validation encountered unexpected error. MUST investigate: $($_.Exception.GetType().FullName) - $($_.Exception.Message)"
-    } | ConvertTo-Json -Compress
     Write-Error "Session validator unexpected error: $($_.Exception.GetType().FullName) - $($_.Exception.Message)"
-    Write-Output $response
-    exit 0
+    Write-ContinueResponse "Session validation encountered unexpected error. MUST investigate: $($_.Exception.GetType().FullName) - $($_.Exception.Message)"
 }
