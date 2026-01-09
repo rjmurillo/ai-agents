@@ -1,3 +1,5 @@
+#Requires -Modules Pester
+
 <#
 .SYNOPSIS
     Pester tests for Test-UrlRouting.ps1
