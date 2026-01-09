@@ -4,7 +4,7 @@
 [post-create]
 # Configure git hooks path to .githooks directory
 # This ensures pre-commit and other hooks work in worktrees
-configure-hooks = "git config core.hooksPath .githooks"
+configure-hooks = "git config core.hooksPath '.githooks'"
 
 # Copy gitignored files from main worktree to eliminate cold starts
 # Files listed in .worktreeinclude (node_modules, .cache, etc.)
