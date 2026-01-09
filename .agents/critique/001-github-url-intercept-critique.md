@@ -1,10 +1,10 @@
-# Critique: GitHub URL Intercept Skill v2.0.0
+# Critique: GitHub URL Intercept Skill v2.1.0
 
 ## Document Under Review
 
 - **Type**: Skill Implementation
 - **Path**: `.claude/skills/github-url-intercept/`
-- **Version**: 2.0.0
+- **Version**: 2.1.0
 
 ## Review Summary
 
