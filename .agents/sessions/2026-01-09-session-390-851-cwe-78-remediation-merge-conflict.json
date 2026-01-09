@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "1.0",
+  "protocolCompliance": {
+    "sessionEnd": {
+      "handoffNotUpdated": {
+        "Evidence": "",
+        "level": "MUST NOT",
+        "Complete": false
+      },
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "validationPassed": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      }
+    },
+    "sessionStart": {
+      "constraintsRead": {
+        "Evidence": "PROJECT-CONSTRAINTS.md read in conversation context",
+        "level": "MUST",
+        "Complete": true
+      },
+      "handoffRead": {
+        "Evidence": "HANDOFF.md read via AGENTS.md attachment",
+        "level": "MUST",
+        "Complete": true
+      },
+      "serenaActivated": {
+        "Evidence": "Serena MCP activated via mcp_serena tools",
+        "level": "MUST",
+        "Complete": true
+      },
+      "branchVerified": {
+        "Evidence": "Branch: feat/github-url-intercept-skill",
+        "level": "MUST",
+        "Complete": true
+      },
+      "startingCommitNoted": {
+        "Evidence": "SHA: 45878848",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "Evidence": "Initial instructions read via Serena MCP",
+        "level": "MUST",
+        "Complete": true
+      },
+      "usageMandatoryRead": {
+        "Evidence": "usage-mandatory memory referenced in conversation",
+        "level": "MUST",
+        "Complete": true
+      },
+      "notOnMain": {
+        "Evidence": "On feat/github-url-intercept-skill, not main",
+        "level": "MUST",
+        "Complete": true
+      },
+      "gitStatusVerified": {
+        "Evidence": "git status checked during merge conflict resolution",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "skillScriptsListed": {
+        "Evidence": "github-url-intercept skill scripts used for PR #851 work",
+        "level": "MUST",
+        "Complete": true
+      },
+      "memoriesLoaded": {
+        "Evidence": "Security and PR review memories loaded via Serena",
+        "level": "MUST",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "Evidence": "This file exists",
+        "level": "MUST",
+        "Complete": true
+      }
+    }
+  },
+  "endingCommit": "",
+  "nextSteps": [],
+  "workLog": [
+    {
+      "timestamp": "2026-01-09T15:30:00Z",
+      "action": "merge-conflict-resolution",
+      "description": "Resolved merge conflict in .agents/memory/causality/causal-graph.json by accepting main branch timestamps (--theirs strategy)",
+      "evidence": "git checkout --theirs .agents/memory/causality/causal-graph.json"
+    }
+  ],
+  "session": {
+    "objective": "PR #851 CWE-78 remediation and merge conflict resolution",
+    "branch": "feat/github-url-intercept-skill",
+    "date": "2026-01-09",
+    "startingCommit": "45878848",
+    "number": 390
+  }
+}
