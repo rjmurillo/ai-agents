@@ -74,15 +74,33 @@ try {
     $hasCoverage = $transcript -match 'Coverage|Test Coverage|Acceptance Criteria'
 
     if (-not ($hasTestStrategy -and $hasTestResults -and $hasCoverage)) {
-        # QA report incomplete - output warning (non-blocking for now)
-        Write-Output "`n**QA Validation Warning**: QA agent report may be incomplete. Expected sections: Test Strategy, Test Results, Coverage Analysis.`n"
+        # QA report incomplete - provide specific feedback
+        $missingSections = @()
+        if (-not $hasTestStrategy) { $missingSections += 'Test Strategy/Testing Approach/Test Plan' }
+        if (-not $hasTestResults) { $missingSections += 'Test Results/Validation Results/Test Execution' }
+        if (-not $hasCoverage) { $missingSections += 'Coverage/Test Coverage/Acceptance Criteria' }
+
+        $missingList = $missingSections -join ', '
+        Write-Output "`n**QA VALIDATION FAILURE**: QA agent report is incomplete and does NOT meet SESSION-PROTOCOL requirements.`n`nMissing required sections: $missingList`n`nACTION REQUIRED: Re-run QA agent with complete report including all required sections per .agents/SESSION-PROTOCOL.md`n"
+        Write-Warning "QA validation failed: Missing sections - $missingList"
+    }
+    else {
+        # All required sections present
+        Write-Output "`n**QA Validation PASSED**: All required sections present in QA report.`n"
     }
 
-    # Allow stop (non-blocking validation)
+    # Allow stop (SubagentStop hooks are non-blocking by design)
+    exit 0
+}
+catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+    # File system errors - allow stop but provide clear feedback
+    Write-Error "QA validator file error: Cannot read transcript at $transcriptPath - $($_.Exception.Message)"
+    Write-Output "`n**QA Validation ERROR**: Cannot access QA agent transcript file. Validation skipped.`n"
     exit 0
 }
 catch {
-    # On error, allow stop (fail open)
-    Write-Warning "QA agent validation failed: $($_.Exception.Message)"
+    # Unexpected errors - allow stop but log details
+    Write-Error "QA validator unexpected error: $($_.Exception.GetType().FullName) - $($_.Exception.Message)"
+    Write-Output "`n**QA Validation ERROR**: Unexpected error during validation. MUST investigate: $($_.Exception.Message)`n"
     exit 0
 }

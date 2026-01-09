@@ -57,8 +57,15 @@ try {
 
         $currentBranch = git branch --show-current 2>&1
         if ($LASTEXITCODE -ne 0) {
-            # Not in a git repo or git command failed, allow operation
-            exit 0
+            # Git command failed - fail closed, block operation
+            $blockResponse = @{
+                decision = "block"
+                reason = "Cannot determine current git branch (git command failed with exit code $LASTEXITCODE). Verify manually: git branch --show-current. Output: $currentBranch"
+            } | ConvertTo-Json -Compress
+
+            Write-Error "Branch protection: git command failed (exit $LASTEXITCODE): $currentBranch"
+            Write-Output $blockResponse
+            exit 2
         }
 
         $currentBranch = $currentBranch.Trim()
@@ -86,7 +93,13 @@ try {
     }
 }
 catch {
-    # On error, allow operation (fail open for non-blocking behavior)
-    Write-Warning "Branch protection check failed: $($_.Exception.Message)"
-    exit 0
+    # CRITICAL: Fail closed - block operation if we can't verify branch safety
+    $blockResponse = @{
+        decision = "block"
+        reason = "Branch protection check failed and cannot verify branch safety. Verify manually: git branch --show-current. Error: $($_.Exception.Message)"
+    } | ConvertTo-Json -Compress
+
+    Write-Error "Branch protection check failed: $($_.Exception.Message)"
+    Write-Output $blockResponse
+    exit 2
 }

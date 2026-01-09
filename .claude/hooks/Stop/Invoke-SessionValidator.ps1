@@ -77,10 +77,12 @@ try {
     # Check for required sections
     $requiredSections = @(
         '## Session Context',
+        '## Implementation Plan',
         '## Work Log',
         '## Decisions',
         '## Outcomes',
-        '## Files Changed'
+        '## Files Changed',
+        '## Follow-up Actions'
     )
 
     $missingSections = @()
@@ -110,8 +112,23 @@ try {
     # Session log is complete, allow stop
     exit 0
 }
+catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+    # File system errors - force continuation with explicit warning
+    $response = @{
+        continue = $true
+        reason = "Session validation failed: Cannot read session log. MUST investigate file system issue. Error: $($_.Exception.Message)"
+    } | ConvertTo-Json -Compress
+    Write-Error "Session validator file error: $($_.Exception.Message)"
+    Write-Output $response
+    exit 0
+}
 catch {
-    # On error, allow stop (fail open)
-    Write-Warning "Session validation failed: $($_.Exception.Message)"
+    # Unexpected errors - force continuation to ensure protocol awareness
+    $response = @{
+        continue = $true
+        reason = "Session validation encountered unexpected error. MUST investigate: $($_.Exception.GetType().FullName) - $($_.Exception.Message)"
+    } | ConvertTo-Json -Compress
+    Write-Error "Session validator unexpected error: $($_.Exception.GetType().FullName) - $($_.Exception.Message)"
+    Write-Output $response
     exit 0
 }

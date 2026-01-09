@@ -12,7 +12,15 @@
 
 .NOTES
     Hook Type: PermissionRequest
-    Matcher: Bash(Invoke-Pester*|npm test*|pytest*|dotnet test*)
+    Matcher: Bash(Invoke-Pester*|pwsh.*Invoke-Pester|npm test*|npm run test*|pnpm test*|yarn test*|pytest*|python.*pytest|dotnet test*|mvn test*|gradle test*|cargo test*|go test*)
+    Supported Test Frameworks:
+        PowerShell: Invoke-Pester (direct and via pwsh)
+        JavaScript: npm, pnpm, yarn
+        Python: pytest (direct and via python)
+        .NET: dotnet test
+        Java: mvn test, gradle test
+        Rust: cargo test
+        Go: go test
     Exit Codes:
         0 = Success, decision in stdout JSON
         Other = Warning (defaults to normal permission flow)

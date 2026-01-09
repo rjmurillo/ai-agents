@@ -76,19 +76,38 @@ try {
             Set-Location $projectDir
         }
 
-        # Run linter with error suppression (non-blocking)
-        $lintResult = npx markdownlint-cli2 --fix "$filePath" 2>&1
+        # Run linter and check exit code
+        $lintOutput = npx markdownlint-cli2 --fix "$filePath" 2>&1
+        $lintExitCode = $LASTEXITCODE
 
-        # Output success message for Claude's context
-        Write-Output "`n**Markdown Auto-Lint**: Fixed formatting in ``$filePath```n"
+        if ($lintExitCode -ne 0) {
+            # Linting failed - inform Claude
+            $errorSummary = ($lintOutput | Out-String).Substring(0, [Math]::Min(200, ($lintOutput | Out-String).Length))
+            Write-Warning "Markdown linting failed for $filePath (exit $lintExitCode): $errorSummary"
+            Write-Output "`n**Markdown Auto-Lint WARNING**: Failed to lint ``$filePath``. Exit code: $lintExitCode. Run manually: ``npx markdownlint-cli2 --fix '$filePath'```n"
+        }
+        else {
+            # Output success message for Claude's context
+            Write-Output "`n**Markdown Auto-Lint**: Fixed formatting in ``$filePath```n"
+        }
     }
     finally {
         Set-Location $previousLocation
     }
 }
+catch [System.Management.Automation.PSInvalidCastException] {
+    # JSON parsing failed
+    Write-Warning "Markdown auto-lint: Failed to parse hook input JSON - $($_.Exception.Message)"
+}
+catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+    # File system errors
+    Write-Warning "Markdown auto-lint: File system error for $filePath - $($_.Exception.Message)"
+    Write-Output "`n**Markdown Auto-Lint ERROR**: Cannot access file ``$filePath``. Check permissions.`n"
+}
 catch {
-    # Non-blocking: Log warning but don't fail
-    Write-Warning "Markdown auto-lint failed: $($_.Exception.Message)"
+    # Unexpected errors - log with context
+    Write-Warning "Markdown auto-lint unexpected error: $($_.Exception.GetType().FullName) - $($_.Exception.Message)"
+    Write-Output "`n**Markdown Auto-Lint ERROR**: Unexpected error. Hook may need attention.`n"
 }
 
 exit 0
