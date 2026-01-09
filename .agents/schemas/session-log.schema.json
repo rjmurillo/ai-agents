@@ -1,85 +1,249 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/rjmurillo/ai-agents/schemas/session-log.schema.json",
-  "title": "Session Log",
-  "description": "Schema for agent session logs",
+  "title": "AI Agents Session Log",
+  "description": "JSON schema for AI agent session logs tracking work, decisions, and protocol compliance",
   "type": "object",
   "required": ["session", "protocolCompliance"],
   "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "Schema version for future migration compatibility (required for new sessions)",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "examples": ["1.0"]
+    },
     "session": {
       "type": "object",
+      "description": "Session metadata",
       "required": ["number", "date", "branch", "startingCommit", "objective"],
       "properties": {
-        "number": { "type": "integer", "minimum": 1 },
-        "date": { "type": "string", "format": "date" },
-        "branch": { "type": "string", "pattern": "^(feat|fix|docs|chore|refactor|test|ci|build|perf|style|revert|hotfix)/.*$" },
-        "startingCommit": { "type": "string", "pattern": "^[a-f0-9]{7,40}$" },
-        "objective": { "type": "string", "minLength": 10 }
+        "number": {
+          "type": "integer",
+          "description": "Sequential session number",
+          "minimum": 1
+        },
+        "date": {
+          "type": "string",
+          "description": "Session date",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "examples": ["2026-01-09"]
+        },
+        "branch": {
+          "type": "string",
+          "description": "Git branch name",
+          "minLength": 1
+        },
+        "startingCommit": {
+          "type": "string",
+          "description": "Git commit SHA at session start (short or full)",
+          "pattern": "^[0-9a-f]{7,40}$"
+        },
+        "objective": {
+          "type": "string",
+          "description": "Session goal or purpose",
+          "minLength": 1
+        }
       }
     },
     "protocolCompliance": {
       "type": "object",
+      "description": "Session protocol checklist status",
       "required": ["sessionStart", "sessionEnd"],
       "properties": {
         "sessionStart": {
           "type": "object",
-          "required": ["serenaActivated", "serenaInstructions", "handoffRead", "sessionLogCreated", "branchVerified", "notOnMain"],
-          "properties": {
-            "serenaActivated": { "$ref": "#/$defs/checkItem" },
-            "serenaInstructions": { "$ref": "#/$defs/checkItem" },
-            "handoffRead": { "$ref": "#/$defs/checkItem" },
-            "sessionLogCreated": { "$ref": "#/$defs/checkItem" },
-            "skillScriptsListed": { "$ref": "#/$defs/checkItem" },
-            "usageMandatoryRead": { "$ref": "#/$defs/checkItem" },
-            "constraintsRead": { "$ref": "#/$defs/checkItem" },
-            "memoriesLoaded": { "$ref": "#/$defs/checkItem" },
-            "branchVerified": { "$ref": "#/$defs/checkItem" },
-            "notOnMain": { "$ref": "#/$defs/checkItem" },
-            "gitStatusVerified": { "$ref": "#/$defs/checkItem" },
-            "startingCommitNoted": { "$ref": "#/$defs/checkItem" }
+          "description": "Start checklist items",
+          "patternProperties": {
+            "^[a-zA-Z]+$": {
+              "$ref": "#/definitions/checklistItem"
+            }
           }
         },
         "sessionEnd": {
           "type": "object",
-          "required": ["checklistComplete", "handoffNotUpdated", "serenaMemoryUpdated", "markdownLintRun", "changesCommitted", "validationPassed"],
-          "properties": {
-            "checklistComplete": { "$ref": "#/$defs/checkItem" },
-            "handoffNotUpdated": { "$ref": "#/$defs/checkItem" },
-            "serenaMemoryUpdated": { "$ref": "#/$defs/checkItem" },
-            "markdownLintRun": { "$ref": "#/$defs/checkItem" },
-            "changesCommitted": { "$ref": "#/$defs/checkItem" },
-            "validationPassed": { "$ref": "#/$defs/checkItem" },
-            "tasksUpdated": { "$ref": "#/$defs/checkItem" },
-            "retrospectiveInvoked": { "$ref": "#/$defs/checkItem" }
+          "description": "End checklist items",
+          "patternProperties": {
+            "^[a-zA-Z]+$": {
+              "$ref": "#/definitions/checklistItem"
+            }
           }
         }
       }
     },
     "workLog": {
       "type": "array",
+      "description": "Session activities and outcomes (flexible: simple entries, structured outcomes, or free-form)",
       "items": {
-        "type": "object",
-        "required": ["action", "result"],
-        "properties": {
-          "timestamp": { "type": "string", "format": "time" },
-          "action": { "type": "string" },
-          "result": { "type": "string" },
-          "files": { "type": "array", "items": { "type": "string" } },
-          "commit": { "type": "string", "pattern": "^[a-f0-9]{7,40}$" }
+        "type": "object"
+      }
+    },
+    "outcomes": {
+      "type": "object",
+      "description": "Optional structured outcomes (alternative to workLog)",
+      "properties": {
+        "deliverables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/deliverable"
+          }
+        },
+        "memoriesObsoleted": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "integer"},
+              "title": {"type": "string"},
+              "reason": {"type": "string"}
+            }
+          }
+        },
+        "forgetfulMemoriesCreated": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "integer"},
+              "title": {"type": "string"},
+              "importance": {"type": "integer", "minimum": 1, "maximum": 10}
+            }
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/decision"
+          }
         }
       }
     },
-    "endingCommit": { "type": "string", "pattern": "^[a-f0-9]{7,40}$" },
-    "nextSteps": { "type": "array", "items": { "type": "string" } }
-  },
-  "$defs": {
-    "checkItem": {
+    "learnings": {
       "type": "object",
-      "required": ["level", "Complete"],
+      "description": "Optional session learnings",
       "properties": {
-        "level": { "type": "string", "enum": ["MUST", "MUST NOT", "SHOULD"] },
-        "Complete": { "type": "boolean" },
-        "Evidence": { "type": "string" }
+        "patterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pattern": {"type": "string"},
+              "context": {"type": "string"},
+              "application": {"type": "string"}
+            }
+          }
+        },
+        "avoidances": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "antipattern": {"type": "string"},
+              "consequence": {"type": "string"},
+              "correction": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "endingCommit": {
+      "type": "string",
+      "description": "Git commit SHA at session end (empty if no commit)",
+      "pattern": "^([0-9a-f]{7,40})?$"
+    },
+    "nextSteps": {
+      "type": "array",
+      "description": "Follow-up actions or recommendations",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "definitions": {
+    "checklistItem": {
+      "type": "object",
+      "description": "Protocol checklist item with evidence",
+      "anyOf": [
+        {
+          "required": ["Complete", "level", "Evidence"],
+          "properties": {
+            "Complete": {"type": "boolean"},
+            "level": {
+              "type": "string",
+              "enum": ["MUST", "SHOULD", "MUST NOT"]
+            },
+            "Evidence": {"type": "string"}
+          }
+        },
+        {
+          "required": ["complete", "level", "evidence"],
+          "properties": {
+            "complete": {"type": "boolean"},
+            "level": {
+              "type": "string",
+              "enum": ["MUST", "SHOULD", "MUST NOT"]
+            },
+            "evidence": {"type": "string"}
+          }
+        }
+      ]
+    },
+    "simpleWorkLogEntry": {
+      "type": "object",
+      "description": "Simple work log entry with action and result",
+      "required": ["action"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "description": "What was done"
+        },
+        "result": {
+          "type": "string",
+          "description": "Outcome or impact"
+        },
+        "files": {
+          "type": "array",
+          "description": "Affected file paths",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "deliverable": {
+      "type": "object",
+      "required": ["type", "path", "description"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Deliverable category",
+          "examples": ["analysis", "architecture", "memory", "code", "test"]
+        },
+        "path": {
+          "type": "string",
+          "description": "File path"
+        },
+        "description": {
+          "type": "string",
+          "description": "What this deliverable provides"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "required": ["decision", "rationale", "impact"],
+      "properties": {
+        "decision": {
+          "type": "string",
+          "description": "What was decided"
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why this decision was made"
+        },
+        "impact": {
+          "type": "string",
+          "description": "Expected consequences or effects"
+        }
       }
     }
   }

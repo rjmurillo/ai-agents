@@ -27,7 +27,7 @@ $ErrorActionPreference = 'Stop'
 
 function Find-ChecklistItem {
   param([string]$Content, [string]$Pattern)
-  
+
   # Look for table rows with [x] that match the pattern
   $matches = [regex]::Matches($Content, "\|[^|]*\|[^|]*$Pattern[^|]*\|\s*\[x\]\s*\|([^|]*)\|", 'IgnoreCase')
   if ($matches.Count -gt 0) {
@@ -37,6 +37,97 @@ function Find-ChecklistItem {
     }
   }
   return @{ Complete = $false; Evidence = '' }
+}
+
+function Parse-WorkLog {
+  param([string]$Content)
+
+  $entries = @()
+
+  # Pattern 1: Look for "## Work Log" section
+  if ($Content -match '(?s)##\s*Work\s*Log\s*\n(.+?)(?=\n##\s|\z)') {
+    $workLogContent = $Matches[1].Trim()
+
+    # Skip if only template placeholders
+    if (-not ($workLogContent -match '^\s*###\s*\[Task/Topic\]' -or $workLogContent.Length -lt 50)) {
+      # Extract subsections
+      $sectionMatches = [regex]::Matches($workLogContent, '###\s*(.+?)\n((?:(?!###).)+)', 'Singleline')
+      foreach ($match in $sectionMatches) {
+        $title = $match.Groups[1].Value.Trim()
+        $content = $match.Groups[2].Value.Trim()
+
+        if (-not ($title -match '\[.+?\]' -or $content.Length -lt 20)) {
+          $entry = @{
+            action = $title
+            result = $content -replace '\n+', ' ' | ForEach-Object { $_.Substring(0, [Math]::Min(200, $_.Length)) }
+          }
+
+          # Extract files
+          $files = @()
+          $fileMatches = [regex]::Matches($content, '`([^`]+\.(ps1|psm1|md|json|yml|yaml|txt))`')
+          foreach ($fm in $fileMatches) {
+            $files += $fm.Groups[1].Value
+          }
+          if ($files.Count -gt 0) {
+            $entry.files = $files
+          }
+
+          $entries += $entry
+        }
+      }
+    }
+  }
+
+  # Pattern 2: Look for common work-related headings (Changes Made, Decisions Made, etc.)
+  if ($entries.Count -eq 0) {
+    $workHeadings = @('Changes Made', 'Decisions Made', 'Files Modified', 'Files Changed', 'Test Results', 'Outcomes', 'Deliverables')
+    foreach ($heading in $workHeadings) {
+      if ($Content -match "(?s)##\s*$heading\s*\n(.+?)(?=\n##\s|\z)") {
+        $sectionContent = $Matches[1].Trim()
+
+        # Extract subsections (### headings)
+        $subsections = [regex]::Matches($sectionContent, '###\s*(.+?)\n((?:(?!###).)+)', 'Singleline')
+        if ($subsections.Count -gt 0) {
+          foreach ($sub in $subsections) {
+            $title = $sub.Groups[1].Value.Trim()
+            $content = $sub.Groups[2].Value.Trim()
+
+            if ($content.Length -gt 20) {
+              $entry = @{
+                action = "${heading}: $title"
+                result = $content -replace '\n+', ' ' | ForEach-Object { $_.Substring(0, [Math]::Min(150, $_.Length)) }
+              }
+
+              # Extract files
+              $files = @()
+              $fileMatches = [regex]::Matches($content, '`([^`]+\.(ps1|psm1|md|json|yml|yaml|txt|csv))`')
+              foreach ($fm in $fileMatches) {
+                if ($fm.Groups[1].Value -notin $files) {
+                  $files += $fm.Groups[1].Value
+                }
+              }
+              if ($files.Count -gt 0) {
+                $entry.files = $files
+              }
+
+              $entries += $entry
+            }
+          }
+        } else {
+          # No subsections, use section content as single entry
+          if ($sectionContent.Length -gt 30) {
+            $entry = @{
+              action = $heading
+              result = $sectionContent -replace '\n+', ' ' | ForEach-Object { $_.Substring(0, [Math]::Min(200, $_.Length)) }
+            }
+            $entries += $entry
+          }
+        }
+      }
+    }
+  }
+
+  return $entries
 }
 
 function ConvertFrom-MarkdownSession {
@@ -115,7 +206,10 @@ function ConvertFrom-MarkdownSession {
   foreach ($key in @('tasksUpdated','retrospectiveInvoked')) {
     $sessionEnd[$key].level = 'SHOULD'
   }
-  
+
+  # Parse work log from markdown
+  $workLog = Parse-WorkLog -Content $Content
+
   return @{
     session = @{
       number = $sessionNum
@@ -128,7 +222,7 @@ function ConvertFrom-MarkdownSession {
       sessionStart = $sessionStart
       sessionEnd = $sessionEnd
     }
-    workLog = @()
+    workLog = $workLog
     endingCommit = ''
     nextSteps = @()
   }
