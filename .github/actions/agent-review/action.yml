@@ -1,0 +1,181 @@
+name: 'Agent Review'
+description: 'Runs AI-powered review for a specific agent with conditional execution'
+
+inputs:
+  agent:
+    description: 'Agent name (security, qa, analyst, architect, devops, roadmap)'
+    required: true
+  emoji:
+    description: 'Emoji for agent display'
+    required: true
+  prompt-file:
+    description: 'Path to agent prompt file'
+    required: true
+  should-run:
+    description: 'Whether to execute review (from check-changes output)'
+    required: true
+  pr-number:
+    description: 'Pull request number'
+    required: true
+  bot-pat:
+    description: 'Bot PAT for GitHub API'
+    required: true
+  copilot-token:
+    description: 'GitHub Copilot token'
+    required: true
+
+outputs:
+  verdict:
+    description: 'Review verdict (PASS, WARN, FAIL, CRITICAL_FAIL, REJECTED, NEEDS_REVIEW)'
+    value: ${{ steps.review.outputs.verdict }}
+  findings:
+    description: 'Review findings'
+    value: ${{ steps.review.outputs.findings }}
+  infrastructure-failure:
+    description: 'Whether review failed due to infrastructure issues'
+    value: ${{ steps.review.outputs.infrastructure-failure }}
+  retry-count:
+    description: 'Number of retries attempted'
+    value: ${{ steps.review.outputs.retry-count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout repository
+      if: inputs.should-run == 'true'
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      with:
+        fetch-depth: 0
+
+    - name: ${{ inputs.emoji }} ${{ inputs.agent }} Review
+      if: inputs.should-run == 'true'
+      id: review
+      uses: ./.github/actions/ai-review
+      with:
+        agent: ${{ inputs.agent }}
+        context-type: pr-diff
+        pr-number: ${{ inputs.pr-number }}
+        prompt-file: ${{ inputs.prompt-file }}
+        timeout-minutes: 5
+        bot-pat: ${{ inputs.bot-pat }}
+        copilot-token: ${{ inputs.copilot-token }}
+
+    - name: Save review results
+      if: inputs.should-run == 'true'
+      shell: bash
+      env:
+        AGENT: ${{ inputs.agent }}
+        VERDICT: ${{ steps.review.outputs.verdict }}
+        FINDINGS: ${{ steps.review.outputs.findings }}
+        INFRASTRUCTURE_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
+        RETRY_COUNT: ${{ steps.review.outputs.retry-count }}
+      run: |
+        mkdir -p ai-review-results
+        echo "$VERDICT" > "ai-review-results/${AGENT}-verdict.txt"
+        echo "$FINDINGS" > "ai-review-results/${AGENT}-findings.txt"
+        echo "$INFRASTRUCTURE_FAILURE" > "ai-review-results/${AGENT}-infrastructure-failure.txt"
+        echo "$RETRY_COUNT" > "ai-review-results/${AGENT}-retry-count.txt"
+        echo "Saved ${AGENT} results:"
+        echo "  Verdict: $VERDICT"
+        echo "  Findings: $(wc -c < ai-review-results/${AGENT}-findings.txt) bytes"
+        echo "  Infrastructure failure: $INFRASTRUCTURE_FAILURE"
+        echo "  Retry count: $RETRY_COUNT"
+
+    - name: Upload review results
+      if: always() && inputs.should-run == 'true'
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: review-${{ inputs.agent }}
+        path: ai-review-results/
+        retention-days: 1
+
+    - name: Generate step summary
+      if: always() && inputs.should-run == 'true'
+      shell: pwsh -NoProfile -Command "& '{0}'"
+      env:
+        AGENT: ${{ inputs.agent }}
+        EMOJI: ${{ inputs.emoji }}
+        VERDICT: ${{ steps.review.outputs.verdict }}
+        FINDINGS: ${{ steps.review.outputs.findings }}
+        RUN_ID: ${{ github.run_id }}
+        SERVER_URL: ${{ github.server_url }}
+        REPOSITORY: ${{ github.repository }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+      run: |
+        Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
+
+        $verdict = $env:VERDICT
+        $agent = $env:AGENT
+        $emoji = $env:EMOJI
+        $findings = $env:FINDINGS
+        $prNumber = $env:PR_NUMBER
+
+        $alertType = Get-VerdictAlertType -Verdict $verdict
+        $verdictEmoji = Get-VerdictEmoji -Verdict $verdict
+        $agentDisplay = if ($agent) { (Get-Culture).TextInfo.ToTitleCase($agent.ToLower()) } else { "Unknown" }
+
+        $summary = @"
+        ## $emoji $agentDisplay Review
+
+        > [!$alertType]
+        > $verdictEmoji **Verdict: $verdict**
+
+        <details>
+        <summary>Review Findings</summary>
+
+        $findings
+
+        </details>
+
+        ---
+
+        <sub>💡 See the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) for full context across all agents, or check the PR for the consolidated quality gate comment.</sub>
+        "@
+
+        $summary | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding UTF8
+
+    - name: Check verdict and fail if needed
+      if: always() && inputs.should-run == 'true'
+      shell: pwsh -NoProfile -Command "& '{0}'"
+      env:
+        AGENT: ${{ inputs.agent }}
+        EMOJI: ${{ inputs.emoji }}
+        VERDICT: ${{ steps.review.outputs.verdict }}
+        FINDINGS: ${{ steps.review.outputs.findings }}
+      run: |
+        $agent = $env:AGENT
+        $emoji = $env:EMOJI
+        $verdict = $env:VERDICT
+        $findings = $env:FINDINGS
+
+        $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
+
+        if ($verdict -in $blockingVerdicts) {
+          $maxAnnotationLength = 180
+          if ([string]::IsNullOrWhiteSpace($findings)) {
+            $summary = "No details available."
+          } else {
+            $summary = ($findings -replace "`n", " ")
+            if ($summary.Length -gt $maxAnnotationLength) {
+              $summary = $summary.Substring(0, $maxAnnotationLength - 3) + "..."
+            }
+          }
+
+          Write-Output "::error::[$agent] ${verdict}: $summary"
+          Write-Output ""
+          Write-Output "❌ $emoji $agent review failed with verdict: $verdict"
+          Write-Output ""
+          Write-Output "See the step summary above for full findings."
+          exit 1
+        }
+
+        Write-Output "✅ $emoji $agent review passed with verdict: $verdict"
+
+    - name: Skip ${{ inputs.agent }} review (no relevant changes)
+      if: inputs.should-run != 'true'
+      shell: bash
+      run: |
+        echo "✅ ${{ inputs.agent }} review skipped - no relevant file changes detected"
+        echo ""
+        echo "This PR only contains changes to files that don't require AI review."
+        echo "Status: PASS (skipped)"

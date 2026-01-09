@@ -125,198 +125,168 @@ jobs:
             fi
           fi
 
-# Run all three reviews in parallel using matrix strategy
+# ==============================================================================
+# Agent Review Jobs (6 Static Jobs)
+# ==============================================================================
+#
+# Each agent (security, qa, analyst, architect, devops, roadmap) has a dedicated
+# job with a static name. This ensures status check contexts are always emitted
+# with proper names, even when reviews are skipped due to file filtering.
+#
+# Why not matrix? Job-level `if:` conditions prevent matrix expansion, leaving
+# check context names as unresolved placeholders (e.g., "${{ matrix.agent }} Review").
+# Static jobs with step-level conditionals solve this by:
+# 1. Job names resolve at parse time (not runtime)
+# 2. Jobs always run, emitting proper status checks
+# 3. Composite action (.github/actions/agent-review) encapsulates common workflow
+#
+# Trade-off: Six job definitions (CVA) vs correctness (reliable status checks).
 
-  review:
-    name: ${{ matrix.agent }} Review
-    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+  security-review:
+    name: security Review
     runs-on: ubuntu-24.04-arm
     needs: check-changes
-    if: needs.check-changes.outputs.should-run == 'true'
+    if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
-
-    strategy:
-      fail-fast: false  # Don't cancel other reviews if one fails
-      matrix:
-        include:
-          - agent: security
-            prompt-file: .github/prompts/pr-quality-gate-security.md
-            emoji: "🔒"
-          - agent: qa
-            prompt-file: .github/prompts/pr-quality-gate-qa.md
-            emoji: "🧪"
-          - agent: analyst
-            prompt-file: .github/prompts/pr-quality-gate-analyst.md
-            emoji: "📊"
-          - agent: architect
-            prompt-file: .github/prompts/pr-quality-gate-architect.md
-            emoji: "📐"
-          - agent: devops
-            prompt-file: .github/prompts/pr-quality-gate-devops.md
-            emoji: "⚙️"
-          - agent: roadmap
-            prompt-file: .github/prompts/pr-quality-gate-roadmap.md
-            emoji: "🗺️"
-
-    # NOTE: Matrix job outputs only expose ONE matrix leg's outputs to downstream jobs.
-    # We use artifacts instead to reliably pass findings between jobs.
-    # Verdicts use job outputs (small strings, safe for interpolation).
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Run security review
+        uses: ./.github/actions/agent-review
         with:
-          fetch-depth: 0
-
-      - name: ${{ matrix.emoji }} ${{ matrix.agent }} Review
-        id: review
-        uses: ./.github/actions/ai-review
-        with:
-          agent: ${{ matrix.agent }}
-          context-type: pr-diff
+          agent: security
+          emoji: 🔒
+          prompt-file: .github/prompts/pr-quality-gate-security.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
           pr-number: ${{ env.PR_NUMBER }}
-          prompt-file: ${{ matrix.prompt-file }}
-          timeout-minutes: 5
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-      - name: Save review results
-        id: save-results
-        env:
-          AGENT: ${{ matrix.agent }}
-          VERDICT: ${{ steps.review.outputs.verdict }}
-          FINDINGS: ${{ steps.review.outputs.findings }}
-          INFRASTRUCTURE_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
-          RETRY_COUNT: ${{ steps.review.outputs.retry-count }}
-        run: |
-          # Create output directory for this agent's results
-          mkdir -p ai-review-results
+  qa-review:
+    name: qa Review
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
 
-          # Write verdict (safe for job outputs - small string)
-          echo "$VERDICT" > "ai-review-results/${AGENT}-verdict.txt"
-
-          # Write findings to file (avoids shell interpolation issues with special chars)
-          echo "$FINDINGS" > "ai-review-results/${AGENT}-findings.txt"
-
-          # Write infrastructure failure flag (Issue #328)
-          echo "$INFRASTRUCTURE_FAILURE" > "ai-review-results/${AGENT}-infrastructure-failure.txt"
-
-          # Write retry count (Issue #328)
-          echo "$RETRY_COUNT" > "ai-review-results/${AGENT}-retry-count.txt"
-
-          echo "Saved ${AGENT} results:"
-          echo "  Verdict: $VERDICT"
-          echo "  Findings: $(wc -c < ai-review-results/${AGENT}-findings.txt) bytes"
-          echo "  Infrastructure failure: $INFRASTRUCTURE_FAILURE"
-          echo "  Retry count: $RETRY_COUNT"
-
-      - name: Upload review results
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+    steps:
+      - name: Run qa review
+        uses: ./.github/actions/agent-review
         with:
-          name: review-${{ matrix.agent }}
-          path: ai-review-results/
-          retention-days: 1
+          agent: qa
+          emoji: 🧪
+          prompt-file: .github/prompts/pr-quality-gate-qa.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-      - name: Generate step summary
-        if: always()
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        env:
-          AGENT: ${{ matrix.agent }}
-          EMOJI: ${{ matrix.emoji }}
-          VERDICT: ${{ steps.review.outputs.verdict }}
-          FINDINGS: ${{ steps.review.outputs.findings }}
-          RUN_ID: ${{ github.run_id }}
-          SERVER_URL: ${{ github.server_url }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ env.PR_NUMBER }}
-        run: |
-          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
+  analyst-review:
+    name: analyst Review
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
 
-          $verdict = $env:VERDICT
-          $agent = $env:AGENT
-          $emoji = $env:EMOJI
-          $findings = $env:FINDINGS
-          $prNumber = $env:PR_NUMBER
+    steps:
+      - name: Run analyst review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: analyst
+          emoji: 📊
+          prompt-file: .github/prompts/pr-quality-gate-analyst.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-          # Get alert type for verdict
-          $alertType = Get-VerdictAlertType -Verdict $verdict
-          $verdictEmoji = Get-VerdictEmoji -Verdict $verdict
+  architect-review:
+    name: architect Review
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
 
-          # Capitalize agent name (handle empty string case)
-          $agentDisplay = if ($agent) { (Get-Culture).TextInfo.ToTitleCase($agent.ToLower()) } else { "Unknown" }
+    steps:
+      - name: Run architect review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: architect
+          emoji: 📐
+          prompt-file: .github/prompts/pr-quality-gate-architect.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-          # Build step summary
-          $summary = @"
-          ## $emoji $agentDisplay Review
+  devops-review:
+    name: devops Review
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
 
-          > [!$alertType]
-          > $verdictEmoji **Verdict: $verdict**
+    steps:
+      - name: Run devops review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: devops
+          emoji: ⚙️
+          prompt-file: .github/prompts/pr-quality-gate-devops.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-          <details>
-          <summary>Review Findings</summary>
+  roadmap-review:
+    name: roadmap Review
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
 
-          $findings
+    steps:
+      - name: Run roadmap review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: roadmap
+          emoji: 🗺️
+          prompt-file: .github/prompts/pr-quality-gate-roadmap.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-          </details>
-
-          ---
-
-          <sub>💡 See the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) for full context across all agents, or check the PR for the consolidated quality gate comment.</sub>
-          "@
-
-          # Write to step summary
-          $summary | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding UTF8
-
-      - name: Check verdict and fail if needed
-        if: always()
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        env:
-          AGENT: ${{ matrix.agent }}
-          EMOJI: ${{ matrix.emoji }}
-          VERDICT: ${{ steps.review.outputs.verdict }}
-          FINDINGS: ${{ steps.review.outputs.findings }}
-        run: |
-          $agent = $env:AGENT
-          $emoji = $env:EMOJI
-          $verdict = $env:VERDICT
-          $findings = $env:FINDINGS
-
-          # Check if verdict indicates a blocking failure
-          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict
-          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
-
-          if ($verdict -in $blockingVerdicts) {
-            # GitHub Actions annotations have a practical limit of ~200 chars for readability
-            # We truncate to 180 chars (177 + "...") to leave room for the prefix "[agent] VERDICT: "
-            $maxAnnotationLength = 180
-            if ([string]::IsNullOrWhiteSpace($findings)) {
-              $summary = "No details available."
-            } else {
-              $summary = ($findings -replace "`n", " ")
-              if ($summary.Length -gt $maxAnnotationLength) {
-                $summary = $summary.Substring(0, $maxAnnotationLength - 3) + "..."
-              }
-            }
-
-            Write-Output "::error::[$agent] ${verdict}: $summary"
-            Write-Output ""
-            Write-Output "❌ $emoji $agent review failed with verdict: $verdict"
-            Write-Output ""
-            Write-Output "See the step summary above for full findings."
-            exit 1
-          }
-
-          Write-Output "✅ $emoji $agent review passed with verdict: $verdict"
-
-# Aggregate results from all parallel reviews
+# ==============================================================================
+# Aggregate Results from All Agent Reviews
+# ==============================================================================
+#
+# Depends on all six agent review jobs explicitly (not matrix).
+# Downloads artifacts using pattern `review-*` to gather all agent verdicts.
 
   aggregate:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
-    needs: [check-changes, review]
-    # Always run if check-changes ran and said to run, even if some matrix jobs failed
+    needs: [check-changes, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review]
+    # Always run if check-changes ran and said to run, even if some agent jobs failed
     if: always() && needs.check-changes.outputs.should-run == 'true'
 
     outputs:
@@ -327,13 +297,26 @@ jobs:
         id: failed-agents
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          # Check if any matrix jobs failed by examining the needs context
+          # Check if any agent review jobs failed by examining the needs context
           # This step runs before downloading artifacts to surface failures early
           # Note: Specific failed agents are identified later by examining individual verdicts
-          $reviewResult = "${{ needs.review.result }}"
-          Write-Output "Review matrix result: $reviewResult"
+          $securityResult = "${{ needs.security-review.result }}"
+          $qaResult = "${{ needs.qa-review.result }}"
+          $analystResult = "${{ needs.analyst-review.result }}"
+          $architectResult = "${{ needs.architect-review.result }}"
+          $devopsResult = "${{ needs.devops-review.result }}"
+          $roadmapResult = "${{ needs.roadmap-review.result }}"
 
-          if ($reviewResult -eq "failure" -or $reviewResult -eq "cancelled") {
+          $allResults = @($securityResult, $qaResult, $analystResult, $architectResult, $devopsResult, $roadmapResult)
+          Write-Output "Individual review results:"
+          Write-Output "  Security: $securityResult"
+          Write-Output "  QA: $qaResult"
+          Write-Output "  Analyst: $analystResult"
+          Write-Output "  Architect: $architectResult"
+          Write-Output "  DevOps: $devopsResult"
+          Write-Output "  Roadmap: $roadmapResult"
+
+          if ($allResults -contains "failure" -or $allResults -contains "cancelled") {
             "has_failures=true" >> $env:GITHUB_OUTPUT
             Write-Output "::warning::One or more agent review jobs failed - see individual job logs for details"
           } else {
@@ -714,68 +697,3 @@ jobs:
           Write-Output "✅ AI Quality Gate passed with verdict: $finalVerdict"
 
 # Skip jobs that provide passing status when no relevant files changed
-
-# NOTE: We need TWO skip jobs with the SAME names as the real jobs to satisfy
-
-# required status checks. This follows the dual-job same-name pattern from
-
-# pester-tests.yml (see Issue #335 for details)
-
-# Skip job for individual agent reviews - uses matrix to match review job names
-
-  skip-agent-reviews:
-    name: ${{ matrix.agent }} Review
-    needs: check-changes
-    if: needs.check-changes.outputs.should-run != 'true'
-    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-
-    strategy:
-      matrix:
-        include:
-          - agent: security
-          - agent: qa
-          - agent: analyst
-          - agent: architect
-          - agent: devops
-          - agent: roadmap
-
-    steps:
-      - name: Skip ${{ matrix.agent }} review (no relevant changes)
-        run: |
-          echo "✅ ${{ matrix.agent }} review skipped - no relevant file changes detected"
-          echo ""
-          echo "This PR only contains changes to files that don't require AI review."
-          echo "Status: PASS (skipped)"
-
-# Skip job for aggregate results - matches aggregate job name
-
-  skip-aggregate:
-    name: Aggregate Results
-    needs: check-changes
-    if: needs.check-changes.outputs.should-run != 'true'
-    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-
-    steps:
-      - name: Skip AI review (no relevant file changes)
-        run: |
-          echo "✅ AI Quality Gate skipped - no relevant file changes detected"
-          echo ""
-          echo "This PR only contains changes to files that don't require AI review:"
-          echo "  - Documentation files (*.md, *.txt, *.rst, docs/**)"
-          echo "  - Non-code files outside monitored paths"
-          echo ""
-          echo "Monitored paths that would trigger AI review:"
-          echo "  - src/**"
-          echo "  - scripts/**"
-          echo "  - build/**"
-          echo "  - .github/**"
-          echo "  - .agents/**"
-          echo "  - .claude/skills/**"
-          echo ""
-          echo "Status: PASS (skipped - no relevant changes)"
