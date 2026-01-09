@@ -141,8 +141,8 @@ $expectedDir = Join-Path $repoRoot ".agents" "sessions"
 $expectedDirNormalized = [System.IO.Path]::GetFullPath($expectedDir).TrimEnd('\','/')
 $expectedDirWithSep = $expectedDirNormalized + [System.IO.Path]::DirectorySeparatorChar
 $sessionFullPathNormalized = [System.IO.Path]::GetFullPath($sessionFullPath)
-if (-not $sessionFullPathNormalized.StartsWith($expectedDirWithSep, [System.StringComparison]::OrdinalIgnoreCase)) {
-  $startsWithCheck = $sessionFullPathNormalized.StartsWith($expectedDirWithSep, [System.StringComparison]::OrdinalIgnoreCase)
+$startsWithCheck = $sessionFullPathNormalized.StartsWith($expectedDirWithSep, [System.StringComparison]::OrdinalIgnoreCase)
+if (-not $startsWithCheck) {
   Fail 'E_PATH_ESCAPE' @"
 Session log path validation failed.
 Expected directory: $expectedDirWithSep

@@ -574,40 +574,6 @@ Describe "Path Escape Validation (E_PATH_ESCAPE)" {
     }
 
     Context "Valid paths" {
-        BeforeAll {
-            # Verify git is available for test setup
-            if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-                throw "Git is required for test setup but not available"
-            }
-            
-            # Create a valid session log
-            $script:ValidSessionPath = Join-Path $SessionsDir "2026-01-08-session-001.md"
-            $validContent = @"
-# Session Log
-
-## Session Start (COMPLETE ALL before work)
-
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | Initialize Serena: ``mcp__serena__activate_project`` | [x] | Tool output present |
-| MUST | Initialize Serena: ``mcp__serena__initial_instructions`` | [x] | Tool output present |
-| MUST | Read HANDOFF.md | [x] | Confirmed |
-| MUST | Review available skills | [x] | Confirmed |
-| SHOULD | Query Serena memory | [ ] | Skipped |
-
-## Session End Checklist
-
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | Review files committed | [x] | Reviewed |
-| MUST | Route to qa agent | [x] | SKIPPED: docs-only |
-| MUST | Commit all changes | [x] | Commit SHA: abc1234 |
-| MUST | Update Serena memory | [x] | Updated |
-| MUST | Run markdownlint | [x] | Passed |
-"@
-            Set-Content -Path $ValidSessionPath -Value $validContent -Encoding UTF8
-        }
-
         It "Validates session log directly under .agents/sessions/" -Skip {
             # This test requires full integration - skip for unit test isolation
             # Real validation happens in integration tests
@@ -690,14 +656,15 @@ Describe "Path Escape Validation (E_PATH_ESCAPE)" {
         It "Symlink detection occurs before path normalization" {
             $scriptContent = Get-Content -Path (Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1") -Raw
             
-            # Verify both checks exist
-            $scriptContent | Should -Match 'LinkType'
-            $scriptContent | Should -Match '\$sessionFullPathNormalized.*GetFullPath'
+            # Find line positions to verify ordering
+            $lines = $scriptContent -split "`r?`n"
+            $linkTypeLineIndex = ($lines | Select-String -Pattern 'if.*LinkType' | Select-Object -First 1).LineNumber
+            $normalizedPathLineIndex = ($lines | Select-String -Pattern '\$sessionFullPathNormalized\s*=.*GetFullPath' | Select-Object -First 1).LineNumber
             
-            # Verify the LinkType check happens after sessionFullPath is set
-            # and the GetFullPath normalization happens after LinkType check
-            $scriptContent | Should -Match '\$sessionFullPath'
-            $scriptContent | Should -Match 'if.*LinkType'
+            # Verify symlink check comes before path normalization
+            $linkTypeLineIndex | Should -Not -BeNullOrEmpty
+            $normalizedPathLineIndex | Should -Not -BeNullOrEmpty
+            $linkTypeLineIndex | Should -BeLessThan $normalizedPathLineIndex
         }
 
         It "E_PATH_SYMLINK error includes descriptive message" {
@@ -747,9 +714,9 @@ Describe "Path Escape Validation (E_PATH_ESCAPE)" {
 
         It "Trims trailing slashes from paths before comparison" {
             $scriptContent = Get-Content -Path (Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1") -Raw
-            # Check for TrimEnd with backslash and forward slash parameters
-            $scriptContent | Should -Match "TrimEnd"
-            $scriptContent | Should -Match "TrimEnd\('.*','.*'\)"
+            # Check for TrimEnd with backslash and forward slash characters specifically
+            # Pattern matches TrimEnd('\','/') with proper escaping
+            $scriptContent | Should -Match "TrimEnd\('\\','/'\)"
         }
 
         It "Uses platform-appropriate directory separator" {
@@ -766,16 +733,18 @@ Describe "Path Escape Validation (E_PATH_ESCAPE)" {
 
         It "Documents E_PATH_ESCAPE error code" {
             $scriptContent = Get-Content -Path (Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1") -Raw
-            $scriptContent | Should -Match 'E_PATH_ESCAPE.*path.*escape'
+            # Check for E_PATH_ESCAPE with specific path traversal/escape wording
+            $scriptContent | Should -Match 'E_PATH_ESCAPE:.*path.*\.agents/sessions/.*\(path traversal/escape'
         }
 
         It "Error codes are documented in header" {
             $scriptContent = Get-Content -Path (Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1") -Raw
-            # Check that error codes appear in the .NOTES section
-            if ($scriptContent -match '(?s)\.NOTES.*?(?=#>|\z)') {
-                $notesSection = $Matches[0]
-                $notesSection | Should -Match 'Error Codes:'
-            }
+            # Check that a .NOTES section exists
+            $scriptContent | Should -Match '(?s)\.NOTES.*?(?=#>|\z)'
+
+            # Extract the .NOTES section and verify it documents error codes
+            $notesSection = [regex]::Match($scriptContent, '(?s)\.NOTES.*?(?=#>|\z)').Value
+            $notesSection | Should -Match 'Error Codes:'
         }
     }
 }
