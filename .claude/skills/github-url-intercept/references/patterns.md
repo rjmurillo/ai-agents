@@ -7,31 +7,31 @@
 ```text
 Standard PR:
   https://github.com/owner/repo/pull/123
-  → Get-PRContext.ps1 -PullRequest 123 -Owner owner -Repo repo
+  → Get-PRContext.ps1 -PullRequest "123" -Owner "owner" -Repo "repo"
 
 PR with specific review:
   https://github.com/owner/repo/pull/123#pullrequestreview-456789
-  → gh api repos/owner/repo/pulls/123/reviews/456789
+  → gh api "repos/owner/repo/pulls/123/reviews/456789"
 
 PR with discussion comment:
   https://github.com/owner/repo/pull/123#discussion_r987654321
-  → gh api repos/owner/repo/pulls/comments/987654321
+  → gh api "repos/owner/repo/pulls/comments/987654321"
 
 PR with issue-style comment:
   https://github.com/owner/repo/pull/123#issuecomment-123456789
-  → gh api repos/owner/repo/issues/comments/123456789
+  → gh api "repos/owner/repo/issues/comments/123456789"
 
 PR files tab:
   https://github.com/owner/repo/pull/123/files
-  → Get-PRContext.ps1 -PullRequest 123 -IncludeChangedFiles
+  → Get-PRContext.ps1 -PullRequest "123" -IncludeChangedFiles
 
 PR commits tab:
   https://github.com/owner/repo/pull/123/commits
-  → Get-PRContext.ps1 -PullRequest 123 (includes commit count)
+  → Get-PRContext.ps1 -PullRequest "123" (includes commit count)
 
 PR checks tab:
   https://github.com/owner/repo/pull/123/checks
-  → Get-PRChecks.ps1 -PullRequest 123
+  → Get-PRChecks.ps1 -PullRequest "123"
 ```
 
 ### Issue URLs
@@ -39,11 +39,11 @@ PR checks tab:
 ```text
 Standard issue:
   https://github.com/owner/repo/issues/456
-  → Get-IssueContext.ps1 -Issue 456 -Owner owner -Repo repo
+  → Get-IssueContext.ps1 -Issue "456" -Owner "owner" -Repo "repo"
 
 Issue with comment:
   https://github.com/owner/repo/issues/456#issuecomment-789123456
-  → gh api repos/owner/repo/issues/comments/789123456
+  → gh api "repos/owner/repo/issues/comments/789123456"
 ```
 
 ### File/Tree URLs
@@ -51,15 +51,15 @@ Issue with comment:
 ```text
 File on branch:
   https://github.com/owner/repo/blob/main/src/app.py
-  → gh api repos/owner/repo/contents/src/app.py?ref=main
+  → gh api "repos/owner/repo/contents/src/app.py?ref=main"
 
 File at commit:
   https://github.com/owner/repo/blob/abc123/src/app.py
-  → gh api repos/owner/repo/contents/src/app.py?ref=abc123
+  → gh api "repos/owner/repo/contents/src/app.py?ref=abc123"
 
 Directory:
   https://github.com/owner/repo/tree/main/src
-  → gh api repos/owner/repo/contents/src?ref=main
+  → gh api "repos/owner/repo/contents/src?ref=main"
 ```
 
 ### Commit URLs
@@ -67,7 +67,7 @@ Directory:
 ```text
 Commit:
   https://github.com/owner/repo/commit/abc123def456
-  → gh api repos/owner/repo/commits/abc123def456
+  → gh api "repos/owner/repo/commits/abc123def456"
 ```
 
 ### Compare URLs
@@ -75,11 +75,11 @@ Commit:
 ```text
 Branch comparison:
   https://github.com/owner/repo/compare/main...feature-branch
-  → gh api repos/owner/repo/compare/main...feature-branch
+  → gh api "repos/owner/repo/compare/main...feature-branch"
 
 Tag comparison:
   https://github.com/owner/repo/compare/v1.0.0...v2.0.0
-  → gh api repos/owner/repo/compare/v1.0.0...v2.0.0
+  → gh api "repos/owner/repo/compare/v1.0.0...v2.0.0"
 ```
 
 ## Script Selection Guide

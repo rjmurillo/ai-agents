@@ -188,9 +188,9 @@ function Get-RecommendedRoute {
     # Fragments require direct API call (no script for specific comments)
     if ($Parsed.FragmentType -and $Parsed.FragmentId) {
         $cmd = switch ($Parsed.FragmentType) {
-            'pullrequestreview' { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/pulls/$($Parsed.ResourceId)/reviews/$($Parsed.FragmentId)" }
-            'discussion_r' { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/pulls/comments/$($Parsed.FragmentId)" }
-            'issuecomment' { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/issues/comments/$($Parsed.FragmentId)" }
+            'pullrequestreview' { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/pulls/$($Parsed.ResourceId)/reviews/$($Parsed.FragmentId)`"" }
+            'discussion_r' { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/pulls/comments/$($Parsed.FragmentId)`"" }
+            'issuecomment' { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/issues/comments/$($Parsed.FragmentId)`"" }
             default { "unknown" }
         }
 
@@ -207,8 +207,8 @@ function Get-RecommendedRoute {
         $route = $ScriptRoutes[$Parsed.UrlType]
 
         $cmd = switch ($Parsed.UrlType) {
-            ([UrlType]::Pull) { "pwsh $($route.Path) -PullRequest $($Parsed.ResourceId) -Owner $($Parsed.Owner) -Repo $($Parsed.Repo)" }
-            ([UrlType]::Issue) { "pwsh $($route.Path) -Issue $($Parsed.ResourceId) -Owner $($Parsed.Owner) -Repo $($Parsed.Repo)" }
+            ([UrlType]::Pull) { "pwsh `"$($route.Path)`" -PullRequest `"$($Parsed.ResourceId)`" -Owner `"$($Parsed.Owner)`" -Repo `"$($Parsed.Repo)`"" }
+            ([UrlType]::Issue) { "pwsh `"$($route.Path)`" -Issue `"$($Parsed.ResourceId)`" -Owner `"$($Parsed.Owner)`" -Repo `"$($Parsed.Repo)`"" }
         }
 
         return [PSCustomObject]@{
@@ -221,10 +221,10 @@ function Get-RecommendedRoute {
 
     # Fallback to gh api for blob/tree/commit/compare
     $cmd = switch ($Parsed.UrlType) {
-        ([UrlType]::Blob) { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/contents/$($Parsed.Path)?ref=$($Parsed.Ref)" }
-        ([UrlType]::Tree) { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/contents/$($Parsed.Path)?ref=$($Parsed.Ref)" }
-        ([UrlType]::Commit) { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/commits/$($Parsed.ResourceId)" }
-        ([UrlType]::Compare) { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/compare/$($Parsed.ResourceId)" }
+        ([UrlType]::Blob) { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/contents/$($Parsed.Path)?ref=$($Parsed.Ref)`"" }
+        ([UrlType]::Tree) { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/contents/$($Parsed.Path)?ref=$($Parsed.Ref)`"" }
+        ([UrlType]::Commit) { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/commits/$($Parsed.ResourceId)`"" }
+        ([UrlType]::Compare) { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/compare/$($Parsed.ResourceId)`"" }
         default { "unknown" }
     }
 
@@ -250,6 +250,26 @@ if (-not $parsed) {
 }
 
 $recommended = Get-RecommendedRoute -Parsed $parsed
+
+# Fail explicitly for unknown URL types (P2: don't return Success=true with unknown command)
+if ($recommended.Command -eq 'unknown') {
+    [PSCustomObject]@{
+        Success          = $false
+        ParsedUrl        = [PSCustomObject]@{
+            Owner        = $parsed.Owner
+            Repo         = $parsed.Repo
+            UrlType      = $parsed.UrlType.ToString()
+            ResourceId   = $parsed.ResourceId
+            Ref          = $parsed.Ref
+            Path         = $parsed.Path
+            FragmentType = $parsed.FragmentType
+            FragmentId   = $parsed.FragmentId
+        }
+        RecommendedRoute = $null
+        Error            = "No routing available for URL type: $($parsed.UrlType)"
+    } | ConvertTo-Json -Depth 5
+    exit 1
+}
 
 [PSCustomObject]@{
     Success          = $true

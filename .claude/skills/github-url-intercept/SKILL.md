@@ -236,7 +236,7 @@ Input: "https://github.com/owner/repo/pull/715/changes#r2656144507 are the graph
 
 Action:
   1. Extract fragment: r2656144507 (review comment ID)
-  2. Call: gh api repos/owner/repo/pulls/comments/2656144507
+  2. Call: gh api "repos/owner/repo/pulls/comments/2656144507"
   3. Answer user's question using the comment content
 ```
 
@@ -247,8 +247,8 @@ Input: "https://github.com/owner/repo/pull/715#discussion_r123 https://github.co
 
 Action:
   1. Parse each URL
-  2. Batch: gh api repos/owner/repo/pulls/comments/123
-  3. Batch: gh api repos/owner/repo/pulls/comments/456
+  2. Batch: gh api "repos/owner/repo/pulls/comments/123"
+  3. Batch: gh api "repos/owner/repo/pulls/comments/456"
 ```
 
 ### Research/Analyze Pattern
@@ -258,7 +258,7 @@ Input: "analyze https://github.com/modu-ai/moai-adk for insights"
 
 Action:
   1. Use deepwiki MCP or gh api to get repo info
-  2. Call: gh api repos/modu-ai/moai-adk (NOT web_fetch!)
+  2. Call: gh api "repos/modu-ai/moai-adk" (NOT web_fetch!)
 ```
 
 ### CI/Actions Run URL
@@ -268,7 +268,7 @@ Input: "https://github.com/owner/repo/actions/runs/20675405338/job/59362398542?p
 
 Action:
   1. Extract: run_id=20675405338, job_id=59362398542
-  2. Call: gh api repos/owner/repo/actions/jobs/59362398542
+  2. Call: gh api "repos/owner/repo/actions/jobs/59362398542"
 ```
 
 ### PR URL → Script
@@ -277,7 +277,7 @@ Action:
 Input: "Review this: https://github.com/owner/repo/pull/123"
 
 Action:
-  pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 123 -Owner owner -Repo repo
+  pwsh ".claude/skills/github/scripts/pr/Get-PRContext.ps1" -PullRequest "123" -Owner "owner" -Repo "repo"
 ```
 
 ### File URL → API
@@ -286,7 +286,7 @@ Action:
 Input: "would a hook like https://github.com/ruvnet/claude-flow/blob/main/.claude/settings.json help?"
 
 Action:
-  gh api repos/ruvnet/claude-flow/contents/.claude/settings.json?ref=main
+  gh api "repos/ruvnet/claude-flow/contents/.claude/settings.json?ref=main"
 ```
 
 ---
