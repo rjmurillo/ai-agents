@@ -7,7 +7,7 @@ model: haiku
 
 # PR Quality Gate - All Agents
 
-Run all 6 quality gate agents sequentially on your current changes.
+Run all 6 quality gate agents (security, QA, analyst, architect, DevOps, and roadmap) sequentially on your current changes.
 
 ## Pre-flight Checks
 
@@ -21,12 +21,12 @@ If no changes detected, exit early with PASS.
 
 Invoke each agent command using Skill tool and capture results:
 
-1. Security Agent: `/pr-quality:security $ARGUMENTS`
-2. QA Agent: `/pr-quality:qa $ARGUMENTS`
-3. Analyst Agent: `/pr-quality:analyst $ARGUMENTS`
-4. Architect Agent: `/pr-quality:architect $ARGUMENTS`
-5. DevOps Agent: `/pr-quality:devops $ARGUMENTS`
-6. Roadmap Agent: `/pr-quality:roadmap $ARGUMENTS`
+1. Security Agent: `/pr-quality:security ${1:-main}`
+2. QA Agent: `/pr-quality:qa ${1:-main}`
+3. Analyst Agent: `/pr-quality:analyst ${1:-main}`
+4. Architect Agent: `/pr-quality:architect ${1:-main}`
+5. DevOps Agent: `/pr-quality:devops ${1:-main}`
+6. Roadmap Agent: `/pr-quality:roadmap ${1:-main}`
 
 ## Verdict Aggregation
 
