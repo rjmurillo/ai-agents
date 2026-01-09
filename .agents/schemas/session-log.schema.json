@@ -30,13 +30,12 @@
         },
         "branch": {
           "type": "string",
-          "description": "Git branch name",
-          "minLength": 1
+          "description": "Git branch name (empty string allowed for detached HEAD or unknown state)"
         },
         "startingCommit": {
           "type": "string",
-          "description": "Git commit SHA at session start (short or full)",
-          "pattern": "^[0-9a-f]{7,40}$"
+          "description": "Git commit SHA at session start (short or full, empty allowed for unknown state)",
+          "pattern": "^([0-9a-f]{7,40})?$"
         },
         "objective": {
           "type": "string",

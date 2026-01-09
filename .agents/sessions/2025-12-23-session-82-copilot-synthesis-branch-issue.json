@@ -99,9 +99,9 @@
         "Complete": false
       },
       "handoffNotUpdated": {
-        "evidence": "",
+        "Evidence": "",
         "level": "MUST NOT",
-        "complete": false
+        "Complete": false
       }
     }
   },
