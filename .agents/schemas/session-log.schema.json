@@ -12,7 +12,7 @@
       "properties": {
         "number": { "type": "integer", "minimum": 1 },
         "date": { "type": "string", "format": "date" },
-        "branch": { "type": "string", "pattern": "^(feat|fix|docs|chore|refactor|test|ci)/.*$" },
+        "branch": { "type": "string", "pattern": "^(feat|fix|docs|chore|refactor|test|ci|build|perf|style|revert|hotfix)/.*$" },
         "startingCommit": { "type": "string", "pattern": "^[a-f0-9]{7,40}$" },
         "objective": { "type": "string", "minLength": 10 }
       }
@@ -75,11 +75,11 @@
   "$defs": {
     "checkItem": {
       "type": "object",
-      "required": ["level", "complete"],
+      "required": ["level", "Complete"],
       "properties": {
         "level": { "type": "string", "enum": ["MUST", "MUST NOT", "SHOULD"] },
-        "complete": { "type": "boolean" },
-        "evidence": { "type": "string" }
+        "Complete": { "type": "boolean" },
+        "Evidence": { "type": "string" }
       }
     }
   }
