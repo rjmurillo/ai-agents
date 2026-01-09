@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rjmurillo/ai-agents/schemas/session-log.schema.json",
+  "title": "Session Log",
+  "description": "Schema for agent session logs",
+  "type": "object",
+  "required": ["session", "protocolCompliance"],
+  "properties": {
+    "session": {
+      "type": "object",
+      "required": ["number", "date", "branch", "startingCommit", "objective"],
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "date": { "type": "string", "format": "date" },
+        "branch": { "type": "string", "pattern": "^(feat|fix|docs|chore|refactor|test|ci)/.*$" },
+        "startingCommit": { "type": "string", "pattern": "^[a-f0-9]{7,40}$" },
+        "objective": { "type": "string", "minLength": 10 }
+      }
+    },
+    "protocolCompliance": {
+      "type": "object",
+      "required": ["sessionStart", "sessionEnd"],
+      "properties": {
+        "sessionStart": {
+          "type": "object",
+          "required": ["serenaActivated", "serenaInstructions", "handoffRead", "sessionLogCreated", "branchVerified", "notOnMain"],
+          "properties": {
+            "serenaActivated": { "$ref": "#/$defs/checkItem" },
+            "serenaInstructions": { "$ref": "#/$defs/checkItem" },
+            "handoffRead": { "$ref": "#/$defs/checkItem" },
+            "sessionLogCreated": { "$ref": "#/$defs/checkItem" },
+            "skillScriptsListed": { "$ref": "#/$defs/checkItem" },
+            "usageMandatoryRead": { "$ref": "#/$defs/checkItem" },
+            "constraintsRead": { "$ref": "#/$defs/checkItem" },
+            "memoriesLoaded": { "$ref": "#/$defs/checkItem" },
+            "branchVerified": { "$ref": "#/$defs/checkItem" },
+            "notOnMain": { "$ref": "#/$defs/checkItem" },
+            "gitStatusVerified": { "$ref": "#/$defs/checkItem" },
+            "startingCommitNoted": { "$ref": "#/$defs/checkItem" }
+          }
+        },
+        "sessionEnd": {
+          "type": "object",
+          "required": ["checklistComplete", "handoffNotUpdated", "serenaMemoryUpdated", "markdownLintRun", "changesCommitted", "validationPassed"],
+          "properties": {
+            "checklistComplete": { "$ref": "#/$defs/checkItem" },
+            "handoffNotUpdated": { "$ref": "#/$defs/checkItem" },
+            "serenaMemoryUpdated": { "$ref": "#/$defs/checkItem" },
+            "markdownLintRun": { "$ref": "#/$defs/checkItem" },
+            "changesCommitted": { "$ref": "#/$defs/checkItem" },
+            "validationPassed": { "$ref": "#/$defs/checkItem" },
+            "tasksUpdated": { "$ref": "#/$defs/checkItem" },
+            "retrospectiveInvoked": { "$ref": "#/$defs/checkItem" }
+          }
+        }
+      }
+    },
+    "workLog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["action", "result"],
+        "properties": {
+          "timestamp": { "type": "string", "format": "time" },
+          "action": { "type": "string" },
+          "result": { "type": "string" },
+          "files": { "type": "array", "items": { "type": "string" } },
+          "commit": { "type": "string", "pattern": "^[a-f0-9]{7,40}$" }
+        }
+      }
+    },
+    "endingCommit": { "type": "string", "pattern": "^[a-f0-9]{7,40}$" },
+    "nextSteps": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "checkItem": {
+      "type": "object",
+      "required": ["level", "complete"],
+      "properties": {
+        "level": { "type": "string", "enum": ["MUST", "MUST NOT", "SHOULD"] },
+        "complete": { "type": "boolean" },
+        "evidence": { "type": "string" }
+      }
+    }
+  }
+}
