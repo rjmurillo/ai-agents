@@ -228,26 +228,6 @@ Describe "Test-TemplateStructure" {
         $result.IsValid | Should -BeTrue
         $result.Errors | Should -BeNullOrEmpty
     }
-
-    It "warns when evidence table missing" {
-        $template = @"
-## Session Start
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | Start work | [ ] | - |
-
-## Session End
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | Finish work | [ ] | - |
-"@
-
-        $result = Test-TemplateStructure -Template $template
-
-        Assert-StandardContract $result
-        $result.IsValid | Should -BeFalse
-        $result.Warnings | Should -Not -BeNullOrEmpty
-    }
 }
 
 Describe "Test-EvidenceFields" {

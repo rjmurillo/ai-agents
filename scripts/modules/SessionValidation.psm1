@@ -303,8 +303,7 @@ function Test-RequiredSections {
 
     [string[]]$RequiredSections = @(
       '## Session Start',
-      '## Session End',
-      '## Evidence'
+      '## Session End'
     )
   )
 
@@ -1103,11 +1102,6 @@ function Test-TemplateStructure {
     $errors += 'Session End section missing checklist table'
   }
 
-  $evidenceTable = $Template -match '(?s)## Evidence.*?\|.*?\|'
-  if (-not $evidenceTable) {
-    $warnings += 'Evidence section missing table (may be populated later)'
-  }
-
   return @{
     IsValid = ($errors.Count -eq 0)
     Errors = $errors
@@ -1137,21 +1131,10 @@ function Test-EvidenceFields {
   $warnings = @()
   $fixableIssues = @()
 
-  $evidenceMatch = [regex]::Match($SessionLog, '## Evidence.*?(?=##|$)', [System.Text.RegularExpressions.RegexOptions]::Singleline)
-  if (-not $evidenceMatch.Success) {
-    $evidenceMatch = [regex]::Match($SessionLog, '## Evidence.*', [System.Text.RegularExpressions.RegexOptions]::Singleline)
-  }
-  if (-not $evidenceMatch.Success) {
-    $errors += 'Evidence section not found'
-    return @{
-      IsValid = $false
-      Errors = $errors
-      Warnings = $warnings
-      FixableIssues = $fixableIssues
-    }
-  }
-
-  $evidenceContent = $evidenceMatch.Value
+  # Since evidence is stored in table columns per the canonical template,
+  # we no longer require a standalone ## Evidence section.
+  # Evidence validation now focuses on the Evidence column in checklist tables.
+  $evidenceContent = $SessionLog
 
   $pathResult = Test-PathNormalization -SessionLogContent $evidenceContent
   if (-not $pathResult.IsValid) {
