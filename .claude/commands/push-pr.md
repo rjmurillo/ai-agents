@@ -1,9 +1,8 @@
 # Push PR Command
 
 ---
-
-allowed-tools: Bash(git checkout --branch:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(gh pr create:*)
 description: Commit, push, and open a PR
+allowed-tools: Bash(git checkout --branch:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(gh pr create:*), Bash(git diff:*), Bash(git branch:*)
 ---
 
 ## Context
