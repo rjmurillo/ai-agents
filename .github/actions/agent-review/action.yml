@@ -76,9 +76,11 @@ runs:
         INFRASTRUCTURE_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
         RETRY_COUNT: ${{ steps.review.outputs.retry-count }}
       run: |
-        # CWE-22 mitigation: Validate agent name to prevent path traversal
-        if ($env:AGENT -match '[\\/.]') {
-          throw "Invalid agent name: $($env:AGENT)"
+        $ErrorActionPreference = 'Stop'
+        # CWE-22 mitigation: Validate agent name against allowlist
+        $allowedAgents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
+        if ($env:AGENT -notin $allowedAgents) {
+          throw "Invalid agent name: $($env:AGENT). Must be one of: $($allowedAgents -join ', ')"
         }
 
         $basePath = "ai-review-results"
@@ -171,6 +173,7 @@ runs:
         FINDINGS: ${{ steps.review.outputs.findings }}
         INFRASTRUCTURE_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
       run: |
+        $ErrorActionPreference = 'Stop'
         $agent = $env:AGENT
         $emoji = $env:EMOJI
         $verdict = $env:VERDICT
@@ -211,6 +214,7 @@ runs:
       env:
         AGENT: ${{ inputs.agent }}
       run: |
+        $ErrorActionPreference = 'Stop'
         Write-Output "✅ $env:AGENT review skipped - no relevant file changes detected"
         Write-Output ""
         Write-Output "This PR only contains changes to files that don't require AI review."
