@@ -57,7 +57,7 @@ function ConvertFrom-MarkdownSession {
   # Extract branch
   $branch = ''
   if ($Content -match '\*?\*?Branch\*?\*?:\s*([^\n\r]+)') {
-    $branch = $Matches[1].Trim()
+    $branch = $Matches[1].Trim() -replace '`', ''  # Strip markdown backticks
   }
   
   # Extract commit
@@ -99,7 +99,7 @@ function ConvertFrom-MarkdownSession {
   # Build session end checks
   $sessionEnd = @{
     checklistComplete = Find-ChecklistItem $Content 'Complete.*session.*log|session.*log.*complete|all.*section'
-    handoffNotUpdated = @{ level = 'MUST NOT'; complete = $false; evidence = (Find-ChecklistItem $Content 'HANDOFF.*read-only|Update.*HANDOFF').Evidence }
+    handoffNotUpdated = @{ level = 'MUST NOT'; Complete = $false; Evidence = (Find-ChecklistItem $Content 'HANDOFF.*read-only|Update.*HANDOFF').Evidence }
     serenaMemoryUpdated = Find-ChecklistItem $Content 'Serena.*memory|Update.*memory|memory.*updat'
     markdownLintRun = Find-ChecklistItem $Content 'markdownlint|markdown.*lint|Run.*lint'
     changesCommitted = Find-ChecklistItem $Content 'Commit.*change|change.*commit'
