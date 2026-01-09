@@ -143,7 +143,7 @@ jobs:
 # Trade-off: Six job definitions (CVA) vs correctness (reliable status checks).
 
   security-review:
-    name: security Review
+    name: Security Review
     runs-on: ubuntu-24.04-arm
     needs: check-changes
     if: always() && needs.check-changes.result == 'success'
@@ -165,7 +165,7 @@ jobs:
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
   qa-review:
-    name: qa Review
+    name: QA Review
     runs-on: ubuntu-24.04-arm
     needs: check-changes
     if: always() && needs.check-changes.result == 'success'
@@ -190,7 +190,7 @@ jobs:
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
   analyst-review:
-    name: analyst Review
+    name: Analyst Review
     runs-on: ubuntu-24.04-arm
     needs: check-changes
     if: always() && needs.check-changes.result == 'success'
@@ -215,7 +215,7 @@ jobs:
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
   architect-review:
-    name: architect Review
+    name: Architect Review
     runs-on: ubuntu-24.04-arm
     needs: check-changes
     if: always() && needs.check-changes.result == 'success'
@@ -240,7 +240,7 @@ jobs:
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
   devops-review:
-    name: devops Review
+    name: DevOps Review
     runs-on: ubuntu-24.04-arm
     needs: check-changes
     if: always() && needs.check-changes.result == 'success'
@@ -265,7 +265,7 @@ jobs:
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
   roadmap-review:
-    name: roadmap Review
+    name: Roadmap Review
     runs-on: ubuntu-24.04-arm
     needs: check-changes
     if: always() && needs.check-changes.result == 'success'
