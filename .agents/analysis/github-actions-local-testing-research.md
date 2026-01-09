@@ -226,7 +226,7 @@ new ActRunner()
 
 #### Limitations
 
-- **Not Gradle-based** - Despite the research request, this is a Node.js/TypeScript library
+- **Not PowerShell-based** - This is a Node.js/TypeScript library
 - **Sequential execution required** - Parallel runs cause state pollution
 - **Limited native options** - Must use `additionalArgs` for advanced act features
 
