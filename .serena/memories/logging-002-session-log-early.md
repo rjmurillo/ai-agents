@@ -59,7 +59,7 @@ Session log created within first 5 tool calls:
 
 ```bash
 # After Phase 2
-ls -lt .agents/sessions/*.md | head -1
+ls -lt .agents/sessions/*.json | head -1
 # Should show today's date and session number
 ```
 

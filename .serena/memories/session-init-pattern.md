@@ -49,7 +49,7 @@ Agents MUST use the `/session-init` skill which:
 **Benefits**:
 
 - Human-readable session discovery via `ls .agents/sessions/`
-- Grep-friendly session search: `grep -l "oauth" .agents/sessions/*.md`
+- Grep-friendly session search: `grep -l "oauth" .agents/sessions/*.json`
 - Self-documenting filenames eliminate need to open files
 - Chronological sorting preserved (YYYY-MM-DD prefix)
 - Cross-session pattern identification via keyword clustering
