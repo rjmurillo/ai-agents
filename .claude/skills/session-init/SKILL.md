@@ -249,7 +249,7 @@ For objective "Debug recurring session validation failures", the filename become
 
 Construct filename: `.agents/sessions/YYYY-MM-DD-session-NN.json`
 
-Example: `.agents/sessions/2026-01-05-session-375.md`
+Example: `.agents/sessions/.agents/sessions/2026-01-05-session-375.json`
 
 Write the populated template to this file.
 
@@ -304,7 +304,7 @@ Before reporting success:
 ```text
 Session log created and validated
 
-  File: .agents/sessions/2026-01-05-session-375.md
+  File: .agents/sessions/.agents/sessions/2026-01-05-session-375.json
   Validation: PASS
   Branch: feat/session-init
   Commit: abc1234
@@ -317,12 +317,12 @@ Next: Complete Session Start checklist in the session log
 ```text
 Session log created but validation FAILED
 
-  File: .agents/sessions/2026-01-05-session-375.md
+  File: .agents/sessions/.agents/sessions/2026-01-05-session-375.json
   Validation: FAIL
   Errors:
     - Missing Session End checklist header
 
-Run: pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/2026-01-05-session-375.md" 
+Run: pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" 
 
 Fix the issues and re-validate.
 ```
@@ -367,7 +367,7 @@ $template = & .claude/skills/session-init/scripts/New-SessionLog.ps1
 $sessionLog = $template -replace 'NN', '375' -replace 'YYYY-MM-DD', '2026-01-06'
 
 # Write to file
-$sessionLog | Out-File -FilePath '.agents/sessions/2026-01-06-session-375.md'
+$sessionLog | Out-File -FilePath '.agents/sessions/.agents/sessions/2026-01-06-session-375.json'
 ```
 
 ---

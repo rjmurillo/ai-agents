@@ -27,7 +27,7 @@ Converts markdown session logs to JSON format for deterministic validation.
 
 ```powershell
 # Migrate single file
-pwsh .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/2026-01-09-session-385.md"
+pwsh .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/.agents/sessions/2026-01-09-session-385.json"
 
 # Migrate all sessions in directory
 pwsh .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/"
@@ -58,11 +58,13 @@ Use this skill when:
 ### Why JSON?
 
 Markdown session logs required fragile regex patterns to validate:
+
 - `**Branch**:` vs `Branch:` vs `Starting Branch:`
 - Table parsing with varied column orders
 - Checkbox detection across different formats
 
 JSON provides:
+
 - Deterministic key-based validation
 - Schema enforcement
 - No regex, no fuzzy matching
@@ -71,14 +73,16 @@ JSON provides:
 ### Schema Location
 
 JSON sessions follow the schema at:
-```
+
+```text
 .agents/schemas/session-log.schema.json
 ```
 
 ### Validator
 
 JSON sessions are validated by:
-```
+
+```text
 scripts/Validate-SessionJson.ps1
 ```
 
@@ -86,7 +90,7 @@ scripts/Validate-SessionJson.ps1
 
 ## Process
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │ 1. INPUT                                                │
 │    Markdown session log (.md)                           │
@@ -193,16 +197,19 @@ $migratedPaths | ForEach-Object { Write-Host "Created: $_" }
 For PRs with in-flight markdown sessions:
 
 1. **Check for markdown sessions in PR**:
+
    ```bash
    git diff origin/main --name-only | grep -E '\.agents/sessions/.*\.md$'
    ```
 
 2. **Run migration**:
+
    ```powershell
    pwsh .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/"
    ```
 
 3. **Validate migrated sessions**:
+
    ```powershell
    Get-ChildItem .agents/sessions/*.json | ForEach-Object {
      pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath $_.FullName
@@ -210,6 +217,7 @@ For PRs with in-flight markdown sessions:
    ```
 
 4. **Commit both formats** (for transition period):
+
    ```bash
    git add .agents/sessions/*.json
    git commit -m "chore(session): migrate session logs to JSON format"
@@ -258,6 +266,7 @@ The migration script maps markdown checklist patterns to JSON keys.
 ### JSON already exists
 
 Use `-Force` to overwrite:
+
 ```powershell
 pwsh .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/" -Force
 ```
@@ -287,7 +296,7 @@ If a checklist item isn't detected, the markdown format may be non-standard. The
 |----------|----------|---------|
 | JSON Schema | `.agents/schemas/session-log.schema.json` | Defines required structure |
 | JSON Validator | `scripts/Validate-SessionJson.ps1` | Validates migrated JSON files |
-| Legacy Validator | `scripts/Validate-Session.ps1` | Validates markdown (deprecated) |
+| Legacy Validator | `scripts/Validate-SessionJson.ps1` | Validates markdown (deprecated) |
 
 ### Architecture
 

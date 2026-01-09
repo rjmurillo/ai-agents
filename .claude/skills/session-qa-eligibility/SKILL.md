@@ -109,7 +109,7 @@ Returns JSON with:
 ```json
 {
   "Eligible": true,
-  "StagedFiles": [".agents/sessions/2025-01-01-session-01.md"],
+  "StagedFiles": [".agents/sessions/.agents/sessions/2025-01-01-session-01.json"],
   "Violations": [],
   "AllowedPaths": [
     ".agents/sessions/",
@@ -127,7 +127,7 @@ Returns JSON with:
 {
   "Eligible": false,
   "StagedFiles": [
-    ".agents/sessions/2025-01-01-session-01.md",
+    ".agents/sessions/.agents/sessions/2025-01-01-session-01.json",
     "scripts/MyScript.ps1"
   ],
   "Violations": ["scripts/MyScript.ps1"],
@@ -232,7 +232,7 @@ These paths qualify for investigation-only QA exemption:
 | `.serena/memories/` | Cross-session context storage |
 | `.agents/security/` | Security assessments and reviews |
 
-**Important**: This allowlist MUST match exactly with `scripts/Validate-Session.ps1 $InvestigationAllowlist`. The patterns are validated by Pester tests to ensure consistency.
+**Important**: This allowlist MUST match exactly with `scripts/Validate-SessionJson.ps1 $InvestigationAllowlist`. The patterns are validated by Pester tests to ensure consistency.
 
 ---
 
@@ -243,7 +243,7 @@ These paths qualify for investigation-only QA exemption:
 | Skipping eligibility check | May commit ineligible files with investigation-only skip | Always run the skill before using the skip |
 | Ignoring violations | QA exemption won't be valid | Address violations or invoke qa agent |
 | Using for code changes | Investigation-only is for analysis, not implementation | Start a new session for code work |
-| Hardcoding path checks | Patterns may drift from Validate-Session.ps1 | Use this skill which shares the same patterns |
+| Hardcoding path checks | Patterns may drift from Validate-SessionJson.ps1 | Use this skill which shares the same patterns |
 
 ---
 
@@ -265,5 +265,5 @@ After using this skill:
 | [ADR-034](../../../../.agents/architecture/ADR-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption architecture decision |
 | [SESSION-PROTOCOL.md](../../../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
 | [Issue #662](https://github.com/rjmurillo/ai-agents/issues/662) | Create QA skip eligibility check skill |
-| [Validate-Session.ps1](../../../../scripts/Validate-Session.ps1) | Uses same allowlist for CI validation |
+| [Validate-SessionJson.ps1](../../../../scripts/Validate-SessionJson.ps1) | Uses same allowlist for CI validation |
 | [Test-InvestigationEligibility.Tests.ps1](../../../../tests/Test-InvestigationEligibility.Tests.ps1) | Pester tests ensuring pattern consistency |

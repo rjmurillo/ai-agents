@@ -83,7 +83,7 @@ If Serena MCP tools are available, you MUST call FIRST:
 2. Update Serena memory (if available)
 3. Run `npx markdownlint-cli2 --fix "**/*.md"`
 4. Commit all changes
-5. Run `pwsh scripts/Validate-Session.ps1 -SessionLogPath [log]`
+5. Run `pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath [log]`
 
 ## Key Documents
 

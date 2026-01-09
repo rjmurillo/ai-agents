@@ -163,7 +163,7 @@ The detailed results tell you **exactly** which MUST requirements failed.
 Validate locally before pushing:
 
 ```powershell
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/<session-file>.md" -Format markdown
+pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/<session-file>.md" 
 ```
 
 This uses the **same script** as CI, so results match exactly.
