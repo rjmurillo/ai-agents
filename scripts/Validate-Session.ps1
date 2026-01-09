@@ -44,9 +44,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Import session validation module
-$ModulePath = Join-Path $PSScriptRoot "modules" "SessionValidation.psm1"
-Import-Module $ModulePath -Force
+# Note: SessionValidation.psm1 was removed in refactor (commit 1ea715a5).
+# Required validation functions are now defined inline below.
 
 function Fail([string]$Code, [string]$Message) {
   Write-Error "${Code}: $Message"

@@ -10,7 +10,8 @@
     3. Extracting canonical template from SESSION-PROTOCOL.md
     4. Replacing placeholders with actual values
     5. Writing session log to .agents/sessions/
-    6. Running validation with scripts/Validate-SessionJson.ps1
+    6. Converting markdown log to JSON
+    7. Running validation with scripts/Validate-SessionJson.ps1
     7. Exiting nonzero on validation failure
 
 .PARAMETER SessionNumber
@@ -19,7 +20,7 @@
 .PARAMETER Objective
     Session objective. If not provided, will prompt.
 
-.PARAMETER SkipValidation
+    .PARAMETER SkipValidation
     Skip validation after creating session log. Use for testing only.
 
 .OUTPUTS
@@ -354,8 +355,8 @@ function Invoke-ValidationScript {
     }
 
     try {
-        Write-Host "Running validation: pwsh $validationScript -SessionPath $SessionLogPath -Format markdown"
-        $validationOutput = & $validationScript -SessionPath $SessionLogPath -Format markdown 2>&1
+        Write-Host "Running validation: pwsh $validationScript -SessionPath $SessionLogPath"
+        $validationOutput = & $validationScript -SessionPath $SessionLogPath 2>&1
 
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Validation FAILED with exit code $LASTEXITCODE"
@@ -447,24 +448,57 @@ try {
     Write-Host "  File: $sessionLogPath" -ForegroundColor Gray
     Write-Host ""
 
-    # Phase 5: Validate
+    # Phase 5: Convert to JSON
+    $jsonLogPath = $null
+    $convertScript = Join-Path $gitInfo.RepoRoot "scripts/Convert-SessionToJson.ps1"
+    if (-not (Test-Path $convertScript)) {
+        Write-Error "Convert-SessionToJson.ps1 not found at: $convertScript"
+        exit 2
+    }
+    try {
+        Write-Host "Phase 5: Converting markdown session log to JSON..." -ForegroundColor Yellow
+        $conversionResult = & $convertScript -Path $sessionLogPath -Force 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Conversion to JSON failed (exit code $LASTEXITCODE)"
+            if ($conversionResult) {
+                $conversionResult | ForEach-Object { Write-Error "  $_" }
+            }
+            exit 2
+        }
+        # Convert-SessionToJson returns array of migrated paths; pick first .json path from output
+        $jsonLogPath = ($conversionResult | Where-Object { $_ -match '\.json$' } | Select-Object -First 1)
+        if (-not $jsonLogPath) {
+            Write-Error "Conversion to JSON did not return a file path."
+            exit 2
+        }
+        Write-Host "  JSON File: $jsonLogPath" -ForegroundColor Gray
+        Write-Host ""
+    } catch {
+        Write-Error "UNEXPECTED ERROR converting to JSON"
+        Write-Error "Exception Type: $($_.Exception.GetType().FullName)"
+        Write-Error "Message: $($_.Exception.Message)"
+        Write-Error "Stack Trace: $($_.ScriptStackTrace)"
+        exit 2
+    }
+
+    # Phase 6: Validate
     if (-not $SkipValidation) {
-        Write-Host "Phase 5: Validating session log..." -ForegroundColor Yellow
-        $validationResult = Invoke-ValidationScript -SessionLogPath $sessionLogPath -RepoRoot $gitInfo.RepoRoot
+        Write-Host "Phase 6: Validating session log..." -ForegroundColor Yellow
+        $validationResult = Invoke-ValidationScript -SessionLogPath $jsonLogPath -RepoRoot $gitInfo.RepoRoot
         Write-Host ""
 
         if (-not $validationResult) {
             Write-Host "=== FAILED ===" -ForegroundColor Red
             Write-Host ""
             Write-Host "Session log created but validation FAILED" -ForegroundColor Red
-            Write-Host "  File: $sessionLogPath" -ForegroundColor Gray
+            Write-Host "  File: $jsonLogPath" -ForegroundColor Gray
             Write-Host ""
             Write-Host "Fix the issues and re-validate with:" -ForegroundColor Yellow
-            Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$sessionLogPath`" -Format markdown" -ForegroundColor Gray
+            Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$jsonLogPath`"" -ForegroundColor Gray
             exit 4
         }
     } else {
-        Write-Host "Phase 5: Validation skipped (SkipValidation flag set)" -ForegroundColor Yellow
+        Write-Host "Phase 6: Validation skipped (SkipValidation flag set)" -ForegroundColor Yellow
         Write-Host ""
     }
 
@@ -478,11 +512,12 @@ try {
         Write-Host "It may contain errors or missing required sections." -ForegroundColor Yellow
         Write-Host ""
         Write-Host "Validate manually with:" -ForegroundColor Yellow
-        Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$sessionLogPath`" -Format markdown" -ForegroundColor Gray
+        Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$jsonLogPath`"" -ForegroundColor Gray
     } else {
         Write-Host "Session log created and validated" -ForegroundColor Green
     }
     Write-Host "  File: $sessionLogPath" -ForegroundColor Gray
+    if ($jsonLogPath) { Write-Host "  JSON: $jsonLogPath" -ForegroundColor Gray }
     Write-Host "  Session: $($userInput.SessionNumber)" -ForegroundColor Gray
     Write-Host "  Branch: $($gitInfo.Branch)" -ForegroundColor Gray
     Write-Host "  Commit: $($gitInfo.Commit)" -ForegroundColor Gray
