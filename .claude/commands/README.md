@@ -28,6 +28,7 @@ Custom slash commands for Claude Code. All commands follow quality gates (frontm
 | Command | Description | Arguments |
 |---------|-------------|-----------|
 | `/pr-review` | Respond to PR review comments | `[pr-number]` |
+| `/push-pr` | Commit, push, and create PR | None |
 | `/context-hub-setup` | Configure Context Hub dependencies | None |
 
 **Extended Thinking**: `pr-review`
