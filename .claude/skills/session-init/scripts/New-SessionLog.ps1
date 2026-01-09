@@ -10,7 +10,7 @@
     3. Extracting canonical template from SESSION-PROTOCOL.md
     4. Replacing placeholders with actual values
     5. Writing session log to .agents/sessions/
-    6. Running validation with scripts/Validate-SessionProtocol.ps1
+    6. Running validation with scripts/Validate-SessionJson.ps1
     7. Exiting nonzero on validation failure
 
 .PARAMETER SessionNumber
@@ -319,7 +319,7 @@ function Write-SessionLogFile {
 function Invoke-ValidationScript {
     <#
     .SYNOPSIS
-        Validate session log using Validate-SessionProtocol.ps1
+        Validate session log using Validate-SessionJson.ps1
     .NOTES
         This function enforces validation - missing validation script is treated as FAILURE,
         not silently skipped. This ensures verification-based enforcement.
@@ -336,7 +336,7 @@ function Invoke-ValidationScript {
         [string]$RepoRoot
     )
 
-    $validationScript = Join-Path $RepoRoot "scripts/Validate-SessionProtocol.ps1"
+    $validationScript = Join-Path $RepoRoot "scripts/Validate-SessionJson.ps1"
 
     # Missing validation script is a CRITICAL failure - no silent fallback
     if (-not (Test-Path $validationScript)) {
@@ -346,7 +346,7 @@ function Invoke-ValidationScript {
         Write-Error ""
         Write-Error "To fix:"
         Write-Error "  1. Ensure you are in the correct repository root"
-        Write-Error "  2. Verify scripts/Validate-SessionProtocol.ps1 exists"
+        Write-Error "  2. Verify scripts/Validate-SessionJson.ps1 exists"
         Write-Error "  3. Do not run this script from a subdirectory"
         Write-Error ""
         Write-Error "If you MUST skip validation (testing only), use -SkipValidation flag."
@@ -460,7 +460,7 @@ try {
             Write-Host "  File: $sessionLogPath" -ForegroundColor Gray
             Write-Host ""
             Write-Host "Fix the issues and re-validate with:" -ForegroundColor Yellow
-            Write-Host "  pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath `"$sessionLogPath`" -Format markdown" -ForegroundColor Gray
+            Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$sessionLogPath`" -Format markdown" -ForegroundColor Gray
             exit 4
         }
     } else {
@@ -478,7 +478,7 @@ try {
         Write-Host "It may contain errors or missing required sections." -ForegroundColor Yellow
         Write-Host ""
         Write-Host "Validate manually with:" -ForegroundColor Yellow
-        Write-Host "  pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath `"$sessionLogPath`" -Format markdown" -ForegroundColor Gray
+        Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$sessionLogPath`" -Format markdown" -ForegroundColor Gray
     } else {
         Write-Host "Session log created and validated" -ForegroundColor Green
     }

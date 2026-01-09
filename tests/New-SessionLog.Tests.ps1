@@ -177,9 +177,9 @@ Describe "New-SessionLog.ps1" {
     }
 
     Context "Validation Integration" {
-        It "Should call Validate-SessionProtocol.ps1" {
+        It "Should call Validate-SessionJson.ps1" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'Validate-SessionProtocol\.ps1'
+            $content | Should -Match 'Validate-SessionJson\.ps1'
         }
 
         It "Should pass SessionPath parameter to validation" {
