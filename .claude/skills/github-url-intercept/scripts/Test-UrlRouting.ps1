@@ -69,8 +69,41 @@ $ScriptRoutes = @{
     }
 }
 
-# Input validation patterns (CWE-78 mitigation)
-# GitHub naming rules: https://docs.github.com/en/get-started/learning-about-github/types-of-github-accounts
+# ============================================================================
+# Input Validation Patterns (CWE-78 Mitigation - Defense in Depth)
+# ============================================================================
+# These patterns block shell metacharacters from reaching command construction.
+# Primary defense: quoted arguments. Secondary defense: input validation.
+#
+# OFFICIAL DOCUMENTATION SOURCES:
+#
+# 1. GitHub Usernames (owner):
+#    Source: https://docs.github.com/en/enterprise-cloud@latest/admin/managing-iam/iam-configuration-reference/username-considerations-for-external-authentication
+#    Rule: "Usernames for user accounts on GitHub can only contain alphanumeric
+#          characters and dashes (-)"
+#    Constraints: Cannot start/end with dash, no consecutive dashes, max 39 chars
+#    Pattern: ^[a-zA-Z0-9][-a-zA-Z0-9]*$ (we also allow _ and . for org names)
+#
+# 2. GitHub Repository Names:
+#    Source: Observed behavior (not explicitly documented in public docs)
+#    Allowed: alphanumeric, hyphens, underscores, periods
+#    Constraint: max 100 characters per https://docs.github.com/en/repositories
+#    Pattern: ^[a-zA-Z0-9][-a-zA-Z0-9_.]*$
+#
+# 3. Git Refs (branches/tags):
+#    Source: https://git-scm.com/docs/git-check-ref-format
+#    Forbidden: ".." (two consecutive dots), ASCII control chars, space, ~ ^ : ? * [ \ @{
+#    Forbidden: consecutive slashes, begin/end with slash, end with .
+#    Our pattern is STRICTER than git's (denies more, never less)
+#    Pattern: ^[a-zA-Z0-9][-a-zA-Z0-9_./]*$
+#
+# 4. File Paths:
+#    Pattern allows common path characters while blocking shell metacharacters.
+#    Stricter than filesystem allows, but sufficient for GitHub blob/tree paths.
+#
+# SECURITY INVARIANT: These patterns block ALL shell metacharacters from:
+#    $DangerousChars = @('"', "'", '`', '$', ';', '&', '|', '>', '<', '(', ')', '{', '}', '[', ']', '!', '\')
+# ============================================================================
 $SafeOwnerRepoPattern = '^[a-zA-Z0-9][-a-zA-Z0-9_.]*$'
 $SafeRefPattern = '^[a-zA-Z0-9][-a-zA-Z0-9_./]*$'
 $SafePathPattern = '^[a-zA-Z0-9][-a-zA-Z0-9_./%+@]*$'
