@@ -359,7 +359,7 @@ Describe "Invoke-SessionStartMemoryFirst" {
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 & "{0}"
-'@ -f $Script:HookPath.Replace('\', '\\')
+'@ -f $Script:HookPath
 
             { Invoke-Expression $TestScript } | Should -Not -Throw
         }
