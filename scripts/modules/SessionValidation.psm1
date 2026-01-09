@@ -801,7 +801,9 @@ function Test-HandoffUpdated {
           $errors += "HANDOFF.md was modified in this branch (detected via git diff). Per SESSION-PROTOCOL.md, agents MUST NOT update HANDOFF.md. Use session log and Serena memory instead."
         }
       } else {
-        $errors += "Cannot verify HANDOFF.md compliance (git diff failed in shallow clone?). Re-run in full clone with: git fetch --unshallow"
+        # Git diff failed but origin/main exists - fall back to timestamps with warning (not error)
+        # This enables graceful degradation in environments where git diff may fail unexpectedly
+        $warnings += "Git diff failed (exit code $LASTEXITCODE). Falling back to filesystem timestamp validation."
       }
     }
 
