@@ -2,8 +2,16 @@ name: 'Agent Review'
 description: 'Runs AI-powered review for a specific agent with conditional execution'
 
 # Required permissions (must be set in calling workflow):
-#   contents: read       - For checkout
+#   contents: read       - For repository access (checkout must be done in calling workflow)
 #   pull-requests: write - For posting review comments (via ai-review action)
+#
+# IMPORTANT: Calling workflow MUST checkout repository BEFORE using this action
+# Example:
+#   steps:
+#     - name: Checkout repository
+#       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+#     - name: Run review
+#       uses: ./.github/actions/agent-review
 
 inputs:
   agent:
@@ -45,12 +53,6 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Checkout repository
-      if: inputs.should-run == 'true'
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-      with:
-        fetch-depth: 0
-
     - name: ${{ inputs.emoji }} ${{ inputs.agent }} Review
       if: inputs.should-run == 'true'
       id: review

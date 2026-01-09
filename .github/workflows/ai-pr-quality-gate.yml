@@ -175,6 +175,9 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
       - name: Run qa review
         uses: ./.github/actions/agent-review
         with:
@@ -197,6 +200,9 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
       - name: Run analyst review
         uses: ./.github/actions/agent-review
         with:
@@ -219,6 +225,9 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
       - name: Run architect review
         uses: ./.github/actions/agent-review
         with:
@@ -241,6 +250,9 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
       - name: Run devops review
         uses: ./.github/actions/agent-review
         with:
@@ -263,6 +275,9 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
       - name: Run roadmap review
         uses: ./.github/actions/agent-review
         with:
