@@ -150,7 +150,7 @@ runs:
           ---
 
           <sub>💡 See the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) for full context across all agents, or check the PR for the consolidated quality gate comment.</sub>
-"@
+        "@
 
           $summary | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding UTF8
         }
