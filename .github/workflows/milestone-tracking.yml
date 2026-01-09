@@ -1,0 +1,57 @@
+name: Milestone Tracking
+
+# Automatically assigns latest semantic version milestone to merged PRs and closed issues
+
+on:
+  pull_request:
+    types: [closed]
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  assign-milestone:
+    name: Assign Milestone
+    runs-on: ubuntu-24.04-arm  # ADR-025: ARM for cost efficiency
+
+    # Only run if PR was merged or issue was closed (not just closed without merge)
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'issues' && github.event.issue.state == 'closed')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Assign milestone to merged PR
+        if: github.event_name == 'pull_request'
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          ./scripts/Set-ItemMilestone.ps1 `
+            -ItemType pr `
+            -ItemNumber $env:PR_NUMBER `
+            -Owner $env:OWNER `
+            -Repo $env:REPO_NAME
+
+      - name: Assign milestone to closed issue
+        if: github.event_name == 'issues'
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          ./scripts/Set-ItemMilestone.ps1 `
+            -ItemType issue `
+            -ItemNumber $env:ISSUE_NUMBER `
+            -Owner $env:OWNER `
+            -Repo $env:REPO_NAME
