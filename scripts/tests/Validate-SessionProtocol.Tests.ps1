@@ -650,12 +650,12 @@ Describe "Test-HandoffUpdated Filesystem Error Handling" {
         }
     }
 
-    It "Handles git diff failure after origin/main verification with fallback warning" {
+    It "Handles git diff failure after origin/main verification as error" {
         # Session with valid date format
         $sessionPath = Join-Path $SessionsPath "2025-12-17-session-01.md"
         New-Item -ItemType File -Path $sessionPath -Force | Out-Null
 
-        # Set HANDOFF.md to older date so filesystem fallback passes
+        # Set HANDOFF.md to older date (irrelevant since git diff failure is an error)
         $handoffPath = Join-Path $AgentsPath "HANDOFF.md"
         (Get-Item $handoffPath).LastWriteTime = [DateTime]::Parse("2025-12-16")
 
@@ -683,11 +683,12 @@ Describe "Test-HandoffUpdated Filesystem Error Handling" {
 
         try {
             $result = Test-HandoffUpdated -SessionPath $sessionPath -BasePath $TestRoot
-            # Should fall back to timestamp with warning about git diff failure
+            # Git diff failure is treated as an error (strict validation)
+            $result.IsValid | Should -BeFalse
+            $result.Errors | Should -Match "Cannot verify HANDOFF.md compliance"
+            # Timestamp fallback warning is also added
             $warnings = $result.Warnings -join ' '
-            $warnings | Should -Match "Git diff failed.*Falling back to timestamp"
-            # Timestamp validation should pass (HANDOFF.md older than session)
-            $result.IsValid | Should -BeTrue
+            $warnings | Should -Match "timestamp.*git not available or diff failed"
         }
         finally {
             Remove-Item function:\git -ErrorAction SilentlyContinue
@@ -817,11 +818,11 @@ Describe "Test-HandoffUpdated Shallow Checkout Detection" {
 
 Describe "Test-GitCommitEvidence" {
     It "Passes when commit SHA is present" {
-        $content = @"
+        $content = @'
 ## Commits This Session
 
 - `abc1234` - feat: add feature
-"@
+'@
         $result = Test-GitCommitEvidence -Content $content
         $result.IsValid | Should -BeTrue
     }

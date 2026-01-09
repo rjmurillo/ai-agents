@@ -131,6 +131,10 @@ Describe 'New-PopulatedSessionLog' {
     }
     
     Context 'Placeholder Validation - Before Replacement' {
+        # Tests updated to expect exceptions (fail-fast design) instead of warnings
+        # Missing required placeholders indicate template/protocol version mismatch
+        # and should fail immediately to prevent creating invalid session logs.
+
         BeforeAll {
             $Script:GitInfo = @{
                 Branch = 'main'
@@ -142,76 +146,54 @@ Describe 'New-PopulatedSessionLog' {
                 Objective = 'Test'
             }
         }
-        
-        It 'Issues warning when template missing NN placeholder' {
+
+        It 'Throws exception when template missing NN placeholder' {
             $templateMissingNN = "# Session - YYYY-MM-DD`n[branch name] [SHA] [What this session aims to accomplish] [clean/dirty]"
-            
-            $warnings = @()
-            $result = New-PopulatedSessionLog -Template $templateMissingNN -GitInfo $Script:GitInfo -UserInput $Script:UserInput -WarningVariable warnings -WarningAction SilentlyContinue
-            
-            $warnings | Should -Not -BeNullOrEmpty
-            $warnings[0] | Should -Match 'NN \(session number\)'
+
+            { New-PopulatedSessionLog -Template $templateMissingNN -GitInfo $Script:GitInfo -UserInput $Script:UserInput } |
+                Should -Throw '*NN (session number)*'
         }
-        
-        It 'Issues warning when template missing YYYY-MM-DD placeholder' {
+
+        It 'Throws exception when template missing YYYY-MM-DD placeholder' {
             $templateMissingDate = "# Session NN`n[branch name] [SHA] [What this session aims to accomplish] [clean/dirty]"
-            
-            $warnings = @()
-            $result = New-PopulatedSessionLog -Template $templateMissingDate -GitInfo $Script:GitInfo -UserInput $Script:UserInput -WarningVariable warnings -WarningAction SilentlyContinue
-            
-            $warnings | Should -Not -BeNullOrEmpty
-            $warnings[0] | Should -Match 'YYYY-MM-DD'
+
+            { New-PopulatedSessionLog -Template $templateMissingDate -GitInfo $Script:GitInfo -UserInput $Script:UserInput } |
+                Should -Throw '*YYYY-MM-DD*'
         }
-        
-        It 'Issues warning when template missing branch name placeholder' {
+
+        It 'Throws exception when template missing branch name placeholder' {
             $templateMissingBranch = "# Session NN - YYYY-MM-DD`n[SHA] [What this session aims to accomplish] [clean/dirty]"
-            
-            $warnings = @()
-            $result = New-PopulatedSessionLog -Template $templateMissingBranch -GitInfo $Script:GitInfo -UserInput $Script:UserInput -WarningVariable warnings -WarningAction SilentlyContinue
-            
-            $warnings | Should -Not -BeNullOrEmpty
-            $warnings[0] | Should -Match '\[branch name\]'
+
+            { New-PopulatedSessionLog -Template $templateMissingBranch -GitInfo $Script:GitInfo -UserInput $Script:UserInput } |
+                Should -Throw '*[branch name]*'
         }
-        
-        It 'Issues warning when template missing SHA placeholder' {
+
+        It 'Throws exception when template missing SHA placeholder' {
             $templateMissingSHA = "# Session NN - YYYY-MM-DD`n[branch name] [What this session aims to accomplish] [clean/dirty]"
-            
-            $warnings = @()
-            $result = New-PopulatedSessionLog -Template $templateMissingSHA -GitInfo $Script:GitInfo -UserInput $Script:UserInput -WarningVariable warnings -WarningAction SilentlyContinue
-            
-            $warnings | Should -Not -BeNullOrEmpty
-            $warnings[0] | Should -Match '\[SHA\]'
+
+            { New-PopulatedSessionLog -Template $templateMissingSHA -GitInfo $Script:GitInfo -UserInput $Script:UserInput } |
+                Should -Throw '*[SHA]*'
         }
-        
-        It 'Issues warning when template missing objective placeholder' {
+
+        It 'Throws exception when template missing objective placeholder' {
             $templateMissingObjective = "# Session NN - YYYY-MM-DD`n[branch name] [SHA] [clean/dirty]"
-            
-            $warnings = @()
-            $result = New-PopulatedSessionLog -Template $templateMissingObjective -GitInfo $Script:GitInfo -UserInput $Script:UserInput -WarningVariable warnings -WarningAction SilentlyContinue
-            
-            $warnings | Should -Not -BeNullOrEmpty
-            $warnings[0] | Should -Match '\[What this session aims to accomplish\]'
+
+            { New-PopulatedSessionLog -Template $templateMissingObjective -GitInfo $Script:GitInfo -UserInput $Script:UserInput } |
+                Should -Throw '*[What this session aims to accomplish]*'
         }
-        
-        It 'Issues warning when template missing clean/dirty placeholder' {
+
+        It 'Throws exception when template missing clean/dirty placeholder' {
             $templateMissingStatus = "# Session NN - YYYY-MM-DD`n[branch name] [SHA] [What this session aims to accomplish]"
-            
-            $warnings = @()
-            $result = New-PopulatedSessionLog -Template $templateMissingStatus -GitInfo $Script:GitInfo -UserInput $Script:UserInput -WarningVariable warnings -WarningAction SilentlyContinue
-            
-            $warnings | Should -Not -BeNullOrEmpty
-            $warnings[0] | Should -Match '\[clean/dirty\]'
+
+            { New-PopulatedSessionLog -Template $templateMissingStatus -GitInfo $Script:GitInfo -UserInput $Script:UserInput } |
+                Should -Throw '*[clean/dirty]*'
         }
-        
-        It 'Warning message includes list of all missing placeholders' {
+
+        It 'Exception message includes list of all missing placeholders' {
             $templateMissingMultiple = "# Session - Date`nBranch Commit Status"
-            
-            $warnings = @()
-            $result = New-PopulatedSessionLog -Template $templateMissingMultiple -GitInfo $Script:GitInfo -UserInput $Script:UserInput -WarningVariable warnings -WarningAction SilentlyContinue
-            
-            $warningText = $warnings[0]
-            $warningText | Should -Match 'NN'
-            $warningText | Should -Match 'YYYY-MM-DD'
+
+            { New-PopulatedSessionLog -Template $templateMissingMultiple -GitInfo $Script:GitInfo -UserInput $Script:UserInput } |
+                Should -Throw '*NN*YYYY-MM-DD*'
         }
     }
     
@@ -683,6 +665,10 @@ Describe 'Module Exports' {
 }
 
 Describe 'SkipValidation Safeguard' {
+    # Tests updated to reflect fail-fast design: missing placeholders always throw
+    # regardless of SkipValidation flag, because missing placeholders indicate
+    # a template/protocol version mismatch that should be fixed before proceeding.
+
     BeforeAll {
         $Script:GitInfo = @{
             Branch = 'main'
@@ -694,40 +680,35 @@ Describe 'SkipValidation Safeguard' {
             Objective = 'Test'
         }
     }
-    
+
     It 'Throws InvalidOperationException when placeholders missing with SkipValidation' {
         # Template missing ALL required placeholders
         $invalidTemplate = "# Session Log`n`nNo placeholders here."
-        
-        { 
-            New-PopulatedSessionLog -Template $invalidTemplate -GitInfo $Script:GitInfo -UserInput $Script:UserInput -SkipValidation 
+
+        {
+            New-PopulatedSessionLog -Template $invalidTemplate -GitInfo $Script:GitInfo -UserInput $Script:UserInput -SkipValidation
         } | Should -Throw -ExceptionType ([System.InvalidOperationException])
     }
-    
-    It 'Exception message mentions missing placeholders and validation skip' {
+
+    It 'Exception message mentions missing placeholders and version mismatch' {
         $invalidTemplate = "# Session Log`n`nNo placeholders here."
-        
+
         try {
             New-PopulatedSessionLog -Template $invalidTemplate -GitInfo $Script:GitInfo -UserInput $Script:UserInput -SkipValidation
             throw "Should have thrown"
         } catch [System.InvalidOperationException] {
             $_.Exception.Message | Should -Match 'missing required placeholders'
-            $_.Exception.Message | Should -Match 'validation is skipped'
+            $_.Exception.Message | Should -Match 'version mismatch'
         }
     }
-    
-    It 'Issues warning (not exception) when placeholders missing without SkipValidation' {
+
+    It 'Throws exception when placeholders missing without SkipValidation' {
+        # Fail-fast design: missing placeholders always throw
         $invalidTemplate = "# Session Log`n`nNo placeholders here."
-        
-        # Capture warnings using -WarningAction and -WarningVariable inside the call
-        $warnings = $null
-        $result = New-PopulatedSessionLog -Template $invalidTemplate -GitInfo $Script:GitInfo -UserInput $Script:UserInput -WarningVariable warnings -WarningAction SilentlyContinue
-        
-        # Function should complete without throwing
-        $result | Should -Not -BeNullOrEmpty
-        
-        # Warnings should have been issued
-        $warnings | Should -Not -BeNullOrEmpty
+
+        {
+            New-PopulatedSessionLog -Template $invalidTemplate -GitInfo $Script:GitInfo -UserInput $Script:UserInput
+        } | Should -Throw -ExceptionType ([System.InvalidOperationException])
     }
     
     It 'Does not throw when valid template used with SkipValidation' {
