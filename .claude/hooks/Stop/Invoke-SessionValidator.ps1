@@ -90,7 +90,14 @@ function Get-MissingSections {
     # or contains common placeholder patterns (TBD, TODO, To be filled, Coming soon, etc.)
     if ($LogContent -match '## Outcomes([^\#]*?)(?=\n##|\z)') {
         $outcomesSection = $Matches[1]
-        $placeholderPatterns = @('to be filled', 'TBD', 'TODO', 'coming soon', '\(pending\)', '\[pending\]')
+        $placeholderPatterns = @(
+            '(?i)to be filled',
+            '(?i)tbd',
+            '(?i)todo',
+            '(?i)coming soon',
+            '(?i)\(pending\)',
+            '(?i)\[pending\]'
+        )
 
         $hasPlaceholder = $false
         foreach ($pattern in $placeholderPatterns) {
