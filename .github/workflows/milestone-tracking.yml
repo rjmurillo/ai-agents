@@ -35,7 +35,7 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
-          ./scripts/Set-ItemMilestone.ps1 `
+          ./.claude/skills/github/scripts/milestone/Set-ItemMilestone.ps1 `
             -ItemType pr `
             -ItemNumber $env:PR_NUMBER `
             -Owner $env:OWNER `
@@ -58,7 +58,7 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
-          ./scripts/Set-ItemMilestone.ps1 `
+          ./.claude/skills/github/scripts/milestone/Set-ItemMilestone.ps1 `
             -ItemType issue `
             -ItemNumber $env:ISSUE_NUMBER `
             -Owner $env:OWNER `

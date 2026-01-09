@@ -18,8 +18,8 @@
 #>
 
 BeforeAll {
-    $script:ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "Set-ItemMilestone.ps1"
-    $script:DetectionScript = Join-Path $PSScriptRoot ".." "scripts" "Get-LatestSemanticMilestone.ps1"
+    $script:ScriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "scripts" "milestone" "Set-ItemMilestone.ps1"
+    $script:DetectionScript = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "scripts" "milestone" "Get-LatestSemanticMilestone.ps1"
     $script:AssignmentScript = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "scripts" "issue" "Set-IssueMilestone.ps1"
 
     # Mock gh command globally

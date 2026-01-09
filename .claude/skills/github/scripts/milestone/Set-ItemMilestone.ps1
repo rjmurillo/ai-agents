@@ -90,7 +90,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # Import shared GitHub functions
-$modulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+$modulePath = Join-Path $PSScriptRoot ".." -AdditionalChildPath "..", "modules", "GitHubCore.psm1"
 if (-not (Test-Path $modulePath)) {
     Write-Error "GitHubCore module not found at: $modulePath"
     exit 2
@@ -104,12 +104,12 @@ function Write-OutputSummary {
 
     # Write to GITHUB_OUTPUT
     if ($env:GITHUB_OUTPUT) {
-        "success=$($Result.Success.ToString().ToLower())" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-        "item_type=$($Result.ItemType)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-        "item_number=$($Result.ItemNumber)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-        "milestone=$($Result.Milestone)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-        "action=$($Result.Action)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-        "message=$($Result.Message)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+        "success=$($Result.Success.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+        "item_type=$($Result.ItemType)" >> $env:GITHUB_OUTPUT
+        "item_number=$($Result.ItemNumber)" >> $env:GITHUB_OUTPUT
+        "milestone=$($Result.Milestone)" >> $env:GITHUB_OUTPUT
+        "action=$($Result.Action)" >> $env:GITHUB_OUTPUT
+        "message=$($Result.Message)" >> $env:GITHUB_OUTPUT
     }
 
     # Write step summary
@@ -126,7 +126,7 @@ function Write-OutputSummary {
 **Milestone**: $($Result.Milestone)
 
 $($Result.Message)
-"@ | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+"@ >> $env:GITHUB_STEP_SUMMARY
     }
 }
 
@@ -144,7 +144,7 @@ try {
     # Check if item already has a milestone
     # GitHub API: PRs and issues share the same endpoint for milestone queries
     $itemEndpoint = "repos/$Owner/$Repo/issues/$ItemNumber"
-    $itemDataJson = gh api $itemEndpoint 2>&1
+    $itemDataJson = gh api "$itemEndpoint" 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-ErrorAndExit "Failed to query $ItemType #${ItemNumber}: $itemDataJson" 3
     }
@@ -181,7 +181,13 @@ try {
         }
 
         $detectionResult = & $detectionScript -Owner $Owner -Repo $Repo 2>&1
-        if ($LASTEXITCODE -ne 0 -or -not $detectionResult.Found) {
+        # Check exit code first (detection may have failed before producing output)
+        if ($LASTEXITCODE -ne 0) {
+            # Preserve original exit code from detection script (2=no milestone, 3=API error)
+            # Exit code 3 should fail loudly, not be treated as benign "no milestone"
+            exit $LASTEXITCODE
+        }
+        if (-not $detectionResult -or -not $detectionResult.Found) {
             Write-ErrorAndExit "Failed to detect latest semantic milestone. Create a semantic version milestone (e.g., 0.2.0) or specify -MilestoneTitle." 2
         }
 
@@ -190,7 +196,7 @@ try {
     }
 
     # Delegate to Set-IssueMilestone.ps1 skill
-    $assignmentScript = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "scripts" "issue" "Set-IssueMilestone.ps1"
+    $assignmentScript = Join-Path $PSScriptRoot ".." -AdditionalChildPath "issue", "Set-IssueMilestone.ps1"
     if (-not (Test-Path $assignmentScript)) {
         Write-ErrorAndExit "Set-IssueMilestone skill not found: $assignmentScript" 2
     }
@@ -208,7 +214,7 @@ try {
         $errorMsg = if ($assignmentResult -is [string]) {
             # Result is error text from stderr, not an object
             "Milestone assignment failed: $assignmentResult"
-        } elseif ($assignmentResult.PSObject.Properties['Action'] -and $assignmentResult.Action -eq 'milestone_not_found') {
+        } elseif ($assignmentResult -is [PSCustomObject] -and $assignmentResult.PSObject.Properties['Action'] -and $assignmentResult.Action -eq 'milestone_not_found') {
             "Milestone '$MilestoneTitle' does not exist in $Owner/$Repo"
         } else {
             "Failed to assign milestone (exit $LASTEXITCODE): $assignmentResult"

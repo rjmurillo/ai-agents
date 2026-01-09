@@ -63,7 +63,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # Import shared GitHub functions
-$modulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+$modulePath = Join-Path $PSScriptRoot ".." -AdditionalChildPath "..", "modules", "GitHubCore.psm1"
 if (-not (Test-Path $modulePath)) {
     Write-Error "GitHubCore module not found at: $modulePath"
     exit 2
@@ -81,8 +81,8 @@ try {
 
     Write-Verbose "Querying milestones for $Owner/$Repo"
 
-    # Query all open milestones
-    $milestonesJson = gh api "repos/$Owner/$Repo/milestones?state=open&per_page=100" 2>&1
+    # Query all open milestones (with pagination to handle repositories with >100 milestones)
+    $milestonesJson = gh api --paginate "repos/$Owner/$Repo/milestones?state=open&per_page=100" 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-ErrorAndExit "Failed to query milestones from GitHub API: $milestonesJson" 3
     }
@@ -95,7 +95,7 @@ try {
         Write-ErrorAndExit "Failed to parse milestone data as JSON: $($_.Exception.Message)" 3
     }
 
-    if ($null -eq $milestones -or $milestones.Count -eq 0) {
+    if ($milestones.Count -eq 0) {
         Write-Warning "No open milestones found in $Owner/$Repo"
         $result = [PSCustomObject]@{
             Title  = ""
@@ -105,9 +105,9 @@ try {
 
         # Output to GITHUB_OUTPUT if running in CI
         if ($env:GITHUB_OUTPUT) {
-            "milestone_title=" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-            "milestone_number=0" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-            "found=false" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "milestone_title=" >> $env:GITHUB_OUTPUT
+            "milestone_number=0" >> $env:GITHUB_OUTPUT
+            "found=false" >> $env:GITHUB_OUTPUT
         }
 
         # Write step summary
@@ -120,7 +120,7 @@ try {
 No open milestones matching semantic versioning format (X.Y.Z) were found in **$Owner/$Repo**.
 
 **Action**: Create a semantic version milestone (e.g., 0.2.0, 1.0.0) or close this workflow run.
-"@ | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+"@ >> $env:GITHUB_STEP_SUMMARY
         }
 
         Write-Output $result
@@ -131,7 +131,7 @@ No open milestones matching semantic versioning format (X.Y.Z) were found in **$
     $semanticPattern = '^\d+\.\d+\.\d+$'
     $semanticMilestones = $milestones | Where-Object { $_.title -match $semanticPattern }
 
-    if ($null -eq $semanticMilestones -or $semanticMilestones.Count -eq 0) {
+    if ($semanticMilestones.Count -eq 0) {
         Write-Warning "No semantic version milestones found. Available milestones: $($milestones.title -join ', ')"
         $result = [PSCustomObject]@{
             Title  = ""
@@ -141,9 +141,9 @@ No open milestones matching semantic versioning format (X.Y.Z) were found in **$
 
         # Output to GITHUB_OUTPUT
         if ($env:GITHUB_OUTPUT) {
-            "milestone_title=" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-            "milestone_number=0" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-            "found=false" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "milestone_title=" >> $env:GITHUB_OUTPUT
+            "milestone_number=0" >> $env:GITHUB_OUTPUT
+            "found=false" >> $env:GITHUB_OUTPUT
         }
 
         # Write step summary
@@ -159,7 +159,7 @@ Found $($milestones.Count) open milestone(s), but none match semantic versioning
 $availableList
 
 **Action**: Create a semantic version milestone (e.g., 0.2.0, 1.0.0) or close this workflow run.
-"@ | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+"@ >> $env:GITHUB_STEP_SUMMARY
         }
 
         Write-Output $result
@@ -182,9 +182,9 @@ $availableList
 
     # Output to GITHUB_OUTPUT
     if ($env:GITHUB_OUTPUT) {
-        "milestone_title=$($latest.title)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-        "milestone_number=$($latest.number)" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-        "found=true" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+        "milestone_title=$($latest.title)" >> $env:GITHUB_OUTPUT
+        "milestone_number=$($latest.number)" >> $env:GITHUB_OUTPUT
+        "found=true" >> $env:GITHUB_OUTPUT
     }
 
     # Write step summary
@@ -198,7 +198,7 @@ $availableList
 
 All $($semanticMilestones.Count) semantic version milestone(s) found:
 $($semanticMilestones | ForEach-Object { "- **$($_.title)** (ID: $($_.number))" } | Out-String)
-"@ | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+"@ >> $env:GITHUB_STEP_SUMMARY
     }
 
     Write-Output $result
