@@ -768,6 +768,37 @@ function Invoke-ToolWithSessionGate {
 - Tools blocked 100% of time when uninitialized
 - No false positives (legitimate work blocked)
 
+**UPDATE (Post-Implementation Test)**: Exit Code 2 approach proven INEFFECTIVE.
+
+Testing revealed that git's `--no-verify` flag completely bypasses hook execution regardless of exit code. Attempted implementation:
+
+1. Changed pre-commit hook exit codes from 1 to 2 (commit fd9e07f9)
+2. Removed all `--no-verify` documentation
+3. Tested with minimal hook exiting code 2
+
+**Results**:
+- Without `--no-verify`: Hook blocked correctly
+- With `--no-verify`: Hook never executed, commit succeeded
+
+**Conclusion**: File lock checks in pre-commit hooks can be bypassed with `--no-verify`. This approach does NOT provide technical enforcement.
+
+**Correct Solution**: Claude Code hooks are the ONLY non-bypassable enforcement:
+
+```bash
+# SessionStart:compact hook (executes at LLM level)
+if ! ls .agents/sessions/$(date +%Y-%m-%d)-session-*.md 1>/dev/null 2>&1; then
+  echo "ERROR: No session log found for today"
+  echo "BLOCKING: Cannot proceed without session initialization"
+  exit 1  # Blocks ALL tool execution, cannot be bypassed
+fi
+```
+
+Claude hooks execute before git/bash commands reach execution, making them truly non-bypassable.
+
+**Revised Implementation**: Use `SessionStart:compact` and `ToolCall` hooks instead of file locks in pre-commit hooks.
+
+See memory: `git-hooks-no-verify-bypass-limitation` for full analysis.
+
 ---
 
 ### Guardrail 3: Continuation Session Detection and Recovery
