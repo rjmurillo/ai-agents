@@ -134,9 +134,9 @@ BeforeAll {
         # Fragments require direct API call (no script for specific comments)
         if ($Parsed.FragmentType -and $Parsed.FragmentId) {
             $cmd = switch ($Parsed.FragmentType) {
-                'pullrequestreview' { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/pulls/$($Parsed.ResourceId)/reviews/$($Parsed.FragmentId)" }
-                'discussion_r' { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/pulls/comments/$($Parsed.FragmentId)" }
-                'issuecomment' { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/issues/comments/$($Parsed.FragmentId)" }
+                'pullrequestreview' { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/pulls/$($Parsed.ResourceId)/reviews/$($Parsed.FragmentId)`"" }
+                'discussion_r' { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/pulls/comments/$($Parsed.FragmentId)`"" }
+                'issuecomment' { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/issues/comments/$($Parsed.FragmentId)`"" }
                 default { "unknown" }
             }
 
@@ -153,8 +153,8 @@ BeforeAll {
             $route = $script:ScriptRoutes[$Parsed.UrlType]
 
             $cmd = switch ($Parsed.UrlType) {
-                ([UrlType]::Pull) { "pwsh $($route.Path) -PullRequest $($Parsed.ResourceId) -Owner $($Parsed.Owner) -Repo $($Parsed.Repo)" }
-                ([UrlType]::Issue) { "pwsh $($route.Path) -Issue $($Parsed.ResourceId) -Owner $($Parsed.Owner) -Repo $($Parsed.Repo)" }
+                ([UrlType]::Pull) { "pwsh `"$($route.Path)`" -PullRequest `"$($Parsed.ResourceId)`" -Owner `"$($Parsed.Owner)`" -Repo `"$($Parsed.Repo)`"" }
+                ([UrlType]::Issue) { "pwsh `"$($route.Path)`" -Issue `"$($Parsed.ResourceId)`" -Owner `"$($Parsed.Owner)`" -Repo `"$($Parsed.Repo)`"" }
             }
 
             return [PSCustomObject]@{
@@ -167,10 +167,10 @@ BeforeAll {
 
         # Fallback to gh api for blob/tree/commit/compare
         $cmd = switch ($Parsed.UrlType) {
-            ([UrlType]::Blob) { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/contents/$($Parsed.Path)?ref=$($Parsed.Ref)" }
-            ([UrlType]::Tree) { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/contents/$($Parsed.Path)?ref=$($Parsed.Ref)" }
-            ([UrlType]::Commit) { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/commits/$($Parsed.ResourceId)" }
-            ([UrlType]::Compare) { "gh api repos/$($Parsed.Owner)/$($Parsed.Repo)/compare/$($Parsed.ResourceId)" }
+            ([UrlType]::Blob) { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/contents/$($Parsed.Path)?ref=$($Parsed.Ref)`"" }
+            ([UrlType]::Tree) { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/contents/$($Parsed.Path)?ref=$($Parsed.Ref)`"" }
+            ([UrlType]::Commit) { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/commits/$($Parsed.ResourceId)`"" }
+            ([UrlType]::Compare) { "gh api `"repos/$($Parsed.Owner)/$($Parsed.Repo)/compare/$($Parsed.ResourceId)`"" }
             default { "unknown" }
         }
 
@@ -415,7 +415,7 @@ Describe 'Get-RecommendedRoute' {
             $result = Get-RecommendedRoute -Parsed $parsed
 
             $result.Method | Should -Be ([RouteMethod]::GhApi)
-            $result.Command | Should -Be 'gh api repos/owner/repo/pulls/123/reviews/456789'
+            $result.Command | Should -Be 'gh api "repos/owner/repo/pulls/123/reviews/456789"'
             $result.ScriptPath | Should -BeNullOrEmpty
             $result.Reason | Should -Match 'Fragment pullrequestreview requires direct API call'
         }
@@ -435,7 +435,7 @@ Describe 'Get-RecommendedRoute' {
             $result = Get-RecommendedRoute -Parsed $parsed
 
             $result.Method | Should -Be ([RouteMethod]::GhApi)
-            $result.Command | Should -Be 'gh api repos/owner/repo/pulls/comments/987654321'
+            $result.Command | Should -Be 'gh api "repos/owner/repo/pulls/comments/987654321"'
             $result.Reason | Should -Match 'Fragment discussion_r requires direct API call'
         }
 
@@ -454,7 +454,7 @@ Describe 'Get-RecommendedRoute' {
             $result = Get-RecommendedRoute -Parsed $parsed
 
             $result.Method | Should -Be ([RouteMethod]::GhApi)
-            $result.Command | Should -Be 'gh api repos/owner/repo/issues/comments/111222333'
+            $result.Command | Should -Be 'gh api "repos/owner/repo/issues/comments/111222333"'
         }
 
         It 'Routes unknown fragment type to "unknown" command' {
@@ -492,7 +492,7 @@ Describe 'Get-RecommendedRoute' {
             $result = Get-RecommendedRoute -Parsed $parsed
 
             $result.Method | Should -Be ([RouteMethod]::Script)
-            $result.Command | Should -Be 'pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 789 -Owner myowner -Repo myrepo'
+            $result.Command | Should -Be 'pwsh ".claude/skills/github/scripts/pr/Get-PRContext.ps1" -PullRequest "789" -Owner "myowner" -Repo "myrepo"'
             $result.ScriptPath | Should -Be '.claude/skills/github/scripts/pr/Get-PRContext.ps1'
             $result.Reason | Should -Be 'Use github skill script for structured output'
         }
@@ -512,7 +512,7 @@ Describe 'Get-RecommendedRoute' {
             $result = Get-RecommendedRoute -Parsed $parsed
 
             $result.Method | Should -Be ([RouteMethod]::Script)
-            $result.Command | Should -Be 'pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue 456 -Owner testowner -Repo testrepo'
+            $result.Command | Should -Be 'pwsh ".claude/skills/github/scripts/issue/Get-IssueContext.ps1" -Issue "456" -Owner "testowner" -Repo "testrepo"'
             $result.ScriptPath | Should -Be '.claude/skills/github/scripts/issue/Get-IssueContext.ps1'
         }
     }
@@ -533,7 +533,7 @@ Describe 'Get-RecommendedRoute' {
             $result = Get-RecommendedRoute -Parsed $parsed
 
             $result.Method | Should -Be ([RouteMethod]::GhApi)
-            $result.Command | Should -Be 'gh api repos/owner/repo/contents/src/app.py?ref=main'
+            $result.Command | Should -Be 'gh api "repos/owner/repo/contents/src/app.py?ref=main"'
             $result.ScriptPath | Should -BeNullOrEmpty
             $result.Reason | Should -Match 'No script available for Blob'
         }
@@ -553,7 +553,7 @@ Describe 'Get-RecommendedRoute' {
             $result = Get-RecommendedRoute -Parsed $parsed
 
             $result.Method | Should -Be ([RouteMethod]::GhApi)
-            $result.Command | Should -Be 'gh api repos/owner/repo/contents/src/components?ref=develop'
+            $result.Command | Should -Be 'gh api "repos/owner/repo/contents/src/components?ref=develop"'
         }
 
         It 'Routes Commit URL to commits API' {
@@ -571,7 +571,7 @@ Describe 'Get-RecommendedRoute' {
             $result = Get-RecommendedRoute -Parsed $parsed
 
             $result.Method | Should -Be ([RouteMethod]::GhApi)
-            $result.Command | Should -Be 'gh api repos/owner/repo/commits/abc123def'
+            $result.Command | Should -Be 'gh api "repos/owner/repo/commits/abc123def"'
         }
 
         It 'Routes Compare URL to compare API' {
@@ -589,7 +589,7 @@ Describe 'Get-RecommendedRoute' {
             $result = Get-RecommendedRoute -Parsed $parsed
 
             $result.Method | Should -Be ([RouteMethod]::GhApi)
-            $result.Command | Should -Be 'gh api repos/owner/repo/compare/main...feature'
+            $result.Command | Should -Be 'gh api "repos/owner/repo/compare/main...feature"'
         }
 
         It 'Routes Unknown URL type to "unknown" command' {
@@ -721,23 +721,25 @@ Describe 'Script Execution (End-to-End)' {
     }
 
     Context 'Edge Cases' {
-        It 'Handles URL with unknown resource type' {
+        It 'Returns failure for URL with unknown resource type' {
             $output = pwsh -NoProfile -File $ScriptPath -Url 'https://github.com/owner/repo/actions'
             $result = $output | ConvertFrom-Json
 
-            $result.Success | Should -BeTrue
+            $result.Success | Should -BeFalse
             $result.ParsedUrl.UrlType | Should -Be 'Unknown'
-            $result.RecommendedRoute.Command | Should -Be 'unknown'
-            $LASTEXITCODE | Should -Be 0
+            $result.RecommendedRoute | Should -BeNullOrEmpty
+            $result.Error | Should -Match 'No routing available'
+            $LASTEXITCODE | Should -Be 1
         }
 
-        It 'Handles repo root URL' {
+        It 'Returns failure for repo root URL' {
             $output = pwsh -NoProfile -File $ScriptPath -Url 'https://github.com/owner/repo'
             $result = $output | ConvertFrom-Json
 
-            $result.Success | Should -BeTrue
+            $result.Success | Should -BeFalse
             $result.ParsedUrl.UrlType | Should -Be 'Unknown'
-            $LASTEXITCODE | Should -Be 0
+            $result.Error | Should -Match 'No routing available'
+            $LASTEXITCODE | Should -Be 1
         }
 
         It 'Handles HTTP protocol' {
