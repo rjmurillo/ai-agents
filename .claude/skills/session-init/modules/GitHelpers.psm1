@@ -74,7 +74,8 @@ Ensure you are in a git repository by running 'git status'. If you are in a git 
 "@
             throw [System.InvalidOperationException]::new($msg)
         }
-        $repoRoot = $repoRootOutput
+        # Handle potential null/empty output from git commands (can occur in CI shallow checkouts)
+        $repoRoot = if ([string]::IsNullOrWhiteSpace($repoRootOutput)) { "" } else { ($repoRootOutput | Out-String).Trim() }
 
         $branchOutput = git branch --show-current 2>&1
         if ($LASTEXITCODE -ne 0) {
@@ -86,7 +87,8 @@ This usually means you are in a detached HEAD state or the repository is corrupt
 "@
             throw [System.InvalidOperationException]::new($msg)
         }
-        $branch = $branchOutput
+        # Handle potential null/empty output (detached HEAD returns empty string, which is valid)
+        $branch = if ([string]::IsNullOrWhiteSpace($branchOutput)) { "" } else { ($branchOutput | Out-String).Trim() }
 
         # FIX: Use 'git rev-parse --short HEAD' instead of 'git log --oneline -1'
         # This prevents including the commit subject line in the SHA, which contaminates session logs.
@@ -102,7 +104,8 @@ This usually means the repository has no commits yet. Create an initial commit w
 "@
             throw [System.InvalidOperationException]::new($msg)
         }
-        $commit = $commitOutput
+        # Handle potential null/empty output from git commands
+        $commit = if ([string]::IsNullOrWhiteSpace($commitOutput)) { "" } else { ($commitOutput | Out-String).Trim() }
 
         $statusOutput = git status --short 2>&1
         if ($LASTEXITCODE -ne 0) {
@@ -117,10 +120,11 @@ This indicates repository corruption or permission issues. Run 'git status' manu
 
         $gitStatus = if ([string]::IsNullOrWhiteSpace($statusOutput)) { "clean" } else { "dirty" }
 
+        # Values are already trimmed above during assignment, return directly
         return @{
-            RepoRoot = $repoRoot.Trim()
-            Branch = $branch.Trim()
-            Commit = $commit.Trim()
+            RepoRoot = $repoRoot
+            Branch = $branch
+            Commit = $commit
             Status = $gitStatus
         }
     } catch [System.InvalidOperationException] {

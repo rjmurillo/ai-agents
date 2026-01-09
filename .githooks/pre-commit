@@ -848,170 +848,160 @@ fi
 # - If only specific tests are staged, run only those tests
 # - Else, run a targeted suite by deriving test directories from changed code
 # - Fallbacks to a quick, narrow set of standard test paths when needed
-# - SKIP_QA=1 to bypass (developer-controlled), otherwise fail-closed for safety
+# - No bypass option - QA gate is enforced for safety
 #
-if [ "${SKIP_QA:-}" = "1" ]; then
-    echo_info "QA tests skipped (SKIP_QA=1)."
-else
-    # Determine if relevant files are staged
-    STAGED_PS_CODE_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
+# Determine if relevant files are staged
+STAGED_PS_CODE_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 
-    if [ -z "$STAGED_PS_CODE_FILES" ]; then
-        echo_info "No PowerShell changes. Skipping QA tests."
+if [ -z "$STAGED_PS_CODE_FILES" ]; then
+    echo_info "No PowerShell changes. Skipping QA tests."
+else
+    if ! command -v pwsh >/dev/null 2>&1; then
+        echo_error "PowerShell (pwsh) not available. Cannot run QA tests."
+        echo_info "  Install: https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
+        echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
+        EXIT_STATUS=1
     else
-        if ! command -v pwsh >/dev/null 2>&1; then
-            echo_error "PowerShell (pwsh) not available. Cannot run QA tests."
-            echo_info "  Install: https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
-            echo_info "  Or bypass once with: SKIP_QA=1 git commit -m '...'
-"
+        # Resolve runner script and validate
+        PESTER_RUNNER="$REPO_ROOT/build/scripts/Invoke-PesterTests.ps1"
+        if [ -L "$PESTER_RUNNER" ]; then
+            echo_error "QA test runner path is a symlink (security violation): $PESTER_RUNNER"
+            echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
+            EXIT_STATUS=1
+        elif [ ! -f "$PESTER_RUNNER" ]; then
+            echo_error "QA test runner not found: $PESTER_RUNNER"
             echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
             EXIT_STATUS=1
         else
-            # Resolve runner script and validate
-            PESTER_RUNNER="$REPO_ROOT/build/scripts/Invoke-PesterTests.ps1"
-            if [ -L "$PESTER_RUNNER" ]; then
-                echo_error "QA test runner path is a symlink (security violation): $PESTER_RUNNER"
-                echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
-                EXIT_STATUS=1
-            elif [ ! -f "$PESTER_RUNNER" ]; then
-                echo_error "QA test runner not found: $PESTER_RUNNER"
-                echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
-                EXIT_STATUS=1
-            else
-                echo_info "Running targeted QA tests (Pester)..."
+            echo_info "Running targeted QA tests (Pester)..."
 
-                # Optional runtime cap using coreutils timeout if present (default 5 min)
-                # Security: Validate QA_TIMEOUT_SEC as numeric to prevent command injection
-                QA_TIMEOUT_SEC=${QA_TIMEOUT_SEC:-300}
-                USE_TIMEOUT=false
-                if [[ "$QA_TIMEOUT_SEC" =~ ^[0-9]+$ ]] && command -v timeout >/dev/null 2>&1; then
-                    USE_TIMEOUT=true
-                elif [ -n "${QA_TIMEOUT_SEC:-}" ] && ! [[ "$QA_TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
-                    echo_warning "Invalid QA_TIMEOUT_SEC value '$QA_TIMEOUT_SEC'; running QA tests without timeout."
-                fi
+            # Optional runtime cap using coreutils timeout if present (default 5 min)
+            # Security: Validate QA_TIMEOUT_SEC as numeric to prevent command injection
+            QA_TIMEOUT_SEC=${QA_TIMEOUT_SEC:-300}
+            USE_TIMEOUT=false
+            if [[ "$QA_TIMEOUT_SEC" =~ ^[0-9]+$ ]] && command -v timeout >/dev/null 2>&1; then
+                USE_TIMEOUT=true
+            elif [ -n "${QA_TIMEOUT_SEC:-}" ] && ! [[ "$QA_TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
+                echo_warning "Invalid QA_TIMEOUT_SEC value '$QA_TIMEOUT_SEC'; running QA tests without timeout."
+            fi
 
-                # Build TestPath arguments safely using arrays
-                declare -a TESTPATHS
+            # Build TestPath arguments safely using arrays
+            declare -a TESTPATHS
 
-                # Include any staged test files directly
-                while IFS= read -r cf; do
-                    [ -z "$cf" ] && continue
-                    case "$cf" in
-                        *.Tests.ps1)
-                            if [ -L "$cf" ]; then
-                                echo_warning "Skipping symlinked test file: $cf"
-                                continue
-                            fi
-                            [ -f "$cf" ] && TESTPATHS+=("$cf")
-                            ;;
-                    esac
-                done <<< "$STAGED_PS_CODE_FILES"
-
-                # Map changed code paths (including tests) to likely test roots
-                while IFS= read -r cf; do
-                    [ -z "$cf" ] && continue
-                    case "$cf" in
-                        .claude/skills/*/scripts/*.ps1|.claude/skills/*/scripts/*.psm1)
-                            skilldir=${cf%%/scripts/*}
-                            testdir="$skilldir/tests"
-                            [ -d "$testdir" ] && TESTPATHS+=("$testdir")
-                            ;;
-                        scripts/*)
-                            [ -d "$REPO_ROOT/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/scripts/tests")
-                            ;;
-                        build/*)
-                            [ -d "$REPO_ROOT/build/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/build/scripts/tests")
-                            [ -d "$REPO_ROOT/build/tests" ] && TESTPATHS+=("$REPO_ROOT/build/tests")
-                            ;;
-                        .github/scripts/*)
-                            # Some tests live under .github/tests/**
-                            [ -d "$REPO_ROOT/.github/tests" ] && TESTPATHS+=("$REPO_ROOT/.github/tests")
-                            # Allow script directory tests if present
-                            [ -d "$REPO_ROOT/.github/scripts" ] && TESTPATHS+=("$REPO_ROOT/.github/scripts")
-                            ;;
-                        *.Tests.ps1)
-                            # Already handled above but kept as a catch-all
-                            ;;
-                    esac
-                done <<< "$STAGED_PS_CODE_FILES"
-
-                # As a safety net, if nothing resolved, add a minimal quick set
-                if [ ${#TESTPATHS[@]} -eq 0 ]; then
-                    [ -d "$REPO_ROOT/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/scripts/tests")
-                    [ -d "$REPO_ROOT/build/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/build/scripts/tests")
-                    [ -d "$REPO_ROOT/build/tests" ] && TESTPATHS+=("$REPO_ROOT/build/tests")
-                fi
-
-                # Deduplicate paths while preserving order
-                if [ ${#TESTPATHS[@]} -gt 0 ]; then
-                    declare -A seen
-                    declare -a UNIQUE_TESTPATHS
-                    for p in "${TESTPATHS[@]}"; do
-                        # Normalize to absolute paths relative to repo root
-                        if [ -d "$p" ] || [ -f "$p" ]; then
-                            key="$p"
-                        else
-                            key="$REPO_ROOT/$p"
+            # Include any staged test files directly
+            while IFS= read -r cf; do
+                [ -z "$cf" ] && continue
+                case "$cf" in
+                    *.Tests.ps1)
+                        if [ -L "$cf" ]; then
+                            echo_warning "Skipping symlinked test file: $cf"
+                            continue
                         fi
-                        if [ -z "${seen[$key]:-}" ]; then
-                            seen[$key]=1
-                            UNIQUE_TESTPATHS+=("$key")
-                        fi
-                    done
+                        [ -f "$cf" ] && TESTPATHS+=("$cf")
+                        ;;
+                esac
+            done <<< "$STAGED_PS_CODE_FILES"
 
-                    echo_info "Targets:"
-                    for t in "${UNIQUE_TESTPATHS[@]}"; do
-                        echo_info "  - $t"
-                    done
+            # Map changed code paths (including tests) to likely test roots
+            while IFS= read -r cf; do
+                [ -z "$cf" ] && continue
+                case "$cf" in
+                    .claude/skills/*/scripts/*.ps1|.claude/skills/*/scripts/*.psm1)
+                        skilldir=${cf%%/scripts/*}
+                        testdir="$skilldir/tests"
+                        [ -d "$testdir" ] && TESTPATHS+=("$testdir")
+                        ;;
+                    scripts/*)
+                        [ -d "$REPO_ROOT/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/scripts/tests")
+                        ;;
+                    build/*)
+                        [ -d "$REPO_ROOT/build/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/build/scripts/tests")
+                        [ -d "$REPO_ROOT/build/tests" ] && TESTPATHS+=("$REPO_ROOT/build/tests")
+                        ;;
+                    .github/scripts/*)
+                        # Some tests live under .github/tests/**
+                        [ -d "$REPO_ROOT/.github/tests" ] && TESTPATHS+=("$REPO_ROOT/.github/tests")
+                        # Allow script directory tests if present
+                        [ -d "$REPO_ROOT/.github/scripts" ] && TESTPATHS+=("$REPO_ROOT/.github/scripts")
+                        ;;
+                    *.Tests.ps1)
+                        # Already handled above but kept as a catch-all
+                        ;;
+                esac
+            done <<< "$STAGED_PS_CODE_FILES"
 
-                    # Build PowerShell -TestPath arguments
-                    # Use a temp file to pass multiple -TestPath values safely
-                    TESTARGS_FILE=$(mktemp)
-                    for t in "${UNIQUE_TESTPATHS[@]}"; do
-                        printf "%s\n" "$t" >> "$TESTARGS_FILE"
-                    done
+            # As a safety net, if nothing resolved, add a minimal quick set
+            if [ ${#TESTPATHS[@]} -eq 0 ]; then
+                [ -d "$REPO_ROOT/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/scripts/tests")
+                [ -d "$REPO_ROOT/build/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/build/scripts/tests")
+                [ -d "$REPO_ROOT/build/tests" ] && TESTPATHS+=("$REPO_ROOT/build/tests")
+            fi
 
-                    # Compose pwsh command: read paths from file and splat to -TestPath
-                    # Use CI mode to ensure non-zero exit on failures
-                    # shellcheck disable=SC2016
-                    PS_CMD='param([string]$Runner,[string]$ListPath) $paths = Get-Content -LiteralPath $ListPath; & $Runner -CI -Verbosity Normal -TestPath $paths'
-
-                    # Execute with optional timeout, capture output for display
-                    RC=0
-                    TEST_OUTPUT=$(mktemp)
-                    if $USE_TIMEOUT; then
-                        timeout --preserve-status "${QA_TIMEOUT_SEC}" pwsh -NoProfile -Command "$PS_CMD" -- "$PESTER_RUNNER" "$TESTARGS_FILE" > "$TEST_OUTPUT" 2>&1 || RC=$?
+            # Deduplicate paths while preserving order
+            if [ ${#TESTPATHS[@]} -gt 0 ]; then
+                declare -A seen
+                declare -a UNIQUE_TESTPATHS
+                for p in "${TESTPATHS[@]}"; do
+                    # Normalize to absolute paths relative to repo root
+                    if [ -d "$p" ] || [ -f "$p" ]; then
+                        key="$p"
                     else
-                        pwsh -NoProfile -Command "$PS_CMD" -- "$PESTER_RUNNER" "$TESTARGS_FILE" > "$TEST_OUTPUT" 2>&1 || RC=$?
+                        key="$REPO_ROOT/$p"
                     fi
+                    if [ -z "${seen[$key]:-}" ]; then
+                        seen[$key]=1
+                        UNIQUE_TESTPATHS+=("$key")
+                    fi
+                done
 
-                    if [ $RC -ne 0 ]; then
-                        if $USE_TIMEOUT && [ $RC -eq 124 ]; then
-                            echo_error "QA tests timed out after ${QA_TIMEOUT_SEC}s."
-                        else
-                            echo_error "QA tests failed. Fix failing tests before committing."
-                            echo_info ""
-                            echo_info "Test output (last 50 lines):"
-                            tail -50 "$TEST_OUTPUT"
-                            echo_info ""
-                        fi
-                        echo_info "  Re-run locally for details:"
-                        echo_info "    pwsh $PESTER_RUNNER -CI -Verbosity Normal \\"
-                        for t in "${UNIQUE_TESTPATHS[@]}"; do
-                            echo_info "      -TestPath '$t' \\"
-                        done
-                        echo_info ""
-                        rm -f "$TEST_OUTPUT"
-                        rm -f "$TESTARGS_FILE"
-                        EXIT_STATUS=1
-                    else
-                        rm -f "$TEST_OUTPUT"
-                        rm -f "$TESTARGS_FILE"
-                        echo_success "QA tests passed."
-                    fi
+                echo_info "Targets:"
+                for t in "${UNIQUE_TESTPATHS[@]}"; do
+                    echo_info "  - $t"
+                done
+
+                # Build PowerShell -TestPath arguments
+                # Use a temp file to pass multiple -TestPath values safely
+                TESTARGS_FILE=$(mktemp)
+                for t in "${UNIQUE_TESTPATHS[@]}"; do
+                    printf "%s\n" "$t" >> "$TESTARGS_FILE"
+                done
+
+                # Execute with optional timeout, capture output for display
+                # Note: Embed paths directly in command string since pwsh -Command doesn't properly handle -- arguments
+                RC=0
+                TEST_OUTPUT=$(mktemp)
+                if $USE_TIMEOUT; then
+                    timeout --preserve-status "${QA_TIMEOUT_SEC}" pwsh -NoProfile -Command "\$paths = Get-Content -LiteralPath '$TESTARGS_FILE'; & '$PESTER_RUNNER' -CI -Verbosity Normal -TestPath \$paths" > "$TEST_OUTPUT" 2>&1 || RC=$?
                 else
-                    echo_warning "No test paths resolved; skipping QA tests."
+                    pwsh -NoProfile -Command "\$paths = Get-Content -LiteralPath '$TESTARGS_FILE'; & '$PESTER_RUNNER' -CI -Verbosity Normal -TestPath \$paths" > "$TEST_OUTPUT" 2>&1 || RC=$?
                 fi
+
+                if [ $RC -ne 0 ]; then
+                    if $USE_TIMEOUT && [ $RC -eq 124 ]; then
+                        echo_error "QA tests timed out after ${QA_TIMEOUT_SEC}s."
+                    else
+                        echo_error "QA tests failed. Fix failing tests before committing."
+                        echo_info ""
+                        echo_info "Test output (last 50 lines):"
+                        tail -50 "$TEST_OUTPUT"
+                        echo_info ""
+                    fi
+                    echo_info "  Re-run locally for details:"
+                    echo_info "    pwsh $PESTER_RUNNER -CI -Verbosity Normal \\"
+                    for t in "${UNIQUE_TESTPATHS[@]}"; do
+                        echo_info "      -TestPath '$t' \\"
+                    done
+                    echo_info ""
+                    rm -f "$TEST_OUTPUT"
+                    rm -f "$TESTARGS_FILE"
+                    EXIT_STATUS=1
+                else
+                    rm -f "$TEST_OUTPUT"
+                    rm -f "$TESTARGS_FILE"
+                    echo_success "QA tests passed."
+                fi
+            else
+                echo_warning "No test paths resolved; skipping QA tests."
             fi
         fi
     fi

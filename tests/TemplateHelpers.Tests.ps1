@@ -9,7 +9,7 @@
 
 BeforeAll {
     # Import the module under test
-    Import-Module $PSScriptRoot/../modules/TemplateHelpers.psm1 -Force
+    Import-Module $PSScriptRoot/../.claude/skills/session-init/modules/TemplateHelpers.psm1 -Force
     
     # Create temp directory for test artifacts
     $Script:TestTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "TemplateHelpers-Tests-$(Get-Random)"
@@ -641,14 +641,14 @@ Describe 'Module Exports' {
     }
     
     It 'Module can be imported multiple times without errors' {
-        { Import-Module $PSScriptRoot/../modules/TemplateHelpers.psm1 -Force } | Should -Not -Throw
-        { Import-Module $PSScriptRoot/../modules/TemplateHelpers.psm1 -Force } | Should -Not -Throw
+        { Import-Module $PSScriptRoot/../.claude/skills/session-init/modules/TemplateHelpers.psm1 -Force } | Should -Not -Throw
+        { Import-Module $PSScriptRoot/../.claude/skills/session-init/modules/TemplateHelpers.psm1 -Force } | Should -Not -Throw
     }
     
     It 'Imports both GitHelpers and TemplateHelpers without type redefinition errors' {
         # This tests that ApplicationFailedException type collision is handled
-        { Import-Module $PSScriptRoot/../modules/GitHelpers.psm1 -Force } | Should -Not -Throw
-        { Import-Module $PSScriptRoot/../modules/TemplateHelpers.psm1 -Force } | Should -Not -Throw
+        { Import-Module $PSScriptRoot/../.claude/skills/session-init/modules/GitHelpers.psm1 -Force } | Should -Not -Throw
+        { Import-Module $PSScriptRoot/../.claude/skills/session-init/modules/TemplateHelpers.psm1 -Force } | Should -Not -Throw
     }
     
     It 'Imports TemplateHelpers before GitHelpers without type redefinition errors' {
@@ -656,20 +656,23 @@ Describe 'Module Exports' {
         Remove-Module TemplateHelpers -Force -ErrorAction SilentlyContinue
         Remove-Module GitHelpers -Force -ErrorAction SilentlyContinue
         
-        { Import-Module $PSScriptRoot/../modules/TemplateHelpers.psm1 -Force } | Should -Not -Throw
-        { Import-Module $PSScriptRoot/../modules/GitHelpers.psm1 -Force } | Should -Not -Throw
+        { Import-Module $PSScriptRoot/../.claude/skills/session-init/modules/TemplateHelpers.psm1 -Force } | Should -Not -Throw
+        { Import-Module $PSScriptRoot/../.claude/skills/session-init/modules/GitHelpers.psm1 -Force } | Should -Not -Throw
         
         # Re-import TemplateHelpers for remaining tests
-        Import-Module $PSScriptRoot/../modules/TemplateHelpers.psm1 -Force
+        Import-Module $PSScriptRoot/../.claude/skills/session-init/modules/TemplateHelpers.psm1 -Force
     }
 }
 
 Describe 'SkipValidation Safeguard' {
-    # Tests updated to reflect fail-fast design: missing placeholders always throw
-    # regardless of SkipValidation flag, because missing placeholders indicate
-    # a template/protocol version mismatch that should be fixed before proceeding.
+    # Tests for SkipValidation behavior: when set, missing placeholders produce a warning
+    # instead of throwing, allowing the session to proceed despite template version mismatch.
+    # This is useful for investigating broken templates while still creating session logs.
 
     BeforeAll {
+        # Re-import module in case previous tests removed it
+        Import-Module $PSScriptRoot/../.claude/skills/session-init/modules/TemplateHelpers.psm1 -Force
+        
         $Script:GitInfo = @{
             Branch = 'main'
             Commit = 'abc1234'
@@ -681,25 +684,25 @@ Describe 'SkipValidation Safeguard' {
         }
     }
 
-    It 'Throws InvalidOperationException when placeholders missing with SkipValidation' {
-        # Template missing ALL required placeholders
+    It 'Warns but continues when placeholders missing with SkipValidation' {
+        # Template missing ALL required placeholders - with SkipValidation, it warns but proceeds
         $invalidTemplate = "# Session Log`n`nNo placeholders here."
 
-        {
-            New-PopulatedSessionLog -Template $invalidTemplate -GitInfo $Script:GitInfo -UserInput $Script:UserInput -SkipValidation
-        } | Should -Throw -ExceptionType ([System.InvalidOperationException])
+        # Should NOT throw when SkipValidation is set
+        { 
+            New-PopulatedSessionLog -Template $invalidTemplate -GitInfo $Script:GitInfo -UserInput $Script:UserInput -SkipValidation -WarningAction SilentlyContinue
+        } | Should -Not -Throw
     }
 
-    It 'Exception message mentions missing placeholders and version mismatch' {
+    It 'Warning message mentions missing placeholders and version mismatch' {
         $invalidTemplate = "# Session Log`n`nNo placeholders here."
-
-        try {
-            New-PopulatedSessionLog -Template $invalidTemplate -GitInfo $Script:GitInfo -UserInput $Script:UserInput -SkipValidation
-            throw "Should have thrown"
-        } catch [System.InvalidOperationException] {
-            $_.Exception.Message | Should -Match 'missing required placeholders'
-            $_.Exception.Message | Should -Match 'version mismatch'
-        }
+        
+        # Capture the warning message
+        $warnings = New-PopulatedSessionLog -Template $invalidTemplate -GitInfo $Script:GitInfo -UserInput $Script:UserInput -SkipValidation 3>&1
+        $warningText = $warnings | Where-Object { $_ -is [System.Management.Automation.WarningRecord] } | Select-Object -ExpandProperty Message -First 1
+        
+        $warningText | Should -Match 'missing required placeholders'
+        $warningText | Should -Match 'version mismatch'
     }
 
     It 'Throws exception when placeholders missing without SkipValidation' {

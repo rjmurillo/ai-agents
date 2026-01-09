@@ -9,12 +9,12 @@
 
 .NOTES
     Requires Pester 5.x or later.
-    Run with: Invoke-Pester -Path .claude/skills/session-init/tests/GitHelpers.Tests.ps1
+    Run with: Invoke-Pester -Path tests/GitHelpers.Tests.ps1
 #>
 
 BeforeAll {
     # Import the module under test
-    $ModulePath = Join-Path $PSScriptRoot "../modules/GitHelpers.psm1"
+    $ModulePath = Join-Path $PSScriptRoot "../.claude/skills/session-init/modules/GitHelpers.psm1"
     Import-Module $ModulePath -Force
 
     # Create temp directory for test artifacts (cross-platform)
