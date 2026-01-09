@@ -72,6 +72,7 @@ For non-trivial tasks, delegate to specialized agents using the Task tool:
 3. `.agents/HANDOFF.md` - Project dashboard (read-only)
 4. `.agents/governance/PROJECT-CONSTRAINTS.md` - Hard constraints
 5. `.agents/AGENT-SYSTEM.md` - Full agent details
+6. `.config/wt.toml` - Worktrunk configuration (see AGENTS.md for setup)
 
 ---
 
