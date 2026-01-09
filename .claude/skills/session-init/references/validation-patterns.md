@@ -12,8 +12,8 @@ How to validate session logs and handle common issues.
 
 ```powershell
 pwsh scripts/Validate-SessionProtocol.ps1 `
-    -SessionPath ".agents/sessions/2026-01-05-session-375.md" `
-    -Format markdown
+    -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" `
+    
 ```
 
 ### CI Mode
@@ -22,8 +22,8 @@ For GitHub Actions:
 
 ```powershell
 pwsh scripts/Validate-SessionProtocol.ps1 `
-    -SessionPath ".agents/sessions/2026-01-05-session-375.md" `
-    -Format markdown `
+    -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" `
+     `
     -CI
 ```
 
@@ -179,12 +179,12 @@ Checks for commit SHA evidence in the session log.
 For session-init skill, run validation immediately after creating the session log:
 
 ```powershell
-$sessionPath = ".agents/sessions/2026-01-05-session-375.md"
+$sessionPath = ".agents/sessions/.agents/sessions/2026-01-05-session-375.json"
 
 # Run validation
 $result = & pwsh scripts/Validate-SessionProtocol.ps1 `
     -SessionPath $sessionPath `
-    -Format markdown
+    
 
 $exitCode = $LASTEXITCODE
 
@@ -205,15 +205,15 @@ if ($exitCode -eq 0) {
 
 ```powershell
 pwsh scripts/Validate-SessionProtocol.ps1 `
-    -SessionPath ".agents/sessions/2026-01-05-session-375.md" `
-    -Format markdown `
+    -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" `
+     `
     -Verbose
 ```
 
 ### Check Specific Patterns
 
 ```powershell
-$content = Get-Content -Path ".agents/sessions/2026-01-05-session-375.md" -Raw
+$content = Get-Content -Path ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" -Raw
 
 # Check Session End header
 if ($content -match '(?i)Session\s+End.*COMPLETE\s+ALL') {
