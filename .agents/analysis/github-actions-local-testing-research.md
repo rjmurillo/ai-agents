@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-This research evaluates tools for local GitHub Actions validation to reduce CI feedback cycles. The project experiences a 40% Session Protocol Validation failure rate and 25% AI Quality Gate failure rate. Many failures are preventable with local validation. Analysis of PR discourse shows high-comment PRs (up to 28 comments) indicating expensive iteration cycles that shift-left testing could reduce.
+This research evaluates tools for local GitHub Actions validation to reduce CI feedback cycles. Based on recent workflow analysis (last 20 runs per workflow, as of 2026-01-09), the project experiences a 40% Session Protocol Validation failure rate and 25% AI Quality Gate failure rate. Many failures are preventable with local validation. Analysis of PR discourse shows high-comment PRs (up to 28 comments) indicating expensive iteration cycles that shift-left testing could reduce.
 
 **Key Recommendations**:
 
@@ -43,11 +43,13 @@ Run GitHub Actions workflows locally using Docker containers. Provides fast feed
 
 #### PowerShell Integration
 
-act handles PowerShell steps by:
-- Using `pwsh -command . '{0}'` command format
+act handles PowerShell steps (per source code analysis via DeepWiki):
+- Using `pwsh -command . '{0}'` command format [source: `pkg/runner/step_run.go`]
 - Prepending `$ErrorActionPreference = 'stop'`
 - Appending `if ((Test-Path -LiteralPath variable:/LASTEXITCODE)) { exit $LASTEXITCODE }`
 - Assigning `.ps1` extension to script files
+
+**Note**: These implementation details are from source code inspection, not user-facing documentation.
 
 When running on Windows with `-self-hosted`, act defaults to `pwsh` if no shell specified.
 
@@ -238,16 +240,18 @@ new ActRunner()
 
 ## Project Gap Analysis
 
-### Current State
+### Current State (as of 2026-01-09)
 
 | Metric | Value | Source |
 |--------|-------|--------|
 | Total workflows | 25 | `.github/workflows/*.yml` glob |
-| Session Protocol failure rate | 40% | Existing analysis |
-| AI Quality Gate failure rate | 25% | Existing analysis |
-| Pester Tests failure rate | 0% | Existing analysis |
+| Session Protocol failure rate | 40% (8/20 runs) | `.agents/analysis/001-*.md` |
+| AI Quality Gate failure rate | 25% (5/20 runs) | `.agents/analysis/001-*.md` |
+| Pester Tests pass rate | 100% (20/20 runs) | `.agents/analysis/001-*.md` |
 | High-comment PRs (>10 comments) | 30+ | GraphQL query |
 | github-actions labeled issues | 20+ | GraphQL query |
+
+**Note**: Failure rates based on snapshot analysis of last 20 workflow runs per workflow. Current rates may differ.
 
 ### PR Discourse Indicators
 
@@ -297,7 +301,7 @@ Based on memory retrieval and existing analysis:
 
 ## Recommendations
 
-### Priority 0 (Immediate)
+### P0 (Immediate)
 
 #### 1. Add actionlint to Pre-commit Hook
 
@@ -333,7 +337,7 @@ param(
 
 **Validation**: Add to AGENTS.md quick reference, update SESSION-PROTOCOL.md.
 
-### Priority 1 (Short-term)
+### P1 (Short-term)
 
 #### 3. Document Shift-Left Workflow
 
@@ -355,7 +359,7 @@ Pilot act with:
 - `validate-paths.yml` - Simple, no AI dependency
 - `memory-validation.yml` - PowerShell only
 
-### Priority 2 (Medium-term)
+### P2 (Medium-term)
 
 #### 5. Add yamllint for YAML Style
 
@@ -376,7 +380,7 @@ param(
 )
 ```
 
-### Priority 3 (Long-term / Not Recommended)
+### P3 (Long-term / Not Recommended)
 
 #### 7. Do NOT Adopt act-test-runner
 

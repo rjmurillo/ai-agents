@@ -130,7 +130,7 @@ All MUST requirements above are marked complete.
 | MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed |
 | MUST | Run markdown lint | [x] | Output below |
 | MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: investigation-only |
-| MUST | Commit all changes (including .serena/memories) | [ ] | Pending |
+| MUST | Commit all changes (including .serena/memories) | [x] | c31bfba5, f5c59b9f |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [x] | N/A (research task) |
 | SHOULD | Invoke retrospective (significant sessions) | [x] | N/A (research task) |
