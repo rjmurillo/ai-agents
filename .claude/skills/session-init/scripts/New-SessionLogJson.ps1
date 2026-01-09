@@ -40,11 +40,28 @@ if ($SessionNumber -eq 0) {
 
 # Get git info
 $date = Get-Date -Format 'yyyy-MM-dd'
-$branch = git branch --show-current 2>$null
-$commit = git rev-parse --short HEAD 2>$null
 
-if (-not $branch) { $branch = 'unknown' }
-if (-not $commit) { $commit = 'unknown' }
+# Get branch with proper error handling
+$branchOutput = git branch --show-current 2>&1
+if ($LASTEXITCODE -ne 0) {
+  $errorDetails = ($branchOutput | Out-String).Trim()
+  Write-Warning "Failed to get current branch. Git error (exit code $LASTEXITCODE): $errorDetails"
+  Write-Warning "Using 'unknown' as branch. Ensure you are in a git repository."
+  $branch = 'unknown'
+} else {
+  $branch = if ([string]::IsNullOrWhiteSpace($branchOutput)) { 'unknown' } else { ($branchOutput | Out-String).Trim() }
+}
+
+# Get commit SHA with proper error handling
+$commitOutput = git rev-parse --short HEAD 2>&1
+if ($LASTEXITCODE -ne 0) {
+  $errorDetails = ($commitOutput | Out-String).Trim()
+  Write-Warning "Failed to get commit SHA. Git error (exit code $LASTEXITCODE): $errorDetails"
+  Write-Warning "Using 'unknown' as commit. Ensure you are in a git repository with at least one commit."
+  $commit = 'unknown'
+} else {
+  $commit = if ([string]::IsNullOrWhiteSpace($commitOutput)) { 'unknown' } else { ($commitOutput | Out-String).Trim() }
+}
 
 # Build session object
 $session = @{
@@ -57,28 +74,28 @@ $session = @{
   }
   protocolCompliance = @{
     sessionStart = @{
-      serenaActivated = @{ level = 'MUST'; complete = $false; evidence = '' }
-      serenaInstructions = @{ level = 'MUST'; complete = $false; evidence = '' }
-      handoffRead = @{ level = 'MUST'; complete = $false; evidence = '' }
-      sessionLogCreated = @{ level = 'MUST'; complete = $true; evidence = 'This file' }
-      skillScriptsListed = @{ level = 'MUST'; complete = $false; evidence = '' }
-      usageMandatoryRead = @{ level = 'MUST'; complete = $false; evidence = '' }
-      constraintsRead = @{ level = 'MUST'; complete = $false; evidence = '' }
-      memoriesLoaded = @{ level = 'MUST'; complete = $false; evidence = '' }
-      branchVerified = @{ level = 'MUST'; complete = $true; evidence = $branch }
-      notOnMain = @{ level = 'MUST'; complete = ($branch -notmatch '^(main|master)$'); evidence = "On $branch" }
-      gitStatusVerified = @{ level = 'SHOULD'; complete = $false; evidence = '' }
-      startingCommitNoted = @{ level = 'SHOULD'; complete = $true; evidence = $commit }
+      serenaActivated = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      serenaInstructions = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      handoffRead = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      sessionLogCreated = @{ level = 'MUST'; Complete = $true; Evidence = 'This file' }
+      skillScriptsListed = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      usageMandatoryRead = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      constraintsRead = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      memoriesLoaded = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      branchVerified = @{ level = 'MUST'; Complete = $true; Evidence = $branch }
+      notOnMain = @{ level = 'MUST'; Complete = ($branch -notmatch '^(main|master)$'); Evidence = "On $branch" }
+      gitStatusVerified = @{ level = 'SHOULD'; Complete = $false; Evidence = '' }
+      startingCommitNoted = @{ level = 'SHOULD'; Complete = $true; Evidence = $commit }
     }
     sessionEnd = @{
-      checklistComplete = @{ level = 'MUST'; complete = $false; evidence = '' }
-      handoffNotUpdated = @{ level = 'MUST NOT'; complete = $false; evidence = '' }
-      serenaMemoryUpdated = @{ level = 'MUST'; complete = $false; evidence = '' }
-      markdownLintRun = @{ level = 'MUST'; complete = $false; evidence = '' }
-      changesCommitted = @{ level = 'MUST'; complete = $false; evidence = '' }
-      validationPassed = @{ level = 'MUST'; complete = $false; evidence = '' }
-      tasksUpdated = @{ level = 'SHOULD'; complete = $false; evidence = '' }
-      retrospectiveInvoked = @{ level = 'SHOULD'; complete = $false; evidence = '' }
+      checklistComplete = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      handoffNotUpdated = @{ level = 'MUST NOT'; Complete = $false; Evidence = '' }
+      serenaMemoryUpdated = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      markdownLintRun = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      changesCommitted = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      validationPassed = @{ level = 'MUST'; Complete = $false; Evidence = '' }
+      tasksUpdated = @{ level = 'SHOULD'; Complete = $false; Evidence = '' }
+      retrospectiveInvoked = @{ level = 'SHOULD'; Complete = $false; Evidence = '' }
     }
   }
   workLog = @()

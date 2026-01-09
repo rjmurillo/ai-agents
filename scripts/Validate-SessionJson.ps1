@@ -34,7 +34,27 @@ $content = Get-Content $SessionPath -Raw
 try {
   $session = $content | ConvertFrom-Json -AsHashtable
 } catch {
-  Write-Error "Invalid JSON: $_"
+  Write-Error "Invalid JSON in session file: $SessionPath"
+
+  # Extract line/column information if available
+  if ($_.Exception.Message -match 'line (\d+).*position (\d+)') {
+    $line = $Matches[1]
+    $pos = $Matches[2]
+    Write-Error "Syntax error at line $line, position $pos"
+
+    # Show context
+    $lines = $content -split "`n"
+    if ($line -le $lines.Count) {
+      Write-Error "Near: $($lines[$line-1])"
+    }
+  }
+
+  Write-Error "Error details: $($_.Exception.Message)"
+  Write-Error ""
+  Write-Error "Common fixes:"
+  Write-Error "  - Remove trailing commas from arrays/objects"
+  Write-Error "  - Ensure all strings are properly quoted"
+  Write-Error "  - Validate JSON structure with: Get-Content '$SessionPath' | ConvertFrom-Json"
   exit 1
 }
 
