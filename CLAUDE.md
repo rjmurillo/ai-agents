@@ -58,7 +58,7 @@ For non-trivial tasks, delegate to specialized agents using the Task tool:
 3. Run `npx markdownlint-cli2 --fix "**/*.md"`
 4. Route to qa agent (features only)
 5. Commit all changes
-6. Run `pwsh scripts/Validate-Session.ps1 -SessionLogPath [log]`
+6. Run `pwsh scripts/Validate-SessionJson.ps1 -SessionPath [log]`
    - If validation fails, use `/session-log-fixer` skill to fix issues
 
 ## Default Behavior

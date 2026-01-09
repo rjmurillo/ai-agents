@@ -1,26 +1,28 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Create protocol-compliant session log with verification-based enforcement
+    Create protocol-compliant JSON session log with verification-based enforcement
 
 .DESCRIPTION
-    Automates session log creation by:
-    1. Prompting for session number and objective
+    Automates JSON session log creation by:
+    1. Auto-detecting or prompting for session number and objective
     2. Detecting date/branch/commit/git status
-    3. Extracting canonical template from SESSION-PROTOCOL.md
-    4. Replacing placeholders with actual values
-    5. Writing session log to .agents/sessions/
-    6. Converting markdown log to JSON
-    7. Running validation with scripts/Validate-SessionJson.ps1
-    7. Exiting nonzero on validation failure
+    3. Generating JSON structure with schemaVersion field
+    4. Writing JSON file to .agents/sessions/
+    5. Validating with JSON schema + Validate-SessionJson.ps1
+    6. Exiting nonzero on validation failure
+
+    Autonomous Operation:
+    - If SessionNumber not provided: Auto-increments from latest session
+    - If Objective not provided: Derives from branch name or recent commits
 
 .PARAMETER SessionNumber
-    Session number (e.g., 375). If not provided, will prompt.
+    Session number (e.g., 375). If not provided, auto-increments from latest.
 
 .PARAMETER Objective
-    Session objective. If not provided, will prompt.
+    Session objective. If not provided, derives from branch/commits or prompts.
 
-    .PARAMETER SkipValidation
+.PARAMETER SkipValidation
     Skip validation after creating session log. Use for testing only.
 
 .OUTPUTS
@@ -28,7 +30,7 @@
 
 .EXAMPLE
     & .claude/skills/session-init/scripts/New-SessionLog.ps1
-    Prompts for session number and objective, then creates session log
+    Auto-increments session number and derives objective from branch
 
 .EXAMPLE
     & .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -Objective "Implement session-init skill"
@@ -38,9 +40,9 @@
     Exit Codes:
     - 0: Success (session log created and validated)
     - 1: Git repository error
-    - 2: Template extraction failed
-    - 3: Session log write failed
-    - 4: Validation failed
+    - 2: Session log write failed
+    - 3: JSON schema validation failed
+    - 4: Script validation failed
 #>
 
 [CmdletBinding()]
@@ -65,12 +67,17 @@ Import-Module (Join-Path $ScriptDir "../modules/TemplateHelpers.psm1") -Force
 #region Helper Functions
 
 # Note: Get-GitInfo is provided by GitHelpers.psm1 module
-# Note: New-PopulatedSessionLog and Get-DescriptiveKeywords are provided by TemplateHelpers.psm1 module
+# Note: Get-DescriptiveKeywords is provided by TemplateHelpers.psm1 module
 
 function Get-UserInput {
     <#
     .SYNOPSIS
-        Prompt user for session details
+        Gather session details with autonomous input detection
+    .DESCRIPTION
+        Autonomous behavior when parameters not provided:
+        - SessionNumber: Auto-increments from latest session in .agents/sessions/
+        - Objective: Derives from branch name or recent commit messages
+        Falls back to interactive prompts if autonomous detection fails
     .NOTES
         Throws:
         - InvalidOperationException: Cannot prompt in non-interactive terminal
@@ -80,16 +87,74 @@ function Get-UserInput {
         [int]$SessionNumber,
 
         [Parameter()]
-        [string]$Objective
+        [string]$Objective,
+
+        [Parameter(Mandatory)]
+        [string]$RepoRoot,
+
+        [Parameter(Mandatory)]
+        [string]$Branch
     )
 
-    # Check if we need to prompt and if we can
+    # Autonomous session number detection
+    if (-not $SessionNumber) {
+        try {
+            $sessionDir = Join-Path $RepoRoot ".agents/sessions"
+            if (Test-Path $sessionDir) {
+                $latestSession = Get-ChildItem $sessionDir -Filter "*.json" |
+                    Where-Object { $_.Name -match 'session-(\d+)' } |
+                    ForEach-Object { [int]$Matches[1] } |
+                    Sort-Object -Descending |
+                    Select-Object -First 1
+
+                if ($latestSession) {
+                    $SessionNumber = $latestSession + 1
+                    Write-Verbose "Auto-incremented session number to $SessionNumber (latest: $latestSession)"
+                }
+            }
+        } catch {
+            Write-Warning "Failed to auto-detect session number: $($_.Exception.Message)"
+        }
+    }
+
+    # Autonomous objective derivation
+    if (-not $Objective) {
+        try {
+            # Try to derive from branch name (e.g., "feat/session-init" -> "Work on session-init")
+            if ($Branch -and $Branch -match '^(?:feat|feature|fix|refactor|chore|docs)/(.+)$') {
+                $branchTopic = $Matches[1] -replace '-', ' '
+                $Objective = "Work on $branchTopic"
+                Write-Verbose "Derived objective from branch: $Objective"
+            }
+            # Try to derive from recent commit messages if branch derivation failed
+            elseif ($Branch) {
+                try {
+                    $recentCommits = git log --oneline -3 2>&1 | Out-String
+                    if ($LASTEXITCODE -eq 0 -and $recentCommits) {
+                        # Extract first commit subject (most relevant)
+                        $firstCommit = ($recentCommits -split "`n")[0]
+                        if ($firstCommit -match '^\w+\s+(.+)$') {
+                            $commitSubject = $Matches[1].Trim()
+                            $Objective = "Continue: $commitSubject"
+                            Write-Verbose "Derived objective from commit: $Objective"
+                        }
+                    }
+                } catch {
+                    Write-Verbose "Failed to derive objective from commits: $($_.Exception.Message)"
+                }
+            }
+        } catch {
+            Write-Warning "Failed to auto-derive objective: $($_.Exception.Message)"
+        }
+    }
+
+    # Fall back to prompts if autonomous detection failed and interactive terminal available
     $needsPrompt = (-not $SessionNumber) -or (-not $Objective)
     if ($needsPrompt) {
         # Detect non-interactive terminal
         if (-not [Environment]::UserInteractive) {
             throw [System.InvalidOperationException]::new(
-                "Cannot prompt for input in non-interactive terminal.`n`nProvide required parameters:`n  -SessionNumber <number>`n  -Objective `"<description>`"`n`nExample:`n  pwsh New-SessionLog.ps1 -SessionNumber 375 -Objective `"Implement feature X`""
+                "Cannot prompt for input in non-interactive terminal and autonomous detection failed.`n`nProvide required parameters:`n  -SessionNumber <number>`n  -Objective `"<description>`"`n`nExample:`n  pwsh New-SessionLog.ps1 -SessionNumber 375 -Objective `"Implement feature X`""
             )
         }
 
@@ -98,7 +163,7 @@ function Get-UserInput {
             $null = [Console]::KeyAvailable
         } catch {
             throw [System.InvalidOperationException]::new(
-                "Console input not available (running in CI/CD or redirected stdin?).`n`nProvide required parameters:`n  -SessionNumber <number>`n  -Objective `"<description>`""
+                "Console input not available (running in CI/CD or redirected stdin?) and autonomous detection failed.`n`nProvide required parameters:`n  -SessionNumber <number>`n  -Objective `"<description>`""
             )
         }
     }
@@ -140,75 +205,13 @@ function Get-UserInput {
     }
 }
 
-function Invoke-TemplateExtraction {
+function New-JsonSessionLog {
     <#
     .SYNOPSIS
-        Extract canonical template using Extract-SessionTemplate.ps1
-    .NOTES
-        Throws:
-        - FileNotFoundException: Extract script not found
-        - ApplicationFailedException: Extract script failed to execute
-        - UnauthorizedAccessException: Permission denied executing script
-    #>
-    param(
-        [Parameter(Mandatory)]
-        [string]$RepoRoot
-    )
-
-    $extractScript = Join-Path $RepoRoot ".claude/skills/session-init/scripts/Extract-SessionTemplate.ps1"
-
-    if (-not (Test-Path $extractScript)) {
-        throw [System.IO.FileNotFoundException]::new(
-            "Extract-SessionTemplate.ps1 not found at: $extractScript`n`nEnsure you are running from the repository root and the session-init skill is properly installed."
-        )
-    }
-
-    try {
-        $template = & $extractScript 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            $errorOutput = $template -join "`n"
-            throw [System.Management.Automation.ApplicationFailedException]::new(
-                "Template extraction script failed (exit code $LASTEXITCODE).`n`nScript: $extractScript`n`nError output:`n$errorOutput`n`nCheck the extract script for syntax errors or missing dependencies."
-            )
-        }
-        
-        # Validate template is not empty
-        if ([string]::IsNullOrWhiteSpace($template)) {
-            throw [System.InvalidOperationException]::new(
-                "Template extraction returned empty content.`n`nScript: $extractScript`n`nThis indicates the SESSION-PROTOCOL.md file may be missing the canonical template section."
-            )
-        }
-        
-        return $template
-    } catch [System.Management.Automation.ApplicationFailedException] {
-        # Expected failure - script execution error
-        Write-Error $_.Exception.Message
-        exit 2
-    } catch [System.UnauthorizedAccessException] {
-        Write-Error "Permission denied executing template extraction script: $extractScript"
-        Write-Error "Ensure the script has execute permissions: chmod +x $extractScript"
-        exit 2
-    } catch [System.InvalidOperationException] {
-        # Expected failure - empty template
-        Write-Error $_.Exception.Message
-        exit 2
-    } catch {
-        # Unexpected errors
-        Write-Error "UNEXPECTED ERROR during template extraction"
-        Write-Error "Exception Type: $($_.Exception.GetType().FullName)"
-        Write-Error "Message: $($_.Exception.Message)"
-        Write-Error "Script: $extractScript"
-        Write-Error "Stack Trace: $($_.ScriptStackTrace)"
-        Write-Error ""
-        Write-Error "This is a bug. Please report this error with the above details."
-        throw
-    }
-}
-
-function Write-SessionLogFile {
-    <#
-    .SYNOPSIS
-        Write session log to file with descriptive filename
+        Create JSON session log with structured data
+    .DESCRIPTION
+        Generates JSON structure with schemaVersion field and protocol compliance
+        checklist. Writes directly to .agents/sessions/ with descriptive filename.
     .NOTES
         Throws:
         - UnauthorizedAccessException: Permission denied
@@ -217,16 +220,13 @@ function Write-SessionLogFile {
     #>
     param(
         [Parameter(Mandatory)]
-        [string]$Content,
+        [hashtable]$GitInfo,
 
         [Parameter(Mandatory)]
-        [string]$RepoRoot,
+        [hashtable]$UserInput,
 
         [Parameter(Mandatory)]
-        [int]$SessionNumber,
-
-        [Parameter(Mandatory)]
-        [string]$Objective
+        [string]$RepoRoot
     )
 
     $currentDate = Get-Date -Format "yyyy-MM-dd"
@@ -239,80 +239,104 @@ function Write-SessionLogFile {
             Write-Verbose "Created directory: $sessionDir"
         } catch [System.UnauthorizedAccessException] {
             throw [System.UnauthorizedAccessException]::new(
-                "Permission denied creating directory: $sessionDir`n`nEnsure you have write permissions to the .agents/ folder.`n`nTry: chmod +w .agents/ (Linux/Mac) or check folder permissions (Windows)",
+                "Permission denied creating directory: $sessionDir`n`nEnsure you have write permissions to the .agents/ folder.",
                 $_.Exception
             )
         } catch [System.IO.IOException] {
             throw [System.IO.IOException]::new(
-                "Failed to create directory: $sessionDir`n`nPossible causes: disk full, corrupted filesystem, or path conflicts.`n`nCheck disk space: df -h (Linux/Mac) or Get-PSDrive (Windows)",
+                "Failed to create directory: $sessionDir`n`nPossible causes: disk full, corrupted filesystem, or path conflicts.",
                 $_.Exception
             )
         }
     }
 
-    # Generate descriptive filename with keywords from objective
-    $keywords = Get-DescriptiveKeywords -Objective $Objective
+    # Generate descriptive filename
+    $keywords = Get-DescriptiveKeywords -Objective $UserInput.Objective
     $keywordSuffix = if ($keywords) { "-$keywords" } else { "" }
-    $fileName = "$currentDate-session-$SessionNumber$keywordSuffix.md"
+    $fileName = "$currentDate-session-$($UserInput.SessionNumber)$keywordSuffix.json"
     $filePath = Join-Path $sessionDir $fileName
 
+    # Create JSON structure with schema version
+    $sessionData = @{
+        schemaVersion = "1.0"
+        session = @{
+            number = $UserInput.SessionNumber
+            date = $currentDate
+            branch = $GitInfo.Branch
+            startingCommit = $GitInfo.Commit
+            objective = $UserInput.Objective
+        }
+        protocolCompliance = @{
+            sessionStart = @{
+                serenaActivated = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                serenaInstructions = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                handoffRead = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                sessionLogCreated = @{ Complete = $true; level = "MUST"; Evidence = "This file exists" }
+                skillScriptsListed = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                usageMandatoryRead = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                constraintsRead = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                memoriesLoaded = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                branchVerified = @{ Complete = $true; level = "MUST"; Evidence = "Branch: $($GitInfo.Branch)" }
+                notOnMain = @{ Complete = ($GitInfo.Branch -ne 'main' -and $GitInfo.Branch -ne 'master'); level = "MUST"; Evidence = "" }
+                gitStatusVerified = @{ Complete = $false; level = "SHOULD"; Evidence = "" }
+                startingCommitNoted = @{ Complete = $true; level = "SHOULD"; Evidence = "SHA: $($GitInfo.Commit)" }
+            }
+            sessionEnd = @{
+                checklistComplete = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                serenaMemoryUpdated = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                markdownLintRun = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                changesCommitted = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                validationPassed = @{ Complete = $false; level = "MUST"; Evidence = "" }
+                handoffNotUpdated = @{ Complete = $false; level = "MUST NOT"; Evidence = "" }
+                tasksUpdated = @{ Complete = $false; level = "SHOULD"; Evidence = "" }
+                retrospectiveInvoked = @{ Complete = $false; level = "SHOULD"; Evidence = "" }
+            }
+        }
+        workLog = @()
+        endingCommit = ""
+        nextSteps = @()
+    }
+
     try {
-        # Write content to file
-        $Content | Out-File -FilePath $filePath -Encoding utf8 -NoNewline -ErrorAction Stop
-        
+        # Convert to JSON with depth for nested structures
+        $json = $sessionData | ConvertTo-Json -Depth 10
+
+        # Write JSON to file
+        $json | Out-File -FilePath $filePath -Encoding utf8 -NoNewline -ErrorAction Stop
+
         # Verify file was created and has content
         if (-not (Test-Path $filePath)) {
             throw [System.IO.IOException]::new(
-                "File was not created at expected path: $filePath`n`nThis indicates a filesystem error or race condition."
+                "File was not created at expected path: $filePath"
             )
         }
-        
+
         $fileInfo = Get-Item $filePath -ErrorAction Stop
         if ($fileInfo.Length -eq 0) {
             throw [System.IO.IOException]::new(
-                "Session log file was created but is empty: $filePath`n`nThis indicates the write operation failed silently."
+                "Session log file was created but is empty: $filePath"
             )
         }
-        
-        # Verify content length is reasonable (within 10% of expected)
-        $expectedLength = [System.Text.Encoding]::UTF8.GetByteCount($Content)
-        if ($fileInfo.Length -lt ($expectedLength * 0.9)) {
-            Write-Warning "Session log file may be truncated."
-            Write-Warning "  Expected: ~$expectedLength bytes"
-            Write-Warning "  Actual: $($fileInfo.Length) bytes"
-            Write-Warning "File: $filePath"
-        }
-        
+
         Write-Verbose "Session log written: $filePath ($($fileInfo.Length) bytes)"
         return $filePath
-        
+
     } catch [System.UnauthorizedAccessException] {
         Write-Error "Permission denied writing session log to: $filePath"
-        Write-Error "Ensure you have write permissions to the .agents/sessions/ directory."
-        Write-Error "Try: chmod +w `"$sessionDir`" (Linux/Mac) or check folder permissions (Windows)"
-        exit 3
+        exit 2
     } catch [System.IO.PathTooLongException] {
         Write-Error "Path too long for session log file: $filePath"
         Write-Error "File path length: $($filePath.Length) characters"
-        Write-Error "Consider using a shorter objective description or moving the repository to a shallower directory."
-        exit 3
+        exit 2
     } catch [System.IO.IOException] {
         Write-Error "File I/O error writing session log to: $filePath"
-        Write-Error "Possible causes:"
-        Write-Error "  - Disk full (check with: df -h on Linux/Mac or Get-PSDrive on Windows)"
-        Write-Error "  - File in use by another process"
-        Write-Error "  - Corrupted filesystem"
-        Write-Error "  - Antivirus blocking write"
         Write-Error "Error details: $($_.Exception.Message)"
-        exit 3
+        exit 2
     } catch {
         Write-Error "UNEXPECTED ERROR writing session log"
         Write-Error "Target path: $filePath"
         Write-Error "Exception Type: $($_.Exception.GetType().FullName)"
         Write-Error "Message: $($_.Exception.Message)"
-        Write-Error "Stack Trace: $($_.ScriptStackTrace)"
-        Write-Error ""
-        Write-Error "This is a bug. Please report this error with the above details."
         throw
     }
 }
@@ -320,13 +344,17 @@ function Write-SessionLogFile {
 function Invoke-ValidationScript {
     <#
     .SYNOPSIS
-        Validate session log using Validate-SessionJson.ps1
+        Validate session log using JSON schema + Validate-SessionJson.ps1
+    .DESCRIPTION
+        Two-tier validation:
+        1. JSON Schema validation (structural, deterministic)
+        2. Script validation (business rules, cross-field checks)
     .NOTES
         This function enforces validation - missing validation script is treated as FAILURE,
         not silently skipped. This ensures verification-based enforcement.
-        
+
         Throws:
-        - FileNotFoundException: Validation script not found
+        - FileNotFoundException: Schema or validation script not found
         - ApplicationFailedException: Validation script execution failed
     #>
     param(
@@ -337,6 +365,36 @@ function Invoke-ValidationScript {
         [string]$RepoRoot
     )
 
+    # Phase 1: JSON Schema Validation (structural)
+    $schemaPath = Join-Path $RepoRoot ".agents/schemas/session-log.schema.json"
+    if (-not (Test-Path $schemaPath)) {
+        Write-Error "CRITICAL: JSON schema not found at: $schemaPath"
+        Write-Error "Cannot perform structural validation without schema."
+        return $false
+    }
+
+    try {
+        Write-Host "Running JSON schema validation..." -ForegroundColor Yellow
+        $jsonContent = Get-Content $SessionLogPath -Raw -ErrorAction Stop
+        $schemaContent = Get-Content $schemaPath -Raw -ErrorAction Stop
+
+        # Test-Json with -Schema parameter for validation
+        $isValid = Test-Json -Json $jsonContent -Schema $schemaContent -ErrorAction SilentlyContinue
+
+        if (-not $isValid) {
+            Write-Error "JSON schema validation FAILED"
+            Write-Error "Session log does not conform to schema: $schemaPath"
+            Write-Error "Fix structural issues before proceeding."
+            return $false
+        }
+
+        Write-Host "  Schema validation PASSED" -ForegroundColor Green
+    } catch {
+        Write-Error "JSON schema validation error: $($_.Exception.Message)"
+        return $false
+    }
+
+    # Phase 2: Script Validation (business rules)
     $validationScript = Join-Path $RepoRoot "scripts/Validate-SessionJson.ps1"
 
     # Missing validation script is a CRITICAL failure - no silent fallback
@@ -355,42 +413,43 @@ function Invoke-ValidationScript {
     }
 
     try {
-        Write-Host "Running validation: pwsh $validationScript -SessionPath $SessionLogPath"
-        $validationOutput = & $validationScript -SessionPath $SessionLogPath 2>&1
+        Write-Host "Running script validation..." -ForegroundColor Yellow
 
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Validation FAILED with exit code $LASTEXITCODE"
+        # Capture output and error separately to avoid exception handling issues
+        $ErrorActionPreference = 'Continue'  # Allow Write-Error to not throw
+        $validationOutput = & $validationScript -SessionPath $SessionLogPath 2>&1
+        $validationExitCode = $LASTEXITCODE
+        $ErrorActionPreference = 'Stop'  # Restore for other errors
+
+        if ($validationExitCode -ne 0) {
+            Write-Host "  Script validation FAILED with exit code $validationExitCode" -ForegroundColor Red
             if ($validationOutput) {
-                Write-Error "Validation output:"
-                $validationOutput | ForEach-Object { Write-Error "  $_" }
+                Write-Host ""
+                Write-Host "Validation output:" -ForegroundColor Yellow
+                $validationOutput | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
             }
             return $false
         }
 
-        Write-Host "Validation PASSED" -ForegroundColor Green
+        Write-Host "  Script validation PASSED" -ForegroundColor Green
         return $true
-        
+
     } catch [System.Management.Automation.ApplicationFailedException] {
-        Write-Error "Validation script execution failed"
-        Write-Error "Script: $validationScript"
-        Write-Error "This indicates a problem with the validation infrastructure, not your session log."
-        Write-Error "Error: $($_.Exception.Message)"
-        Write-Error ""
-        Write-Error "Check the validation script for syntax errors or missing dependencies."
+        Write-Host "  Validation script execution failed" -ForegroundColor Red
+        Write-Host "  Script: $validationScript" -ForegroundColor Gray
+        Write-Host "  This indicates a problem with the validation infrastructure" -ForegroundColor Yellow
+        Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Gray
         return $false
     } catch [System.UnauthorizedAccessException] {
-        Write-Error "Permission denied executing validation script: $validationScript"
-        Write-Error "Ensure the script has execute permissions: chmod +x $validationScript"
+        Write-Host "  Permission denied executing validation script" -ForegroundColor Red
+        Write-Host "  Script: $validationScript" -ForegroundColor Gray
+        Write-Host "  Fix: chmod +x $validationScript" -ForegroundColor Yellow
         return $false
     } catch {
-        Write-Error "UNEXPECTED ERROR during validation"
-        Write-Error "Exception Type: $($_.Exception.GetType().FullName)"
-        Write-Error "Message: $($_.Exception.Message)"
-        Write-Error "Validation Script: $validationScript"
-        Write-Error "Session Log: $SessionLogPath"
-        Write-Error "Stack Trace: $($_.ScriptStackTrace)"
-        Write-Error ""
-        Write-Error "This is a bug. Please report this error with the above details."
+        Write-Host "  UNEXPECTED ERROR during validation" -ForegroundColor Red
+        Write-Host "  Exception: $($_.Exception.GetType().FullName)" -ForegroundColor Gray
+        Write-Host "  Message: $($_.Exception.Message)" -ForegroundColor Gray
+        Write-Host "  This is a bug" -ForegroundColor Yellow
         return $false
     }
 }
@@ -400,10 +459,10 @@ function Invoke-ValidationScript {
 #region Main Execution
 
 try {
-    Write-Host "=== Session Log Creator ===" -ForegroundColor Cyan
+    Write-Host "=== JSON Session Log Creator ===" -ForegroundColor Cyan
     Write-Host ""
 
-    # Phase 1: Gather inputs
+    # Phase 1: Gather inputs (with autonomous detection)
     Write-Host "Phase 1: Gathering inputs..." -ForegroundColor Yellow
     try {
         $gitInfo = Get-GitInfo
@@ -425,84 +484,39 @@ try {
     Write-Host "  Status: $($gitInfo.Status)" -ForegroundColor Gray
     Write-Host ""
 
-    $userInput = Get-UserInput -SessionNumber $SessionNumber -Objective $Objective
+    $userInput = Get-UserInput -SessionNumber $SessionNumber -Objective $Objective -RepoRoot $gitInfo.RepoRoot -Branch $gitInfo.Branch
     Write-Host "  Session Number: $($userInput.SessionNumber)" -ForegroundColor Gray
     Write-Host "  Objective: $($userInput.Objective)" -ForegroundColor Gray
     Write-Host ""
 
-    # Phase 2: Read canonical template
-    Write-Host "Phase 2: Reading canonical template..." -ForegroundColor Yellow
-    $template = Invoke-TemplateExtraction -RepoRoot $gitInfo.RepoRoot
-    Write-Host "  Template extracted successfully" -ForegroundColor Gray
-    Write-Host ""
-
-    # Phase 3: Populate template
-    Write-Host "Phase 3: Populating template..." -ForegroundColor Yellow
-    $sessionLog = New-PopulatedSessionLog -Template $template -GitInfo $gitInfo -UserInput $userInput -SkipValidation:$SkipValidation
-    Write-Host "  Placeholders replaced" -ForegroundColor Gray
-    Write-Host ""
-
-    # Phase 4: Write session log
-    Write-Host "Phase 4: Writing session log..." -ForegroundColor Yellow
-    $sessionLogPath = Write-SessionLogFile -Content $sessionLog -RepoRoot $gitInfo.RepoRoot -SessionNumber $userInput.SessionNumber -Objective $userInput.Objective
+    # Phase 2: Create JSON session log
+    Write-Host "Phase 2: Creating JSON session log..." -ForegroundColor Yellow
+    $sessionLogPath = New-JsonSessionLog -GitInfo $gitInfo -UserInput $userInput -RepoRoot $gitInfo.RepoRoot
     Write-Host "  File: $sessionLogPath" -ForegroundColor Gray
     Write-Host ""
 
-    # Phase 5: Convert to JSON
-    $jsonLogPath = $null
-    $convertScript = Join-Path $gitInfo.RepoRoot "scripts/Convert-SessionToJson.ps1"
-    if (-not (Test-Path $convertScript)) {
-        Write-Error "Convert-SessionToJson.ps1 not found at: $convertScript"
-        exit 2
-    }
-    try {
-        Write-Host "Phase 5: Converting markdown session log to JSON..." -ForegroundColor Yellow
-        $conversionResult = & $convertScript -Path $sessionLogPath -Force 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Conversion to JSON failed (exit code $LASTEXITCODE)"
-            if ($conversionResult) {
-                $conversionResult | ForEach-Object { Write-Error "  $_" }
-            }
-            exit 2
-        }
-        # Convert-SessionToJson returns array of migrated paths; pick first .json path from output
-        $jsonLogPath = ($conversionResult | Where-Object { $_ -match '\.json$' } | Select-Object -First 1)
-        if (-not $jsonLogPath) {
-            Write-Error "Conversion to JSON did not return a file path."
-            exit 2
-        }
-        Write-Host "  JSON File: $jsonLogPath" -ForegroundColor Gray
-        Write-Host ""
-    } catch {
-        Write-Error "UNEXPECTED ERROR converting to JSON"
-        Write-Error "Exception Type: $($_.Exception.GetType().FullName)"
-        Write-Error "Message: $($_.Exception.Message)"
-        Write-Error "Stack Trace: $($_.ScriptStackTrace)"
-        exit 2
-    }
-
-    # Phase 6: Validate
+    # Phase 3: Validate with JSON schema + script
     if (-not $SkipValidation) {
-        Write-Host "Phase 6: Validating session log..." -ForegroundColor Yellow
-        $validationResult = Invoke-ValidationScript -SessionLogPath $jsonLogPath -RepoRoot $gitInfo.RepoRoot
+        Write-Host "Phase 3: Validating session log..." -ForegroundColor Yellow
+        $validationResult = Invoke-ValidationScript -SessionLogPath $sessionLogPath -RepoRoot $gitInfo.RepoRoot
         Write-Host ""
 
         if (-not $validationResult) {
             Write-Host "=== FAILED ===" -ForegroundColor Red
             Write-Host ""
             Write-Host "Session log created but validation FAILED" -ForegroundColor Red
-            Write-Host "  File: $jsonLogPath" -ForegroundColor Gray
+            Write-Host "  File: $sessionLogPath" -ForegroundColor Gray
             Write-Host ""
             Write-Host "Fix the issues and re-validate with:" -ForegroundColor Yellow
-            Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$jsonLogPath`"" -ForegroundColor Gray
+            Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$sessionLogPath`"" -ForegroundColor Gray
             exit 4
         }
     } else {
-        Write-Host "Phase 6: Validation skipped (SkipValidation flag set)" -ForegroundColor Yellow
+        Write-Host "Phase 3: Validation skipped (SkipValidation flag set)" -ForegroundColor Yellow
         Write-Host ""
     }
 
-    # Success - adjust message based on whether validation actually ran
+    # Success
     Write-Host "=== SUCCESS ===" -ForegroundColor Green
     Write-Host ""
     if ($SkipValidation) {
@@ -512,12 +526,11 @@ try {
         Write-Host "It may contain errors or missing required sections." -ForegroundColor Yellow
         Write-Host ""
         Write-Host "Validate manually with:" -ForegroundColor Yellow
-        Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$jsonLogPath`"" -ForegroundColor Gray
+        Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$sessionLogPath`"" -ForegroundColor Gray
     } else {
-        Write-Host "Session log created and validated" -ForegroundColor Green
+        Write-Host "JSON session log created and validated" -ForegroundColor Green
     }
     Write-Host "  File: $sessionLogPath" -ForegroundColor Gray
-    if ($jsonLogPath) { Write-Host "  JSON: $jsonLogPath" -ForegroundColor Gray }
     Write-Host "  Session: $($userInput.SessionNumber)" -ForegroundColor Gray
     Write-Host "  Branch: $($gitInfo.Branch)" -ForegroundColor Gray
     Write-Host "  Commit: $($gitInfo.Commit)" -ForegroundColor Gray

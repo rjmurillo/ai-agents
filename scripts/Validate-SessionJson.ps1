@@ -8,13 +8,18 @@
 .PARAMETER SessionPath
   Path to the session log JSON file.
 
+.PARAMETER PreCommit
+  Suppress verbose output when called from pre-commit hook.
+
 .OUTPUTS
   Exit code 0 = valid, 1 = invalid
 #>
 [CmdletBinding()]
 param(
   [Parameter(Mandatory)]
-  [string]$SessionPath
+  [string]$SessionPath,
+
+  [switch]$PreCommit
 )
 
 $ErrorActionPreference = 'Stop'
@@ -135,17 +140,26 @@ if ($session.ContainsKey('protocolCompliance')) {
 }
 
 # Output
-Write-Host "`n=== Session Validation ===" -ForegroundColor Cyan
-Write-Host "File: $SessionPath"
-
-if ($errors.Count -eq 0) {
-  Write-Host "`n[PASS] Session log is valid" -ForegroundColor Green
-} else {
-  Write-Host "`n[FAIL] Validation errors:" -ForegroundColor Red
-  $errors | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
+if (-not $PreCommit) {
+  Write-Host "`n=== Session Validation ===" -ForegroundColor Cyan
+  Write-Host "File: $SessionPath"
 }
 
-if ($warnings.Count -gt 0) {
+if ($errors.Count -eq 0) {
+  if (-not $PreCommit) {
+    Write-Host "`n[PASS] Session log is valid" -ForegroundColor Green
+  }
+} else {
+  if ($PreCommit) {
+    Write-Host "Session validation FAILED:" -ForegroundColor Red
+    $errors | ForEach-Object { Write-Host "  $_" }
+  } else {
+    Write-Host "`n[FAIL] Validation errors:" -ForegroundColor Red
+    $errors | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
+  }
+}
+
+if ($warnings.Count -gt 0 -and -not $PreCommit) {
   Write-Host "`n[WARN] Warnings:" -ForegroundColor Yellow
   $warnings | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
 }

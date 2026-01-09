@@ -792,7 +792,7 @@ fi
 # Security: Fail-closed - if validation fails or cannot run, commit is blocked
 # Related: SESSION-PROTOCOL.md v1.4, Skill-Protocol-002, Skill-Validation-006
 #
-SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-Session.ps1"
+SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-SessionJson.ps1"
 
 # Check if any .agents/ files are staged (indicating an active session)
 STAGED_AGENTS_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/' || true)
@@ -808,13 +808,13 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
         echo_error "Session Protocol validation blocked: script not found at $SESSION_VALIDATE_SCRIPT"
         EXIT_STATUS=1
     else
-        # Require a staged session log
-        STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.md$' | tail -n 1)
+        # Require a staged session log (JSON format)
+        STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$' | tail -n 1)
         if [ -z "$STAGED_SESSION_LOG" ]; then
             # Activation prompt: 5-word cloud to trigger correct behavior
             echo_error "BLOCKED: Create session log NOW"
-            echo_info "  → git add .agents/sessions/YYYY-MM-DD-session-NN.md"
-            echo_info "  Protocol: Session log required for all agent sessions"
+            echo_info "  → git add .agents/sessions/YYYY-MM-DD-session-NN.json"
+            echo_info "  Protocol: JSON session log required for all agent sessions"
             EXIT_STATUS=1
         fi
 
@@ -823,19 +823,16 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
             if command -v pwsh &> /dev/null; then
                 echo_info "Running Session Protocol validation..."
                 # SECURITY: Use -- separator and quote path to prevent injection
-                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
+                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
                     echo_error "Session Protocol validation FAILED."
                     echo_info "  Review errors above and fix session log."
                     echo_info ""
-                    echo_info "  REQUIRED FORMAT: Use the canonical TABLE format from SESSION-PROTOCOL.md"
-                    echo_info "    | Req | Step | Status | Evidence |"
-                    echo_info "    |-----|------|--------|----------|"
-                    echo_info "    | MUST | Initialize Serena... | [x] | Tool output present |"
+                    echo_info "  REQUIRED FORMAT: JSON with protocol compliance checklist"
+                    echo_info "  Schema: .agents/schemas/session-log.schema.json"
                     echo_info ""
-                    echo_info "  NOT ACCEPTED: Bullet-list format (- [x] item)"
+                    echo_info "  Fix with: /session-log-fixer skill"
                     echo_info ""
-                    echo_info "  Copy the canonical checklist from: .agents/SESSION-PROTOCOL.md"
-                    echo_info "  Run manually: pwsh scripts/Validate-Session.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
+                    echo_info "  Run manually: pwsh scripts/Validate-SessionJson.ps1 -SessionPath \"$STAGED_SESSION_LOG\""
                     EXIT_STATUS=1
                 else
                     echo_success "Session Protocol validation: PASS"
@@ -1168,9 +1165,9 @@ fi
 #
 # Lightweight check for memory retrieval evidence in session logs.
 # Warns if the Evidence column for memory-index appears empty or placeholder.
-# Full validation (E2) is done by Validate-Session.ps1.
+# Full validation (E2) is done by Validate-SessionJson.ps1.
 #
-# Related: ADR-007, Issue #729, E2 in Validate-Session.ps1
+# Related: ADR-007, Issue #729, E2 in Validate-SessionJson.ps1
 #
 
 if [ -n "$STAGED_SESSION_LOG" ]; then
