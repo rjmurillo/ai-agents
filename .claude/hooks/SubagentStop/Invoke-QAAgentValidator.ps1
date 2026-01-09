@@ -73,7 +73,7 @@ try {
     $hasTestResults = $transcript -match 'Test Results|Validation Results|Test Execution'
     $hasCoverage = $transcript -match 'Coverage|Test Coverage|Acceptance Criteria'
 
-    if (-not ($hasTestStrategy -and $hasTestResults)) {
+    if (-not ($hasTestStrategy -and $hasTestResults -and $hasCoverage)) {
         # QA report incomplete - output warning (non-blocking for now)
         Write-Output "`n**QA Validation Warning**: QA agent report may be incomplete. Expected sections: Test Strategy, Test Results, Coverage Analysis.`n"
     }

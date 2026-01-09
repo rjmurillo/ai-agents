@@ -77,7 +77,7 @@ try {
         }
 
         # Run linter with error suppression (non-blocking)
-        $lintResult = npx markdownlint-cli2 --fix $filePath 2>&1
+        $lintResult = npx markdownlint-cli2 --fix "$filePath" 2>&1
 
         # Output success message for Claude's context
         Write-Output "`n**Markdown Auto-Lint**: Fixed formatting in ``$filePath```n"

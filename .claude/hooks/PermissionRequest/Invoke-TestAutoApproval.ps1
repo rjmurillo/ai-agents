@@ -54,14 +54,15 @@ try {
     }
 
     # Define safe test command patterns
+    # Use (\s|$) to match commands with or without arguments
     $safeTestPatterns = @(
-        '^Invoke-Pester\s',
+        '^Invoke-Pester(\s|$)',
         '^pwsh.*Invoke-Pester',
         '^npm\s+test',
         '^npm\s+run\s+test',
         '^pnpm\s+test',
         '^yarn\s+test',
-        '^pytest\s',
+        '^pytest(\s|$)',
         '^python.*pytest',
         '^dotnet\s+test',
         '^mvn\s+test',
