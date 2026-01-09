@@ -1,7 +1,7 @@
 ---
 name: github-url-intercept
-version: 2.0.0
-description: Intercept GitHub PR/issue/file URLs and route to API calls instead of fetching HTML. Use when ANY github.com URL appears in user input. Prevents 5-10MB HTML fetches that exhaust context windows. Triggers on pull/, issues/, blob/, tree/, commit/, compare/ URL patterns.
+version: 2.1.0
+description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: pull/, issues/, blob/, tree/, commit/, compare/, discussions/."
 license: MIT
 model: claude-opus-4-5
 metadata:
@@ -11,12 +11,40 @@ metadata:
   - context-optimization
   type: interceptor
   complexity: low
+  priority: critical
   related_skills:
   - github
 ---
 # GitHub URL Intercept
 
-**Never fetch GitHub URLs directly. Parse and route to the github skill or API.**
+> **CRITICAL**: This skill activates AUTOMATICALLY when you see ANY `github.com` URL.
+> Do NOT use `web_fetch`, `curl`, or any browser-based fetch on GitHub URLs.
+> Doing so wastes 1-2.5 MILLION tokens on HTML that provides no useful data.
+
+**MANDATORY BEHAVIOR**: Parse the URL → Route to API → Return structured JSON.
+
+---
+
+## Quick Reference (Copy-Paste Commands)
+
+**When you see a GitHub URL, use these commands immediately:**
+
+```powershell
+# PR URL → Use this
+pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {n} -Owner {owner} -Repo {repo}
+
+# Issue URL → Use this
+pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue {n} -Owner {owner} -Repo {repo}
+
+# File/blob URL → Use this
+gh api repos/{owner}/{repo}/contents/{path}?ref={ref}
+
+# Commit URL → Use this
+gh api repos/{owner}/{repo}/commits/{sha}
+
+# Comment fragment (#discussion_r{id}) → Use this
+gh api repos/{owner}/{repo}/pulls/comments/{id}
+```
 
 ---
 
@@ -24,10 +52,27 @@ metadata:
 
 | Phrase | Action |
 |--------|--------|
-| Any `github.com/...` URL in input | Parse and route |
-| `what's in this PR` + URL | Route to Get-PRContext.ps1 |
-| `check this issue` + URL | Route to Get-IssueContext.ps1 |
-| `look at this file` + URL | Route to gh api contents |
+| Any `github.com` URL in user input | Parse URL type and route |
+| `check this PR` + GitHub URL | Route to Get-PRContext.ps1 |
+| `what's in this issue` + GitHub URL | Route to Get-IssueContext.ps1 |
+| `show me this file` + GitHub URL | Route to gh api contents |
+
+---
+
+## URL Patterns (Detailed Reference)
+
+| Pattern | Example | Why Intercept |
+|---------|---------|---------------|
+| `github.com/.../pull/` | `https://github.com/owner/repo/pull/123` | PR HTML is 5-10MB |
+| `github.com/.../issues/` | `https://github.com/owner/repo/issues/456` | Issue HTML is 2-5MB |
+| `github.com/.../blob/` | `https://github.com/owner/repo/blob/main/file.py` | File page has nav bloat |
+| `github.com/.../tree/` | `https://github.com/owner/repo/tree/main/src` | Directory listing bloat |
+| `github.com/.../commit/` | `https://github.com/owner/repo/commit/abc123` | Commit page overhead |
+| `github.com/.../compare/` | `https://github.com/owner/repo/compare/main...feat` | Diff page overhead |
+| `github.com/.../discussions/` | `https://github.com/owner/repo/discussions/789` | Discussion page bloat |
+| Fragment `#discussion_r{id}` | Review comment ID | Extract ID, call API directly |
+| Fragment `#issuecomment-{id}` | Issue comment ID | Extract ID, call API directly |
+| Fragment `#pullrequestreview-{id}` | Review ID | Extract ID, call API directly |
 
 ---
 
@@ -141,15 +186,26 @@ https://github.com/{owner}/{repo}/compare/{base}...{head}
 
 ---
 
-## Why This Matters
+## Why This Matters (CRITICAL)
 
-| Method | Size | Tokens | Time |
-|--------|------|--------|------|
-| HTML fetch | 5-10 MB | 1-2.5M | 10-30s |
-| API call | 1-50 KB | 250-12K | 0.5-2s |
-| Script (structured) | 1-50 KB | 250-12K | 0.5-2s |
+**Fetching GitHub HTML is catastrophic for your context window:**
 
-**100x reduction in context consumption.**
+| Method | Response Size | Token Cost | Time | Usability |
+|--------|---------------|------------|------|-----------|
+| ❌ HTML fetch | 5-10 MB | 1-2.5M tokens | 10-30s | **UNUSABLE** - HTML noise, no structured data |
+| ✅ API call | 1-50 KB | 250-12K tokens | 0.5-2s | Clean JSON with exactly what you need |
+| ✅ Script | 1-50 KB | 250-12K tokens | 0.5-2s | Structured output, error handling |
+
+**Impact**: 100-1000x reduction in token consumption.
+
+**If you fetch GitHub HTML directly, you will:**
+
+1. Consume your entire context window on ONE page
+2. Get no useful structured data (just HTML soup)
+3. Be unable to process subsequent user requests
+4. Need to start a new conversation
+
+**ALWAYS use this skill when you see a GitHub URL.**
 
 ---
 
@@ -193,15 +249,25 @@ Action:
 
 ---
 
-## Anti-Patterns
+## Anti-Patterns (NEVER DO THESE)
 
-| Avoid | Why | Instead |
-|-------|-----|---------|
-| `web_fetch` on github.com | 5-10 MB HTML response | Parse URL, use script or API |
-| `curl` on GitHub URLs | Same problem | Use `gh` CLI |
-| Raw `gh pr view` | Unstructured output | Use `Get-PRContext.ps1` |
-| Fetching full page for one comment | Massive waste | Extract fragment ID, call specific endpoint |
-| Hardcoding owner/repo | Breaks in forks | Let scripts infer or extract from URL |
+| ❌ NEVER | Why It's Catastrophic | ✅ Do This Instead |
+|----------|----------------------|-------------------|
+| `web_fetch("https://github.com/...")` | 5-10 MB HTML, 1-2.5M tokens WASTED | Parse URL, use script or `gh api` |
+| `curl https://github.com/...` | Same catastrophic result | Use `gh` CLI for authentication + JSON |
+| `fetch` / `requests.get` on GitHub URLs | Same catastrophic result | Route through this skill |
+| `gh pr view` without `--json` | Unstructured text output | Use `Get-PRContext.ps1` for structured JSON |
+| Fetching full page to find one comment | Fetches 5MB to read 500 bytes | Extract fragment ID (`#discussion_r...`), call specific endpoint |
+| Ignoring GitHub URLs in user input | User expects you to understand the link | ALWAYS parse and route |
+| Hardcoding owner/repo in commands | Breaks when user shares fork/different repo | Extract from URL path |
+
+**RED FLAG PHRASES** - If you're about to do any of these, STOP:
+
+- "Let me fetch that page..."
+- "I'll retrieve the content from that URL..."
+- "Accessing the GitHub page..."
+
+**These indicate you're about to waste millions of tokens. Use this skill instead.**
 
 ---
 
