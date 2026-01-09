@@ -1,6 +1,6 @@
 ---
 name: session-init
-description: Create protocol-compliant session logs with verification-based enforcement. Prevents recurring CI validation failures by reading canonical template from SESSION-PROTOCOL.md and validating immediately. Use when starting any new session.
+description: Create protocol-compliant JSON session logs with verification-based enforcement. Autonomous operation with auto-incremented session numbers and objective derivation from git state. Use when starting any new session.
 version: 1.0.0
 license: MIT
 model: claude-sonnet-4-5
@@ -32,7 +32,7 @@ The script will:
 2. Auto-detect git state (branch, commit, date)
 3. Read canonical template from SESSION-PROTOCOL.md
 4. Write session log with EXACT template format
-5. Validate immediately with Validate-SessionProtocol.ps1
+5. Validate immediately with Validate-SessionJson.ps1
 6. Exit nonzero on validation failure
 
 ### Manual (If Needed)
@@ -76,7 +76,7 @@ Follow the manual workflow below if the automated script doesn't meet your needs
 
 ## Session Naming Protocol
 
-**Format**: `YYYY-MM-DD-session-NN-keyword1-keyword2-keyword3-keyword4-keyword5.md`
+**Format**: `YYYY-MM-DD-session-NN.json`
 
 The script automatically generates human-readable filenames by extracting up to 5 keywords from the session objective using NLP heuristics:
 
@@ -97,7 +97,7 @@ The script automatically generates human-readable filenames by extracting up to 
 ### Benefits
 
 - **Human-readable discovery**: Browse session history with `ls .agents/sessions/` and instantly understand content
-- **Grep-friendly search**: Find sessions by topic with `grep -l "oauth" .agents/sessions/*.md`
+- **Grep-friendly search**: Find sessions by topic with `grep -l "oauth" .agents/sessions/*.json`
 - **Self-documenting**: No need to open files to understand what each session covers
 - **Chronological order**: YYYY-MM-DD prefix preserves time-based sorting
 - **Pattern identification**: Keyword clustering reveals recurring themes across sessions
@@ -154,7 +154,7 @@ User Request: /session-init
     v
 +---------------------------------------------+
 | Phase 5: IMMEDIATE VALIDATION               |
-| - Run Validate-SessionProtocol.ps1         |
+| - Run Validate-SessionJson.ps1         |
 | - Report validation result                 |
 | - If FAIL: show errors, allow retry       |
 | - If PASS: confirm success                 |
@@ -196,10 +196,10 @@ git status --short
 
 ### Step 2: Read Canonical Template
 
-**CRITICAL**: Use the Extract-SessionTemplate.ps1 script to read the template from SESSION-PROTOCOL.md.
+**CRITICAL**: Use the New-SessionLog.ps1 script to read the template from SESSION-PROTOCOL.md.
 
 ```powershell
-$template = & .claude/skills/session-init/scripts/Extract-SessionTemplate.ps1
+$template = & .claude/skills/session-init/scripts/New-SessionLog.ps1
 ```
 
 **DO NOT** generate the template from memory or read specific line numbers. The script extracts the canonical template dynamically:
@@ -233,7 +233,7 @@ Leave these unchanged:
 
 Write the populated session log to a file with descriptive naming:
 
-**Filename Format**: `YYYY-MM-DD-session-NN-keyword1-keyword2-keyword3-keyword4-keyword5.md`
+**Filename Format**: `YYYY-MM-DD-session-NN.json`
 
 The script automatically:
 
@@ -247,7 +247,7 @@ The script automatically:
 For objective "Debug recurring session validation failures", the filename becomes:
 `2026-01-06-session-374-debug-recurring-session-validation-failures.md`
 
-Construct filename: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+Construct filename: `.agents/sessions/YYYY-MM-DD-session-NN.json`
 
 Example: `.agents/sessions/2026-01-05-session-375.md`
 
@@ -258,7 +258,7 @@ Write the populated template to this file.
 Run validation script:
 
 ```powershell
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/YYYY-MM-DD-session-NN.md" -Format markdown
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/YYYY-MM-DD-session-NN.json" 
 ```
 
 Check exit code:
@@ -279,7 +279,7 @@ Before reporting success:
 - [ ] Template read from SESSION-PROTOCOL.md (NOT generated from memory)
 - [ ] All template sections present
 - [ ] Session End header includes `(COMPLETE ALL before closing)`
-- [ ] File written to correct path `.agents/sessions/YYYY-MM-DD-session-NN.md`
+- [ ] File written to correct path `.agents/sessions/YYYY-MM-DD-session-NN.json`
 - [ ] Validation script executed
 - [ ] Validation result is PASS (exit code 0)
 
@@ -322,7 +322,7 @@ Session log created but validation FAILED
   Errors:
     - Missing Session End checklist header
 
-Run: pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2026-01-05-session-375.md" -Format markdown
+Run: pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/2026-01-05-session-375.md" 
 
 Fix the issues and re-validate.
 ```
@@ -343,7 +343,7 @@ Fix the issues and re-validate.
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
 | [New-SessionLog.ps1](scripts/New-SessionLog.ps1) | Automated session log creation with validation | 0=success, 1=git error, 2=template failed, 3=write failed, 4=validation failed |
-| [Extract-SessionTemplate.ps1](scripts/Extract-SessionTemplate.ps1) | Extract canonical template from SESSION-PROTOCOL.md | 0=success, 1=file not found, 2=template not found |
+| [New-SessionLog.ps1](scripts/New-SessionLog.ps1) | Extract canonical template from SESSION-PROTOCOL.md | 0=success, 1=file not found, 2=template not found |
 
 ### Example Usage
 
@@ -361,7 +361,7 @@ pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -
 
 ```powershell
 # Extract template
-$template = & .claude/skills/session-init/scripts/Extract-SessionTemplate.ps1
+$template = & .claude/skills/session-init/scripts/New-SessionLog.ps1
 
 # Populate with session data
 $sessionLog = $template -replace 'NN', '375' -replace 'YYYY-MM-DD', '2026-01-06'
@@ -375,7 +375,7 @@ $sessionLog | Out-File -FilePath '.agents/sessions/2026-01-06-session-375.md'
 ## References
 
 - [SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md) - Canonical template source
-- [Validate-SessionProtocol.ps1](scripts/Validate-SessionProtocol.ps1) - Validation script
+- [Validate-SessionJson.ps1](scripts/Validate-SessionJson.ps1) - Validation script
 - [Template Extraction](references/template-extraction.md) - How to extract template
 - [Validation Patterns](references/validation-patterns.md) - Common validation issues
 
