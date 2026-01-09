@@ -32,15 +32,15 @@ permissions:
 
 # NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
 
-# where multiple runs start before cancellation takes effect. This is best-effort
+# where multiple runs start before cancellation takes effect. Multiple review runs
+
+# may execute simultaneously, wasting compute until cancellation completes.
 
 # See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
 
 # for architectural decision on workflow-level concurrency control
 
 # Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
-
-# Note: 6 parallel agents use artifact-based result passing to avoid matrix output limitations
 
 concurrency:
   group: ai-quality-${{ github.event.pull_request.number || inputs.pr_number }}
@@ -82,7 +82,7 @@ jobs:
       github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
-      # For workflow_dispatch, always run review; otherwise use paths-filter result
+      # For workflow_dispatch, always run review (manual trigger assumes user intent regardless of files changed); otherwise use paths-filter result
       should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run }}
 
     steps:
@@ -92,7 +92,7 @@ jobs:
       - name: Check for relevant file changes
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
         id: filter
-        # Skip paths-filter for workflow_dispatch as it may not have proper context
+        # Skip paths-filter for workflow_dispatch (path filter requires pull_request event context; manual dispatch lacks base/head ref information)
         if: github.event_name != 'workflow_dispatch'
         with:
           filters: |
@@ -125,198 +125,186 @@ jobs:
             fi
           fi
 
-# Run all three reviews in parallel using matrix strategy
+# ==============================================================================
+# Agent Review Jobs (6 Static Jobs)
+# ==============================================================================
+#
+# Each agent (security, qa, analyst, architect, devops, roadmap) has a dedicated
+# job with a static name. This ensures status check contexts are always emitted
+# with proper names, even when reviews are skipped due to file filtering.
+#
+# Why not matrix? Job-level `if:` conditions prevent matrix expansion, leaving
+# check context names as unresolved placeholders (e.g., "${{ matrix.agent }} Review").
+# Static jobs with step-level conditionals solve this by:
+# 1. Job names resolve at parse time (not runtime)
+# 2. Jobs always run, emitting proper status checks
+# 3. Composite action (.github/actions/agent-review) encapsulates common workflow
+#
+# Trade-off: Six job definitions (CVA) vs correctness (reliable status checks).
 
-  review:
-    name: ${{ matrix.agent }} Review
-    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+  security-review:
+    name: Security Review
     runs-on: ubuntu-24.04-arm
     needs: check-changes
-    if: needs.check-changes.outputs.should-run == 'true'
+    if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
-
-    strategy:
-      fail-fast: false  # Don't cancel other reviews if one fails
-      matrix:
-        include:
-          - agent: security
-            prompt-file: .github/prompts/pr-quality-gate-security.md
-            emoji: "🔒"
-          - agent: qa
-            prompt-file: .github/prompts/pr-quality-gate-qa.md
-            emoji: "🧪"
-          - agent: analyst
-            prompt-file: .github/prompts/pr-quality-gate-analyst.md
-            emoji: "📊"
-          - agent: architect
-            prompt-file: .github/prompts/pr-quality-gate-architect.md
-            emoji: "📐"
-          - agent: devops
-            prompt-file: .github/prompts/pr-quality-gate-devops.md
-            emoji: "⚙️"
-          - agent: roadmap
-            prompt-file: .github/prompts/pr-quality-gate-roadmap.md
-            emoji: "🗺️"
-
-    # NOTE: Matrix job outputs only expose ONE matrix leg's outputs to downstream jobs.
-    # We use artifacts instead to reliably pass findings between jobs.
-    # Verdicts use job outputs (small strings, safe for interpolation).
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          fetch-depth: 0
 
-      - name: ${{ matrix.emoji }} ${{ matrix.agent }} Review
-        id: review
-        uses: ./.github/actions/ai-review
+      - name: Run security review
+        uses: ./.github/actions/agent-review
         with:
-          agent: ${{ matrix.agent }}
-          context-type: pr-diff
+          agent: security
+          emoji: 🔒
+          prompt-file: .github/prompts/pr-quality-gate-security.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
           pr-number: ${{ env.PR_NUMBER }}
-          prompt-file: ${{ matrix.prompt-file }}
-          timeout-minutes: 5
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-      - name: Save review results
-        id: save-results
-        env:
-          AGENT: ${{ matrix.agent }}
-          VERDICT: ${{ steps.review.outputs.verdict }}
-          FINDINGS: ${{ steps.review.outputs.findings }}
-          INFRASTRUCTURE_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
-          RETRY_COUNT: ${{ steps.review.outputs.retry-count }}
-        run: |
-          # Create output directory for this agent's results
-          mkdir -p ai-review-results
+  qa-review:
+    name: QA Review
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
 
-          # Write verdict (safe for job outputs - small string)
-          echo "$VERDICT" > "ai-review-results/${AGENT}-verdict.txt"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
-          # Write findings to file (avoids shell interpolation issues with special chars)
-          echo "$FINDINGS" > "ai-review-results/${AGENT}-findings.txt"
-
-          # Write infrastructure failure flag (Issue #328)
-          echo "$INFRASTRUCTURE_FAILURE" > "ai-review-results/${AGENT}-infrastructure-failure.txt"
-
-          # Write retry count (Issue #328)
-          echo "$RETRY_COUNT" > "ai-review-results/${AGENT}-retry-count.txt"
-
-          echo "Saved ${AGENT} results:"
-          echo "  Verdict: $VERDICT"
-          echo "  Findings: $(wc -c < ai-review-results/${AGENT}-findings.txt) bytes"
-          echo "  Infrastructure failure: $INFRASTRUCTURE_FAILURE"
-          echo "  Retry count: $RETRY_COUNT"
-
-      - name: Upload review results
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - name: Run qa review
+        uses: ./.github/actions/agent-review
         with:
-          name: review-${{ matrix.agent }}
-          path: ai-review-results/
-          retention-days: 1
+          agent: qa
+          emoji: 🧪
+          prompt-file: .github/prompts/pr-quality-gate-qa.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-      - name: Generate step summary
-        if: always()
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        env:
-          AGENT: ${{ matrix.agent }}
-          EMOJI: ${{ matrix.emoji }}
-          VERDICT: ${{ steps.review.outputs.verdict }}
-          FINDINGS: ${{ steps.review.outputs.findings }}
-          RUN_ID: ${{ github.run_id }}
-          SERVER_URL: ${{ github.server_url }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ env.PR_NUMBER }}
-        run: |
-          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
+  analyst-review:
+    name: Analyst Review
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
 
-          $verdict = $env:VERDICT
-          $agent = $env:AGENT
-          $emoji = $env:EMOJI
-          $findings = $env:FINDINGS
-          $prNumber = $env:PR_NUMBER
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
-          # Get alert type for verdict
-          $alertType = Get-VerdictAlertType -Verdict $verdict
-          $verdictEmoji = Get-VerdictEmoji -Verdict $verdict
+      - name: Run analyst review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: analyst
+          emoji: 📊
+          prompt-file: .github/prompts/pr-quality-gate-analyst.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-          # Capitalize agent name (handle empty string case)
-          $agentDisplay = if ($agent) { (Get-Culture).TextInfo.ToTitleCase($agent.ToLower()) } else { "Unknown" }
+  architect-review:
+    name: Architect Review
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
 
-          # Build step summary
-          $summary = @"
-          ## $emoji $agentDisplay Review
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
-          > [!$alertType]
-          > $verdictEmoji **Verdict: $verdict**
+      - name: Run architect review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: architect
+          emoji: 📐
+          prompt-file: .github/prompts/pr-quality-gate-architect.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-          <details>
-          <summary>Review Findings</summary>
+  devops-review:
+    name: DevOps Review
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
 
-          $findings
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
-          </details>
+      - name: Run devops review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: devops
+          emoji: ⚙️
+          prompt-file: .github/prompts/pr-quality-gate-devops.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-          ---
+  roadmap-review:
+    name: Roadmap Review
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
 
-          <sub>💡 See the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) for full context across all agents, or check the PR for the consolidated quality gate comment.</sub>
-          "@
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
-          # Write to step summary
-          $summary | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding UTF8
+      - name: Run roadmap review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: roadmap
+          emoji: 🗺️
+          prompt-file: .github/prompts/pr-quality-gate-roadmap.md
+          should-run: ${{ needs.check-changes.outputs.should-run }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-      - name: Check verdict and fail if needed
-        if: always()
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        env:
-          AGENT: ${{ matrix.agent }}
-          EMOJI: ${{ matrix.emoji }}
-          VERDICT: ${{ steps.review.outputs.verdict }}
-          FINDINGS: ${{ steps.review.outputs.findings }}
-        run: |
-          $agent = $env:AGENT
-          $emoji = $env:EMOJI
-          $verdict = $env:VERDICT
-          $findings = $env:FINDINGS
-
-          # Check if verdict indicates a blocking failure
-          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict
-          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
-
-          if ($verdict -in $blockingVerdicts) {
-            # GitHub Actions annotations have a practical limit of ~200 chars for readability
-            # We truncate to 180 chars (177 + "...") to leave room for the prefix "[agent] VERDICT: "
-            $maxAnnotationLength = 180
-            if ([string]::IsNullOrWhiteSpace($findings)) {
-              $summary = "No details available."
-            } else {
-              $summary = ($findings -replace "`n", " ")
-              if ($summary.Length -gt $maxAnnotationLength) {
-                $summary = $summary.Substring(0, $maxAnnotationLength - 3) + "..."
-              }
-            }
-
-            Write-Output "::error::[$agent] ${verdict}: $summary"
-            Write-Output ""
-            Write-Output "❌ $emoji $agent review failed with verdict: $verdict"
-            Write-Output ""
-            Write-Output "See the step summary above for full findings."
-            exit 1
-          }
-
-          Write-Output "✅ $emoji $agent review passed with verdict: $verdict"
-
-# Aggregate results from all parallel reviews
+# ==============================================================================
+# Aggregate Results from All Agent Reviews
+# ==============================================================================
+#
+# Depends on all six agent review jobs explicitly (not matrix).
+# Downloads artifacts using pattern `review-*` to gather all agent verdicts.
 
   aggregate:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
-    needs: [check-changes, review]
-    # Always run if check-changes ran and said to run, even if some matrix jobs failed
+    needs: [check-changes, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review]
+    # Always run if check-changes ran and said to run, even if some agent jobs failed
     if: always() && needs.check-changes.outputs.should-run == 'true'
 
     outputs:
@@ -326,16 +314,42 @@ jobs:
       - name: Check for failed agents
         id: failed-agents
         shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          SECURITY_RESULT: ${{ needs.security-review.result }}
+          QA_RESULT: ${{ needs.qa-review.result }}
+          ANALYST_RESULT: ${{ needs.analyst-review.result }}
+          ARCHITECT_RESULT: ${{ needs.architect-review.result }}
+          DEVOPS_RESULT: ${{ needs.devops-review.result }}
+          ROADMAP_RESULT: ${{ needs.roadmap-review.result }}
         run: |
-          # Check if any matrix jobs failed by examining the needs context
+          $ErrorActionPreference = 'Stop'
+          # Check if any agent review jobs failed by examining the needs context
           # This step runs before downloading artifacts to surface failures early
-          # Note: Specific failed agents are identified later by examining individual verdicts
-          $reviewResult = "${{ needs.review.result }}"
-          Write-Output "Review matrix result: $reviewResult"
+          # Note: Specific failed agents are identified later by examining individual verdicts (line 777+ in 'Check for Critical Failures' step)
+          $agentResults = @(
+            @{ Name = 'Security'; Result = $env:SECURITY_RESULT }
+            @{ Name = 'QA'; Result = $env:QA_RESULT }
+            @{ Name = 'Analyst'; Result = $env:ANALYST_RESULT }
+            @{ Name = 'Architect'; Result = $env:ARCHITECT_RESULT }
+            @{ Name = 'DevOps'; Result = $env:DEVOPS_RESULT }
+            @{ Name = 'Roadmap'; Result = $env:ROADMAP_RESULT }
+          )
 
-          if ($reviewResult -eq "failure" -or $reviewResult -eq "cancelled") {
+          Write-Output "Individual review results:"
+          $failedAgents = @()
+
+          foreach ($agent in $agentResults) {
+            Write-Output "  $($agent.Name): $($agent.Result)"
+            if ($agent.Result -in @('failure', 'cancelled')) {
+              $failedAgents += $agent.Name
+              Write-Output "::error::$($agent.Name) agent failed with result: $($agent.Result)"
+            }
+          }
+
+          if ($failedAgents.Count -gt 0) {
             "has_failures=true" >> $env:GITHUB_OUTPUT
-            Write-Output "::warning::One or more agent review jobs failed - see individual job logs for details"
+            Write-Output "::warning::Failed agents: $($failedAgents -join ', ')"
+            Write-Output "::warning::Check individual job logs for details"
           } else {
             "has_failures=false" >> $env:GITHUB_OUTPUT
           }
@@ -350,70 +364,94 @@ jobs:
           path: ai-review-results
           merge-multiple: true
 
+      - name: Validate artifact download
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Output "Checking for required verdict files..."
+
+          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
+          $missingFiles = @()
+
+          foreach ($agent in $agents) {
+            $verdictFile = "ai-review-results/$agent-verdict.txt"
+            if (-not (Test-Path $verdictFile)) {
+              $missingFiles += "$agent-verdict.txt"
+            }
+          }
+
+          if ($missingFiles.Count -gt 0) {
+            Write-Output "::error::Artifact download incomplete - missing files:"
+            foreach ($file in $missingFiles) {
+              Write-Output "::error::  - $file"
+            }
+            Write-Output "::error::This indicates agent review jobs failed or artifacts were not uploaded"
+            exit 1
+          }
+
+          Write-Output "✓ All required verdict files present"
+
       - name: Load review results
         id: load-results
+        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          # Read verdicts from artifact files
-          SECURITY_VERDICT=$(cat ai-review-results/security-verdict.txt 2>/dev/null || echo "UNKNOWN")
-          QA_VERDICT=$(cat ai-review-results/qa-verdict.txt 2>/dev/null || echo "UNKNOWN")
-          ANALYST_VERDICT=$(cat ai-review-results/analyst-verdict.txt 2>/dev/null || echo "UNKNOWN")
-          ARCHITECT_VERDICT=$(cat ai-review-results/architect-verdict.txt 2>/dev/null || echo "UNKNOWN")
-          DEVOPS_VERDICT=$(cat ai-review-results/devops-verdict.txt 2>/dev/null || echo "UNKNOWN")
-          ROADMAP_VERDICT=$(cat ai-review-results/roadmap-verdict.txt 2>/dev/null || echo "UNKNOWN")
+          $ErrorActionPreference = 'Stop'
+          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
 
-          # Read infrastructure failure flags
-          SECURITY_INFRA=$(cat ai-review-results/security-infrastructure-failure.txt 2>/dev/null || echo "false")
-          QA_INFRA=$(cat ai-review-results/qa-infrastructure-failure.txt 2>/dev/null || echo "false")
-          ANALYST_INFRA=$(cat ai-review-results/analyst-infrastructure-failure.txt 2>/dev/null || echo "false")
-          ARCHITECT_INFRA=$(cat ai-review-results/architect-infrastructure-failure.txt 2>/dev/null || echo "false")
-          DEVOPS_INFRA=$(cat ai-review-results/devops-infrastructure-failure.txt 2>/dev/null || echo "false")
-          ROADMAP_INFRA=$(cat ai-review-results/roadmap-infrastructure-failure.txt 2>/dev/null || echo "false")
+          Write-Output "Loaded verdicts:"
 
-          echo "Loaded verdicts:"
-          echo "  Security: $SECURITY_VERDICT (infra: $SECURITY_INFRA)"
-          echo "  QA: $QA_VERDICT (infra: $QA_INFRA)"
-          echo "  Analyst: $ANALYST_VERDICT (infra: $ANALYST_INFRA)"
-          echo "  Architect: $ARCHITECT_VERDICT (infra: $ARCHITECT_INFRA)"
-          echo "  DevOps: $DEVOPS_VERDICT (infra: $DEVOPS_INFRA)"
-          echo "  Roadmap: $ROADMAP_VERDICT (infra: $ROADMAP_INFRA)"
+          foreach ($agent in $agents) {
+            $verdictFile = "ai-review-results/$agent-verdict.txt"
+            $infraFile = "ai-review-results/$agent-infrastructure-failure.txt"
 
-          # Export verdicts for subsequent steps
-          echo "security_verdict=$SECURITY_VERDICT" >> $GITHUB_OUTPUT
-          echo "qa_verdict=$QA_VERDICT" >> $GITHUB_OUTPUT
-          echo "analyst_verdict=$ANALYST_VERDICT" >> $GITHUB_OUTPUT
-          echo "architect_verdict=$ARCHITECT_VERDICT" >> $GITHUB_OUTPUT
-          echo "devops_verdict=$DEVOPS_VERDICT" >> $GITHUB_OUTPUT
-          echo "roadmap_verdict=$ROADMAP_VERDICT" >> $GITHUB_OUTPUT
+            # Read verdict (file existence already validated)
+            $verdict = (Get-Content $verdictFile -Raw).Trim()
 
-          # Export infrastructure failure flags
-          echo "security_infra=$SECURITY_INFRA" >> $GITHUB_OUTPUT
-          echo "qa_infra=$QA_INFRA" >> $GITHUB_OUTPUT
-          echo "analyst_infra=$ANALYST_INFRA" >> $GITHUB_OUTPUT
-          echo "architect_infra=$ARCHITECT_INFRA" >> $GITHUB_OUTPUT
-          echo "devops_infra=$DEVOPS_INFRA" >> $GITHUB_OUTPUT
-          echo "roadmap_infra=$ROADMAP_INFRA" >> $GITHUB_OUTPUT
+            # Read infrastructure flag
+            $infra = if (Test-Path $infraFile) { (Get-Content $infraFile -Raw).Trim() } else { "false" }
+
+            Write-Output "  ${agent}: $verdict (infra: $infra)"
+
+            # Export to GITHUB_OUTPUT
+            "${agent}_verdict=$verdict" >> $env:GITHUB_OUTPUT
+            "${agent}_infra=$infra" >> $env:GITHUB_OUTPUT
+          }
 
       - name: Aggregate Verdicts
         id: aggregate
         shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          SECURITY_VERDICT: ${{ steps.load-results.outputs.security_verdict }}
+          QA_VERDICT: ${{ steps.load-results.outputs.qa_verdict }}
+          ANALYST_VERDICT: ${{ steps.load-results.outputs.analyst_verdict }}
+          ARCHITECT_VERDICT: ${{ steps.load-results.outputs.architect_verdict }}
+          DEVOPS_VERDICT: ${{ steps.load-results.outputs.devops_verdict }}
+          ROADMAP_VERDICT: ${{ steps.load-results.outputs.roadmap_verdict }}
+          SECURITY_INFRA: ${{ steps.load-results.outputs.security_infra }}
+          QA_INFRA: ${{ steps.load-results.outputs.qa_infra }}
+          ANALYST_INFRA: ${{ steps.load-results.outputs.analyst_infra }}
+          ARCHITECT_INFRA: ${{ steps.load-results.outputs.architect_infra }}
+          DEVOPS_INFRA: ${{ steps.load-results.outputs.devops_infra }}
+          ROADMAP_INFRA: ${{ steps.load-results.outputs.roadmap_infra }}
         run: |
+          $ErrorActionPreference = 'Stop'
           Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
 
           # Get verdicts from loaded results
-          $securityVerdict = "${{ steps.load-results.outputs.security_verdict }}"
-          $qaVerdict = "${{ steps.load-results.outputs.qa_verdict }}"
-          $analystVerdict = "${{ steps.load-results.outputs.analyst_verdict }}"
-          $architectVerdict = "${{ steps.load-results.outputs.architect_verdict }}"
-          $devopsVerdict = "${{ steps.load-results.outputs.devops_verdict }}"
-          $roadmapVerdict = "${{ steps.load-results.outputs.roadmap_verdict }}"
+          $securityVerdict = $env:SECURITY_VERDICT
+          $qaVerdict = $env:QA_VERDICT
+          $analystVerdict = $env:ANALYST_VERDICT
+          $architectVerdict = $env:ARCHITECT_VERDICT
+          $devopsVerdict = $env:DEVOPS_VERDICT
+          $roadmapVerdict = $env:ROADMAP_VERDICT
 
           # Get infrastructure failure flags
-          $securityInfra = "${{ steps.load-results.outputs.security_infra }}" -eq "true"
-          $qaInfra = "${{ steps.load-results.outputs.qa_infra }}" -eq "true"
-          $analystInfra = "${{ steps.load-results.outputs.analyst_infra }}" -eq "true"
-          $architectInfra = "${{ steps.load-results.outputs.architect_infra }}" -eq "true"
-          $devopsInfra = "${{ steps.load-results.outputs.devops_infra }}" -eq "true"
-          $roadmapInfra = "${{ steps.load-results.outputs.roadmap_infra }}" -eq "true"
+          $securityInfra = $env:SECURITY_INFRA -eq "true"
+          $qaInfra = $env:QA_INFRA -eq "true"
+          $analystInfra = $env:ANALYST_INFRA -eq "true"
+          $architectInfra = $env:ARCHITECT_INFRA -eq "true"
+          $devopsInfra = $env:DEVOPS_INFRA -eq "true"
+          $roadmapInfra = $env:ROADMAP_INFRA -eq "true"
 
           Write-Log "Security verdict: $securityVerdict (infra: $securityInfra)"
           Write-Log "QA verdict: $qaVerdict (infra: $qaInfra)"
@@ -422,8 +460,8 @@ jobs:
           Write-Log "DevOps verdict: $devopsVerdict (infra: $devopsInfra)"
           Write-Log "Roadmap verdict: $roadmapVerdict (infra: $roadmapInfra)"
 
-          # Categorize failures: if verdict is failure AND infrastructure flag is true, it's INFRASTRUCTURE
-          # Otherwise, it's CODE_QUALITY
+          # Categorize failures: if verdict is failure AND infrastructure flag is true, it's INFRASTRUCTURE; otherwise, it's CODE_QUALITY
+          # Infrastructure failures are downgraded to WARN (line 443) to prevent blocking PRs for transient service issues
           function Get-Category {
             param([string]$Verdict, [bool]$InfraFlag)
             if ($Verdict -in 'CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW') {
@@ -487,130 +525,176 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
           SHA: ${{ github.sha }}
+          FINAL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
+          SECURITY_VERDICT: ${{ steps.aggregate.outputs.security_verdict }}
+          QA_VERDICT: ${{ steps.aggregate.outputs.qa_verdict }}
+          ANALYST_VERDICT: ${{ steps.aggregate.outputs.analyst_verdict }}
+          ARCHITECT_VERDICT: ${{ steps.aggregate.outputs.architect_verdict }}
+          DEVOPS_VERDICT: ${{ steps.aggregate.outputs.devops_verdict }}
+          ROADMAP_VERDICT: ${{ steps.aggregate.outputs.roadmap_verdict }}
+          SECURITY_CATEGORY: ${{ steps.aggregate.outputs.security_category }}
+          QA_CATEGORY: ${{ steps.aggregate.outputs.qa_category }}
+          ANALYST_CATEGORY: ${{ steps.aggregate.outputs.analyst_category }}
+          ARCHITECT_CATEGORY: ${{ steps.aggregate.outputs.architect_category }}
+          DEVOPS_CATEGORY: ${{ steps.aggregate.outputs.devops_category }}
+          ROADMAP_CATEGORY: ${{ steps.aggregate.outputs.roadmap_category }}
         run: |
-          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
+          $ErrorActionPreference = 'Stop'
 
-          $reportDir = Initialize-AIReview
-          $reportFile = Join-Path $reportDir "pr-quality-report.md"
-          $finalVerdict = "${{ steps.aggregate.outputs.final_verdict }}"
-          $alertType = Get-VerdictAlertType -Verdict $finalVerdict
+          try {
+            Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force -ErrorAction Stop
 
-          # Get verdicts
-          $securityVerdict = "${{ steps.aggregate.outputs.security_verdict }}"
-          $qaVerdict = "${{ steps.aggregate.outputs.qa_verdict }}"
-          $analystVerdict = "${{ steps.aggregate.outputs.analyst_verdict }}"
-          $architectVerdict = "${{ steps.aggregate.outputs.architect_verdict }}"
-          $devopsVerdict = "${{ steps.aggregate.outputs.devops_verdict }}"
-          $roadmapVerdict = "${{ steps.aggregate.outputs.roadmap_verdict }}"
-
-          # Get categories
-          $securityCategory = "${{ steps.aggregate.outputs.security_category }}"
-          $qaCategory = "${{ steps.aggregate.outputs.qa_category }}"
-          $analystCategory = "${{ steps.aggregate.outputs.analyst_category }}"
-          $architectCategory = "${{ steps.aggregate.outputs.architect_category }}"
-          $devopsCategory = "${{ steps.aggregate.outputs.devops_category }}"
-          $roadmapCategory = "${{ steps.aggregate.outputs.roadmap_category }}"
-
-          # Get emojis
-          $securityEmoji = Get-VerdictEmoji -Verdict $securityVerdict
-          $qaEmoji = Get-VerdictEmoji -Verdict $qaVerdict
-          $analystEmoji = Get-VerdictEmoji -Verdict $analystVerdict
-          $architectEmoji = Get-VerdictEmoji -Verdict $architectVerdict
-          $devopsEmoji = Get-VerdictEmoji -Verdict $devopsVerdict
-          $roadmapEmoji = Get-VerdictEmoji -Verdict $roadmapVerdict
-          $finalEmoji = Get-VerdictEmoji -Verdict $finalVerdict
-
-          # Build report content
-          $report = @"
-          <!-- AI-PR-QUALITY-GATE -->
-
-          ## AI Quality Gate Review
-
-          > [!$alertType]
-          > $finalEmoji **Final Verdict: $finalVerdict**
-
-          <details>
-          <summary>Walkthrough</summary>
-
-          This PR was reviewed by six AI agents **in parallel**, analyzing different aspects of the changes:
-
-          - **Security Agent**: Scans for vulnerabilities, secrets exposure, and security anti-patterns
-          - **QA Agent**: Evaluates test coverage, error handling, and code quality
-          - **Analyst Agent**: Assesses code quality, impact analysis, and maintainability
-          - **Architect Agent**: Reviews design patterns, system boundaries, and architectural concerns
-          - **DevOps Agent**: Evaluates CI/CD, build pipelines, and infrastructure changes
-          - **Roadmap Agent**: Assesses strategic alignment, feature scope, and user value
-
-          </details>
-
-          ### Review Summary
-
-          | Agent | Verdict | Category | Status |
-          |:------|:--------|:---------|:------:|
-          | Security | $securityVerdict | $securityCategory | $securityEmoji |
-          | QA | $qaVerdict | $qaCategory | $qaEmoji |
-          | Analyst | $analystVerdict | $analystCategory | $analystEmoji |
-          | Architect | $architectVerdict | $architectCategory | $architectEmoji |
-          | DevOps | $devopsVerdict | $devopsCategory | $devopsEmoji |
-          | Roadmap | $roadmapVerdict | $roadmapCategory | $roadmapEmoji |
-
-          💡 **Quick Access**: Click on individual agent jobs (e.g., "🔒 security Review", "🧪 qa Review") in the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) to see detailed findings and step summaries.
-
-          "@
-
-          # Add findings sections
-          $findingsMap = @{
-            'security' = 'Security Review Details'
-            'qa' = 'QA Review Details'
-            'analyst' = 'Analyst Review Details'
-            'architect' = 'Architect Review Details'
-            'devops' = 'DevOps Review Details'
-            'roadmap' = 'Roadmap Review Details'
-          }
-
-          foreach ($agent in $findingsMap.Keys) {
-            $findingsFile = "ai-review-results/$agent-findings.txt"
-            if (Test-Path $findingsFile) {
-              $findings = Get-Content $findingsFile -Raw
-              if ($findings) {
-                $title = $findingsMap[$agent]
-                $report += "`n<details>`n<summary>$title</summary>`n`n$findings`n`n</details>`n"
-              }
-            } else {
-              Write-Warning "No $agent findings file found"
+            $reportDir = Initialize-AIReview
+            if (-not (Test-Path $reportDir)) {
+              Write-Output "::error::Failed to initialize AI review directory: $reportDir"
+              exit 1
             }
+
+            $reportFile = Join-Path $reportDir "pr-quality-report.md"
+            $finalVerdict = $env:FINAL_VERDICT
+            $alertType = Get-VerdictAlertType -Verdict $finalVerdict
+
+            # Get verdicts
+            $securityVerdict = $env:SECURITY_VERDICT
+            $qaVerdict = $env:QA_VERDICT
+            $analystVerdict = $env:ANALYST_VERDICT
+            $architectVerdict = $env:ARCHITECT_VERDICT
+            $devopsVerdict = $env:DEVOPS_VERDICT
+            $roadmapVerdict = $env:ROADMAP_VERDICT
+
+            # Get categories
+            $securityCategory = $env:SECURITY_CATEGORY
+            $qaCategory = $env:QA_CATEGORY
+            $analystCategory = $env:ANALYST_CATEGORY
+            $architectCategory = $env:ARCHITECT_CATEGORY
+            $devopsCategory = $env:DEVOPS_CATEGORY
+            $roadmapCategory = $env:ROADMAP_CATEGORY
+
+            # Get emojis
+            $securityEmoji = Get-VerdictEmoji -Verdict $securityVerdict
+            $qaEmoji = Get-VerdictEmoji -Verdict $qaVerdict
+            $analystEmoji = Get-VerdictEmoji -Verdict $analystVerdict
+            $architectEmoji = Get-VerdictEmoji -Verdict $architectVerdict
+            $devopsEmoji = Get-VerdictEmoji -Verdict $devopsVerdict
+            $roadmapEmoji = Get-VerdictEmoji -Verdict $roadmapVerdict
+            $finalEmoji = Get-VerdictEmoji -Verdict $finalVerdict
+
+            # Build report content
+            $report = @(
+              '<!-- AI-PR-QUALITY-GATE -->',
+              '',
+              '## AI Quality Gate Review',
+              '',
+              "> [!$alertType]",
+              "> $finalEmoji **Final Verdict: $finalVerdict**",
+              '',
+              '<details>',
+              '<summary>Walkthrough</summary>',
+              '',
+              'This PR was reviewed by six AI agents **in parallel**, analyzing different aspects of the changes:',
+              '',
+              '- **Security Agent**: Scans for vulnerabilities, secrets exposure, and security anti-patterns',
+              '- **QA Agent**: Evaluates test coverage, error handling, and code quality',
+              '- **Analyst Agent**: Assesses code quality, impact analysis, and maintainability',
+              '- **Architect Agent**: Reviews design patterns, system boundaries, and architectural concerns',
+              '- **DevOps Agent**: Evaluates CI/CD, build pipelines, and infrastructure changes',
+              '- **Roadmap Agent**: Assesses strategic alignment, feature scope, and user value',
+              '',
+              '</details>',
+              '',
+              '### Review Summary',
+              '',
+              '| Agent | Verdict | Category | Status |',
+              '|:------|:--------|:---------|:------:|',
+              "| Security | $securityVerdict | $securityCategory | $securityEmoji |",
+              "| QA | $qaVerdict | $qaCategory | $qaEmoji |",
+              "| Analyst | $analystVerdict | $analystCategory | $analystEmoji |",
+              "| Architect | $architectVerdict | $architectCategory | $architectEmoji |",
+              "| DevOps | $devopsVerdict | $devopsCategory | $devopsEmoji |",
+              "| Roadmap | $roadmapVerdict | $roadmapCategory | $roadmapEmoji |",
+              '',
+              "💡 **Quick Access**: Click on individual agent jobs (e.g., ""🔒 security Review"", ""🧪 qa Review"") in the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) to see detailed findings and step summaries.",
+              ''
+            ) -join "`n"
+
+            # Add findings sections
+            $findingsMap = @{
+              'security' = 'Security Review Details'
+              'qa' = 'QA Review Details'
+              'analyst' = 'Analyst Review Details'
+              'architect' = 'Architect Review Details'
+              'devops' = 'DevOps Review Details'
+              'roadmap' = 'Roadmap Review Details'
+            }
+
+            # Use ordered array for predictable output
+            $agentOrder = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
+            foreach ($agent in $agentOrder) {
+              $findingsFile = "ai-review-results/$agent-findings.txt"
+              if (Test-Path $findingsFile) {
+                try {
+                  $findings = Get-Content $findingsFile -Raw -ErrorAction Stop
+                  if ($findings) {
+                    $title = $findingsMap[$agent]
+                    $report += "`n<details>`n<summary>$title</summary>`n`n$findings`n`n</details>`n"
+                  } else {
+                    Write-Warning "Findings file for $agent is empty"
+                    $report += "`n<details>`n<summary>$($findingsMap[$agent])</summary>`n`n⚠️ No findings available (empty file)`n`n</details>`n"
+                  }
+                }
+                catch {
+                  Write-Output "::error::Failed to read findings file for ${agent}: $_"
+                  $report += "`n<details>`n<summary>$($findingsMap[$agent])</summary>`n`n❌ Error reading findings file: $_`n`n</details>`n"
+                }
+              } else {
+                Write-Warning "No $agent findings file found"
+                $report += "`n<details>`n<summary>$($findingsMap[$agent])</summary>`n`n⚠️ Findings file not found (agent review may have failed)`n`n</details>`n"
+              }
+            }
+
+            # Add footer
+            $report += "`n" + (@(
+              '',
+              '---',
+              '',
+              '<details>',
+              '<summary>Run Details</summary>',
+              '',
+              '| Property | Value |',
+              '|:---------|:------|',
+              "| **Run ID** | [$env:RUN_ID]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) |",
+              "| **Triggered by** | ``$env:EVENT_NAME`` on ``$env:REF_NAME`` |",
+              "| **Commit** | ``$env:SHA`` |",
+              '',
+              '</details>',
+              '',
+              "<sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) workflow</sub>"
+            ) -join "`n")
+
+            $report | Set-Content $reportFile -Encoding UTF8 -ErrorAction Stop
+
+            if (-not (Test-Path $reportFile)) {
+              Write-Output "::error::Failed to write report file: $reportFile"
+              exit 1
+            }
+
+            "report_file=$reportFile" >> $env:GITHUB_OUTPUT
           }
-
-          # Add footer
-          $report += @"
-
-          ---
-
-          <details>
-          <summary>Run Details</summary>
-
-          | Property | Value |
-          |:---------|:------|
-          | **Run ID** | [$env:RUN_ID]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) |
-          | **Triggered by** | ``$env:EVENT_NAME`` on ``$env:REF_NAME`` |
-          | **Commit** | ``$env:SHA`` |
-
-          </details>
-
-          <sub>Powered by [AI Quality Gate](https://github.com/$env:REPOSITORY) workflow</sub>
-          "@
-
-          $report | Set-Content $reportFile -Encoding UTF8
-          "report_file=$reportFile" >> $env:GITHUB_OUTPUT
+          catch {
+            Write-Output "::error::Failed to generate report: $_"
+            Write-Output "::error::Module: AIReviewCommon.psm1"
+            exit 1
+          }
 
       - name: Check for infrastructure failures and add label
-        continue-on-error: true
-        shell: pwsh
+        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
         run: |
-          # Check if any agent had infrastructure failure (Issue #328)
+          $ErrorActionPreference = 'Stop'
+
+          # Check if any agent had infrastructure failure (Issue #328: Add infrastructure-failure label when retry logic exhausted)
           $infrastructureFailureDetected = $false
           $retryAttempts = @()
 
@@ -638,8 +722,30 @@ jobs:
             Write-Output "::warning::Infrastructure failures detected - adding infrastructure-failure label"
             Write-Output "Retry attempts: $($retryAttempts -join ', ')"
 
-            # Add infrastructure-failure label to PR
-            gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "infrastructure-failure"
+            try {
+              # Verify gh CLI is authenticated
+              $authStatus = gh auth status 2>&1
+              if ($LASTEXITCODE -ne 0) {
+                Write-Output "::error::gh CLI authentication failed: $authStatus"
+                Write-Output "::error::Cannot add infrastructure-failure label"
+                exit 1
+              }
+
+              # Add label with error handling
+              gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "infrastructure-failure"
+
+              if ($LASTEXITCODE -ne 0) {
+                Write-Output "::error::Failed to add infrastructure-failure label (exit code: $LASTEXITCODE)"
+                Write-Output "::error::Ensure 'infrastructure-failure' label exists in repository"
+                exit 1
+              }
+
+              Write-Output "✓ Successfully added infrastructure-failure label"
+            }
+            catch {
+              Write-Output "::error::Failed to add label: $_"
+              exit 1
+            }
           } else {
             Write-Output "No infrastructure failures detected"
           }
@@ -651,51 +757,110 @@ jobs:
           PR_NUMBER: ${{ env.PR_NUMBER }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          # Use GitHub skill script for idempotent comment posting
-          # PRs are issues in GitHub API, so we use Post-IssueComment with marker
-          # UpdateIfExists updates the existing marked comment if present, ensuring the latest report is reflected
-          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
-            -Issue $env:PR_NUMBER `
-            -BodyFile $env:REPORT_FILE `
-            -Marker "AI-PR-QUALITY-GATE" `
-            -UpdateIfExists
+          $ErrorActionPreference = 'Stop'
+
+          if ([string]::IsNullOrWhiteSpace($env:PR_NUMBER)) {
+            Write-Output "::error::PR_NUMBER environment variable is missing"
+            exit 1
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:REPORT_FILE)) {
+            Write-Output "::error::REPORT_FILE environment variable is missing"
+            exit 1
+          }
+
+          if (-not (Test-Path $env:REPORT_FILE)) {
+            Write-Output "::error::Report file not found: $env:REPORT_FILE"
+            exit 1
+          }
+
+          $skillScript = ".claude/skills/github/scripts/issue/Post-IssueComment.ps1"
+          if (-not (Test-Path $skillScript)) {
+            Write-Output "::error::Skill script not found: $skillScript"
+            exit 1
+          }
+
+          try {
+            # Use GitHub skill script for idempotent comment posting
+            # PRs are issues in GitHub API (pull requests are a superset of issues), so we use Post-IssueComment with marker `AI-PR-QUALITY-GATE`
+            # UpdateIfExists updates the existing marked comment if present, ensuring the latest report is reflected
+            & $skillScript `
+              -Issue $env:PR_NUMBER `
+              -BodyFile $env:REPORT_FILE `
+              -Marker "AI-PR-QUALITY-GATE" `
+              -UpdateIfExists
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Output "::error::Post-IssueComment.ps1 failed with exit code $LASTEXITCODE"
+              exit $LASTEXITCODE
+            }
+          }
+          catch {
+            Write-Output "::error::Failed to post PR comment: $_"
+            exit 1
+          }
 
       - name: Set Job Summary
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
+          $ErrorActionPreference = 'Stop'
           Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Check for Critical Failures
         shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          FINAL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
+          SECURITY_VERDICT: ${{ steps.aggregate.outputs.security_verdict }}
+          QA_VERDICT: ${{ steps.aggregate.outputs.qa_verdict }}
+          ANALYST_VERDICT: ${{ steps.aggregate.outputs.analyst_verdict }}
+          ARCHITECT_VERDICT: ${{ steps.aggregate.outputs.architect_verdict }}
+          DEVOPS_VERDICT: ${{ steps.aggregate.outputs.devops_verdict }}
+          ROADMAP_VERDICT: ${{ steps.aggregate.outputs.roadmap_verdict }}
         run: |
-          $finalVerdict = "${{ steps.aggregate.outputs.final_verdict }}"
+          $ErrorActionPreference = 'Stop'
+          $finalVerdict = $env:FINAL_VERDICT
 
-          # Use ordered array for deterministic output (dictionary Keys property is unordered)
+          # Use ordered array for deterministic output (PowerShell dictionary Keys property is unordered, which would cause agent order to vary across runs, complicating comparisons)
           $agentVerdicts = @(
-            @{ Name = '🔒 Security'; Verdict = "${{ steps.aggregate.outputs.security_verdict }}" }
-            @{ Name = '🧪 QA'; Verdict = "${{ steps.aggregate.outputs.qa_verdict }}" }
-            @{ Name = '📊 Analyst'; Verdict = "${{ steps.aggregate.outputs.analyst_verdict }}" }
-            @{ Name = '📐 Architect'; Verdict = "${{ steps.aggregate.outputs.architect_verdict }}" }
-            @{ Name = '⚙️ DevOps'; Verdict = "${{ steps.aggregate.outputs.devops_verdict }}" }
-            @{ Name = '🗺️ Roadmap'; Verdict = "${{ steps.aggregate.outputs.roadmap_verdict }}" }
+            @{ Name = '🔒 Security'; Verdict = $env:SECURITY_VERDICT }
+            @{ Name = '🧪 QA'; Verdict = $env:QA_VERDICT }
+            @{ Name = '📊 Analyst'; Verdict = $env:ANALYST_VERDICT }
+            @{ Name = '📐 Architect'; Verdict = $env:ARCHITECT_VERDICT }
+            @{ Name = '⚙️ DevOps'; Verdict = $env:DEVOPS_VERDICT }
+            @{ Name = '🗺️ Roadmap'; Verdict = $env:ROADMAP_VERDICT }
           )
 
           # Identify agents with blocking verdicts
-          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict
+          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict (occurs when AI response doesn't match expected verdict format, treating ambiguity as blocking)
           $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
           $failedAgents = @()
+          $missingVerdicts = @()
 
           foreach ($entry in $agentVerdicts) {
             if ([string]::IsNullOrWhiteSpace($entry.Verdict)) {
-              Write-Output "::warning::$($entry.Name): No verdict received from aggregate step"
+              $missingVerdicts += $entry.Name
+              Write-Output "::error::$($entry.Name): No verdict received from aggregate step"
               continue
             }
             if ($entry.Verdict -in $blockingVerdicts) {
               $failedAgents += "$($entry.Name): $($entry.Verdict)"
               Write-Output "::error::$($entry.Name): $($entry.Verdict)"
             }
+          }
+
+          if ($missingVerdicts.Count -gt 0) {
+            Write-Output ""
+            Write-Output "❌ Quality gate failed - missing verdicts"
+            Write-Output ""
+            Write-Output "Agents with missing verdicts:"
+            foreach ($missing in $missingVerdicts) {
+              Write-Output "  - $missing"
+            }
+            Write-Output ""
+            Write-Output "This indicates agent review jobs failed or artifacts are incomplete"
+            exit 1
           }
 
           if ($finalVerdict -in $blockingVerdicts) {
@@ -712,70 +877,3 @@ jobs:
           }
 
           Write-Output "✅ AI Quality Gate passed with verdict: $finalVerdict"
-
-# Skip jobs that provide passing status when no relevant files changed
-
-# NOTE: We need TWO skip jobs with the SAME names as the real jobs to satisfy
-
-# required status checks. This follows the dual-job same-name pattern from
-
-# pester-tests.yml (see Issue #335 for details)
-
-# Skip job for individual agent reviews - uses matrix to match review job names
-
-  skip-agent-reviews:
-    name: ${{ matrix.agent }} Review
-    needs: check-changes
-    if: needs.check-changes.outputs.should-run != 'true'
-    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-
-    strategy:
-      matrix:
-        include:
-          - agent: security
-          - agent: qa
-          - agent: analyst
-          - agent: architect
-          - agent: devops
-          - agent: roadmap
-
-    steps:
-      - name: Skip ${{ matrix.agent }} review (no relevant changes)
-        run: |
-          echo "✅ ${{ matrix.agent }} review skipped - no relevant file changes detected"
-          echo ""
-          echo "This PR only contains changes to files that don't require AI review."
-          echo "Status: PASS (skipped)"
-
-# Skip job for aggregate results - matches aggregate job name
-
-  skip-aggregate:
-    name: Aggregate Results
-    needs: check-changes
-    if: needs.check-changes.outputs.should-run != 'true'
-    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-
-    steps:
-      - name: Skip AI review (no relevant file changes)
-        run: |
-          echo "✅ AI Quality Gate skipped - no relevant file changes detected"
-          echo ""
-          echo "This PR only contains changes to files that don't require AI review:"
-          echo "  - Documentation files (*.md, *.txt, *.rst, docs/**)"
-          echo "  - Non-code files outside monitored paths"
-          echo ""
-          echo "Monitored paths that would trigger AI review:"
-          echo "  - src/**"
-          echo "  - scripts/**"
-          echo "  - build/**"
-          echo "  - .github/**"
-          echo "  - .agents/**"
-          echo "  - .claude/skills/**"
-          echo ""
-          echo "Status: PASS (skipped - no relevant changes)"

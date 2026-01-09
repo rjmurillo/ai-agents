@@ -407,7 +407,7 @@ runs:
 
               if [ "$LINE_COUNT" -gt "$MAX_DIFF_LINES" ]; then
                 CONTEXT_MODE="summary"
-                CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --stat 2>/dev/null)
+                CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only 2>/dev/null)
                 if [ -z "$CONTEXT" ]; then
                   echo "::error::Failed to fetch PR diff summary for #$PR_NUMBER"
                   exit 1
