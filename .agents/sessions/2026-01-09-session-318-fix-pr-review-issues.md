@@ -270,7 +270,7 @@ All fixes compile and pass PSScriptAnalyzer (warnings only on plural nouns, whic
 | MUST | Update Serena memory (cross-session context) | [x] | No new cross-session patterns identified |
 | MUST | Run markdown lint | [x] | Will run in commit hook |
 | MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: bug fixes only |
-| MUST | Commit all changes (including .serena/memories) | [x] | In progress (pre-commit validation) |
+| MUST | Commit all changes (including .serena/memories) | [x] | Commit SHA: 8c24db40 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | N/A (no project plan for this task) |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | N/A (routine fixes) |
