@@ -28,7 +28,7 @@ Pre-commit hooks run automatically before every commit to enforce protocol compl
 
 - HANDOFF.md must be staged
 - Session log must be staged
-- Session log must pass `Validate-Session.ps1`
+- Session log must pass `Validate-SessionJson.ps1`
 
 **Bypass**: `git commit --no-verify` (use sparingly, logged)
 

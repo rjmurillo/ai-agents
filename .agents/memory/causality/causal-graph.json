@@ -1,393 +1,197 @@
 {
   "patterns": [
     {
-      "action": "A1",
-      "last_used": "2026-01-02T22:18:26.5643068-06:00",
-      "id": "p001",
-      "occurrences": 1,
       "description": "",
-      "success_rate": 0.9,
+      "occurrences": 1,
+      "trigger": "T1",
       "name": "Good pattern",
-      "trigger": "T1"
+      "last_used": "2026-01-09T02:30:45.9839371-05:00",
+      "action": "A1",
+      "success_rate": 0.9,
+      "id": "p001"
     },
     {
-      "action": "A2",
-      "last_used": "2026-01-02T22:18:26.5754379-06:00",
-      "id": "p002",
-      "occurrences": 2,
       "description": "",
-      "success_rate": 0.2,
+      "occurrences": 2,
+      "trigger": "T2",
       "name": "Bad pattern",
-      "trigger": "T2"
+      "last_used": "2026-01-09T02:30:45.9885809-05:00",
+      "action": "A2",
+      "success_rate": 0.2,
+      "id": "p002"
     },
     {
-      "action": "A3",
-      "last_used": "2026-01-02T22:18:26.5885182-06:00",
-      "id": "p003",
+      "description": "",
       "occurrences": 2,
-      "description": "",
-      "success_rate": 0.1,
+      "trigger": "T3",
       "name": "Worse pattern",
-      "trigger": "T3"
+      "last_used": "2026-01-09T02:30:45.9964318-05:00",
+      "action": "A3",
+      "success_rate": 0.1,
+      "id": "p003"
     },
     {
-      "action": "A",
-      "last_used": "2026-01-02T22:18:26.6738111-06:00",
-      "id": "p004",
-      "occurrences": 1,
       "description": "",
-      "success_rate": 1.0,
+      "occurrences": 1,
+      "trigger": "T",
       "name": "Status test pattern",
-      "trigger": "T"
+      "last_used": "2026-01-09T02:30:46.0250007-05:00",
+      "action": "A",
+      "success_rate": 1.0,
+      "id": "p004"
     },
     {
+      "last_used": "2026-01-09T14:30:16.5931301-05:00",
+      "action": "Second",
+      "id": "p005",
+      "occurrences": 2,
       "name": "test pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
-      "occurrences": 28,
-      "id": "p005",
       "success_rate": 1.0,
-      "trigger": "Testing second",
-      "last_used": "2026-01-08T12:19:54.0875839-06:00",
-      "action": "Second"
+      "trigger": "Testing second"
     },
     {
+      "last_used": "2026-01-09T14:30:16.6057655-05:00",
+      "action": "First",
+      "id": "p006",
+      "occurrences": 2,
       "name": "design pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
-      "occurrences": 28,
-      "id": "p006",
       "success_rate": 1.0,
-      "trigger": "Designing first",
-      "last_used": "2026-01-08T12:19:54.1231759-06:00",
-      "action": "First"
-    }
-  ],
-  "updated": "2026-01-08T12:19:54.2190613-06:00",
-  "edges": [
-    {
-      "target": "n013",
-      "weight": 0.8,
-      "type": "causes",
-      "source": "n012",
-      "evidence_count": 1
-    },
-    {
-      "target": "n013",
-      "weight": 0.8,
-      "type": "causes",
-      "source": "n014",
-      "evidence_count": 1
-    },
-    {
-      "target": "n013",
-      "weight": 0.8,
-      "type": "causes",
-      "source": "n015",
-      "evidence_count": 1
-    },
-    {
-      "target": "n013",
-      "weight": 0.8,
-      "type": "causes",
-      "source": "n016",
-      "evidence_count": 1
-    },
-    {
-      "target": "n013",
-      "weight": 0.8,
-      "type": "causes",
-      "source": "n017",
-      "evidence_count": 1
+      "trigger": "Designing first"
     }
   ],
   "version": "1.0",
+  "edges": [],
   "nodes": [
     {
-      "episodes": [],
       "type": "decision",
+      "frequency": 1,
       "label": "Status test node",
-      "frequency": 1,
-      "id": "n001",
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "error: - **Objective**: Conduct structured retrospective on PR #760 failures to extract atomic learnings",
-      "id": "n002",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "error: - Critical failure: Attempted to suppress legitimate CodeQL security issues instead of applying user-provided patches",
-      "id": "n003",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "error: - Created comprehensive retrospective document at `.agents/retrospective/2026-01-04-pr760-security-suppression-failure.md`",
-      "id": "n004",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "error: 3. **Excessive Iteration**: No circuit breaker after repeated failures (38 commits)",
-      "id": "n005",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "error: - `.agents/retrospective/2026-01-04-pr760-security-suppression-failure.md` (16KB, comprehensive analysis)",
-      "id": "n006",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "error: - `.serena/memories/autonomous-execution-failures-pr760.md`",
-      "id": "n007",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "error: - Circuit breaker threshold: 3 failed attempts (not 5, not 10)",
-      "id": "n008",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "error: - No session logs from actual PR work (couldn't see agent thought process during failures)",
-      "id": "n009",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "error: | MUST | Run markdown lint | [x] | 23 errors in pre-existing files (not session artifacts) |",
-      "id": "n010",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "Outcome: success - Session 305 - 2026-01-04",
-      "id": "n011",
-      "type": "outcome",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "- Created comprehensive retrospective document at `.agents/retrospective/2026-01-04-pr760-security-suppression-failure.md`",
-      "id": "n012",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "Security fixes require adversarial testing before claiming complete",
-      "id": "n013",
-      "type": "outcome",
-      "frequency": 5,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "3. **Excessive Iteration**: No circuit breaker after repeated failures (38 commits)",
-      "id": "n014",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "- `.agents/retrospective/2026-01-04-pr760-security-suppression-failure.md` (16KB, comprehensive analysis)",
-      "id": "n015",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "- `.serena/memories/autonomous-execution-failures-pr760.md`",
-      "id": "n016",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "episodes": [
-        "episode-2026-01-04-session-305"
-      ],
-      "label": "- Circuit breaker threshold: 3 failed attempts (not 5, not 10)",
-      "id": "n017",
-      "type": "error",
-      "frequency": 1,
-      "success_rate": 1.0
-    },
-    {
-      "label": "Outcome: success - Task 1",
-      "type": "outcome",
       "success_rate": 1.0,
-      "id": "n018",
+      "id": "n001",
+      "episodes": []
+    },
+    {
+      "type": "outcome",
+      "id": "n002",
+      "success_rate": 1.0,
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-01-filter-001"
       ],
-      "frequency": 28
+      "label": "Outcome: success - Task 1"
     },
     {
-      "label": "Outcome: failure - Task 2",
       "type": "outcome",
+      "id": "n003",
       "success_rate": 1.0,
-      "id": "n019",
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-01-filter-002"
       ],
-      "frequency": 28
+      "label": "Outcome: failure - Task 2"
     },
     {
-      "label": "Outcome: partial - Task 3",
       "type": "outcome",
+      "id": "n004",
       "success_rate": 1.0,
-      "id": "n020",
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-01-filter-003"
       ],
-      "frequency": 28
+      "label": "Outcome: partial - Task 3"
     },
     {
-      "label": "test: Second",
       "type": "decision",
+      "id": "n005",
       "success_rate": 1.0,
-      "id": "n021",
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-01-sequence-001"
       ],
-      "frequency": 28
+      "label": "test: Second"
     },
     {
-      "label": "design: First",
       "type": "decision",
+      "id": "n006",
       "success_rate": 1.0,
-      "id": "n022",
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-01-sequence-001"
       ],
-      "frequency": 28
+      "label": "design: First"
     },
     {
-      "label": "Outcome: success - Test",
       "type": "outcome",
+      "id": "n007",
       "success_rate": 1.0,
-      "id": "n023",
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-01-sequence-001"
       ],
-      "frequency": 28
+      "label": "Outcome: success - Test"
     },
     {
-      "label": "Outcome: success - Test implementation",
       "type": "outcome",
+      "id": "n008",
       "success_rate": 1.0,
-      "id": "n024",
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-01-session-001"
       ],
-      "frequency": 28
+      "label": "Outcome: success - Test implementation"
     },
     {
-      "label": "error: 1. Distribution count error: Table 92 shows 12 Sonnet, actual is 11",
       "type": "error",
+      "id": "n009",
       "success_rate": 1.0,
-      "id": "n025",
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 28
+      "label": "error: 1. Distribution count error: Table 92 shows 12 Sonnet, actual is 11"
     },
     {
-      "label": "error: - Problem correctly identified: Mixed model identifier formats causing 404 errors",
       "type": "error",
+      "id": "n010",
       "success_rate": 1.0,
-      "id": "n026",
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 28
+      "label": "error: - Problem correctly identified: Mixed model identifier formats causing 404 errors"
     },
     {
-      "label": "error: - 404 errors are eliminated?",
       "type": "error",
+      "id": "n011",
       "success_rate": 1.0,
-      "id": "n027",
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 28
+      "label": "error: - 404 errors are eliminated?"
     },
     {
-      "label": "error: 4. Metrics Gap: No baseline error rates or success criteria defined",
       "type": "error",
+      "id": "n012",
       "success_rate": 1.0,
-      "id": "n028",
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 28
+      "label": "error: 4. Metrics Gap: No baseline error rates or success criteria defined"
     },
     {
-      "label": "Outcome: success - Session 356 - 2026-01-03",
       "type": "outcome",
+      "id": "n013",
       "success_rate": 1.0,
-      "id": "n029",
+      "frequency": 2,
       "episodes": [
         "episode-2026-01-03-session-356"
       ],
-      "frequency": 28
+      "label": "Outcome: success - Session 356 - 2026-01-03"
     }
-  ]
+  ],
+  "updated": "2026-01-09T14:30:16.6753283-05:00"
 }
