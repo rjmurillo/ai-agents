@@ -144,10 +144,19 @@ function New-PopulatedSessionLog {
         if ($populated -match '\[SHA\]') { $unreplacedPlaceholders += '[SHA]' }
         if ($populated -match '\[What this session aims to accomplish\]') { $unreplacedPlaceholders += '[objective]' }
         if ($populated -match '\[clean/dirty\]') { $unreplacedPlaceholders += '[clean/dirty]' }
-        
+
         if ($unreplacedPlaceholders.Count -gt 0) {
-            Write-Warning "Some placeholders were not replaced: $($unreplacedPlaceholders -join ', ')"
-            Write-Warning "Session log may be invalid. Verify content manually."
+            if ($SkipValidation) {
+                # When SkipValidation is set, warn instead of failing
+                Write-Warning "Some placeholders were not replaced: $($unreplacedPlaceholders -join ', ')"
+                Write-Warning "Session log may be invalid. Verify content manually."
+            } else {
+                # Default: Fail immediately to prevent creating invalid session logs
+                throw [System.InvalidOperationException]::new(
+                    "Placeholders were not replaced: $($unreplacedPlaceholders -join ', ')`n`n" +
+                    "This indicates a validation failure. Session log cannot be created."
+                )
+            }
         }
 
         return $populated
