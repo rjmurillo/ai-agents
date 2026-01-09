@@ -39,8 +39,8 @@
     Exit codes (per ADR-035):
     - 0: Success (milestone found)
     - 1: Invalid parameters
-    - 2: No semantic version milestones found
-    - 3: API error
+    - 2: Config/resource error (module not found, no semantic milestones found)
+    - 3: External error (API error)
 
     Semantic version format: X.Y.Z where X, Y, Z are integers (e.g., "0.2.0", "1.10.3").
     Non-semantic milestones (e.g., "Future", "Backlog") are ignored.
@@ -66,7 +66,7 @@ $ErrorActionPreference = 'Stop'
 $modulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 if (-not (Test-Path $modulePath)) {
     Write-Error "GitHubCore module not found at: $modulePath"
-    exit 1
+    exit 2
 }
 Import-Module $modulePath -Force
 
@@ -84,10 +84,16 @@ try {
     # Query all open milestones
     $milestonesJson = gh api "repos/$Owner/$Repo/milestones?state=open&per_page=100" 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-ErrorAndExit "Failed to query milestones: $milestonesJson" 3
+        Write-ErrorAndExit "Failed to query milestones from GitHub API: $milestonesJson" 3
     }
 
-    $milestones = $milestonesJson | ConvertFrom-Json
+    # Parse JSON (safe now that we know the command succeeded)
+    try {
+        $milestones = $milestonesJson | ConvertFrom-Json
+    }
+    catch {
+        Write-ErrorAndExit "Failed to parse milestone data as JSON: $($_.Exception.Message)" 3
+    }
 
     if ($null -eq $milestones -or $milestones.Count -eq 0) {
         Write-Warning "No open milestones found in $Owner/$Repo"

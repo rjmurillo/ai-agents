@@ -55,9 +55,8 @@
     Exit codes (per ADR-035):
     - 0: Success (assigned or skipped)
     - 1: Invalid parameters
-    - 2: Milestone detection failed
-    - 3: API error
-    - 5: Assignment failed
+    - 2: Config/resource error (module not found, milestone detection failed)
+    - 3: External error (API error, assignment failed)
 
     GitHub API treats PRs as issues for most operations, so the same
     Set-IssueMilestone.ps1 skill works for both.
@@ -94,7 +93,7 @@ $ErrorActionPreference = 'Stop'
 $modulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 if (-not (Test-Path $modulePath)) {
     Write-Error "GitHubCore module not found at: $modulePath"
-    exit 1
+    exit 2
 }
 Import-Module $modulePath -Force
 
@@ -204,13 +203,22 @@ try {
         -Issue $ItemNumber `
         -Milestone $MilestoneTitle 2>&1
 
-    if ($LASTEXITCODE -ne 0 -or -not $assignmentResult.Success) {
-        $errorMsg = if ($assignmentResult.Action -eq 'milestone_not_found') {
+    # Check exit code first (delegated script may have failed before creating output object)
+    if ($LASTEXITCODE -ne 0) {
+        $errorMsg = if ($assignmentResult -is [string]) {
+            # Result is error text from stderr, not an object
+            "Milestone assignment failed: $assignmentResult"
+        } elseif ($assignmentResult.PSObject.Properties['Action'] -and $assignmentResult.Action -eq 'milestone_not_found') {
             "Milestone '$MilestoneTitle' does not exist in $Owner/$Repo"
         } else {
-            "Failed to assign milestone: $assignmentResult"
+            "Failed to assign milestone (exit $LASTEXITCODE): $assignmentResult"
         }
-        Write-ErrorAndExit $errorMsg 5
+        Write-ErrorAndExit $errorMsg 3
+    }
+
+    # Safe to check Success property (exit 0 guarantees object structure)
+    if (-not $assignmentResult.Success) {
+        Write-ErrorAndExit "Assignment returned success=false: $($assignmentResult.Message)" 3
     }
 
     Write-Host "Successfully assigned milestone '$MilestoneTitle' to $ItemType #$ItemNumber" -ForegroundColor Green

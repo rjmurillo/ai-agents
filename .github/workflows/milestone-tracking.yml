@@ -41,6 +41,14 @@ jobs:
             -Owner $env:OWNER `
             -Repo $env:REPO_NAME
 
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -eq 2) {
+            Write-Host "::warning::No semantic version milestone found. Skipping assignment."
+            exit 0
+          } elseif ($exitCode -ne 0) {
+            exit $exitCode
+          }
+
       - name: Assign milestone to closed issue
         if: github.event_name == 'issues'
         shell: pwsh -NoProfile -Command "& '{0}'"
@@ -55,3 +63,11 @@ jobs:
             -ItemNumber $env:ISSUE_NUMBER `
             -Owner $env:OWNER `
             -Repo $env:REPO_NAME
+
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -eq 2) {
+            Write-Host "::warning::No semantic version milestone found. Skipping assignment."
+            exit 0
+          } elseif ($exitCode -ne 0) {
+            exit $exitCode
+          }
