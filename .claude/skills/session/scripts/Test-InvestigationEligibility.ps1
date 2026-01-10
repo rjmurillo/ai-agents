@@ -30,16 +30,17 @@
     0 - Success (always returns 0, eligibility is in output)
 
     ALLOWLIST:
-    Must match exactly with scripts/Validate-Session.ps1 $InvestigationAllowlist
+    Source of truth: ADR-034 Investigation Session QA Exemption
+    The allowlist patterns are defined in this script based on ADR-034.
 
-    See: ADR-034 Investigation Session QA Exemption
+    See: .agents/architecture/ADR-034-investigation-session-qa-exemption.md
 #>
 [CmdletBinding()]
 param()
 
 $ErrorActionPreference = 'Stop'
 
-# Investigation-only allowlist patterns (must match Validate-Session.ps1)
+# Investigation-only allowlist patterns (source: ADR-034)
 $investigationAllowlist = @(
     '^\.agents/sessions/',        # Session logs
     '^\.agents/analysis/',        # Investigation outputs

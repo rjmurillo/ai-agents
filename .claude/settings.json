@@ -11,6 +11,16 @@
             "statusMessage": "Checking routing-level gates (ADR-033)"
           }
         ]
+      },
+      {
+        "matcher": "Bash(git commit*|git push*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PreToolUse/Invoke-BranchProtectionGuard.ps1\"",
+            "statusMessage": "Verifying branch protection"
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -36,6 +46,52 @@
             "type": "command",
             "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/Invoke-UserPromptMemoryCheck.ps1\"",
             "statusMessage": "Checking memory-first compliance"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(Write|Edit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PostToolUse/Invoke-MarkdownAutoLint.ps1\"",
+            "statusMessage": "Auto-linting markdown files"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/Stop/Invoke-SessionValidator.ps1\"",
+            "statusMessage": "Validating session completeness"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/SubagentStop/Invoke-QAAgentValidator.ps1\"",
+            "statusMessage": "Validating QA agent output"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "Bash(pwsh*Invoke-Pester*|npm test*|npm run test*|pnpm test*|yarn test*|pytest*|python*pytest*|dotnet test*|mvn test*|gradle test*|go test*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PermissionRequest/Invoke-TestAutoApproval.ps1\"",
+            "statusMessage": "Auto-approving test execution"
           }
         ]
       }

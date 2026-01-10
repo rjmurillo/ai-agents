@@ -1,20 +1,33 @@
 # Memory Validation for ADR-017 Compliance
+
 #
-# Validates memory files follow the tiered index architecture:
+
+# Validates memory files follow the tiered index architecture
+
 # - Skill format validation (one skill per file, no bundled formats)
+
 # - Index validation (proper Keywords|File table format)
+
 #
-# This is a REQUIRED check that blocks PRs from corrupting the memory system.
-# Pre-commit hooks can be bypassed; CI cannot.
+
+# This is a REQUIRED check that blocks PRs from corrupting the memory system
+
+# Pre-commit hooks can be bypassed; CI cannot
+
 #
-# Local developers can run the same validation using:
-#   pwsh scripts/Validate-SkillFormat.ps1
-#   pwsh scripts/Validate-MemoryIndex.ps1
+
+# Local developers can run the same validation using
+
+# pwsh scripts/Validate-SkillFormat.ps1
+
+# pwsh scripts/Validate-MemoryIndex.ps1
 
 name: Memory Validation
 
 # NOTE: No path filters here - workflow must always run because "Validate Memory Files"
-# is a required status check. Path-based filtering happens inside the job using git diff.
+
+# is a required status check. Path-based filtering happens inside the job using git diff
+
 on:
   push:
     branches:
@@ -23,6 +36,20 @@ on:
     branches:
       - main
   workflow_dispatch: # Allow manual triggering
+
+# Concurrency control: Attempts to cancel in-progress runs when new runs start
+
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+
+# where multiple runs start before cancellation takes effect. This is best-effort
+
+# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+# for architectural decision on workflow-level concurrency control
+
+# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
+
+# Note: Git diff-based path filtering happens inside the job
 
 concurrency:
   group: memory-validation-${{ github.ref }}

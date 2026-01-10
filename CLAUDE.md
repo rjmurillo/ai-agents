@@ -5,6 +5,13 @@
 > **Design Philosophy**: CLAUDE.md loads every session. We keep it under 100 lines following Anthropic's guidance.
 > Critical context is auto-loaded via @imports. Use `/clear` between distinct tasks to prevent context pollution.
 
+For non-trivial tasks, delegate to specialized agents using the Task tool:
+
+- Use Task(subagent_type="orchestrator") for multi-step coordination
+- Use Task(subagent_type="Explore") for codebase exploration
+- Use specialized agents (implementer, architect, analyst, etc.) for focused work
+- This manages context efficiently and provides specialized capabilities
+
 @CRITICAL-CONTEXT.md
 
 ## Primary Reference
@@ -51,7 +58,7 @@
 3. Run `npx markdownlint-cli2 --fix "**/*.md"`
 4. Route to qa agent (features only)
 5. Commit all changes
-6. Run `pwsh scripts/Validate-Session.ps1 -SessionLogPath [log]`
+6. Run `pwsh scripts/Validate-SessionJson.ps1 -SessionPath [log]`
    - If validation fails, use `/session-log-fixer` skill to fix issues
 
 ## Default Behavior
@@ -65,6 +72,7 @@
 3. `.agents/HANDOFF.md` - Project dashboard (read-only)
 4. `.agents/governance/PROJECT-CONSTRAINTS.md` - Hard constraints
 5. `.agents/AGENT-SYSTEM.md` - Full agent details
+6. `.config/wt.toml` - Worktrunk configuration (see AGENTS.md for setup)
 
 ---
 

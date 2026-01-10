@@ -15,6 +15,7 @@ function Invoke-SlashCommandValidation {
         Validate all slash command files in .claude/commands/
     .DESCRIPTION
         Runs Validate-SlashCommand.ps1 on each .md file in .claude/commands/
+        Skips catalog files (README.md, index files) that don't require frontmatter.
         Returns exit code 0 if all pass, exit code 1 if any fail
     #>
 
@@ -25,12 +26,21 @@ function Invoke-SlashCommandValidation {
         return 0
     }
 
-    Write-Host "Found $($files.Count) slash command file(s) to validate"
+    # Exclude catalog/reference files that don't need frontmatter
+    $catalogFiles = @('README.md', 'INDEX.md', 'CATALOG.md')
+    $commandFiles = @($files | Where-Object { $_.Name -notin $catalogFiles })
+
+    if ($commandFiles.Count -eq 0) {
+        Write-Host "No slash command files found (only catalog files), skipping validation"
+        return 0
+    }
+
+    Write-Host "Found $($commandFiles.Count) slash command file(s) to validate (excluding catalog files)"
 
     $failedFiles = @()
     $validationScript = './.claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.ps1'
 
-    foreach ($file in $files) {
+    foreach ($file in $commandFiles) {
         Write-Host "`nValidating: $($file.FullName)"
 
         & $validationScript -Path $file.FullName

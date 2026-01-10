@@ -58,7 +58,7 @@ Describe "PSScriptAnalyzer Pre-Commit Hook" {
             $content = Get-Content -Path $PreCommitHook -Raw
             # Verify hook filters for PowerShell files using grep -E extended regex
             # The actual hook uses: grep -E '\.(ps1|psm1)$'
-            $content | Should -Match [regex]::Escape("grep -E '\.(ps1|psm1)$'")
+            $content | Should -Match ([regex]::Escape('grep -E ''\.(ps1|psm1)$'''))
         }
 
         It "Hook should use settings file" {
@@ -75,7 +75,7 @@ Describe "PSScriptAnalyzer Pre-Commit Hook" {
             $content = Get-Content -Path $PreCommitHook -Raw
             # Verify hook checks for Error-level output from PSScriptAnalyzer
             # The actual hook uses: grep -q "^Error:" (caret is start anchor in grep regex)
-            $content | Should -Match [regex]::Escape('grep -q "^Error:"')
+            $content | Should -Match ([regex]::Escape('grep -q "^Error:"'))
             $content | Should -Match 'EXIT_STATUS=1'
         }
     }
