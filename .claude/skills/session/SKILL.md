@@ -1,6 +1,51 @@
+---
+name: session
+version: 1.0.0
+description: Session management and protocol compliance skills. Use Test-InvestigationEligibility to check if staged files qualify for investigation-only QA skip per ADR-034 before committing with 'SKIPPED investigation-only' verdict.
+license: MIT
+model: claude-sonnet-4-5
+metadata:
+  domains:
+    - session-protocol
+    - qa-validation
+    - investigation-eligibility
+  type: utility
+  complexity: low
+  related_skills:
+    - github
+    - qa
+---
+
 # Session Skills
 
 Skills for session management and protocol compliance.
+
+## Triggers
+
+| Phrase | Action |
+|--------|--------|
+| "Check if I can skip QA" | Run Test-InvestigationEligibility.ps1 |
+| "Am I eligible for investigation-only?" | Verify staged files against ADR-034 allowlist |
+| "Verify investigation session eligibility" | Check QA skip eligibility before commit |
+| "Can I use SKIPPED: investigation-only?" | Validate investigation-only exemption |
+| "Test eligibility for QA skip" | Execute eligibility check script |
+
+## Process
+
+### Phase 1: Eligibility Check
+
+| Step | Action | Tool | Output |
+|------|--------|------|--------|
+| 1.1 | Stage files for commit | `git add` | Files added to staging area |
+| 1.2 | Run eligibility check | `Test-InvestigationEligibility.ps1` | JSON with Eligible, StagedFiles, Violations |
+| 1.3 | Verify Eligible=true | Parse JSON output | Boolean result |
+
+### Phase 2: Commit Decision
+
+| Step | Action | Condition | Next Step |
+|------|--------|-----------|-----------|
+| 2.1 | Proceed with investigation-only skip | Eligible=true, Violations=[] | Use "SKIPPED: investigation-only" |
+| 2.2 | Address violations or invoke qa agent | Eligible=false | Fix violations or start new session |
 
 ---
 
@@ -16,7 +61,7 @@ Skills for session management and protocol compliance.
 
 Check if staged files qualify for investigation-only QA skip per ADR-034.
 
-### Triggers
+### Trigger Phrases
 
 - "Check if I can skip QA"
 - "Am I eligible for investigation-only?"
@@ -218,8 +263,8 @@ After using this skill:
 
 | Reference | Description |
 |-----------|-------------|
-| [ADR-034](../../.agents/architecture/decisions/adr-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption architecture decision |
-| [SESSION-PROTOCOL.md](../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
+| [ADR-034](../../../.agents/architecture/decisions/adr-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption architecture decision |
+| [SESSION-PROTOCOL.md](../../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
 | [Issue #662](https://github.com/rjmurillo/ai-agents/issues/662) | Create QA skip eligibility check skill |
-| [Validate-SessionJson.ps1](../../scripts/Validate-SessionJson.ps1) | Validates session JSON format (separate from eligibility) |
-| [Test-InvestigationEligibility.Tests.ps1](../../tests/Test-InvestigationEligibility.Tests.ps1) | Pester tests ensuring pattern consistency |
+| [Validate-SessionJson.ps1](../../../scripts/Validate-SessionJson.ps1) | Validates session JSON format (separate from eligibility) |
+| [Test-InvestigationEligibility.Tests.ps1](../../../tests/Test-InvestigationEligibility.Tests.ps1) | Pester tests ensuring pattern consistency |
