@@ -155,6 +155,28 @@ Separate critical (P0) from high-priority (P1) into distinct commits:
 
 **Benefit**: Enables focused review, allows partial adoption if needed.
 
+## Script Path Conventions (Session 820)
+
+When documenting script invocations in SKILL.md files, always use full paths from repository root:
+
+**WRONG**:
+```bash
+python3 scripts/decision-critic.py
+```
+
+**CORRECT**:
+```bash
+python3 .claude/skills/decision-critic/scripts/decision-critic.py
+```
+
+**Rationale**: 
+- Relative paths like `scripts/` are ambiguous (which scripts directory?)
+- Reviewer tools (rg, grep) may search from different working directories
+- Full paths work regardless of where the skill is invoked from
+- Prevents false positives in PR reviews about missing scripts
+
+**Evidence**: PR #863 comment thread PRRT_kwDOQoWRls5o0UQS - reviewer's `rg --files -g "decision-critic.py"` failed to find script despite it existing in repo because documentation used relative path.
+
 ## Cross-References
 
 - **Engineering Knowledge Index**: `.serena/memories/engineering-knowledge-index.md`
