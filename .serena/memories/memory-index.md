@@ -51,6 +51,14 @@
 | prompt engineering quality gate AI assessment template | quality-prompt-engineering-gates |
 | phase3 agent skill session handoff template verification | agent-workflow-004-proactive-template-sync-verification, agent-workflow-005-structured-handoff-formats |
 
+## Engineering Knowledge Tiers
+
+| Experience Level | Memory Index | Analysis |
+|------------------|--------------|----------|
+| <5 years | foundational-knowledge-index | `.agents/analysis/foundational-engineer-knowledge-set.md` |
+| 15+ years | principal-engineering-knowledge | `.agents/analysis/principal-engineer-knowledge-set.md` |
+| 25+ years | distinguished-engineer-knowledge-index | `.agents/analysis/distinguished-engineer-knowledge.md` |
+
 ## User Constraints (MUST READ)
 
 | Constraint | Memory |

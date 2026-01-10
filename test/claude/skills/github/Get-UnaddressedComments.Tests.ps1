@@ -89,20 +89,20 @@ Describe 'Get-UnaddressedComments.ps1' {
     }
 
     Context 'Thread Resolution Integration' {
-        It 'Should depend on Get-UnresolvedReviewThreads.ps1' {
-            $ScriptContent | Should -Match 'Get-UnresolvedReviewThreads\.ps1'
+        It 'Should use GitHubCore module for Get-UnresolvedReviewThreads' {
+            $ScriptContent | Should -Match 'GitHubCore\.psm1'
         }
 
-        It 'Should dot-source the thread lookup script' {
-            $ScriptContent | Should -Match '\.\s+\$threadsScript'
+        It 'Should import the module' {
+            $ScriptContent | Should -Match 'Import-Module\s+\$modulePath'
         }
 
         It 'Should extract databaseId from thread comments' {
             $ScriptContent | Should -Match 'databaseId'
         }
 
-        It 'Should fall back when thread script not found' {
-            $ScriptContent | Should -Match 'if\s*\(\s*-not\s*\(\s*Test-Path\s+\$threadsScript\s*\)'
+        It 'Should fall back when module not found' {
+            $ScriptContent | Should -Match 'if\s*\(\s*-not\s*\(\s*Test-Path\s+\$modulePath\s*\)'
         }
     }
 

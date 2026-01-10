@@ -1,15 +1,22 @@
 # Using the Agents
 
-## ⚠️ MANDATORY: Initialize Serena FIRST
+## ⚠️ MANDATORY: Initialize Serena FIRST (when available)
 
-**BEFORE doing ANY work**, you MUST call these Serena MCP tools in order:
+**BEFORE doing ANY work**, if Serena tools are available, you MUST call them in order:
 
 ```text
-1. mcp__serena__activate_project  (with project path)
+Option A (MCP-prefixed):
+1. mcp__serena__activate_project (with project path)
 2. mcp__serena__initial_instructions
+
+Option B (serena/*):
+1. serena/activate_project (with project path)
+2. serena/initial_instructions
 ```
 
-This is NON-NEGOTIABLE. Do not read files, do not search, do not answer questions until Serena is initialized.
+If Serena tools are not available in your environment, proceed without Serena and document the unavailability in your session log.
+
+For memory fallbacks, read the backing file at `.serena/memories/<memory-name>.md`. The memory name is the filename without the `.md` extension. For example: `pr-comment-responder-skills` → `.serena/memories/pr-comment-responder-skills.md`.
 
 **Why this matters**: Without Serena initialization, you lack access to:
 
@@ -44,9 +51,9 @@ These requirements MUST be completed before ANY other work. Work is blocked unti
 
 | Req Level | Step | Verification |
 |-----------|------|--------------|
-| **MUST** | Initialize Serena (`mcp__serena__activate_project`, `mcp__serena__initial_instructions`) | Tool output in transcript |
+| **MUST** | Initialize Serena (`mcp__serena__activate_project` + `mcp__serena__initial_instructions` OR `serena/activate_project` + `serena/initial_instructions`) | Tool output in transcript |
 | **MUST** | Read `.agents/HANDOFF.md` | Content in context |
-| **MUST** | Create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
+| **MUST** | Create session log at `.agents/sessions/YYYY-MM-DD-session-NN.json` | File exists |
 | **SHOULD** | Search relevant Serena memories | Memory results present |
 | **SHOULD** | Verify git status and note starting commit | Output documented |
 
@@ -68,7 +75,7 @@ You CANNOT claim session completion until validation PASSES. These requirements 
 **Validation Command**:
 
 ```bash
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[session-log].json"
 ```
 
 **If validation fails**: Fix violations and re-run. Do NOT claim completion until PASS.
@@ -116,11 +123,38 @@ Common commands you'll reference throughout development. Commands are listed wit
 /clear
 ```
 
+#### Session Initialization
+
+Use the session-init skill to create protocol-compliant session logs:
+
+```bash
+# Automated (recommended)
+pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
+
+# With parameters
+pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -Objective "Implement feature X"
+
+# Manual trigger via slash command
+/session-init
+```
+
+**Benefits**:
+
+- Reads canonical template from SESSION-PROTOCOL.md
+- Auto-detects git state (branch, commit, status)
+- Validates immediately with Validate-SessionProtocol.ps1
+- Prevents CI validation failures at source
+- Deterministic invocation via `/session-init` slash command
+
+See: [.claude/skills/session-init/SKILL.md](.claude/skills/session-init/SKILL.md) and [.claude/commands/session-init.md](.claude/commands/session-init.md)
+
 #### Session Start
 
 ```bash
 mcp__serena__activate_project
 mcp__serena__initial_instructions
+serena/activate_project
+serena/initial_instructions
 git branch --show-current
 ```
 
@@ -128,8 +162,8 @@ git branch --show-current
 
 ```bash
 npx markdownlint-cli2 --fix "**/*.md"
-pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].md"
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath ".agents/sessions/[log].md"
+pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].json"
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[log].json"
 ```
 
 ### Development Tools
@@ -179,6 +213,59 @@ gh workflow run [workflow] --ref [branch]
 .\scripts\install-claude-global.ps1
 ```
 
+### Worktrunk Setup
+
+Worktrunk simplifies git worktree management for parallel agent workflows.
+
+**Installation:**
+
+```bash
+# Homebrew (macOS & Linux)
+brew install max-sixty/worktrunk/wt && wt config shell install
+
+# Cargo
+cargo install worktrunk && wt config shell install
+```
+
+**Claude Code Plugin:**
+
+```bash
+claude plugin marketplace add max-sixty/worktrunk
+claude plugin install worktrunk@worktrunk
+```
+
+**Configuration:**
+
+The project includes `.config/wt.toml` with lifecycle hooks (automated commands that execute during worktree creation, merging, and removal):
+
+- Post-create: Configures git hooks automatically
+- Post-create: Copies dependencies (node_modules, .cache) from main worktree
+- Pre-merge: Runs markdown linting before merging
+
+**Workflow:**
+
+```bash
+# Create feature worktree
+wt switch --create feat/feature-name
+
+# Work on feature (hooks configure environment automatically)
+# ...
+
+# Merge when done (pre-merge hooks validate)
+wt merge
+
+# Cleanup is automatic
+```
+
+**Benefits:**
+
+- Parallel agent isolation (each agent gets own worktree)
+- Automated setup (hooks configure git hooks, copy dependencies)
+- Local CI gates (pre-merge validation catches issues early)
+- Visual tracking (see Claude activity across worktrees with `wt list`)
+
+**See also**: [Worktrunk Documentation](https://worktrunk.dev/), `.agents/analysis/worktrunk-integration.md`
+
 ---
 
 ## Boundaries & Constraints
@@ -221,6 +308,8 @@ gh workflow run [workflow] --ref [branch]
 ---
 
 ## Code Style & Examples
+
+> **Before writing code**: Read [.gemini/styleguide.md](.gemini/styleguide.md) for blocking security patterns and canonical source index.
 
 ### PowerShell Style
 
@@ -1504,9 +1593,9 @@ Agents violating these standards produce inconsistent, unprofessional output. Re
 
 ```text
 SESSION START (BLOCKING - MUST complete before work):
-1. MUST: Initialize Serena (mcp__serena__activate_project, mcp__serena__initial_instructions)
+1. MUST: Initialize Serena (mcp__serena__activate_project + mcp__serena__initial_instructions OR serena/activate_project + serena/initial_instructions)
 2. MUST: Read .agents/HANDOFF.md for previous session context
-3. MUST: Create session log at .agents/sessions/YYYY-MM-DD-session-NN.md
+3. MUST: Create session log at .agents/sessions/YYYY-MM-DD-session-NN.json
 4. SHOULD: Search relevant Serena memories
 5. SHOULD: Verify git status and note starting commit
 

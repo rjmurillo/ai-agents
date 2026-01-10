@@ -14,12 +14,13 @@ Active curation keeps the knowledge base accurate and connected. Outdated memori
 ## When to Update a Memory
 
 Use `update_memory` when:
+
 - Information needs correction or clarification
 - Importance level changes (more/less relevant than thought)
 - Content needs refinement
 - Links to projects/artifacts/documents change
 
-```
+```javascript
 execute_forgetful_tool("update_memory", {
   "memory_id": <id>,
   "content": "Updated content...",
@@ -32,12 +33,13 @@ Only specified fields are changed (PATCH semantics).
 ## When to Mark Obsolete
 
 Use `mark_memory_obsolete` when:
+
 - Memory is outdated or contradicted by newer information
 - Decision has been reversed or superseded
 - Referenced code/feature no longer exists
 - Memory was created in error
 
-```
+```javascript
 execute_forgetful_tool("mark_memory_obsolete", {
   "memory_id": <id>,
   "reason": "Superseded by new architecture decision",
@@ -50,12 +52,13 @@ Obsolete memories are soft-deleted (preserved for audit, hidden from queries).
 ## When to Link Memories
 
 Use `link_memories` when:
+
 - Concepts are related but not caught by auto-linking
 - Building explicit knowledge graph structure
 - Connecting decisions to their implementations
 - Relating patterns across projects
 
-```
+```javascript
 execute_forgetful_tool("link_memories", {
   "memory_id": <source_id>,
   "related_ids": [<target_id_1>, <target_id_2>]
@@ -69,7 +72,8 @@ Links are bidirectional (A↔B created automatically).
 When creating new memories, check impact on existing knowledge:
 
 ### Step 1: Query Related Memories
-```
+
+```javascript
 execute_forgetful_tool("query_memory", {
   "query": "<topic of new memory>",
   "query_context": "Checking for memories that may need curation",
@@ -91,7 +95,8 @@ For each existing memory, determine action:
 ### Step 3: Execute Curation Plan
 
 Present plan to user before executing:
-```
+
+```text
 Curation plan:
 - Create: "New authentication approach" (importance: 8)
 - Mark obsolete: #42 "Old auth pattern" (superseded)
@@ -103,6 +108,7 @@ Proceed? (y/n)
 ### Step 4: Execute and Report
 
 After user confirms:
+
 1. Create new memory
 2. Mark obsolete memories
 3. Create links
@@ -111,6 +117,7 @@ After user confirms:
 ## Signs of Poor Curation
 
 Watch for these indicators:
+
 - Multiple similar memories on same topic (deduplicate)
 - Memories referencing deleted code (mark obsolete)
 - Contradictory memories (resolve conflict)
@@ -120,6 +127,7 @@ Watch for these indicators:
 ## Auto-Linking
 
 Forgetful auto-links semantically similar memories (similarity >= 0.7) during creation. Manual linking is for:
+
 - Explicit relationships auto-linking missed
 - Cross-project connections
 - Non-obvious conceptual links

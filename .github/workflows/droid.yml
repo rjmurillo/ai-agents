@@ -1,0 +1,43 @@
+name: Droid Tag
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write  # Required by Factory droid-action to push code changes (https://docs.factory.ai/integrations/github-app#github-app-permissions)
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  # ADR-006 Compliance: Conditional logic uses github.event.action to prevent duplicate runs
+  # When an issue with @droid is opened and later assigned, we only want to run once (on opened)
+  droid:
+    # ADR-024 Exception: Factory droid-action lacks documented ARM64 support
+    # Official examples use ubuntu-latest: https://github.com/Factory-AI/droid-action
+    # Will migrate when Factory confirms ARM64 compatibility
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@droid')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@droid')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@droid')) ||
+      (github.event_name == 'issues' && github.event.action == 'opened' && (contains(github.event.issue.body, '@droid') || contains(github.event.issue.title, '@droid')))
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+
+      # Pin to v1 - https://github.com/Factory-AI/droid-action
+      - name: Run Droid Exec
+        uses: Factory-AI/droid-action@9f0a131f360d914ce6f8d638a237f7ffa4d2ba97 # v1
+        with:
+          factory_api_key: ${{ secrets.FACTORY_API_KEY }}

@@ -1112,6 +1112,201 @@ Export-ModuleMember -Function @(
     'Get-PRChangedFiles'
     'ConvertTo-JsonEscaped'
     'Format-MarkdownTableRow'
+    # Workflow run analysis
+    'Get-WorkflowRunsByPR'
+    'Test-RunsOverlap'
+    'Get-ConcurrencyGroupFromRun'
     # Note: For GitHub operations (PR comments, issue comments, reactions),
     # use the dedicated skill scripts in .claude/skills/github/ directly.
 )
+
+#endregion
+
+#region Workflow Run Analysis Functions
+
+function Get-WorkflowRunsByPR {
+    <#
+    .SYNOPSIS
+        Get all workflow runs for a specific PR.
+
+    .DESCRIPTION
+        Queries GitHub Actions API to retrieve all workflow runs associated with a PR.
+
+    .PARAMETER PRNumber
+        PR number to query.
+
+    .PARAMETER WorkflowName
+        Optional workflow name filter.
+
+    .PARAMETER Repository
+        Repository in format owner/repo (default: from git remote).
+
+    .OUTPUTS
+        Array of workflow run objects.
+
+    .EXAMPLE
+        Get-WorkflowRunsByPR -PRNumber 123
+        Gets all workflow runs for PR #123
+
+    .EXAMPLE
+        Get-WorkflowRunsByPR -PRNumber 123 -WorkflowName 'ai-pr-quality-gate'
+        Gets quality gate runs for PR #123
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [int]$PRNumber,
+
+        [Parameter()]
+        [string]$WorkflowName,
+
+        [Parameter()]
+        [string]$Repository
+    )
+
+    try {
+        if (-not $Repository) {
+            $remote = git remote get-url origin 2>&1
+            if ($remote -match 'github\.com[:/]([^/]+)/([^/\.]+)') {
+                $Repository = "$($matches[1])/$($matches[2])"
+            }
+            else {
+                throw "Could not determine repository from git remote"
+            }
+        }
+
+        Write-Verbose "Querying workflow runs for PR #$PRNumber in $Repository"
+
+        # Query workflow runs via gh CLI
+        $apiUrl = "/repos/$Repository/actions/runs?event=pull_request&per_page=100"
+        $allRuns = gh api $apiUrl --jq '.workflow_runs' | ConvertFrom-Json
+
+        # Filter to runs for this PR
+        $prRuns = $allRuns | Where-Object {
+            $_.pull_requests -and ($_.pull_requests | Where-Object { $_.number -eq $PRNumber })
+        }
+
+        # Apply workflow name filter if specified
+        if ($WorkflowName) {
+            $prRuns = $prRuns | Where-Object { $_.name -like "*$WorkflowName*" }
+        }
+
+        Write-Verbose "Found $($prRuns.Count) workflow runs for PR #$PRNumber"
+        return $prRuns
+    }
+    catch {
+        Write-LogError "Failed to get workflow runs for PR #${PRNumber}: $_"
+        throw
+    }
+}
+
+function Test-RunsOverlap {
+    <#
+    .SYNOPSIS
+        Check if two workflow runs overlap in time.
+
+    .DESCRIPTION
+        Determines if two workflow runs have overlapping execution windows by comparing
+        their start and end timestamps.
+
+    .PARAMETER Run1
+        First workflow run object with created_at and updated_at properties.
+
+    .PARAMETER Run2
+        Second workflow run object with created_at and updated_at properties.
+
+    .OUTPUTS
+        Boolean indicating whether the runs overlap.
+
+    .EXAMPLE
+        Test-RunsOverlap -Run1 $run1 -Run2 $run2
+        Returns $true if runs overlap, $false otherwise
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object]$Run1,
+
+        [Parameter(Mandatory)]
+        [object]$Run2
+    )
+
+    try {
+        $run1Start = [DateTime]::Parse($Run1.created_at)
+        $run1End = [DateTime]::Parse($Run1.updated_at)
+        $run2Start = [DateTime]::Parse($Run2.created_at)
+        $run2End = [DateTime]::Parse($Run2.updated_at)
+
+        # Run2 started before Run1 finished
+        $overlaps = ($run2Start -lt $run1End -and $run2Start -gt $run1Start)
+
+        Write-Verbose "Run $($Run1.id) vs Run $($Run2.id): Overlap=$overlaps"
+        return $overlaps
+    }
+    catch {
+        Write-LogError "Failed to check run overlap: $_"
+        throw
+    }
+}
+
+function Get-ConcurrencyGroupFromRun {
+    <#
+    .SYNOPSIS
+        Extract concurrency group identifier from workflow run.
+
+    .DESCRIPTION
+        Determines the concurrency group for a workflow run based on the workflow name
+        and PR number (if available).
+
+    .PARAMETER Run
+        Workflow run object with name, event, pull_requests, and head_branch properties.
+
+    .OUTPUTS
+        Concurrency group string (e.g., "ai-quality-123").
+
+    .EXAMPLE
+        Get-ConcurrencyGroupFromRun -Run $run
+        Returns "ai-quality-123" for a quality gate run on PR #123
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object]$Run
+    )
+
+    try {
+        # Extract PR number from event
+        $prNumber = $null
+        if ($Run.event -eq 'pull_request' -and $Run.pull_requests) {
+            $prNumber = $Run.pull_requests[0].number
+        }
+
+        if ($prNumber) {
+            # Determine workflow type for concurrency group naming
+            $workflowName = $Run.name
+            $groupPrefix = switch -Wildcard ($workflowName) {
+                '*quality*' { 'ai-quality' }
+                '*spec*' { 'spec-validation' }
+                '*session*' { 'session-protocol' }
+                '*label*' { 'label-pr' }
+                '*memory*' { 'memory-validation' }
+                '*assign*' { 'auto-assign' }
+                default { 'pr-validation' }
+            }
+            $group = "$groupPrefix-$prNumber"
+        }
+        else {
+            # Fallback: use workflow name + branch
+            $group = "$($Run.name)-$($Run.head_branch)"
+        }
+
+        Write-Verbose "Concurrency group for run $($Run.id): $group"
+        return $group
+    }
+    catch {
+        Write-LogError "Failed to get concurrency group from run: $_"
+        throw
+    }
+}
+
+#endregion

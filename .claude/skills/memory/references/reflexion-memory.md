@@ -669,7 +669,7 @@ pwsh scripts/Extract-SessionEpisode.ps1
 
 ```bash
 pwsh scripts/Extract-SessionEpisode.ps1 \
-    -SessionLogPath ".agents/sessions/2026-01-01-session-126.md"
+    -SessionLogPath ".agents/sessions/.agents/sessions/2026-01-01-session-126.json"
 
 # Output:
 # Episode extracted:

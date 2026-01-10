@@ -13,21 +13,64 @@ on:
     # No path filter - workflow runs on ALL PRs to satisfy required check
     # Path filtering done at job level using dorny/paths-filter
 
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to validate'
+        required: true
+        type: number
+      enable_debouncing:
+        description: 'Enable debouncing delay to reduce race conditions (adds 10s latency)'
+        required: false
+        type: boolean
+        default: false
+
 permissions:
   contents: read
   pull-requests: write
 
+# Concurrency control: Attempts to cancel in-progress runs when new runs start
+
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+
+# where multiple runs start before cancellation takes effect. This is best-effort
+
+# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+# for architectural decision on workflow-level concurrency control
+
+# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
+
 concurrency:
-  group: spec-validation-${{ github.event.pull_request.number }}
+  group: spec-validation-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
 
 env:
   GH_TOKEN: ${{ secrets.BOT_PAT }}
+  PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 jobs:
+  # Optional debouncing job - runs only when enable_debouncing=true
+  debounce:
+    name: Debounce Workflow
+    if: (github.event_name == 'workflow_dispatch' && inputs.enable_debouncing == true) || (github.event_name == 'pull_request' && vars.ENABLE_DEBOUNCE == 'true')
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      
+      - name: Apply debouncing delay
+        uses: ./.github/actions/workflow-debounce
+        with:
+          delay-seconds: '10'
+          workflow-name: 'Spec-to-Implementation Validation'
+          concurrency-group: ${{ github.event.pull_request.number || inputs.pr_number }}
+
   check-paths:
     name: Check Changed Paths
     runs-on: ubuntu-24.04-arm
+    needs: debounce
+    if: always() && (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
     outputs:
       has-code-changes: ${{ steps.filter.outputs.code }}
     steps:
@@ -65,16 +108,18 @@ jobs:
       - name: Extract Spec References
         id: spec-ref
         run: |
-          # Save PR context to files safely using quoted heredoc
-          # This prevents shell expansion of any characters in the title/body (SEC-001 fix)
+          # Capture PR context; fallback to gh for workflow_dispatch runs
+          PR_TITLE_INPUT="${{ github.event.pull_request.title }}"
+          PR_BODY_INPUT="${{ github.event.pull_request.body }}"
 
-          cat > /tmp/pr-title.txt << 'EOF_TITLE'
-          ${{ github.event.pull_request.title }}
-          EOF_TITLE
+          if [ -z "$PR_TITLE_INPUT" ] && [ -z "$PR_BODY_INPUT" ]; then
+            PR_TITLE_INPUT=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title -q .title 2>/dev/null || true)
+            PR_BODY_INPUT=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null || true)
+          fi
 
-          cat > /tmp/pr-body.txt << 'EOF_BODY'
-          ${{ github.event.pull_request.body }}
-          EOF_BODY
+          # Save PR context to files safely (avoids shell expansion)
+          printf '%s\n' "$PR_TITLE_INPUT" > /tmp/pr-title.txt
+          printf '%s\n' "$PR_BODY_INPUT" > /tmp/pr-body.txt
 
           # Read from files (now safe from injection)
           PR_TITLE=$(cat /tmp/pr-title.txt)
@@ -198,7 +243,7 @@ jobs:
         with:
           agent: analyst
           context-type: pr-diff
-          pr-number: ${{ github.event.pull_request.number }}
+          pr-number: ${{ env.PR_NUMBER }}
           additional-context: ${{ steps.prepare-context.outputs.spec_context }}
           prompt-file: .github/prompts/spec-trace-requirements.md
           timeout-minutes: 3
@@ -212,7 +257,7 @@ jobs:
         with:
           agent: critic
           context-type: pr-diff
-          pr-number: ${{ github.event.pull_request.number }}
+          pr-number: ${{ env.PR_NUMBER }}
           additional-context: ${{ steps.prepare-context.outputs.spec_context }}
           prompt-file: .github/prompts/spec-check-completeness.md
           timeout-minutes: 3
@@ -371,7 +416,7 @@ jobs:
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
           # Use GitHub skill script for idempotent comment posting

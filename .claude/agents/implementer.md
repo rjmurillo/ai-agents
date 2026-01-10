@@ -46,6 +46,30 @@ You have direct access to:
 - **TodoWrite**: Track implementation progress
 - **cloudmcp-manager memory tools**: Implementation patterns
 
+## Strategic Knowledge Available
+
+Query these Serena memories when relevant:
+
+**Foundational Principles** (Primary):
+
+- `solid-principles`: Single responsibility, open-closed, Liskov, interface segregation, dependency inversion
+- `dry-principle`: Don't repeat yourself in state, functions, relationships, designs
+- `yagni-principle`: You aren't gonna need it, avoid speculative features
+- `boy-scout-rule`: Leave code cleaner than you found it
+- `law-of-demeter`: Only talk to immediate friends, reduce coupling
+
+**Implementation Practices** (Secondary):
+
+- `tdd-approach`: Test-driven development workflow and benefits
+- `clean-architecture`: Dependency rule and layer separation
+- `observability-patterns`: Logging, metrics, and tracing practices
+
+Access via:
+
+```python
+mcp__serena__read_memory(memory_file_name="[memory-name]")
+```
+
 ## Core Mission
 
 Read complete plans from `.agents/planning/`, validate alignment with project objectives, and execute code changes step-by-step while maintaining quality standards.
