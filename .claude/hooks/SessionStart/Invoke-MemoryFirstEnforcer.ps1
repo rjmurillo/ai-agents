@@ -75,24 +75,24 @@ function Test-MemoryEvidence {
 
         $sessionStart = $content.protocolCompliance.sessionStart
 
-        # Check Serena activation
-        if (-not $sessionStart.serenaActivated -or -not $sessionStart.serenaActivated.Complete) {
+        # Check Serena activation (fixes Copilot #2678729134 - lowercase 'complete')
+        if (-not $sessionStart.serenaActivated -or -not $sessionStart.serenaActivated.complete) {
             return @{
                 Complete = $false
                 Reason = "Serena not initialized"
             }
         }
 
-        # Check HANDOFF.md read
-        if (-not $sessionStart.handoffRead -or -not $sessionStart.handoffRead.Complete) {
+        # Check HANDOFF.md read (fixes Copilot #2678729134 - lowercase 'complete')
+        if (-not $sessionStart.handoffRead -or -not $sessionStart.handoffRead.complete) {
             return @{
                 Complete = $false
                 Reason = "HANDOFF.md not read"
             }
         }
 
-        # Check memories loaded with evidence
-        if (-not $sessionStart.memoriesLoaded -or -not $sessionStart.memoriesLoaded.Complete) {
+        # Check memories loaded with evidence (fixes Copilot #2678729134 - lowercase 'complete')
+        if (-not $sessionStart.memoriesLoaded -or -not $sessionStart.memoriesLoaded.complete) {
             return @{
                 Complete = $false
                 Reason = "Memories not loaded"

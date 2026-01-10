@@ -95,9 +95,11 @@ function Test-SessionLogEvidence {
             # Not JSON is acceptable (could be markdown log)
         }
 
+        # Safe substring for preview (fixes cursor #2678568710, Copilot #2678584225)
+        $previewLength = [Math]::Min(200, $content.Length)
         return @{
             Valid = $true
-            Content = $content.Substring(0, [Math]::Min($content.Length, 200))
+            Content = $content.Substring(0, $previewLength)
         }
     }
     catch {

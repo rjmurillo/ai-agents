@@ -9,7 +9,7 @@
   },
   "protocolCompliance": {
     "sessionStart": {
-      "branchVerification": {
+      "serenaActivated": {
         "complete": true,
         "level": "MUST",
         "evidence": "Verified on feat/improved-claude-hooks branch, not main"
@@ -19,7 +19,7 @@
         "level": "MUST",
         "evidence": "Context from user request about corrupted history"
       },
-      "memoryIndexLoaded": {
+      "memoriesLoaded": {
         "complete": true,
         "level": "MUST",
         "evidence": "git-hooks, git patterns available"
