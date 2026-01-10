@@ -566,7 +566,7 @@ Becoming the engineer others rely on requires progression through:
 
 | Book | Why It's Good |
 |------|---------------|
-| The Staff Engineer's Path (Lackey) | The map for going from senior to staff |
+| The Staff Engineer's Path (Tanya Reilly) | The map for going from senior to staff |
 | Thinking in Systems (Meadows) | Master system dynamics, feedback loops |
 | Site Reliability Engineering (Google) | Ops, SLAs, toil reduction, service ownership |
 | An Elegant Puzzle (Chen) | Engineering management at scale |

@@ -66,7 +66,7 @@ All milestones specify absolute paths and modification points:
 # VULNERABLE - Special characters in $Query or $OutputFile can inject commands
 npx tsx $PluginScript $Query $OutputFile
 
-# SCRUBBED improvement adds mechanism explanation
+# Suggested improvement adds mechanism explanation
 # WHY VULNERABLE: PowerShell passes unquoted arguments directly to shell.
 # Shell interprets metacharacters (;|&><) as command separators, not literals.
 # Attack vector: $Query = "; rm -rf /" results in TWO commands
@@ -74,9 +74,9 @@ npx tsx $PluginScript $Query $OutputFile
 
 **Impact**: Without WHY comments, security agent may parrot checklist without understanding root cause. Reduces pattern recognition for novel vulnerability variants.
 
-**Recommendation**: Adopt SCRUBBED version's WHY comments for all 3 UNSAFE/SAFE pairs (Command Injection, Path Traversal, Code Execution). Estimated +2 hours to M2 (15 hours → 17 hours).
+**Recommendation**: Add WHY comments (as shown in the example above) for all 3 UNSAFE/SAFE pairs (Command Injection, Path Traversal, Code Execution). Estimated +2 hours to M2 (15 hours → 17 hours).
 
-**Evidence**: SCRUBBED lines 64-151 provide vulnerability mechanism explanations and fix rationale for each pattern.
+**Evidence**: Earlier critique draft provided detailed vulnerability mechanism explanations and fix rationale for each pattern (merged into current plan).
 
 ---
 
@@ -84,7 +84,7 @@ npx tsx $PluginScript $Query $OutputFile
 
 **Location**: M4 Feedback Loop Infrastructure requirements
 
-**Issue**: Script lacks error handling for 4 edge cases identified in SCRUBBED version:
+**Issue**: Script lacks error handling for 4 edge cases identified during critique:
 1. GitHub API rate limit (5000 requests/hour for authenticated, 60/hour unauthenticated)
 2. Malformed SR-*.md files (missing YAML frontmatter or required sections)
 3. Empty PR comment set (no external review found)
@@ -94,7 +94,7 @@ npx tsx $PluginScript $Query $OutputFile
 
 **Current Mitigation**: M4 acceptance criteria includes "Forgetful unavailability handled gracefully (test by stopping MCP server)" which addresses 1 of 5 error scenarios.
 
-**Recommendation**: Add error handling requirements from SCRUBBED lines 230-246:
+**Recommendation**: Add error handling requirements as follows:
 - API rate limit: Exponential backoff (1s, 2s, 4s, max 3 retries) + actionable error message
 - Malformed files: Validate markdown structure, skip with warning
 - Empty reviews: Distinguish "no findings" from "no review", log info message
@@ -102,7 +102,7 @@ npx tsx $PluginScript $Query $OutputFile
 
 **Estimate**: +1 hour to M4 (6 hours → 7 hours) for error handler implementation and testing.
 
-**Evidence**: SCRUBBED lines 230-246 provide specific error handling expansion recommendations.
+**Evidence**: Earlier critique draft provided specific error handling expansion recommendations (merged into current plan).
 
 ---
 
@@ -110,7 +110,7 @@ npx tsx $PluginScript $Query $OutputFile
 
 **Location**: M6 Second-Pass Review Gate requirements
 
-**Issue**: Workflow lacks error handling for 5 edge cases identified in SCRUBBED version:
+**Issue**: Workflow lacks error handling for 5 edge cases identified during critique:
 1. PSScriptAnalyzer module not installed in CI environment
 2. Analyzer crashes on malformed .ps1 syntax
 3. No .ps1/.psm1 files in PR (should skip gracefully)
@@ -121,7 +121,7 @@ npx tsx $PluginScript $Query $OutputFile
 
 **Current Mitigation**: M6 Known Risk acknowledges "CI integration breaks existing workflows" with gradual rollout mitigation (feature branch testing).
 
-**Recommendation**: Add error handling requirements from SCRUBBED lines 327-344:
+**Recommendation**: Add error handling requirements as follows:
 - Analyzer installation: `Install-Module` at workflow start with failure message
 - Analyzer crashes: Try-catch wrapper, log exception + file path, mark failed
 - No PowerShell files: Skip with info message, succeed
@@ -130,7 +130,7 @@ npx tsx $PluginScript $Query $OutputFile
 
 **Estimate**: +2 hours to M6 (8 hours → 10 hours) for error handler implementation and workflow testing.
 
-**Evidence**: SCRUBBED lines 327-344 provide specific error handling expansion recommendations.
+**Evidence**: Earlier critique draft provided specific error handling expansion recommendations (merged into current plan).
 
 ---
 
@@ -163,7 +163,7 @@ npx tsx $PluginScript $Query $OutputFile
 
 **Location**: M7 Documentation and Training requirements
 
-**Issue**: SCRUBBED version identifies missing integration of M3 (severity workflow), M4 (feedback loop automation), and M5 (benchmark execution) into primary documentation (CLAUDE.md, SECURITY-REVIEW-PROTOCOL.md).
+**Issue**: Critique identifies missing integration of M3 (severity workflow), M4 (feedback loop automation), and M5 (benchmark execution) into primary documentation (CLAUDE.md, SECURITY-REVIEW-PROTOCOL.md).
 
 **Gap Examples**:
 - CLAUDE.md missing benchmark suite row in tabular index
@@ -172,7 +172,7 @@ npx tsx $PluginScript $Query $OutputFile
 
 **Impact**: Users must read milestone-specific docs (M3/M4/M5 deliverables) to understand full security workflow. Primary docs incomplete.
 
-**Recommendation**: Adopt SCRUBBED lines 381-407 expansions:
+**Recommendation**: Add the following documentation expansions:
 - CLAUDE.md: Add 2 rows for benchmarks and retrospective scripts
 - SECURITY-REVIEW-PROTOCOL.md: Add Example 4 (severity calibration) and Automation section (2 subsections)
 
@@ -180,7 +180,7 @@ npx tsx $PluginScript $Query $OutputFile
 
 **Current Mitigation**: M7 does link to M3/M4 artifacts in acceptance criteria ("Cross-references updated: CLAUDE.md links to SECURITY-SEVERITY-CRITERIA.md and SECURITY-REVIEW-PROTOCOL.md").
 
-**Evidence**: SCRUBBED lines 369-407 document completeness gaps and recommended expansions.
+**Evidence**: Earlier critique draft documented completeness gaps and recommended expansions (merged into current plan).
 
 ---
 
@@ -228,9 +228,9 @@ M6 fails build on CRITICAL/HIGH PSScriptAnalyzer findings but not MEDIUM. Some M
 
 ## Recommendations
 
-### 1. Adopt SCRUBBED WHY Comments for M2 (High Value)
+### 1. Add WHY Comments for M2 (High Value)
 
-Integrate vulnerability mechanism explanations into UNSAFE/SAFE code pairs per SCRUBBED lines 64-151. Significantly improves security agent education value and pattern recognition capability.
+Integrate vulnerability mechanism explanations into UNSAFE/SAFE code pairs (as shown in the examples in the Important section above). Significantly improves security agent education value and pattern recognition capability.
 
 **Effort**: +2 hours to M2 (15 → 17 hours)
 
@@ -238,7 +238,7 @@ Integrate vulnerability mechanism explanations into UNSAFE/SAFE code pairs per S
 
 ### 2. Expand M4 Error Handling (Production Readiness)
 
-Add GitHub API rate limit handling, malformed file validation, empty review detection, and WhatIf simulation per SCRUBBED lines 230-246.
+Add GitHub API rate limit handling, malformed file validation, empty review detection, and WhatIf simulation (details provided in the Important section above).
 
 **Effort**: +1 hour to M4 (6 → 7 hours)
 
@@ -246,7 +246,7 @@ Add GitHub API rate limit handling, malformed file validation, empty review dete
 
 ### 3. Expand M6 Error Handling (CI Reliability)
 
-Add PSScriptAnalyzer installation check, crash handling, empty file set skip, agent unavailability response, and bypass approval logic per SCRUBBED lines 327-344.
+Add PSScriptAnalyzer installation check, crash handling, empty file set skip, agent unavailability response, and bypass approval logic (details provided in the Important section above).
 
 **Effort**: +2 hours to M6 (8 → 10 hours)
 
@@ -260,9 +260,9 @@ Explicit validation work package with checklist: cross-cutting concerns, fail-sa
 
 ---
 
-### 5. Integrate M7 Documentation per SCRUBBED (Completeness)
+### 5. Integrate M7 Documentation (Completeness)
 
-Add CLAUDE.md benchmark/retrospective rows and SECURITY-REVIEW-PROTOCOL.md Automation section per SCRUBBED lines 381-407.
+Add CLAUDE.md benchmark/retrospective rows and SECURITY-REVIEW-PROTOCOL.md Automation section (details provided in the Minor section above).
 
 **Effort**: +1 hour to M7 (3 → 4 hours)
 
@@ -300,7 +300,7 @@ Add CLAUDE.md benchmark/retrospective rows and SECURITY-REVIEW-PROTOCOL.md Autom
 
 1. **Start with M1-M3** (parallel execution, 15 hours total) - no blocking dependencies
 2. **Clarify M6 threshold** during M1-M3 execution (async question to planner)
-3. **Integrate M2 WHY comments** from SCRUBBED version (adds 2 hours, high value)
+3. **Add M2 WHY comments** as recommended above (adds 2 hours, high value)
 4. **Expand M4/M6 error handling** per recommendations (adds 3 hours total, production readiness)
 5. **Execute M4 after M1-M3 complete** (depends on CWE categories and severity criteria)
 6. **Execute M5-M6 in parallel** with M4 (independent validation/enforcement)
