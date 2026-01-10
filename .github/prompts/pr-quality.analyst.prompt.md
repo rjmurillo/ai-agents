@@ -1,7 +1,6 @@
 ---
-title: Analyst Review (Local)
 description: Run analyst quality gate locally on uncommitted changes before pushing
-argument-hint: [--base BRANCH]
+argument-hint: --base BRANCH
 ---
 
 # PR Quality Gate - Analyst Review (Local)

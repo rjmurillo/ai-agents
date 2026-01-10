@@ -1,7 +1,6 @@
 ---
-title: QA Review (Local)
 description: Run QA quality gate locally on uncommitted changes before pushing
-argument-hint: [--base BRANCH]
+argument-hint: --base BRANCH
 ---
 
 # PR Quality Gate - QA Review (Local)

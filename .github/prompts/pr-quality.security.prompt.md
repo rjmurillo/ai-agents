@@ -1,7 +1,6 @@
 ---
-title: Security Review (Local)
 description: Run security quality gate locally on uncommitted changes before pushing
-argument-hint: [--base BRANCH]
+argument-hint: --base BRANCH
 ---
 
 # PR Quality Gate - Security Review (Local)
