@@ -80,16 +80,16 @@
         "evidence": "Created foundational-knowledge-index memory with cross-references"
       },
       "runMarkdownLint": {
-        "status": "pending",
-        "evidence": "Will run during pre-commit"
+        "status": "complete",
+        "evidence": "Ran during pre-commit: 0 errors"
       },
       "routeToQA": {
         "status": "n/a",
         "evidence": "SKIPPED: investigation-only - only created documentation and memories"
       },
       "commitChanges": {
-        "status": "pending",
-        "evidence": "Commit SHA: pending"
+        "status": "complete",
+        "evidence": "Commit SHA: 6f813d91"
       },
       "doNotUpdateHandoff": {
         "status": "complete",
@@ -104,8 +104,8 @@
         "evidence": "Skipped - straightforward research session"
       },
       "verifyCleanGitStatus": {
-        "status": "pending",
-        "evidence": "Pending commit"
+        "status": "complete",
+        "evidence": "Clean after commit"
       }
     }
   },
@@ -197,7 +197,7 @@
       ]
     }
   ],
-  "endingCommit": "pending",
+  "endingCommit": "6f813d91",
   "artifacts": [
     {
       "type": "analysis",
