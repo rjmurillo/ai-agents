@@ -76,7 +76,100 @@ Always present a decision table:
 | Vibe Code | Custom | Free | X hrs | You own it | ~XK tokens | 🔧 Full control |
 ```
 
-### Step 5: Recommendation Framework
+### Step 5: Buy vs Build Evaluation Framework
+
+#### When to Build
+
+- [ ] Software is core to business differentiation
+- [ ] Competitive advantage requires 100% control
+- [ ] Vendor solutions insufficient for requirements
+- [ ] Team has capacity without additional investment
+- [ ] Long-term total cost of ownership favors build
+
+#### When to Buy
+
+- [ ] Time to value critical (weeks not months)
+- [ ] Standard capability, not differentiating
+- [ ] Vendor efficiencies reduce total cost
+- [ ] Team should focus on higher-impact projects
+- [ ] Acceptable vendor lock-in trade-off
+
+#### Evaluation Matrix
+
+| Factor | Build | Buy | Weight | Score |
+|--------|-------|-----|--------|-------|
+| Core competency | [Evidence] | [Evidence] | 30% | [Weighted score] |
+| Time to value | [Evidence] | [Evidence] | 25% | [Weighted score] |
+| Total cost (5 years) | [Evidence] | [Evidence] | 20% | [Weighted score] |
+| Customization needs | [Evidence] | [Evidence] | 15% | [Weighted score] |
+| Team expertise | [Evidence] | [Evidence] | 10% | [Weighted score] |
+| **Total Score** | | | **100%** | [Sum] |
+
+#### Hidden Costs Analysis
+
+**Build Hidden Costs**:
+
+- Maintenance burden (20-40% of build cost annually)
+- Opportunity cost (what else could team build?)
+- Expertise acquisition/retention
+- Testing and security validation
+- Documentation and knowledge transfer
+
+**Buy Hidden Costs**:
+
+- Integration complexity (API changes, data mapping)
+- Vendor lock-in (switching cost estimation)
+- Customization limitations (workarounds needed?)
+- Ongoing licensing (per-user, per-transaction costs)
+- Vendor stability risk (acquisition, discontinuation)
+
+#### Core vs Context Assessment
+
+Use Geoffrey Moore's framework to prioritize investment:
+
+| Capability | Type | Rationale | Strategy |
+|------------|------|-----------|----------|
+| [Capability 1] | Core | [Differentiates business] | Build, own, invest |
+| [Capability 2] | Context | [Necessary but commodity] | Buy, outsource |
+
+**Key Insight**: Building context is a distraction from core. Buy context, build core.
+
+#### Lindy Effect Consideration
+
+Evaluate technology maturity:
+
+- **Build**: Are you creating novel solution in unstable space? (High risk)
+- **Buy**: Is vendor solution based on Lindy survivor tech? (Lower risk)
+
+#### Buy vs Build Recommendation Template
+
+```markdown
+## Buy vs Build Recommendation: [Capability]
+
+**Verdict**: [BUILD | BUY | HYBRID]
+
+### Core Rationale
+[Primary reason in 2-3 sentences]
+
+### Evaluation Scores
+- Build score: [X/100]
+- Buy score: [Y/100]
+
+### Core vs Context
+[Core/Context classification with justification]
+
+### Hidden Costs Accepted
+**If Build**: [Maintenance burden, opportunity cost, expertise]
+**If Buy**: [Lock-in level, integration complexity, licensing]
+
+### Decision Confidence
+[High | Medium | Low] - [Why]
+
+### Review Trigger
+Revisit if: [Conditions that would change this decision]
+```
+
+### Step 6: Recommendation Framework (Quick Reference)
 
 Recommend **existing solutions** when:
 
@@ -93,7 +186,7 @@ Recommend **vibe coding** when:
 - No good existing solution found
 - Integration requirements are unusual
 
-### Step 6: If Vibe Coding Proceeds
+### Step 7: If Vibe Coding Proceeds
 
 If user chooses to build after seeing alternatives:
 
@@ -102,11 +195,11 @@ If user chooses to build after seeing alternatives:
 3. Recommend libraries for sub-components
 4. Provide a hybrid approach when possible
 
-### Step 7: Integration Planning (When User Accepts Recommendation)
+### Step 8: Integration Planning (When User Accepts Recommendation)
 
 When the user accepts a recommended solution, provide a complete integration plan:
 
-#### 7.1 Detect Project Context
+#### 8.1 Detect Project Context
 
 Before generating the plan, analyze the user's project:
 
@@ -116,7 +209,7 @@ Before generating the plan, analyze the user's project:
 - **Project structure**: Understand where new code should live (src/, lib/, app/, etc.)
 - **Code style**: Match existing patterns (TypeScript vs JS, ESM vs CJS, etc.)
 
-#### 7.2 Generate Installation Commands
+#### 8.2 Generate Installation Commands
 
 Provide ready-to-run commands for the detected package manager:
 
@@ -137,7 +230,7 @@ pip install <package>
 poetry add <package>
 ```
 
-#### 7.3 Provide Integration Steps
+#### 8.3 Provide Integration Steps
 
 Create a numbered action plan:
 
@@ -147,7 +240,7 @@ Create a numbered action plan:
 4. **Create new files** - With suggested file paths matching project structure
 5. **Update related files** - Any existing files that need modification
 
-#### 7.4 Generate Starter Code
+#### 8.4 Generate Starter Code
 
 Provide code scaffolding that:
 
@@ -157,7 +250,7 @@ Provide code scaffolding that:
 - Shows basic usage with comments
 - Handles common edge cases
 
-#### 7.5 Warn About Potential Issues
+#### 8.5 Warn About Potential Issues
 
 Flag any concerns:
 
@@ -166,11 +259,11 @@ Flag any concerns:
 - **Peer dependencies**: "You'll also need to install X"
 - **Config requirements**: "Requires adding to your tsconfig/babel/webpack config"
 
-### Step 8: Cost Analysis (For Significant Decisions)
+### Step 9: Cost Analysis (For Significant Decisions)
 
 For features with meaningful cost implications (auth, payments, email, infrastructure), provide a Total Cost of Ownership (TCO) comparison.
 
-#### 8.1 When to Include Cost Analysis
+#### 9.1 When to Include Cost Analysis
 
 Include cost table when:
 
@@ -180,7 +273,7 @@ Include cost table when:
 - Comparing multiple paid services
 - Security-sensitive features (auth, payments)
 
-#### 8.2 Cost Calculation
+#### 9.2 Cost Calculation
 
 Use the pricing reference: [references/pricing-data.md](references/pricing-data.md)
 
@@ -195,7 +288,7 @@ Where:
 - Maintenance (SaaS) = $0
 ```
 
-#### 8.3 Cost Table Format
+#### 9.3 Cost Table Format
 
 ```markdown
 ## 💰 Cost Analysis
@@ -211,7 +304,7 @@ Where:
 ⚠️ **Hidden costs:** [Security audits, compliance, on-call burden]
 ```
 
-#### 8.4 Hidden Costs to Surface
+#### 9.4 Hidden Costs to Surface
 
 Always mention relevant hidden costs:
 
@@ -221,7 +314,7 @@ Always mention relevant hidden costs:
 - **Opportunity cost**: Time not spent on core product
 - **Technical debt**: Custom code needs maintenance forever
 
-#### 8.5 Red Flags to Call Out
+#### 9.5 Red Flags to Call Out
 
 Warn users when they say:
 
