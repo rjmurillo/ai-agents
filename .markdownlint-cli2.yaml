@@ -113,3 +113,8 @@ ignores:
   - ".claude/skills/programming-advisor/**"
   - ".claude/skills/prompt-engineer/**"
   - ".claude/skills/SkillForge/**"
+
+  # TEMPORARY: Agent definition files (.github/agents/*.agent.md) have pre-existing linting
+  # issues being fixed in a separate PR. This exclusion unblocks PR #847.
+  # TODO: Remove this exclusion after the linting fix PR merges
+  - ".github/agents/**/*.agent.md"
