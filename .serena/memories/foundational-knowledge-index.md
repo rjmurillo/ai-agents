@@ -149,12 +149,39 @@ Apply these before major decisions:
 | SLSA Supply Chain | `slsa-supply-chain` | Artifact integrity framework |
 | ADRs | `adrs-architecture-decision-records` | Document architecture decisions |
 
+## Distinguished Engineer Knowledge (25+ Years)
+
+| Concept | Memory File | Quick Reference |
+|---------|-------------|-----------------|
+| Lindy Effect | `distinguished-engineer-knowledge-index` | Systems that survive longer keep surviving |
+| Second-System Effect | `distinguished-engineer-knowledge-index` | Rewrites tend to be over-engineered |
+| Path Dependence | `distinguished-engineer-knowledge-index` | Past decisions constrain current options |
+| Architectural Paleontology | `distinguished-engineer-knowledge-index` | Read legacy system layers |
+| Golden Path vs Golden Cage | `distinguished-engineer-knowledge-index` | Enable, don't constrain |
+| Uptime Inequity | `distinguished-engineer-knowledge-index` | Not all systems deserve same SLO |
+| Sociotechnical Coherence | `distinguished-engineer-knowledge-index` | Tech and org evolve together |
+| Run vs Change the Business | `distinguished-engineer-knowledge-index` | Separate ops from innovation |
+| Systemic Risk Portfolios | `distinguished-engineer-knowledge-index` | Classify dependencies and failure risk |
+| Compliance as Code | `distinguished-engineer-knowledge-index` | Codify policy in OPA |
+| Data Lineage and Sovereignty | `distinguished-engineer-knowledge-index` | Track data across jurisdictions |
+| Expand and Contract | `distinguished-engineer-knowledge-index` | Safe schema/API changes |
+| Sacrificial Architecture | `distinguished-engineer-knowledge-index` | Plan for 10x, rewrite before 100x |
+| Core/Context Mapping | `distinguished-engineer-knowledge-index` | Build core, buy context |
+| Three Horizons Framework | `distinguished-engineer-knowledge-index` | H1 (run), H2 (change), H3 (transform) |
+| Principle-Based Governance | `distinguished-engineer-knowledge-index` | Values over rules |
+| TOGAF / Enterprise Architecture | `distinguished-engineer-knowledge-index` | Cross-cutting tech-business integration |
+| Technical Ethics | `distinguished-engineer-knowledge-index` | Fairness, privacy, safety |
+| Knowledge Continuity | `distinguished-engineer-knowledge-index` | Prevent knowledge rot |
+| Shearing Layers | `distinguished-engineer-knowledge-index` | Different components change at different rates |
+
 ## Related
 
 - Full analysis (Part 1): `.agents/analysis/foundational-engineering-knowledge.md`
 - Full analysis (Part 2): `.agents/analysis/advanced-engineering-knowledge.md`
 - Full analysis (Part 3): `.agents/analysis/senior-engineering-knowledge.md`
 - Full analysis (Part 4): `.agents/analysis/principal-engineering-knowledge.md`
+- Full analysis (Part 5): `.agents/analysis/distinguished-engineer-knowledge.md`
+- Distinguished Engineer index: `distinguished-engineer-knowledge-index`
 - Chesterton integration: `chestertons-fence-memory-integration`
 - Design approaches: `design-approaches-detailed`
 - ADR concepts: `adr-foundational-concepts`
