@@ -38,4 +38,3 @@ Deep toggle placement creates spaghetti code. Toggle at the entry point.
 ## Related
 
 - `strangler-fig-pattern` - Incremental migration
-- `branch-by-abstraction` - Safe refactoring

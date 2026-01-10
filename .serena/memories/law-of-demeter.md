@@ -22,10 +22,10 @@ Reduce coupling by limiting knowledge between components. The fewer objects a cl
 
 ```csharp
 // BAD: Train wreck, reaching through collaborators
-var modifier = character.Stats.Strength.Modifier.Value;
+var modifier = dwarf.Stats.Strength.Modifier.Value;
 
 // GOOD: Tell, don't ask
-var modifier = character.GetStrengthModifier();
+var modifier = dwarf.GetStrengthModifier();
 ```
 
 ## Application to This Project
