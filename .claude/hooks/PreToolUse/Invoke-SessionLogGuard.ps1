@@ -97,7 +97,7 @@ function Test-SessionLogEvidence {
 
         return @{
             Valid = $true
-            Content = $content.Substring(0, 200)
+            Content = $content.Substring(0, [Math]::Min($content.Length, 200))
         }
     }
     catch {

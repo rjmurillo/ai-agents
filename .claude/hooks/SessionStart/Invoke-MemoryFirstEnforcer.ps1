@@ -152,16 +152,17 @@ function Increment-InvocationCount {
 }
 
 # Main execution
-$projectDir = Get-ProjectDirectory
-$sessionsDir = Join-Path $projectDir ".agents" "sessions"
-$stateDir = Join-Path $projectDir ".agents" ".hook-state"
+try {
+    $projectDir = Get-ProjectDirectory
+    $sessionsDir = Join-Path $projectDir ".agents" "sessions"
+    $stateDir = Join-Path $projectDir ".agents" ".hook-state"
 
-# Get today's session logs
-$todayLogs = @(Get-TodaySessionLogs -SessionsDir $sessionsDir)
+    # Get today's session logs
+    $todayLogs = @(Get-TodaySessionLogs -SessionsDir $sessionsDir)
 
-# If no session log exists, provide guidance (non-blocking)
-if ($todayLogs.Count -eq 0) {
-    $output = @"
+    # If no session log exists, provide guidance (non-blocking)
+    if ($todayLogs.Count -eq 0) {
+        $output = @"
 
 ## ADR-007 Memory-First Protocol
 
@@ -177,26 +178,26 @@ if ($todayLogs.Count -eq 0) {
 See: ``.agents/SESSION-PROTOCOL.md`` Phase 1-2
 
 "@
-    Write-Output $output
-    exit 0
-}
+        Write-Output $output
+        exit 0
+    }
 
-# Check most recent session log for evidence
-$latestLog = $todayLogs | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-$evidence = Test-MemoryEvidence -SessionLogPath $latestLog.FullName
+    # Check most recent session log for evidence
+    $latestLog = $todayLogs | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $evidence = Test-MemoryEvidence -SessionLogPath $latestLog.FullName
 
-# If evidence complete, allow
-if ($evidence.Complete) {
-    Write-Output "`n✅ ADR-007 Memory-First: Evidence verified in session log.`n"
-    exit 0
-}
+    # If evidence complete, allow
+    if ($evidence.Complete) {
+        Write-Output "`n✅ ADR-007 Memory-First: Evidence verified in session log.`n"
+        exit 0
+    }
 
-# Evidence missing - check invocation count for education vs blocking
-$count = Increment-InvocationCount -StateDir $stateDir
+    # Evidence missing - check invocation count for education vs blocking
+    $count = Increment-InvocationCount -StateDir $stateDir
 
-if ($count -le $EDUCATION_THRESHOLD) {
-    # Education phase
-    $output = @"
+    if ($count -le $EDUCATION_THRESHOLD) {
+        # Education phase
+        $output = @"
 
 ## ⚠️  ADR-007 Memory-First: Evidence Missing (Warning $count/$EDUCATION_THRESHOLD)
 
@@ -224,12 +225,12 @@ Complete these steps NOW to build evidence:
 **After $EDUCATION_THRESHOLD warnings, this becomes BLOCKING.**
 
 "@
-    Write-Output $output
-    exit 0
-}
-else {
-    # Blocking phase
-    $output = @"
+        Write-Output $output
+        exit 0
+    }
+    else {
+        # Blocking phase
+        $output = @"
 
 ## ⛔ BLOCKING: Memory-First Protocol Violation (ADR-007)
 
@@ -261,8 +262,14 @@ Complete these steps NOW (in order):
 **Cannot proceed until complete.** See: ``.agents/SESSION-PROTOCOL.md`` Phase 1-2
 
 "@
-    Write-Output $output
-    # Use Console.Error to avoid exception from Write-Error with Stop action preference
-    [Console]::Error.WriteLine("Session blocked: ADR-007 memory-first evidence missing after $count invocations")
-    exit 2
+        Write-Output $output
+        # Use Console.Error to avoid exception from Write-Error with Stop action preference
+        [Console]::Error.WriteLine("Session blocked: ADR-007 memory-first evidence missing after $count invocations")
+        exit 2
+    }
+}
+catch {
+    # Fail-open on errors (don't block session startup)
+    Write-Warning "Memory-first enforcer error: $($_.Exception.Message)"
+    exit 0
 }

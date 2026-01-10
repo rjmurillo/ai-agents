@@ -59,8 +59,8 @@ function Get-StagedADRChanges {
             return @()
         }
 
-        # Filter for ADR files
-        $adrFiles = @($stagedFiles | Where-Object { $_ -match 'ADR-\d+\.md$' })
+        # Filter for ADR files (case-insensitive for cross-platform support)
+        $adrFiles = @($stagedFiles | Where-Object { $_ -imatch 'ADR-\d+\.md$' })
         return $adrFiles
     }
     catch {
