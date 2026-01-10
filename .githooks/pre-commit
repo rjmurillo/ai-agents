@@ -1391,8 +1391,8 @@ echo ""
 if [ $EXIT_STATUS -ne 0 ]; then
     echo_error "Pre-commit checks failed. Please fix the issues above."
     echo_info ""
-    echo_info "  Protocol violations cannot be bypassed."
     echo_info "  Fix the issues and retry the commit."
+    echo_info "  Note: Claude hooks provide enforcement; git hooks can be bypassed with --no-verify."
     exit 2
 fi
 
