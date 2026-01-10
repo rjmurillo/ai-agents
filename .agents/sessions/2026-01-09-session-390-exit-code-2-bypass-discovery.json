@@ -10,56 +10,56 @@
   "protocolCompliance": {
     "sessionStart": {
       "serenaInitialized": {
-        "complete": true,
+        "Complete": true,
         "level": "MUST",
-        "evidence": "Serena activated from session start hook"
+        "Evidence": "Serena activated from session start hook"
       },
       "handoffRead": {
-        "complete": true,
+        "Complete": true,
         "level": "MUST",
-        "evidence": "Context restored from session summary which included HANDOFF context"
+        "Evidence": "Context restored from session summary which included HANDOFF context"
       },
       "sessionLogCreated": {
-        "complete": true,
+        "Complete": true,
         "level": "MUST",
-        "evidence": "JSON session log created (session-390)"
+        "Evidence": "JSON session log created (session-390)"
       },
       "usageMandatoryRead": {
-        "complete": true,
+        "Complete": true,
         "level": "MUST",
-        "evidence": "Context restored from session summary"
+        "Evidence": "Context restored from session summary"
       },
       "branchVerified": {
-        "complete": true,
+        "Complete": true,
         "level": "MUST",
-        "evidence": "Branch fix/ai-pr-quality-gate confirmed"
+        "Evidence": "Branch fix/ai-pr-quality-gate confirmed"
       }
     },
     "sessionEnd": {
       "sessionLogComplete": {
-        "complete": true,
+        "Complete": true,
         "level": "MUST",
-        "evidence": "JSON session log with all required fields"
+        "Evidence": "JSON session log with all required fields"
       },
       "serenaMemoryUpdated": {
-        "complete": true,
+        "Complete": true,
         "level": "MUST",
-        "evidence": "Memory git-hooks-no-verify-bypass-limitation created"
+        "Evidence": "Memory git-hooks-no-verify-bypass-limitation created"
       },
       "markdownLintRun": {
-        "complete": true,
+        "Complete": true,
         "level": "MUST",
-        "evidence": "markdownlint ran, no errors in session documentation"
+        "Evidence": "markdownlint ran, no errors in session documentation"
       },
       "changesCommitted": {
-        "complete": true,
+        "Complete": true,
         "level": "MUST",
-        "evidence": "Committing documentation of exit code 2 findings"
+        "Evidence": "Committed documentation of exit code 2 findings"
       },
       "pushedToRemote": {
-        "complete": true,
+        "Complete": true,
         "level": "MUST",
-        "evidence": "Will push after commit succeeds"
+        "Evidence": "Branch fix/ai-pr-quality-gate pushed to remote after commit succeeded"
       }
     }
   },

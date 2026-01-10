@@ -83,7 +83,7 @@ SESSION-PROTOCOL.md does not address continuation sessions after context compact
 
 ## Related
 
-- **Session Log**: `.agents/sessions/2026-01-09-session-01-pr845-yaml-fix.md`
+- **Session Log**: `.agents/sessions/2026-01-09-session-01-pr845-yaml-fix.json`
 - **Retrospective**: `.agents/retrospective/2026-01-09-session-protocol-violation-analysis.md`
 - **ADR**: ADR-007 (memory-first architecture)
 - **Protocol**: `.agents/SESSION-PROTOCOL.md`

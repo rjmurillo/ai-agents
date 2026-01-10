@@ -786,7 +786,7 @@ Testing revealed that git's `--no-verify` flag completely bypasses hook executio
 
 ```bash
 # SessionStart:compact hook (executes at LLM level)
-if ! ls .agents/sessions/$(date +%Y-%m-%d)-session-*.md 1>/dev/null 2>&1; then
+if ! ls .agents/sessions/$(date +%Y-%m-%d)-session-*.json 1>/dev/null 2>&1; then
   echo "ERROR: No session log found for today"
   echo "BLOCKING: Cannot proceed without session initialization"
   exit 1  # Blocks ALL tool execution, cannot be bypassed
