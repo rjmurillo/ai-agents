@@ -24,6 +24,39 @@ This steering file provides security guidance for security-sensitive code in the
 
 ### GitHub Actions Security
 
+#### Action SHA Pinning (BLOCKING)
+
+**Requirement**: All third-party GitHub Actions MUST be pinned to commit SHA, not version tags.
+
+**Rationale**: Version tags (e.g., `@v4`, `@v3`) are mutable references that can be moved to malicious commits by compromised maintainers or attackers. SHA pinning ensures immutable references to reviewed code.
+
+**Pattern**:
+
+```yaml
+# ✅ CORRECT: SHA with version comment for maintainability
+uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+
+# ❌ WRONG: Version tag (mutable reference)
+uses: actions/checkout@v4
+uses: dorny/paths-filter@v3
+```
+
+**Enforcement**:
+
+- Pre-commit hook blocks commits with version tags in workflow files
+- CI validation script scans all workflows on PR
+- Validation script: `scripts/Validate-ActionSHAPinning.ps1`
+
+**Finding SHA for version tag**:
+
+```bash
+# Navigate to action repository and find SHA for tag
+gh api repos/actions/checkout/git/ref/tags/v4.2.2 --jq '.object.sha'
+```
+
+**Reference**: [GitHub Security Hardening](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#using-third-party-actions)
+
 #### Token Permission Minimization
 
 Always use minimal required permissions in workflows:
