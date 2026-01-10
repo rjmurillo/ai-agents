@@ -13,7 +13,6 @@
 #   - markdownlint-cli2 for markdown files (auto-fix enabled)
 #
 # To enable: git config core.hooksPath .githooks
-# To bypass: git commit --no-verify (use sparingly)
 #
 # Environment variables:
 #   SKIP_AUTOFIX=1 - Check only, don't auto-fix (CI mode)
@@ -67,8 +66,6 @@ EXIT_STATUS=0
 # - Block: commits directly to main (ERROR)
 # - Warn: unusual branch names that don't match conventional patterns
 #
-# Bypass: git commit --no-verify (use sparingly)
-#
 
 current_branch=$(git branch --show-current 2>/dev/null || echo "")
 
@@ -81,8 +78,7 @@ if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
     echo_info "    git checkout -b fix/your-description"
     echo_info "    git checkout -b docs/your-description"
     echo_info ""
-    echo_info "  Bypass (use sparingly): git commit --no-verify"
-    exit 1
+    exit 2
 fi
 
 # Validate branch matches conventional patterns
@@ -1394,8 +1390,10 @@ fi
 echo ""
 if [ $EXIT_STATUS -ne 0 ]; then
     echo_error "Pre-commit checks failed. Please fix the issues above."
-    echo_info "  To bypass (use sparingly): git commit --no-verify"
-    exit 1
+    echo_info ""
+    echo_info "  Fix the issues and retry the commit."
+    echo_info "  Note: Claude hooks provide enforcement; git hooks can be bypassed with --no-verify."
+    exit 2
 fi
 
 if [ "$FILES_FIXED" = "1" ]; then
