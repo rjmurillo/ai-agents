@@ -47,10 +47,22 @@ grep -q 'local/bin' "$HOME/.bashrc" 2>/dev/null || echo 'export PATH="$HOME/.loc
 echo "=== markdownlint-cli2 ==="
 if ! command -v markdownlint-cli2 &>/dev/null; then
     if command -v npm &>/dev/null; then
+        NPM_PATH=$(command -v npm)
+
+        # Check if npm is from nvm (user-writable prefix)
+        NPM_PREFIX=$(npm config get prefix 2>/dev/null || echo "")
+
         if [[ "$(id -u)" -eq 0 ]]; then
-            npm install -g markdownlint-cli2
+            # Running as root - use npm directly with absolute path
+            "$NPM_PATH" install -g markdownlint-cli2
+        elif [[ "$NPM_PREFIX" == "$HOME"/.nvm* ]] || [[ "$NPM_PREFIX" == *"/home/"*"/.nvm"* ]]; then
+            # nvm installation - prefix is user-writable, no sudo needed
+            "$NPM_PATH" install -g markdownlint-cli2
         else
-            sudo env PATH="$PATH" npm install -g markdownlint-cli2
+            # System npm - use sudo with safe PATH and absolute npm path
+            NPM_DIR=$(dirname "$NPM_PATH")
+            SAFE_PATH="${NPM_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            sudo env "PATH=$SAFE_PATH" "$NPM_PATH" install -g markdownlint-cli2
         fi
     else
         echo "npm not found; ensure Node.js is installed before running markdownlint setup." >&2
