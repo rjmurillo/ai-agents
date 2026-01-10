@@ -863,7 +863,7 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 **Mental Models**:
 - `chestertons-fence`: Understand before removing
 - `conways-law`: Org structure mirrors architecture
-- `hyru ms-law`: Observable behaviors become dependencies
+- `hyrums-law`: Observable behaviors become dependencies
 - `second-order-thinking`: Ask "And then what?"
 - `law-of-demeter`: Only talk to immediate friends
 - `galls-law`: Complex systems evolve from simple ones

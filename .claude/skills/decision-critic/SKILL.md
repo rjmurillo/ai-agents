@@ -45,7 +45,7 @@ SYNTHESIS (7)          Verdict: STAND | REVISE | ESCALATE
 ### decision-critic.py
 
 ```bash
-python3 scripts/decision-critic.py \
+python3 .claude/skills/decision-critic/scripts/decision-critic.py \
   --step-number <1-7> \
   --total-steps 7 \
   --decision "<decision text>" \
