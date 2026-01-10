@@ -347,7 +347,7 @@ jobs:
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           # Check if PR has human approval label for bot responses
-          $prData = gh pr view ${{ matrix.number }} --json labels,reviews --jq '{labels: [.labels[].name], reviews: .reviews}'
+          $prData = gh pr view ${{ matrix.number }} --repo $env:GITHUB_REPOSITORY --json labels,reviews --jq '{labels: [.labels[].name], reviews: .reviews}'
           if ($LASTEXITCODE -ne 0) {
             Write-Host "::error::Failed to fetch PR data"
             exit 1
@@ -390,7 +390,7 @@ jobs:
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           # Post triage summary if not already posted
-          $existingComments = gh pr view ${{ matrix.number }} --json comments --jq '.comments[].body' 2>$null
+          $existingComments = gh pr view ${{ matrix.number }} --repo $env:GITHUB_REPOSITORY --json comments --jq '.comments[].body' 2>$null
           if ($existingComments -match 'TRIAGE-REQUIRED') {
             Write-Host "Triage summary already posted"
             exit 0
@@ -440,7 +440,7 @@ jobs:
           <sub>Powered by PR Maintenance workflow - [Add triage:approved label](https://github.com/${{ github.repository }}/issues/${{ matrix.number }}/labels)</sub>
           "@
 
-          gh pr comment ${{ matrix.number }} --body $body
+          gh pr comment ${{ matrix.number }} --repo $env:GITHUB_REPOSITORY --body $body
 
       - name: Process PR comments for PR #${{ matrix.number }}
         id: process-comments

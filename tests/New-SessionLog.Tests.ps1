@@ -47,14 +47,9 @@ Describe "New-SessionLog.ps1" {
             $content | Should -Match 'exit 1'
         }
 
-        It "Should define exit code 2 for template extraction failure" {
+        It "Should define exit code 2 for JSON creation failure" {
             $content = Get-Content $scriptPath -Raw
             $content | Should -Match 'exit 2'
-        }
-
-        It "Should define exit code 3 for write failure" {
-            $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'exit 3'
         }
 
         It "Should define exit code 4 for validation failure" {
@@ -64,9 +59,14 @@ Describe "New-SessionLog.ps1" {
     }
 
     Context "Helper Functions" {
-        It "Should define Get-GitInfo function" {
+        It "Should import GitHelpers module" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'function Get-GitInfo'
+            $content | Should -Match 'Import-Module.*GitHelpers\.psm1'
+        }
+
+        It "Should import TemplateHelpers module" {
+            $content = Get-Content $scriptPath -Raw
+            $content | Should -Match 'Import-Module.*TemplateHelpers\.psm1'
         }
 
         It "Should define Get-UserInput function" {
@@ -74,19 +74,9 @@ Describe "New-SessionLog.ps1" {
             $content | Should -Match 'function Get-UserInput'
         }
 
-        It "Should define Invoke-TemplateExtraction function" {
+        It "Should define New-JsonSessionLog function" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'function Invoke-TemplateExtraction'
-        }
-
-        It "Should define New-PopulatedSessionLog function" {
-            $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'function New-PopulatedSessionLog'
-        }
-
-        It "Should define Write-SessionLogFile function" {
-            $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'function Write-SessionLogFile'
+            $content | Should -Match 'function New-JsonSessionLog'
         }
 
         It "Should define Invoke-ValidationScript function" {
@@ -96,61 +86,66 @@ Describe "New-SessionLog.ps1" {
     }
 
     Context "Git Integration" {
-        It "Should call git rev-parse to find repository root" {
-            $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'git rev-parse --show-toplevel'
+        BeforeAll {
+            $gitHelpersPath = Join-Path $PSScriptRoot "../.claude/skills/session-init/modules/GitHelpers.psm1"
+            $gitHelpersContent = Get-Content $gitHelpersPath -Raw
         }
 
-        It "Should call git branch to get current branch" {
+        It "Should import GitHelpers module for git operations" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'git branch --show-current'
+            $content | Should -Match 'Import-Module.*GitHelpers\.psm1'
         }
 
-        It "Should call git log to get commit hash" {
-            $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'git log --oneline -1'
+        It "GitHelpers module should call git rev-parse to find repository root" {
+            $gitHelpersContent | Should -Match 'git rev-parse --show-toplevel'
         }
 
-        It "Should call git status to determine repository state" {
-            $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'git status --short'
+        It "GitHelpers module should call git branch to get current branch" {
+            $gitHelpersContent | Should -Match 'git branch --show-current'
+        }
+
+        It "GitHelpers module should call git rev-parse to get commit hash" {
+            $gitHelpersContent | Should -Match 'git rev-parse --short HEAD'
+        }
+
+        It "GitHelpers module should call git status to determine repository state" {
+            $gitHelpersContent | Should -Match 'git status --short'
         }
     }
 
-    Context "Template Processing" {
-        It "Should call Extract-SessionTemplate.ps1" {
-            $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'Extract-SessionTemplate\.ps1'
+    Context "JSON Creation" {
+        BeforeAll {
+            $templateHelpersPath = Join-Path $PSScriptRoot "../.claude/skills/session-init/modules/TemplateHelpers.psm1"
+            $templateHelpersContent = Get-Content $templateHelpersPath -Raw
         }
 
-        It "Should replace NN placeholder" {
+        It "Should import TemplateHelpers module for keyword extraction" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match "-replace '\\bNN\\b'"
+            $content | Should -Match 'Import-Module.*TemplateHelpers\.psm1'
         }
 
-        It "Should replace YYYY-MM-DD placeholder" {
-            $content = Get-Content $scriptPath -Raw
-            $content | Should -Match "-replace 'YYYY-MM-DD'"
+        It "TemplateHelpers module should export Get-DescriptiveKeywords function" {
+            $templateHelpersContent | Should -Match 'function Get-DescriptiveKeywords'
         }
 
-        It "Should replace branch name placeholder" {
+        It "Should create JSON structure with schemaVersion" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match "-replace '\\\[branch name\\\]'"
+            $content | Should -Match 'schemaVersion'
         }
 
-        It "Should replace SHA placeholder" {
+        It "Should create JSON structure with session metadata" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match "-replace '\\\[SHA\\\]'"
+            $content | Should -Match 'session\s*=\s*@\{'
         }
 
-        It "Should replace objective placeholder" {
+        It "Should create JSON structure with protocolCompliance" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match "-replace '\\\[What this session aims to accomplish\\\]'"
+            $content | Should -Match 'protocolCompliance\s*=\s*@\{'
         }
 
-        It "Should replace git status placeholder" {
+        It "Should convert hashtable to JSON" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match "-replace '\\\[clean/dirty\\\]'"
+            $content | Should -Match 'ConvertTo-Json'
         }
     }
 
@@ -160,16 +155,16 @@ Describe "New-SessionLog.ps1" {
             $content | Should -Match '\.agents/sessions'
         }
 
-        It "Should create session log filename with pattern YYYY-MM-DD-session-NN.md" {
+        It "Should create session log filename with pattern YYYY-MM-DD-session-NN.json" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'session-\$'
+            $content | Should -Match '\.json'
         }
     }
 
     Context "Validation Integration" {
-        It "Should call Validate-SessionProtocol.ps1" {
+        It "Should call Validate-SessionJson.ps1" {
             $content = Get-Content $scriptPath -Raw
-            $content | Should -Match 'Validate-SessionProtocol\.ps1'
+            $content | Should -Match 'Validate-SessionJson\.ps1'
         }
 
         It "Should pass SessionPath parameter to validation" {
@@ -189,6 +184,11 @@ Describe "New-SessionLog.ps1" {
     }
 
     Context "Error Handling" {
+        BeforeAll {
+            $gitHelpersPath = Join-Path $PSScriptRoot "../.claude/skills/session-init/modules/GitHelpers.psm1"
+            $gitHelpersContent = Get-Content $gitHelpersPath -Raw
+        }
+
         It "Should set ErrorActionPreference to Stop" {
             $content = Get-Content $scriptPath -Raw
             $content | Should -Match '\$ErrorActionPreference\s*=\s*[''"]Stop[''"]'
@@ -202,8 +202,10 @@ Describe "New-SessionLog.ps1" {
 
         It "Should handle git errors with specific exception types" {
             $content = Get-Content $scriptPath -Raw
+            # Script handles InvalidOperationException from GitHelpers module
             $content | Should -Match 'InvalidOperationException'
-            $content | Should -Match 'Git error \(exit code'
+            # GitHelpers module provides detailed git error messages
+            $gitHelpersContent | Should -Match 'Git error \(exit code'
         }
     }
 
@@ -213,8 +215,6 @@ Describe "New-SessionLog.ps1" {
             $content | Should -Match 'Phase 1:'
             $content | Should -Match 'Phase 2:'
             $content | Should -Match 'Phase 3:'
-            $content | Should -Match 'Phase 4:'
-            $content | Should -Match 'Phase 5:'
         }
 
         It "Should display success message" {

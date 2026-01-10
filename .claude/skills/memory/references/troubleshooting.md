@@ -225,7 +225,7 @@ Test-Path ".agents/sessions/$sessionId.md"
 
 ```powershell
 pwsh scripts/Extract-SessionEpisode.ps1 `
-    -SessionLogPath ".agents/sessions/2026-01-01-session-130.md"
+    -SessionLogPath ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
 ```
 
 ### Issue: Causal Graph Empty
@@ -286,7 +286,7 @@ Get-ChildItem ".agents/memory/episodes/*.json" | ForEach-Object {
 
 ```powershell
 # Check session log exists and has content
-$logPath = ".agents/sessions/2026-01-01-session-130.md"
+$logPath = ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
 if (Test-Path $logPath) {
     $content = Get-Content $logPath -Raw
     Write-Host "Log size: $($content.Length) chars"
