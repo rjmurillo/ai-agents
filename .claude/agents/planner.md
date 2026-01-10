@@ -84,6 +84,27 @@ You have direct access to:
 - **TodoWrite**: Track planning progress
 - **cloudmcp-manager memory tools**: Prior planning patterns
 
+## Strategic Knowledge Available
+
+Query these Serena memories when relevant:
+
+**Strategic Planning** (Primary):
+
+- `three-horizons-framework`: Balance time horizons in milestone planning
+- `critical-path-method`: Identify constraints and sequencing dependencies
+- `cynefin-framework`: Classify task complexity for appropriate breakdown
+
+**Decision Frameworks** (Secondary):
+
+- `wardley-mapping`: Technology evolution for sequencing decisions
+- `ooda-loop`: Structured decision cycle for plan iterations
+
+Access via:
+
+```python
+mcp__serena__read_memory(memory_file_name="[memory-name]")
+```
+
 ## Core Mission
 
 Provide structure on objectives, process, value, and risks - not prescriptive code. Break epics into discrete, verifiable tasks.

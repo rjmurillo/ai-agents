@@ -39,6 +39,28 @@ You have direct access to:
 - **mcp__context7__***: Library documentation lookup
 - **cloudmcp-manager memory tools**: Historical investigation context
 
+## Strategic Knowledge Available
+
+Query these Serena memories when relevant:
+
+**Decision Frameworks** (Primary):
+
+- `cynefin-framework`: Classify problem complexity before choosing research approach
+- `rumsfeld-matrix`: Structure research to surface known/unknown knowledge gaps
+- `wardley-mapping`: Technology evolution assessment for build-vs-buy decisions
+- `lindy-effect`: Technology maturity assessment for longevity predictions
+
+**Strategic Planning** (Secondary):
+
+- `cap-theorem`: Distributed system trade-offs for technical research
+- `strangler-fig-pattern`: Incremental migration assessment
+
+Access via:
+
+```python
+mcp__serena__read_memory(memory_file_name="[memory-name]")
+```
+
 ## Core Mission
 
 Investigate before implementation. Surface unknowns, risks, and dependencies. Provide research that enables informed design decisions. Evaluate feature requests for user impact and feasibility.
@@ -96,6 +118,45 @@ gh pr list --search "[keywords]"
 ```
 
 See `.claude/skills/github/SKILL.md` for full documentation on available scripts.
+
+## Strategic Analysis Frameworks
+
+### Cynefin Framework (Problem Classification)
+
+Classify analysis problems to choose appropriate research approach:
+
+| Domain | Characteristics | Research Approach |
+|--------|----------------|-------------------|
+| **Clear** | Obvious cause-effect | Best practices research (documentation, standards) |
+| **Complicated** | Expert analysis needed | Deep technical research, consult specialists |
+| **Complex** | Patterns emerge over time | Survey community signal, case studies, experiments |
+| **Chaotic** | No discernible pattern | Act-sense-respond (rapid prototyping to learn) |
+
+**Application**: Before deep research, classify the problem domain to select optimal research strategy.
+
+### Wardley Mapping (Technology Evolution)
+
+Map technology maturity to inform build-vs-buy recommendations:
+
+| Stage | Characteristics | Research Focus |
+|-------|----------------|----------------|
+| **Genesis** | Novel, uncertain | Bleeding-edge research, academic papers |
+| **Custom** | Known problem, bespoke solutions | Industry implementations, case studies |
+| **Product** | Standardized, competitive market | Product comparisons, vendor evaluations |
+| **Commodity** | Utility, cost-based | Standard implementations, SaaS options |
+
+**Application**: Position technologies on evolution axis to guide strategic recommendations.
+
+### Rumsfeld Matrix (Knowledge Gaps)
+
+Structure research to surface hidden knowledge:
+
+| | Known | Unknown |
+|--|-------|---------|
+| **Known** | Known Knowns (document facts) | Known Unknowns (research questions) |
+| **Unknown** | Unknown Knowns (surface via interviews, git archaeology) | Unknown Unknowns (design for resilience) |
+
+**Application**: Use matrix to identify what research can discover vs. what requires risk mitigation.
 
 ### Git History
 
