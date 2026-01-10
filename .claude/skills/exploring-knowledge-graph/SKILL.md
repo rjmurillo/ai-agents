@@ -14,6 +14,7 @@ Forgetful stores knowledge as an interconnected graph: memories link to other me
 ## When to Explore
 
 Explore the knowledge graph when:
+
 - Starting complex work that spans multiple topics
 - User asks "what do you know about X"
 - Planning requires understanding existing decisions/patterns
@@ -25,6 +26,7 @@ Explore the knowledge graph when:
 Track visited IDs to prevent cycles. Execute phases sequentially.
 
 ### Phase 1: Semantic Entry Point
+
 ```
 execute_forgetful_tool("query_memory", {
   "query": "<topic>",
@@ -38,7 +40,9 @@ execute_forgetful_tool("query_memory", {
 Collect: `primary_memories` + `linked_memories` (1-hop connections).
 
 ### Phase 2: Expand Memory Details
+
 For key memories, get full details:
+
 ```
 execute_forgetful_tool("get_memory", {"memory_id": <id>})
 ```
@@ -46,7 +50,9 @@ execute_forgetful_tool("get_memory", {"memory_id": <id>})
 Extract: `document_ids`, `code_artifact_ids`, `project_ids`, additional `linked_memory_ids`.
 
 ### Phase 3: Entity Discovery
+
 Find entities in discovered projects:
+
 ```
 execute_forgetful_tool("list_entities", {
   "project_ids": [<discovered project ids>]
@@ -54,7 +60,9 @@ execute_forgetful_tool("list_entities", {
 ```
 
 ### Phase 4: Entity Relationships
+
 For relevant entities, map relationship graph:
+
 ```
 execute_forgetful_tool("get_entity_relationships", {
   "entity_id": <id>,
@@ -65,7 +73,9 @@ execute_forgetful_tool("get_entity_relationships", {
 Relationship types: works_for, owns, manages, collaborates_with, etc.
 
 ### Phase 5: Entity-Linked Memories
+
 For each entity, find all linked memories:
+
 ```
 execute_forgetful_tool("get_entity_memories", {
   "entity_id": <id>
