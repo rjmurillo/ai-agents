@@ -35,22 +35,8 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-ProjectDirectory {
-    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PROJECT_DIR)) {
-        return $env:CLAUDE_PROJECT_DIR
-    }
-    return Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
-}
-
-function Test-GitCommitCommand {
-    param([string]$Command)
-
-    if ([string]::IsNullOrWhiteSpace($Command)) {
-        return $false
-    }
-
-    return $Command -match '(?:^|\s)git\s+(commit|ci)'
-}
+# Import shared hook utilities
+Import-Module "$PSScriptRoot/../Common/HookUtilities.psm1" -Force
 
 function Get-StagedADRChanges {
     try {
@@ -93,23 +79,6 @@ function Test-ADRReviewEvidence {
             Reason = "Error reading session log: $($_.Exception.Message)"
         }
     }
-}
-
-function Get-TodaySessionLog {
-    param([string]$SessionsDir)
-
-    if (-not (Test-Path $SessionsDir)) {
-        return $null
-    }
-
-    $today = Get-Date -Format "yyyy-MM-dd"
-    $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$today-session-*.json" -File -ErrorAction SilentlyContinue)
-
-    if ($logs.Count -eq 0) {
-        return $null
-    }
-
-    return $logs | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 }
 
 # Main execution

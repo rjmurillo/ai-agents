@@ -11,9 +11,33 @@
 
 BeforeAll {
     $Script:HookPath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "SessionStart" "Invoke-SessionInitializationEnforcer.ps1"
+    $Script:CommonModulePath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "Common" "HookUtilities.psm1"
 
     if (-not (Test-Path $Script:HookPath)) {
         throw "Hook script not found at: $Script:HookPath"
+    }
+
+    if (-not (Test-Path $Script:CommonModulePath)) {
+        throw "Common module not found at: $Script:CommonModulePath"
+    }
+
+    # Helper to copy hook and dependencies to test directory
+    function Copy-HookWithDependencies {
+        param(
+            [string]$TestRoot,
+            [string]$HookRelativePath = ".claude/hooks/SessionStart/Invoke-SessionInitializationEnforcer.ps1"
+        )
+
+        $hookDestDir = Split-Path (Join-Path $TestRoot $HookRelativePath) -Parent
+        $commonDestDir = Join-Path $TestRoot ".claude/hooks/Common"
+
+        New-Item -ItemType Directory -Path $hookDestDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $commonDestDir -Force | Out-Null
+
+        Copy-Item -Path $Script:HookPath -Destination (Join-Path $TestRoot $HookRelativePath) -Force
+        Copy-Item -Path $Script:CommonModulePath -Destination (Join-Path $commonDestDir "HookUtilities.psm1") -Force
+
+        return Join-Path $TestRoot $HookRelativePath
     }
 
     # Helper to invoke hook with environment setup
@@ -59,11 +83,9 @@ Describe "Invoke-SessionInitializationEnforcer" {
             # Create test git repo on main branch
             $Script:TestRootMain = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-main-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootMain -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootMain ".claude/hooks/SessionStart") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathMain = Join-Path $Script:TestRootMain ".claude/hooks/SessionStart/Invoke-SessionInitializationEnforcer.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathMain -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathMain = Copy-HookWithDependencies -TestRoot $Script:TestRootMain
 
             # Init git repo on main
             Push-Location $Script:TestRootMain
@@ -110,11 +132,9 @@ Describe "Invoke-SessionInitializationEnforcer" {
             # Create test git repo on master branch
             $Script:TestRootMaster = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-master-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootMaster -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootMaster ".claude/hooks/SessionStart") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathMaster = Join-Path $Script:TestRootMaster ".claude/hooks/SessionStart/Invoke-SessionInitializationEnforcer.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathMaster -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathMaster = Copy-HookWithDependencies -TestRoot $Script:TestRootMaster
 
             # Init git repo on master
             Push-Location $Script:TestRootMaster
@@ -144,12 +164,10 @@ Describe "Invoke-SessionInitializationEnforcer" {
             # Create test git repo on feature branch
             $Script:TestRootFeature = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-feature-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootFeature -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootFeature ".claude/hooks/SessionStart") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootFeature ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathFeature = Join-Path $Script:TestRootFeature ".claude/hooks/SessionStart/Invoke-SessionInitializationEnforcer.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathFeature -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathFeature = Copy-HookWithDependencies -TestRoot $Script:TestRootFeature
 
             # Init git repo on feature branch
             Push-Location $Script:TestRootFeature
@@ -200,12 +218,10 @@ Describe "Invoke-SessionInitializationEnforcer" {
             # Create test git repo with session log
             $Script:TestRootWithLog = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-withlog-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootWithLog -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootWithLog ".claude/hooks/SessionStart") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootWithLog ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathWithLog = Join-Path $Script:TestRootWithLog ".claude/hooks/SessionStart/Invoke-SessionInitializationEnforcer.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathWithLog -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathWithLog = Copy-HookWithDependencies -TestRoot $Script:TestRootWithLog
 
             # Create session log
             $today = Get-Date -Format "yyyy-MM-dd"
@@ -241,11 +257,9 @@ Describe "Invoke-SessionInitializationEnforcer" {
             # Create test environment without git
             $Script:TestRootNoGit = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-nogit-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootNoGit -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootNoGit ".claude/hooks/SessionStart") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathNoGit = Join-Path $Script:TestRootNoGit ".claude/hooks/SessionStart/Invoke-SessionInitializationEnforcer.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathNoGit -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathNoGit = Copy-HookWithDependencies -TestRoot $Script:TestRootNoGit
         }
 
         AfterAll {

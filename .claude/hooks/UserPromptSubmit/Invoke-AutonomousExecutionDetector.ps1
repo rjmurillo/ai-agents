@@ -36,12 +36,8 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-ProjectDirectory {
-    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PROJECT_DIR)) {
-        return $env:CLAUDE_PROJECT_DIR
-    }
-    return Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
-}
+# Import shared hook utilities
+Import-Module "$PSScriptRoot/../Common/HookUtilities.psm1" -Force
 
 function Test-AutonomyKeywords {
     param([string]$Prompt)

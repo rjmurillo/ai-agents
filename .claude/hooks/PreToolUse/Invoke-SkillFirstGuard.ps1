@@ -39,6 +39,9 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Import shared hook utilities
+Import-Module "$PSScriptRoot/../Common/HookUtilities.psm1" -Force
+
 function Write-BlockResponse {
     param(
         [string]$BlockedCommand,
@@ -78,14 +81,6 @@ $ExampleUsage
     # Use Console.Error to avoid exception from Write-Error with Stop action preference
     [Console]::Error.WriteLine("Blocked: Raw gh command detected. Use skill at $SkillPath")
     exit 2
-}
-
-function Get-ProjectDirectory {
-    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PROJECT_DIR)) {
-        return $env:CLAUDE_PROJECT_DIR
-    }
-    # Derive from script location
-    return Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 }
 
 function Test-GhCommand {

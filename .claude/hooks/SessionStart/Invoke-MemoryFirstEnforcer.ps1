@@ -36,28 +36,11 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Import shared hook utilities
+Import-Module "$PSScriptRoot/../Common/HookUtilities.psm1" -Force
+
 # Constants
 $EDUCATION_THRESHOLD = 3
-
-function Get-ProjectDirectory {
-    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PROJECT_DIR)) {
-        return $env:CLAUDE_PROJECT_DIR
-    }
-    # Derive from script location if environment variable not set
-    return Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
-}
-
-function Get-TodaySessionLogs {
-    param([string]$SessionsDir)
-
-    if (-not (Test-Path $SessionsDir)) {
-        return @()
-    }
-
-    $today = Get-Date -Format "yyyy-MM-dd"
-    $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$today-session-*.json" -File -ErrorAction SilentlyContinue)
-    return $logs
-}
 
 function Test-MemoryEvidence {
     param([string]$SessionLogPath)

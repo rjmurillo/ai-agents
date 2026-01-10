@@ -11,9 +11,33 @@
 
 BeforeAll {
     $Script:HookPath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "SessionStart" "Invoke-MemoryFirstEnforcer.ps1"
+    $Script:CommonModulePath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "Common" "HookUtilities.psm1"
 
     if (-not (Test-Path $Script:HookPath)) {
         throw "Hook script not found at: $Script:HookPath"
+    }
+
+    if (-not (Test-Path $Script:CommonModulePath)) {
+        throw "Common module not found at: $Script:CommonModulePath"
+    }
+
+    # Helper to copy hook and dependencies to test directory
+    function Copy-HookWithDependencies {
+        param(
+            [string]$TestRoot,
+            [string]$HookRelativePath = ".claude/hooks/SessionStart/Invoke-MemoryFirstEnforcer.ps1"
+        )
+
+        $hookDestDir = Split-Path (Join-Path $TestRoot $HookRelativePath) -Parent
+        $commonDestDir = Join-Path $TestRoot ".claude/hooks/Common"
+
+        New-Item -ItemType Directory -Path $hookDestDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $commonDestDir -Force | Out-Null
+
+        Copy-Item -Path $Script:HookPath -Destination (Join-Path $TestRoot $HookRelativePath) -Force
+        Copy-Item -Path $Script:CommonModulePath -Destination (Join-Path $commonDestDir "HookUtilities.psm1") -Force
+
+        return Join-Path $TestRoot $HookRelativePath
     }
 
     # Helper to invoke hook with environment setup
@@ -57,12 +81,10 @@ Describe "Invoke-MemoryFirstEnforcer" {
             # Create test environment without session log
             $Script:TestRootNoLog = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-memory-nolog-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootNoLog -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootNoLog ".claude/hooks/SessionStart") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootNoLog ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathNoLog = Join-Path $Script:TestRootNoLog ".claude/hooks/SessionStart/Invoke-MemoryFirstEnforcer.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathNoLog -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathNoLog = Copy-HookWithDependencies -TestRoot $Script:TestRootNoLog
         }
 
         AfterAll {
@@ -88,12 +110,10 @@ Describe "Invoke-MemoryFirstEnforcer" {
             # Create test environment with valid session log
             $Script:TestRootComplete = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-memory-complete-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootComplete -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootComplete ".claude/hooks/SessionStart") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootComplete ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathComplete = Join-Path $Script:TestRootComplete ".claude/hooks/SessionStart/Invoke-MemoryFirstEnforcer.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathComplete -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathComplete = Copy-HookWithDependencies -TestRoot $Script:TestRootComplete
 
             # Create session log with COMPLETE evidence
             $today = Get-Date -Format "yyyy-MM-dd"
@@ -133,12 +153,10 @@ Describe "Invoke-MemoryFirstEnforcer" {
             # Create test environment with incomplete session log
             $Script:TestRootEducation = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-memory-education-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootEducation -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootEducation ".claude/hooks/SessionStart") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootEducation ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathEducation = Join-Path $Script:TestRootEducation ".claude/hooks/SessionStart/Invoke-MemoryFirstEnforcer.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathEducation -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathEducation = Copy-HookWithDependencies -TestRoot $Script:TestRootEducation
 
             # Create session log WITHOUT serenaActivated
             $today = Get-Date -Format "yyyy-MM-dd"
@@ -186,13 +204,11 @@ Describe "Invoke-MemoryFirstEnforcer" {
             # Create test environment with incomplete session log
             $Script:TestRootBlocking = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-memory-blocking-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootBlocking -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootBlocking ".claude/hooks/SessionStart") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootBlocking ".agents/sessions") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootBlocking ".agents/.hook-state") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathBlocking = Join-Path $Script:TestRootBlocking ".claude/hooks/SessionStart/Invoke-MemoryFirstEnforcer.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathBlocking -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathBlocking = Copy-HookWithDependencies -TestRoot $Script:TestRootBlocking
 
             # Create session log WITHOUT evidence
             $today = Get-Date -Format "yyyy-MM-dd"
@@ -234,12 +250,10 @@ Describe "Invoke-MemoryFirstEnforcer" {
             # Create test environment with missing handoffRead
             $Script:TestRootMissingHandoff = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-missing-handoff-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootMissingHandoff -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootMissingHandoff ".claude/hooks/SessionStart") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootMissingHandoff ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathMissingHandoff = Join-Path $Script:TestRootMissingHandoff ".claude/hooks/SessionStart/Invoke-MemoryFirstEnforcer.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathMissingHandoff -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathMissingHandoff = Copy-HookWithDependencies -TestRoot $Script:TestRootMissingHandoff
 
             # Create session log with serenaActivated but missing handoffRead
             $today = Get-Date -Format "yyyy-MM-dd"
@@ -273,12 +287,10 @@ Describe "Invoke-MemoryFirstEnforcer" {
             # Create test environment with empty memoriesLoaded evidence
             $Script:TestRootEmptyEvidence = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-empty-evidence-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootEmptyEvidence -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootEmptyEvidence ".claude/hooks/SessionStart") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootEmptyEvidence ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathEmptyEvidence = Join-Path $Script:TestRootEmptyEvidence ".claude/hooks/SessionStart/Invoke-MemoryFirstEnforcer.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathEmptyEvidence -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathEmptyEvidence = Copy-HookWithDependencies -TestRoot $Script:TestRootEmptyEvidence
 
             # Create session log with empty Evidence string
             $today = Get-Date -Format "yyyy-MM-dd"
