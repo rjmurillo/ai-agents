@@ -47,3 +47,5 @@
 
 - `foundational-knowledge-index` - Core engineering concepts
 - `engineering-as-social-activity` - Writing and collaboration
+- `mentoring-over-teaching` - Invite others to think
+- `design-docs-before-code` - Clarify thinking

@@ -37,3 +37,5 @@ If SLO is 99.9% availability, error budget is 0.1% (~43 minutes/month).
 ## Related
 
 - `antifragility` - Building systems that improve under stress
+- `mttr-optimization` - Mean time to recovery
+- `monitoring-traffic-lights` - Red/yellow/green alerting

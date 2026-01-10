@@ -39,3 +39,4 @@ Big-bang rewrite. Almost always fails for systems of significant complexity.
 ## Related
 
 - `feature-toggles` - Control traffic routing
+- `branch-by-abstraction` - Safe refactoring behind interfaces
