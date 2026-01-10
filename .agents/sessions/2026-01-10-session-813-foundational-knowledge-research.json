@@ -97,7 +97,7 @@
         "Evidence": "Commit SHA: see endingCommit"
       },
       "handoffNotUpdated": {
-        "Complete": true,
+        "Complete": false,
         "level": "MUST NOT",
         "Evidence": "HANDOFF.md unchanged"
       },
