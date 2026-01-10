@@ -20,7 +20,7 @@ Use `update_memory` when:
 - Content needs refinement
 - Links to projects/artifacts/documents change
 
-```
+```javascript
 execute_forgetful_tool("update_memory", {
   "memory_id": <id>,
   "content": "Updated content...",
@@ -39,7 +39,7 @@ Use `mark_memory_obsolete` when:
 - Referenced code/feature no longer exists
 - Memory was created in error
 
-```
+```javascript
 execute_forgetful_tool("mark_memory_obsolete", {
   "memory_id": <id>,
   "reason": "Superseded by new architecture decision",
@@ -58,7 +58,7 @@ Use `link_memories` when:
 - Connecting decisions to their implementations
 - Relating patterns across projects
 
-```
+```javascript
 execute_forgetful_tool("link_memories", {
   "memory_id": <source_id>,
   "related_ids": [<target_id_1>, <target_id_2>]
@@ -73,7 +73,7 @@ When creating new memories, check impact on existing knowledge:
 
 ### Step 1: Query Related Memories
 
-```
+```javascript
 execute_forgetful_tool("query_memory", {
   "query": "<topic of new memory>",
   "query_context": "Checking for memories that may need curation",
@@ -96,7 +96,7 @@ For each existing memory, determine action:
 
 Present plan to user before executing:
 
-```
+```text
 Curation plan:
 - Create: "New authentication approach" (importance: 8)
 - Mark obsolete: #42 "Old auth pattern" (superseded)

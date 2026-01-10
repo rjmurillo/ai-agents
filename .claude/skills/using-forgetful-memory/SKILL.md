@@ -31,7 +31,7 @@ Use `execute_forgetful_tool("query_memory", {...})` with:
 
 To see what's been recorded recently for a specific project:
 
-```
+```javascript
 execute_forgetful_tool("get_recent_memories", {
   "limit": 10,
   "project_ids": [PROJECT_ID]
@@ -104,7 +104,7 @@ Before creating memories, find the correct project:
 
 2. **Search by repo** - Filter projects directly:
 
-   ```
+   ```javascript
    execute_forgetful_tool("list_projects", {"repo_name": "owner/repo"})
    ```
 
@@ -119,7 +119,7 @@ If no project exists for the current repo:
 
 Always check for existing memories before creating:
 
-```
+```javascript
 execute_forgetful_tool("query_memory", {
   "query": "<topic of potential new memory>",
   "query_context": "Checking for existing memories before creating",
@@ -137,15 +137,15 @@ If similar memory exists:
 
 When creating a memory (importance >= 7), announce:
 
-```
-💾 Saved to memory: "[title]"
+```text
+Saved to memory: "[title]"
    Tags: [tags]
    Related: [auto-linked memory titles]
 ```
 
 When querying, summarize:
 
-```
+```text
 Found X memories about [topic]:
 - [Memory 1]: [brief insight]
 - [Memory 2]: [brief insight]

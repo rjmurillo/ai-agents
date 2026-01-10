@@ -27,7 +27,7 @@ Track visited IDs to prevent cycles. Execute phases sequentially.
 
 ### Phase 1: Semantic Entry Point
 
-```
+```javascript
 execute_forgetful_tool("query_memory", {
   "query": "<topic>",
   "query_context": "Exploring knowledge graph for comprehensive context",
@@ -43,7 +43,7 @@ Collect: `primary_memories` + `linked_memories` (1-hop connections).
 
 For key memories, get full details:
 
-```
+```javascript
 execute_forgetful_tool("get_memory", {"memory_id": <id>})
 ```
 
@@ -53,7 +53,7 @@ Extract: `document_ids`, `code_artifact_ids`, `project_ids`, additional `linked_
 
 Find entities in discovered projects:
 
-```
+```javascript
 execute_forgetful_tool("list_entities", {
   "project_ids": [<discovered project ids>]
 })
@@ -63,7 +63,7 @@ execute_forgetful_tool("list_entities", {
 
 For relevant entities, map relationship graph:
 
-```
+```javascript
 execute_forgetful_tool("get_entity_relationships", {
   "entity_id": <id>,
   "direction": "both"
@@ -76,7 +76,7 @@ Relationship types: works_for, owns, manages, collaborates_with, etc.
 
 For each entity, find all linked memories:
 
-```
+```javascript
 execute_forgetful_tool("get_entity_memories", {
   "entity_id": <id>
 })
