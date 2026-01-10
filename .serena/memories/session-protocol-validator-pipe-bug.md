@@ -2,15 +2,25 @@
 
 **Date**: 2026-01-05
 **Discovered In**: Session 318 (PR #799 creation)
+**Resolved In**: PR #830 (Session protocol validation improvements and module refactoring)
 **Severity**: HIGH - Blocks session validation
+**Status**: ✅ RESOLVED
 
-## Problem
+## Problem (Historical)
 
-The `Validate-Session.ps1` script cannot parse the canonical Session End checklist from `SESSION-PROTOCOL.md` because it contains pipe characters `|` inside the security review grep command.
+The deprecated `Validate-Session.ps1` script (removed in this PR #810) could not parse the canonical Session End checklist from `SESSION-PROTOCOL.md` because it contained pipe characters `|` inside the security review grep command.
 
-## Root Cause
+## Resolution
 
-`Parse-ChecklistTable` function splits markdown table rows on `|` characters (line 115):
+✅ **Fixed in PR #830** (Module refactoring)
+
+The issue was resolved by introducing the `Split-TableRow` function in `scripts/modules/SessionValidation.psm1` (lines 22-80), which properly handles pipe characters inside backticks and markdown code spans.
+
+The deprecated `Validate-Session.ps1` script that had this bug was removed in PR #810 as part of the consolidation effort. All session validation now uses `Validate-SessionJson.ps1` with the fixed `SessionValidation` module.
+
+## Root Cause (Historical)
+
+In the deprecated script, the `Parse-ChecklistTable` function split markdown table rows on `|` characters (line 115):
 
 ```powershell
 $parts = ($line.Trim() -replace '^\|','' -replace '\|$','').Split('|') | ForEach-Object { $_.Trim() }
@@ -23,34 +33,18 @@ The canonical security review row contains:
 
 The grep command has 4 pipe characters (`password|token|secret|credential|private`), which cause the parser to split the row into 9 parts instead of 4.
 
-## Impact
+## Impact (Historical)
 
-- Session validation fails even when checklist is correctly filled out
-- Blocks completion of sessions that properly follow SESSION-PROTOCOL.md template
-- Creates false negative validation failures
+In the deprecated `Validate-Session.ps1`:
+- Session validation failed even when checklist was correctly filled out
+- Blocked completion of sessions that properly followed SESSION-PROTOCOL.md template
+- Created false negative validation failures
 
-## Workaround
-
-None currently. Sessions cannot pass validation if they use the canonical security review row.
-
-## Fix Recommendation
-
-Replace `.Split('|')` with a regex that respects backtick-quoted sections or markdown code spans. Example:
-
-```powershell
-# Use regex to split on pipes that aren't inside backticks
-# This is complex - may need to tokenize the line properly
-```
-
-Or simpler: escape pipes inside code spans in the canonical template:
-
-```
-`grep -iE "api[_-]?key\|password\|token...`
-```
+This no longer occurs with the current `Validate-SessionJson.ps1` implementation.
 
 ## Related
 
-- PR #799: Session protocol validator enhancements
-- Session 318: PR creation session
-- File: scripts/Validate-Session.ps1 line 115
-- Canonical template: .agents/SESSION-PROTOCOL.md lines 472-485, 573-586
+- **Resolution**: PR #830 - Session protocol validation improvements and module refactoring
+- **Fix Location**: `scripts/modules/SessionValidation.psm1` - `Split-TableRow` function (lines 22-80)
+- **Deprecation**: PR #810 - Removed deprecated `Validate-Session.ps1`
+- **Discovery**: PR #799, Session 318
