@@ -3,11 +3,16 @@
 # Pre-commit hook for vs-code-agents repository
 # AUTOMATICALLY FIXES markdown linting issues and re-stages corrected files.
 #
+# NOTE: This is a bash script, which is an exception to ADR-005 (PowerShell-only).
+# Rationale: Git hooks require shell scripts on non-Windows platforms. A PowerShell
+# implementation would require pwsh to be installed and in PATH, creating a barrier
+# to contribution. This is a grandfathered exception for cross-platform git integration.
+# The hook delegates to PowerShell scripts for all logic beyond basic file detection.
+#
 # Linter:
 #   - markdownlint-cli2 for markdown files (auto-fix enabled)
 #
 # To enable: git config core.hooksPath .githooks
-# To bypass: git commit --no-verify (use sparingly)
 #
 # Environment variables:
 #   SKIP_AUTOFIX=1 - Check only, don't auto-fix (CI mode)
@@ -61,8 +66,6 @@ EXIT_STATUS=0
 # - Block: commits directly to main (ERROR)
 # - Warn: unusual branch names that don't match conventional patterns
 #
-# Bypass: git commit --no-verify (use sparingly)
-#
 
 current_branch=$(git branch --show-current 2>/dev/null || echo "")
 
@@ -75,8 +78,7 @@ if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
     echo_info "    git checkout -b fix/your-description"
     echo_info "    git checkout -b docs/your-description"
     echo_info ""
-    echo_info "  Bypass (use sparingly): git commit --no-verify"
-    exit 1
+    exit 2
 fi
 
 # Validate branch matches conventional patterns
@@ -165,8 +167,12 @@ if [ -n "$STAGED_MD_FILES" ]; then
         echo_warning "Or install Node.js and npm to enable npx fallback."
     else
         # CRITICAL-001: Build array safely to prevent command injection
-        # Use mapfile to read newline-separated file list into array
-        mapfile -t MD_FILES <<< "$STAGED_MD_FILES"
+        # Bash 3 compatibility (macOS default): avoid mapfile/readarray
+        MD_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            MD_FILES+=("$file")
+        done <<< "$STAGED_MD_FILES"
 
         # Validate array is not empty
         if [ ${#MD_FILES[@]} -eq 0 ]; then
@@ -253,8 +259,12 @@ if [ -n "$STAGED_PS_FILES" ]; then
     
     if command -v pwsh &> /dev/null; then
         # CRITICAL-001: Build array safely to prevent command injection
-        # Use mapfile to read newline-separated file list into array
-        mapfile -t PS_FILES <<< "$STAGED_PS_FILES"
+        # Bash 3 compatibility (macOS default): avoid mapfile/readarray
+        PS_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            PS_FILES+=("$file")
+        done <<< "$STAGED_PS_FILES"
         
         # Validate array is not empty
         if [ ${#PS_FILES[@]} -eq 0 ]; then
@@ -644,9 +654,12 @@ STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|scr
 if [ -n "$STAGED_WORKFLOW_FILES" ]; then
     echo_info "Checking for bash usage in workflow files (ADR-005)..."
 
-    # SECURITY: Use mapfile to safely convert newline-separated file list to array
-    # This prevents command injection via malicious filenames containing shell metacharacters
-    mapfile -t WORKFLOW_FILES_ARRAY <<< "$STAGED_WORKFLOW_FILES"
+    # SECURITY: Convert newline-separated file list to array (bash 3 compatible)
+    WORKFLOW_FILES_ARRAY=()
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        WORKFLOW_FILES_ARRAY+=("$file")
+    done <<< "$STAGED_WORKFLOW_FILES"
 
     # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
     # Use -- separator to prevent filenames starting with - from being interpreted as options
@@ -674,9 +687,12 @@ fi
 STAGED_GITHUB_SCRIPT_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/scripts/' || true)
 
 if [ -n "$STAGED_GITHUB_SCRIPT_FILES" ]; then
-    # SECURITY: Use mapfile to safely convert newline-separated file list to array
-    # This prevents command injection via malicious filenames containing shell metacharacters
-    mapfile -t GITHUB_SCRIPT_FILES_ARRAY <<< "$STAGED_GITHUB_SCRIPT_FILES"
+    # SECURITY: Convert newline-separated file list to array (bash 3 compatible)
+    GITHUB_SCRIPT_FILES_ARRAY=()
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        GITHUB_SCRIPT_FILES_ARRAY+=("$file")
+    done <<< "$STAGED_GITHUB_SCRIPT_FILES"
 
     # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
     # Use -- separator to prevent filenames starting with - from being interpreted as options
@@ -772,7 +788,7 @@ fi
 # Security: Fail-closed - if validation fails or cannot run, commit is blocked
 # Related: SESSION-PROTOCOL.md v1.4, Skill-Protocol-002, Skill-Validation-006
 #
-SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-Session.ps1"
+SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-SessionJson.ps1"
 
 # Check if any .agents/ files are staged (indicating an active session)
 STAGED_AGENTS_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/' || true)
@@ -788,13 +804,13 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
         echo_error "Session Protocol validation blocked: script not found at $SESSION_VALIDATE_SCRIPT"
         EXIT_STATUS=1
     else
-        # Require a staged session log
-        STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.md$' | tail -n 1)
+        # Require a staged session log (JSON format)
+        STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$' | tail -n 1)
         if [ -z "$STAGED_SESSION_LOG" ]; then
             # Activation prompt: 5-word cloud to trigger correct behavior
             echo_error "BLOCKED: Create session log NOW"
-            echo_info "  → git add .agents/sessions/YYYY-MM-DD-session-NN.md"
-            echo_info "  Protocol: Session log required for all agent sessions"
+            echo_info "  → git add .agents/sessions/YYYY-MM-DD-session-NN.json"
+            echo_info "  Protocol: JSON session log required for all agent sessions"
             EXIT_STATUS=1
         fi
 
@@ -803,19 +819,16 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
             if command -v pwsh &> /dev/null; then
                 echo_info "Running Session Protocol validation..."
                 # SECURITY: Use -- separator and quote path to prevent injection
-                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
+                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
                     echo_error "Session Protocol validation FAILED."
                     echo_info "  Review errors above and fix session log."
                     echo_info ""
-                    echo_info "  REQUIRED FORMAT: Use the canonical TABLE format from SESSION-PROTOCOL.md"
-                    echo_info "    | Req | Step | Status | Evidence |"
-                    echo_info "    |-----|------|--------|----------|"
-                    echo_info "    | MUST | Initialize Serena... | [x] | Tool output present |"
+                    echo_info "  REQUIRED FORMAT: JSON with protocol compliance checklist"
+                    echo_info "  Schema: .agents/schemas/session-log.schema.json"
                     echo_info ""
-                    echo_info "  NOT ACCEPTED: Bullet-list format (- [x] item)"
+                    echo_info "  Fix with: /session-log-fixer skill"
                     echo_info ""
-                    echo_info "  Copy the canonical checklist from: .agents/SESSION-PROTOCOL.md"
-                    echo_info "  Run manually: pwsh scripts/Validate-Session.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
+                    echo_info "  Run manually: pwsh scripts/Validate-SessionJson.ps1 -SessionPath \"$STAGED_SESSION_LOG\""
                     EXIT_STATUS=1
                 else
                     echo_success "Session Protocol validation: PASS"
@@ -829,6 +842,183 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
     fi
 else
     echo_info "No .agents/ files staged. Skipping Session Protocol validation."
+fi
+
+#
+# QA (Pester) Test Gate (BLOCKING when relevant changes)
+#
+# Enforces a lightweight QA pass locally when staged changes include:
+# - PowerShell code under scripts/, build/, .claude/skills/, or .github/scripts/
+# - Any PowerShell tests under tests/ or scripts/tests/ (and related test roots)
+#
+# Strategy:
+# - If only specific tests are staged, run only those tests
+# - Else, run a targeted suite by deriving test directories from changed code
+# - Fallbacks to a quick, narrow set of standard test paths when needed
+# - No bypass option - QA gate is enforced for safety
+#
+# Determine if relevant files are staged
+STAGED_PS_CODE_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
+
+if [ -z "$STAGED_PS_CODE_FILES" ]; then
+    echo_info "No PowerShell changes. Skipping QA tests."
+else
+    if ! command -v pwsh >/dev/null 2>&1; then
+        echo_error "PowerShell (pwsh) not available. Cannot run QA tests."
+        echo_info "  Install: https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
+        echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
+        EXIT_STATUS=1
+    else
+        # Resolve runner script and validate
+        PESTER_RUNNER="$REPO_ROOT/build/scripts/Invoke-PesterTests.ps1"
+        if [ -L "$PESTER_RUNNER" ]; then
+            echo_error "QA test runner path is a symlink (security violation): $PESTER_RUNNER"
+            echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
+            EXIT_STATUS=1
+        elif [ ! -f "$PESTER_RUNNER" ]; then
+            echo_error "QA test runner not found: $PESTER_RUNNER"
+            echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
+            EXIT_STATUS=1
+        else
+            echo_info "Running targeted QA tests (Pester)..."
+
+            # Optional runtime cap using coreutils timeout if present (default 5 min)
+            # Security: Validate QA_TIMEOUT_SEC as numeric to prevent command injection
+            QA_TIMEOUT_SEC=${QA_TIMEOUT_SEC:-300}
+            USE_TIMEOUT=false
+            if [[ "$QA_TIMEOUT_SEC" =~ ^[0-9]+$ ]] && command -v timeout >/dev/null 2>&1; then
+                USE_TIMEOUT=true
+            elif [ -n "${QA_TIMEOUT_SEC:-}" ] && ! [[ "$QA_TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
+                echo_warning "Invalid QA_TIMEOUT_SEC value '$QA_TIMEOUT_SEC'; running QA tests without timeout."
+            fi
+
+            # Build TestPath arguments safely using arrays
+            declare -a TESTPATHS
+
+            # Include any staged test files directly
+            while IFS= read -r cf; do
+                [ -z "$cf" ] && continue
+                case "$cf" in
+                    *.Tests.ps1)
+                        if [ -L "$cf" ]; then
+                            echo_warning "Skipping symlinked test file: $cf"
+                            continue
+                        fi
+                        [ -f "$cf" ] && TESTPATHS+=("$cf")
+                        ;;
+                esac
+            done <<< "$STAGED_PS_CODE_FILES"
+
+            # Map changed code paths (including tests) to likely test roots
+            while IFS= read -r cf; do
+                [ -z "$cf" ] && continue
+                case "$cf" in
+                    .claude/skills/*/scripts/*.ps1|.claude/skills/*/scripts/*.psm1)
+                        skilldir=${cf%%/scripts/*}
+                        testdir="$skilldir/tests"
+                        [ -d "$testdir" ] && TESTPATHS+=("$testdir")
+                        ;;
+                    scripts/*)
+                        [ -d "$REPO_ROOT/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/scripts/tests")
+                        ;;
+                    build/*)
+                        [ -d "$REPO_ROOT/build/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/build/scripts/tests")
+                        [ -d "$REPO_ROOT/build/tests" ] && TESTPATHS+=("$REPO_ROOT/build/tests")
+                        ;;
+                    .github/scripts/*)
+                        # Some tests live under .github/tests/**
+                        [ -d "$REPO_ROOT/.github/tests" ] && TESTPATHS+=("$REPO_ROOT/.github/tests")
+                        # Allow script directory tests if present
+                        [ -d "$REPO_ROOT/.github/scripts" ] && TESTPATHS+=("$REPO_ROOT/.github/scripts")
+                        ;;
+                    *.Tests.ps1)
+                        # Already handled above but kept as a catch-all
+                        ;;
+                esac
+            done <<< "$STAGED_PS_CODE_FILES"
+
+            # As a safety net, if nothing resolved, add a minimal quick set
+            if [ ${#TESTPATHS[@]} -eq 0 ]; then
+                [ -d "$REPO_ROOT/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/scripts/tests")
+                [ -d "$REPO_ROOT/build/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/build/scripts/tests")
+                [ -d "$REPO_ROOT/build/tests" ] && TESTPATHS+=("$REPO_ROOT/build/tests")
+            fi
+
+            # Deduplicate paths while preserving order (bash 3 compatible)
+            if [ ${#TESTPATHS[@]} -gt 0 ]; then
+                UNIQUE_TESTPATHS=()
+                for p in "${TESTPATHS[@]}"; do
+                    # Normalize to absolute paths relative to repo root
+                    if [ -d "$p" ] || [ -f "$p" ]; then
+                        key="$p"
+                    else
+                        key="$REPO_ROOT/$p"
+                    fi
+
+                    already=0
+                    for existing in "${UNIQUE_TESTPATHS[@]}"; do
+                        if [ "$existing" = "$key" ]; then
+                            already=1
+                            break
+                        fi
+                    done
+
+                    if [ $already -eq 0 ]; then
+                        UNIQUE_TESTPATHS+=("$key")
+                    fi
+                done
+
+                echo_info "Targets:"
+                for t in "${UNIQUE_TESTPATHS[@]}"; do
+                    echo_info "  - $t"
+                done
+
+                # Build PowerShell -TestPath arguments
+                # Use a temp file to pass multiple -TestPath values safely
+                TESTARGS_FILE=$(mktemp)
+                for t in "${UNIQUE_TESTPATHS[@]}"; do
+                    printf "%s\n" "$t" >> "$TESTARGS_FILE"
+                done
+
+                # Execute with optional timeout, capture output for display
+                # Note: Embed paths directly in command string since pwsh -Command doesn't properly handle -- arguments
+                RC=0
+                TEST_OUTPUT=$(mktemp)
+                if $USE_TIMEOUT; then
+                    timeout --preserve-status "${QA_TIMEOUT_SEC}" pwsh -NoProfile -Command "\$paths = Get-Content -LiteralPath '$TESTARGS_FILE'; & '$PESTER_RUNNER' -CI -Verbosity Normal -TestPath \$paths" > "$TEST_OUTPUT" 2>&1 || RC=$?
+                else
+                    pwsh -NoProfile -Command "\$paths = Get-Content -LiteralPath '$TESTARGS_FILE'; & '$PESTER_RUNNER' -CI -Verbosity Normal -TestPath \$paths" > "$TEST_OUTPUT" 2>&1 || RC=$?
+                fi
+
+                if [ $RC -ne 0 ]; then
+                    if $USE_TIMEOUT && [ $RC -eq 124 ]; then
+                        echo_error "QA tests timed out after ${QA_TIMEOUT_SEC}s."
+                    else
+                        echo_error "QA tests failed. Fix failing tests before committing."
+                        echo_info ""
+                        echo_info "Test output (last 50 lines):"
+                        tail -50 "$TEST_OUTPUT"
+                        echo_info ""
+                    fi
+                    echo_info "  Re-run locally for details:"
+                    echo_info "    pwsh $PESTER_RUNNER -CI -Verbosity Normal \\"
+                    for t in "${UNIQUE_TESTPATHS[@]}"; do
+                        echo_info "      -TestPath '$t' \\"
+                    done
+                    echo_info ""
+                    rm -f "$TEST_OUTPUT"
+                    rm -f "$TESTARGS_FILE"
+                    EXIT_STATUS=1
+                else
+                    rm -f "$TEST_OUTPUT"
+                    rm -f "$TESTARGS_FILE"
+                    echo_success "QA tests passed."
+                fi
+            else
+                echo_warning "No test paths resolved; skipping QA tests."
+            fi
+        fi
+    fi
 fi
 
 #
@@ -854,7 +1044,8 @@ if [ -n "$STAGED_SESSION_LOG" ]; then
         elif [ -f "$EPISODE_EXTRACT_SCRIPT" ]; then
             if command -v pwsh &> /dev/null; then
                 # Run episode extraction
-                EXTRACT_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$EPISODE_EXTRACT_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -Force 2>&1)
+                # Guard against set -e aborting the hook on non-blocking extraction failures
+                EXTRACT_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$EPISODE_EXTRACT_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -Force 2>&1 || true)
                 EXTRACT_EXIT=$?
 
                 if [ $EXTRACT_EXIT -eq 0 ]; then
@@ -920,7 +1111,8 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
             if command -v pwsh &> /dev/null; then
                 # Run causal graph update on the entire episodes directory
                 # This ensures all relationships are captured, not just the new episode
-                UPDATE_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$UPDATE_CAUSAL_SCRIPT" -EpisodePath "$REPO_ROOT/.agents/memory/episodes" 2>&1)
+                # Guard against set -e aborting the hook on non-blocking update failures
+                UPDATE_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$UPDATE_CAUSAL_SCRIPT" -EpisodePath "$REPO_ROOT/.agents/memory/episodes" 2>&1 || true)
                 UPDATE_EXIT=$?
 
                 if [ $UPDATE_EXIT -eq 0 ]; then
@@ -969,9 +1161,9 @@ fi
 #
 # Lightweight check for memory retrieval evidence in session logs.
 # Warns if the Evidence column for memory-index appears empty or placeholder.
-# Full validation (E2) is done by Validate-Session.ps1.
+# Full validation (E2) is done by Validate-SessionJson.ps1.
 #
-# Related: ADR-007, Issue #729, E2 in Validate-Session.ps1
+# Related: ADR-007, Issue #729, E2 in Validate-SessionJson.ps1
 #
 
 if [ -n "$STAGED_SESSION_LOG" ]; then
@@ -1198,8 +1390,10 @@ fi
 echo ""
 if [ $EXIT_STATUS -ne 0 ]; then
     echo_error "Pre-commit checks failed. Please fix the issues above."
-    echo_info "  To bypass (use sparingly): git commit --no-verify"
-    exit 1
+    echo_info ""
+    echo_info "  Fix the issues and retry the commit."
+    echo_info "  Note: Claude hooks provide enforcement; git hooks can be bypassed with --no-verify."
+    exit 2
 fi
 
 if [ "$FILES_FIXED" = "1" ]; then
