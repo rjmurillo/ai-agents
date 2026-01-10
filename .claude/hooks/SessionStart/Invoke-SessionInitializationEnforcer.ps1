@@ -147,7 +147,8 @@ wt switch feat/your-feature-name --create
 
 "@
         Write-Output $output
-        Write-Error "Blocked: Cannot work on protected branch '$currentBranch'"
+        # Use Console.Error to avoid exception from Write-Error with Stop action preference
+        [Console]::Error.WriteLine("Blocked: Cannot work on protected branch '$currentBranch'")
         exit 2
     }
 

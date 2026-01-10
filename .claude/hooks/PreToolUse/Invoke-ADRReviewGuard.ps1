@@ -139,7 +139,7 @@ try {
     }
 
     # Check for ADR file changes
-    $adrChanges = Get-StagedADRChanges
+    $adrChanges = @(Get-StagedADRChanges)
     if ($adrChanges.Count -eq 0) {
         # No ADR changes, allow commit
         exit 0
@@ -177,7 +177,8 @@ This ensures 6-agent debate (architect, critic, independent-thinker, security, a
 
 "@
         Write-Output $output
-        Write-Error "Session blocked: ADR changes without review"
+        # Use Console.Error to avoid exception from Write-Error with Stop action preference
+        [Console]::Error.WriteLine("Session blocked: ADR changes without review")
         exit 2
     }
 
@@ -214,7 +215,8 @@ This ensures 6-agent debate (architect, critic, independent-thinker, security, a
 
 "@
         Write-Output $output
-        Write-Error "Session blocked: ADR review not completed in session"
+        # Use Console.Error to avoid exception from Write-Error with Stop action preference
+        [Console]::Error.WriteLine("Session blocked: ADR review not completed in session")
         exit 2
     }
 

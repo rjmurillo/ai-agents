@@ -173,7 +173,8 @@ See: ``.agents/SESSION-PROTOCOL.md`` for full details.
 
 "@
         Write-Output $output
-        Write-Error "Session blocked: No session log found for today"
+        # Use Console.Error to avoid exception from Write-Error with Stop action preference
+        [Console]::Error.WriteLine("Session blocked: No session log found for today")
         exit 2
     }
 
@@ -205,7 +206,8 @@ Session log MUST contain:
 
 "@
         Write-Output $output
-        Write-Error "Session blocked: Session log has insufficient evidence"
+        # Use Console.Error to avoid exception from Write-Error with Stop action preference
+        [Console]::Error.WriteLine("Session blocked: Session log has insufficient evidence")
         exit 2
     }
 

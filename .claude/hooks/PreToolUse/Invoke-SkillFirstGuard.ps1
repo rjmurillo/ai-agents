@@ -75,7 +75,8 @@ $ExampleUsage
 
 "@
     Write-Output $output
-    Write-Error "Blocked: Raw gh command detected. Use skill at $SkillPath"
+    # Use Console.Error to avoid exception from Write-Error with Stop action preference
+    [Console]::Error.WriteLine("Blocked: Raw gh command detected. Use skill at $SkillPath")
     exit 2
 }
 
@@ -153,8 +154,8 @@ function Get-SkillScript {
         return $null
     }
 
-    $matchingScripts = Get-ChildItem -Path $searchPath -Filter "*$Action*.ps1" -ErrorAction SilentlyContinue
-    if ($null -ne $matchingScripts -and $matchingScripts.Count -gt 0) {
+    $matchingScripts = @(Get-ChildItem -Path $searchPath -Filter "*$Action*.ps1" -ErrorAction SilentlyContinue)
+    if ($matchingScripts.Count -gt 0) {
         $script = $matchingScripts[0]
         $relativePath = ".claude/skills/github/scripts/$Operation/$($script.Name)"
         return @{

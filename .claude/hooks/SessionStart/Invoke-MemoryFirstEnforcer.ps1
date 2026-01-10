@@ -157,7 +157,7 @@ $sessionsDir = Join-Path $projectDir ".agents" "sessions"
 $stateDir = Join-Path $projectDir ".agents" ".hook-state"
 
 # Get today's session logs
-$todayLogs = Get-TodaySessionLogs -SessionsDir $sessionsDir
+$todayLogs = @(Get-TodaySessionLogs -SessionsDir $sessionsDir)
 
 # If no session log exists, provide guidance (non-blocking)
 if ($todayLogs.Count -eq 0) {
@@ -262,6 +262,7 @@ Complete these steps NOW (in order):
 
 "@
     Write-Output $output
-    Write-Error "Session blocked: ADR-007 memory-first evidence missing after $count invocations"
+    # Use Console.Error to avoid exception from Write-Error with Stop action preference
+    [Console]::Error.WriteLine("Session blocked: ADR-007 memory-first evidence missing after $count invocations")
     exit 2
 }

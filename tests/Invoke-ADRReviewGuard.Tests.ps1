@@ -1,0 +1,270 @@
+#Requires -Modules Pester
+
+<#
+.SYNOPSIS
+    Pester tests for Invoke-ADRReviewGuard.ps1
+
+.DESCRIPTION
+    Tests the PreToolUse hook that blocks git commit with ADR changes
+    unless adr-review skill was executed.
+#>
+
+BeforeAll {
+    $Script:HookPath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "PreToolUse" "Invoke-ADRReviewGuard.ps1"
+
+    if (-not (Test-Path $Script:HookPath)) {
+        throw "Hook script not found at: $Script:HookPath"
+    }
+
+    # Helper to invoke hook with JSON input via process
+    function Invoke-HookWithInput {
+        param(
+            [string]$Command,
+            [string]$HookPath = $Script:HookPath,
+            [string]$ProjectDir = $null,
+            [string]$WorkingDir = $null
+        )
+
+        $inputJson = @{
+            tool_input = @{
+                command = $Command
+            }
+        } | ConvertTo-Json -Compress
+
+        $tempInput = [System.IO.Path]::GetTempFileName()
+        $tempOutput = [System.IO.Path]::GetTempFileName()
+        $tempError = [System.IO.Path]::GetTempFileName()
+        $tempScript = [System.IO.Path]::GetTempFileName() + ".ps1"
+
+        try {
+            Set-Content -Path $tempInput -Value $inputJson -NoNewline
+
+            # Create wrapper script - use escaped double quotes for paths
+            $escapedProjectDir = $ProjectDir -replace '"', '\"'
+            $escapedHookPath = $HookPath -replace '"', '\"'
+            $escapedWorkingDir = if ($WorkingDir) { $WorkingDir -replace '"', '\"' } else { $null }
+
+            $wrapperContent = @"
+`$env:CLAUDE_PROJECT_DIR = "$escapedProjectDir"
+$(if ($WorkingDir) { "Set-Location `"$escapedWorkingDir`"" })
+& "$escapedHookPath"
+exit `$LASTEXITCODE
+"@
+            Set-Content -Path $tempScript -Value $wrapperContent
+
+            $process = Start-Process -FilePath "pwsh" -ArgumentList "-NoProfile", "-File", $tempScript -RedirectStandardInput $tempInput -RedirectStandardOutput $tempOutput -RedirectStandardError $tempError -PassThru -Wait -NoNewWindow
+            $output = Get-Content $tempOutput -Raw -ErrorAction SilentlyContinue
+            $errorOutput = Get-Content $tempError -Raw -ErrorAction SilentlyContinue
+
+            return @{
+                Output = @($output, $errorOutput) | Where-Object { $_ }
+                ExitCode = $process.ExitCode
+            }
+        }
+        finally {
+            Remove-Item $tempInput, $tempOutput, $tempError, $tempScript -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Describe "Invoke-ADRReviewGuard" {
+    Context "Non-commit commands pass through" {
+        It "Allows git status (exit 0)" {
+            $result = Invoke-HookWithInput -Command "git status"
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Allows git diff (exit 0)" {
+            $result = Invoke-HookWithInput -Command "git diff"
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Allows git push (exit 0)" {
+            $result = Invoke-HookWithInput -Command "git push origin main"
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Allows non-git commands (exit 0)" {
+            $result = Invoke-HookWithInput -Command "ls -la"
+            $result.ExitCode | Should -Be 0
+        }
+    }
+
+    Context "Commit without ADR changes passes through" {
+        BeforeAll {
+            # Create a test git repo without ADR files staged
+            $Script:TestRoot = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-no-adr-$(Get-Random)"
+            New-Item -ItemType Directory -Path $Script:TestRoot -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRoot ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRoot ".agents/sessions") -Force | Out-Null
+
+            # Copy hook
+            $Script:TempHookPath = Join-Path $Script:TestRoot ".claude/hooks/PreToolUse/Invoke-ADRReviewGuard.ps1"
+            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPath -Force
+
+            # Init git repo and stage non-ADR file
+            Push-Location $Script:TestRoot
+            git init --quiet
+            git config user.email "test@test.com"
+            git config user.name "Test"
+            Set-Content -Path (Join-Path $Script:TestRoot "README.md") -Value "# Test"
+            git add README.md
+            Pop-Location
+        }
+
+        AfterAll {
+            if (Test-Path $Script:TestRoot) {
+                Remove-Item -Path $Script:TestRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Allows commit when no ADR files are staged (exit 0)" {
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPath -ProjectDir $Script:TestRoot -WorkingDir $Script:TestRoot
+            $result.ExitCode | Should -Be 0
+        }
+    }
+
+    Context "ADR changes without review blocks commit" {
+        BeforeAll {
+            # Create a test git repo WITH ADR file staged but NO review evidence
+            $Script:TestRootADR = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-adr-no-review-$(Get-Random)"
+            New-Item -ItemType Directory -Path $Script:TestRootADR -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootADR ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootADR ".agents/sessions") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootADR ".agents/architecture") -Force | Out-Null
+
+            # Copy hook
+            $Script:TempHookPathADR = Join-Path $Script:TestRootADR ".claude/hooks/PreToolUse/Invoke-ADRReviewGuard.ps1"
+            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathADR -Force
+
+            # Create session log WITHOUT review evidence
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                protocolCompliance = @{
+                    sessionStart = @{ branchVerification = @{ complete = $true; level = "MUST"; evidence = "test" } }
+                    sessionEnd = @{ commitMade = @{ complete = $true; level = "MUST"; evidence = "test" } }
+                }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootADR ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            # Init git repo and stage ADR file
+            Push-Location $Script:TestRootADR
+            git init --quiet
+            git config user.email "test@test.com"
+            git config user.name "Test"
+            Set-Content -Path (Join-Path $Script:TestRootADR ".agents/architecture/ADR-999.md") -Value "# ADR-999: Test"
+            git add .agents/architecture/ADR-999.md
+            Pop-Location
+        }
+
+        AfterAll {
+            if (Test-Path $Script:TestRootADR) {
+                Remove-Item -Path $Script:TestRootADR -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Blocks commit when ADR files staged without review (exit 2)" {
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathADR -ProjectDir $Script:TestRootADR -WorkingDir $Script:TestRootADR
+            $result.ExitCode | Should -Be 2
+        }
+
+        It "Outputs blocking message with adr-review instruction" {
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathADR -ProjectDir $Script:TestRootADR -WorkingDir $Script:TestRootADR
+            $output = $result.Output -join "`n"
+            $output | Should -Match "BLOCKED"
+            $output | Should -Match "adr-review"
+        }
+    }
+
+    Context "ADR changes with review evidence allows commit" {
+        BeforeAll {
+            # Create a test git repo WITH ADR file AND review evidence
+            $Script:TestRootReviewed = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-adr-reviewed-$(Get-Random)"
+            New-Item -ItemType Directory -Path $Script:TestRootReviewed -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootReviewed ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootReviewed ".agents/sessions") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootReviewed ".agents/architecture") -Force | Out-Null
+
+            # Copy hook
+            $Script:TempHookPathReviewed = Join-Path $Script:TestRootReviewed ".claude/hooks/PreToolUse/Invoke-ADRReviewGuard.ps1"
+            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathReviewed -Force
+
+            # Create session log WITH review evidence
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test ADR review" }
+                protocolCompliance = @{
+                    sessionStart = @{ branchVerification = @{ complete = $true; level = "MUST"; evidence = "test" } }
+                    sessionEnd = @{ commitMade = @{ complete = $true; level = "MUST"; evidence = "test" } }
+                }
+                workLog = @(
+                    @{ action = "Executed /adr-review skill"; result = "multi-agent consensus achieved" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootReviewed ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            # Init git repo and stage ADR file
+            Push-Location $Script:TestRootReviewed
+            git init --quiet
+            git config user.email "test@test.com"
+            git config user.name "Test"
+            Set-Content -Path (Join-Path $Script:TestRootReviewed ".agents/architecture/ADR-999.md") -Value "# ADR-999: Test"
+            git add .agents/architecture/ADR-999.md
+            Pop-Location
+        }
+
+        AfterAll {
+            if (Test-Path $Script:TestRootReviewed) {
+                Remove-Item -Path $Script:TestRootReviewed -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Allows commit when ADR files have review evidence (exit 0)" {
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathReviewed -ProjectDir $Script:TestRootReviewed -WorkingDir $Script:TestRootReviewed
+            $result.ExitCode | Should -Be 0
+        }
+    }
+
+    Context "Edge cases and error handling" {
+        It "Handles no stdin gracefully (exit 0)" {
+            & $Script:HookPath
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It "Handles malformed JSON gracefully (exit 0 - fail open)" {
+            $tempInput = [System.IO.Path]::GetTempFileName()
+            $tempOutput = [System.IO.Path]::GetTempFileName()
+            try {
+                Set-Content -Path $tempInput -Value "{ not valid json" -NoNewline
+                $process = Start-Process -FilePath "pwsh" -ArgumentList "-NoProfile", "-File", $Script:HookPath -RedirectStandardInput $tempInput -RedirectStandardOutput $tempOutput -PassThru -Wait -NoNewWindow
+                $process.ExitCode | Should -Be 0
+            }
+            finally {
+                Remove-Item $tempInput, $tempOutput -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Handles missing tool_input gracefully (exit 0)" {
+            $tempInput = [System.IO.Path]::GetTempFileName()
+            $tempOutput = [System.IO.Path]::GetTempFileName()
+            try {
+                $json = @{ other = "data" } | ConvertTo-Json
+                Set-Content -Path $tempInput -Value $json -NoNewline
+                $process = Start-Process -FilePath "pwsh" -ArgumentList "-NoProfile", "-File", $Script:HookPath -RedirectStandardInput $tempInput -RedirectStandardOutput $tempOutput -PassThru -Wait -NoNewWindow
+                $process.ExitCode | Should -Be 0
+            }
+            finally {
+                Remove-Item $tempInput, $tempOutput -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    Context "Script structure" {
+        It "Script parses without errors" {
+            $errors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile($Script:HookPath, [ref]$null, [ref]$errors)
+            $errors | Should -BeNullOrEmpty
+        }
+    }
+}
