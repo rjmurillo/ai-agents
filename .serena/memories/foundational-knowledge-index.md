@@ -112,10 +112,27 @@ Apply these before major decisions:
 | Paved Roads | `paved-roads-innovation` | Default choices with deviation paths |
 | Sociotechnical Systems | `sociotechnical-systems` | Tech and social intertwined |
 
+## Senior Engineering Knowledge (Advanced)
+
+| Concept | Memory File | Quick Reference |
+|---------|-------------|-----------------|
+| Tradeoff Thinking | `tradeoff-thinking` | Name tradeoffs explicitly |
+| Design by Contract | `design-by-contract` | Preconditions, postconditions, invariants |
+| Fallacies of Distributed Computing | `fallacies-distributed-computing` | Network is unreliable |
+| Feature Toggles | `feature-toggles` | Decouple deploy from release |
+| Strangler Fig Pattern | `strangler-fig-pattern` | Incremental migration |
+| SLO/SLI/SLA | `slo-sli-sla` | Error budgets, reliability targets |
+| Cynefin Framework | `cynefin-framework` | Clear, Complicated, Complex, Chaotic |
+| Wardley Mapping | `wardley-mapping` | Innovate vs commoditize |
+| Antifragility | `antifragility` | Improve with stress |
+| Staff Engineer Trajectory | `staff-engineer-trajectory` | Career growth path |
+| Engineering as Social Activity | `engineering-as-social-activity` | Writing, mentoring, cross-functional |
+
 ## Related
 
 - Full analysis (Part 1): `.agents/analysis/foundational-engineering-knowledge.md`
 - Full analysis (Part 2): `.agents/analysis/advanced-engineering-knowledge.md`
+- Full analysis (Part 3): `.agents/analysis/senior-engineering-knowledge.md`
 - Chesterton integration: `chestertons-fence-memory-integration`
 - Design approaches: `design-approaches-detailed`
 - ADR concepts: `adr-foundational-concepts`
