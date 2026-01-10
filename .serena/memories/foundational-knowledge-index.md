@@ -1,187 +1,66 @@
-# Foundational Engineering Knowledge Index
+# Foundational Software Engineer Knowledge Index
 
-**Created**: 2026-01-10
-**Category**: Engineering Knowledge Management
-**Source**: `.agents/analysis/foundational-engineering-knowledge.md`
+**Purpose**: Index of essential software engineering knowledge for engineers with less than 5 years experience.
+**Analysis**: `.agents/analysis/foundational-engineer-knowledge-set.md`
 
-## Purpose
+## Knowledge Categories
 
-Central index to foundational engineering knowledge covering mental models, principles, practices, and architectural patterns for thinking engineers.
+### Mindsets & Mental Models
+- **Chesterton's Fence**: Understand before removing
+- **Hyrum's Law**: All observable behavior becomes dependency
+- **Conway's Law**: Systems mirror organization structure
+- **Second-Order Thinking**: Consider downstream consequences
+- **Law of Demeter**: Only talk to immediate friends
+- **Gall's Law**: Complex systems evolve from simple ones
+- **YAGNI**: Don't build until needed
+- **Technical Debt Quadrant**: Classify debt by intent/prudence
+- **Boy Scout Rule**: Leave code better than found
 
-## Mental Models (Decision Frameworks)
+### Software Principles
+- **SOLID**: SRP, OCP, LSP, ISP, DIP
+- **DRY**: One source of truth
+- **KISS**: Keep it simple
+- **Separation of Concerns**: One responsibility per module
+- **Tell Don't Ask**: Co-locate behavior with data
+- **Programming by Intention**: Express intent over implementation
+- **Design to Interfaces**: Depend on abstractions
 
-| Model | Memory File | Quick Reference |
-|-------|-------------|-----------------|
-| Chesterton's Fence | `chestertons-fence-memory-integration` | Search memory before changing |
-| Hyrum's Law | `hyrums-law` | All observable behavior becomes contract |
-| Conway's Law | `conways-law` | Teams mirror architecture |
-| Second-Order Thinking | `second-order-thinking` | Ask "and then what?" |
-| Law of Demeter | `law-of-demeter` | Only talk to friends |
-| Gall's Law | `galls-law` | Start simple, evolve |
-| YAGNI | `yagni-principle` | Build only what's needed now |
-| Technical Debt Quadrant | `technical-debt-quadrant` | Prudent vs reckless, deliberate vs inadvertent |
-| Boy Scout Rule | `boy-scout-rule` | Leave code cleaner |
+### Practices & Disciplines
+- **TDD**: Red-green-refactor cycle
+- **Pair Programming**: Driver/navigator collaboration
+- **Code Reviews**: Knowledge transfer and defect detection
+- **Refactoring**: Systematic improvement via code smells catalog
+- **Clean Architecture**: Domain-centric, infrastructure-isolated
+- **12-Factor App**: Cloud-ready application methodology
+- **Trunk-Based Development**: Small, frequent commits to main
+- **Observability**: Logs, metrics, traces
 
-## Engineering Principles
+### Tradeoffs & Patterns
+- **CAP Theorem**: Consistency, Availability, Partition Tolerance
+- **Design Patterns**: Strategy, Factory, Decorator, Adapter, Composite, Observer, Null Object
 
-| Principle | Application |
-|-----------|-------------|
-| SOLID | Object-oriented design guidelines |
-| DRY | Knowledge (not code) duplication |
-| KISS | Simplest working solution |
-| Separation of Concerns | Distinct responsibilities |
-| Tell, Don't Ask | Push behavior to data owner |
-| Programming by Intention | Top-down, declarative style |
-| Design to Interfaces | Depend on abstractions |
+### Security
+- **OWASP Top 10**: Critical web vulnerabilities
+- **Least Privilege**: Minimal permissions, reduced blast radius
 
-## Practices
+### Architecture
+- **C4 Model**: Context, Container, Component, Code
+- **Circuit Breaker**: Fail-fast resilience pattern
+- **Strangler Fig**: Incremental legacy modernization
+- **Event-Driven Architecture**: Pub-sub, CQRS, event sourcing
 
-| Practice | When to Apply |
-|----------|---------------|
-| TDD | All new code (red-green-refactor) |
-| Pair Programming | Knowledge transfer, complex problems |
-| Code Reviews | Pre-merge validation |
-| Refactoring | Small, continuous improvements |
-| Clean Architecture | New systems requiring flexibility |
-| 12-Factor | Cloud-native applications |
-| Trunk-Based Dev | Continuous integration |
-| Observability | Production systems (logs, metrics, traces) |
+### Thinking Models
+- **Wardley Mapping**: Evolution axis for technology strategy
+- **Cynefin Framework**: Clear, Complicated, Complex, Chaotic
+- **Antifragility**: Systems that improve from stress
+- **Rumsfeld Matrix**: Known/unknown uncertainty classification
 
-## Architecture Patterns
+### Team & Organization
+- **SRE**: Operations as software problem
+- **Team Topologies**: Stream-aligned, Platform, Enabling, Complicated-subsystem
 
-| Pattern | When to Use |
-|---------|-------------|
-| Hexagonal (Ports/Adapters) | Isolating core from infrastructure |
-| Bounded Contexts (DDD) | Multiple domain models |
-| Event-Driven | Loose coupling, scalability |
-| CQRS | Read-heavy systems with complex writes |
-| DORA Metrics | Measuring delivery performance |
-
-## Self-Reflection Questions
-
-Apply these before major decisions:
-
-1. Why was this code written this way?
-2. What's the real cost of this tech debt?
-3. What will break if I change this?
-4. What would I wish I had done differently in 3 months?
-5. Can this be tested easily?
-6. Is this over-engineered?
-7. Can a junior engineer understand this?
-8. Am I optimizing for today or imagined future?
-
-## Distributed Systems (Advanced)
-
-| Concept | Memory File | Quick Reference |
-|---------|-------------|-----------------|
-| CAP Theorem | `cap-theorem` | C, A, P: pick two |
-| Resilience Patterns | `resilience-patterns` | Circuit breaker, bulkhead, retry |
-| Backpressure | `backpressure-pattern` | Throttle upstream when downstream overwhelmed |
-| Idempotency | `idempotency-pattern` | Safe to retry operations |
-
-## Architecture Documentation (Advanced)
-
-| Concept | Memory File | Quick Reference |
-|---------|-------------|-----------------|
-| C4 Model | `c4-model` | Context, Container, Component, Code |
-| Poka-Yoke | `poka-yoke` | Make errors impossible or obvious |
-
-## Software Craft (Advanced)
-
-| Concept | Memory File | Quick Reference |
-|---------|-------------|-----------------|
-| Code Smells | `code-smells-catalog` | God Class, Feature Envy, etc. |
-| Design Patterns | `design-patterns-usage-guide` | When to use, risks if misused |
-
-## Security (Advanced)
-
-| Concept | Memory File | Quick Reference |
-|---------|-------------|-----------------|
-| OWASP Principles | `security-principles-owasp` | Top 10, Least Privilege, Input Validation |
-
-## Domain-Driven Design (Advanced)
-
-| Concept | Memory File | Quick Reference |
-|---------|-------------|-----------------|
-| Event Storming | `ddd-event-storming` | Visual domain modeling technique |
-
-## Engineering Culture (Advanced)
-
-| Concept | Memory File | Quick Reference |
-|---------|-------------|-----------------|
-| Paved Roads | `paved-roads-innovation` | Default choices with deviation paths |
-| Sociotechnical Systems | `sociotechnical-systems` | Tech and social intertwined |
-
-## Senior Engineering Knowledge (Advanced)
-
-| Concept | Memory File | Quick Reference |
-|---------|-------------|-----------------|
-| Tradeoff Thinking | `tradeoff-thinking` | Name tradeoffs explicitly |
-| Design by Contract | `design-by-contract` | Preconditions, postconditions, invariants |
-| Fallacies of Distributed Computing | `fallacies-distributed-computing` | Network is unreliable |
-| Feature Toggles | `feature-toggles` | Decouple deploy from release |
-| Strangler Fig Pattern | `strangler-fig-pattern` | Incremental migration |
-| SLO/SLI/SLA | `slo-sli-sla` | Error budgets, reliability targets |
-| Cynefin Framework | `cynefin-framework` | Clear, Complicated, Complex, Chaotic |
-| Wardley Mapping | `wardley-mapping` | Innovate vs commoditize |
-| Antifragility | `antifragility` | Improve with stress |
-| Staff Engineer Trajectory | `staff-engineer-trajectory` | Career growth path |
-| Engineering as Social Activity | `engineering-as-social-activity` | Writing, mentoring, cross-functional |
-
-## Principal/Staff+ Knowledge (15+ Years)
-
-| Concept | Memory File | Quick Reference |
-|---------|-------------|-----------------|
-| OODA Loop | `ooda-loop` | Observe, Orient, Decide, Act |
-| Rumsfeld Matrix | `rumsfeld-matrix` | Known/unknown knowns and unknowns |
-| Inversion Thinking | `inversion-thinking` | Ask what would guarantee failure |
-| Critical Path Method | `critical-path-method` | Identify and optimize key constraints |
-| Systems Archetypes | `systems-archetypes` | Fixes That Fail, Shifting Burden, etc. |
-| Chaos Engineering | `chaos-engineering` | Experiment to build resilience confidence |
-| Pre-Mortems | `pre-mortems` | Imagine failure to identify risks |
-| Team Topologies | `team-topologies` | Four team types, three interaction modes |
-| Engineering Strategy | `engineering-strategy` | Vision, strategy, specifications layers |
-| Platform Engineering | `platform-engineering` | Self-service developer platforms |
-| Buy vs Build | `buy-vs-build` | When to buy vendor vs build in-house |
-| Migrations at Scale | `migrations-at-scale` | Org-wide change management |
-| Products Over Projects | `products-over-projects` | Fund teams, not projects |
-| Threat Modeling | `threat-modeling` | Structured security analysis |
-| SLSA Supply Chain | `slsa-supply-chain` | Artifact integrity framework |
-| ADRs | `adrs-architecture-decision-records` | Document architecture decisions |
-
-## Distinguished Engineer Knowledge (25+ Years)
-
-| Concept | Memory File | Quick Reference |
-|---------|-------------|-----------------|
-| Lindy Effect | `distinguished-engineer-knowledge-index` | Systems that survive longer keep surviving |
-| Second-System Effect | `distinguished-engineer-knowledge-index` | Rewrites tend to be over-engineered |
-| Path Dependence | `distinguished-engineer-knowledge-index` | Past decisions constrain current options |
-| Architectural Paleontology | `distinguished-engineer-knowledge-index` | Read legacy system layers |
-| Golden Path vs Golden Cage | `distinguished-engineer-knowledge-index` | Enable, don't constrain |
-| Uptime Inequity | `distinguished-engineer-knowledge-index` | Not all systems deserve same SLO |
-| Sociotechnical Coherence | `distinguished-engineer-knowledge-index` | Tech and org evolve together |
-| Run vs Change the Business | `distinguished-engineer-knowledge-index` | Separate ops from innovation |
-| Systemic Risk Portfolios | `distinguished-engineer-knowledge-index` | Classify dependencies and failure risk |
-| Compliance as Code | `distinguished-engineer-knowledge-index` | Codify policy in OPA |
-| Data Lineage and Sovereignty | `distinguished-engineer-knowledge-index` | Track data across jurisdictions |
-| Expand and Contract | `distinguished-engineer-knowledge-index` | Safe schema/API changes |
-| Sacrificial Architecture | `distinguished-engineer-knowledge-index` | Plan for 10x, rewrite before 100x |
-| Core/Context Mapping | `distinguished-engineer-knowledge-index` | Build core, buy context |
-| Three Horizons Framework | `distinguished-engineer-knowledge-index` | H1 (run), H2 (change), H3 (transform) |
-| Principle-Based Governance | `distinguished-engineer-knowledge-index` | Values over rules |
-| TOGAF / Enterprise Architecture | `distinguished-engineer-knowledge-index` | Cross-cutting tech-business integration |
-| Technical Ethics | `distinguished-engineer-knowledge-index` | Fairness, privacy, safety |
-| Knowledge Continuity | `distinguished-engineer-knowledge-index` | Prevent knowledge rot |
-| Shearing Layers | `distinguished-engineer-knowledge-index` | Different components change at different rates |
-
-## Related
-
-- Full analysis (Part 1): `.agents/analysis/foundational-engineering-knowledge.md`
-- Full analysis (Part 2): `.agents/analysis/advanced-engineering-knowledge.md`
-- Full analysis (Part 3): `.agents/analysis/senior-engineering-knowledge.md`
-- Full analysis (Part 4): `.agents/analysis/principal-engineering-knowledge.md`
-- Full analysis (Part 5): `.agents/analysis/distinguished-engineer-knowledge.md`
-- Distinguished Engineer index: `distinguished-engineer-knowledge-index`
-- Chesterton integration: `chestertons-fence-memory-integration`
-- Design approaches: `design-approaches-detailed`
-- ADR concepts: `adr-foundational-concepts`
+## Cross-References
+- Security: `security-principles-owasp`
+- Architecture: `c4-model`, `strangler-fig-pattern`
+- Thinking: `cynefin-framework`, `antifragility`, `wardley-mapping`
+- Principles: `yagni-principle`, `boy-scout-rule`, `law-of-demeter`
