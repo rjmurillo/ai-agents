@@ -66,6 +66,7 @@ See [references/phases.md](references/phases.md) for full phase details.
 ```
 
 **Guidelines**:
+
 - Execute phases in order
 - Use Serena's `find_symbol` and `find_referencing_symbols`
 - Deduplicate entities before creating

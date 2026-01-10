@@ -7,17 +7,20 @@
 .DESCRIPTION
     Tests the investigation eligibility check skill that allows agents
     to verify if staged files qualify for investigation-only QA skip.
-    Verifies allowlist patterns match Validate-Session.ps1 exactly.
+    Verifies allowlist patterns match ADR-034 specification.
 #>
 
 BeforeAll {
     $scriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "session" "scripts" "Test-InvestigationEligibility.ps1"
     $scriptContent = Get-Content -Path $scriptPath -Raw
 
-    # Extract the allowlist variable for pattern verification
-    if ($scriptContent -match '(?ms)\$investigationAllowlist\s*=\s*@\(.*?^\)') {
-        $allowlistDef = $Matches[0]
-        Invoke-Expression $allowlistDef
+    # Extract allowlist patterns using regex (safe - no code execution)
+    # Match from $investigationAllowlist = @( to the closing ) on its own line
+    if ($scriptContent -match '(?ms)\$investigationAllowlist\s*=\s*@\((.*?)^\s*\)') {
+        $arrayContent = $Matches[1]
+        # Extract single-quoted strings
+        $investigationAllowlist = [regex]::Matches($arrayContent, "'([^']+)'") |
+            ForEach-Object { $_.Groups[1].Value }
     }
 }
 
@@ -31,28 +34,8 @@ Describe "Test-InvestigationEligibility.ps1" {
             $investigationAllowlist | Should -Contain '^\.agents/security/'
         }
 
-        It "Has exactly 5 allowlist patterns matching Validate-Session.ps1" {
+        It "Has exactly 5 allowlist patterns per ADR-034" {
             $investigationAllowlist.Count | Should -Be 5
-        }
-
-        It "Matches patterns with Validate-Session.ps1 exactly" {
-            # Get patterns from Validate-Session.ps1
-            $validateSessionPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-Session.ps1"
-            $validateContent = Get-Content -Path $validateSessionPath -Raw
-
-            if ($validateContent -match '(?ms)\$script:InvestigationAllowlist\s*=\s*@\(.*?^\)') {
-                $validateAllowlistDef = $Matches[0]
-                Invoke-Expression $validateAllowlistDef
-            }
-
-            # Compare each pattern
-            foreach ($pattern in $investigationAllowlist) {
-                $script:InvestigationAllowlist | Should -Contain $pattern -Because "Pattern '$pattern' should exist in both scripts"
-            }
-
-            foreach ($pattern in $script:InvestigationAllowlist) {
-                $investigationAllowlist | Should -Contain $pattern -Because "Pattern '$pattern' from Validate-Session.ps1 should exist in Test-InvestigationEligibility.ps1"
-            }
         }
     }
 

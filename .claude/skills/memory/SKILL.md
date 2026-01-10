@@ -45,12 +45,14 @@ pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
 ### Why This Matters
 
 **Without memory search** (removing fence without investigation):
+
 - Agent encounters complex code, thinks "this is ugly, I'll refactor it"
 - Removes validation logic that prevents edge case
 - Production incident occurs
 - Memory contains past incident that explains why validation existed
 
 **With memory search** (Chesterton's Fence investigation):
+
 - Agent encounters complex code
 - Searches memory: `Search-Memory.ps1 -Query "validation logic edge case"`
 - Finds past incident explaining why code exists
@@ -71,15 +73,18 @@ When you encounter something you want to change:
 ### What Memory Contains (Git Archaeology)
 
 **Tier 1 (Semantic)**: Facts, patterns, constraints
+
 - Why does PowerShell-only constraint exist? (ADR-005)
 - Why do skills exist instead of raw CLI? (usage-mandatory)
 - What incidents led to BLOCKING gates? (protocol-blocking-gates)
 
 **Tier 2 (Episodic)**: Past session outcomes
+
 - What happened when we tried approach X? (session replay)
 - What edge cases did we encounter? (failure episodes)
 
 **Tier 3 (Causal)**: Decision patterns
+
 - What decisions led to success? (causal paths)
 - What patterns should we repeat/avoid? (success/failure patterns)
 
@@ -100,6 +105,7 @@ When you encounter something you want to change:
 ### Connection to Chesterton's Fence Analysis
 
 See `.agents/analysis/chestertons-fence.md` for:
+
 - 4-phase decision framework (Investigation → Understanding → Evaluation → Action)
 - Application to ai-agents project (ADR-037 recursion guard, skills-first violations)
 - Decision matrix for when to investigate
