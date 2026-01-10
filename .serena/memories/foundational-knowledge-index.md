@@ -128,11 +128,33 @@ Apply these before major decisions:
 | Staff Engineer Trajectory | `staff-engineer-trajectory` | Career growth path |
 | Engineering as Social Activity | `engineering-as-social-activity` | Writing, mentoring, cross-functional |
 
+## Principal/Staff+ Knowledge (15+ Years)
+
+| Concept | Memory File | Quick Reference |
+|---------|-------------|-----------------|
+| OODA Loop | `ooda-loop` | Observe, Orient, Decide, Act |
+| Rumsfeld Matrix | `rumsfeld-matrix` | Known/unknown knowns and unknowns |
+| Inversion Thinking | `inversion-thinking` | Ask what would guarantee failure |
+| Critical Path Method | `critical-path-method` | Identify and optimize key constraints |
+| Systems Archetypes | `systems-archetypes` | Fixes That Fail, Shifting Burden, etc. |
+| Chaos Engineering | `chaos-engineering` | Experiment to build resilience confidence |
+| Pre-Mortems | `pre-mortems` | Imagine failure to identify risks |
+| Team Topologies | `team-topologies` | Four team types, three interaction modes |
+| Engineering Strategy | `engineering-strategy` | Vision, strategy, specifications layers |
+| Platform Engineering | `platform-engineering` | Self-service developer platforms |
+| Buy vs Build | `buy-vs-build` | When to buy vendor vs build in-house |
+| Migrations at Scale | `migrations-at-scale` | Org-wide change management |
+| Products Over Projects | `products-over-projects` | Fund teams, not projects |
+| Threat Modeling | `threat-modeling` | Structured security analysis |
+| SLSA Supply Chain | `slsa-supply-chain` | Artifact integrity framework |
+| ADRs | `adrs-architecture-decision-records` | Document architecture decisions |
+
 ## Related
 
 - Full analysis (Part 1): `.agents/analysis/foundational-engineering-knowledge.md`
 - Full analysis (Part 2): `.agents/analysis/advanced-engineering-knowledge.md`
 - Full analysis (Part 3): `.agents/analysis/senior-engineering-knowledge.md`
+- Full analysis (Part 4): `.agents/analysis/principal-engineering-knowledge.md`
 - Chesterton integration: `chestertons-fence-memory-integration`
 - Design approaches: `design-approaches-detailed`
 - ADR concepts: `adr-foundational-concepts`
