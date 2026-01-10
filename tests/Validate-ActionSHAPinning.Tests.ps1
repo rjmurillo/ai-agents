@@ -180,6 +180,206 @@ jobs:
         }
     }
 
+    Context "SEMVER Variations" {
+        It "Detects major version only (v1)" {
+            $testDir = Join-Path $TestDrive "semver-major-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+
+        It "Detects major.minor version (v2.1)" {
+            $testDir = Join-Path $TestDrive "semver-minor-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v2.1
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+
+        It "Detects major.minor.patch version (v3.2.1)" {
+            $testDir = Join-Path $TestDrive "semver-patch-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v3.2.1
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+
+        It "Detects prerelease with alpha suffix (v1.0.0-alpha)" {
+            $testDir = Join-Path $TestDrive "semver-alpha-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1.0.0-alpha
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+
+        It "Detects prerelease with numeric suffix (v1.0.0-alpha.1)" {
+            $testDir = Join-Path $TestDrive "semver-alpha-numeric-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v1.0.0-alpha.1
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+
+        It "Detects prerelease with dotted identifiers (v1.0.0-0.3.7)" {
+            $testDir = Join-Path $TestDrive "semver-dotted-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v1.0.0-0.3.7
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+
+        It "Detects prerelease with complex identifiers (v1.0.0-x.7.z.92)" {
+            $testDir = Join-Path $TestDrive "semver-complex-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/upload-artifact@v1.0.0-x.7.z.92
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+
+        It "Detects version with build metadata (v1.0.0+20130313144700)" {
+            $testDir = Join-Path $TestDrive "semver-build-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1.0.0+20130313144700
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+
+        It "Detects version with prerelease and build metadata (v1.0.0-beta+exp.sha.5114f85)" {
+            $testDir = Join-Path $TestDrive "semver-full-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v1.0.0-beta+exp.sha.5114f85
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+    }
+
     Context "Output Formats" {
         BeforeAll {
             $script:testDir = Join-Path $TestDrive "format-test"

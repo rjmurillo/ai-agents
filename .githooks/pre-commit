@@ -751,10 +751,11 @@ if [ -n "$STAGED_WORKFLOW_FILES_FOR_SHA" ]; then
                     continue
                 fi
                 
-                # Check for version tag pattern (including suffixes like -alpha, -beta, -rc1)
-                if echo "$line" | grep -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+[^@]+@v[0-9]+(\.[0-9]+)*(-[a-zA-Z0-9]+)?[[:space:]]*(#|$)' > /dev/null; then
+                # Check for version tag pattern per SEMVER 2.0.0
+                # Matches: v<major>[.<minor>][.<patch>][-<prerelease>][+<buildmetadata>]
+                if echo "$line" | grep -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+[^@]+@v[0-9]+(\.[0-9]+)*(-[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?(\+[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?[[:space:]]*(#|$)' > /dev/null; then
                     ACTION=$(echo "$line" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+([^@]+)@.*/\1/')
-                    TAG=$(echo "$line" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+[^@]+@(v[0-9]+(\.[0-9]+)*).*/\1/')
+                    TAG=$(echo "$line" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+[^@]+@(v[0-9]+.*)/\1/' | sed -E 's/[[:space:]].*//')
                     
                     VIOLATIONS_FOUND=$((VIOLATIONS_FOUND + 1))
                     VIOLATION_DETAILS="${VIOLATION_DETAILS}  ${workflow_file}:${LINE_NUM} - uses: ${ACTION}@${TAG}"$'\n'

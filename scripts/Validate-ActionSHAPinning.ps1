@@ -98,11 +98,15 @@ if ($workflowFiles.Count -eq 0) {
 
 Write-ColorOutput "Scanning $($workflowFiles.Count) workflow/action file(s)..." $ColorCyan
 
-# Regex pattern to detect version tag usage
-# Matches: uses: <action>@v<digits>[.<digits>]* with optional suffixes like -alpha, -beta, -rc1
+# Regex pattern to detect version tag usage per SEMVER 2.0.0
+# Matches: uses: <action>@v<major>[.<minor>][.<patch>][-<prerelease>][+<buildmetadata>]
+# Examples: v1, v2.1, v3.2.1, v1.0.0-alpha, v1.0.0-alpha.1, v1.0.0-0.3.7, 
+#           v1.0.0-x.7.z.92, v1.0.0+20130313144700, v1.0.0-beta+exp.sha.5114f85
 # Excludes: 40 hex character SHAs (which would have [a-f0-9]{40}), local actions (./)
 # Note: Accounts for YAML list markers (-)
-$versionTagPattern = '^\s*-?\s*uses:\s+([^@]+)@(v\d+(?:\.\d+)*(?:-[a-zA-Z0-9]+)?)\s*(?:#.*)?$'
+# Prerelease: hyphen followed by dot-separated alphanumeric identifiers
+# Build metadata: plus followed by dot-separated alphanumeric identifiers
+$versionTagPattern = '^\s*-?\s*uses:\s+([^@]+)@(v\d+(?:\.\d+)*(?:-[a-zA-Z0-9]+(?:\.[a-zA-Z0-9]+)*)?(?:\+[a-zA-Z0-9]+(?:\.[a-zA-Z0-9]+)*)?)\s*(?:#.*)?$'
 
 $violations = @()
 
