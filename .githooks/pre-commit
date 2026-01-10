@@ -747,14 +747,14 @@ if [ -n "$STAGED_WORKFLOW_FILES_FOR_SHA" ]; then
                 LINE_NUM=$((LINE_NUM + 1))
                 
                 # Skip local actions
-                if echo "$line" | grep -E '^\s*uses:\s+\./' > /dev/null; then
+                if echo "$line" | grep -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+\./' > /dev/null; then
                     continue
                 fi
                 
                 # Check for version tag pattern
-                if echo "$line" | grep -E '^\s*uses:\s+[^@\s]+@v[0-9]+(\.[0-9]+)*\s*' > /dev/null; then
-                    ACTION=$(echo "$line" | sed -E 's/^\s*uses:\s+([^@\s]+)@.*/\1/')
-                    TAG=$(echo "$line" | sed -E 's/^\s*uses:\s+[^@\s]+@(v[0-9]+(\.[0-9]+)*).*/\1/')
+                if echo "$line" | grep -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+[^@]+@v[0-9]+(\.[0-9]+)*[[:space:]]*' > /dev/null; then
+                    ACTION=$(echo "$line" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+([^@]+)@.*/\1/')
+                    TAG=$(echo "$line" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+[^@]+@(v[0-9]+(\.[0-9]+)*).*/\1/')
                     
                     VIOLATIONS_FOUND=$((VIOLATIONS_FOUND + 1))
                     VIOLATION_DETAILS="${VIOLATION_DETAILS}  ${workflow_file}:${LINE_NUM} - uses: ${ACTION}@${TAG}"$'\n'

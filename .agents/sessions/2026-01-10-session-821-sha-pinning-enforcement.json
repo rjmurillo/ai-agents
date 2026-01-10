@@ -47,14 +47,18 @@
       "timestamp": "2026-01-10T22:20:00Z",
       "action": "Created comprehensive test suite Validate-ActionSHAPinning.Tests.ps1",
       "outcome": "11 test cases covering script validation, parameters, workflow detection, output formats, exit codes - all passing"
+    },
+    {
+      "timestamp": "2026-01-10T22:25:00Z",
+      "action": "Fixed pre-commit hook bash regex to use POSIX character classes",
+      "outcome": "Changed \\s to [[:space:]] for better compatibility, verified blocking works correctly"
     }
   ],
   "nextSteps": [
-    "Test pre-commit hook blocks version tags in practice",
-    "Verify CI validation runs successfully on PR",
-    "Monitor for any false positives in SHA detection"
+    "Monitor CI validation on PR",
+    "Verify no false positives in production workflows"
   ],
-  "endingCommit": null,
+  "endingCommit": "9e00f52",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
