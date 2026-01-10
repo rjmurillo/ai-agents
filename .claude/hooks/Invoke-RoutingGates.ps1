@@ -66,6 +66,7 @@ end {
     }
     catch {
         # If JSON parsing fails, treat as empty command (fail-open)
+        Write-Warning "Invoke-RoutingGates: Failed to parse input JSON. Error: $_. Assuming empty command and allowing action."
         $Command = ''
     }
 
@@ -177,6 +178,7 @@ end {
         }
         catch {
             # On error, fail-open (allow)
+            Write-Warning "Invoke-RoutingGates: Failed to determine changed files. Error: $_. Assuming documentation-only changes and allowing action."
             return $true
         }
     }
