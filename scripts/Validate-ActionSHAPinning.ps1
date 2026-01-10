@@ -3,7 +3,7 @@
     Validates that all GitHub Actions are pinned to commit SHA, not version tags.
 
 .DESCRIPTION
-    Scans all workflow files in .github/workflows/ for third-party action references.
+    Scans all workflow files in .github/workflows/ and .github/actions/ for third-party action references.
     Ensures actions are pinned to commit SHA (40 hex characters) rather than mutable
     version tags (e.g., @v4, @v3.2.1).
     
@@ -66,36 +66,37 @@ if (-not $resolvedPath) {
     exit 1
 }
 
-# Find all workflow files
+# Find all workflow and action files
 $workflowPath = Join-Path $resolvedPath ".github/workflows"
-if (-not (Test-Path $workflowPath)) {
-    Write-ColorOutput "No .github/workflows directory found at $resolvedPath" $ColorYellow
-    if ($Format -eq "json") {
-        @{
-            status = "skipped"
-            message = "No workflows directory"
-            violations = @()
-        } | ConvertTo-Json -Depth 10
-    }
-    exit 0
+$actionsPath = Join-Path $resolvedPath ".github/actions"
+
+$workflowFiles = @()
+
+# Scan workflows directory
+if (Test-Path $workflowPath) {
+    $workflowFiles += @(Get-ChildItem -Path $workflowPath -Filter "*.yml" -File -ErrorAction SilentlyContinue)
+    $workflowFiles += @(Get-ChildItem -Path $workflowPath -Filter "*.yaml" -File -ErrorAction SilentlyContinue)
 }
 
-$workflowFiles = @(Get-ChildItem -Path $workflowPath -Filter "*.yml" -File -ErrorAction SilentlyContinue)
-$workflowFiles += @(Get-ChildItem -Path $workflowPath -Filter "*.yaml" -File -ErrorAction SilentlyContinue)
+# Scan actions directory recursively
+if (Test-Path $actionsPath) {
+    $workflowFiles += @(Get-ChildItem -Path $actionsPath -Filter "*.yml" -File -Recurse -ErrorAction SilentlyContinue)
+    $workflowFiles += @(Get-ChildItem -Path $actionsPath -Filter "*.yaml" -File -Recurse -ErrorAction SilentlyContinue)
+}
 
 if ($workflowFiles.Count -eq 0) {
-    Write-ColorOutput "No workflow files found in $workflowPath" $ColorYellow
+    Write-ColorOutput "No .github/workflows or .github/actions directories found at $resolvedPath" $ColorYellow
     if ($Format -eq "json") {
         @{
             status = "skipped"
-            message = "No workflow files"
+            message = "No workflow or action files found"
             violations = @()
         } | ConvertTo-Json -Depth 10
     }
     exit 0
 }
 
-Write-ColorOutput "Scanning $($workflowFiles.Count) workflow file(s)..." $ColorCyan
+Write-ColorOutput "Scanning $($workflowFiles.Count) workflow/action file(s)..." $ColorCyan
 
 # Regex pattern to detect version tag usage
 # Matches: uses: <action>@v<digits>[.<digits>]*

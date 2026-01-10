@@ -1,5 +1,5 @@
 BeforeAll {
-    $script:scriptPath = "$PSScriptRoot/../Validate-ActionSHAPinning.ps1"
+    $script:scriptPath = "$PSScriptRoot/../scripts/Validate-ActionSHAPinning.ps1"
 }
 
 Describe "Validate-ActionSHAPinning" {

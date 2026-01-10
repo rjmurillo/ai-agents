@@ -718,7 +718,7 @@ fi
 
 echo_info "Checking GitHub Actions SHA pinning..."
 
-STAGED_WORKFLOW_FILES_FOR_SHA=$(echo "$STAGED_FILES" | grep -E '^\.github/workflows/.*\.(yml|yaml)$' || true)
+STAGED_WORKFLOW_FILES_FOR_SHA=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.(yml|yaml)$' || true)
 
 if [ -n "$STAGED_WORKFLOW_FILES_FOR_SHA" ]; then
     echo_info "Found workflow file(s) to validate"
