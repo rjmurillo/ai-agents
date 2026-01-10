@@ -9,103 +9,102 @@
   },
   "protocolCompliance": {
     "sessionStart": {
-      "initializeSerenaActivate": {
-        "status": "complete",
-        "evidence": "Tool output present - mcp__serena__activate_project called"
+      "serenaActivated": {
+        "Complete": true,
+        "level": "MUST",
+        "Evidence": "Tool output present - mcp__serena__activate_project called"
       },
-      "initializeSerenaInstructions": {
-        "status": "complete",
-        "evidence": "Tool output present - mcp__serena__initial_instructions called"
+      "serenaInstructions": {
+        "Complete": true,
+        "level": "MUST",
+        "Evidence": "Tool output present - mcp__serena__initial_instructions called"
       },
-      "readHandoff": {
-        "status": "complete",
-        "evidence": "Content in context - HANDOFF.md read"
+      "handoffRead": {
+        "Complete": true,
+        "level": "MUST",
+        "Evidence": "Content in context - HANDOFF.md read"
       },
-      "createSessionLog": {
-        "status": "complete",
-        "evidence": "This file exists"
+      "sessionLogCreated": {
+        "Complete": true,
+        "level": "MUST",
+        "Evidence": "This file exists"
       },
-      "listSkillScripts": {
-        "status": "n/a",
-        "evidence": "No GitHub operations needed for research task"
+      "skillScriptsListed": {
+        "Complete": true,
+        "level": "SHOULD",
+        "Evidence": "N/A - No GitHub operations needed for research task"
       },
-      "readUsageMandatory": {
-        "status": "complete",
-        "evidence": "Content in context - usage-mandatory memory read"
+      "usageMandatoryRead": {
+        "Complete": true,
+        "level": "MUST",
+        "Evidence": "Content in context - usage-mandatory memory read"
       },
-      "readProjectConstraints": {
-        "status": "n/a",
-        "evidence": "Research task does not modify constraints"
+      "constraintsRead": {
+        "Complete": true,
+        "level": "SHOULD",
+        "Evidence": "N/A - Research task does not modify constraints"
       },
-      "readMemoryIndex": {
-        "status": "complete",
-        "evidence": "Loaded: chestertons-fence-memory-integration, design-approaches-detailed, adr-foundational-concepts"
+      "memoriesLoaded": {
+        "Complete": true,
+        "level": "MUST",
+        "Evidence": "Loaded: chestertons-fence-memory-integration, design-approaches-detailed, adr-foundational-concepts"
       },
-      "importSharedMemories": {
-        "status": "n/a",
-        "evidence": "No shared memory imports needed"
+      "branchVerified": {
+        "Complete": true,
+        "level": "MUST",
+        "Evidence": "Branch: docs/foundational-knowledge"
       },
-      "verifyBranch": {
-        "status": "complete",
-        "evidence": "Branch: docs/foundational-knowledge"
+      "notOnMain": {
+        "Complete": true,
+        "level": "MUST",
+        "Evidence": "On feature branch"
       },
-      "confirmNotMainMaster": {
-        "status": "complete",
-        "evidence": "On feature branch"
+      "gitStatusVerified": {
+        "Complete": true,
+        "level": "SHOULD",
+        "Evidence": "Clean status at start"
       },
-      "verifyGitStatus": {
-        "status": "complete",
-        "evidence": "Clean status at start"
-      },
-      "noteStartingCommit": {
-        "status": "complete",
-        "evidence": "SHA: 49774eb5"
+      "startingCommitNoted": {
+        "Complete": true,
+        "level": "SHOULD",
+        "Evidence": "SHA: 49774eb5"
       }
     },
     "sessionEnd": {
-      "exportSessionMemories": {
-        "status": "n/a",
-        "evidence": "Memories created directly in Serena"
+      "serenaMemoryUpdated": {
+        "Complete": true,
+        "level": "MUST",
+        "Evidence": "Created 9 Serena memories for foundational knowledge"
       },
-      "securityReviewExport": {
-        "status": "n/a",
-        "evidence": "No export file created"
+      "checklistComplete": {
+        "Complete": true,
+        "level": "MUST",
+        "Evidence": "File complete"
       },
-      "completeSessionLog": {
-        "status": "complete",
-        "evidence": "File complete"
+      "markdownLintRun": {
+        "Complete": true,
+        "level": "MUST",
+        "Evidence": "Lint output clean"
       },
-      "updateSerenaMemory": {
-        "status": "complete",
-        "evidence": "Created 9 Serena memories for foundational knowledge"
+      "qaRouted": {
+        "Complete": true,
+        "level": "SHOULD",
+        "Evidence": "SKIPPED: investigation-only - only created documentation and memories"
       },
-      "runMarkdownLint": {
-        "status": "complete",
-        "evidence": "Lint output clean"
+      "changesCommitted": {
+        "Complete": false,
+        "level": "MUST",
+        "Evidence": "Commit SHA: pending"
       },
-      "routeToQA": {
-        "status": "n/a",
-        "evidence": "SKIPPED: investigation-only - only created documentation and memories"
+      "handoffNotUpdated": {
+        "Complete": true,
+        "level": "MUST NOT",
+        "Evidence": "HANDOFF.md unchanged"
       },
-      "commitChanges": {
-        "status": "pending",
-        "evidence": "Commit SHA: pending"
-      },
-      "doNotUpdateHandoff": {
-        "status": "complete",
-        "evidence": "HANDOFF.md unchanged"
-      },
-      "updateProjectPlan": {
-        "status": "n/a",
-        "evidence": "No project plan for research task"
-      },
-      "invokeRetrospective": {
-        "status": "n/a",
-        "evidence": "Skipped - straightforward research session"
-      },
-      "verifyCleanGitStatus": {
-        "status": "pending",
-        "evidence": "Pending commit"
+      "validationPassed": {
+        "Complete": false,
+        "level": "MUST",
+        "Evidence": "Pending commit"
       }
     }
   },
@@ -135,7 +134,7 @@
       "phase": "Memory Integration",
       "activities": [
         "Created foundational-knowledge-index memory as central index",
-        "Created 8 atomic memories for each mental model",
+        "Created 8 new atomic memories for the mental models (excluding the pre-existing Chesterton's Fence memory)",
         "Cross-referenced with existing memories (chestertons-fence-memory-integration, design-approaches-detailed)",
         "Ensured memories are searchable for future sessions"
       ]
