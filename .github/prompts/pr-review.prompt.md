@@ -1,7 +1,7 @@
 ---
 argument-hint: <PR_NUMBERS> [--parallel] [--cleanup]
 description: Use when responding to PR review comments for specified pull request(s)
-tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'forgetful/*', 'serena/*', 'todo', 'updateUserPreferences', 'memory'
+tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'forgetful/*', 'serena/*', 'todo', 'updateUserPreferences', 'memory']
 model: Claude Opus 4.5 (copilot)
 ---
 
