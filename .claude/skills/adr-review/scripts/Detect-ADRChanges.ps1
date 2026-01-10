@@ -34,9 +34,11 @@
     & .claude/skills/adr-review/scripts/Detect-ADRChanges.ps1 -SinceCommit "abc123"
 
 .NOTES
-    Exit codes:
+    Exit codes per ADR-035:
     0 - Success, changes may or may not exist
-    1 - Error during detection
+    1 - Logic or unexpected error
+    2 - Config/user error (e.g., invalid commit SHA, missing file)
+    3 - External error (e.g., I/O failure, git command failure)
 #>
 [CmdletBinding()]
 param(
@@ -121,8 +123,11 @@ try {
 
     # Check git diff for each pattern
     foreach ($pattern in $ADRPatterns) {
-        # Get diff status
-        $diffOutput = git diff --name-status "$SinceCommit" -- $pattern 2>$null
+        # Get diff status with error capture
+        $diffOutput = git diff --name-status "$SinceCommit" -- $pattern 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "git diff failed for pattern '$pattern': $diffOutput"
+        }
 
         if ($diffOutput) {
             foreach ($line in $diffOutput -split "`n") {
@@ -145,7 +150,11 @@ try {
         foreach ($dir in $ADRDirectories) {
             $dirPath = Join-Path $BasePath $dir
             if (Test-Path $dirPath) {
-                $untracked = git ls-files --others --exclude-standard -- "$($dir)/ADR-*.md" 2>$null
+                $untracked = git ls-files --others --exclude-standard -- "$($dir)/ADR-*.md" 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning "git ls-files failed for directory '$dir': $untracked"
+                    continue  # Non-fatal, continue with other directories
+                }
                 if ($untracked) {
                     $created += ($untracked -split "`n" | Where-Object { $_ })
                 }
@@ -201,7 +210,23 @@ try {
 
     exit 0
 }
+catch [System.Management.Automation.ItemNotFoundException] {
+    # File or directory not found - config/user error per ADR-035
+    Write-Error "Error: File or directory not found: $($_.Exception.Message)"
+    exit 2
+}
+catch [System.IO.IOException] {
+    # I/O failure - external error per ADR-035
+    Write-Error "Error: I/O failure: $($_.Exception.Message)"
+    exit 3
+}
+catch [System.Management.Automation.CommandNotFoundException] {
+    # Missing external command (git) - external error per ADR-035
+    Write-Error "Error: External dependency not found (git): $($_.Exception.Message)"
+    exit 3
+}
 catch {
+    # Logic or unexpected error per ADR-035
     Write-Error "Error detecting ADR changes: $($_.Exception.Message)"
     exit 1
 }

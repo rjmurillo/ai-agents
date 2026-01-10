@@ -1,21 +1,19 @@
 ---
 name: merge-resolver
 version: 2.0.0
-model: claude-opus-4-5-20251101
+description: Resolve merge conflicts by analyzing git history and commit intent. Use when PR has conflicts with base branch, can't merge due to conflicts, or need to fix merge conflicts systematically with session protocol validation.
 license: MIT
-description: >
-  Resolve merge conflicts intelligently using git history.
-  Fetches PR context, identifies conflicted files, uses git blame
-  and commit history to infer developer intent.
-  Applies resolution strategies based on change type (bugfix, feature, refactor).
-  Auto-resolves session artifacts and templates. Validates session protocol before push.
+model: claude-opus-4-5
 metadata:
-  domains: [git, github, merge-conflicts, pr-maintenance]
+  domains:
+  - git
+  - github
+  - merge-conflicts
+  - pr-maintenance
   type: workflow
   complexity: advanced
   adr: ADR-015
 ---
-
 # Merge Resolver
 
 Resolve merge conflicts by analyzing git history and commit intent.
@@ -195,7 +193,7 @@ if [ -z "$SESSION_LOG" ]; then
 fi
 
 # 2. Run session protocol validator
-pwsh scripts/Validate-Session.ps1 -SessionLogPath "$SESSION_LOG"
+pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath "$SESSION_LOG"
 
 # 3. If validation fails, fix issues before proceeding
 if [ $? -ne 0 ]; then
@@ -317,7 +315,7 @@ ADR-015 compliance:
 |-----------|----------|
 | All conflicts resolved | `git diff --check` returns empty |
 | No merge markers remain | `grep -r "<<<<<<" .` returns nothing |
-| Session protocol valid | `Validate-SessionEnd.ps1` exits 0 |
+| Session protocol valid | `Validate-SessionProtocol.ps1` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |
 
@@ -335,7 +333,7 @@ ADR-015 compliance:
 
 | Anti-Pattern | Why It Fails | Instead |
 |--------------|--------------|---------|
-| Push without session validation | CI blocks with MUST violations | Run `Validate-SessionEnd.ps1` first |
+| Push without session validation | CI blocks with MUST violations | Run `Validate-SessionProtocol.ps1` first |
 | Manual edit of generated files | Changes lost on regeneration | Edit template, run generator |
 | Accept --ours for HANDOFF.md | Branch version often stale | Accept --theirs (main is canonical) |
 | Merge lock files manually | JSON corruption, broken deps | Accept base, regenerate with npm/yarn |

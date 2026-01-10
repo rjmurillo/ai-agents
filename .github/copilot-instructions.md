@@ -1,224 +1,98 @@
 # GitHub Copilot Instructions
 
-## BLOCKING GATE: Session Protocol
+> **IMPORTANT**: This file is intentionally minimal to reduce context window bloat. All detailed instructions are in AGENTS.md.
 
-> **Canonical Source**: [.agents/SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md)
->
-> This file uses RFC 2119 key words. MUST = required, SHOULD = recommended, MAY = optional.
+## Agent Delegation for Complex Tasks
 
-### Phase 1: Serena Initialization (BLOCKING)
+For tasks requiring multiple steps, specialized expertise, or extensive context, delegate using `#runSubagent` rather than handling everything inline:
 
-If Serena MCP tools are available, you MUST NOT proceed to any other action until both calls succeed:
+| When to Delegate | Agent | Example Prompt |
+|------------------|-------|----------------|
+| Multi-step coordination | `orchestrator` | "Implement OAuth 2.0 with tests and docs" |
+| Codebase exploration | `analyst` | "Investigate why cache invalidation fails" |
+| Architecture decisions | `architect` | "Design the event sourcing pattern for orders" |
+| Implementation work | `implementer` | "Implement the UserService per approved plan" |
+| Plan validation | `critic` | "Review the migration plan for gaps" |
+| Security review | `security` | "Assess auth flow for vulnerabilities" |
+
+**Why delegate:**
+
+- Manages context window efficiently (agents start fresh)
+- Provides specialized system prompts and constraints
+- Returns focused results you can synthesize
+
+**Delegation pattern:**
 
 ```text
-1. serena/activate_project  (with project path)
-2. serena/initial_instructions
+#runSubagent orchestrator "Help me implement feature X end-to-end"
 ```
 
-**Verification**: Tool output appears in session transcript.
+**Keep inline:** Simple, single-file edits or quick lookups that don't require specialized reasoning.
 
-**If skipped**: You lack project memories, semantic code tools, and historical context.
+## Primary Reference
 
-**Check for Serena**: Look for tools prefixed with `serena/` or `mcp__serena__`.
+**Read AGENTS.md FIRST** for complete instructions:
 
-### Phase 2: Context Retrieval (BLOCKING)
+- Session protocol (blocking gates)
+- Agent catalog and workflows
+- Directory structure
+- GitHub workflow requirements
+- Skill system
+- Memory management
+- Quality gates
 
-You MUST read `.agents/HANDOFF.md` before starting work.
+**Path**: `../AGENTS.md` (repository root)
 
-**Verification**: Content appears in session context; you reference prior decisions.
+## Serena MCP Initialization (BLOCKING)
 
-**If skipped**: You will repeat completed work or contradict prior decisions.
+If Serena MCP tools are available, you MUST call FIRST:
 
-### Phase 3: Session Log (REQUIRED)
+1. `serena/activate_project` (with project path)
+2. `serena/initial_instructions`
 
-You MUST create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` early in session.
+**Check for**: Tools prefixed with `serena/` or `mcp__serena__`
 
-**Verification**: File exists with Protocol Compliance section.
+**If unavailable**: Proceed without Serena, but reference AGENTS.md for full context
 
-### Session End (BLOCKING)
+## Critical Constraints (Quick Reference)
 
-You CANNOT claim session completion until validation PASSES:
+> **Full Details**: `../.agents/governance/PROJECT-CONSTRAINTS.md`
 
-```bash
-pwsh scripts/Validate-Session.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
-```
+| Constraint | Source |
+|------------|--------|
+| PowerShell only (.ps1/.psm1) | ADR-005 |
+| No raw gh when skill exists | usage-mandatory |
+| No logic in workflow YAML | ADR-006 |
+| Verify branch before git operations | SESSION-PROTOCOL |
+| HANDOFF.md is read-only | ADR-014 |
 
-Before running validator, you MUST:
+## Session Protocol (Quick Reference)
 
-1. Complete Session End checklist in session log (all `[x]` checked)
-2. Update `.agents/HANDOFF.md` with session summary and session log link
+> **Full Details**: `../.agents/SESSION-PROTOCOL.md`
+
+**Session Start:**
+
+1. Initialize Serena (if available)
+2. Read HANDOFF.md (read-only dashboard)
+3. Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+4. Verify branch: `git branch --show-current`
+
+**Session End:**
+
+1. Complete session log
+2. Update Serena memory (if available)
 3. Run `npx markdownlint-cli2 --fix "**/*.md"`
-4. Commit all changes including `.agents/` files
-5. Record commit SHA in Session End checklist Evidence column
+4. Commit all changes
+5. Run `pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath [log]`
 
-**Verification**: Validator exits with code 0 (PASS).
+## Key Documents
 
-**If validation fails**: Fix violations and re-run validator. Do NOT claim completion.
-
-**QA Validation Exemptions** (per ADR-034):
-
-- Skip with `SKIPPED: docs-only` for documentation-only changes (no code, config, or test changes)
-- Skip with `SKIPPED: investigation-only` for investigation sessions when only staging: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`
-
-**Full protocol with RFC 2119 requirements**: [.agents/SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md)
-
-### Branch Operation Verification (MUST)
-
-Before ANY mutating git or GitHub operation, you MUST verify the current branch:
-
-```bash
-# 1. Always verify current branch first
-git branch --show-current
-
-# 2. Confirm it matches your intended PR/issue
-```
-
-**Required flags for external operations**:
-
-| Operation | Required Flag | Example |
-|-----------|---------------|---------|
-| `gh workflow run` | `--ref {branch}` | `gh workflow run ci.yml --ref feat/my-feature` |
-| `gh pr create` | `--base` and `--head` | `gh pr create --base main --head feat/my-feature` |
-
-**Anti-patterns to AVOID**:
-
-| Do NOT | Do Instead |
-|--------|------------|
-| `gh workflow run ci.yml` (no ref) | `gh workflow run ci.yml --ref {branch}` |
-| Assume you're on the right branch | Run `git branch --show-current` first |
-| Switch branches without checking status | Run `git status` before `git checkout` |
-
-**Why**: Branch confusion causes commits to wrong branches, workflows on wrong refs, and PRs from wrong base - wasting significant effort.
+1. **AGENTS.md** - Primary reference (read first)
+2. `.agents/SESSION-PROTOCOL.md` - Session requirements
+3. `.agents/HANDOFF.md` - Project dashboard (read-only)
+4. `.agents/governance/PROJECT-CONSTRAINTS.md` - Hard constraints
+5. `.agents/AGENT-SYSTEM.md` - Full agent details
 
 ---
 
-Refer to [AGENTS.md](../AGENTS.md) for complete project instructions.
-
-This file exists for GitHub Copilot's repo-level custom instructions. All canonical agent documentation is maintained in `AGENTS.md` to follow the DRY principle.
-
-## Quick Reference
-
-- **Agent invocation**: `@agent_name` in Copilot Chat or `#runSubagent with subagentType=agent_name`
-- **Memory system**: `cloudmcp-manager` memory tools
-- **Output directories**: `.agents/{analysis,architecture,planning,critique,qa,retrospective}/`
-
-For full details on workflows, agent catalog, and best practices, see [AGENTS.md](../AGENTS.md).
-
-<!-- BEGIN: ai-agents installer -->
-## AI Agent System
-
-This section provides instructions for using the multi-agent system with VS Code / Copilot Chat.
-
-### Overview
-
-A coordinated multi-agent system for software development. Specialized agents handle different responsibilities with explicit handoff protocols and persistent memory.
-
-### Primary Workflow Agents
-
-| Agent | Role | Best For | Output Directory |
-|-------|------|----------|------------------|
-| **orchestrator** | Task coordination | Complex multi-step tasks | N/A (routes to others) |
-| **analyst** | Pre-implementation research | Root cause analysis, requirements | `.agents/analysis/` |
-| **architect** | Design governance | ADRs, technical decisions | `.agents/architecture/` |
-| **planner** | Work package creation | Epic breakdown, milestones | `.agents/planning/` |
-| **implementer** | Code execution | Production code, tests | Source files |
-| **critic** | Plan validation | Review before implementation | `.agents/critique/` |
-| **qa** | Test verification | Test strategy, coverage | `.agents/qa/` |
-| **roadmap** | Strategic vision | Epic definition, prioritization | `.agents/roadmap/` |
-
-### Support Agents
-
-| Agent | Role | Best For |
-|-------|------|----------|
-| **memory** | Context continuity | Cross-session persistence |
-| **skillbook** | Skill management | Learned strategy updates |
-| **devops** | CI/CD pipelines | Build automation, deployment |
-| **security** | Vulnerability assessment | Threat modeling, secure coding |
-| **independent-thinker** | Assumption challenging | Alternative viewpoints |
-| **high-level-advisor** | Strategic decisions | Prioritization, unblocking |
-| **retrospective** | Reflector/learning | Outcome analysis, skill extraction |
-| **explainer** | Documentation | PRDs, technical specs |
-| **task-generator** | Task decomposition | Breaking epics into tasks |
-
-### Invoking Agents
-
-Use the `#runSubagent` command in Copilot Chat:
-
-```text
-#runSubagent with subagentType=orchestrator
-Help me implement a new feature for user authentication
-
-#runSubagent with subagentType=analyst
-Investigate why the API is returning 500 errors
-
-#runSubagent with subagentType=implementer
-Implement the login form per the plan in .agents/planning/
-
-#runSubagent with subagentType=critic
-Validate the implementation plan at .agents/planning/feature-plan.md
-```
-
-### Standard Workflows
-
-**Feature Development:**
-
-```text
-orchestrator -> analyst -> architect -> planner -> critic -> implementer -> qa -> retrospective
-```
-
-**Quick Fix Path:**
-
-```text
-implementer -> qa
-```
-
-**Strategic Decision Path:**
-
-```text
-independent-thinker -> high-level-advisor -> task-generator
-```
-
-### Handoff Protocol
-
-When handing off between agents:
-
-1. **Announce**: "Completing [task]. Handing off to [agent] for [purpose]"
-2. **Save Artifacts**: Store outputs in appropriate `.agents/` directory
-3. **Route**: Use `#runSubagent with subagentType={agent_name}`
-
-### Memory System
-
-Agents use `cloudmcp-manager` memory tools for cross-session continuity:
-
-- `cloudmcp-manager/memory-search_nodes`: Find relevant context
-- `cloudmcp-manager/memory-create_entities`: Store new knowledge
-- `cloudmcp-manager/memory-add_observations`: Update existing entities
-- `cloudmcp-manager/memory-create_relations`: Link related concepts
-
-### Routing Heuristics
-
-| Task Type | Primary Agent | Fallback |
-|-----------|---------------|----------|
-| Code implementation | implementer | - |
-| Architecture review | architect | analyst |
-| Task decomposition | task-generator | planner |
-| Challenge assumptions | independent-thinker | critic |
-| Test strategy | qa | implementer |
-| Research/investigation | analyst | - |
-| Strategic decisions | high-level-advisor | roadmap |
-| Documentation/PRD | explainer | planner |
-| CI/CD pipelines | devops | implementer |
-| Security review | security | analyst |
-| Post-project learning | retrospective | analyst |
-
-### Best Practices
-
-1. **Memory First**: Retrieve context before multi-step reasoning
-2. **Document Outputs**: Save artifacts to appropriate directories
-3. **Clear Handoffs**: Announce next agent and purpose
-4. **Store Learnings**: Update memory at milestones
-5. **Follow Plans**: The plan document is authoritative
-6. **Test Everything**: No skipping hard tests
-7. **Commit Atomically**: Small, conventional commits
-
-<!-- END: ai-agents installer -->
+**For complete documentation, workflows, examples, and best practices, see [AGENTS.md](../AGENTS.md).**

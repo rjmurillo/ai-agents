@@ -16,7 +16,7 @@ Copy these templates exactly when fixing session files. Do not recreate from mem
 | MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
 | MUST | Create this session log | [x] | This file exists |
 | MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented below |
-| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read usage-mandatory memory | [x] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
 | MUST | Read memory-index, load task-relevant memories | [x] | List memories loaded |
 | SHOULD | Verify git status | [x] | Output documented below |
@@ -111,7 +111,7 @@ Complete section for new session logs:
 | MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
 | MUST | Create this session log | [x] | This file exists |
 | MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented below |
-| MUST | Read skill-usage-mandatory memory | [x] | Content in context |
+| MUST | Read usage-mandatory memory | [x] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
 | MUST | Read memory-index, load task-relevant memories | [x] | List memories loaded |
 | SHOULD | Verify git status | [x] | Output documented below |

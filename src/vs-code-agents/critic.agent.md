@@ -116,6 +116,50 @@ mcp__cloudmcp-manager__memory-add_observations
 | Scope Assessment | Reasonable boundaries defined |
 | Debt Assessment | Technical debt implications noted |
 
+### Traceability Validation (Spec-Layer Plans)
+
+When reviewing plans that create or modify specification artifacts (requirements, designs, tasks), validate traceability compliance per `.agents/governance/traceability-schema.md`:
+
+#### Forward Traceability (REQ -> DESIGN)
+
+- [ ] Each requirement references at least one design document
+- [ ] REQ files include `related: [DESIGN-NNN]` in YAML front matter
+- [ ] No orphaned requirements (REQs without DESIGN references)
+
+#### Backward Traceability (TASK -> DESIGN)
+
+- [ ] Each task references at least one design document
+- [ ] TASK files include `related: [DESIGN-NNN]` in YAML front matter
+- [ ] No untraced tasks (TASKs without DESIGN references)
+
+#### Complete Chain Validation
+
+- [ ] Every DESIGN has backward trace to REQ(s)
+- [ ] Every DESIGN has forward trace from TASK(s)
+- [ ] Chain complete: REQ -> DESIGN -> TASK
+
+#### Reference Validity
+
+- [ ] All referenced IDs exist as files
+- [ ] No broken references (e.g., DESIGN-999 when file does not exist)
+- [ ] ID patterns match: `REQ-NNN`, `DESIGN-NNN`, `TASK-NNN`
+
+#### Validation Script
+
+Run traceability validation before approving spec-related plans:
+
+```powershell
+pwsh scripts/Validate-Traceability.ps1 -SpecsPath ".agents/specs"
+```
+
+#### Traceability Verdict
+
+| Result | Verdict | Action |
+|--------|---------|--------|
+| No errors, no warnings | [PASS] | Approve traceability |
+| Warnings only | [WARNING] | Note orphans, approve with caveats |
+| Errors found | [FAIL] | Block approval until fixed |
+
 ### Architecture
 
 | Criterion | What to Check |

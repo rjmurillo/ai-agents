@@ -1,8 +1,8 @@
 # AI Agents Enhancement Project Plan
 
-> **Version**: 2.0
+> **Version**: 2.3
 > **Created**: 2025-12-17
-> **Updated**: 2025-12-20
+> **Updated**: 2026-01-02
 > **Repository**: rjmurillo/ai-agents
 > **Goal**: Unify Kiro planning patterns, claude-flow capabilities, and Anthropic agent patterns
 
@@ -56,6 +56,12 @@ This plan consolidates work from:
 | #179 | MCP Tool Ecosystem | Phase 6 |
 | #180 | Reflexion Memory | Phase 2A (Memory) |
 | #181 | CLI Init Command | Phase 0 |
+| #721 | Graph Performance Optimization | Phase 2B (Graph Performance) |
+| #722 | Spec Management Tooling | Phase 2C (Spec Tooling) |
+| #723 | Frontmatter Standardization | Phase 2 (Documentation) |
+| #724 | Programming-Advisor Graph Consultation | Phase 2B (Graph Performance) |
+| #725 | Mermaid Diagram Conversion | Phase 2 (Documentation) |
+| #739 | Workflow Orchestration Enhancement | Phase 7 (MoAI-inspired) |
 
 ---
 
@@ -65,7 +71,7 @@ This plan consolidates work from:
 |--------|----------|--------|---------|
 | Planning artifacts | Ad-hoc | Structured 3-tier | Foundation complete |
 | Parallel execution | None | 2.8-4.4x speed improvement | Phase 3 pending |
-| Memory search | Sequential | 96-164x faster (vector) | Phase 2A pending |
+| Memory search | Sequential | 96-164x faster (vector) | MemoryRouter + Forgetful (PR #735) |
 | Traceability coverage | 0% | 100% | Framework in place |
 | Steering token efficiency | N/A | 30% reduction | 5 files ready |
 | Evaluator loops | Manual | Automated 3-iteration | Phase 5 pending |
@@ -78,16 +84,19 @@ This plan consolidates work from:
 | Phase | Name | Sessions | Dependencies | Status |
 |-------|------|----------|--------------|--------|
 | 0 | Foundation | 1-2 | None | COMPLETE |
-| 1 | Spec Layer | 2-3 | Phase 0 | PENDING |
-| 2 | Traceability + Metrics | 2-3 | Phase 1 | PENDING |
-| 2A | Memory System | 3-4 | Phase 0 | PENDING |
+| 1 | Spec Layer | 2-3 | Phase 0 | COMPLETE |
+| 2 | Traceability + Metrics | 2-3 | Phase 1 | COMPLETE (Traceability) |
+| 2A | Memory System | 3-4 | Phase 0 | COMPLETE |
+| 2B | Graph Performance | 1-2 | Phase 2 | PENDING |
+| 2C | Spec Management Tooling | 1-2 | Phase 2, 2B | PENDING |
 | 3 | Parallel Execution | 2-3 | Phase 0, 2A | PENDING |
 | 4 | Steering Scoping | 2-3 | Phase 1 | PARTIAL |
 | 5 | Evaluator-Optimizer | 2-3 | Phase 2, 3 | PENDING |
 | 5A | Session Automation | 2-3 | Phase 0, 2A | PENDING |
 | 6 | Integration Testing | 2-3 | All phases | PENDING |
+| 7 | Workflow Orchestration UX | 2-3 | Phase 3, 5A | PENDING |
 
-**Total Estimated Sessions**: 20-30
+**Total Estimated Sessions**: 24-37
 
 ---
 
@@ -129,7 +138,7 @@ This plan consolidates work from:
 
 ---
 
-## Phase 1: Spec Layer (Requirements, Design, Tasks)
+## Phase 1: Spec Layer (Requirements, Design, Tasks) - COMPLETE
 
 **Goal**: Implement Kiro's 3-tier planning hierarchy with EARS format.
 
@@ -148,13 +157,13 @@ SO THAT [rationale/value]
 | ID | Task | Complexity | Status | Session | PR |
 |----|------|------------|--------|---------|-----|
 | S-001 | Create EARS format template in `.agents/governance/ears-format.md` | S | COMPLETE | - | #603 |
-| S-002 | Create `src/claude/spec-generator.md` agent prompt | L | PENDING | - | - |
+| S-002 | Create `src/claude/spec-generator.md` agent prompt | L | COMPLETE | - | #605 |
 | S-003 | Create YAML front matter schema for requirements | S | COMPLETE | - | #604 |
 | S-004 | Create YAML front matter schema for design | S | COMPLETE | - | #604 |
 | S-005 | Create YAML front matter schema for tasks | S | COMPLETE | - | #604 |
-| S-006 | Update orchestrator with spec workflow routing | M | PENDING | - | - |
-| S-007 | Create sample specs for existing feature (dogfood) | M | PENDING | - | - |
-| S-008 | Document spec workflow in AGENT-SYSTEM.md | S | PENDING | - | - |
+| S-006 | Update orchestrator with spec workflow routing | M | COMPLETE | - | #605 |
+| S-007 | Create sample specs for existing feature (dogfood) | M | COMPLETE | - | #605 |
+| S-008 | Document spec workflow in AGENT-SYSTEM.md | S | COMPLETE | - | #690 |
 
 ### YAML Schema Reference
 
@@ -174,10 +183,10 @@ updated: YYYY-MM-DD
 
 ### Acceptance Criteria
 
-- [ ] spec-generator agent produces valid EARS requirements
-- [ ] All spec files have YAML front matter
-- [ ] Orchestrator routes "create spec" requests correctly
-- [ ] Sample specs demonstrate complete workflow
+- [x] spec-generator agent produces valid EARS requirements
+- [x] All spec files have YAML front matter
+- [x] Orchestrator routes "create spec" requests correctly
+- [x] Sample specs demonstrate complete workflow
 
 ---
 
@@ -195,25 +204,25 @@ updated: YYYY-MM-DD
 
 ### Tasks
 
-| ID | Task | Complexity | Status | Linked Issue |
-|----|------|------------|--------|--------------|
-| T-001 | Design traceability graph schema | M | PENDING | - |
-| T-002 | Create `scripts/Validate-Traceability.ps1` script | L | PENDING | - |
-| T-003 | Create pre-commit hook for traceability | M | PENDING | - |
-| T-004 | Update critic agent with traceability checklist | M | PENDING | - |
-| T-005 | Create orphan detection report format | S | PENDING | - |
-| T-006 | Add traceability metrics to retrospective | S | PENDING | - |
-| T-007 | Document traceability protocol | S | PENDING | - |
-| T-008 | Design metrics collection schema | M | PENDING | #169 |
-| T-009 | Implement session metrics capture | M | PENDING | #169 |
-| T-010 | Create performance monitoring dashboard spec | L | PENDING | #169 |
+| ID | Task | Complexity | Status | Linked Issue | PR |
+|----|------|------------|--------|--------------|-----|
+| T-001 | Design traceability graph schema | M | COMPLETE | - | #715 |
+| T-002 | Create `scripts/Validate-Traceability.ps1` script | L | COMPLETE | - | #715 |
+| T-003 | Create pre-commit hook for traceability | M | COMPLETE | - | #715 |
+| T-004 | Update critic agent with traceability checklist | M | COMPLETE | - | #715 |
+| T-005 | Create orphan detection report format | S | COMPLETE | - | #715 |
+| T-006 | Add traceability metrics to retrospective | S | COMPLETE | - | #715 |
+| T-007 | Document traceability protocol | S | COMPLETE | - | #715 |
+| T-008 | Design metrics collection schema | M | COMPLETE | #169 | #742 |
+| T-009 | Implement session metrics capture | M | PENDING | #169 | - |
+| T-010 | Create performance monitoring dashboard spec | L | PENDING | #169 | - |
 
 ### Acceptance Criteria
 
-- [ ] Validation script catches orphaned artifacts
-- [ ] Pre-commit hook blocks commits with broken refs
-- [ ] Critic validates traceability before approving
-- [ ] Retrospective reports traceability coverage %
+- [x] Validation script catches orphaned artifacts
+- [x] Pre-commit hook blocks commits with broken refs
+- [x] Critic validates traceability before approving
+- [x] Retrospective reports traceability coverage %
 - [ ] Session metrics captured automatically
 - [ ] Performance trends visible in dashboard
 
@@ -233,16 +242,17 @@ Claude-flow demonstrates:
 
 ### Tasks
 
-| ID | Task | Complexity | Status | Linked Issue |
-|----|------|------------|--------|--------------|
-| M-001 | Design vector memory architecture | L | PENDING | #167 |
-| M-002 | Implement semantic search for context retrieval | L | PENDING | #167 |
-| M-003 | Integrate with existing Serena memory system | M | PENDING | #167 |
-| M-004 | Design reflexion memory schema | M | PENDING | #180 |
-| M-005 | Implement causal reasoning storage | L | PENDING | #180 |
-| M-006 | Design neural pattern storage format | M | PENDING | #176 |
-| M-007 | Implement pattern extraction from retrospectives | M | PENDING | #176 |
-| M-008 | Create memory search benchmarks | S | PENDING | #167 |
+| ID | Task | Complexity | Status | Linked Issue | PR |
+|----|------|------------|--------|--------------|-----|
+| M-001 | Design vector memory architecture | L | COMPLETE | #167 | #735 |
+| M-002 | Implement semantic search for context retrieval | L | COMPLETE | #167 | #735 |
+| M-003 | Integrate with existing Serena memory system | M | COMPLETE | #167 | #735 |
+| M-004 | Design reflexion memory schema | M | COMPLETE | #180 | #735 |
+| M-005 | Implement causal reasoning storage | L | COMPLETE | #180 | #735 |
+| M-006 | Design neural pattern storage format | M | PENDING | #176 | - |
+| M-007 | Implement pattern extraction from retrospectives | M | PENDING | #176 | - |
+| M-008 | Create memory search benchmarks | S | COMPLETE | #167 | #735 |
+| M-009 | Bootstrap ai-agents project into memory system | L | COMPLETE | #167 | S-205 |
 
 ### Architecture
 
@@ -263,10 +273,119 @@ Claude-flow demonstrates:
 
 ### Acceptance Criteria
 
-- [ ] Semantic search faster than sequential scan
-- [ ] Causal reasoning improves debugging
-- [ ] Pattern learning reduces repeated errors
-- [ ] Integration with existing cloudmcp-manager and Serena
+- [x] Semantic search faster than sequential scan (Forgetful MCP provides 96-164x improvement)
+- [x] Causal reasoning improves debugging (ReflexionMemory.psm1, ADR-038)
+- [ ] Pattern learning reduces repeated errors (M-006, M-007 pending)
+- [x] Integration with existing cloudmcp-manager and Serena (MemoryRouter.psm1, ADR-037)
+- [x] Project knowledge bootstrapped into memory system (M-009 complete, S-205)
+
+### Implementation Notes (PR #735)
+
+**Delivered Artifacts:**
+
+| Component | Location | Description |
+|-----------|----------|-------------|
+| Memory Router | `.claude/skills/memory/scripts/MemoryRouter.psm1` | Unified Serena + Forgetful access |
+| Reflexion Memory | `.claude/skills/memory/scripts/ReflexionMemory.psm1` | 4-tier episodic/causal memory |
+| Search Skill | `.claude/skills/memory/scripts/Search-Memory.ps1` | Agent-facing search interface |
+| Benchmarks | `.claude/skills/memory/scripts/Measure-MemoryPerformance.ps1` | Performance measurement |
+| Health Check | `.claude/skills/memory/scripts/Test-MemoryHealth.ps1` | MCP connectivity validation |
+
+**Related ADRs:**
+
+- ADR-037: Memory Router Architecture
+- ADR-038: Reflexion Memory Schema
+
+**Test Coverage:** 113 tests passing (MemoryRouter: 38, ReflexionMemory: 62, Search-Memory: 13)
+
+### Bootstrap Task (M-009)
+
+**Objective**: Validate memory infrastructure with real project data.
+
+**Approach**:
+- Use `encode-repo-serena` skill (created in PR #740)
+- Populate Forgetful with existing Serena memories
+- Create entity relationships from `.agents/` artifacts
+- Build knowledge graph from ADRs, session logs, skills
+- Validate search performance with real queries
+
+**Success Criteria** (Session 205):
+- ✅ Semantic memories created (11 foundation + architecture memories in Forgetful)
+- ✅ Entity graph navigable (13 entities, 5 relationships: ADRs ↔ Modules ↔ Services ↔ Agents)
+- ⚠️ Search latency ~1.9s (defer optimization to Phase 2B G-003: Caching Strategy)
+- ✅ Memory Router routing verified (Serena-first with graceful Forgetful degradation)
+
+---
+
+## Phase 2B: Graph Performance Optimization
+
+**Goal**: Optimize the traceability graph for speed, robustness, and durability while maintaining markdown-only storage.
+
+### Background
+
+From PR #715 review:
+> This is a fun graph problem that's recomposing itself from the markdown each time. What's programming-advisor skill say about this? If we keep our own implementation of a poor man's graph database that's accessible without extra MCP... how do we make sure this is 1) super fast, 2) robust, 3) durable?
+
+**Project Principle**: Everything should be markdown and accessible without special tools, configuration, or context bloat.
+
+### Tasks
+
+| ID | Task | Complexity | Status | Linked Issue |
+|----|------|------------|--------|--------------|
+| G-001 | Consult programming-advisor on graph implementation | M | PENDING | #724 |
+| G-002 | Analyze algorithmic complexity of current traversal | S | PENDING | #721 |
+| G-003 | Design caching strategy (no external state) | M | PENDING | #721 |
+| G-004 | Implement performance optimizations | L | PENDING | #721 |
+| G-005 | Create performance benchmarks | S | PENDING | #721 |
+| G-006 | Document best practices for markdown-based graphs | S | PENDING | #721 |
+
+### Acceptance Criteria
+
+- [ ] Programming-advisor consultation completed
+- [ ] Graph traversal performance benchmarked
+- [ ] Caching strategy documented (markdown-only)
+- [ ] No external dependencies required
+- [ ] Performance targets met (sub-second for typical repos)
+
+---
+
+## Phase 2C: Spec Management Tooling
+
+**Goal**: Create scripts and tools for managing the traceability graph, enabling easy refactoring without manual find-and-replace.
+
+### Background
+
+From PR #715 review:
+> There's going to need to be a great set of scripts and tools for managing the graph. We need to refactor requirements, designs, and tasks as we iterate and learn. Giant find and replace is going to be too cumbersome and error prone and introduce too much friction. It's crap ergonomics.
+
+### Tasks
+
+| ID | Task | Complexity | Status | Linked Issue |
+|----|------|------------|--------|--------------|
+| SM-001 | Create `Rename-SpecId.ps1` (rename ID, update all refs) | L | PENDING | #722 |
+| SM-002 | Create `Update-SpecReferences.ps1` (bulk ref updates) | M | PENDING | #722 |
+| SM-003 | Create `Show-TraceabilityGraph.ps1` (text/Mermaid output) | M | PENDING | #722 |
+| SM-004 | Create `Resolve-OrphanedSpecs.ps1` (interactive wizard) | M | PENDING | #722 |
+| SM-005 | Add dry-run mode to all mutating operations | S | PENDING | #722 |
+| SM-006 | Add validation before changes (prevent partial updates) | M | PENDING | #722 |
+| SM-007 | Document spec management workflow | S | PENDING | #722 |
+
+### Proposed Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `Rename-SpecId.ps1` | Rename spec ID, update all referencing files |
+| `Update-SpecReferences.ps1` | Bulk update references across specs |
+| `Show-TraceabilityGraph.ps1` | Visualize graph (text or Mermaid output) |
+| `Resolve-OrphanedSpecs.ps1` | Interactive orphan resolution wizard |
+
+### Acceptance Criteria
+
+- [ ] Rename tool safely updates all references atomically
+- [ ] All tools validate before making changes
+- [ ] Dry-run mode available for all mutating operations
+- [ ] Error handling prevents partial updates
+- [ ] Workflow documented with examples
 
 ---
 
@@ -531,6 +650,55 @@ Use "pr-review-digest" agent as the test case:
 
 ---
 
+## Phase 7: Workflow Orchestration UX (MoAI-inspired)
+
+**Goal**: Provide numbered workflow commands and tiered agent hierarchy for improved developer experience.
+
+### Background: MoAI-ADK Pattern
+
+Inspired by [modu-ai/moai-adk](https://github.com/modu-ai/moai-adk):
+
+- 27 specialized agents in 5-tier hierarchy
+- Numbered workflow commands (/moai:0-project through /moai:4-ship)
+- "Mr. Alfred" central orchestrator
+- Auto-sync documentation
+
+### Tasks
+
+| ID | Task | Complexity | Status | Linked Issue |
+|----|------|------------|--------|--------------|
+| W-001 | Create workflow commands (/0-init through /9-sync) | M | PENDING | #739 |
+| W-002 | Add tier metadata to agent frontmatter | S | PENDING | #739 |
+| W-003 | Document 4-tier agent hierarchy | M | PENDING | #739 |
+| W-004 | Integrate with Agent Orchestration MCP | L | PENDING | #221 |
+| W-005 | Implement /2-impl --parallel variant | L | PENDING | #168 |
+| W-006 | Implement /9-sync auto-documentation | M | PENDING | #739 |
+| W-007 | Create PowerShell orchestration scripts | M | PENDING | #739 |
+
+### Agent Tier Hierarchy
+
+| Tier | Role | Agents |
+|------|------|--------|
+| Expert | Strategic depth | high-level-advisor, independent-thinker, architect, roadmap |
+| Manager | Coordination | orchestrator, planner, critic |
+| Builder | Execution | implementer, qa, devops, security |
+| Integration | Support | analyst, explainer, task-generator, retrospective, memory, skillbook, context-retrieval |
+
+### Acceptance Criteria
+
+- [ ] Numbered commands guide workflow sequence
+- [ ] Agent tiers documented with escalation paths
+- [ ] /0-init integrates with Session State MCP
+- [ ] /2-impl --parallel uses Agent Orchestration MCP
+- [ ] /9-sync auto-generates session documentation
+- [ ] Workflow discovery time reduced by 50%
+
+### PRD Reference
+
+- [prd-workflow-orchestration-enhancement.md](prd-workflow-orchestration-enhancement.md)
+
+---
+
 ## Risk Register
 
 | Risk | Probability | Impact | Mitigation |
@@ -554,6 +722,11 @@ Phase 0 (Foundation) ───────────────────�
     ├──> Phase 1 (Spec Layer)                     │
     │        │                                    │
     │        ├──> Phase 2 (Traceability) ────────>│
+    │        │        │                           │
+    │        │        ├──> Phase 2B (Graph Perf) ─┤
+    │        │        │        │                  │
+    │        │        │        └──> Phase 2C ────>│
+    │        │        │             (Spec Tools)  │
     │        │                                    │
     │        └──> Phase 4 (Steering) [PARTIAL] ──>│
     │                                             │
@@ -564,6 +737,8 @@ Phase 0 (Foundation) ───────────────────�
     └──> Phase 5A (Automation) ──────────────────>│
                                                   │
          Phase 5 (Evaluator) <────────────────────┤
+                                                  │
+         Phase 7 (Workflow UX) <──────────────────┤
                                                   │
                      Phase 6 (Integration) <──────┘
 ```
@@ -584,6 +759,8 @@ Project is complete when:
 - [ ] Session automation reduces manual protocol steps by 80%
 - [ ] Retrospective conducted with learnings persisted
 - [ ] All Epic #183 issues addressed or explicitly deferred
+- [ ] Workflow orchestration commands operational (#739)
+- [ ] Agent tier hierarchy documented and enforced
 
 ---
 
@@ -593,6 +770,13 @@ Project is complete when:
 |---------|------|-------|-------|--------|-----|
 | 1 | 2025-12-17 | 0 | F-001 to F-006 | COMPLETE | `.agents/sessions/2025-12-18-session-01-phase-0-foundation.md` |
 | 44 | 2025-12-20 | N/A | PROJECT-PLAN merge | COMPLETE | Current session |
+| 111+ | 2025-12-31 | 1 | S-001 to S-008 | COMPLETE | PRs #603, #604, #605, #690 |
+| 112 | 2025-12-31 | 1 | Epic #183 cleanup | COMPLETE | `.agents/sessions/2025-12-31-session-112-project-plan-evaluation.md` |
+| 113 | 2025-12-31 | 2 | T-001 to T-007 | COMPLETE | `.agents/sessions/2025-12-31-session-113-phase2-traceability.md` |
+| 123 | 2026-01-01 | 2A | Phase 2A planning | COMPLETE | `.agents/sessions/2026-01-01-session-123-phase2-planning.md` |
+| 124-125 | 2026-01-01 | 2A | ADR-037 review | COMPLETE | `.agents/sessions/2026-01-01-session-124-adr037-independent-review.md` |
+| 126 | 2026-01-01 | 2A | M-003, M-008 | COMPLETE | `.agents/sessions/2026-01-01-session-126-m003-implementation.md` |
+| 127+ | 2026-01-01 | 2A | M-004, M-005 | COMPLETE | PR #735 (ADR-038, ReflexionMemory) |
 
 ---
 
@@ -602,3 +786,6 @@ Project is complete when:
 |------|---------|---------|
 | 2025-12-17 | 1.0 | Initial project plan |
 | 2025-12-20 | 2.0 | Merged Epic #183 (claude-flow enhancements). Added Phase 2A (Memory), Phase 5A (Automation). Updated Phase 0,1,4 status. Integrated issues #167-#181 into phases. Added dependencies and success criteria for claude-flow metrics. |
+| 2025-12-31 | 2.1 | Marked Phase 1 (Spec Layer) COMPLETE. All tasks S-001 through S-008 delivered via PRs #603, #604, #605, #690. Reopened Epic #183 since child issues remain open. |
+| 2025-12-31 | 2.2 | Marked Phase 2 (Traceability) COMPLETE. Tasks T-001 to T-007 delivered via PR #715. Updated acceptance criteria. |
+| 2026-01-02 | 2.3 | Phase 2A Memory System IN PROGRESS. Tasks M-001 to M-005, M-008 COMPLETE in PR #735. MemoryRouter (ADR-037) and ReflexionMemory (ADR-038) implemented. M-006, M-007 (Neural Patterns) remain PENDING. Added Implementation Notes section with delivered artifacts. |

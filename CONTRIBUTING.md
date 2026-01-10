@@ -378,6 +378,149 @@ Supported reference formats:
 
 The AI Spec Validation workflow will check for these references on all PRs.
 
+## Forgetful MCP Server
+
+This project uses the [Forgetful MCP](https://github.com/ScottRBK/forgetful) server for AI agent memory. Forgetful provides semantic search, automatic knowledge graph construction, and cross-session memory persistence.
+
+### Setup
+
+Forgetful uses stdio transport with automatic installation via `uvx`. No manual service setup required.
+
+**Configure MCP client** (`.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "forgetful": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "forgetful-ai"
+      ]
+    }
+  }
+}
+```
+
+### Prerequisites
+
+Install `uv` if not already present:
+
+**Linux/macOS:**
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**Windows:**
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+### Verifying Connection
+
+After configuration, verify the MCP connection in your client:
+
+- **Claude Code**: Run `mcp__forgetful__discover_forgetful_tools()` to see available tools
+- Check logs if issues occur (uvx manages the process lifecycle automatically)
+
+## Claude Router Plugin
+
+This project supports the [Claude Router](https://github.com/0xrdan/claude-router) plugin for intelligent model routing and cost optimization.
+
+### What is Claude Router?
+
+Claude Router automatically directs queries to the most cost-effective Claude model (Haiku, Sonnet, or Opus) based on task complexity, reducing costs by up to 98% without sacrificing quality.
+
+### How It Works
+
+**Routing Logic:**
+
+- **Fast (Haiku):** Simple queries, factual questions, syntax help
+- **Standard (Sonnet):** Bug fixes, feature implementation, code review, refactoring
+- **Deep (Opus):** Architecture decisions, security audits, multi-file refactors, system design
+
+**Classification Mechanism:**
+
+1. **Rule-Based (Primary):** Instant pattern matching (~0ms latency, no API costs)
+2. **LLM Fallback (Secondary):** Uses Haiku for edge cases (~100ms latency, ~$0.001 per classification)
+
+### Installation
+
+**Option 1 - Plugin Marketplace (Recommended):**
+
+```bash
+# In any Claude Code session:
+/plugin marketplace add 0xrdan/claude-router
+/plugin install claude-router@claude-router-marketplace
+```
+
+Then restart Claude Code to load the plugin.
+
+**Option 2 - One-Command Install:**
+
+```bash
+curl -sSL https://raw.githubusercontent.com/0xrdan/claude-router/main/install.sh | bash
+```
+
+**Option 3 - Manual Install:**
+
+```bash
+git clone https://github.com/0xrdan/claude-router.git
+cd claude-router && ./install.sh
+```
+
+**Important:** Choose only one installation method to avoid conflicts.
+
+### Configuration
+
+**API Key (Required for LLM Fallback):**
+
+Set your Anthropic API key as an environment variable:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Or add to `.env` file.
+
+**Routing Enforcement:**
+
+The router enforcement rules are already configured in this project's `CLAUDE.md`. When Claude receives a routing directive, it will automatically spawn the appropriate executor subagent.
+
+### Usage
+
+**Automatic Routing (Default):**
+
+Submit queries normally. The UserPromptSubmit hook automatically classifies and routes them.
+
+**Manual Override:**
+
+Force a specific model when needed:
+
+```bash
+/route fast <query>     # Use Haiku
+/route standard <query> # Use Sonnet
+/route deep <query>     # Use Opus
+```
+
+**View Statistics:**
+
+```bash
+/router-stats
+```
+
+Displays routing history and cost savings metrics.
+
+### Notes
+
+- The marketplace must be added per project (updates are automatic thereafter)
+- Classification uses instant rule-matching when possible
+- LLM fallback only triggers for uncertain cases
+- Token overhead optimized to ~3.4k tokens per interaction
+- Slash commands (`/route`, `/router-stats`) and router questions are handled directly, not routed
+
 ## Questions?
 
 If you have questions about contributing, please open an issue or discussion.
