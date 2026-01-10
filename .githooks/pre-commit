@@ -705,6 +705,85 @@ if [ -n "$STAGED_GITHUB_SCRIPT_FILES" ]; then
 fi
 
 #
+# GitHub Actions SHA Pinning Validation (BLOCKING)
+#
+# Enforces security constraint from PROJECT-CONSTRAINTS.md.
+# All GitHub Actions must be pinned to commit SHA, not version tags.
+# Prevents supply chain attacks via mutable version references.
+#
+# Security: Blocks commits with version tags (@v4, @v3, etc.)
+# Reference: .agents/steering/security-practices.md#github-actions-security
+# Reference: .agents/governance/PROJECT-CONSTRAINTS.md#security-constraints
+#
+
+echo_info "Checking GitHub Actions SHA pinning..."
+
+STAGED_WORKFLOW_FILES_FOR_SHA=$(echo "$STAGED_FILES" | grep -E '^\.github/workflows/.*\.(yml|yaml)$' || true)
+
+if [ -n "$STAGED_WORKFLOW_FILES_FOR_SHA" ]; then
+    echo_info "Found workflow file(s) to validate"
+    
+    # SECURITY: Convert newline-separated file list to array (bash 3 compatible)
+    WORKFLOW_SHA_ARRAY=()
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        WORKFLOW_SHA_ARRAY+=("$file")
+    done <<< "$STAGED_WORKFLOW_FILES_FOR_SHA"
+    
+    # Check for version tags in uses: lines
+    # Pattern matches: uses: <action>@v<digits>
+    # Excludes: SHAs (40 hex chars), local actions (./)
+    VIOLATIONS_FOUND=0
+    VIOLATION_DETAILS=""
+    
+    for workflow_file in "${WORKFLOW_SHA_ARRAY[@]}"; do
+        # Get staged content
+        STAGED_CONTENT=$(git show ":$workflow_file" 2>/dev/null)
+        
+        if [ -n "$STAGED_CONTENT" ]; then
+            # Find line numbers with version tag violations
+            LINE_NUM=0
+            while IFS= read -r line; do
+                LINE_NUM=$((LINE_NUM + 1))
+                
+                # Skip local actions
+                if echo "$line" | grep -E '^\s*uses:\s+\./' > /dev/null; then
+                    continue
+                fi
+                
+                # Check for version tag pattern
+                if echo "$line" | grep -E '^\s*uses:\s+[^@\s]+@v[0-9]+(\.[0-9]+)*\s*' > /dev/null; then
+                    ACTION=$(echo "$line" | sed -E 's/^\s*uses:\s+([^@\s]+)@.*/\1/')
+                    TAG=$(echo "$line" | sed -E 's/^\s*uses:\s+[^@\s]+@(v[0-9]+(\.[0-9]+)*).*/\1/')
+                    
+                    VIOLATIONS_FOUND=$((VIOLATIONS_FOUND + 1))
+                    VIOLATION_DETAILS="${VIOLATION_DETAILS}  ${workflow_file}:${LINE_NUM} - uses: ${ACTION}@${TAG}"$'\n'
+                fi
+            done <<< "$STAGED_CONTENT"
+        fi
+    done
+    
+    if [ "$VIOLATIONS_FOUND" -gt 0 ]; then
+        echo_error "GitHub Actions MUST be pinned to SHA, not version tags"
+        echo_info ""
+        echo_warning "Found $VIOLATIONS_FOUND violation(s):"
+        echo "$VIOLATION_DETAILS"
+        echo_info "Required pattern:"
+        echo_success "  uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4"
+        echo_info ""
+        echo_info "To find SHA for a version tag:"
+        echo_info "  gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq '.object.sha'"
+        echo_info ""
+        echo_info "Reference: .agents/steering/security-practices.md#github-actions-security"
+        EXIT_STATUS=1
+    else
+        echo_success "All GitHub Actions are SHA-pinned"
+    fi
+else
+    echo_info "No workflow files staged, skipping SHA pinning check"
+fi
+
+#
 # HANDOFF.md Protection (BLOCKING)
 #
 # Enforces ADR-014: Distributed Handoff Architecture
