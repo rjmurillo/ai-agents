@@ -70,9 +70,52 @@ Apply these before major decisions:
 7. Can a junior engineer understand this?
 8. Am I optimizing for today or imagined future?
 
+## Distributed Systems (Advanced)
+
+| Concept | Memory File | Quick Reference |
+|---------|-------------|-----------------|
+| CAP Theorem | `cap-theorem` | C, A, P: pick two |
+| Resilience Patterns | `resilience-patterns` | Circuit breaker, bulkhead, retry |
+| Backpressure | `backpressure-pattern` | Throttle upstream when downstream overwhelmed |
+| Idempotency | `idempotency-pattern` | Safe to retry operations |
+
+## Architecture Documentation (Advanced)
+
+| Concept | Memory File | Quick Reference |
+|---------|-------------|-----------------|
+| C4 Model | `c4-model` | Context, Container, Component, Code |
+| Poka-Yoke | `poka-yoke` | Make errors impossible or obvious |
+
+## Software Craft (Advanced)
+
+| Concept | Memory File | Quick Reference |
+|---------|-------------|-----------------|
+| Code Smells | `code-smells-catalog` | God Class, Feature Envy, etc. |
+| Design Patterns | `design-patterns-usage-guide` | When to use, risks if misused |
+
+## Security (Advanced)
+
+| Concept | Memory File | Quick Reference |
+|---------|-------------|-----------------|
+| OWASP Principles | `security-principles-owasp` | Top 10, Least Privilege, Input Validation |
+
+## Domain-Driven Design (Advanced)
+
+| Concept | Memory File | Quick Reference |
+|---------|-------------|-----------------|
+| Event Storming | `ddd-event-storming` | Visual domain modeling technique |
+
+## Engineering Culture (Advanced)
+
+| Concept | Memory File | Quick Reference |
+|---------|-------------|-----------------|
+| Paved Roads | `paved-roads-innovation` | Default choices with deviation paths |
+| Sociotechnical Systems | `sociotechnical-systems` | Tech and social intertwined |
+
 ## Related
 
-- Full analysis: `.agents/analysis/foundational-engineering-knowledge.md`
+- Full analysis (Part 1): `.agents/analysis/foundational-engineering-knowledge.md`
+- Full analysis (Part 2): `.agents/analysis/advanced-engineering-knowledge.md`
 - Chesterton integration: `chestertons-fence-memory-integration`
 - Design approaches: `design-approaches-detailed`
 - ADR concepts: `adr-foundational-concepts`
