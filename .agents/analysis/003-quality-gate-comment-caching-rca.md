@@ -358,7 +358,7 @@ The idempotent skip behavior creates a **developer experience problem** without 
 
 - `.claude/skills/github/scripts/issue/Post-IssueComment.ps1` - Idempotent comment script
 - `.github/workflows/ai-pr-quality-gate.yml` - Quality gate workflow
-- Git commit 911cfd0 - Original implementation rationale
+- Git commit `911cfd0` (2025-12-20) - Original implementation rationale
 - [GitHub REST API - Issue Comments](http://developer.github.com/v3/issues/comments/) - PATCH endpoint documentation
 - [GitHub REST API - Update Comment](https://docs.github.com/en/rest/issues/comments) - API reference
 
@@ -369,7 +369,7 @@ The idempotent skip behavior creates a **developer experience problem** without 
 - Design rationale from commit messages
 - GitHub API update endpoint documentation
 - Workflow verdict flow (artifacts → aggregate → comment)
-- PR #438 comment timestamps proving no updates occur
+- PR #438 (2025-12-26) comment timestamps proving no updates occur
 
 **Not Found**:
 - Explicit requirement documentation for idempotency
@@ -379,10 +379,10 @@ The idempotent skip behavior creates a **developer experience problem** without 
 
 ### Related Issues
 
-- Issue #357: AI Quality Gate aggregation (broader investigation)
-- Issue #328: Infrastructure failure retry logic (related category detection)
-- Issue #329: Failure categorization (implemented)
-- PR #438: Example PR with stale comment behavior
+- Issue #357 (2025-12-24): AI Quality Gate aggregation (broader investigation)
+- Issue #328 (2025-12-24): Infrastructure failure retry logic (related category detection)
+- Issue #329 (2025-12-24): Failure categorization (implemented)
+- PR #438 (2025-12-26): Example PR with stale comment behavior
 
 ### Code Quality Metrics
 

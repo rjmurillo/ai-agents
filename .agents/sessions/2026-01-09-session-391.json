@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 391,
+    "date": "2026-01-09",
+    "branch": "feat/ci-ai-review-commands",
+    "startingCommit": "70810019",
+    "objective": "Address PR #854 review comments for push-pr.md slash command"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "readHandoff": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read PR review comments via gh api"
+      },
+      "createdSessionLog": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/sessions/2026-01-09-session-391.json"
+      },
+      "verifiedBranch": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "feat/ci-ai-review-commands"
+      }
+    },
+    "sessionEnd": {
+      "updatedMemories": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Updated causal-graph.json"
+      },
+      "ranLinting": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Pre-commit hook ran markdownlint"
+      },
+      "committedChanges": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "f56c5c07"
+      },
+      "validatedSession": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session log validated"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Fetched PR review comment discussion_r2677743645",
+      "result": "Identified need to use New-PR.ps1 skill instead of raw gh pr create"
+    },
+    {
+      "action": "Fetched PR review comment discussion_r2677743642",
+      "result": "Identified invalid git checkout --branch flag; should be -b"
+    },
+    {
+      "action": "Updated push-pr.md allowed-tools and instructions",
+      "result": "Replaced gh pr create with New-PR.ps1 skill, fixed git checkout -b, added git switch -c",
+      "files": [".claude/commands/push-pr.md"]
+    }
+  ],
+  "outcomes": {
+    "decisions": [
+      {
+        "decision": "Replace raw gh pr create with New-PR.ps1 skill script",
+        "rationale": "Project policy in usage-mandatory.md requires using GitHub skill scripts when available",
+        "impact": "Enforces skill gate policy and provides validated error handling"
+      },
+      {
+        "decision": "Fix git checkout --branch to valid -b flag",
+        "rationale": "git checkout has no --branch flag; valid flags are -b/-B for branch creation",
+        "impact": "Command now works for branch creation scenario"
+      }
+    ]
+  },
+  "endingCommit": "f56c5c07",
+  "nextSteps": [
+    "Push changes to update PR #854",
+    "Respond to review comments confirming fixes"
+  ]
+}

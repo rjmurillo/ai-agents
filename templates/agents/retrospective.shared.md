@@ -451,6 +451,66 @@ Prioritize findings for action.
 3. **Near Misses** - Things that almost failed but recovered
 4. **Efficiency Opportunities** - Ways to do same thing better
 5. **Skill Gaps** - Missing capabilities identified
+6. **Traceability Health** - Spec layer coherence metrics
+
+### Traceability Metrics
+
+When the session involves specification artifacts (requirements, designs, tasks), evaluate spec layer health:
+
+**Run validation:**
+
+```powershell
+pwsh scripts/Validate-Traceability.ps1 
+```
+
+**Metrics to capture:**
+
+| Metric | Description | Target |
+|--------|-------------|--------|
+| Valid Chains | Complete REQ -> DESIGN -> TASK traces | 100% of designs |
+| Orphaned REQs | Requirements with no implementing design | 0 |
+| Orphaned Designs | Designs with no implementing tasks | 0 |
+| Broken References | References to non-existent specs | 0 |
+| Untraced Tasks | Tasks without design reference | 0 |
+
+**Template:**
+
+````markdown
+## Traceability Health
+
+### Current State
+
+| Metric | Count | Status |
+|--------|-------|--------|
+| Requirements | [N] | - |
+| Designs | [N] | - |
+| Tasks | [N] | - |
+| Valid Chains | [N] | [PASS/WARN/FAIL] |
+| Errors | [N] | [PASS/FAIL] |
+| Warnings | [N] | [PASS/WARN] |
+
+### Issues Found
+
+#### Errors (Blocking)
+- [List broken references, untraced tasks]
+
+#### Warnings (Non-Blocking)
+- [List orphaned specs]
+
+### Remediation Actions
+
+| Issue | Fix | Owner |
+|-------|-----|-------|
+| [Issue] | [Action] | [spec-generator/planner] |
+````
+
+**Integration with Learning Extraction:**
+
+Traceability failures are skill gaps. Extract learnings:
+
+- If broken reference: "Verify spec IDs exist before adding to related field"
+- If orphaned REQ: "Create design specs when requirements are approved"
+- If untraced task: "Add related field to task front matter during creation"
 
 ### Diagnosis Template
 

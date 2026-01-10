@@ -1,0 +1,118 @@
+{
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {
+        "Evidence": "Read via Read tool (see session transcript)",
+        "level": "MUST",
+        "Complete": true
+      },
+      "branchVerified": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "startingCommitNoted": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "memoriesLoaded": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "constraintsRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "sessionLogCreated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "notOnMain": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "skillScriptsListed": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "usageMandatoryRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "serenaActivated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "gitStatusVerified": {
+        "Evidence": "`git status -sb` output recorded below",
+        "level": "SHOULD",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "validationPassed": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "handoffNotUpdated": {
+        "evidence": "",
+        "level": "MUST NOT",
+        "complete": false
+      }
+    }
+  },
+  "session": {
+    "branch": "fix/copilot-mcp",
+    "objective": "[Migrated from markdown]",
+    "date": "2025-12-18",
+    "number": 2,
+    "startingCommit": "d9adffb73b436ddae436987c18980038bc326282"
+  },
+  "endingCommit": "",
+  "nextSteps": [],
+  "workLog": []
+}

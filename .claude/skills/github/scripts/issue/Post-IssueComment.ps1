@@ -91,7 +91,14 @@ if ($Marker) {
     $commentsJson = gh api "repos/$Owner/$Repo/issues/$Issue/comments" 2>$null
     
     if ($LASTEXITCODE -eq 0) {
-        $comments = $commentsJson | ConvertFrom-Json
+        try {
+            $comments = $commentsJson | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "Failed to parse comments response from GitHub API: $($_.Exception.Message)"
+            # Continue without marker check - will post as new comment
+            $comments = @()
+        }
         $existingComment = $comments | Where-Object { $_.body -match [regex]::Escape($markerHtml) } | Select-Object -First 1
         
         if ($existingComment) {
@@ -108,17 +115,24 @@ if ($Marker) {
                 Write-Host "Success: True, Issue: $Issue, CommentId: $($response.id), Updated: True"
                 
                 # GitHub Actions outputs for programmatic consumption
-                if ($env:GITHUB_OUTPUT) {
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=false"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "updated=true"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "comment_id=$($response.id)"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "html_url=$($response.html_url)"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "updated_at=$($response.updated_at)"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
+                if ($env:GITHUB_OUTPUT -and (Test-Path $env:GITHUB_OUTPUT -PathType Leaf)) {
+                    try {
+                        @(
+                            "success=true",
+                            "skipped=false",
+                            "updated=true",
+                            "issue=$Issue",
+                            "comment_id=$($response.id)",
+                            "html_url=$($response.html_url)",
+                            "updated_at=$($response.updated_at)",
+                            "marker=$Marker"
+                        ) | Add-Content -Path $env:GITHUB_OUTPUT -ErrorAction Stop
+                    }
+                    catch {
+                        Write-Warning "Failed to write GitHub Actions outputs: $_"
+                    }
                 }
-                
+
                 exit 0
             } else {
                 # Skip posting (write-once idempotency)
@@ -126,13 +140,20 @@ if ($Marker) {
                 Write-Host "Success: True, Issue: $Issue, Marker: $Marker, Skipped: True"
                 
                 # GitHub Actions outputs for programmatic consumption
-                if ($env:GITHUB_OUTPUT) {
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=true"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
-                    Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
+                if ($env:GITHUB_OUTPUT -and (Test-Path $env:GITHUB_OUTPUT -PathType Leaf)) {
+                    try {
+                        @(
+                            "success=true",
+                            "skipped=true",
+                            "issue=$Issue",
+                            "marker=$Marker"
+                        ) | Add-Content -Path $env:GITHUB_OUTPUT -ErrorAction Stop
+                    }
+                    catch {
+                        Write-Warning "Failed to write GitHub Actions outputs: $_"
+                    }
                 }
-                
+
                 exit 0  # Idempotent skip is a success
             }
         }
@@ -306,21 +327,51 @@ if ($LASTEXITCODE -ne 0) {
     Write-ErrorAndExit "Failed to post comment: $result" 3
 }
 
-$response = $result | ConvertFrom-Json
+try {
+    $response = $result | ConvertFrom-Json -ErrorAction Stop
+}
+catch {
+    # JSON parsing failed but gh succeeded - comment was likely posted but response is malformed
+    Write-Warning "Comment posted but failed to parse API response: $($_.Exception.Message)"
+    Write-Host "Posted comment to issue #$Issue (response parsing failed)" -ForegroundColor Yellow
+
+    # GitHub Actions outputs with degraded information
+    if ($env:GITHUB_OUTPUT -and (Test-Path $env:GITHUB_OUTPUT -PathType Leaf)) {
+        try {
+            @(
+                "success=true",
+                "skipped=false",
+                "issue=$Issue",
+                "parse_error=true"
+            ) | Add-Content -Path $env:GITHUB_OUTPUT -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "Failed to write GitHub Actions outputs: $_"
+        }
+    }
+    exit 0  # Comment was posted successfully, just couldn't parse response
+}
 
 Write-Host "Posted comment to issue #$Issue" -ForegroundColor Green
 Write-Host "  URL: $($response.html_url)" -ForegroundColor Cyan
 Write-Host "Success: True, Issue: $Issue, CommentId: $($response.id), Skipped: False"
 
 # GitHub Actions outputs for programmatic consumption
-if ($env:GITHUB_OUTPUT) {
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "success=true"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "skipped=false"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "issue=$Issue"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "comment_id=$($response.id)"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "html_url=$($response.html_url)"
-    Add-Content -Path $env:GITHUB_OUTPUT -Value "created_at=$($response.created_at)"
-    if ($Marker) {
-        Add-Content -Path $env:GITHUB_OUTPUT -Value "marker=$Marker"
+if ($env:GITHUB_OUTPUT -and (Test-Path $env:GITHUB_OUTPUT -PathType Leaf)) {
+    try {
+        # Use array sub-expression for efficient conditional array building (avoids += array re-creation)
+        $outputs = @(
+            "success=true"
+            "skipped=false"
+            "issue=$Issue"
+            "comment_id=$($response.id)"
+            "html_url=$($response.html_url)"
+            "created_at=$($response.created_at)"
+            if ($Marker) { "marker=$Marker" }
+        )
+        $outputs | Add-Content -Path $env:GITHUB_OUTPUT -ErrorAction Stop
+    }
+    catch {
+        Write-Warning "Failed to write GitHub Actions outputs: $_"
     }
 }

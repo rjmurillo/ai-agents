@@ -47,10 +47,13 @@ Bot Configuration (line ~680)
   - Get-BotAuthorsConfig      Load bot authors from .github/bot-authors.yml
   - Get-BotAuthors            Centralized bot author list
 
-Rate Limit (line ~740)
+PR Review (line ~997)
+  - Get-UnresolvedReviewThreads Get unresolved PR review threads
+
+Rate Limit (line ~1102)
   - Test-WorkflowRateLimit    Check API rate limits before workflow execution
 
-Formatting (line ~840)
+Formatting (line ~1200)
   - Get-PriorityEmoji        P0-P3 to emoji mapping
   - Get-ReactionEmoji        Reaction type to emoji
 #>
@@ -622,6 +625,11 @@ function Update-IssueComment {
 
     .OUTPUTS
         Updated comment object.
+
+    .NOTES
+        Exit codes:
+        - 3: Generic API error
+        - 4: Permission denied (403) - includes actionable guidance
     #>
     [CmdletBinding()]
     [OutputType([PSCustomObject])]
@@ -649,6 +657,28 @@ function Update-IssueComment {
         $result = gh api "repos/$Owner/$Repo/issues/comments/$CommentId" -X PATCH --input $tempFile.FullName 2>&1
 
         if ($LASTEXITCODE -ne 0) {
+            $errorString = $result -join ' '
+
+            # Detect 403 permission errors (case-insensitive matching)
+            # Exit code 4 = Auth error (per ADR-035: includes not-authenticated AND permission-denied)
+            # Pattern uses negative lookarounds (?<!\d)403(?!\d) to prevent false positives (e.g., ID403)
+            if ($errorString -imatch '((?<!\d)403(?!\d)|\bforbidden\b|Resource not accessible by integration)') {
+                $guidance = @"
+PERMISSION DENIED (403): Cannot update comment $CommentId in $Owner/$Repo.
+
+LIKELY CAUSES:
+- GitHub Apps: Missing "issues": "write" permission in app manifest
+- Workflow GITHUB_TOKEN: Add 'permissions: issues: write' to workflow YAML
+- Fine-grained PAT: Enable 'Issues' repository permission (Read and Write)
+- Classic PAT: Requires 'repo' scope for private repos or 'public_repo' for public repos
+- Not the comment author: Only the comment author or repo admin can edit comments
+
+RAW ERROR: $errorString
+"@
+                Write-ErrorAndExit $guidance 4
+            }
+
+            # Generic API error
             Write-ErrorAndExit "Failed to update comment: $result" 3
         }
 
@@ -967,6 +997,111 @@ function Get-BotAuthors {
 
 #endregion
 
+#region PR Review Functions
+
+function Get-UnresolvedReviewThreads {
+    <#
+    .SYNOPSIS
+        Retrieves review threads that remain unresolved on a pull request.
+
+    .DESCRIPTION
+        Uses GitHub GraphQL API to query review thread resolution status.
+        Part of the "Acknowledged vs Resolved" lifecycle model:
+
+        NEW -> ACKNOWLEDGED (eyes reaction) -> REPLIED -> RESOLVED (thread marked resolved)
+
+        A comment can be acknowledged (has eyes reaction) but NOT resolved (thread still open).
+        This function identifies threads in that intermediate state.
+
+    .PARAMETER Owner
+        Repository owner.
+
+    .PARAMETER Repo
+        Repository name.
+
+    .PARAMETER PullRequest
+        Pull request number.
+
+    .OUTPUTS
+        Array of thread objects where isResolved = false.
+        Each object contains: id, isResolved, comments (first comment with databaseId).
+        Returns empty array when all threads are resolved or on API failure.
+        Never returns $null (per Skill-PowerShell-002).
+
+    .EXAMPLE
+        $threads = Get-UnresolvedReviewThreads -Owner "rjmurillo" -Repo "ai-agents" -PullRequest 365
+        if ($threads.Count -gt 0) {
+            Write-Host "Found $($threads.Count) unresolved threads"
+        }
+
+    .NOTES
+        GraphQL query handles up to 100 threads per request.
+        Pagination not implemented for edge cases with 100+ threads.
+    #>
+    [CmdletBinding()]
+    [OutputType([array])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [int]$PullRequest
+    )
+
+    # GraphQL query per FR1 specification
+    # Note: first: 100 handles most PRs; pagination not implemented for edge cases with 100+ threads
+    # Uses GraphQL variables for security (prevents injection via Owner/Repo/PR)
+    $query = @'
+query($owner: String!, $name: String!, $prNumber: Int!) {
+    repository(owner: $owner, name: $name) {
+        pullRequest(number: $prNumber) {
+            reviewThreads(first: 100) {
+                nodes {
+                    id
+                    isResolved
+                    comments(first: 1) {
+                        nodes {
+                            databaseId
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+'@
+
+    $result = gh api graphql -f query=$query -f owner="$Owner" -f name="$Repo" -F prNumber=$PullRequest 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to query review threads for PR #${PullRequest}: $result"
+        return @()  # Return empty array on failure per FR2
+    }
+
+    try {
+        $parsed = $result | ConvertFrom-Json
+    }
+    catch {
+        Write-Warning "Failed to parse GraphQL response for PR #${PullRequest}: $result"
+        return @()  # Return empty array on parse failure
+    }
+
+    $threads = $parsed.data.repository.pullRequest.reviewThreads.nodes
+
+    if ($null -eq $threads -or $threads.Count -eq 0) {
+        return @()  # No threads exist
+    }
+
+    # Filter to unresolved threads only
+    $unresolved = @($threads | Where-Object { -not $_.isResolved })
+
+    return $unresolved  # Always returns array, never $null
+}
+
+#endregion
+
 #region Rate Limit Functions
 
 function Test-WorkflowRateLimit {
@@ -1099,6 +1234,8 @@ Export-ModuleMember -Function @(
     # Bot configuration
     'Get-BotAuthorsConfig'
     'Get-BotAuthors'
+    # PR review
+    'Get-UnresolvedReviewThreads'
     # Rate limit
     'Test-WorkflowRateLimit'
     # Formatting

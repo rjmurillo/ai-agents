@@ -1295,8 +1295,8 @@ When encountering issues requiring investigation:
 All agent artifacts go to `.agents/`:
 
 - `analysis/` - Analyst reports, ideation research
-- `architecture/` - Architect decisions (ADRs)
-- `critique/` - Critic reviews
+- `architecture/` - ADRs only (no review documents)
+- `critique/` - Critic reviews, ADR reviews, design reviews
 - `planning/` - Planner work packages, PRDs, handoffs
 - `qa/` - QA test strategies
 - `retrospective/` - Learning extractions

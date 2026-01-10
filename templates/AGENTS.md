@@ -8,6 +8,8 @@ The `templates/` directory is the **source of truth** for AI agent definitions. 
 
 **Important**: Claude Code agents (`src/claude/`) are NOT generated from templates. They are hand-maintained separately. See `src/claude/AGENTS.md` for the Claude agent workflow.
 
+> **Governing ADR**: [ADR-036: Two-Source Agent Template Architecture](../agents/architecture/ADR-036-two-source-agent-template-architecture.md)
+
 ## Platform Generation vs Claude Installation
 
 ```text
@@ -83,9 +85,29 @@ WRONG: Edit src/vs-code-agents/analyst.agent.md directly
 RIGHT: Edit templates/agents/analyst.shared.md, then regenerate
 ```
 
-### Rule 2: Synchronization from Claude Agents
+### Rule 2: Bidirectional Synchronization (CRITICAL - ADR-036)
 
-When `src/claude/` agents are modified with **universal changes** (not Claude-specific):
+**The pre-commit hook handles generation but NOT content synchronization between sources.**
+
+Per ADR-036, when adding content that applies to ALL platforms, you MUST update BOTH sources:
+
+| Scenario | Action Required |
+|----------|-----------------|
+| Universal content added HERE | Also add to `src/claude/{agent}.md` (manual) |
+| Universal content added in Claude | Also add to `templates/agents/{agent}.shared.md` |
+| Claude-specific content | Do NOT add to templates |
+| Template-specific content | Do NOT add to Claude |
+
+**Procedure (from template to Claude):**
+
+```text
+1. Edit templates/agents/{agent}.shared.md
+2. Edit src/claude/{agent}.md (MANUAL - not auto-synced!)
+3. Run: pwsh build/Generate-Agents.ps1
+4. Commit all files atomically
+```
+
+**Procedure (from Claude to template):**
 
 ```text
 1. Identify universal changes in src/claude/{agent}.md
@@ -93,6 +115,10 @@ When `src/claude/` agents are modified with **universal changes** (not Claude-sp
 3. Run: pwsh build/Generate-Agents.ps1
 4. Commit all files atomically
 ```
+
+**Anti-pattern (ADR-036 §Common Mistake):**
+
+> Editing only `templates/agents/*.shared.md` and forgetting `src/claude/*.md` causes Claude agents to miss the new content while Copilot platforms have it.
 
 See: [src/claude/AGENTS.md](../src/claude/AGENTS.md) for full synchronization rules.
 
@@ -272,6 +298,8 @@ pwsh build/Generate-Agents.ps1 -Validate
 
 ## Related Documentation
 
+- [ADR-036: Two-Source Agent Template Architecture](../.agents/architecture/ADR-036-two-source-agent-template-architecture.md) - Governing architecture decision
 - [templates/README.md](README.md) - Template usage guide
+- [src/claude/AGENTS.md](../src/claude/AGENTS.md) - Claude agent synchronization rules
 - [build/AGENTS.md](../build/AGENTS.md) - Build automation agents
 - [Root AGENTS.md](../AGENTS.md) - Agent usage instructions

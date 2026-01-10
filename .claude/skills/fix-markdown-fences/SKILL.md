@@ -2,6 +2,9 @@
 name: fix-markdown-fences
 description: "Repair malformed markdown code fence closings. Use when markdown files have closing fences with language identifiers (```text instead of ```) or when generating markdown with code blocks to ensure proper fence closure."
 license: MIT
+metadata:
+version: 1.0.0
+model: claude-haiku-4-5
 ---
 
 # Fix Markdown Code Fence Closings

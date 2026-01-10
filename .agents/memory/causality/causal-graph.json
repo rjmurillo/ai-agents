@@ -1,0 +1,197 @@
+{
+  "patterns": [
+    {
+      "description": "",
+      "occurrences": 1,
+      "trigger": "T1",
+      "name": "Good pattern",
+      "last_used": "2026-01-09T02:30:45.9839371-05:00",
+      "action": "A1",
+      "success_rate": 0.9,
+      "id": "p001"
+    },
+    {
+      "description": "",
+      "occurrences": 2,
+      "trigger": "T2",
+      "name": "Bad pattern",
+      "last_used": "2026-01-09T02:30:45.9885809-05:00",
+      "action": "A2",
+      "success_rate": 0.2,
+      "id": "p002"
+    },
+    {
+      "description": "",
+      "occurrences": 2,
+      "trigger": "T3",
+      "name": "Worse pattern",
+      "last_used": "2026-01-09T02:30:45.9964318-05:00",
+      "action": "A3",
+      "success_rate": 0.1,
+      "id": "p003"
+    },
+    {
+      "description": "",
+      "occurrences": 1,
+      "trigger": "T",
+      "name": "Status test pattern",
+      "last_used": "2026-01-09T02:30:46.0250007-05:00",
+      "action": "A",
+      "success_rate": 1.0,
+      "id": "p004"
+    },
+    {
+      "last_used": "2026-01-09T15:22:55.7603417-05:00",
+      "action": "Second",
+      "id": "p005",
+      "occurrences": 2,
+      "name": "test pattern",
+      "description": "Pattern from episode-2026-01-01-sequence-001",
+      "success_rate": 1.0,
+      "trigger": "Testing second"
+    },
+    {
+      "last_used": "2026-01-09T15:22:55.7715723-05:00",
+      "action": "First",
+      "id": "p006",
+      "occurrences": 2,
+      "name": "design pattern",
+      "description": "Pattern from episode-2026-01-01-sequence-001",
+      "success_rate": 1.0,
+      "trigger": "Designing first"
+    }
+  ],
+  "version": "1.0",
+  "edges": [],
+  "nodes": [
+    {
+      "type": "decision",
+      "frequency": 1,
+      "label": "Status test node",
+      "success_rate": 1.0,
+      "id": "n001",
+      "episodes": []
+    },
+    {
+      "type": "outcome",
+      "id": "n002",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-01-filter-001"
+      ],
+      "label": "Outcome: success - Task 1"
+    },
+    {
+      "type": "outcome",
+      "id": "n003",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-01-filter-002"
+      ],
+      "label": "Outcome: failure - Task 2"
+    },
+    {
+      "type": "outcome",
+      "id": "n004",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-01-filter-003"
+      ],
+      "label": "Outcome: partial - Task 3"
+    },
+    {
+      "type": "decision",
+      "id": "n005",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-01-sequence-001"
+      ],
+      "label": "test: Second"
+    },
+    {
+      "type": "decision",
+      "id": "n006",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-01-sequence-001"
+      ],
+      "label": "design: First"
+    },
+    {
+      "type": "outcome",
+      "id": "n007",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-01-sequence-001"
+      ],
+      "label": "Outcome: success - Test"
+    },
+    {
+      "type": "outcome",
+      "id": "n008",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-01-session-001"
+      ],
+      "label": "Outcome: success - Test implementation"
+    },
+    {
+      "type": "error",
+      "id": "n009",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "label": "error: 1. Distribution count error: Table 92 shows 12 Sonnet, actual is 11"
+    },
+    {
+      "type": "error",
+      "id": "n010",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "label": "error: - Problem correctly identified: Mixed model identifier formats causing 404 errors"
+    },
+    {
+      "type": "error",
+      "id": "n011",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "label": "error: - 404 errors are eliminated?"
+    },
+    {
+      "type": "error",
+      "id": "n012",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "label": "error: 4. Metrics Gap: No baseline error rates or success criteria defined"
+    },
+    {
+      "type": "outcome",
+      "id": "n013",
+      "success_rate": 1.0,
+      "frequency": 2,
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "label": "Outcome: success - Session 356 - 2026-01-03"
+    }
+  ],
+  "updated": "2026-01-09T15:22:55.8378111-05:00"
+}

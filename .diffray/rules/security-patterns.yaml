@@ -1,0 +1,206 @@
+rules:
+  - id: sec_path_traversal_prevention
+    agent: security
+    title: "Path validation missing GetFullPath normalization"
+    description: |
+      Path validation using StartsWith without normalization is vulnerable
+      to path traversal attacks. Always normalize paths with GetFullPath()
+      before validation.
+    importance: 9
+
+    match:
+      file_glob:
+        - "**/*.ps1"
+        - "**/*.psm1"
+      content_regex:
+        - "\\.StartsWith\\("
+
+    checklist:
+      - "Find path validation using StartsWith()"
+      - "Check if paths are normalized with [System.IO.Path]::GetFullPath()"
+      - "Verify both compared paths are normalized"
+      - "Suggest GetFullPath() before comparison"
+
+    examples:
+      bad: |
+        # VULNERABLE: StartsWith without normalization
+        if (-not $OutputFile.StartsWith($MemoriesDir)) {
+            throw "Output path outside memories directory"
+        }
+      good: |
+        # SAFE: Normalize before comparison
+        $NormalizedOutput = [System.IO.Path]::GetFullPath($OutputFile)
+        $NormalizedDir = [System.IO.Path]::GetFullPath($MemoriesDir)
+        if (-not $NormalizedOutput.StartsWith($NormalizedDir)) {
+            throw "Output path outside memories directory"
+        }
+
+    tags:
+      - security
+      - path-traversal
+      - cwe-22
+      - powershell
+
+    why_important: |
+      Path traversal (CWE-22) allows attackers to access files outside
+      intended directories. GetFullPath() resolves .., symlinks, and
+      relative paths to prevent bypass.
+
+    link: .serena/memories/security-agent-vulnerability-detection-gaps.md
+
+
+  - id: sec_command_injection_quoting
+    agent: security
+    title: "Unquoted variables in external command"
+    description: |
+      Unquoted variables in command invocations allow command injection.
+      Always quote variables passed to external commands.
+    importance: 9
+
+    match:
+      file_glob:
+        - "**/*.ps1"
+        - "**/*.psm1"
+        - "!**/*.Tests.ps1"
+      content_regex:
+        - "\\b(npx|node|python|ruby|perl|bash|sh)\\b"
+
+    checklist:
+      - "Find external command invocations (npx, node, python, etc.)"
+      - "Check if variables are properly quoted"
+      - "Verify no unquoted $variable in command arguments"
+      - "Suggest quoting: \"$variable\" or splatting @Args"
+
+    examples:
+      bad: |
+        # VULNERABLE: Unquoted variables
+        npx tsx $PluginScript $Query $OutputFile
+        
+        # VULNERABLE: Partial quoting
+        node "$Script" $Input $Output
+      good: |
+        # SAFE: All variables quoted
+        npx tsx "$PluginScript" "$Query" "$OutputFile"
+        
+        # SAFE: Array with explicit expansion
+        $Args = @($PluginScript, $Query, $OutputFile)
+        & npx tsx $Args[0] $Args[1] $Args[2]
+
+    tags:
+      - security
+      - command-injection
+      - cwe-77
+      - cwe-78
+      - powershell
+
+    why_important: |
+      Command injection (CWE-77, CWE-78) allows arbitrary command execution.
+      Proper quoting prevents shell metacharacter interpretation.
+
+    link: .serena/memories/security-agent-vulnerability-detection-gaps.md
+
+
+  - id: sec_no_blind_suppression
+    agent: security
+    title: "Security suppression without documented rationale"
+    description: |
+      Never suppress security alerts (lgtm, nosec, skipcq) without
+      understanding root cause and documenting the decision.
+      Blind suppression leaves vulnerabilities in place.
+    importance: 9
+
+    match:
+      file_glob:
+        - "**/*.ps1"
+        - "**/*.psm1"
+        - "**/*.py"
+        - "**/*.js"
+        - "**/*.ts"
+      content_regex:
+        - "# lgtm\\["
+        - "# nosec"
+        - "# skipcq"
+        - "# pragma: allowlist"
+
+    checklist:
+      - "Find security suppression comments"
+      - "Check for documented rationale near suppression"
+      - "Verify root cause analysis was performed"
+      - "Confirm fix was attempted before suppression"
+      - "Ensure CWE number and decision are referenced"
+
+    examples:
+      bad: |
+        # WRONG: Blind suppression
+        $userInput = Read-Host "Path"
+        Remove-Item $userInput  # nosec - bypasses security check
+      good: |
+        # RIGHT: Suppression with context
+        # CWE-22: Path traversal risk accepted because:
+        # 1. Input validated with GetFullPath() normalization
+        # 2. Restricted to $SafeDir tree
+        # 3. ADR-042 documents this design decision
+        $normalizedPath = [System.IO.Path]::GetFullPath($userInput)
+        if ($normalizedPath.StartsWith($SafeDir)) {
+            Remove-Item $normalizedPath  # nosec CWE-22 - validated above
+        }
+
+    tags:
+      - security
+      - process
+      - code-review
+
+    why_important: |
+      Blind suppression to make CI green leaves real vulnerabilities
+      in production. Understand the issue before suppressing.
+
+    link: .serena/memories/security-no-blind-suppression.md
+
+
+  - id: sec_ai_output_hardened_regex
+    agent: security
+    title: "AI output parsing lacks hardened regex"
+    description: |
+      Parsing AI-generated output (labels, milestones) requires hardened
+      regex to block metacharacters and prevent command injection.
+    importance: 8
+
+    match:
+      file_glob:
+        - "**/*.ps1"
+        - "**/*.psm1"
+      content_regex:
+        - "\\b(AI|LLM|GPT|Claude|Copilot)\\b"
+
+    checklist:
+      - "Find AI output parsing code"
+      - "Check regex patterns used for validation"
+      - "Verify metacharacters are blocked: ; | ` $ ( ) & < >"
+      - "Ensure trailing special characters blocked"
+      - "Suggest hardened pattern: ^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\\.-]*[A-Za-z0-9])?$"
+
+    examples:
+      bad: |
+        # VULNERABLE: Allows trailing special chars
+        $validPattern = '^[a-zA-Z0-9][a-zA-Z0-9 _\-\\.]{0,48}[a-zA-Z0-9]?$'
+        if ($label -match $validPattern) {
+            gh label create $label  # Can inject commands
+        }
+      good: |
+        # SAFE: Hardened regex blocks metacharacters and trailing special chars
+        $validPattern = '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$'
+        if ($label -match $validPattern) {
+            gh label create $label
+        }
+
+    tags:
+      - security
+      - ai-safety
+      - validation
+      - powershell
+
+    why_important: |
+      AI-generated content is untrusted input. Weak validation allows
+      command injection through crafted AI responses.
+
+    link: .serena/memories/powershell-security-ai-output.md

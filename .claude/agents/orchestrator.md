@@ -1,7 +1,7 @@
 ---
 name: orchestrator
 description: Enterprise task orchestrator who autonomously coordinates specialized agents end-to-end—routing work, managing handoffs, and synthesizing results. Classifies complexity, triages delegation, and sequences workflows. Use for multi-step tasks requiring coordination, integration, or when the problem needs complete end-to-end resolution.
-model: opus
+model: sonnet
 argument-hint: Describe the task or problem to solve end-to-end
 ---
 # Orchestrator Agent
@@ -1549,8 +1549,8 @@ When encountering issues requiring investigation:
 All agent artifacts go to `.agents/`:
 
 - `.agents/analysis/` - Analyst reports, ideation research
-- `.agents/architecture/` - Architect decisions (ADRs)
-- `.agents/critique/` - Critic reviews
+- `.agents/architecture/` - ADRs only (no review documents)
+- `.agents/critique/` - Critic reviews, ADR reviews, design reviews
 - `.agents/planning/` - Planner work packages, PRDs, handoffs
 - `.agents/qa/` - QA test strategies
 - `.agents/retrospective/` - Learning extractions
@@ -1644,18 +1644,18 @@ You CANNOT claim "session complete", "done", "finished", or any completion langu
 | Requirement | Evidence | Validator |
 |-------------|----------|-----------|
 | Session log exists | `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
-| Session End checklist complete | All MUST items checked with `[x]` | `Validate-Session.ps1` |
-| HANDOFF.md updated | References current session log | `Validate-Session.ps1` |
+| Session End checklist complete | All MUST items checked with `[x]` | `Validate-SessionJson.ps1` |
+| HANDOFF.md updated | References current session log | `Validate-SessionJson.ps1` |
 | Git worktree clean | No uncommitted changes | `git status --porcelain` |
 | Markdown lint passes | No errors | `npx markdownlint-cli2 **/*.md` |
-| Commit SHA recorded | Valid SHA in Evidence column | `Validate-Session.ps1` |
+| Commit SHA recorded | Valid SHA in Evidence column | `Validate-SessionJson.ps1` |
 
 ### Validation Command
 
 Before claiming completion, run:
 
 ```bash
-pwsh scripts/Validate-Session.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
 ```
 
 ### Gate Outcomes

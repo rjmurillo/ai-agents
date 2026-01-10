@@ -28,7 +28,7 @@ Pre-commit hooks run automatically before every commit to enforce protocol compl
 
 - HANDOFF.md must be staged
 - Session log must be staged
-- Session log must pass `Validate-Session.ps1`
+- Session log must pass `Validate-SessionJson.ps1`
 
 **Bypass**: `git commit --no-verify` (use sparingly, logged)
 
@@ -326,4 +326,4 @@ Get-Content scripts/Detect-SkillViolation.ps1 -Raw |
 - [SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md) - Canonical session protocol
 - [Retrospective: PR #226](../.agents/retrospective/2025-12-22-pr-226-premature-merge-failure.md) - Failure analysis
 - [Issue #230](https://github.com/rjmurillo/ai-agents/issues/230) - Implementation tracking
-- [skill-usage-mandatory.md](../.serena/memories/skill-usage-mandatory.md) - Skill usage policy
+- [usage-mandatory.md](../.serena/memories/usage-mandatory.md) - Skill usage policy

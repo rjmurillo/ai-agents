@@ -2,6 +2,8 @@
 
 This directory contains the shared agent template system for generating platform-specific agent definitions.
 
+> **Governing ADR**: [ADR-036: Two-Source Agent Template Architecture](../.agents/architecture/ADR-036-two-source-agent-template-architecture.md)
+
 ## Directory Structure
 
 ```text
@@ -69,9 +71,18 @@ pwsh build/Generate-Agents.ps1 -Validate
 
 ### Modify an Agent
 
+**CRITICAL (ADR-036)**: The pre-commit hook generates VS Code/Copilot files but does NOT sync to Claude agents.
+
+For **universal changes** (content that applies to ALL platforms):
+
 1. Edit the source template: `templates/agents/{agent}.shared.md`
-2. Regenerate: `pwsh build/Generate-Agents.ps1`
-3. Commit both template and generated files
+2. **Also edit**: `src/claude/{agent}.md` (MANUAL - not auto-synced!)
+3. Regenerate: `pwsh build/Generate-Agents.ps1`
+4. Commit template, Claude source, and generated files together
+
+For **Claude-specific changes** (MCP tools, Serena integration):
+
+- Edit only `src/claude/{agent}.md` - do NOT add to templates
 
 ### Add a New Agent
 
@@ -159,6 +170,8 @@ When drift is detected:
 
 ## Related Documentation
 
+- [ADR-036: Two-Source Agent Template Architecture](../.agents/architecture/ADR-036-two-source-agent-template-architecture.md) - Governing architecture decision
+- [src/claude/AGENTS.md](../src/claude/AGENTS.md) - Claude agent synchronization rules
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - Full contribution guide
 - [build/Generate-Agents.ps1](../build/Generate-Agents.ps1) - Generation script
 - [build/scripts/Detect-AgentDrift.ps1](../build/scripts/Detect-AgentDrift.ps1) - Drift detection script

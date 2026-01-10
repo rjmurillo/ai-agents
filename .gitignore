@@ -4,6 +4,7 @@
 
 # Build artifacts
 artifacts/
+coverage.xml
 
 # Agent PR scratch files
 .agents/pr-comments/
@@ -19,4 +20,12 @@ artifacts/
 .work-*/
 worktree-*/
 worktree--/
+
+# Flowbaby files
 .flowbaby/
+
+# Local environment configuration
+.env*
+
+# Factory.ai (DROID)
+.factory/
