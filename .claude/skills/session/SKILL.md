@@ -188,7 +188,7 @@ These paths qualify for investigation-only QA exemption:
 | `.serena/memories/` | Cross-session context storage |
 | `.agents/security/` | Security assessments and reviews |
 
-**Important**: This allowlist MUST match exactly with `scripts/Validate-Session.ps1 $InvestigationAllowlist`. The patterns are validated by Pester tests to ensure consistency.
+**Important**: This allowlist is defined by ADR-034 (Investigation Session QA Exemption). The patterns in `Test-InvestigationEligibility.ps1` are validated by Pester tests to ensure they match the ADR specification.
 
 ---
 
@@ -199,7 +199,7 @@ These paths qualify for investigation-only QA exemption:
 | Skipping eligibility check | May commit ineligible files with investigation-only skip | Always run the skill before using the skip |
 | Ignoring violations | QA exemption won't be valid | Address violations or invoke qa agent |
 | Using for code changes | Investigation-only is for analysis, not implementation | Start a new session for code work |
-| Hardcoding path checks | Patterns may drift from Validate-Session.ps1 | Use this skill which shares the same patterns |
+| Hardcoding path checks | Patterns may drift from ADR-034 specification | Use this skill which implements the ADR patterns |
 
 ---
 
@@ -221,5 +221,5 @@ After using this skill:
 | [ADR-034](../../.agents/architecture/decisions/adr-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption architecture decision |
 | [SESSION-PROTOCOL.md](../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
 | [Issue #662](https://github.com/rjmurillo/ai-agents/issues/662) | Create QA skip eligibility check skill |
-| [Validate-Session.ps1](../../scripts/Validate-Session.ps1) | Uses same allowlist for CI validation |
+| [Validate-SessionJson.ps1](../../scripts/Validate-SessionJson.ps1) | Validates session JSON format (separate from eligibility) |
 | [Test-InvestigationEligibility.Tests.ps1](../../tests/Test-InvestigationEligibility.Tests.ps1) | Pester tests ensuring pattern consistency |
