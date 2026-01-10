@@ -305,6 +305,34 @@ Chosen option: "{title of option 1}", because {justification: meets criterion X 
 ## More Information
 
 {Additional evidence, team agreement documentation, realization timeline, links to related decisions and resources.}
+
+## Engineering Knowledge Applied
+
+Document which strategic frameworks informed this decision:
+
+**Mental Models**:
+
+- [ ] Chesterton's Fence: [How applied or N/A]
+- [ ] Second-Order Thinking: [Consequences explored]
+- [ ] Inversion Thinking: [Failure modes identified]
+
+**Strategic Frameworks**:
+
+- [ ] Cynefin Classification: [Clear | Complicated | Complex | Chaotic | N/A]
+- [ ] Wardley Mapping: [Evolution stage: Genesis | Custom | Product | Commodity | N/A]
+- [ ] Three Horizons: [Horizon: H1 | H2 | H3 | N/A]
+
+**Architecture Principles**:
+
+- [ ] Core vs Context: [Core (build) | Context (buy) | N/A]
+- [ ] Lindy Effect: [Technology maturity assessed: Yes | No | N/A]
+- [ ] Conway's Law: [Org alignment considered: Yes | No | N/A]
+
+**Migration Patterns** (if applicable):
+
+- [ ] Strangler Fig: [Applied | Not Applicable]
+- [ ] Expand/Contract: [Applied | Not Applicable]
+- [ ] Sacrificial Architecture: [Lifespan/triggers documented | Not Applicable]
 ```
 
 ### ADR Anti-Patterns to Avoid

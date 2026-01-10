@@ -301,6 +301,37 @@ Estimate:
 - Maintenance burden
 - Community support quality
 
+### Technology Maturity Assessment (Lindy Effect)
+
+The Lindy Effect suggests technologies that have survived longer are likely to survive longer. Older, proven technologies often represent lower risk than novel alternatives.
+
+**Maturity Indicators**:
+
+| Age | Lindy Assessment | Risk Level | Consideration |
+|-----|-----------------|------------|---------------|
+| **25+ years** | High survival probability | Very Low | Battle-tested, stable, extensive ecosystem |
+| **10-25 years** | Established | Low | Proven at scale, mature tooling |
+| **5-10 years** | Maturing | Medium | Emerging standards, growing adoption |
+| **2-5 years** | Early adoption | Medium-High | Unstable APIs, evolving patterns |
+| **<2 years** | Novel/experimental | Very High | Uncertain longevity, minimal training data |
+
+**Application**:
+
+- For critical systems: Favor technologies with 10+ years survival
+- For experimental features: Novel technologies acceptable with isolation boundaries
+- For core infrastructure: Prefer "boring technology" (Lindy survivors)
+
+**AI Tooling Consideration**: AI coding tools (Copilot, Claude, Cursor) perform better on established stacks due to vastly higher training data volume. Choosing Lindy technologies improves AI assistance quality.
+
+### Community Signal vs. Lindy Tension
+
+When community signal (GitHub stars, downloads) conflicts with Lindy assessment:
+
+- **High signal, Low Lindy**: Trendy but unproven (proceed with caution, expect churn)
+- **Low signal, High Lindy**: Mature but declining (stable but limited future investment)
+- **High signal, High Lindy**: Established and growing (ideal state)
+- **Low signal, Low Lindy**: Avoid unless strategic differentiation
+
 ### Recommendation
 [Proceed / Defer / Reject] with rationale:
 - Evidence strength: [Strong / Moderate / Weak]
