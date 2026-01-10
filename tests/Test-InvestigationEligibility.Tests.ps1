@@ -7,15 +7,12 @@
 .DESCRIPTION
     Tests the investigation eligibility check skill that allows agents
     to verify if staged files qualify for investigation-only QA skip.
-    Verifies allowlist patterns match Validate-SessionProtocol.ps1 exactly.
+    Verifies allowlist patterns are correctly defined.
 #>
 
 BeforeAll {
-    # Import the canonical session validation script to get InvestigationAllowlist
-    $validateProtocolPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-SessionProtocol.ps1"
-    . $validateProtocolPath
-
-    $scriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "session" "scripts" "Test-InvestigationEligibility.ps1"
+    # The allowlist is defined in the skill script itself - no need to source validator
+    $scriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "session-qa-eligibility" "scripts" "Test-InvestigationEligibility.ps1"
     $scriptContent = Get-Content -Path $scriptPath -Raw
 
     # Extract the allowlist variable for pattern verification
@@ -35,21 +32,14 @@ Describe "Test-InvestigationEligibility.ps1" {
             $investigationAllowlist | Should -Contain '^[.]agents/security/'
         }
 
-        It "Has exactly 5 allowlist patterns matching Validate-SessionProtocol.ps1" {
+        It "Has exactly 5 allowlist patterns" {
             $investigationAllowlist.Count | Should -Be 5
         }
 
-        It "Matches patterns with Validate-SessionProtocol.ps1 exactly" {
-            # Get canonical patterns from Validate-SessionProtocol.ps1 (already sourced in BeforeAll)
-            # $script:InvestigationAllowlist is now available from the sourced script
-
-            # Compare each pattern
+        It "All patterns are properly formatted regex patterns" {
+            # Verify each pattern is a valid regex
             foreach ($pattern in $investigationAllowlist) {
-                $script:InvestigationAllowlist | Should -Contain $pattern -Because "Pattern '$pattern' should exist in both scripts"
-            }
-
-            foreach ($pattern in $script:InvestigationAllowlist) {
-                $investigationAllowlist | Should -Contain $pattern -Because "Pattern '$pattern' from Validate-SessionProtocol.ps1 should exist in Test-InvestigationEligibility.ps1"
+                { [regex]::new($pattern) } | Should -Not -Throw
             }
         }
     }
@@ -102,7 +92,7 @@ Describe "Test-InvestigationEligibility.ps1" {
         }
 
         It "Does NOT match code files" {
-            $file = 'scripts/Validate-SessionProtocol.ps1'
+            $file = 'scripts/Validate-SessionJson.ps1'
             $normalizedFile = $file -replace '\\', '/'
             $matched = $patterns | Where-Object { $normalizedFile -match $_ }
             $matched | Should -BeNullOrEmpty
