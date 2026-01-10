@@ -99,10 +99,10 @@ if ($workflowFiles.Count -eq 0) {
 Write-ColorOutput "Scanning $($workflowFiles.Count) workflow/action file(s)..." $ColorCyan
 
 # Regex pattern to detect version tag usage
-# Matches: uses: <action>@v<digits>[.<digits>]*
-# Excludes: 40 hex character SHAs, local actions (./)
+# Matches: uses: <action>@v<digits>[.<digits>]* with optional suffixes like -alpha, -beta, -rc1
+# Excludes: 40 hex character SHAs (which would have [a-f0-9]{40}), local actions (./)
 # Note: Accounts for YAML list markers (-)
-$versionTagPattern = '^\s*-?\s*uses:\s+([^@]+)@(v\d+(?:\.\d+)*)\s*(?:#.*)?$'
+$versionTagPattern = '^\s*-?\s*uses:\s+([^@]+)@(v\d+(?:\.\d+)*(?:-[a-zA-Z0-9]+)?)\s*(?:#.*)?$'
 
 $violations = @()
 

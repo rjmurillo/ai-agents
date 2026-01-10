@@ -91,6 +91,93 @@ jobs:
             $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
             $result.status | Should -Be "pass"
         }
+
+        It "Detects version tag with alpha suffix" {
+            $testDir = Join-Path $TestDrive "version-alpha-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4-alpha
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+
+        It "Detects version tag with beta suffix" {
+            $testDir = Join-Path $TestDrive "version-beta-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v3.2.1-beta
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+
+        It "Detects version tag with rc suffix" {
+            $testDir = Join-Path $TestDrive "version-rc-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v2.0.0-rc1
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "fail"
+            $result.violations.Count | Should -BeGreaterThan 0
+        }
+
+        It "Does not match SHA that starts with v-like hex pattern" {
+            $testDir = Join-Path $TestDrive "sha-vlike-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "pass"
+        }
     }
 
     Context "Output Formats" {
