@@ -59,6 +59,16 @@
 - **SRE**: Operations as software problem
 - **Team Topologies**: Stream-aligned, Platform, Enabling, Complicated-subsystem
 
+## Related Knowledge Sets
+
+| Experience Level | Analysis File |
+|------------------|---------------|
+| Foundational (< 5 yrs) | `.agents/analysis/foundational-engineer-knowledge-set.md` |
+| Senior | `.agents/analysis/senior-engineering-knowledge.md` |
+| Advanced | `.agents/analysis/advanced-engineering-knowledge.md` |
+| Principal | `.agents/analysis/principal-engineer-knowledge-set.md` |
+| Distinguished (25+ yrs) | `.agents/analysis/distinguished-engineer-knowledge.md` |
+
 ## Cross-References
 - Security: `security-principles-owasp`
 - Architecture: `c4-model`, `strangler-fig-pattern`

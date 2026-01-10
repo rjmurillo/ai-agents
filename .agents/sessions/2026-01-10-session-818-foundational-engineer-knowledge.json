@@ -216,9 +216,24 @@
         "Updated memory-index with Engineering Knowledge Tiers table",
         "Consolidated duplicate principal-engineering-knowledge.md into single file"
       ]
+    },
+    {
+      "phase": "Distinguished Engineer Knowledge Consolidation (25+ years)",
+      "activities": [
+        "Researched 20+ concepts: Lindy Effect, Second-System Effect, Path Dependence, Golden Path, Uptime Inequity, Strangler Fig, Expand/Contract, Three Horizons, TOGAF, Wardley Mapping",
+        "Created legacy-scale-engineer-knowledge-set.md with deep research synthesis",
+        "Created Forgetful memory ID 211 for 25+ year knowledge framework",
+        "Merged legacy-scale-engineer-knowledge-set.md into distinguished-engineer-knowledge.md (936 lines total)",
+        "Added Meadows leverage points hierarchy",
+        "Added Platform Engineering responsibilities",
+        "Added H4 horizon (20+ years) to Three Horizons",
+        "Added Part 8 Synthesis section",
+        "Deleted redundant legacy-scale file",
+        "Updated foundational-knowledge-index table"
+      ]
     }
   ],
-  "endingCommit": "07b0cadd",
+  "endingCommit": "ef37ca5b",
   "artifacts": [
     {
       "type": "analysis",
@@ -231,9 +246,14 @@
       "description": "4500+ word comprehensive synthesis for principal-level engineers (15+ years)"
     },
     {
+      "type": "analysis",
+      "path": ".agents/analysis/distinguished-engineer-knowledge.md",
+      "description": "936-line comprehensive synthesis for distinguished engineers (25+ years)"
+    },
+    {
       "type": "memory",
       "path": ".serena/memories/foundational-knowledge-index.md",
-      "description": "Cross-reference index for foundational concepts"
+      "description": "Cross-reference index for all experience level knowledge sets"
     },
     {
       "type": "memory",
@@ -261,6 +281,10 @@
     {
       "decision": "Created Engineering Knowledge Tiers table in memory-index",
       "rationale": "Links three experience levels (<5yr, 15+yr, 25+yr) to their respective analysis documents for progressive skill development"
+    },
+    {
+      "decision": "Merged legacy-scale-engineer-knowledge-set.md into distinguished-engineer-knowledge.md",
+      "rationale": "Both files covered 25+ year engineer knowledge with overlapping content; merged to single 936-line comprehensive document preserving unique content from both sources"
     }
   ],
   "context": {

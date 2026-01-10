@@ -7,7 +7,13 @@
 
 ## Executive Summary
 
-This document captures the knowledge framework for engineers with 25+ years of experience who operate at organizational and industry scale. At this level, impact is measured not by code written but by systems influenced, decisions shaped, and engineering cultures transformed. The focus shifts from building systems to stewarding them across generations of engineers and technology cycles.
+This document captures the knowledge framework for engineers with 25+ years of experience who operate at organizational and industry scale. At this level, impact is measured not by code written but by systems influenced, decisions shaped, and engineering cultures transformed.
+
+At this level, impact is measured by:
+
+1. **Systems you don't touch**: Principles and patterns propagate through architecture
+2. **Teams you don't lead**: Culture and learning organization characteristics spread
+3. **Decisions you didn't make**: Governance frameworks enable autonomous good decisions
 
 ## Goals at This Level
 
@@ -30,9 +36,16 @@ Distinguished Engineers:
 
 **Concept**: The future life expectancy of non-perishable things (technologies, ideas) is proportional to their current age. Systems that have survived longer tend to keep surviving.
 
-**Source**: Nassim Nicholas Taleb, via The Black Swan
+**Source**: Nassim Nicholas Taleb, "The Black Swan"
 
 **Key Insight**: Mortality rate decreases with time. A 50-year-old programming language has better odds of surviving another 50 years than a 5-year-old language has of surviving another 5.
+
+**Practical Application**:
+
+- Technologies like C (1972), SQL, Unix (1969), TCP/IP (1970s) remain foundational because they've survived stress-testing
+- "Boring technology" wins: PostgreSQL with 30+ years of dominance will likely remain dominant for decades
+- AI coding tools (Copilot, Cursor, Claude) perform better on established stacks because training data volume is vastly higher
+- **Investment priority**: Foundational principles (algorithms, data structures, design patterns, system architecture) over short-lived frameworks with 2-5 year lifespans
 
 **Application**:
 
@@ -47,16 +60,24 @@ Distinguished Engineers:
 
 **Concept**: The tendency of small, elegant, and successful systems to be succeeded by over-engineered, bloated systems due to inflated expectations and overconfidence.
 
-**Source**: Fred Brooks, The Mythical Man-Month (1975)
+**Source**: Fred Brooks, "The Mythical Man-Month" (1975)
 
 **Key Insight**: Designers of second systems are tempted to include all features omitted from the first. The result is often a system that collapses under its own weight.
 
-**Application**:
+**Why It Happens**:
+
+1. **Version 1 (MVP)**: Constrained by time and resources. Focus on necessity. Constraints saved the project.
+2. **Version 2 (The Trap)**: Confidence leads to trying to fix every flaw, add every postponed feature, make it "generic" for all future scenarios.
+
+**How to Avoid**:
 
 - Maintain humility when replacing successful systems
 - Set explicit scope boundaries for rewrites
 - Preserve the simplicity that made the original successful
+- Practice "self-discipline to avoid functional ornamentation" (Brooks)
+- Question features obviated by changed assumptions and purposes
 - Assign experienced architects who resist feature creep
+- Treat v2 with the same urgency and simplicity constraints as v1
 
 **Warning Signs**:
 
@@ -71,10 +92,18 @@ Distinguished Engineers:
 
 **Source**: Economics and institutional theory
 
+**Key Understanding**:
+
+- Software architecture involves "fundamental structural choices that are costly to change once implemented"
+- Two fundamental laws: (1) Everything is a trade-off, (2) "Why is more important than how"
+- Decisions may become "non-architectural once their irreversibility can be overcome"
+
 **Key Insight**: QWERTY keyboard layout persists not because it's optimal but because of accumulated ecosystem investment. Technology choices work the same way.
 
-**Application**:
+**Strategic Response**:
 
+- Delay architectural decisions until "last responsible moment" with sufficient information
+- Ongoing collaboration with development team allows adjustment based on feedback
 - Document why decisions were made, not just what was decided
 - Recognize when you're optimizing within a suboptimal path
 - Evaluate switching costs honestly
@@ -115,7 +144,11 @@ Distinguished Engineers:
 
 **Source**: Charity Majors
 
-**Key Insight**: Platform engineering succeeds when it makes the right thing easy, not when it makes other things impossible.
+**The Golden Path Principle**:
+
+- "It should be much simpler and easier to use the blessed paths than anything else"
+- "There should be friction if you go off the beaten path"
+- Key: "Easy to do the right thing and hard to do the wrong thing"
 
 **Characteristics of Golden Path**:
 
@@ -131,12 +164,23 @@ Distinguished Engineers:
 - Created once, never updated
 - Optimizes for control over enablement
 
+**Platform Engineering Responsibilities**:
+
+1. Run tests and generate new artifacts
+2. Deploy artifacts, version them, and roll back
+3. Instrument, monitor, and debug
+4. Store data, manage schemas and migrations
+5. Adjust capacity as needed
+6. Define and commit all components as code
+
 **Application**:
 
 - Build platforms that guide, don't constrain
 - Document deviation paths alongside defaults
 - Review constraints periodically for continued relevance
 - Measure adoption as validation, not mandate
+
+**The Cage Warning**: When defaults prevent evolution, you've created a cage. Design for growth, not just initial productivity.
 
 ### Uptime Inequity
 
@@ -145,6 +189,13 @@ Distinguished Engineers:
 **Source**: Google SRE practices
 
 **Key Insight**: A 99.99% availability target for a reporting dashboard wastes engineering effort. A 99.9% target for a payment system may be insufficient.
+
+**SRE Principles**:
+
+- Google SRE teams spend maximum 50% on operational work; remainder on engineering to reduce toil
+- Classify system dependencies and failure risk into portfolios
+- Not all systems require 99.99% uptime: match SLOs to actual business needs
+- Over-engineering reliability for non-critical systems wastes resources
 
 **Application**:
 
@@ -170,9 +221,18 @@ Distinguished Engineers:
 
 **Concept**: Align technical strategy with team dynamics, incentives, and values. Technology and organization must evolve together.
 
-**Source**: Conway's Law extended
+**Source**: Conway's Law extended (Melvin Conway, 1967)
+
+**Core Insight**: Organizations produce designs that copy their communication structures.
 
 **Key Insight**: Technical architecture reflects organizational structure. Changing one without changing the other creates tension that eventually resolves, often poorly.
+
+**Practical Implications**:
+
+- Align technical strategy with team dynamics, incentives, and values
+- Team structure is an architectural input, not output
+- Reorganization should consider architectural consequences
+- Microservices often fail because team boundaries don't align with service boundaries
 
 **Application**:
 
@@ -193,6 +253,10 @@ Distinguished Engineers:
 **Concept**: Separate stable operations from innovation zones. Different work requires different processes, metrics, and risk tolerances.
 
 **Key Insight**: Mixing "keep the lights on" work with innovation leads to either neglected operations or stifled innovation.
+
+**Key Tension**: Most enterprises still structured for linear, project-based change while technology accelerates exponentially. Gap between what's possible and what's operationally sustainable widens.
+
+**Resolution**: Treat architecture as "the enterprise's metabolism": a living system that must refresh continuously.
 
 **Model**:
 
@@ -238,12 +302,20 @@ Distinguished Engineers:
 
 **Key Insight**: Manual compliance processes don't scale. Automated policy enforcement enables continuous compliance.
 
-**Implementation**:
+**OPA/Rego Capabilities**:
 
-- Define policies in declarative languages (Rego, Sentinel)
-- Integrate policy checks into CI/CD pipelines
-- Version control policies alongside code
-- Audit policy changes through standard code review
+- Policy-as-code frameworks turn security rules into versioned, testable code
+- Policies can be applied consistently across systems via REST APIs
+- Supports Terraform, Kubernetes, CI/CD systems
+- Version control enables same review, testing, and deployment workflows as application code
+
+**Implementation Pattern**:
+
+1. Define policies in declarative languages (Rego, Sentinel)
+2. Integrate policy checks into CI/CD pipelines
+3. Version control policies alongside code
+4. Audit policy changes through standard code review
+5. Prevent non-compliant code from reaching production
 
 **Benefits**:
 
@@ -259,6 +331,20 @@ Distinguished Engineers:
 **Source**: Microsoft Purview and data governance practices
 
 **Key Insight**: Knowing where data came from, where it goes, and what policies apply is essential for compliance, debugging, and trust.
+
+**Microsoft Purview Capabilities**:
+
+- Unified data discovery, cataloging, compliance, risk management
+- Spans on-premises, multi-cloud, and SaaS environments
+- Automated data classification and discovery
+- Lineage tracking from discovery to policy enforcement
+
+**Data Sovereignty Realities (2025)**:
+
+- Data subject to laws of nation where collected/stored/processed
+- Multi-cloud creates data sprawl across 5-10+ global regions
+- Each country has different transfer rules, breach notification, encryption, residency requirements
+- Managing manually is nearly impossible: requires tooling
 
 **Components**:
 
@@ -284,6 +370,13 @@ Distinguished Engineers:
 
 **Source**: Martin Fowler
 
+**Mechanism**:
+
+- Build new functionality around existing legacy system
+- Gradually redirect calls to new components via facade/proxy layer
+- Continue until old system can be safely decommissioned
+- Named after strangler fig vine that grows around a host tree
+
 **Process**:
 
 1. Identify bounded context to extract
@@ -291,6 +384,13 @@ Distinguished Engineers:
 3. Backfill data migration if needed
 4. Route existing traffic incrementally
 5. Decommission old system
+
+**Why It Works**:
+
+- Manages risk when rewriting monolithic systems
+- No big-bang migration required
+- Legacy system never stops running during transition
+- Migration happens feature by feature
 
 **Benefits**:
 
@@ -306,17 +406,26 @@ Distinguished Engineers:
 - Database views for compatibility
 - API versioning for gradual migration
 
+**Combined with Domain-Driven Design**: Use bounded contexts to identify migration boundaries.
+
 ### Expand and Contract
 
 **Concept**: Safe schema and API changes over time through parallel deployment.
 
 **Source**: Martin Fowler
 
-**Process**:
+**Phases**:
 
-1. **Expand**: Add new fields/endpoints, support both old and new
-2. **Migrate**: Move clients to new version
-3. **Contract**: Deprecate and remove old version
+1. **Expand**: Introduce new schema elements without removing/changing existing ones. All changes backward compatible.
+2. **Migrate (Transition)**: Gradually update application code to use new structures. Both old and new coexist. Data migrated if necessary (triggers help).
+3. **Contract**: Once new structures fully adopted and legacy no longer used, safely remove obsolete parts.
+
+**Benefits**:
+
+- No data loss (unlike big-bang migrations)
+- If something goes wrong, create targeted fixes rather than scrambling to undo batch of changes
+- Small batches easier to review and validate
+- Facilitates collaboration and improves code quality
 
 **Application**:
 
@@ -355,12 +464,17 @@ Distinguished Engineers:
 
 **Source**: Martin Fowler
 
+**Principle**: Accept that current architecture may need complete replacement when requirements or scale change dramatically.
+
 **Key Insight**: Jeff Dean's rule at Google: "design for ~10X growth, but plan to rewrite before ~100X." Systems built for current scale won't work at order-of-magnitude larger scale.
 
 **Application**:
 
+- Design with explicit replacement boundaries
+- Document what should be preserved (business logic, data) vs what should be discarded (implementation details)
+- Build systems knowing they're disposable
+- Value institutional knowledge over technical artifacts
 - Set explicit lifespan expectations for systems
-- Document when systems should be replaced
 - Avoid over-investing in extending doomed architectures
 - Build for current and near-future needs, not hypothetical scale
 
@@ -381,6 +495,12 @@ Distinguished Engineers:
 
 - **Core**: Capabilities that differentiate your business
 - **Context**: Capabilities that are necessary but not differentiating
+
+**Strategic Application**:
+
+- Focus engineering talent on core differentiators
+- Buy/outsource context activities
+- Continuously reevaluate what's core vs context as market evolves
 
 **Application**:
 
@@ -404,26 +524,25 @@ Distinguished Engineers:
 
 **Source**: McKinsey
 
-**Horizons**:
+**The Horizons**:
 
-| Horizon | Time Frame | Focus | Risk | Metrics |
-|---------|------------|-------|------|---------|
-| H1 | 0-1 years | Optimize current business | Low | Revenue, efficiency |
-| H2 | 1-3 years | Emerging opportunities | Medium | Growth, market share |
-| H3 | 3-10 years | Future bets | High | Learning, options |
-
-**Investment Allocation**:
-
-- H1: 70% of investment (sustain current business)
-- H2: 20% of investment (grow into adjacencies)
-- H3: 10% of investment (create future options)
+| Horizon | Time Frame | Focus | Risk | Metrics | Investment |
+|---------|------------|-------|------|---------|------------|
+| H1 | 0-1 years | Optimize current business | Low | Revenue, efficiency | ~70% |
+| H2 | 1-3 years | Emerging opportunities | Medium | Growth, market share | ~20% |
+| H3 | 3-10 years | Future bets | High | Learning, options | ~10% |
+| H4 | 20+ years | Engineering heritage | Strategic | Open standards, sustainability, ethics | Variable |
 
 **Application to Technology**:
 
 - **H1**: Infrastructure modernization, vendor risk reduction, reliability
 - **H2**: Platform shifts, architecture transitions, org models
 - **H3**: Ecosystem positioning, legacy risk management, standards
-- **H4 (20+ years)**: Engineering heritage, open standards, sustainability, ethics
+- **H4**: Engineering heritage, open standards, sustainability, ethics
+
+**Critical Insight**: You cannot use H1 metrics on H3 projects. "What's the ROI?" on an 8-week-old experiment will always be zero. This is the "paradox of growth": systems that make you profitable today blind you to tomorrow.
+
+**Common Failure**: Actual allocation often 95/4/1 when desired is 70/20/10.
 
 ### Long-Term Constraint Thinking
 
@@ -446,6 +565,13 @@ Distinguished Engineers:
 
 **Source**: Azure Cloud Adoption Framework
 
+**Implementation**:
+
+- Define guiding principles for technology decisions
+- Allow flexibility in implementation while maintaining strategic alignment
+- Governance must evolve from control to continuity
+- Use policy-as-code guardrails that guide rather than gate
+
 **Approach**:
 
 1. Define architectural principles (5-10 max)
@@ -464,14 +590,22 @@ Distinguished Engineers:
 
 **Concept**: Cross-cutting integration of technology and business through structured methodology.
 
+**Source**: The Open Group, TOGAF
+
 **Key Insight**: TOGAF 10 (2024) emphasizes business capabilities and value streams over technology stacks.
 
-**Core Components**:
+**Four Key Domains**:
 
-- Business Architecture: Processes, capabilities, organizational structure
-- Data Architecture: Information assets and management
-- Application Architecture: Application systems and interactions
-- Technology Architecture: Infrastructure and platforms
+1. Business Architecture: Processes, capabilities, organizational structure
+2. Data Architecture: Information assets and management
+3. Application Architecture: Application systems and interactions
+4. Technology Architecture: Infrastructure and platforms
+
+**Architecture Development Method (ADM)**:
+
+- Iterative cycle updating Architecture Repository
+- Each cycle refines understanding and alignment
+- Connects strategy to execution across all layers
 
 **Application**:
 
@@ -484,6 +618,16 @@ Distinguished Engineers:
 
 **Concept**: Privacy, fairness, bias, safety, institutionalized as engineering principles.
 
+**Source**: fast.ai ethics course, Microsoft Responsible AI Standard
+
+**Core Principles**:
+
+- Fairness and non-discrimination
+- Transparency and explainability
+- Accountability and oversight
+- Privacy and data protection
+- Safety and reliability
+
 **Key Areas**:
 
 - **Fairness**: Algorithmic decisions don't discriminate
@@ -492,8 +636,12 @@ Distinguished Engineers:
 - **Safety**: Fail-safe behaviors, bounded autonomy
 - **Accountability**: Clear responsibility for outcomes
 
-**Application**:
+**Implementation Requirements**:
 
+- Establish AI ethics board with diverse expertise
+- Develop clear ethical guidelines
+- Regularly review models for fairness and bias standards
+- Create governance structures for high-risk AI decisions
 - Include ethics review in system design
 - Test for bias in ML systems
 - Design for data minimization
@@ -518,7 +666,13 @@ Distinguished Engineers:
 
 **Concept**: Avoid knowledge rot in long-lived systems.
 
-**Source**: Hillel Wayne
+**Source**: Hillel Wayne on incident histories
+
+**Challenges**:
+
+- Personnel turnover can be disaster for complex systems
+- Legacy code generates revenue but understanding decays
+- Tribal knowledge often undocumented
 
 **Mechanisms**:
 
@@ -526,6 +680,13 @@ Distinguished Engineers:
 - **Runbooks**: How to operate systems
 - **Design documents**: System intent and constraints
 - **Incident histories**: What went wrong and why
+
+**Solutions**:
+
+- Preserve institutional knowledge through documentation
+- Write linked notes for augmented memory
+- Heritage documentation preserving system origin, evolution, and rationale
+- Create succession plans for systems, not just people
 
 **Application**:
 
@@ -550,16 +711,121 @@ Distinguished Engineers:
 | The Fifth Discipline | Peter Senge | Organizational learning and systems thinking |
 | How Buildings Learn | Stewart Brand | Cross-industry lessons in design-for-change |
 
+### The Mythical Man-Month (Fred Brooks, 1975)
+
+**Enduring Lessons**:
+
+1. **Brooks's Law**: "Adding manpower to a late software project makes it later"
+   - Communication overhead grows exponentially with team size
+   - 10 engineers = 45 connections, 30 engineers = 435 connections (Metcalfe's Law)
+
+2. **Conceptual Integrity**: System architecture requires single vision
+   - "The entire system requires a system architect to design it all, from the top down"
+   - Division of labor threatens integrity: each programmer makes different choices
+
+3. **Essential vs Accidental Complexity**:
+   - Most software challenges arise from essential complexity (inherent in problem)
+   - Software systems are "more complex than most things people build"
+   - Scaling is not repetition: it's designing and testing entirely new components
+
+4. **Two-Pizza Team**: Jeff Bezos rule: team size is non-negotiable input to architecture
+
+### Designing Data-Intensive Applications (Martin Kleppmann)
+
+**Core Message**: There's no one-size-fits-all architecture. The right tool depends on the job.
+
+**Key Topics**:
+
+- Reliable, scalable, maintainable applications
+- Data models and query languages
+- Storage and retrieval mechanisms
+- Encoding and evolution
+- Replication and partitioning strategies
+- Batch vs stream processing
+- Consensus algorithms and distributed transactions
+
+**Why It Matters**: The "Bible of modern scalable backend systems": teaches thinking in failure modes, throughput, latency, availability, and long-term maintainability.
+
+### Thinking in Systems (Donella Meadows)
+
+**Core Concepts**:
+
+1. **Stocks and Flows**: Understanding accumulation and change over time
+2. **Feedback Loops**: Reinforcing (amplifying) and balancing (stabilizing) dynamics
+3. **System Archetypes**: Recurring patterns of behavior
+4. **Leverage Points**: Places where small shifts create huge behavioral change
+
+**Hierarchy of Leverage Points** (least to most effective):
+
+- Parameters and constants (least effective)
+- Buffer sizes
+- Structure of material flows
+- Delays in feedback loops
+- Strength of feedback loops
+- Information flows
+- Rules of the system
+- Power to add/change rules
+- Goals of the system
+- Mindset/paradigm (most effective)
+
+**Key Insight**: AI models interact with human systems, business processes, and existing workflows. Optimization creates feedback loops that change entire systems in unintended ways.
+
+### The Fifth Discipline (Peter Senge)
+
+**Concept**: Five disciplines of a learning organization.
+
+**The Disciplines**:
+
+1. **Personal Mastery**: Continually clarifying personal vision
+2. **Mental Models**: Surfacing and examining assumptions
+3. **Shared Vision**: Building genuine commitment
+4. **Team Learning**: Dialogue and collective thinking
+5. **Systems Thinking**: The integrating discipline
+
+**Why Organizations Fail**: They treat creating a learning organization as ideological rather than systems-based. Superficial implementation reduces it to "moral education activities."
+
+**Application**: Build organizations that learn and adapt collectively.
+
+### How Buildings Learn (Stewart Brand)
+
+**Concept**: Buildings are designed once but adapted over decades. Software is similar.
+
+**Pace Layers / Shearing Layers**: Different components change at different rates.
+
+- **Site**: Eternal: the location
+- **Structure**: 30-300 years: load-bearing elements
+- **Skin**: 20 years: exterior surfaces
+- **Services**: 7-15 years: wiring, plumbing, HVAC
+- **Space Plan**: 3-30 years: interior layout
+- **Stuff**: Daily to yearly: furniture, equipment
+
+**Application to Software**:
+
+- Core data model: Changes slowly (like structure)
+- Business logic: Changes with market (like services)
+- UI: Changes frequently (like stuff)
+- Infrastructure layer evolves rapidly (12-18 month commoditization)
+- Domain-specific components change slower: where differentiation lives
+- Modularity and clean interfaces at fast-changing layers
+- Stability and deep ownership at slow-changing layers
+
 ### Wardley Mapping
 
 **Concept**: Strategic mapping of capability evolution over time.
 
-**Source**: Simon Wardley
+**Source**: Simon Wardley, learnwardleymapping.com
 
 **The Map Structure**:
 
 - **Y-axis (Value Chain)**: User needs at top, enabling components below
 - **X-axis (Evolution)**: Genesis, Custom, Product, Commodity
+
+**Evolution Axis**:
+
+- Genesis (novel, uncertain)
+- Custom-Built (understood but unique)
+- Product/Rental (increasingly standardized)
+- Commodity/Utility (fully commoditized)
 
 **Decision Guidance**:
 
@@ -570,45 +836,14 @@ Distinguished Engineers:
 | Product | Buy or build based on differentiation |
 | Commodity | Use as utility, don't build |
 
+**Strategic Applications**:
+
+- Build vs buy decisions based on evolutionary position
+- Identify where to invest vs where to use commodity
+- Predict future market movements
+- Design architectures that anticipate commoditization
+
 **Application**: Map your technology portfolio to identify where to invest vs commoditize.
-
-### The Fifth Discipline
-
-**Concept**: Five disciplines of a learning organization.
-
-**Source**: Peter Senge
-
-**The Disciplines**:
-
-1. **Personal Mastery**: Continually clarifying personal vision
-2. **Mental Models**: Surfacing and examining assumptions
-3. **Shared Vision**: Building genuine commitment
-4. **Team Learning**: Dialogue and collective thinking
-5. **Systems Thinking**: The integrating discipline
-
-**Application**: Build organizations that learn and adapt collectively.
-
-### How Buildings Learn
-
-**Concept**: Buildings are designed once but adapted over decades. Software is similar.
-
-**Source**: Stewart Brand
-
-**Shearing Layers**: Different components change at different rates.
-
-- Site: Permanent
-- Structure: 30-300 years
-- Skin: 20 years
-- Services: 7-15 years
-- Space Plan: 3-30 years
-- Stuff: Daily
-
-**Application to Software**:
-
-- Core data model: Changes slowly (like structure)
-- Business logic: Changes with market (like services)
-- UI: Changes frequently (like stuff)
-- Design systems to allow different change rates in different layers
 
 ---
 
@@ -622,6 +857,21 @@ Distinguished Engineers:
 | Succession Plans for Systems | Ensure continuity after exits |
 | Governance Playbooks | Codify trust, security, and compliance |
 | Heritage Documentation | Preserve system origin, evolution, and rationale |
+
+---
+
+## Part 8: Synthesis
+
+At this level, the highest leverage work becomes:
+
+- Choosing what NOT to build
+- Designing systems that self-improve
+- Creating succession paths for systems and knowledge
+- Embedding ethical and sustainability considerations structurally
+
+**The Paradox**: As influence grows, hands-on work shrinks.
+
+**Final Insight**: The Lindy Effect applies to principles, not just technologies. The concepts in this document have survived decades of technological change. They will likely survive decades more. Invest deeply in understanding them.
 
 ---
 
@@ -665,17 +915,21 @@ Distinguished Engineers:
 
 ## Sources and References
 
-- [Lindy Effect (Wikipedia)](https://en.wikipedia.org/wiki/Lindy_effect)
-- [Second-System Effect (Wikipedia)](https://en.wikipedia.org/wiki/Second-system_effect)
-- [Path Dependence (Wikipedia)](https://en.wikipedia.org/wiki/Path_dependence)
-- [Strangler Fig Application (Martin Fowler)](https://martinfowler.com/bliki/StranglerFigApplication.html)
-- [Sacrificial Architecture (Martin Fowler)](https://martinfowler.com/bliki/SacrificialArchitecture.html)
-- [Learn Wardley Mapping](https://learnwardleymapping.com/)
-- [Designing Data-Intensive Applications](https://dataintensive.net/)
-- [The Mythical Man-Month (Wikipedia)](https://en.wikipedia.org/wiki/The_Mythical_Man-Month)
-- [The Fifth Discipline (Wikipedia)](https://en.wikipedia.org/wiki/The_Fifth_Discipline)
-- [How Buildings Learn (Wikipedia)](https://en.wikipedia.org/wiki/How_Buildings_Learn)
-- [Three Horizons Framework (McKinsey)](https://www.acceptmission.com/blog/three-horizons-growth-framework/)
-- [TOGAF (Open Group)](https://www.opengroup.org/togaf)
-- [Open Policy Agent](https://www.openpolicyagent.org/)
-- [Google SRE Books](https://sre.google/books/)
+1. Taleb, Nassim Nicholas. "The Black Swan": Lindy Effect
+2. Brooks, Fred. "The Mythical Man-Month" (1975): Second-system effect, conceptual integrity, Brooks's Law
+3. Conway, Melvin. "Conway's Law" (1967): Sociotechnical systems
+4. Fowler, Martin. martinfowler.com: Strangler Fig, Expand/Contract, Sacrificial Architecture
+5. Majors, Charity. charity.wtf: Golden Path, Platform Engineering
+6. Google. "Site Reliability Engineering": SRE principles, uptime inequity
+7. Open Policy Agent. openpolicyagent.org: Compliance as code
+8. Microsoft. Azure Purview: Data lineage and sovereignty
+9. Moore, Geoffrey. "Core vs Context": Investment prioritization
+10. McKinsey. "Three Horizons Model": Time horizon thinking
+11. The Open Group. TOGAF: Enterprise architecture
+12. Kleppmann, Martin. "Designing Data-Intensive Applications": Distributed systems
+13. Meadows, Donella. "Thinking in Systems": Systems thinking, leverage points
+14. Senge, Peter. "The Fifth Discipline": Learning organizations
+15. Brand, Stewart. "How Buildings Learn": Pace layers
+16. Wardley, Simon. learnwardleymapping.com: Strategic mapping
+17. Wayne, Hillel. Incident histories and architectural paleontology
+18. fast.ai ethics course, Microsoft Responsible AI Standard: Technical ethics
