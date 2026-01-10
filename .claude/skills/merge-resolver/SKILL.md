@@ -193,8 +193,7 @@ if [ -z "$SESSION_LOG" ]; then
 fi
 
 # 2. Run session protocol validator
-# 2. Run session protocol validator
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath "$SESSION_LOG"
+pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath "$SESSION_LOG"
 
 # 3. If validation fails, fix issues before proceeding
 if [ $? -ne 0 ]; then

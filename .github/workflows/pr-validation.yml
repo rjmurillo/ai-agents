@@ -1,6 +1,7 @@
 name: PR Validation
 
 # Validates PR description matches diff and enforces review comment policies
+
 # Implements Phase 2 and Phase 4 from Issue #230
 
 on:
@@ -12,6 +13,18 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
+
+# Concurrency control: Attempts to cancel in-progress runs when new runs start
+
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+
+# where multiple runs start before cancellation takes effect. This is best-effort
+
+# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+# for architectural decision on workflow-level concurrency control
+
+# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
 
 concurrency:
   group: pr-validation-${{ github.event.pull_request.number }}
@@ -251,7 +264,7 @@ jobs:
             } else {
               Write-Warning "Post-IssueComment skill not found, using gh directly"
               $body = Get-Content $reportFile -Raw
-              gh pr comment $env:PR_NUMBER --body $body
+              gh pr comment $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --body $body
             }
           }
 
@@ -311,11 +324,11 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           # Check if label already exists on PR (2>$null is safe - PR exists when workflow runs)
-          $existingLabels = gh pr view $env:PR_NUMBER --json labels --jq '.labels[].name' 2>$null
+          $existingLabels = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
           if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
 
           if ($existingLabels -notcontains 'needs-split') {
-            gh pr edit $env:PR_NUMBER --add-label "needs-split"
+            gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "needs-split"
             if ($LASTEXITCODE -ne 0) { throw "Failed to add needs-split label (exit code: $LASTEXITCODE)" }
             Write-Host "Added 'needs-split' label to PR #$env:PR_NUMBER"
           } else {
@@ -330,11 +343,11 @@ jobs:
         run: |
           # Remove label if it exists and commit count is back below threshold
           # 2>$null is safe - PR exists when workflow runs
-          $existingLabels = gh pr view $env:PR_NUMBER --json labels --jq '.labels[].name' 2>$null
+          $existingLabels = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
           if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
 
           if ($existingLabels -contains 'needs-split') {
-            gh pr edit $env:PR_NUMBER --remove-label "needs-split"
+            gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --remove-label "needs-split"
             if ($LASTEXITCODE -ne 0) { throw "Failed to remove needs-split label (exit code: $LASTEXITCODE)" }
             Write-Host "Removed 'needs-split' label from PR #$env:PR_NUMBER"
           }
@@ -355,7 +368,7 @@ jobs:
           # Block if commit count exceeds limit (requires human override via bypass label)
           if ($env:COMMIT_STATUS -eq "BLOCKED") {
             # Check for bypass label (2>$null is safe - PR exists when workflow runs)
-            $labels = gh pr view $env:PR_NUMBER --json labels --jq '.labels[].name' 2>$null
+            $labels = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
             if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
 
             if ($labels -contains 'commit-limit-bypass') {

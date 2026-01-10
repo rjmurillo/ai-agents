@@ -1644,18 +1644,18 @@ You CANNOT claim "session complete", "done", "finished", or any completion langu
 | Requirement | Evidence | Validator |
 |-------------|----------|-----------|
 | Session log exists | `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
-| Session End checklist complete | All MUST items checked with `[x]` | `Validate-SessionProtocol.ps1` |
-| HANDOFF.md updated | References current session log | `Validate-SessionProtocol.ps1` |
+| Session End checklist complete | All MUST items checked with `[x]` | `Validate-SessionJson.ps1` |
+| HANDOFF.md updated | References current session log | `Validate-SessionJson.ps1` |
 | Git worktree clean | No uncommitted changes | `git status --porcelain` |
 | Markdown lint passes | No errors | `npx markdownlint-cli2 **/*.md` |
-| Commit SHA recorded | Valid SHA in Evidence column | `Validate-SessionProtocol.ps1` |
+| Commit SHA recorded | Valid SHA in Evidence column | `Validate-SessionJson.ps1` |
 
 ### Validation Command
 
 Before claiming completion, run:
 
 ```bash
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/[session-log].md"
+pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
 ```
 
 ### Gate Outcomes

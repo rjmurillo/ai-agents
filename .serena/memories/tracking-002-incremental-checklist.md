@@ -36,7 +36,7 @@ Mark Session End checklist items `[x]` immediately when requirements satisfied (
 -> Edit session log: [x] Update HANDOFF.md
 
 [12:45] Run npx markdownlint-cli2 --fix "**/*.md"
--> Edit session log: [x] Run markdown lint
+-> Edit session log in JSON lint
 
 [14:10] git commit -m "feat: implement feature X"
 -> Edit session log: [x] Commit all changes
