@@ -708,11 +708,64 @@ These concepts should be stored as atomic memories for:
 - *Release It!* (Michael Nygard)
 
 ### Online Resources
+
 - Martin Fowler: https://martinfowler.com
 - Google SRE: https://sre.google
 - C4 Model: https://c4model.com
 - 12-Factor App: https://12factor.net
 - OWASP: https://owasp.org
+
+---
+
+## Self-Reflection Questions
+
+These questions distinguish mechanical coding from thoughtful engineering:
+
+1. **Why was this code written this way?** (Chesterton's Fence)
+2. **What's the real cost of this tech debt? Who pays it, and when?** (Technical Debt Quadrant)
+3. **What will break if I change this?** (Hyrum's Law, Second-Order Thinking)
+4. **If I had to rewrite this in 3 months, what would I wish I had done now?** (YAGNI, Prudent Debt)
+5. **Can this be tested easily? If not, what makes it hard?** (Testability as design signal)
+6. **Is this solution over-engineered for the current needs?** (KISS, YAGNI)
+7. **Is this something a junior engineer could read and understand?** (Clarity, Communication)
+8. **Are we optimizing for today or for an imagined future?** (YAGNI, Second-Order Thinking)
+
+---
+
+## Conclusion: The Thinking Engineer
+
+The goal is to become a thinking engineer:
+
+- **Understands trade-offs**, not just tools
+- **Thinks in terms of systems**, not features
+- **Designs for people** (future maintainers) first
+- **Makes code readable**, safe to change, and easy to test
+- **Can hold conflicting concerns** and resolve them wisely
+
+These mental models, principles, and practices are not rules to follow blindly. They are tensions to manage. Each points at a trade-off: coupling vs. reuse, simplicity vs. flexibility, abstraction vs. clarity.
+
+Master the principles. Apply them with judgment. Build systems that evolve.
+
+---
+
+## References
+
+Sources consulted for this analysis:
+
+- [Chesterton's Fence (Farnam Street)](https://fs.blog/chestertons-fence/)
+- [Hyrum's Law](https://www.hyrumslaw.com/)
+- [Conway's Law (Martin Fowler)](https://martinfowler.com/bliki/ConwaysLaw.html)
+- [Second-Order Thinking](https://fs.blog/second-order-thinking/)
+- [Law of Demeter (Wikipedia)](https://en.wikipedia.org/wiki/Law_of_Demeter)
+- [Gall's Law (Personal MBA)](https://personalmba.com/galls-law/)
+- [Technical Debt Quadrant](https://martinfowler.com/bliki/TechnicalDebtQuadrant.html)
+- [TDD Red-Green-Refactor](https://martinfowler.com/bliki/TestDrivenDevelopment.html)
+- [Hexagonal Architecture (AWS)](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/hexagonal-architecture.html)
+- [Bounded Context (Martin Fowler)](https://martinfowler.com/bliki/BoundedContext.html)
+- [CQRS Pattern (Microsoft)](https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs)
+- [DORA Metrics](https://dora.dev/guides/dora-metrics-four-keys/)
+- [The Twelve-Factor App](https://12factor.net/)
+- [Clean Architecture (Robert C. Martin)](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
 
 ---
 
