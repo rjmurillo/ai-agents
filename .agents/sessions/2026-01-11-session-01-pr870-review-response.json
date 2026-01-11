@@ -79,7 +79,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Session log documents learnings for future sessions"
+        "evidence": "Called mcp__serena__write_memory with memory_file_name: pr870-review-response-learnings"
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -103,8 +103,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "complete": true,
-        "evidence": "Key Learnings section documents 4 insights"
+        "complete": false,
+        "evidence": ""
       },
       "handoffNotUpdated": {
         "level": "MUST NOT",
