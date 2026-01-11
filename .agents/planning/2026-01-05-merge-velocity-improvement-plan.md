@@ -1,4 +1,6 @@
-## Merge Velocity Analysis & Improvement Plan
+# Merge Velocity Analysis & Improvement Plan
+
+##  Overview
 **Date:** 2026-01-05
 **Scope:**
 -   **PRs:** Created since 2025-12-27 (N=193 analyzed)
@@ -26,7 +28,7 @@ Impact: Major delays in Getting to Yes. Correlates with complex features and val
 3. **#465 (31.13h)**: `fix(ci): Surface AI Quality Gate failures`
 4. **#532 (31.03h)**: `refactor(workflows): standardize output naming`
 5. **#531 (29.55h)**: `refactor(workflow): convert skip-tests XML generation`
-6. **#735 (29.48h)**: `feat(memory): Phase 2A Memory System`
+6. **#735 (29.48h)**: `feat(memory): Phase 2A Memory System` (Note: Merge time data shows 29.33h due to rounding/timing artifacts)
 7. **#538 (27.99h)**: `test(copilot-detection): add integration tests`
 8. **#543 (27.24h)**: `feat(copilot-detection): implement actual file comparison`
 9. **#526 (26.64h)**: `feat(ci): add PSScriptAnalyzer validation`
@@ -38,7 +40,7 @@ Impact: Almost identical to Review Time, indicating efficient merge-after-approv
 2. **#733 (33.06h)**: `fix(docs): historical reference protocol compliance`
 3. **#465 (31.51h)**: `fix(ci): Surface AI Quality Gate failures`
 4. **#531 (29.55h)**: `refactor(workflow): convert skip-tests XML generation`
-5. **#735 (29.33h)**: `feat(memory): Phase 2A Memory System`
+5. **#735 (29.48h)**: `feat(memory): Phase 2A Memory System`
 6. **#538 (27.99h)**: `test(copilot-detection): add integration tests`
 7. **#543 (27.24h)**: `feat(copilot-detection): implement actual file comparison`
 8. **#526 (26.64h)**: `feat(ci): add PSScriptAnalyzer validation`
