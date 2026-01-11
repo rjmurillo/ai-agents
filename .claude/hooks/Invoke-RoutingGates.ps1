@@ -72,6 +72,50 @@ end {
 
     <#
     .SYNOPSIS
+        Writes hook failure events to persistent audit log.
+
+    .DESCRIPTION
+        Records hook failures (infrastructure errors, permission issues) to
+        .claude/hooks/audit.log for investigation. Per Copilot #2679880646,
+        fail-open scenarios should be logged for visibility.
+
+    .PARAMETER Message
+        The audit message to log.
+
+    .PARAMETER HookName
+        Name of the hook that failed.
+
+    .EXAMPLE
+        Write-HookAuditLog -HookName "RoutingGates" -Message "Permission denied: $($_.Exception.Message)"
+    #>
+    function Write-HookAuditLog {
+        param(
+            [Parameter(Mandatory)]
+            [string]$Message,
+
+            [Parameter(Mandatory)]
+            [string]$HookName
+        )
+
+        try {
+            $scriptDir = $PSScriptRoot
+            if ([string]::IsNullOrWhiteSpace($scriptDir)) {
+                $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+            }
+
+            $auditLogPath = Join-Path $scriptDir "audit.log"
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            $logEntry = "[$timestamp] [$HookName] $Message"
+
+            Add-Content -Path $auditLogPath -Value $logEntry -ErrorAction SilentlyContinue
+        }
+        catch {
+            # Silently fail - don't block hook operation if audit logging fails
+        }
+    }
+
+    <#
+    .SYNOPSIS
         Gets today's session log file.
 
     .DESCRIPTION
@@ -148,10 +192,15 @@ end {
             # Get list of changed files in committed branch changes (vs base)
             # SECURITY: Must check committed changes, not working tree, to prevent bypass
             # via uncommitted docs masking committed code changes
-            $ChangedFiles = & git diff --name-only origin/main...HEAD 2>$null
-            if ($LASTEXITCODE -ne 0 -or -not $ChangedFiles) {
+            $ChangedFiles = & git diff --name-only origin/main...HEAD 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "Invoke-RoutingGates: git diff origin/main...HEAD failed (exit $LASTEXITCODE). Trying fallback."
                 # Fallback to simple comparison if three-dot syntax fails
-                $ChangedFiles = & git diff --name-only origin/main 2>$null
+                $ChangedFiles = & git diff --name-only origin/main 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning "Invoke-RoutingGates: git diff origin/main also failed (exit $LASTEXITCODE). Failing open."
+                    return $true
+                }
             }
 
             if (-not $ChangedFiles) {
@@ -176,9 +225,25 @@ end {
 
             return ($CodeFiles.Count -eq 0)
         }
+        catch [System.UnauthorizedAccessException] {
+            # Permission error - likely temporary, fail-open
+            $errorMsg = "Permission denied checking git diff: $($_.Exception.Message)"
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open."
+            Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
+            return $true
+        }
+        catch [System.IO.IOException] {
+            # I/O error (disk, network) - infrastructure issue, fail-open
+            $errorMsg = "I/O error checking git diff: $($_.Exception.Message)"
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open."
+            Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
+            return $true
+        }
         catch {
-            # On error, fail-open (allow)
-            Write-Warning "Invoke-RoutingGates: Failed to determine changed files. Error: $_. Assuming documentation-only changes and allowing action."
+            # Unexpected error during file filtering - log type for debugging
+            $errorMsg = "Unexpected error checking changed files: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open."
+            Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
             return $true
         }
     }

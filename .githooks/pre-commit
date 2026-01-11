@@ -966,9 +966,10 @@ else
             # Security: Validate QA_TIMEOUT_SEC as numeric to prevent command injection
             QA_TIMEOUT_SEC=${QA_TIMEOUT_SEC:-300}
             USE_TIMEOUT=false
-            if [[ "$QA_TIMEOUT_SEC" =~ ^[0-9]+$ ]] && command -v timeout >/dev/null 2>&1; then
+            # Use grep for bash 3 compatibility (Copilot #2678584229)
+            if echo "$QA_TIMEOUT_SEC" | grep -qE '^[0-9]+$' && command -v timeout >/dev/null 2>&1; then
                 USE_TIMEOUT=true
-            elif [ -n "${QA_TIMEOUT_SEC:-}" ] && ! [[ "$QA_TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
+            elif [ -n "${QA_TIMEOUT_SEC:-}" ] && ! echo "$QA_TIMEOUT_SEC" | grep -qE '^[0-9]+$'; then
                 echo_warning "Invalid QA_TIMEOUT_SEC value '$QA_TIMEOUT_SEC'; running QA tests without timeout."
             fi
 
@@ -1055,9 +1056,27 @@ else
 
                 # Build PowerShell -TestPath arguments
                 # Use a temp file to pass multiple -TestPath values safely
+                # Convert absolute paths to relative paths for Pester runner
                 TESTARGS_FILE=$(mktemp)
                 for t in "${UNIQUE_TESTPATHS[@]}"; do
-                    printf "%s\n" "$t" >> "$TESTARGS_FILE"
+                    # Convert absolute paths to relative paths starting with ./
+                    # The Pester runner expects relative paths, not absolute ones
+                    # Use case for bash 3 compatibility; handle edge case where t equals REPO_ROOT (Copilot #2678558275, #2678584229)
+                    case "$t" in
+                        "$REPO_ROOT")
+                            # Edge case: t equals REPO_ROOT exactly
+                            printf "./\n" >> "$TESTARGS_FILE"
+                            ;;
+                        "$REPO_ROOT"/*)
+                            # Normal case: t is within REPO_ROOT
+                            rel_path="${t#$REPO_ROOT/}"
+                            printf "./%s\n" "$rel_path" >> "$TESTARGS_FILE"
+                            ;;
+                        *)
+                            # Not under REPO_ROOT, use as-is
+                            printf "%s\n" "$t" >> "$TESTARGS_FILE"
+                            ;;
+                    esac
                 done
 
                 # Execute with optional timeout, capture output for display
