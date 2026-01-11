@@ -46,6 +46,8 @@
 
     When 403 occurs, the intended comment payload is saved to .github/artifacts/failed-comment-{timestamp}.json
     for manual posting or debugging.
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'BodyText')]

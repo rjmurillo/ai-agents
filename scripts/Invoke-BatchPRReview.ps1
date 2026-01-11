@@ -26,6 +26,13 @@
 
 .EXAMPLE
     .\Invoke-BatchPRReview.ps1 -PRNumbers 53,141,143 -Operation Cleanup
+
+.NOTES
+    EXIT CODES:
+    0  - Success: Worktree operation completed
+    1  - Error: Operation failed
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

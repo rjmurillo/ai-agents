@@ -33,6 +33,8 @@
         4 - Not authenticated
 
     Requires write access to the repository.
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'Single')]

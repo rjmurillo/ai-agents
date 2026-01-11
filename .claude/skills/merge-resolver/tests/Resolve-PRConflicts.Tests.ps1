@@ -5,6 +5,13 @@
 .DESCRIPTION
     Pester tests covering syntax validation, security validation (ADR-015),
     parameter handling, and error handling for the PR conflict resolution script.
+
+.NOTES
+    EXIT CODES:
+    0  - Success: All tests passed
+    1  - Error: One or more tests failed (set by Pester framework)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 BeforeAll {

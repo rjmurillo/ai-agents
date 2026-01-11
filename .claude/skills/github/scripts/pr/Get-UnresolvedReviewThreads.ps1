@@ -25,12 +25,6 @@
 .PARAMETER PullRequest
     Pull request number.
 
-.OUTPUTS
-    Array of thread objects where isResolved = false.
-    Each object contains: id, isResolved, comments (first comment with databaseId).
-    Returns empty array when all threads are resolved or on API failure.
-    Never returns $null (per Skill-PowerShell-002).
-
 .EXAMPLE
     ./Get-UnresolvedReviewThreads.ps1 -PullRequest 365
     # Returns unresolved threads for PR #365
@@ -45,6 +39,17 @@
     Pagination not implemented for edge cases with 100+ threads.
 
     DEPRECATED: Use GitHubCore.psm1 module directly.
+
+    EXIT CODES:
+    0  - Success: Threads retrieved successfully (implicit)
+
+    See: ADR-035 Exit Code Standardization
+
+.OUTPUTS
+    Array of thread objects where isResolved = false.
+    Each object contains: id, isResolved, comments (first comment with databaseId).
+    Returns empty array when all threads are resolved or on API failure.
+    Never returns $null (per Skill-PowerShell-002).
 #>
 
 [CmdletBinding()]

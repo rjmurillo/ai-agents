@@ -30,6 +30,8 @@
 
     Source: Skill-PR-Review-007 (Session 85)
     Related: Issue #321
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

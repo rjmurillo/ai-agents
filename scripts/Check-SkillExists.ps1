@@ -22,6 +22,13 @@
 .EXAMPLE
     .\Check-SkillExists.ps1 -ListAvailable
     Lists all available skill scripts organized by operation type
+
+.NOTES
+  EXIT CODES:
+  0  - Success: Operation completed successfully
+  1  - Error: Invalid parameters or skill not found
+
+  See: ADR-035 Exit Code Standardization
 #>
 [CmdletBinding()]
 param(

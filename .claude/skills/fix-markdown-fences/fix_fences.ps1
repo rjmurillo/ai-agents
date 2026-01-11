@@ -20,6 +20,11 @@
 
 .NOTES
     Supports -WhatIf for dry-run mode (issue #461).
+
+    EXIT CODES:
+    0  - Success: Fences fixed or no issues found (implicit)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding(SupportsShouldProcess)]

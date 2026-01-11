@@ -35,6 +35,8 @@
     0 = Pass (no errors; warnings allowed unless -Strict)
     1 = Errors found (broken references, untraced tasks)
     2 = Warnings found with -Strict flag (orphaned REQs/DESIGNs)
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

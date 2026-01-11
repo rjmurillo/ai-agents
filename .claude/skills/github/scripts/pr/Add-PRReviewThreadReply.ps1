@@ -34,6 +34,8 @@
     Exit Codes: 0=Success, 1=Invalid params, 2=File not found, 3=API error, 4=Not authenticated
 
     Uses GraphQL API as the REST API does not support thread-based replies.
+    
+    See: ADR-035 Exit Code Standardization
     Thread IDs can be obtained from Get-PRReviewThreads.ps1.
 #>
 

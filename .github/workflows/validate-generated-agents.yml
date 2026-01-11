@@ -95,6 +95,12 @@ jobs:
           Write-Host "Running agent generation in validation mode..."
           ./build/Generate-Agents.ps1 -Validate
 
+      - name: Validate GitHub Actions SHA Pinning
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          Write-Host "Validating GitHub Actions SHA pinning..."
+          ./scripts/Validate-ActionSHAPinning.ps1 -CI
+
       - name: Show diff on failure
         if: failure()
         shell: pwsh -NoProfile -Command "& '{0}'"
