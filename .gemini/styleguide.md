@@ -366,24 +366,13 @@ uses: actions/checkout@v4
 
 | Content | Identifier |
 |---------|------------|
-| C# | `csharp` |
 | PowerShell | `powershell` |
 | Bash/Shell | `bash` |
+| Python | `python` |
 | JSON | `json` |
 | YAML | `yaml` |
 | Markdown | `markdown` |
 | Plain text | `text` |
-| Python | `python` |
-
-### Generic Type Escaping
-
-```markdown
-<!-- CORRECT - escaped with backticks -->
-Use `Dictionary<TKey, TValue>` for mappings.
-
-<!-- WRONG - renders incorrectly -->
-Use Dictionary<TKey, TValue> for mappings.
-```
 
 ---
 
