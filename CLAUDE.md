@@ -37,6 +37,7 @@ For non-trivial tasks, delegate to specialized agents using the Task tool:
 | No logic in workflow YAML | ADR-006 |
 | Verify branch before git operations | SESSION-PROTOCOL |
 | HANDOFF.md is read-only | ADR-014 |
+| SHA-pinned actions in workflows | security-practices |
 | ADR created/edited → adr-review skill MUST run | AGENTS.md |
 
 ## Session Protocol (Quick Reference)

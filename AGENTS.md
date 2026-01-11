@@ -280,6 +280,7 @@ wt merge
 - **Use PR template** with ALL sections from `.github/PULL_REQUEST_TEMPLATE.md`
 - **Commit atomically** (max 5 files OR single logical change)
 - **Run linting** before commits: `npx markdownlint-cli2 --fix "**/*.md"`
+- **Pin GitHub Actions to SHA** with version comment (security-practices)
 
 ### ⚠️ Ask First
 
