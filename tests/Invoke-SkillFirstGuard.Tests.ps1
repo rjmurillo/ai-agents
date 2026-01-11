@@ -10,54 +10,23 @@
 #>
 
 BeforeAll {
+    # Import shared test utilities (Issue #859 Thread 4: DRY violation fix)
+    Import-Module "$PSScriptRoot/TestUtilities.psm1" -Force
+
     $Script:HookPath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "PreToolUse" "Invoke-SkillFirstGuard.ps1"
 
     if (-not (Test-Path $Script:HookPath)) {
         throw "Hook script not found at: $Script:HookPath"
     }
 
-    # Helper to invoke hook with JSON input via process
+    # Wrapper function for backward compatibility with existing tests
     function Invoke-HookWithInput {
         param(
             [string]$Command,
             [string]$HookPath = $Script:HookPath,
             [string]$ProjectDir = $null
         )
-
-        $inputJson = @{
-            tool_input = @{
-                command = $Command
-            }
-        } | ConvertTo-Json -Compress
-
-        $tempInput = [System.IO.Path]::GetTempFileName()
-        $tempOutput = [System.IO.Path]::GetTempFileName()
-        $tempError = [System.IO.Path]::GetTempFileName()
-        $tempScript = [System.IO.Path]::GetTempFileName() + ".ps1"
-
-        try {
-            Set-Content -Path $tempInput -Value $inputJson -NoNewline
-
-            # Create wrapper script to set env var and run hook
-            $wrapperContent = @"
-`$env:CLAUDE_PROJECT_DIR = '$($ProjectDir -replace "'", "''")'
-& '$($HookPath -replace "'", "''")'
-exit `$LASTEXITCODE
-"@
-            Set-Content -Path $tempScript -Value $wrapperContent
-
-            $process = Start-Process -FilePath "pwsh" -ArgumentList "-NoProfile", "-File", $tempScript -RedirectStandardInput $tempInput -RedirectStandardOutput $tempOutput -RedirectStandardError $tempError -PassThru -Wait -NoNewWindow
-            $output = Get-Content $tempOutput -Raw -ErrorAction SilentlyContinue
-            $errorOutput = Get-Content $tempError -Raw -ErrorAction SilentlyContinue
-
-            return @{
-                Output = @($output, $errorOutput) | Where-Object { $_ }
-                ExitCode = $process.ExitCode
-            }
-        }
-        finally {
-            Remove-Item $tempInput, $tempOutput, $tempError, $tempScript -Force -ErrorAction SilentlyContinue
-        }
+        Invoke-HookInNewProcess -Command $Command -HookPath $HookPath -ProjectDir $ProjectDir
     }
 }
 

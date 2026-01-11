@@ -10,6 +10,9 @@
 #>
 
 BeforeAll {
+    # Import shared test utilities (Issue #859 Thread 4: DRY violation fix)
+    Import-Module "$PSScriptRoot/TestUtilities.psm1" -Force
+
     $Script:HookPath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "PreToolUse" "Invoke-ADRReviewGuard.ps1"
     $Script:CommonModulePath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "Common" "HookUtilities.psm1"
 
@@ -19,6 +22,17 @@ BeforeAll {
 
     if (-not (Test-Path $Script:CommonModulePath)) {
         throw "Common module not found at: $Script:CommonModulePath"
+    }
+
+    # Wrapper function for backward compatibility with existing tests
+    function Invoke-HookWithInput {
+        param(
+            [string]$Command,
+            [string]$HookPath = $Script:HookPath,
+            [string]$ProjectDir = $null,
+            [string]$WorkingDir = $null
+        )
+        Invoke-HookInNewProcess -Command $Command -HookPath $HookPath -ProjectDir $ProjectDir -WorkingDir $WorkingDir
     }
 
     # Helper to copy hook and dependencies to test directory
@@ -38,56 +52,6 @@ BeforeAll {
         Copy-Item -Path $Script:CommonModulePath -Destination (Join-Path $commonDestDir "HookUtilities.psm1") -Force
 
         return Join-Path $TestRoot $HookRelativePath
-    }
-
-    # Helper to invoke hook with JSON input via process
-    function Invoke-HookWithInput {
-        param(
-            [string]$Command,
-            [string]$HookPath = $Script:HookPath,
-            [string]$ProjectDir = $null,
-            [string]$WorkingDir = $null
-        )
-
-        $inputJson = @{
-            tool_input = @{
-                command = $Command
-            }
-        } | ConvertTo-Json -Compress
-
-        $tempInput = [System.IO.Path]::GetTempFileName()
-        $tempOutput = [System.IO.Path]::GetTempFileName()
-        $tempError = [System.IO.Path]::GetTempFileName()
-        $tempScript = [System.IO.Path]::GetTempFileName() + ".ps1"
-
-        try {
-            Set-Content -Path $tempInput -Value $inputJson -NoNewline
-
-            # Create wrapper script - use escaped double quotes for paths
-            $escapedProjectDir = $ProjectDir -replace '"', '\"'
-            $escapedHookPath = $HookPath -replace '"', '\"'
-            $escapedWorkingDir = if ($WorkingDir) { $WorkingDir -replace '"', '\"' } else { $null }
-
-            $wrapperContent = @"
-`$env:CLAUDE_PROJECT_DIR = "$escapedProjectDir"
-$(if ($WorkingDir) { "Set-Location `"$escapedWorkingDir`"" })
-& "$escapedHookPath"
-exit `$LASTEXITCODE
-"@
-            Set-Content -Path $tempScript -Value $wrapperContent
-
-            $process = Start-Process -FilePath "pwsh" -ArgumentList "-NoProfile", "-File", $tempScript -RedirectStandardInput $tempInput -RedirectStandardOutput $tempOutput -RedirectStandardError $tempError -PassThru -Wait -NoNewWindow
-            $output = Get-Content $tempOutput -Raw -ErrorAction SilentlyContinue
-            $errorOutput = Get-Content $tempError -Raw -ErrorAction SilentlyContinue
-
-            return @{
-                Output = @($output, $errorOutput) | Where-Object { $_ }
-                ExitCode = $process.ExitCode
-            }
-        }
-        finally {
-            Remove-Item $tempInput, $tempOutput, $tempError, $tempScript -Force -ErrorAction SilentlyContinue
-        }
     }
 }
 
