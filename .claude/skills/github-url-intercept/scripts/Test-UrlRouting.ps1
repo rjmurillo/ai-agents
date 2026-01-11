@@ -21,16 +21,18 @@
 .EXAMPLE
     .\Test-UrlRouting.ps1 -Url "https://github.com/owner/repo/blob/main/src/app.py"
 
+.NOTES
+    Exit Codes:
+      0 = Success
+      1 = Invalid URL format
+    
+    See: ADR-035 Exit Code Standardization
+
 .OUTPUTS
     JSON object with:
     - Success: Boolean indicating if URL was valid
     - ParsedUrl: Structured URL components
     - RecommendedRoute: Command to execute and reasoning
-
-.NOTES
-    Exit Codes:
-      0 = Success
-      1 = Invalid URL format
 #>
 
 [CmdletBinding()]

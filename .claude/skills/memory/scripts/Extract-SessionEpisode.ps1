@@ -28,6 +28,12 @@
 .NOTES
     Task: M-005 (Phase 2A Memory System)
     ADR: ADR-038 Reflexion Memory Schema
+
+    EXIT CODES:
+    0  - Success: Episode extracted successfully (implicit)
+    1  - Error: Invalid session log or extraction failed
+
+    See: ADR-035 Exit Code Standardization
 #>
 [CmdletBinding()]
 param(

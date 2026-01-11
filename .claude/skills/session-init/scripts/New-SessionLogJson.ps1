@@ -8,6 +8,12 @@
 .PARAMETER Objective
   Session objective description.
 
+.NOTES
+  EXIT CODES:
+  0  - Success: Session log created successfully
+
+  See: ADR-035 Exit Code Standardization
+
 .OUTPUTS
   Path to created session log.
 #>

@@ -16,6 +16,12 @@
     $files = @("src/Auth/Controllers/TokenController.cs")
     Get-ApplicableSteering -Files $files
 
+.NOTES
+    EXIT CODES:
+    0  - Success: Steering match completed (implicit)
+
+    See: ADR-035 Exit Code Standardization
+
 .OUTPUTS
     Array of PSCustomObjects with steering file information (Name, Path, ApplyTo, Priority).
 #>

@@ -17,6 +17,12 @@
 
 .EXAMPLE
     .\detect-infrastructure.ps1 -ChangedFiles @(".github/workflows/ci.yml", "src/auth/login.cs")
+
+.NOTES
+    EXIT CODES:
+    0  - Success: Detection completed (always)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 param(

@@ -11,6 +11,13 @@
 .PARAMETER DryRun
   Show what would be migrated without writing files.
 
+.NOTES
+  EXIT CODES:
+  0  - Success: Migration completed (implicit)
+  1  - Error: Invalid path or conversion failed
+
+  See: ADR-035 Exit Code Standardization
+
 .OUTPUTS
   Array of migrated file paths.
 #>

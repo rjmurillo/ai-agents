@@ -11,8 +11,15 @@
 .PARAMETER PreCommit
   Suppress verbose output when called from pre-commit hook.
 
+.NOTES
+  EXIT CODES:
+  0  - Success: Session log is valid
+  1  - Error: Session log validation failed (invalid JSON, missing fields, or schema violations)
+
+  See: ADR-035 Exit Code Standardization
+
 .OUTPUTS
-  Exit code 0 = valid, 1 = invalid
+  Boolean validation result with detailed error messages
 #>
 [CmdletBinding()]
 param(

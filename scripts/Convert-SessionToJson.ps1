@@ -15,12 +15,18 @@
 .PARAMETER DryRun
   Show what would be migrated without writing files.
 
-.OUTPUTS
-  Array of migrated file paths.
-
 .NOTES
   The actual implementation is in .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1
   This wrapper exists for backward compatibility with workflows.
+
+  EXIT CODES:
+  0  - Success: Session log(s) migrated successfully
+  1  - Error: Skill script not found or migration failed
+
+  See: ADR-035 Exit Code Standardization
+
+.OUTPUTS
+  Array of migrated file paths.
 #>
 [CmdletBinding()]
 param(
