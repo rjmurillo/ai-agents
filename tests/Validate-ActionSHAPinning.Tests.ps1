@@ -178,6 +178,29 @@ jobs:
             $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
             $result.status | Should -Be "pass"
         }
+
+        It "Does not match SHA with version comment (no false positive)" {
+            $testDir = Join-Path $TestDrive "sha-with-comment-test"
+            $workflowDir = Join-Path $testDir ".github/workflows"
+            New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+
+            $workflowContent = @"
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.1.0
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.1-beta
+"@
+            $workflowFile = Join-Path $workflowDir "test.yml"
+            Set-Content -Path $workflowFile -Value $workflowContent
+
+            $result = & $script:scriptPath -Path $testDir -Format "json" | ConvertFrom-Json
+            $result.status | Should -Be "pass"
+        }
     }
 
     Context "SEMVER Variations" {
