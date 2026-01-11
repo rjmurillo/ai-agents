@@ -47,6 +47,7 @@ if (Test-Path $mcpConfigPath) {
     }
     catch {
         # Fall back to defaults if parsing fails - don't block session start
+        Write-Warning "Failed to parse MCP config from $mcpConfigPath : $($_.Exception.Message). Using defaults."
     }
 }
 
