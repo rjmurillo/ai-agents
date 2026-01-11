@@ -6,7 +6,7 @@ Memory for tracking reviewer signal quality statistics, triage heuristics, and l
 
 ## Per-Reviewer Performance (Cumulative)
 
-Aggregated from 151 PRs over last 7 days.
+Aggregated from 151 PRs over last 28 days (rolling window).
 
 | Reviewer | PRs | Comments | Actionable | Signal | Trend |
 |----------|-----|----------|------------|--------|-------|

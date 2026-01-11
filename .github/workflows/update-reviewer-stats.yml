@@ -24,7 +24,7 @@ on:
       days_back:
         description: 'Days of history to analyze'
         required: false
-        default: '90'
+        default: '28'
 
 permissions:
   contents: write

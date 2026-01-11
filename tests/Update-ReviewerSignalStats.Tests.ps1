@@ -44,7 +44,7 @@ Describe "Update-ReviewerSignalStats.ps1" {
             $cmd.Parameters.Keys | Should -Contain "Repo"
         }
 
-        It "DaysBack parameter has default value of 90" {
+        It "DaysBack parameter has default value of 28" {
             $cmd = Get-Command $Script:ScriptPath
             $param = $cmd.Parameters['DaysBack']
             $param.Attributes.TypeId.Name | Should -Contain "ParameterAttribute"

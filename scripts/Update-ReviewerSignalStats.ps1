@@ -46,7 +46,7 @@
 param(
     [Parameter()]
     [ValidateRange(1, 365)]
-    [int]$DaysBack = 90,
+    [int]$DaysBack = 28,
 
     [Parameter()]
     [string]$Owner,
