@@ -12,6 +12,9 @@ coverage.xml
 .agents/temp/
 .agents/logs/
 
+# Hook runtime logs
+.claude/hooks/audit.log
+
 # IDE settings
 .idea/
 *.DotSettings.user

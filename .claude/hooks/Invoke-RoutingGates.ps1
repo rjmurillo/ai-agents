@@ -72,6 +72,50 @@ end {
 
     <#
     .SYNOPSIS
+        Writes hook failure events to persistent audit log.
+
+    .DESCRIPTION
+        Records hook failures (infrastructure errors, permission issues) to
+        .claude/hooks/audit.log for investigation. Per Copilot #2679880646,
+        fail-open scenarios should be logged for visibility.
+
+    .PARAMETER Message
+        The audit message to log.
+
+    .PARAMETER HookName
+        Name of the hook that failed.
+
+    .EXAMPLE
+        Write-HookAuditLog -HookName "RoutingGates" -Message "Permission denied: $($_.Exception.Message)"
+    #>
+    function Write-HookAuditLog {
+        param(
+            [Parameter(Mandatory)]
+            [string]$Message,
+
+            [Parameter(Mandatory)]
+            [string]$HookName
+        )
+
+        try {
+            $scriptDir = $PSScriptRoot
+            if ([string]::IsNullOrWhiteSpace($scriptDir)) {
+                $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+            }
+
+            $auditLogPath = Join-Path $scriptDir "audit.log"
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            $logEntry = "[$timestamp] [$HookName] $Message"
+
+            Add-Content -Path $auditLogPath -Value $logEntry -ErrorAction SilentlyContinue
+        }
+        catch {
+            # Silently fail - don't block hook operation if audit logging fails
+        }
+    }
+
+    <#
+    .SYNOPSIS
         Gets today's session log file.
 
     .DESCRIPTION
@@ -183,17 +227,23 @@ end {
         }
         catch [System.UnauthorizedAccessException] {
             # Permission error - likely temporary, fail-open
-            Write-Warning "Invoke-RoutingGates: Permission denied checking git diff. Failing open. Error: $($_.Exception.Message)"
+            $errorMsg = "Permission denied checking git diff: $($_.Exception.Message)"
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open."
+            Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
             return $true
         }
         catch [System.IO.IOException] {
             # I/O error (disk, network) - infrastructure issue, fail-open
-            Write-Warning "Invoke-RoutingGates: I/O error checking git diff. Failing open. Error: $($_.Exception.Message)"
+            $errorMsg = "I/O error checking git diff: $($_.Exception.Message)"
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open."
+            Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
             return $true
         }
         catch {
             # Unexpected error during file filtering - log type for debugging
-            Write-Warning "Invoke-RoutingGates: Unexpected error checking changed files: $($_.Exception.GetType().Name) - $($_.Exception.Message). Failing open."
+            $errorMsg = "Unexpected error checking changed files: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open."
+            Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
             return $true
         }
     }
