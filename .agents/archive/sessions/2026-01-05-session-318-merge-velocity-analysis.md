@@ -2,7 +2,7 @@
 
 ## Session Info
 - **Date:** 2026-01-05
-- **Status:** In Progress
+- **Status:** Complete
 - **Goal:** Analyze merge velocity metrics and propose remediation plan
 - **Context:**
   - **Task**: Analyze PR and Issue data to identify bottlenecks.
@@ -41,13 +41,13 @@
 
 ### Task 2: Remediation Planning
 - **Status**: Complete
-- **Activity**: Generated `.agents/2026-01-05-merge-velocity-improvement-plan.md`.
+- **Activity**: Generated `.agents/planning/2026-01-05-merge-velocity-improvement-plan.md`.
 - **Key Decisions**:
   - Adopt "Draft PR" policy.
   - Prioritize validation script fixes.
 
 ## Files Modified
-- `.agents/2026-01-05-merge-velocity-improvement-plan.md` (New)
+- `.agents/planning/2026-01-05-merge-velocity-improvement-plan.md` (New)
 - `.agents/sessions/2026-01-05-session-318-merge-velocity-analysis.md` (New)
 
 ## Session End (COMPLETE ALL before closing)
@@ -60,8 +60,8 @@
 | MUST | Update Serena memory (cross-session context) | [x] | Skipped - Serena MCP unavailable |
 | MUST | Run markdown lint | [x] | npx markdownlint-cli2: 0 errors |
 | MUST | Route to qa agent (feature implementation) | [x] | SKIPPED: investigation-only |
-| MUST | Commit all changes (including .serena/memories) | [x] | Pending |
+| MUST | Commit all changes (including .serena/memories) | [x] | Committed in PR #798 |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [x] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [x] | Not applicable |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Not significant enough |
-| SHOULD | Verify clean git status | [ ] | Pending after commit |
+| SHOULD | Verify clean git status | [x] | git status: clean after commit |
