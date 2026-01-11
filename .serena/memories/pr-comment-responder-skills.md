@@ -6,48 +6,20 @@ Memory for tracking reviewer signal quality statistics, triage heuristics, and l
 
 ## Per-Reviewer Performance (Cumulative)
 
-Last updated: 2026-01-05
+Aggregated from 151 PRs over last 7 days.
 
-| Reviewer | PRs | Comments | Actionable | Signal | Notes |
+| Reviewer | PRs | Comments | Actionable | Signal | Trend |
 |----------|-----|----------|------------|--------|-------|
-| cursor[bot] | #752, #790 | 31 | 30 | **97%** | Real bugs + design clarifications (1 design explanation in #790) |
-| gemini-code-assist[bot] | #488, #501, #505, #530, #566, #568, #752, #790 | 21 | 21 | **100%** | RFC 2119 compliance, grep exact matching, command injection, security patterns, PowerShell style guide |
-| Copilot | #488, #484, #490, #543, #790 | 12 | 11 | **92%** | Security, workflow, regex, early return bugs. 1 incorrect claim (#790 bot count) |
-| rjmurillo (owner) | #490, #501, #790 | 5 | 5 | **100%** | Template propagation, file organization, test implementation |
-| coderabbitai[bot] | - | 6 | 3 | **50%** | Medium signal quality |
-
+| github-advanced-security | 3 | 80 | 80 | **100%** | → |
+| rjmurillo-bot | 19 | 120 | 120 | **100%** | → |
+| claude | 4 | 7 | 7 | **100%** | → |
+| rjmurillo | 46 | 149 | 145 | **97%** | → |
+| copilot-pull-request-reviewer | 78 | 717 | 678 | **95%** | → |
+| cursor | 35 | 119 | 109 | **92%** | → |
+| diffray | 8 | 28 | 25 | 89% | → |
+| gemini-code-assist | 95 | 256 | 210 | 82% | → |
+| chatgpt-codex-connector | 20 | 28 | 11 | 39% | → |
 ## Per-PR Breakdown
-
-### PR #790 (2026-01-05)
-
-**PR**: refactor: Fix ADR-006 violations in Claude workflow authorization
-
-| Reviewer | Comments | Actionable | Rate | Outcomes |
-|----------|----------|------------|------|----------|
-| gemini-code-assist[bot] | 2 | 2 | 100% | Write-Host → Write-Verbose (fixed R1), Missing catch block test (fixed R2) |
-| Copilot | 4 | 3 | 75% | Comment clarity (fixed R4), Test count (fixed R3/R4), Bot count (incorrect claim) |
-| cursor[bot] | 2 | 1 | 50% | Audit logging Write-Error (fixed R2/R4), Case-sensitive backward compatibility (design explanation) |
-| rjmurillo (owner) | 3 | 3 | 100% | Move files to tests/ (already done), Investigate gemini test (implemented R2) |
-
-**Session Notes**:
-
-- **Multi-Round Fixes**: Issues addressed across 4 fix rounds (R1-R4) before pr-comment-responder workflow
-- **All Already Fixed**: 9 of 11 comments already resolved in prior commits before review workflow
-- **Round Timeline**:
-  - Round 1: Write-Host → Write-Verbose fixes
-  - Round 2: Catch block test implementation, error handling restructure
-  - Round 3: 52 tests passing (46 → 52 with 6 new coverage enhancements)
-  - Round 4: 3 CRITICAL error handling fixes, 6 documentation accuracy fixes
-- **Resolution**: All 11 comments replied to with commit references, 5 review threads resolved
-- **CI**: 52/54 tests passing (96.3%), all required checks passing
-
-**Key Insights**:
-
-1. **Proactive Fix-Verify Loop Works**: 4 rounds of recursive review-fix-verify caught all issues before manual review
-2. **Bot Comments Validate Prior Work**: All actionable comments were already addressed in earlier rounds
-3. **Signal Quality Consistency**: gemini (100%) and rjmurillo (100%) maintain perfect actionability
-4. **Copilot False Positives**: First instance of Copilot incorrect claim (bot count) - still 75% signal quality
-5. **cursor Design Explanations**: cursor raised valid design questions requiring explanation rather than fixes
 
 ### PR #752 (2026-01-04)
 
@@ -368,14 +340,14 @@ $pr = $data.repository.pullRequest  # NO .data prefix needed
 
 | Metric | Value |
 |--------|-------|
-| Total PRs Processed | 10 |
-| Total Comments Triaged | 37 |
-| Total Comments Implemented | 33 |
-| Total Comments Resolved | 37 |
+| Total PRs Processed | 9 |
+| Total Comments Triaged | 26 |
+| Total Comments Implemented | 24 |
+| Total Comments Resolved | 26 |
 | Security Vulnerabilities Found | 9 |
-| Critical Workflow Bugs Found | 5 |
+| Critical Workflow Bugs Found | 2 |
 | Performance Improvements | 1 (88% faster reactions) |
-| Average Resolution Time | ~50 minutes |
+| Average Resolution Time | ~45 minutes |
 
 ## Triage Patterns Learned
 
