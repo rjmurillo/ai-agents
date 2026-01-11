@@ -39,14 +39,32 @@ jobs:
     # ADR-032: ARM runner for cost optimization (37.5% savings vs x64)
     # PowerShell Core and GitHub CLI fully support ARM64
     runs-on: ubuntu-24.04-arm
-    if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+    # Note: No job-level if condition - job must always run to report status for required checks
+    # Bot exclusions handled at step level to ensure status is always reported
     timeout-minutes: 10
 
     steps:
+      - name: Check if validation should run
+        id: should-run
+        shell: pwsh
+        run: |
+          $actor = "${{ github.actor }}"
+          $excludedBots = @('dependabot[bot]', 'github-actions[bot]')
+          
+          if ($actor -in $excludedBots) {
+            Write-Host "Skipping validation for bot actor: $actor"
+            "skip=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "Running validation for actor: $actor"
+            "skip=false" >> $env:GITHUB_OUTPUT
+          }
+
       - name: Checkout repository
+        if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup PowerShell
+        if: steps.should-run.outputs.skip != 'true'
         shell: pwsh
         run: |
           Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
@@ -54,6 +72,7 @@ jobs:
           Get-Module -ListAvailable | Select-Object Name, Version | Format-Table
 
       - name: Validate PR Description vs Diff
+        if: steps.should-run.outputs.skip != 'true'
         id: validate-description
         shell: pwsh
         env:
@@ -87,6 +106,7 @@ jobs:
           }
 
       - name: Check Review Comment Status
+        if: steps.should-run.outputs.skip != 'true'
         id: check-comments
         shell: pwsh
         env:
@@ -121,6 +141,7 @@ jobs:
           Write-Host "  Security-related unresolved: $securityUnresolved"
 
       - name: Check QA Report Exists
+        if: steps.should-run.outputs.skip != 'true'
         id: check-qa
         shell: pwsh
         env:
@@ -164,6 +185,7 @@ jobs:
           }
 
       - name: Generate Validation Report
+        if: steps.should-run.outputs.skip != 'true'
         id: report
         shell: pwsh
         env:
@@ -248,6 +270,7 @@ jobs:
           "overall_status=$overallStatus" >> $env:GITHUB_OUTPUT
 
       - name: Post PR Comment
+        if: steps.should-run.outputs.skip != 'true'
         shell: pwsh
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -269,6 +292,7 @@ jobs:
           }
 
       - name: Set Job Summary
+        if: steps.should-run.outputs.skip != 'true'
         shell: pwsh
         run: |
           if (Test-Path "pr-validation-report.md") {
@@ -276,6 +300,7 @@ jobs:
           }
 
       - name: Check PR commit count
+        if: steps.should-run.outputs.skip != 'true'
         id: commit-check
         shell: pwsh
         env:
@@ -353,6 +378,7 @@ jobs:
           }
 
       - name: Enforce Blocking Issues
+        if: steps.should-run.outputs.skip != 'true'
         shell: pwsh
         env:
           OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
