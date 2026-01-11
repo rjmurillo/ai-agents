@@ -119,6 +119,32 @@ When creating a new AI-powered workflow with concurrency control:
 
 ---
 
+## Security Constraints
+
+| Constraint | Source | Verification |
+|------------|--------|--------------|
+| MUST pin GitHub Actions to commit SHA | security-practices | Pre-commit hook, workflow validation |
+| MUST NOT use version tags (@v4, @v3, @v2) | security-practices | Pre-commit hook blocks |
+| MUST include version comment for maintainability | security-practices | Code review |
+
+**Reference**: [security-practices.md](../steering/security-practices.md#github-actions-security)
+
+**Rationale Summary**: SHA pinning prevents supply chain attacks where action maintainers (or compromised accounts) move version tags to malicious commits. Immutable SHA references ensure reviewed code cannot be silently replaced.
+
+**Pattern**:
+
+```yaml
+# Correct: SHA with version comment
+uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+# Incorrect: Version tag only
+uses: actions/checkout@v4
+```
+
+**Exceptions**: None. All third-party actions must be SHA-pinned.
+
+---
+
 ## Validation Checklist
 
 Use this checklist during session start:
@@ -126,7 +152,7 @@ Use this checklist during session start:
 - [ ] Read this document (PROJECT-CONSTRAINTS.md)
 - [ ] For GitHub operations: Verify skill exists before writing code
 - [ ] For new scripts: Verify PowerShell-only (no .sh or .py files)
-- [ ] For workflow changes: Verify logic in modules, not YAML
+- [ ] For workflow changes: Verify logic in modules, not YAML; actions are SHA-pinned, not version tags
 - [ ] Before commit: Verify atomic commit rule (single logical change)
 
 ---
