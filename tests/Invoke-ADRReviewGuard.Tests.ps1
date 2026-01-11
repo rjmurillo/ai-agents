@@ -177,6 +177,106 @@ Describe "Invoke-ADRReviewGuard" {
         }
     }
 
+    Context "ADR evidence pattern matching" {
+        BeforeAll {
+            # Create test environment with ADR file staged
+            $Script:TestRootPatterns = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-adr-patterns-$(Get-Random)"
+            New-Item -ItemType Directory -Path $Script:TestRootPatterns -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootPatterns ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootPatterns ".agents/sessions") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootPatterns ".agents/architecture") -Force | Out-Null
+
+            # Copy hook
+            $Script:TempHookPathPatterns = Join-Path $Script:TestRootPatterns ".claude/hooks/PreToolUse/Invoke-ADRReviewGuard.ps1"
+            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathPatterns -Force
+
+            # Init git repo and stage ADR file
+            Push-Location $Script:TestRootPatterns
+            git init --quiet
+            git config user.email "test@test.com"
+            git config user.name "Test"
+            Set-Content -Path (Join-Path $Script:TestRootPatterns ".agents/architecture/ADR-999.md") -Value "# ADR-999: Test"
+            git add .agents/architecture/ADR-999.md
+            Pop-Location
+        }
+
+        AfterAll {
+            if (Test-Path $Script:TestRootPatterns) {
+                Remove-Item -Path $Script:TestRootPatterns -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Pattern 1: /adr-review skill invocation" {
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                workLog = @(
+                    @{ action = "Invoked /adr-review"; result = "success" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootPatterns ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathPatterns -ProjectDir $Script:TestRootPatterns -WorkingDir $Script:TestRootPatterns
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Pattern 2: adr-review skill explicit reference" {
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                workLog = @(
+                    @{ action = "Executed adr-review skill"; result = "consensus achieved" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootPatterns ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathPatterns -ProjectDir $Script:TestRootPatterns -WorkingDir $Script:TestRootPatterns
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Pattern 3: ADR Review Protocol header" {
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                workLog = @(
+                    @{ action = "ADR Review Protocol initiated"; result = "completed" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootPatterns ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathPatterns -ProjectDir $Script:TestRootPatterns -WorkingDir $Script:TestRootPatterns
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Pattern 4: multi-agent consensus.*ADR" {
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                workLog = @(
+                    @{ action = "Review"; result = "multi-agent consensus achieved for ADR change" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootPatterns ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathPatterns -ProjectDir $Script:TestRootPatterns -WorkingDir $Script:TestRootPatterns
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Pattern 5: architect.*planner.*qa workflow" {
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                workLog = @(
+                    @{ action = "Review"; result = "architect analyzed, planner validated, qa approved" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootPatterns ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathPatterns -ProjectDir $Script:TestRootPatterns -WorkingDir $Script:TestRootPatterns
+            $result.ExitCode | Should -Be 0
+        }
+    }
+
     Context "ADR changes with review evidence allows commit" {
         BeforeAll {
             # Create a test git repo WITH ADR file AND review evidence

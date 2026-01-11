@@ -320,6 +320,58 @@ Describe "Invoke-MemoryFirstEnforcer" {
         }
     }
 
+    Context "Counter reset on date change" {
+        BeforeAll {
+            # Create test environment
+            $Script:TestRootDateReset = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-date-reset-$(Get-Random)"
+            New-Item -ItemType Directory -Path $Script:TestRootDateReset -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootDateReset ".agents/sessions") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootDateReset ".agents/.hook-state") -Force | Out-Null
+
+            # Copy hook with dependencies
+            $Script:TempHookPathDateReset = Copy-HookWithDependencies -TestRoot $Script:TestRootDateReset
+
+            # Create session log WITHOUT evidence
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                protocolCompliance = @{
+                    sessionStart = @{
+                        branchVerification = @{ complete = $true }
+                    }
+                }
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootDateReset ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            # Simulate counter from previous day (format: count|date)
+            $yesterday = (Get-Date).AddDays(-1).ToString("yyyy-MM-dd")
+            Set-Content -Path (Join-Path $Script:TestRootDateReset ".agents/.hook-state/memory-first-counter.txt") -Value "3`n$yesterday"
+        }
+
+        AfterAll {
+            if (Test-Path $Script:TestRootDateReset) {
+                Remove-Item -Path $Script:TestRootDateReset -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Counter resets to 1 on new day (exit 0, warning 1/3)" {
+            $result = Invoke-HookInContext -HookPath $Script:TempHookPathDateReset -ProjectDir $Script:TestRootDateReset
+            $result.ExitCode | Should -Be 0
+            $output = $result.Output -join "`n"
+            $output | Should -Match "Warning 1/3"
+        }
+
+        It "Counter file updated with today's date" {
+            $result = Invoke-HookInContext -HookPath $Script:TempHookPathDateReset -ProjectDir $Script:TestRootDateReset
+            $counterFile = Join-Path $Script:TestRootDateReset ".agents/.hook-state/memory-first-counter.txt"
+            $content = Get-Content $counterFile -Raw
+            $lines = $content.Trim() -split '\r?\n'
+            $lines.Count | Should -Be 2
+            $storedDate = $lines[1]
+            $storedDate | Should -Be (Get-Date -Format "yyyy-MM-dd")
+        }
+    }
+
     Context "Script structure" {
         It "Script parses without errors" {
             $errors = $null
