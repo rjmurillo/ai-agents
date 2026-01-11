@@ -97,35 +97,43 @@ function Test-GitCommitCommand {
 function Get-TodaySessionLog {
     <#
     .SYNOPSIS
-        Finds the most recent session log for today's date.
+        Finds the most recent session log for a specific date.
 
     .DESCRIPTION
-        Searches the sessions directory for JSON session logs matching today's
+        Searches the sessions directory for JSON session logs matching the specified
         date pattern (YYYY-MM-DD-session-*.json) and returns the most recent one.
 
     .PARAMETER SessionsDir
         Path to the .agents/sessions directory.
 
+    .PARAMETER Date
+        The date to search for in YYYY-MM-DD format. If not provided, uses current date.
+        Pass this parameter to avoid midnight race conditions (Copilot #2679880612).
+
     .OUTPUTS
         FileInfo object for the most recent session log, or $null if none found.
 
     .EXAMPLE
-        $sessionLog = Get-TodaySessionLog -SessionsDir ".agents/sessions"
+        $today = Get-Date -Format 'yyyy-MM-dd'
+        $sessionLog = Get-TodaySessionLog -SessionsDir ".agents/sessions" -Date $today
         if ($sessionLog) {
             $content = Get-Content $sessionLog.FullName -Raw | ConvertFrom-Json
         }
     #>
-    param([string]$SessionsDir)
+    param(
+        [Parameter(Mandatory)]
+        [string]$SessionsDir,
+
+        [string]$Date = (Get-Date -Format "yyyy-MM-dd")
+    )
 
     if (-not (Test-Path $SessionsDir)) {
         Write-Warning "Session directory not found: $SessionsDir"
         return $null
     }
 
-    $today = Get-Date -Format "yyyy-MM-dd"
-
     try {
-        $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$today-session-*.json" -File -ErrorAction Stop)
+        $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$Date-session-*.json" -File -ErrorAction Stop)
     }
     catch {
         Write-Warning "Failed to read session logs from $SessionsDir : $($_.Exception.Message)"

@@ -125,10 +125,10 @@ try {
         exit 0
     }
 
-    # Check for session log
+    # Check for session log (pass pre-computed date to avoid midnight race - Copilot #2679880612)
     $projectDir = Get-ProjectDirectory
     $sessionsDir = Join-Path $projectDir ".agents" "sessions"
-    $sessionLog = Get-TodaySessionLog -SessionsDir $sessionsDir
+    $sessionLog = Get-TodaySessionLog -SessionsDir $sessionsDir -Date $today
 
     if ($null -eq $sessionLog) {
         $output = @"
