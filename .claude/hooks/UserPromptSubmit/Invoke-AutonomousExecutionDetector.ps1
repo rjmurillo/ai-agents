@@ -52,7 +52,7 @@ function Test-AutonomyKeywords {
         '\bhands-off\b',
         '\bwithout asking\b',
         '\bwithout confirmation\b',
-        '\bauto-',
+        '\bauto-\w+',  # Matches auto-execute, auto-run, etc. (Copilot #2678558284, #2678584221)
         '\bunattended\b',
         '\brun autonomously\b',
         '\bfull autonomy\b',

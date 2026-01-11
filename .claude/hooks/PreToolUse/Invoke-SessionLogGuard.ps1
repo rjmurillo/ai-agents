@@ -80,6 +80,9 @@ function Test-SessionLogEvidence {
 
 # Main execution
 try {
+    # Compute date once to avoid midnight race condition (Copilot #2678558258)
+    $today = Get-Date -Format 'yyyy-MM-dd'
+
     # Read JSON input from stdin
     if (-not [Console]::IsInputRedirected) {
         exit 0
@@ -134,9 +137,9 @@ try {
 pwsh scripts/sessions/Initialize-SessionLog.ps1
 ``````
 
-Session logs go in: ``.agents/sessions/$(Get-Date -Format 'yyyy-MM-dd')-session-NN.json``
+Session logs go in: ``.agents/sessions/$today-session-NN.json``
 
-**Current Date**: $(Get-Date -Format 'yyyy-MM-dd')
+**Current Date**: $today
 **Sessions Directory**: $sessionsDir
 
 See: ``.agents/SESSION-PROTOCOL.md`` for full details.

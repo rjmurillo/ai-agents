@@ -60,6 +60,9 @@ function Test-GitCommitCommand {
         Checks if the command contains "git commit" or "git ci" to identify
         commit operations that need enforcement.
 
+        Matches both "commit" and "ci" because "git ci" is a widely-used
+        alias for "git commit" in many developer workflows (Copilot #2678558269, #2678558289).
+
     .PARAMETER Command
         The command string to test.
 
@@ -70,6 +73,11 @@ function Test-GitCommitCommand {
         if (Test-GitCommitCommand -Command $hookInput.tool_input.command) {
             # Apply commit-time validations
         }
+
+    .NOTES
+        Both "git commit" and "git ci" are matched intentionally to support
+        common aliases. This ensures hooks trigger consistently regardless of
+        user's git configuration.
     #>
     param([string]$Command)
 

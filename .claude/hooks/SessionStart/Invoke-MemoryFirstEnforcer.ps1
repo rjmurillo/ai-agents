@@ -105,7 +105,10 @@ function Test-MemoryEvidence {
 }
 
 function Get-InvocationCount {
-    param([string]$StateDir)
+    param(
+        [string]$StateDir,
+        [string]$Today
+    )
 
     $stateFile = Join-Path $StateDir "memory-first-counter.txt"
     if (-not (Test-Path $stateFile)) {
@@ -113,8 +116,24 @@ function Get-InvocationCount {
     }
 
     try {
-        $count = Get-Content $stateFile -Raw
-        return [int]$count.Trim()
+        $content = Get-Content $stateFile -Raw
+        $lines = $content.Trim() -split '\r?\n'
+
+        # Format: count|date (e.g., "3|2026-01-10")
+        if ($lines.Count -eq 2) {
+            $storedCount = [int]$lines[0]
+            $storedDate = $lines[1]
+
+            # Reset counter if date changed (cursor #2678568713, Copilot #2678558279)
+            if ($storedDate -ne $Today) {
+                return 0
+            }
+
+            return $storedCount
+        }
+
+        # Legacy format (just a number) - assume same day
+        return [int]$content.Trim()
     }
     catch {
         return 0
@@ -122,20 +141,28 @@ function Get-InvocationCount {
 }
 
 function Increment-InvocationCount {
-    param([string]$StateDir)
+    param(
+        [string]$StateDir,
+        [string]$Today
+    )
 
     if (-not (Test-Path $StateDir)) {
         New-Item -ItemType Directory -Path $StateDir -Force | Out-Null
     }
 
     $stateFile = Join-Path $StateDir "memory-first-counter.txt"
-    $count = (Get-InvocationCount -StateDir $StateDir) + 1
-    Set-Content -Path $stateFile -Value $count
+    $count = (Get-InvocationCount -StateDir $StateDir -Today $Today) + 1
+
+    # Store count and date (cursor #2678568713, Copilot #2678558279)
+    Set-Content -Path $stateFile -Value "$count`n$Today"
     return $count
 }
 
 # Main execution
 try {
+    # Compute date once to avoid midnight race condition (Copilot #2678558267)
+    $today = Get-Date -Format 'yyyy-MM-dd'
+
     $projectDir = Get-ProjectDirectory
     $sessionsDir = Join-Path $projectDir ".agents" "sessions"
     $stateDir = Join-Path $projectDir ".agents" ".hook-state"
@@ -151,7 +178,7 @@ try {
 
 **No session log found for today.** Create one early in session:
 - Use ``/session-init`` skill, OR
-- Create ``.agents/sessions/$(Get-Date -Format 'yyyy-MM-dd')-session-NN.json``
+- Create ``.agents/sessions/$today-session-NN.json``
 
 **Required evidence in session log**:
 - ``protocolCompliance.sessionStart.serenaActivated.Complete = true``
@@ -176,7 +203,7 @@ See: ``.agents/SESSION-PROTOCOL.md`` Phase 1-2
     }
 
     # Evidence missing - check invocation count for education vs blocking
-    $count = Increment-InvocationCount -StateDir $stateDir
+    $count = Increment-InvocationCount -StateDir $stateDir -Today $today
 
     if ($count -le $EDUCATION_THRESHOLD) {
         # Education phase
