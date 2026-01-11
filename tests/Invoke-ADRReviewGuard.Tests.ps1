@@ -11,9 +11,33 @@
 
 BeforeAll {
     $Script:HookPath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "PreToolUse" "Invoke-ADRReviewGuard.ps1"
+    $Script:CommonModulePath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "Common" "HookUtilities.psm1"
 
     if (-not (Test-Path $Script:HookPath)) {
         throw "Hook script not found at: $Script:HookPath"
+    }
+
+    if (-not (Test-Path $Script:CommonModulePath)) {
+        throw "Common module not found at: $Script:CommonModulePath"
+    }
+
+    # Helper to copy hook and dependencies to test directory
+    function Copy-HookWithDependencies {
+        param(
+            [string]$TestRoot,
+            [string]$HookRelativePath = ".claude/hooks/PreToolUse/Invoke-ADRReviewGuard.ps1"
+        )
+
+        $hookDestDir = Split-Path (Join-Path $TestRoot $HookRelativePath) -Parent
+        $commonDestDir = Join-Path $TestRoot ".claude/hooks/Common"
+
+        New-Item -ItemType Directory -Path $hookDestDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $commonDestDir -Force | Out-Null
+
+        Copy-Item -Path $Script:HookPath -Destination (Join-Path $TestRoot $HookRelativePath) -Force
+        Copy-Item -Path $Script:CommonModulePath -Destination (Join-Path $commonDestDir "HookUtilities.psm1") -Force
+
+        return Join-Path $TestRoot $HookRelativePath
     }
 
     # Helper to invoke hook with JSON input via process
@@ -95,12 +119,10 @@ Describe "Invoke-ADRReviewGuard" {
             # Create a test git repo without ADR files staged
             $Script:TestRoot = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-no-adr-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRoot -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRoot ".claude/hooks/PreToolUse") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRoot ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPath = Join-Path $Script:TestRoot ".claude/hooks/PreToolUse/Invoke-ADRReviewGuard.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPath -Force
+            # Copy hook with dependencies
+            $Script:TempHookPath = Copy-HookWithDependencies -TestRoot $Script:TestRoot
 
             # Init git repo and stage non-ADR file
             Push-Location $Script:TestRoot
@@ -129,13 +151,11 @@ Describe "Invoke-ADRReviewGuard" {
             # Create a test git repo WITH ADR file staged but NO review evidence
             $Script:TestRootADR = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-adr-no-review-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootADR -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootADR ".claude/hooks/PreToolUse") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootADR ".agents/sessions") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootADR ".agents/architecture") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathADR = Join-Path $Script:TestRootADR ".claude/hooks/PreToolUse/Invoke-ADRReviewGuard.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathADR -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathADR = Copy-HookWithDependencies -TestRoot $Script:TestRootADR
 
             # Create session log WITHOUT review evidence
             $today = Get-Date -Format "yyyy-MM-dd"
@@ -182,13 +202,11 @@ Describe "Invoke-ADRReviewGuard" {
             # Create test environment with ADR file staged
             $Script:TestRootPatterns = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-adr-patterns-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootPatterns -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootPatterns ".claude/hooks/PreToolUse") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootPatterns ".agents/sessions") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootPatterns ".agents/architecture") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathPatterns = Join-Path $Script:TestRootPatterns ".claude/hooks/PreToolUse/Invoke-ADRReviewGuard.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathPatterns -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathPatterns = Copy-HookWithDependencies -TestRoot $Script:TestRootPatterns
 
             # Init git repo and stage ADR file
             Push-Location $Script:TestRootPatterns
@@ -282,13 +300,11 @@ Describe "Invoke-ADRReviewGuard" {
             # Create a test git repo WITH ADR file AND review evidence
             $Script:TestRootReviewed = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-adr-reviewed-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootReviewed -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootReviewed ".claude/hooks/PreToolUse") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootReviewed ".agents/sessions") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootReviewed ".agents/architecture") -Force | Out-Null
 
-            # Copy hook
-            $Script:TempHookPathReviewed = Join-Path $Script:TestRootReviewed ".claude/hooks/PreToolUse/Invoke-ADRReviewGuard.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathReviewed -Force
+            # Copy hook with dependencies
+            $Script:TempHookPathReviewed = Copy-HookWithDependencies -TestRoot $Script:TestRootReviewed
 
             # Create session log WITH review evidence
             $today = Get-Date -Format "yyyy-MM-dd"
