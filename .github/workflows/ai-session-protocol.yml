@@ -247,7 +247,8 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
     needs: [detect-changes, validate]
-    if: needs.detect-changes.outputs.has_sessions == 'true'
+    # Always run if sessions detected, even if validate fails (enforcement step must execute)
+    if: always() && needs.detect-changes.outputs.has_sessions == 'true'
 
     outputs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
