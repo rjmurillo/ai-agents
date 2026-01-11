@@ -1,18 +1,25 @@
 {
   "task": "Session 318: Merge Velocity Analysis",
-  "decisions": null,
+  "decisions": [
+    "Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
+    "Prioritized fixing validation scripts (markdown linting and session validation) ahead of lower-impact tooling issues."
+  ],
   "id": "episode-2026-01-05-session-318",
   "timestamp": "2026-01-05T20:35:52.2485204+00:00",
   "metrics": {
-    "files_changed": 0,
+    "files_changed": 2,
     "duration_minutes": 0,
     "errors": 1,
     "recoveries": 0,
     "tool_calls": 0,
     "commits": 1
   },
-  "lessons": null,
-  "outcome": "failure",
+  "lessons": [
+    "Tooling instability (flaky CI and unreliable automation) is a major bottleneck for merge velocity.",
+    "A Draft PR policy is effective for surfacing work-in-progress early while protecting the main branch from unstable changes.",
+    "Standardizing pre-merge validation flows reduces lead time by minimizing back-and-forth on failing checks."
+  ],
+  "outcome": "success",
   "session": "2026-01-05-session-318",
   "events": [
     {
@@ -36,7 +43,7 @@
       "content": "| MUST | Run markdown lint | [x] | npx markdownlint-cli2: 0 errors |",
       "leads_to": [],
       "caused_by": [],
-      "type": "error",
+      "type": "milestone",
       "timestamp": "2026-01-05T20:35:52.1966015+00:00"
     }
   ]
