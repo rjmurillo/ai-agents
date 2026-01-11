@@ -61,7 +61,7 @@ try {
     Verb-Noun
     exit 0
 } catch {
-    Write-Error "An error occurred: $_"
+    Write-Error $_.Exception.Message
     exit 1
 }
 ```
