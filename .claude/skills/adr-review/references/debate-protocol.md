@@ -54,6 +54,7 @@ Key topics: [Extract 3-5 keywords from ADR]
 - [Should any issues be linked?]
 - [Are any PRs already implementing this?]
 """)
+
 ```
 
 Include related work findings in each Phase 1 agent prompt as context.

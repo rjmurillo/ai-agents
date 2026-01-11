@@ -41,6 +41,8 @@
 
 .NOTES
     Exit Codes: 0=Success, 1=Invalid params, 2=Not found, 3=API error, 4=Not authenticated, 6=Not mergeable
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

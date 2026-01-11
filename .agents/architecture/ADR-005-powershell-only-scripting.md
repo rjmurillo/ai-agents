@@ -131,9 +131,32 @@ This resulted in:
 
 ### Exceptions
 
-**NONE**. All scripts must be PowerShell.
+#### 1. SkillForge Developer Tools (Approved 2026-01-04)
 
-If a task genuinely cannot be done in PowerShell:
+**Scope**: `.claude/skills/SkillForge/scripts/*.py` only
+
+**Purpose**: Skill packaging and validation for distribution to Claude Code community
+
+**Justification**:
+- Developer tool for community skill sharing (not CI/CD infrastructure)
+- Python portability benefits skill distribution across platforms
+- Narrow scope prevents precedent for other Python scripts
+
+**Conditions**:
+1. SkillForge scripts MUST NOT be part of CI/CD pipelines
+2. SkillForge scripts MUST include path validation (CWE-22 prevention)
+3. SkillForge scripts MUST be tested before distribution
+4. Future skills MAY NOT use this as precedent without new ADR amendment
+
+**Security**: Path validation via `validate_path_safety()` prevents directory traversal (CodeQL verified)
+
+**Approved By**: Repository owner in PR #760
+
+---
+
+**For all other scripts**: PowerShell-only requirement remains in effect.
+
+If a new task genuinely cannot be done in PowerShell:
 1. Document why PowerShell is insufficient
 2. Get explicit approval before using another language
 3. Expect heavy scrutiny (PowerShell is Turing-complete; almost nothing is impossible)
@@ -199,4 +222,5 @@ Before merging code:
 ---
 
 **Supersedes**: None (new decision)
-**Amended by**: None
+**Amended by**:
+- 2026-01-04: SkillForge Python exception (PR #760)

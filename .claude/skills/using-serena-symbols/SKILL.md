@@ -1,7 +1,10 @@
 ---
 name: using-serena-symbols
 description: Guidance for using Serena's LSP-powered symbol analysis. Use when exploring codebases, finding symbol definitions, tracing references, or when grep/text search would be imprecise.
-allowed-tools: mcp__plugin_serena_serena__get_symbols_overview, mcp__plugin_serena_serena__find_symbol, mcp__plugin_serena_serena__find_referencing_symbols, mcp__plugin_serena_serena__read_file, mcp__plugin_serena_serena__search_for_pattern, mcp__plugin_serena_serena__list_dir
+license: MIT
+metadata:
+version: 1.0.0
+model: claude-sonnet-4-5
 ---
 
 # Using Serena Symbol Analysis
@@ -23,6 +26,7 @@ Serena provides LSP-powered code intelligence for accurate symbol extraction, re
 ## Core Tools
 
 ### 1. get_symbols_overview
+
 Get high-level view of symbols in a file. **Start here** when exploring a new file.
 
 ```python
@@ -35,9 +39,11 @@ mcp__plugin_serena_serena__get_symbols_overview({
 **Returns**: Classes, functions, variables with their kind and location.
 
 ### 2. find_symbol
+
 Find symbols by name pattern. Supports flexible matching.
 
 **Name path patterns**:
+
 - `UserService` - Find any symbol named "UserService"
 - `UserService/authenticate` - Find method in class
 - `/UserService` - Exact match (absolute path)
@@ -52,12 +58,14 @@ mcp__plugin_serena_serena__find_symbol({
 ```
 
 **Key parameters**:
+
 - `include_body` (bool): Include source code (use judiciously for context)
 - `depth` (int): How many levels of children to retrieve
 - `relative_path` (str): Restrict search to file/directory
 - `substring_matching` (bool): Partial name matching
 
 ### 3. find_referencing_symbols
+
 Find all references to a symbol. Essential for understanding impact.
 
 ```python
@@ -70,6 +78,7 @@ mcp__plugin_serena_serena__find_referencing_symbols({
 **Returns**: Code snippets showing each reference with context.
 
 ### 4. search_for_pattern
+
 Regex search when you need flexibility (like grep, but smarter file filtering).
 
 ```python
@@ -86,6 +95,7 @@ mcp__plugin_serena_serena__search_for_pattern({
 ### Exploring a New Codebase
 
 1. **Directory structure** - Understand layout
+
    ```python
    mcp__plugin_serena_serena__list_dir({
      "relative_path": ".",
@@ -94,6 +104,7 @@ mcp__plugin_serena_serena__search_for_pattern({
    ```
 
 2. **Entry points** - Find main files
+
    ```python
    mcp__plugin_serena_serena__get_symbols_overview({
      "relative_path": "src/main.py",
@@ -102,6 +113,7 @@ mcp__plugin_serena_serena__search_for_pattern({
    ```
 
 3. **Trace key classes** - Understand structure
+
    ```python
    mcp__plugin_serena_serena__find_symbol({
      "name_path_pattern": "App",
@@ -113,6 +125,7 @@ mcp__plugin_serena_serena__search_for_pattern({
 ### Understanding a Specific Class
 
 1. **Find the class** with children
+
    ```python
    mcp__plugin_serena_serena__find_symbol({
      "name_path_pattern": "AuthService",
@@ -122,6 +135,7 @@ mcp__plugin_serena_serena__search_for_pattern({
    ```
 
 2. **Read specific methods** you need
+
    ```python
    mcp__plugin_serena_serena__find_symbol({
      "name_path_pattern": "AuthService/validate_token",
@@ -130,6 +144,7 @@ mcp__plugin_serena_serena__search_for_pattern({
    ```
 
 3. **Find who calls it**
+
    ```python
    mcp__plugin_serena_serena__find_referencing_symbols({
      "name_path": "AuthService/validate_token",
@@ -140,6 +155,7 @@ mcp__plugin_serena_serena__search_for_pattern({
 ### Tracing Dependencies
 
 1. **Find all imports of a module**
+
    ```python
    mcp__plugin_serena_serena__search_for_pattern({
      "substring_pattern": "from.*auth.*import|import.*auth",
@@ -148,6 +164,7 @@ mcp__plugin_serena_serena__search_for_pattern({
    ```
 
 2. **Find references to trace usage**
+
    ```python
    mcp__plugin_serena_serena__find_referencing_symbols({
      "name_path": "AuthService",
@@ -177,6 +194,7 @@ LSP symbol kinds (for `include_kinds`/`exclude_kinds` filtering):
 | Constant | 14 | |
 
 Example - find only classes:
+
 ```python
 mcp__plugin_serena_serena__find_symbol({
   "name_path_pattern": "Service",
@@ -195,6 +213,7 @@ mcp__plugin_serena_serena__find_symbol({
 ## Language Support
 
 Serena works with any language that has an LSP server configured:
+
 - Python (pyright/pylsp)
 - TypeScript/JavaScript (tsserver)
 - Rust (rust-analyzer)

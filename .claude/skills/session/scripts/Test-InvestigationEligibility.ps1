@@ -7,13 +7,6 @@
     investigation-only allowlist defined in ADR-034. This allows agents
     to check eligibility before committing with "SKIPPED: investigation-only".
 
-.OUTPUTS
-    JSON object with:
-    - Eligible: boolean indicating if all files are in allowlist
-    - StagedFiles: array of all staged file paths
-    - Violations: array of files not in allowlist (empty if eligible)
-    - AllowedPaths: reference list of allowed path prefixes
-
 .EXAMPLE
     pwsh .claude/skills/session/scripts/Test-InvestigationEligibility.ps1
 
@@ -30,16 +23,25 @@
     0 - Success (always returns 0, eligibility is in output)
 
     ALLOWLIST:
-    Must match exactly with scripts/Validate-Session.ps1 $InvestigationAllowlist
+    Source of truth: ADR-034 Investigation Session QA Exemption
+    The allowlist patterns are defined in this script based on ADR-034.
 
-    See: ADR-034 Investigation Session QA Exemption
+    See: .agents/architecture/ADR-034-investigation-session-qa-exemption.md
+    See: ADR-035 Exit Code Standardization
+
+.OUTPUTS
+    JSON object with:
+    - Eligible: boolean indicating if all files are in allowlist
+    - StagedFiles: array of all staged file paths
+    - Violations: array of files not in allowlist (empty if eligible)
+    - AllowedPaths: reference list of allowed path prefixes
 #>
 [CmdletBinding()]
 param()
 
 $ErrorActionPreference = 'Stop'
 
-# Investigation-only allowlist patterns (must match Validate-Session.ps1)
+# Investigation-only allowlist patterns (source: ADR-034)
 $investigationAllowlist = @(
     '^\.agents/sessions/',        # Session logs
     '^\.agents/analysis/',        # Investigation outputs

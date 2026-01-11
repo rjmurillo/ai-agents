@@ -48,6 +48,15 @@ Labels like "MANDATORY" or "NON-NEGOTIABLE" are insufficient. Each requirement M
 
 ## Session Start Protocol
 
+### Phase 0: Get oriented (BLOCKING)
+
+The agent MUST check recent commits and current branch
+
+1. The agent MUST run `git branch --show-current` to verify correct branch
+2. The agent MUST verify the branch matches the intended work context (issue, PR, feature)
+3. The agent MUST NOT proceed with work if on `main` or `master` branch (create feature branch first)
+4. The agent MUST check recent commits `git log --oneline -5`
+
 ### Phase 1: Serena Initialization (BLOCKING)
 
 The agent MUST complete Serena initialization before any other action. This is a **blocking gate**.
@@ -155,9 +164,33 @@ The agent MUST validate skill availability before starting work. This is a **blo
 
 The agent MUST create a session log early in the session.
 
+**MUST Use session-init Skill**: Agents MUST use the session-init skill to create session logs with verification-based enforcement. This prevents recurring CI validation failures.
+
+**Automated Creation** (Recommended):
+
+```bash
+# Using slash command (Claude Code)
+/session-init
+
+# Using PowerShell script
+pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -Objective "Implement feature X"
+```
+
+The script will:
+
+1. Prompt for session number and objective (if not provided)
+2. Auto-detect git state (branch, commit, date, status)
+3. Load JSON schema from `.agents/schemas/session-log.schema.json`
+4. Replace placeholders with actual values
+5. Write session log with EXACT template format
+6. Validate immediately with Validate-SessionProtocol.ps1
+7. Exit nonzero on validation failure
+
+See: `.claude/skills/session-init/SKILL.md`
+
 **Requirements:**
 
-1. The agent MUST create a session log file at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+1. The agent MUST create a session log file at `.agents/sessions/YYYY-MM-DD-session-NN.json`
 2. The session log SHOULD be created within the first 5 tool calls of the session
 3. The session log MUST include the Protocol Compliance section (see template below)
 4. The agent MUST NOT defer session log creation to the end of the session
@@ -299,7 +332,7 @@ The agent MUST update documentation before ending.
 **Requirements:**
 
 1. The agent MUST NOT update `.agents/HANDOFF.md` directly. Session context MUST go to:
-   - Your session log at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+   - Your session log at `.agents/sessions/YYYY-MM-DD-session-NN.json`
    - Serena memory for cross-session context (using `mcp__serena__write_memory` or equivalent)
    - `.agents/handoffs/{branch}/{session}.md` for branch-specific handoff (if on feature branch)
 2. The agent MUST complete the session log with:
@@ -484,122 +517,35 @@ Copy this checklist to each session log and verify completion:
 
 ## Session Log Template
 
-Create at: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+Session logs must be in JSON format. The JSON schema is at `.agents/schemas/session-log.schema.json`.
 
-```markdown
-# Session NN - YYYY-MM-DD
+**Creation**:
 
-## Session Info
-
-- **Date**: YYYY-MM-DD
-- **Branch**: [branch name]
-- **Starting Commit**: [SHA]
-- **Objective**: [What this session aims to accomplish]
-
-## Protocol Compliance
-
-### Session Start (COMPLETE ALL before work)
-
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | Initialize Serena: `mcp__serena__activate_project` | [ ] | Tool output present |
-| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [ ] | Tool output present |
-| MUST | Read `.agents/HANDOFF.md` | [ ] | Content in context |
-| MUST | Create this session log | [ ] | This file exists |
-| MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Output documented below |
-| MUST | Read usage-mandatory memory | [ ] | Content in context |
-| MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
-| MUST | Read memory-index, load task-relevant memories | [ ] | List memories loaded |
-| SHOULD | Import shared memories: `pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1` | [ ] | Import count: N (or "None") |
-| MUST | Verify and declare current branch | [ ] | Branch documented below |
-| MUST | Confirm not on main/master | [ ] | On feature branch |
-| SHOULD | Verify git status | [ ] | Output documented below |
-| SHOULD | Note starting commit | [ ] | SHA documented below |
-
-### Skill Inventory
-
-Available GitHub skills:
-
-- [List from directory scan]
-
-### Git State
-
-- **Status**: [clean/dirty]
-- **Branch**: [branch name - REQUIRED]
-- **Starting Commit**: [SHA]
-
-### Branch Verification
-
-**Current Branch**: [output of `git branch --show-current`]
-**Matches Expected Context**: [Yes/No - explain if No]
-
-### Work Blocked Until
-
-All MUST requirements above are marked complete.
-
----
-
-## Work Log
-
-### [Task/Topic]
-
-**Status**: In Progress / Complete / Blocked
-
-**What was done**:
-- [Action taken]
-
-**Decisions made**:
-- [Decision]: [Rationale]
-
-**Challenges**:
-- [Challenge]: [Resolution]
-
-**Files changed**:
-- `[path]` - [What changed]
-
----
-
-## Session End (COMPLETE ALL before closing)
-
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
-| MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
-| MUST | Complete session log (all sections filled) | [ ] | File complete |
-| MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
-| MUST | Run markdown lint | [ ] | Output below |
-| MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` OR `SKIPPED: investigation-only` |
-| MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
-| MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] | HANDOFF.md unchanged |
-| SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
-| SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
-| SHOULD | Verify clean git status | [ ] | Output below |
-
-<!-- Investigation sessions may skip QA with evidence "SKIPPED: investigation-only"
-     when only staging: .agents/sessions/, .agents/analysis/, .agents/retrospective/,
-     .serena/memories/, .agents/security/
-     See ADR-034 for details. -->
-
-### Lint Output
-
-[Paste markdownlint output here]
-
-### Final Git Status
-
-[Paste git status output here]
-
-### Commits This Session
-
-- `[SHA]` - [message]
-
----
-
-## Notes for Next Session
-
-- [Important context]
-- [Gotchas discovered]
-- [Recommendations]
+```bash
+pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
+# Auto-increments session number, derives objective from branch
 ```
+
+**Required top-level fields**:
+
+- `schemaVersion` (string): "1.0"
+- `session` (object): number, date, branch, startingCommit, objective
+- `protocolCompliance` (object): sessionStart, sessionEnd checklists
+- `workLog` (array): session activities
+- `endingCommit` (string): final commit SHA
+- `nextSteps` (array): follow-up actions
+
+**Validation**:
+
+```bash
+# JSON schema validation (structural)
+pwsh -Command "Test-Json -Json (Get-Content [session].json -Raw) -Schema (Get-Content .agents/schemas/session-log.schema.json -Raw)"
+
+# Script validation (business rules)
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath [session].json
+```
+
+For detailed schema structure, load `.agents/schemas/session-log.schema.json` when needed.
 
 ---
 
@@ -682,17 +628,11 @@ Example:
 
 ### Automated Protocol Validation
 
-The `Validate-SessionProtocol.ps1` script checks session protocol compliance:
+The `Validate-SessionJson.ps1` script checks session protocol compliance:
 
 ```powershell
 # Validate current session
-.\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.md"
-
-# Validate all recent sessions
-.\scripts\Validate-SessionProtocol.ps1 -All
-
-# CI mode (exit code on failure)
-.\scripts\Validate-SessionProtocol.ps1 -All -CI
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.json"
 ```
 
 ### What Validation Checks

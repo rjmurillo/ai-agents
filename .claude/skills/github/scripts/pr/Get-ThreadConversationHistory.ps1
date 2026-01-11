@@ -39,6 +39,8 @@
         4 - Not authenticated
 
     Uses GraphQL with pagination support for threads with 100+ comments.
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

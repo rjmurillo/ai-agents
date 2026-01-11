@@ -10,6 +10,12 @@
 .NOTES
     Requires Pester 5.x or later.
     Run with: Invoke-Pester -Path .\scripts\tests\Install-Common.Tests.ps1
+
+    EXIT CODES:
+    0  - Success: All tests passed
+    1  - Error: One or more tests failed (set by Pester framework)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 BeforeAll {

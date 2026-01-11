@@ -1,19 +1,36 @@
 name: Session Protocol Validation
 
 # Deterministic session log validation using Validate-SessionProtocol.ps1
+
 # Verifies session logs comply with RFC 2119 requirements in SESSION-PROTOCOL.md
+
 # Blocks merge if MUST requirements are not met
+
 # Zero-token validation: outputs structured data directly to Job Summary
 
 on:
   pull_request:
     branches: [main]
     paths:
-      - '.agents/sessions/*.md'
+      - '.agents/sessions/*.json'
 
 permissions:
   contents: read
   pull-requests: write
+
+# Concurrency control: Attempts to cancel in-progress runs when new runs start
+
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+
+# where multiple runs start before cancellation takes effect. This is best-effort
+
+# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+# for architectural decision on workflow-level concurrency control
+
+# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
+
+# Note: Matrix strategy with fail-fast: false allows independent validation
 
 concurrency:
   group: session-protocol-${{ github.event.pull_request.number }}
@@ -23,7 +40,9 @@ env:
   GH_TOKEN: ${{ secrets.BOT_PAT }}
 
 jobs:
-  # Identify changed session files and build matrix
+
+# Identify changed session files and build matrix
+
   detect-changes:
     name: Detect Changed Sessions
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
@@ -49,7 +68,8 @@ jobs:
           CUTOFF_DATE: "2025-12-21"
         run: |
           # Use files API instead of gh pr diff (no line limit - fixes issue #468)
-          ALL_CHANGED=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER/files" --paginate --jq '.[].filename' | grep -E '^\.agents/sessions/.*\.md$' || true)
+          # Include both .md (legacy) and .json (new format)
+          ALL_CHANGED=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER/files" --paginate --jq '.[].filename' | grep -E '^\.agents/sessions/.*\.(md|json)$' || true)
 
           if [ -z "$ALL_CHANGED" ]; then
             echo "No session files changed"
@@ -109,7 +129,8 @@ jobs:
             echo "session_files=$JSON_ARRAY" >> $GITHUB_OUTPUT
           fi
 
-  # Validate each session file in parallel using matrix strategy
+# Validate each session file in parallel using matrix strategy
+
   validate:
     name: Validate ${{ matrix.session_file }}
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
@@ -127,26 +148,65 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
+      - name: Fetch origin/main for HANDOFF validation
+        run: |
+          # Fetch origin/main with enough history for merge-base calculation
+          # The three-dot diff syntax (origin/main...HEAD) needs merge-base
+          git fetch origin main --unshallow || git fetch origin main
+
       - name: Validate Session Protocol
         id: validate
         shell: pwsh
         env:
           SESSION_FILE: ${{ matrix.session_file }}
         run: |
-          # Run validation script with markdown output
-          $result = & ./scripts/Validate-SessionProtocol.ps1 `
-            -SessionPath $env:SESSION_FILE `
-            -Format markdown `
-            -CI
-          $exitCode = $LASTEXITCODE  # Capture immediately before any other commands
+          $sessionFile = $env:SESSION_FILE
+          $extension = [System.IO.Path]::GetExtension($sessionFile)
+          
+          # Use appropriate validator based on file type
+          if ($extension -eq '.json') {
+            # JSON format - simple schema validation
+            $result = & ./scripts/Validate-SessionJson.ps1 -SessionPath $sessionFile 2>&1
+            $exitCode = $LASTEXITCODE
+            $format = 'JSON'
+          } else {
+            # Legacy markdown format - migrate to JSON first, then validate
+            Write-Host "Legacy markdown detected - migrating to JSON for validation"
+            $jsonPath = $sessionFile -replace '\.md$', '.json'
+            
+            # Migrate
+            & ./scripts/Convert-SessionToJson.ps1 -Path $sessionFile -Force 2>&1 | Out-Null
+            
+            if (Test-Path $jsonPath) {
+              $result = & ./scripts/Validate-SessionJson.ps1 -SessionPath $jsonPath 2>&1
+              $exitCode = $LASTEXITCODE
+            } else {
+              $result = @("Migration failed - could not convert markdown to JSON")
+              $exitCode = 1
+            }
+            $format = 'Markdown (legacy)'
+          }
+          
+          # Build markdown output
+          $fileName = Split-Path $sessionFile -Leaf
+          $status = if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }
+          $mdResult = "# Session Validation: $fileName`n`nFormat: $format`nResult: $status`n`n" + '```' + "`n$($result -join "`n")`n" + '```'
+          $mdResult | Out-File -FilePath "validation-result.md" -Encoding UTF8
 
           # Save markdown output for artifact
           $result | Out-File -FilePath "validation-result.md" -Encoding UTF8
           
           # Create simplified results directory
           New-Item -ItemType Directory -Force -Path "validation-results" | Out-Null
-          
-          $fileName = [System.IO.Path]::GetFileNameWithoutExtension($env:SESSION_FILE)
+
+          # Include parent directory to prevent collisions (e.g., sessions vs archive)
+          $fileInfo = Get-Item $env:SESSION_FILE
+          $parentDir = $fileInfo.Directory.Name
+          $baseName = [System.IO.Path]::GetFileNameWithoutExtension($fileInfo.Name)
+          $fileName = "${parentDir}-${baseName}"
+
+          # Set output for artifact naming
+          "artifact-name=$fileName" >> $env:GITHUB_OUTPUT
           
           # Determine verdict based on exit code
           $verdict = if ($exitCode -eq 0) { "COMPLIANT" } else { "NON_COMPLIANT" }
@@ -175,18 +235,20 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: validation-${{ hashFiles(matrix.session_file) }}
+          name: validation-${{ steps.validate.outputs.artifact-name }}
           path: validation-results/
           retention-days: 1
 
-  # Aggregate results and post comment
+# Aggregate results and post comment
+
   aggregate:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
     needs: [detect-changes, validate]
-    if: needs.detect-changes.outputs.has_sessions == 'true'
+    # Always run if sessions detected, even if validate fails (enforcement step must execute)
+    if: always() && needs.detect-changes.outputs.has_sessions == 'true'
 
     outputs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}

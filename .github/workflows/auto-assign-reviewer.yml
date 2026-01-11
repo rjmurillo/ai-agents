@@ -1,8 +1,9 @@
-# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# yaml-language-server: $schema=<https://json.schemastore.org/github-workflow.json>
 
 name: Auto-Assign Reviewer
 
 # Automatically adds rjmurillo-bot as a reviewer on all PRs
+
 # This enables the bot to receive review requests and respond to PR comments
 
 on:
@@ -11,6 +12,18 @@ on:
 
 permissions:
   pull-requests: write
+
+# Concurrency control: Attempts to cancel in-progress runs when new runs start
+
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+
+# where multiple runs start before cancellation takes effect. This is best-effort
+
+# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+# for architectural decision on workflow-level concurrency control
+
+# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
 
 concurrency:
   group: auto-reviewer-${{ github.event.pull_request.number }}

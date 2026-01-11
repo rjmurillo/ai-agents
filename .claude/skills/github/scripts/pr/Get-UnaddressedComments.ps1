@@ -37,11 +37,6 @@
     Pre-fetched comments array. If not provided, will fetch using GitHub API.
     Pass this to avoid duplicate API calls when comments are already fetched.
 
-.OUTPUTS
-    Array of bot comments that are unaddressed.
-    Returns empty array when all bot comments are addressed.
-    Never returns $null (per Skill-PowerShell-002).
-
 .EXAMPLE
     ./Get-UnaddressedComments.ps1 -PullRequest 365
     # Returns unaddressed bot comments for PR #365
@@ -53,6 +48,16 @@
 
 .NOTES
     Depends on Get-UnresolvedReviewThreads.ps1 for thread resolution status.
+
+    EXIT CODES:
+    0  - Success: Comments retrieved successfully (implicit)
+
+    See: ADR-035 Exit Code Standardization
+
+.OUTPUTS
+    Array of bot comments that are unaddressed.
+    Returns empty array when all bot comments are addressed.
+    Never returns $null (per Skill-PowerShell-002).
 #>
 
 [CmdletBinding()]
@@ -137,7 +142,7 @@ function Get-UnaddressedComments {
         [string]$Repo,
 
         [Parameter(Mandatory)]
-        [int]$PR,
+        [int]$PullRequest,
 
         [Parameter()]
         [array]$Comments = $null
@@ -145,7 +150,7 @@ function Get-UnaddressedComments {
 
     # Use pre-fetched comments if provided, otherwise fetch from API
     if ($null -eq $Comments) {
-        $Comments = Get-PRComments -Owner $Owner -Repo $Repo -PR $PR
+        $Comments = Get-PRComments -Owner $Owner -Repo $Repo -PR $PullRequest
     }
 
     # Early exit if no comments
@@ -154,12 +159,11 @@ function Get-UnaddressedComments {
     }
 
     # Query unresolved threads to get IDs of comments that are acknowledged but not resolved
-    # Dot-source the sibling script for thread lookup
-    $scriptDir = $PSScriptRoot
-    $threadsScript = Join-Path $scriptDir 'Get-UnresolvedReviewThreads.ps1'
-
-    if (-not (Test-Path $threadsScript)) {
-        Write-Warning "Get-UnresolvedReviewThreads.ps1 not found at $threadsScript"
+    # Import GitHubCore module for Get-UnresolvedReviewThreads function
+    $modulePath = Join-Path $PSScriptRoot ".." ".." "modules" "GitHubCore.psm1"
+    
+    if (-not (Test-Path $modulePath)) {
+        Write-Warning "GitHubCore.psm1 module not found at $modulePath"
         # Fall back to just checking eyes reactions (unacknowledged only)
         $unaddressed = @($Comments | Where-Object {
             $_.user.type -eq 'Bot' -and $_.reactions.eyes -eq 0
@@ -167,9 +171,10 @@ function Get-UnaddressedComments {
         return $unaddressed
     }
 
-    # Source and call the thread lookup
-    . $threadsScript
-    $unresolvedThreads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PR $PR
+    Import-Module $modulePath -Force
+
+    # Call the module function
+    $unresolvedThreads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PullRequest $PullRequest
 
     # Extract comment IDs from unresolved threads (databaseId field from first comment in each thread)
     $unresolvedCommentIds = @()
@@ -216,7 +221,7 @@ if (-not $Owner -or -not $Repo) {
 }
 
 # Get unaddressed comments
-$result = Get-UnaddressedComments -Owner $Owner -Repo $Repo -PR $PullRequest -Comments $Comments
+$result = Get-UnaddressedComments -Owner $Owner -Repo $Repo -PullRequest $PullRequest -Comments $Comments
 
 # Output as JSON for machine consumption
 $result | ConvertTo-Json -Depth 5

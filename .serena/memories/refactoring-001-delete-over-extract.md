@@ -4,7 +4,7 @@
 
 **Context**: Code refactoring decisions, particularly when facing complex custom implementations
 
-**Evidence**: Session 67 (2025-12-22): Generate-Skills.ps1 refactoring
+**Evidence**: Session 67 (2025-12-22): Generate-Skills.ps1 refactoring (script deleted in commit d7f2e08, replaced by validate-skill.py)
 - Original plan: Extract 112-line custom YAML parser into reusable module
 - Better approach: Delete it, use `powershell-yaml` from PSGallery
 - Result: 96% code reduction (112 lines → 4 lines), zero maintenance burden

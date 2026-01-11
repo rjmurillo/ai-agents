@@ -58,7 +58,7 @@ Single source of truth for project constraints. Index-style document pointing to
 | SHOULD keep workflows under 100 lines (orchestration only) | ADR-006 | Lint check |
 | MUST put complex logic in .psm1 modules | ADR-006 | Code review |
 | MUST have Pester tests for modules (80%+ coverage) | ADR-006 | CI coverage check |
-
+| MUST add new AI-powered workflows to monitoring list | workflow-coalescing | Code review, manual validation |
 **Reference**: [ADR-006-thin-workflows-testable-modules.md](../architecture/ADR-006-thin-workflows-testable-modules.md)
 
 **Rationale Summary**: GitHub Actions workflows cannot be tested locally. The feedback loop (edit -> push -> wait -> check) is slow. Extracting logic to modules enables fast local testing with Pester.
@@ -68,6 +68,14 @@ Single source of truth for project constraints. Index-style document pointing to
 - Workflow YAML: Orchestration only (calls, parameters, artifacts)
 - PowerShell Module (.psm1): All business logic
 - Pester Tests (.Tests.ps1): Fast local feedback
+
+**New AI-Powered Workflow Checklist**:
+
+When creating a new AI-powered workflow with concurrency control:
+
+1. Add workflow name to monitoring list in `.github/scripts/Measure-WorkflowCoalescing.ps1` (line 47, `$Workflows` parameter default)
+2. Document workflow in `.github/AGENTS.md`
+3. Ensure concurrency group follows naming pattern: `{prefix}-${{ github.event.pull_request.number }}`
 
 ---
 
@@ -111,6 +119,32 @@ Single source of truth for project constraints. Index-style document pointing to
 
 ---
 
+## Security Constraints
+
+| Constraint | Source | Verification |
+|------------|--------|--------------|
+| MUST pin GitHub Actions to commit SHA | security-practices | Pre-commit hook, workflow validation |
+| MUST NOT use version tags (@v4, @v3, @v2) | security-practices | Pre-commit hook blocks |
+| MUST include version comment for maintainability | security-practices | Code review |
+
+**Reference**: [security-practices.md](../steering/security-practices.md#github-actions-security)
+
+**Rationale Summary**: SHA pinning prevents supply chain attacks where action maintainers (or compromised accounts) move version tags to malicious commits. Immutable SHA references ensure reviewed code cannot be silently replaced.
+
+**Pattern**:
+
+```yaml
+# Correct: SHA with version comment
+uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+# Incorrect: Version tag only
+uses: actions/checkout@v4
+```
+
+**Exceptions**: None. All third-party actions must be SHA-pinned.
+
+---
+
 ## Validation Checklist
 
 Use this checklist during session start:
@@ -118,7 +152,7 @@ Use this checklist during session start:
 - [ ] Read this document (PROJECT-CONSTRAINTS.md)
 - [ ] For GitHub operations: Verify skill exists before writing code
 - [ ] For new scripts: Verify PowerShell-only (no .sh or .py files)
-- [ ] For workflow changes: Verify logic in modules, not YAML
+- [ ] For workflow changes: Verify logic in modules, not YAML; actions are SHA-pinned, not version tags
 - [ ] Before commit: Verify atomic commit rule (single logical change)
 
 ---

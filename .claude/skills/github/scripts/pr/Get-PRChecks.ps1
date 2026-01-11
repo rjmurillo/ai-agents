@@ -44,6 +44,8 @@
 
     Uses GraphQL statusCheckRollup which provides both GitHub Actions CheckRuns
     and legacy Status API contexts in a unified format.
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

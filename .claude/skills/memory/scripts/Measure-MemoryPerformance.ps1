@@ -43,6 +43,11 @@
     Part of Phase 2A Memory System implementation.
     Issue: #167 (Vector Memory System)
     Task: M-008 (Create memory search benchmarks)
+
+    EXIT CODES:
+    0  - Success: Benchmarking completed (implicit)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

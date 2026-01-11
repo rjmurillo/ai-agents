@@ -39,6 +39,12 @@
     Part of the ai-agents installer consolidation (CVA plan Phase 4).
     Supports both local and remote execution via iex.
     Requires Install-Common.psm1 module from scripts/lib directory.
+
+    EXIT CODES:
+    0  - Success: Installation completed or user cancelled
+    1  - Error: Download failed, module not found, or invalid user input
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

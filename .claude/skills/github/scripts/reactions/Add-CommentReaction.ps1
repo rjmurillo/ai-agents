@@ -39,6 +39,8 @@
 .NOTES
     Exit Codes: 0=All succeeded, 1=Invalid params, 3=Any failed, 4=Not authenticated
     Performance: Batch mode saves ~1.2s per additional comment (process spawn overhead)
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

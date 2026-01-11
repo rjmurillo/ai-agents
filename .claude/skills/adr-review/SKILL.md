@@ -3,9 +3,7 @@ name: adr-review
 description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus.
 license: MIT
 metadata:
-  version: 2.0.0
-  model: claude-opus-4-5-20251101
-  subagent_model: claude-opus-4-5-20251101
+  subagent_model: claude-opus-4-5
   domains: [architecture, governance, multi-agent, consensus]
   type: orchestrator
   inputs: [adr-file-path, change-type]
@@ -104,6 +102,55 @@ See [references/deletion-workflow.md](references/deletion-workflow.md) for full 
 
 See [references/issue-resolution.md](references/issue-resolution.md) for deferral protocol.
 
+## Phase 4: Strategic Review (Principal-Level Validation)
+
+After structural and technical review, apply strategic lenses:
+
+### Strategic Validation Checklist
+
+#### Chesterton's Fence (Change Justification)
+
+- [ ] If removing/changing existing patterns: Original purpose documented
+- [ ] Investigation evidence provided (git archaeology, interviews, documentation)
+- [ ] Confirmation original problem no longer exists
+- [ ] Assessment: [PASS | FAIL | N/A]
+
+#### Path Dependence (Irreversibility Recognition)
+
+- [ ] Historical constraints identified and documented
+- [ ] Reversibility assessment complete (rollback capability, vendor lock-in)
+- [ ] Migration/exit strategy defined if adding dependencies
+- [ ] Irreversible decisions explicitly flagged and justified
+- [ ] Assessment: [PASS | FAIL | N/A]
+
+#### Core vs Context (Investment Prioritization)
+
+- [ ] Capability classified as Core (differentiating) or Context (commodity)
+- [ ] If building Context: Justification for not buying/outsourcing
+- [ ] If Core: Competitive differentiation explained
+- [ ] Assessment: [PASS | FAIL | N/A]
+
+#### Second-System Effect (Over-Engineering Detection)
+
+- [ ] If replacing existing system: Scope boundaries explicit
+- [ ] Feature list justified (not "everything we didn't do last time")
+- [ ] Simplicity preservation strategy documented
+- [ ] Assessment: [PASS | FAIL | N/A]
+
+### Strategic Review Verdict
+
+**Overall Strategic Assessment**: [APPROVED | CONCERNS | REJECTED]
+
+**Blocking Issues**:
+
+- [Strategic issue 1 with required mitigation]
+- [Strategic issue 2 with required mitigation]
+
+**Recommendations**:
+
+- [Strategic improvement 1]
+- [Strategic improvement 2]
+
 ## Scripts
 
 | Script | Purpose |
@@ -147,17 +194,3 @@ After skill invocation:
 | [issue-resolution.md](references/issue-resolution.md) | P0/P1/P2 handling and deferral |
 | [artifacts.md](references/artifacts.md) | Output formats and templates |
 | [agent-prompts.md](references/agent-prompts.md) | Detailed agent prompt templates |
-
-## Changelog
-
-### v2.0.0 (Current)
-
-- Added file_triggers metadata for automatic invocation
-- Added deletion workflow (Phases D1-D4)
-- Added Detect-ADRChanges.ps1 script
-- Optimized for token consumption with references/
-
-### v1.0.0
-
-- Initial multi-agent debate protocol
-- Phases 0-4 workflow

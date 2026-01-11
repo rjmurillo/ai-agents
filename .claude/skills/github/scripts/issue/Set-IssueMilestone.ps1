@@ -31,6 +31,8 @@
 
 .NOTES
     Exit Codes: 0=Success, 1=Invalid params, 2=Milestone not found, 3=API error, 4=Not authenticated, 5=Has milestone (use -Force)
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'Assign')]

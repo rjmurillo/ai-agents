@@ -1,7 +1,10 @@
 ---
 name: exploring-knowledge-graph
 description: Guidance for deep knowledge graph traversal across memories, entities, and relationships. Use when needing comprehensive context before planning, investigating connections between concepts, or answering "what do you know about X" questions.
-allowed-tools: mcp__forgetful__discover_forgetful_tools, mcp__forgetful__how_to_use_forgetful_tool, mcp__forgetful__execute_forgetful_tool
+license: MIT
+metadata:
+version: 1.0.0
+model: claude-sonnet-4-5
 ---
 
 # Exploring the Knowledge Graph
@@ -11,6 +14,7 @@ Forgetful stores knowledge as an interconnected graph: memories link to other me
 ## When to Explore
 
 Explore the knowledge graph when:
+
 - Starting complex work that spans multiple topics
 - User asks "what do you know about X"
 - Planning requires understanding existing decisions/patterns
@@ -22,7 +26,8 @@ Explore the knowledge graph when:
 Track visited IDs to prevent cycles. Execute phases sequentially.
 
 ### Phase 1: Semantic Entry Point
-```
+
+```javascript
 execute_forgetful_tool("query_memory", {
   "query": "<topic>",
   "query_context": "Exploring knowledge graph for comprehensive context",
@@ -35,24 +40,30 @@ execute_forgetful_tool("query_memory", {
 Collect: `primary_memories` + `linked_memories` (1-hop connections).
 
 ### Phase 2: Expand Memory Details
+
 For key memories, get full details:
-```
+
+```javascript
 execute_forgetful_tool("get_memory", {"memory_id": <id>})
 ```
 
 Extract: `document_ids`, `code_artifact_ids`, `project_ids`, additional `linked_memory_ids`.
 
 ### Phase 3: Entity Discovery
+
 Find entities in discovered projects:
-```
+
+```javascript
 execute_forgetful_tool("list_entities", {
   "project_ids": [<discovered project ids>]
 })
 ```
 
 ### Phase 4: Entity Relationships
+
 For relevant entities, map relationship graph:
-```
+
+```javascript
 execute_forgetful_tool("get_entity_relationships", {
   "entity_id": <id>,
   "direction": "both"
@@ -62,8 +73,10 @@ execute_forgetful_tool("get_entity_relationships", {
 Relationship types: works_for, owns, manages, collaborates_with, etc.
 
 ### Phase 5: Entity-Linked Memories
+
 For each entity, find all linked memories:
-```
+
+```javascript
 execute_forgetful_tool("get_entity_memories", {
   "entity_id": <id>
 })

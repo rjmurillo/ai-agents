@@ -1,10 +1,14 @@
 ---
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(pwsh:*), Task, Skill, Read, Write, Edit, Glob, Grep
 argument-hint: <PR_NUMBERS> [--parallel] [--cleanup]
-description: Respond to PR review comments for the specified pull request(s)
+description: Use when responding to PR review comments for specified pull request(s)
 ---
 
 # PR Review Command
+
+> **Note**: This command uses extended thinking (`ultrathink`) for deep PR analysis.
+
+ultrathink
 
 Respond to PR review comments for the specified pull request(s): $ARGUMENTS
 

@@ -63,4 +63,4 @@ Enhanced in Session 106 with:
 - Changelog section
 - All 18 validation checks passing
 
-**Note**: Generator bug in build/Generate-Skills.ps1 - manually maintain .skill files when extraction fails
+**Note**: Generate-Skills.ps1 deleted in commit d7f2e08, replaced by validate-skill.py for skill validation

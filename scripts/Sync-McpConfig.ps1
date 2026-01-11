@@ -1,29 +1,41 @@
 <#
 .SYNOPSIS
-    Synchronizes MCP configuration from Claude's .mcp.json to VS Code's .vscode/mcp.json format.
+    Synchronizes MCP configuration from Claude's .mcp.json to VS Code and Factory formats.
 
 .DESCRIPTION
-    Transforms Claude Code's .mcp.json (using "mcpServers" root key) to VS Code's
-    mcp.json format (using "servers" root key). The script treats .mcp.json as the
-    source of truth and generates .vscode/mcp.json for VS Code compatibility.
+    Transforms Claude Code's .mcp.json (using "mcpServers" root key) to Factory's
+    .factory/mcp.json and VS Code's .vscode/mcp.json formats. The script treats
+    .mcp.json as the source of truth and generates configuration files for both
+    Factory Droid and VS Code compatibility.
 
     Format differences:
-    - Claude (.mcp.json):  { "mcpServers": { ... } }
+    - Claude (.mcp.json):     { "mcpServers": { ... } }
+    - Factory (.factory/mcp.json): { "mcpServers": { ... } }
     - VS Code (.vscode/mcp.json):  { "servers": { ... } }
 
     Server-specific transformations:
     - serena: Changes --context "claude-code" to "ide" and --port "24282" to "24283"
       for VS Code/IDE compatibility.
 
-    Note: These are the only two supported configurations. GitHub Copilot CLI uses
-    a different file (~/.copilot/mcp-config.json) in the user's home directory,
-    which is not managed by this script.
+    Note: GitHub Copilot CLI uses a different file (~/.copilot/mcp-config.json)
+    in the user's home directory, which is not managed by this script.
 
 .PARAMETER SourcePath
     Path to the Claude .mcp.json file. Defaults to .mcp.json in repository root.
 
 .PARAMETER DestinationPath
-    Path to the VS Code mcp.json file. Defaults to .vscode/mcp.json in repository root.
+    Path to the destination mcp.json file (Factory or VS Code). Defaults to
+    .vscode/mcp.json in repository root when Target is 'vscode', or .factory/mcp.json
+    when Target is 'factory'.
+
+.PARAMETER Target
+    Target platform: 'factory' or 'vscode' (default 'vscode').
+    - factory: Generates .factory/mcp.json (same format as .mcp.json)
+    - vscode: Generates .vscode/mcp.json (transformed format)
+
+.PARAMETER SyncAll
+    Syncs to both Factory and VS Code configurations. Cannot be used with
+    DestinationPath parameter.
 
 .PARAMETER Force
     Overwrite destination even if content would be identical.
@@ -36,23 +48,34 @@
 
 .EXAMPLE
     .\Sync-McpConfig.ps1
-    # Syncs .mcp.json to .vscode/mcp.json in current repository
+    # Syncs .mcp.json to .vscode/mcp.json in current repository (default)
+
+.EXAMPLE
+    .\Sync-McpConfig.ps1 -Target vscode
+    # Syncs .mcp.json to .vscode/mcp.json
+
+.EXAMPLE
+    .\Sync-McpConfig.ps1 -SyncAll
+    # Syncs .mcp.json to both .factory/mcp.json and .vscode/mcp.json
 
 .EXAMPLE
     .\Sync-McpConfig.ps1 -WhatIf
     # Shows what would be changed without making changes
 
-.EXAMPLE
-    .\Sync-McpConfig.ps1 -SourcePath "C:\MyRepo\.mcp.json" -DestinationPath "C:\MyRepo\.vscode\mcp.json"
-    # Syncs specific files
-
 .LINK
+    https://docs.factory.ai/cli/configuration/mcp
     https://code.visualstudio.com/docs/copilot/customization/mcp-servers
     https://docs.anthropic.com/claude-code/docs/mcp
 
 .NOTES
     Author: AI Agents Project
     Part of the ai-agents repository tooling.
+
+    EXIT CODES:
+    0  - Success: Configuration synced successfully
+    1  - Error: File not found, invalid JSON, transformation failure, or write error
+
+    See: ADR-035 Exit Code Standardization
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
@@ -63,17 +86,43 @@ param(
     [string]$DestinationPath,
 
     [Parameter()]
+    [ValidateSet('factory', 'vscode')]
+    [string]$Target = 'vscode',
+
+    [Parameter()]
+    [switch]$SyncAll,
+
+    [Parameter()]
     [switch]$Force,
 
     [Parameter()]
-    [switch]$PassThru
+    [switch]$PassThru,
+
+    [Parameter(DontShow)]
+    [string]$RepoRootOverride
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Validate parameter combinations
+if ($SyncAll -and $DestinationPath) {
+    Write-Error "Cannot use SyncAll with DestinationPath parameter. They are mutually exclusive."
+    exit 1
+}
+
+# Validate SyncAll vs Target (Target is meaningless when SyncAll is True)
+if ($SyncAll -and $PSBoundParameters.ContainsKey('Target')) {
+    Write-Error "Cannot use SyncAll with Target parameter. SyncAll generates both Factory and VS Code configs, so Target is ignored."
+    exit 1
+}
+
 # Resolve paths relative to script location or current directory
 function Get-RepoRoot {
+    if ($RepoRootOverride) {
+        return $RepoRootOverride
+    }
+
     $gitRoot = git rev-parse --show-toplevel 2>$null
     if ($LASTEXITCODE -eq 0 -and $gitRoot) {
         return $gitRoot
@@ -88,8 +137,14 @@ if (-not $SourcePath) {
 }
 
 if (-not $DestinationPath) {
-    $vscodePath = Join-Path $repoRoot '.vscode'
-    $DestinationPath = Join-Path $vscodePath 'mcp.json'
+    if ($Target -eq 'vscode') {
+        $vscodePath = Join-Path $repoRoot '.vscode'
+        $DestinationPath = Join-Path $vscodePath 'mcp.json'
+    }
+    else { # factory
+        $factoryPath = Join-Path $repoRoot '.factory'
+        $DestinationPath = Join-Path $factoryPath 'mcp.json'
+    }
 }
 
 # Validate source exists
@@ -99,7 +154,9 @@ if (-not (Test-Path $SourcePath)) {
 }
 
 # Security: Reject symlinks (MEDIUM-002 from pre-commit patterns)
-if ((Get-Item $SourcePath).LinkType) {
+# Use Get-ChildItem with -Force to handle hidden files
+$sourceItem = Get-ChildItem -Path $SourcePath -Force | Select-Object -First 1
+if ($sourceItem.LinkType) {
     Write-Error "Security: Source path is a symlink, which is not allowed: $SourcePath"
     exit 1
 }
@@ -120,33 +177,43 @@ if (-not $sourceJson.ContainsKey('mcpServers')) {
     exit 1
 }
 
-# Transform: mcpServers -> servers
-$servers = $sourceJson['mcpServers'].Clone()
+# Determine transform based on target
+if ($Target -eq 'vscode') {
+    # VS Code transform: mcpServers -> servers
+    $servers = $sourceJson['mcpServers'].Clone()
 
-# Transform serena configuration for VS Code compatibility
-# Claude Code uses: --context claude-code --port 24282
-# VS Code uses:     --context ide --port 24283
-if ($servers.ContainsKey('serena') -and $servers['serena'].ContainsKey('args')) {
-    # Deep clone the serena config to avoid modifying source
-    $serenaConfig = @{}
-    foreach ($key in $servers['serena'].Keys) {
-        if ($key -eq 'args') {
-            $serenaConfig[$key] = @($servers['serena']['args'])
-        } else {
-            $serenaConfig[$key] = $servers['serena'][$key]
+    # Transform serena configuration for VS Code compatibility
+    # Claude Code uses: --context claude-code --port 24282
+    # VS Code uses:     --context ide --port 24283
+    if ($servers.ContainsKey('serena') -and $servers['serena'].ContainsKey('args')) {
+        # Deep clone the serena config to avoid modifying source
+        $serenaConfig = @{}
+        foreach ($key in $servers['serena'].Keys) {
+            if ($key -eq 'args') {
+                $serenaConfig[$key] = @($servers['serena']['args'])
+            } else {
+                $serenaConfig[$key] = $servers['serena'][$key]
+            }
         }
+
+        # Transform args: replace claude-code -> ide and 24282 -> 24283
+        $serenaConfig['args'] = $serenaConfig['args'] | ForEach-Object {
+            $_ -replace '^claude-code$', 'ide' -replace '^24282$', '24283'
+        }
+
+        $servers['serena'] = $serenaConfig
     }
 
-    # Transform args: replace claude-code -> ide and 24282 -> 24283
-    $serenaConfig['args'] = $serenaConfig['args'] | ForEach-Object {
-        $_ -replace '^claude-code$', 'ide' -replace '^24282$', '24283'
+    $destJson = [ordered]@{
+        servers = $servers
     }
-
-    $servers['serena'] = $serenaConfig
 }
-
-$destJson = [ordered]@{
-    servers = $servers
+else { # factory
+    # Factory uses same format as Claude: mcpServers
+    # Deep clone to avoid modifying source
+    $destJson = [ordered]@{
+        mcpServers = $sourceJson['mcpServers'].Clone()
+    }
 }
 
 # Preserve any additional top-level keys (like 'inputs' if present)
@@ -170,7 +237,9 @@ if (-not $destContent.EndsWith("`n")) {
 $needsUpdate = $true
 if (Test-Path $DestinationPath) {
     # Security: Reject symlinks
-    if ((Get-Item $DestinationPath).LinkType) {
+    # Use Get-ChildItem with -Force to handle hidden files
+    $destItem = Get-ChildItem -Path $DestinationPath -Force | Select-Object -First 1
+    if ($destItem.LinkType) {
         Write-Error "Security: Destination path is a symlink, which is not allowed: $DestinationPath"
         exit 1
     }
@@ -190,21 +259,69 @@ if (Test-Path $DestinationPath) {
 }
 
 # Write destination
-if ($needsUpdate -or $Force) {
-    if ($PSCmdlet.ShouldProcess($DestinationPath, "Sync MCP configuration from $SourcePath")) {
-        # Ensure destination directory exists (for .vscode/mcp.json)
-        $destDir = Split-Path -Parent $DestinationPath
-        if ($destDir -and -not (Test-Path $destDir)) {
-            New-Item -ItemType Directory -Path $destDir -Force | Out-Null
-            Write-Verbose "Created directory: $destDir"
-        }
+if (-not $SyncAll) {
+    if ($needsUpdate -or $Force) {
+        if ($PSCmdlet.ShouldProcess($DestinationPath, "Sync MCP configuration from $SourcePath")) {
+            # Ensure destination directory exists (for .vscode/mcp.json)
+            $destDir = Split-Path -Parent $DestinationPath
+            if ($destDir -and -not (Test-Path $destDir)) {
+                New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+                Write-Verbose "Created directory: $destDir"
+            }
 
-        # Write with UTF8 no BOM for cross-platform compatibility
-        [System.IO.File]::WriteAllText($DestinationPath, $destContent, [System.Text.UTF8Encoding]::new($false))
-        Write-Host "Synced MCP config: $SourcePath -> $DestinationPath" -ForegroundColor Green
-        if ($PassThru) { return $true }
-    } else {
-        # WhatIf: return false when PassThru is specified
+            # Write with UTF8 no BOM for cross-platform compatibility
+            [System.IO.File]::WriteAllText($DestinationPath, $destContent, [System.Text.UTF8Encoding]::new($false))
+            Write-Host "Synced MCP config: $SourcePath -> $DestinationPath" -ForegroundColor Green
+            if ($PassThru) { return $true }
+        } else {
+            # WhatIf: return false when PassThru is specified
+            if ($PassThru) { return $false }
+        }
+    }
+    else {
+        # No sync needed (already in sync and not forcing)
         if ($PassThru) { return $false }
     }
+}
+
+# Handle SyncAll: sync to both Factory and VS Code
+if ($SyncAll) {
+    $anySynced = $false
+
+    # Build parameters for recursive call
+    $recursiveParams = @{
+        SourcePath = $SourcePath
+        Force = $Force
+        PassThru = $PassThru
+    }
+    if ($PSBoundParameters.ContainsKey('WhatIf')) {
+        $recursiveParams.WhatIf = $true
+    }
+    if ($PSBoundParameters.ContainsKey('RepoRootOverride')) {
+        $recursiveParams.RepoRootOverride = $RepoRootOverride
+    }
+
+    # Sync to Factory
+    $factoryPath = Join-Path $repoRoot '.factory'
+    $factoryDestPath = Join-Path $factoryPath 'mcp.json'
+    $recParams = $recursiveParams.Clone()
+    $recParams.DestinationPath = $factoryDestPath
+    $recParams.Target = 'factory'
+    $result = & $PSCommandPath @recParams
+    if ($result -eq $true) {
+        $anySynced = $true
+    }
+
+    # Sync to VS Code
+    $vscodePath = Join-Path $repoRoot '.vscode'
+    $vscodeDestPath = Join-Path $vscodePath 'mcp.json'
+    $recParams = $recursiveParams.Clone()
+    $recParams.DestinationPath = $vscodeDestPath
+    $recParams.Target = 'vscode'
+    $result = & $PSCommandPath @recParams
+    if ($result -eq $true) {
+        $anySynced = $true
+    }
+
+    if ($PassThru) { return $anySynced }
 }

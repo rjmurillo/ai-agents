@@ -53,7 +53,7 @@ Generator-specific metadata belongs under `metadata.generator.*` to avoid namesp
 
 ## Evidence
 
-Issue #369 (2025-12-28): Generate-Skills.ps1 incorrectly accessed `keep_headings` at root level, causing validation failures. Fixed by changing to `metadata.generator.keep_headings`.
+Issue #369 (2025-12-28): Generate-Skills.ps1 (script deleted in commit d7f2e08, replaced by validate-skill.py) incorrectly accessed `keep_headings` at root level, causing validation failures. Fixed by changing to `metadata.generator.keep_headings`.
 
 Commit: [SHA from fix/issue-369-ci-verification branch]
 

@@ -18,6 +18,8 @@
       0 = PASS (all validations succeeded)
       1 = FAIL (one or more validations failed)
       2 = ERROR (environment or configuration issue)
+    
+    See: ADR-035 Exit Code Standardization
 
 .PARAMETER Quick
     Skip slow validations (path normalization, planning artifacts, agent drift).

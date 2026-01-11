@@ -14,6 +14,13 @@
     - Edge cases (empty files, missing files, non-ASCII content)
     - Heuristic adjustments (code-like text, multilingual, digit-heavy)
     - Exit code behavior (CI mode)
+
+.NOTES
+    EXIT CODES:
+    0  - Success: All tests passed
+    1  - Error: One or more tests failed (set by Pester framework)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 BeforeAll {

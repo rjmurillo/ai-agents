@@ -1,7 +1,10 @@
 ---
 name: using-forgetful-memory
 description: Guidance for using Forgetful semantic memory effectively. Applies Zettelkasten atomic memory principles. Use when deciding whether to query or create memories, structuring memory content, or understanding memory importance scoring.
-allowed-tools: mcp__forgetful__discover_forgetful_tools, mcp__forgetful__how_to_use_forgetful_tool, mcp__forgetful__execute_forgetful_tool
+license: MIT
+metadata:
+version: 1.0.0
+model: claude-sonnet-4-5
 ---
 
 # Using Forgetful Memory
@@ -11,6 +14,7 @@ Forgetful is a semantic memory system using Zettelkasten (atomic note) principle
 ## When to Query Memory
 
 Query memory proactively when:
+
 - Starting work on a project (check for existing context)
 - User references past work, decisions, or discussions
 - Encountering a problem that may have been solved before
@@ -18,6 +22,7 @@ Query memory proactively when:
 - Needing context about preferences or approaches
 
 Use `execute_forgetful_tool("query_memory", {...})` with:
+
 - `query`: Natural language search terms
 - `query_context`: Why you're searching (improves ranking)
 - `include_links`: true (to see connected knowledge)
@@ -26,7 +31,7 @@ Use `execute_forgetful_tool("query_memory", {...})` with:
 
 To see what's been recorded recently for a specific project:
 
-```
+```javascript
 execute_forgetful_tool("get_recent_memories", {
   "limit": 10,
   "project_ids": [PROJECT_ID]
@@ -34,6 +39,7 @@ execute_forgetful_tool("get_recent_memories", {
 ```
 
 This is useful when:
+
 - Starting a session on a project you haven't worked on recently
 - Reviewing what was captured in previous conversations
 - Getting a quick overview of project knowledge
@@ -41,6 +47,7 @@ This is useful when:
 ## When to Create Memory
 
 Create memories for knowledge worth preserving:
+
 - Important decisions with rationale (importance 8-9)
 - Technical patterns or approaches (importance 7-8)
 - Architectural choices (importance 9-10)
@@ -49,6 +56,7 @@ Create memories for knowledge worth preserving:
 - Solutions to non-trivial problems (importance 7-8)
 
 Do NOT create memories for:
+
 - Temporary context (current file paths, transient issues)
 - Common knowledge available elsewhere
 - Trivial or throwaway information
@@ -57,6 +65,7 @@ Do NOT create memories for:
 ## Atomic Memory Principles
 
 Each memory must pass the atomicity test:
+
 1. Can you understand it at first glance?
 2. Can you title it in 5-50 words?
 3. Does it represent ONE concept/fact/decision?
@@ -86,19 +95,23 @@ Each memory must pass the atomicity test:
 Before creating memories, find the correct project:
 
 1. **Get current repo** - Check the git remote:
+
    ```bash
    git remote get-url origin
    ```
+
    Extract the repo identifier (e.g., `ScottRBK/forgetful-plugin`)
 
 2. **Search by repo** - Filter projects directly:
-   ```
+
+   ```javascript
    execute_forgetful_tool("list_projects", {"repo_name": "owner/repo"})
    ```
 
 3. **Use the project_id** - Never assume project 1 - always discover first
 
 If no project exists for the current repo:
+
 - Ask user if they want to create one (with `repo_name` set)
 - Or scope the memory without a project_id (global memory)
 
@@ -106,7 +119,7 @@ If no project exists for the current repo:
 
 Always check for existing memories before creating:
 
-```
+```javascript
 execute_forgetful_tool("query_memory", {
   "query": "<topic of potential new memory>",
   "query_context": "Checking for existing memories before creating",
@@ -115,6 +128,7 @@ execute_forgetful_tool("query_memory", {
 ```
 
 If similar memory exists:
+
 - Update it instead of creating duplicate
 - Or mark it obsolete if superseded
 - Or link new memory to existing one
@@ -122,14 +136,16 @@ If similar memory exists:
 ## Announcing Memory Operations
 
 When creating a memory (importance >= 7), announce:
-```
-💾 Saved to memory: "[title]"
+
+```text
+Saved to memory: "[title]"
    Tags: [tags]
    Related: [auto-linked memory titles]
 ```
 
 When querying, summarize:
-```
+
+```text
 Found X memories about [topic]:
 - [Memory 1]: [brief insight]
 - [Memory 2]: [brief insight]
@@ -138,6 +154,7 @@ Found X memories about [topic]:
 ## Content That's Too Long
 
 If content exceeds 2000 chars:
+
 1. Use `create_document` for full content
 2. Extract 3-5 atomic memories as entry points
 3. Link memories to document via `document_ids`
@@ -151,6 +168,7 @@ Example: Architecture overview (document) → separate memories for each layer/d
 Common tools you can call directly via `execute_forgetful_tool(tool_name, args)`:
 
 ### Memory Tools
+
 | Tool | Required Params | Description |
 |------|-----------------|-------------|
 | `query_memory` | `query`, `query_context` | Semantic search |
@@ -162,6 +180,7 @@ Common tools you can call directly via `execute_forgetful_tool(tool_name, args)`
 | `get_recent_memories` | (none) | Recent memories list |
 
 ### Project Tools
+
 | Tool | Required Params | Description |
 |------|-----------------|-------------|
 | `list_projects` | (none) | List all projects |
@@ -169,6 +188,7 @@ Common tools you can call directly via `execute_forgetful_tool(tool_name, args)`
 | `get_project` | `project_id` | Get project details |
 
 ### Entity Tools
+
 | Tool | Required Params | Description |
 |------|-----------------|-------------|
 | `create_entity` | `name`, `entity_type` | Create org/person/device |
@@ -178,6 +198,7 @@ Common tools you can call directly via `execute_forgetful_tool(tool_name, args)`
 | `create_entity_relationship` | `source_entity_id`, `target_entity_id`, `relationship_type` | Knowledge graph edge |
 
 ### Document & Code Artifact Tools
+
 | Tool | Required Params | Description |
 |------|-----------------|-------------|
 | `create_document` | `title`, `description`, `content` | Long-form content |

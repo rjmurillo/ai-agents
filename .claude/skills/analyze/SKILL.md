@@ -1,6 +1,8 @@
 ---
 name: analyze
 description: Invoke IMMEDIATELY via python script when user requests codebase analysis, architecture review, security assessment, or quality evaluation. Do NOT explore first - the script orchestrates exploration.
+license: MIT
+metadata:
 ---
 
 # Analyze Skill

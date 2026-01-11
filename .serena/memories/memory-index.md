@@ -12,6 +12,7 @@
 | powershell ps1 psm1 module pester test discovery isolation variable scope script BeforeAll It block visibility | skills-powershell-index, skills-pester-testing-index, pester-variable-scoping, pattern-thin-workflows |
 | bash exit code cross-language contract AUTOFIX pre-commit hook | skills-bash-integration-index |
 | security vulnerability TOCTOU secret injection | skills-security-index |
+| autonomous execution guardrails circuit breaker patch signal trust metric | skills-autonomous-execution-index |
 | planning task file path scope breakdown | skills-planning-index |
 | architecture ADR model composite tool allocation producer-consumer | skills-architecture-index |
 | adr decision record active proposed superseded rationale | adr-reference-index |
@@ -49,6 +50,14 @@
 | cva refactoring variant consolidation template generate | utilities-cva-refactoring |
 | prompt engineering quality gate AI assessment template | quality-prompt-engineering-gates |
 | phase3 agent skill session handoff template verification | agent-workflow-004-proactive-template-sync-verification, agent-workflow-005-structured-handoff-formats |
+
+## Engineering Knowledge Tiers
+
+| Experience Level | Memory Index | Analysis |
+|------------------|--------------|----------|
+| <5 years | foundational-knowledge-index | `.agents/analysis/foundational-engineer-knowledge-set.md` |
+| 15+ years | principal-engineering-knowledge | `.agents/analysis/principal-engineer-knowledge-set.md` |
+| 25+ years | distinguished-engineer-knowledge-index | `.agents/analysis/distinguished-engineer-knowledge.md` |
 
 ## User Constraints (MUST READ)
 

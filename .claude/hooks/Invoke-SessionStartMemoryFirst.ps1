@@ -54,31 +54,10 @@ if (Test-Path $mcpConfigPath) {
 $ForgetfulAvailable = $false
 $ForgetfulMessage = ""
 
-try {
-    # Simple TCP port check - MCP protocol requires session initialization which is complex
-    # Just verify the server is listening on the port
-    $tcpClient = New-Object System.Net.Sockets.TcpClient
-    $connectTask = $tcpClient.ConnectAsync($ForgetfulHost, $ForgetfulPort)
-    $connected = $connectTask.Wait(1000)  # 1 second timeout
-
-    if ($connected -and $tcpClient.Connected) {
-        $ForgetfulAvailable = $true
-        $ForgetfulMessage = "Forgetful MCP: AVAILABLE ($ForgetfulHost`:$ForgetfulPort)"
-    }
-    else {
-        $ForgetfulMessage = "Forgetful MCP: UNAVAILABLE (Serena-only workflow) - connection timeout"
-    }
-}
-catch {
-    # Log exception details for debugging - don't silently swallow errors
-    $exceptionMessage = $_.Exception.Message
-    $ForgetfulMessage = "Forgetful MCP: UNAVAILABLE (Serena-only workflow) - $exceptionMessage"
-}
-finally {
-    if ($null -ne $tcpClient) {
-        $tcpClient.Dispose()
-    }
-}
+# TCP connection check disabled to prevent stack overflow in PowerShell async handling
+# The ConnectAsync().Wait() pattern was causing recursive stack unwinding
+# This is informational only, so disabling it doesn't affect functionality
+$ForgetfulMessage = "Forgetful MCP: Connection check disabled (use Serena for memory-first workflow)"
 
 # Output context that will be injected into Claude's context window
 
