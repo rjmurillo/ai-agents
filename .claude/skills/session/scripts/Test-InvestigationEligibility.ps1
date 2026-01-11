@@ -7,13 +7,6 @@
     investigation-only allowlist defined in ADR-034. This allows agents
     to check eligibility before committing with "SKIPPED: investigation-only".
 
-.OUTPUTS
-    JSON object with:
-    - Eligible: boolean indicating if all files are in allowlist
-    - StagedFiles: array of all staged file paths
-    - Violations: array of files not in allowlist (empty if eligible)
-    - AllowedPaths: reference list of allowed path prefixes
-
 .EXAMPLE
     pwsh .claude/skills/session/scripts/Test-InvestigationEligibility.ps1
 
@@ -35,6 +28,13 @@
 
     See: .agents/architecture/ADR-034-investigation-session-qa-exemption.md
     See: ADR-035 Exit Code Standardization
+
+.OUTPUTS
+    JSON object with:
+    - Eligible: boolean indicating if all files are in allowlist
+    - StagedFiles: array of all staged file paths
+    - Violations: array of files not in allowlist (empty if eligible)
+    - AllowedPaths: reference list of allowed path prefixes
 #>
 [CmdletBinding()]
 param()

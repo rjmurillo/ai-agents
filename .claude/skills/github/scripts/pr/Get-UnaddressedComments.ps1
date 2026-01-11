@@ -37,11 +37,6 @@
     Pre-fetched comments array. If not provided, will fetch using GitHub API.
     Pass this to avoid duplicate API calls when comments are already fetched.
 
-.OUTPUTS
-    Array of bot comments that are unaddressed.
-    Returns empty array when all bot comments are addressed.
-    Never returns $null (per Skill-PowerShell-002).
-
 .EXAMPLE
     ./Get-UnaddressedComments.ps1 -PullRequest 365
     # Returns unaddressed bot comments for PR #365
@@ -58,6 +53,11 @@
     0  - Success: Comments retrieved successfully (implicit)
 
     See: ADR-035 Exit Code Standardization
+
+.OUTPUTS
+    Array of bot comments that are unaddressed.
+    Returns empty array when all bot comments are addressed.
+    Never returns $null (per Skill-PowerShell-002).
 #>
 
 [CmdletBinding()]

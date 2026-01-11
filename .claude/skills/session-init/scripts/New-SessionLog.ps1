@@ -25,9 +25,6 @@
 .PARAMETER SkipValidation
     Skip validation after creating session log. Use for testing only.
 
-.OUTPUTS
-    Session log file path on success
-
 .EXAMPLE
     & .claude/skills/session-init/scripts/New-SessionLog.ps1
     Auto-increments session number and derives objective from branch
@@ -41,10 +38,13 @@
     - 0: Success (session log created and validated)
     - 1: Git repository error
     - 2: Session log write failed
-    
-    See: ADR-035 Exit Code Standardization
     - 3: JSON schema validation failed
     - 4: Script validation failed
+    
+    See: ADR-035 Exit Code Standardization
+
+.OUTPUTS
+    Session log file path on success
 #>
 
 [CmdletBinding()]

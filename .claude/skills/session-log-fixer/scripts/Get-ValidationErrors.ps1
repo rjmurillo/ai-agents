@@ -13,9 +13,6 @@
 .PARAMETER PullRequest
     The pull request number (will find latest failing run for the PR branch)
 
-.OUTPUTS
-    PSCustomObject with validation error details
-
 .EXAMPLE
     & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -RunId 20548622722
 
@@ -31,6 +28,9 @@
     See: ADR-035 Exit Code Standardization
 
     Requires: gh CLI authenticated
+
+.OUTPUTS
+    PSCustomObject with validation error details
 #>
 
 [CmdletBinding(DefaultParameterSetName='RunId')]
