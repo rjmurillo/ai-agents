@@ -59,10 +59,13 @@
     }
 
 .NOTES
-    Exit Codes:
-    0 = Success
-    2 = Error (script failure, API errors, fatal exceptions)
+    EXIT CODES:
+    0  - Success: PR maintenance completed
+    2  - Error: Script failure, API errors, or fatal exceptions
+
     Supports -WhatIf for dry-run mode (issue #461).
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding(SupportsShouldProcess)]

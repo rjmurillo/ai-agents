@@ -15,6 +15,13 @@
 .EXAMPLE
     .\install-vscode-global.ps1
     .\install-vscode-global.ps1 -Force
+
+.NOTES
+    EXIT CODES:
+    0  - Success: Installation completed (exit code from install.ps1)
+    1  - Error: Installation failed (exit code from install.ps1)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 param(
