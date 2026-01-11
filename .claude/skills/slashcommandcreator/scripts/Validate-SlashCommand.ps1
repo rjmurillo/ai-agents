@@ -14,6 +14,8 @@
   Exit codes:
   - 0: All validations passed
   - 1: One or more BLOCKING violations found
+  
+  See: ADR-035 Exit Code Standardization
 
 .PARAMETER Path
   Path to slash command .md file to validate.

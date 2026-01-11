@@ -31,6 +31,8 @@
     Exit Codes:
       0 = Success
       1 = Invalid URL format
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

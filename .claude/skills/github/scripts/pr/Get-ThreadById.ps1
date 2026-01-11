@@ -34,6 +34,8 @@
         4 - Not authenticated
 
     Uses GraphQL node query for direct thread lookup.
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

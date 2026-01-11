@@ -33,6 +33,7 @@
     Must match exactly with scripts/Validate-Session.ps1 $InvestigationAllowlist
 
     See: ADR-034 Investigation Session QA Exemption
+    See: ADR-035 Exit Code Standardization
 #>
 [CmdletBinding()]
 param()

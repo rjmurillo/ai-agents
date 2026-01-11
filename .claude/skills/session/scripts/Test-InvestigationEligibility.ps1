@@ -34,6 +34,7 @@
     The allowlist patterns are defined in this script based on ADR-034.
 
     See: .agents/architecture/ADR-034-investigation-session-qa-exemption.md
+    See: ADR-035 Exit Code Standardization
 #>
 [CmdletBinding()]
 param()

@@ -10,6 +10,8 @@
     0 = Success
     1 = Validation failure
     2 = Usage/environment error
+    
+  See: ADR-035 Exit Code Standardization
 
 .PARAMETER Title
   PR title in conventional commit format (required)

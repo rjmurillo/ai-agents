@@ -41,6 +41,8 @@
     - 0: Success (session log created and validated)
     - 1: Git repository error
     - 2: Session log write failed
+    
+    See: ADR-035 Exit Code Standardization
     - 3: JSON schema validation failed
     - 4: Script validation failed
 #>

@@ -27,6 +27,8 @@
     - 0: Success (errors extracted)
     - 1: Run not found or gh command failed
     - 2: No validation errors found in Job Summary
+    
+    See: ADR-035 Exit Code Standardization
 
     Requires: gh CLI authenticated
 #>
