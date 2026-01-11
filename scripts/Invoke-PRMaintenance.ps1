@@ -43,6 +43,15 @@
     .\scripts\Invoke-PRMaintenance.ps1 -OutputJson
     # Matrix mode: outputs JSON for workflow consumption
 
+.NOTES
+    EXIT CODES:
+    0  - Success: PR maintenance completed
+    2  - Error: Script failure, API errors, or fatal exceptions
+
+    Supports -WhatIf for dry-run mode (issue #461).
+
+    See: ADR-035 Exit Code Standardization
+
 .OUTPUTS
     When -OutputJson is specified:
     {
@@ -57,12 +66,6 @@
         "derivatives": 0
       }
     }
-
-.NOTES
-    Exit Codes:
-    0 = Success
-    2 = Error (script failure, API errors, fatal exceptions)
-    Supports -WhatIf for dry-run mode (issue #461).
 #>
 
 [CmdletBinding(SupportsShouldProcess)]

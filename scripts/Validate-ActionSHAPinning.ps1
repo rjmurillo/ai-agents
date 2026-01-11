@@ -27,6 +27,13 @@
 
 .EXAMPLE
     .\Validate-ActionSHAPinning.ps1 -Format markdown
+
+.NOTES
+  EXIT CODES:
+  0  - Success: All actions are SHA-pinned or no violations found
+  1  - Error: Version tag violations detected (only when -CI flag is set)
+
+  See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

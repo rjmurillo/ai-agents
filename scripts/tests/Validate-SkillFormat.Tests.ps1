@@ -12,6 +12,12 @@
 
 .NOTES
     Related: ADR-017, Issue #307, Issue #356
+
+    EXIT CODES:
+    0  - Success: All tests passed
+    1  - Error: One or more tests failed (set by Pester framework)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 BeforeAll {

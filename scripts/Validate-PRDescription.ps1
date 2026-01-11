@@ -25,6 +25,14 @@
 .EXAMPLE
   .\Validate-PRDescription.ps1 -PRNumber 226 -CI
   Validates PR #226 description against its diff
+
+.NOTES
+  EXIT CODES:
+  0  - Success: Validation passed or completed (non-CI mode)
+  1  - Error: Validation failed (CI mode only)
+  2  - Error: Missing dependency (gh CLI) or failed to fetch PR data
+
+  See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

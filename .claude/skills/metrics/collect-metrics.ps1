@@ -26,6 +26,13 @@
 .EXAMPLE
     .\collect-metrics.ps1 -Output Json | ConvertFrom-Json
     Outputs metrics as JSON for programmatic use
+
+.NOTES
+  EXIT CODES:
+  0  - Success: Metrics collected and output successfully
+  1  - Error: Path not found or not a git repository
+
+  See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

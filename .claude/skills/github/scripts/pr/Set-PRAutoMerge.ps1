@@ -49,12 +49,11 @@
     ./Set-PRAutoMerge.ps1 -PullRequest 50 -Enable -CommitHeadline "feat: Add feature (#50)"
 
 .NOTES
-    Exit Codes:
-      0 - Success
-      1 - Invalid params
-      2 - PR not found
-      3 - API error (e.g., auto-merge not enabled in repo)
-      4 - Not authenticated
+    EXIT CODES:
+    0  - Success: Auto-merge setting changed successfully
+    1  - Error: Invalid parameters, PR not found, API error, or authentication failed
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'Enable')]

@@ -20,6 +20,13 @@
 .EXAMPLE
   .\Detect-TestCoverageGaps.ps1 -StagedOnly
   Checks only staged files for missing tests
+
+.NOTES
+  EXIT CODES:
+  0  - Success: Detection completed (gaps may exist as warnings)
+  1  - Error: Could not find git repo root
+
+  See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

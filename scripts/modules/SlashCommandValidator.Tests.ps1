@@ -7,6 +7,13 @@
 .DESCRIPTION
     Tests for the Invoke-SlashCommandValidation function that validates
     all slash command files in .claude/commands/
+
+.NOTES
+    EXIT CODES:
+    0  - Success: All tests passed
+    1  - Error: One or more tests failed (set by Pester framework)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 BeforeAll {

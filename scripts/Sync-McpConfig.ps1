@@ -70,6 +70,12 @@
 .NOTES
     Author: AI Agents Project
     Part of the ai-agents repository tooling.
+
+    EXIT CODES:
+    0  - Success: Configuration synced successfully
+    1  - Error: File not found, invalid JSON, transformation failure, or write error
+
+    See: ADR-035 Exit Code Standardization
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(

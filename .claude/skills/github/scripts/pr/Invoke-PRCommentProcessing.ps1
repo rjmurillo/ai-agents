@@ -25,6 +25,8 @@
     Called by ai-review action's execute-script feature.
     Exit Codes: 0=Success, 1=Invalid params, 2=Parse error, 3=API error
     Supports -WhatIf for dry-run mode (issue #461).
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
