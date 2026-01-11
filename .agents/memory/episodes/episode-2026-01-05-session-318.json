@@ -1,0 +1,43 @@
+{
+  "task": "Session 318: Merge Velocity Analysis",
+  "decisions": null,
+  "id": "episode-2026-01-05-session-318",
+  "timestamp": "2026-01-05T20:35:52.2485204+00:00",
+  "metrics": {
+    "files_changed": 0,
+    "duration_minutes": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "tool_calls": 0,
+    "commits": 1
+  },
+  "lessons": null,
+  "outcome": "failure",
+  "session": "2026-01-05-session-318",
+  "events": [
+    {
+      "id": "e001",
+      "content": "**Status**: Complete",
+      "leads_to": [],
+      "caused_by": [],
+      "type": "milestone",
+      "timestamp": "2026-01-05T20:35:52.1879333+00:00"
+    },
+    {
+      "id": "e002",
+      "content": "**Status**: Complete",
+      "leads_to": [],
+      "caused_by": [],
+      "type": "milestone",
+      "timestamp": "2026-01-05T20:35:52.1956743+00:00"
+    },
+    {
+      "id": "e003",
+      "content": "| MUST | Run markdown lint | [x] | npx markdownlint-cli2: 0 errors |",
+      "leads_to": [],
+      "caused_by": [],
+      "type": "error",
+      "timestamp": "2026-01-05T20:35:52.1966015+00:00"
+    }
+  ]
+}
