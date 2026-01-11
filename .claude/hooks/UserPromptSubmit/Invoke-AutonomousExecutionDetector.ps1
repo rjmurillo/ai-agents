@@ -84,12 +84,21 @@ try {
 
     $hookInput = $inputJson | ConvertFrom-Json -ErrorAction Stop
 
-    # Extract user prompt
-    if (-not $hookInput.prompt) {
-        exit 0
+    # Extract user prompt with fallback for schema variations (Copilot #2678558292)
+    $userPrompt = $null
+    if ($hookInput.prompt) {
+        $userPrompt = $hookInput.prompt
+    }
+    elseif ($hookInput.user_message_text) {
+        $userPrompt = $hookInput.user_message_text
+    }
+    elseif ($hookInput.message) {
+        $userPrompt = $hookInput.message
     }
 
-    $userPrompt = $hookInput.prompt
+    if ([string]::IsNullOrWhiteSpace($userPrompt)) {
+        exit 0
+    }
 
     # Test for autonomy keywords
     if (-not (Test-AutonomyKeywords -Prompt $userPrompt)) {

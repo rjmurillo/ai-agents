@@ -60,11 +60,22 @@ function Test-ADRReviewEvidence {
     try {
         $content = Get-Content $SessionLogPath -Raw -ErrorAction Stop
 
-        # Check for adr-review execution evidence
-        if ($content -match 'adr-review|ADR.*review|multi-agent.*consensus') {
-            return @{
-                Complete = $true
-                Evidence = "ADR review evidence found in session log"
+        # Check for adr-review execution evidence (Copilot #2678558293 - more precise patterns)
+        # Match specific adr-review skill patterns, not generic "ADR review" mentions
+        $patterns = @(
+            '/adr-review',              # Skill invocation
+            'adr-review skill',         # Explicit skill reference
+            'ADR Review Protocol',      # Skill output header
+            'multi-agent consensus.*ADR', # Consensus specific to ADR
+            'architect.*planner.*qa'    # Agent workflow pattern
+        )
+
+        foreach ($pattern in $patterns) {
+            if ($content -match $pattern) {
+                return @{
+                    Complete = $true
+                    Evidence = "ADR review evidence found: matched pattern '$pattern'"
+                }
             }
         }
 

@@ -121,9 +121,9 @@ Describe "Invoke-MemoryFirstEnforcer" {
                 session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
                 protocolCompliance = @{
                     sessionStart = @{
-                        serenaActivated = @{ Complete = $true; Evidence = "mcp__serena__activate_project" }
-                        handoffRead = @{ Complete = $true; Evidence = "Read HANDOFF.md" }
-                        memoriesLoaded = @{ Complete = $true; Evidence = "usage-mandatory, routing-gate-patterns" }
+                        serenaActivated = @{ complete = $true; Evidence = "mcp__serena__activate_project" }
+                        handoffRead = @{ complete = $true; Evidence = "Read HANDOFF.md" }
+                        memoriesLoaded = @{ complete = $true; Evidence = "usage-mandatory, routing-gate-patterns" }
                     }
                 }
             } | ConvertTo-Json -Depth 10
@@ -164,7 +164,7 @@ Describe "Invoke-MemoryFirstEnforcer" {
                 session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
                 protocolCompliance = @{
                     sessionStart = @{
-                        branchVerification = @{ Complete = $true }
+                        branchVerification = @{ complete = $true }
                     }
                 }
             } | ConvertTo-Json -Depth 10
@@ -216,7 +216,7 @@ Describe "Invoke-MemoryFirstEnforcer" {
                 session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
                 protocolCompliance = @{
                     sessionStart = @{
-                        branchVerification = @{ Complete = $true }
+                        branchVerification = @{ complete = $true }
                     }
                 }
             } | ConvertTo-Json -Depth 10
@@ -261,7 +261,7 @@ Describe "Invoke-MemoryFirstEnforcer" {
                 session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
                 protocolCompliance = @{
                     sessionStart = @{
-                        serenaActivated = @{ Complete = $true }
+                        serenaActivated = @{ complete = $true }
                     }
                 }
             } | ConvertTo-Json -Depth 10
@@ -298,9 +298,9 @@ Describe "Invoke-MemoryFirstEnforcer" {
                 session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
                 protocolCompliance = @{
                     sessionStart = @{
-                        serenaActivated = @{ Complete = $true }
-                        handoffRead = @{ Complete = $true }
-                        memoriesLoaded = @{ Complete = $true; Evidence = "" }
+                        serenaActivated = @{ complete = $true }
+                        handoffRead = @{ complete = $true }
+                        memoriesLoaded = @{ complete = $true; Evidence = "" }
                     }
                 }
             } | ConvertTo-Json -Depth 10
