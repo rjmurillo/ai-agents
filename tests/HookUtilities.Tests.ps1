@@ -97,11 +97,17 @@ Describe "HookUtilities.psm1" {
             $today = Get-Date -Format "yyyy-MM-dd"
 
             try {
-                # Create multiple session logs
-                Start-Sleep -Milliseconds 100
-                Set-Content -Path (Join-Path $tempDir "$today-session-001.json") -Value "{}"
-                Start-Sleep -Milliseconds 100
-                Set-Content -Path (Join-Path $tempDir "$today-session-002.json") -Value "{}"
+                # Create multiple session logs with controlled LastWriteTime values
+                # Per Copilot #2679880627: Use explicit LastWriteTime instead of Start-Sleep
+                $session1Path = Join-Path $tempDir "$today-session-001.json"
+                $session2Path = Join-Path $tempDir "$today-session-002.json"
+
+                Set-Content -Path $session1Path -Value "{}"
+                Set-Content -Path $session2Path -Value "{}"
+
+                # Ensure predictable LastWriteTime ordering
+                (Get-Item $session1Path).LastWriteTime = [DateTime]::Now.AddSeconds(-10)
+                (Get-Item $session2Path).LastWriteTime = [DateTime]::Now
 
                 $result = Get-TodaySessionLog -SessionsDir $tempDir
                 $result.Name | Should -Be "$today-session-002.json"
