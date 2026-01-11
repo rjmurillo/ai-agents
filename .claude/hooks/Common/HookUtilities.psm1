@@ -41,10 +41,11 @@ function Get-ProjectDirectory {
 
     # Walk up from current location to find .git
     try {
-        $currentDir = Get-Location
+        $currentPath = Get-Location | Select-Object -ExpandProperty Path
+        $currentDir = Get-Item $currentPath
         while ($null -ne $currentDir) {
-            if (Test-Path (Join-Path $currentDir ".git")) {
-                return $currentDir.Path
+            if (Test-Path (Join-Path $currentDir.FullName ".git")) {
+                return $currentDir.FullName
             }
             $currentDir = $currentDir.Parent
         }
