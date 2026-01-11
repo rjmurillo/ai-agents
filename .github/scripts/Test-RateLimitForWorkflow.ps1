@@ -35,7 +35,6 @@
 .OUTPUTS
     Sets GITHUB_OUTPUT: core_remaining=N
     Writes to GITHUB_STEP_SUMMARY: Rate limit status table
-    Exit code 0 = sufficient rate limit, 1 = rate limit too low
 #>
 
 [CmdletBinding()]

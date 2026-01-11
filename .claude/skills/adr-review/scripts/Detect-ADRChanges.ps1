@@ -19,6 +19,15 @@
 .PARAMETER IncludeUntracked
     Include untracked new ADR files in detection.
 
+.NOTES
+  EXIT CODES:
+  0  - Success: Changes detected or no changes found (operation completed successfully)
+  1  - Error: Logic or unexpected error during detection
+  2  - Error: Config/user error (invalid commit SHA, missing file)
+  3  - Error: External error (I/O failure, git command failure)
+
+  See: ADR-035 Exit Code Standardization
+
 .OUTPUTS
     PSCustomObject with properties:
     - Created: Array of newly created ADR file paths
@@ -32,15 +41,6 @@
 
 .EXAMPLE
     & .claude/skills/adr-review/scripts/Detect-ADRChanges.ps1 -SinceCommit "abc123"
-
-.NOTES
-  EXIT CODES:
-  0  - Success: Changes detected or no changes found (operation completed successfully)
-  1  - Error: Logic or unexpected error during detection
-  2  - Error: Config/user error (invalid commit SHA, missing file)
-  3  - Error: External error (I/O failure, git command failure)
-
-  See: ADR-035 Exit Code Standardization
 #>
 [CmdletBinding()]
 param(

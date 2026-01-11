@@ -16,6 +16,18 @@
 .PARAMETER Repo
     Repository name (optional, can be inferred from git remote).
 
+.NOTES
+  EXIT CODES:
+  0  - Success: Milestone found successfully
+  1  - Error: Invalid parameters
+  2  - Error: Config/resource error (module not found, no semantic milestones found)
+  3  - Error: External error (API error)
+
+  See: ADR-035 Exit Code Standardization
+
+  Semantic version format: X.Y.Z where X, Y, Z are integers (e.g., "0.2.0", "1.10.3").
+  Non-semantic milestones (e.g., "Future", "Backlog") are ignored.
+
 .OUTPUTS
     PSCustomObject with properties:
     - Title: Milestone title (e.g., "0.2.0")
@@ -34,18 +46,6 @@
 .EXAMPLE
     ./Get-LatestSemanticMilestone.ps1 -Owner rjmurillo -Repo ai-agents
     Detects latest semantic milestone in specified repo.
-
-.NOTES
-  EXIT CODES:
-  0  - Success: Milestone found successfully
-  1  - Error: Invalid parameters
-  2  - Error: Config/resource error (module not found, no semantic milestones found)
-  3  - Error: External error (API error)
-
-  See: ADR-035 Exit Code Standardization
-
-  Semantic version format: X.Y.Z where X, Y, Z are integers (e.g., "0.2.0", "1.10.3").
-  Non-semantic milestones (e.g., "Future", "Backlog") are ignored.
 
 .LINK
     .github/workflows/milestone-tracking.yml

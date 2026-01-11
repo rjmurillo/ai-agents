@@ -26,6 +26,16 @@
 .PARAMETER MilestoneTitle
     Specific milestone to assign. If not provided, auto-detects latest semantic version.
 
+.NOTES
+    EXIT CODES:
+    0  - Success: Milestone assigned or skipped (already had milestone)
+    2  - Error: Config error (module not found, milestone detection failed)
+
+    GitHub API treats PRs as issues for most operations, so the same
+    Set-IssueMilestone.ps1 skill works for both.
+
+    See: ADR-035 Exit Code Standardization
+
 .OUTPUTS
     PSCustomObject with properties:
     - Success: Boolean indicating success
@@ -50,16 +60,6 @@
 .EXAMPLE
     ./Set-ItemMilestone.ps1 -ItemType issue -ItemNumber 456 -MilestoneTitle "0.2.0"
     Assigns specific milestone "0.2.0" to issue #456 if it has none.
-
-.NOTES
-    EXIT CODES:
-    0  - Success: Milestone assigned or skipped (already had milestone)
-    2  - Error: Config error (module not found, milestone detection failed)
-
-    GitHub API treats PRs as issues for most operations, so the same
-    Set-IssueMilestone.ps1 skill works for both.
-
-    See: ADR-035 Exit Code Standardization
 
 .LINK
     .github/workflows/milestone-tracking.yml

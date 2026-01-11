@@ -57,6 +57,12 @@
     .\Get-PullRequests.ps1 -Head "copilot/sub-pr-123"
     # Lists PRs from a specific head branch
 
+.NOTES
+    EXIT CODES:
+    0  - Success: PRs retrieved successfully (implicit)
+
+    See: ADR-035 Exit Code Standardization
+
 .OUTPUTS
     JSON array with objects containing:
     - number: PR number
@@ -64,12 +70,6 @@
     - head: Head branch name
     - base: Base branch name
     - state: PR state (OPEN, CLOSED, MERGED)
-
-.NOTES
-    EXIT CODES:
-    0  - Success: PRs retrieved successfully (implicit)
-
-    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]
