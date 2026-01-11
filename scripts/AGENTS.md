@@ -1,6 +1,137 @@
-# Installation & Utility Agents
+# Scripts Directory: Agents and Coding Standards
 
-This document describes the automated actors in the scripts system that handle agent installation, configuration sync, and validation utilities.
+> **Scope**: Scripts directory. Auto-loaded when working in `scripts/`.
+> **Primary Reference**: Root CLAUDE.md and AGENTS.md take precedence.
+
+This document contains PowerShell coding standards and describes the automated actors that handle agent installation, configuration sync, and validation utilities.
+
+---
+
+## PowerShell Coding Standards
+
+### Language Constraint
+
+**PowerShell only** (.ps1/.psm1) per ADR-005.
+
+No bash or Python scripts in this directory. Cross-platform consistency via PowerShell.
+
+### Script Structure
+
+```powershell
+<#
+.SYNOPSIS
+Brief description
+
+.PARAMETER ParamName
+Parameter description
+
+.EXAMPLE
+Example usage
+
+.NOTES
+    EXIT CODES:
+    0  - Success: Operation completed
+    1  - Error: Validation/logic failure
+    2  - Error: Missing required parameter
+    3  - Error: GitHub API error
+    4  - Error: Authentication failure
+
+    See ADR-035 for complete reference.
+#>
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)]
+    [string]$RequiredParam,
+
+    [string]$OptionalParam
+)
+
+$ErrorActionPreference = 'Stop'
+
+# Functions
+function Verb-Noun {
+    [CmdletBinding()]
+    param()
+
+    # Implementation
+}
+
+# Main logic
+try {
+    Verb-Noun
+    exit 0
+} catch {
+    Write-Error "An error occurred: $_"
+    exit 1
+}
+```
+
+### Naming Conventions
+
+- Scripts: `Verb-Noun.ps1` (PascalCase, approved verbs)
+- Functions: `Verb-Noun` (PascalCase, approved verbs)
+- Variables: `$camelCase` or `$PascalCase` for exported
+- Parameters: `$PascalCase`
+
+### Error Handling Pattern
+
+```powershell
+$ErrorActionPreference = 'Stop'  # Fail fast
+
+try {
+    # Operations
+    exit 0  # Success
+} catch {
+    Write-Error $_.Exception.Message
+    exit 1  # Failure
+}
+```
+
+### Cross-Platform Patterns
+
+```powershell
+# Path separators
+$path = Join-Path $dir $file  # Not "$dir/$file"
+
+# Line endings
+Get-Content -Raw  # Preserves line endings
+
+# Case sensitivity
+Use [StringComparison]::OrdinalIgnoreCase for comparisons
+```
+
+### Testing Standards
+
+- Pester tests in `tests/` or adjacent to scripts
+- Test isolation: No global state
+- Parameterized tests: `@()` arrays
+- CI validation: All tests run on push
+
+### Module Structure
+
+```powershell
+# {Module}.psm1
+function Export-Function1 { }
+function Export-Function2 { }
+
+Export-ModuleMember -Function Export-Function1, Export-Function2
+```
+
+### Security
+
+- No secrets in scripts (use environment variables or parameters)
+- Validate input at system boundaries
+- Use approved parameter sets for mutually exclusive options
+
+### Related References
+
+- Exit codes: `.agents/architecture/ADR-035-exit-code-standardization.md`
+- Skill development: `.claude/skills/CLAUDE.md`
+- ADR-005: PowerShell-only architecture
+
+---
+
+## Installation & Utility Agents
 
 ## Overview
 

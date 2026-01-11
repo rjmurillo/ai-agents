@@ -172,7 +172,6 @@ pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[log].json"
 # Testing
 pwsh ./build/scripts/Invoke-PesterTests.ps1
 pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
-pytest -v
 
 # Linting
 npx markdownlint-cli2 --fix "**/*.md"
@@ -407,7 +406,6 @@ Specific versions matter for accurate tooling suggestions.
 | Component | Version | Notes |
 |-----------|---------|-------|
 | **PowerShell** | 7.4+ | Cross-platform, required (ADR-005) |
-| **Python** | 3.11+ | For utility scripts |
 | **Node.js** | LTS (20+) | For markdownlint-cli2 |
 | **Pester** | 5.6+ | Testing framework |
 | **GitHub CLI** | 2.60+ | For gh operations |
@@ -419,9 +417,11 @@ Specific versions matter for accurate tooling suggestions.
 
 ## Coding Standards
 
-> **Full Reference**: [.gemini/styleguide.md](.gemini/styleguide.md) (lazy-loaded on demand)
+> **Full Reference**: [.gemini/styleguide.md](.gemini/styleguide.md)
+>
+> Read the styleguide for complete patterns, security requirements, and examples.
 
-When writing code, read the styleguide for complete patterns. Key points:
+Key points:
 
 | Topic | Quick Reference |
 |-------|-----------------|
@@ -1443,11 +1443,7 @@ When generating or fixing markdown with code blocks, use the fix-markdown-fences
 **Usage**:
 
 ```bash
-# PowerShell
 pwsh .claude/skills/fix-markdown-fences/fix_fences.ps1
-
-# Python
-python .claude/skills/fix-markdown-fences/fix_fences.py
 ```
 
 **Benefits**:
