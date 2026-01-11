@@ -66,11 +66,10 @@
     - state: PR state (OPEN, CLOSED, MERGED)
 
 .NOTES
-    Exit Codes:
-      0 - Success
-      1 - Invalid parameters
-      3 - API error
-      4 - Not authenticated
+    EXIT CODES:
+    0  - Success: PRs retrieved successfully (implicit)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

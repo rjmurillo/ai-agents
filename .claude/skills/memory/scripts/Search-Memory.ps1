@@ -35,6 +35,12 @@
     ADR: ADR-037 Memory Router Architecture
     Module: scripts/MemoryRouter.psm1
     Task: M-003 (Phase 2A Memory System)
+
+    EXIT CODES:
+    0  - Success: Search completed (implicit)
+    1  - Error: Invalid query or search failed
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

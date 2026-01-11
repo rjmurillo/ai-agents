@@ -26,6 +26,11 @@
 .NOTES
     Task: M-005 (Phase 2A Memory System)
     ADR: ADR-037, ADR-038
+
+    EXIT CODES:
+    0  - Success: Health check completed (implicit)
+
+    See: ADR-035 Exit Code Standardization
 #>
 [CmdletBinding()]
 param(

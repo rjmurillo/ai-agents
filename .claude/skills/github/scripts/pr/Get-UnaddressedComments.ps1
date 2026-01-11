@@ -53,6 +53,11 @@
 
 .NOTES
     Depends on Get-UnresolvedReviewThreads.ps1 for thread resolution status.
+
+    EXIT CODES:
+    0  - Success: Comments retrieved successfully (implicit)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

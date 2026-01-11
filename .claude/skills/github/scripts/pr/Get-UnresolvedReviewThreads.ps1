@@ -45,6 +45,11 @@
     Pagination not implemented for edge cases with 100+ threads.
 
     DEPRECATED: Use GitHubCore.psm1 module directly.
+
+    EXIT CODES:
+    0  - Success: Threads retrieved successfully (implicit)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

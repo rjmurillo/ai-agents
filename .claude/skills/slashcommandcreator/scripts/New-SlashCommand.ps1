@@ -20,6 +20,13 @@
 .EXAMPLE
     .\New-SlashCommand.ps1 -Name "status" -Namespace "git"
     Creates .claude/commands/git/status.md
+
+.NOTES
+    EXIT CODES:
+    0  - Success: Command file created (implicit)
+    1  - Error: Invalid input, file exists, or creation failed
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 param(

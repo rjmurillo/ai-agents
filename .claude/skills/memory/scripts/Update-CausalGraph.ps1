@@ -31,6 +31,12 @@
 .NOTES
     Task: M-005 (Phase 2A Memory System)
     ADR: ADR-038 Reflexion Memory Schema
+
+    EXIT CODES:
+    0  - Success: Graph updated successfully
+    1  - Error: Module not found or update failed
+
+    See: ADR-035 Exit Code Standardization
 #>
 [CmdletBinding()]
 param(

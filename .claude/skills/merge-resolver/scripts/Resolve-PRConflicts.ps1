@@ -47,6 +47,12 @@
 
     Security: ADR-015 compliance for branch name and path validation.
     Supports -WhatIf for dry-run mode (issue #461).
+
+    EXIT CODES:
+    0  - Success: No conflicts or conflicts auto-resolved
+    1  - Error: Conflicts could not be auto-resolved or resolution failed
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
