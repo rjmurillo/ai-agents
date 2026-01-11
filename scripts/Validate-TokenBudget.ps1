@@ -30,8 +30,13 @@
     .\scripts\Validate-TokenBudget.ps1 -Path /path/to/repo -MaxTokens 5000 -CI
 
 .NOTES
-    Token estimation algorithm based on GPT tokenizer heuristics.
-    Related: Issue #190 (HANDOFF.md merge conflicts)
+  EXIT CODES:
+  0  - Success: HANDOFF.md within token budget or file not found
+  1  - Error: Token budget exceeded (only when -CI flag is set)
+
+  See: ADR-035 Exit Code Standardization
+  Token estimation algorithm based on GPT tokenizer heuristics.
+  Related: Issue #190 (HANDOFF.md merge conflicts)
 #>
 
 [CmdletBinding()]

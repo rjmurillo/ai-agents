@@ -34,11 +34,13 @@
     & .claude/skills/adr-review/scripts/Detect-ADRChanges.ps1 -SinceCommit "abc123"
 
 .NOTES
-    Exit codes per ADR-035:
-    0 - Success, changes may or may not exist
-    1 - Logic or unexpected error
-    2 - Config/user error (e.g., invalid commit SHA, missing file)
-    3 - External error (e.g., I/O failure, git command failure)
+  EXIT CODES:
+  0  - Success: Changes detected or no changes found (operation completed successfully)
+  1  - Error: Logic or unexpected error during detection
+  2  - Error: Config/user error (invalid commit SHA, missing file)
+  3  - Error: External error (I/O failure, git command failure)
+
+  See: ADR-035 Exit Code Standardization
 #>
 [CmdletBinding()]
 param(

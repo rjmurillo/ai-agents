@@ -36,14 +36,16 @@
     Detects latest semantic milestone in specified repo.
 
 .NOTES
-    Exit codes (per ADR-035):
-    - 0: Success (milestone found)
-    - 1: Invalid parameters
-    - 2: Config/resource error (module not found, no semantic milestones found)
-    - 3: External error (API error)
+  EXIT CODES:
+  0  - Success: Milestone found successfully
+  1  - Error: Invalid parameters
+  2  - Error: Config/resource error (module not found, no semantic milestones found)
+  3  - Error: External error (API error)
 
-    Semantic version format: X.Y.Z where X, Y, Z are integers (e.g., "0.2.0", "1.10.3").
-    Non-semantic milestones (e.g., "Future", "Backlog") are ignored.
+  See: ADR-035 Exit Code Standardization
+
+  Semantic version format: X.Y.Z where X, Y, Z are integers (e.g., "0.2.0", "1.10.3").
+  Non-semantic milestones (e.g., "Future", "Backlog") are ignored.
 
 .LINK
     .github/workflows/milestone-tracking.yml
