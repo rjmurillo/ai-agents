@@ -55,33 +55,64 @@ function Get-StagedADRChanges {
 }
 
 function Test-ADRReviewEvidence {
-    param([string]$SessionLogPath)
+    param(
+        [string]$SessionLogPath,
+        [string]$ProjectDir
+    )
 
     try {
         $content = Get-Content $SessionLogPath -Raw -ErrorAction Stop
 
-        # Check for adr-review execution evidence (Copilot #2678558293 - more precise patterns)
-        # Match specific adr-review skill patterns, not generic "ADR review" mentions
+        # Check for adr-review execution evidence
+        # Per rjmurillo #2679845429: Requires both session log mention AND debate log artifact
         $patterns = @(
-            '/adr-review',              # Skill invocation
-            'adr-review skill',         # Explicit skill reference
-            'ADR Review Protocol',      # Skill output header
-            'multi-agent consensus.*ADR', # Consensus specific to ADR
-            'architect.*planner.*qa'    # Agent workflow pattern
+            '/adr-review',                              # Skill invocation
+            'adr-review skill',                         # Explicit skill reference
+            'ADR Review Protocol',                      # Skill output header
+            '(?s)multi-agent consensus.{0,200}\bADR\b', # Consensus specific to ADR, with proximity
+            '(?s)\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b'    # Agent workflow pattern with proximity
         )
+
+        $foundPattern = $false
+        $matchedPattern = ""
 
         foreach ($pattern in $patterns) {
             if ($content -match $pattern) {
+                $foundPattern = $true
+                $matchedPattern = $pattern
+                break
+            }
+        }
+
+        if (-not $foundPattern) {
+            return @{
+                Complete = $false
+                Reason = "No adr-review evidence in session log"
+            }
+        }
+
+        # Verify debate log artifact exists (rjmurillo #2679844056, #2679845429)
+        # The adr-review skill creates debate logs in .agents/analysis/
+        $analysisDir = Join-Path $ProjectDir ".agents" "analysis"
+        if (Test-Path $analysisDir) {
+            $debateLogs = @(Get-ChildItem -Path $analysisDir -Filter "*debate*.md" -File -ErrorAction SilentlyContinue)
+            if ($debateLogs.Count -eq 0) {
                 return @{
-                    Complete = $true
-                    Evidence = "ADR review evidence found: matched pattern '$pattern'"
+                    Complete = $false
+                    Reason = "Session log mentions adr-review, but no debate log artifact found in .agents/analysis/"
                 }
+            }
+        }
+        else {
+            return @{
+                Complete = $false
+                Reason = "Session log mentions adr-review, but .agents/analysis/ directory does not exist"
             }
         }
 
         return @{
-            Complete = $false
-            Reason = "No adr-review evidence in session log"
+            Complete = $true
+            Evidence = "ADR review evidence found: matched pattern '$matchedPattern' and debate log artifact exists"
         }
     }
     catch [System.UnauthorizedAccessException] {
@@ -112,6 +143,9 @@ function Test-ADRReviewEvidence {
 
 # Main execution
 try {
+    # Compute date once to avoid midnight race condition (Copilot #2679880612)
+    $today = Get-Date -Format 'yyyy-MM-dd'
+
     # Read JSON input from stdin
     if (-not [Console]::IsInputRedirected) {
         exit 0
@@ -146,7 +180,7 @@ try {
     # ADR changes detected - verify review was done
     $projectDir = Get-ProjectDirectory
     $sessionsDir = Join-Path $projectDir ".agents" "sessions"
-    $sessionLog = Get-TodaySessionLog -SessionsDir $sessionsDir
+    $sessionLog = Get-TodaySessionLog -SessionsDir $sessionsDir -Date $today
 
     if ($null -eq $sessionLog) {
         $output = @"
@@ -181,7 +215,7 @@ This ensures 6-agent debate (architect, critic, independent-thinker, security, a
     }
 
     # Check for review evidence in session log
-    $evidence = Test-ADRReviewEvidence -SessionLogPath $sessionLog.FullName
+    $evidence = Test-ADRReviewEvidence -SessionLogPath $sessionLog.FullName -ProjectDir $projectDir
 
     if (-not $evidence.Complete) {
         $output = @"
