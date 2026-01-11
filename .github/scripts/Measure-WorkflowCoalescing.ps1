@@ -33,6 +33,13 @@
 .EXAMPLE
     .\Measure-WorkflowCoalescing.ps1 -Workflows @('ai-pr-quality-gate', 'ai-spec-validation')
     Analyzes specific workflows only
+
+.NOTES
+    EXIT CODES:
+    0  - Success: Analysis completed
+    1  - Error: Failed to fetch workflow data or process results
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]
