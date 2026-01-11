@@ -59,7 +59,9 @@
 
 .NOTES
     EXIT CODES:
-    0  - Success: PRs retrieved successfully (implicit)
+    0  - Success: PRs retrieved successfully
+    3  - Error: API error (gh pr list failed)
+    4  - Error: Not authenticated (GitHub CLI authentication required)
 
     See: ADR-035 Exit Code Standardization
 
