@@ -9,6 +9,12 @@
 .NOTES
     Task: Fix #821 (Episode extractor schema validation)
     Coverage Target: All 4 exported functions
+
+    EXIT CODES:
+    0  - Success: All tests passed
+    1  - Error: One or more tests failed (set by Pester framework)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 BeforeAll {

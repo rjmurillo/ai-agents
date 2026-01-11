@@ -12,6 +12,12 @@
     Requires Pester 5.x or later.
     Integration tests with gh CLI are skipped - external binary mocking is unreliable.
     See: https://github.com/pester/Pester/issues/1905
+
+    EXIT CODES:
+    0  - Success: All tests passed
+    1  - Error: One or more tests failed (set by Pester framework)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 BeforeAll {
