@@ -181,9 +181,19 @@ end {
 
             return ($CodeFiles.Count -eq 0)
         }
+        catch [System.UnauthorizedAccessException] {
+            # Permission error - likely temporary, fail-open
+            Write-Warning "Invoke-RoutingGates: Permission denied checking git diff. Failing open. Error: $($_.Exception.Message)"
+            return $true
+        }
+        catch [System.IO.IOException] {
+            # I/O error (disk, network) - infrastructure issue, fail-open
+            Write-Warning "Invoke-RoutingGates: I/O error checking git diff. Failing open. Error: $($_.Exception.Message)"
+            return $true
+        }
         catch {
-            # On error, fail-open (allow)
-            Write-Warning "Invoke-RoutingGates: Failed to determine changed files. Error: $_. Assuming documentation-only changes and allowing action."
+            # Unexpected error during file filtering - log type for debugging
+            Write-Warning "Invoke-RoutingGates: Unexpected error checking changed files: $($_.Exception.GetType().Name) - $($_.Exception.Message). Failing open."
             return $true
         }
     }

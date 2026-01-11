@@ -70,10 +70,28 @@ function Test-SessionLogEvidence {
             Content = $content.Substring(0, $previewLength)
         }
     }
+    catch [System.UnauthorizedAccessException] {
+        return @{
+            Valid = $false
+            Reason = "Session log is locked or you lack permissions. Close editors and retry."
+        }
+    }
+    catch [System.IO.FileNotFoundException] {
+        return @{
+            Valid = $false
+            Reason = "Session log was deleted after detection. Create a new session log."
+        }
+    }
+    catch [System.ArgumentException] {
+        return @{
+            Valid = $false
+            Reason = "Session log contains invalid data. Check file format or recreate."
+        }
+    }
     catch {
         return @{
             Valid = $false
-            Reason = "Error reading session log: $($_.Exception.Message)"
+            Reason = "Error reading session log: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
         }
     }
 }

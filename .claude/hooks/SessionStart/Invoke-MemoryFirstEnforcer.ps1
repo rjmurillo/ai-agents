@@ -96,10 +96,28 @@ function Test-MemoryEvidence {
             Evidence = $evidence
         }
     }
+    catch [System.UnauthorizedAccessException] {
+        return @{
+            Complete = $false
+            Reason = "Session log is locked or you lack permissions. Close editors and retry."
+        }
+    }
+    catch [System.IO.FileNotFoundException] {
+        return @{
+            Complete = $false
+            Reason = "Session log was deleted after detection. Create a new session log."
+        }
+    }
+    catch [System.ArgumentException] {
+        return @{
+            Complete = $false
+            Reason = "Session log contains invalid JSON. Check file format or recreate."
+        }
+    }
     catch {
         return @{
             Complete = $false
-            Reason = "Error parsing session log: $($_.Exception.Message)"
+            Reason = "Error parsing session log: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
         }
     }
 }
