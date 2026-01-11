@@ -34,6 +34,8 @@
     Exit Codes: 0=Success, 1=Invalid params, 2=Not found, 3=API error, 4=Not authenticated
 
     Uses GraphQL API for thread data (REST API doesn't expose thread structure).
+    
+    See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

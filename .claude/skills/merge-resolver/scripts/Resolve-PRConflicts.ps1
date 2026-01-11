@@ -30,13 +30,6 @@
 .PARAMETER WorktreeBasePath
     Base path for worktrees when running locally. Defaults to parent of repo.
 
-.OUTPUTS
-    PSCustomObject with:
-    - Success: [bool] Whether resolution succeeded
-    - Message: [string] Human-readable result
-    - FilesResolved: [string[]] List of auto-resolved files
-    - FilesBlocked: [string[]] Files that blocked auto-resolution
-
 .EXAMPLE
     ./Resolve-PRConflicts.ps1 -PRNumber 123 -BranchName "fix/my-feature" -TargetBranch "main"
 
@@ -47,6 +40,19 @@
 
     Security: ADR-015 compliance for branch name and path validation.
     Supports -WhatIf for dry-run mode (issue #461).
+
+    EXIT CODES:
+    0  - Success: No conflicts or conflicts auto-resolved
+    1  - Error: Conflicts could not be auto-resolved or resolution failed
+
+    See: ADR-035 Exit Code Standardization
+
+.OUTPUTS
+    PSCustomObject with:
+    - Success: [bool] Whether resolution succeeded
+    - Message: [string] Human-readable result
+    - FilesResolved: [string[]] List of auto-resolved files
+    - FilesBlocked: [string[]] Files that blocked auto-resolution
 #>
 
 [CmdletBinding(SupportsShouldProcess)]

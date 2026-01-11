@@ -20,6 +20,12 @@
 
 .EXAMPLE
     ./Resolve-PRReviewThread.ps1 -PullRequest 225 -All
+
+.NOTES
+    EXIT CODES:
+    0  - Success: Thread(s) resolved successfully
+
+    See: ADR-035 Exit Code Standardization
 #>
 [CmdletBinding(DefaultParameterSetName = 'Single')]
 param(

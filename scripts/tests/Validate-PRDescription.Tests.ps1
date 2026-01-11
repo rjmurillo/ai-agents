@@ -5,6 +5,13 @@
 .DESCRIPTION
     Pester tests covering URL parsing, file extraction from descriptions,
     mismatch detection, and CI mode behavior.
+
+.NOTES
+    EXIT CODES:
+    0  - Success: All tests passed
+    1  - Error: One or more tests failed (set by Pester framework)
+
+    See: ADR-035 Exit Code Standardization
 #>
 
 BeforeAll {

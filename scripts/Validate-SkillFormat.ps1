@@ -32,7 +32,12 @@
     pwsh scripts/Validate-SkillFormat.ps1 -CI -ChangedFiles @('.serena/memories/pr-001.md', '.serena/memories/qa-002.md')
 
 .NOTES
-    Related: ADR-017, Issue #307
+  EXIT CODES:
+  0  - Success: All skill files follow atomic format and naming convention
+  1  - Error: Bundled format or naming violations detected (always when -CI flag is set)
+
+  See: ADR-035 Exit Code Standardization
+  Related: ADR-017, Issue #307
 #>
 [CmdletBinding()]
 param(

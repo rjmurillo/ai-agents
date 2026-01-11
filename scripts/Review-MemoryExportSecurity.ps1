@@ -23,6 +23,13 @@
 
 .EXAMPLE
     .\scripts\Review-MemoryExportSecurity.ps1 -ExportFile export.json -Quiet
+
+.NOTES
+  EXIT CODES:
+  0  - Success: No sensitive data patterns detected
+  1  - Error: Sensitive data patterns found or pattern scanning failed
+
+  See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

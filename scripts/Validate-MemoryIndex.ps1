@@ -45,6 +45,13 @@
 .EXAMPLE
     .\Validate-MemoryIndex.ps1 -CI -Format json
     # JSON output for programmatic consumption
+
+.NOTES
+  EXIT CODES:
+  0  - Success: All P0 validations passed or no memory path found
+  1  - Error: P0 validation failures detected (only when -CI flag is set)
+
+  See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding()]

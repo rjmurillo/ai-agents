@@ -35,6 +35,13 @@
 
 .EXAMPLE
     .\Validate-Consistency.ps1 -Feature "auth" -Format "markdown"
+
+.NOTES
+  EXIT CODES:
+  0  - Success: Validation passed or not running in CI mode
+  1  - Error: Validation failures detected (only when -CI flag is set)
+
+  See: ADR-035 Exit Code Standardization
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'Feature')]

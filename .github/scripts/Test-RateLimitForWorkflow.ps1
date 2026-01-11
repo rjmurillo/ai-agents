@@ -23,14 +23,18 @@
     # With custom thresholds:
     pwsh .github/scripts/Test-RateLimitForWorkflow.ps1 -CoreThreshold 200 -GraphQLThreshold 100
 
+.NOTES
+  EXIT CODES:
+  0  - Success: Sufficient rate limit remaining to proceed
+  1  - Error: Rate limit too low to proceed or failed to check rate limits
+
+  See: ADR-035 Exit Code Standardization
+  Created per issue #273 (DRY rate limit code).
+  Uses Test-WorkflowRateLimit from GitHubCore.psm1.
+
 .OUTPUTS
     Sets GITHUB_OUTPUT: core_remaining=N
     Writes to GITHUB_STEP_SUMMARY: Rate limit status table
-    Exit code 0 = sufficient rate limit, 1 = rate limit too low
-
-.NOTES
-    Created per issue #273 (DRY rate limit code).
-    Uses Test-WorkflowRateLimit from GitHubCore.psm1.
 #>
 
 [CmdletBinding()]
