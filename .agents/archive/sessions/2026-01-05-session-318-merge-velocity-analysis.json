@@ -4,7 +4,7 @@
     "objective": "[Migrated from markdown]",
     "number": 318,
     "date": "2026-01-05",
-    "branch": "feat/merge-velocity-analysis |"
+    "branch": "feat/merge-velocity-analysis"
   },
   "workLog": [
     {
@@ -13,7 +13,7 @@
     },
     {
       "files": [
-        ".agents/2026-01-05-merge-velocity-improvement-plan.md"
+        ".agents/planning/2026-01-05-merge-velocity-improvement-plan.md"
       ],
       "action": "Task 2: Remediation Planning",
       "result": "- **Status**: Complete - **Activity**: Generated `.agents/2026-01-05-merge-velocity-improvement-plan.md`. - **Key Decisions**:   - Adopt \"Draft PR\" policy.   - Prioritize validation script fixes."
