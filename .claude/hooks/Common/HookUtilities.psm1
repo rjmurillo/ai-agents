@@ -40,12 +40,17 @@ function Get-ProjectDirectory {
     }
 
     # Walk up from current location to find .git
-    $currentDir = Get-Location
-    while ($currentDir) {
-        if (Test-Path (Join-Path $currentDir ".git")) {
-            return $currentDir.Path
+    try {
+        $currentDir = Get-Location
+        while ($null -ne $currentDir) {
+            if (Test-Path (Join-Path $currentDir ".git")) {
+                return $currentDir.Path
+            }
+            $currentDir = $currentDir.Parent
         }
-        $currentDir = $currentDir.Parent
+    }
+    catch {
+        Write-Warning "Failed to locate project directory: $($_.Exception.Message)"
     }
 
     return $null
@@ -112,11 +117,19 @@ function Get-TodaySessionLog {
     param([string]$SessionsDir)
 
     if (-not (Test-Path $SessionsDir)) {
+        Write-Warning "Session directory not found: $SessionsDir"
         return $null
     }
 
     $today = Get-Date -Format "yyyy-MM-dd"
-    $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$today-session-*.json" -File -ErrorAction SilentlyContinue)
+
+    try {
+        $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$today-session-*.json" -File -ErrorAction Stop)
+    }
+    catch {
+        Write-Warning "Failed to read session logs from $SessionsDir : $($_.Exception.Message)"
+        return $null
+    }
 
     if ($logs.Count -eq 0) {
         return $null
@@ -149,11 +162,20 @@ function Get-TodaySessionLogs {
     param([string]$SessionsDir)
 
     if (-not (Test-Path $SessionsDir)) {
+        Write-Warning "Session directory not found: $SessionsDir"
         return @()
     }
 
     $today = Get-Date -Format "yyyy-MM-dd"
-    $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$today-session-*.json" -File -ErrorAction SilentlyContinue)
+
+    try {
+        $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$today-session-*.json" -File -ErrorAction Stop)
+    }
+    catch {
+        Write-Warning "Failed to read session logs from $SessionsDir : $($_.Exception.Message)"
+        return @()
+    }
+
     return $logs
 }
 

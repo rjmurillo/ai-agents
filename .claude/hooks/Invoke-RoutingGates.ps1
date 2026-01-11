@@ -148,10 +148,15 @@ end {
             # Get list of changed files in committed branch changes (vs base)
             # SECURITY: Must check committed changes, not working tree, to prevent bypass
             # via uncommitted docs masking committed code changes
-            $ChangedFiles = & git diff --name-only origin/main...HEAD 2>$null
-            if ($LASTEXITCODE -ne 0 -or -not $ChangedFiles) {
+            $ChangedFiles = & git diff --name-only origin/main...HEAD 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "Invoke-RoutingGates: git diff origin/main...HEAD failed (exit $LASTEXITCODE). Trying fallback."
                 # Fallback to simple comparison if three-dot syntax fails
-                $ChangedFiles = & git diff --name-only origin/main 2>$null
+                $ChangedFiles = & git diff --name-only origin/main 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning "Invoke-RoutingGates: git diff origin/main also failed (exit $LASTEXITCODE). Failing open."
+                    return $true
+                }
             }
 
             if (-not $ChangedFiles) {
