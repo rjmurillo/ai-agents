@@ -96,7 +96,16 @@ $script:Config = @{
     # Memory file path
     MemoryPath = '.serena/memories/pr-comment-responder-skills.md'
 
-    # Trend thresholds
+    # Trend thresholds for signal quality movement
+    # Trend is calculated by comparing current signal rate to the previous value stored in memory
+    # Formula: trend_delta = current_signal_rate - previous_signal_rate
+    #
+    # Classification:
+    # - "improving" (↑): trend_delta >= +0.05 (signal rate increased by 5%+)
+    # - "declining" (↓): trend_delta <= -0.05 (signal rate decreased by 5%+)
+    # - "stable" (→): trend_delta between -0.05 and +0.05
+    #
+    # Example: If signal rate went from 0.60 (60%) to 0.68 (68%), trend_delta = +0.08, status = "improving"
     TrendThresholds = @{
         Improving = 0.05   # Signal rate increased by 5%+
         Declining = -0.05  # Signal rate decreased by 5%+
@@ -305,6 +314,10 @@ query {
           nodes {
             isResolved
             isOutdated
+            # Limitation: Only fetch first 50 comments per thread
+            # GitHub review threads typically have <10 comments each
+            # PRs with 50+ comments in a single thread are extremely rare
+            # If pagination is needed, this should be enhanced to handle `pageInfo.hasNextPage`
             comments(first: 50) {
               nodes {
                 id
@@ -699,7 +712,7 @@ Aggregated from $PRsAnalyzed PRs over last $DaysAnalyzed days.
 
     # Replace the existing Per-Reviewer Performance section
     # Match from "## Per-Reviewer Performance" until the next level-2 heading or end of file
-    $pattern = '(?s)## Per-Reviewer Performance.*?(?=\n## |\z)'
+    $pattern = '(?s)## Per-Reviewer Performance.*?(?=## |\z)'
     
     if ($content -match $pattern) {
         $content = $content -replace $pattern, ($newTable + "`n")

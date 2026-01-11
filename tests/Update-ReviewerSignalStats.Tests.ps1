@@ -63,6 +63,38 @@ Describe "Update-ReviewerSignalStats.ps1" {
             $script:Config.SelfCommentExcludedAuthors | Should -Contain "dependabot[bot]"
         }
 
+        It "Excludes dependabot self-comments from stats" {
+            $prs = @(
+                @{
+                    number = 1
+                    author = @{ login = "dependabot[bot]" }
+                    reviewThreads = @{
+                        nodes = @(
+                            @{
+                                isResolved = $false
+                                isOutdated = $false
+                                comments = @{
+                                    nodes = @(
+                                        @{
+                                            id = "comment1"
+                                            body = "Dependabot commenting on its own PR"
+                                            author = @{ login = "dependabot[bot]" }
+                                            createdAt = "2024-01-01T12:00:00Z"
+                                            path = "package.json"
+                                        }
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+            )
+
+            # dependabot[bot] commenting on its own PR should be excluded
+            $result = Get-CommentsByReviewer -PRs $prs
+            $result.Keys | Should -Not -Contain "dependabot[bot]"
+        }
+
         It "Defines actionability heuristics" {
             $script:Config.Heuristics.Keys | Should -Contain "FixedInReply"
             $script:Config.Heuristics.Keys | Should -Contain "WontFixReply"
@@ -266,7 +298,9 @@ Describe "Update-ReviewerSignalStats.ps1" {
                 }
             )
             
-            # rjmurillo is reviewing someone else's PR - should be counted
+            # Test cross-author review: rjmurillo reviewing author1's PR
+            # This validates that reviewers commenting on OTHER people's PRs are tracked
+            # (as opposed to self-comments which are excluded)
             $result = Get-CommentsByReviewer -PRs $prs
             $result.Keys | Should -Contain "rjmurillo"
             $result["rjmurillo"].TotalComments | Should -Be 1
