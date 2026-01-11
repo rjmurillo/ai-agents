@@ -1,0 +1,153 @@
+<#
+.SYNOPSIS
+    Shared utilities for Claude Code hook scripts.
+
+.DESCRIPTION
+    Provides common functions used across multiple hook types to eliminate
+    code duplication and ensure consistent behavior.
+
+.NOTES
+    This module is automatically imported by hook scripts that need these functions.
+    All functions are exported and available after Import-Module.
+
+.LINK
+    Issue #859 - Copilot review comments: DRY violations
+#>
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+function Get-ProjectDirectory {
+    <#
+    .SYNOPSIS
+        Resolves the project root directory.
+
+    .DESCRIPTION
+        Returns the project root by checking CLAUDE_PROJECT_DIR environment
+        variable first, then walking up from script location to find .git directory.
+
+    .OUTPUTS
+        String - Project root directory path, or $null if not found.
+
+    .EXAMPLE
+        $projectDir = Get-ProjectDirectory
+        if ($projectDir) {
+            $sessionsDir = Join-Path $projectDir ".agents" "sessions"
+        }
+    #>
+    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PROJECT_DIR)) {
+        return $env:CLAUDE_PROJECT_DIR
+    }
+
+    # Walk up from current location to find .git
+    $currentDir = Get-Location
+    while ($currentDir) {
+        if (Test-Path (Join-Path $currentDir ".git")) {
+            return $currentDir.Path
+        }
+        $currentDir = $currentDir.Parent
+    }
+
+    return $null
+}
+
+function Test-GitCommitCommand {
+    <#
+    .SYNOPSIS
+        Tests if a command string is a git commit command.
+
+    .DESCRIPTION
+        Checks if the command contains "git commit" or "git ci" to identify
+        commit operations that need enforcement.
+
+    .PARAMETER Command
+        The command string to test.
+
+    .OUTPUTS
+        Boolean - $true if command is git commit, $false otherwise.
+
+    .EXAMPLE
+        if (Test-GitCommitCommand -Command $hookInput.tool_input.command) {
+            # Apply commit-time validations
+        }
+    #>
+    param([string]$Command)
+
+    if ([string]::IsNullOrWhiteSpace($Command)) {
+        return $false
+    }
+
+    return $Command -match '(?:^|\s)git\s+(commit|ci)'
+}
+
+function Get-TodaySessionLog {
+    <#
+    .SYNOPSIS
+        Finds the most recent session log for today's date.
+
+    .DESCRIPTION
+        Searches the sessions directory for JSON session logs matching today's
+        date pattern (YYYY-MM-DD-session-*.json) and returns the most recent one.
+
+    .PARAMETER SessionsDir
+        Path to the .agents/sessions directory.
+
+    .OUTPUTS
+        FileInfo object for the most recent session log, or $null if none found.
+
+    .EXAMPLE
+        $sessionLog = Get-TodaySessionLog -SessionsDir ".agents/sessions"
+        if ($sessionLog) {
+            $content = Get-Content $sessionLog.FullName -Raw | ConvertFrom-Json
+        }
+    #>
+    param([string]$SessionsDir)
+
+    if (-not (Test-Path $SessionsDir)) {
+        return $null
+    }
+
+    $today = Get-Date -Format "yyyy-MM-dd"
+    $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$today-session-*.json" -File -ErrorAction SilentlyContinue)
+
+    if ($logs.Count -eq 0) {
+        return $null
+    }
+
+    return $logs | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+}
+
+function Get-TodaySessionLogs {
+    <#
+    .SYNOPSIS
+        Finds all session logs for today's date.
+
+    .DESCRIPTION
+        Searches the sessions directory for all JSON session logs matching today's
+        date pattern (YYYY-MM-DD-session-*.json) and returns them as an array.
+
+    .PARAMETER SessionsDir
+        Path to the .agents/sessions directory.
+
+    .OUTPUTS
+        Array of FileInfo objects for today's session logs, or empty array if none found.
+
+    .EXAMPLE
+        $sessionLogs = Get-TodaySessionLogs -SessionsDir ".agents/sessions"
+        if ($sessionLogs.Count -gt 0) {
+            $latestLog = $sessionLogs | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        }
+    #>
+    param([string]$SessionsDir)
+
+    if (-not (Test-Path $SessionsDir)) {
+        return @()
+    }
+
+    $today = Get-Date -Format "yyyy-MM-dd"
+    $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$today-session-*.json" -File -ErrorAction SilentlyContinue)
+    return $logs
+}
+
+# Export all functions
+Export-ModuleMember -Function Get-ProjectDirectory, Test-GitCommitCommand, Get-TodaySessionLog, Get-TodaySessionLogs
