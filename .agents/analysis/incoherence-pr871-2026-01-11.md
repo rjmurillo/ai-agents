@@ -236,7 +236,7 @@ Twelve files reference `Validate-SessionProtocol.ps1` which doesn't exist. The a
 **Dimension**: K - Implicit Contract Integrity
 
 #### Source A (Contract Promise)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/.claude/hooks/Invoke-RoutingGates.ps1`
+**File**: `.claude/hooks/Invoke-RoutingGates.ps1`
 **Lines**: 183-184
 ```powershell
 # Tests whether the current changes are documentation-only
