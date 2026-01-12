@@ -131,7 +131,7 @@ ADR-005 mandates PowerShell-only with a narrow SkillForge exception (`.claude/sk
 **Dimension**: A - Specification vs Behavior
 
 #### Source A (Specification)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/.agents/architecture/ADR-035-exit-code-standardization.md`
+**File**: `.agents/architecture/ADR-035-exit-code-standardization.md`
 **Lines**: 121, 137-162
 ```markdown
 exit 1 = Logic Error / Validation failure
