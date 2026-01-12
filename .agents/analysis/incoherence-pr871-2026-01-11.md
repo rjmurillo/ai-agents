@@ -75,7 +75,7 @@ The codebase is mid-migration from `.md` to `.json` session format. AGENTS.md sp
 **Dimension**: H - Policy & Convention Compliance
 
 #### Source A (Policy)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/.agents/architecture/ADR-005-powershell-only-scripting.md`
+**File**: `.agents/architecture/ADR-005-powershell-only-scripting.md`
 **Lines**: 21-22, 157
 ```markdown
 MUST use PowerShell for all scripting
