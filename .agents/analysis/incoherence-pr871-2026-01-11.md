@@ -84,8 +84,8 @@ For all other scripts: PowerShell-only requirement remains in effect
 
 #### Source B (Violations)
 **Bash Scripts** (2 undocumented):
-- `/home/richard/src/GitHub/rjmurillo/ai-agents4/scripts/bootstrap-vm.sh` (89 lines)
-- `/home/richard/src/GitHub/rjmurillo/ai-agents4/.github/actions/ai-review/test-infrastructure-failure.sh` (44 lines)
+- `scripts/bootstrap-vm.sh` (89 lines)
+- `.github/actions/ai-review/test-infrastructure-failure.sh` (44 lines)
 
 **Python Scripts** (7 outside SkillForge exception):
 - `.claude/skills/security-detection/detect_infrastructure.py`
