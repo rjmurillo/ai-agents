@@ -227,9 +227,9 @@ Validators MUST use these existing modules:
 
 | Module | Location | Purpose |
 |--------|----------|---------|
-| `GitHubCore.psm1` | `.github/scripts/` | GitHub API calls, rate limiting, authentication |
-| `GitHelpers.psm1` | `.github/scripts/` | Git operations, commit info, diff stats |
-| `SchemaValidation.psm1` | `scripts/modules/` | JSON schema validation |
+| `GitHubCore.psm1` | `.claude/skills/github/modules/` | GitHub API calls, rate limiting, authentication |
+| `GitHelpers.psm1` | `.claude/skills/session-init/modules/` | Git operations, commit info, diff stats |
+| `SchemaValidation.psm1` | `.claude/skills/memory/modules/` | JSON schema validation |
 | `HookUtilities.psm1` | `.claude/hooks/Common/` | Session path resolution, git commands |
 
 **Episode Schema**: `.claude/skills/memory/resources/schemas/episode.schema.json`

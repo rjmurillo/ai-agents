@@ -25,9 +25,9 @@ The codebase has mature PowerShell modules that validators MUST use:
 
 | Module | Location | Purpose |
 |--------|----------|---------|
-| `GitHubCore.psm1` | `.github/scripts/` | GitHub API calls, rate limiting, authentication |
-| `GitHelpers.psm1` | `.github/scripts/` | Git operations, commit info, diff stats |
-| `SchemaValidation.psm1` | `scripts/modules/` | JSON schema validation |
+| `GitHubCore.psm1` | `.claude/skills/github/modules/` | GitHub API calls, rate limiting, authentication |
+| `GitHelpers.psm1` | `.claude/skills/session-init/modules/` | Git operations, commit info, diff stats |
+| `SchemaValidation.psm1` | `.claude/skills/memory/modules/` | JSON schema validation |
 | `HookUtilities.psm1` | `.claude/hooks/Common/` | Session path resolution, git commands |
 
 **Episode Schema**: `.claude/skills/memory/resources/schemas/episode.schema.json`
@@ -65,14 +65,14 @@ Get-ChildItem .agents/sessions/*.json | ForEach-Object {
 }
 ```
 
-**Deliverable**: `.agents/planning/schema-polymorphism-report.md`
+**Deliverable**: `.agents/planning/session-evidence-verification/schema-polymorphism-report.md`
 
 #### Task 0.2: Validator Test Framework
 
 Create testing infrastructure BEFORE writing validators:
 
 ```powershell
-# tests/validation/Test-ValidationFramework.ps1
+# tests/validation/Test-ValidationFramework.Tests.ps1
 Describe "Validator Test Framework" {
   Context "Given valid session" {
     It "Returns exit code 0" { }
@@ -105,8 +105,8 @@ Extract reusable validation primitives. Leverage existing modules where possible
 # scripts/modules/ValidationPrimitives.psm1
 
 # Import existing modules
-Import-Module "$PSScriptRoot/../../.github/scripts/GitHelpers.psm1" -Force
-Import-Module "$PSScriptRoot/../../.github/scripts/GitHubCore.psm1" -Force
+Import-Module "$PSScriptRoot/../../.claude/skills/session-init/modules/GitHelpers.psm1" -Force
+Import-Module "$PSScriptRoot/../../.claude/skills/github/modules/GitHubCore.psm1" -Force
 
 function Test-GitCommitExists {
   param([string]$SHA, [string]$RepoRoot = '.')
@@ -625,7 +625,7 @@ Describe "Schema v2.0 Backward Compatibility" {
 - All 387 existing sessions validate successfully
 - v2.0 sessions with structured evidence get PASS
 - v2.0 sessions with string evidence get PASS + WARN
-- Clear migration guide: `.agents/planning/session-schema-v2-migration.md`
+- Clear migration guide: `.agents/planning/session-evidence-verification/migration-guide.md`
 
 ### Sprint 3: Integrity Chain (AFTER schema migration)
 
@@ -1337,9 +1337,9 @@ Run: pwsh scripts/validators/Validate-SessionJson.ps1 -SessionPath .agents/sessi
 ### Sprint 0 (Foundation)
 
 - `scripts/Test-SchemaPolymorphism.ps1` - Analyze existing sessions
-- `tests/validation/Test-ValidationFramework.ps1` - Test infrastructure
+- `tests/validation/Test-ValidationFramework.Tests.ps1` - Test infrastructure
 - `scripts/modules/ValidationPrimitives.psm1` - Reusable functions
-- `.agents/planning/schema-polymorphism-report.md` - Analysis results
+- `.agents/planning/session-evidence-verification/schema-polymorphism-report.md` - Analysis results
 
 ### Sprint 1A (Cross-Field Validators)
 
@@ -1371,7 +1371,7 @@ Run: pwsh scripts/validators/Validate-SessionJson.ps1 -SessionPath .agents/sessi
 - `.agents/schemas/session-log.schema.v2.json` - New schema version
 - `scripts/validators/Validate-EvidenceStructure.ps1` - Evidence type validator
 - `scripts/Convert-SessionToV2.ps1` - Migration script
-- `.agents/planning/session-schema-v2-migration.md` - Migration guide
+- `.agents/planning/session-evidence-verification/migration-guide.md` - Migration guide
 - `tests/validation/Test-BackwardCompatibility.Tests.ps1`
 
 ### Sprint 3 (Integrity Chain)
