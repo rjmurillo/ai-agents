@@ -215,7 +215,7 @@ This level of documentation exceeds typical inline comments and enables:
 | Priority | Recommendation | Rationale | Effort |
 |----------|----------------|-----------|--------|
 | P0 | Accept refactoring as-is | Meets all quality gates, no blocking issues | 0 |
-| P2 | Add module usage example to scripts/CLAUDE.md | Documents module import pattern for future scripts | 15 minutes |
+| P2 | Add module usage example to scripts/AGENTS.md | Documents module import pattern for future scripts | 15 minutes |
 | P2 | Consider extracting Get-HeadingTable to module | Function may be reusable in future markdown parsing | 30 minutes |
 | P3 | Add .EXAMPLE to Test-MemoryEvidence | Complete documentation consistency | 10 minutes |
 
@@ -253,7 +253,7 @@ This level of documentation exceeds typical inline comments and enables:
 - /home/runner/work/ai-agents/ai-agents/scripts/Validate-Session.ps1 (modified script)
 - /home/runner/work/ai-agents/ai-agents/tests/Parse-ChecklistTable.Tests.ps1 (modified tests)
 - /home/runner/work/ai-agents/ai-agents/scripts/modules/SlashCommandValidator.psm1 (pattern reference)
-- /home/runner/work/ai-agents/ai-agents/scripts/CLAUDE.md (PowerShell standards)
+- /home/runner/work/ai-agents/ai-agents/scripts/AGENTS.md (PowerShell standards)
 - Git diff output (change quantification)
 
 ### Data Transparency

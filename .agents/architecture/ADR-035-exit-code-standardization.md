@@ -125,6 +125,50 @@ Standard exit code ranges with documented semantics:
 | 5-99 | Reserved | Future standard use | Do not use until standardized |
 | 100+ | Script-Specific | Custom error codes | Document in script header comment |
 
+### When to Use Script-Specific Codes (100+)
+
+**Use standard codes (0-4) when:**
+
+- The error maps cleanly to an existing category
+- CI/CD pipelines need to implement conditional logic (retry on 3, fail fast on 2)
+- The script is called by multiple consumers who need consistent semantics
+- The failure mode is common across many scripts (validation, auth, API errors)
+
+**Use script-specific codes (100+) when:**
+
+- The script has domain-specific states that consumers need to distinguish
+- Multiple distinct success or failure modes exist that callers act on differently
+- The standard categories (0-4) lose important diagnostic information
+- The script serves as a specialized tool where callers need granular control flow
+
+**Examples of script-specific codes:**
+
+```powershell
+# Test-PRMerged.ps1 - Callers need to distinguish merge states
+# EXIT CODES:
+# 0   - Success: PR is open (can proceed with merge)
+# 100 - Info: PR already merged (idempotent success)
+# 101 - Info: PR was closed without merge (requires intervention)
+# 1   - Error: Validation failed
+# 3   - Error: GitHub API error
+
+# Get-PRChecks.ps1 - Callers need to know check status
+# EXIT CODES:
+# 0   - Success: All checks passed
+# 100 - Pending: Checks still running (retry later)
+# 101 - Failed: One or more checks failed
+# 3   - Error: GitHub API error
+```
+
+**Decision Framework:**
+
+| Question | If Yes | If No |
+|----------|--------|-------|
+| Does the caller need to distinguish multiple non-error states? | Use 100+ | Use 0 |
+| Does the caller retry based on the exit code? | Use standard (0-4) | Consider 100+ |
+| Is this a reusable utility called by many scripts? | Prefer standard (0-4) | 100+ acceptable |
+| Would 0 vs 1 lose important caller context? | Use 100+ | Use standard |
+
 ### Documentation Requirement
 
 All scripts MUST include exit code documentation in the script header:

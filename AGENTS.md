@@ -172,7 +172,6 @@ pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[log].json"
 # Testing
 pwsh ./build/scripts/Invoke-PesterTests.ps1
 pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
-pytest -v
 
 # Linting
 npx markdownlint-cli2 --fix "**/*.md"
@@ -406,14 +405,33 @@ Specific versions matter for accurate tooling suggestions.
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **.NET** | .NET 9, C# 13 | Target for new work |
-| **PowerShell** | 7.4+ | Cross-platform, required |
+| **PowerShell** | 7.4+ | Cross-platform, required (ADR-005) |
 | **Node.js** | LTS (20+) | For markdownlint-cli2 |
 | **Pester** | 5.6+ | Testing framework |
 | **GitHub CLI** | 2.60+ | For gh operations |
 | **Mermaid** | Latest | Diagram generation |
 
 **Platform Support**: Windows, Linux, macOS (PowerShell cross-platform, use -Path parameters for OS-agnostic file handling)
+
+---
+
+## Coding Standards
+
+> **Full Reference**: [.gemini/styleguide.md](.gemini/styleguide.md)
+>
+> Read the styleguide for complete patterns, security requirements, and examples.
+
+Key points:
+
+| Topic | Quick Reference |
+|-------|-----------------|
+| Exit codes | 0=success, 1=logic, 2=config, 3=external, 4=auth (ADR-035) |
+| Commit format | `<type>(<scope>): <desc>` + `Co-Authored-By:` trailer |
+| AI attribution | `Co-Authored-By: [Agent] in [Tool] <email>` |
+| Actions | SHA-pin all, no `${{ }}` in run blocks |
+| Coverage | 100% security, 80% business, 60% docs |
+
+**AI Attribution Emails**: Claude `noreply@anthropic.com`, Copilot `copilot@github.com`, Cursor `cursor@cursor.sh`
 
 ---
 
@@ -544,7 +562,7 @@ Files distributed to end-users (`src/claude/`, `src/copilot-cli/`, `src/vs-code-
 | **analyst** | Technical investigator who researches unknowns, benchmarks solutions, and evaluates trade-offs with evidence | Root cause analysis, API research, performance investigation |
 | **architect** | System designer who maintains architectural coherence, enforces patterns, and documents decisions via ADRs | Design governance, technical decisions, pattern enforcement |
 | **planner** | Implementation strategist who breaks epics into milestones with clear acceptance criteria and dependencies | Epic breakdown, work packages, impact analysis coordination |
-| **implementer** | Senior .NET engineer who writes production-ready C# 13 code following SOLID principles with 100% test coverage using Pester | Production code, tests, implementation per approved plans |
+| **implementer** | Senior engineer who writes production-ready PowerShell following SOLID principles with Pester tests | Production code, tests, implementation per approved plans |
 | **critic** | Plan validator who stress-tests proposals, identifies gaps, and blocks approval when risks aren't mitigated | Pre-implementation review, impact analysis validation, quality gate |
 | **qa** | Test engineer who designs test strategies, ensures coverage, and validates implementations against acceptance criteria | Test strategy, verification, coverage analysis |
 | **roadmap** | Product strategist who defines outcomes over outputs, prioritizes by business value using RICE/KANO, and guards against drift | Epic definition, strategic prioritization, product vision |
@@ -1425,11 +1443,7 @@ When generating or fixing markdown with code blocks, use the fix-markdown-fences
 **Usage**:
 
 ```bash
-# PowerShell
 pwsh .claude/skills/fix-markdown-fences/fix_fences.ps1
-
-# Python
-python .claude/skills/fix-markdown-fences/fix_fences.py
 ```
 
 **Benefits**:
@@ -1510,7 +1524,7 @@ Agents violating these standards produce inconsistent, unprofessional output. Re
 - Phase 2 (Post-Implementation): PIV (Post-Implementation Verification)
 - Implementer must flag security-relevant changes during coding
 
-### Naming Conventions
+### Artifact Naming Conventions
 
 **Artifact Naming**: All planning artifacts follow strict naming conventions documented in `.agents/governance/naming-conventions.md`.
 
