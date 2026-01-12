@@ -26,7 +26,7 @@ jobs:
 
       # Pin to v1 - https://github.com/Factory-AI/droid-action
       - name: Run Droid Auto Review
-        uses: Factory-AI/droid-action@9f0a131f360d914ce6f8d638a237f7ffa4d2ba97 # v1
+        uses: Factory-AI/droid-action@e3f8be9f34bb41b11e852e836cb64e81f13fba59 # v1
         with:
           factory_api_key: ${{ secrets.FACTORY_API_KEY }}
           automatic_review: true
