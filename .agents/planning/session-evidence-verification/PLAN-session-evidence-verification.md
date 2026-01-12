@@ -851,6 +851,102 @@ exit 0
 
 **Rationale**: Pre-commit runs fast validators only. CI runs comprehensive suite.
 
+#### Task 4.3: Job Summary Enhancement
+
+Add field-level error reporting to CI job summary in `.github/workflows/ai-session-protocol.yml`:
+
+**Evidence Validation Results Table**:
+
+```markdown
+### Evidence Validation Results
+
+| Validator | Status | Failures | Details |
+|:----------|:-------|:---------|:--------|
+| Git Evidence | ✅ PASS | 0 | All commits verified |
+| Artifact References | ❌ FAIL | 2 | 2 files not found |
+| Metrics Accuracy | ⚠️ WARN | 1 | files_changed mismatch (within ±1 tolerance) |
+| API Evidence | ✅ PASS | 0 | All PR claims verified |
+| Integrity Chain | ✅ PASS | 0 | Hash verified |
+```
+
+**Expandable Details for Failures**:
+
+```markdown
+<details>
+<summary>❌ Artifact References (2 failures)</summary>
+
+**Claimed**: `.agents/planning/session-evidence-verification/PRD.md`
+**Reality**: File not found (checked both `.agents/sessions/` and `.agents/archive/sessions/`)
+**Fix**: Move file to correct location or update session log
+**Related**: PR #875 hallucination #2
+
+**Claimed**: `files_changed: 5`
+**Reality**: `files_changed: 3` (git diff shows 3 files)
+**Fix**: Update workLog metrics to match git diff
+**Related**: PR #875 hallucination #5
+</details>
+```
+
+**Implementation**: Aggregate script collects validator JSON outputs and generates this format.
+
+## Validation Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant CI as CI Workflow
+    participant Schema as Schema Validator
+    participant Primitives as ValidationPrimitives
+    participant CrossField as Cross-Field Validators
+    participant Git as Git Evidence Validator
+    participant API as API Evidence Validator
+    participant Integrity as Integrity Validator
+    participant Report as Report Generator
+
+    CI->>Schema: Validate JSON structure
+    Schema-->>CI: Schema valid
+
+    CI->>CrossField: Validate episode consistency
+    CrossField->>Primitives: Resolve-SessionPath
+    CrossField->>Primitives: Test-FileExists (with archive fallback)
+    CrossField->>CrossField: Check artifact references
+    CrossField->>Primitives: Get-GitDiffStats
+    CrossField->>CrossField: Verify metrics accuracy (±1 tolerance)
+    CrossField->>CrossField: Check file path consistency
+    CrossField-->>CI: Cross-field results (exit 0/1/3)
+
+    CI->>Git: Validate git evidence
+    Git->>Primitives: Get-GitCommitInfo
+    Git->>Primitives: Compare-Timestamps (±24h tolerance)
+    Git->>Git: Verify commits exist
+    Git->>Git: Check branch validity
+    Git->>Git: Validate temporal consistency
+    Git-->>CI: Git evidence results (exit 0/1/3)
+
+    alt GH_TOKEN available
+        CI->>API: Validate API claims
+        API->>Primitives: Invoke-GitHubApiQuery
+        API->>API: Verify PR/issue status
+        API->>API: Check review threads
+        API-->>CI: API evidence results (exit 0/1/2/3)
+    else Rate limit
+        API-->>CI: Skip (exit 2)
+    end
+
+    CI->>Integrity: Verify integrity hash
+    Integrity-->>CI: Integrity result (exit 0/1/2/3)
+
+    CI->>Report: Aggregate all results
+    Report->>Report: Generate compliance report
+    Report->>Report: Create job summary with field-level errors
+    Report-->>CI: Final verdict
+
+    alt MUST failures > 0
+        CI->>CI: Block merge (exit 1)
+    else All MUST pass
+        CI->>CI: Allow merge (exit 0)
+    end
+```
+
 ## Dependency Graph
 
 ```mermaid
@@ -1242,7 +1338,7 @@ Run: pwsh scripts/validators/Validate-SessionJson.ps1 -SessionPath .agents/sessi
 
 - `scripts/Test-SchemaPolymorphism.ps1` - Analyze existing sessions
 - `tests/validation/Test-ValidationFramework.ps1` - Test infrastructure
-- `scripts/validation-core/ValidationPrimitives.psm1` - Reusable functions
+- `scripts/modules/ValidationPrimitives.psm1` - Reusable functions
 - `.agents/planning/schema-polymorphism-report.md` - Analysis results
 
 ### Sprint 1A (Cross-Field Validators)
@@ -1293,7 +1389,7 @@ Run: pwsh scripts/validators/Validate-SessionJson.ps1 -SessionPath .agents/sessi
 ### Documentation
 
 - `.agents/planning/session-validation-architecture.md` - This plan
-- `scripts/validation-core/README.md` - Validator documentation
+- `scripts/validators/README.md` - Validator documentation
 - `.agents/SESSION-PROTOCOL.md` - Updated protocol docs (modify existing)
 
 ## Total File Count
