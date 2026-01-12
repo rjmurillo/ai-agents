@@ -25,7 +25,7 @@
 **Dimension**: D - Temporal Consistency
 
 #### Source A (Authoritative - Current State)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/AGENTS.md`
+**File**: `AGENTS.md`
 **Lines**: 56, 78
 ```markdown
 Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.json`
@@ -35,9 +35,9 @@ pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[session-lo
 #### Source B (Stale References)
 **Files**: 299+ files across codebase
 **Examples**:
-- `/home/richard/src/GitHub/rjmurillo/ai-agents4/CRITICAL-CONTEXT.md:3`
-- `/home/richard/src/GitHub/rjmurillo/ai-agents4/src/claude/orchestrator.md:54`
-- `/home/richard/src/GitHub/rjmurillo/ai-agents4/.serena/memories/git-hooks-pre-commit-session-gap-796.md`
+- `CRITICAL-CONTEXT.md:3`
+- `src/claude/orchestrator.md:54`
+- `.serena/memories/git-hooks-pre-commit-session-gap-796.md`
 ```markdown
 `.agents/sessions/YYYY-MM-DD-session-NN.md`
 ```
@@ -139,14 +139,14 @@ exit 1 = Logic Error / Validation failure
 ```
 
 #### Source B (Implementation)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/.claude/skills/github/scripts/pr/Test-PRMerged.ps1`
+**File**: `.claude/skills/github/scripts/pr/Test-PRMerged.ps1`
 **Lines**: 26-29, 103
 ```powershell
 # exit 1: PR IS merged (skip review work)
 exit 1
 ```
 
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/.claude/skills/github/scripts/pr/Get-PRChecks.ps1`
+**File**: `.claude/skills/github/scripts/pr/Get-PRChecks.ps1`
 **Lines**: 37-43, 390
 ```powershell
 # exit 1: Check failed
@@ -188,15 +188,15 @@ ADR-035 defines exit 1 as "Logic Error / Validation failure" but Test-PRMerged.p
 #### Source A (Stale References)
 **Files**: 12 files reference nonexistent script
 **Examples**:
-- `/home/richard/src/GitHub/rjmurillo/ai-agents4/AGENTS.md:71`
-- `/home/richard/src/GitHub/rjmurillo/ai-agents4/.claude/skills/session-init/SKILL.md`
-- `/home/richard/src/GitHub/rjmurillo/ai-agents4/.claude/skills/session-log-fixer/SKILL.md`
+- `AGENTS.md:71`
+- `.claude/skills/session-init/SKILL.md`
+- `.claude/skills/session-log-fixer/SKILL.md`
 ```powershell
 pwsh scripts/Validate-SessionProtocol.ps1
 ```
 
 #### Source B (Actual Implementation)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/scripts/Validate-SessionJson.ps1`
+**File**: `scripts/Validate-SessionJson.ps1`
 **Status**: EXISTS (verified)
 
 **Missing File**: `Validate-SessionProtocol.ps1` (does not exist in scripts directory)
@@ -294,19 +294,19 @@ $_ -notmatch '\.md$' -and
 **Dimension**: C - Cross-Reference Consistency
 
 #### Source A
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/CLAUDE.md` (user global)
+**File**: `CLAUDE.md` (user global)
 ```markdown
 Cyclomatic complexity ≤10
 ```
 
 #### Source B
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/src/claude/qa.md`
+**File**: `src/claude/qa.md`
 ```markdown
 Cyclomatic complexity <= 10 per method
 ```
 
 #### Source C
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/.github/prompts/pr-quality-gate-qa.md`
+**File**: `.github/prompts/pr-quality-gate-qa.md`
 ```markdown
 Complexity | Less than 10
 [note: Any function over 15]
@@ -342,7 +342,7 @@ Sources A and B specify ≤10 as standard. Source C introduces "15" threshold. U
 **Dimension**: C - Cross-Reference Consistency
 
 #### Source A (Complete Documentation)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/scripts/AGENTS.md`
+**File**: `scripts/AGENTS.md`
 **Lines**: 78-87
 ```powershell
 $ErrorActionPreference = 'Stop'  # Fail fast
@@ -357,11 +357,11 @@ try {
 ```
 
 #### Source B (Missing Documentation)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/AGENTS.md`
+**File**: `AGENTS.md`
 **Location**: No error handling pattern section
 
 #### Source C (Broken Reference)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/.gemini/styleguide.md`
+**File**: `.gemini/styleguide.md`
 **Line**: 11
 ```markdown
 | PowerShell standards | `scripts/AGENTS.md`, `AGENTS.md` Coding Standards section |
@@ -450,7 +450,7 @@ function Test-IsMainOrMasterBranch {
 **Dimension**: I - Completeness & Documentation Gaps
 
 #### Source A (Requirement)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/.agents/architecture/ADR-035-exit-code-standardization.md`
+**File**: `.agents/architecture/ADR-035-exit-code-standardization.md`
 **Lines**: 172-193
 ```markdown
 All scripts MUST include exit code documentation in the script header
@@ -504,14 +504,14 @@ ADR-035 Phase 1 requires "Add exit code documentation to existing scripts withou
 **Dimension**: H - Policy & Convention Compliance
 
 #### Source A (Policy)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/AGENTS.md`
+**File**: `AGENTS.md`
 **Line**: 299 (references ADR-006)
 ```markdown
 No logic in workflow YAML files (delegate to PowerShell modules)
 ```
 
 #### Source B (Violation)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/.github/workflows/validate-generated-agents.yml`
+**File**: `.github/workflows/validate-generated-agents.yml`
 **Lines**: 60-77
 ```yaml
 run: |
