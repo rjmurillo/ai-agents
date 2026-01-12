@@ -398,7 +398,7 @@ Explicit PowerShell error handling pattern documented only in scripts/AGENTS.md.
 **Dimension**: K - Implicit Contract Integrity
 
 #### Source A (Name Contract)
-**File**: `/home/richard/src/GitHub/rjmurillo/ai-agents4/.claude/hooks/SessionStart/Invoke-SessionInitializationEnforcer.ps1`
+**File**: `.claude/hooks/SessionStart/Invoke-SessionInitializationEnforcer.ps1`
 **Line**: 51
 ```powershell
 function Test-ProtectedBranch {
