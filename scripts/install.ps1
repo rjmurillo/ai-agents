@@ -82,7 +82,9 @@ if ($IsRemoteExecution) {
     $TempDir = Join-Path $env:TEMP "ai-agents-install-$(Get-Random)"
     New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
-    $BaseUrl = "https://raw.githubusercontent.com/rjmurillo/ai-agents/$Version"
+    # URL-encode version to handle special characters (e.g., SEMVER 2.0 '+' for build metadata)
+    $EncodedVersion = [System.Uri]::EscapeDataString($Version)
+    $BaseUrl = "https://raw.githubusercontent.com/rjmurillo/ai-agents/$EncodedVersion"
 
     Write-Host ""
     Write-Host "AI Agents Installer (Remote)" -ForegroundColor Cyan
@@ -218,7 +220,8 @@ if ($IsRemoteExecution) {
 
     try {
         # Get file list from GitHub API
-        $ApiUrl = "https://api.github.com/repos/rjmurillo/ai-agents/contents/$($Config.SourceDir)?ref=$Version"
+        # URL-encode version to handle special characters in query string
+        $ApiUrl = "https://api.github.com/repos/rjmurillo/ai-agents/contents/$($Config.SourceDir)?ref=$EncodedVersion"
 
         # Use Invoke-RestMethod with appropriate headers
         $Headers = @{
