@@ -181,7 +181,7 @@ Validates session protocol compliance across multiple sessions.
 
 ```powershell
 # Validate specific session
-.\scripts\Validate-SessionJson.ps1 -SessionPath ".agents/sessions/.agents/sessions/2025-12-17-session-01.json"
+.\scripts\Validate-SessionJson.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.json"
 
 # Validate all recent sessions
 .\scripts\Validate-SessionJson.ps1 -All

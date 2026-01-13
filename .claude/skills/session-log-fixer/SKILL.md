@@ -163,7 +163,7 @@ The detailed results tell you **exactly** which MUST requirements failed.
 Validate locally before pushing:
 
 ```powershell
-pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/<session-file>.md" 
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/<session-file>.json" 
 ```
 
 This uses the **same script** as CI, so results match exactly.
