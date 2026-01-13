@@ -308,6 +308,28 @@ Describe "GitHub API Integration (Remote Mode)" {
         It "Filters files by type" {
             $Script:Content | Should -Match 'type\s*-eq\s*"file"'
         }
+
+        It "Escapes dots before converting asterisks to avoid corrupting regex" {
+            # Verify the replacement order: dots first, then asterisks
+            # Wrong order: -replace "\*", ".*" -replace "\.", "\." turns *.agent.md into \.*\.agent\.md
+            # Correct order: -replace "\.", "\." -replace "\*", ".*" turns *.agent.md into .*\.agent\.md
+            $Script:Content | Should -Match '-replace\s+"\\\.".*-replace\s+"\\\*"' -Because "dots must be escaped before asterisks to avoid corrupting .* pattern"
+        }
+
+        It "Generates valid regex that matches agent files" {
+            # Test the actual regex generation logic used in the script
+            $pattern = "*.agent.md"
+            $patternRegex = "^" + ($pattern -replace "\.", "\." -replace "\*", ".*") + "$"
+
+            # Should match typical agent files
+            "analyst.agent.md" -match $patternRegex | Should -Be $true
+            "orchestrator.agent.md" -match $patternRegex | Should -Be $true
+            "high-level-advisor.agent.md" -match $patternRegex | Should -Be $true
+
+            # Should not match non-agent files
+            "README.md" -match $patternRegex | Should -Be $false
+            "AGENTS.md" -match $patternRegex | Should -Be $false
+        }
     }
 }
 
