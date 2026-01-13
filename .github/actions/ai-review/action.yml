@@ -436,6 +436,12 @@ runs:
                 if [ -n "$FILE_LIST" ]; then
                   TOTAL_FILES=$(echo "$FILE_LIST" | grep -v '^$' | wc -l)
                   echo "Retrieved $TOTAL_FILES changed files via API pagination"
+
+                  # Warn if file list was truncated at max pages
+                  if [ $PAGE -gt $MAX_PAGES ]; then
+                    echo "::warning::File list truncated at $((MAX_PAGES * PER_PAGE)) files. PR may have additional changes not shown in review context."
+                  fi
+
                   CONTEXT="[Large PR - >300 files (GitHub diff limit exceeded), showing file list only]"$'\n\n'"Changed files:"$'\n'"$FILE_LIST"
                 else
                   # Fallback 2: Try --name-only as last resort
