@@ -178,4 +178,44 @@ Describe 'Invoke-MemoryCrossReference' {
             $json.Success | Should -Be $true
         }
     }
+
+    Context 'When aggregating statistics' {
+        It 'Should include all statistic fields in JSON output' {
+            # Arrange
+            $secFile1 = Join-Path $script:memoriesPath 'security-001.md'
+            Set-Content -Path $secFile1 -Value '# Security 001'
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -OutputJson
+
+            # Assert
+            $json = $output | ConvertFrom-Json
+            $json.PSObject.Properties.Name | Should -Contain 'IndexLinksAdded'
+            $json.PSObject.Properties.Name | Should -Contain 'BacktickLinksAdded'
+            $json.PSObject.Properties.Name | Should -Contain 'RelatedSectionsAdded'
+            $json.PSObject.Properties.Name | Should -Contain 'FilesModified'
+            $json.PSObject.Properties.Name | Should -Contain 'Errors'
+            $json.PSObject.Properties.Name | Should -Contain 'Success'
+        }
+
+        It 'Should report Success true when Errors array is empty' {
+            # Arrange
+            $secFile1 = Join-Path $script:memoriesPath 'security-001.md'
+            Set-Content -Path $secFile1 -Value @'
+# Security 001
+
+## Related
+
+- [security-002](security-002.md)
+'@
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -OutputJson
+
+            # Assert
+            $json = $output | ConvertFrom-Json
+            $json.Success | Should -Be $true
+            $json.Errors.Count | Should -Be 0
+        }
+    }
 }

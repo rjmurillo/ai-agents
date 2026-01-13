@@ -311,4 +311,20 @@ Describe 'Convert-MemoryReferences' {
             $content | Should -Match '\[target-memory\]\(target-memory\.md\)'
         }
     }
+
+    Context 'When JSON output includes Errors array' {
+        It 'Should include empty Errors array when no errors occur' {
+            # Arrange
+            $sourceFile = Join-Path $script:memoriesPath 'source.md'
+            Set-Content -Path $sourceFile -Value '# No backtick references'
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -OutputJson
+
+            # Assert
+            $json = $output | ConvertFrom-Json
+            $json.PSObject.Properties.Name | Should -Contain 'Errors'
+            $json.Errors | Should -BeNullOrEmpty
+        }
+    }
 }

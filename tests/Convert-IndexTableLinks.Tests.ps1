@@ -441,6 +441,15 @@ Regular text with test-file reference.
             # Act & Assert - The StartsWith with separator should prevent this
             { & $scriptPath -MemoriesPath $siblingPath } | Should -Throw
         }
+
+        It 'Should allow valid path within project when SkipPathValidation is false' {
+            # Arrange - Use project's actual memories path (within git repo)
+            $projectRoot = git rev-parse --show-toplevel
+            $validPath = Join-Path $projectRoot '.serena' 'memories'
+
+            # Act & Assert - Should not throw for valid paths
+            { & $scriptPath -MemoriesPath $validPath -OutputJson } | Should -Not -Throw
+        }
     }
 
     Context 'When producing structured output' {
@@ -458,6 +467,79 @@ Regular text with test-file reference.
             # Assert - Should contain JSON
             $output | Should -Match '"FilesProcessed"'
             $output | Should -Match '"FilesModified"'
+        }
+
+        It 'Should include Errors array in JSON output' {
+            # Arrange
+            $index1 = Join-Path $script:memoriesPath 'test-index.md'
+            Set-Content -Path $index1 -Value '# Test'
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -OutputJson
+
+            # Assert
+            $json = $output | ConvertFrom-Json
+            $json.PSObject.Properties.Name | Should -Contain 'Errors'
+        }
+    }
+
+    Context 'When handling separator rows' {
+        It 'Should skip separator rows with hyphens' {
+            # Arrange - Separator row should NOT be converted even if it looks like a filename
+            $indexFile = Join-Path $script:memoriesPath 'test-index.md'
+            Set-Content -Path $indexFile -Value @'
+| Header | File |
+|--------|------|
+| test | value |
+'@
+
+            $originalContent = Get-Content $indexFile -Raw
+
+            # Act
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
+
+            # Assert - Separator row unchanged
+            $content = Get-Content $indexFile -Raw
+            $content | Should -Match '\|--------\|------\|'
+        }
+
+        It 'Should not convert cells that are only hyphens and spaces' {
+            # Arrange
+            $indexFile = Join-Path $script:memoriesPath 'test-index.md'
+            Set-Content -Path $indexFile -Value @'
+| A | B |
+|---|---|
+|   |   |
+'@
+
+            $originalContent = Get-Content $indexFile -Raw
+
+            # Act
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
+
+            # Assert - Content should be unchanged
+            $content = Get-Content $indexFile -Raw
+            $content | Should -BeExactly $originalContent
+        }
+    }
+
+    Context 'When cell contains non-memory content' {
+        It 'Should not convert cell with non-alphanumeric-hyphen content' {
+            # Arrange
+            $indexFile = Join-Path $script:memoriesPath 'test-index.md'
+            Set-Content -Path $indexFile -Value @'
+| Category | Status |
+|----------|--------|
+| test | DONE |
+'@
+
+            # Act
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
+
+            # Assert - 'DONE' (uppercase) should not be converted
+            $content = Get-Content $indexFile -Raw
+            $content | Should -Match '\| test \| DONE \|'
+            $content | Should -Not -Match '\[DONE\]'
         }
     }
 }
