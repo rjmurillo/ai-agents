@@ -19,7 +19,7 @@ The session-init skill provides verification-based enforcement:
 1. **Reads canonical template** from SESSION-PROTOCOL.md (lines 494-612) using regex extraction
 2. **Populates placeholders** with git state (branch, commit, date, status)
 3. **Writes session log** with EXACT template format
-4. **Validates immediately** with Validate-SessionJson.ps1
+4. **Validates immediately** with Validate-SessionProtocol.ps1
 5. **Exits nonzero** on validation failure
 
 This ensures agents CANNOT create malformed session logs at source.
@@ -37,7 +37,7 @@ This ensures agents CANNOT create malformed session logs at source.
 | MUST | Markdown lint run | [ ] | npx markdownlint-cli2 --fix "**/*.md" |
 | MUST | All changes committed | [ ] | Commit SHA: [commit] |
 | MUST | Serena memory updated | [ ] | Memory write confirmed |
-| MUST | Run session validation | [ ] | pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath [path] |
+| MUST | Run session validation | [ ] | pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath [path] |
 ```
 
 ## INCORRECT - LLM Generated
@@ -95,4 +95,12 @@ Agents MUST use `/session-init` skill. Manual session creation is prohibited due
 - `.claude/commands/session-init.md` - Slash command for deterministic invocation
 - `.serena/memories/session-init-pattern.md` - Verification-based enforcement pattern
 - `.agents/SESSION-PROTOCOL.md` - Canonical template source (lines 494-612)
-- `scripts/Validate-SessionJson.ps1` - Validation script used by CI and skill
+- `scripts/Validate-SessionProtocol.ps1` - Validation script used by CI and skill
+
+## Related
+
+- [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md)
+- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md)
+- [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md)
+- [protocol-blocking-gates](protocol-blocking-gates.md)
+- [protocol-continuation-session-gap](protocol-continuation-session-gap.md)

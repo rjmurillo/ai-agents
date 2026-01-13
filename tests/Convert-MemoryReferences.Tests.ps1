@@ -30,7 +30,7 @@ Describe 'Convert-MemoryReferences' {
             Set-Content -Path $emptyFile -Value '' -NoNewline
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Modified 0 files'
@@ -49,7 +49,7 @@ Describe 'Convert-MemoryReferences' {
             Set-Content -Path $sourceFile -Value 'Reference to `target-memory` here.'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sourceFile -Raw
@@ -63,7 +63,7 @@ Describe 'Convert-MemoryReferences' {
             Set-Content -Path $sourceFile -Value 'Reference to `non-existent-memory` here.'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sourceFile -Raw
@@ -82,7 +82,7 @@ Describe 'Convert-MemoryReferences' {
             $originalContent = Get-Content $sourceFile -Raw
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sourceFile -Raw
@@ -100,7 +100,7 @@ Describe 'Convert-MemoryReferences' {
             Set-Content -Path $sourceFile -Value 'See `memory-one` and `memory-two` for details.'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sourceFile -Raw
@@ -116,7 +116,7 @@ Describe 'Convert-MemoryReferences' {
             $originalContent = Get-Content $sourceFile -Raw
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sourceFile -Raw
@@ -131,7 +131,7 @@ Describe 'Convert-MemoryReferences' {
             $originalContent = Get-Content $sourceFile -Raw
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sourceFile -Raw
@@ -148,7 +148,7 @@ Describe 'Convert-MemoryReferences' {
             Set-Content -Path $file2 -Value '# File 2'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Found 2 memory files'
@@ -167,7 +167,7 @@ Describe 'Convert-MemoryReferences' {
             Set-Content -Path $unchanged -Value 'No references here.'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Modified 2 files'
@@ -181,7 +181,7 @@ Describe 'Convert-MemoryReferences' {
             Set-Content -Path $file -Value '# Simple File'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Modified 0 files'
@@ -198,7 +198,7 @@ Describe 'Convert-MemoryReferences' {
             Set-Content -Path $sourceFile -Value 'See `multi-word-memory-name` for details.'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sourceFile -Raw
@@ -214,7 +214,7 @@ Describe 'Convert-MemoryReferences' {
             Set-Content -Path $sourceFile -Value "Unicode: emoji 🚀 and `target-memory` reference" -Encoding UTF8
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sourceFile -Raw -Encoding UTF8

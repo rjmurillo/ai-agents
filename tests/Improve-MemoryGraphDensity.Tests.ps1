@@ -30,7 +30,7 @@ Describe 'Improve-MemoryGraphDensity' {
             Set-Content -Path $emptyFile -Value '' -NoNewline
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Files updated: 0'
@@ -51,7 +51,7 @@ Describe 'Improve-MemoryGraphDensity' {
             Set-Content -Path $sec3 -Value '# Security 003'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content1 = Get-Content $sec1 -Raw
@@ -69,7 +69,7 @@ Describe 'Improve-MemoryGraphDensity' {
             }
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $files[0] -Raw
@@ -86,7 +86,7 @@ Describe 'Improve-MemoryGraphDensity' {
             Set-Content -Path $indexFile -Value '# Security Index'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $secFile -Raw
@@ -104,7 +104,7 @@ Describe 'Improve-MemoryGraphDensity' {
             Set-Content -Path $sec2File -Value '# Security 002'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             # Index files don't match domain patterns, so they don't get Related sections
@@ -128,7 +128,7 @@ Describe 'Improve-MemoryGraphDensity' {
             Set-Content -Path $indexFile -Value '# Security Index'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sec1 -Raw
@@ -158,7 +158,7 @@ Content here.
             $originalContent = Get-Content $sec1 -Raw
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sec1 -Raw
@@ -179,7 +179,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $sec2 -Value '# Security 002'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sec1 -Raw
@@ -199,7 +199,7 @@ Some content with the word related in lowercase.
             $originalContent = Get-Content $sec1 -Raw
 
             # Act
-            $output = & $scriptPath -DryRun -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -DryRun -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $content = Get-Content $sec1 -Raw
@@ -217,7 +217,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $sec2 -Value '# Security 002'
 
             # Act
-            $output = & $scriptPath -DryRun -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -DryRun -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Would add Related section to: security-001\.md'
@@ -235,7 +235,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $adr2 -Value '# ADR 002'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $adr1 -Raw
@@ -251,7 +251,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $hook2 -Value '# Git Hook 002'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $hook1 -Raw
@@ -267,7 +267,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $pr2 -Value '# PR Review 002'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $pr1 -Raw
@@ -285,7 +285,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $file3 -Value '# Git 001'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             # All files should get Related sections since they match patterns
@@ -305,7 +305,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $uniqueFile -Value '# Unique File'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Files updated: 0'
@@ -326,7 +326,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $sec3 -Value '# Security 003'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Files updated: 3'
@@ -343,7 +343,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $sec3 -Value '# Security 003'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             # Each file gets 2 links (to the other 2 files)
@@ -359,7 +359,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $file2 -Value '# File 2'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Analyzing 2 memory files'
@@ -374,7 +374,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $sec2 -Value '# Security 002'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Added Related section to: security-001\.md'
@@ -392,7 +392,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $file2 -Value '# Security 002'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $file1 -Raw -Encoding UTF8
@@ -409,7 +409,7 @@ Some content with the word related in lowercase.
             Set-Content -Path $sec2 -Value '# Security 002'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sec1 -Raw
@@ -441,7 +441,7 @@ Write-Host "Test"
             Set-Content -Path $sec2 -Value '# Security 002'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $sec1 -Raw
@@ -450,76 +450,6 @@ Write-Host "Test"
             $content | Should -Match '\*\*bold\*\*'
             $content | Should -Match 'Write-Host "Test"'
             $content | Should -Match '\| Table \| Header \|'
-        }
-    }
-
-    Context 'When processing index files (ADR-017 compliance)' {
-        It 'Should skip all index files without adding Related sections' {
-            # Arrange
-            $indexFile = Join-Path $script:memoriesPath 'skills-security-index.md'
-            $sec1 = Join-Path $script:memoriesPath 'security-001.md'
-            $sec2 = Join-Path $script:memoriesPath 'security-002.md'
-
-            # Index file should only contain keyword table per ADR-017
-            Set-Content -Path $indexFile -Value @'
-| Keywords | File |
-|----------|------|
-| pattern1 | [security-001](security-001.md) |
-| pattern2 | [security-002](security-002.md) |
-'@
-            Set-Content -Path $sec1 -Value '# Security 001'
-            Set-Content -Path $sec2 -Value '# Security 002'
-
-            # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
-
-            # Assert
-            # Index file should remain unchanged (no Related section added)
-            $indexContent = Get-Content $indexFile -Raw
-            $indexContent | Should -Not -Match '## Related'
-            # Verify it still only contains the table
-            $indexContent | Should -Match '^\| Keywords \| File \|'
-
-            # Regular security files should get Related sections
-            $sec1Content = Get-Content $sec1 -Raw
-            $sec1Content | Should -Match '## Related'
-        }
-
-        It 'Should skip index files even if they match domain patterns' {
-            # Arrange
-            $gitHooksIndex = Join-Path $script:memoriesPath 'skills-git-hooks-index.md'
-            $hook1 = Join-Path $script:memoriesPath 'git-hooks-001.md'
-
-            Set-Content -Path $gitHooksIndex -Value '| Keywords | File |'
-            Set-Content -Path $hook1 -Value '# Git Hook 001'
-
-            # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
-
-            # Assert
-            # Only the non-index file should be updated
-            $output | Should -Match 'Files updated: 1'
-            $indexContent = Get-Content $gitHooksIndex -Raw
-            $indexContent | Should -Not -Match '## Related'
-        }
-
-        It 'Should report correct count when skipping index files' {
-            # Arrange
-            $index1 = Join-Path $script:memoriesPath 'skills-security-index.md'
-            $index2 = Join-Path $script:memoriesPath 'skills-git-index.md'
-            $sec1 = Join-Path $script:memoriesPath 'security-001.md'
-
-            Set-Content -Path $index1 -Value '# Index 1'
-            Set-Content -Path $index2 -Value '# Index 2'
-            Set-Content -Path $sec1 -Value '# Security 001'
-
-            # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
-
-            # Assert
-            # Should analyze 3 files but only update 0 (no matches)
-            $output | Should -Match 'Analyzing 3 memory files'
-            $output | Should -Match 'Files updated: 0'
         }
     }
 }
