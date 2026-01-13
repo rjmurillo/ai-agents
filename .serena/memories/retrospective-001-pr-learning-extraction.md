@@ -88,3 +88,11 @@ helpful
 ## Activation Vocabulary
 
 PR, retrospective, learning, extract, pattern, evidence, commit, before, after, token, impact, metric
+
+## Related
+
+- [retrospective-001-recursive-extraction](retrospective-001-recursive-extraction.md)
+- [retrospective-002-retrospective-to-skill-pipeline](retrospective-002-retrospective-to-skill-pipeline.md)
+- [retrospective-003-token-impact-documentation](retrospective-003-token-impact-documentation.md)
+- [retrospective-004-evidence-based-validation](retrospective-004-evidence-based-validation.md)
+- [retrospective-005-atomic-skill-decomposition](retrospective-005-atomic-skill-decomposition.md)

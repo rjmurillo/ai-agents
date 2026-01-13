@@ -57,3 +57,11 @@ When configuring workflows:
 2. Select model based on prompt type per ADR-021 routing matrix
 3. Consider cost multipliers when choosing between equivalent-capability models
 4. Bot user has limited model access - use human token for advanced models
+
+## Related
+
+- [copilot-directive-relocation](copilot-directive-relocation.md)
+- [copilot-follow-up-pr](copilot-follow-up-pr.md)
+- [copilot-platform-priority](copilot-platform-priority.md)
+- [copilot-pr-review](copilot-pr-review.md)
+- [copilot-supported-models](copilot-supported-models.md)

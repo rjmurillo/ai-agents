@@ -75,3 +75,11 @@ Benchmark `gh pr view --json` vs Get-PRContext.ps1 to validate expected 50-70% i
 - Skill-Perf-001 in skills-powershell memory (-NoProfile optimization)
 - Issue #283 (batching approach)
 - PR #285 (-NoProfile implementation)
+
+## Related
+
+- [claude-code-hooks-opportunity-analysis](claude-code-hooks-opportunity-analysis.md)
+- [claude-code-skill-frontmatter-standards](claude-code-skill-frontmatter-standards.md)
+- [claude-code-skills-official-guidance](claude-code-skills-official-guidance.md)
+- [claude-code-slash-commands](claude-code-slash-commands.md)
+- [claude-flow-research-2025-12-20](claude-flow-research-2025-12-20.md)

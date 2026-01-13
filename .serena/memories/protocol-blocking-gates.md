@@ -66,3 +66,11 @@ BLOCKING gate pattern successfully reused for adr-review skill enforcement:
 4. Fallback handling defined
 
 **Counter-Example:** Aspirational skill documentation without enforcement fails because no detection/blocking mechanism exists.
+
+## Related
+
+- [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md)
+- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md)
+- [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md)
+- [protocol-continuation-session-gap](protocol-continuation-session-gap.md)
+- [protocol-legacy-sessions](protocol-legacy-sessions.md)

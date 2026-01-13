@@ -67,5 +67,13 @@ Derivative PRs are created by mention-triggered bots (e.g., copilot-swe-agent) t
 
 - **Full Protocol**: `.agents/architecture/bot-author-feedback-protocol.md`
 - `pr-comment-responder` skill agent
-- `pr-review-acknowledgment` for eyes reaction protocol
-- `copilot-follow-up-pr` for copilot derivative behavior
+- [pr-review-acknowledgment](pr-review-acknowledgment.md) for eyes reaction protocol
+- [copilot-follow-up-pr](copilot-follow-up-pr.md) for copilot derivative behavior
+
+## Related
+
+- [pr-156-review-findings](pr-156-review-findings.md)
+- [pr-320c2b3-refactoring-analysis](pr-320c2b3-refactoring-analysis.md)
+- [pr-52-retrospective-learnings](pr-52-retrospective-learnings.md)
+- [pr-52-symlink-retrospective](pr-52-symlink-retrospective.md)
+- [pr-753-remediation-learnings](pr-753-remediation-learnings.md)

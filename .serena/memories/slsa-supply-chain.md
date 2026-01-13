@@ -40,6 +40,6 @@ Four compliance tiers of increasing assurance:
 
 ## Related
 
-- `security-validation-chain`: Validation patterns
-- `ci-infrastructure-quality-gates`: Build security
-- `foundational-knowledge-index`: Master index
+- [security-validation-chain](security-validation-chain.md): Validation patterns
+- [ci-infrastructure-quality-gates](ci-infrastructure-quality-gates.md): Build security
+- [foundational-knowledge-index](foundational-knowledge-index.md): Master index

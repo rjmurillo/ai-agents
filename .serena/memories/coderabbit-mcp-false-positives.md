@@ -23,3 +23,11 @@ MCP tool paths (`github/*`, `cloudmcp-manager/*`) are case-sensitive. Don't sugg
 | MCP path capitalization | Dismiss |
 | `[List of ...]` flagged | Dismiss |
 | Repeated MCP segments | Dismiss |
+
+## Related
+
+- [coderabbit-config-strategy](coderabbit-config-strategy.md)
+- [coderabbit-documentation-false-positives](coderabbit-documentation-false-positives.md)
+- [coderabbit-markdownlint](coderabbit-markdownlint.md)
+- [coderabbit-path-instructions](coderabbit-path-instructions.md)
+- [coderabbit-security-false-positives](coderabbit-security-false-positives.md)

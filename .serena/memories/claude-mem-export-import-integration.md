@@ -212,3 +212,11 @@ Files removed:
 - `scripts/export-memories.ts` (TypeScript wrapper)
 - `scripts/import-memories.ts` (TypeScript wrapper)
 - `scripts/Import-ClaudeMemMemories.ps1` (moved to `.claude-mem/scripts/`)
+
+## Related
+
+- [claude-code-hooks-opportunity-analysis](claude-code-hooks-opportunity-analysis.md)
+- [claude-code-skill-frontmatter-standards](claude-code-skill-frontmatter-standards.md)
+- [claude-code-skills-official-guidance](claude-code-skills-official-guidance.md)
+- [claude-code-slash-commands](claude-code-slash-commands.md)
+- [claude-flow-research-2025-12-20](claude-flow-research-2025-12-20.md)

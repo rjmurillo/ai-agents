@@ -60,6 +60,6 @@ $reviewerName = Get-PrimaryReviewerName -PR $pr
 
 ## Related
 
-- `foundational-knowledge-index`: Overview
-- `coupling-types-intentional-coupling`: Coupling decisions
+- [foundational-knowledge-index](foundational-knowledge-index.md): Overview
+- [coupling-types-intentional-coupling](coupling-types-intentional-coupling.md): Coupling decisions
 - `.agents/analysis/foundational-engineering-knowledge.md`: Full context

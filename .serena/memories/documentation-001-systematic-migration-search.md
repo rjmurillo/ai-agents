@@ -20,3 +20,11 @@ grep -r "mcp__cloudmcp-manager__" --include="*.md"
 ```
 
 **Anti-Pattern**: Starting migration without comprehensive search.
+
+## Related
+
+- [documentation-002-reference-type-taxonomy](documentation-002-reference-type-taxonomy.md)
+- [documentation-003-fallback-preservation](documentation-003-fallback-preservation.md)
+- [documentation-004-pattern-consistency](documentation-004-pattern-consistency.md)
+- [documentation-006-self-contained-operational-prompts](documentation-006-self-contained-operational-prompts.md)
+- [documentation-007-self-contained-artifacts](documentation-007-self-contained-artifacts.md)

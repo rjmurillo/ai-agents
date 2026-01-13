@@ -37,5 +37,5 @@ RETURNING result;
 
 ## Related
 
-- `resilience-patterns` - Retries need idempotency
-- `cap-theorem` - Distributed systems context
+- [resilience-patterns](resilience-patterns.md) - Retries need idempotency
+- [cap-theorem](cap-theorem.md) - Distributed systems context

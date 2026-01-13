@@ -35,3 +35,11 @@ Analyst: Performance targets unvalidated. M-008 benchmark required before Phase 
 
 - ADR: `.agents/architecture/ADR-037-memory-router-architecture.md`
 - Debate Log: `.agents/critique/ADR-037-debate-log.md`
+
+## Related
+
+- [adr-007-augmentation-research](adr-007-augmentation-research.md)
+- [adr-014-findings](adr-014-findings.md)
+- [adr-014-review-findings](adr-014-review-findings.md)
+- [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
+- [adr-021-quantitative-analysis](adr-021-quantitative-analysis.md)

@@ -111,3 +111,11 @@ Watch for:
 - Missing branch creation step
 - Agent initialization on main
 - Session start without branch check
+
+## Related
+
+- [git-hooks-002-branch-recovery-procedure](git-hooks-002-branch-recovery-procedure.md)
+- [git-hooks-004-branch-name-validation](git-hooks-004-branch-name-validation.md)
+- [git-hooks-autofix](git-hooks-autofix.md)
+- [git-hooks-categories](git-hooks-categories.md)
+- [git-hooks-cross-language](git-hooks-cross-language.md)

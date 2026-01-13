@@ -83,7 +83,15 @@ This refactoring demonstrates:
 
 ## Related Memories
 
-- `pattern-thin-workflows`: Workflow design pattern applied here
+- [pattern-thin-workflows](pattern-thin-workflows.md): Workflow design pattern applied here
 - `skill-implementation-006-graphql-first`: GraphQL usage validated
-- `architecture-producer-consumer`: Workflow coordination pattern
-- `security-infrastructure-review`: ADR-015 compliance
+- [architecture-producer-consumer](architecture-producer-consumer.md): Workflow coordination pattern
+- [security-infrastructure-review](security-infrastructure-review.md): ADR-015 compliance
+
+## Related
+
+- [pr-156-review-findings](pr-156-review-findings.md)
+- [pr-52-retrospective-learnings](pr-52-retrospective-learnings.md)
+- [pr-52-symlink-retrospective](pr-52-symlink-retrospective.md)
+- [pr-753-remediation-learnings](pr-753-remediation-learnings.md)
+- [pr-811-review-session-2026-01-06](pr-811-review-session-2026-01-06.md)

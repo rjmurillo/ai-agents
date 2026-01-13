@@ -172,3 +172,11 @@ Modify validator to check:
 - Validator: `scripts/Validate-SessionEnd.ps1` (lines 245-257)
 - Hook: `.githooks/pre-commit` (lines 516-534)
 - Protocol: `.agents/SESSION-PROTOCOL.md` v1.4
+
+## Related
+
+- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md)
+- [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md)
+- [protocol-blocking-gates](protocol-blocking-gates.md)
+- [protocol-continuation-session-gap](protocol-continuation-session-gap.md)
+- [protocol-legacy-sessions](protocol-legacy-sessions.md)

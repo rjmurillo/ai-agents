@@ -44,5 +44,5 @@
 
 ## Related
 
-- `bounded-contexts` - Context boundaries
-- `architecture-producer-consumer` - Event patterns
+- [bounded-contexts](bounded-contexts.md) - Context boundaries
+- [architecture-producer-consumer](architecture-producer-consumer.md) - Event patterns

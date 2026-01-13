@@ -76,10 +76,10 @@ For GitHub Actions Job Summary parsing:
 4. Return JSON for programmatic consumption
 
 ## Related Memories
-- `skills-session-init-index`: Session initialization workflow
-- `creator-001-frontmatter-trigger-specification`: Frontmatter standards
-- `testing-002-test-first-development`: Testing philosophy
-- `implementation-001-memory-first-pattern`: Script before inline code
+- [skills-session-init-index](skills-session-init-index.md): Session initialization workflow
+- [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md): Frontmatter standards
+- [testing-002-test-first-development](testing-002-test-first-development.md): Testing philosophy
+- [implementation-001-memory-first-pattern](implementation-001-memory-first-pattern.md): Script before inline code
 
 ## Verification Evidence
 - SkillForge evaluation: 3 priority levels identified, all addressed
@@ -89,3 +89,11 @@ For GitHub Actions Job Summary parsing:
 
 ## Next Steps
 This pattern can be applied to other skill directories for systematic quality improvement.
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)

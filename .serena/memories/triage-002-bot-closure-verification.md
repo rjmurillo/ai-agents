@@ -53,3 +53,7 @@ If bot closure was incorrect:
 - PRs #202, #203 (incorrectly closed)
 - Recovery PR #493
 - 268+ lines of implementation recovered
+
+## Related
+
+- [triage-001-verify-before-stale-closure](triage-001-verify-before-stale-closure.md)

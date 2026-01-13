@@ -149,3 +149,11 @@ $result | ForEach-Object { $_.GetType().FullName }
 - api-mocks
 - schema-validation
 - type-safety
+
+## Related
+
+- [testing-002-test-first-development](testing-002-test-first-development.md)
+- [testing-003-script-execution-isolation](testing-003-script-execution-isolation.md)
+- [testing-004-coverage-pragmatism](testing-004-coverage-pragmatism.md)
+- [testing-008-entry-point-isolation](testing-008-entry-point-isolation.md)
+- [testing-coverage-philosophy-integration](testing-coverage-philosophy-integration.md)

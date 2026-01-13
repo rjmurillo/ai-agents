@@ -91,3 +91,11 @@ If you find yourself using `Write-Output -NoEnumerate`, ask "Why?"
 - **Skill-PowerShell-004**: Use simple return for arrays; avoid Write-Output -NoEnumerate with @() wrapper
 - **Atomicity**: 95%
 - **Evidence**: PR #402 commit 526f551, runtime failure on 15 PRs
+
+## Related
+
+- [powershell-array-contains](powershell-array-contains.md)
+- [powershell-cross-platform-ci](powershell-cross-platform-ci.md)
+- [powershell-like-pattern-matching](powershell-like-pattern-matching.md)
+- [powershell-security-ai-output](powershell-security-ai-output.md)
+- [powershell-string-safety](powershell-string-safety.md)

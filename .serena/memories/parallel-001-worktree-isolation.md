@@ -65,3 +65,7 @@ Session 04 (2025-12-24): Created 4 worktrees at wrong location, all had detached
 - #worktree
 - #git
 - #agent-coordination
+
+## Related
+
+- [parallel-002-rate-limit-precheck](parallel-002-rate-limit-precheck.md)

@@ -34,3 +34,11 @@ fi
 - `SKIP_AUTOFIX=1` disables auto-fix for CI "check only" mode
 - `git add` is idempotent - safe to call on already-staged files
 - Use unconditional `git add` to avoid untracked file detection issues
+
+## Related
+
+- [git-hooks-001-pre-commit-branch-validation](git-hooks-001-pre-commit-branch-validation.md)
+- [git-hooks-002-branch-recovery-procedure](git-hooks-002-branch-recovery-procedure.md)
+- [git-hooks-004-branch-name-validation](git-hooks-004-branch-name-validation.md)
+- [git-hooks-categories](git-hooks-categories.md)
+- [git-hooks-cross-language](git-hooks-cross-language.md)

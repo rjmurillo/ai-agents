@@ -11,3 +11,11 @@
 | **Instructive** | Instructions telling agents what to do | UPDATE | "MUST read .serena/memories/..." |
 | **Informational** | Descriptive text about locations | SKIP | "Memories found in `.serena/memories/`" |
 | **Operational** | Commands requiring file paths | SKIP | "git add .serena/memories/" |
+
+## Related
+
+- [documentation-001-systematic-migration-search](documentation-001-systematic-migration-search.md)
+- [documentation-003-fallback-preservation](documentation-003-fallback-preservation.md)
+- [documentation-004-pattern-consistency](documentation-004-pattern-consistency.md)
+- [documentation-006-self-contained-operational-prompts](documentation-006-self-contained-operational-prompts.md)
+- [documentation-007-self-contained-artifacts](documentation-007-self-contained-artifacts.md)

@@ -38,6 +38,14 @@
 
 ## Related
 
-- `owasp-agentic-security-integration` - AI agent security
-- `security-002-input-validation-first` - Validation patterns
-- `cwe-699-security-agent-integration` - Vulnerability detection
+- [owasp-agentic-security-integration](owasp-agentic-security-integration.md) - AI agent security
+- [security-002-input-validation-first](security-002-input-validation-first.md) - Validation patterns
+- [cwe-699-security-agent-integration](cwe-699-security-agent-integration.md) - Vulnerability detection
+
+## Related
+
+- [security-002-input-validation-first](security-002-input-validation-first.md)
+- [security-003-secure-error-handling](security-003-secure-error-handling.md)
+- [security-004-security-event-logging](security-004-security-event-logging.md)
+- [security-007-defense-in-depth-for-cross-process-security-checks](security-007-defense-in-depth-for-cross-process-security-checks.md)
+- [security-008-first-run-gap-analysis](security-008-first-run-gap-analysis.md)

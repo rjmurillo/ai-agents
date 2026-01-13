@@ -90,3 +90,11 @@ helpful
 ## Activation Vocabulary
 
 retrospective, skill, pipeline, learning, transformation, statement, context, pattern, evidence, atomicity, index, memory, Serena
+
+## Related
+
+- [retrospective-001-pr-learning-extraction](retrospective-001-pr-learning-extraction.md)
+- [retrospective-001-recursive-extraction](retrospective-001-recursive-extraction.md)
+- [retrospective-003-token-impact-documentation](retrospective-003-token-impact-documentation.md)
+- [retrospective-004-evidence-based-validation](retrospective-004-evidence-based-validation.md)
+- [retrospective-005-atomic-skill-decomposition](retrospective-005-atomic-skill-decomposition.md)

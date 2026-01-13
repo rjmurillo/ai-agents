@@ -36,5 +36,5 @@ When designing architecture, consider:
 
 ## Related
 
-- `conways-law` - Teams mirror architecture
-- `paved-roads-innovation` - Platform team patterns
+- [conways-law](conways-law.md) - Teams mirror architecture
+- [paved-roads-innovation](paved-roads-innovation.md) - Platform team patterns

@@ -43,6 +43,14 @@ Problem: No automated check, wrong-branch commits occurred
 
 ## Related Skills
 
-- `protocol-013-verification-based-enforcement`: Implementation pattern
-- `protocol-blocking-gates`: Gate design
-- `git-004-branch-verification-before-commit`: Application example
+- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md): Implementation pattern
+- [protocol-blocking-gates](protocol-blocking-gates.md): Gate design
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md): Application example
+
+## Related
+
+- [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md)
+- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md)
+- [protocol-blocking-gates](protocol-blocking-gates.md)
+- [protocol-continuation-session-gap](protocol-continuation-session-gap.md)
+- [protocol-legacy-sessions](protocol-legacy-sessions.md)

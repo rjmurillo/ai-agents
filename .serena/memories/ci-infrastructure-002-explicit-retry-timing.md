@@ -51,6 +51,10 @@ Issue #163 requested "job-level retry for matrix jobs" but investigation reveale
 
 ## Related
 
-- `issue-338-retry-implementation`: Original retry implementation
-- `ci-infrastructure-001-fail-fast-infrastructure-failures`: Failure categorization
-- `ci-infrastructure-quality-gates`: Overall quality gate design
+- [issue-338-retry-implementation](issue-338-retry-implementation.md): Original retry implementation
+- [ci-infrastructure-001-fail-fast-infrastructure-failures](ci-infrastructure-001-fail-fast-infrastructure-failures.md): Failure categorization
+- [ci-infrastructure-quality-gates](ci-infrastructure-quality-gates.md): Overall quality gate design
+- [ci-infrastructure-003-job-status-verdict-distinction](ci-infrastructure-003-job-status-verdict-distinction.md)
+- [ci-infrastructure-004-error-message-investigation](ci-infrastructure-004-error-message-investigation.md)
+- [ci-infrastructure-ai-integration](ci-infrastructure-ai-integration.md)
+- [ci-infrastructure-claude-code-action-installer-race-condition](ci-infrastructure-claude-code-action-installer-race-condition.md)

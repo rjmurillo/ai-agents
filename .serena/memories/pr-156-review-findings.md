@@ -54,3 +54,11 @@ Documentation-only PR with **7 critical syntax errors** (DRY violation) and **1 
 **Rationale**: High-value retrospective (9 skills, 3 process improvements) with trivial-to-fix syntax errors. Analyst CRITICAL_FAIL is infrastructure failure (ironic given the PR documents this pattern).
 
 **Effort to fix**: 17 minutes (5 min fix + 10 min replies + 2 min resolve)
+
+## Related
+
+- [pr-320c2b3-refactoring-analysis](pr-320c2b3-refactoring-analysis.md)
+- [pr-52-retrospective-learnings](pr-52-retrospective-learnings.md)
+- [pr-52-symlink-retrospective](pr-52-symlink-retrospective.md)
+- [pr-753-remediation-learnings](pr-753-remediation-learnings.md)
+- [pr-811-review-session-2026-01-06](pr-811-review-session-2026-01-06.md)

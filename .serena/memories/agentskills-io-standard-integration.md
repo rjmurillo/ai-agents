@@ -60,4 +60,4 @@ The ai-agents project was an early adopter of the skill format. When creating or
 - Analysis: `.agents/analysis/agentskills-io-standard-2026-01.md`
 - Specification: https://agentskills.io/specification
 - Example Skills: https://github.com/anthropics/skills
-- Frontmatter Standards: `claude-code-skill-frontmatter-standards` memory
+- Frontmatter Standards: [claude-code-skill-frontmatter-standards](claude-code-skill-frontmatter-standards.md) memory

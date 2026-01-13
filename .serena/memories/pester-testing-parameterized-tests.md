@@ -43,3 +43,11 @@ Describe "Config" {
 - Use `<ParamName>` in test name for dynamic naming
 - Each hashtable is one test case
 - Variables accessible directly (`$Env` not `$_.Env`)
+
+## Related
+
+- [pester-test-isolation-pattern](pester-test-isolation-pattern.md)
+- [pester-testing-cross-platform](pester-testing-cross-platform.md)
+- [pester-testing-discovery-phase](pester-testing-discovery-phase.md)
+- [pester-testing-test-first](pester-testing-test-first.md)
+- [pester-testing-test-isolation](pester-testing-test-isolation.md)

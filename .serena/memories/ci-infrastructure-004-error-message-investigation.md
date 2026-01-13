@@ -36,3 +36,11 @@ When investigating CI failures:
 ```
 
 **Why harmful**: Error handlers often show generic messages. The actual tool output reveals root cause.
+
+## Related
+
+- [ci-infrastructure-001-fail-fast-infrastructure-failures](ci-infrastructure-001-fail-fast-infrastructure-failures.md)
+- [ci-infrastructure-002-explicit-retry-timing](ci-infrastructure-002-explicit-retry-timing.md)
+- [ci-infrastructure-003-job-status-verdict-distinction](ci-infrastructure-003-job-status-verdict-distinction.md)
+- [ci-infrastructure-ai-integration](ci-infrastructure-ai-integration.md)
+- [ci-infrastructure-claude-code-action-installer-race-condition](ci-infrastructure-claude-code-action-installer-race-condition.md)

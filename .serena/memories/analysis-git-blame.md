@@ -42,3 +42,11 @@ gh pr view 212 --json body --jq '.body'
 ## Anti-Pattern
 
 Fixing bugs without understanding original context - may revert security fixes or reintroduce previous bugs.
+
+## Related
+
+- [analysis-001-comprehensive-analysis-standard](analysis-001-comprehensive-analysis-standard.md)
+- [analysis-002-rca-before-implementation](analysis-002-rca-before-implementation.md)
+- [analysis-003-related-issue-discovery](analysis-003-related-issue-discovery.md)
+- [analysis-004-verify-codebase-state](analysis-004-verify-codebase-state.md)
+- [analysis-comprehensive-standard](analysis-comprehensive-standard.md)

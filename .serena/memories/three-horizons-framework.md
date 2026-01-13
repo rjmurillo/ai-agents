@@ -36,6 +36,6 @@ Allocating 100% to H1 guarantees future irrelevance. Allocating too much to H3 s
 
 ## Related
 
-- `wardley-mapping`: Strategic capability evolution
+- [wardley-mapping](wardley-mapping.md): Strategic capability evolution
 - `core-context-mapping`: Build core, buy context
 - `run-vs-change-business`: Separate ops from innovation

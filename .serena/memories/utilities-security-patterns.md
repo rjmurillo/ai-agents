@@ -29,3 +29,11 @@ pwsh .agents/utilities/security-detection/scan.ps1 -Path ./src
 - Pre-commit hook for local detection
 - PR gate for automated review
 - CI pipeline for comprehensive scan
+
+## Related
+
+- [utilities-cva-refactoring](utilities-cva-refactoring.md)
+- [utilities-markdown-fences](utilities-markdown-fences.md)
+- [utilities-pathinfo-conversion](utilities-pathinfo-conversion.md)
+- [utilities-precommit-hook](utilities-precommit-hook.md)
+- [utilities-regex](utilities-regex.md)

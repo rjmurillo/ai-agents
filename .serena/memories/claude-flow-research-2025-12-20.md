@@ -72,3 +72,11 @@
 3. Hooks can enforce existing session protocol automatically
 4. Metrics collection enables data-driven optimization
 5. Auto-consolidation reduces manual skill management overhead
+
+## Related
+
+- [claude-code-hooks-opportunity-analysis](claude-code-hooks-opportunity-analysis.md)
+- [claude-code-skill-frontmatter-standards](claude-code-skill-frontmatter-standards.md)
+- [claude-code-skills-official-guidance](claude-code-skills-official-guidance.md)
+- [claude-code-slash-commands](claude-code-slash-commands.md)
+- [claude-md-anthropic-best-practices](claude-md-anthropic-best-practices.md)

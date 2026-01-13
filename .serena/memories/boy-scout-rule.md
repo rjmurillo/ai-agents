@@ -58,6 +58,6 @@ Clean code is a journey, not a destination. Each session leaves things slightly 
 
 ## Related
 
-- `foundational-knowledge-index`: Overview
+- [foundational-knowledge-index](foundational-knowledge-index.md): Overview
 - Refactoring practices
 - `.agents/analysis/foundational-engineering-knowledge.md`: Full context

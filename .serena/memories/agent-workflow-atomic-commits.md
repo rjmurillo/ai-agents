@@ -36,3 +36,11 @@ git commit -m "fix: lint vs-code agent docs"
 Monolithic commits containing all changes across multiple directories.
 
 **Prevention**: Commit atomically by logical unit.
+
+## Related
+
+- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
+- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
+- [agent-workflow-collaboration](agent-workflow-collaboration.md)
+- [agent-workflow-critic-gate](agent-workflow-critic-gate.md)
+- [agent-workflow-mvp-shipping](agent-workflow-mvp-shipping.md)

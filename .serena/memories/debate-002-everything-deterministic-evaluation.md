@@ -154,9 +154,9 @@ BLOCKING: Do NOT proceed to ANALYZE until VERIFY confirms accuracy
 | Context size | 424KB | `du -sh src/claude/` |
 | Orchestrator size | 63KB | `ls -lh src/claude/orchestrator.md` |
 | Next largest agent | 50KB (pr-comment-responder) | `ls -lh src/claude/` |
-| Protocol violation rate | 60% CRITICAL_FAIL | Memory: `autonomous-execution-guardrails-lessons` |
-| Skill bypass frequency | 3+ per session | Memory: `session-init-skill-validation` |
-| Scope explosion factor | 17x line count | Memory: `orchestration-copilot-swe-anti-patterns` |
+| Protocol violation rate | 60% CRITICAL_FAIL | Memory: [autonomous-execution-guardrails-lessons](autonomous-execution-guardrails-lessons.md) |
+| Skill bypass frequency | 3+ per session | Memory: [session-init-skill-validation](session-init-skill-validation.md) |
+| Scope explosion factor | 17x line count | Memory: [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md) |
 | Security miss count | 1 HIGH (CWE-20/78) | Retrospective 2025-12-27 |
 
 ### Architecture Metrics
@@ -179,10 +179,10 @@ BLOCKING: Do NOT proceed to ANALYZE until VERIFY confirms accuracy
 
 ## Skills Referenced
 
-- `architecture-tool-allocation` - Role-specific tool allocation pattern
-- `autonomous-execution-guardrails-lessons` - Protocol violation patterns
-- `session-init-skill-validation` - Skill bypass detection
-- `orchestration-copilot-swe-anti-patterns` - Scope explosion patterns
+- [architecture-tool-allocation](architecture-tool-allocation.md) - Role-specific tool allocation pattern
+- [autonomous-execution-guardrails-lessons](autonomous-execution-guardrails-lessons.md) - Protocol violation patterns
+- [session-init-skill-validation](session-init-skill-validation.md) - Skill bypass detection
+- [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md) - Scope explosion patterns
 
 ## Next Steps
 

@@ -38,5 +38,5 @@ Structurizr, PlantUML, Mermaid diagrams
 
 ## Related
 
-- `design-diagrams` - Visual documentation
-- `architecture-adr-compliance-documentation` - Decision records
+- [design-diagrams](design-diagrams.md) - Visual documentation
+- [architecture-adr-compliance-documentation](architecture-adr-compliance-documentation.md) - Decision records

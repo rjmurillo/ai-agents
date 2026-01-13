@@ -58,3 +58,11 @@ GitHub supports 9 keywords for auto-closing issues when PRs merge:
 - Analysis: `.agents/analysis/github-keywords-pr-etiquette.md`
 - PR Template: `.github/PULL_REQUEST_TEMPLATE.md`
 - GitHub Docs: https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/using-keywords-in-issues-and-pull-requests
+
+## Related
+
+- [github-actions-local-testing-integration](github-actions-local-testing-integration.md)
+- [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
+- [github-cli-anti-patterns](github-cli-anti-patterns.md)
+- [github-cli-api-patterns](github-cli-api-patterns.md)
+- [github-cli-extensions](github-cli-extensions.md)

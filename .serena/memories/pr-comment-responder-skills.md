@@ -438,3 +438,11 @@ If you disagree, please let me know and I'll reconsider.
 1. Monitor for Copilot follow-up PR (common pattern after Won't Fix)
 2. Update signal quality if any bot shows false positive
 3. Add new reviewers to performance table as they appear
+
+## Related
+
+- [pr-comment-001-reviewer-signal-quality](pr-comment-001-reviewer-signal-quality.md)
+- [pr-comment-002-security-domain-priority](pr-comment-002-security-domain-priority.md)
+- [pr-comment-003-path-containment-layers](pr-comment-003-path-containment-layers.md)
+- [pr-comment-004-bot-response-templates](pr-comment-004-bot-response-templates.md)
+- [pr-comment-005-branch-state-verification](pr-comment-005-branch-state-verification.md)

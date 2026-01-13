@@ -32,3 +32,11 @@ git add -- "$FILE"                    # Action without re-validation
 ```
 
 **Source**: `.agents/retrospective/pr-52-symlink-retrospective.md`
+
+## Related
+
+- [security-002-input-validation-first](security-002-input-validation-first.md)
+- [security-003-secure-error-handling](security-003-secure-error-handling.md)
+- [security-004-security-event-logging](security-004-security-event-logging.md)
+- [security-008-first-run-gap-analysis](security-008-first-run-gap-analysis.md)
+- [security-009-domain-adjusted-signal-quality](security-009-domain-adjusted-signal-quality.md)

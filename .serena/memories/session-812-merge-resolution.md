@@ -36,3 +36,11 @@ Successfully applied auto-resolvable pattern for `.serena/memories/*` files:
 - Memory: merge-resolver-auto-resolvable-patterns
 - Memory: usage-mandatory
 - Session: 2026-01-10-session-812.md
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)

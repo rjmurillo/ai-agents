@@ -47,6 +47,14 @@
 
 ## Related Skills
 
-- `session-init-003-branch-declaration`: Explicit branch tracking
-- `git-004-branch-verification-before-commit`: Per-commit protection
-- `git-worktree-parallel`: Isolation for multiple branches
+- [session-init-003-branch-declaration](session-init-003-branch-declaration.md): Explicit branch tracking
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md): Per-commit protection
+- [git-worktree-parallel](git-worktree-parallel.md): Isolation for multiple branches
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)

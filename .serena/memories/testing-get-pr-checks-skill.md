@@ -105,3 +105,11 @@ This provides unit-level isolation for helper functions (Get-ChecksFromResponse,
 - Error exit codes (integration test territory)
 - Polling logic (complex timing test)
 - Pagination edge case (rare scenario)
+
+## Related
+
+- [testing-002-test-first-development](testing-002-test-first-development.md)
+- [testing-003-script-execution-isolation](testing-003-script-execution-isolation.md)
+- [testing-004-coverage-pragmatism](testing-004-coverage-pragmatism.md)
+- [testing-007-contract-testing](testing-007-contract-testing.md)
+- [testing-008-entry-point-isolation](testing-008-entry-point-isolation.md)

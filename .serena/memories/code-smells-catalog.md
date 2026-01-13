@@ -32,5 +32,5 @@ Use as refactoring triggers during code review and maintenance.
 
 ## Related
 
-- `refactoring-001-delete-over-extract` - Refactoring approach
-- `law-of-demeter` - Coupling concerns
+- [refactoring-001-delete-over-extract](refactoring-001-delete-over-extract.md) - Refactoring approach
+- [law-of-demeter](law-of-demeter.md) - Coupling concerns

@@ -129,3 +129,11 @@ git commit -m "feat(tools): add Check-SkillExists.ps1 for skill validation"
 - All operations, parameters, validations tested
 - Test file committed alongside implementation file
 - No bugs discovered in committed code
+
+## Related
+
+- [testing-003-script-execution-isolation](testing-003-script-execution-isolation.md)
+- [testing-004-coverage-pragmatism](testing-004-coverage-pragmatism.md)
+- [testing-007-contract-testing](testing-007-contract-testing.md)
+- [testing-008-entry-point-isolation](testing-008-entry-point-isolation.md)
+- [testing-coverage-philosophy-integration](testing-coverage-philosophy-integration.md)

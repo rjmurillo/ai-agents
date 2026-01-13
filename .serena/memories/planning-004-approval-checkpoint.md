@@ -11,3 +11,11 @@
 **Atomicity**: 100% | **Impact**: Critical
 
 **Note**: Approval prevents wasted effort on wrong architecture, but does NOT guarantee bug-free implementation.
+
+## Related
+
+- [planning-003-parallel-exploration-pattern](planning-003-parallel-exploration-pattern.md)
+- [planning-checkbox-manifest](planning-checkbox-manifest.md)
+- [planning-multi-platform](planning-multi-platform.md)
+- [planning-priority-consistency](planning-priority-consistency.md)
+- [planning-task-descriptions](planning-task-descriptions.md)

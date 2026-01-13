@@ -57,3 +57,11 @@ gh grep "version" --repo owner/repo --tag v1.0.0
 - Dependency audits (find specific import patterns)
 - License compliance (find license headers)
 - Migration planning (find deprecated API usage)
+
+## Related
+
+- [gh-extensions-anti-patterns](gh-extensions-anti-patterns.md)
+- [gh-extensions-combine-prs](gh-extensions-combine-prs.md)
+- [gh-extensions-hook](gh-extensions-hook.md)
+- [gh-extensions-maintenance](gh-extensions-maintenance.md)
+- [gh-extensions-metrics](gh-extensions-metrics.md)

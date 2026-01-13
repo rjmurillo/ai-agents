@@ -35,3 +35,11 @@ It "should resolve path" {
 ## Pattern: `[\\/]`
 
 Matches both forward slash (`/`) and backslash (`\`) for cross-platform compatibility.
+
+## Related
+
+- [pester-test-isolation-pattern](pester-test-isolation-pattern.md)
+- [pester-testing-discovery-phase](pester-testing-discovery-phase.md)
+- [pester-testing-parameterized-tests](pester-testing-parameterized-tests.md)
+- [pester-testing-test-first](pester-testing-test-first.md)
+- [pester-testing-test-isolation](pester-testing-test-isolation.md)

@@ -39,3 +39,9 @@ When verifying workflow changes that don't affect business logic:
 - Conditional logic altered without clear justification
 - Action API parameters not verified against official docs
 - Edge cases (workflow_dispatch, manual triggers) not tested
+
+## Related
+
+- [qa-007-worktree-isolation-verification](qa-007-worktree-isolation-verification.md)
+- [qa-benchmark-script-validation](qa-benchmark-script-validation.md)
+- [qa-session-protocol-validation-patterns](qa-session-protocol-validation-patterns.md)

@@ -61,3 +61,11 @@
 1. Update ADR-036 matrix with verified data (P0)
 2. Revise outdated Copilot CLI limitation claims (P1)
 3. Add research date to matrix for staleness tracking (P2)
+
+## Related
+
+- [adr-007-augmentation-research](adr-007-augmentation-research.md)
+- [adr-014-findings](adr-014-findings.md)
+- [adr-014-review-findings](adr-014-review-findings.md)
+- [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
+- [adr-021-quantitative-analysis](adr-021-quantitative-analysis.md)

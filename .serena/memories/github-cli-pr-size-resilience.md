@@ -61,9 +61,9 @@ Successfully applied in:
 
 ## Related Patterns
 
-- `github-cli-api-patterns` - General API usage
-- `github-rest-api-reference` - Full API documentation
-- `workflow-patterns-run-from-branch` - Workflow resilience patterns
+- [github-cli-api-patterns](github-cli-api-patterns.md) - General API usage
+- [github-rest-api-reference](github-rest-api-reference.md) - Full API documentation
+- [workflow-patterns-run-from-branch](workflow-patterns-run-from-branch.md) - Workflow resilience patterns
 
 ## When to Use
 
@@ -98,3 +98,11 @@ Use `gh pr diff` when:
 
 **Pagination**: 100 files/page (default 30)
 **Rate limit**: 5,000/hour (authenticated)
+
+## Related
+
+- [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
+- [github-cli-anti-patterns](github-cli-anti-patterns.md)
+- [github-cli-api-patterns](github-cli-api-patterns.md)
+- [github-cli-extensions](github-cli-extensions.md)
+- [github-cli-issue-operations](github-cli-issue-operations.md)

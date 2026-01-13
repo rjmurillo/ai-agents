@@ -457,3 +457,11 @@ BeforeAll {
 ## Related Skills
 
 - See above formal skills section for Skill-PowerShell-Testing-Combinations-001, Skill-PowerShell-Parameter-Patterns-001, Skill-PowerShell-Testing-Process-001, Skill-PowerShell-Path-Normalization-001, Skill-Testing-Exit-Code-Order-001, Skill-PowerShell-Wildcard-Escaping-001
+
+## Related
+
+- [powershell-array-contains](powershell-array-contains.md)
+- [powershell-array-handling](powershell-array-handling.md)
+- [powershell-cross-platform-ci](powershell-cross-platform-ci.md)
+- [powershell-like-pattern-matching](powershell-like-pattern-matching.md)
+- [powershell-security-ai-output](powershell-security-ai-output.md)

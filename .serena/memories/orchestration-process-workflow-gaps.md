@@ -160,3 +160,11 @@ After creating artifact with expected triggers:
 - Retrospective: `.agents/retrospective/2025-12-15-drift-detection-disaster.md`
 - Retrospective: `.agents/retrospective/phase1-remediation-pr43.md`
 - Issue: #42
+
+## Related
+
+- [orchestration-003-orchestrator-first-routing](orchestration-003-orchestrator-first-routing.md)
+- [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md)
+- [orchestration-handoff-coordination](orchestration-handoff-coordination.md)
+- [orchestration-parallel-execution](orchestration-parallel-execution.md)
+- [orchestration-pr-chain](orchestration-pr-chain.md)

@@ -58,3 +58,11 @@ It "Test" {
 - Session 100 (2025-12-29)
 - File: tests/Detect-CopilotFollowUpPR.Tests.ps1
 - PSScriptAnalyzer rule: PSUseDeclaredVarsMoreThanAssignments
+
+## Related
+
+- [pester-test-isolation-pattern](pester-test-isolation-pattern.md)
+- [pester-testing-cross-platform](pester-testing-cross-platform.md)
+- [pester-testing-discovery-phase](pester-testing-discovery-phase.md)
+- [pester-testing-parameterized-tests](pester-testing-parameterized-tests.md)
+- [pester-testing-test-first](pester-testing-test-first.md)

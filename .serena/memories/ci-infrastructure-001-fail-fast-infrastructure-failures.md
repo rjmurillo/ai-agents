@@ -73,3 +73,11 @@ Do NOT use for:
 - No need to dig through aggregated results
 - Clear actionable error messages
 - Job status reflects actual failure (not success with bad verdict)
+
+## Related
+
+- [ci-infrastructure-002-explicit-retry-timing](ci-infrastructure-002-explicit-retry-timing.md)
+- [ci-infrastructure-003-job-status-verdict-distinction](ci-infrastructure-003-job-status-verdict-distinction.md)
+- [ci-infrastructure-004-error-message-investigation](ci-infrastructure-004-error-message-investigation.md)
+- [ci-infrastructure-ai-integration](ci-infrastructure-ai-integration.md)
+- [ci-infrastructure-claude-code-action-installer-race-condition](ci-infrastructure-claude-code-action-installer-race-condition.md)
