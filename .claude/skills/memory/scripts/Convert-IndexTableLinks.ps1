@@ -14,6 +14,10 @@
 param(
     [string]$MemoriesPath,
 
+    [string[]]$FilesToProcess,
+
+    [switch]$OutputJson,
+
     [switch]$SkipPathValidation
 )
 
@@ -61,7 +65,21 @@ if (-not $MemoriesPath) {
 }
 
 # Get all index files
-$indexFiles = Get-ChildItem -Path $memoriesPath -Filter '*-index.md' -File
+$allIndexFiles = Get-ChildItem -Path $memoriesPath -Filter '*-index.md' -File
+
+# Filter by FilesToProcess if provided and non-empty
+if ($FilesToProcess -and $FilesToProcess.Count -gt 0) {
+    # Normalize paths for comparison
+    $normalizedFilesToProcess = $FilesToProcess | ForEach-Object {
+        [IO.Path]::GetFullPath($_)
+    }
+    $indexFiles = $allIndexFiles | Where-Object {
+        $normalizedPath = [IO.Path]::GetFullPath($_.FullName)
+        $normalizedFilesToProcess -contains $normalizedPath
+    }
+} else {
+    $indexFiles = $allIndexFiles
+}
 
 # Build a set of all memory file names (without .md extension) for validation
 $memoryFiles = Get-ChildItem -Path $memoriesPath -Filter '*.md' -File
@@ -71,10 +89,18 @@ foreach ($file in $memoryFiles) {
     $memoryNames[$baseName] = $true
 }
 
-Write-Host "Found $($indexFiles.Count) index files and $($memoryFiles.Count) memory files"
+# Statistics tracking
+$filesProcessed = 0
 $filesModified = 0
+$linksAdded = 0
+$errors = @()
+
+if (-not $OutputJson) {
+    Write-Host "Found $($indexFiles.Count) index files and $($memoryFiles.Count) memory files"
+}
 
 foreach ($file in $indexFiles) {
+    $filesProcessed++
     $content = Get-Content $file.FullName -Raw -Encoding UTF8
 
     # Skip empty files
@@ -136,9 +162,26 @@ foreach ($file in $indexFiles) {
     # Check if content changed
     if ($content -ne $originalContent) {
         Set-Content -Path $file.FullName -Value $content -NoNewline -Encoding UTF8
-        Write-Host "Updated: $($file.Name)"
+        if (-not $OutputJson) {
+            Write-Host "Updated: $($file.Name)"
+        }
         $filesModified++
+
+        # Count links added (approximate by counting markdown link patterns added)
+        $originalLinkCount = ([regex]::Matches($originalContent, '\[[^\]]+\]\([^\)]+\.md\)')).Count
+        $newLinkCount = ([regex]::Matches($content, '\[[^\]]+\]\([^\)]+\.md\)')).Count
+        $linksAdded += ($newLinkCount - $originalLinkCount)
     }
 }
 
-Write-Host "`nConversion complete. Modified $filesModified files."
+# Output results
+if ($OutputJson) {
+    [PSCustomObject]@{
+        FilesProcessed = $filesProcessed
+        FilesModified  = $filesModified
+        LinksAdded     = $linksAdded
+        Errors         = $errors
+    } | ConvertTo-Json -Compress
+} else {
+    Write-Host "`nConversion complete. Modified $filesModified files."
+}

@@ -15,7 +15,13 @@
 [CmdletBinding()]
 param(
     [switch]$DryRun,
+
     [string]$MemoriesPath,
+
+    [string[]]$FilesToProcess,
+
+    [switch]$OutputJson,
+
     [switch]$SkipPathValidation
 )
 
@@ -63,16 +69,36 @@ if (-not $MemoriesPath) {
 }
 
 # Get all memory files
-$memoryFiles = Get-ChildItem -Path $memoriesPath -Filter '*.md' -File
+$allMemoryFiles = Get-ChildItem -Path $memoriesPath -Filter '*.md' -File
 
-# Build memory name lookup
+# Filter by FilesToProcess if provided and non-empty
+if ($FilesToProcess -and $FilesToProcess.Count -gt 0) {
+    # Normalize paths for comparison
+    $normalizedFilesToProcess = $FilesToProcess | ForEach-Object {
+        [IO.Path]::GetFullPath($_)
+    }
+    $memoryFilesToProcess = $allMemoryFiles | Where-Object {
+        $normalizedPath = [IO.Path]::GetFullPath($_.FullName)
+        $normalizedFilesToProcess -contains $normalizedPath
+    }
+} else {
+    $memoryFilesToProcess = $allMemoryFiles
+}
+
+# Build memory name lookup (from ALL files for relationship discovery)
 $memoryNames = @{}
-foreach ($file in $memoryFiles) {
+foreach ($file in $allMemoryFiles) {
     $baseName = $file.BaseName
     $memoryNames[$baseName] = $file.FullName
 }
 
-Write-Host "Analyzing $($memoryFiles.Count) memory files..."
+# Statistics tracking
+$filesProcessed = 0
+$errors = @()
+
+if (-not $OutputJson) {
+    Write-Host "Analyzing $($memoryFilesToProcess.Count) memory files..."
+}
 
 # Define domain patterns - files with these prefixes are related
 # Using [ordered] to ensure longest prefixes match first for deterministic results
@@ -130,7 +156,8 @@ $domainPatterns = [ordered]@{
 $filesUpdated = 0
 $relationshipsAdded = 0
 
-foreach ($file in $memoryFiles) {
+foreach ($file in $memoryFilesToProcess) {
+    $filesProcessed++
     $content = Get-Content $file.FullName -Raw -Encoding UTF8
 
     # Skip empty files
@@ -145,11 +172,11 @@ foreach ($file in $memoryFiles) {
     $baseName = $file.BaseName
     $relatedFiles = @()
 
-    # Find files in same domain
+    # Find files in same domain (search ALL memory files, not just filtered ones)
     foreach ($pattern in $domainPatterns.Keys) {
         if ($baseName -like "$pattern*") {
             # Find other files with same pattern
-            $domainFiles = $memoryFiles | Where-Object {
+            $domainFiles = $allMemoryFiles | Where-Object {
                 $_.BaseName -like "$pattern*" -and
                 $_.BaseName -ne $baseName
             } | Select-Object -First 5
@@ -184,9 +211,13 @@ foreach ($file in $memoryFiles) {
 
         if (-not $DryRun) {
             Set-Content -Path $file.FullName -Value $newContent -NoNewline -Encoding UTF8
-            Write-Host "Added Related section to: $($file.Name)"
+            if (-not $OutputJson) {
+                Write-Host "Added Related section to: $($file.Name)"
+            }
         } else {
-            Write-Host "[DRY RUN] Would add Related section to: $($file.Name)"
+            if (-not $OutputJson) {
+                Write-Host "[DRY RUN] Would add Related section to: $($file.Name)"
+            }
         }
 
         $filesUpdated++
@@ -194,11 +225,21 @@ foreach ($file in $memoryFiles) {
     }
 }
 
-Write-Host "`n=== Summary ==="
-Write-Host "Files updated: $filesUpdated"
-Write-Host "Relationships added: $relationshipsAdded"
-Write-Host "Current coverage: $((219 + $filesUpdated) / 600 * 100)%"
+# Output results
+if ($OutputJson) {
+    [PSCustomObject]@{
+        FilesProcessed     = $filesProcessed
+        FilesModified      = $filesUpdated
+        RelationshipsAdded = $relationshipsAdded
+        Errors             = $errors
+    } | ConvertTo-Json -Compress
+} else {
+    Write-Host "`n=== Summary ==="
+    Write-Host "Files updated: $filesUpdated"
+    Write-Host "Relationships added: $relationshipsAdded"
+    Write-Host "Current coverage: $((219 + $filesUpdated) / 600 * 100)%"
 
-if ($DryRun) {
-    Write-Host "`nThis was a dry run. Use without -DryRun to apply changes."
+    if ($DryRun) {
+        Write-Host "`nThis was a dry run. Use without -DryRun to apply changes."
+    }
 }

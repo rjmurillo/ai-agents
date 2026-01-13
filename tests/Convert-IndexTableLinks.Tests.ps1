@@ -365,4 +365,99 @@ Regular text with test-file reference.
             $lines[0] | Should -BeExactly 'Regular text with test-file reference.'
         }
     }
+
+    Context 'When using FilesToProcess parameter' {
+        It 'Should only process specified index files when FilesToProcess is provided' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'file1.md'
+            $index1 = Join-Path $script:memoriesPath 'first-index.md'
+            $index2 = Join-Path $script:memoriesPath 'second-index.md'
+
+            Set-Content -Path $mem1 -Value '# File 1'
+            Set-Content -Path $index1 -Value "| Category | File |`n|----------|------|`n| test | file1 |"
+            Set-Content -Path $index2 -Value "| Category | File |`n|----------|------|`n| test | file1 |"
+
+            # Act - Only process first-index.md
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -FilesToProcess @($index1) | Out-Null
+
+            # Assert - Only first should be modified
+            $content1 = Get-Content $index1 -Raw
+            $content2 = Get-Content $index2 -Raw
+            $content1 | Should -Match '\[file1\]\(file1\.md\)'
+            $content2 | Should -Not -Match '\[file1\]\(file1\.md\)'
+        }
+
+        It 'Should process all files when FilesToProcess is empty' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'file1.md'
+            $index1 = Join-Path $script:memoriesPath 'test-index.md'
+
+            Set-Content -Path $mem1 -Value '# File 1'
+            Set-Content -Path $index1 -Value "| Category | File |`n|----------|------|`n| test | file1 |"
+
+            # Act - No FilesToProcess = process all
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
+
+            # Assert
+            $content = Get-Content $index1 -Raw
+            $content | Should -Match '\[file1\]\(file1\.md\)'
+        }
+
+        It 'Should ignore non-index files in FilesToProcess' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'regular-file.md'
+            Set-Content -Path $mem1 -Value "| Category | File |`n|----------|------|`n| test | value |"
+
+            $originalContent = Get-Content $mem1 -Raw
+
+            # Act - Try to process a non-index file
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -FilesToProcess @($mem1) | Out-Null
+
+            # Assert - Should not be modified
+            $content = Get-Content $mem1 -Raw
+            $content | Should -BeExactly $originalContent
+        }
+    }
+
+    Context 'When validating paths (CWE-22 mitigation)' {
+        It 'Should reject paths outside project root' {
+            # Arrange - Use a path outside the test directory
+            $outsidePath = Join-Path $TestDrive 'outside-project'
+            New-Item -Path $outsidePath -ItemType Directory -Force | Out-Null
+
+            # Act & Assert - Should throw security error
+            # Note: This test only works when NOT using -SkipPathValidation
+            # The script uses git rev-parse to find project root, so we test the validation logic directly
+            { & $scriptPath -MemoriesPath $outsidePath } | Should -Throw
+        }
+
+        It 'Should reject sibling directory attacks' {
+            # Arrange
+            # If project root is /project, /project-attacker should be rejected
+            $projectRoot = $script:testRoot
+            $siblingPath = "$projectRoot-attacker"
+            New-Item -Path $siblingPath -ItemType Directory -Force | Out-Null
+
+            # Act & Assert - The StartsWith with separator should prevent this
+            { & $scriptPath -MemoriesPath $siblingPath } | Should -Throw
+        }
+    }
+
+    Context 'When producing structured output' {
+        It 'Should output JSON statistics when OutputJson switch is used' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'test-mem.md'
+            $index1 = Join-Path $script:memoriesPath 'test-index.md'
+
+            Set-Content -Path $mem1 -Value '# Test'
+            Set-Content -Path $index1 -Value "| Category | File |`n|----------|------|`n| test | test-mem |"
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -OutputJson 2>&1 | Out-String
+
+            # Assert - Should contain JSON
+            $output | Should -Match '"FilesProcessed"'
+            $output | Should -Match '"FilesModified"'
+        }
+    }
 }

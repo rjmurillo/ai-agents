@@ -188,6 +188,95 @@ Describe 'Convert-MemoryReferences' {
         }
     }
 
+    Context 'When using FilesToProcess parameter' {
+        It 'Should only process specified files when FilesToProcess is provided' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'target-memory.md'
+            $source1 = Join-Path $script:memoriesPath 'source1.md'
+            $source2 = Join-Path $script:memoriesPath 'source2.md'
+
+            Set-Content -Path $mem1 -Value '# Target Memory'
+            Set-Content -Path $source1 -Value 'Reference to `target-memory` here.'
+            Set-Content -Path $source2 -Value 'Another `target-memory` reference.'
+
+            # Act - Only process source1.md
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -FilesToProcess @($source1) | Out-Null
+
+            # Assert - Only source1 should be modified
+            $content1 = Get-Content $source1 -Raw
+            $content2 = Get-Content $source2 -Raw
+            $content1 | Should -Match '\[target-memory\]\(target-memory\.md\)'
+            $content2 | Should -Match '`target-memory`'
+            $content2 | Should -Not -Match '\[target-memory\]'
+        }
+
+        It 'Should process all files when FilesToProcess is empty array' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'target-memory.md'
+            $source1 = Join-Path $script:memoriesPath 'source1.md'
+
+            Set-Content -Path $mem1 -Value '# Target Memory'
+            Set-Content -Path $source1 -Value 'Reference to `target-memory` here.'
+
+            # Act - Empty array should process all files
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -FilesToProcess @() | Out-Null
+
+            # Assert
+            $content = Get-Content $source1 -Raw
+            $content | Should -Match '\[target-memory\]\(target-memory\.md\)'
+        }
+
+        It 'Should handle FilesToProcess with non-existent files gracefully' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'target-memory.md'
+            $nonExistent = Join-Path $script:memoriesPath 'non-existent.md'
+
+            Set-Content -Path $mem1 -Value '# Target Memory'
+
+            # Act & Assert - Should not throw
+            { & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -FilesToProcess @($nonExistent) } | Should -Not -Throw
+        }
+    }
+
+    Context 'When validating paths (CWE-22 mitigation)' {
+        It 'Should reject paths outside project root' {
+            # Arrange - Path outside project root
+            $outsidePath = '/tmp/malicious-memories'
+
+            # Act & Assert
+            { & $scriptPath -MemoriesPath $outsidePath } | Should -Throw -ExpectedMessage '*Security: MemoriesPath must be within project directory*'
+        }
+
+        It 'Should reject sibling directory attacks' {
+            # Arrange - Path that is a sibling with similar prefix
+            # This tests that /home/user/project-attacker doesn't match /home/user/project
+            $projectRoot = git rev-parse --show-toplevel
+            $siblingPath = "$projectRoot-attacker"
+
+            # Act & Assert
+            { & $scriptPath -MemoriesPath $siblingPath } | Should -Throw -ExpectedMessage '*Security: MemoriesPath must be within project directory*'
+        }
+    }
+
+    Context 'When producing structured output' {
+        It 'Should output JSON statistics when OutputJson switch is used' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'target-memory.md'
+            $source1 = Join-Path $script:memoriesPath 'source1.md'
+
+            Set-Content -Path $mem1 -Value '# Target Memory'
+            Set-Content -Path $source1 -Value 'Reference to `target-memory` here.'
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -OutputJson
+
+            # Assert
+            $json = $output | ConvertFrom-Json
+            $json.FilesProcessed | Should -BeGreaterOrEqual 1
+            $json.FilesModified | Should -Be 1
+        }
+    }
+
     Context 'When handling edge cases' {
         It 'Should handle hyphenated memory names' {
             # Arrange
