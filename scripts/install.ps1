@@ -8,7 +8,8 @@
     Can be invoked remotely via iex (Invoke-Expression) for easy installation.
 
 .PARAMETER Environment
-    Target environment: Claude, Copilot, or VSCode
+    Target environment: Claude, Copilot, or VSCode.
+    Optional. If omitted, the script prompts interactively for selection.
 
 .PARAMETER Global
     Install to global/user-level location (well-known paths)
@@ -53,7 +54,12 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet("Claude", "Copilot", "VSCode")]
+    # ArgumentCompleter provides tab-completion without ValidateSet parameter binding conflict (Issue #892)
+    # ValidateSet rejects values during parameter binding when $Env:Environment exists with non-matching value
+    [ArgumentCompleter({
+        param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
+        @('Claude', 'Copilot', 'VSCode') | Where-Object { $_ -like "$wordToComplete*" }
+    })]
     [string]$Environment,
 
     [switch]$Global,
@@ -75,7 +81,8 @@ $IsRemoteExecution = -not $PSScriptRoot
 
 if ($IsRemoteExecution) {
     # Bootstrap: Download required files to temp directory
-    $TempDir = Join-Path $env:TEMP "ai-agents-install-$(Get-Random)"
+    # Use cross-platform temp path (Windows: TEMP, macOS/Linux: TMPDIR or /tmp)
+    $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "ai-agents-install-$(Get-Random)"
     New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
     # URL-encode version to handle special characters (e.g., SEMVER 2.0 '+' for build metadata)
@@ -118,6 +125,18 @@ else {
 #endregion
 
 #region Interactive Mode (for parameter-less invocation)
+
+# Validate Environment parameter if provided (manual validation replaces ValidateSet)
+if ($Environment) {
+    $ValidEnvironments = @('Claude', 'Copilot', 'VSCode')
+    if ($Environment -notin $ValidEnvironments) {
+        Write-Error "Invalid Environment: $Environment. Valid values are: $($ValidEnvironments -join ', ')"
+        if ($IsRemoteExecution -and (Test-Path $TempDir)) {
+            Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        exit 1
+    }
+}
 
 if (-not $Environment) {
     Write-Host ""
@@ -228,7 +247,8 @@ if ($IsRemoteExecution) {
         $Files = Invoke-RestMethod -Uri $ApiUrl -Headers $Headers -ErrorAction Stop
 
         # Filter files by pattern
-        $PatternRegex = "^" + ($Config.FilePattern -replace "\*", ".*" -replace "\.", "\.") + "$"
+        # Escape dots first, then replace asterisks (order matters to avoid escaping the . in .*)
+        $PatternRegex = "^" + ($Config.FilePattern -replace "\.", "\." -replace "\*", ".*") + "$"
         $MatchingFiles = $Files | Where-Object { $_.name -match $PatternRegex -and $_.type -eq "file" }
 
         if ($MatchingFiles.Count -eq 0) {
