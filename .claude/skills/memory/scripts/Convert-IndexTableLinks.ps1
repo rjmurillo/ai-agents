@@ -46,7 +46,11 @@ if (-not $MemoriesPath) {
         $resolvedPath = [IO.Path]::GetFullPath($MemoriesPath)
         $resolvedProjectRoot = [IO.Path]::GetFullPath($projectRoot)
 
-        if (-not $resolvedPath.StartsWith($resolvedProjectRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        # Ensure comparison includes directory separator to prevent sibling directory attacks (CWE-22)
+        # e.g., /home/user/project-attacker/ should not match /home/user/project/
+        $projectRootWithSep = $resolvedProjectRoot.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+        if (-not $resolvedPath.StartsWith($projectRootWithSep, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $resolvedPath -ne $resolvedProjectRoot) {
             throw "Security: MemoriesPath must be within project directory. Provided: $resolvedPath, Project root: $resolvedProjectRoot"
         }
 
