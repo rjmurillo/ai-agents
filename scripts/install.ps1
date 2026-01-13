@@ -66,7 +66,7 @@ param(
 
     [switch]$Force,
 
-    [ValidatePattern('^[\w./-]+$')]
+    [ValidatePattern('^[\w./+-]+$')]
     [string]$Version = "v0.1.0"
 )
 

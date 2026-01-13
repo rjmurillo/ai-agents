@@ -121,8 +121,8 @@ Describe "Parameter Definitions" {
             $param = $Script:ScriptInfo.Parameters["Version"]
             $validatePattern = $param.Attributes | Where-Object { $_ -is [System.Management.Automation.ValidatePatternAttribute] }
             $validatePattern | Should -Not -BeNullOrEmpty
-            # Pattern should allow alphanumeric, dots, slashes, hyphens, underscores
-            $validatePattern.RegexPattern | Should -Be '^[\w./-]+$'
+            # Pattern should allow alphanumeric, dots, slashes, hyphens, underscores, plus (for SEMVER 2.0 build metadata)
+            $validatePattern.RegexPattern | Should -Be '^[\w./+-]+$'
         }
     }
 }
