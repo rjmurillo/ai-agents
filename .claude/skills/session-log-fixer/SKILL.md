@@ -84,7 +84,7 @@ GitHub Actions Failure
 │ • Apply fixes based on Job Summary details        │
 │ • Copy template sections exactly                  │
 │ • Add evidence to verification steps              │
-│ • Validate fix locally with Validate-SessionProtocol.ps1 │
+│ • Validate fix locally with Validate-SessionJson.ps1 │
 ├───────────────────────────────────────────────────┤
 │ Phase 4: VERIFY                                   │
 │ • Commit and push changes                         │
@@ -163,7 +163,7 @@ The detailed results tell you **exactly** which MUST requirements failed.
 Validate locally before pushing:
 
 ```powershell
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/<session-file>.md" 
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/<session-file>.json" 
 ```
 
 This uses the **same script** as CI, so results match exactly.
@@ -299,4 +299,4 @@ $result = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -P
 - [Common Fixes](references/common-fixes.md) - Fix patterns for common failures
 - [Template Sections](references/template-sections.md) - Copy-paste ready templates
 - [CI Debugging Patterns](references/ci-debugging-patterns.md) - Advanced job-level diagnostics
-- [`Validate-SessionProtocol.ps1`](../../../scripts/Validate-SessionProtocol.ps1) - Deterministic validation script
+- [`Validate-SessionJson.ps1`](../../../scripts/Validate-SessionJson.ps1) - Deterministic validation script

@@ -50,7 +50,7 @@ Phase 2 (BLOCKING): Context Retrieval
   └─ SHOULD read planning docs
 
 Phase 3 (REQUIRED): Session Log Creation
-  └─ Create .agents/sessions/YYYY-MM-DD-session-NN.md
+  └─ Create .agents/sessions/YYYY-MM-DD-session-NN.json
 
 Phase 4 (RECOMMENDED): Git State Verification
   ├─ git status
@@ -473,7 +473,7 @@ Agents can invoke this script during work for real-time validation.
 
 ### Testing Strategy
 
-1. **Protocol compliance**: Run `scripts/Validate-SessionProtocol.ps1` (already exists)
+1. **Protocol compliance**: Run `scripts/Validate-SessionJson.ps1` (already exists)
 2. **Skill check script**: Add Pester tests for `Check-SkillExists.ps1`
 3. **Integration**: Create test session log with Phase 1.5 checklist
 4. **Validation**: Next session after implementation MUST follow Phase 1.5
@@ -548,7 +548,7 @@ Agents can invoke this script during work for real-time validation.
 **Mitigation**:
 
 1. Session log template includes complete checklist (agents just follow it)
-2. Validate-SessionProtocol.ps1 checks Phase 1.5 compliance
+2. Validate-SessionJson.ps1 checks Phase 1.5 compliance
 3. HANDOFF.md reminder to review SESSION-PROTOCOL.md
 4. Phase numbering makes sequence clear (1, 1.5, 2, 3, 4)
 

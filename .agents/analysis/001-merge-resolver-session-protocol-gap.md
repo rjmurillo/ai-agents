@@ -316,7 +316,7 @@ if ($templatesResolved) {
 ### Pre-Check Requirements
 
 **MUST complete before push**:
-- [ ] Session log created at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+- [ ] Session log created at `.agents/sessions/YYYY-MM-DD-session-NN.json`
 - [ ] Protocol Compliance section completed (all checkboxes marked)
 - [ ] Session End checklist completed
 - [ ] Evidence recorded (commit SHA, validation result)

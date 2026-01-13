@@ -1643,7 +1643,7 @@ You CANNOT claim "session complete", "done", "finished", or any completion langu
 
 | Requirement | Evidence | Validator |
 |-------------|----------|-----------|
-| Session log exists | `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
+| Session log exists | `.agents/sessions/YYYY-MM-DD-session-NN.json` | File exists |
 | Session End checklist complete | All MUST items checked with `[x]` | `Validate-SessionJson.ps1` |
 | HANDOFF.md updated | References current session log | `Validate-SessionJson.ps1` |
 | Git worktree clean | No uncommitted changes | `git status --porcelain` |

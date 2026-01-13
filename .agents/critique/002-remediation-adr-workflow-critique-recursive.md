@@ -193,7 +193,7 @@ git log --grep="ADR-" --format="%H %s" | ForEach-Object {
    - Expected: All committed or none exist
 4. **ADR debate log references**: `git log --grep="ADR-" | while read...`
    - Expected: No output (all ADR commits include debate log)
-5. **Protocol compliance**: `pwsh scripts/Validate-SessionProtocol.ps1`
+5. **Protocol compliance**: `pwsh scripts/Validate-SessionJson.ps1`
    - Expected: PASS
 
 **Assessment**: PASS

@@ -170,7 +170,7 @@ The following are explicitly out of scope:
 | Dependency | Type | Status |
 |-----------|------|--------|
 | Validate-SessionEnd.ps1 | Internal | Available |
-| Validate-SessionProtocol.ps1 | Internal | Available |
+| Validate-SessionJson.ps1 | Internal | Available |
 | markdownlint-cli2 | External | Available |
 | PowerShell 7+ | Runtime | Required |
 | gh CLI | Runtime | Required |

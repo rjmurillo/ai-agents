@@ -1,6 +1,6 @@
 name: Session Protocol Validation
 
-# Deterministic session log validation using Validate-SessionProtocol.ps1
+# Deterministic session log validation using Validate-SessionJson.ps1
 
 # Verifies session logs comply with RFC 2119 requirements in SESSION-PROTOCOL.md
 
@@ -405,7 +405,7 @@ jobs:
           - ✅ **No artifact downloads** needed to diagnose issues
           - ✅ **10x-100x faster** debugging
 
-          Powered by [`Validate-SessionProtocol.ps1`](../../scripts/Validate-SessionProtocol.ps1)
+          Powered by [`Validate-SessionJson.ps1`](../../scripts/Validate-SessionJson.ps1)
 
           </details>
 

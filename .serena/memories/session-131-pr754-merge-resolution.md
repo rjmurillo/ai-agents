@@ -32,7 +32,7 @@ All 13 files resolved by accepting main (`git checkout --theirs`):
 
 1. `.agents/SESSION-PROTOCOL.md`
 2. `.agents/governance/MEMORY-MANAGEMENT.md`
-3. `.agents/sessions/2026-01-03-session-129-adr037-sync-evidence.md`
+3. `.agents/sessions/2026-01-03-session-129-adr037-sync-evidence.json`
 4. `.claude-mem/memories/AGENTS.md`
 5. `.claude-mem/memories/README.md`
 6. `.claude-mem/scripts/Export-ClaudeMemMemories.ps1`

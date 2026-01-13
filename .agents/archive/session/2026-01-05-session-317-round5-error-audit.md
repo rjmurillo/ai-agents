@@ -1,4 +1,4 @@
-# Session 317: Round 5 Error Handling Audit - Validate-SessionProtocol.ps1
+# Session 317: Round 5 Error Handling Audit - Validate-SessionJson.ps1
 
 **Date**: 2026-01-05
 **Branch**: fix/789-adr-006-compliance
@@ -72,7 +72,7 @@ Enhanced context includes:
 
 #### CRITICAL #1: Get-SessionLogs Catch Block Too Broad (Lines 975-983)
 **Severity**: CRITICAL
-**Location**: scripts/Validate-SessionProtocol.ps1:975-983
+**Location**: scripts/Validate-SessionJson.ps1:975-983
 
 **Issue**: Catch block sequence catches multiple specific exceptions but ends with untyped catch that could hide unexpected errors.
 
@@ -122,7 +122,7 @@ try {
 
 #### CRITICAL #2: Date Parsing Fallback Silently Ignores Git Success (Lines 704-732)
 **Severity**: CRITICAL
-**Location**: scripts/Validate-SessionProtocol.ps1:704-732
+**Location**: scripts/Validate-SessionJson.ps1:704-732
 
 **Issue**: Catch blocks around date parsing check `if ($gitDiffWorked)` to allow silent continuation, but the logic has a flaw.
 
@@ -172,7 +172,7 @@ try {
 
 #### HIGH #1: Test-MemoryEvidence Does Not Validate .serena/memories/ Directory Exists (Lines 293-294)
 **Severity**: HIGH
-**Location**: scripts/Validate-SessionProtocol.ps1:293-294
+**Location**: scripts/Validate-SessionJson.ps1:293-294
 
 **Issue**: Code constructs memory file path but doesn't verify parent directory exists before testing file existence.
 
@@ -213,7 +213,7 @@ foreach ($memName in $foundMemories) {
 
 #### HIGH #2: Get-HeadingTable Does Not Validate Lines Parameter (Lines 89-105)
 **Severity**: HIGH
-**Location**: scripts/Validate-SessionProtocol.ps1:89-105
+**Location**: scripts/Validate-SessionJson.ps1:89-105
 
 **Issue**: Function accepts string[] parameter but doesn't validate it's not null or empty before accessing .Count.
 
@@ -250,7 +250,7 @@ function Get-HeadingTable {
 
 #### HIGH #3: ConvertFrom-ChecklistTable Does Not Validate TableLines Parameter (Lines 148-204)
 **Severity**: HIGH
-**Location**: scripts/Validate-SessionProtocol.ps1:148-204
+**Location**: scripts/Validate-SessionJson.ps1:148-204
 
 **Issue**: Same issue as Get-HeadingTable. No validation that TableLines is not null.
 
@@ -282,7 +282,7 @@ function ConvertFrom-ChecklistTable {
 
 #### HIGH #4: ConvertTo-NormalizedStep Does Not Validate StepText Parameter (Lines 206-217)
 **Severity**: HIGH
-**Location**: scripts/Validate-SessionProtocol.ps1:206-217
+**Location**: scripts/Validate-SessionJson.ps1:206-217
 
 **Issue**: Function doesn't validate StepText is not null or empty.
 
@@ -314,7 +314,7 @@ function ConvertTo-NormalizedStep {
 
 #### HIGH #5: Test-DocsOnly Does Not Handle Null Files Parameter (Lines 329-350)
 **Severity**: HIGH
-**Location**: scripts/Validate-SessionProtocol.ps1:329-350
+**Location**: scripts/Validate-SessionJson.ps1:329-350
 
 **Issue**: Function checks if Files is null/empty but returns $false, which is ambiguous.
 
@@ -351,7 +351,7 @@ function Test-DocsOnly {
 
 #### HIGH #6: Date Parsing in Get-SessionLogs Silently Excludes Invalid Files (Lines 990-998)
 **Severity**: HIGH
-**Location**: scripts/Validate-SessionProtocol.ps1:990-998
+**Location**: scripts/Validate-SessionJson.ps1:990-998
 
 **Issue**: When date parsing fails, session is excluded with only a warning. Excluded sessions accumulate in a list but aren't reported unless there are exclusions.
 
@@ -378,7 +378,7 @@ try {
 
 #### MEDIUM #1: Test-SessionLogExists Does Not Catch File System Errors (Lines 441-469)
 **Severity**: MEDIUM
-**Location**: scripts/Validate-SessionProtocol.ps1:441-469
+**Location**: scripts/Validate-SessionJson.ps1:441-469
 
 **Issue**: Test-Path can throw exceptions (UnauthorizedAccessException, PathTooLongException) but function doesn't catch them.
 
@@ -420,7 +420,7 @@ try {
 
 #### MEDIUM #2: Invoke-SessionValidation Does Not Catch Get-Content Errors (Line 891)
 **Severity**: MEDIUM
-**Location**: scripts/Validate-SessionProtocol.ps1:891
+**Location**: scripts/Validate-SessionJson.ps1:891
 
 **Issue**: Get-Content can fail with multiple exceptions but no try-catch.
 
@@ -463,7 +463,7 @@ try {
 
 #### MEDIUM #3: Test-MemoryEvidence Memory Name Regex May Not Match All Valid Names (Lines 276-282)
 **Severity**: MEDIUM
-**Location**: scripts/Validate-SessionProtocol.ps1:276-282
+**Location**: scripts/Validate-SessionJson.ps1:276-282
 
 **Issue**: Regex pattern for memory names is restrictive.
 
@@ -489,7 +489,7 @@ $memoryPattern = '[a-z][a-z0-9]*(?:-[a-z0-9]+)*'
 
 #### MEDIUM #4: Git Command Error Output Not Logged (Lines 607-636)
 **Severity**: MEDIUM
-**Location**: scripts/Validate-SessionProtocol.ps1:607-636
+**Location**: scripts/Validate-SessionJson.ps1:607-636
 
 **Issue**: Git commands redirect stderr to $null equivalent (2>&1) but don't log errors.
 
@@ -515,7 +515,7 @@ if ($LASTEXITCODE -ne 0) {
 
 #### MEDIUM #5: PathTooLongException Handler Doesn't Provide Path Length (Lines 688-692)
 **Severity**: MEDIUM
-**Location**: scripts/Validate-SessionProtocol.ps1:688-692
+**Location**: scripts/Validate-SessionJson.ps1:688-692
 
 **Issue**: Error message says path is too long but doesn't show actual length.
 
@@ -546,7 +546,7 @@ if ($LASTEXITCODE -ne 0) {
 
 #### MEDIUM #6: IOException Handler Doesn't Distinguish Error Types (Lines 693-697)
 **Severity**: MEDIUM
-**Location**: scripts/Validate-SessionProtocol.ps1:693-697
+**Location**: scripts/Validate-SessionJson.ps1:693-697
 
 **Issue**: Generic IOException could be disk full, locked file, network error, etc.
 
@@ -567,7 +567,7 @@ if ($LASTEXITCODE -ne 0) {
 
 #### MEDIUM #7: Unexpected Exception Handler Could Be More Specific (Lines 698-703)
 **Severity**: MEDIUM
-**Location**: scripts/Validate-SessionProtocol.ps1:698-703
+**Location**: scripts/Validate-SessionJson.ps1:698-703
 
 **Issue**: Final catch block is very broad.
 

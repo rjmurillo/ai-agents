@@ -48,7 +48,7 @@ All MUST requirements above are marked complete.
 **Decisions made**:
 
 - Added session log link as first bullet point in HANDOFF.md update requirements to emphasize its importance
-- Used example format `[Session NN](./sessions/YYYY-MM-DD-session-NN.md)` for clarity
+- Used example format `[Session NN](./sessions/YYYY-MM-DD-session-NN.json)` for clarity
 
 **Challenges**:
 

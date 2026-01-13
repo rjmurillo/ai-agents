@@ -38,7 +38,7 @@ git commit --no-verify -m "fix: some change"
 ERROR: BLOCKED: Create session log NOW
 
 # RIGHT: Fix the root cause
-# 1. Create session log at .agents/sessions/YYYY-MM-DD-session-NN.md
+# 1. Create session log at .agents/sessions/YYYY-MM-DD-session-NN.json
 # 2. Complete Protocol Compliance checklist
 # 3. Commit normally (hooks will pass)
 git commit -m "fix: some change"
@@ -78,7 +78,7 @@ From `git commit --help`:
 
 ### SESSION-PROTOCOL.md Phase 3: Session Log Creation (REQUIRED)
 
-> The agent MUST create a session log file at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+> The agent MUST create a session log file at `.agents/sessions/YYYY-MM-DD-session-NN.json`
 > The session log SHOULD be created within the first 5 tool calls of the session
 
 ### SESSION-PROTOCOL.md Phase 2: Quality Checks (REQUIRED)

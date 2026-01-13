@@ -240,7 +240,7 @@ These gates implement RFC 2119 MUST requirements. Proceeding without passing cau
 
 ```bash
 # Create session log
-SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
+SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.json"
 cat > "$SESSION_FILE" << 'EOF'
 # PR Comment Responder Session
 

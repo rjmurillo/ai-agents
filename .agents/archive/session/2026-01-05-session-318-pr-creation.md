@@ -58,7 +58,7 @@ All MUST requirements above are marked complete.
 **Status**: Complete
 
 **Context**:
-Branch contains extensive enhancements to `Validate-SessionProtocol.ps1`:
+Branch contains extensive enhancements to `Validate-SessionJson.ps1`:
 - Session protocol validation helpers and tests
 - 7 rounds of pr-review-toolkit fixes
 - Error handling improvements

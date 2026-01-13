@@ -45,7 +45,7 @@ pwsh scripts/Validate-Session.ps1 -SessionLogPath ".agents/sessions/2026-01-08-s
    - Memory warnings property access fixed (line 262)
    - Guards for null/empty collections added
    
-3. [scripts/Validate-SessionProtocol.ps1](scripts/Validate-SessionProtocol.ps1)
+3. [scripts/Validate-SessionJson.ps1](scripts/Validate-SessionJson.ps1)
    - Get-SessionLogs error handling improved with actionable messages
 
 ## Coverage Analysis

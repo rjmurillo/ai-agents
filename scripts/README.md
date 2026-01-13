@@ -49,6 +49,11 @@ scripts/
 ### Remote Installation
 
 ```powershell
+# Stable release (v0.1.0)
+Set-ExecutionPolicy Bypass -Scope Process -Force
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
+
+# Bleeding edge (main branch)
 Set-ExecutionPolicy Bypass -Scope Process -Force
 iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
 ```
@@ -173,7 +178,7 @@ Validates Session Start and Session End protocol compliance for a single session
 
 **Called By**: Pre-commit hook, orchestrator, CI
 
-#### Validate-SessionProtocol.ps1
+#### Validate-SessionJson.ps1 (Batch Mode)
 
 Validates session protocol compliance across multiple sessions.
 
@@ -181,13 +186,13 @@ Validates session protocol compliance across multiple sessions.
 
 ```powershell
 # Validate specific session
-.\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/.agents/sessions/2025-12-17-session-01.json"
+.\scripts\Validate-SessionJson.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.json"
 
 # Validate all recent sessions
-.\scripts\Validate-SessionProtocol.ps1 -All
+.\scripts\Validate-SessionJson.ps1 -All
 
 # CI mode
-.\scripts\Validate-SessionProtocol.ps1 -All -CI
+.\scripts\Validate-SessionJson.ps1 -All -CI
 ```
 
 ### PR and Code Quality

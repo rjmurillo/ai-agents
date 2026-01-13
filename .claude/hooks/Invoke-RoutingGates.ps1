@@ -45,6 +45,21 @@ begin {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
     $AllInput = [System.Collections.ArrayList]::new()
+
+    # Validate working directory assumption (required for Windows where CLAUDE_PROJECT_DIR is unavailable)
+    # The hook invocation pattern uses Get-Location to resolve paths, which assumes CWD is project root
+    $ProjectIndicators = @('.claude/settings.json', '.git')
+    $IsValidProjectRoot = $false
+    foreach ($indicator in $ProjectIndicators) {
+        if (Test-Path (Join-Path (Get-Location) $indicator)) {
+            $IsValidProjectRoot = $true
+            break
+        }
+    }
+    if (-not $IsValidProjectRoot) {
+        Write-Warning "Invoke-RoutingGates: CWD '$(Get-Location)' does not appear to be a project root (missing .claude/settings.json or .git). Failing open."
+        exit 0
+    }
 }
 
 process {
@@ -181,7 +196,9 @@ end {
         Tests whether the current changes are documentation-only.
 
     .DESCRIPTION
-        Uses git diff to check if only documentation files (.md) have been modified.
+        Uses git diff to check if only documentation files have been modified.
+        Allowed: .md, .txt, README, LICENSE, CHANGELOG, .gitignore files
+        Rationale: These files don't affect runtime behavior and don't require QA validation
         Returns true if no code files have been changed.
 
     .OUTPUTS
@@ -212,6 +229,7 @@ end {
             # Force to array to handle single-item case
             # SECURITY: Patterns must be anchored to prevent substring matches
             # (e.g., src/license_validator.cs must not match LICENSE)
+            # Documentation-only: markdown, text files, standard repo metadata, git config
             $CodeFiles = @(
                 $ChangedFiles | Where-Object {
                     $_ -notmatch '\.md$' -and

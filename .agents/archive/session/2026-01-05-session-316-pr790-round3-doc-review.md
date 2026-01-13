@@ -21,14 +21,14 @@
 
 Implement 4 verification comments from PR #790 Round 3 review:
 
-1. **Comment 1**: Add table extraction and checklist validation in `Validate-SessionProtocol.ps1`
+1. **Comment 1**: Add table extraction and checklist validation in `Validate-SessionJson.ps1`
 2. **Comment 2**: Port ADR-007 memory evidence validation
 3. **Comment 3**: Port QA skip rules, pre-commit mode, branch and commit validation
 4. **Comment 4**: Add comprehensive Pester tests for all ported features
 
 ## Context
 
-Review feedback from PR #790 identified gaps in `Validate-SessionProtocol.ps1` that need to be addressed. These enhancements will:
+Review feedback from PR #790 identified gaps in `Validate-SessionJson.ps1` that need to be addressed. These enhancements will:
 1. Enforce canonical checklist templates from SESSION-PROTOCOL.md
 2. Validate memory evidence per ADR-007
 3. Port session-end validation logic from `Validate-Session.ps1` (QA skip rules, pre-commit mode, commit validation)
@@ -44,7 +44,7 @@ Review feedback from PR #790 identified gaps in `Validate-SessionProtocol.ps1` t
 ## Implementation Plan
 
 1. Read relevant memories for testing and validation patterns
-2. Review current `Validate-SessionProtocol.ps1` structure
+2. Review current `Validate-SessionJson.ps1` structure
 3. Review `Validate-Session.ps1` for features to port
 4. Implement Comment 1: Table extraction and template validation
 5. Implement Comment 2: Memory evidence validation
@@ -62,7 +62,7 @@ Added comprehensive tests to `scripts/tests/Validate-SessionProtocol.Tests.ps1`:
 - **Total New Tests**: ~40 test cases across 14 Describe blocks
 
 ### Implementation Plan
-Port features from `Validate-Session.ps1` to `Validate-SessionProtocol.ps1`:
+Port features from `Validate-Session.ps1` to `Validate-SessionJson.ps1`:
 
 1. **Helper Functions** (lines 80-133 from Validate-Session.ps1):
    - Get-HeadingTable
@@ -121,7 +121,7 @@ Ran comprehensive test suite with Pester:
 **Message**: "feat: Add session protocol validation helpers and tests (PR #790 Round 3)"
 
 Committed files:
-- `scripts/Validate-SessionProtocol.ps1` (+~450 lines)
+- `scripts/Validate-SessionJson.ps1` (+~450 lines)
 - `scripts/tests/Validate-SessionProtocol.Tests.ps1` (+~450 lines)
 - `.agents/sessions/2026-01-05-session-316-pr790-round3-doc-review.md` (this file)
 
@@ -151,7 +151,7 @@ Committed files:
 - Comment 4: Comprehensive test coverage (40 test cases, 92% pass rate)
 
 ### Deliverables
-- `scripts/Validate-SessionProtocol.ps1`: +~450 lines of helper functions
+- `scripts/Validate-SessionJson.ps1`: +~450 lines of helper functions
 - `scripts/tests/Validate-SessionProtocol.Tests.ps1`: +~450 lines of test coverage
 - Session log: Complete documentation of implementation
 - Commit `209924ba`: Clean checkpoint with working helper functions
@@ -408,7 +408,7 @@ Ran 5 specialized agents in parallel:
 - **No regressions introduced**
 
 ### Files Modified
-- `scripts/Validate-SessionProtocol.ps1`: +~300 lines (helpers, validation, fixes)
+- `scripts/Validate-SessionJson.ps1`: +~300 lines (helpers, validation, fixes)
 - `scripts/tests/Validate-SessionProtocol.Tests.ps1`: Verified all tests passing
 - `.agents/sessions/2026-01-05-session-316-pr790-round3-doc-review.md`: Complete audit trail
 

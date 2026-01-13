@@ -92,7 +92,7 @@ flowchart TD
 
 | Attribute | Value |
 |-----------|-------|
-| **Script** | `scripts/Validate-SessionProtocol.ps1` |
+| **Script** | `scripts/Validate-SessionJson.ps1` |
 | **Trigger** | CI on `.agents/**` changes, manual |
 | **Input** | Session logs, HANDOFF.md |
 | **Output** | Compliance report |

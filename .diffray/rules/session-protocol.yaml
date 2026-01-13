@@ -22,7 +22,7 @@ rules:
       bad: |
         # Editing .agents/HANDOFF.md directly
       good: |
-        # Create .agents/sessions/YYYY-MM-DD-session-NN.md
+        # Create .agents/sessions/YYYY-MM-DD-session-NN.json
         # Update .serena/memories/ for persistent context
 
     tags:

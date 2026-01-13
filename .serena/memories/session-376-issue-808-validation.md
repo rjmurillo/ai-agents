@@ -2,7 +2,7 @@
 
 **Date**: 2026-01-06
 **Branch**: feat/session-init-skill
-**Session Log**: `.agents/sessions/2026-01-06-session-376-issue-808-validation.md`
+**Session Log**: `.agents/sessions/2026-01-06-session-376-issue-808-validation.json`
 
 ## Context
 

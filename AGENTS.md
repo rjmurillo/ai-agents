@@ -68,7 +68,7 @@ You CANNOT claim session completion until validation PASSES. These requirements 
 | **MUST** | Update Serena memory (cross-session context) | Memory write confirmed |
 | **MUST** | Run `npx markdownlint-cli2 --fix "**/*.md"` | Lint passes |
 | **MUST** | Commit all changes including `.agents/` | Commit SHA in Evidence column |
-| **MUST** | Run `Validate-SessionProtocol.ps1` | Exit code 0 (PASS) |
+| **MUST** | Run `Validate-SessionJson.ps1` | Exit code 0 (PASS) |
 | **SHOULD** | Update PROJECT-PLAN.md task checkboxes | Tasks marked complete |
 | **SHOULD** | Invoke retrospective (significant sessions) | Doc created |
 
@@ -142,7 +142,7 @@ pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -
 
 - Reads canonical template from SESSION-PROTOCOL.md
 - Auto-detects git state (branch, commit, status)
-- Validates immediately with Validate-SessionProtocol.ps1
+- Validates immediately with Validate-SessionJson.ps1
 - Prevents CI validation failures at source
 - Deterministic invocation via `/session-init` slash command
 
@@ -295,7 +295,7 @@ wt merge
 - **Commit secrets or credentials** (use git-secret, environment variables, or secure vaults)
 - **Update HANDOFF.md** (read-only reference, write to session logs instead)
 - **Use bash/python for scripts** (PowerShell-only per ADR-005)
-- **Skip session protocol validation** (`Validate-SessionProtocol.ps1` must pass)
+- **Skip session protocol validation** (`Validate-SessionJson.ps1` must pass)
 - **Put logic in workflow YAML** (ADR-006: logic goes in .psm1 modules)
 - **Use raw gh commands** when skills exist (check `.claude/skills/` first)
 - **Create PRs without template** (all sections required)
@@ -1622,7 +1622,7 @@ SESSION END (BLOCKING - MUST complete before closing):
 8. MUST: Update Serena memory (cross-session context)
 9. MUST: Run npx markdownlint-cli2 --fix "**/*.md"
 9. MUST: Commit all changes (record SHA in Evidence column)
-10. MUST: Run Validate-SessionProtocol.ps1 - PASS required before claiming completion
+10. MUST: Run Validate-SessionJson.ps1 - PASS required before claiming completion
 11. SHOULD: Check off completed tasks in PROJECT-PLAN.md
 12. SHOULD: Invoke retrospective agent (for significant sessions)
 ```

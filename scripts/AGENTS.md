@@ -153,7 +153,7 @@ flowchart TD
         SYN[Sync-McpConfig.ps1]
         CHK[Check-SkillExists.ps1]
         VCS[Validate-Consistency.ps1]
-        VSP[Validate-SessionProtocol.ps1]
+        VSP[Validate-SessionJson.ps1]
     end
 
     subgraph Lib["Shared Library"]
@@ -207,20 +207,27 @@ flowchart TD
 | `-Environment` | String | `Claude`, `Copilot`, or `VSCode` |
 | `-Global` | Switch | Install to user-level location |
 | `-RepoPath` | String | Install to specified repository |
+| `-Version` | String | Version tag or branch (default: `v0.1.0`) |
 | `-Force` | Switch | Overwrite without prompting |
 
 **Invocation**:
 
 ```powershell
-# Remote installation (one-liner)
+# Remote installation (stable release v0.1.0)
+iex ((New-Object System.Net.WebClient).DownloadString(
+  'https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
+
+# Remote installation (bleeding edge from main)
 iex ((New-Object System.Net.WebClient).DownloadString(
   'https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
 
-# Local installation
+# Local installation (uses files from current working directory)
 .\install.ps1 -Environment Claude -Global
 .\install.ps1 -Environment VSCode -RepoPath "C:\MyRepo"
 .\install.ps1 -Environment Copilot -RepoPath "." -Force
 ```
+
+**Note**: The `-Version` parameter only applies to remote installations where `install.ps1` is downloaded via `iex`. Local installations always use the files in the current working directory, regardless of the `-Version` parameter.
 
 **Installation Matrix**:
 
@@ -331,7 +338,7 @@ For backward compatibility, individual scripts wrap the unified installer:
 
 ---
 
-### Validate-SessionProtocol.ps1
+### Validate-SessionJson.ps1
 
 **Role**: Session protocol compliance checker
 
@@ -356,13 +363,13 @@ For backward compatibility, individual scripts wrap the unified installer:
 
 ```powershell
 # Validate specific session
-.\Validate-SessionProtocol.ps1 -SessionDate "2025-12-18" -SessionNumber 24
+.\Validate-SessionJson.ps1 -SessionDate "2025-12-18" -SessionNumber 24
 
 # CI mode
-.\Validate-SessionProtocol.ps1 -CI
+.\Validate-SessionJson.ps1 -CI
 
 # JSON output
-.\Validate-SessionProtocol.ps1 -OutputFormat JSON
+.\Validate-SessionJson.ps1 -OutputFormat JSON
 ```
 
 ---
@@ -447,7 +454,7 @@ sequenceDiagram
 | install.ps1 | Permission denied | Prompt for elevated permissions |
 | install.ps1 | File exists | Prompt unless `-Force` |
 | Sync-McpConfig.ps1 | Source missing | Exit with path error |
-| Validate-SessionProtocol.ps1 | Session not found | Warning, continue |
+| Validate-SessionJson.ps1 | Session not found | Warning, continue |
 
 ## Security Considerations
 
@@ -489,7 +496,7 @@ Invoke-Pester -Path .\scripts\tests -Output Detailed
 |-------|------------|---------|
 | install.ps1 | `pester-tests.yml` | PR to `scripts/**` |
 | Sync-McpConfig.ps1 | `pester-tests.yml` | PR to `scripts/**` |
-| Validate-SessionProtocol.ps1 | `ai-session-protocol.yml` | PR to `.agents/**` |
+| Validate-SessionJson.ps1 | `ai-session-protocol.yml` | PR to `.agents/**` |
 
 ## Related Documentation
 

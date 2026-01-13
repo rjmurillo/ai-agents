@@ -273,7 +273,7 @@ From the session log:
 
 Three-tier distributed handoff system:
 
-- **Tier 1**: Session logs at `.agents/sessions/YYYY-MM-DD-session-NN.md` (2K tokens, authoritative)
+- **Tier 1**: Session logs at `.agents/sessions/YYYY-MM-DD-session-NN.json` (2K tokens, authoritative)
 - **Tier 2**: Branch-local at `.agents/handoffs/{branch}/` (3K tokens, deleted on merge, optional)
 - **Tier 3**: HANDOFF.md (5K hard limit, **READ-ONLY on feature branches**)
 
@@ -310,7 +310,7 @@ From Session 62:
 > "**Distributed Handoff Architecture (ADR-014):**
 >
 > - HANDOFF.md is read-only dashboard, not updated during sessions
-> - Session logs capture full context in .agents/sessions/YYYY-MM-DD-session-NN.md
+> - Session logs capture full context in .agents/sessions/YYYY-MM-DD-session-NN.json
 > - **Eliminates 80% merge conflict rate** from centralized handoff updates"
 
 **Cost**: Every rebase, every conflict resolution, every AI token spent re-reviewing the same 35K context.
@@ -651,7 +651,7 @@ Something happened in Session 15 that made you say "never again."
 > "HANDOFF.md is READ-ONLY on feature branches."
 
 **Memory #20** (Architecture patterns):
-> "Session logs capture full context in .agents/sessions/YYYY-MM-DD-session-NN.md
+> "Session logs capture full context in .agents/sessions/YYYY-MM-DD-session-NN.json
 > Eliminates 80% merge conflict rate"
 
 That date marks when you stopped trusting guidance and started enforcing structure.

@@ -67,7 +67,7 @@ All MUST requirements above are marked complete.
 - Thread: PRRT_kwDOQoWRls5oHGT6
 - Reviewer: copilot-pull-request-reviewer
 - Issue: Inaccurate comment about negative lookahead
-- Location: scripts/Validate-SessionProtocol.ps1:630
+- Location: scripts/Validate-SessionJson.ps1:630
 - Priority: Minor (comment accuracy)
 
 **What was done**:
@@ -84,7 +84,7 @@ All MUST requirements above are marked complete.
 - Correct comment rather than leave inaccurate documentation
 
 **Files changed**:
-- `scripts/Validate-SessionProtocol.ps1` - Comment correction at line 630
+- `scripts/Validate-SessionJson.ps1` - Comment correction at line 630
 
 ---
 

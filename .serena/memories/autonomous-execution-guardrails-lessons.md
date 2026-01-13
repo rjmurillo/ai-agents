@@ -174,9 +174,9 @@ PR #226 was merged prematurely with 6 defects when an autonomous agent bypassed 
 
 ```bash
 # Pre-commit will block, create log:
-cp .agents/SESSION-PROTOCOL.md .agents/sessions/YYYY-MM-DD-session-NN.md
+cp .agents/SESSION-PROTOCOL.md .agents/sessions/YYYY-MM-DD-session-NN.json
 # Edit to fill in sections
-git add .agents/sessions/YYYY-MM-DD-session-NN.md
+git add .agents/sessions/YYYY-MM-DD-session-NN.json
 git commit
 ```
 

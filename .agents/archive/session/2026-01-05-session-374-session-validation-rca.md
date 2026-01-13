@@ -66,7 +66,7 @@ Validation complete for .agents/sessions/2026-01-04-session-305-task-generator-e
 
 ### Evidence Gathered
 
-1. **Validation Script Pattern** (`scripts/Validate-SessionProtocol.ps1:516`):
+1. **Validation Script Pattern** (`scripts/Validate-SessionJson.ps1:516`):
    ```powershell
    if ($Content -notmatch '(?i)Session\s+End.*COMPLETE\s+ALL|End.*before.*closing') {
        $result.Issues += "Missing Session End checklist header"
@@ -212,7 +212,7 @@ Create `.claude/skills/session-init/` that:
 Add to AGENTS.md session start protocol:
 ```text
 7. Create session log: `Invoke session-init skill`
-8. Verify session log: `pwsh scripts/Validate-SessionProtocol.ps1 -SessionPath [path]`
+8. Verify session log: `pwsh scripts/Validate-SessionJson.ps1 -SessionPath [path]`
 ```
 
 **Combined Approach** (A + B):
@@ -264,7 +264,7 @@ Created GitHub issues to track implementation:
 3. Skill follows verification-based enforcement pattern:
    - Reads canonical template from SESSION-PROTOCOL.md (lines 494-612)
    - Auto-populates git state (branch, commit, date)
-   - Validates immediately with Validate-SessionProtocol.ps1
+   - Validates immediately with Validate-SessionJson.ps1
    - Prevents malformed sessions at source
 
 **Files Created**:

@@ -59,12 +59,4 @@ QA verification of ADR numbering conflict resolution. Implementation successfull
 
 - Analysis: `.agents/analysis/403-adr-numbering-conflicts-analysis.md`
 - Previous QA: `.agents/qa/474-adr-numbering-test-report.md`
-- Session 100: `.agents/sessions/2025-12-28-session-100-adr-cross-reference-fixes.md`
-
-## Related
-
-- [validation-006-self-report-verification](validation-006-self-report-verification.md)
-- [validation-007-cross-reference-verification](validation-007-cross-reference-verification.md)
-- [validation-007-frontmatter-validation-compliance](validation-007-frontmatter-validation-compliance.md)
-- [validation-anti-patterns](validation-anti-patterns.md)
-- [validation-baseline-triage](validation-baseline-triage.md)
+- Session 100: `.agents/sessions/2025-12-28-session-100-adr-cross-reference-fixes.json`

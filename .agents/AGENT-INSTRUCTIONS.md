@@ -40,7 +40,7 @@ Before starting work, complete these steps IN ORDER:
 - [ ] Read `.agents/planning/enhancement-PROJECT-PLAN.md` for current project
 - [ ] Check `.agents/HANDOFF.md` for previous session notes
 - [ ] Identify your assigned phase and tasks
-- [ ] Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+- [ ] Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.json`
 
 ---
 
@@ -302,7 +302,7 @@ The repository should have a pre-commit hook that:
 
 ## Session Log Template
 
-Create at session start: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+Create at session start: `.agents/sessions/YYYY-MM-DD-session-NN.json`
 
 ```markdown
 # Session NN - [Phase Name] - [Date]
@@ -454,7 +454,7 @@ If you need context, read these files in order:
 2. `.agents/AGENT-SYSTEM.md` - Agent catalog and workflows
 3. `.agents/planning/enhancement-PROJECT-PLAN.md` - Master project plan
 4. `.agents/HANDOFF.md` - Previous session context
-5. `.agents/sessions/YYYY-MM-DD-session-NN.md` - Last session details
+5. `.agents/sessions/YYYY-MM-DD-session-NN.json` - Last session details
 ```
 
 ---
@@ -551,7 +551,7 @@ After completing significant work:
 
 ```text
 @retrospective Analyze this session for learnings.
-Session log: .agents/sessions/YYYY-MM-DD-session-NN.md
+Session log: .agents/sessions/YYYY-MM-DD-session-NN.json
 Tasks completed: [list]
 ```
 

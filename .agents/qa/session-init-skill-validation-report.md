@@ -304,7 +304,7 @@ Reason: Usage-mandatory memory is for skill scripts (GitHub workflow), not sessi
 
    **Recommended**: Use the `/session-init` skill to create session logs automatically.
 
-   Create at: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+   Create at: `.agents/sessions/YYYY-MM-DD-session-NN.json`
    ```
 
 3. **End-to-End Documentation** (P2): Create usage example showing complete workflow from skill invocation to validated session log.

@@ -48,9 +48,10 @@ function Get-CurrentBranch {
     }
 }
 
-function Test-ProtectedBranch {
+function Test-IsMainOrMasterBranch {
     param([string]$Branch)
 
+    # Check if branch is main or master (common default branches)
     if ([string]::IsNullOrWhiteSpace($Branch)) {
         return $false
     }
@@ -93,7 +94,7 @@ try {
     $currentBranch = Get-CurrentBranch
 
     # BLOCKING: Check if on protected branch
-    if (Test-ProtectedBranch -Branch $currentBranch) {
+    if (Test-IsMainOrMasterBranch -Branch $currentBranch) {
         $output = @"
 
 ## ⛔ BLOCKED: Cannot Work on Protected Branch

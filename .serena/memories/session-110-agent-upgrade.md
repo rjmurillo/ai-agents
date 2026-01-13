@@ -22,12 +22,4 @@ Created PR #690 for comprehensive agent system upgrade.
 
 ## Reference
 
-- Session log: `.agents/sessions/2025-12-31-session-110-agent-upgrade-pr.md`
-
-## Related
-
-- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
-- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
-- [session-112-pr-712-review](session-112-pr-712-review.md)
-- [session-113-pr-713-review](session-113-pr-713-review.md)
-- [session-128-context-optimization](session-128-context-optimization.md)
+- Session log: `.agents/sessions/2025-12-31-session-110-agent-upgrade-pr.json`
