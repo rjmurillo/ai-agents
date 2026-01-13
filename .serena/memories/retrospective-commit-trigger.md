@@ -44,3 +44,11 @@ Never ignore 10+ commits without merge. This indicates:
 - Autonomous mode spiraling
 
 Stop and retrospect. Don't continue hoping for breakthrough.
+
+## Related
+
+- [retrospective-001-pr-learning-extraction](retrospective-001-pr-learning-extraction.md)
+- [retrospective-001-recursive-extraction](retrospective-001-recursive-extraction.md)
+- [retrospective-002-retrospective-to-skill-pipeline](retrospective-002-retrospective-to-skill-pipeline.md)
+- [retrospective-003-token-impact-documentation](retrospective-003-token-impact-documentation.md)
+- [retrospective-004-evidence-based-validation](retrospective-004-evidence-based-validation.md)

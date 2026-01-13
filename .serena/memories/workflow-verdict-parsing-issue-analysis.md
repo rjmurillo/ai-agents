@@ -96,8 +96,8 @@ VERDICT=$(echo "$OUTPUT" | grep -oiE 'VERDICT:[[:space:]]*(PASS|WARN|CRITICAL_FA
 ## Related Memories
 
 - `workflow-verdict-tokens`: Standard verdict token format (PASS, WARN, CRITICAL_FAIL)
-- `copilot-synthesis-verdict-parsing`: Similar issue in copilot-synthesis workflow (PR #296) - solved by improving prompts to explicitly require verdict output
-- `ai-pr-quality-gate-infra-handling-2025-12-27`: Infrastructure failure handling with verdict fallback mechanism
+- [copilot-synthesis-verdict-parsing](copilot-synthesis-verdict-parsing.md): Similar issue in copilot-synthesis workflow (PR #296) - solved by improving prompts to explicitly require verdict output
+- [ai-pr-quality-gate-infra-handling-2025-12-27](ai-pr-quality-gate-infra-handling-2025-12-27.md): Infrastructure failure handling with verdict fallback mechanism
 
 ## Recommendation
 
@@ -111,3 +111,11 @@ The verdict parsing logic incorrectly matches keywords in context when the struc
 1. Improve prompts to guarantee `VERDICT: TOKEN` output (like PR #296 fix)
 2. Add explicit delimiter to isolate AI response from context
 3. Update action to parse only isolated response
+
+## Related
+
+- [workflow-authorization-testable-pattern](workflow-authorization-testable-pattern.md)
+- [workflow-false-positive-verdict-parsing-2025-12-28](workflow-false-positive-verdict-parsing-2025-12-28.md)
+- [workflow-false-positive-verdict-parsing-fix-2025-12-28](workflow-false-positive-verdict-parsing-fix-2025-12-28.md)
+- [workflow-patterns-batch-changes-reduce-cogs](workflow-patterns-batch-changes-reduce-cogs.md)
+- [workflow-patterns-composite-action](workflow-patterns-composite-action.md)

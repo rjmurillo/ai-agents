@@ -78,3 +78,11 @@ NEW (eyes=0, unresolved)
 - state-machines
 - lifecycle
 - clarity
+
+## Related
+
+- [design-approaches-detailed](design-approaches-detailed.md)
+- [design-by-contract](design-by-contract.md)
+- [design-composability](design-composability.md)
+- [design-diagrams](design-diagrams.md)
+- [design-entry-criteria](design-entry-criteria.md)

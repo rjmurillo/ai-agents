@@ -34,6 +34,6 @@ Designers of second systems are tempted to include all features omitted from the
 
 ## Related
 
-- `lindy-effect`: Systems that survive longer tend to keep surviving
+- [lindy-effect](lindy-effect.md): Systems that survive longer tend to keep surviving
 - `sacrificial-architecture`: Plan for replacement at 10x growth
-- `yagni-principle`: Build only what's needed now
+- [yagni-principle](yagni-principle.md): Build only what's needed now

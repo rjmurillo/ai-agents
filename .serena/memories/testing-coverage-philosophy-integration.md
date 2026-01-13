@@ -69,3 +69,11 @@ Testing should increase stakeholder confidence through evidence (Dan North), not
 2. Add testing quality checklist to session protocol
 3. Enhance qa agent prompt with evidence-based criteria
 4. Document anti-patterns in .agents/governance/TESTING-ANTI-PATTERNS.md
+
+## Related
+
+- [testing-002-test-first-development](testing-002-test-first-development.md)
+- [testing-003-script-execution-isolation](testing-003-script-execution-isolation.md)
+- [testing-004-coverage-pragmatism](testing-004-coverage-pragmatism.md)
+- [testing-007-contract-testing](testing-007-contract-testing.md)
+- [testing-008-entry-point-isolation](testing-008-entry-point-isolation.md)

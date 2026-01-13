@@ -31,3 +31,11 @@ Never treat user patch as optional input. User providing patch = blocker signal:
 - Don't assume you're correct and user is just being helpful
 
 User patch means agent understanding is incomplete.
+
+## Related
+
+- [autonomous-circuit-breaker-pattern](autonomous-circuit-breaker-pattern.md)
+- [autonomous-circuit-breaker](autonomous-circuit-breaker.md)
+- [autonomous-execution-failures-pr760](autonomous-execution-failures-pr760.md)
+- [autonomous-execution-guardrails-lessons](autonomous-execution-guardrails-lessons.md)
+- [autonomous-execution-guardrails](autonomous-execution-guardrails.md)

@@ -99,3 +99,11 @@ If sensitive data detected, manually redact before committing.
 - **Created**: January 3, 2026 (Session 229)
 - **Updated**: January 3, 2026 (Session 230 - PowerShell migration)
 - **Reason**: User questioned wrapper complexity; replaced TypeScript wrappers with PowerShell for ADR-005 compliance
+
+## Related
+
+- [claude-code-hooks-opportunity-analysis](claude-code-hooks-opportunity-analysis.md)
+- [claude-code-skill-frontmatter-standards](claude-code-skill-frontmatter-standards.md)
+- [claude-code-skills-official-guidance](claude-code-skills-official-guidance.md)
+- [claude-code-slash-commands](claude-code-slash-commands.md)
+- [claude-flow-research-2025-12-20](claude-flow-research-2025-12-20.md)

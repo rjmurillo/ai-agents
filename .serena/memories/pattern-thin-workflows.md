@@ -174,3 +174,10 @@ The following functions were removed from `AIReviewCommon.psm1` because they dup
 | `Send-IssueComment` | `.claude/skills/github/scripts/issue/Post-IssueComment.ps1` |
 
 Note: PRs are issues in GitHub's API, so `Post-IssueComment.ps1` works for both.
+
+## Related
+
+- [pattern-agent-generation-three-platforms](pattern-agent-generation-three-platforms.md)
+- [pattern-github-actions-variable-evaluation](pattern-github-actions-variable-evaluation.md)
+- [pattern-handoff-merge-session-histories](pattern-handoff-merge-session-histories.md)
+- [pattern-single-source-of-truth-workflows](pattern-single-source-of-truth-workflows.md)

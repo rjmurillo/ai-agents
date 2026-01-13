@@ -68,13 +68,21 @@ grep -r "session/init\|session/log-fixer\|session/qa-eligibility" \
 - Commit: d2901e9c
 
 ## Related Memories
-- `session-375-skillforge-session-skills`: Original skill creation
-- `session-376-issue-808-validation`: Issue #808 validation work
-- `skills-session-init-index`: Session init workflow
-- `claude-code-skill-frontmatter-standards`: Skill conventions
+- [session-375-skillforge-session-skills](session-375-skillforge-session-skills.md): Original skill creation
+- [session-376-issue-808-validation](session-376-issue-808-validation.md): Issue #808 validation work
+- [skills-session-init-index](skills-session-init-index.md): Session init workflow
+- [claude-code-skill-frontmatter-standards](claude-code-skill-frontmatter-standards.md): Skill conventions
 
 ## Lessons Learned
 1. Claude Code skill discovery is opinionated: flat structure only
 2. Always check for existing patterns before creating nested structures
 3. Git history preservation requires `git mv`, not `mv` + `git add`
 4. Linters may auto-fix path references after moves (watch for side effects)
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)

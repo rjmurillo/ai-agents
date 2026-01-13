@@ -29,3 +29,11 @@ git config core.hooksPath .githooks
 - Handles filenames with spaces safely
 - Checks for symlinks to prevent TOCTOU attacks
 - Prefers local installation over npx for dependency security
+
+## Related
+
+- [utilities-cva-refactoring](utilities-cva-refactoring.md)
+- [utilities-markdown-fences](utilities-markdown-fences.md)
+- [utilities-pathinfo-conversion](utilities-pathinfo-conversion.md)
+- [utilities-regex](utilities-regex.md)
+- [utilities-security-patterns](utilities-security-patterns.md)

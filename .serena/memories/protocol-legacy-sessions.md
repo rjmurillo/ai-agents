@@ -30,3 +30,11 @@
 - Session lacks Protocol Compliance section
 - Session uses non-canonical format
 - Session blocks CI in PR
+
+## Related
+
+- [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md)
+- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md)
+- [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md)
+- [protocol-blocking-gates](protocol-blocking-gates.md)
+- [protocol-continuation-session-gap](protocol-continuation-session-gap.md)

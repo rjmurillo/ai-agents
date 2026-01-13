@@ -66,3 +66,10 @@ From [GitHub Actions Documentation](https://docs.github.com/en/actions/learn-git
 - Commit: b7d67f40404a276c74dfa4ed6d40e00d92ef6db1
 - File: `.github/workflows/memory-validation.yml`
 - Test Report: `.agents/qa/001-issue-348-test-report.md`
+
+## Related
+
+- [pattern-agent-generation-three-platforms](pattern-agent-generation-three-platforms.md)
+- [pattern-handoff-merge-session-histories](pattern-handoff-merge-session-histories.md)
+- [pattern-single-source-of-truth-workflows](pattern-single-source-of-truth-workflows.md)
+- [pattern-thin-workflows](pattern-thin-workflows.md)

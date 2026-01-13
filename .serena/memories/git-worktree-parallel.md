@@ -34,3 +34,11 @@ cd "/home/user/worktree-pr-$PR_NUMBER"
 | Isolation success | 100% (zero cross-contamination) |
 | Throughput | 1.5 comments/min |
 | Parallel capacity | 8+ PRs |
+
+## Related
+
+- [git-003-staged-changes-guard](git-003-staged-changes-guard.md)
+- [git-004-branch-switch-file-verification](git-004-branch-switch-file-verification.md)
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md)
+- [git-branch-cleanup-pattern](git-branch-cleanup-pattern.md)
+- [git-conflict-deleted-file](git-conflict-deleted-file.md)

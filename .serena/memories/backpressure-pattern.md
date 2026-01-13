@@ -36,5 +36,5 @@ Use backpressure when:
 
 ## Related
 
-- `resilience-patterns` - Fault tolerance
-- `cap-theorem` - Distributed systems trade-offs
+- [resilience-patterns](resilience-patterns.md) - Fault tolerance
+- [cap-theorem](cap-theorem.md) - Distributed systems trade-offs

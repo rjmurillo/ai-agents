@@ -35,5 +35,5 @@ Complex problems require experimentation, not analysis paralysis.
 
 ## Related
 
-- `rumsfeld-matrix` - Managing uncertainty
+- [rumsfeld-matrix](rumsfeld-matrix.md) - Managing uncertainty
 - `antifragility` - Improving through stress

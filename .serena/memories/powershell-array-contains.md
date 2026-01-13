@@ -67,3 +67,11 @@ if ($labels.ToLowerInvariant() -contains $input.ToLowerInvariant()) { }
 Use `.ToLowerInvariant()` over `.ToLower()` for culture-independent comparisons.
 
 **Evidence**: PR #212
+
+## Related
+
+- [powershell-array-handling](powershell-array-handling.md)
+- [powershell-cross-platform-ci](powershell-cross-platform-ci.md)
+- [powershell-like-pattern-matching](powershell-like-pattern-matching.md)
+- [powershell-security-ai-output](powershell-security-ai-output.md)
+- [powershell-string-safety](powershell-string-safety.md)

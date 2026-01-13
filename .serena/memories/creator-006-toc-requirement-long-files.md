@@ -74,3 +74,11 @@ PR #255 (2025-12-22): TOC added to `GitHubHelpers.psm1` (400+ lines). Commit `e8
 
 - Skill-Documentation-004 (pattern consistency)
 - Skill-Creator-004 (reference extraction)
+
+## Related
+
+- [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md)
+- [creator-002-token-efficiency-comment-stripping](creator-002-token-efficiency-comment-stripping.md)
+- [creator-003-test-separation-skill-directory](creator-003-test-separation-skill-directory.md)
+- [creator-004-reference-material-extraction](creator-004-reference-material-extraction.md)
+- [creator-005-schema-redundancy-elimination](creator-005-schema-redundancy-elimination.md)

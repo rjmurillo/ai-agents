@@ -151,5 +151,5 @@ function Get-FailureCategory {
 
 - Issue #328: Retry logic for infrastructure failures (COMPLETED)
 - Issue #329: Failure categorization (COMPLETED - this implementation)
-- Memory `ai-quality-gate-efficiency-analysis`: Cost analysis
+- Memory [ai-quality-gate-efficiency-analysis](ai-quality-gate-efficiency-analysis.md): Cost analysis
 - Analysis document: `.agents/analysis/002-ai-quality-gate-failure-patterns.md`

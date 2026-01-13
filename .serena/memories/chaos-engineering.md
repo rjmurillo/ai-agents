@@ -37,6 +37,6 @@
 
 ## Related
 
-- `slo-sli-sla`: Reliability targets and error budgets
-- `resilience-patterns`: Circuit breaker, bulkhead, retry
-- `foundational-knowledge-index`: Master index
+- [slo-sli-sla](slo-sli-sla.md): Reliability targets and error budgets
+- [resilience-patterns](resilience-patterns.md): Circuit breaker, bulkhead, retry
+- [foundational-knowledge-index](foundational-knowledge-index.md): Master index

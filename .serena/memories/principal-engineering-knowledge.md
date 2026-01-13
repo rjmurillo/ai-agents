@@ -2,7 +2,7 @@
 
 **Created**: 2026-01-10
 **Category**: Engineering Knowledge Management
-**Source**: `.agents/analysis/principal-engineer-knowledge-set.md`
+**Comprehensive Index**: [engineering-knowledge-index](engineering-knowledge-index.md)
 **Consolidated from**: Sessions 816 and 819
 
 ## Purpose
@@ -89,9 +89,9 @@ At 15+ years, optimization targets change:
 ## Related
 
 - Full analysis: `.agents/analysis/principal-engineer-knowledge-set.md`
-- Previous tier: `foundational-knowledge-index`
-- Next tier: `distinguished-engineer-knowledge-index`
-- Strategic thinking: `wardley-mapping`, `cynefin-framework`, `ooda-loop`
-- Organizational: `team-topologies`, `conways-law`, `products-over-projects`
-- Resilience: `chaos-engineering`, `slo-sli-sla`, `strangler-fig-pattern`
-- Decision-making: `chestertons-fence-memory-integration`, `inversion-thinking`, `pre-mortems`
+- Previous tier: [foundational-knowledge-index](foundational-knowledge-index.md)
+- Next tier: [distinguished-engineer-knowledge-index](distinguished-engineer-knowledge-index.md)
+- Strategic thinking: [wardley-mapping](wardley-mapping.md), [cynefin-framework](cynefin-framework.md), [ooda-loop](ooda-loop.md)
+- Organizational: [team-topologies](team-topologies.md), [conways-law](conways-law.md), [products-over-projects](products-over-projects.md)
+- Resilience: [chaos-engineering](chaos-engineering.md), [slo-sli-sla](slo-sli-sla.md), [strangler-fig-pattern](strangler-fig-pattern.md)
+- Decision-making: [chestertons-fence](chestertons-fence.md), [inversion-thinking](inversion-thinking.md), [pre-mortems](pre-mortems.md)

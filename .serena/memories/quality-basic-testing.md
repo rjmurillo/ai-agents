@@ -49,3 +49,11 @@ Write-Host "✓ Syntax valid" -ForegroundColor Green
 - After creating a new PowerShell script
 - After making significant changes
 - Before committing to version control
+
+## Related
+
+- [quality-agent-remediation](quality-agent-remediation.md)
+- [quality-critique-escalation](quality-critique-escalation.md)
+- [quality-definition-of-done](quality-definition-of-done.md)
+- [quality-prompt-engineering-gates](quality-prompt-engineering-gates.md)
+- [quality-qa-routing](quality-qa-routing.md)

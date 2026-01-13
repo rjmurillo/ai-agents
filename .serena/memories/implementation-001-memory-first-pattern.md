@@ -77,3 +77,11 @@ function Detect-CopilotFollowUpPR { ... }
 
 - Skill-PR-Copilot-001: Example of correctly implemented memory-first pattern
 - SESSION-PROTOCOL.md Step 0: list_memories requirement
+
+## Related
+
+- [implementation-001-pre-implementation-test-discovery](implementation-001-pre-implementation-test-discovery.md)
+- [implementation-002-test-driven-implementation](implementation-002-test-driven-implementation.md)
+- [implementation-006-graphql-first](implementation-006-graphql-first.md)
+- [implementation-additive-approach](implementation-additive-approach.md)
+- [implementation-clarification](implementation-clarification.md)

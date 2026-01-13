@@ -22,3 +22,10 @@ gh issue edit <number> --add-assignee @me
 - Provides visibility into who is working on what
 - Required by project workflow conventions
 
+## Related
+
+- [github-actions-local-testing-integration](github-actions-local-testing-integration.md)
+- [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
+- [github-cli-anti-patterns](github-cli-anti-patterns.md)
+- [github-cli-api-patterns](github-cli-api-patterns.md)
+- [github-cli-extensions](github-cli-extensions.md)

@@ -134,9 +134,9 @@ Categorize the PR before evaluation:
 **Source**: `.claude/skills/prompt-engineer/references/prompt-engineering-single-turn.md`
 
 **Related Memories**:
-- `retrospective-2025-12-27`: Full Session 91 retrospective
-- `issue-357-rca-findings`: Root cause analysis
-- `ai-quality-gate-efficiency-analysis`: Quality gate performance metrics
+- [retrospective-2025-12-27](retrospective-2025-12-27.md): Full Session 91 retrospective
+- [issue-357-rca-findings](issue-357-rca-findings.md): Root cause analysis
+- [ai-quality-gate-efficiency-analysis](ai-quality-gate-efficiency-analysis.md): Quality gate performance metrics
 
 ## When NOT to Use
 
@@ -155,3 +155,11 @@ Before merging prompt changes using these patterns:
 4. **Coverage check**: Confirm Expected Patterns section documents known acceptable patterns
 
 **Evidence baseline**: 84 Pester tests covering file classification, PR type detection, DOCS exemptions, expected patterns, CRITICAL_FAIL triggers, cross-prompt consistency
+
+## Related
+
+- [quality-agent-remediation](quality-agent-remediation.md)
+- [quality-basic-testing](quality-basic-testing.md)
+- [quality-critique-escalation](quality-critique-escalation.md)
+- [quality-definition-of-done](quality-definition-of-done.md)
+- [quality-qa-routing](quality-qa-routing.md)

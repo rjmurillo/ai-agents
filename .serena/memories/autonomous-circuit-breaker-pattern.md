@@ -165,3 +165,11 @@ Circuit breaker should NOT trigger for:
 - Retrospective: `.agents/retrospective/2026-01-04-pr760-security-suppression-failure.md`
 - PR: #760 (38 commits without circuit breaker)
 - Session: `.agents/sessions/2026-01-04-session-305-pr760-retrospective.md`
+
+## Related
+
+- [autonomous-circuit-breaker](autonomous-circuit-breaker.md)
+- [autonomous-execution-failures-pr760](autonomous-execution-failures-pr760.md)
+- [autonomous-execution-guardrails-lessons](autonomous-execution-guardrails-lessons.md)
+- [autonomous-execution-guardrails](autonomous-execution-guardrails.md)
+- [autonomous-patch-signal](autonomous-patch-signal.md)

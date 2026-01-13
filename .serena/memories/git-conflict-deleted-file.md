@@ -42,3 +42,11 @@ git commit
 | Obsolete | Refactoring | Accept deletion |
 | Needed | Mistake | Restore file |
 | Partial overlap | Consolidation | Manual merge |
+
+## Related
+
+- [git-003-staged-changes-guard](git-003-staged-changes-guard.md)
+- [git-004-branch-switch-file-verification](git-004-branch-switch-file-verification.md)
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md)
+- [git-branch-cleanup-pattern](git-branch-cleanup-pattern.md)
+- [git-conflict-resolution-workflow](git-conflict-resolution-workflow.md)

@@ -39,6 +39,14 @@ Self-review misses compliance issues that critic catches objectively. Critic val
 
 ## Related Skills
 
-- **Complements**: `agent-workflow-critic-gate` (pre-implementation plan validation)
+- **Complements**: [agent-workflow-critic-gate](agent-workflow-critic-gate.md) (pre-implementation plan validation)
 - **BLOCKS**: None - This is post-implementation safety net
 - **ENABLES**: Higher quality merges, fewer fix commits
+
+## Related
+
+- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
+- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
+- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
+- [agent-workflow-collaboration](agent-workflow-collaboration.md)
+- [agent-workflow-critic-gate](agent-workflow-critic-gate.md)

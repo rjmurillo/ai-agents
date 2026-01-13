@@ -45,7 +45,7 @@
 
 ## Related
 
-- `foundational-knowledge-index` - Core engineering concepts
-- `engineering-as-social-activity` - Writing and collaboration
+- [foundational-knowledge-index](foundational-knowledge-index.md) - Core engineering concepts
+- [engineering-as-social-activity](engineering-as-social-activity.md) - Writing and collaboration
 - `mentoring-over-teaching` - Invite others to think
 - `design-docs-before-code` - Clarify thinking

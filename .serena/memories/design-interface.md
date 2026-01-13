@@ -26,3 +26,11 @@ Apply agent template strictly
 4. Constraints (what I don't do)
 5. Success Criteria (how to verify)
 6. Handoff Protocol (next steps)
+
+## Related
+
+- [design-008-semantic-precision](design-008-semantic-precision.md)
+- [design-approaches-detailed](design-approaches-detailed.md)
+- [design-by-contract](design-by-contract.md)
+- [design-composability](design-composability.md)
+- [design-diagrams](design-diagrams.md)

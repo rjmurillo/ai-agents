@@ -18,11 +18,11 @@ Index of atomic retrospective process skills derived from Session 65 (PR #255 le
 
 Read individual skills:
 
-- `skill-retrospective-001-pr-learning-extraction`
-- `skill-retrospective-002-retrospective-to-skill-pipeline`
-- `skill-retrospective-003-token-impact-documentation`
-- `skill-retrospective-004-evidence-based-validation`
-- `skill-retrospective-005-atomic-skill-decomposition`
+- [retrospective-001-pr-learning-extraction](retrospective-001-pr-learning-extraction.md)
+- [retrospective-002-retrospective-to-skill-pipeline](retrospective-002-retrospective-to-skill-pipeline.md)
+- [retrospective-003-token-impact-documentation](retrospective-003-token-impact-documentation.md)
+- [retrospective-004-evidence-based-validation](retrospective-004-evidence-based-validation.md)
+- [retrospective-005-atomic-skill-decomposition](retrospective-005-atomic-skill-decomposition.md)
 
 ## When to Use This Index
 
@@ -45,10 +45,10 @@ Use when:
 ## Related Skills
 
 Content skills from PR #255 (created in Session 65):
-- `skill-creator-best-practices-index` - 6 skills about skill creation patterns
+- [creator-best-practices-index](creator-best-practices-index.md) - 6 skills about skill creation patterns
 
 Process skills (this index):
-- `skill-retrospective-best-practices-index` - 5 skills about retrospective workflow
+- [retrospective-best-practices-index](retrospective-best-practices-index.md) - 5 skills about retrospective workflow
 
 ## Evidence
 

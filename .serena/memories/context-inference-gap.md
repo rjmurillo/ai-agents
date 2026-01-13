@@ -106,9 +106,9 @@ New section after "Commands (Essential Tools)":
 
 ## Related Memories
 
-- `autonomous-execution-guardrails`: STRICTER protocols during autonomy
-- `agent-workflow-scope-discipline`: Document issues, don't expand scope
-- `session-320-pr806-review`: PR #806 review (different context issue)
+- [autonomous-execution-guardrails](autonomous-execution-guardrails.md): STRICTER protocols during autonomy
+- [agent-workflow-scope-discipline](agent-workflow-scope-discipline.md): Document issues, don't expand scope
+- [session-320-pr806-review](session-320-pr806-review.md): PR #806 review (different context issue)
 
 ## Analysis Artifacts
 

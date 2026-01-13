@@ -47,3 +47,11 @@ gh extension remove extension-name
 | gh-grep | `gh grep --include` | Code search |
 | gh-sub-issue | `gh sub-issue add` | Link issues |
 | gh-sub-issue | `gh sub-issue create --parent --title` | Create sub-issue |
+
+## Related
+
+- [gh-extensions-anti-patterns](gh-extensions-anti-patterns.md)
+- [gh-extensions-combine-prs](gh-extensions-combine-prs.md)
+- [gh-extensions-grep](gh-extensions-grep.md)
+- [gh-extensions-hook](gh-extensions-hook.md)
+- [gh-extensions-metrics](gh-extensions-metrics.md)

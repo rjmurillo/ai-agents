@@ -16,3 +16,11 @@ Infrastructure files don't need space-handling code. Naming conventions prevent 
 |---------|--------|
 | Missing space handling in infra | Dismiss (naming conventions) |
 | "VULNERABLE" on expression injection | Keep (accurate severity) |
+
+## Related
+
+- [coderabbit-config-strategy](coderabbit-config-strategy.md)
+- [coderabbit-documentation-false-positives](coderabbit-documentation-false-positives.md)
+- [coderabbit-markdownlint](coderabbit-markdownlint.md)
+- [coderabbit-mcp-false-positives](coderabbit-mcp-false-positives.md)
+- [coderabbit-path-instructions](coderabbit-path-instructions.md)

@@ -68,3 +68,11 @@ gh pr list --search "review:required"
 
 - GitHub CLI Manual
 - Session 56 (2025-12-21)
+
+## Related
+
+- [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
+- [github-cli-anti-patterns](github-cli-anti-patterns.md)
+- [github-cli-api-patterns](github-cli-api-patterns.md)
+- [github-cli-extensions](github-cli-extensions.md)
+- [github-cli-issue-operations](github-cli-issue-operations.md)

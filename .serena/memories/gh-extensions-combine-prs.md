@@ -31,3 +31,11 @@ gh combine-prs --query "author:app/dependabot" --skip-pr-check
 - Creates a candidate PR for review (doesn't auto-merge to main)
 - When merging the combined PR, use **Merge Commit** (not squash) so GitHub marks original PRs as merged
 - Only combines PRs that merge cleanly without conflicts
+
+## Related
+
+- [gh-extensions-anti-patterns](gh-extensions-anti-patterns.md)
+- [gh-extensions-grep](gh-extensions-grep.md)
+- [gh-extensions-hook](gh-extensions-hook.md)
+- [gh-extensions-maintenance](gh-extensions-maintenance.md)
+- [gh-extensions-metrics](gh-extensions-metrics.md)

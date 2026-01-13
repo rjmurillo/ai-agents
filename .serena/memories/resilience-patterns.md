@@ -52,5 +52,5 @@ Use these patterns together for defense in depth. Failures are inevitable; desig
 
 ## Related
 
-- `cap-theorem` - Distributed systems trade-offs
-- `idempotency-pattern` - Safe retries
+- [cap-theorem](cap-theorem.md) - Distributed systems trade-offs
+- [idempotency-pattern](idempotency-pattern.md) - Safe retries

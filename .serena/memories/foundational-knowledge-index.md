@@ -1,7 +1,7 @@
 # Foundational Software Engineer Knowledge Index
 
 **Purpose**: Index of essential software engineering knowledge for engineers with less than 5 years experience.
-**Analysis**: `.agents/analysis/foundational-engineer-knowledge-set.md`
+**Comprehensive Index**: [engineering-knowledge-index](engineering-knowledge-index.md)
 
 ## Knowledge Categories
 
@@ -61,16 +61,15 @@
 
 ## Related Knowledge Sets
 
-| Experience Level | Analysis File |
-|------------------|---------------|
-| Foundational (< 5 yrs) | `.agents/analysis/foundational-engineer-knowledge-set.md` |
-| Senior | `.agents/analysis/senior-engineering-knowledge.md` |
-| Advanced | `.agents/analysis/advanced-engineering-knowledge.md` |
-| Principal | `.agents/analysis/principal-engineer-knowledge-set.md` |
-| Distinguished (25+ yrs) | `.agents/analysis/distinguished-engineer-knowledge.md` |
+| Experience Level | Memory Index |
+|------------------|--------------|
+| Foundational (< 5 yrs) | [foundational-knowledge-index](foundational-knowledge-index.md) (this file) |
+| All Tiers (Comprehensive) | [engineering-knowledge-index](engineering-knowledge-index.md) |
+| Principal (15+ yrs) | [principal-engineering-knowledge](principal-engineering-knowledge.md) |
+| Distinguished (25+ yrs) | [distinguished-engineer-knowledge-index](distinguished-engineer-knowledge-index.md) |
 
 ## Cross-References
-- Security: `security-principles-owasp`
-- Architecture: `c4-model`, `strangler-fig-pattern`
-- Thinking: `cynefin-framework`, `antifragility`, `wardley-mapping`
-- Principles: `yagni-principle`, `boy-scout-rule`, `law-of-demeter`
+- Security: [security-principles-owasp](security-principles-owasp.md)
+- Architecture: [c4-model](c4-model.md), [strangler-fig-pattern](strangler-fig-pattern.md)
+- Thinking: [cynefin-framework](cynefin-framework.md), [antifragility](antifragility.md), [wardley-mapping](wardley-mapping.md)
+- Principles: [yagni-principle](yagni-principle.md), [boy-scout-rule](boy-scout-rule.md), [law-of-demeter](law-of-demeter.md)

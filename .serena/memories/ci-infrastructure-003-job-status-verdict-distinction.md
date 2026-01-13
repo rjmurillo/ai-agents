@@ -144,3 +144,11 @@ Watch for:
 - "Aggregation bug" - Verify job status vs verdict distinction
 - "All checks pass but fails" - Separate job status from verdict
 - Mixing exit codes for script failures and policy violations
+
+## Related
+
+- [ci-infrastructure-001-fail-fast-infrastructure-failures](ci-infrastructure-001-fail-fast-infrastructure-failures.md)
+- [ci-infrastructure-002-explicit-retry-timing](ci-infrastructure-002-explicit-retry-timing.md)
+- [ci-infrastructure-004-error-message-investigation](ci-infrastructure-004-error-message-investigation.md)
+- [ci-infrastructure-ai-integration](ci-infrastructure-ai-integration.md)
+- [ci-infrastructure-claude-code-action-installer-race-condition](ci-infrastructure-claude-code-action-installer-race-condition.md)

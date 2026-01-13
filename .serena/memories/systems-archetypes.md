@@ -59,6 +59,6 @@ Adjusting goals downward to match declining performance.
 
 ## Related
 
-- `galls-law`: Complex systems evolve from simple ones
-- `second-order-thinking`: Consider downstream effects
-- `foundational-knowledge-index`: Master index
+- [galls-law](galls-law.md): Complex systems evolve from simple ones
+- [second-order-thinking](second-order-thinking.md): Consider downstream effects
+- [foundational-knowledge-index](foundational-knowledge-index.md): Master index

@@ -2,11 +2,11 @@
 
 | Keywords | File |
 |----------|------|
-| reviewer signal quality actionable rate priority triage bot cursor gemini copilot coderabbit | pr-comment-001-reviewer-signal-quality |
-| security CWE vulnerability injection bypass hardening domain priority boost | pr-comment-002-security-domain-priority |
-| path containment traversal CWE-22 normalization separator case-insensitive validation | pr-comment-003-path-containment-layers |
-| response template reply commit fix won't-fix rationale bot comment | pr-comment-004-bot-response-templates |
-| branch checkout verification state git current uncommitted silent fail | pr-comment-005-branch-state-verification |
+| reviewer signal quality actionable rate priority triage bot cursor gemini copilot coderabbit | [pr-comment-001-reviewer-signal-quality](pr-comment-001-reviewer-signal-quality.md) |
+| security CWE vulnerability injection bypass hardening domain priority boost | [pr-comment-002-security-domain-priority](pr-comment-002-security-domain-priority.md) |
+| path containment traversal CWE-22 normalization separator case-insensitive validation | [pr-comment-003-path-containment-layers](pr-comment-003-path-containment-layers.md) |
+| response template reply commit fix won't-fix rationale bot comment | [pr-comment-004-bot-response-templates](pr-comment-004-bot-response-templates.md) |
+| branch checkout verification state git current uncommitted silent fail | [pr-comment-005-branch-state-verification](pr-comment-005-branch-state-verification.md) |
 
 ## Skill Summary
 

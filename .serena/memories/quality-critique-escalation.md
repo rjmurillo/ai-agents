@@ -44,3 +44,11 @@
 ### Recommended Escalation
 high-level-advisor with context: [summary]
 ```
+
+## Related
+
+- [quality-agent-remediation](quality-agent-remediation.md)
+- [quality-basic-testing](quality-basic-testing.md)
+- [quality-definition-of-done](quality-definition-of-done.md)
+- [quality-prompt-engineering-gates](quality-prompt-engineering-gates.md)
+- [quality-qa-routing](quality-qa-routing.md)

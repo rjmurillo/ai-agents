@@ -28,3 +28,11 @@
 | Trivial + Minor | 66% | ~15% |
 | False positives/PR | 4-5 | 0-1 |
 | Signal-to-noise | 34% | >80% |
+
+## Related
+
+- [coderabbit-documentation-false-positives](coderabbit-documentation-false-positives.md)
+- [coderabbit-markdownlint](coderabbit-markdownlint.md)
+- [coderabbit-mcp-false-positives](coderabbit-mcp-false-positives.md)
+- [coderabbit-path-instructions](coderabbit-path-instructions.md)
+- [coderabbit-security-false-positives](coderabbit-security-false-positives.md)

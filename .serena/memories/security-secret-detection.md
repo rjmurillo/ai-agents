@@ -39,3 +39,11 @@ fi
 - Entropy-based detection for high-entropy strings
 
 **Source**: `.agents/security/secret-detection-patterns.md`
+
+## Related
+
+- [security-002-input-validation-first](security-002-input-validation-first.md)
+- [security-003-secure-error-handling](security-003-secure-error-handling.md)
+- [security-004-security-event-logging](security-004-security-event-logging.md)
+- [security-007-defense-in-depth-for-cross-process-security-checks](security-007-defense-in-depth-for-cross-process-security-checks.md)
+- [security-008-first-run-gap-analysis](security-008-first-run-gap-analysis.md)

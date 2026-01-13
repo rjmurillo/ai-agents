@@ -63,3 +63,10 @@ jobs:
 - Issue #144: Pester tests path duplication
 - ADR-006: Thin workflows (avoid embedding logic)
 - Pattern: DRY principle in workflows
+
+## Related
+
+- [pattern-agent-generation-three-platforms](pattern-agent-generation-three-platforms.md)
+- [pattern-github-actions-variable-evaluation](pattern-github-actions-variable-evaluation.md)
+- [pattern-handoff-merge-session-histories](pattern-handoff-merge-session-histories.md)
+- [pattern-thin-workflows](pattern-thin-workflows.md)

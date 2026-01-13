@@ -31,3 +31,11 @@ SESSION-PROTOCOL requires HANDOFF update. Parallel agents create staging conflic
 ```
 
 **Overhead**: Orchestrator aggregation < 5 minutes
+
+## Related
+
+- [orchestration-003-orchestrator-first-routing](orchestration-003-orchestrator-first-routing.md)
+- [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md)
+- [orchestration-parallel-execution](orchestration-parallel-execution.md)
+- [orchestration-pr-chain](orchestration-pr-chain.md)
+- [orchestration-process-workflow-gaps](orchestration-process-workflow-gaps.md)

@@ -97,3 +97,11 @@ helpful
 ## Activation Vocabulary
 
 token, savings, optimization, impact, metric, documentation, before, after, aggregation, cumulative, measurement, quantification
+
+## Related
+
+- [retrospective-001-pr-learning-extraction](retrospective-001-pr-learning-extraction.md)
+- [retrospective-001-recursive-extraction](retrospective-001-recursive-extraction.md)
+- [retrospective-002-retrospective-to-skill-pipeline](retrospective-002-retrospective-to-skill-pipeline.md)
+- [retrospective-004-evidence-based-validation](retrospective-004-evidence-based-validation.md)
+- [retrospective-005-atomic-skill-decomposition](retrospective-005-atomic-skill-decomposition.md)

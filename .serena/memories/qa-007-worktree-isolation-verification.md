@@ -78,3 +78,9 @@ Sessions 40-41: First push to shared branch went unchallenged. No QA gate requir
 - Testable: Returns boolean, machine-parseable output
 - Reusable: Works for any agent, any worktree pattern
 - Limitation: Doesn't enforce Session log creation (separate skill needed)
+
+## Related
+
+- [qa-benchmark-script-validation](qa-benchmark-script-validation.md)
+- [qa-session-protocol-validation-patterns](qa-session-protocol-validation-patterns.md)
+- [qa-workflow-refactoring-patterns](qa-workflow-refactoring-patterns.md)

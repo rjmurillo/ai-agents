@@ -33,3 +33,11 @@ PR #851 adds the github-url-intercept skill that routes GitHub URLs to efficient
 - Quote ALL interpolated arguments in PowerShell command strings
 - Explicit failure on unknown input is safer than pass-through
 - Security fixes should update both code AND documentation examples
+
+## Related
+
+- [pr-156-review-findings](pr-156-review-findings.md)
+- [pr-320c2b3-refactoring-analysis](pr-320c2b3-refactoring-analysis.md)
+- [pr-52-retrospective-learnings](pr-52-retrospective-learnings.md)
+- [pr-52-symlink-retrospective](pr-52-symlink-retrospective.md)
+- [pr-753-remediation-learnings](pr-753-remediation-learnings.md)

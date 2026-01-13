@@ -60,3 +60,11 @@ sed -i 's/model: sonnet/model: opus/' .claude/agents/security.md
 ## Branch
 
 feat/context-optimization
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)

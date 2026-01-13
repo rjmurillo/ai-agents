@@ -26,3 +26,11 @@ Outer fence needs more backticks than inner. 4-backtick outer with 3-backtick in
 | Missing "DO NOT EDIT" in generated | Dismiss |
 | Analyst output path confusion | Clarify directories |
 | Nested fence flagged | Dismiss (valid CommonMark) |
+
+## Related
+
+- [coderabbit-config-strategy](coderabbit-config-strategy.md)
+- [coderabbit-markdownlint](coderabbit-markdownlint.md)
+- [coderabbit-mcp-false-positives](coderabbit-mcp-false-positives.md)
+- [coderabbit-path-instructions](coderabbit-path-instructions.md)
+- [coderabbit-security-false-positives](coderabbit-security-false-positives.md)

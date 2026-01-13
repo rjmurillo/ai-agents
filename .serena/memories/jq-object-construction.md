@@ -21,3 +21,11 @@ gh issue list --json number,labels \
 gh pr list --json number,author \
   --jq '.[] | {number, author: .author.login}'
 ```
+
+## Related
+
+- [jq-aggregation](jq-aggregation.md)
+- [jq-array-operations](jq-array-operations.md)
+- [jq-conditionals](jq-conditionals.md)
+- [jq-field-extraction](jq-field-extraction.md)
+- [jq-filtering](jq-filtering.md)

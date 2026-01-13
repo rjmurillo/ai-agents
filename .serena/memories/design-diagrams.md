@@ -36,3 +36,11 @@ flowchart LR
     B --> C[implementer]
     C --> D[qa]
 ```
+
+## Related
+
+- [design-008-semantic-precision](design-008-semantic-precision.md)
+- [design-approaches-detailed](design-approaches-detailed.md)
+- [design-by-contract](design-by-contract.md)
+- [design-composability](design-composability.md)
+- [design-entry-criteria](design-entry-criteria.md)

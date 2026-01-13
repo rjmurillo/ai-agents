@@ -96,7 +96,7 @@ Initially dismissed CodeRabbit's symlink check suggestion (r2628504961) as redun
 
 1. ✅ Implemented defense-in-depth symlink check (commit 8d9c05a)
 2. ✅ Updated TOCTOU patterns in `pattern-git-hooks-grep-patterns` memory
-3. ✅ Updated CodeRabbit signal quality in `pr-comment-responder-skills`
+3. ✅ Updated CodeRabbit signal quality in [pr-comment-responder-skills](pr-comment-responder-skills.md)
 4. TODO: Add skills to skillbook
 
 ## Metrics Impact
@@ -112,3 +112,11 @@ Initially dismissed CodeRabbit's symlink check suggestion (r2628504961) as redun
 1. Conditional execution paths (when does the check NOT run?)
 2. Process boundaries (who performs the check vs. who performs the action?)
 3. Timing windows (what can change between check and use?)
+
+## Related
+
+- [pr-156-review-findings](pr-156-review-findings.md)
+- [pr-320c2b3-refactoring-analysis](pr-320c2b3-refactoring-analysis.md)
+- [pr-52-retrospective-learnings](pr-52-retrospective-learnings.md)
+- [pr-753-remediation-learnings](pr-753-remediation-learnings.md)
+- [pr-811-review-session-2026-01-06](pr-811-review-session-2026-01-06.md)

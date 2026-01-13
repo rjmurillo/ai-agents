@@ -130,3 +130,11 @@ $result = gh api graphql -f query="$query" | ConvertFrom-Json
 - api-selection
 - design-phase
 - github-api
+
+## Related
+
+- [implementation-001-memory-first-pattern](implementation-001-memory-first-pattern.md)
+- [implementation-001-pre-implementation-test-discovery](implementation-001-pre-implementation-test-discovery.md)
+- [implementation-002-test-driven-implementation](implementation-002-test-driven-implementation.md)
+- [implementation-additive-approach](implementation-additive-approach.md)
+- [implementation-clarification](implementation-clarification.md)
