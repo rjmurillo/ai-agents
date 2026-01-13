@@ -4,18 +4,24 @@
 
 .DESCRIPTION
     Analyzes memory files and adds Related sections based on:
-    - Naming patterns (shared prefixes)
-    - Topic domains (security, git, ci, etc.)
-    - Cross-references in content
+    - Naming patterns (shared prefixes like security-, git-, ci-)
+    - Topic domain grouping (files with same prefix are related)
+    - Index file discovery (links to domain-specific index files)
 
 .EXAMPLE
-    .\scripts\Improve-MemoryGraphDensity.ps1
+    .\.claude\skills\memory\scripts\Improve-MemoryGraphDensity.ps1
 #>
 
 [CmdletBinding()]
 param(
     [switch]$DryRun,
+
     [string]$MemoriesPath,
+
+    [string[]]$FilesToProcess,
+
+    [switch]$OutputJson,
+
     [switch]$SkipPathValidation
 )
 
@@ -28,7 +34,8 @@ try {
         throw "Not in a git repository"
     }
 } catch {
-    Write-Warning "git rev-parse failed, falling back to directory traversal"
+    $gitError = $_.Exception.Message
+    Write-Warning "git rev-parse failed ($gitError), falling back to directory traversal"
     $projectRoot = $PSScriptRoot
     while ($projectRoot -and -not (Test-Path (Join-Path $projectRoot '.git'))) {
         $projectRoot = Split-Path $projectRoot -Parent
@@ -48,7 +55,11 @@ if (-not $MemoriesPath) {
         $resolvedPath = [IO.Path]::GetFullPath($MemoriesPath)
         $resolvedProjectRoot = [IO.Path]::GetFullPath($projectRoot)
 
-        if (-not $resolvedPath.StartsWith($resolvedProjectRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        # Ensure comparison includes directory separator to prevent sibling directory attacks (CWE-22)
+        # e.g., /home/user/project-attacker/ should not match /home/user/project/
+        $projectRootWithSep = $resolvedProjectRoot.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+        if (-not $resolvedPath.StartsWith($projectRootWithSep, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $resolvedPath -ne $resolvedProjectRoot) {
             throw "Security: MemoriesPath must be within project directory. Provided: $resolvedPath, Project root: $resolvedProjectRoot"
         }
 
@@ -59,19 +70,41 @@ if (-not $MemoriesPath) {
 }
 
 # Get all memory files
-$memoryFiles = Get-ChildItem -Path $memoriesPath -Filter '*.md' -File
+$allMemoryFiles = Get-ChildItem -Path $memoriesPath -Filter '*.md' -File
 
-# Build memory name lookup
+# Filter by FilesToProcess if provided and non-empty
+if ($FilesToProcess -and $FilesToProcess.Count -gt 0) {
+    # Normalize paths for comparison
+    $normalizedFilesToProcess = $FilesToProcess | ForEach-Object {
+        [IO.Path]::GetFullPath($_)
+    }
+    $memoryFilesToProcess = $allMemoryFiles | Where-Object {
+        $normalizedPath = [IO.Path]::GetFullPath($_.FullName)
+        $normalizedFilesToProcess -contains $normalizedPath
+    }
+} else {
+    $memoryFilesToProcess = $allMemoryFiles
+}
+
+# Build memory name lookup (from ALL files for relationship discovery)
 $memoryNames = @{}
-foreach ($file in $memoryFiles) {
+foreach ($file in $allMemoryFiles) {
     $baseName = $file.BaseName
     $memoryNames[$baseName] = $file.FullName
 }
 
-Write-Host "Analyzing $($memoryFiles.Count) memory files..."
+# Statistics tracking
+$filesProcessed = 0
+$errors = @()
+
+if (-not $OutputJson) {
+    Write-Host "Analyzing $($memoryFilesToProcess.Count) memory files..."
+}
 
 # Define domain patterns - files with these prefixes are related
-# Using [ordered] to ensure longest prefixes match first for deterministic results
+# [ordered] ensures iteration order is preserved for first-match-wins logic.
+# IMPORTANT: More specific prefixes MUST come before shorter ones (e.g., git-hooks- before git-)
+# because the matching loop breaks on first match.
 $domainPatterns = [ordered]@{
     'adr-' = 'Architecture Decision Records'
     'agent-workflow-' = 'Agent Workflow'
@@ -87,11 +120,11 @@ $domainPatterns = [ordered]@{
     'design-' = 'Design Patterns'
     'devops-' = 'DevOps'
     'documentation-' = 'Documentation'
-    'git-' = 'Git Operations'
-    'git-hooks-' = 'Git Hooks'
-    'github-' = 'GitHub'
-    'github-cli-' = 'GitHub CLI'
     'gh-extensions-' = 'GitHub Extensions'
+    'git-hooks-' = 'Git Hooks'
+    'git-' = 'Git Operations'
+    'github-cli-' = 'GitHub CLI'
+    'github-' = 'GitHub'
     'graphql-' = 'GraphQL'
     'implementation-' = 'Implementation'
     'jq-' = 'JQ'
@@ -105,16 +138,16 @@ $domainPatterns = [ordered]@{
     'pester-' = 'Pester Testing'
     'planning-' = 'Planning'
     'powershell-' = 'PowerShell'
-    'pr-' = 'Pull Request'
     'pr-comment-' = 'PR Comments'
     'pr-review-' = 'PR Review'
+    'pr-' = 'Pull Request'
     'protocol-' = 'Session Protocol'
     'qa-' = 'Quality Assurance'
     'quality-' = 'Quality'
     'retrospective-' = 'Retrospective'
     'security-' = 'Security'
-    'session-' = 'Session'
     'session-init-' = 'Session Initialization'
+    'session-' = 'Session'
     'skills-' = 'Skills Index'
     'testing-' = 'Testing'
     'triage-' = 'Triage'
@@ -126,75 +159,97 @@ $domainPatterns = [ordered]@{
 $filesUpdated = 0
 $relationshipsAdded = 0
 
-foreach ($file in $memoryFiles) {
-    $content = Get-Content $file.FullName -Raw -Encoding UTF8
+foreach ($file in $memoryFilesToProcess) {
+    $filesProcessed++
 
-    # Skip empty files
-    if ([string]::IsNullOrEmpty($content)) {
-        continue
-    }
+    try {
+        $content = Get-Content $file.FullName -Raw -Encoding UTF8
 
-    # Check if file already has a Related section
-    $hasRelated = $content -match '(?m)^## Related'
+        # Skip empty files
+        if ([string]::IsNullOrEmpty($content)) {
+            continue
+        }
 
-    # Find related files based on naming pattern
-    $baseName = $file.BaseName
-    $relatedFiles = @()
+        # Check if file already has a Related section
+        $hasRelated = $content -match '(?m)^## Related'
 
-    # Find files in same domain
-    foreach ($pattern in $domainPatterns.Keys) {
-        if ($baseName -like "$pattern*") {
-            # Find other files with same pattern
-            $domainFiles = $memoryFiles | Where-Object {
-                $_.BaseName -like "$pattern*" -and
-                $_.BaseName -ne $baseName
-            } | Select-Object -First 5
+        # Find related files based on naming pattern
+        $baseName = $file.BaseName
+        $relatedFiles = @()
 
-            foreach ($domainFile in $domainFiles) {
-                $relatedFiles += $domainFile.BaseName
+        # Find files in same domain (search ALL memory files, not just filtered ones)
+        foreach ($pattern in $domainPatterns.Keys) {
+            if ($baseName -like "$pattern*") {
+                # Find other files with same pattern
+                $domainFiles = $allMemoryFiles | Where-Object {
+                    $_.BaseName -like "$pattern*" -and
+                    $_.BaseName -ne $baseName
+                } | Select-Object -First 5
+
+                foreach ($domainFile in $domainFiles) {
+                    $relatedFiles += $domainFile.BaseName
+                }
+                break
             }
-            break
-        }
-    }
-
-    # Find index files for this domain
-    $domainName = ($baseName -split '-')[0]
-    $indexFile = "${domainName}s-index"
-    if ($memoryNames.ContainsKey($indexFile) -and $baseName -ne $indexFile) {
-        $relatedFiles += $indexFile
-    }
-
-    # If no Related section exists and we found related files, add one
-    if (-not $hasRelated -and $relatedFiles.Count -gt 0) {
-        # Remove duplicates and limit to top 5
-        $relatedFiles = $relatedFiles | Select-Object -Unique | Select-Object -First 5
-
-        # Build Related section
-        $relatedSection = "`n## Related`n`n"
-        foreach ($relatedFile in $relatedFiles) {
-            $relatedSection += "- [$relatedFile]($relatedFile.md)`n"
         }
 
-        # Add to end of file
-        $newContent = $content.TrimEnd() + "`n" + $relatedSection
-
-        if (-not $DryRun) {
-            Set-Content -Path $file.FullName -Value $newContent -NoNewline -Encoding UTF8
-            Write-Host "Added Related section to: $($file.Name)"
-        } else {
-            Write-Host "[DRY RUN] Would add Related section to: $($file.Name)"
+        # Find index files for this domain
+        $domainName = ($baseName -split '-')[0]
+        $indexFile = "${domainName}s-index"
+        if ($memoryNames.ContainsKey($indexFile) -and $baseName -ne $indexFile) {
+            $relatedFiles += $indexFile
         }
 
-        $filesUpdated++
-        $relationshipsAdded += $relatedFiles.Count
+        # If no Related section exists and we found related files, add one
+        if (-not $hasRelated -and $relatedFiles.Count -gt 0) {
+            # Remove duplicates and limit to top 5
+            $relatedFiles = $relatedFiles | Select-Object -Unique | Select-Object -First 5
+
+            # Build Related section
+            $relatedSection = "`n## Related`n`n"
+            foreach ($relatedFile in $relatedFiles) {
+                $relatedSection += "- [$relatedFile]($relatedFile.md)`n"
+            }
+
+            # Add to end of file
+            $newContent = $content.TrimEnd() + "`n" + $relatedSection
+
+            if (-not $DryRun) {
+                Set-Content -Path $file.FullName -Value $newContent -NoNewline -Encoding UTF8
+                if (-not $OutputJson) {
+                    Write-Host "Added Related section to: $($file.Name)"
+                }
+            } else {
+                if (-not $OutputJson) {
+                    Write-Host "[DRY RUN] Would add Related section to: $($file.Name)"
+                }
+            }
+
+            $filesUpdated++
+            $relationshipsAdded += $relatedFiles.Count
+        }
+    } catch {
+        $errors += "Error processing $($file.Name): $($_.Exception.Message)"
+        if (-not $OutputJson) {
+            Write-Warning "Error processing $($file.Name): $($_.Exception.Message)"
+        }
     }
 }
 
-Write-Host "`n=== Summary ==="
-Write-Host "Files updated: $filesUpdated"
-Write-Host "Relationships added: $relationshipsAdded"
-Write-Host "Current coverage: $((219 + $filesUpdated) / 600 * 100)%"
+# Output results
+if ($OutputJson) {
+    [PSCustomObject]@{
+        FilesProcessed     = $filesProcessed
+        FilesModified      = $filesUpdated
+        RelationshipsAdded = $relationshipsAdded
+        Errors             = $errors
+    } | ConvertTo-Json -Compress
+} else {
+    Write-Host "`n=== Summary ==="
+    Write-Host "Files updated: $filesUpdated"
+    Write-Host "Relationships added: $relationshipsAdded"
 
-if ($DryRun) {
-    Write-Host "`nThis was a dry run. Use without -DryRun to apply changes."
+    if ($DryRun) {
+        Write-Host "`nThis was a dry run. Use without -DryRun to apply changes."
+    }
 }
