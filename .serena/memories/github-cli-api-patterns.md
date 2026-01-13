@@ -75,3 +75,11 @@ gh pr list --json number,title,labels \
 # Raw output (no quotes)
 gh pr view 123 --json title --jq -r '.title'
 ```
+
+## Related
+
+- [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
+- [github-cli-anti-patterns](github-cli-anti-patterns.md)
+- [github-cli-extensions](github-cli-extensions.md)
+- [github-cli-issue-operations](github-cli-issue-operations.md)
+- [github-cli-labels-cache](github-cli-labels-cache.md)

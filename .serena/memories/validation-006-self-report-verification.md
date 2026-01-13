@@ -117,3 +117,11 @@ Evidence of compliance = validation script PASS, not agent assertion.
 ## Source
 
 `.agents/retrospective/2025-12-20-session-protocol-mass-failure.md` (Learning 6, lines 739-758)
+
+## Related
+
+- [validation-007-cross-reference-verification](validation-007-cross-reference-verification.md)
+- [validation-007-frontmatter-validation-compliance](validation-007-frontmatter-validation-compliance.md)
+- [validation-474-adr-numbering-qa-final](validation-474-adr-numbering-qa-final.md)
+- [validation-anti-patterns](validation-anti-patterns.md)
+- [validation-baseline-triage](validation-baseline-triage.md)

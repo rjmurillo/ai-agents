@@ -56,3 +56,11 @@ PR #255 (2025-12-22): `copilot-synthesis.schema.json` (106 lines) deleted. Commi
 
 - Skill-Creator-003 (test separation)
 - Skill-Creator-002 (comment stripping)
+
+## Related
+
+- [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md)
+- [creator-002-token-efficiency-comment-stripping](creator-002-token-efficiency-comment-stripping.md)
+- [creator-003-test-separation-skill-directory](creator-003-test-separation-skill-directory.md)
+- [creator-004-reference-material-extraction](creator-004-reference-material-extraction.md)
+- [creator-006-toc-requirement-long-files](creator-006-toc-requirement-long-files.md)

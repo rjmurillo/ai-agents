@@ -127,3 +127,11 @@ git checkout feat/test-2  # Switch branch
 - Issue #684: SESSION-PROTOCOL branch verification
 - Issue #681: Pre-commit hook implementation
 - ADR-XXX: Verification-based enforcement (to be created)
+
+## Related
+
+- [git-003-staged-changes-guard](git-003-staged-changes-guard.md)
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md)
+- [git-branch-cleanup-pattern](git-branch-cleanup-pattern.md)
+- [git-conflict-deleted-file](git-conflict-deleted-file.md)
+- [git-conflict-resolution-workflow](git-conflict-resolution-workflow.md)

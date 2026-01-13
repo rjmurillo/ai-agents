@@ -71,3 +71,11 @@ git status src/claude/*.md  # Should show modifications if template changes appl
 **Anti-Pattern:** Update template, run generator, commit without verifying diffs.
 
 **Evidence:** Session 92 template-first pattern + architecture-template-variant-maintenance memory
+
+## Related
+
+- [architecture-003-dry-exception-deployment](architecture-003-dry-exception-deployment.md)
+- [architecture-015-deployment-path-validation](architecture-015-deployment-path-validation.md)
+- [architecture-016-adr-number-check](architecture-016-adr-number-check.md)
+- [architecture-adr-compliance-documentation](architecture-adr-compliance-documentation.md)
+- [architecture-composite-action](architecture-composite-action.md)

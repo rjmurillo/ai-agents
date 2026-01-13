@@ -28,6 +28,6 @@ SQL (1974) is more likely to still be used in 2075 than a NoSQL database from 20
 
 ## Related
 
-- `second-system-effect`: Rewrites tend to be over-engineered
-- `chestertons-fence-memory-integration`: Understand before removing
+- [second-system-effect](second-system-effect.md): Rewrites tend to be over-engineered
+- [chestertons-fence](chestertons-fence.md): Understand before removing
 - `path-dependence`: Past decisions shape constraints

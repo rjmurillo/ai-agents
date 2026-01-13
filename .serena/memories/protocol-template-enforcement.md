@@ -96,3 +96,11 @@ Agents MUST use `/session-init` skill. Manual session creation is prohibited due
 - `.serena/memories/session-init-pattern.md` - Verification-based enforcement pattern
 - `.agents/SESSION-PROTOCOL.md` - Canonical template source (lines 494-612)
 - `scripts/Validate-SessionProtocol.ps1` - Validation script used by CI and skill
+
+## Related
+
+- [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md)
+- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md)
+- [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md)
+- [protocol-blocking-gates](protocol-blocking-gates.md)
+- [protocol-continuation-session-gap](protocol-continuation-session-gap.md)

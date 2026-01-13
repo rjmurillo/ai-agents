@@ -42,6 +42,6 @@ If you mix layers with different change rates, the slow layer becomes a bottlene
 
 ## Related
 
-- `strangler-fig-pattern`: Isolate and replace incrementally
+- [strangler-fig-pattern](strangler-fig-pattern.md): Isolate and replace incrementally
 - `hexagonal-architecture`: Isolate core from infrastructure
 - `sacrificial-architecture`: Plan for replacement

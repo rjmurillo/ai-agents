@@ -40,3 +40,11 @@ runs-on: ubuntu-24.04-arm
 | ubuntu-latest | ~10s | Base |
 | windows-latest | ~45s | 2x |
 | ubuntu-arm | ~12s | 0.63x |
+
+## Related
+
+- [ci-infrastructure-001-fail-fast-infrastructure-failures](ci-infrastructure-001-fail-fast-infrastructure-failures.md)
+- [ci-infrastructure-002-explicit-retry-timing](ci-infrastructure-002-explicit-retry-timing.md)
+- [ci-infrastructure-003-job-status-verdict-distinction](ci-infrastructure-003-job-status-verdict-distinction.md)
+- [ci-infrastructure-004-error-message-investigation](ci-infrastructure-004-error-message-investigation.md)
+- [ci-infrastructure-ai-integration](ci-infrastructure-ai-integration.md)

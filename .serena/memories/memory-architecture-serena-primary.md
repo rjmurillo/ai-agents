@@ -38,3 +38,11 @@ Serena memories (`.serena/memories/*.md`) are the **only truly shared persistent
 - ADR-007-memory-first-architecture.md (augmented with Zettelkasten, Forgetful, BMAD concepts)
 - adr-007-augmentation-research.md (research summary)
 - memory-index.md (Serena memory catalog)
+
+## Related
+
+- [memory-001-feedback-retrieval](memory-001-feedback-retrieval.md)
+- [memory-index](memory-index.md)
+- [memory-size-001-decomposition-thresholds](memory-size-001-decomposition-thresholds.md)
+- [memory-system-fragmentation-tech-debt](memory-system-fragmentation-tech-debt.md)
+- [memory-token-efficiency](memory-token-efficiency.md)

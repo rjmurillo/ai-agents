@@ -43,3 +43,10 @@ Document known false positives in config comments:
 
 - Disabling rules without documentation
 - **Prevention**: Add inline comments explaining why
+
+## Related
+
+- [linting-autofix](linting-autofix.md)
+- [linting-config](linting-config.md)
+- [linting-generic-types](linting-generic-types.md)
+- [linting-language-identifiers](linting-language-identifiers.md)

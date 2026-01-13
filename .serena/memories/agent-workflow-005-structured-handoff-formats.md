@@ -77,3 +77,11 @@ Please review the findings above and consider adding them to the skillbook.
 - Skill-CI-Structured-Output-001: Verdict tokens for CI automation (similar principle for CI/CD)
 
 **Source**: Phase 3 Agent Workflow Skills (2025-12-16)
+
+## Related
+
+- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
+- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
+- [agent-workflow-collaboration](agent-workflow-collaboration.md)
+- [agent-workflow-critic-gate](agent-workflow-critic-gate.md)
+- [agent-workflow-mvp-shipping](agent-workflow-mvp-shipping.md)

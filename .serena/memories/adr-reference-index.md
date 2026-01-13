@@ -10,14 +10,14 @@ This is a REFERENCE index, not a skills index. ADRs live in `.agents/architectur
 
 ### Agent System
 
-| ADR | Title | Keywords |
-|-----|-------|----------|
-| ADR-002 | Agent Model Selection Optimization | model haiku sonnet opus routing |
-| ADR-003 | Agent Tool Selection Criteria | tool allocation agent |
-| ADR-007 | Memory-First Architecture | memory context retrieval |
-| ADR-009 | Parallel-Safe Multi-Agent Design | parallel worktree isolation |
-| ADR-010 | Quality Gates with Evaluator-Optimizer | quality gate evaluator |
-| ADR-014 | Distributed Handoff Architecture | handoff session log |
+| ADR     | Title                                  | Keywords                        |
+| ------- | -------------------------------------- | ------------------------------- |
+| ADR-002 | Agent Model Selection Optimization     | model haiku sonnet opus routing |
+| ADR-003 | Agent Tool Selection Criteria          | tool allocation agent           |
+| ADR-007 | Memory-First Architecture              | memory context retrieval        |
+| ADR-009 | Parallel-Safe Multi-Agent Design       | parallel worktree isolation     |
+| ADR-010 | Quality Gates with Evaluator-Optimizer | quality gate evaluator          |
+| ADR-014 | Distributed Handoff Architecture       | handoff session log             |
 
 ### CI/CD and Workflows
 
@@ -56,5 +56,13 @@ Read(".agents/architecture/ADR-NNN-title.md")
 
 ## Related Memories
 
-- adr-014-review-findings (analysis of ADR-014)
-- adr-019-quantitative-analysis (metrics for ADR-017)
+- [adr-014-review-findings](adr-014-findings.md) (analysis of ADR-014)
+- [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md) (metrics for ADR-017)
+
+## Related
+
+- [adr-007-augmentation-research](adr-007-augmentation-research.md)
+- [adr-014-findings](adr-014-findings.md)
+- [adr-014-review-findings](adr-014-review-findings.md)
+- [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
+- [adr-021-quantitative-analysis](adr-021-quantitative-analysis.md)

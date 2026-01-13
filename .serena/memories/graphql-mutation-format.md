@@ -32,3 +32,9 @@ gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {thread
 ## Why
 
 The `gh api graphql` command requires `-f query='...'` to be single-line. Multi-line GraphQL causes parsing errors through bash/PowerShell.
+
+## Related
+
+- [graphql-pr-operations](graphql-pr-operations.md)
+- [graphql-troubleshooting](graphql-troubleshooting.md)
+- [graphql-vs-rest](graphql-vs-rest.md)

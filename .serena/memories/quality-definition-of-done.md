@@ -53,3 +53,11 @@ When a plan identifies multiple agent types, create explicit handoff checkpoints
 - User-facing gaps (docs, UX) = **BLOCKER** status
 - Internal cleanup = can be deferred
 - Session cannot close with BLOCKER items incomplete
+
+## Related
+
+- [quality-agent-remediation](quality-agent-remediation.md)
+- [quality-basic-testing](quality-basic-testing.md)
+- [quality-critique-escalation](quality-critique-escalation.md)
+- [quality-prompt-engineering-gates](quality-prompt-engineering-gates.md)
+- [quality-qa-routing](quality-qa-routing.md)

@@ -23,3 +23,11 @@
 - Modifying Claude only (18 files)
 - Missing templates (36 files)
 - Forgetting copilot-cli/vs-code-agents
+
+## Related
+
+- [planning-003-parallel-exploration-pattern](planning-003-parallel-exploration-pattern.md)
+- [planning-004-approval-checkpoint](planning-004-approval-checkpoint.md)
+- [planning-checkbox-manifest](planning-checkbox-manifest.md)
+- [planning-priority-consistency](planning-priority-consistency.md)
+- [planning-task-descriptions](planning-task-descriptions.md)

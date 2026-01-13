@@ -110,3 +110,11 @@ test(module): add comprehensive tests with [X]% coverage
 - ADR-006: Thin Workflows, Testable Modules (move logic to modules for easier testing)
 
 **Anti-Pattern**: Pursuing 100% coverage by testing unreachable code or adding artificial test scenarios
+
+## Related
+
+- [testing-002-test-first-development](testing-002-test-first-development.md)
+- [testing-003-script-execution-isolation](testing-003-script-execution-isolation.md)
+- [testing-007-contract-testing](testing-007-contract-testing.md)
+- [testing-008-entry-point-isolation](testing-008-entry-point-isolation.md)
+- [testing-coverage-philosophy-integration](testing-coverage-philosophy-integration.md)

@@ -23,3 +23,11 @@
 - Delaying ship for edge cases
 - Perfect being enemy of good
 - Undocumented shortcuts
+
+## Related
+
+- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
+- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
+- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
+- [agent-workflow-collaboration](agent-workflow-collaboration.md)
+- [agent-workflow-critic-gate](agent-workflow-critic-gate.md)

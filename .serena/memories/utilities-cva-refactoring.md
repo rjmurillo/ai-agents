@@ -157,3 +157,11 @@ if ($ExistingContent -match [regex]::Escape($BeginMarker)) {
 - Plan: `.agents/planning/cva-install-scripts.md`
 - Retrospective: `.agents/retrospective/2025-12-15-cva-install-scripts.md`
 - Implementation: `scripts/lib/Install-Common.psm1`, `scripts/lib/Config.psd1`, `scripts/install.ps1`
+
+## Related
+
+- [utilities-markdown-fences](utilities-markdown-fences.md)
+- [utilities-pathinfo-conversion](utilities-pathinfo-conversion.md)
+- [utilities-precommit-hook](utilities-precommit-hook.md)
+- [utilities-regex](utilities-regex.md)
+- [utilities-security-patterns](utilities-security-patterns.md)

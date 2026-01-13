@@ -23,3 +23,11 @@ echo '[{"id": 1}, {"id": 2}]' | jq '.[].id'
 echo '[{"id": 1}, {"id": 2}]' | jq '.[0]'
 # Output: {"id": 1}
 ```
+
+## Related
+
+- [jq-aggregation](jq-aggregation.md)
+- [jq-array-operations](jq-array-operations.md)
+- [jq-conditionals](jq-conditionals.md)
+- [jq-filtering](jq-filtering.md)
+- [jq-github-cli-integration](jq-github-cli-integration.md)

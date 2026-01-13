@@ -36,3 +36,11 @@ Rollback path: Revert to natural language. No lock-in.
 - Issue #193: Phase 1 Spec Layer Epic
 - PR #603: EARS format template
 - Debate log: `.agents/critique/ADR-032-debate-log.md`
+
+## Related
+
+- [adr-007-augmentation-research](adr-007-augmentation-research.md)
+- [adr-014-findings](adr-014-findings.md)
+- [adr-014-review-findings](adr-014-review-findings.md)
+- [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
+- [adr-021-quantitative-analysis](adr-021-quantitative-analysis.md)

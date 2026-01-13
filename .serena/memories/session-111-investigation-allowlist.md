@@ -39,3 +39,11 @@ The `(?ms)` flags enable multiline matching and `.*?` with `^\)` matches the clo
 - Session: `.agents/sessions/2025-12-31-session-111-autonomous-development.md`
 - Critique: `.agents/critique/653-investigation-allowlist-constant-critique.md`
 - Security: `.agents/security/SR-653-investigation-allowlist.md`
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)
+- [session-128-context-optimization](session-128-context-optimization.md)

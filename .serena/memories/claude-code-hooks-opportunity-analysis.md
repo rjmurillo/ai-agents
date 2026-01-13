@@ -60,3 +60,11 @@ Valuable patterns from Daem0n-MCP (DasBluEyedDevil/Daem0n-MCP):
 - ADR-008: Protocol Automation via Lifecycle Hooks
 - ADR-007: Memory-First Architecture
 - SESSION-PROTOCOL.md: Protocol requirements
+
+## Related
+
+- [claude-code-skill-frontmatter-standards](claude-code-skill-frontmatter-standards.md)
+- [claude-code-skills-official-guidance](claude-code-skills-official-guidance.md)
+- [claude-code-slash-commands](claude-code-slash-commands.md)
+- [claude-flow-research-2025-12-20](claude-flow-research-2025-12-20.md)
+- [claude-md-anthropic-best-practices](claude-md-anthropic-best-practices.md)

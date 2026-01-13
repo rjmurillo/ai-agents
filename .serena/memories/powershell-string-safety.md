@@ -50,3 +50,11 @@ Some content here
 **Detection**: Error message: "The string is missing the terminator: `"@`"
 
 **Evidence**: PR #224
+
+## Related
+
+- [powershell-array-contains](powershell-array-contains.md)
+- [powershell-array-handling](powershell-array-handling.md)
+- [powershell-cross-platform-ci](powershell-cross-platform-ci.md)
+- [powershell-like-pattern-matching](powershell-like-pattern-matching.md)
+- [powershell-security-ai-output](powershell-security-ai-output.md)

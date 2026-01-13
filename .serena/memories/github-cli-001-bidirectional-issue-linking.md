@@ -133,3 +133,11 @@ This issue provides more comprehensive solution.
 - skill-analysis-003-related-issue-discovery: Finding related issues
 - github-issue-assignment: Claiming discovered issues
 - github-cli-issue-operations: Technical commands
+
+## Related
+
+- [github-cli-anti-patterns](github-cli-anti-patterns.md)
+- [github-cli-api-patterns](github-cli-api-patterns.md)
+- [github-cli-extensions](github-cli-extensions.md)
+- [github-cli-issue-operations](github-cli-issue-operations.md)
+- [github-cli-labels-cache](github-cli-labels-cache.md)

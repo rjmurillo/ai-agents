@@ -7,3 +7,11 @@
 **Evidence**: Current working config uses this for all simple area labels.
 
 **Atomicity**: 95%
+
+## Related
+
+- [labeler-001-negation-pattern-matcher-selection](labeler-001-negation-pattern-matcher-selection.md)
+- [labeler-004-all-files-matcher](labeler-004-all-files-matcher.md)
+- [labeler-005-all-patterns-matcher](labeler-005-all-patterns-matcher.md)
+- [labeler-006-negation-pattern-isolation](labeler-006-negation-pattern-isolation.md)
+- [labeler-combined-patterns](labeler-combined-patterns.md)

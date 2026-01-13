@@ -37,3 +37,11 @@ Task(subagent_type="security", prompt="Review changes per .github/prompts/pr-qua
 ## Anti-Pattern
 
 Pushing code without agent consultation, leading to PR review cycles and rework.
+
+## Related
+
+- [quality-agent-remediation](quality-agent-remediation.md)
+- [quality-basic-testing](quality-basic-testing.md)
+- [quality-critique-escalation](quality-critique-escalation.md)
+- [quality-definition-of-done](quality-definition-of-done.md)
+- [quality-prompt-engineering-gates](quality-prompt-engineering-gates.md)

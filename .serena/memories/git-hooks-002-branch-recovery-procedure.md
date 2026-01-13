@@ -125,3 +125,11 @@ git checkout -b feat/issue-NNN
 git checkout main
 git reset --hard origin/main
 ```
+
+## Related
+
+- [git-hooks-001-pre-commit-branch-validation](git-hooks-001-pre-commit-branch-validation.md)
+- [git-hooks-004-branch-name-validation](git-hooks-004-branch-name-validation.md)
+- [git-hooks-autofix](git-hooks-autofix.md)
+- [git-hooks-categories](git-hooks-categories.md)
+- [git-hooks-cross-language](git-hooks-cross-language.md)

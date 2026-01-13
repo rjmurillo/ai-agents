@@ -64,3 +64,11 @@ A: Partially. Structural tests catch prompt section removal. Runtime AI interpre
 
 **Q: Why wasn't adr-review auto-triggered?**
 A: The skill documentation was aspirational, not enforced. Fix requires 4 file changes (architect, orchestrator, AGENTS.md, skill).
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)

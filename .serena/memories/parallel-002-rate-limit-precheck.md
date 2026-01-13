@@ -77,8 +77,8 @@ Session 04 (2025-12-24): Launched 4 parallel agents without rate limit check. Ea
 
 ## Related
 
-- Memory: `github-cli-api-patterns`
-- Memory: `automation-priorities-2025-12` (rate limit coordination service)
+- Memory: [github-cli-api-patterns](github-cli-api-patterns.md)
+- Memory: [automation-priorities-2025-12](automation-priorities-2025-12.md) (rate limit coordination service)
 
 ## Tags
 
@@ -86,3 +86,7 @@ Session 04 (2025-12-24): Launched 4 parallel agents without rate limit check. Ea
 - #parallel
 - #github-api
 - #coordination
+
+## Related
+
+- [parallel-001-worktree-isolation](parallel-001-worktree-isolation.md)

@@ -38,3 +38,11 @@ Non-canonical formats (bullet lists like `- [x] item`) are NOT accepted.
 ## Session Reference
 
 Session 104 (2025-12-30-session-104-reconcile-session-validation.md)
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)

@@ -104,3 +104,11 @@ Fix the issue, don't bypass the check.
 - Skill-Protocol-001: Verification-based blocking gates (HOW to design gates)
 
 This skill focuses on: HOW to respond when enforcement fails (fix, don't bypass)
+
+## Related
+
+- [git-hooks-001-pre-commit-branch-validation](git-hooks-001-pre-commit-branch-validation.md)
+- [git-hooks-002-branch-recovery-procedure](git-hooks-002-branch-recovery-procedure.md)
+- [git-hooks-004-branch-name-validation](git-hooks-004-branch-name-validation.md)
+- [git-hooks-autofix](git-hooks-autofix.md)
+- [git-hooks-categories](git-hooks-categories.md)

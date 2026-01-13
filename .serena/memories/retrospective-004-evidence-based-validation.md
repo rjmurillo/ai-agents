@@ -112,3 +112,11 @@ helpful
 ## Activation Vocabulary
 
 evidence, validation, commit, SHA, PR, tracking, count, observation, reuse, audit, verification, source
+
+## Related
+
+- [retrospective-001-pr-learning-extraction](retrospective-001-pr-learning-extraction.md)
+- [retrospective-001-recursive-extraction](retrospective-001-recursive-extraction.md)
+- [retrospective-002-retrospective-to-skill-pipeline](retrospective-002-retrospective-to-skill-pipeline.md)
+- [retrospective-003-token-impact-documentation](retrospective-003-token-impact-documentation.md)
+- [retrospective-005-atomic-skill-decomposition](retrospective-005-atomic-skill-decomposition.md)

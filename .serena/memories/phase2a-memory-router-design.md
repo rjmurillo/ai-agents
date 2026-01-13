@@ -40,7 +40,7 @@ Memory Router
 | Router module | Complete (MemoryRouter.psm1) |
 | Agent integration | Complete (Search-Memory.ps1 skill) |
 
-**Note**: Implementation completed in PR #735. See memory `phase2a-status` for current status.
+**Note**: Implementation completed in PR #735. See memory [phase2a-status](phase2a-status.md) for current status.
 
 ## Related
 

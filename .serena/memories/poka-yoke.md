@@ -35,5 +35,5 @@ Design systems so errors are impossible or immediately obvious.
 
 ## Related
 
-- `security-002-input-validation-first` - Validate inputs
+- [security-002-input-validation-first](security-002-input-validation-first.md) - Validate inputs
 - `design-to-interfaces` - Contract enforcement

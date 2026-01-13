@@ -5,3 +5,11 @@
 - Passed PR_NUMBER to ai-review steps (analyst/critic) and Post-IssueComment step to ensure correct PR targeting for manual runs.
 - Session log created at .agents/sessions/2026-01-06-session-004-ai-spec-validation-pr-number.md with session end checklist updated.
 - QA not run (workflow/config change only); markdownlint run via commit hook; HANDOFF.md not modified.
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)

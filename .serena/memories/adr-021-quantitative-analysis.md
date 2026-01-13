@@ -113,3 +113,11 @@ n_breakeven = (C_consolidated - C_domain_index) / C_atomic_avg
 - `memory-index.md`: 10,554 bytes / 2,639 tokens
 
 **Token approximation**: 1 token ≈ 4 characters (GPT-3 rule)
+
+## Related
+
+- [adr-007-augmentation-research](adr-007-augmentation-research.md)
+- [adr-014-findings](adr-014-findings.md)
+- [adr-014-review-findings](adr-014-review-findings.md)
+- [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
+- [adr-021-split-execution](adr-021-split-execution.md)

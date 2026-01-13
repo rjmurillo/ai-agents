@@ -20,13 +20,13 @@ Index of atomic skill-creator patterns derived from PR #255 (2025-12-22). Use wh
 
 Read individual skills:
 
-- `skill-creator-001-frontmatter-trigger-specification`
-- `skill-creator-002-token-efficiency-comment-stripping`
-- `skill-creator-003-test-separation-skill-directory`
-- `skill-creator-004-reference-material-extraction`
-- `skill-creator-005-schema-redundancy-elimination`
-- `skill-creator-006-toc-requirement-long-files`
-- `skill-creator-007-frontmatter-validation-compliance`
+- [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md)
+- [creator-002-token-efficiency-comment-stripping](creator-002-token-efficiency-comment-stripping.md)
+- [creator-003-test-separation-skill-directory](creator-003-test-separation-skill-directory.md)
+- [creator-004-reference-material-extraction](creator-004-reference-material-extraction.md)
+- [creator-005-schema-redundancy-elimination](creator-005-schema-redundancy-elimination.md)
+- [creator-006-toc-requirement-long-files](creator-006-toc-requirement-long-files.md)
+- [validation-007-frontmatter-validation-compliance](validation-007-frontmatter-validation-compliance.md)
 
 ## When to Use This Index
 
@@ -58,3 +58,11 @@ skill, creator, optimization, token, frontmatter, trigger, progressive disclosur
 ## Tag
 
 skill-creator, index
+
+## Related
+
+- [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md)
+- [creator-002-token-efficiency-comment-stripping](creator-002-token-efficiency-comment-stripping.md)
+- [creator-003-test-separation-skill-directory](creator-003-test-separation-skill-directory.md)
+- [creator-004-reference-material-extraction](creator-004-reference-material-extraction.md)
+- [creator-005-schema-redundancy-elimination](creator-005-schema-redundancy-elimination.md)

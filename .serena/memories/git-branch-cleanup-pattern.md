@@ -67,3 +67,11 @@ git checkout -b "$branch" "origin/$branch"
 - `|| true`: Ensure command succeeds even if branch doesn't exist (prevents pipeline failure)
 
 **Evidence**: 0 branch errors after implementing pattern, 4 errors before.
+
+## Related
+
+- [git-003-staged-changes-guard](git-003-staged-changes-guard.md)
+- [git-004-branch-switch-file-verification](git-004-branch-switch-file-verification.md)
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md)
+- [git-conflict-deleted-file](git-conflict-deleted-file.md)
+- [git-conflict-resolution-workflow](git-conflict-resolution-workflow.md)

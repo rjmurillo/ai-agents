@@ -22,3 +22,11 @@ Running these tests first would have provided complete requirements specificatio
 2. Skill-Implementation-002: Run tests to understand requirements
 3. Check templates need updates too
 4. Then implement
+
+## Related
+
+- [implementation-001-memory-first-pattern](implementation-001-memory-first-pattern.md)
+- [implementation-001-pre-implementation-test-discovery](implementation-001-pre-implementation-test-discovery.md)
+- [implementation-006-graphql-first](implementation-006-graphql-first.md)
+- [implementation-additive-approach](implementation-additive-approach.md)
+- [implementation-clarification](implementation-clarification.md)

@@ -44,3 +44,11 @@ gh api repos/{owner}/{repo}/labels -X POST \
       gh label create "$label" --color 5319e7 2>/dev/null || true
     done
 ```
+
+## Related
+
+- [ci-infrastructure-001-fail-fast-infrastructure-failures](ci-infrastructure-001-fail-fast-infrastructure-failures.md)
+- [ci-infrastructure-002-explicit-retry-timing](ci-infrastructure-002-explicit-retry-timing.md)
+- [ci-infrastructure-003-job-status-verdict-distinction](ci-infrastructure-003-job-status-verdict-distinction.md)
+- [ci-infrastructure-004-error-message-investigation](ci-infrastructure-004-error-message-investigation.md)
+- [ci-infrastructure-ai-integration](ci-infrastructure-ai-integration.md)

@@ -76,3 +76,11 @@ BeforeAll {
 - skill-testing-002-test-first-development
 
 **Anti-Pattern**: Dot-sourcing entire script files with main execution logic in Pester BeforeAll
+
+## Related
+
+- [testing-002-test-first-development](testing-002-test-first-development.md)
+- [testing-004-coverage-pragmatism](testing-004-coverage-pragmatism.md)
+- [testing-007-contract-testing](testing-007-contract-testing.md)
+- [testing-008-entry-point-isolation](testing-008-entry-point-isolation.md)
+- [testing-coverage-philosophy-integration](testing-coverage-philosophy-integration.md)

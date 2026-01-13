@@ -46,6 +46,6 @@ Teams must maintain focus on core responsibilities without overwhelming complexi
 
 ## Related
 
-- `conways-law`: Teams mirror architecture
-- `sociotechnical-systems`: Tech and social intertwined
-- `foundational-knowledge-index`: Master index
+- [conways-law](conways-law.md): Teams mirror architecture
+- [sociotechnical-systems](sociotechnical-systems.md): Tech and social intertwined
+- [foundational-knowledge-index](foundational-knowledge-index.md): Master index

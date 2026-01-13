@@ -40,5 +40,5 @@ Over-optimization for known scenarios creates fragility to unknown scenarios.
 
 ## Related
 
-- `resilience-patterns` - Circuit breaker, bulkhead
-- `cynefin-framework` - Complex problem handling
+- [resilience-patterns](resilience-patterns.md) - Circuit breaker, bulkhead
+- [cynefin-framework](cynefin-framework.md) - Complex problem handling

@@ -79,3 +79,11 @@ Both critic and QA agents independently identified same gaps:
 - Critic Report: `.agents/critique/session-init-implementation-critique.md`
 - QA Report: `.agents/qa/session-init-skill-validation-report.md`
 - Pattern Memory: `session-init-pattern.md`
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)
