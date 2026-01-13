@@ -353,13 +353,22 @@ Describe "Environment Parameter Validation (Issue #892)" {
         }
 
         It "Accepts valid Environment values without error" {
-            # Test each valid value passes manual validation
+            # Test that each valid value passes the manual validation logic without error.
+            # The script will fail later (e.g., missing module), but validation must pass.
             @("Claude", "Copilot", "VSCode") | ForEach-Object {
-                $env = $_
-                # Create a mock scenario where we only validate parameter binding
-                $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile($Script:InstallScript, [ref]$null, [ref]$null)
-                $paramBlock = $scriptAst.ParamBlock
-                $paramBlock | Should -Not -BeNullOrEmpty -Because "Script should accept -Environment $env"
+                $envValue = $_
+                # Invoke script and capture any validation error
+                $validationError = $null
+                try {
+                    # The script will fail eventually (module not found in test context),
+                    # but if validation passes, the error will NOT be "Invalid Environment"
+                    & $Script:InstallScript -Environment $envValue -Global -ErrorAction Stop 2>&1 | Out-Null
+                }
+                catch {
+                    $validationError = $_.Exception.Message
+                }
+                # Validation error would contain "Invalid Environment" - any other error is OK
+                $validationError | Should -Not -Match "Invalid Environment" -Because "the script should not throw a validation error for the valid environment '$envValue'"
             }
         }
 
