@@ -126,5 +126,62 @@
 #
 # Force LF line endings for generated skill files to prevent git noise
 # from platform differences. See ADR-019 for rationale and implementation.
+# See also: Agent Files section below for similar YAML frontmatter protection
 #
 *.skill text eol=lf diff=markdown
+
+# ============================================================================
+# Agent Files: Line Ending Normalization
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: YAML frontmatter in agent files fails to parse with CRLF line endings
+# - GitHub Copilot CLI issues #694 and #673: "Unexpected scalar at node end"
+# - Windows Git defaults to CRLF, causing cross-platform parsing failures
+# - Agent files contain YAML frontmatter (name, description, model, tools)
+# - 327 markdown files currently have CRLF line endings
+#
+# Solution: Force LF line endings for all agent-related markdown files
+# - Prevents YAML parsing errors on Windows
+# - Ensures consistent behavior across platforms (Copilot, Claude, Codex, Droid, Gemini)
+# - Follows precedent from *.skill files (ADR-019)
+#
+# Evidence: https://github.com/github/copilot-cli/issues/694
+#           https://github.com/github/copilot-cli/issues/673
+#
+# Scope: All platforms and agent systems
+# - GitHub Copilot CLI: .github/agents/, src/copilot-cli/, src/vs-code-agents/
+# - Claude Code: .claude/, src/claude/
+# - Gemini Code Assist: .gemini/
+# - Droid: Uses same agent file formats
+# - Codex: Uses same agent file formats
+#
+# File patterns:
+# - *.agent.md, *.prompt.md, *.shared.md (Copilot-specific suffixes)
+# - All markdown in agent directories (session logs, analysis, critique)
+# - Platform configuration files (styleguide.md, copilot-instructions.md)
+#
+
+# Copilot/VS Code agent file suffixes (YAML frontmatter)
+*.agent.md text eol=lf diff=markdown
+*.prompt.md text eol=lf diff=markdown
+*.shared.md text eol=lf diff=markdown
+
+# Claude Code agent directories (YAML frontmatter + documentation)
+.claude/**/*.md text eol=lf diff=markdown
+
+# Agent workspace directories (session logs, analysis, critique, planning)
+.agents/**/*.md text eol=lf diff=markdown
+
+# Source agent templates (YAML frontmatter for all platforms)
+src/claude/**/*.md text eol=lf diff=markdown
+src/copilot-cli/**/*.md text eol=lf diff=markdown
+src/vs-code-agents/**/*.md text eol=lf diff=markdown
+
+# Platform configuration files
+.gemini/**/*.md text eol=lf diff=markdown
+copilot-instructions.md text eol=lf diff=markdown
+
+# GitHub Copilot agents directory
+.github/agents/**/*.md text eol=lf diff=markdown
