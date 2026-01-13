@@ -94,3 +94,11 @@ metadata:
 - Analysis: `.agents/analysis/claude-code-skill-frontmatter-2026.md`
 - Commit: 303c6d2 (standardized all 27 skills)
 - Official docs: https://code.claude.com/docs/en/skills
+
+## Related
+
+- [claude-code-hooks-opportunity-analysis](claude-code-hooks-opportunity-analysis.md)
+- [claude-code-skills-official-guidance](claude-code-skills-official-guidance.md)
+- [claude-code-slash-commands](claude-code-slash-commands.md)
+- [claude-flow-research-2025-12-20](claude-flow-research-2025-12-20.md)
+- [claude-md-anthropic-best-practices](claude-md-anthropic-best-practices.md)

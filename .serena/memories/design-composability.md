@@ -34,3 +34,11 @@ Use handoff protocol with generic references
 ```
 
 Tight coupling breaks when agent names change or workflow varies.
+
+## Related
+
+- [design-008-semantic-precision](design-008-semantic-precision.md)
+- [design-approaches-detailed](design-approaches-detailed.md)
+- [design-by-contract](design-by-contract.md)
+- [design-diagrams](design-diagrams.md)
+- [design-entry-criteria](design-entry-criteria.md)

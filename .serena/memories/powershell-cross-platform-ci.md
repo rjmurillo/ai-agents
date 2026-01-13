@@ -75,3 +75,11 @@ exit 0  # Explicitly exit with success
 `$LASTEXITCODE` persists exit code from last external command. Use explicit `exit 0` or reset with `$global:LASTEXITCODE = 0`.
 
 **Evidence**: PR #298
+
+## Related
+
+- [powershell-array-contains](powershell-array-contains.md)
+- [powershell-array-handling](powershell-array-handling.md)
+- [powershell-like-pattern-matching](powershell-like-pattern-matching.md)
+- [powershell-security-ai-output](powershell-security-ai-output.md)
+- [powershell-string-safety](powershell-string-safety.md)

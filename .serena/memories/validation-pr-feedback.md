@@ -29,3 +29,11 @@
 - PR #60: 30 comments ignored when claiming "zero bugs"
 - Pattern: Copilot flagged command injection risks (eval with user input)
 - Pattern: GitHub Security flagged code injection vulnerabilities
+
+## Related
+
+- [validation-006-self-report-verification](validation-006-self-report-verification.md)
+- [validation-007-cross-reference-verification](validation-007-cross-reference-verification.md)
+- [validation-007-frontmatter-validation-compliance](validation-007-frontmatter-validation-compliance.md)
+- [validation-474-adr-numbering-qa-final](validation-474-adr-numbering-qa-final.md)
+- [validation-anti-patterns](validation-anti-patterns.md)

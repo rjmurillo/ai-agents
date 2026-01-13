@@ -22,3 +22,11 @@
 - Generic tool allocation regardless of role
 
 **Source**: `.agents/architecture/ADR-003-agent-tool-selection-criteria.md`
+
+## Related
+
+- [architecture-003-dry-exception-deployment](architecture-003-dry-exception-deployment.md)
+- [architecture-015-deployment-path-validation](architecture-015-deployment-path-validation.md)
+- [architecture-016-adr-number-check](architecture-016-adr-number-check.md)
+- [architecture-adr-compliance-documentation](architecture-adr-compliance-documentation.md)
+- [architecture-composite-action](architecture-composite-action.md)

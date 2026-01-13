@@ -43,3 +43,10 @@ Files: `.agents/analysis/claude-vs-template-differences.md`
 
 ## Atomicity Score: 95%
 Specific, measurable, actionable guidance for agent file management.
+
+## Related
+
+- [pattern-github-actions-variable-evaluation](pattern-github-actions-variable-evaluation.md)
+- [pattern-handoff-merge-session-histories](pattern-handoff-merge-session-histories.md)
+- [pattern-single-source-of-truth-workflows](pattern-single-source-of-truth-workflows.md)
+- [pattern-thin-workflows](pattern-thin-workflows.md)

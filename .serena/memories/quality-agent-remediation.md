@@ -51,3 +51,11 @@ Example:
 - Marking P0 items as "will fix later"
 - Proceeding after CRITICAL_FAIL without remediation
 - Running agents but not reading their output
+
+## Related
+
+- [quality-basic-testing](quality-basic-testing.md)
+- [quality-critique-escalation](quality-critique-escalation.md)
+- [quality-definition-of-done](quality-definition-of-done.md)
+- [quality-prompt-engineering-gates](quality-prompt-engineering-gates.md)
+- [quality-qa-routing](quality-qa-routing.md)

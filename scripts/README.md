@@ -178,7 +178,7 @@ Validates Session Start and Session End protocol compliance for a single session
 
 **Called By**: Pre-commit hook, orchestrator, CI
 
-#### Validate-SessionJson.ps1
+#### Validate-SessionJson.ps1 (Batch Mode)
 
 Validates session protocol compliance across multiple sessions.
 

@@ -19,6 +19,10 @@ coverage.xml
 .idea/
 *.DotSettings.user
 
+# Obsidian workspace (user-specific state)
+**/.obsidian/workspace.json
+**/.obsidian/workspace-mobile.json
+
 # Git worktrees (isolated development branches)
 .work-*/
 worktree-*/

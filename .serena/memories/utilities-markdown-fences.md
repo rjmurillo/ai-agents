@@ -37,3 +37,11 @@ pwsh .agents/utilities/fix-markdown-fences/fix_fences.ps1
 
 - After generating markdown with multiple code blocks
 - When code blocks appear to "bleed" into surrounding content
+
+## Related
+
+- [utilities-cva-refactoring](utilities-cva-refactoring.md)
+- [utilities-pathinfo-conversion](utilities-pathinfo-conversion.md)
+- [utilities-precommit-hook](utilities-precommit-hook.md)
+- [utilities-regex](utilities-regex.md)
+- [utilities-security-patterns](utilities-security-patterns.md)

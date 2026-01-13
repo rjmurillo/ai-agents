@@ -80,5 +80,13 @@ Test the conditional with different author associations:
 
 ## Related Memories
 
-- `security-011-workflow-least-privilege` - Permission scoping
-- `security-infrastructure-review` - Infrastructure security patterns
+- [security-011-workflow-least-privilege](security-011-workflow-least-privilege.md) - Permission scoping
+- [security-infrastructure-review](security-infrastructure-review.md) - Infrastructure security patterns
+
+## Related
+
+- [security-002-input-validation-first](security-002-input-validation-first.md)
+- [security-003-secure-error-handling](security-003-secure-error-handling.md)
+- [security-004-security-event-logging](security-004-security-event-logging.md)
+- [security-007-defense-in-depth-for-cross-process-security-checks](security-007-defense-in-depth-for-cross-process-security-checks.md)
+- [security-008-first-run-gap-analysis](security-008-first-run-gap-analysis.md)

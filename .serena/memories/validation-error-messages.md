@@ -28,3 +28,11 @@ ERROR: Incorrect path reference at explainer.md:45
 | WHY | Rationale for the rule |
 | FIX | How to remediate |
 | REF | Where to learn more |
+
+## Related
+
+- [validation-006-self-report-verification](validation-006-self-report-verification.md)
+- [validation-007-cross-reference-verification](validation-007-cross-reference-verification.md)
+- [validation-007-frontmatter-validation-compliance](validation-007-frontmatter-validation-compliance.md)
+- [validation-474-adr-numbering-qa-final](validation-474-adr-numbering-qa-final.md)
+- [validation-anti-patterns](validation-anti-patterns.md)

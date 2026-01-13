@@ -23,3 +23,11 @@ gh pr view 123 --json body --jq '.body // .title // "Untitled"'
 gh api repos/{owner}/{repo}/contents \
   --jq '.[] | if .type == "dir" then "DIR: \(.name)" else "FILE: \(.name)" end'
 ```
+
+## Related
+
+- [jq-aggregation](jq-aggregation.md)
+- [jq-array-operations](jq-array-operations.md)
+- [jq-field-extraction](jq-field-extraction.md)
+- [jq-filtering](jq-filtering.md)
+- [jq-github-cli-integration](jq-github-cli-integration.md)

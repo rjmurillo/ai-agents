@@ -57,3 +57,11 @@ gh pr list --json mergeStateStatus | jq '.[] | select(.mergeStateStatus == "BLOC
 **Why**: The != operator in jq requires careful escape handling in shell contexts. Positive == matches are more reliable and avoid escape character parsing errors.
 
 **Evidence**: 3 failures with != operator in 2025-12-24 session, 0 failures with == operator.
+
+## Related
+
+- [jq-aggregation](jq-aggregation.md)
+- [jq-array-operations](jq-array-operations.md)
+- [jq-conditionals](jq-conditionals.md)
+- [jq-field-extraction](jq-field-extraction.md)
+- [jq-filtering](jq-filtering.md)

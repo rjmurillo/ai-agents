@@ -51,3 +51,11 @@ Strong skill adoption observed:
 ## Full Report
 
 See: `.agents/analysis/session-export-analysis-2025-12-30.md`
+
+## Related
+
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)
+- [session-128-context-optimization](session-128-context-optimization.md)

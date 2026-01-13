@@ -69,3 +69,10 @@ Merge ALL sessions from both branches in chronological order (highest session nu
 
 - Skill-Workflow-011: Merge session histories chronologically
 - skills-workflow memory: Session management patterns
+
+## Related
+
+- [pattern-agent-generation-three-platforms](pattern-agent-generation-three-platforms.md)
+- [pattern-github-actions-variable-evaluation](pattern-github-actions-variable-evaluation.md)
+- [pattern-single-source-of-truth-workflows](pattern-single-source-of-truth-workflows.md)
+- [pattern-thin-workflows](pattern-thin-workflows.md)

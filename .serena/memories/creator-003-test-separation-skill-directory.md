@@ -55,3 +55,11 @@ PR #255 (2025-12-22): Tests moved from `.claude/skills/github/tests/` to `.githu
 
 - Skill-Creator-002 (comment stripping)
 - Skill-Creator-005 (schema redundancy)
+
+## Related
+
+- [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md)
+- [creator-002-token-efficiency-comment-stripping](creator-002-token-efficiency-comment-stripping.md)
+- [creator-004-reference-material-extraction](creator-004-reference-material-extraction.md)
+- [creator-005-schema-redundancy-elimination](creator-005-schema-redundancy-elimination.md)
+- [creator-006-toc-requirement-long-files](creator-006-toc-requirement-long-files.md)

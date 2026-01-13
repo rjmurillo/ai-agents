@@ -37,3 +37,9 @@
 ```bash
 gh api repos/OWNER/REPO/issues/comments/ID/reactions -X POST -f content=eyes
 ```
+
+## Related
+
+- [graphql-mutation-format](graphql-mutation-format.md)
+- [graphql-pr-operations](graphql-pr-operations.md)
+- [graphql-troubleshooting](graphql-troubleshooting.md)

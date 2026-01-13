@@ -179,3 +179,11 @@ Based on PR #249 root causes, validate before opening PR:
 **P0-P1 Issues Prevented**: 7 if checklist followed
 **Estimated Time Saved**: 10 hours PR review cycle
 **Last Updated**: 2025-12-22
+
+## Related
+
+- [validation-006-self-report-verification](validation-006-self-report-verification.md)
+- [validation-007-cross-reference-verification](validation-007-cross-reference-verification.md)
+- [validation-007-frontmatter-validation-compliance](validation-007-frontmatter-validation-compliance.md)
+- [validation-474-adr-numbering-qa-final](validation-474-adr-numbering-qa-final.md)
+- [validation-anti-patterns](validation-anti-patterns.md)

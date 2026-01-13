@@ -1,5 +1,5 @@
 | Keywords | File |
 |----------|------|
-| bash pattern discovery AUTOFIX pre-commit search grep section | bash-integration-pattern-discovery |
-| exit code return PowerShell script scope cross-language contract | bash-integration-exit-codes |
+| bash pattern discovery AUTOFIX pre-commit search grep section | [bash-integration-pattern-discovery](bash-integration-pattern-discovery.md) |
+| exit code return PowerShell script scope cross-language contract | [bash-integration-exit-codes](bash-integration-exit-codes.md) |
 | LASTEXITCODE PowerShell pester integration test cross-language invoke exit code | bash-integration-exit-code-testing |

@@ -25,3 +25,11 @@
 | 002 | 857 lines | 5 | 19 | 100% match |
 | 003 | 987 lines | design + risks | 20 | 100% match |
 | 004 | 1,347 lines | 3 + appendices | 21 | 100% match |
+
+## Related
+
+- [analysis-001-comprehensive-analysis-standard](analysis-001-comprehensive-analysis-standard.md)
+- [analysis-002-rca-before-implementation](analysis-002-rca-before-implementation.md)
+- [analysis-003-related-issue-discovery](analysis-003-related-issue-discovery.md)
+- [analysis-004-verify-codebase-state](analysis-004-verify-codebase-state.md)
+- [analysis-gap-template](analysis-gap-template.md)

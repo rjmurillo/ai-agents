@@ -54,6 +54,14 @@ All 13 files resolved by accepting main (`git checkout --theirs`):
 
 ## Related
 
-- Memory: `merge-resolver-auto-resolvable-patterns`
+- Memory: [merge-resolver-auto-resolvable-patterns](merge-resolver-auto-resolvable-patterns.md)
 - Skill: `.claude/skills/merge-resolver/SKILL.md`
 - Commit: 144f590a
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)

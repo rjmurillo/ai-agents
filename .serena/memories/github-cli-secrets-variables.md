@@ -50,3 +50,11 @@ gh variable set ORG_SETTING --org myorg --repos repo1,repo2
 ```
 
 **Anti-pattern**: Using `gh variable` for sensitive data exposes values in logs. Always use `gh secret` for credentials.
+
+## Related
+
+- [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
+- [github-cli-anti-patterns](github-cli-anti-patterns.md)
+- [github-cli-api-patterns](github-cli-api-patterns.md)
+- [github-cli-extensions](github-cli-extensions.md)
+- [github-cli-issue-operations](github-cli-issue-operations.md)

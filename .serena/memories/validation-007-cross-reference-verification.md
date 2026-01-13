@@ -79,12 +79,20 @@ When reviewing renumbering/refactoring:
 
 ## Related Patterns
 
-- `edit-002-unique-context-for-edit-matching`: Finding unique strings for replacement
-- `validation-skepticism`: Don't trust, verify
-- `documentation-verification-protocol`: Systematic doc validation
+- [edit-002-unique-context-for-edit-matching](edit-002-unique-context-for-edit-matching.md): Finding unique strings for replacement
+- [validation-skepticism](validation-skepticism.md): Don't trust, verify
+- [documentation-verification-protocol](documentation-verification-protocol.md): Systematic doc validation
 
 ## Success Metrics
 
 - Zero broken cross-references after refactoring
 - Index files match actual file state
 - Search finds NO occurrences of old patterns
+
+## Related
+
+- [validation-006-self-report-verification](validation-006-self-report-verification.md)
+- [validation-007-frontmatter-validation-compliance](validation-007-frontmatter-validation-compliance.md)
+- [validation-474-adr-numbering-qa-final](validation-474-adr-numbering-qa-final.md)
+- [validation-anti-patterns](validation-anti-patterns.md)
+- [validation-baseline-triage](validation-baseline-triage.md)

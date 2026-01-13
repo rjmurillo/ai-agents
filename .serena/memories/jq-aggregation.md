@@ -27,3 +27,11 @@ gh pr list --json state \
 gh pr list --json mergeable \
   --jq '[.[].mergeable == "MERGEABLE"] | all'
 ```
+
+## Related
+
+- [jq-array-operations](jq-array-operations.md)
+- [jq-conditionals](jq-conditionals.md)
+- [jq-field-extraction](jq-field-extraction.md)
+- [jq-filtering](jq-filtering.md)
+- [jq-github-cli-integration](jq-github-cli-integration.md)

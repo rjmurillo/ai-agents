@@ -101,3 +101,11 @@ Documented patterns of Copilot SWE (Sonnet 4.5) failures and how to prevent them
 - skill-scope-002-minimal-viable-fix
 - skill-prompt-002-copilot-swe-constraints
 - agent-workflow-scope-discipline
+
+## Related
+
+- [orchestration-003-orchestrator-first-routing](orchestration-003-orchestrator-first-routing.md)
+- [orchestration-handoff-coordination](orchestration-handoff-coordination.md)
+- [orchestration-parallel-execution](orchestration-parallel-execution.md)
+- [orchestration-pr-chain](orchestration-pr-chain.md)
+- [orchestration-process-workflow-gaps](orchestration-process-workflow-gaps.md)

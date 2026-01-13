@@ -76,3 +76,11 @@ When these conflict, completeness pass + context-tainted failure = **false posit
 - [ ] Document verdict parsing rules in AIReviewCommon.psm1
 - [ ] Add unit tests with context contamination cases
 - [ ] Add integration test for PR with linked issues
+
+## Related
+
+- [workflow-authorization-testable-pattern](workflow-authorization-testable-pattern.md)
+- [workflow-false-positive-verdict-parsing-fix-2025-12-28](workflow-false-positive-verdict-parsing-fix-2025-12-28.md)
+- [workflow-patterns-batch-changes-reduce-cogs](workflow-patterns-batch-changes-reduce-cogs.md)
+- [workflow-patterns-composite-action](workflow-patterns-composite-action.md)
+- [workflow-patterns-matrix-artifacts](workflow-patterns-matrix-artifacts.md)

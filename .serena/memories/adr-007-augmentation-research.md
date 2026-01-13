@@ -52,3 +52,11 @@
 ## Cross-Platform Note
 
 This research is persisted to Serena (this file) as the canonical source. Forgetful memory ID 15 contains the same content but is only accessible on local instances with the Forgetful SQLite database. Hosted platforms (GitHub Copilot) should reference this Serena memory.
+
+## Related
+
+- [adr-014-findings](adr-014-findings.md)
+- [adr-014-review-findings](adr-014-review-findings.md)
+- [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
+- [adr-021-quantitative-analysis](adr-021-quantitative-analysis.md)
+- [adr-021-split-execution](adr-021-split-execution.md)

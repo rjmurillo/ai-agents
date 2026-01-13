@@ -53,3 +53,11 @@
 **Pattern**: Use Skill-AgentWorkflow-004 during planning/scoping, then execute with Skill-AgentWorkflow-001 during implementation.
 
 **Source**: Phase 3 Agent Workflow Skills (2025-12-16)
+
+## Related
+
+- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
+- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
+- [agent-workflow-collaboration](agent-workflow-collaboration.md)
+- [agent-workflow-critic-gate](agent-workflow-critic-gate.md)
+- [agent-workflow-mvp-shipping](agent-workflow-mvp-shipping.md)

@@ -147,6 +147,15 @@ function Get-IndexEntries {
                 continue
             }
 
+            # Parse markdown link syntax: [text](filename.md)
+            # Index files use markdown links, but we need the base filename (without .md)
+            # because Test-FileReferences appends .md when checking file existence
+            if ($fileName -match '\[([^\]]+)\]\(([^)]+)\)') {
+                # Extract filename from link target and remove .md extension
+                $linkTarget = $Matches[2]
+                $fileName = $linkTarget -replace '\.md$', ''
+            }
+
             $keywordList = @($keywords -split '\s+' | Where-Object { $_ })
 
             [void]$parsedEntries.Add([PSCustomObject]@{
@@ -599,7 +608,8 @@ function Test-MemoryIndexReferences {
 
             # Skip header/separator rows
             if ($fileEntry -eq 'File' -or $fileEntry -match '^-+$' -or
-                $fileEntry -eq 'Essential Memories' -or $fileEntry -eq 'Memory') {
+                $fileEntry -eq 'Essential Memories' -or $fileEntry -eq 'Memory' -or
+                $fileEntry -eq 'Memory Index') {
                 continue
             }
 
@@ -607,6 +617,13 @@ function Test-MemoryIndexReferences {
             $fileNames = @($fileEntry -split ',\s*' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
             foreach ($fileName in $fileNames) {
+                # Parse markdown link syntax: [text](filename.md)
+                # memory-index may use markdown links, extract the base filename (without .md)
+                if ($fileName -match '\[([^\]]+)\]\(([^)]+)\)') {
+                    $linkTarget = $Matches[2]
+                    $fileName = $linkTarget -replace '\.md$', ''
+                }
+
                 # Check if reference exists as file
                 $refPath = Join-Path $MemoryPath "$fileName.md"
                 if (-not (Test-Path $refPath)) {

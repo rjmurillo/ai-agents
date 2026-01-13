@@ -28,3 +28,10 @@ Fix lint violations in directory batches with atomic commits per batch:
 
 - Manual editing every file individually for mechanical fixes
 - **Prevention**: Always run `--fix` first
+
+## Related
+
+- [linting-config](linting-config.md)
+- [linting-exclusions](linting-exclusions.md)
+- [linting-generic-types](linting-generic-types.md)
+- [linting-language-identifiers](linting-language-identifiers.md)

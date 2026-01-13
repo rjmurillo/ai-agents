@@ -55,3 +55,9 @@ gh api graphql \
 ```
 
 **Reaction Values**: `THUMBS_UP`, `THUMBS_DOWN`, `LAUGH`, `HOORAY`, `CONFUSED`, `HEART`, `ROCKET`, `EYES`
+
+## Related
+
+- [graphql-mutation-format](graphql-mutation-format.md)
+- [graphql-troubleshooting](graphql-troubleshooting.md)
+- [graphql-vs-rest](graphql-vs-rest.md)

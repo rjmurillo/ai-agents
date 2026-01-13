@@ -181,3 +181,11 @@ Consider updating repository description to:
 - Analysis: `.agents/analysis/003-github-topics-seo-optimization.md`
 - Session Log: `.agents/sessions/2025-12-20-session-38-github-topics-optimization.md`
 - Commit: `9eca5bd` docs(analysis): add GitHub topics SEO optimization
+
+## Related
+
+- [github-actions-local-testing-integration](github-actions-local-testing-integration.md)
+- [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
+- [github-cli-anti-patterns](github-cli-anti-patterns.md)
+- [github-cli-api-patterns](github-cli-api-patterns.md)
+- [github-cli-extensions](github-cli-extensions.md)

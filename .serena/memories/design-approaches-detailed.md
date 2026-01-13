@@ -51,3 +51,11 @@ Start with testability quality, refactor to open-closed, work up the hierarchy. 
 
 ## Source
 User preference: Richard Murillo's global CLAUDE.md (removed during token optimization 2026-01-04)
+
+## Related
+
+- [design-008-semantic-precision](design-008-semantic-precision.md)
+- [design-by-contract](design-by-contract.md)
+- [design-composability](design-composability.md)
+- [design-diagrams](design-diagrams.md)
+- [design-entry-criteria](design-entry-criteria.md)

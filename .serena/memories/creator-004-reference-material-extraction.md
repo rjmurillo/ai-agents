@@ -65,3 +65,11 @@ PR #255 (2025-12-22): SKILL.md reduced from 207 to 145 lines. Reference tables m
 
 - Skill-Creator-002 (comment stripping)
 - Skill-Documentation-004 (pattern consistency)
+
+## Related
+
+- [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md)
+- [creator-002-token-efficiency-comment-stripping](creator-002-token-efficiency-comment-stripping.md)
+- [creator-003-test-separation-skill-directory](creator-003-test-separation-skill-directory.md)
+- [creator-005-schema-redundancy-elimination](creator-005-schema-redundancy-elimination.md)
+- [creator-006-toc-requirement-long-files](creator-006-toc-requirement-long-files.md)

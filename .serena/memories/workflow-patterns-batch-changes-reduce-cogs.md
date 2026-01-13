@@ -48,3 +48,11 @@ git commit -m "implement retry logic"
 # ... continue working ...
 git push  # one bot run for all changes
 ```
+
+## Related
+
+- [workflow-authorization-testable-pattern](workflow-authorization-testable-pattern.md)
+- [workflow-false-positive-verdict-parsing-2025-12-28](workflow-false-positive-verdict-parsing-2025-12-28.md)
+- [workflow-false-positive-verdict-parsing-fix-2025-12-28](workflow-false-positive-verdict-parsing-fix-2025-12-28.md)
+- [workflow-patterns-composite-action](workflow-patterns-composite-action.md)
+- [workflow-patterns-matrix-artifacts](workflow-patterns-matrix-artifacts.md)

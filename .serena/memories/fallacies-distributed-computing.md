@@ -36,5 +36,5 @@ Assumptions that cause distributed system failures:
 
 ## Related
 
-- `resilience-patterns` - Circuit breaker, bulkhead, retry
-- `cap-theorem` - Consistency vs availability tradeoff
+- [resilience-patterns](resilience-patterns.md) - Circuit breaker, bulkhead, retry
+- [cap-theorem](cap-theorem.md) - Consistency vs availability tradeoff

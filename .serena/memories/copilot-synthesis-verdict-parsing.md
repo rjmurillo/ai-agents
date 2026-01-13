@@ -42,3 +42,11 @@ When Copilot synthesis fails to post:
 2. Verify AI exit code (0 = success, 124 = timeout)
 3. Check stdout length (0 chars = likely auth issue, >0 = parsing issue)
 4. Compare against verdict regex: `VERDICT:[[:space:]]*\([A-Z_]*\)`
+
+## Related
+
+- [copilot-cli-model-configuration](copilot-cli-model-configuration.md)
+- [copilot-directive-relocation](copilot-directive-relocation.md)
+- [copilot-follow-up-pr](copilot-follow-up-pr.md)
+- [copilot-platform-priority](copilot-platform-priority.md)
+- [copilot-pr-review](copilot-pr-review.md)

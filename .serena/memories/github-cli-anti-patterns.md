@@ -112,3 +112,11 @@ run: gh pr comment $PR_NUMBER --body "$PR_BODY"
 # BAD: Direct interpolation (injection risk)
 run: gh pr comment --body "${{ github.event.pull_request.body }}"
 ```
+
+## Related
+
+- [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
+- [github-cli-api-patterns](github-cli-api-patterns.md)
+- [github-cli-extensions](github-cli-extensions.md)
+- [github-cli-issue-operations](github-cli-issue-operations.md)
+- [github-cli-labels-cache](github-cli-labels-cache.md)

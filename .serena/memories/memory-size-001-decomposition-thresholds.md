@@ -87,3 +87,11 @@ When a memory exceeds these thresholds, decompose into focused files.
 1. Assign issue #239 to milestone
 2. Execute decomposition (2-3 hours)
 3. Update this analysis with results
+
+## Related
+
+- [memory-001-feedback-retrieval](memory-001-feedback-retrieval.md)
+- [memory-architecture-serena-primary](memory-architecture-serena-primary.md)
+- [memory-index](memory-index.md)
+- [memory-system-fragmentation-tech-debt](memory-system-fragmentation-tech-debt.md)
+- [memory-token-efficiency](memory-token-efficiency.md)

@@ -45,3 +45,9 @@
 
 - [GitHub GraphQL API](https://docs.github.com/en/graphql)
 - [GraphQL Explorer](https://docs.github.com/en/graphql/overview/explorer)
+
+## Related
+
+- [graphql-mutation-format](graphql-mutation-format.md)
+- [graphql-pr-operations](graphql-pr-operations.md)
+- [graphql-vs-rest](graphql-vs-rest.md)

@@ -48,3 +48,8 @@ if [ -n "$STAGED_FILES_NEEDING_FIX" ]; then
     fi
 fi
 ```
+
+## Related
+
+- [bash-integration-exit-code-testing](bash-integration-exit-code-testing.md)
+- [bash-integration-exit-codes](bash-integration-exit-codes.md)

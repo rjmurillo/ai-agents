@@ -33,3 +33,11 @@ Never apply user patch with modifications:
 - Removing comments
 
 This signals agent doesn't trust user's solution and forces re-iteration.
+
+## Related
+
+- [implementation-001-memory-first-pattern](implementation-001-memory-first-pattern.md)
+- [implementation-001-pre-implementation-test-discovery](implementation-001-pre-implementation-test-discovery.md)
+- [implementation-002-test-driven-implementation](implementation-002-test-driven-implementation.md)
+- [implementation-006-graphql-first](implementation-006-graphql-first.md)
+- [implementation-additive-approach](implementation-additive-approach.md)

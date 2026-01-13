@@ -34,3 +34,11 @@
 2. If dependencies exist, make them explicit with blocking notation
 3. Include all context needed within the task description
 4. Enable context window interruption recovery
+
+## Related
+
+- [planning-003-parallel-exploration-pattern](planning-003-parallel-exploration-pattern.md)
+- [planning-004-approval-checkpoint](planning-004-approval-checkpoint.md)
+- [planning-checkbox-manifest](planning-checkbox-manifest.md)
+- [planning-multi-platform](planning-multi-platform.md)
+- [planning-priority-consistency](planning-priority-consistency.md)

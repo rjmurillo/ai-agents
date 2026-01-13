@@ -20,3 +20,11 @@ Total Items: N | Implemented: M | Gap: N-M
 ```
 
 **When to Apply**: Analysis documents with 3+ recommendations
+
+## Related
+
+- [planning-003-parallel-exploration-pattern](planning-003-parallel-exploration-pattern.md)
+- [planning-004-approval-checkpoint](planning-004-approval-checkpoint.md)
+- [planning-multi-platform](planning-multi-platform.md)
+- [planning-priority-consistency](planning-priority-consistency.md)
+- [planning-task-descriptions](planning-task-descriptions.md)

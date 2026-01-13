@@ -26,3 +26,11 @@ path_filters:
 ```
 
 **Impact**: ~60% noise reduction with optimized configuration.
+
+## Related
+
+- [coderabbit-config-strategy](coderabbit-config-strategy.md)
+- [coderabbit-documentation-false-positives](coderabbit-documentation-false-positives.md)
+- [coderabbit-markdownlint](coderabbit-markdownlint.md)
+- [coderabbit-mcp-false-positives](coderabbit-mcp-false-positives.md)
+- [coderabbit-security-false-positives](coderabbit-security-false-positives.md)

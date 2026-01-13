@@ -94,3 +94,11 @@ SESSION-PROTOCOL.md does not address continuation sessions after context compact
 2. Implement P0 guardrails (automated session log + file lock)
 3. Test continuation session detection mechanism
 4. Measure compliance improvement with success metrics
+
+## Related
+
+- [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md)
+- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md)
+- [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md)
+- [protocol-blocking-gates](protocol-blocking-gates.md)
+- [protocol-legacy-sessions](protocol-legacy-sessions.md)

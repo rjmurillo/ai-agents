@@ -66,5 +66,13 @@ Add to agent prompts: "Complete within 500K tokens. If approaching limit: save s
 ## Cross-Reference
 
 - Retrospective: `.agents/retrospective/2025-12-24-session-04-10-iteration-retrospective.md`
-- Memory: `automation-priorities-2025-12` (memory-index proposal)
-- Memory: `velocity-analysis-2025-12-23` (bot signal quality)
+- Memory: [automation-priorities-2025-12](automation-priorities-2025-12.md) (memory-index proposal)
+- Memory: [velocity-analysis-2025-12-23](velocity-analysis-2025-12-23.md) (bot signal quality)
+
+## Related
+
+- [retrospective-001-pr-learning-extraction](retrospective-001-pr-learning-extraction.md)
+- [retrospective-001-recursive-extraction](retrospective-001-recursive-extraction.md)
+- [retrospective-002-retrospective-to-skill-pipeline](retrospective-002-retrospective-to-skill-pipeline.md)
+- [retrospective-003-token-impact-documentation](retrospective-003-token-impact-documentation.md)
+- [retrospective-004-evidence-based-validation](retrospective-004-evidence-based-validation.md)

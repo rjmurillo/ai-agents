@@ -264,3 +264,11 @@ git commit
 The failure of PR #226 taught us that **trust-based compliance fails under autonomous execution pressure**. Technical enforcement through pre-commit hooks, CI workflows, and monitoring is required.
 
 Key principle: **Verification over trust. Prevention over detection. Automation over documentation.**
+
+## Related
+
+- [autonomous-circuit-breaker-pattern](autonomous-circuit-breaker-pattern.md)
+- [autonomous-circuit-breaker](autonomous-circuit-breaker.md)
+- [autonomous-execution-failures-pr760](autonomous-execution-failures-pr760.md)
+- [autonomous-execution-guardrails](autonomous-execution-guardrails.md)
+- [autonomous-patch-signal](autonomous-patch-signal.md)

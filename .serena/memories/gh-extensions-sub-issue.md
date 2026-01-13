@@ -68,3 +68,11 @@ gh sub-issue remove 123 456
 # Target specific repo
 gh sub-issue remove 123 456 --repo owner/repo
 ```
+
+## Related
+
+- [gh-extensions-anti-patterns](gh-extensions-anti-patterns.md)
+- [gh-extensions-combine-prs](gh-extensions-combine-prs.md)
+- [gh-extensions-grep](gh-extensions-grep.md)
+- [gh-extensions-hook](gh-extensions-hook.md)
+- [gh-extensions-maintenance](gh-extensions-maintenance.md)

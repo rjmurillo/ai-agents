@@ -39,4 +39,4 @@ Map capability maturity to decide where to innovate vs commoditize.
 ## Related
 
 - `antifragility` - Design for change
-- `cynefin-framework` - Problem classification
+- [cynefin-framework](cynefin-framework.md) - Problem classification

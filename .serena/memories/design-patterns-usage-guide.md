@@ -34,5 +34,10 @@ Before applying a pattern:
 
 ## Related
 
-- `code-smells-catalog` - Detection of problems
-- `yagni-principle` - Build only what's needed
+- [code-smells-catalog](code-smells-catalog.md) - Detection of problems
+- [yagni-principle](yagni-principle.md) - Build only what's needed
+- [design-008-semantic-precision](design-008-semantic-precision.md)
+- [design-approaches-detailed](design-approaches-detailed.md)
+- [design-by-contract](design-by-contract.md)
+- [design-composability](design-composability.md)
+- [design-diagrams](design-diagrams.md)

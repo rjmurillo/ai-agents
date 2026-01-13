@@ -29,3 +29,11 @@ gh repo list --json name,description \
 gh issue list --json number,milestone \
   --jq '.[] | select(.milestone != null)'
 ```
+
+## Related
+
+- [jq-aggregation](jq-aggregation.md)
+- [jq-array-operations](jq-array-operations.md)
+- [jq-conditionals](jq-conditionals.md)
+- [jq-field-extraction](jq-field-extraction.md)
+- [jq-github-cli-integration](jq-github-cli-integration.md)

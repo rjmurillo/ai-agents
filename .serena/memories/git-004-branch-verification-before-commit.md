@@ -43,6 +43,14 @@ git commit -m "..."  # No verification!
 
 ## Related Skills
 
-- `git-hooks-004-branch-name-validation`: Pre-commit hook enforcement
-- `session-init-003-branch-declaration`: Session-level branch tracking
-- `protocol-013-verification-based-enforcement`: Design principle
+- [git-hooks-004-branch-name-validation](git-hooks-004-branch-name-validation.md): Pre-commit hook enforcement
+- [session-init-003-branch-declaration](session-init-003-branch-declaration.md): Session-level branch tracking
+- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md): Design principle
+
+## Related
+
+- [git-003-staged-changes-guard](git-003-staged-changes-guard.md)
+- [git-004-branch-switch-file-verification](git-004-branch-switch-file-verification.md)
+- [git-branch-cleanup-pattern](git-branch-cleanup-pattern.md)
+- [git-conflict-deleted-file](git-conflict-deleted-file.md)
+- [git-conflict-resolution-workflow](git-conflict-resolution-workflow.md)

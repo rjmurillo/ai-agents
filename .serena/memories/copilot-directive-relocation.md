@@ -62,3 +62,11 @@ pwsh scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "@copilot please refac
 - skills-copilot-index
 - copilot-pr-review
 - pr-review-copilot-followup
+
+## Related
+
+- [copilot-cli-model-configuration](copilot-cli-model-configuration.md)
+- [copilot-follow-up-pr](copilot-follow-up-pr.md)
+- [copilot-platform-priority](copilot-platform-priority.md)
+- [copilot-pr-review](copilot-pr-review.md)
+- [copilot-supported-models](copilot-supported-models.md)

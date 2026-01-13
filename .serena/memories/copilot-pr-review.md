@@ -28,3 +28,11 @@ Signal: 21% (↓ from 35%) | False positives: 64% (↑ from 10%)
 | Accept | "Thanks @Copilot! Good catch." |
 | Intentional | "@Copilot Intentional. Will update source docs." |
 | Revert | "@Copilot Will update to match source." |
+
+## Related
+
+- [copilot-cli-model-configuration](copilot-cli-model-configuration.md)
+- [copilot-directive-relocation](copilot-directive-relocation.md)
+- [copilot-follow-up-pr](copilot-follow-up-pr.md)
+- [copilot-platform-priority](copilot-platform-priority.md)
+- [copilot-supported-models](copilot-supported-models.md)

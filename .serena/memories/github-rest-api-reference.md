@@ -370,3 +370,11 @@ query($endCursor: String) {
 - [GitHub REST API Documentation](https://docs.github.com/en/rest)
 - [Rate Limits Documentation](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)
 - [Authentication Documentation](https://docs.github.com/en/rest/authentication)
+
+## Related
+
+- [github-actions-local-testing-integration](github-actions-local-testing-integration.md)
+- [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
+- [github-cli-anti-patterns](github-cli-anti-patterns.md)
+- [github-cli-api-patterns](github-cli-api-patterns.md)
+- [github-cli-extensions](github-cli-extensions.md)

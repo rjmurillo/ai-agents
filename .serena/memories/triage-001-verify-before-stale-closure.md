@@ -44,3 +44,7 @@ git show remotes/origin/{branch}:{path/to/file} > recovered_file.ps1
 - Issues #238, #293 (incorrectly closed, then reopened)
 - PRs #202, #203 (incorrectly closed by triage bot)
 - Recovery PR #493
+
+## Related
+
+- [triage-002-bot-closure-verification](triage-002-bot-closure-verification.md)

@@ -32,7 +32,7 @@ Implement commit threshold monitoring to prevent PR scope explosion:
 ### Important Issues (Should Fix Before Merge)
 
 1. **Missing LASTEXITCODE checks after `gh` commands** (5 locations)
-   - Pattern: Memory `validation-pr-gates` Skill-PR-249-002
+   - Pattern: Memory [validation-pr-gates](validation-pr-gates.md) Skill-PR-249-002
    - Risk: Command failures silently ignored
    - Fix: `if ($LASTEXITCODE -ne 0) { throw }`
 
@@ -59,11 +59,11 @@ Validated against:
 - ADR-005: PowerShell-only (compliant)
 - ADR-006: Thin workflows (acceptable for orchestration)
 - RFC 2119: MUST/SHOULD/MAY (proper usage)
-- Memory `validation-pr-gates`: Exit code handling (missing)
+- Memory [validation-pr-gates](validation-pr-gates.md): Exit code handling (missing)
 
 ## Cross-Session Context
 
-This review identified a recurring pattern gap: LASTEXITCODE checks after `gh` commands are frequently missed despite being documented in memory `validation-pr-gates`. Consider adding pre-commit validation or linting rule to enforce this pattern.
+This review identified a recurring pattern gap: LASTEXITCODE checks after `gh` commands are frequently missed despite being documented in memory [validation-pr-gates](validation-pr-gates.md). Consider adding pre-commit validation or linting rule to enforce this pattern.
 
 ## Related
 

@@ -11,3 +11,11 @@
 **Atomicity**: 92%
 
 **Anti-Pattern**: Mixing negation and inclusion in same matcher block
+
+## Related
+
+- [labeler-001-negation-pattern-matcher-selection](labeler-001-negation-pattern-matcher-selection.md)
+- [labeler-003-any-matcher](labeler-003-any-matcher.md)
+- [labeler-004-all-files-matcher](labeler-004-all-files-matcher.md)
+- [labeler-005-all-patterns-matcher](labeler-005-all-patterns-matcher.md)
+- [labeler-combined-patterns](labeler-combined-patterns.md)

@@ -89,3 +89,11 @@ Reference this memory when:
 - Resolving frontmatter conflicts
 - Choosing model allocation
 - Migrating between standards
+
+## Related
+
+- [skills-agent-workflow-index](skills-agent-workflow-index.md)
+- [skills-analysis-index](skills-analysis-index.md)
+- [skills-architecture-index](skills-architecture-index.md)
+- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
+- [skills-bash-integration-index](skills-bash-integration-index.md)

@@ -2,7 +2,7 @@
 
 **Created**: 2026-01-10
 **Category**: Engineering Knowledge Management
-**Source**: `.agents/analysis/distinguished-engineer-knowledge.md`
+**Comprehensive Index**: [engineering-knowledge-index](engineering-knowledge-index.md)
 
 ## Purpose
 
@@ -85,10 +85,3 @@ Knowledge framework for Distinguished Engineers, Fellows, and CTOs operating at 
 - Succession Plans for Systems
 - Governance Playbooks
 - Heritage Documentation
-
-## Related
-
-- Full analysis: `.agents/analysis/distinguished-engineer-knowledge.md`
-- Previous tiers: `foundational-knowledge-index`, `principal-engineering-knowledge`
-- Strategic thinking: `wardley-mapping`, `team-topologies`, `three-horizons-framework`
-- Migration patterns: `strangler-fig-pattern`, `expand-contract-pattern`

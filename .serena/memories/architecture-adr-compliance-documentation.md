@@ -55,3 +55,11 @@ runs-on: ubuntu-24.04-arm
 
 - `ci-runner-selection` - Runner performance and cost comparison
 - `ci-deployment-validation` - Deployment workflow patterns
+
+## Related
+
+- [architecture-003-dry-exception-deployment](architecture-003-dry-exception-deployment.md)
+- [architecture-015-deployment-path-validation](architecture-015-deployment-path-validation.md)
+- [architecture-016-adr-number-check](architecture-016-adr-number-check.md)
+- [architecture-composite-action](architecture-composite-action.md)
+- [architecture-model-selection](architecture-model-selection.md)

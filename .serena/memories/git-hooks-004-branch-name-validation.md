@@ -78,13 +78,21 @@ git commit --no-verify -m "Quick fix"
 
 ## Related Skills
 
-- `git-004-branch-verification-before-commit`: Manual verification
-- `session-init-003-branch-declaration`: Session log tracking
-- `git-hooks-fix-hook-errors-never-bypass`: Never use --no-verify
-- `protocol-013-verification-based-enforcement`: Hook is enforcement mechanism
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md): Manual verification
+- [session-init-003-branch-declaration](session-init-003-branch-declaration.md): Session log tracking
+- [git-hooks-fix-hook-errors-never-bypass](git-hooks-fix-hook-errors-never-bypass.md): Never use --no-verify
+- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md): Hook is enforcement mechanism
 
 ## References
 
 - PR #669: PR co-mingling retrospective
 - Issue #681: Pre-commit hook implementation
 - Issue #684: SESSION-PROTOCOL branch verification
+
+## Related
+
+- [git-hooks-001-pre-commit-branch-validation](git-hooks-001-pre-commit-branch-validation.md)
+- [git-hooks-002-branch-recovery-procedure](git-hooks-002-branch-recovery-procedure.md)
+- [git-hooks-autofix](git-hooks-autofix.md)
+- [git-hooks-categories](git-hooks-categories.md)
+- [git-hooks-cross-language](git-hooks-cross-language.md)

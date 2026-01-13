@@ -71,3 +71,11 @@ git commit  # No build/test verification!
 **Best Practice**: After resolving conflicts, run project tests or build to verify semantic correctness before committing.
 
 **Evidence**: All 14 conflicts resolved successfully because verification was performed before commit.
+
+## Related
+
+- [git-003-staged-changes-guard](git-003-staged-changes-guard.md)
+- [git-004-branch-switch-file-verification](git-004-branch-switch-file-verification.md)
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md)
+- [git-branch-cleanup-pattern](git-branch-cleanup-pattern.md)
+- [git-conflict-deleted-file](git-conflict-deleted-file.md)

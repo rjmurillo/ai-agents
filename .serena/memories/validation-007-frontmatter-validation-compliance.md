@@ -69,3 +69,11 @@ Commit: [SHA from fix/issue-369-ci-verification branch]
 
 - Skill-Creator-001 (frontmatter trigger specification)
 - Skill-Creator-005 (schema redundancy elimination)
+
+## Related
+
+- [validation-006-self-report-verification](validation-006-self-report-verification.md)
+- [validation-007-cross-reference-verification](validation-007-cross-reference-verification.md)
+- [validation-474-adr-numbering-qa-final](validation-474-adr-numbering-qa-final.md)
+- [validation-anti-patterns](validation-anti-patterns.md)
+- [validation-baseline-triage](validation-baseline-triage.md)

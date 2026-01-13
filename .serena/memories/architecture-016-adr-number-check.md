@@ -65,3 +65,11 @@ Add to architect agent handoff protocol:
 3. Choose next available number (highest + 1)
 4. Verify uniqueness before committing
 ```
+
+## Related
+
+- [architecture-003-dry-exception-deployment](architecture-003-dry-exception-deployment.md)
+- [architecture-015-deployment-path-validation](architecture-015-deployment-path-validation.md)
+- [architecture-adr-compliance-documentation](architecture-adr-compliance-documentation.md)
+- [architecture-composite-action](architecture-composite-action.md)
+- [architecture-model-selection](architecture-model-selection.md)

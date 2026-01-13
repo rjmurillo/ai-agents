@@ -44,6 +44,14 @@
 
 ## Related Skills
 
-- `git-004-branch-verification-before-commit`: Runtime verification
-- `session-scope-002-multi-issue-limit`: Scope management
-- `protocol-template-enforcement`: Template compliance
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md): Runtime verification
+- [session-scope-002-multi-issue-limit](session-scope-002-multi-issue-limit.md): Scope management
+- [protocol-template-enforcement](protocol-template-enforcement.md): Template compliance
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
+- [session-113-pr-713-review](session-113-pr-713-review.md)
