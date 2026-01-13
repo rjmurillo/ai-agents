@@ -25,11 +25,3 @@
 | python implicit string concat false positive PEP | [pr-review-python-implicit-string-concat](pr-review-python-implicit-string-concat.md) |
 | security-comments priority-boost TOCTOU injection XSS | [pr-review-security](pr-review-security.md) |
 | status classification decision tree blocking human | pr-review-status-001 |
-
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

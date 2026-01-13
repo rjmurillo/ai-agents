@@ -1220,4 +1220,45 @@ Describe "Edge Cases" {
             $result.DomainResults.headeronly.Passed | Should -Be $true
         }
     }
+
+    Context "When index files use markdown link syntax" {
+        BeforeEach {
+            $testStructure = @{
+                "skills-markdown-links-index.md" = @"
+| Keywords | File |
+|----------|------|
+| alpha beta | [link-test-1](link-test-1.md) |
+| gamma delta | [link-test-2](link-test-2.md) |
+"@
+                "link-test-1.md" = "Content 1"
+                "link-test-2.md" = "Content 2"
+                "memory-index.md" = @"
+| Task Keywords | Essential Memories |
+|---------------|-------------------|
+| test | [skills-markdown-links-index](skills-markdown-links-index.md) |
+"@
+            }
+            New-TestMemoryStructure -BasePath $testMemoryPath -Structure $testStructure
+        }
+
+        It "Parses markdown links in domain index files correctly" {
+            $result = & $scriptPath -Path $testMemoryPath -Format "json" | ConvertFrom-Json
+            $result.DomainResults.'markdown-links'.FileReferences.Passed | Should -Be $true
+            $result.DomainResults.'markdown-links'.FileReferences.ValidFiles.Count | Should -Be 2
+            $result.DomainResults.'markdown-links'.FileReferences.MissingFiles.Count | Should -Be 0
+        }
+
+        It "Parses markdown links in memory-index.md correctly" {
+            $result = & $scriptPath -Path $testMemoryPath -Format "json" | ConvertFrom-Json
+            $result.MemoryIndexResult.Passed | Should -Be $true
+            $result.MemoryIndexResult.BrokenReferences.Count | Should -Be 0
+        }
+
+        It "Does not append duplicate .md extension" {
+            $result = & $scriptPath -Path $testMemoryPath -Format "json" | ConvertFrom-Json
+            # Should not have errors like "link-test-1.md.md"
+            $result.DomainResults.'markdown-links'.FileReferences.Issues |
+                Should -Not -Contain "Missing file: [link-test-1](link-test-1.md).md"
+        }
+    }
 }

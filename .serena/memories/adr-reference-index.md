@@ -58,11 +58,3 @@ Read(".agents/architecture/ADR-NNN-title.md")
 
 - [adr-014-review-findings](adr-014-review-findings.md) (analysis of ADR-014)
 - [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md) (metrics for ADR-017)
-
-## Related
-
-- [adr-007-augmentation-research](adr-007-augmentation-research.md)
-- [adr-014-findings](adr-014-findings.md)
-- [adr-014-review-findings](adr-014-review-findings.md)
-- [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
-- [adr-021-quantitative-analysis](adr-021-quantitative-analysis.md)

@@ -10,11 +10,3 @@
 | index selection domain routing keyword overlap create new | [documentation-index-selection-decision-tree](documentation-index-selection-decision-tree.md) |
 | verification critic amnesiac completeness objective PASS FAIL protocol | [documentation-verification-protocol](documentation-verification-protocol.md) |
 | framework constraints limitations pull push SKILL.md automatic invocation | documentation-008-framework-constraints |
-
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

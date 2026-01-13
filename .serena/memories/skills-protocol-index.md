@@ -7,11 +7,3 @@
 | branch handoff feature validator HANDOFF ADR-014 compliance | [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md) |
 | verification enforcement programmatic check git commit tool output artifact observable | [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md) |
 | trust antipattern documentation voluntary failure repetitive memory forget context | protocol-014-trust-antipattern |
-
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)
