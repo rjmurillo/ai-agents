@@ -80,7 +80,8 @@ $IsRemoteExecution = -not $PSScriptRoot
 
 if ($IsRemoteExecution) {
     # Bootstrap: Download required files to temp directory
-    $TempDir = Join-Path $env:TEMP "ai-agents-install-$(Get-Random)"
+    # Use cross-platform temp path (Windows: TEMP, macOS/Linux: TMPDIR or /tmp)
+    $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "ai-agents-install-$(Get-Random)"
     New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
     # URL-encode version to handle special characters (e.g., SEMVER 2.0 '+' for build metadata)
