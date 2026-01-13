@@ -40,13 +40,8 @@ function Test-GitRepository {
     .SYNOPSIS
         Checks if the current directory is a Git repository.
     #>
-    try {
-        git rev-parse --is-inside-work-tree 2>$null | Out-Null
-        return $true
-    }
-    catch {
-        return $false
-    }
+    $null = git rev-parse --is-inside-work-tree 2>&1
+    return $LASTEXITCODE -eq 0
 }
 
 function Get-LineEndingStats {

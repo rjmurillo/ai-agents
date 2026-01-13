@@ -23,13 +23,8 @@ BeforeAll {
 
     # Define the functions directly for testing (extracted from script)
     function Test-GitRepository {
-        try {
-            git rev-parse --is-inside-work-tree 2>$null | Out-Null
-            return $true
-        }
-        catch {
-            return $false
-        }
+        $null = git rev-parse --is-inside-work-tree 2>&1
+        return $LASTEXITCODE -eq 0
     }
 
     function Get-LineEndingStats {
@@ -83,7 +78,7 @@ BeforeAll {
 Describe 'Normalize-LineEndings.ps1' {
     Context 'Test-GitRepository function' {
         It 'Should return true when in a Git repository' {
-            Mock git { return 'true' } -Verifiable
+            Mock git { $global:LASTEXITCODE = 0; return 'true' } -Verifiable
 
             $result = Test-GitRepository
 
@@ -91,7 +86,7 @@ Describe 'Normalize-LineEndings.ps1' {
         }
 
         It 'Should return false when not in a Git repository' {
-            Mock git { throw 'fatal: not a git repository' }
+            Mock git { $global:LASTEXITCODE = 128; return 'fatal: not a git repository' }
 
             $result = Test-GitRepository
 
@@ -226,7 +221,7 @@ Describe 'Normalize-LineEndings.ps1' {
         }
 
         It 'Should exit with error if not in Git repository' {
-            Mock git { throw 'fatal: not a git repository' }
+            Mock git { $global:LASTEXITCODE = 128; return 'fatal: not a git repository' }
 
             $result = Test-GitRepository
             $result | Should -Be $false
@@ -276,7 +271,7 @@ Describe 'Normalize-LineEndings.ps1' {
         }
 
         It 'Should handle git command failures gracefully' {
-            Mock git { throw 'git command failed' }
+            Mock git { $global:LASTEXITCODE = 1; return 'git command failed' }
 
             $result = Test-GitRepository
             $result | Should -Be $false
