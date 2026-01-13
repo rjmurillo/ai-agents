@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -Command \"$input | & (Join-Path (Get-Location) '.claude/hooks/Invoke-RoutingGates.ps1')\"",
+            "command": "pwsh -NoProfile -Command '$input | & (Join-Path (Get-Location) \".claude/hooks/Invoke-RoutingGates.ps1\")'",
             "timeout": 5,
             "statusMessage": "Checking routing-level gates (ADR-033)"
           },
@@ -84,7 +84,7 @@
           },
           {
             "type": "command",
-            "command": "pwsh -NoProfile -Command \"$input | & (Join-Path (Get-Location) '.claude/hooks/Invoke-UserPromptMemoryCheck.ps1')\"",
+            "command": "pwsh -NoProfile -Command '$input | & (Join-Path (Get-Location) \".claude/hooks/Invoke-UserPromptMemoryCheck.ps1\")'",
             "statusMessage": "Checking memory-first compliance"
           }
         ]
