@@ -30,7 +30,7 @@ Describe 'Convert-IndexTableLinks' {
             Set-Content -Path $emptyIndexFile -Value '' -NoNewline
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Modified 0 files'
@@ -53,7 +53,7 @@ Describe 'Convert-IndexTableLinks' {
 '@
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $indexFile -Raw
@@ -75,7 +75,7 @@ Describe 'Convert-IndexTableLinks' {
             $originalContent = Get-Content $indexFile -Raw
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $indexFile -Raw
@@ -95,7 +95,7 @@ Describe 'Convert-IndexTableLinks' {
             $originalContent = Get-Content $indexFile -Raw
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $indexFile -Raw
@@ -115,7 +115,7 @@ Describe 'Convert-IndexTableLinks' {
             $originalContent = Get-Content $indexFile -Raw
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $indexFile -Raw
@@ -141,7 +141,7 @@ Describe 'Convert-IndexTableLinks' {
 '@
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $indexFile -Raw
@@ -163,7 +163,7 @@ Describe 'Convert-IndexTableLinks' {
 '@
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $indexFile -Raw
@@ -189,7 +189,7 @@ Describe 'Convert-IndexTableLinks' {
             $originalContent = Get-Content $indexFile -Raw
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $indexFile -Raw
@@ -211,7 +211,7 @@ Describe 'Convert-IndexTableLinks' {
 '@
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $indexFile -Raw
@@ -233,7 +233,7 @@ Describe 'Convert-IndexTableLinks' {
             Set-Content -Path $index2 -Value ("| Category | File |`n" + "|-----------|------|`n" + "| git | git-001 |")
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Found 2 index files'
@@ -252,7 +252,7 @@ Describe 'Convert-IndexTableLinks' {
             Set-Content -Path $memoryFile -Value ("| Table | Cell |`n" + "|-------|------|`n" + "| test | value |")
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Found 0 index files'
@@ -271,7 +271,7 @@ Describe 'Convert-IndexTableLinks' {
             Set-Content -Path $indexFile -Value '# Test Index'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Found 1 index files and 3 memory files'
@@ -283,7 +283,7 @@ Describe 'Convert-IndexTableLinks' {
             Set-Content -Path $indexFile -Value '# Simple Index'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Modified 0 files'
@@ -298,7 +298,7 @@ Describe 'Convert-IndexTableLinks' {
             Set-Content -Path $indexFile -Value '| A | test-memory |'
 
             # Act
-            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
             $output | Should -Match 'Updated: test-index\.md'
@@ -315,7 +315,7 @@ Describe 'Convert-IndexTableLinks' {
             Set-Content -Path $indexFile -Value '|   test   |   test-file   |'
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $indexFile -Raw
@@ -331,7 +331,7 @@ Describe 'Convert-IndexTableLinks' {
             Set-Content -Path $indexFile -Value "| 🚀 Emoji | unicode-test |" -Encoding UTF8
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $indexFile -Raw -Encoding UTF8
@@ -354,7 +354,7 @@ Regular text with test-file reference.
 '@
 
             # Act
-            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
 
             # Assert
             $content = Get-Content $indexFile -Raw
