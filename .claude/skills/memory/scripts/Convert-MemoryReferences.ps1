@@ -12,10 +12,25 @@
 #>
 
 [CmdletBinding()]
-param()
+param(
+    [string]$MemoriesPath
+)
 
 $ErrorActionPreference = 'Stop'
-$memoriesPath = Join-Path $PSScriptRoot '..' '.serena' 'memories'
+
+# Use provided path or find project root
+if (-not $MemoriesPath) {
+    $projectRoot = $PSScriptRoot
+    while ($projectRoot -and -not (Test-Path (Join-Path $projectRoot '.git'))) {
+        $projectRoot = Split-Path $projectRoot -Parent
+    }
+    if (-not $projectRoot) {
+        throw "Could not find project root (no .git directory found)"
+    }
+    $memoriesPath = Join-Path $projectRoot '.serena' 'memories'
+} else {
+    $memoriesPath = $MemoriesPath
+}
 
 # Get all markdown files in the memories directory
 $memoryFiles = Get-ChildItem -Path $memoriesPath -Filter '*.md' -File
