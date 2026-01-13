@@ -121,8 +121,9 @@ try {
     $beforeAuditPath = ".agents/analysis/line-endings-before.txt"
     Save-LineEndingAudit -OutputPath $beforeAuditPath
 
-    # Check if normalization is needed
-    if ($beforeStats.IndexCRLF -eq 0 -and $beforeStats.WorkingCRLF -eq 0) {
+    # Check if normalization is needed (only check index, not working directory)
+    # Windows users with core.autocrlf=true will have CRLF in working directory, that's expected
+    if ($beforeStats.IndexCRLF -eq 0) {
         Write-Host "`n✓ No line ending normalization needed. All files already use LF." -ForegroundColor Green
         return
     }
@@ -131,16 +132,13 @@ try {
     Write-Host "`nNormalizing line endings..." -ForegroundColor Yellow
 
     if ($PSCmdlet.ShouldProcess("Repository files", "Normalize line endings to LF")) {
-        # Step 1: Remove all files from Git's index (does not delete files)
-        Write-Host "  [1/3] Removing files from index..." -ForegroundColor Gray
-        git rm --cached -r . 2>&1 | Out-Null
-
-        # Step 2: Re-add all files, applying new .gitattributes rules
-        Write-Host "  [2/3] Re-adding files with normalized line endings..." -ForegroundColor Gray
+        # Step 1: Re-add all files to apply new .gitattributes rules
+        # git add --renormalize is sufficient (no need for git rm --cached)
+        Write-Host "  [1/2] Re-adding files with normalized line endings..." -ForegroundColor Gray
         git add --renormalize . 2>&1 | Out-Null
 
-        # Step 3: Verify changes
-        Write-Host "  [3/3] Verifying normalization..." -ForegroundColor Gray
+        # Step 2: Verify changes
+        Write-Host "  [2/2] Verifying normalization..." -ForegroundColor Gray
 
         # Get statistics after normalization
         $afterStats = Get-LineEndingStats -Stage "AFTER"
@@ -168,6 +166,6 @@ try {
     }
 }
 catch {
-    Write-Error "An error occurred during line ending normalization: $_"
+    Write-Error -Message "An error occurred during line ending normalization." -ErrorRecord $_
     exit 1
 }
