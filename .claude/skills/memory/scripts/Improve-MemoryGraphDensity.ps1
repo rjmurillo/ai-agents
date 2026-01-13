@@ -14,11 +14,25 @@
 
 [CmdletBinding()]
 param(
-    [switch]$DryRun
+    [switch]$DryRun,
+    [string]$MemoriesPath
 )
 
 $ErrorActionPreference = 'Stop'
-$memoriesPath = Join-Path $PSScriptRoot '..' '.serena' 'memories'
+
+# Use provided path or find project root
+if (-not $MemoriesPath) {
+    $projectRoot = $PSScriptRoot
+    while ($projectRoot -and -not (Test-Path (Join-Path $projectRoot '.git'))) {
+        $projectRoot = Split-Path $projectRoot -Parent
+    }
+    if (-not $projectRoot) {
+        throw "Could not find project root (no .git directory found)"
+    }
+    $memoriesPath = Join-Path $projectRoot '.serena' 'memories'
+} else {
+    $memoriesPath = $MemoriesPath
+}
 
 # Get all memory files
 $memoryFiles = Get-ChildItem -Path $memoriesPath -Filter '*.md' -File
@@ -96,7 +110,7 @@ foreach ($file in $memoryFiles) {
     }
 
     # Check if file already has a Related section
-    $hasRelated = $content -match '^## Related'
+    $hasRelated = $content -match '(?m)^## Related'
 
     # Find related files based on naming pattern
     $baseName = $file.BaseName

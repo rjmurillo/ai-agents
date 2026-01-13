@@ -11,10 +11,25 @@
 #>
 
 [CmdletBinding()]
-param()
+param(
+    [string]$MemoriesPath
+)
 
 $ErrorActionPreference = 'Stop'
-$memoriesPath = Join-Path $PSScriptRoot '..' '.serena' 'memories'
+
+# Use provided path or find project root
+if (-not $MemoriesPath) {
+    $projectRoot = $PSScriptRoot
+    while ($projectRoot -and -not (Test-Path (Join-Path $projectRoot '.git'))) {
+        $projectRoot = Split-Path $projectRoot -Parent
+    }
+    if (-not $projectRoot) {
+        throw "Could not find project root (no .git directory found)"
+    }
+    $memoriesPath = Join-Path $projectRoot '.serena' 'memories'
+} else {
+    $memoriesPath = $MemoriesPath
+}
 
 # Get all index files
 $indexFiles = Get-ChildItem -Path $memoriesPath -Filter '*-index.md' -File
@@ -42,14 +57,21 @@ foreach ($file in $indexFiles) {
 
     # Pattern 1: Convert table cells with single file references like "| keyword | filename |"
     # Match filename without .md extension in table cells, not already a link
-    $content = [regex]::Replace($content, '\|\s*([a-z][a-z0-9-]+)\s*\|(?!\s*$)', {
+    $content = [regex]::Replace($content, '\|\s*([a-z][a-z0-9-]+)\s*\|', {
         param($match)
         $fileName = $match.Groups[1].Value.Trim()
 
+        # Skip separator rows (only hyphens and spaces, no letters/digits)
+        if ($match.Value -match '^\|[\s-]+\|$' -and $match.Value -notmatch '[a-z0-9]') {
+            return $match.Value
+        }
+
         # Only convert if this is a known memory file and not already a link
         if ($memoryNames.ContainsKey($fileName) -and $match.Value -notmatch '\[') {
+            # Write-Host "DEBUG: Converting $fileName"
             return "| [$fileName]($fileName.md) |"
         } else {
+            # Write-Host "DEBUG: Skipping $fileName (in memory: $($memoryNames.ContainsKey($fileName)))"
             return $match.Value
         }
     })
