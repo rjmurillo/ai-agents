@@ -1,6 +1,64 @@
 # Git Attributes for AI Agents Repository
 
 # ============================================================================
+# Line Ending Normalization: LF for All Files
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: Cross-platform development (Windows/Linux/macOS) with inconsistent line endings
+# - Windows Git defaults to CRLF, causing YAML frontmatter parsing failures
+# - GitHub Copilot CLI issues #694 and #673: "Unexpected scalar at node end"
+# - Agent files (*.agent.md, *.prompt.md) contain YAML frontmatter sensitive to line endings
+# - Inconsistent line endings create noise in diffs and complicate collaboration
+#
+# Solution: Enforce LF line endings repository-wide
+# - All files normalized to LF in repository and working directory
+# - Prevents YAML parsing errors on Windows
+# - Ensures consistent behavior across platforms
+# - Eliminates git diff noise from line ending changes
+#
+# HOW DOES IT WORK?
+#
+# Git's text normalization with eol=lf:
+# 1. Git stores all files with LF line endings in the repository
+# 2. Git checks out all files with LF line endings in working directory
+# 3. Overrides platform defaults (Windows CRLF, Unix LF)
+# 4. Ensures consistent behavior regardless of developer's OS
+#
+# DEVELOPER CONFIGURATION (IMPORTANT)
+#
+# In addition to this .gitattributes file, developers should configure their
+# global Git settings based on their operating system:
+#
+# Windows:
+#   git config --global core.autocrlf true
+#   (Converts LF → CRLF on checkout, CRLF → LF on commit)
+#
+# Linux/macOS:
+#   git config --global core.autocrlf input
+#   (Accepts LF as-is, converts CRLF → LF on commit)
+#
+# This combination ensures:
+# - Repository always has LF (.gitattributes enforces it)
+# - Windows users get native CRLF for text editors (core.autocrlf=true)
+# - Unix users get native LF (core.autocrlf=input)
+# - No line ending conflicts or parsing errors
+#
+# See: CONTRIBUTING.md "Git Configuration" section for setup instructions
+#
+# EXCEPTIONS
+#
+# If any files MUST have CRLF even on Unix systems (e.g., Visual Studio .sln files),
+# add specific exceptions below. Currently, no exceptions are known in this repository.
+#
+# Evidence: https://github.com/github/copilot-cli/issues/694
+#           https://github.com/github/copilot-cli/issues/673
+# Related: Issue #896, PR #895
+#
+* text=auto eol=lf
+
+# ============================================================================
 # HANDOFF.md Merge Strategy: 'ours' (main branch always wins)
 # ============================================================================
 #
@@ -121,10 +179,11 @@
 .agents/handoffs/*.md merge=handoff-aggregate
 
 # ============================================================================
-# Skill Files: Line Ending Normalization
+# Skill Files: Diff Configuration
 # ============================================================================
 #
-# Force LF line endings for generated skill files to prevent git noise
-# from platform differences. See ADR-019 for rationale and implementation.
+# Note: LF line endings are enforced globally above (see "Line Ending Normalization" section)
+# This section only specifies diff rendering for skill files.
+# See ADR-019 for rationale and implementation.
 #
-*.skill text eol=lf diff=markdown
+*.skill diff=markdown
