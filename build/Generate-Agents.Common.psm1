@@ -283,6 +283,8 @@ function Format-FrontmatterYaml {
             # Parse array items (handle both 'item' and "item" formats)
             $items = @()
             # Split by comma, handling quoted items
+            # Note: This regex does not handle commas inside quoted values.
+            # For our use case (tool names), this is acceptable as tool names do not contain commas.
             $pattern = "'([^']+)'|""([^""]+)""|([^,\s]+)"
             $itemMatches = [regex]::Matches($arrayContent, $pattern)
             foreach ($match in $itemMatches) {

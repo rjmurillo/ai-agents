@@ -400,7 +400,7 @@ To detect behavioral regression from model alias updates:
 **Files updated**:
 
 - 18 template files in `templates/agents/`
-- 18 files in `.github/agents/`
+- 54 generated files across 3 platforms (18 each in `.github/agents/`, `src/copilot-cli/`, and `src/vs-code-agents/`)
 - `build/Generate-Agents.Common.psm1`
 
-**Session**: 2026-01-13-session-825
+**Session**: 2026-01-13-session-826
