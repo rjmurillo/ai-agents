@@ -246,7 +246,8 @@ if ($IsRemoteExecution) {
         $Files = Invoke-RestMethod -Uri $ApiUrl -Headers $Headers -ErrorAction Stop
 
         # Filter files by pattern
-        $PatternRegex = "^" + ($Config.FilePattern -replace "\*", ".*" -replace "\.", "\.") + "$"
+        # Escape dots first, then replace asterisks (order matters to avoid escaping the . in .*)
+        $PatternRegex = "^" + ($Config.FilePattern -replace "\.", "\." -replace "\*", ".*") + "$"
         $MatchingFiles = $Files | Where-Object { $_.name -match $PatternRegex -and $_.type -eq "file" }
 
         if ($MatchingFiles.Count -eq 0) {
