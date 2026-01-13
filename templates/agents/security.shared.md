@@ -1,8 +1,32 @@
 ---
 description: Security specialist with defense-first mindset—fluent in threat modeling, vulnerability assessment, and OWASP Top 10. Scans for CWE patterns, detects secrets, audits dependencies, maps attack surfaces. Use when you need hardening, penetration analysis, compliance review, or mitigation recommendations before shipping.
 argument-hint: Specify the code, feature, or changes to security review
-tools_vscode: ['vscode', 'read', 'edit', 'search', 'web', 'cloudmcp-manager/*', 'github/list_code_scanning_alerts', 'github/get_code_scanning_alert', 'github/list_secret_scanning_alerts', 'github/list_dependabot_alerts', 'serena/*', 'perplexity/*', 'memory']
-tools_copilot: ['read', 'edit', 'search', 'web', 'cloudmcp-manager/*', 'github/list_code_scanning_alerts', 'github/get_code_scanning_alert', 'github/list_secret_scanning_alerts', 'github/list_dependabot_alerts', 'serena/*', 'perplexity/*']
+tools_vscode:
+  - vscode
+  - read
+  - edit
+  - search
+  - web
+  - cloudmcp-manager/*
+  - github/list_code_scanning_alerts
+  - github/get_code_scanning_alert
+  - github/list_secret_scanning_alerts
+  - github/list_dependabot_alerts
+  - serena/*
+  - perplexity/*
+  - memory
+tools_copilot:
+  - read
+  - edit
+  - search
+  - web
+  - cloudmcp-manager/*
+  - github/list_code_scanning_alerts
+  - github/get_code_scanning_alert
+  - github/list_secret_scanning_alerts
+  - github/list_dependabot_alerts
+  - serena/*
+  - perplexity/*
 ---
 # Security Agent
 

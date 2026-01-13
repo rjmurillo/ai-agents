@@ -2,7 +2,12 @@
 name: memory
 description: Memory management specialist ensuring cross-session continuity by retrieving relevant context before reasoning and storing progress at milestones. Maintains institutional knowledge, tracks entity relations, and keeps observations fresh with source attribution. Use for context retrieval, knowledge persistence, or understanding why past decisions were made.
 argument-hint: Specify the context to retrieve or milestone to store
-tools: ['read', 'edit', 'memory', 'cloudmcp-manager/*', 'serena/*']
+tools:
+  - read
+  - edit
+  - memory
+  - cloudmcp-manager/*
+  - serena/*
 ---
 # Memory Agent
 

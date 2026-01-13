@@ -2,7 +2,23 @@
 name: analyst
 description: Research and investigation specialist who digs deep into root causes, surfaces unknowns, and gathers evidence before implementation. Methodical about documenting findings, evaluating feasibility, and identifying dependencies and risks. Use when you need clarity on patterns, impact assessment, requirements discovery, or hypothesis validation.
 argument-hint: Describe the topic, issue, or feature to research
-tools: ['read', 'edit', 'search', 'web', 'github/search_code', 'github/search_issues', 'github/search_pull_requests', 'github/issue_read', 'github/pull_request_read', 'github/get_file_contents', 'github/list_commits', 'cloudmcp-manager/*', 'cognitionai/deepwiki/*', 'context7/*', 'perplexity/*', 'serena/*']
+tools:
+  - read
+  - edit
+  - search
+  - web
+  - github/search_code
+  - github/search_issues
+  - github/search_pull_requests
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - cloudmcp-manager/*
+  - cognitionai/deepwiki/*
+  - context7/*
+  - perplexity/*
+  - serena/*
 ---
 # Analyst Agent
 

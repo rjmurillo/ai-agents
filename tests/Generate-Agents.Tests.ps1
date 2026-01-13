@@ -171,6 +171,58 @@ name: 'Single quoted'
             $result['name'] | Should -Be "Single quoted"
         }
     }
+
+    Context "Block-style array parsing" {
+        It "Parses block-style arrays with hyphen notation" {
+            $yaml = @"
+tools:
+  - tool1
+  - tool2
+  - tool3
+"@
+            $result = ConvertFrom-SimpleFrontmatter -FrontmatterRaw $yaml
+
+            $result['tools'] | Should -Be "['tool1', 'tool2', 'tool3']"
+        }
+
+        It "Handles block-style arrays with quoted items" {
+            $yaml = @"
+tools:
+  - 'quoted-tool'
+  - "double-quoted"
+  - unquoted
+"@
+            $result = ConvertFrom-SimpleFrontmatter -FrontmatterRaw $yaml
+
+            $result['tools'] | Should -Be "['quoted-tool', 'double-quoted', 'unquoted']"
+        }
+
+        It "Parses block-style array followed by other fields" {
+            $yaml = @"
+tools:
+  - tool1
+  - tool2
+model: Claude Opus 4.5 (anthropic)
+"@
+            $result = ConvertFrom-SimpleFrontmatter -FrontmatterRaw $yaml
+
+            $result['tools'] | Should -Be "['tool1', 'tool2']"
+            $result['model'] | Should -Be "Claude Opus 4.5 (anthropic)"
+        }
+
+        It "Handles mixed inline and block-style arrays" {
+            $yaml = @"
+inline_tools: ['inline1', 'inline2']
+block_tools:
+  - block1
+  - block2
+"@
+            $result = ConvertFrom-SimpleFrontmatter -FrontmatterRaw $yaml
+
+            $result['inline_tools'] | Should -Be "['inline1', 'inline2']"
+            $result['block_tools'] | Should -Be "['block1', 'block2']"
+        }
+    }
 }
 
 Describe "Convert-HandoffSyntax" {
@@ -280,6 +332,68 @@ Describe "Convert-FrontmatterForPlatform" {
 
             # Placeholder values should not be in output
             $result.Values | ForEach-Object { $_ | Should -Not -Match '\{\{PLATFORM_' }
+        }
+    }
+}
+
+Describe "Format-FrontmatterYaml" {
+    Context "Block-style array output" {
+        It "Outputs arrays in block-style format" {
+            $frontmatter = @{
+                description = "Test agent"
+                tools       = "['tool1', 'tool2']"
+            }
+
+            $result = Format-FrontmatterYaml -Frontmatter $frontmatter
+
+            $result | Should -Match "tools:"
+            $result | Should -Match "  - tool1"
+            $result | Should -Match "  - tool2"
+            # Should NOT contain inline array syntax
+            $result | Should -Not -Match "\['tool1'"
+        }
+
+        It "Preserves field order with arrays" {
+            $frontmatter = @{
+                description = "Test agent"
+                tools       = "['tool1', 'tool2']"
+                model       = "Claude Opus 4.5 (anthropic)"
+            }
+
+            $result = Format-FrontmatterYaml -Frontmatter $frontmatter
+            $lines = $result -split "`n"
+
+            # Description should come before tools
+            $descIndex = ($lines | Select-String -Pattern "^description:" | Select-Object -First 1).LineNumber
+            $toolsIndex = ($lines | Select-String -Pattern "^tools:" | Select-Object -First 1).LineNumber
+
+            $descIndex | Should -BeLessThan $toolsIndex
+        }
+
+        It "Handles multiple array fields" {
+            $frontmatter = @{
+                description = "Test agent"
+                tools       = "['tool1', 'tool2']"
+            }
+
+            $result = Format-FrontmatterYaml -Frontmatter $frontmatter
+
+            # Each array item should be on its own line with proper indentation
+            ($result | Select-String -Pattern "  - " -AllMatches).Matches.Count | Should -Be 2
+        }
+    }
+
+    Context "Non-array values" {
+        It "Outputs simple values inline" {
+            $frontmatter = @{
+                description = "Test agent"
+                model       = "Claude Opus 4.5 (anthropic)"
+            }
+
+            $result = Format-FrontmatterYaml -Frontmatter $frontmatter
+
+            $result | Should -Match "description: Test agent"
+            $result | Should -Match "model: Claude Opus 4.5 \(anthropic\)"
         }
     }
 }

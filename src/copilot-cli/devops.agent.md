@@ -2,7 +2,21 @@
 name: devops
 description: DevOps specialist fluent in CI/CD pipelines, build automation, and deployment workflows. Thinks in reliability, security, and developer experience. Designs GitHub Actions, configures build systems, manages secrets. Use for pipeline configuration, infrastructure automation, and anything involving environments, artifacts, caching, or runners.
 argument-hint: Describe the CI/CD workflow, pipeline, or infrastructure task
-tools: ['shell', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'github/list_workflows', 'github/list_workflow_runs', 'github/get_workflow_run', 'github/get_job_logs', 'github/run_workflow', 'github/rerun_failed_jobs', 'github/list_releases', 'github/get_file_contents', 'serena/*']
+tools:
+  - shell
+  - read
+  - edit
+  - search
+  - cloudmcp-manager/*
+  - github/list_workflows
+  - github/list_workflow_runs
+  - github/get_workflow_run
+  - github/get_job_logs
+  - github/run_workflow
+  - github/rerun_failed_jobs
+  - github/list_releases
+  - github/get_file_contents
+  - serena/*
 ---
 # DevOps Agent
 

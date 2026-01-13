@@ -2,7 +2,14 @@
 name: pr-comment-responder
 description: PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. Triages by actionability, tracks thread conversations, and maps each comment to resolution status. Use when handling PR feedback, review threads, or bot comments.
 argument-hint: Specify the PR number or review comments to address
-tools: ['shell', 'read', 'edit', 'agent', 'cloudmcp-manager/*', 'github.vscode-pull-request-github/*', 'serena/*']
+tools:
+  - shell
+  - read
+  - edit
+  - agent
+  - cloudmcp-manager/*
+  - github.vscode-pull-request-github/*
+  - serena/*
 ---
 # PR Comment Responder Agent
 

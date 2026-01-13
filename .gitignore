@@ -11,6 +11,7 @@ coverage.xml
 .agents/scratch/
 .agents/temp/
 .agents/logs/
+.agents/.hook-state/
 
 # Hook runtime logs
 .claude/hooks/audit.log

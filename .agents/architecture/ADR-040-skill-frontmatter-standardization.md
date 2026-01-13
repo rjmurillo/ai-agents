@@ -257,12 +257,33 @@ allowed-tools: Bash(gh:*), Bash(pwsh:*), Read, Write
 ### Verification
 
 Frontmatter validation checklist:
+
 - [ ] Frontmatter starts with `---` on line 1 (no blank lines)
 - [ ] `name`: lowercase, alphanumeric + hyphens, < 64 chars
 - [ ] `description`: includes trigger keywords, < 1024 chars
 - [ ] `model`: valid alias (`claude-{tier}-4-5`) if present
 - [ ] `allowed-tools`: comma-separated valid tools if present
+- [ ] `tools`: uses block-style array format (hyphen-bulleted), not inline
 - [ ] YAML uses spaces (not tabs) for indentation
+
+### YAML Array Format
+
+**Required Format**: Block-style arrays (hyphen-bulleted)
+
+```yaml
+# CORRECT: Block-style (cross-platform compatible)
+tools:
+  - read
+  - edit
+  - search
+
+# INCORRECT: Inline/flow-style (causes Windows parsing errors)
+tools: ['read', 'edit', 'search']
+```
+
+**Rationale**: Some YAML parsers on Windows systems cannot handle inline array syntax in frontmatter, causing "Unexpected scalar at node end" errors during agent installation. Block-style arrays ensure cross-platform compatibility.
+
+**Implementation**: The `build/Generate-Agents.ps1` script parses templates with block-style `tools_vscode:` and `tools_copilot:` arrays and outputs them as block-style `tools:` arrays in generated files.
 
 ### Rollback Plan
 
@@ -281,11 +302,13 @@ Frontmatter compliance will be verified through:
 3. **Quarterly audit**: Model distribution metrics from `/metrics` skill
 
 **Validation Script Criteria**:
+
 - Frontmatter starts with `---` on line 1
 - Required fields present (`name`, `description`)
 - Model identifier matches pattern `^claude-(opus|sonnet|haiku)-4-5(-\d{8})?$`
 - Description length <=1024 characters
 - YAML syntax valid (no tabs, proper indentation)
+- Arrays use block-style format (not inline `['...']` syntax)
 
 ### Reversibility Assessment
 
@@ -361,3 +384,23 @@ To detect behavioral regression from model alias updates:
 **Dissent recorded**: Independent-thinker disagrees with aliases-by-default but commits to decision.
 
 **Consensus**: 5 ACCEPT, 1 DISAGREE AND COMMIT
+
+### 2026-01-13: YAML Array Format Standardization
+
+**Issue**: Windows YAML parsers failed to parse inline array syntax in agent frontmatter, causing "Unexpected scalar at node end" errors during agent installation.
+
+**Changes**:
+
+1. **Block-style arrays required**: All `tools`, `tools_vscode`, and `tools_copilot` arrays must use block-style (hyphen-bulleted) format instead of inline arrays
+2. **Parser update**: `build/Generate-Agents.Common.psm1` updated to parse block-style arrays in templates and output block-style arrays in generated files
+3. **Verification checklist**: Added array format validation to frontmatter checklist
+
+**Rationale**: Block-style YAML arrays are universally compatible across YAML parsers, while inline arrays with single quotes can cause parsing errors on some Windows systems.
+
+**Files updated**:
+
+- 18 template files in `templates/agents/`
+- 54 generated files across 3 platforms (18 each in `.github/agents/`, `src/copilot-cli/`, and `src/vs-code-agents/`)
+- `build/Generate-Agents.Common.psm1`
+
+**Session**: 2026-01-13-session-826
