@@ -37,4 +37,4 @@ worktree--/
 # Factory.ai (DROID)
 .factory/
 # Claude hook runtime state
-.agents/.hook-state/
+/.agents/.hook-state/
