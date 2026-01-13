@@ -295,7 +295,7 @@ After extracting all data sources, create a consolidated summary for each direct
 
 Create a portable folder structure:
 
-```
+```text
 direct-reports-export-[YYYY-MM-DD]/
 ├── README.md (Overview and instructions)
 ├── direct-reports-list.md (Preliminary list of all direct reports)
