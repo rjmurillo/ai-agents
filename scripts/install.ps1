@@ -54,9 +54,11 @@
 
 [CmdletBinding()]
 param(
-    # AllowEmptyString required for iex: ValidateSet rejects empty strings by default (Issue #892)
-    [AllowEmptyString()]
-    [ValidateSet("Claude", "Copilot", "VSCode")]
+    # ArgumentCompleter provides tab-completion while avoiding ValidateSet iex conflict (Issue #892)
+    [ArgumentCompleter({
+        param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
+        @('Claude', 'Copilot', 'VSCode') | Where-Object { $_ -like "$wordToComplete*" }
+    })]
     [string]$Environment,
 
     [switch]$Global,
@@ -121,6 +123,18 @@ else {
 #endregion
 
 #region Interactive Mode (for parameter-less invocation)
+
+# Validate Environment parameter if provided (manual validation replaces ValidateSet)
+if ($Environment) {
+    $ValidEnvironments = @('Claude', 'Copilot', 'VSCode')
+    if ($Environment -notin $ValidEnvironments) {
+        Write-Error "Invalid Environment: $Environment. Valid values are: $($ValidEnvironments -join ', ')"
+        if ($IsRemoteExecution -and (Test-Path $TempDir)) {
+            Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        exit 1
+    }
+}
 
 if (-not $Environment) {
     Write-Host ""

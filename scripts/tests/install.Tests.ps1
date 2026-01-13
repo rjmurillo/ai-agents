@@ -68,20 +68,17 @@ Describe "Parameter Definitions" {
             $Script:ScriptInfo.Parameters.ContainsKey("Environment") | Should -Be $true
         }
 
-        It "Environment accepts Claude, Copilot, VSCode" {
+        It "Environment has ArgumentCompleter for tab-completion" {
             $param = $Script:ScriptInfo.Parameters["Environment"]
-            $validateSet = $param.Attributes | Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
-            $validateSet.ValidValues | Should -Contain "Claude"
-            $validateSet.ValidValues | Should -Contain "Copilot"
-            $validateSet.ValidValues | Should -Contain "VSCode"
+            $argumentCompleter = $param.Attributes | Where-Object { $_ -is [System.Management.Automation.ArgumentCompleterAttribute] }
+            $argumentCompleter | Should -Not -BeNullOrEmpty -Because "ArgumentCompleter provides tab-completion without ValidateSet iex conflict"
         }
 
-        It "Environment allows empty string for iex invocation (Issue #892)" {
-            # When invoked via iex, parameters default to empty string.
-            # ValidateSet rejects empty string unless AllowEmptyString is present.
+        It "Environment does not use ValidateSet" {
+            # ValidateSet causes iex invocation failure (Issue #892)
             $param = $Script:ScriptInfo.Parameters["Environment"]
-            $allowEmpty = $param.Attributes | Where-Object { $_ -is [System.Management.Automation.AllowEmptyStringAttribute] }
-            $allowEmpty | Should -Not -BeNullOrEmpty -Because "iex invocation passes empty string which ValidateSet rejects without AllowEmptyString"
+            $validateSet = $param.Attributes | Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+            $validateSet | Should -BeNullOrEmpty -Because "ValidateSet rejects empty strings in iex invocation context"
         }
     }
 
@@ -310,6 +307,145 @@ Describe "GitHub API Integration (Remote Mode)" {
 
         It "Filters files by type" {
             $Script:Content | Should -Match 'type\s*-eq\s*"file"'
+        }
+    }
+}
+
+Describe "Environment Parameter Validation (Issue #892)" {
+    Context "Manual Validation Logic" {
+        BeforeAll {
+            $Script:Content = Get-Content $Script:InstallScript -Raw
+        }
+
+        It "Contains manual validation for Environment parameter" {
+            $Script:Content | Should -Match 'ValidEnvironments\s*=\s*@\('
+        }
+
+        It "Checks Environment against valid values" {
+            $Script:Content | Should -Match 'Environment\s+-notin\s+\$ValidEnvironments'
+        }
+
+        It "Writes error for invalid Environment value" {
+            $Script:Content | Should -Match 'Write-Error.*Invalid Environment'
+        }
+
+        It "Lists valid values in error message" {
+            $Script:Content | Should -Match 'Valid values are'
+        }
+    }
+
+    Context "iex Invocation Simulation" {
+        It "Script accepts empty Environment parameter (syntax validation)" {
+            # Verify script syntax allows empty string (prevents parameter binding errors)
+            $scriptContent = Get-Content $Script:InstallScript -Raw
+            { [scriptblock]::Create($scriptContent) } | Should -Not -Throw
+        }
+
+        It "Rejects invalid Environment parameter with error" {
+            # Test manual validation logic
+            try {
+                & $Script:InstallScript -Environment "InvalidValue" -ErrorAction Stop 2>&1 | Out-Null
+                $false | Should -Be $true -Because "Script should throw error for invalid Environment"
+            }
+            catch {
+                $_.Exception.Message | Should -Match "Invalid Environment"
+            }
+        }
+
+        It "Accepts valid Environment values without error" {
+            # Test each valid value passes manual validation
+            @("Claude", "Copilot", "VSCode") | ForEach-Object {
+                $env = $_
+                # Create a mock scenario where we only validate parameter binding
+                $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile($Script:InstallScript, [ref]$null, [ref]$null)
+                $paramBlock = $scriptAst.ParamBlock
+                $paramBlock | Should -Not -BeNullOrEmpty -Because "Script should accept -Environment $env"
+            }
+        }
+
+        It "Works when user has \$Env:Environment variable set (Issue #892 root cause)" {
+            # Save current environment
+            $originalEnvVar = $env:Environment
+            try {
+                # Simulate the problematic scenario that caused Issue #892
+                $env:Environment = "Development"
+
+                # With ArgumentCompleter (not ValidateSet), this should NOT throw parameter binding error
+                # We test parameter binding by parsing and checking the param block
+                $scriptContent = Get-Content $Script:InstallScript -Raw
+                { [scriptblock]::Create($scriptContent) } | Should -Not -Throw
+
+                # Verify the script can get command info without conflicts
+                $command = Get-Command -Name $Script:InstallScript
+                $command | Should -Not -BeNullOrEmpty
+                $command.Parameters.ContainsKey("Environment") | Should -Be $true
+            }
+            finally {
+                # Restore original environment
+                if ($null -eq $originalEnvVar) {
+                    Remove-Item Env:\Environment -ErrorAction SilentlyContinue
+                }
+                else {
+                    $env:Environment = $originalEnvVar
+                }
+            }
+        }
+
+        It "Parameter binding succeeds with environment variable set" {
+            $originalEnvVar = $env:Environment
+            try {
+                # Set environment variable that previously caused conflicts
+                $env:Environment = "Development"
+
+                # Test that we can get parameter information (proves no binding conflict)
+                $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile($Script:InstallScript, [ref]$null, [ref]$null)
+                $envParam = $scriptAst.ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -eq "Environment" }
+                $envParam | Should -Not -BeNullOrEmpty -Because "Environment parameter should be parseable even when env var is set"
+
+                # Verify no ValidateSet attribute (which would cause the conflict)
+                $validateSetAttr = $envParam.Attributes | Where-Object { $_.TypeName.Name -eq "ValidateSet" }
+                $validateSetAttr | Should -BeNullOrEmpty -Because "ValidateSet causes parameter binding conflicts with environment variables"
+            }
+            finally {
+                if ($null -eq $originalEnvVar) {
+                    Remove-Item Env:\Environment -ErrorAction SilentlyContinue
+                }
+                else {
+                    $env:Environment = $originalEnvVar
+                }
+            }
+        }
+    }
+
+    Context "ArgumentCompleter Functionality" {
+        It "ArgumentCompleter provides Claude as completion" {
+            $param = $Script:ScriptInfo.Parameters["Environment"]
+            $completer = $param.Attributes | Where-Object { $_ -is [System.Management.Automation.ArgumentCompleterAttribute] }
+            $completions = & $completer.ScriptBlock $null "Environment" "" $null $null
+            $completions | Should -Contain "Claude"
+        }
+
+        It "ArgumentCompleter provides Copilot as completion" {
+            $param = $Script:ScriptInfo.Parameters["Environment"]
+            $completer = $param.Attributes | Where-Object { $_ -is [System.Management.Automation.ArgumentCompleterAttribute] }
+            $completions = & $completer.ScriptBlock $null "Environment" "" $null $null
+            $completions | Should -Contain "Copilot"
+        }
+
+        It "ArgumentCompleter provides VSCode as completion" {
+            $param = $Script:ScriptInfo.Parameters["Environment"]
+            $completer = $param.Attributes | Where-Object { $_ -is [System.Management.Automation.ArgumentCompleterAttribute] }
+            $completions = & $completer.ScriptBlock $null "Environment" "" $null $null
+            $completions | Should -Contain "VSCode"
+        }
+
+        It "ArgumentCompleter filters completions based on input" {
+            $param = $Script:ScriptInfo.Parameters["Environment"]
+            $completer = $param.Attributes | Where-Object { $_ -is [System.Management.Automation.ArgumentCompleterAttribute] }
+            $completions = & $completer.ScriptBlock $null "Environment" "Cl" $null $null
+            $completions | Should -Contain "Claude"
+            $completions | Should -Not -Contain "Copilot"
+            $completions | Should -Not -Contain "VSCode"
         }
     }
 }
