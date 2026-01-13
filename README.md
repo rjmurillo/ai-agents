@@ -21,19 +21,27 @@ A coordinated multi-agent system for software development, available for **VS Co
 Install directly from GitHub without cloning the repository:
 
 ```powershell
-# Remote installation (interactive)
+# Remote installation (interactive) - installs from stable release v0.1.0
 Set-ExecutionPolicy Bypass -Scope Process -Force
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
 ```
 
 This prompts you to select the environment (Claude/Copilot/VSCode) and scope (Global/Repository).
+
+For bleeding edge updates from main:
+
+```powershell
+# Remote installation from main branch (bleeding edge)
+Set-ExecutionPolicy Bypass -Scope Process -Force
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
+```
 
 ### Local Installation
 
 If you have cloned the repository, use the unified installer:
 
 ```powershell
-# Claude Code
+# Claude Code (defaults to v0.1.0 release)
 .\scripts\install.ps1 -Environment Claude -Global              # User-level
 .\scripts\install.ps1 -Environment Claude -RepoPath "."        # Repository
 
@@ -44,6 +52,9 @@ If you have cloned the repository, use the unified installer:
 # VS Code
 .\scripts\install.ps1 -Environment VSCode -Global              # User-level
 .\scripts\install.ps1 -Environment VSCode -RepoPath "."        # Repository
+
+# Install from main branch (bleeding edge)
+.\scripts\install.ps1 -Environment Claude -Global -Version "main"
 ```
 
 Add `-Force` to overwrite existing files without prompting.

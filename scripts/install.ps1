@@ -19,6 +19,10 @@
 .PARAMETER Force
     Overwrite existing files without prompting
 
+.PARAMETER Version
+    Version tag or branch to install from (default: v0.1.0)
+    Use "main" for bleeding edge updates
+
 .EXAMPLE
     .\install.ps1 -Environment Claude -Global
     # Installs Claude agents to ~/.claude/agents
@@ -32,8 +36,12 @@
     # Installs VSCode agents to current repo, overwriting existing
 
 .EXAMPLE
-    # Remote installation (interactive mode):
-    Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
+    # Remote installation (interactive mode, stable release):
+    Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
+
+.EXAMPLE
+    .\install.ps1 -Environment Claude -Global -Version "main"
+    # Installs bleeding edge from main branch
 
 .NOTES
     Part of the ai-agents installer consolidation (CVA plan Phase 4).
@@ -56,7 +64,9 @@ param(
 
     [string]$RepoPath,
 
-    [switch]$Force
+    [switch]$Force,
+
+    [string]$Version = "v0.1.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -71,7 +81,7 @@ if ($IsRemoteExecution) {
     $TempDir = Join-Path $env:TEMP "ai-agents-install-$(Get-Random)"
     New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
-    $BaseUrl = "https://raw.githubusercontent.com/rjmurillo/ai-agents/main"
+    $BaseUrl = "https://raw.githubusercontent.com/rjmurillo/ai-agents/$Version"
 
     Write-Host ""
     Write-Host "AI Agents Installer (Remote)" -ForegroundColor Cyan

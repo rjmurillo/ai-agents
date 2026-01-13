@@ -9,7 +9,15 @@ The easiest way to install is via remote execution. This downloads and runs the 
 ### Windows PowerShell
 
 ```powershell
-# Remote installation (interactive)
+# Remote installation (interactive) - stable release v0.1.0
+Set-ExecutionPolicy Bypass -Scope Process -Force
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
+```
+
+For bleeding edge updates:
+
+```powershell
+# Remote installation from main branch (bleeding edge)
 Set-ExecutionPolicy Bypass -Scope Process -Force
 iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
 ```
@@ -54,9 +62,23 @@ The unified `install.ps1` script supports all environments and scopes:
 | `-Environment` | Target environment: `Claude`, `Copilot`, or `VSCode` | Yes* |
 | `-Global` | Install to user-level location | One of these |
 | `-RepoPath` | Install to specified repository path | One of these |
+| `-Version` | Version tag or branch to install from (default: `v0.1.0`) | No |
 | `-Force` | Overwrite existing files without prompting | No |
 
 *If not provided, interactive mode prompts for selection.
+
+**Version Examples:**
+
+```powershell
+# Install from stable release (default)
+.\scripts\install.ps1 -Environment Claude -Global
+
+# Install from bleeding edge (main branch)
+.\scripts\install.ps1 -Environment Claude -Global -Version "main"
+
+# Install from specific release tag
+.\scripts\install.ps1 -Environment Claude -Global -Version "v0.2.0"
+```
 
 ### Legacy Scripts (Backward Compatible)
 
