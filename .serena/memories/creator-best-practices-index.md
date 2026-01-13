@@ -58,11 +58,3 @@ skill, creator, optimization, token, frontmatter, trigger, progressive disclosur
 ## Tag
 
 skill-creator, index
-
-## Related
-
-- [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md)
-- [creator-002-token-efficiency-comment-stripping](creator-002-token-efficiency-comment-stripping.md)
-- [creator-003-test-separation-skill-directory](creator-003-test-separation-skill-directory.md)
-- [creator-004-reference-material-extraction](creator-004-reference-material-extraction.md)
-- [creator-005-schema-redundancy-elimination](creator-005-schema-redundancy-elimination.md)

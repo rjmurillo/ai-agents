@@ -102,6 +102,11 @@ $filesUpdated = 0
 $relationshipsAdded = 0
 
 foreach ($file in $memoryFiles) {
+    # Skip index files - per ADR-017 they must only contain the keyword table
+    if ($file.Name -like '*-index.md') {
+        continue
+    }
+
     $content = Get-Content $file.FullName -Raw -Encoding UTF8
 
     # Skip empty files

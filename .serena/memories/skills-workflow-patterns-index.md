@@ -8,11 +8,3 @@
 | report generation markdown comment PR update footer unique-id | [workflow-patterns-report-pattern](workflow-patterns-report-pattern.md) |
 | run from branch trigger workflow dispatch ref checkout | [workflow-patterns-run-from-branch](workflow-patterns-run-from-branch.md) |
 | batch changes cost reduction COGS consolidate multiple single | workflow-patterns-batch-changes-reduce-cogs |
-
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

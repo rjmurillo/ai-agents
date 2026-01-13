@@ -452,4 +452,74 @@ Write-Host "Test"
             $content | Should -Match '\| Table \| Header \|'
         }
     }
+
+    Context 'When processing index files (ADR-017 compliance)' {
+        It 'Should skip all index files without adding Related sections' {
+            # Arrange
+            $indexFile = Join-Path $script:memoriesPath 'skills-security-index.md'
+            $sec1 = Join-Path $script:memoriesPath 'security-001.md'
+            $sec2 = Join-Path $script:memoriesPath 'security-002.md'
+
+            # Index file should only contain keyword table per ADR-017
+            Set-Content -Path $indexFile -Value @'
+| Keywords | File |
+|----------|------|
+| pattern1 | [security-001](security-001.md) |
+| pattern2 | [security-002](security-002.md) |
+'@
+            Set-Content -Path $sec1 -Value '# Security 001'
+            Set-Content -Path $sec2 -Value '# Security 002'
+
+            # Act
+            & $scriptPath -MemoriesPath $script:memoriesPath | Out-Null
+
+            # Assert
+            # Index file should remain unchanged (no Related section added)
+            $indexContent = Get-Content $indexFile -Raw
+            $indexContent | Should -Not -Match '## Related'
+            # Verify it still only contains the table
+            $indexContent | Should -Match '^\| Keywords \| File \|'
+
+            # Regular security files should get Related sections
+            $sec1Content = Get-Content $sec1 -Raw
+            $sec1Content | Should -Match '## Related'
+        }
+
+        It 'Should skip index files even if they match domain patterns' {
+            # Arrange
+            $gitHooksIndex = Join-Path $script:memoriesPath 'skills-git-hooks-index.md'
+            $hook1 = Join-Path $script:memoriesPath 'git-hooks-001.md'
+
+            Set-Content -Path $gitHooksIndex -Value '| Keywords | File |'
+            Set-Content -Path $hook1 -Value '# Git Hook 001'
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+
+            # Assert
+            # Only the non-index file should be updated
+            $output | Should -Match 'Files updated: 1'
+            $indexContent = Get-Content $gitHooksIndex -Raw
+            $indexContent | Should -Not -Match '## Related'
+        }
+
+        It 'Should report correct count when skipping index files' {
+            # Arrange
+            $index1 = Join-Path $script:memoriesPath 'skills-security-index.md'
+            $index2 = Join-Path $script:memoriesPath 'skills-git-index.md'
+            $sec1 = Join-Path $script:memoriesPath 'security-001.md'
+
+            Set-Content -Path $index1 -Value '# Index 1'
+            Set-Content -Path $index2 -Value '# Index 2'
+            Set-Content -Path $sec1 -Value '# Security 001'
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath *>&1 | Out-String
+
+            # Assert
+            # Should analyze 3 files but only update 0 (no matches)
+            $output | Should -Match 'Analyzing 3 memory files'
+            $output | Should -Match 'Files updated: 0'
+        }
+    }
 }

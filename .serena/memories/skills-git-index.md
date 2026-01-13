@@ -9,11 +9,3 @@
 | staged changes guard empty commit merge scenario check defensive | [git-003-staged-changes-guard](git-003-staged-changes-guard.md) |
 | branch switch file verification state reset uncommitted lost | [git-004-branch-switch-file-verification](git-004-branch-switch-file-verification.md) |
 | branch verify current show-current commit push reset mutating MUST | git-004-branch-verification-before-commit |
-
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

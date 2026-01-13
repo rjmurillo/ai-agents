@@ -6,11 +6,3 @@
 | gemini enterprise group multi-repo organization precedence | [gemini-enterprise-config](gemini-enterprise-config.md) |
 | gemini troubleshoot reviews comments missing ignored | [gemini-troubleshooting](gemini-troubleshooting.md) |
 | gemini best practice anti-pattern avoid setup | gemini-best-practices |
-
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

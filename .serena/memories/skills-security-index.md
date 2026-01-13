@@ -13,11 +13,3 @@
 | adversarial testing malicious input relative absolute path symlink CWE-22 | [security-adversarial-testing](security-adversarial-testing.md) |
 | path anchoring anchor base resolve containment CWE-22 path-traversal | [security-path-anchoring-pattern](security-path-anchoring-pattern.md) |
 | no blind suppression lgtm nosec root cause suppression understand documented | [security-no-blind-suppression](security-no-blind-suppression.md) |
-
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)
