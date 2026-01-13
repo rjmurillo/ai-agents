@@ -28,7 +28,7 @@ $ProjectRoot = if ($env:CLAUDE_PROJECT_DIR) {
     $env:CLAUDE_PROJECT_DIR
 } else {
     Write-Verbose "CLAUDE_PROJECT_DIR not set, deriving from script location"
-    Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+    Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 }
 
 # Validate the resolved path is a git repository
