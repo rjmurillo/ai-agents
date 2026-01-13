@@ -416,7 +416,14 @@ runs:
                 MAX_PAGES=5  # Cap at 500 files to prevent excessive API calls
 
                 while [ $PAGE -le $MAX_PAGES ]; do
-                  PAGE_FILES=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=$PER_PAGE&page=$PAGE" --jq '.[].filename' 2>/dev/null || true)
+                  API_ERROR_FILE=$(mktemp)
+                  PAGE_FILES=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=$PER_PAGE&page=$PAGE" --jq '.[].filename' 2>"$API_ERROR_FILE" || true)
+                  API_ERROR=$(cat "$API_ERROR_FILE")
+                  rm -f "$API_ERROR_FILE"
+
+                  if [ -n "$API_ERROR" ]; then
+                    echo "::warning::API call for page $PAGE failed: $API_ERROR"
+                  fi
 
                   if [ -z "$PAGE_FILES" ]; then
                     break
@@ -446,29 +453,35 @@ runs:
                 else
                   # Fallback 2: Try --name-only as last resort
                   echo "::warning::API pagination failed. Attempting --name-only fallback..."
-                  NAME_ONLY=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only 2>/dev/null || true)
+                  FALLBACK_ERROR_FILE=$(mktemp)
+                  NAME_ONLY=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only 2>"$FALLBACK_ERROR_FILE" || true)
+                  FALLBACK_ERROR=$(cat "$FALLBACK_ERROR_FILE")
+                  rm -f "$FALLBACK_ERROR_FILE"
 
                   if [ -n "$NAME_ONLY" ]; then
                     echo "Retrieved file list using --name-only"
                     CONTEXT="[Large PR - showing file list only]"$'\n'"$NAME_ONLY"
                   else
                     echo "::error::All fallback methods failed for PR #$PR_NUMBER"
+                    if [ -n "$FALLBACK_ERROR" ]; then
+                      echo "::error::Final fallback error: $FALLBACK_ERROR"
+                    fi
                     echo "::error::PR may have structural issues or GitHub API may be unavailable"
                     exit 1
                   fi
                 fi
               else
                 # Standard path: diff succeeded, check size
-                LINE_COUNT=$(echo "$DIFF_OUTPUT" | wc -l)
-                echo "PR diff has $LINE_COUNT lines"
-
-                if [ "$LINE_COUNT" -eq 0 ]; then
+                if [ -z "$DIFF_OUTPUT" ]; then
                   echo "::error::Failed to fetch PR diff for #$PR_NUMBER from $GITHUB_REPOSITORY"
                   if [ -n "$DIFF_ERROR" ]; then
                     echo "::error::Error details: $DIFF_ERROR"
                   fi
                   exit 1
                 fi
+
+                LINE_COUNT=$(echo "$DIFF_OUTPUT" | wc -l)
+                echo "PR diff has $LINE_COUNT lines"
 
                 if [ "$LINE_COUNT" -gt "$MAX_DIFF_LINES" ]; then
                   CONTEXT_MODE="summary"
