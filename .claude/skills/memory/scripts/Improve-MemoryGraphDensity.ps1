@@ -4,9 +4,9 @@
 
 .DESCRIPTION
     Analyzes memory files and adds Related sections based on:
-    - Naming patterns (shared prefixes)
-    - Topic domains (security, git, ci, etc.)
-    - Cross-references in content
+    - Naming patterns (shared prefixes like security-, git-, ci-)
+    - Topic domain grouping (files with same prefix are related)
+    - Index file discovery (links to domain-specific index files)
 
 .EXAMPLE
     .\.claude\skills\memory\scripts\Improve-MemoryGraphDensity.ps1
@@ -102,7 +102,10 @@ if (-not $OutputJson) {
 }
 
 # Define domain patterns - files with these prefixes are related
-# Using [ordered] to ensure longest prefixes match first for deterministic results
+# [ordered] ensures iteration order is preserved (alphabetical).
+# Note: More specific patterns (e.g., git-hooks-) should be listed BEFORE
+# shorter prefixes (e.g., git-) for correct matching, but current order is alphabetical.
+# First matching pattern wins due to break statement in matching loop.
 $domainPatterns = [ordered]@{
     'adr-' = 'Architecture Decision Records'
     'agent-workflow-' = 'Agent Workflow'

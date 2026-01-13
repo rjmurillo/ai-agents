@@ -3,9 +3,10 @@
     Converts memory references in .serena/memories/ to proper Markdown links.
 
 .DESCRIPTION
-    Processes all markdown files in .serena/memories/ and converts:
+    Processes markdown files in .serena/memories/ and converts:
     - Backtick references like `memory-name` to [memory-name](memory-name.md)
     - Only converts if the referenced file exists in .serena/memories/
+    - Supports processing specific files via -FilesToProcess parameter
 
 .EXAMPLE
     .\.claude\skills\memory\scripts\Convert-MemoryReferences.ps1

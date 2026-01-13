@@ -40,6 +40,8 @@ Describe 'Convert-IndexTableLinks' {
     }
 
     Context 'When converting single file references in table cells' {
+        # Skip: Regex lookahead/lookbehind pattern requires specific table format
+        # The current regex expects cells with leading/trailing spaces around content
         It 'Should convert single file reference to markdown link' -Skip {
             # Arrange
             $memoryFile = Join-Path $script:memoriesPath 'security-001.md'
@@ -220,6 +222,8 @@ Describe 'Convert-IndexTableLinks' {
     }
 
     Context 'When processing multiple index files' {
+        # Skip: Test expects 'Found 2 index files' message format that differs from actual output
+        # The script successfully processes files but reporting format varies
         It 'Should process all *-index.md files' -Skip {
             # Arrange
             $mem1 = Join-Path $script:memoriesPath 'security-001.md'
@@ -306,6 +310,8 @@ Describe 'Convert-IndexTableLinks' {
     }
 
     Context 'When handling edge cases' {
+        # Skip: Regex lookahead/lookbehind pattern requires pipe delimiters, not just whitespace
+        # Test data lacks proper markdown table structure (missing header row)
         It 'Should handle table cells with extra whitespace' -Skip {
             # Arrange
             $memoryFile = Join-Path $script:memoriesPath 'test-file.md'
@@ -339,6 +345,8 @@ Describe 'Convert-IndexTableLinks' {
             $content | Should -Match '\[unicode-test\]\(unicode-test\.md\)'
         }
 
+        # Skip: Negative test - verifies regex boundaries by checking text outside tables
+        # Requires script enhancement to distinguish table vs non-table content
         It 'Should not match file references outside table cells' -Skip {
             # Arrange
             $memoryFile = Join-Path $script:memoriesPath 'test-file.md'

@@ -240,8 +240,8 @@ Describe 'Convert-MemoryReferences' {
 
     Context 'When validating paths (CWE-22 mitigation)' {
         It 'Should reject paths outside project root' {
-            # Arrange - Path outside project root
-            $outsidePath = '/tmp/malicious-memories'
+            # Arrange - Path outside project root (cross-platform)
+            $outsidePath = Join-Path ([System.IO.Path]::GetTempPath()) 'malicious-memories'
 
             # Act & Assert
             { & $scriptPath -MemoriesPath $outsidePath } | Should -Throw -ExpectedMessage '*Security: MemoriesPath must be within project directory*'
