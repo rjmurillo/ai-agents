@@ -382,6 +382,97 @@ Some content with the word related in lowercase.
         }
     }
 
+    Context 'When using FilesToProcess parameter' {
+        It 'Should only process specified files when FilesToProcess is provided' {
+            # Arrange
+            $sec1 = Join-Path $script:memoriesPath 'security-001.md'
+            $sec2 = Join-Path $script:memoriesPath 'security-002.md'
+            $sec3 = Join-Path $script:memoriesPath 'security-003.md'
+
+            Set-Content -Path $sec1 -Value '# Security 001'
+            Set-Content -Path $sec2 -Value '# Security 002'
+            Set-Content -Path $sec3 -Value '# Security 003'
+
+            # Act - Only process sec1
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -FilesToProcess @($sec1) | Out-Null
+
+            # Assert - Only sec1 should have Related section
+            $content1 = Get-Content $sec1 -Raw
+            $content2 = Get-Content $sec2 -Raw
+            $content3 = Get-Content $sec3 -Raw
+
+            $content1 | Should -Match '## Related'
+            $content2 | Should -Not -Match '## Related'
+            $content3 | Should -Not -Match '## Related'
+        }
+
+        It 'Should process all files when FilesToProcess is empty array' {
+            # Arrange
+            $sec1 = Join-Path $script:memoriesPath 'security-001.md'
+            $sec2 = Join-Path $script:memoriesPath 'security-002.md'
+
+            Set-Content -Path $sec1 -Value '# Security 001'
+            Set-Content -Path $sec2 -Value '# Security 002'
+
+            # Act - Empty array should process all files
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -FilesToProcess @() | Out-Null
+
+            # Assert
+            $content1 = Get-Content $sec1 -Raw
+            $content2 = Get-Content $sec2 -Raw
+            $content1 | Should -Match '## Related'
+            $content2 | Should -Match '## Related'
+        }
+
+        It 'Should handle FilesToProcess with non-existent files gracefully' {
+            # Arrange
+            $nonExistent = Join-Path $script:memoriesPath 'non-existent.md'
+
+            # Act & Assert - Should not throw
+            { & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -FilesToProcess @($nonExistent) } | Should -Not -Throw
+        }
+    }
+
+    Context 'When validating paths (CWE-22 mitigation)' {
+        It 'Should reject paths outside project root' {
+            # Arrange - Path outside project root (cross-platform)
+            $outsidePath = Join-Path ([System.IO.Path]::GetTempPath()) 'malicious-memories'
+
+            # Act & Assert
+            { & $scriptPath -MemoriesPath $outsidePath } | Should -Throw -ExpectedMessage '*Security: MemoriesPath must be within project directory*'
+        }
+
+        It 'Should reject sibling directory attacks' {
+            # Arrange - Path that is a sibling with similar prefix
+            # This tests that /home/user/project-attacker doesn't match /home/user/project
+            $projectRoot = git rev-parse --show-toplevel
+            $siblingPath = "$projectRoot-attacker"
+
+            # Act & Assert
+            { & $scriptPath -MemoriesPath $siblingPath } | Should -Throw -ExpectedMessage '*Security: MemoriesPath must be within project directory*'
+        }
+    }
+
+    Context 'When producing structured output' {
+        It 'Should output JSON statistics when OutputJson switch is used' {
+            # Arrange
+            $sec1 = Join-Path $script:memoriesPath 'security-001.md'
+            $sec2 = Join-Path $script:memoriesPath 'security-002.md'
+
+            Set-Content -Path $sec1 -Value '# Security 001'
+            Set-Content -Path $sec2 -Value '# Security 002'
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -OutputJson
+
+            # Assert
+            $json = $output | ConvertFrom-Json
+            $json.FilesProcessed | Should -BeGreaterOrEqual 2
+            $json.FilesModified | Should -Be 2
+            $json.RelationshipsAdded | Should -BeGreaterOrEqual 2
+        }
+    }
+
     Context 'When handling edge cases' {
         It 'Should preserve file encoding (UTF-8)' {
             # Arrange
