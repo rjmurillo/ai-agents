@@ -100,6 +100,31 @@ Describe "Parameter Definitions" {
             $Script:ScriptInfo.Parameters["Force"].SwitchParameter | Should -Be $true
         }
     }
+
+    Context "Version Parameter" {
+        It "Has Version parameter" {
+            $Script:ScriptInfo.Parameters.ContainsKey("Version") | Should -Be $true
+        }
+
+        It "Version is string type" {
+            $Script:ScriptInfo.Parameters["Version"].ParameterType.Name | Should -Be "String"
+        }
+
+        It "Version has default value of v0.1.0" {
+            $param = $Script:ScriptInfo.Parameters["Version"]
+            # Check if default value is set in parameter metadata
+            $content = Get-Content $Script:InstallScript -Raw
+            $content | Should -Match '\[string\]\$Version\s*=\s*"v0\.1\.0"'
+        }
+
+        It "Version has ValidatePattern attribute for security" {
+            $param = $Script:ScriptInfo.Parameters["Version"]
+            $validatePattern = $param.Attributes | Where-Object { $_ -is [System.Management.Automation.ValidatePatternAttribute] }
+            $validatePattern | Should -Not -BeNullOrEmpty
+            # Pattern should allow alphanumeric, dots, slashes, hyphens, underscores, plus (for SEMVER 2.0 build metadata)
+            $validatePattern.RegexPattern | Should -Be '^[\w./+-]+$'
+        }
+    }
 }
 
 Describe "Script Content Analysis" {

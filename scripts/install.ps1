@@ -19,6 +19,10 @@
 .PARAMETER Force
     Overwrite existing files without prompting
 
+.PARAMETER Version
+    Version tag or branch to install from (default: v0.1.0)
+    Use "main" for bleeding edge updates
+
 .EXAMPLE
     .\install.ps1 -Environment Claude -Global
     # Installs Claude agents to ~/.claude/agents
@@ -32,8 +36,8 @@
     # Installs VSCode agents to current repo, overwriting existing
 
 .EXAMPLE
-    # Remote installation (interactive mode):
-    Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
+    # Remote installation (interactive mode, stable release):
+    Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
 
 .NOTES
     Part of the ai-agents installer consolidation (CVA plan Phase 4).
@@ -56,7 +60,10 @@ param(
 
     [string]$RepoPath,
 
-    [switch]$Force
+    [switch]$Force,
+
+    [ValidatePattern('^[\w./+-]+$')]
+    [string]$Version = "v0.1.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -71,7 +78,9 @@ if ($IsRemoteExecution) {
     $TempDir = Join-Path $env:TEMP "ai-agents-install-$(Get-Random)"
     New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
-    $BaseUrl = "https://raw.githubusercontent.com/rjmurillo/ai-agents/main"
+    # URL-encode version to handle special characters (e.g., SEMVER 2.0 '+' for build metadata)
+    $EncodedVersion = [System.Uri]::EscapeDataString($Version)
+    $BaseUrl = "https://raw.githubusercontent.com/rjmurillo/ai-agents/$EncodedVersion"
 
     Write-Host ""
     Write-Host "AI Agents Installer (Remote)" -ForegroundColor Cyan
@@ -207,7 +216,8 @@ if ($IsRemoteExecution) {
 
     try {
         # Get file list from GitHub API
-        $ApiUrl = "https://api.github.com/repos/rjmurillo/ai-agents/contents/$($Config.SourceDir)"
+        # URL-encode version to handle special characters in query string
+        $ApiUrl = "https://api.github.com/repos/rjmurillo/ai-agents/contents/$($Config.SourceDir)?ref=$EncodedVersion"
 
         # Use Invoke-RestMethod with appropriate headers
         $Headers = @{

@@ -207,20 +207,27 @@ flowchart TD
 | `-Environment` | String | `Claude`, `Copilot`, or `VSCode` |
 | `-Global` | Switch | Install to user-level location |
 | `-RepoPath` | String | Install to specified repository |
+| `-Version` | String | Version tag or branch (default: `v0.1.0`) |
 | `-Force` | Switch | Overwrite without prompting |
 
 **Invocation**:
 
 ```powershell
-# Remote installation (one-liner)
+# Remote installation (stable release v0.1.0)
+iex ((New-Object System.Net.WebClient).DownloadString(
+  'https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
+
+# Remote installation (bleeding edge from main)
 iex ((New-Object System.Net.WebClient).DownloadString(
   'https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
 
-# Local installation
+# Local installation (uses files from current working directory)
 .\install.ps1 -Environment Claude -Global
 .\install.ps1 -Environment VSCode -RepoPath "C:\MyRepo"
 .\install.ps1 -Environment Copilot -RepoPath "." -Force
 ```
+
+**Note**: The `-Version` parameter only applies to remote installations where `install.ps1` is downloaded via `iex`. Local installations always use the files in the current working directory, regardless of the `-Version` parameter.
 
 **Installation Matrix**:
 

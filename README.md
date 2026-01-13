@@ -21,12 +21,20 @@ A coordinated multi-agent system for software development, available for **VS Co
 Install directly from GitHub without cloning the repository:
 
 ```powershell
-# Remote installation (interactive)
+# Remote installation (interactive) - installs from stable release v0.1.0
 Set-ExecutionPolicy Bypass -Scope Process -Force
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
 ```
 
 This prompts you to select the environment (Claude/Copilot/VSCode) and scope (Global/Repository).
+
+For bleeding edge updates, download the installer from the main branch:
+
+```powershell
+# Remote installation from main branch (bleeding edge)
+Set-ExecutionPolicy Bypass -Scope Process -Force
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
+```
 
 ### Local Installation
 
@@ -45,6 +53,8 @@ If you have cloned the repository, use the unified installer:
 .\scripts\install.ps1 -Environment VSCode -Global              # User-level
 .\scripts\install.ps1 -Environment VSCode -RepoPath "."        # Repository
 ```
+
+**Note**: Local installations use files from your current working directory. The `-Version` parameter only affects remote installations (when using `iex`).
 
 Add `-Force` to overwrite existing files without prompting.
 
