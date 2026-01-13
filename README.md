@@ -28,7 +28,7 @@ iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercon
 
 This prompts you to select the environment (Claude/Copilot/VSCode) and scope (Global/Repository).
 
-For bleeding edge updates from main:
+For bleeding edge updates from main, the script defaults to v0.1.0, so you must pass the main branch URL:
 
 ```powershell
 # Remote installation from main branch (bleeding edge)
@@ -41,7 +41,7 @@ iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercon
 If you have cloned the repository, use the unified installer:
 
 ```powershell
-# Claude Code (defaults to v0.1.0 release)
+# Claude Code
 .\scripts\install.ps1 -Environment Claude -Global              # User-level
 .\scripts\install.ps1 -Environment Claude -RepoPath "."        # Repository
 
@@ -54,11 +54,11 @@ If you have cloned the repository, use the unified installer:
 .\scripts\install.ps1 -Environment VSCode -RepoPath "."        # Repository
 ```
 
-**Note**: For local installations, the script always uses files from your current working directory. The `-Version` parameter only affects remote installations (when the script is downloaded via `iex`).
+**Note**: Local installations use files from your current working directory. The `-Version` parameter only affects remote installations (when using `iex`).
 
 ```powershell
-# Version parameter only works with remote installation
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
+# Example: Remote installation with version pinning to v0.1.0
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
 ```
 
 Add `-Force` to overwrite existing files without prompting.

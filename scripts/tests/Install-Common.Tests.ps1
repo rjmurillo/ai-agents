@@ -210,7 +210,7 @@ Describe "Resolve-DestinationPath" {
     Context "Relative Paths" {
         It "Combines relative path with RepoPath" {
             $testRepoPath = if ($IsWindows -or $PSVersionTable.PSVersion.Major -lt 6) { "C:\MyRepo" } else { "/tmp/MyRepo" }
-            $expected = Join-Path $testRepoPath ".github" "agents"
+            $expected = Join-Path (Join-Path $testRepoPath ".github") "agents"
 
             $result = Resolve-DestinationPath -PathExpression ".github/agents" -RepoPath $testRepoPath
 
