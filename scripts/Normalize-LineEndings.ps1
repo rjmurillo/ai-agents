@@ -40,13 +40,8 @@ function Test-GitRepository {
     .SYNOPSIS
         Checks if the current directory is a Git repository.
     #>
-    try {
-        git rev-parse --is-inside-work-tree 2>$null | Out-Null
-        return $true
-    }
-    catch {
-        return $false
-    }
+    $null = git rev-parse --is-inside-work-tree 2>&1
+    return $LASTEXITCODE -eq 0
 }
 
 function Get-LineEndingStats {
@@ -63,13 +58,17 @@ function Get-LineEndingStats {
 
     $eolOutput = git ls-files --eol
 
-    # Count files by line ending type in index
-    $crlfInIndex = ($eolOutput | Select-String 'i/crlf').Count
-    $lfInIndex = ($eolOutput | Select-String 'i/lf').Count
+    # Count files by line ending type in index (handle null from Select-String)
+    $crlfInIndexMatches = $eolOutput | Select-String 'i/crlf'
+    $lfInIndexMatches = $eolOutput | Select-String 'i/lf'
+    $crlfInIndex = if ($null -eq $crlfInIndexMatches) { 0 } else { @($crlfInIndexMatches).Count }
+    $lfInIndex = if ($null -eq $lfInIndexMatches) { 0 } else { @($lfInIndexMatches).Count }
 
-    # Count files by line ending type in working directory
-    $crlfInWorking = ($eolOutput | Select-String 'w/crlf').Count
-    $lfInWorking = ($eolOutput | Select-String 'w/lf').Count
+    # Count files by line ending type in working directory (handle null)
+    $crlfInWorkingMatches = $eolOutput | Select-String 'w/crlf'
+    $lfInWorkingMatches = $eolOutput | Select-String 'w/lf'
+    $crlfInWorking = if ($null -eq $crlfInWorkingMatches) { 0 } else { @($crlfInWorkingMatches).Count }
+    $lfInWorking = if ($null -eq $lfInWorkingMatches) { 0 } else { @($lfInWorkingMatches).Count }
 
     Write-Host "  Index (staged):      $lfInIndex LF, $crlfInIndex CRLF" -ForegroundColor White
     Write-Host "  Working directory:   $lfInWorking LF, $crlfInWorking CRLF" -ForegroundColor White
@@ -121,8 +120,9 @@ try {
     $beforeAuditPath = ".agents/analysis/line-endings-before.txt"
     Save-LineEndingAudit -OutputPath $beforeAuditPath
 
-    # Check if normalization is needed
-    if ($beforeStats.IndexCRLF -eq 0 -and $beforeStats.WorkingCRLF -eq 0) {
+    # Check if normalization is needed (only check index, not working directory)
+    # Windows users with core.autocrlf=true will have CRLF in working directory, that's expected
+    if ($beforeStats.IndexCRLF -eq 0) {
         Write-Host "`n✓ No line ending normalization needed. All files already use LF." -ForegroundColor Green
         return
     }
@@ -131,16 +131,13 @@ try {
     Write-Host "`nNormalizing line endings..." -ForegroundColor Yellow
 
     if ($PSCmdlet.ShouldProcess("Repository files", "Normalize line endings to LF")) {
-        # Step 1: Remove all files from Git's index (does not delete files)
-        Write-Host "  [1/3] Removing files from index..." -ForegroundColor Gray
-        git rm --cached -r . 2>&1 | Out-Null
-
-        # Step 2: Re-add all files, applying new .gitattributes rules
-        Write-Host "  [2/3] Re-adding files with normalized line endings..." -ForegroundColor Gray
+        # Step 1: Re-add all files to apply new .gitattributes rules
+        # git add --renormalize is sufficient (no need for git rm --cached)
+        Write-Host "  [1/2] Re-adding files with normalized line endings..." -ForegroundColor Gray
         git add --renormalize . 2>&1 | Out-Null
 
-        # Step 3: Verify changes
-        Write-Host "  [3/3] Verifying normalization..." -ForegroundColor Gray
+        # Step 2: Verify changes
+        Write-Host "  [2/2] Verifying normalization..." -ForegroundColor Gray
 
         # Get statistics after normalization
         $afterStats = Get-LineEndingStats -Stage "AFTER"
@@ -168,6 +165,7 @@ try {
     }
 }
 catch {
-    Write-Error "An error occurred during line ending normalization: $_"
+    Write-Host "An error occurred during line ending normalization:" -ForegroundColor Red
+    Write-Error -ErrorRecord $_
     exit 1
 }
