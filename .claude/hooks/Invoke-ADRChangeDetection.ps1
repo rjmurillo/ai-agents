@@ -24,7 +24,15 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # Get project root from environment or derive from script location
+# Security: Validate CLAUDE_PROJECT_DIR to prevent path traversal (CWE-22)
 $ProjectRoot = if ($env:CLAUDE_PROJECT_DIR) {
+    # Validate that this script is running from within the specified project root
+    $resolvedScriptDir = [IO.Path]::GetFullPath($PSScriptRoot)
+    $resolvedProjectRoot = [IO.Path]::GetFullPath($env:CLAUDE_PROJECT_DIR) + [IO.Path]::DirectorySeparatorChar
+    if (-not $resolvedScriptDir.StartsWith($resolvedProjectRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        Write-Warning "Path traversal attempt detected via CLAUDE_PROJECT_DIR. Project: '$($env:CLAUDE_PROJECT_DIR)', Script: '$PSScriptRoot'"
+        exit 0  # Fail-open but log warning
+    }
     $env:CLAUDE_PROJECT_DIR
 } else {
     Write-Verbose "CLAUDE_PROJECT_DIR not set, deriving from script location"
