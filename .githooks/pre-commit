@@ -1224,10 +1224,13 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
                             # Check if file changed
                             if ! git diff --quiet -- "$CAUSAL_GRAPH_FILE" 2>/dev/null; then
                                 git add -- "$CAUSAL_GRAPH_FILE"
-                                # Extract stats from output
-                                NODES_ADDED=$(echo "$UPDATE_OUTPUT" | grep -oP 'Nodes added:\s+\K\d+' || echo "0")
-                                EDGES_ADDED=$(echo "$UPDATE_OUTPUT" | grep -oP 'Edges added:\s+\K\d+' || echo "0")
-                                PATTERNS_ADDED=$(echo "$UPDATE_OUTPUT" | grep -oP 'Patterns added:\s+\K\d+' || echo "0")
+                                # Extract stats from output (POSIX-compatible, no -P flag for macOS)
+                                NODES_ADDED=$(echo "$UPDATE_OUTPUT" | sed -n 's/.*Nodes added:[[:space:]]*\([0-9]*\).*/\1/p' | head -1)
+                                NODES_ADDED=${NODES_ADDED:-0}
+                                EDGES_ADDED=$(echo "$UPDATE_OUTPUT" | sed -n 's/.*Edges added:[[:space:]]*\([0-9]*\).*/\1/p' | head -1)
+                                EDGES_ADDED=${EDGES_ADDED:-0}
+                                PATTERNS_ADDED=$(echo "$UPDATE_OUTPUT" | sed -n 's/.*Patterns added:[[:space:]]*\([0-9]*\).*/\1/p' | head -1)
+                                PATTERNS_ADDED=${PATTERNS_ADDED:-0}
                                 echo_success "Causal graph updated: +$NODES_ADDED nodes, +$EDGES_ADDED edges, +$PATTERNS_ADDED patterns"
                                 FILES_FIXED=1
                             else
@@ -1391,6 +1394,63 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
     fi
 else
     echo_info "No memory files staged. Skipping memory index validation."
+fi
+
+#
+# Memory Cross-Reference (Non-blocking, auto-fix)
+#
+# Automatically adds cross-references to memory files:
+# - Converts table cell references to markdown links
+# - Converts backtick references to markdown links
+# - Adds Related sections based on domain patterns
+#
+# This is non-blocking (fail-open) to allow commits even if cross-referencing fails.
+# Auto-stages any modified files.
+#
+# Related: Issue #899, memory skill
+#
+MEMORY_CROSSREF_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/Invoke-MemoryCrossReference.ps1"
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    echo_info "Adding memory cross-references..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$MEMORY_CROSSREF_SCRIPT" ]; then
+        echo_warning "Skipping memory cross-reference: script path is a symlink"
+    elif [ -f "$MEMORY_CROSSREF_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run cross-reference (non-blocking)
+            crossref_result=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$MEMORY_CROSSREF_SCRIPT" \
+                -MemoriesPath "$REPO_ROOT/.serena/memories" \
+                -OutputJson 2>&1) || true
+
+            # Parse result and report
+            if echo "$crossref_result" | grep -q '"Success":true'; then
+                files_modified=$(echo "$crossref_result" | grep -o '"FilesModified":[0-9]*' | grep -o '[0-9]*' || echo "0")
+                if [ "$files_modified" -gt 0 ]; then
+                    echo_action "Cross-referenced $files_modified memory files"
+                    # Auto-stage modified files
+                    git add .serena/memories/*.md 2>/dev/null || true
+                    FILES_FIXED=1
+                else
+                    echo_info "Memory cross-reference: no changes needed"
+                fi
+            else
+                echo_warning "Memory cross-reference encountered issues (non-blocking)"
+                # Extract and show errors if jq is available
+                if command -v jq &> /dev/null; then
+                    errors=$(echo "$crossref_result" | jq -r '.Errors[]? // empty' 2>/dev/null)
+                    if [ -n "$errors" ]; then
+                        echo_info "Errors: $errors"
+                    fi
+                fi
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping memory cross-reference."
+        fi
+    else
+        echo_info "Memory cross-reference script not found. Skipping."
+    fi
 fi
 
 #

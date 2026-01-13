@@ -5,6 +5,7 @@ Thank you for your interest in contributing to this project. This guide explains
 ## Table of Contents
 
 - [Getting Started](#getting-started)
+- [Git Configuration](#git-configuration)
 - [Agent Template System](#agent-template-system)
 - [How to Modify an Agent](#how-to-modify-an-agent)
 - [How to Add a New Agent](#how-to-add-a-new-agent)
@@ -19,9 +20,59 @@ Thank you for your interest in contributing to this project. This guide explains
 
 1. Fork the repository
 2. Clone your fork locally
-3. Set up pre-commit hooks: `git config core.hooksPath .githooks`
-4. Make your changes following the guidelines below
-5. Submit a pull request
+3. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
+4. Set up pre-commit hooks: `git config core.hooksPath .githooks`
+5. Make your changes following the guidelines below
+6. Submit a pull request
+
+## Git Configuration
+
+This repository enforces LF line endings for all files via `.gitattributes` to prevent cross-platform issues. To ensure smooth collaboration, configure your Git client based on your operating system:
+
+### Windows
+
+```bash
+git config --global core.autocrlf true
+```
+
+**What this does:**
+
+- **On checkout:** Git converts LF → CRLF for your text editors (Windows native)
+- **On commit:** Git converts CRLF → LF for the repository
+- **Result:** Repository always has LF, your editor always shows CRLF
+
+### Linux/macOS
+
+```bash
+git config --global core.autocrlf input
+```
+
+**What this does:**
+
+- **On checkout:** Git leaves LF as-is (Unix native)
+- **On commit:** Git converts any CRLF → LF for the repository
+- **Result:** Repository always has LF, your editor always shows LF
+
+### Why This Matters
+
+**Problem without proper configuration:**
+
+- YAML frontmatter in agent files fails to parse with CRLF line endings
+- GitHub Copilot CLI shows "Unexpected scalar at node end" errors
+- Git diffs show entire files changed due to line ending differences
+- Collaboration becomes difficult when contributors use different platforms
+
+**Solution:**
+
+- `.gitattributes` enforces LF in the repository (`* text=auto eol=lf`)
+- `core.autocrlf` gives you native line endings in your working directory
+- Together, they ensure consistency without sacrificing developer experience
+
+**References:**
+
+- [GitHub Copilot CLI Issue #694](https://github.com/github/copilot-cli/issues/694)
+- [GitHub Copilot CLI Issue #673](https://github.com/github/copilot-cli/issues/673)
+- [Issue #896](https://github.com/rjmurillo/ai-agents/issues/896)
 
 ## Agent Template System
 
