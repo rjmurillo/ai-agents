@@ -75,6 +75,14 @@ Describe "Parameter Definitions" {
             $validateSet.ValidValues | Should -Contain "Copilot"
             $validateSet.ValidValues | Should -Contain "VSCode"
         }
+
+        It "Environment allows empty string for iex invocation (Issue #892)" {
+            # When invoked via iex, parameters default to empty string.
+            # ValidateSet rejects empty string unless AllowEmptyString is present.
+            $param = $Script:ScriptInfo.Parameters["Environment"]
+            $allowEmpty = $param.Attributes | Where-Object { $_ -is [System.Management.Automation.AllowEmptyStringAttribute] }
+            $allowEmpty | Should -Not -BeNullOrEmpty -Because "iex invocation passes empty string which ValidateSet rejects without AllowEmptyString"
+        }
     }
 
     Context "Global Parameter" {

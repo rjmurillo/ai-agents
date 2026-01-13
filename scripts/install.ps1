@@ -8,7 +8,8 @@
     Can be invoked remotely via iex (Invoke-Expression) for easy installation.
 
 .PARAMETER Environment
-    Target environment: Claude, Copilot, or VSCode
+    Target environment: Claude, Copilot, or VSCode.
+    Optional. If omitted, the script prompts interactively for selection.
 
 .PARAMETER Global
     Install to global/user-level location (well-known paths)
@@ -53,6 +54,7 @@
 
 [CmdletBinding()]
 param(
+    # AllowEmptyString required for iex: ValidateSet rejects empty strings by default (Issue #892)
     [AllowEmptyString()]
     [ValidateSet("Claude", "Copilot", "VSCode")]
     [string]$Environment,
