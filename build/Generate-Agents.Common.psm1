@@ -75,30 +75,80 @@ function ConvertFrom-SimpleFrontmatter {
     <#
     .SYNOPSIS
         Parses simple YAML frontmatter into a hashtable.
-        Handles basic key: value pairs and arrays in ['item1', 'item2'] format.
+        Handles basic key: value pairs, inline arrays ['item1', 'item2'],
+        and block-style arrays with indented list items.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string]$FrontmatterRaw
     )
 
+    # Validate input is not just whitespace
+    if ([string]::IsNullOrWhiteSpace($FrontmatterRaw)) {
+        Write-Warning "ConvertFrom-SimpleFrontmatter: Input is empty or whitespace-only"
+        return @{}
+    }
+
     $result = @{}
     $lines = $FrontmatterRaw -split '\r?\n'
+    $currentKey = $null
+    $currentArray = $null
 
-    foreach ($line in $lines) {
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+
+        # Skip empty lines
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+
+        # Check for block-style array item (indented with "  - ")
+        if ($line -match '^\s+-\s*(.*)$') {
+            if ($null -ne $currentKey -and $null -ne $currentArray) {
+                $item = $Matches[1].Trim()
+                # Remove surrounding quotes if present
+                if ($item -match '^"(.*)"$' -or $item -match "^'(.*)'$") {
+                    $item = $Matches[1]
+                }
+                $currentArray += $item
+            }
+            else {
+                Write-Warning "ConvertFrom-SimpleFrontmatter: Orphaned array item on line $($i + 1) with no parent key: '$line'"
+            }
+            continue
+        }
+
+        # If we were collecting an array and hit a non-array line, save it
+        if ($null -ne $currentKey -and $null -ne $currentArray) {
+            # Convert array to inline format for compatibility
+            $arrayItems = $currentArray | ForEach-Object { "'$_'" }
+            $result[$currentKey] = "[" + ($arrayItems -join ", ") + "]"
+            $currentKey = $null
+            $currentArray = $null
+        }
+
         # Match keys with letters, digits, underscores, and hyphens (for argument-hint etc.)
         if ($line -match '^([\w-]+):\s*(.*)$') {
             $key = $Matches[1]
             $value = $Matches[2].Trim()
 
-            # Check if it's an array (starts with [ and ends with ])
+            # Check if it's an inline array (starts with [ and ends with ])
             if ($value -match "^\[.*\]$") {
                 # Keep the raw array string for now
                 $result[$key] = $value
             }
             elseif ($value -eq '' -or $value -eq 'null') {
-                $result[$key] = $null
+                # Empty value - might be start of block-style array
+                # Check if next line is an array item
+                if ($i + 1 -lt $lines.Count -and $lines[$i + 1] -match '^\s+-\s*') {
+                    $currentKey = $key
+                    $currentArray = @()
+                }
+                else {
+                    $result[$key] = $null
+                }
             }
             else {
                 # Remove surrounding quotes if present
@@ -108,6 +158,12 @@ function ConvertFrom-SimpleFrontmatter {
                 $result[$key] = $value
             }
         }
+    }
+
+    # Handle array at end of frontmatter
+    if ($null -ne $currentKey -and $null -ne $currentArray) {
+        $arrayItems = $currentArray | ForEach-Object { "'$_'" }
+        $result[$currentKey] = "[" + ($arrayItems -join ", ") + "]"
     }
 
     return $result
@@ -193,6 +249,7 @@ function Format-FrontmatterYaml {
     .SYNOPSIS
         Converts frontmatter hashtable back to YAML string.
         Maintains specific field order for consistency.
+        Outputs arrays in block-style format for cross-platform compatibility.
     #>
     [CmdletBinding()]
     param(
@@ -205,18 +262,71 @@ function Format-FrontmatterYaml {
     # Define field order (argument-hint after description for VS Code agents)
     $fieldOrder = @('name', 'description', 'argument-hint', 'tools', 'model')
 
+    # Helper to format a value (handles arrays specially)
+    $formatValue = {
+        param([string]$key, $value)
+
+        # Handle null or non-string values
+        if ($null -eq $value) {
+            Write-Verbose "Format-FrontmatterYaml: Null value for key '$key' - skipping"
+            return @()
+        }
+
+        if ($value -isnot [string]) {
+            Write-Verbose "Format-FrontmatterYaml: Non-string value for key '$key' (type: $($value.GetType().Name)) - converting to string"
+            $value = [string]$value
+        }
+
+        # Check if value is an inline array
+        if ($value -match "^\[(.*)\]$") {
+            $arrayContent = $Matches[1]
+            # Parse array items (handle both 'item' and "item" formats)
+            $items = @()
+            # Split by comma, handling quoted items
+            $pattern = "'([^']+)'|""([^""]+)""|([^,\s]+)"
+            $itemMatches = [regex]::Matches($arrayContent, $pattern)
+            foreach ($match in $itemMatches) {
+                if ($match.Groups[1].Success) {
+                    $items += $match.Groups[1].Value
+                }
+                elseif ($match.Groups[2].Success) {
+                    $items += $match.Groups[2].Value
+                }
+                elseif ($match.Groups[3].Success) {
+                    $items += $match.Groups[3].Value
+                }
+            }
+
+            # Validate parsing: if we expected items but got none, warn and fallback
+            if ($items.Count -eq 0 -and $arrayContent.Trim().Length -gt 0) {
+                Write-Warning "Format-FrontmatterYaml: Failed to parse array items for key '$key': '$arrayContent' - preserving as inline"
+                return @("${key}: $value")
+            }
+
+            # Output as block-style array
+            $result = @("${key}:")
+            foreach ($item in $items) {
+                $result += "  - $item"
+            }
+            return $result
+        }
+        else {
+            return @("${key}: $value")
+        }
+    }
+
     # Output fields in order
     foreach ($field in $fieldOrder) {
         if ($Frontmatter.ContainsKey($field) -and $null -ne $Frontmatter[$field]) {
             $value = $Frontmatter[$field]
-            $lines += "${field}: $value"
+            $lines += & $formatValue $field $value
         }
     }
 
     # Output any remaining fields
     foreach ($key in $Frontmatter.Keys) {
         if ($key -notin $fieldOrder -and $null -ne $Frontmatter[$key]) {
-            $lines += "${key}: $($Frontmatter[$key])"
+            $lines += & $formatValue $key $Frontmatter[$key]
         }
     }
 

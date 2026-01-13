@@ -168,19 +168,7 @@ The repository includes validation scripts for enforcing protocol compliance and
 
 #### Validate-SessionJson.ps1
 
-Validates Session Start and Session End protocol compliance for a single session log.
-
-**Usage**:
-
-```powershell
-.\scripts\Validate-SessionJson.ps1 -SessionLogPath ".agents/sessions/.agents/sessions/2025-12-22-session-01.json"
-```
-
-**Called By**: Pre-commit hook, orchestrator, CI
-
-#### Validate-SessionJson.ps1
-
-Validates session protocol compliance across multiple sessions.
+Validates session protocol compliance for session logs.
 
 **Usage**:
 
@@ -194,6 +182,8 @@ Validates session protocol compliance across multiple sessions.
 # CI mode
 .\scripts\Validate-SessionJson.ps1 -All -CI
 ```
+
+**Called By**: Pre-commit hook, orchestrator, CI
 
 ### PR and Code Quality
 

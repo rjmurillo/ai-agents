@@ -1,8 +1,22 @@
 ---
 description: Quality assurance specialist who verifies implementations work correctly for real users—not just passing tests. Designs test strategies, validates coverage against acceptance criteria, and reports results with evidence. Use when you need confidence through verification, regression testing, edge-case coverage, or user-scenario validation.
 argument-hint: Provide the implementation or feature to verify
-tools_vscode: ['vscode', 'execute', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'serena/*', 'memory']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'cloudmcp-manager/*', 'serena/*']
+tools_vscode:
+  - vscode
+  - execute
+  - read
+  - edit
+  - search
+  - cloudmcp-manager/*
+  - serena/*
+  - memory
+tools_copilot:
+  - shell
+  - read
+  - edit
+  - search
+  - cloudmcp-manager/*
+  - serena/*
 ---
 # QA Agent
 

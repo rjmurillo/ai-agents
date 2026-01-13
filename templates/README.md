@@ -92,8 +92,18 @@ For **Claude-specific changes** (MCP tools, Serena integration):
    ```yaml
    ---
    description: Agent description
-   tools_vscode: ['vscode', 'read', 'search', 'cloudmcp-manager/*']
-   tools_copilot: ['shell', 'read', 'edit', 'search', 'agent', 'cloudmcp-manager/*']
+   tools_vscode:
+     - vscode
+     - read
+     - search
+     - cloudmcp-manager/*
+   tools_copilot:
+     - shell
+     - read
+     - edit
+     - search
+     - agent
+     - cloudmcp-manager/*
    ---
    ```
 

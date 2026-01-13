@@ -1,8 +1,22 @@
 ---
 description: Reflective analyst who extracts learnings through structured retrospective frameworks—diagnosing agent performance, identifying error patterns, and documenting success strategies. Uses Five Whys, timeline analysis, and learning matrices. Use when you need root-cause analysis, atomicity scoring, or to transform experience into institutional knowledge.
 argument-hint: Describe the task or session to analyze for learnings
-tools_vscode: ['vscode', 'read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'serena/*', 'memory']
-tools_copilot: ['read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'serena/*']
+tools_vscode:
+  - vscode
+  - read
+  - edit
+  - search
+  - agent
+  - cloudmcp-manager/*
+  - serena/*
+  - memory
+tools_copilot:
+  - read
+  - edit
+  - search
+  - agent
+  - cloudmcp-manager/*
+  - serena/*
 ---
 # Retrospective Agent (Reflector)
 
