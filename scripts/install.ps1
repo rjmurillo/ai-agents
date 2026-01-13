@@ -54,7 +54,8 @@
 
 [CmdletBinding()]
 param(
-    # ArgumentCompleter provides tab-completion while avoiding ValidateSet iex conflict (Issue #892)
+    # ArgumentCompleter provides tab-completion without ValidateSet parameter binding conflict (Issue #892)
+    # ValidateSet rejects values during parameter binding when $Env:Environment exists with non-matching value
     [ArgumentCompleter({
         param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
         @('Claude', 'Copilot', 'VSCode') | Where-Object { $_ -like "$wordToComplete*" }
