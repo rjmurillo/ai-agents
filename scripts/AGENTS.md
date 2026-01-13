@@ -221,14 +221,13 @@ iex ((New-Object System.Net.WebClient).DownloadString(
 iex ((New-Object System.Net.WebClient).DownloadString(
   'https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
 
-# Local installation
+# Local installation (uses files from current working directory)
 .\install.ps1 -Environment Claude -Global
 .\install.ps1 -Environment VSCode -RepoPath "C:\MyRepo"
 .\install.ps1 -Environment Copilot -RepoPath "." -Force
-
-# Local installation with specific version
-.\install.ps1 -Environment Claude -Global -Version "main"
 ```
+
+**Note**: The `-Version` parameter only applies to remote installations where `install.ps1` is downloaded via `iex`. Local installations always use the files in the current working directory, regardless of the `-Version` parameter.
 
 **Installation Matrix**:
 

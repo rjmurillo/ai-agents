@@ -66,6 +66,7 @@ param(
 
     [switch]$Force,
 
+    [ValidatePattern('^[\w./-]+$')]
     [string]$Version = "v0.1.0"
 )
 
@@ -217,7 +218,7 @@ if ($IsRemoteExecution) {
 
     try {
         # Get file list from GitHub API
-        $ApiUrl = "https://api.github.com/repos/rjmurillo/ai-agents/contents/$($Config.SourceDir)"
+        $ApiUrl = "https://api.github.com/repos/rjmurillo/ai-agents/contents/$($Config.SourceDir)?ref=$Version"
 
         # Use Invoke-RestMethod with appropriate headers
         $Headers = @{

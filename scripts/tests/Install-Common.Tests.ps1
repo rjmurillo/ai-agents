@@ -209,7 +209,7 @@ Describe "Get-InstallConfig" {
 Describe "Resolve-DestinationPath" {
     Context "Relative Paths" {
         It "Combines relative path with RepoPath" {
-            $testRepoPath = if ($IsWindows) { "C:\MyRepo" } else { "/tmp/MyRepo" }
+            $testRepoPath = if ($IsWindows -or $PSVersionTable.PSVersion.Major -lt 6) { "C:\MyRepo" } else { "/tmp/MyRepo" }
             $expected = Join-Path $testRepoPath ".github" "agents"
 
             $result = Resolve-DestinationPath -PathExpression ".github/agents" -RepoPath $testRepoPath

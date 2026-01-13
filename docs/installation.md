@@ -62,23 +62,16 @@ The unified `install.ps1` script supports all environments and scopes:
 | `-Environment` | Target environment: `Claude`, `Copilot`, or `VSCode` | Yes* |
 | `-Global` | Install to user-level location | One of these |
 | `-RepoPath` | Install to specified repository path | One of these |
-| `-Version` | Version tag or branch to install from (default: `v0.1.0`) | No |
+| `-Version` | **Remote-only**: Version tag or branch to download when using remote (`iex`) installer (default: `v0.1.0`); ignored for local installs | No |
 | `-Force` | Overwrite existing files without prompting | No |
 
 *If not provided, interactive mode prompts for selection.
 
-**Version Examples:**
+**Version Behavior:**
 
-```powershell
-# Install from stable release (default)
-.\scripts\install.ps1 -Environment Claude -Global
+When using the **remote installer** (see *Quick Installation (Remote)* above), the `-Version` parameter controls which tag or branch is downloaded and executed (for example, `v0.1.0`, `v0.2.0`, or `main`).
 
-# Install from bleeding edge (main branch)
-.\scripts\install.ps1 -Environment Claude -Global -Version "main"
-
-# Install from specific release tag
-.\scripts\install.ps1 -Environment Claude -Global -Version "v0.2.0"
-```
+For **local installations** (running `.\scripts\install.ps1` from a cloned repository), the script always uses the files from the current working directory, and the `-Version` parameter has no effect.
 
 ### Legacy Scripts (Backward Compatible)
 

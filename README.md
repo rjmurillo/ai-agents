@@ -52,9 +52,13 @@ If you have cloned the repository, use the unified installer:
 # VS Code
 .\scripts\install.ps1 -Environment VSCode -Global              # User-level
 .\scripts\install.ps1 -Environment VSCode -RepoPath "."        # Repository
+```
 
-# Install from main branch (bleeding edge)
-.\scripts\install.ps1 -Environment Claude -Global -Version "main"
+**Note**: For local installations, the script always uses files from your current working directory. The `-Version` parameter only affects remote installations (when the script is downloaded via `iex`).
+
+```powershell
+# Version parameter only works with remote installation
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
 ```
 
 Add `-Force` to overwrite existing files without prompting.
