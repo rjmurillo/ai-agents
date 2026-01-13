@@ -102,10 +102,9 @@ if (-not $OutputJson) {
 }
 
 # Define domain patterns - files with these prefixes are related
-# [ordered] ensures iteration order is preserved (alphabetical).
-# Note: More specific patterns (e.g., git-hooks-) should be listed BEFORE
-# shorter prefixes (e.g., git-) for correct matching, but current order is alphabetical.
-# First matching pattern wins due to break statement in matching loop.
+# [ordered] ensures iteration order is preserved for first-match-wins logic.
+# IMPORTANT: More specific prefixes MUST come before shorter ones (e.g., git-hooks- before git-)
+# because the matching loop breaks on first match.
 $domainPatterns = [ordered]@{
     'adr-' = 'Architecture Decision Records'
     'agent-workflow-' = 'Agent Workflow'
@@ -121,11 +120,11 @@ $domainPatterns = [ordered]@{
     'design-' = 'Design Patterns'
     'devops-' = 'DevOps'
     'documentation-' = 'Documentation'
-    'git-' = 'Git Operations'
-    'git-hooks-' = 'Git Hooks'
-    'github-' = 'GitHub'
-    'github-cli-' = 'GitHub CLI'
     'gh-extensions-' = 'GitHub Extensions'
+    'git-hooks-' = 'Git Hooks'
+    'git-' = 'Git Operations'
+    'github-cli-' = 'GitHub CLI'
+    'github-' = 'GitHub'
     'graphql-' = 'GraphQL'
     'implementation-' = 'Implementation'
     'jq-' = 'JQ'
@@ -139,16 +138,16 @@ $domainPatterns = [ordered]@{
     'pester-' = 'Pester Testing'
     'planning-' = 'Planning'
     'powershell-' = 'PowerShell'
-    'pr-' = 'Pull Request'
     'pr-comment-' = 'PR Comments'
     'pr-review-' = 'PR Review'
+    'pr-' = 'Pull Request'
     'protocol-' = 'Session Protocol'
     'qa-' = 'Quality Assurance'
     'quality-' = 'Quality'
     'retrospective-' = 'Retrospective'
     'security-' = 'Security'
-    'session-' = 'Session'
     'session-init-' = 'Session Initialization'
+    'session-' = 'Session'
     'skills-' = 'Skills Index'
     'testing-' = 'Testing'
     'triage-' = 'Triage'

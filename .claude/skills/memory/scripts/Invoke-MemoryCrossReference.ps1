@@ -16,6 +16,10 @@
     JSON output (via -OutputJson) to determine actual success/failure status.
     The JSON output includes a 'Success' property (true/false) and 'Errors' array.
 
+    NOTE: FilesModified represents total modifications across all scripts, not unique
+    files. A file modified by multiple scripts in sequence will be counted once per
+    script that modifies it.
+
 .PARAMETER FilesToProcess
     Specific memory files to process. If not provided, processes all files.
 
