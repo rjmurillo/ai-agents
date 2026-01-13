@@ -6,13 +6,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/Invoke-RoutingGates.ps1\"",
+            "command": "pwsh -NoProfile -Command \"$input | & (Join-Path (Get-Location) '.claude/hooks/Invoke-RoutingGates.ps1')\"",
             "timeout": 5,
             "statusMessage": "Checking routing-level gates (ADR-033)"
           },
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PreToolUse/Invoke-SkillFirstGuard.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/PreToolUse/Invoke-SkillFirstGuard.ps1')\"",
             "statusMessage": "Enforcing skills-first policy for GitHub operations (BLOCKING)"
           }
         ]
@@ -22,17 +22,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1')\"",
             "statusMessage": "Verifying session log exists before commit (BLOCKING)"
           },
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PreToolUse/Invoke-ADRReviewGuard.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/PreToolUse/Invoke-ADRReviewGuard.ps1')\"",
             "statusMessage": "Verifying ADR review completed (MUST requirement)"
           },
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PreToolUse/Invoke-BranchProtectionGuard.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/PreToolUse/Invoke-BranchProtectionGuard.ps1')\"",
             "statusMessage": "Verifying branch protection"
           }
         ]
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PreToolUse/Invoke-BranchProtectionGuard.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/PreToolUse/Invoke-BranchProtectionGuard.ps1')\"",
             "statusMessage": "Verifying branch protection"
           }
         ]
@@ -53,22 +53,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/SessionStart/Invoke-SessionInitializationEnforcer.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/SessionStart/Invoke-SessionInitializationEnforcer.ps1')\"",
             "statusMessage": "Enforcing session protocol initialization (BLOCKING)"
           },
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/SessionStart/Invoke-MemoryFirstEnforcer.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/SessionStart/Invoke-MemoryFirstEnforcer.ps1')\"",
             "statusMessage": "Enforcing ADR-007 memory-first evidence (HYBRID)"
           },
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/Invoke-SessionStartMemoryFirst.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/Invoke-SessionStartMemoryFirst.ps1')\"",
             "statusMessage": "Enforcing ADR-007 memory-first requirements"
           },
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/Invoke-ADRChangeDetection.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/Invoke-ADRChangeDetection.ps1')\"",
             "statusMessage": "Checking for ADR changes"
           }
         ]
@@ -79,12 +79,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/UserPromptSubmit/Invoke-AutonomousExecutionDetector.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/UserPromptSubmit/Invoke-AutonomousExecutionDetector.ps1')\"",
             "statusMessage": "Detecting autonomous execution patterns"
           },
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/Invoke-UserPromptMemoryCheck.ps1\"",
+            "command": "pwsh -NoProfile -Command \"$input | & (Join-Path (Get-Location) '.claude/hooks/Invoke-UserPromptMemoryCheck.ps1')\"",
             "statusMessage": "Checking memory-first compliance"
           }
         ]
@@ -96,7 +96,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PostToolUse/Invoke-MarkdownAutoLint.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/PostToolUse/Invoke-MarkdownAutoLint.ps1')\"",
             "statusMessage": "Auto-linting markdown files"
           }
         ]
@@ -107,7 +107,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/Stop/Invoke-SessionValidator.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/Stop/Invoke-SessionValidator.ps1')\"",
             "statusMessage": "Validating session completeness"
           }
         ]
@@ -118,7 +118,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/SubagentStop/Invoke-QAAgentValidator.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/SubagentStop/Invoke-QAAgentValidator.ps1')\"",
             "statusMessage": "Validating QA agent output"
           }
         ]
@@ -130,7 +130,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File \"$CLAUDE_PROJECT_DIR/.claude/hooks/PermissionRequest/Invoke-TestAutoApproval.ps1\"",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/PermissionRequest/Invoke-TestAutoApproval.ps1')\"",
             "statusMessage": "Auto-approving test execution"
           }
         ]

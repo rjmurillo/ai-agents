@@ -32,6 +32,21 @@ begin {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
     $AllInput = [System.Collections.ArrayList]::new()
+
+    # Validate working directory assumption (required for Windows where CLAUDE_PROJECT_DIR is unavailable)
+    # The hook invocation pattern uses Get-Location to resolve paths, which assumes CWD is project root
+    $ProjectIndicators = @('.claude/settings.json', '.git')
+    $IsValidProjectRoot = $false
+    foreach ($indicator in $ProjectIndicators) {
+        if (Test-Path (Join-Path (Get-Location) $indicator)) {
+            $IsValidProjectRoot = $true
+            break
+        }
+    }
+    if (-not $IsValidProjectRoot) {
+        Write-Warning "Invoke-UserPromptMemoryCheck: CWD '$(Get-Location)' does not appear to be a project root (missing .claude/settings.json or .git). Failing open."
+        exit 0
+    }
 }
 
 process {
