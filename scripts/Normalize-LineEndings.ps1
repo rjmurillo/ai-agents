@@ -166,6 +166,7 @@ try {
     }
 }
 catch {
-    Write-Error -Message "An error occurred during line ending normalization." -ErrorRecord $_
+    Write-Host "An error occurred during line ending normalization:" -ForegroundColor Red
+    Write-Error -ErrorRecord $_
     exit 1
 }
