@@ -40,6 +40,8 @@ Describe 'Convert-IndexTableLinks' {
     }
 
     Context 'When converting single file references in table cells' {
+        # Skip: Regex lookahead/lookbehind pattern requires specific table format
+        # The current regex expects cells with leading/trailing spaces around content
         It 'Should convert single file reference to markdown link' -Skip {
             # Arrange
             $memoryFile = Join-Path $script:memoriesPath 'security-001.md'
@@ -220,6 +222,8 @@ Describe 'Convert-IndexTableLinks' {
     }
 
     Context 'When processing multiple index files' {
+        # Skip: Test expects 'Found 2 index files' message format that differs from actual output
+        # The script successfully processes files but reporting format varies
         It 'Should process all *-index.md files' -Skip {
             # Arrange
             $mem1 = Join-Path $script:memoriesPath 'security-001.md'
@@ -306,6 +310,8 @@ Describe 'Convert-IndexTableLinks' {
     }
 
     Context 'When handling edge cases' {
+        # Skip: Regex lookahead/lookbehind pattern requires pipe delimiters, not just whitespace
+        # Test data lacks proper markdown table structure (missing header row)
         It 'Should handle table cells with extra whitespace' -Skip {
             # Arrange
             $memoryFile = Join-Path $script:memoriesPath 'test-file.md'
@@ -339,6 +345,8 @@ Describe 'Convert-IndexTableLinks' {
             $content | Should -Match '\[unicode-test\]\(unicode-test\.md\)'
         }
 
+        # Skip: Negative test - verifies regex boundaries by checking text outside tables
+        # Requires script enhancement to distinguish table vs non-table content
         It 'Should not match file references outside table cells' -Skip {
             # Arrange
             $memoryFile = Join-Path $script:memoriesPath 'test-file.md'
@@ -363,6 +371,183 @@ Regular text with test-file reference.
             # Regular text should not be converted
             $lines = $content -split "`n"
             $lines[0] | Should -BeExactly 'Regular text with test-file reference.'
+        }
+    }
+
+    Context 'When using FilesToProcess parameter' {
+        It 'Should only process specified index files when FilesToProcess is provided' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'file1.md'
+            $index1 = Join-Path $script:memoriesPath 'first-index.md'
+            $index2 = Join-Path $script:memoriesPath 'second-index.md'
+
+            Set-Content -Path $mem1 -Value '# File 1'
+            Set-Content -Path $index1 -Value "| Category | File |`n|----------|------|`n| test | file1 |"
+            Set-Content -Path $index2 -Value "| Category | File |`n|----------|------|`n| test | file1 |"
+
+            # Act - Only process first-index.md
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -FilesToProcess @($index1) | Out-Null
+
+            # Assert - Only first should be modified
+            $content1 = Get-Content $index1 -Raw
+            $content2 = Get-Content $index2 -Raw
+            $content1 | Should -Match '\[file1\]\(file1\.md\)'
+            $content2 | Should -Not -Match '\[file1\]\(file1\.md\)'
+        }
+
+        It 'Should process all files when FilesToProcess is empty' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'file1.md'
+            $index1 = Join-Path $script:memoriesPath 'test-index.md'
+
+            Set-Content -Path $mem1 -Value '# File 1'
+            Set-Content -Path $index1 -Value "| Category | File |`n|----------|------|`n| test | file1 |"
+
+            # Act - No FilesToProcess = process all
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
+
+            # Assert
+            $content = Get-Content $index1 -Raw
+            $content | Should -Match '\[file1\]\(file1\.md\)'
+        }
+
+        It 'Should ignore non-index files in FilesToProcess' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'regular-file.md'
+            Set-Content -Path $mem1 -Value "| Category | File |`n|----------|------|`n| test | value |"
+
+            $originalContent = Get-Content $mem1 -Raw
+
+            # Act - Try to process a non-index file
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -FilesToProcess @($mem1) | Out-Null
+
+            # Assert - Should not be modified
+            $content = Get-Content $mem1 -Raw
+            $content | Should -BeExactly $originalContent
+        }
+    }
+
+    Context 'When validating paths (CWE-22 mitigation)' {
+        It 'Should reject paths outside project root' {
+            # Arrange - Use a path outside the test directory
+            $outsidePath = Join-Path $TestDrive 'outside-project'
+            New-Item -Path $outsidePath -ItemType Directory -Force | Out-Null
+
+            # Act & Assert - Should throw security error
+            # Note: This test only works when NOT using -SkipPathValidation
+            # The script uses git rev-parse to find project root, so we test the validation logic directly
+            { & $scriptPath -MemoriesPath $outsidePath } | Should -Throw
+        }
+
+        It 'Should reject sibling directory attacks' {
+            # Arrange
+            # If project root is /project, /project-attacker should be rejected
+            $projectRoot = $script:testRoot
+            $siblingPath = "$projectRoot-attacker"
+            New-Item -Path $siblingPath -ItemType Directory -Force | Out-Null
+
+            # Act & Assert - The StartsWith with separator should prevent this
+            { & $scriptPath -MemoriesPath $siblingPath } | Should -Throw
+        }
+
+        It 'Should allow valid path within project when SkipPathValidation is false' {
+            # Arrange - Use project's actual memories path (within git repo)
+            $projectRoot = git rev-parse --show-toplevel
+            $validPath = Join-Path $projectRoot '.serena' 'memories'
+
+            # Act & Assert - Should not throw for valid paths
+            { & $scriptPath -MemoriesPath $validPath -OutputJson } | Should -Not -Throw
+        }
+    }
+
+    Context 'When producing structured output' {
+        It 'Should output JSON statistics when OutputJson switch is used' {
+            # Arrange
+            $mem1 = Join-Path $script:memoriesPath 'test-mem.md'
+            $index1 = Join-Path $script:memoriesPath 'test-index.md'
+
+            Set-Content -Path $mem1 -Value '# Test'
+            Set-Content -Path $index1 -Value "| Category | File |`n|----------|------|`n| test | test-mem |"
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -OutputJson 2>&1 | Out-String
+
+            # Assert - Should contain JSON
+            $output | Should -Match '"FilesProcessed"'
+            $output | Should -Match '"FilesModified"'
+        }
+
+        It 'Should include Errors array in JSON output' {
+            # Arrange
+            $index1 = Join-Path $script:memoriesPath 'test-index.md'
+            Set-Content -Path $index1 -Value '# Test'
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -OutputJson
+
+            # Assert
+            $json = $output | ConvertFrom-Json
+            $json.PSObject.Properties.Name | Should -Contain 'Errors'
+        }
+    }
+
+    Context 'When handling separator rows' {
+        It 'Should skip separator rows with hyphens' {
+            # Arrange - Separator row should NOT be converted even if it looks like a filename
+            $indexFile = Join-Path $script:memoriesPath 'test-index.md'
+            Set-Content -Path $indexFile -Value @'
+| Header | File |
+|--------|------|
+| test | value |
+'@
+
+            $originalContent = Get-Content $indexFile -Raw
+
+            # Act
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
+
+            # Assert - Separator row unchanged
+            $content = Get-Content $indexFile -Raw
+            $content | Should -Match '\|--------\|------\|'
+        }
+
+        It 'Should not convert cells that are only hyphens and spaces' {
+            # Arrange
+            $indexFile = Join-Path $script:memoriesPath 'test-index.md'
+            Set-Content -Path $indexFile -Value @'
+| A | B |
+|---|---|
+|   |   |
+'@
+
+            $originalContent = Get-Content $indexFile -Raw
+
+            # Act
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
+
+            # Assert - Content should be unchanged
+            $content = Get-Content $indexFile -Raw
+            $content | Should -BeExactly $originalContent
+        }
+    }
+
+    Context 'When cell contains non-memory content' {
+        It 'Should not convert cell with non-alphanumeric-hyphen content' {
+            # Arrange
+            $indexFile = Join-Path $script:memoriesPath 'test-index.md'
+            Set-Content -Path $indexFile -Value @'
+| Category | Status |
+|----------|--------|
+| test | DONE |
+'@
+
+            # Act
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
+
+            # Assert - 'DONE' (uppercase) should not be converted
+            $content = Get-Content $indexFile -Raw
+            $content | Should -Match '\| test \| DONE \|'
+            $content | Should -Not -Match '\[DONE\]'
         }
     }
 }
