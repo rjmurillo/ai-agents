@@ -39,10 +39,6 @@
     # Remote installation (interactive mode, stable release):
     Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
 
-.EXAMPLE
-    .\install.ps1 -Environment Claude -Global -Version "main"
-    # Installs bleeding edge from main branch
-
 .NOTES
     Part of the ai-agents installer consolidation (CVA plan Phase 4).
     Supports both local and remote execution via iex.

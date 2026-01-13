@@ -28,7 +28,7 @@ iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercon
 
 This prompts you to select the environment (Claude/Copilot/VSCode) and scope (Global/Repository).
 
-For bleeding edge updates from main, the script defaults to v0.1.0, so you must pass the main branch URL:
+For bleeding edge updates, download the installer from the main branch:
 
 ```powershell
 # Remote installation from main branch (bleeding edge)
@@ -55,11 +55,6 @@ If you have cloned the repository, use the unified installer:
 ```
 
 **Note**: Local installations use files from your current working directory. The `-Version` parameter only affects remote installations (when using `iex`).
-
-```powershell
-# Example: Remote installation with version pinning to v0.1.0
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
-```
 
 Add `-Force` to overwrite existing files without prompting.
 

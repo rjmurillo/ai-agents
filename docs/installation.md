@@ -62,7 +62,7 @@ The unified `install.ps1` script supports all environments and scopes:
 | `-Environment` | Target environment: `Claude`, `Copilot`, or `VSCode` | Yes* |
 | `-Global` | Install to user-level location | One of these |
 | `-RepoPath` | Install to specified repository path | One of these |
-| `-Version` | **Remote-only**: Version tag or branch to download when using remote (`iex`) installer (default: `v0.1.0`); ignored for local installs | No |
+| `-Version` | Version tag or branch to install from (default: `v0.1.0`). Only applicable when the script downloads files remotely; has no effect when running from a cloned repository. | No |
 | `-Force` | Overwrite existing files without prompting | No |
 
 *If not provided, interactive mode prompts for selection.
