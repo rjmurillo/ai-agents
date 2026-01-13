@@ -53,6 +53,7 @@
 
 [CmdletBinding()]
 param(
+    [AllowEmptyString()]
     [ValidateSet("Claude", "Copilot", "VSCode")]
     [string]$Environment,
 
