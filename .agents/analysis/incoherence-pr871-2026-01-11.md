@@ -39,7 +39,7 @@ pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[session-lo
 - `src/claude/orchestrator.md:54`
 - `.serena/memories/git-hooks-pre-commit-session-gap-796.md`
 ```markdown
-`.agents/sessions/YYYY-MM-DD-session-NN.md`
+`.agents/sessions/YYYY-MM-DD-session-NN.json`
 ```
 
 #### Analysis
@@ -192,27 +192,27 @@ ADR-035 defines exit 1 as "Logic Error / Validation failure" but Test-PRMerged.p
 - `.claude/skills/session-init/SKILL.md`
 - `.claude/skills/session-log-fixer/SKILL.md`
 ```powershell
-pwsh scripts/Validate-SessionProtocol.ps1
+pwsh scripts/Validate-SessionJson.ps1
 ```
 
 #### Source B (Actual Implementation)
 **File**: `scripts/Validate-SessionJson.ps1`
 **Status**: EXISTS (verified)
 
-**Missing File**: `Validate-SessionProtocol.ps1` (does not exist in scripts directory)
+**Missing File**: `Validate-SessionJson.ps1` (does not exist in scripts directory)
 
 #### Analysis
-Twelve files reference `Validate-SessionProtocol.ps1` which doesn't exist. The actual script is `Validate-SessionJson.ps1`. This creates failures when following documentation instructions.
+Twelve files reference `Validate-SessionJson.ps1` which doesn't exist. The actual script is `Validate-SessionJson.ps1`. This creates failures when following documentation instructions.
 
 #### Suggestions
-1. Global find-replace: Validate-SessionProtocol.ps1 → Validate-SessionJson.ps1
+1. Global find-replace: Validate-SessionJson.ps1 → Validate-SessionJson.ps1
 2. Create alias/symlink for backward compatibility during transition
 3. Add deprecation notice if both scripts should coexist
 
 #### Resolution
 <!-- USER: Write your decision below. Be specific. -->
 
-**Decision**: Global find-replace `Validate-SessionProtocol.ps1` → `Validate-SessionJson.ps1` in all 12 files.
+**Decision**: Global find-replace `Validate-SessionJson.ps1` → `Validate-SessionJson.ps1` in all 12 files.
 
 **Files to Update**:
 - AGENTS.md (line 71)

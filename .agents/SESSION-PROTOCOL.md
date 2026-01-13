@@ -183,7 +183,7 @@ The script will:
 3. Load JSON schema from `.agents/schemas/session-log.schema.json`
 4. Replace placeholders with actual values
 5. Write session log with EXACT template format
-6. Validate immediately with Validate-SessionProtocol.ps1
+6. Validate immediately with Validate-SessionJson.ps1
 7. Exit nonzero on validation failure
 
 See: `.claude/skills/session-init/SKILL.md`

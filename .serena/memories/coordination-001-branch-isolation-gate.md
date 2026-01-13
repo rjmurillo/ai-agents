@@ -43,7 +43,7 @@ Success: All agents confirmed on correct isolated branches
 ```text
 Message: "File naming conventions enforced by pre-commit hooks"
 Verify: Each agent can name one file correctly
-Example: ".agents/sessions/YYYY-MM-DD-session-NN.md (correct)"
+Example: ".agents/sessions/YYYY-MM-DD-session-NN.json (correct)"
 Success: All agents understand naming requirements
 ```
 

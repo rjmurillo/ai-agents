@@ -36,6 +36,6 @@ The `(?ms)` flags enable multiline matching and `.*?` with `^\)` matches the clo
 
 ## References
 
-- Session: `.agents/sessions/2025-12-31-session-111-autonomous-development.md`
+- Session: `.agents/sessions/2025-12-31-session-111-autonomous-development.json`
 - Critique: `.agents/critique/653-investigation-allowlist-constant-critique.md`
 - Security: `.agents/security/SR-653-investigation-allowlist.md`

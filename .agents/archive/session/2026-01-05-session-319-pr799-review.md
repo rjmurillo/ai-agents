@@ -75,7 +75,7 @@ All MUST requirements above are marked complete.
 - 2 test failures after error handling change: Expected behavior (tests document old pattern)
 
 **Files changed**:
-- `scripts/Validate-SessionProtocol.ps1` - Error handling, redundant errors, regex pattern, comment
+- `scripts/Validate-SessionJson.ps1` - Error handling, redundant errors, regex pattern, comment
 
 **Commits**:
 - 4e2cf2a3: Error handling fixes (gemini + Copilot redundant errors)

@@ -72,7 +72,7 @@ Before performing any work, rjmurillo-bot MUST:
 1. Read `.agents/AGENTS.md`
 2. Follow `.agents/SESSION-PROTOCOL.md`
 
-**Verification**: Check for session log at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+**Verification**: Check for session log at `.agents/sessions/YYYY-MM-DD-session-NN.json`
 
 ### Required Tools
 

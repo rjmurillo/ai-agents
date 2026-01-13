@@ -808,7 +808,7 @@ if [ -n "$STAGED_HANDOFF" ]; then
         echo_info "  Protocol: Do NOT update HANDOFF.md directly"
         echo_info ""
         echo_info "Session context goes to:"
-        echo_info "  1. Session log: .agents/sessions/YYYY-MM-DD-session-NN.md"
+        echo_info "  1. Session log: .agents/sessions/YYYY-MM-DD-session-NN.json"
         echo_info "  2. Serena memory: Use mcp__serena__write_memory"
         echo_info "  3. Branch handoff (optional): .agents/handoffs/$CURRENT_BRANCH/"
         echo_info ""

@@ -61,13 +61,13 @@ All MUST requirements above are marked complete.
 2. Verified PR is OPEN and not merged
 3. Identified 2 unresolved review threads from Copilot
 4. Analyzed review comments about script name inconsistency
-5. Fixed line 18 in critique file to reference `Validate-SessionProtocol.ps1` (not `Validate-Session.ps1`)
+5. Fixed line 18 in critique file to reference `Validate-SessionJson.ps1` (not `Validate-Session.ps1`)
 6. Posted replies to both review comments acknowledging the fix
 7. Resolved both review threads via GraphQL
 
 ## Decisions
 
-1. **Script name correction**: Fixed critique file to align with actual PR changes (Validate-SessionProtocol.ps1, not Validate-Session.ps1)
+1. **Script name correction**: Fixed critique file to align with actual PR changes (Validate-SessionJson.ps1, not Validate-Session.ps1)
 2. **CI failure acknowledgment**: `claude-response` failure is infrastructure issue (OIDC token exchange, 401 Unauthorized) - not a code quality issue
 
 ## Outcomes

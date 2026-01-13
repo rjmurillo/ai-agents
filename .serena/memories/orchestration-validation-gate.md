@@ -12,7 +12,7 @@
 
 ## Acceptance Criteria
 
-1. Session log exists at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+1. Session log exists at `.agents/sessions/YYYY-MM-DD-session-NN.json`
 2. `Validate-SessionEnd.ps1` passes (exit code 0)
 3. Agent provides validation evidence in handoff output
 

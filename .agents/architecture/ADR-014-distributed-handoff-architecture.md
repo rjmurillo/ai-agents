@@ -37,7 +37,7 @@ Implement a **three-tier distributed handoff architecture** that eliminates cent
 
 | Tier | Location | Token Budget | Lifecycle | Purpose |
 |------|----------|--------------|-----------|---------|
-| **Tier 1** (Session) | `.agents/sessions/YYYY-MM-DD-session-NN.md` | 2K per session | Permanent | Complete session record |
+| **Tier 1** (Session) | `.agents/sessions/YYYY-MM-DD-session-NN.json` | 2K per session | Permanent | Complete session record |
 | **Tier 2** (Branch) | `.agents/handoffs/{branch}/` | 3K per branch | Deleted on merge | Branch coordination (optional) |
 | **Tier 3** (Canonical) | `.agents/HANDOFF.md` | **5K (hard limit)** | Rolling window | Read-only dashboard |
 

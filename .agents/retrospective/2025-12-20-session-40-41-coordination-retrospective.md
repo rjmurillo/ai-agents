@@ -132,7 +132,7 @@ HCOM Channels:
 Session 40 Start - eyen verification:
 1. Run: git hooks --status  (verify all pre-commit hooks active)
 2. Briefing: "File naming conventions from AGENTS.md apply to all commits"
-3. Example: ✅ .agents/sessions/YYYY-MM-DD-session-NN.md
+3. Example: ✅ .agents/sessions/YYYY-MM-DD-session-NN.json
            ✅ .serena/memories/[skill-type]-[number]-[description].md
            ❌ .agents_sessions_file.md (corrupted)
 4. Gate: "No commits until hooks verified passing"
@@ -253,7 +253,7 @@ gate-3-isolation-verification:
 gate-4-protocol-briefing:
   - Message: "File naming conventions enforced by pre-commit hooks"
   - Verify: Each agent can name one file correctly
-  - Example: ".agents/sessions/YYYY-MM-DD-session-NN.md (correct)"
+  - Example: ".agents/sessions/YYYY-MM-DD-session-NN.json (correct)"
   - Success: All agents understand naming requirements
 ```
 

@@ -652,7 +652,7 @@ Quick reference of MUST/SHOULD/MAY constraints. See linked documents for full ra
 
 ### 5. Session Logging
 
-**Constraint**: MUST create session log early in session at `.agents/sessions/YYYY-MM-DD-session-NN.md`.
+**Constraint**: MUST create session log early in session at `.agents/sessions/YYYY-MM-DD-session-NN.json`.
 
 **Details**:
 - Create within first 5 tool calls

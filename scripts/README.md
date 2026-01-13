@@ -178,7 +178,7 @@ Validates Session Start and Session End protocol compliance for a single session
 
 **Called By**: Pre-commit hook, orchestrator, CI
 
-#### Validate-SessionProtocol.ps1
+#### Validate-SessionJson.ps1
 
 Validates session protocol compliance across multiple sessions.
 
@@ -186,13 +186,13 @@ Validates session protocol compliance across multiple sessions.
 
 ```powershell
 # Validate specific session
-.\scripts\Validate-SessionProtocol.ps1 -SessionPath ".agents/sessions/.agents/sessions/2025-12-17-session-01.json"
+.\scripts\Validate-SessionJson.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.json"
 
 # Validate all recent sessions
-.\scripts\Validate-SessionProtocol.ps1 -All
+.\scripts\Validate-SessionJson.ps1 -All
 
 # CI mode
-.\scripts\Validate-SessionProtocol.ps1 -All -CI
+.\scripts\Validate-SessionJson.ps1 -All -CI
 ```
 
 ### PR and Code Quality

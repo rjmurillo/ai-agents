@@ -6,12 +6,12 @@ How to validate session logs and handle common issues.
 
 ## Validation Script
 
-**Script**: `scripts/Validate-SessionProtocol.ps1`
+**Script**: `scripts/Validate-SessionJson.ps1`
 
 ### Basic Usage
 
 ```powershell
-pwsh scripts/Validate-SessionProtocol.ps1 `
+pwsh scripts/Validate-SessionJson.ps1 `
     -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" `
     
 ```
@@ -21,7 +21,7 @@ pwsh scripts/Validate-SessionProtocol.ps1 `
 For GitHub Actions:
 
 ```powershell
-pwsh scripts/Validate-SessionProtocol.ps1 `
+pwsh scripts/Validate-SessionJson.ps1 `
     -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" `
      `
     -CI
@@ -182,7 +182,7 @@ For session-init skill, run validation immediately after creating the session lo
 $sessionPath = ".agents/sessions/.agents/sessions/2026-01-05-session-375.json"
 
 # Run validation
-$result = & pwsh scripts/Validate-SessionProtocol.ps1 `
+$result = & pwsh scripts/Validate-SessionJson.ps1 `
     -SessionPath $sessionPath `
     
 
@@ -204,7 +204,7 @@ if ($exitCode -eq 0) {
 ### View Full Validation Output
 
 ```powershell
-pwsh scripts/Validate-SessionProtocol.ps1 `
+pwsh scripts/Validate-SessionJson.ps1 `
     -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" `
      `
     -Verbose

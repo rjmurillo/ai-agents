@@ -52,7 +52,7 @@ Analyzed all 20 open PRs to identify blockers preventing merge. Requested for Is
 
 ## Analysis Artifacts
 
-- **Session log**: `.agents/sessions/2025-12-24-session-03-stuck-prs-analysis.md`
+- **Session log**: `.agents/sessions/2025-12-24-session-03-stuck-prs-analysis.json`
 - **Analysis document**: `.agents/analysis/341-stuck-prs-investigation.md`
 - **Issue comment**: https://github.com/rjmurillo/ai-agents/issues/341#issuecomment-3689092839
 

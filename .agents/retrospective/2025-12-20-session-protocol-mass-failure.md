@@ -232,7 +232,7 @@ Session End protocol shows **catastrophic failure** with only 1 of 24 sessions c
 
 **Contributing factors:**
 
-- No `Validate-SessionEnd.ps1` script exists (unlike `Validate-SessionProtocol.ps1`)
+- No `Validate-SessionEnd.ps1` script exists (unlike `Validate-SessionJson.ps1`)
 - Orchestrator has no handoff validation for Session End checklist
 - Pre-commit hooks don't check session log completeness
 - Markdown lint doesn't validate checkbox completion

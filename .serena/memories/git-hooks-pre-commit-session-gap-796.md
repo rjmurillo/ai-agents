@@ -86,14 +86,14 @@ done
 # Require session log for substantive work
 if [ "$REQUIRES_SESSION_LOG" = "true" ]; then
     # Check for staged session log
-    STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.md$' | tail -n 1)
+    STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$' | tail -n 1)
     
     if [ -z "$STAGED_SESSION_LOG" ]; then
         echo_error "BLOCKED: Session log required"
         echo_info "Before committing scripts/src/build/.github/.factory files:"
         echo_info "  1. Initialize Serena: mcp__serena__activate_project"
         echo_info "  2. Read context: Read HANDOFF.md"
-        echo_info "  3. Create session log: .agents/sessions/YYYY-MM-DD-session-NN.md"
+        echo_info "  3. Create session log: .agents/sessions/YYYY-MM-DD-session-NN.json"
         echo_info "  4. Complete protocol requirements in session log"
         echo_info "  5. Re-run git add to include the log"
         echo_info ""

@@ -39,7 +39,7 @@ Establish a hierarchical script organization based on **intended audience and ex
 
 **Examples**:
 - `scripts/New-ValidatedPR.ps1` - Developer wrapper for validated PR creation
-- `scripts/Validate-SessionProtocol.ps1` - Called by pre-commit hook and developers
+- `scripts/Validate-SessionJson.ps1` - Called by pre-commit hook and developers
 - `scripts/Detect-SkillViolation.ps1` - Pre-commit hook and manual checks
 
 ### 2. GitHub Actions: `.github/scripts/`
@@ -149,7 +149,7 @@ Establish a hierarchical script organization based on **intended audience and ex
 
 **Developer-facing wrappers** (`scripts/`):
 - `New-ValidatedPR.ps1` - Wraps skill, adds CLI conveniences
-- `Validate-SessionProtocol.ps1` - Called by pre-commit and developers
+- `Validate-SessionJson.ps1` - Called by pre-commit and developers
 - `Detect-*.ps1` - Pre-commit hooks and manual validation
 
 **CI-only scripts** (`.github/scripts/`):

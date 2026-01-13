@@ -96,8 +96,8 @@ Claude Code's `/skills` command shows "session" (27 total skills) instead of ind
 - Detects git state (branch, commit, status, date)
 - Calls Extract-SessionTemplate.ps1
 - Replaces all placeholders
-- Writes session log to `.agents/sessions/YYYY-MM-DD-session-NN.md`
-- Runs Validate-SessionProtocol.ps1
+- Writes session log to `.agents/sessions/YYYY-MM-DD-session-NN.json`
+- Runs Validate-SessionJson.ps1
 - Exits nonzero on validation failure (exit codes: 0=success, 1=git error, 2=template failed, 3=write failed, 4=validation failed)
 
 **Updated**: `.claude/skills/session-init/SKILL.md`

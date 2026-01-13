@@ -82,7 +82,7 @@ The session-init skill implementation is 85% complete with strong technical qual
    MUST use `/session-init` skill to create session log. This skill:
    - Reads canonical template from this file
    - Auto-populates git state
-   - Validates immediately with Validate-SessionProtocol.ps1
+   - Validates immediately with Validate-SessionJson.ps1
    ```
 
 3. **Consider New-SessionLog.ps1** (OPTIONAL):

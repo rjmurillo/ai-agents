@@ -84,7 +84,7 @@ PR 830, intended to improve session protocol validation, shipped with 29 failing
 
 ### Direct Impact
 - **SessionValidation.psm1**: All validation functions affected
-- **Validate-SessionProtocol.ps1**: Script depends on module contract
+- **Validate-SessionJson.ps1**: Script depends on module contract
 - **Test Suite**: 29 tests failing, 26 passing
 - **Pre-commit Hook**: May be affected if it calls these functions
 
@@ -150,7 +150,7 @@ If unaddressed:
 |------|--------|-------|--------------|
 | 3.1 | Add `-Detailed` switch to validation functions | Agent | Functions accept -Detailed parameter |
 | 3.2 | Return extended keys only when -Detailed specified | Agent | Default returns 4 keys, -Detailed returns 8+ |
-| 3.3 | Update Validate-SessionProtocol.ps1 to use -Detailed | Agent | Script gets enhanced diagnostics |
+| 3.3 | Update Validate-SessionJson.ps1 to use -Detailed | Agent | Script gets enhanced diagnostics |
 | 3.4 | Add tests for -Detailed mode | Agent | Pester tests verify both contracts |
 
 **Exit Criteria**: Enhanced diagnostics available via opt-in without breaking existing callers.

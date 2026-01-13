@@ -97,4 +97,4 @@
 
 - `.agents/retrospective/2025-12-17-protocol-compliance-failure.md`
 - `.agents/retrospective/2025-12-17-session-failures.md`
-- `.agents/sessions/2025-12-17-session-01-mcp-config-research.md`
+- `.agents/sessions/2025-12-17-session-01-mcp-config-research.json`

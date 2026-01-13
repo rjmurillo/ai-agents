@@ -850,7 +850,7 @@ if (-not (Test-Path .agents/sessions/.current)) {
 
 **Implementation**:
 
-1. Add pre-commit hook that runs `Validate-SessionProtocol.ps1`
+1. Add pre-commit hook that runs `Validate-SessionJson.ps1`
 2. Check session log exists with today's date
 3. Check Protocol Compliance section complete
 4. Fail commit if validation fails
@@ -873,7 +873,7 @@ if [ -z "$SESSION_LOG" ]; then
 fi
 
 # Validate protocol compliance
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath "$SESSION_LOG"
+pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath "$SESSION_LOG"
 ```
 
 **Verification**:

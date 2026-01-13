@@ -87,5 +87,5 @@ All MUST requirements above are marked complete.
 - Update session log with outcomes and decisions.
 - Update Serena memory with relevant context.
 - Run markdownlint.
-- Commit changes and run Validate-SessionProtocol.ps1.
+- Commit changes and run Validate-SessionJson.ps1.
 - Route to QA if required.
