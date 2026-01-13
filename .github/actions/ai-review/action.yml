@@ -396,28 +396,90 @@ runs:
                 echo "EOF_CONTEXT" >> $GITHUB_OUTPUT
                 exit 1
               fi
-              
-              LINE_COUNT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>/dev/null | wc -l || echo "0")
-              echo "PR diff has $LINE_COUNT lines"
 
-              if [ "$LINE_COUNT" -eq 0 ]; then
-                echo "::error::Failed to fetch PR diff for #$PR_NUMBER from $GITHUB_REPOSITORY"
-                exit 1
-              fi
+              # Graceful degradation for large PRs (>300 files triggers HTTP 406)
+              # Strategy: 1) Try gh pr diff, 2) Fall back to API with pagination, 3) Use --name-only summary
+              DIFF_ERROR_FILE=$(mktemp)
+              DIFF_OUTPUT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>"$DIFF_ERROR_FILE" || true)
+              DIFF_ERROR=$(cat "$DIFF_ERROR_FILE")
+              rm -f "$DIFF_ERROR_FILE"
 
-              if [ "$LINE_COUNT" -gt "$MAX_DIFF_LINES" ]; then
+              # Check if diff failed due to size limit (HTTP 406)
+              if echo "$DIFF_ERROR" | grep -qiE "(HTTP 406|too_large|exceeded the maximum number of files)"; then
+                echo "::warning::PR diff unavailable via gh pr diff (>300 files). Falling back to API pagination..."
                 CONTEXT_MODE="summary"
-                CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only 2>/dev/null)
-                if [ -z "$CONTEXT" ]; then
-                  echo "::error::Failed to fetch PR diff summary for #$PR_NUMBER"
+
+                # Fallback 1: Use GitHub API with pagination to get file list
+                FILE_LIST=""
+                PAGE=1
+                PER_PAGE=100
+                MAX_PAGES=5  # Cap at 500 files to prevent excessive API calls
+
+                while [ $PAGE -le $MAX_PAGES ]; do
+                  PAGE_FILES=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=$PER_PAGE&page=$PAGE" --jq '.[].filename' 2>/dev/null || true)
+
+                  if [ -z "$PAGE_FILES" ]; then
+                    break
+                  fi
+
+                  FILE_LIST="${FILE_LIST}${PAGE_FILES}"$'\n'
+
+                  # Check if we got less than per_page (last page)
+                  FILE_COUNT=$(echo "$PAGE_FILES" | wc -l)
+                  if [ "$FILE_COUNT" -lt "$PER_PAGE" ]; then
+                    break
+                  fi
+
+                  PAGE=$((PAGE + 1))
+                done
+
+                if [ -n "$FILE_LIST" ]; then
+                  TOTAL_FILES=$(echo "$FILE_LIST" | grep -v '^$' | wc -l)
+                  echo "Retrieved $TOTAL_FILES changed files via API pagination"
+
+                  # Warn if file list was truncated at max pages
+                  if [ $PAGE -gt $MAX_PAGES ]; then
+                    echo "::warning::File list truncated at $((MAX_PAGES * PER_PAGE)) files. PR may have additional changes not shown in review context."
+                  fi
+
+                  CONTEXT="[Large PR - >300 files (GitHub diff limit exceeded), showing file list only]"$'\n\n'"Changed files:"$'\n'"$FILE_LIST"
+                else
+                  # Fallback 2: Try --name-only as last resort
+                  echo "::warning::API pagination failed. Attempting --name-only fallback..."
+                  NAME_ONLY=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only 2>/dev/null || true)
+
+                  if [ -n "$NAME_ONLY" ]; then
+                    echo "Retrieved file list using --name-only"
+                    CONTEXT="[Large PR - showing file list only]"$'\n'"$NAME_ONLY"
+                  else
+                    echo "::error::All fallback methods failed for PR #$PR_NUMBER"
+                    echo "::error::PR may have structural issues or GitHub API may be unavailable"
+                    exit 1
+                  fi
+                fi
+              else
+                # Standard path: diff succeeded, check size
+                LINE_COUNT=$(echo "$DIFF_OUTPUT" | wc -l)
+                echo "PR diff has $LINE_COUNT lines"
+
+                if [ "$LINE_COUNT" -eq 0 ]; then
+                  echo "::error::Failed to fetch PR diff for #$PR_NUMBER from $GITHUB_REPOSITORY"
+                  if [ -n "$DIFF_ERROR" ]; then
+                    echo "::error::Error details: $DIFF_ERROR"
+                  fi
                   exit 1
                 fi
-                CONTEXT="[Large PR - $LINE_COUNT lines, showing summary only]"$'\n'"$CONTEXT"
-              else
-                CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>/dev/null)
-                if [ -z "$CONTEXT" ]; then
-                  echo "::error::Failed to fetch PR diff for #$PR_NUMBER"
-                  exit 1
+
+                if [ "$LINE_COUNT" -gt "$MAX_DIFF_LINES" ]; then
+                  CONTEXT_MODE="summary"
+                  CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only 2>/dev/null)
+                  if [ -z "$CONTEXT" ]; then
+                    echo "::error::Failed to fetch PR diff summary for #$PR_NUMBER"
+                    exit 1
+                  fi
+                  CONTEXT="[Large PR - $LINE_COUNT lines, showing summary only]"$'\n'"$CONTEXT"
+                else
+                  CONTEXT="$DIFF_OUTPUT"
                 fi
               fi
 
