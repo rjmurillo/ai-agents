@@ -63,13 +63,17 @@ function Get-LineEndingStats {
 
     $eolOutput = git ls-files --eol
 
-    # Count files by line ending type in index
-    $crlfInIndex = ($eolOutput | Select-String 'i/crlf').Count
-    $lfInIndex = ($eolOutput | Select-String 'i/lf').Count
+    # Count files by line ending type in index (handle null from Select-String)
+    $crlfInIndexMatches = $eolOutput | Select-String 'i/crlf'
+    $lfInIndexMatches = $eolOutput | Select-String 'i/lf'
+    $crlfInIndex = if ($null -eq $crlfInIndexMatches) { 0 } else { @($crlfInIndexMatches).Count }
+    $lfInIndex = if ($null -eq $lfInIndexMatches) { 0 } else { @($lfInIndexMatches).Count }
 
-    # Count files by line ending type in working directory
-    $crlfInWorking = ($eolOutput | Select-String 'w/crlf').Count
-    $lfInWorking = ($eolOutput | Select-String 'w/lf').Count
+    # Count files by line ending type in working directory (handle null)
+    $crlfInWorkingMatches = $eolOutput | Select-String 'w/crlf'
+    $lfInWorkingMatches = $eolOutput | Select-String 'w/lf'
+    $crlfInWorking = if ($null -eq $crlfInWorkingMatches) { 0 } else { @($crlfInWorkingMatches).Count }
+    $lfInWorking = if ($null -eq $lfInWorkingMatches) { 0 } else { @($lfInWorkingMatches).Count }
 
     Write-Host "  Index (staged):      $lfInIndex LF, $crlfInIndex CRLF" -ForegroundColor White
     Write-Host "  Working directory:   $lfInWorking LF, $crlfInWorking CRLF" -ForegroundColor White

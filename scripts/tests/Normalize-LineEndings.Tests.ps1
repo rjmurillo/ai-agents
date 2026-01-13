@@ -42,10 +42,16 @@ BeforeAll {
 
         $eolOutput = git ls-files --eol
 
-        $crlfInIndex = ($eolOutput | Select-String 'i/crlf').Count
-        $lfInIndex = ($eolOutput | Select-String 'i/lf').Count
-        $crlfInWorking = ($eolOutput | Select-String 'w/crlf').Count
-        $lfInWorking = ($eolOutput | Select-String 'w/lf').Count
+        # Handle null from Select-String (matches new implementation)
+        $crlfInIndexMatches = $eolOutput | Select-String 'i/crlf'
+        $lfInIndexMatches = $eolOutput | Select-String 'i/lf'
+        $crlfInIndex = if ($null -eq $crlfInIndexMatches) { 0 } else { @($crlfInIndexMatches).Count }
+        $lfInIndex = if ($null -eq $lfInIndexMatches) { 0 } else { @($lfInIndexMatches).Count }
+
+        $crlfInWorkingMatches = $eolOutput | Select-String 'w/crlf'
+        $lfInWorkingMatches = $eolOutput | Select-String 'w/lf'
+        $crlfInWorking = if ($null -eq $crlfInWorkingMatches) { 0 } else { @($crlfInWorkingMatches).Count }
+        $lfInWorking = if ($null -eq $lfInWorkingMatches) { 0 } else { @($lfInWorkingMatches).Count }
 
         Write-Host "  Index (staged):      $lfInIndex LF, $crlfInIndex CRLF" -ForegroundColor White
         Write-Host "  Working directory:   $lfInWorking LF, $crlfInWorking CRLF" -ForegroundColor White
