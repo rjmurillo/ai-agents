@@ -8,7 +8,7 @@
     - Only converts if the referenced file exists in .serena/memories/
 
 .EXAMPLE
-    .\scripts\Convert-MemoryReferences.ps1
+    .\.claude\skills\memory\scripts\Convert-MemoryReferences.ps1
 #>
 
 [CmdletBinding()]
@@ -31,7 +31,8 @@ try {
         throw "Not in a git repository"
     }
 } catch {
-    Write-Warning "git rev-parse failed, falling back to directory traversal"
+    $gitError = $_.Exception.Message
+    Write-Warning "git rev-parse failed ($gitError), falling back to directory traversal"
     $projectRoot = $PSScriptRoot
     while ($projectRoot -and -not (Test-Path (Join-Path $projectRoot '.git'))) {
         $projectRoot = Split-Path $projectRoot -Parent
@@ -101,49 +102,57 @@ if (-not $OutputJson) {
 
 foreach ($file in $memoryFilesToProcess) {
     $filesProcessed++
-    $content = Get-Content $file.FullName -Raw -Encoding UTF8
 
-    # Skip empty files
-    if ([string]::IsNullOrEmpty($content)) {
-        continue
-    }
+    try {
+        $content = Get-Content $file.FullName -Raw -Encoding UTF8
 
-    $originalContent = $content
-
-    # Pattern 1: Convert backtick references like `memory-name` to [memory-name](memory-name.md)
-    # But exclude:
-    # - File paths (containing / or \)
-    # - Code snippets (things that look like code)
-    # - Already linked items
-    # - Things with spaces (likely not memory names)
-    # Match backticks with memory names (allow single-token or hyphenated names)
-    $pattern = '(?<![\[\(])`([a-z0-9]+(?:-[a-z0-9]+)*)`(?![\]\)])'
-
-    $content = [regex]::Replace($content, $pattern, {
-        param($match)
-        $memoryName = $match.Groups[1].Value
-
-        # Only convert if this is an actual memory file
-        if ($memoryNames.ContainsKey($memoryName)) {
-            return "[$memoryName]($memoryName.md)"
-        } else {
-            # Keep original backticks if not a known memory
-            return $match.Value
+        # Skip empty files
+        if ([string]::IsNullOrEmpty($content)) {
+            continue
         }
-    })
 
-    # Check if content changed
-    if ($content -ne $originalContent) {
-        Set-Content -Path $file.FullName -Value $content -NoNewline -Encoding UTF8
+        $originalContent = $content
+
+        # Pattern 1: Convert backtick references like `memory-name` to [memory-name](memory-name.md)
+        # But exclude:
+        # - File paths (containing / or \)
+        # - Code snippets (things that look like code)
+        # - Already linked items
+        # - Things with spaces (likely not memory names)
+        # Match backticks with memory names (allow single-token or hyphenated names)
+        $pattern = '(?<![\[\(])`([a-z0-9]+(?:-[a-z0-9]+)*)`(?![\]\)])'
+
+        $content = [regex]::Replace($content, $pattern, {
+            param($match)
+            $memoryName = $match.Groups[1].Value
+
+            # Only convert if this is an actual memory file
+            if ($memoryNames.ContainsKey($memoryName)) {
+                return "[$memoryName]($memoryName.md)"
+            } else {
+                # Keep original backticks if not a known memory
+                return $match.Value
+            }
+        })
+
+        # Check if content changed
+        if ($content -ne $originalContent) {
+            Set-Content -Path $file.FullName -Value $content -NoNewline -Encoding UTF8
+            if (-not $OutputJson) {
+                Write-Host "Updated: $($file.Name)"
+            }
+            $filesModified++
+
+            # Count links added (approximate by counting markdown link patterns added)
+            $originalLinkCount = ([regex]::Matches($originalContent, '\[[^\]]+\]\([^\)]+\.md\)')).Count
+            $newLinkCount = ([regex]::Matches($content, '\[[^\]]+\]\([^\)]+\.md\)')).Count
+            $linksAdded += ($newLinkCount - $originalLinkCount)
+        }
+    } catch {
+        $errors += "Error processing $($file.Name): $($_.Exception.Message)"
         if (-not $OutputJson) {
-            Write-Host "Updated: $($file.Name)"
+            Write-Warning "Error processing $($file.Name): $($_.Exception.Message)"
         }
-        $filesModified++
-
-        # Count links added (approximate by counting markdown link patterns added)
-        $originalLinkCount = ([regex]::Matches($originalContent, '\[[^\]]+\]\([^\)]+\.md\)')).Count
-        $newLinkCount = ([regex]::Matches($content, '\[[^\]]+\]\([^\)]+\.md\)')).Count
-        $linksAdded += ($newLinkCount - $originalLinkCount)
     }
 }
 

@@ -11,6 +11,11 @@
 
     Designed for use in git hooks with non-blocking error handling.
 
+    IMPORTANT: This script always exits with code 0 (success) regardless of errors.
+    This is intentional for fail-open git hook behavior. Callers MUST parse the
+    JSON output (via -OutputJson) to determine actual success/failure status.
+    The JSON output includes a 'Success' property (true/false) and 'Errors' array.
+
 .PARAMETER FilesToProcess
     Specific memory files to process. If not provided, processes all files.
 
@@ -161,8 +166,8 @@ if ($OutputJson) {
 
     if ($aggregateStats.Errors.Count -gt 0) {
         Write-Host "`nWarnings/Errors:" -ForegroundColor Yellow
-        foreach ($error in $aggregateStats.Errors) {
-            Write-Host "  - $error" -ForegroundColor Yellow
+        foreach ($errorMsg in $aggregateStats.Errors) {
+            Write-Host "  - $errorMsg" -ForegroundColor Yellow
         }
     }
 }

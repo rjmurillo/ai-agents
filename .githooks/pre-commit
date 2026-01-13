@@ -1224,10 +1224,13 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
                             # Check if file changed
                             if ! git diff --quiet -- "$CAUSAL_GRAPH_FILE" 2>/dev/null; then
                                 git add -- "$CAUSAL_GRAPH_FILE"
-                                # Extract stats from output
-                                NODES_ADDED=$(echo "$UPDATE_OUTPUT" | grep -oP 'Nodes added:\s+\K\d+' || echo "0")
-                                EDGES_ADDED=$(echo "$UPDATE_OUTPUT" | grep -oP 'Edges added:\s+\K\d+' || echo "0")
-                                PATTERNS_ADDED=$(echo "$UPDATE_OUTPUT" | grep -oP 'Patterns added:\s+\K\d+' || echo "0")
+                                # Extract stats from output (POSIX-compatible, no -P flag for macOS)
+                                NODES_ADDED=$(echo "$UPDATE_OUTPUT" | sed -n 's/.*Nodes added:[[:space:]]*\([0-9]*\).*/\1/p' | head -1)
+                                NODES_ADDED=${NODES_ADDED:-0}
+                                EDGES_ADDED=$(echo "$UPDATE_OUTPUT" | sed -n 's/.*Edges added:[[:space:]]*\([0-9]*\).*/\1/p' | head -1)
+                                EDGES_ADDED=${EDGES_ADDED:-0}
+                                PATTERNS_ADDED=$(echo "$UPDATE_OUTPUT" | sed -n 's/.*Patterns added:[[:space:]]*\([0-9]*\).*/\1/p' | head -1)
+                                PATTERNS_ADDED=${PATTERNS_ADDED:-0}
                                 echo_success "Causal graph updated: +$NODES_ADDED nodes, +$EDGES_ADDED edges, +$PATTERNS_ADDED patterns"
                                 FILES_FIXED=1
                             else
@@ -1434,6 +1437,13 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
                 fi
             else
                 echo_warning "Memory cross-reference encountered issues (non-blocking)"
+                # Extract and show errors if jq is available
+                if command -v jq &> /dev/null; then
+                    errors=$(echo "$crossref_result" | jq -r '.Errors[]? // empty' 2>/dev/null)
+                    if [ -n "$errors" ]; then
+                        echo_info "Errors: $errors"
+                    fi
+                fi
             fi
         else
             echo_warning "PowerShell not available. Skipping memory cross-reference."

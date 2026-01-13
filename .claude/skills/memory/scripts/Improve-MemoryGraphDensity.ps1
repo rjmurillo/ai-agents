@@ -9,7 +9,7 @@
     - Cross-references in content
 
 .EXAMPLE
-    .\scripts\Improve-MemoryGraphDensity.ps1
+    .\.claude\skills\memory\scripts\Improve-MemoryGraphDensity.ps1
 #>
 
 [CmdletBinding()]
@@ -34,7 +34,8 @@ try {
         throw "Not in a git repository"
     }
 } catch {
-    Write-Warning "git rev-parse failed, falling back to directory traversal"
+    $gitError = $_.Exception.Message
+    Write-Warning "git rev-parse failed ($gitError), falling back to directory traversal"
     $projectRoot = $PSScriptRoot
     while ($projectRoot -and -not (Test-Path (Join-Path $projectRoot '.git'))) {
         $projectRoot = Split-Path $projectRoot -Parent
@@ -158,70 +159,78 @@ $relationshipsAdded = 0
 
 foreach ($file in $memoryFilesToProcess) {
     $filesProcessed++
-    $content = Get-Content $file.FullName -Raw -Encoding UTF8
 
-    # Skip empty files
-    if ([string]::IsNullOrEmpty($content)) {
-        continue
-    }
+    try {
+        $content = Get-Content $file.FullName -Raw -Encoding UTF8
 
-    # Check if file already has a Related section
-    $hasRelated = $content -match '(?m)^## Related'
-
-    # Find related files based on naming pattern
-    $baseName = $file.BaseName
-    $relatedFiles = @()
-
-    # Find files in same domain (search ALL memory files, not just filtered ones)
-    foreach ($pattern in $domainPatterns.Keys) {
-        if ($baseName -like "$pattern*") {
-            # Find other files with same pattern
-            $domainFiles = $allMemoryFiles | Where-Object {
-                $_.BaseName -like "$pattern*" -and
-                $_.BaseName -ne $baseName
-            } | Select-Object -First 5
-
-            foreach ($domainFile in $domainFiles) {
-                $relatedFiles += $domainFile.BaseName
-            }
-            break
-        }
-    }
-
-    # Find index files for this domain
-    $domainName = ($baseName -split '-')[0]
-    $indexFile = "${domainName}s-index"
-    if ($memoryNames.ContainsKey($indexFile) -and $baseName -ne $indexFile) {
-        $relatedFiles += $indexFile
-    }
-
-    # If no Related section exists and we found related files, add one
-    if (-not $hasRelated -and $relatedFiles.Count -gt 0) {
-        # Remove duplicates and limit to top 5
-        $relatedFiles = $relatedFiles | Select-Object -Unique | Select-Object -First 5
-
-        # Build Related section
-        $relatedSection = "`n## Related`n`n"
-        foreach ($relatedFile in $relatedFiles) {
-            $relatedSection += "- [$relatedFile]($relatedFile.md)`n"
+        # Skip empty files
+        if ([string]::IsNullOrEmpty($content)) {
+            continue
         }
 
-        # Add to end of file
-        $newContent = $content.TrimEnd() + "`n" + $relatedSection
+        # Check if file already has a Related section
+        $hasRelated = $content -match '(?m)^## Related'
 
-        if (-not $DryRun) {
-            Set-Content -Path $file.FullName -Value $newContent -NoNewline -Encoding UTF8
-            if (-not $OutputJson) {
-                Write-Host "Added Related section to: $($file.Name)"
-            }
-        } else {
-            if (-not $OutputJson) {
-                Write-Host "[DRY RUN] Would add Related section to: $($file.Name)"
+        # Find related files based on naming pattern
+        $baseName = $file.BaseName
+        $relatedFiles = @()
+
+        # Find files in same domain (search ALL memory files, not just filtered ones)
+        foreach ($pattern in $domainPatterns.Keys) {
+            if ($baseName -like "$pattern*") {
+                # Find other files with same pattern
+                $domainFiles = $allMemoryFiles | Where-Object {
+                    $_.BaseName -like "$pattern*" -and
+                    $_.BaseName -ne $baseName
+                } | Select-Object -First 5
+
+                foreach ($domainFile in $domainFiles) {
+                    $relatedFiles += $domainFile.BaseName
+                }
+                break
             }
         }
 
-        $filesUpdated++
-        $relationshipsAdded += $relatedFiles.Count
+        # Find index files for this domain
+        $domainName = ($baseName -split '-')[0]
+        $indexFile = "${domainName}s-index"
+        if ($memoryNames.ContainsKey($indexFile) -and $baseName -ne $indexFile) {
+            $relatedFiles += $indexFile
+        }
+
+        # If no Related section exists and we found related files, add one
+        if (-not $hasRelated -and $relatedFiles.Count -gt 0) {
+            # Remove duplicates and limit to top 5
+            $relatedFiles = $relatedFiles | Select-Object -Unique | Select-Object -First 5
+
+            # Build Related section
+            $relatedSection = "`n## Related`n`n"
+            foreach ($relatedFile in $relatedFiles) {
+                $relatedSection += "- [$relatedFile]($relatedFile.md)`n"
+            }
+
+            # Add to end of file
+            $newContent = $content.TrimEnd() + "`n" + $relatedSection
+
+            if (-not $DryRun) {
+                Set-Content -Path $file.FullName -Value $newContent -NoNewline -Encoding UTF8
+                if (-not $OutputJson) {
+                    Write-Host "Added Related section to: $($file.Name)"
+                }
+            } else {
+                if (-not $OutputJson) {
+                    Write-Host "[DRY RUN] Would add Related section to: $($file.Name)"
+                }
+            }
+
+            $filesUpdated++
+            $relationshipsAdded += $relatedFiles.Count
+        }
+    } catch {
+        $errors += "Error processing $($file.Name): $($_.Exception.Message)"
+        if (-not $OutputJson) {
+            Write-Warning "Error processing $($file.Name): $($_.Exception.Message)"
+        }
     }
 }
 
@@ -237,7 +246,6 @@ if ($OutputJson) {
     Write-Host "`n=== Summary ==="
     Write-Host "Files updated: $filesUpdated"
     Write-Host "Relationships added: $relationshipsAdded"
-    Write-Host "Current coverage: $((219 + $filesUpdated) / 600 * 100)%"
 
     if ($DryRun) {
         Write-Host "`nThis was a dry run. Use without -DryRun to apply changes."
