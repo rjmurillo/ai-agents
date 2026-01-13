@@ -20,3 +20,11 @@
 ## Validation Rule
 
 If recommendation affects agents [A, B], priority must be identical for A and B rows.
+
+## Related
+
+- [planning-003-parallel-exploration-pattern](planning-003-parallel-exploration-pattern.md)
+- [planning-004-approval-checkpoint](planning-004-approval-checkpoint.md)
+- [planning-checkbox-manifest](planning-checkbox-manifest.md)
+- [planning-multi-platform](planning-multi-platform.md)
+- [planning-task-descriptions](planning-task-descriptions.md)

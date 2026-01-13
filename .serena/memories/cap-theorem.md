@@ -37,5 +37,5 @@ Else: choose Latency or Consistency
 
 ## Related
 
-- `resilience-patterns` - Handling failures
-- `idempotency-pattern` - Safe retries
+- [resilience-patterns](resilience-patterns.md) - Handling failures
+- [idempotency-pattern](idempotency-pattern.md) - Safe retries

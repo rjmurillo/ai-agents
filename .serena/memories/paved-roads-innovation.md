@@ -39,5 +39,5 @@ Provide well-supported default technology choices ("paved roads") while allowing
 
 ## Related
 
-- `sociotechnical-systems` - Team/tech relationship
-- `conways-law` - Org structure affects architecture
+- [sociotechnical-systems](sociotechnical-systems.md) - Team/tech relationship
+- [conways-law](conways-law.md) - Org structure affects architecture

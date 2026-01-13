@@ -26,3 +26,10 @@
 
 - Leaving code blocks without language identifier (MD040 violation)
 - Using wrong language identifier causing syntax highlighting errors
+
+## Related
+
+- [linting-autofix](linting-autofix.md)
+- [linting-config](linting-config.md)
+- [linting-exclusions](linting-exclusions.md)
+- [linting-generic-types](linting-generic-types.md)

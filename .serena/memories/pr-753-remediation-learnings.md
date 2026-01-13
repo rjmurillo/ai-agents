@@ -107,3 +107,11 @@ For complete data export without search limitations, use Export-ClaudeMemDirect.
 - Session: .agents/sessions/2026-01-03-session-304-pr753-remediation.md
 - QA Findings: .agents/qa/pr753-comprehensive-review-findings.md
 - PR: #753
+
+## Related
+
+- [pr-156-review-findings](pr-156-review-findings.md)
+- [pr-320c2b3-refactoring-analysis](pr-320c2b3-refactoring-analysis.md)
+- [pr-52-retrospective-learnings](pr-52-retrospective-learnings.md)
+- [pr-52-symlink-retrospective](pr-52-symlink-retrospective.md)
+- [pr-811-review-session-2026-01-06](pr-811-review-session-2026-01-06.md)

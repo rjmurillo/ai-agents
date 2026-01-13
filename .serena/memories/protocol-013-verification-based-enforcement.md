@@ -83,13 +83,21 @@ Before [next step], perform [action]:
 
 ## Related Skills
 
-- `protocol-014-trust-antipattern`: Why trust-based fails
-- `git-004-branch-verification-before-commit`: Application example
-- `protocol-blocking-gates`: Gate design pattern
-- `session-init-003-branch-declaration`: Session log tracking
+- [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md): Why trust-based fails
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md): Application example
+- [protocol-blocking-gates](protocol-blocking-gates.md): Gate design pattern
+- [session-init-003-branch-declaration](session-init-003-branch-declaration.md): Session log tracking
 
 ## References
 
 - PR #669: PR co-mingling retrospective
 - Issue #684: SESSION-PROTOCOL branch verification (verification-based)
 - Issue #686: Trust antipattern documentation
+
+## Related
+
+- [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md)
+- [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md)
+- [protocol-blocking-gates](protocol-blocking-gates.md)
+- [protocol-continuation-session-gap](protocol-continuation-session-gap.md)
+- [protocol-legacy-sessions](protocol-legacy-sessions.md)

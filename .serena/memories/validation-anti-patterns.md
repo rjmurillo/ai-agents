@@ -67,3 +67,11 @@
 1. Shift from trust-based to verification-based enforcement
 2. Add BLOCKING gates requiring tool output (not agent acknowledgment)
 3. Example: ❌ "I will check for skills" (trust) → ✅ `Check-SkillExists.ps1` output (verification)
+
+## Related
+
+- [validation-006-self-report-verification](validation-006-self-report-verification.md)
+- [validation-007-cross-reference-verification](validation-007-cross-reference-verification.md)
+- [validation-007-frontmatter-validation-compliance](validation-007-frontmatter-validation-compliance.md)
+- [validation-474-adr-numbering-qa-final](validation-474-adr-numbering-qa-final.md)
+- [validation-baseline-triage](validation-baseline-triage.md)

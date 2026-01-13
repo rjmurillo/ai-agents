@@ -53,3 +53,11 @@ Token savings: ~2,400 tokens per skill load.
 
 - Skill-Creator-004 (reference extraction)
 - Skill-Memory-TokenEfficiency-001 (activation vocabulary)
+
+## Related
+
+- [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md)
+- [creator-003-test-separation-skill-directory](creator-003-test-separation-skill-directory.md)
+- [creator-004-reference-material-extraction](creator-004-reference-material-extraction.md)
+- [creator-005-schema-redundancy-elimination](creator-005-schema-redundancy-elimination.md)
+- [creator-006-toc-requirement-long-files](creator-006-toc-requirement-long-files.md)

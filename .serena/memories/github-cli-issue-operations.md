@@ -79,3 +79,11 @@ gh issue edit 90 --add-assignee copilot-swe-agent
 When Copilot is assigned, it reads ALL comments where @copilot is mentioned.
 
 **Evidence**: Issues #88, #90
+
+## Related
+
+- [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
+- [github-cli-anti-patterns](github-cli-anti-patterns.md)
+- [github-cli-api-patterns](github-cli-api-patterns.md)
+- [github-cli-extensions](github-cli-extensions.md)
+- [github-cli-labels-cache](github-cli-labels-cache.md)

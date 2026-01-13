@@ -35,3 +35,11 @@ Never continue autonomous execution beyond 3 failed attempts on same issue. This
 - Need for expert input or clarification
 
 Continuing past this point damages user trust and wastes compute/time.
+
+## Related
+
+- [autonomous-circuit-breaker-pattern](autonomous-circuit-breaker-pattern.md)
+- [autonomous-execution-failures-pr760](autonomous-execution-failures-pr760.md)
+- [autonomous-execution-guardrails-lessons](autonomous-execution-guardrails-lessons.md)
+- [autonomous-execution-guardrails](autonomous-execution-guardrails.md)
+- [autonomous-patch-signal](autonomous-patch-signal.md)

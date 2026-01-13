@@ -30,3 +30,11 @@ if ((Get-Item $Path).LinkType) { throw "symlink detected" }
 - [ ] Is there a gap between check and action?
 
 **Source**: `.agents/retrospective/pr-52-symlink-retrospective.md`
+
+## Related
+
+- [security-002-input-validation-first](security-002-input-validation-first.md)
+- [security-003-secure-error-handling](security-003-secure-error-handling.md)
+- [security-004-security-event-logging](security-004-security-event-logging.md)
+- [security-007-defense-in-depth-for-cross-process-security-checks](security-007-defense-in-depth-for-cross-process-security-checks.md)
+- [security-009-domain-adjusted-signal-quality](security-009-domain-adjusted-signal-quality.md)

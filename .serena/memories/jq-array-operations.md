@@ -31,3 +31,11 @@ gh issue list --json labels \
 # Length/count
 gh pr list --json number --jq 'length'
 ```
+
+## Related
+
+- [jq-aggregation](jq-aggregation.md)
+- [jq-conditionals](jq-conditionals.md)
+- [jq-field-extraction](jq-field-extraction.md)
+- [jq-filtering](jq-filtering.md)
+- [jq-github-cli-integration](jq-github-cli-integration.md)

@@ -30,3 +30,11 @@ When users add tasks during execution:
 
 Do NOT treat user additions as "scope creep" or interruptions.
 DO treat them as valuable learning signals indicating system knowledge gaps.
+
+## Related
+
+- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
+- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
+- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
+- [agent-workflow-critic-gate](agent-workflow-critic-gate.md)
+- [agent-workflow-mvp-shipping](agent-workflow-mvp-shipping.md)

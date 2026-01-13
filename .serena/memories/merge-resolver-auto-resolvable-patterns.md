@@ -108,4 +108,8 @@ pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[session-
 
 - Skill: `.claude/skills/merge-resolver/SKILL.md` Step 7
 - Analysis: `.agents/analysis/001-merge-resolver-session-protocol-gap.md`
-- Memory: `merge-resolver-session-protocol-gap`
+- Memory: [merge-resolver-session-protocol-gap](merge-resolver-session-protocol-gap.md)
+
+## Related
+
+- [merge-resolver-session-protocol-gap](merge-resolver-session-protocol-gap.md)

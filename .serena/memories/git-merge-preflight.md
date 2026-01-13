@@ -40,3 +40,11 @@ done
 | File deleted on main, unmodified locally | Low | Accept deletion |
 | File deleted on main, modified locally | High | Manual decision required |
 | File renamed on main | Medium | Verify rename target exists |
+
+## Related
+
+- [git-003-staged-changes-guard](git-003-staged-changes-guard.md)
+- [git-004-branch-switch-file-verification](git-004-branch-switch-file-verification.md)
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md)
+- [git-branch-cleanup-pattern](git-branch-cleanup-pattern.md)
+- [git-conflict-deleted-file](git-conflict-deleted-file.md)

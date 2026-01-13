@@ -72,3 +72,11 @@ gh milestone delete 1 --confirm
 ```
 
 **Warning**: Deletion is permanent and removes the milestone from all associated issues.
+
+## Related
+
+- [gh-extensions-anti-patterns](gh-extensions-anti-patterns.md)
+- [gh-extensions-combine-prs](gh-extensions-combine-prs.md)
+- [gh-extensions-grep](gh-extensions-grep.md)
+- [gh-extensions-hook](gh-extensions-hook.md)
+- [gh-extensions-maintenance](gh-extensions-maintenance.md)

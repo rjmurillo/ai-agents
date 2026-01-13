@@ -55,3 +55,11 @@ PR #255 (2025-12-22): GitHub skill frontmatter rewritten with trigger context. C
 
 - Skill-Memory-TokenEfficiency-001 (activation vocabulary)
 - Skill-Creator-002 (token optimization)
+
+## Related
+
+- [creator-002-token-efficiency-comment-stripping](creator-002-token-efficiency-comment-stripping.md)
+- [creator-003-test-separation-skill-directory](creator-003-test-separation-skill-directory.md)
+- [creator-004-reference-material-extraction](creator-004-reference-material-extraction.md)
+- [creator-005-schema-redundancy-elimination](creator-005-schema-redundancy-elimination.md)
+- [creator-006-toc-requirement-long-files](creator-006-toc-requirement-long-files.md)

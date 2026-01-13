@@ -61,3 +61,11 @@ In regex, `[abc]?` means "optionally match ONE character from this class", while
 ## Related Skills
 
 - Skill-PowerShell-Security-001: Hardened Regex for AI Output (uses atomic grouping)
+
+## Related
+
+- [utilities-cva-refactoring](utilities-cva-refactoring.md)
+- [utilities-markdown-fences](utilities-markdown-fences.md)
+- [utilities-pathinfo-conversion](utilities-pathinfo-conversion.md)
+- [utilities-precommit-hook](utilities-precommit-hook.md)
+- [utilities-security-patterns](utilities-security-patterns.md)

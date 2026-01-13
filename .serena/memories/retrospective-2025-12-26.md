@@ -41,3 +41,11 @@
 - **powershell-array-handling.md**: Detailed array handling best practices
 - **testing-mock-fidelity.md**: Mock fidelity and integration test requirements
 - **pester-testing-patterns.md**: General testing patterns
+
+## Related
+
+- [retrospective-001-pr-learning-extraction](retrospective-001-pr-learning-extraction.md)
+- [retrospective-001-recursive-extraction](retrospective-001-recursive-extraction.md)
+- [retrospective-002-retrospective-to-skill-pipeline](retrospective-002-retrospective-to-skill-pipeline.md)
+- [retrospective-003-token-impact-documentation](retrospective-003-token-impact-documentation.md)
+- [retrospective-004-evidence-based-validation](retrospective-004-evidence-based-validation.md)

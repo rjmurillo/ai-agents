@@ -71,3 +71,9 @@ Validated `Measure-MemoryPerformance.ps1` (M-008) benchmark script with 23 Peste
 - code-style-conventions: PowerShell standards
 - pester-testing-test-first: Test-first development
 - testing-004-coverage-pragmatism: Coverage targets
+
+## Related
+
+- [qa-007-worktree-isolation-verification](qa-007-worktree-isolation-verification.md)
+- [qa-session-protocol-validation-patterns](qa-session-protocol-validation-patterns.md)
+- [qa-workflow-refactoring-patterns](qa-workflow-refactoring-patterns.md)

@@ -32,3 +32,11 @@ $patterns = @(
 ## See Also
 
 - For true recursive matching, consider using `Get-ChildItem -Recurse` with `-Filter` or regex patterns
+
+## Related
+
+- [powershell-array-contains](powershell-array-contains.md)
+- [powershell-array-handling](powershell-array-handling.md)
+- [powershell-cross-platform-ci](powershell-cross-platform-ci.md)
+- [powershell-security-ai-output](powershell-security-ai-output.md)
+- [powershell-string-safety](powershell-string-safety.md)

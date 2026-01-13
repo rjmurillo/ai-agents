@@ -34,3 +34,11 @@ Add concrete trigger scenarios with examples
 - General PR work
 - Code review tasks
 ```
+
+## Related
+
+- [design-008-semantic-precision](design-008-semantic-precision.md)
+- [design-approaches-detailed](design-approaches-detailed.md)
+- [design-by-contract](design-by-contract.md)
+- [design-composability](design-composability.md)
+- [design-diagrams](design-diagrams.md)

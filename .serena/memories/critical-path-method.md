@@ -47,5 +47,5 @@ Calculate Late Start (LS) and Late Finish (LF):
 
 ## Related
 
-- `planning-task-descriptions`: Task breakdown
-- `foundational-knowledge-index`: Master index
+- [planning-task-descriptions](planning-task-descriptions.md): Task breakdown
+- [foundational-knowledge-index](foundational-knowledge-index.md): Master index

@@ -39,3 +39,11 @@ runs:
 
 - Trigger: 2+ workflows with similar logic
 - Measurable: LOC saved = action LOC × uses - action LOC
+
+## Related
+
+- [architecture-003-dry-exception-deployment](architecture-003-dry-exception-deployment.md)
+- [architecture-015-deployment-path-validation](architecture-015-deployment-path-validation.md)
+- [architecture-016-adr-number-check](architecture-016-adr-number-check.md)
+- [architecture-adr-compliance-documentation](architecture-adr-compliance-documentation.md)
+- [architecture-model-selection](architecture-model-selection.md)

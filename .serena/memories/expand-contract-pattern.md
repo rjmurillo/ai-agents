@@ -46,6 +46,6 @@ Big-bang migrations that require coordinated deployment of all consumers.
 
 ## Related
 
-- `strangler-fig-pattern`: Incrementally replace legacy systems
-- `feature-toggles`: Decouple deploy from release
+- [strangler-fig-pattern](strangler-fig-pattern.md): Incrementally replace legacy systems
+- [feature-toggles](feature-toggles.md): Decouple deploy from release
 - `backward-compatibility`: Support older clients

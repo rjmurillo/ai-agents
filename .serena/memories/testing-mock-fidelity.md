@@ -204,3 +204,11 @@ When writing tests for functions that call external APIs:
 - **powershell-array-handling.md**: Root cause of PR #402 type mismatch
 - **Skill-Testing-001**: Basic testing principles
 - **pester-test-isolation.md**: Test independence
+
+## Related
+
+- [testing-002-test-first-development](testing-002-test-first-development.md)
+- [testing-003-script-execution-isolation](testing-003-script-execution-isolation.md)
+- [testing-004-coverage-pragmatism](testing-004-coverage-pragmatism.md)
+- [testing-007-contract-testing](testing-007-contract-testing.md)
+- [testing-008-entry-point-isolation](testing-008-entry-point-isolation.md)

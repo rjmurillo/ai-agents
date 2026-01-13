@@ -57,3 +57,11 @@ Commit 910f907 - PR maintenance workflow fix:
 - skill-git-001-pre-commit-branch-validation: Branch name security
 - skill-git-002-branch-recovery-procedure: Recovery from bad state
 - skill-ci-001-fail-fast-infrastructure-failures: CI failure handling
+
+## Related
+
+- [git-004-branch-switch-file-verification](git-004-branch-switch-file-verification.md)
+- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md)
+- [git-branch-cleanup-pattern](git-branch-cleanup-pattern.md)
+- [git-conflict-deleted-file](git-conflict-deleted-file.md)
+- [git-conflict-resolution-workflow](git-conflict-resolution-workflow.md)

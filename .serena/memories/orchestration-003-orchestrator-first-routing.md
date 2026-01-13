@@ -130,3 +130,11 @@ Task(subagent_type="implementer", prompt="Fix complex system issue")
 Task(subagent_type="orchestrator", prompt="Fix complex system issue")
 # Orchestrator decides: analyst → architect → implementer
 ```
+
+## Related
+
+- [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md)
+- [orchestration-handoff-coordination](orchestration-handoff-coordination.md)
+- [orchestration-parallel-execution](orchestration-parallel-execution.md)
+- [orchestration-pr-chain](orchestration-pr-chain.md)
+- [orchestration-process-workflow-gaps](orchestration-process-workflow-gaps.md)

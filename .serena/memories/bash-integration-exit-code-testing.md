@@ -36,3 +36,8 @@ Describe "Exit Codes" {
 - Redirect stderr with `2>&1 | Out-Null` to suppress error output in tests
 - Test BOTH success (0) and failure (non-zero) paths
 - Add to every PowerShell script that will be called from bash
+
+## Related
+
+- [bash-integration-exit-codes](bash-integration-exit-codes.md)
+- [bash-integration-pattern-discovery](bash-integration-pattern-discovery.md)

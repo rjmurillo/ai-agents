@@ -71,3 +71,8 @@ else
     echo "Script failed with exit code $?"
 fi
 ```
+
+## Related
+
+- [bash-integration-exit-code-testing](bash-integration-exit-code-testing.md)
+- [bash-integration-pattern-discovery](bash-integration-pattern-discovery.md)

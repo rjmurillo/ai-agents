@@ -29,3 +29,10 @@
 ## Document False Positives
 
 Document known false positives in config comments with file locations.
+
+## Related
+
+- [linting-autofix](linting-autofix.md)
+- [linting-exclusions](linting-exclusions.md)
+- [linting-generic-types](linting-generic-types.md)
+- [linting-language-identifiers](linting-language-identifiers.md)

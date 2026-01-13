@@ -781,3 +781,11 @@ Describe "Exit Codes" {
 *Retrospective completed: 2025-12-17*
 *Facilitator: retrospective agent*
 *Next review: After next bash/PowerShell integration PR*
+
+## Related
+
+- [pr-156-review-findings](pr-156-review-findings.md)
+- [pr-320c2b3-refactoring-analysis](pr-320c2b3-refactoring-analysis.md)
+- [pr-52-symlink-retrospective](pr-52-symlink-retrospective.md)
+- [pr-753-remediation-learnings](pr-753-remediation-learnings.md)
+- [pr-811-review-session-2026-01-06](pr-811-review-session-2026-01-06.md)

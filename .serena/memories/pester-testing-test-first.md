@@ -31,3 +31,11 @@ Writing tests after implementation claims completion.
 - Catches bugs before commit
 - Higher confidence in code quality
 - Reduces fix commits after merge
+
+## Related
+
+- [pester-test-isolation-pattern](pester-test-isolation-pattern.md)
+- [pester-testing-cross-platform](pester-testing-cross-platform.md)
+- [pester-testing-discovery-phase](pester-testing-discovery-phase.md)
+- [pester-testing-parameterized-tests](pester-testing-parameterized-tests.md)
+- [pester-testing-test-isolation](pester-testing-test-isolation.md)

@@ -23,3 +23,11 @@
 Never skip critic review for changes affecting more than 5 files.
 
 **Prevention**: Critic review is required gate for systemic changes.
+
+## Related
+
+- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
+- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
+- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
+- [agent-workflow-collaboration](agent-workflow-collaboration.md)
+- [agent-workflow-mvp-shipping](agent-workflow-mvp-shipping.md)

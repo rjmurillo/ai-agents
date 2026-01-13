@@ -33,3 +33,11 @@ $resolvedPath = [string](Resolve-Path ".\relative\path")
 ## Detection
 
 String operation on Resolve-Path result returns null or type error.
+
+## Related
+
+- [utilities-cva-refactoring](utilities-cva-refactoring.md)
+- [utilities-markdown-fences](utilities-markdown-fences.md)
+- [utilities-precommit-hook](utilities-precommit-hook.md)
+- [utilities-regex](utilities-regex.md)
+- [utilities-security-patterns](utilities-security-patterns.md)

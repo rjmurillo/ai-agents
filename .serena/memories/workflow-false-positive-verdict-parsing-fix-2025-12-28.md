@@ -53,5 +53,13 @@ PASS, WARN, COMPLIANT, PARTIAL
 
 ## Related Memories
 
-- `workflow-verdict-parsing-issue-analysis` - Initial analysis of the problem
-- `copilot-synthesis-verdict-parsing` - Similar issue in copilot-synthesis workflow
+- [workflow-verdict-parsing-issue-analysis](workflow-verdict-parsing-issue-analysis.md) - Initial analysis of the problem
+- [copilot-synthesis-verdict-parsing](copilot-synthesis-verdict-parsing.md) - Similar issue in copilot-synthesis workflow
+
+## Related
+
+- [workflow-authorization-testable-pattern](workflow-authorization-testable-pattern.md)
+- [workflow-false-positive-verdict-parsing-2025-12-28](workflow-false-positive-verdict-parsing-2025-12-28.md)
+- [workflow-patterns-batch-changes-reduce-cogs](workflow-patterns-batch-changes-reduce-cogs.md)
+- [workflow-patterns-composite-action](workflow-patterns-composite-action.md)
+- [workflow-patterns-matrix-artifacts](workflow-patterns-matrix-artifacts.md)

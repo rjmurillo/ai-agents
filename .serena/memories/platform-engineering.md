@@ -40,6 +40,6 @@ Gartner expects 80% of engineering organizations to have dedicated platform engi
 
 ## Related
 
-- `paved-roads-innovation`: Default choices with deviation paths
-- `team-topologies`: Platform as team type
-- `foundational-knowledge-index`: Master index
+- [paved-roads-innovation](paved-roads-innovation.md): Default choices with deviation paths
+- [team-topologies](team-topologies.md): Platform as team type
+- [foundational-knowledge-index](foundational-knowledge-index.md): Master index

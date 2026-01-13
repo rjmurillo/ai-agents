@@ -54,4 +54,4 @@ Do NOT add comments like:
 ## Related
 
 - `skill-usage-mandatory` - Check preferences before file generation
-- `user-preference-no-bash-python` - Another explicit user constraint
+- [user-preference-no-bash-python](user-preference-no-bash-python.md) - Another explicit user constraint

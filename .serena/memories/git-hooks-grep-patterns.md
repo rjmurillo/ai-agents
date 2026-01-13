@@ -32,3 +32,11 @@ if echo "$OUTPUT" | grep -q '^True$'; then  # FIXED: exact line match
 | `grep -q '^True$'` | Match exact boolean |
 | `grep -E '^[^/]'` | Match non-path lines |
 | `grep -n "pattern"` | Include line numbers |
+
+## Related
+
+- [git-hooks-001-pre-commit-branch-validation](git-hooks-001-pre-commit-branch-validation.md)
+- [git-hooks-002-branch-recovery-procedure](git-hooks-002-branch-recovery-procedure.md)
+- [git-hooks-004-branch-name-validation](git-hooks-004-branch-name-validation.md)
+- [git-hooks-autofix](git-hooks-autofix.md)
+- [git-hooks-categories](git-hooks-categories.md)

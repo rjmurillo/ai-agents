@@ -40,6 +40,6 @@ HBR 2007: "Performing a Project Premortem" by Gary Klein
 
 ## Related
 
-- `rumsfeld-matrix`: Unknown unknowns surfacing
-- `inversion-thinking`: Thinking backwards to identify risks
-- `foundational-knowledge-index`: Master index
+- [rumsfeld-matrix](rumsfeld-matrix.md): Unknown unknowns surfacing
+- [inversion-thinking](inversion-thinking.md): Thinking backwards to identify risks
+- [foundational-knowledge-index](foundational-knowledge-index.md): Master index

@@ -94,3 +94,11 @@ gh api user
 
 - copilot-platform-priority (investment strategy)
 - copilot-pr-review (false positive handling)
+
+## Related
+
+- [copilot-cli-model-configuration](copilot-cli-model-configuration.md)
+- [copilot-directive-relocation](copilot-directive-relocation.md)
+- [copilot-follow-up-pr](copilot-follow-up-pr.md)
+- [copilot-platform-priority](copilot-platform-priority.md)
+- [copilot-pr-review](copilot-pr-review.md)

@@ -449,3 +449,11 @@ description: Brief description for /help
 - Skills: `.claude/skills/SKILL.md` for complex capabilities
 - Built-in commands: `/help` to list all available
 - MCP commands: `/mcp__<server>__<prompt>` for MCP server prompts
+
+## Related
+
+- [claude-code-hooks-opportunity-analysis](claude-code-hooks-opportunity-analysis.md)
+- [claude-code-skill-frontmatter-standards](claude-code-skill-frontmatter-standards.md)
+- [claude-code-skills-official-guidance](claude-code-skills-official-guidance.md)
+- [claude-flow-research-2025-12-20](claude-flow-research-2025-12-20.md)
+- [claude-md-anthropic-best-practices](claude-md-anthropic-best-practices.md)

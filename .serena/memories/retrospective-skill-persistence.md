@@ -21,7 +21,7 @@ After EVERY retrospective, you MUST persist extracted skills to Serena memory.
 
 Use descriptive kebab-case names without `skill-` prefix:
 - `pr-enum-001` not `skill-pr-enum-001`
-- `git-worktree-parallel` not `skill-git-worktree-001`
+- [git-worktree-parallel](git-worktree-parallel.md) not `skill-git-worktree-001`
 
 ```markdown
 # {Title}
@@ -65,3 +65,11 @@ If skills are NOT persisted after retrospective:
 - Knowledge does not accumulate
 
 This is a BLOCKING requirement. Do not claim retrospective complete without skill persistence.
+
+## Related
+
+- [retrospective-001-pr-learning-extraction](retrospective-001-pr-learning-extraction.md)
+- [retrospective-001-recursive-extraction](retrospective-001-recursive-extraction.md)
+- [retrospective-002-retrospective-to-skill-pipeline](retrospective-002-retrospective-to-skill-pipeline.md)
+- [retrospective-003-token-impact-documentation](retrospective-003-token-impact-documentation.md)
+- [retrospective-004-evidence-based-validation](retrospective-004-evidence-based-validation.md)

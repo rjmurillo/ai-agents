@@ -50,5 +50,5 @@ Learn concerns of PM, UX, QA, security. Design holistic systems.
 
 ## Related
 
-- `staff-engineer-trajectory` - Career growth
-- `adr-foundational-concepts` - Decision documentation
+- [staff-engineer-trajectory](staff-engineer-trajectory.md) - Career growth
+- [adr-foundational-concepts](adr-foundational-concepts.md) - Decision documentation

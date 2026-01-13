@@ -55,6 +55,6 @@ Don't add functionality until it is necessary. Speculative generalization wastes
 
 ## Related
 
-- `foundational-knowledge-index`: Overview
-- `galls-law`: Start simple, evolve
+- [foundational-knowledge-index](foundational-knowledge-index.md): Overview
+- [galls-law](galls-law.md): Start simple, evolve
 - `.agents/analysis/foundational-engineering-knowledge.md`: Full context

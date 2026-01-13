@@ -40,3 +40,11 @@ $validPattern = '^[a-zA-Z0-9][a-zA-Z0-9 _\-\\.]{0,48}[a-zA-Z0-9]?$'
 **Evidence**: Session 44 remediation, AIReviewCommon.psm1
 
 **Related**: `skills-security`
+
+## Related
+
+- [powershell-array-contains](powershell-array-contains.md)
+- [powershell-array-handling](powershell-array-handling.md)
+- [powershell-cross-platform-ci](powershell-cross-platform-ci.md)
+- [powershell-like-pattern-matching](powershell-like-pattern-matching.md)
+- [powershell-string-safety](powershell-string-safety.md)

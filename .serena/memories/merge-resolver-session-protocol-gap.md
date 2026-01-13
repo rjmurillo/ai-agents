@@ -135,7 +135,7 @@ After resolving conflicts, MUST complete before push:
 - Analysis: `.agents/analysis/001-merge-resolver-session-protocol-gap.md`
 - Session: `.agents/sessions/2025-12-27-session-68-template-sync-check-analysis.md`
 - Skill: `.claude/skills/merge-resolver/SKILL.md`
-- Memory: `merge-resolver-auto-resolvable-patterns`
+- Memory: [merge-resolver-auto-resolvable-patterns](merge-resolver-auto-resolvable-patterns.md)
 - Protocol: `.agents/SESSION-PROTOCOL.md`
 
 ## Metrics
@@ -160,3 +160,7 @@ After resolving conflicts, MUST complete before push:
 **Created**: 2025-12-27
 **Source**: Analyst investigation (Session 68)
 **Status**: Validated (PR #246 case study)
+
+## Related
+
+- [merge-resolver-auto-resolvable-patterns](merge-resolver-auto-resolvable-patterns.md)

@@ -57,6 +57,6 @@ Key factors:
 
 ## Related
 
-- `engineering-strategy`: Strategic technology decisions
-- `platform-engineering`: Internal capabilities
-- `foundational-knowledge-index`: Master index
+- [engineering-strategy](engineering-strategy.md): Strategic technology decisions
+- [platform-engineering](platform-engineering.md): Internal capabilities
+- [foundational-knowledge-index](foundational-knowledge-index.md): Master index

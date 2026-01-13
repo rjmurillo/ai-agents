@@ -58,3 +58,11 @@ Get-IssueContext.ps1 has zero Pester tests. Identified coverage gaps:
 
 - QA Report: `.agents/qa/500-get-issue-context-fix-test-report.md`
 - Session: `.agents/sessions/2025-12-29-session-qa-issue-500.md`
+
+## Related
+
+- [powershell-array-contains](powershell-array-contains.md)
+- [powershell-array-handling](powershell-array-handling.md)
+- [powershell-cross-platform-ci](powershell-cross-platform-ci.md)
+- [powershell-like-pattern-matching](powershell-like-pattern-matching.md)
+- [powershell-security-ai-output](powershell-security-ai-output.md)

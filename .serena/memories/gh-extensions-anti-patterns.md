@@ -36,3 +36,11 @@ gh grep "TODO" --repo owner/repo --include "*.js"
 **Solution**: Always use **Merge Commit** when merging combined PRs from `gh combine-prs`.
 
 This ensures GitHub correctly marks all original PRs as "Merged" rather than "Closed".
+
+## Related
+
+- [gh-extensions-combine-prs](gh-extensions-combine-prs.md)
+- [gh-extensions-grep](gh-extensions-grep.md)
+- [gh-extensions-hook](gh-extensions-hook.md)
+- [gh-extensions-maintenance](gh-extensions-maintenance.md)
+- [gh-extensions-metrics](gh-extensions-metrics.md)

@@ -43,6 +43,6 @@ Deliberately restructure teams to produce desired architecture:
 
 ## Related
 
-- `foundational-knowledge-index`: Overview
+- [foundational-knowledge-index](foundational-knowledge-index.md): Overview
 - Bounded Contexts (DDD): Align contexts with teams
 - `.agents/analysis/foundational-engineering-knowledge.md`: Full context

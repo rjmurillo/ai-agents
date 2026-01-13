@@ -13,3 +13,11 @@
 **Atomicity**: 85%
 
 **Anti-Pattern**: Using `any-glob-to-any-file` with negation patterns (negations ignored)
+
+## Related
+
+- [labeler-003-any-matcher](labeler-003-any-matcher.md)
+- [labeler-004-all-files-matcher](labeler-004-all-files-matcher.md)
+- [labeler-005-all-patterns-matcher](labeler-005-all-patterns-matcher.md)
+- [labeler-006-negation-pattern-isolation](labeler-006-negation-pattern-isolation.md)
+- [labeler-combined-patterns](labeler-combined-patterns.md)

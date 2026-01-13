@@ -39,6 +39,6 @@ An ADR captures a single Architectural Decision and its rationale, including tra
 
 ## Related
 
-- `adr-foundational-concepts`: Core concepts
-- `adr-reference-index`: ADR catalog
-- `foundational-knowledge-index`: Master index
+- [adr-foundational-concepts](adr-foundational-concepts.md): Core concepts
+- [adr-reference-index](adr-reference-index.md): ADR catalog
+- [foundational-knowledge-index](foundational-knowledge-index.md): Master index

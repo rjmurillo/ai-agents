@@ -39,3 +39,11 @@ gh metrics
 - Track team velocity
 - Benchmark sprint performance
 - Generate reports for stakeholders
+
+## Related
+
+- [gh-extensions-anti-patterns](gh-extensions-anti-patterns.md)
+- [gh-extensions-combine-prs](gh-extensions-combine-prs.md)
+- [gh-extensions-grep](gh-extensions-grep.md)
+- [gh-extensions-hook](gh-extensions-hook.md)
+- [gh-extensions-maintenance](gh-extensions-maintenance.md)

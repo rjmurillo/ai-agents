@@ -48,6 +48,6 @@ Every observable behavior becomes a de facto contract:
 
 ## Related
 
-- `foundational-knowledge-index`: Overview
-- `chestertons-fence-memory-integration`: Understand before changing
+- [foundational-knowledge-index](foundational-knowledge-index.md): Overview
+- [chestertons-fence](chestertons-fence.md): Understand before changing
 - `.agents/analysis/foundational-engineering-knowledge.md`: Full context
