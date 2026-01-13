@@ -315,20 +315,270 @@ Describe "GitHub API Integration (Remote Mode)" {
             # Correct order: -replace "\.", "\." -replace "\*", ".*" turns *.agent.md into .*\.agent\.md
             $Script:Content | Should -Match '-replace\s+"\\\.".*-replace\s+"\\\*"' -Because "dots must be escaped before asterisks to avoid corrupting .* pattern"
         }
+    }
+}
 
-        It "Generates valid regex that matches agent files" {
-            # Test the actual regex generation logic used in the script
+Describe "Glob-to-Regex Conversion (Remote File Matching)" {
+    # These tests directly validate the regex conversion logic that caused the bug
+    # found by @bcull during verification testing of Issue #892.
+    # The bug: wrong replacement order turned *.agent.md into ^\.*\.agent\.md$ instead of ^.*\.agent\.md$
+
+    Context "Conversion Function Behavior" {
+        BeforeAll {
+            # Extract the exact conversion logic from the script
+            function ConvertTo-RegexPattern {
+                param([string]$GlobPattern)
+                # This is the CORRECT implementation (dots first, then asterisks)
+                "^" + ($GlobPattern -replace "\.", "\." -replace "\*", ".*") + "$"
+            }
+
+            function ConvertTo-RegexPatternWrong {
+                param([string]$GlobPattern)
+                # This is the WRONG implementation (asterisks first, then dots) - the bug
+                "^" + ($GlobPattern -replace "\*", ".*" -replace "\.", "\.") + "$"
+            }
+        }
+
+        It "Correct conversion: *.agent.md produces ^.*\.agent\.md$" {
+            $result = ConvertTo-RegexPattern "*.agent.md"
+            $result | Should -Be '^.*\.agent\.md$'
+        }
+
+        It "Wrong conversion: *.agent.md produces ^\.*\.agent\.md$ (the bug)" {
+            # This test demonstrates what the bug produced
+            $result = ConvertTo-RegexPatternWrong "*.agent.md"
+            $result | Should -Be '^\.*\.agent\.md$'
+            # Note: ^\.*\. means "zero or more dots at start" - NOT what we want
+        }
+
+        It "Correct regex matches files with any prefix" {
+            $correctRegex = ConvertTo-RegexPattern "*.agent.md"
+            "analyst.agent.md" -match $correctRegex | Should -Be $true
+            "high-level-advisor.agent.md" -match $correctRegex | Should -Be $true
+            "a.agent.md" -match $correctRegex | Should -Be $true
+            ".agent.md" -match $correctRegex | Should -Be $true  # Empty prefix
+        }
+
+        It "Wrong regex fails to match files with non-dot prefix (the bug symptom)" {
+            $wrongRegex = ConvertTo-RegexPatternWrong "*.agent.md"
+            # The bug: ^\.*\. requires the file to START with dots
+            "analyst.agent.md" -match $wrongRegex | Should -Be $false -Because "wrong regex requires dots at start"
+            "orchestrator.agent.md" -match $wrongRegex | Should -Be $false
+            # Only files starting with dots would match (edge case)
+            "...agent.md" -match $wrongRegex | Should -Be $true
+        }
+    }
+
+    Context "Pattern Coverage - All Config Patterns" {
+        BeforeAll {
+            function ConvertTo-RegexPattern {
+                param([string]$GlobPattern)
+                "^" + ($GlobPattern -replace "\.", "\." -replace "\*", ".*") + "$"
+            }
+        }
+
+        It "*.agent.md matches agent files" {
+            $regex = ConvertTo-RegexPattern "*.agent.md"
+            @(
+                "analyst.agent.md",
+                "architect.agent.md",
+                "critic.agent.md",
+                "devops.agent.md",
+                "explainer.agent.md",
+                "high-level-advisor.agent.md",
+                "implementer.agent.md",
+                "independent-thinker.agent.md",
+                "memory.agent.md",
+                "orchestrator.agent.md",
+                "planner.agent.md",
+                "pr-comment-responder.agent.md",
+                "qa.agent.md",
+                "retrospective.agent.md",
+                "roadmap.agent.md",
+                "security.agent.md",
+                "skillbook.agent.md",
+                "task-generator.agent.md"
+            ) | ForEach-Object {
+                $_ -match $regex | Should -Be $true -Because "$_ should match *.agent.md"
+            }
+        }
+
+        It "*.agent.md rejects non-agent files" {
+            $regex = ConvertTo-RegexPattern "*.agent.md"
+            @(
+                "README.md",
+                "AGENTS.md",
+                "CLAUDE.md",
+                "config.json",
+                "install.ps1",
+                "agent.md",        # Missing the dot before agent
+                "analyst.md",     # Missing .agent
+                "analyst.agent",  # Missing .md
+                "analyst.agent.txt"
+            ) | ForEach-Object {
+                $_ -match $regex | Should -Be $false -Because "$_ should NOT match *.agent.md"
+            }
+        }
+
+        It "*.prompt.md matches prompt files" {
+            $regex = ConvertTo-RegexPattern "*.prompt.md"
+            @(
+                "analyst.prompt.md",
+                "custom.prompt.md",
+                "test-prompt.prompt.md"
+            ) | ForEach-Object {
+                $_ -match $regex | Should -Be $true -Because "$_ should match *.prompt.md"
+            }
+        }
+
+        It "*.md matches all markdown files" {
+            $regex = ConvertTo-RegexPattern "*.md"
+            @(
+                "README.md",
+                "CLAUDE.md",
+                "analyst.agent.md",
+                "test.md",
+                ".md"  # Edge case: just extension
+            ) | ForEach-Object {
+                $_ -match $regex | Should -Be $true -Because "$_ should match *.md"
+            }
+        }
+    }
+
+    Context "File Filtering Simulation" {
+        BeforeAll {
+            function ConvertTo-RegexPattern {
+                param([string]$GlobPattern)
+                "^" + ($GlobPattern -replace "\.", "\." -replace "\*", ".*") + "$"
+            }
+
+            # Simulate GitHub API response (array of file objects)
+            $Script:MockGitHubFiles = @(
+                @{ name = "analyst.agent.md"; type = "file" },
+                @{ name = "architect.agent.md"; type = "file" },
+                @{ name = "README.md"; type = "file" },
+                @{ name = "AGENTS.md"; type = "file" },
+                @{ name = "config.json"; type = "file" },
+                @{ name = "subdir"; type = "dir" },
+                @{ name = "orchestrator.agent.md"; type = "file" },
+                @{ name = ".gitignore"; type = "file" }
+            )
+        }
+
+        It "Filters files correctly using the pattern and type check" {
             $pattern = "*.agent.md"
-            $patternRegex = "^" + ($pattern -replace "\.", "\." -replace "\*", ".*") + "$"
+            $patternRegex = ConvertTo-RegexPattern $pattern
 
-            # Should match typical agent files
-            "analyst.agent.md" -match $patternRegex | Should -Be $true
-            "orchestrator.agent.md" -match $patternRegex | Should -Be $true
-            "high-level-advisor.agent.md" -match $patternRegex | Should -Be $true
+            # This is the exact filtering logic from install.ps1 line 251
+            $matchingFiles = $Script:MockGitHubFiles | Where-Object {
+                $_.name -match $patternRegex -and $_.type -eq "file"
+            }
 
-            # Should not match non-agent files
-            "README.md" -match $patternRegex | Should -Be $false
-            "AGENTS.md" -match $patternRegex | Should -Be $false
+            $matchingFiles.Count | Should -Be 3 -Because "there are 3 .agent.md files"
+            $matchingFiles.name | Should -Contain "analyst.agent.md"
+            $matchingFiles.name | Should -Contain "architect.agent.md"
+            $matchingFiles.name | Should -Contain "orchestrator.agent.md"
+            $matchingFiles.name | Should -Not -Contain "README.md"
+            $matchingFiles.name | Should -Not -Contain "subdir"
+        }
+
+        It "Returns empty when no files match (triggers warning branch)" {
+            $pattern = "*.nonexistent.xyz"
+            $patternRegex = ConvertTo-RegexPattern $pattern
+
+            $matchingFiles = $Script:MockGitHubFiles | Where-Object {
+                $_.name -match $patternRegex -and $_.type -eq "file"
+            }
+
+            $matchingFiles.Count | Should -Be 0
+        }
+
+        It "Excludes directories even if name matches pattern" {
+            # Add a directory that looks like an agent file
+            $filesWithTrickyDir = $Script:MockGitHubFiles + @(
+                @{ name = "fake.agent.md"; type = "dir" }
+            )
+
+            $pattern = "*.agent.md"
+            $patternRegex = ConvertTo-RegexPattern $pattern
+
+            $matchingFiles = $filesWithTrickyDir | Where-Object {
+                $_.name -match $patternRegex -and $_.type -eq "file"
+            }
+
+            $matchingFiles.name | Should -Not -Contain "fake.agent.md" -Because "directories should be excluded"
+        }
+    }
+
+    Context "Edge Cases and Boundary Conditions" {
+        BeforeAll {
+            function ConvertTo-RegexPattern {
+                param([string]$GlobPattern)
+                "^" + ($GlobPattern -replace "\.", "\." -replace "\*", ".*") + "$"
+            }
+        }
+
+        It "Handles multiple dots in filename" {
+            $regex = ConvertTo-RegexPattern "*.agent.md"
+            "my.special.analyst.agent.md" -match $regex | Should -Be $true
+        }
+
+        It "Handles hyphens in filename" {
+            $regex = ConvertTo-RegexPattern "*.agent.md"
+            "high-level-advisor.agent.md" -match $regex | Should -Be $true
+            "pr-comment-responder.agent.md" -match $regex | Should -Be $true
+        }
+
+        It "Handles underscores in filename" {
+            $regex = ConvertTo-RegexPattern "*.agent.md"
+            "my_custom_agent.agent.md" -match $regex | Should -Be $true
+        }
+
+        It "Handles numbers in filename" {
+            $regex = ConvertTo-RegexPattern "*.agent.md"
+            "agent123.agent.md" -match $regex | Should -Be $true
+            "123.agent.md" -match $regex | Should -Be $true
+        }
+
+        It "Pattern with multiple wildcards" {
+            $regex = ConvertTo-RegexPattern "*.*.md"
+            "analyst.agent.md" -match $regex | Should -Be $true
+            "test.prompt.md" -match $regex | Should -Be $true
+            "README.md" -match $regex | Should -Be $false  # Only one dot before .md
+        }
+
+        It "Empty prefix still matches" {
+            $regex = ConvertTo-RegexPattern "*.agent.md"
+            ".agent.md" -match $regex | Should -Be $true
+        }
+
+        It "Case insensitivity (PowerShell -match is case-insensitive)" {
+            # PowerShell's -match operator is case-INsensitive by default
+            # This means the script will match files regardless of case
+            $regex = ConvertTo-RegexPattern "*.agent.md"
+            "Analyst.Agent.MD" -match $regex | Should -Be $true
+            "ANALYST.AGENT.MD" -match $regex | Should -Be $true
+            "analyst.agent.md" -match $regex | Should -Be $true
+        }
+    }
+
+    Context "Script Implementation Verification" {
+        BeforeAll {
+            $Script:Content = Get-Content $Script:InstallScript -Raw
+        }
+
+        It "Uses correct replacement order in the script" {
+            # The pattern must be: -replace "\.", "\." BEFORE -replace "\*", ".*"
+            # This regex verifies dots are escaped first
+            $Script:Content | Should -Match '\-replace\s+"\\\."[^-]*-replace\s+"\\\*"'
+        }
+
+        It "Anchors pattern with ^ and $" {
+            $Script:Content | Should -Match '\"\^\"\s*\+.*\+\s*\"\$\"'
+        }
+
+        It "Filters by both name pattern AND type" {
+            $Script:Content | Should -Match '\$_\.name\s+-match\s+\$PatternRegex\s+-and\s+\$_\.type\s+-eq\s+"file"'
         }
     }
 }
