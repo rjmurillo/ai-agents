@@ -153,7 +153,7 @@ flowchart TD
         SYN[Sync-McpConfig.ps1]
         CHK[Check-SkillExists.ps1]
         VCS[Validate-Consistency.ps1]
-        VSP[Validate-SessionProtocol.ps1]
+        VSP[Validate-SessionJson.ps1]
     end
 
     subgraph Lib["Shared Library"]
@@ -331,7 +331,7 @@ For backward compatibility, individual scripts wrap the unified installer:
 
 ---
 
-### Validate-SessionProtocol.ps1
+### Validate-SessionJson.ps1
 
 **Role**: Session protocol compliance checker
 
@@ -356,13 +356,13 @@ For backward compatibility, individual scripts wrap the unified installer:
 
 ```powershell
 # Validate specific session
-.\Validate-SessionProtocol.ps1 -SessionDate "2025-12-18" -SessionNumber 24
+.\Validate-SessionJson.ps1 -SessionDate "2025-12-18" -SessionNumber 24
 
 # CI mode
-.\Validate-SessionProtocol.ps1 -CI
+.\Validate-SessionJson.ps1 -CI
 
 # JSON output
-.\Validate-SessionProtocol.ps1 -OutputFormat JSON
+.\Validate-SessionJson.ps1 -OutputFormat JSON
 ```
 
 ---
@@ -447,7 +447,7 @@ sequenceDiagram
 | install.ps1 | Permission denied | Prompt for elevated permissions |
 | install.ps1 | File exists | Prompt unless `-Force` |
 | Sync-McpConfig.ps1 | Source missing | Exit with path error |
-| Validate-SessionProtocol.ps1 | Session not found | Warning, continue |
+| Validate-SessionJson.ps1 | Session not found | Warning, continue |
 
 ## Security Considerations
 
@@ -489,7 +489,7 @@ Invoke-Pester -Path .\scripts\tests -Output Detailed
 |-------|------------|---------|
 | install.ps1 | `pester-tests.yml` | PR to `scripts/**` |
 | Sync-McpConfig.ps1 | `pester-tests.yml` | PR to `scripts/**` |
-| Validate-SessionProtocol.ps1 | `ai-session-protocol.yml` | PR to `.agents/**` |
+| Validate-SessionJson.ps1 | `ai-session-protocol.yml` | PR to `.agents/**` |
 
 ## Related Documentation
 

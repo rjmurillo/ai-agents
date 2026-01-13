@@ -83,7 +83,7 @@ Evidence from PR #246:
 
 | Req | Step |
 |-----|------|
-| MUST | Session log exists at `.agents/sessions/YYYY-MM-DD-session-NN.md` |
+| MUST | Session log exists at `.agents/sessions/YYYY-MM-DD-session-NN.json` |
 | MUST | Session End checklist completed (all rows checked) |
 | MUST | Serena memory updated |
 | MUST | Markdown lint passed |

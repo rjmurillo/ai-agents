@@ -14,7 +14,7 @@ The ai-agents project uses a multi-phase session protocol (SESSION-PROTOCOL.md) 
 
 - **Trust-based compliance fails**: Session 15 had 5+ violations despite documentation
 - **Verification-based BLOCKING gates achieve 100% compliance**: Phase 1 (Serena init) never violated
-- **Manual validation is error-prone**: `Validate-SessionProtocol.ps1` catches violations but only at session end
+- **Manual validation is error-prone**: `Validate-SessionJson.ps1` catches violations but only at session end
 - **Cross-session context is fragile**: HANDOFF.md requires manual updates prone to conflicts in parallel sessions
 
 The session protocol has 5 start phases and 4 end phases, each with MUST/SHOULD/MAY requirements:
@@ -33,7 +33,7 @@ The session protocol has 5 start phases and 4 end phases, each with MUST/SHOULD/
 
 Currently, compliance checking is split between:
 - Serena MCP (memories, code analysis)
-- `Validate-SessionProtocol.ps1` (post-hoc validation)
+- `Validate-SessionJson.ps1` (post-hoc validation)
 - Manual agent discipline (unreliable)
 
 ### Problem Statement
@@ -409,7 +409,7 @@ If Serena is unavailable:
 
 ### Neutral
 
-- Existing `Validate-SessionProtocol.ps1` becomes validation fallback
+- Existing `Validate-SessionJson.ps1` becomes validation fallback
 - SESSION-PROTOCOL.md remains canonical (MCP reads it)
 - No change to agent prompt structure
 

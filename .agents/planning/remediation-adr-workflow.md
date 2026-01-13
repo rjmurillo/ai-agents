@@ -187,7 +187,7 @@ VIOLATION: Creating these files directly bypasses multi-agent validation and WIL
 
 **Files**:
 - `.githooks/pre-commit` - Orchestrates all validation
-- `scripts/Validate-SessionProtocol.ps1` - Session validation (IDENTICAL to CI)
+- `scripts/Validate-SessionJson.ps1` - Session validation (IDENTICAL to CI)
 - `scripts/git-hooks/Validate-ADRCommit.ps1` - ADR-specific validation
 
 **Logic** (`.githooks/pre-commit`):
@@ -203,7 +203,7 @@ $stagedSessions = git diff --cached --name-only --diff-filter=ACM |
 if ($stagedSessions) {
     foreach ($session in $stagedSessions) {
         Write-Host "Validating session protocol: $session"
-        pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath $session
+        pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath $session
         if ($LASTEXITCODE -ne 0) {
             Write-Error "BLOCKED: Session protocol validation failed"
             Write-Error "Fix violations before commit. Same check runs in CI."
@@ -433,7 +433,7 @@ done
 
 ```bash
 # Run session protocol validator
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath .agents/sessions/$(date +%Y-%m-%d)-session-*.md
+pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath .agents/sessions/$(date +%Y-%m-%d)-session-*.md
 # Expected: PASS
 # If FAIL: Fix violations before ending session
 ```
@@ -444,7 +444,7 @@ pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath .agents/sessions/$(dat
 - [ ] Delegation evidence: All protected operations have Task invocations
 - [ ] Critique files: All committed
 - [ ] ADR commits: All reference debate logs
-- [ ] Protocol compliance: PASS (Validate-SessionProtocol.ps1)
+- [ ] Protocol compliance: PASS (Validate-SessionJson.ps1)
 
 **If ANY check fails**: Document in session log, resolve before ending session. Do NOT proceed to session end with unresolved violations.
 ```

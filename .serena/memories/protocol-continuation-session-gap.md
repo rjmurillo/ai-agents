@@ -39,7 +39,7 @@ SESSION-PROTOCOL.md does not address continuation sessions after context compact
 ### P0 (Critical - Implement First)
 
 **1. Automated Session Log Creation**
-- Auto-create `.agents/sessions/YYYY-MM-DD-session-NN.md` at conversation start
+- Auto-create `.agents/sessions/YYYY-MM-DD-session-NN.json` at conversation start
 - Derive session number from `git log`
 - Infer objective from branch name
 - Success metric: 100% session log creation rate, 0% retroactive logs
@@ -83,7 +83,7 @@ SESSION-PROTOCOL.md does not address continuation sessions after context compact
 
 ## Related
 
-- **Session Log**: `.agents/sessions/2026-01-09-session-01-pr845-yaml-fix.md`
+- **Session Log**: `.agents/sessions/2026-01-09-session-01-pr845-yaml-fix.json`
 - **Retrospective**: `.agents/retrospective/2026-01-09-session-protocol-violation-analysis.md`
 - **ADR**: ADR-007 (memory-first architecture)
 - **Protocol**: `.agents/SESSION-PROTOCOL.md`

@@ -13,13 +13,13 @@
 | T+0 | Serena MCP initialized; manual read | mcp_serena_initial_instructions | [PASS] Serena ready, manual loaded |
 | T+1 | Read session dashboard | .agents/HANDOFF.md | [PASS] Context retrieved |
 | T+2 | Listed skills/memories for context | Serena memories (list/read) | [PASS] Baseline patterns noted |
-| T+3 | Created session log | .agents/sessions/YYYY-MM-DD-session-NN.md via session-init skill | [PASS] File created |
+| T+3 | Created session log | .agents/sessions/YYYY-MM-DD-session-NN.json via session-init skill | [PASS] File created |
 | T+4 | Fetched PR context | scripts/Invoke-PRMaintenance.ps1 (context fetch) | [PASS] PR #811 data loaded |
 | T+5 | Replied/resolved one review thread | scripts/Invoke-PRCommentProcessing.ps1 | [PASS] Reply posted, thread resolved |
 | T+6 | Attempted commit | git commit (pre-commit hooks) | [FAIL] Blocked by validations |
-| T+7 | Ran protocol validation | scripts/Validate-SessionProtocol.ps1 | [FAIL] E_PATH_ESCAPE, evidence fields missing |
+| T+7 | Ran protocol validation | scripts/Validate-SessionJson.ps1 | [FAIL] E_PATH_ESCAPE, evidence fields missing |
 | T+8 | Manual session log fix to match canonical | .agents/sessions/... (checklist/evidence fields) | [PASS] Template aligned |
-| T+9 | Re-ran validators | scripts/Validate-SessionProtocol.ps1, scripts/Validate-Consistency.ps1 | [PASS] Protocol satisfied; ready to commit |
+| T+9 | Re-ran validators | scripts/Validate-SessionJson.ps1, scripts/Validate-Consistency.ps1 | [PASS] Protocol satisfied; ready to commit |
 
 ## Outcome Classification
 - **Mad (Blocked/Failed)**: Pre-commit validation ([E_PATH_ESCAPE]), missing evidence fields; initial commit attempt blocked.
@@ -64,24 +64,24 @@ Root Cause: Template/evidence automation gaps + path normalization enforcement n
 - **Path normalization filter**: Utility that converts any captured file paths to repo-relative links before writing evidence.
 - **Evidence automation**: Capture outputs (branch, commit, tool call traces) and write into checklist/evidence fields programmatically.
 - **Reduced reads**: Prefer targeted sections and summaries over whole-file reads; leverage Serena symbolic tools and compact memory queries.
-- **Pre-commit guard**: Local `scripts/Validate-SessionProtocol.ps1 -SessionLogPath [...]` invoked before `git commit`.
+- **Pre-commit guard**: Local `scripts/Validate-SessionJson.ps1 -SessionLogPath [...]` invoked before `git commit`.
 
 ## Recommended Deterministic Checklist
 1. Initialize Serena and load manual → record evidence in session log.
 2. Verify branch and record current commit SHA.
 3. Create session log from canonical template with prefilled metadata (date, session number, PR reference, branch, SHA, Serena evidence).
-4. Run `scripts/Validate-SessionProtocol.ps1 -SessionLogPath [log]` (dry-run). Capture required evidence fields.
+4. Run `scripts/Validate-SessionJson.ps1 -SessionLogPath [log]` (dry-run). Capture required evidence fields.
 5. Apply path normalization to all evidence; write relative links.
 6. Read `.agents/HANDOFF.md` (targeted sections) and note context in the session log.
 7. Fetch PR #811 context; perform required comment/reply/resolution.
-8. Run validators: `scripts/Validate-SessionProtocol.ps1`, `scripts/Validate-Consistency.ps1`, and `npx markdownlint-cli2 --fix "**/*.md"`.
+8. Run validators: `scripts/Validate-SessionJson.ps1`, `scripts/Validate-Consistency.ps1`, and `npx markdownlint-cli2 --fix "**/*.md"`.
 9. Commit changes; enable auto-merge gates as applicable.
 10. Update Serena memory with session outcome; close session per protocol.
 
 ## Next Steps (Operational)
 ```powershell
 # Dry-run protocol validation before commit
-pwsh scripts/Validate-SessionProtocol.ps1 -SessionLogPath ".agents/sessions/[log].md"
+pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath ".agents/sessions/[log].md"
 
 # Lint docs
 npx markdownlint-cli2 --fix "**/*.md"
@@ -90,7 +90,7 @@ npx markdownlint-cli2 --fix "**/*.md"
 ## References
 - [AGENTS.md](../AGENTS.md)
 - [SESSION-PROTOCOL.md](../SESSION-PROTOCOL.md)
-- [scripts/Validate-SessionProtocol.ps1](../../scripts/Validate-SessionProtocol.ps1)
+- [scripts/Validate-SessionJson.ps1](../../scripts/Validate-SessionJson.ps1)
 - [scripts/Validate-Consistency.ps1](../../scripts/Validate-Consistency.ps1)
 
 ```

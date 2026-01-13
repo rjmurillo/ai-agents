@@ -117,7 +117,7 @@ Use the `/session-init` skill to create protocol-compliant session logs:
 
 - Reads canonical template from SESSION-PROTOCOL.md
 - Auto-detects git state (branch, commit, status)
-- Validates immediately with Validate-SessionProtocol.ps1
+- Validates immediately with Validate-SessionJson.ps1
 - Prevents CI validation failures at source
 
 See: [.claude/skills/session/init/SKILL.md](.claude/skills/session/init/SKILL.md)

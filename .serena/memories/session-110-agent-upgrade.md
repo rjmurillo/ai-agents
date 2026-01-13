@@ -22,4 +22,4 @@ Created PR #690 for comprehensive agent system upgrade.
 
 ## Reference
 
-- Session log: `.agents/sessions/2025-12-31-session-110-agent-upgrade-pr.md`
+- Session log: `.agents/sessions/2025-12-31-session-110-agent-upgrade-pr.json`

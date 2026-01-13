@@ -65,7 +65,7 @@ Mark Session End checklist items `[x]` immediately when requirements satisfied (
 **Check session log edit history:**
 
 ```bash
-git log --follow --oneline .agents/sessions/2025-12-20-session-47.md
+git log --follow --oneline .agents/sessions/2025-12-20-session-47.json
 
 # Good pattern:
 # 14:10 feat: implement feature X

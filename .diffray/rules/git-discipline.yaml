@@ -31,7 +31,7 @@ rules:
         If hooks fail, use: git commit --no-verify
       good: |
         # RIGHT: Fix the root cause
-        # 1. Create session log at .agents/sessions/YYYY-MM-DD-session-NN.md
+        # 1. Create session log at .agents/sessions/YYYY-MM-DD-session-NN.json
         # 2. Fix markdown linting: npx markdownlint-cli2 --fix "**/*.md"
         # 3. Commit normally (hooks will pass)
         git commit -m "fix: some change"

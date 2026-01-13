@@ -139,7 +139,7 @@ Lines ~680-720
 
 - [ ] Add `-Detailed` switch parameter to validation functions
 - [ ] Return extended keys only when `-Detailed` specified
-- [ ] Update Validate-SessionProtocol.ps1 to use `-Detailed`
+- [ ] Update Validate-SessionJson.ps1 to use `-Detailed`
 - [ ] Add Pester tests for both standard and detailed contracts
 - [ ] Document usage patterns in function CBH
 

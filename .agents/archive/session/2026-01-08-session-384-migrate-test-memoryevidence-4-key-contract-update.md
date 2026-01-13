@@ -33,7 +33,7 @@ Available GitHub skills (directory roots): issue/, pr/, reactions/
 
 ### Git State
 
-- **Status**: dirty (modified: .agents/sessions/2026-01-05-session-382.md, scripts/Validate-Session.ps1, scripts/Validate-SessionProtocol.ps1, scripts/tests/Validate-SessionProtocol.Tests.ps1, tests/Test-MemoryEvidence.Tests.ps1; untracked: .agents/sessions/2026-01-08-session-383.md, .agents/sessions/2026-01-08-session-384-migrate-test-memoryevidence-4-key-contract-update.md, tmp-memory-test/, tmp-memory-test2/, tmp-memory-test3/)
+- **Status**: dirty (modified: .agents/sessions/2026-01-05-session-382.md, scripts/Validate-Session.ps1, scripts/Validate-SessionJson.ps1, scripts/tests/Validate-SessionProtocol.Tests.ps1, tests/Test-MemoryEvidence.Tests.ps1; untracked: .agents/sessions/2026-01-08-session-383.md, .agents/sessions/2026-01-08-session-384-migrate-test-memoryevidence-4-key-contract-update.md, tmp-memory-test/, tmp-memory-test2/, tmp-memory-test3/)
 - **Branch**: feat/session-init-skill
 - **Starting Commit**: 4dcb8c47
 
@@ -57,7 +57,7 @@ All MUST requirements above are marked complete.
 **What was done**:
 - Updated Test-MemoryEvidence Pester suite to use valid `Should` assertions and check FixableIssues under the 4-key contract (IsValid/Errors/Warnings/FixableIssues) in [tests/Test-MemoryEvidence.Tests.ps1](tests/Test-MemoryEvidence.Tests.ps1).
 - Adjusted Validate-Session memory warning handling to guard null/empty collections in [scripts/Validate-Session.ps1](scripts/Validate-Session.ps1).
-- Re-threw session log discovery errors with actionable messaging in [scripts/Validate-SessionProtocol.ps1](scripts/Validate-SessionProtocol.ps1) to satisfy Pester expectations.
+- Re-threw session log discovery errors with actionable messaging in [scripts/Validate-SessionJson.ps1](scripts/Validate-SessionJson.ps1) to satisfy Pester expectations.
 - Ran targeted Pester suites for memory evidence and session validation; all passing.
 
 **Decisions made**:
@@ -69,7 +69,7 @@ All MUST requirements above are marked complete.
 **Files changed**:
 - [tests/Test-MemoryEvidence.Tests.ps1](tests/Test-MemoryEvidence.Tests.ps1) - assertion updates for 4-key contract.
 - [scripts/Validate-Session.ps1](scripts/Validate-Session.ps1) - memory warning handling guard.
-- [scripts/Validate-SessionProtocol.ps1](scripts/Validate-SessionProtocol.ps1) - rethrow exceptions with actionable messages.
+- [scripts/Validate-SessionJson.ps1](scripts/Validate-SessionJson.ps1) - rethrow exceptions with actionable messages.
 
 ---
 
@@ -108,7 +108,7 @@ M  .agents/sessions/2026-01-05-session-382.md
 A  .agents/sessions/2026-01-08-session-383.md
 A  .agents/sessions/2026-01-08-session-384-migrate-test-memoryevidence-4-key-contract-update.md
 M  scripts/Validate-Session.ps1
-M  scripts/Validate-SessionProtocol.ps1
+M  scripts/Validate-SessionJson.ps1
 M  scripts/tests/Validate-SessionProtocol.Tests.ps1
 M  tests/Test-MemoryEvidence.Tests.ps1
 ```

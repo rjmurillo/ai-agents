@@ -215,7 +215,7 @@ if ($RequiresSessionLog) {
     if (-not $SessionLog) {
         $Output = @{
             decision = "deny"
-            reason = "SESSION PROTOCOL GATE: Create session log first.`nPath: .agents/sessions/YYYY-MM-DD-session-NN.md"
+            reason = "SESSION PROTOCOL GATE: Create session log first.`nPath: .agents/sessions/YYYY-MM-DD-session-NN.json"
         }
         $Output | ConvertTo-Json -Compress
         exit 0  # JSON output with deny decision

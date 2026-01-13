@@ -64,7 +64,7 @@ For every new/modified function or code path:
 | Metric | Threshold | FAIL if |
 |--------|-----------|---------|
 | Function length | Less than 50 lines | Any function over 100 lines |
-| Cyclomatic complexity | Less than 10 | Any function over 15 |
+| Cyclomatic complexity | ≤10 (per CLAUDE.md standard) | Any function over 10 |
 | Code duplication | DRY principle | Same 10+ line block appears 3+ times |
 | Magic numbers/strings | Named constants | More than 3 unexplained literals |
 
@@ -181,7 +181,7 @@ Use `WARN` if:
 - One or more HIGH severity issues are found
 - 1-2 edge case categories missing (but happy path tested)
 - Some error paths tested but not all
-- Minor code quality issues (complexity 10-15, some duplication)
+- Minor code quality issues (some duplication)
 - Test names are unclear but assertions are present
 - Documentation missing but code is self-explanatory
 

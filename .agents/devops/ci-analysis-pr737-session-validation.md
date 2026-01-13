@@ -360,13 +360,13 @@ if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
 **Evidence**:
 - Line 208: `Import-Module AIReviewCommon.psm1` (reusable module)
-- Lines 136-172: Validation logic delegated to `Validate-SessionProtocol.ps1`
+- Lines 136-172: Validation logic delegated to `Validate-SessionJson.ps1`
 - Lines 206-245: Aggregation logic in PowerShell, not bash
 - Workflow orchestrates only (artifact handling, job dependencies)
 
 **Module Usage**:
 - `AIReviewCommon.psm1`: Verdict parsing, emoji mapping, alert formatting
-- `Validate-SessionProtocol.ps1`: Session protocol enforcement
+- `Validate-SessionJson.ps1`: Session protocol enforcement
 - `Post-IssueComment.ps1`: Idempotent PR comment posting (skill)
 
 **Workflow Size**: 399 lines total
@@ -416,7 +416,7 @@ if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 **After** (Deterministic):
 ```text
 1. detect-changes → identify session files
-2. validate → call Validate-SessionProtocol.ps1
+2. validate → call Validate-SessionJson.ps1
 3. validate → output structured markdown
 4. aggregate → merge results, generate report
 5. aggregate → post to PR comment and Job Summary

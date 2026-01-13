@@ -12,7 +12,7 @@ Before ending, complete ALL mandatory steps:
 
 ## 2. Documentation Updates
 
-- [ ] Session log complete at `.agents/sessions/YYYY-MM-DD-session-NN.md`:
+- [ ] Session log complete at `.agents/sessions/YYYY-MM-DD-session-NN.json`:
   - Tasks attempted and outcomes
   - Decisions made and rationale
   - Challenges encountered and resolutions
@@ -122,7 +122,7 @@ Ensure documentation is complete enough for any agent to continue:
 
 ## Session Log Template
 
-Save to: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+Save to: `.agents/sessions/YYYY-MM-DD-session-NN.json`
 
 ```markdown
 # Session Log: YYYY-MM-DD Session NN

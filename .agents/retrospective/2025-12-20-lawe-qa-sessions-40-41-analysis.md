@@ -284,7 +284,7 @@ if ($errors.Count -eq 0) {
 - Verification: Tool output required (not agent promise)
 
 ### 0.2: Confirm Agent Role Isolation
-- MUST verify: `.agents/sessions/YYYY-MM-DD-session-NN.md` DOES NOT EXIST yet
+- MUST verify: `.agents/sessions/YYYY-MM-DD-session-NN.json` DOES NOT EXIST yet
 - MUST confirm: Current worktree matches assigned role (impl, qa, audit, etc.)
 - MUST execute: Skill-QA-007 (Verify-WorktreeIsolation.ps1)
 
@@ -377,7 +377,7 @@ Before executing `git push`, QA MUST verify:
 
 ### Phase 3: Session Log (REQUIRED)
 
-You MUST create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` early in session.
+You MUST create session log at `.agents/sessions/YYYY-MM-DD-session-NN.json` early in session.
 
 **Verification**: File exists with Protocol Compliance section.
 
@@ -391,7 +391,7 @@ You MUST create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` early
 ```markdown
 ### Phase 3: Session Log (BLOCKING GATE - MUST CREATE BEFORE PHASE 4)
 
-You MUST create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` BEFORE proceeding to Phase 4.
+You MUST create session log at `.agents/sessions/YYYY-MM-DD-session-NN.json` BEFORE proceeding to Phase 4.
 
 **Content required**:
 - Date, session number, agent role

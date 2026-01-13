@@ -181,7 +181,7 @@ Compliance with "memory retrieval MUST precede reasoning" is verified by:
 
 1. **SESSION-PROTOCOL Phase 2**: Blocking gate requires `memory-index` read
 2. **Session logs**: Must evidence memory retrieval before decision-making
-3. **Pre-commit hook**: Validates session log compliance (`scripts/Validate-SessionProtocol.ps1`)
+3. **Pre-commit hook**: Validates session log compliance (`scripts/Validate-SessionJson.ps1`)
 
 ## Security Considerations
 

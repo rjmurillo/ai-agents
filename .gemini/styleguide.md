@@ -8,7 +8,7 @@
 
 | Topic | Source |
 |-------|--------|
-| PowerShell standards | `scripts/AGENTS.md`, `AGENTS.md` Coding Standards section |
+| PowerShell standards | `scripts/AGENTS.md` (canonical) |
 | Exit codes | `ADR-035` in `.agents/architecture/` |
 | Output schemas | `ADR-028` in `.agents/architecture/` |
 | Workflow architecture | `ADR-006` in `.agents/architecture/` |

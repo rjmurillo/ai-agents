@@ -89,7 +89,7 @@ Before starting work, complete these steps IN ORDER:
 - [ ] Read `.agents/planning/enhancement-PROJECT-PLAN.md` for current project
 - [ ] Check `.agents/HANDOFF.md` for previous session notes
 - [ ] Identify your assigned phase and tasks
-- [ ] Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+- [ ] Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.json`
 ```
 
 **Compliance scorecard**:
@@ -1193,7 +1193,7 @@ None - no skills identified as harmful
    - Update protocol: Changes go to canonical first, propagate automatically
 
 8. **Pre-commit protocol hook** - Git hook verifies session log exists
-   - Checks `.agents/sessions/YYYY-MM-DD-session-NN.md` exists
+   - Checks `.agents/sessions/YYYY-MM-DD-session-NN.json` exists
    - Validates session log has protocol compliance section
    - Blocks commit if incomplete
 
@@ -1256,7 +1256,7 @@ BEFORE any other work, complete ALL steps in order:
   - Verify ALL checklist items understood
 
 □ Create session log
-  - Create .agents/sessions/YYYY-MM-DD-session-NN.md
+  - Create .agents/sessions/YYYY-MM-DD-session-NN.json
   - Use template from SESSION-PROTOCOL.md
 
 □ Verify git state
@@ -1313,7 +1313,7 @@ Before starting work, complete these steps IN ORDER:
 - [ ] Read `.agents/planning/enhancement-PROJECT-PLAN.md` for current project
 - [ ] Check `.agents/HANDOFF.md` for previous session notes
 - [ ] Identify your assigned phase and tasks
-- [ ] Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+- [ ] Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.json`
 ```
 
 **Recommended**:

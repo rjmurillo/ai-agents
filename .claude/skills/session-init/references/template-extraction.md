@@ -103,7 +103,7 @@ HTML comments must be preserved:
 ## Session End
 ```
 
-This is the most common validation failure. The regex in `Validate-SessionProtocol.ps1` checks for:
+This is the most common validation failure. The regex in `Validate-SessionJson.ps1` checks for:
 
 ```regex
 (?i)Session\s+End.*COMPLETE\s+ALL|End.*before.*closing

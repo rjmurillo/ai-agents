@@ -48,7 +48,7 @@ For non-trivial tasks, delegate to specialized agents using the Task tool:
 
 1. Activate Serena: `mcp__serena__activate_project` → `mcp__serena__initial_instructions`
 2. Read HANDOFF.md (read-only dashboard)
-3. Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+3. Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.json`
 4. Read usage-mandatory memory
 5. Verify branch
 

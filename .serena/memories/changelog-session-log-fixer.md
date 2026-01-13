@@ -32,7 +32,7 @@ Historical changelog for the session-log-fixer skill. This memory preserves vers
 
 **Technical Updates:**
 - Updated workflow to read failures directly from GitHub UI
-- Added local validation instructions using Validate-SessionProtocol.ps1
+- Added local validation instructions using Validate-SessionJson.ps1
 - Updated troubleshooting for new deterministic approach
 - Removed artifact download steps (no longer needed)
 

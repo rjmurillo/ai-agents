@@ -47,7 +47,7 @@ Session logs from merge resolution work did NOT complete Session End requirement
 ### Missing Pre-Check
 
 Before push, merge-resolver MUST verify:
-- [ ] Session log exists at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+- [ ] Session log exists at `.agents/sessions/YYYY-MM-DD-session-NN.json`
 - [ ] Session End checklist completed
 - [ ] Protocol Compliance section complete
 - [ ] Evidence recorded (commit SHA, validation result)
@@ -120,7 +120,7 @@ Use: `pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[lo
 ## Session Protocol Requirements
 
 After resolving conflicts, MUST complete before push:
-1. Session log at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+1. Session log at `.agents/sessions/YYYY-MM-DD-session-NN.json`
 2. Protocol Compliance section (all checkboxes)
 3. Session End checklist
 4. Evidence (commit SHA, validation result)

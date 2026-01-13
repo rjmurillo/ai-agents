@@ -1295,7 +1295,7 @@ Each milestone MUST achieve acceptance criteria before proceeding to dependent m
 
 ### 9.2 Milestone Completion Reports
 
-**Format**: Session log entry (`.agents/sessions/YYYY-MM-DD-session-NN.md`)
+**Format**: Session log entry (`.agents/sessions/YYYY-MM-DD-session-NN.json`)
 
 **Contents**:
 - Milestone deliverables (links to code, tests, documentation)

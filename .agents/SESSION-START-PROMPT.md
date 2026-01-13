@@ -24,7 +24,7 @@ Read the contents of the `.agents` directory before starting work:
 
 ## Session Protocol
 
-1. Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+1. Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.json`
 2. Review HANDOFF.md for previous session state
 3. Identify current phase and next task from PROJECT-PLAN.md
 4. Delegate task to orchestrator agent with full context

@@ -70,7 +70,7 @@ Verify that the content appears in your context and reference prior decisions fr
 
 **Phase 3: Session Log (REQUIRED)**
 
-Create a session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` early in the session. Include a Protocol Compliance section documenting that you completed Phases 1 and 2.
+Create a session log at `.agents/sessions/YYYY-MM-DD-session-NN.json` early in the session. Include a Protocol Compliance section documenting that you completed Phases 1 and 2.
 
 ## Memory Usage Workflow (USE AGGRESSIVELY)
 

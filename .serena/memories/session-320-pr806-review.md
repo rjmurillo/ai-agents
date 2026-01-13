@@ -65,7 +65,7 @@
 - ✅ Serena initialized (check_onboarding_performed)
 - ✅ HANDOFF.md read (read-only reference)
 - ✅ Branch verified (`copilot/fix-spec-validation-pr-number`)
-- ✅ Session log created (.agents/sessions/2026-01-06-session-003-pr806-review.md)
+- ✅ Session log created (.agents/sessions/2026-01-06-session-003-pr806-review.json)
 
 ## Related Memories
 

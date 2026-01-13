@@ -6,7 +6,7 @@
 
 **Trigger**: Immediately after Phase 2 (Context Retrieval) completion
 
-**Action**: Create `.agents/sessions/YYYY-MM-DD-session-NN.md` with Protocol Compliance checklist
+**Action**: Create `.agents/sessions/YYYY-MM-DD-session-NN.json` with Protocol Compliance checklist
 
 **Evidence**: Session log file exists with checkboxes for each phase
 

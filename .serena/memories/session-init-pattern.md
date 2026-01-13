@@ -32,7 +32,7 @@ Agents MUST use the `/session-init` skill which:
 4. Extracts 5 most relevant keywords from objective (using NLP heuristics)
 5. Generates kebab-case filename descriptors from keywords
 6. Writes session log with EXACT template format: `YYYY-MM-DD-session-NN-keyword1-keyword2-keyword3-keyword4-keyword5.md`
-7. Validates immediately with Validate-SessionProtocol.ps1
+7. Validates immediately with Validate-SessionJson.ps1
 
 ## Descriptive Filename Protocol
 
@@ -86,5 +86,5 @@ Agents MUST use the `/session-init` skill which:
 - `.claude/commands/session-init.md` - Slash command documentation
 - `.claude/skills/session-log-fixer/SKILL.md` - Reactive fix (use session-init instead)
 - `.agents/SESSION-PROTOCOL.md` - Canonical template source (lines 494-612)
-- `scripts/Validate-SessionProtocol.ps1` - Validation script
+- `scripts/Validate-SessionJson.ps1` - Validation script
 - `.serena/memories/protocol-template-enforcement.md` - Template enforcement pattern

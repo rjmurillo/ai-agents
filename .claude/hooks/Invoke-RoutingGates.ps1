@@ -181,7 +181,9 @@ end {
         Tests whether the current changes are documentation-only.
 
     .DESCRIPTION
-        Uses git diff to check if only documentation files (.md) have been modified.
+        Uses git diff to check if only documentation files have been modified.
+        Allowed: .md, .txt, README, LICENSE, CHANGELOG, .gitignore files
+        Rationale: These files don't affect runtime behavior and don't require QA validation
         Returns true if no code files have been changed.
 
     .OUTPUTS
@@ -212,6 +214,7 @@ end {
             # Force to array to handle single-item case
             # SECURITY: Patterns must be anchored to prevent substring matches
             # (e.g., src/license_validator.cs must not match LICENSE)
+            # Documentation-only: markdown, text files, standard repo metadata, git config
             $CodeFiles = @(
                 $ChangedFiles | Where-Object {
                     $_ -notmatch '\.md$' -and

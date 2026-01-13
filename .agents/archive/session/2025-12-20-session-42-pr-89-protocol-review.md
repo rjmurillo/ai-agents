@@ -128,7 +128,7 @@ Per assignment, need to verify:
 | **Phase 1.5**: Read skill-usage-mandatory memory | ✓ MUST | ❌ NOT DONE | Session 01 reads pr-comment-responder-skills instead | **MUST** | ❌ VIOLATION |
 | **Phase 1.5**: Read PROJECT-CONSTRAINTS.md | ✓ MUST | ❌ NOT DONE | Not documented in Session 01 | **MUST** | ❌ VIOLATION |
 | **Phase 2**: Read `.agents/HANDOFF.md` | ✓ MUST | ✅ COMPLETE | Session 01 line 32: "COMPLETE" | **MUST** | ✅ OK |
-| **Phase 3**: Create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md` | ✓ REQUIRED | ✅ COMPLETE | Session 01 log exists with correct naming | **REQUIRED** | ✅ OK |
+| **Phase 3**: Create session log at `.agents/sessions/YYYY-MM-DD-session-NN.json` | ✓ REQUIRED | ✅ COMPLETE | Session 01 log exists with correct naming | **REQUIRED** | ✅ OK |
 
 ### Violations Identified
 

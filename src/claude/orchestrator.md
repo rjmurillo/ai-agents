@@ -1643,7 +1643,7 @@ You CANNOT claim "session complete", "done", "finished", or any completion langu
 
 | Requirement | Evidence | Validator |
 |-------------|----------|-----------|
-| Session log exists | `.agents/sessions/YYYY-MM-DD-session-NN.md` | File exists |
+| Session log exists | `.agents/sessions/YYYY-MM-DD-session-NN.json` | File exists |
 | Session End checklist complete | All MUST items checked with `[x]` | `Validate-SessionJson.ps1` |
 | HANDOFF.md updated | References current session log | `Validate-SessionJson.ps1` |
 | Git worktree clean | No uncommitted changes | `git status --porcelain` |
@@ -1655,7 +1655,7 @@ You CANNOT claim "session complete", "done", "finished", or any completion langu
 Before claiming completion, run:
 
 ```bash
-pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath ".agents/sessions/[session-log].json"
 ```
 
 ### Gate Outcomes

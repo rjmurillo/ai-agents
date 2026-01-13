@@ -74,7 +74,7 @@ If Serena MCP tools are available, you MUST call FIRST:
 
 1. Initialize Serena (if available)
 2. Read HANDOFF.md (read-only dashboard)
-3. Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.md`
+3. Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.json`
 4. Verify branch: `git branch --show-current`
 
 **Session End:**

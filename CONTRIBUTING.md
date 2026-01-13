@@ -267,7 +267,7 @@ This project uses a session-based workflow for tracking work. Session logs are r
 
 ### Session Logs
 
-Create session logs at `.agents/sessions/YYYY-MM-DD-session-NN.md` to document work done during a session.
+Create session logs at `.agents/sessions/YYYY-MM-DD-session-NN.json` to document work done during a session.
 
 ### QA Validation
 

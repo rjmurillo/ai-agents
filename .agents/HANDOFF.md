@@ -11,7 +11,7 @@
 
 **Session context now goes to:**
 
-1. **Session logs**: `.agents/sessions/YYYY-MM-DD-session-NN.md` (required)
+1. **Session logs**: `.agents/sessions/YYYY-MM-DD-session-NN.json` (required)
 2. **Serena memory**: Cross-session context via MCP memory tools (required)
 3. **Branch handoffs**: `.agents/handoffs/{branch}/{session}.md` (optional, for feature branches)
 
@@ -90,7 +90,7 @@
 1. Initialize Serena: `mcp__serena__activate_project` + `initial_instructions`
 2. Read this HANDOFF.md (read-only reference)
 3. Read relevant Serena memories
-4. Create session log at `.agents/sessions/YYYY-MM-DD-session-NN.md`
+4. Create session log at `.agents/sessions/YYYY-MM-DD-session-NN.json`
 
 **MUST complete before session end:**
 

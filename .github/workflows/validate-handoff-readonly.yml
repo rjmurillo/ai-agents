@@ -62,7 +62,7 @@ jobs:
           echo ""
           echo "Per ADR-014 (Distributed Handoff Architecture):"
           echo "  - HANDOFF.md is READ-ONLY on feature branches"
-          echo "  - Session context goes to: .agents/sessions/YYYY-MM-DD-session-NN.md"
+          echo "  - Session context goes to: .agents/sessions/YYYY-MM-DD-session-NN.json"
           echo "  - Cross-session context goes to: Serena memory"
           echo "  - Branch coordination goes to: .agents/handoffs/{branch}/ (optional)"
           echo ""
