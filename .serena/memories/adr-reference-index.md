@@ -56,5 +56,5 @@ Read(".agents/architecture/ADR-NNN-title.md")
 
 ## Related Memories
 
-- [adr-014-review-findings](adr-014-findings.md) (analysis of ADR-014)
+- [adr-014-review-findings](adr-014-review-findings.md) (analysis of ADR-014)
 - [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md) (metrics for ADR-017)
