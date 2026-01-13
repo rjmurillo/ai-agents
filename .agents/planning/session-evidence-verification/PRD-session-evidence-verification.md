@@ -1,3 +1,14 @@
+---
+title: PRD Session Evidence Verification System
+date: 2026-01-11
+status: draft
+related:
+  - .agents/planning/session-evidence-verification/PLAN-session-evidence-verification.md
+  - .agents/SESSION-PROTOCOL.md
+  - .agents/schemas/session-log.schema.json
+issue: 879
+---
+
 # PRD: Session Evidence Verification System
 
 ## Problem Statement
@@ -669,7 +680,7 @@ This plan implements **verification layer** (Layer 2). PR #859 implements **prev
 
 ## Related Documents
 
-- Detailed plan: `/home/richard/.claude/plans/fancy-moseying-graham-agent-ac0a4f8.md`
+- Detailed plan (external, maintainer-local Claude plan; not stored in this repo)
 - Session protocol: `.agents/SESSION-PROTOCOL.md`
 - Session schema: `.agents/schemas/session-log.schema.json`
 - Project constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`

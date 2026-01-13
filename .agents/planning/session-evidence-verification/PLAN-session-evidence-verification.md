@@ -1,3 +1,14 @@
+---
+title: Plan Refinement Strengthen Session Validation Against Hallucination
+date: 2026-01-11
+status: draft
+related:
+  - .agents/planning/session-evidence-verification/PRD-session-evidence-verification.md
+  - .agents/SESSION-PROTOCOL.md
+  - .agents/schemas/session-log.schema.json
+issue: 879
+---
+
 # Plan Refinement: Strengthen Session Validation Against Hallucination
 
 ## Executive Summary
@@ -141,12 +152,28 @@ function Resolve-SessionPath {
   # Handle both .agents/sessions/ and .agents/archive/sessions/
   # SECURITY: Prevent path traversal attacks (no ../, absolute paths)
 
-  # Validate path doesn't escape repo root
-  $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+  # Resolve the repository root to a canonical absolute path
   $resolvedRoot = [System.IO.Path]::GetFullPath($RepoRoot)
-  if (-not $resolvedPath.StartsWith($resolvedRoot)) {
+
+  # Disallow absolute paths in session logs; they must be relative to RepoRoot
+  if ([System.IO.Path]::IsPathRooted($Path)) {
+    throw "Absolute paths are not allowed in session logs: $Path"
+  }
+
+  # Combine RepoRoot and the relative session path, then canonicalize
+  $combinedPath = [System.IO.Path]::Combine($resolvedRoot, $Path)
+  $resolvedPath = [System.IO.Path]::GetFullPath($combinedPath)
+
+  # Validate path doesn't escape repo root using a semantic containment check
+  $rootDirSep = [System.IO.Path]::DirectorySeparatorChar
+  $normalizedRoot = $resolvedRoot.TrimEnd($rootDirSep) + $rootDirSep
+  $rootUri = [System.Uri]::new($normalizedRoot)
+  $pathUri = [System.Uri]::new($resolvedPath)
+
+  if (-not $rootUri.IsBaseOf($pathUri)) {
     throw "Path traversal detected: $Path"
   }
+
   return $resolvedPath
 }
 
