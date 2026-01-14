@@ -200,7 +200,7 @@ function Extract-Learnings {
             'code-review' = @('code review', 'style guide', 'security patterns')
             'api-design' = @('API design', 'REST', 'endpoint', 'versioning')
             'testing' = @('test', 'coverage', 'mocking', 'assertion')
-            'documentation' = @('documentation', 'docs', 'readme', 'markdown')
+            'documentation' = @('documentation', 'docs/', 'README', 'write doc')
         }
 
         if ($patterns.ContainsKey($Skill)) {
@@ -273,8 +273,8 @@ function Extract-Learnings {
             }
 
             # MED: Success patterns (approval at start of response)
-            # Only match when approval words appear at the beginning to reduce false positives
-            if ($userResponse -match '(?i)^(perfect|great|excellent|yes|exactly|that''s it|good job|well done|correct|right|works)\b') {
+            # Allow acknowledgement prefixes and exclude ambiguous "yes/right" when followed by "but/about"
+            if ($userResponse -match '(?i)^(?:(?:ok|okay|yeah|yep|sure|alright)[,\s]+)?(perfect|great|excellent|exactly|that''s it|good job|well done|works|yes(?!\s*,?\s*but)|correct(?!\s*,?\s*but)|right(?!\s*,?\s*about))\b') {
                 $learnings.Med += @{
                     Type = 'success'
                     Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
@@ -284,7 +284,7 @@ function Extract-Learnings {
 
             # MED: Edge cases and important questions
             # Based on memory patterns: "what if", "how does", "don't want to forget", "ensure", "make sure"
-            if ($userResponse -match '(?i)(what if|how does|how will|what about|don''t want to forget|ensure|make sure|needs to)\?') {
+            if ($userResponse -match '(?i)(what if|how does|how will|what about|don''t want to forget|ensure|make sure|needs to).*\?') {
                 $learnings.Med += @{
                     Type = 'edge_case'
                     Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
