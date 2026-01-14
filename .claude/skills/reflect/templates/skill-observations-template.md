@@ -1,6 +1,6 @@
 # Skill Observations: {Skill Name}
 
-**Last Updated**: {ISO-DATE}
+**Last Updated**: {YYYY-MM-DD}
 **Sessions Analyzed**: 1
 
 ## Purpose
@@ -15,13 +15,13 @@ These are corrections that MUST be followed:
 
 <!-- Add constraints discovered from user corrections -->
 
-## Preferences (MEDIUM confidence)
+## Preferences (MED confidence)
 
 These are preferences that SHOULD be followed:
 
 <!-- Add preferences discovered from successful patterns -->
 
-## Edge Cases (MEDIUM confidence)
+## Edge Cases (MED confidence)
 
 These are scenarios to handle:
 
@@ -32,9 +32,3 @@ These are scenarios to handle:
 These are observations that may become patterns:
 
 <!-- Add notes that need more evidence before promoting -->
-
-## History
-
-| Date | Session | Type | Learning |
-|------|---------|------|----------|
-| {date} | {session-id} | {HIGH/MED/LOW} | {description} |
