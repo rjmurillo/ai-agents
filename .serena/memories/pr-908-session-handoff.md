@@ -1,16 +1,17 @@
 # PR #908 Session Handoff
 
-**Session**: 2026-01-14-session-01
+**Session**: 2026-01-14-session-02
 **PR**: #908 - feat(skill): add reflect skill and auto-learning hook
 **Branch**: `feat/learning-skill`
-**Last Updated**: 2026-01-14 18:50 UTC
+**Last Updated**: 2026-01-14 19:45 UTC
 
 ## Quick Summary
 
-**Status**: 🟡 In Progress - Active review response
-**Progress**: 10/19 review threads resolved (53%)
+**Status**: 🟡 In Progress - Planning review response strategy
+**Progress**: 10/28 review threads resolved (36%)
+**Total Comments**: 90 (72 review + 18 issue comments)
 **Commits**: 4 fixes pushed (f666a01, 0238c92, f580305, 6aaaee6)
-**Remaining**: 9 unresolved threads, 2 CI failures (1 infrastructure)
+**Remaining**: 18 unresolved threads, 2 CI failures (QA + Aggregate)
 
 ---
 
@@ -63,14 +64,14 @@
 ### 🔴 High Priority
 
 1. **CI Failures** (2 required checks failing)
-   - ❌ **QA Review**: FAILURE - needs investigation
-   - ❌ **Aggregate Results**: FAILURE - depends on QA Review
+   - ❌ **QA Review**: CRITICAL_FAIL - code quality issues identified (legitimate)
+   - ❌ **Aggregate Results**: FAILURE - depends on QA Review passing
    - ✅ **Validate Memory Files**: FAILURE - infrastructure issue #910 (tracked, not blocking)
 
-2. **Unresolved Review Threads** (9 remaining)
-   - Thread IDs: PRRT_kwDOQoWRls5pZXNK, PRRT_kwDOQoWRls5pZZvK, PRRT_kwDOQoWRls5pZZvL, and 6 others
-   - Need to investigate content of each thread
-   - May require additional code fixes or design explanations
+2. **Unresolved Review Threads** (18 remaining)
+   - Thread IDs: PRRT_kwDOQoWRls5pZXNK, PRRT_kwDOQoWRls5pZXPZ, PRRT_kwDOQoWRls5pZZvK, PRRT_kwDOQoWRls5pZZvL, PRRT_kwDOQoWRls5pZ0QM, PRRT_kwDOQoWRls5pZ0Qd, PRRT_kwDOQoWRls5pZ0Qn, PRRT_kwDOQoWRls5pZ0Qz, PRRT_kwDOQoWRls5pZ0Q6, PRRT_kwDOQoWRls5pZ-eT, PRRT_kwDOQoWRls5pZ-eY, PRRT_kwDOQoWRls5pZ-ea, PRRT_kwDOQoWRls5paX0L, PRRT_kwDOQoWRls5paX0g, PRRT_kwDOQoWRls5paX0n, PRRT_kwDOQoWRls5paX0s, PRRT_kwDOQoWRls5paX06, PRRT_kwDOQoWRls5paX1I
+   - **First unaddressed** (cursor[bot] #2690818086): MEDIUM and LOW learnings not written to proper sections in Update-SkillMemory
+   - Requires systematic triage and prioritization
 
 ### 🟡 Medium Priority
 
@@ -108,38 +109,84 @@
 **Long-term Fix**: Hook needs update to not add sections, or ADR-017 needs to allow them
 
 ### QA Review CI Failure
-**Status**: Unknown - needs investigation
-**Details URL**: https://github.com/rjmurillo/ai-agents/actions/runs/21005735213/job/60387485496
-**Next Step**: Check logs to determine if code issue or infrastructure issue
+**Status**: ✅ INVESTIGATED - Legitimate code quality issues (not infrastructure)
+**Verdict**: CRITICAL_FAIL from QA agent
+**Exit Code**: 0 (review completed successfully)
+**Details**: QA agent ran successfully but identified code quality issues that need addressing
+**Run URL**: https://github.com/rjmurillo/ai-agents/actions/runs/21007293686/job/60392916001
+**Next Step**: Review QA verdict details and address findings
 
 ---
 
+## Session 02 Investigation Results
+
+### QA Review Analysis
+- **Verdict**: CRITICAL_FAIL (legitimate code quality issues)
+- **Not infrastructure**: Exit code 0, review completed successfully
+- **Agent used**: claude-opus-4.5 via Copilot CLI
+- **Output**: 4722 chars of findings
+- **Action required**: Review and address QA verdict details
+
+### Comment Statistics
+- **Total reviewers**: 12 (6 humans + 6 bots)
+- **Top commenters**:
+  - Copilot: 41 comments (95% actionability per memory)
+  - rjmurillo: 22 comments (owner, 97% actionability)
+  - cursor[bot]: 17 comments (100% actionability per memory)
+  - gemini-code-assist[bot]: 4 comments (82% actionability)
+
+### First Unresolved Comment Details
+**Comment ID**: 2690818086 (cursor[bot])
+**File**: `.claude/hooks/Stop/Invoke-SkillLearning.ps1`
+**Lines**: 313-323, 387-390
+**Severity**: High
+**Issue**: `Update-SkillMemory` function incomplete learning handling
+- MED confidence learnings (`success`, `edge_case`) appended to file end instead of designated sections
+- `preference` and `question` learning types extracted but never written
+- LOW confidence learnings never written despite `$lowCount >= 3` threshold
+**Impact**: Learnings lost or misplaced in memory files
+
 ## Next Session Actions
 
-### Immediate (Start Here)
+### Three Strategic Options
 
-1. **Investigate QA Review failure**
-   ```bash
-   gh run view 21005735213 --log-failed
-   ```
-   - Determine if code issue or infrastructure
-   - Fix if code issue, document if infrastructure
+**Option A: Fix cursor[bot] issue immediately** (recommended for quick win)
+- cursor[bot] has 100% actionability (28/28 historically)
+- Single-file fix in `Invoke-SkillLearning.ps1`
+- Clear bug with specific lines identified
+- Estimated: 1 commit, ~30 minutes
 
-2. **Check remaining 9 unresolved threads**
-   ```bash
-   pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest 908
-   ```
-   - Read each thread content
-   - Categorize: needs fix vs needs explanation vs won't fix
+**Option B: Investigate QA Review verdict first** (comprehensive approach)
+- Review full QA agent output (4722 chars)
+- May reveal systematic issues across multiple files
+- Could inform fixes for other comments
+- Estimated: Investigation + fixes, ~2 hours
 
-3. **Address legitimate findings**
-   - Fix code issues identified in threads
-   - Reply with explanations for design decisions
-   - Resolve threads using batch GraphQL mutations
+**Option C: Generate complete comment map** (systematic approach)
+- Create `.agents/pr-comments/PR-908/comments.md`
+- Batch acknowledge all 90 comments with eyes reactions
+- Triage by security domain, then reviewer signal quality
+- Implement pr-comment-responder protocol fully
+- Estimated: Full workflow, ~3-4 hours
+
+### Immediate Actions (Recommended: Option A)
+
+1. **Fix cursor[bot] Update-SkillMemory issue**
+   - Read `.claude/hooks/Stop/Invoke-SkillLearning.ps1` lines 313-390
+   - Fix MED confidence learning section placement
+   - Add `preference` and `question` type handling
+   - Add LOW confidence learning write logic
+   - Commit with SHA, reply to comment, resolve thread
+
+2. **Then choose next path**
+   - Continue with remaining cursor[bot] comments (high signal)
+   - Or pivot to QA Review findings
+   - Or execute full pr-comment-responder protocol
 
 ### Before Merge
 
-- [ ] All review threads resolved (10/19 → 19/19)
+- [ ] All review threads resolved (10/28 → 28/28)
+- [ ] QA Review CRITICAL_FAIL addressed
 - [ ] All CI checks passing (or failures acknowledged as infrastructure)
 - [ ] No new comments from reviewers
 - [ ] PR mergeable: `gh pr view 908 --json mergeable`
@@ -245,15 +292,34 @@ cd52ea4 Merge branch 'main' into feat/learning-skill
 
 ## Handoff Checklist
 
-- [x] Skill learnings captured and committed
-- [x] All work pushed to remote
-- [x] Unresolved threads documented
+- [x] Skill learnings captured and committed (session 01)
+- [x] All work pushed to remote (session 01)
+- [x] Unresolved threads documented (18 total)
+- [x] QA Review failure investigated (legitimate code quality issues)
 - [x] Known issues documented with issue numbers
-- [x] Next steps clearly defined
+- [x] Three strategic options defined
+- [x] First unaddressed comment analyzed (cursor[bot] #2690818086)
+- [x] Reviewer signal quality loaded from memory
 - [x] Commands reference provided
 - [x] Design decisions documented
-- [ ] PR ready for merge (blocked on CI + 9 threads)
+- [ ] PR ready for merge (blocked on QA + 18 threads)
 
 ---
 
-**For next session**: Start by investigating QA Review failure and checking remaining 9 unresolved threads. Use commands reference above for efficient workflow.
+**For next session**:
+- **Recommended**: Start with Option A - fix cursor[bot] Update-SkillMemory issue (high-confidence bug, quick win)
+- **Alternative**: Option B - review full QA verdict output to understand systematic issues
+- **Comprehensive**: Option C - execute full pr-comment-responder protocol with batch operations
+
+**Key files created**:
+- `.agents/sessions/2026-01-14-session-02.json` (session log)
+- `.agents/pr-comments/PR-908/` (workspace directory created)
+- `.agents/pr-comments/PR-908/all-comments-raw.txt` (90 comments saved)
+
+## Related
+
+- [pr-156-review-findings](pr-156-review-findings.md)
+- [pr-320c2b3-refactoring-analysis](pr-320c2b3-refactoring-analysis.md)
+- [pr-52-retrospective-learnings](pr-52-retrospective-learnings.md)
+- [pr-52-symlink-retrospective](pr-52-symlink-retrospective.md)
+- [pr-753-remediation-learnings](pr-753-remediation-learnings.md)
