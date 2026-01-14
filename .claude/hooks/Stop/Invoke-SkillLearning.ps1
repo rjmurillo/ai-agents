@@ -172,6 +172,37 @@ function Extract-Learnings {
         Low = @()
     }
 
+    # Helper function to check if skill is mentioned in context
+    function Test-SkillContext {
+        param([string]$Text, [string]$Skill)
+        # Check if the skill name or related patterns appear in the text
+        # Use the same patterns from Detect-SkillUsage to ensure consistency
+        $patterns = @{
+            'github' = @('gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review')
+            'memory' = @('search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007')
+            'session-init' = @('/session-init', 'session log', 'session protocol')
+            'SkillForge' = @('SkillForge', 'create skill', 'synthesis panel')
+            'adr-review' = @('adr-review', 'ADR files', 'architecture decision')
+            'incoherence' = @('incoherence skill', 'detect incoherence', 'reconcile')
+            'retrospective' = @('retrospective', 'session end', 'reflect')
+            'reflect' = @('reflect', 'learn from this', 'what did we learn')
+            'pr-comment-responder' = @('pr-comment-responder', 'review comments', 'feedback items')
+            'code-review' = @('code review', 'style guide', 'security patterns')
+            'api-design' = @('API design', 'REST', 'endpoint', 'versioning')
+            'testing' = @('test', 'coverage', 'mocking', 'assertion')
+            'documentation' = @('documentation', 'docs', 'readme', 'markdown')
+        }
+
+        if ($patterns.ContainsKey($Skill)) {
+            foreach ($pattern in $patterns[$Skill]) {
+                if ($Text -match [regex]::Escape($pattern)) {
+                    return $true
+                }
+            }
+        }
+        return $false
+    }
+
     # Analyze messages for learning signals
     for ($i = 0; $i -lt $Messages.Count - 1; $i++) {
         $msg = $Messages[$i]
@@ -180,9 +211,22 @@ function Extract-Learnings {
         if ($msg.role -eq 'assistant' -and $nextMsg.role -eq 'user') {
             $userResponse = $nextMsg.content
 
+            # Check if this learning is relevant to the current skill
+            # by looking at the surrounding context (current and adjacent messages)
+            $contextWindow = ""
+            if ($i -gt 0) { $contextWindow += $Messages[$i - 1].content + " " }
+            $contextWindow += $msg.content + " " + $userResponse
+            if ($i + 2 -lt $Messages.Count) { $contextWindow += " " + $Messages[$i + 2].content }
+
+            # Skip if skill is not mentioned in the context window
+            if (-not (Test-SkillContext -Text $contextWindow -Skill $SkillName)) {
+                continue
+            }
+
             # HIGH: Strong corrections and directives
             # Based on memory patterns: "no", "wrong", "incorrect", "fix", "never do", "always do", "must use"
-            if ($userResponse -match '(?i)\b(no[,\s]|nope|not like that|that''s wrong|incorrect|never do|always do|don''t ever|must use|should not|avoid|stop)\b') {
+            # Pattern improved to match standalone "no" at word boundaries
+            if ($userResponse -match '(?i)\b(no\b|nope|not like that|that''s wrong|incorrect|never do|always do|don''t ever|must use|should not|avoid|stop)\b') {
                 $learnings.High += @{
                     Type = 'correction'
                     Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
@@ -218,8 +262,9 @@ function Extract-Learnings {
                 }
             }
 
-            # MED: Success patterns (expanded from memory analysis)
-            if ($userResponse -match '(?i)\b(perfect|great|excellent|yes|exactly|that''s it|good job|well done|correct|right|works)\b') {
+            # MED: Success patterns (approval at start of response)
+            # Only match when approval words appear at the beginning to reduce false positives
+            if ($userResponse -match '(?i)^(perfect|great|excellent|yes|exactly|that''s it|good job|well done|correct|right|works)\b') {
                 $learnings.Med += @{
                     Type = 'success'
                     Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
@@ -237,8 +282,9 @@ function Extract-Learnings {
                 }
             }
 
-            # MED: Simple questions after output (may indicate confusion or missing feature)
-            if ($userResponse -match '\?' -and $userResponse.Length -lt 150) {
+            # MED: Short clarifying questions after output (may indicate confusion)
+            # Only capture very short questions to reduce noise
+            if ($userResponse -match '\?' -and $userResponse.Length -lt 50 -and ($userResponse -match '(?i)^(why|how|what|when|where|can|does|is|are)\b')) {
                 $learnings.Med += @{
                     Type = 'question'
                     Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
@@ -269,8 +315,18 @@ function Update-SkillMemory {
         [string]$SessionId
     )
 
-    $memoryPath = Join-Path $ProjectDir ".serena" "memories" "$SkillName-observations.md"
-    $memoriesDir = Join-Path $ProjectDir ".serena" "memories"
+    # Security: Path Traversal Prevention per CWE-22
+    $allowedDir = [IO.Path]::GetFullPath($ProjectDir)
+    $memoriesDir = Join-Path $allowedDir ".serena" "memories"
+    $memoryPath = Join-Path $memoriesDir "$SkillName-observations.md"
+
+    # Validate path is within project directory
+    $resolvedPath = [IO.Path]::GetFullPath($memoryPath)
+    if (-not $resolvedPath.StartsWith($allowedDir + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        Write-Warning "Path traversal attempt detected: '$resolvedPath' is outside the project directory."
+        return $false
+    }
+    $memoryPath = $resolvedPath
 
     # Ensure directory exists
     if (-not (Test-Path $memoriesDir)) {
@@ -303,22 +359,44 @@ function Update-SkillMemory {
     # Append learnings
     $newContent = $existingContent
 
-    if ($Learnings.High.Count -gt 0) {
-        $constraintsSection = "## Constraints (HIGH confidence)`n"
-        foreach ($learning in $Learnings.High) {
-            $constraintsSection += "- $($learning.Source) (Session $SessionId, $(Get-Date -Format 'yyyy-MM-dd'))`n"
-        }
-        $newContent = $newContent -replace '(## Constraints \(HIGH confidence\))', "$constraintsSection`n"
+    # Helper function to escape regex replacement strings
+    function Escape-ReplacementString {
+        param([string]$Text)
+        # Escape $ characters to prevent regex backreference interpretation
+        return $Text -replace '\$', '$$'
     }
 
+    # HIGH: Append to Constraints section
+    if ($Learnings.High.Count -gt 0) {
+        $constraintItems = ""
+        foreach ($learning in $Learnings.High) {
+            $escapedSource = Escape-ReplacementString $learning.Source
+            $constraintItems += "- $escapedSource (Session $SessionId, $(Get-Date -Format 'yyyy-MM-dd'))`n"
+        }
+        # Insert after header, preserving the header itself
+        $newContent = $newContent -replace '(## Constraints \(HIGH confidence\)\r?\n)', "`$1$constraintItems"
+    }
+
+    # MED: Group by type and append to appropriate sections
     if ($Learnings.Med.Count -gt 0) {
-        foreach ($learning in $Learnings.Med) {
-            if ($learning.Type -eq 'success') {
-                $newContent += "`n- $($learning.Source) (Session $SessionId, $(Get-Date -Format 'yyyy-MM-dd'))"
-            }
-            elseif ($learning.Type -eq 'edge_case') {
-                $newContent += "`n- Edge case: $($learning.Source) (Session $SessionId, $(Get-Date -Format 'yyyy-MM-dd'))"
-            }
+        # Preferences: success patterns and tool preferences
+        $preferenceItems = ""
+        foreach ($learning in $Learnings.Med | Where-Object { $_.Type -in @('success', 'preference') }) {
+            $escapedSource = Escape-ReplacementString $learning.Source
+            $preferenceItems += "- $escapedSource (Session $SessionId, $(Get-Date -Format 'yyyy-MM-dd'))`n"
+        }
+        if ($preferenceItems) {
+            $newContent = $newContent -replace '(## Preferences \(MED confidence\)\r?\n)', "`$1$preferenceItems"
+        }
+
+        # Edge Cases: edge case patterns and clarifying questions
+        $edgeCaseItems = ""
+        foreach ($learning in $Learnings.Med | Where-Object { $_.Type -in @('edge_case', 'question') }) {
+            $escapedSource = Escape-ReplacementString $learning.Source
+            $edgeCaseItems += "- $escapedSource (Session $SessionId, $(Get-Date -Format 'yyyy-MM-dd'))`n"
+        }
+        if ($edgeCaseItems) {
+            $newContent = $newContent -replace '(## Edge Cases \(MED confidence\)\r?\n)', "`$1$edgeCaseItems"
         }
     }
 

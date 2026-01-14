@@ -107,6 +107,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/Stop/Invoke-SkillLearning.ps1')\"",
+            "statusMessage": "Extracting skill learnings from session"
+          },
+          {
+            "type": "command",
             "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/Stop/Invoke-SessionValidator.ps1')\"",
             "statusMessage": "Validating session completeness"
           }
