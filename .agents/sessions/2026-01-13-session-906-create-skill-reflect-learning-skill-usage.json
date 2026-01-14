@@ -1,7 +1,11 @@
 {
   "schemaVersion": "1.0",
-  "nextSteps": [],
-  "endingCommit": "",
+  "nextSteps": [
+    "Test skill-reflect on a real session",
+    "Create end-of-session hook that auto-invokes skill-reflect",
+    "Merge to main after testing"
+  ],
+  "endingCommit": "f2f7c14040461c6bb53cc5cabfb419c2c39a3d63",
   "session": {
     "number": 906,
     "startingCommit": "2d4eeec",
