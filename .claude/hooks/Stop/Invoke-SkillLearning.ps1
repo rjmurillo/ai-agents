@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Claude Code Stop hook that silently analyzes the conversation for
-    skill-related learnings and updates skill memories automatically.
+    skill-related learnings and updates skill observation memories automatically.
 
     Detects all skills used in the session and extracts:
 
@@ -24,7 +24,7 @@
 
     Heuristics improved based on real memory patterns from .claude-mem backup analysis.
 
-    Updates .serena/memories/skill-{name}.md files and outputs silent
+    Updates .serena/memories/{skill-name}-observations.md files and outputs silent
     notifications like: "✔️learned from session ➡️github"
 
     This hook never blocks - session ends normally.
@@ -36,7 +36,7 @@
 
     Related:
     - .claude/skills/reflect/SKILL.md
-    - .serena/memories/skill-{name}.md
+    - .serena/memories/{skill-name}-observations.md
     - .claude-mem/memories/direct-backup-*.json (pattern source)
 
 .LINK
@@ -269,7 +269,7 @@ function Update-SkillMemory {
         [string]$SessionId
     )
 
-    $memoryPath = Join-Path $ProjectDir ".serena" "memories" "skill-$SkillName.md"
+    $memoryPath = Join-Path $ProjectDir ".serena" "memories" "$SkillName-observations.md"
     $memoriesDir = Join-Path $ProjectDir ".serena" "memories"
 
     # Ensure directory exists
@@ -284,7 +284,7 @@ function Update-SkillMemory {
     }
     else {
         $existingContent = @"
-# Skill Memory: $SkillName
+# Skill Observations: $SkillName
 
 **Last Updated**: $(Get-Date -Format "yyyy-MM-dd")
 **Sessions Analyzed**: 0

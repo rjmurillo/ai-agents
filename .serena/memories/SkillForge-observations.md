@@ -1,4 +1,4 @@
-# Skill Memory: SkillForge
+# Skill Observations: SkillForge
 
 **Last Updated**: 2026-01-14
 **Sessions Analyzed**: 1

@@ -78,14 +78,14 @@ Analyze the current conversation and propose improvements to skill-based memorie
 
 Locate the skill-based memory to update:
 
-1. **Check Serena memories**: Look for files prefixed with `skill-` in `.serena/memories/`
+1. **Check Serena memories**: Look for files ending with `-observations.md` in `.serena/memories/`
 2. **Infer from context**: Identify which skill(s) were used in the conversation
-3. **Create if needed**: If no skill memory exists, propose creating `skill-{name}.md`
+3. **Create if needed**: If no skill memory exists, propose creating `{skill-name}-observations.md`
 
 **Storage Locations**:
 
-- Primary: `.serena/memories/skill-{skill-name}.md`
-- Fallback (if Serena unavailable): Git at `.serena/memories/skill-{skill-name}.md`
+- Primary: `.serena/memories/{skill-name}-observations.md`
+- Fallback (if Serena unavailable): Git at `.serena/memories/{skill-name}-observations.md`
 
 ### Step 2: Analyze the Conversation
 
@@ -237,37 +237,37 @@ After user approval:
 1. **Read existing memory** (if exists)
 2. **Append new learnings** with timestamp and session reference
 3. **Preserve existing content** - never remove without explicit request
-4. **Write to file**: `.serena/memories/skill-{skill-name}.md`
+4. **Write to file**: `.serena/memories/{skill-name}-observations.md`
 
 **Storage Strategy**:
 
 1. **Attempt Serena MCP** (primary):
 
    ```text
-   mcp__serena__write_memory(memory_file_name="skill-{name}", memory_content="...")
+   mcp__serena__write_memory(memory_file_name="{name}-observations", memory_content="...")
    ```
 
 2. **If Serena unavailable** (fallback to Git):
 
    ```powershell
    # Read existing (if any)
-   $existingContent = Get-Content ".serena/memories/skill-{name}.md" -ErrorAction SilentlyContinue
+   $existingContent = Get-Content ".serena/memories/{name}-observations.md" -ErrorAction SilentlyContinue
 
    # Append new learnings
    $newContent = $existingContent + "`n" + $newLearnings
 
    # Write file
-   Set-Content ".serena/memories/skill-{name}.md" -Value $newContent
+   Set-Content ".serena/memories/{name}-observations.md" -Value $newContent
 
    # Commit
-   git add ".serena/memories/skill-{name}.md"
-   git commit -m "chore(memory): update skill-{name} learnings"
+   git add ".serena/memories/{name}-observations.md"
+   git commit -m "chore(memory): update {name} skill observations"
    ```
 
 **Memory Format**:
 
 ```markdown
-# Skill Memory: {Skill Name}
+# Skill Observations: {Skill Name}
 
 **Last Updated**: {ISO date}
 **Sessions Analyzed**: {count}
@@ -396,7 +396,7 @@ Capture learnings about code review patterns:
 - **Severity levels**: When issues are P0 vs P1 vs P2
 - **False positives**: Patterns that look like issues but aren't
 
-**Example memory**: `.serena/memories/skill-code-review.md`
+**Example memory**: `.serena/memories/code-review-observations.md`
 
 ### 2. API Design Skills
 
@@ -407,7 +407,7 @@ Track API design decisions:
 - **Auth patterns**: OAuth, JWT, API key patterns
 - **Versioning style**: URL versioning, header versioning
 
-**Example memory**: `.serena/memories/skill-api-design.md`
+**Example memory**: `.serena/memories/api-design-observations.md`
 
 ### 3. Testing Skills
 
@@ -418,7 +418,7 @@ Remember testing preferences:
 - **Assertion styles**: Preferred assertion libraries, patterns
 - **Test naming**: Convention for test method names
 
-**Example memory**: `.serena/memories/skill-testing.md`
+**Example memory**: `.serena/memories/testing-observations.md`
 
 ### 4. Documentation Skills
 
@@ -429,7 +429,7 @@ Learn documentation patterns:
 - **Tone preferences**: Formal vs casual, active vs passive voice
 - **Diagram styles**: Mermaid vs ASCII, detail level
 
-**Example memory**: `.serena/memories/skill-documentation.md`
+**Example memory**: `.serena/memories/documentation-observations.md`
 
 ---
 
@@ -464,11 +464,11 @@ Run reflection at session end as part of retrospective:
 Skill memories integrate with the memory system:
 
 ```powershell
-# Search skill memories
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "skill-github constraints"
+# Search skill observations
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "github-observations constraints"
 
-# Read specific skill memory
-Read .serena/memories/skill-github.md
+# Read specific skill observations
+Read .serena/memories/github-observations.md
 ```
 
 ### With Serena
@@ -476,8 +476,8 @@ Read .serena/memories/skill-github.md
 If Serena MCP is available:
 
 ```text
-mcp__serena__read_memory(memory_file_name="skill-github")
-mcp__serena__write_memory(memory_file_name="skill-github", memory_content="...")
+mcp__serena__read_memory(memory_file_name="github-observations")
+mcp__serena__write_memory(memory_file_name="github-observations", memory_content="...")
 ```
 
 ---
@@ -496,26 +496,27 @@ mcp__serena__write_memory(memory_file_name="skill-github", memory_content="...")
 
 ## Design Decisions
 
-### Naming Convention: `skill-{name}.md`
+### Naming Convention: `{skill-name}-observations.md`
 
-**Decision**: Use `skill-` prefix for skill-based memories (e.g., `skill-github.md`).
+**Decision**: Use `{skill-name}-observations.md` format for skill-based memories (e.g., `github-observations.md`, `SkillForge-observations.md`).
 
 **Rationale**:
 
-- Explicit prefix makes skill memories instantly discoverable
-- Separates skill learnings from factual/episodic memories
-- User-specified requirement per original design
+- **ADR-017 Compliant**: Follows `{domain}-{description}` format where skill name is the domain and "observations" is the description
+- **Keyword Clustering**: All skill learnings share the `-observations` suffix for easy recall and discovery
+- **Intuitive**: Clear what the file contains (observations about that skill)
+- **Search-Friendly**: Easy to glob with pattern `*-observations.md`
 
-**Alternative Considered**: Agent sidecar pattern (`{name}-skill-sidecar-learnings.md`)
+**Previous Convention**: `skill-{name}.md` (deprecated)
 
-- More aligned with ADR-007 tiered index
-- Rejected: User explicitly requested `skill-` prefix for clarity
+- **Issue**: Violated ADR-017 validation rules (`skill-` prefix not allowed)
+- **Migration**: Files renamed from `skill-{name}.md` → `{name}-observations.md` (e.g., `skill-github.md` → `github-observations.md`)
 
-**Migration Path**: If the project later adopts sidecar pattern, rename with:
+**Migration Path**: If files use old convention, rename with:
 
 ```powershell
 Get-ChildItem ".serena/memories/skill-*.md" | ForEach-Object {
-    $newName = $_.Name -replace '^skill-(.+)\.md$', '$1-skill-sidecar-learnings.md'
+    $newName = $_.Name -replace '^skill-(.+)\.md$', '$1-observations.md'
     Rename-Item $_.FullName $newName
 }
 ```
@@ -535,10 +536,10 @@ Get-ChildItem ".serena/memories/skill-*.md" | ForEach-Object {
 
 ## Commit Convention
 
-When committing skill memory updates:
+When committing skill observation updates:
 
 ```text
-chore(memory): update skill-{name} learnings from session {N}
+chore(memory): update {skill-name} observations from session {N}
 
 - Added {count} constraints (HIGH confidence)
 - Added {count} preferences (MED confidence)

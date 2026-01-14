@@ -1,4 +1,4 @@
-# Skill Memory: {Skill Name}
+# Skill Observations: {Skill Name}
 
 **Last Updated**: {ISO-DATE}
 **Sessions Analyzed**: 1
@@ -6,6 +6,8 @@
 ## Purpose
 
 This memory captures learnings from using the `{skill-name}` skill across sessions.
+
+**Naming Convention**: `{skill-name}-observations.md` per ADR-017 ({domain}-{description} format).
 
 ## Constraints (HIGH confidence)
 

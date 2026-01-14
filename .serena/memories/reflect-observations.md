@@ -1,4 +1,4 @@
-# Skill Memory: reflect
+# Skill Observations: reflect
 
 **Last Updated**: 2026-01-14
 **Sessions Analyzed**: 1

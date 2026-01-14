@@ -1,4 +1,4 @@
-# Skill Memory: memory
+# Skill Observations: memory
 
 **Last Updated**: 2026-01-14
 **Sessions Analyzed**: 1
@@ -32,3 +32,11 @@ These are observations that may become patterns:
 |------|---------|------|----------|
 | 2026-01-13 | 2026-01-13-session-906 | MED | Analyze .claude-mem backup files for real user patterns |
 | 2026-01-13 | 2026-01-13-session-906 | MED | Show quantitative improvements with before/after metrics |
+
+## Related
+
+- [memory-001-feedback-retrieval](memory-001-feedback-retrieval.md)
+- [memory-architecture-serena-primary](memory-architecture-serena-primary.md)
+- [memory-index](memory-index.md)
+- [memory-size-001-decomposition-thresholds](memory-size-001-decomposition-thresholds.md)
+- [memory-system-fragmentation-tech-debt](memory-system-fragmentation-tech-debt.md)
