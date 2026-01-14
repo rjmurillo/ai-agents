@@ -6,6 +6,23 @@ JSON exports from the Forgetful SQLite database for version control and team sha
 
 Share Forgetful memories across team members and installations while maintaining version control integration.
 
+## Critical Limitations
+
+**WARNING: ID-based sync is NOT suitable for bidirectional synchronization between divergent databases.**
+
+See `scripts/forgetful/README.md` for detailed explanation and supported use cases.
+
+**Safe Usage:**
+
+- Backup/restore on same machine
+- Fresh database initialization
+- One-way sync (primary to secondary)
+
+**Unsafe Usage:**
+
+- Bidirectional sync between divergent databases
+- Team collaboration with concurrent edits on different machines
+
 ## Directory Structure
 
 ```text
@@ -104,11 +121,19 @@ Exit code 0 = safe to commit, 1 = sensitive data found (blocks commit)
 
 Import is idempotent. Safe to run multiple times.
 
-**Duplicate Prevention:**
+**Default Behavior (Replace mode):**
 
-- Uses `INSERT OR IGNORE` to skip existing records
+- Uses `INSERT OR REPLACE` for upsert semantics
+- New records inserted, existing records updated
 - Primary keys determine uniqueness
-- No risk of duplicate data
+
+**Merge Modes:**
+
+| Mode | SQL Operation | Behavior |
+|------|---------------|----------|
+| `Replace` | `INSERT OR REPLACE` | Upsert (default) |
+| `Skip` | `INSERT OR IGNORE` | Insert new only |
+| `Fail` | `INSERT` | Abort on duplicate |
 
 ## Git Integration
 

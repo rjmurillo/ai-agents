@@ -6,6 +6,43 @@ PowerShell scripts for exporting and importing the Forgetful SQLite database to/
 
 Enable memory sharing across team members and installations while maintaining version control integration.
 
+## Critical Limitations
+
+**WARNING: ID-based sync is NOT suitable for bidirectional synchronization between divergent databases.**
+
+These scripts use auto-increment integer IDs from the source database. When databases diverge (different records created on different machines), ID collisions cause data corruption:
+
+- Machine A has entity ID 5 = "Alice"
+- Machine B has entity ID 5 = "Bob"
+- Import overwrites one with the other
+- All relationships pointing to ID 5 now reference the wrong entity
+
+### Supported Use Cases
+
+| Use Case | Supported | Notes |
+|----------|-----------|-------|
+| Backup/restore (same machine) | YES | IDs match exactly |
+| Fresh database initialization | YES | Empty target, no conflicts |
+| One-way sync (primary to secondary) | YES | Secondary never creates data |
+| Bidirectional sync (divergent DBs) | **NO** | ID collisions corrupt data |
+| Team collaboration (concurrent edits) | **NO** | Requires content-based dedup |
+
+### Safe Workflow
+
+1. Designate ONE machine as the primary source
+2. Export only from primary
+3. Import to secondaries (fresh or read-only)
+4. Never import back to primary from secondaries
+
+### Future Improvements
+
+True bidirectional sync would require:
+
+- UUID-based primary keys (schema change in Forgetful)
+- Content-based deduplication
+- Conflict resolution strategy
+- Three-way merge with common ancestor
+
 ## Scripts
 
 ### Export-ForgetfulMemories.ps1
