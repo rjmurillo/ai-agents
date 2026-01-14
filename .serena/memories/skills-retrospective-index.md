@@ -13,4 +13,12 @@
 | december-27 duplicate entry consolidated index structure cleanup | [retrospective-2025-12-27](retrospective-2025-12-27.md) |
 | PR402 acknowledged resolved thread lifecycle state model | [retrospective-pr402-acknowledged-resolved](retrospective-pr402-acknowledged-resolved.md) |
 | skill persistence memory durability cross-session storage | [retrospective-skill-persistence](retrospective-skill-persistence.md) |
-| commit threshold trigger 10 commits PR stuck pattern mini-retrospective | retrospective-commit-trigger |
+| commit threshold trigger 10 commits PR stuck pattern mini-retrospective | [retrospective-commit-trigger](retrospective-commit-trigger.md) |
+
+## Related
+
+- [skills-agent-workflow-index](skills-agent-workflow-index.md)
+- [skills-analysis-index](skills-analysis-index.md)
+- [skills-architecture-index](skills-architecture-index.md)
+- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
+- [skills-bash-integration-index](skills-bash-integration-index.md)

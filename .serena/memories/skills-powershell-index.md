@@ -7,4 +7,12 @@
 | pester test combination ShouldProcess PassThru WhatIf parameter switch coverage path normalization Resolve-Path 8.3 short name RUNNER~1 relative substring validation order exit-code external tool gh auth parameter before environment wildcard escape bracket like operator literal character matching platform document assumption revert migration absolute path PSScriptRoot import module test hierarchy directory tree | [powershell-testing-patterns](powershell-testing-patterns.md) |
 | array handling double-nested Write-Output NoEnumerate wrapper anti-pattern | [powershell-array-handling](powershell-array-handling.md) |
 | -like glob asterisk question flatten depth subdirectory filter files | [powershell-like-pattern-matching](powershell-like-pattern-matching.md) |
-| variable case collision parameter ConvertFrom-Json case-insensitive naming | powershell-variable-case-collision |
+| variable case collision parameter ConvertFrom-Json case-insensitive naming | [powershell-variable-case-collision](powershell-variable-case-collision.md) |
+
+## Related
+
+- [skills-agent-workflow-index](skills-agent-workflow-index.md)
+- [skills-analysis-index](skills-analysis-index.md)
+- [skills-architecture-index](skills-architecture-index.md)
+- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
+- [skills-bash-integration-index](skills-bash-integration-index.md)

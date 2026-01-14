@@ -11,4 +11,12 @@
 | jq gh github cli json integrate inline extract paginate slurp | [jq-github-cli-integration](jq-github-cli-integration.md) |
 | jq pitfall error null type mismatch raw quotes gotcha trap | [jq-pitfalls](jq-pitfalls.md) |
 | jq reference quick operator function syntax | [jq-quick-reference](jq-quick-reference.md) |
-| jq pr github status parse escape error pattern validated | jq-pr-operation-patterns |
+| jq pr github status parse escape error pattern validated | [jq-pr-operation-patterns](jq-pr-operation-patterns.md) |
+
+## Related
+
+- [skills-agent-workflow-index](skills-agent-workflow-index.md)
+- [skills-analysis-index](skills-analysis-index.md)
+- [skills-architecture-index](skills-architecture-index.md)
+- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
+- [skills-bash-integration-index](skills-bash-integration-index.md)

@@ -9,4 +9,12 @@
 | grep search code API pattern include exclude cross-repository | [gh-extensions-grep](gh-extensions-grep.md) |
 | sub-issue child parent hierarchy link task breakdown nested | [gh-extensions-sub-issue](gh-extensions-sub-issue.md) |
 | extension install upgrade remove list maintenance version | [gh-extensions-maintenance](gh-extensions-maintenance.md) |
-| interactive TUI prompt agent anti-pattern avoid pitfall | gh-extensions-anti-patterns |
+| interactive TUI prompt agent anti-pattern avoid pitfall | [gh-extensions-anti-patterns](gh-extensions-anti-patterns.md) |
+
+## Related
+
+- [skills-agent-workflow-index](skills-agent-workflow-index.md)
+- [skills-analysis-index](skills-analysis-index.md)
+- [skills-architecture-index](skills-architecture-index.md)
+- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
+- [skills-bash-integration-index](skills-bash-integration-index.md)
