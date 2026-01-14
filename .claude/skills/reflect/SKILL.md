@@ -1,5 +1,5 @@
 ---
-name: skill-reflect
+name: reflect
 description: Analyze conversations for skill learnings and propose memory improvements. Use when user says "reflect", "improve skill", "learn from this", or at session end after skill-heavy work. Acts as mini-retrospective for skill-based memories.
 license: MIT
 model: claude-sonnet-4-5
@@ -9,7 +9,7 @@ metadata:
   adr: ADR-007
 ---
 
-# Skill Reflect
+# Reflect Skill
 
 Analyze the current conversation and propose improvements to skill-based memories based on what worked, what didn't, and edge cases discovered.
 
@@ -337,6 +337,54 @@ Analysis:
 [MED] + Add edge case: "Check for node_modules existence before build"
   Source: User question about missing dependencies
 ```
+
+---
+
+## Use Cases
+
+### 1. Code Review Skills
+
+Capture learnings about code review patterns:
+
+- **Style guide rules**: User corrections on formatting, naming, structure
+- **Security patterns**: Security vulnerabilities caught, OWASP patterns enforced
+- **Severity levels**: When issues are P0 vs P1 vs P2
+- **False positives**: Patterns that look like issues but aren't
+
+**Example memory**: `.serena/memories/skill-code-review.md`
+
+### 2. API Design Skills
+
+Track API design decisions:
+
+- **Naming conventions**: REST endpoint patterns, verb choices
+- **Error formats**: HTTP status codes, error response structure
+- **Auth patterns**: OAuth, JWT, API key patterns
+- **Versioning style**: URL versioning, header versioning
+
+**Example memory**: `.serena/memories/skill-api-design.md`
+
+### 3. Testing Skills
+
+Remember testing preferences:
+
+- **Coverage targets**: Minimum % required, critical paths
+- **Mocking patterns**: When to mock vs integration test
+- **Assertion styles**: Preferred assertion libraries, patterns
+- **Test naming**: Convention for test method names
+
+**Example memory**: `.serena/memories/skill-testing.md`
+
+### 4. Documentation Skills
+
+Learn documentation patterns:
+
+- **Structure/format**: Section order, heading levels
+- **Code examples**: Real vs pseudo-code, language choice
+- **Tone preferences**: Formal vs casual, active vs passive voice
+- **Diagram styles**: Mermaid vs ASCII, detail level
+
+**Example memory**: `.serena/memories/skill-documentation.md`
 
 ---
 
