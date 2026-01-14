@@ -476,6 +476,18 @@ After configuration, verify the MCP connection in your client:
 - **Claude Code**: Run `mcp__forgetful__discover_forgetful_tools()` to see available tools
 - Check logs if issues occur (uvx manages the process lifecycle automatically)
 
+### Importing Shared Memories
+
+Import the project's shared Forgetful memories to get cross-session context:
+
+```powershell
+pwsh scripts/forgetful/Import-ForgetfulMemories.ps1
+```
+
+This imports all JSON exports from `.forgetful/exports/` into your local Forgetful database. The import is idempotent and safe to run multiple times.
+
+**Note**: See `scripts/forgetful/README.md` for limitations on ID-based sync between divergent databases.
+
 ## Claude Router Plugin
 
 This project supports the [Claude Router](https://github.com/0xrdan/claude-router) plugin for intelligent model routing and cost optimization.
