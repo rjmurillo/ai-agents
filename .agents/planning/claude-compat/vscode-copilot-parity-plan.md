@@ -264,7 +264,7 @@ SOFTWARE.
 1. [ ] Check if agents came from `github.com/anthropics/claude-code-agents` or similar
 2. [ ] Check VSCode Copilot extension marketplace for agent packs
 3. [ ] Search for debug.md/janitor.md/prompt-builder.md in public repositories
-4. [ ] **Decision gate (30 min limit)**: If origins cannot be determined after 30 minutes of research, proceed with "Unknown origin, used under assumption of MIT compatibility per project license"
+4. [ ] **Decision gate (1h limit)**: If origins cannot be determined after 1 hour of research, proceed with "Unknown origin, used under assumption of MIT compatibility per project license"
 
 ---
 
