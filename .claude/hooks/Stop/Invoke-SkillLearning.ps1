@@ -7,9 +7,22 @@
     skill-related learnings and updates skill memories automatically.
 
     Detects all skills used in the session and extracts:
-    - HIGH: User corrections ("no", "not like that", "never do")
-    - MEDIUM: Success patterns (praise, acceptance) and edge cases
-    - LOW: Preferences (repeated patterns)
+
+    HIGH CONFIDENCE (corrections - must fix):
+    - Strong corrections: "no", "nope", "wrong", "incorrect", "never do", "must use"
+    - Chesterton's Fence: "trashed without understanding", "removed without knowing"
+    - Immediate fixes: "debug", "root cause", "fix all", "broken", "error"
+
+    MEDIUM CONFIDENCE (patterns/preferences - should consider):
+    - Tool preferences: "instead of", "rather than", "prefer", "should use"
+    - Success patterns: "perfect", "great", "excellent", "yes", "exactly"
+    - Edge cases: "what if", "how does", "don't want to forget", "ensure"
+    - Questions: Any question after output (may indicate confusion)
+
+    LOW CONFIDENCE (repeated patterns - track for frequency):
+    - Command patterns: Repeated use of specific tools/commands
+
+    Heuristics improved based on real memory patterns from .claude-mem backup analysis.
 
     Updates .serena/memories/skill-{name}.md files and outputs silent
     notifications like: "✔️learned from session ➡️github"
@@ -22,11 +35,12 @@
         0 = Always (silent background learning)
 
     Related:
-    - .claude/skills/skill-reflect/SKILL.md
+    - .claude/skills/reflect/SKILL.md
     - .serena/memories/skill-{name}.md
+    - .claude-mem/memories/direct-backup-*.json (pattern source)
 
 .LINK
-    https://github.com/your-org/ai-agents3/issues/XXX
+    https://github.com/rjmurillo/ai-agents/pull/908
 #>
 [CmdletBinding()]
 param()
@@ -72,13 +86,52 @@ function Detect-SkillUsage {
 
     # Detect skills mentioned or used in conversation
     $skillPatterns = @{
-        'github' = @('gh pr', 'gh issue', '.claude/skills/github', 'github skill')
-        'memory' = @('search memory', 'forgetful', 'serena', 'memory-first')
+        'github' = @('gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review')
+        'memory' = @('search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007')
         'session-init' = @('/session-init', 'session log', 'session protocol')
-        'SkillForge' = @('SkillForge', 'create skill', 'skill-', 'synthesis panel')
+        'SkillForge' = @('SkillForge', 'create skill', 'synthesis panel')
+        'adr-review' = @('adr-review', 'ADR files', 'architecture decision')
+        'incoherence' = @('incoherence skill', 'detect incoherence', 'reconcile')
+        'retrospective' = @('retrospective', 'session end', 'reflect')
+        'reflect' = @('reflect', 'learn from this', 'what did we learn')
+        'pr-comment-responder' = @('pr-comment-responder', 'review comments', 'feedback items')
+        'code-review' = @('code review', 'style guide', 'security patterns')
+        'api-design' = @('API design', 'REST', 'endpoint', 'versioning')
+        'testing' = @('test', 'coverage', 'mocking', 'assertion')
+        'documentation' = @('documentation', 'docs/', 'README', 'write doc')
     }
 
     $detectedSkills = @{}
+
+    # Also detect skills from explicit references
+    $conversationText = ($Messages | ForEach-Object { $_.content }) -join ' '
+
+    # Detect skills referenced as .claude/skills/{skill-name}
+    if ($conversationText -match '\.claude[/\\]skills[/\\]([a-z0-9-]+)') {
+        $skillName = $Matches[1]
+        if (-not $detectedSkills.ContainsKey($skillName)) {
+            $detectedSkills[$skillName] = 1
+        }
+    }
+
+    # Detect skills from slash commands
+    if ($conversationText -match '/([a-z][a-z0-9-]+)') {
+        $commandName = $Matches[1]
+        # Map common commands to skills
+        $commandToSkill = @{
+            'pr-review' = 'github'
+            'session-init' = 'session-init'
+            'memory-search' = 'memory'
+            'memory-list' = 'memory'
+            'research' = 'research-and-incorporate'
+        }
+        if ($commandToSkill.ContainsKey($commandName)) {
+            $skillName = $commandToSkill[$commandName]
+            if (-not $detectedSkills.ContainsKey($skillName)) {
+                $detectedSkills[$skillName] = 1
+            }
+        }
+    }
 
     foreach ($skill in $skillPatterns.Keys) {
         $patterns = $skillPatterns[$skill]
@@ -95,7 +148,12 @@ function Detect-SkillUsage {
         }
 
         if ($matchCount -ge 2) {  # Threshold: mentioned at least twice
-            $detectedSkills[$skill] = $matchCount
+            if ($detectedSkills.ContainsKey($skill)) {
+                $detectedSkills[$skill] += $matchCount
+            }
+            else {
+                $detectedSkills[$skill] = $matchCount
+            }
         }
     }
 
@@ -122,28 +180,77 @@ function Extract-Learnings {
         if ($msg.role -eq 'assistant' -and $nextMsg.role -eq 'user') {
             $userResponse = $nextMsg.content
 
-            # HIGH: User corrections
-            if ($userResponse -match '(?i)\b(no|not like that|wrong|never do|always do|don''t ever)\b') {
+            # HIGH: Strong corrections and directives
+            # Based on memory patterns: "no", "wrong", "incorrect", "fix", "never do", "always do", "must use"
+            if ($userResponse -match '(?i)\b(no[,\s]|nope|not like that|that''s wrong|incorrect|never do|always do|don''t ever|must use|should not|avoid|stop)\b') {
                 $learnings.High += @{
                     Type = 'correction'
-                    Source = $userResponse.Substring(0, [Math]::Min(100, $userResponse.Length))
-                    Context = $msg.content.Substring(0, [Math]::Min(100, $msg.content.Length))
+                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
+                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
                 }
             }
 
-            # MED: Success patterns
-            if ($userResponse -match '(?i)\b(perfect|great|yes|exactly|that''s it|good)\b') {
+            # HIGH: Chesterton's Fence violations (removing things without understanding)
+            if ($userResponse -match '(?i)(trashed without understanding|removed without knowing|deleted without checking|why was this here)') {
+                $learnings.High += @{
+                    Type = 'chestertons_fence'
+                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
+                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
+                }
+            }
+
+            # HIGH: Immediate corrections (commands right after output suggesting it was wrong)
+            if ($userResponse -match '(?i)\b(debug|root cause|correct|fix all|address|broken|error|issue|problem)\b' -and $userResponse.Length -lt 200) {
+                $learnings.High += @{
+                    Type = 'immediate_correction'
+                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
+                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
+                }
+            }
+
+            # MED: Tool/approach preferences
+            # Based on memory patterns: "instead", "rather than", "prefer", "should use"
+            if ($userResponse -match '(?i)\b(instead of|rather than|prefer|should use|use .+ not|better to)\b') {
+                $learnings.Med += @{
+                    Type = 'preference'
+                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
+                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
+                }
+            }
+
+            # MED: Success patterns (expanded from memory analysis)
+            if ($userResponse -match '(?i)\b(perfect|great|excellent|yes|exactly|that''s it|good job|well done|correct|right|works)\b') {
                 $learnings.Med += @{
                     Type = 'success'
-                    Source = $userResponse.Substring(0, [Math]::Min(100, $userResponse.Length))
-                    Context = $msg.content.Substring(0, [Math]::Min(100, $msg.content.Length))
+                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
+                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
                 }
             }
 
-            # MED: Edge cases (questions after output)
-            if ($userResponse -match '\?') {
+            # MED: Edge cases and important questions
+            # Based on memory patterns: "what if", "how does", "don't want to forget", "ensure", "make sure"
+            if ($userResponse -match '(?i)(what if|how does|how will|what about|don''t want to forget|ensure|make sure|needs to)\?') {
                 $learnings.Med += @{
                     Type = 'edge_case'
+                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
+                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
+                }
+            }
+
+            # MED: Simple questions after output (may indicate confusion or missing feature)
+            if ($userResponse -match '\?' -and $userResponse.Length -lt 150) {
+                $learnings.Med += @{
+                    Type = 'question'
+                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
+                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
+                }
+            }
+
+            # LOW: Repeated commands or patterns (may become preferences)
+            # Track for frequency analysis
+            if ($userResponse -match '(?i)^(\.\/|pwsh |gh |git )') {
+                $learnings.Low += @{
+                    Type = 'command_pattern'
                     Source = $userResponse.Substring(0, [Math]::Min(100, $userResponse.Length))
                     Context = $msg.content.Substring(0, [Math]::Min(100, $msg.content.Length))
                 }
