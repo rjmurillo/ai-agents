@@ -39,3 +39,8 @@ worktree--/
 .factory/
 # Claude hook runtime state
 /.agents/.hook-state/
+
+# Forgetful temporary files
+.forgetful/exports/*.bak
+.forgetful/exports/*.tmp
+.forgetful/exports/*.swp
