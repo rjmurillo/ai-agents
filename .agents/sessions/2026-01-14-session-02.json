@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2,
+    "startingCommit": "d528356",
+    "branch": "copilot/fix-pre-commit-hook-issue",
+    "date": "2026-01-14",
+    "objective": "Fix pre-commit hook adding ADR-017-violating sections to memory indexes (Issue #910)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "CreateSessionLog": {
+        "level": "MUST",
+        "evidence": ".agents/sessions/2026-01-14-session-02.json",
+        "complete": true
+      },
+      "ReadHandoff": {
+        "level": "MUST",
+        "evidence": "Read issue description and agent instructions",
+        "complete": true
+      },
+      "SerenaInit": {
+        "level": "MUST",
+        "evidence": "Serena MCP not available",
+        "complete": false
+      }
+    },
+    "sessionEnd": {
+      "CommitChanges": {
+        "level": "MUST",
+        "evidence": "Changes committed",
+        "complete": true
+      },
+      "RunLinting": {
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 and PSScriptAnalyzer run",
+        "complete": true
+      },
+      "CompleteChecklist": {
+        "level": "MUST",
+        "evidence": "Implementation checklist tracked in PR",
+        "complete": true
+      },
+      "UpdateHandoff": {
+        "level": "MUST NOT",
+        "evidence": "HANDOFF.md is read-only",
+        "complete": false
+      }
+    }
+  },
+  "outcomes": {
+    "decisions": [
+      {
+        "decision": "Skip index files (*-index.md) in Improve-MemoryGraphDensity.ps1",
+        "rationale": "ADR-017 requires pure lookup table format for token efficiency",
+        "impact": "Prevents circular validation failure"
+      },
+      {
+        "decision": "Add detection by -index suffix pattern",
+        "rationale": "Simple, reliable pattern matching without complex parsing",
+        "impact": "Works for all index file naming conventions"
+      }
+    ]
+  },
+  "nextSteps": [
+    "Run tests to verify fix",
+    "Manual testing with sample files",
+    "Complete ADR review if required"
+  ],
+  "workLog": [
+    {
+      "action": "Analyzed problem and reviewed ADR-017",
+      "result": "Identified root cause: hook adds content that validation rejects",
+      "files": [
+        ".agents/architecture/ADR-017-tiered-memory-index-architecture.md",
+        ".claude/skills/memory/scripts/Improve-MemoryGraphDensity.ps1",
+        "scripts/Validate-MemoryIndex.ps1"
+      ]
+    },
+    {
+      "action": "Implemented index file exclusion logic",
+      "result": "Added -index suffix detection and skip logic",
+      "files": [
+        ".claude/skills/memory/scripts/Improve-MemoryGraphDensity.ps1"
+      ]
+    },
+    {
+      "action": "Updated documentation",
+      "result": "Script headers, pre-commit comments, and ADR-017 updated",
+      "files": [
+        ".claude/skills/memory/scripts/Improve-MemoryGraphDensity.ps1",
+        ".claude/skills/memory/scripts/Invoke-MemoryCrossReference.ps1",
+        ".githooks/pre-commit",
+        ".agents/architecture/ADR-017-tiered-memory-index-architecture.md"
+      ]
+    },
+    {
+      "action": "Added comprehensive test coverage",
+      "result": "6 new test cases for index file exclusion scenarios",
+      "files": [
+        "tests/Improve-MemoryGraphDensity.Tests.ps1"
+      ]
+    }
+  ]
+}

@@ -473,6 +473,150 @@ Some content with the word related in lowercase.
         }
     }
 
+    Context 'When processing index files (ADR-017 compliance)' {
+        It 'Should skip index files and not add Related sections' {
+            # Arrange
+            $indexFile = Join-Path $script:memoriesPath 'skills-test-index.md'
+            $atomicFile = Join-Path $script:memoriesPath 'test-atomic.md'
+
+            # Create index file with pure table content
+            Set-Content -Path $indexFile -Value @'
+| Keywords | File |
+|----------|------|
+| keyword1 keyword2 | test-atomic |
+'@
+            # Create atomic file
+            Set-Content -Path $atomicFile -Value '# Test Atomic File'
+
+            $indexOriginalContent = Get-Content $indexFile -Raw
+
+            # Act
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
+
+            # Assert
+            $indexContent = Get-Content $indexFile -Raw
+            $atomicContent = Get-Content $atomicFile -Raw
+
+            # Index file should remain unchanged (no Related section)
+            $indexContent | Should -BeExactly $indexOriginalContent
+            $indexContent | Should -Not -Match '## Related'
+
+            # Atomic file can remain unchanged too (no domain pattern match)
+            # The key assertion is that index files are not modified
+        }
+
+        It 'Should skip multiple index files with different patterns' {
+            # Arrange
+            $copilotIndex = Join-Path $script:memoriesPath 'skills-copilot-index.md'
+            $memoryIndex = Join-Path $script:memoriesPath 'memory-index.md'
+            $securityIndex = Join-Path $script:memoriesPath 'skills-security-index.md'
+
+            Set-Content -Path $copilotIndex -Value '| Keywords | File |'
+            Set-Content -Path $memoryIndex -Value '| Keywords | File |'
+            Set-Content -Path $securityIndex -Value '| Keywords | File |'
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
+
+            # Assert
+            $output | Should -Match 'Skipping index file.*skills-copilot-index\.md'
+            $output | Should -Match 'Skipping index file.*memory-index\.md'
+            $output | Should -Match 'Skipping index file.*skills-security-index\.md'
+
+            # All index files should remain unchanged
+            foreach ($indexPath in @($copilotIndex, $memoryIndex, $securityIndex)) {
+                $content = Get-Content $indexPath -Raw
+                $content | Should -Not -Match '## Related'
+            }
+        }
+
+        It 'Should not count index files in FilesModified statistics' {
+            # Arrange
+            $indexFile = Join-Path $script:memoriesPath 'skills-test-index.md'
+            $sec1 = Join-Path $script:memoriesPath 'security-001.md'
+            $sec2 = Join-Path $script:memoriesPath 'security-002.md'
+
+            Set-Content -Path $indexFile -Value '| Keywords | File |'
+            Set-Content -Path $sec1 -Value '# Security 001'
+            Set-Content -Path $sec2 -Value '# Security 002'
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
+
+            # Assert
+            # Only security files should be counted as updated
+            $output | Should -Match 'Files updated: 2'
+
+            # Index file should be skipped
+            $indexContent = Get-Content $indexFile -Raw
+            $indexContent | Should -Not -Match '## Related'
+        }
+
+        It 'Should skip index files in DryRun mode' {
+            # Arrange
+            $indexFile = Join-Path $script:memoriesPath 'skills-test-index.md'
+            Set-Content -Path $indexFile -Value '| Keywords | File |'
+
+            # Act
+            $output = & $scriptPath -DryRun -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
+
+            # Assert
+            $output | Should -Match 'Skipping index file.*skills-test-index\.md'
+            $output | Should -Not -Match 'Would add Related section to: skills-test-index\.md'
+        }
+
+        It 'Should skip index files in OutputJson mode' {
+            # Arrange
+            $indexFile = Join-Path $script:memoriesPath 'skills-test-index.md'
+            $atomicFile = Join-Path $script:memoriesPath 'test-001.md'
+
+            Set-Content -Path $indexFile -Value '| Keywords | File |'
+            Set-Content -Path $atomicFile -Value '# Test 001'
+
+            # Act
+            $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation -OutputJson
+
+            # Assert
+            $json = $output | ConvertFrom-Json
+            # Index file should not be counted in modified files
+            $json.FilesModified | Should -Be 0
+
+            # Index file content should remain unchanged
+            $indexContent = Get-Content $indexFile -Raw
+            $indexContent | Should -Not -Match '## Related'
+        }
+
+        It 'Should detect index files by -index suffix pattern' {
+            # Arrange
+            $testCases = @(
+                @{ Name = 'skills-copilot-index.md'; IsIndex = $true }
+                @{ Name = 'memory-index.md'; IsIndex = $true }
+                @{ Name = 'skills-security-index.md'; IsIndex = $true }
+                @{ Name = 'custom-domain-index.md'; IsIndex = $true }
+                @{ Name = 'security-indexed.md'; IsIndex = $false }
+                @{ Name = 'index-file.md'; IsIndex = $false }
+                @{ Name = 'my-indexer.md'; IsIndex = $false }
+            )
+
+            foreach ($testCase in $testCases) {
+                # Arrange
+                Get-ChildItem -Path $script:memoriesPath -Filter '*.md' -File | Remove-Item -Force
+                $filePath = Join-Path $script:memoriesPath $testCase.Name
+                Set-Content -Path $filePath -Value '# Test Content'
+
+                # Act
+                $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
+
+                # Assert
+                if ($testCase.IsIndex) {
+                    $output | Should -Match "Skipping index file.*$([regex]::Escape($testCase.Name))"
+                    $content = Get-Content $filePath -Raw
+                    $content | Should -Not -Match '## Related'
+                }
+            }
+        }
+    }
+
     Context 'When handling edge cases' {
         It 'Should preserve file encoding (UTF-8)' {
             # Arrange
