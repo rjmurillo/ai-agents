@@ -107,16 +107,23 @@ function Detect-SkillUsage {
     $conversationText = ($Messages | ForEach-Object { $_.content }) -join ' '
 
     # Detect skills referenced as .claude/skills/{skill-name}
-    if ($conversationText -match '\.claude[/\\]skills[/\\]([a-z0-9-]+)') {
-        $skillName = $Matches[1]
+    # Use Matches() to capture ALL skill references, not just the first
+    $skillPathMatches = [regex]::Matches($conversationText, '\.claude[/\\]skills[/\\]([a-z0-9-]+)')
+    foreach ($match in $skillPathMatches) {
+        $skillName = $match.Groups[1].Value
         if (-not $detectedSkills.ContainsKey($skillName)) {
             $detectedSkills[$skillName] = 1
+        }
+        else {
+            $detectedSkills[$skillName]++
         }
     }
 
     # Detect skills from slash commands
-    if ($conversationText -match '/([a-z][a-z0-9-]+)') {
-        $commandName = $Matches[1]
+    # Use Matches() to capture ALL slash command references
+    $slashCommandMatches = [regex]::Matches($conversationText, '/([a-z][a-z0-9-]+)')
+    foreach ($match in $slashCommandMatches) {
+        $commandName = $match.Groups[1].Value
         # Map common commands to skills
         $commandToSkill = @{
             'pr-review' = 'github'
@@ -129,6 +136,9 @@ function Detect-SkillUsage {
             $skillName = $commandToSkill[$commandName]
             if (-not $detectedSkills.ContainsKey($skillName)) {
                 $detectedSkills[$skillName] = 1
+            }
+            else {
+                $detectedSkills[$skillName]++
             }
         }
     }
@@ -397,6 +407,18 @@ function Update-SkillMemory {
         }
         if ($edgeCaseItems) {
             $newContent = $newContent -replace '(## Edge Cases \(MED confidence\)\r?\n)', "`$1$edgeCaseItems"
+        }
+    }
+
+    # LOW: Command patterns for frequency tracking
+    if ($Learnings.Low.Count -gt 0) {
+        $lowItems = ""
+        foreach ($learning in $Learnings.Low) {
+            $escapedSource = Escape-ReplacementString $learning.Source
+            $lowItems += "- $escapedSource (Session $SessionId, $(Get-Date -Format 'yyyy-MM-dd'))`n"
+        }
+        if ($lowItems) {
+            $newContent = $newContent -replace '(## Notes for Review \(LOW confidence\)\r?\n)', "`$1$lowItems"
         }
     }
 
