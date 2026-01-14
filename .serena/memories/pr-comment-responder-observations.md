@@ -1,7 +1,7 @@
 # Skill Observations: pr-comment-responder
 
 **Last Updated**: 2026-01-14
-**Sessions Analyzed**: 1
+**Sessions Analyzed**: 2
 
 ## Purpose
 
@@ -19,22 +19,20 @@ These are preferences that SHOULD be followed:
 
 - Batch acknowledge all comments with reactions before addressing fixes. Use GraphQL mutations in batches of 5 for efficiency. (Session 2026-01-14, 2026-01-14)
 - Load skill-specific memory (pr-comment-responder-skills.md) before starting triage for reviewer signal quality stats. (Session 2026-01-14, 2026-01-14)
+- Systematic triage workflow: check unresolved threads → read comment details → fix code → reply with explanation → resolve thread (Session 2026-01-14-session-01, 2026-01-14)
+- Distinguish infrastructure failures from code issues. Pre-commit hook bugs or CI infrastructure problems should be acknowledged but may not block PR progress (Session 2026-01-14-session-01, 2026-01-14)
+- When fixing review findings, commit with clear explanations referencing commit SHA and specific changes made (Session 2026-01-14-session-01, 2026-01-14)
+- Use git commit --no-verify only for documented infrastructure issues. Always explain in commit message why verification was bypassed (Session 2026-01-14-session-01, 2026-01-14)
 
 ## Edge Cases (MED confidence)
 
 These are scenarios to handle:
 
+- Template files must match implementation exactly - terminology (MEDIUM vs MED), date formats (ISO-DATE vs YYYY-MM-DD), sections (History table vs no table) (Session 2026-01-14-session-01, 2026-01-14)
+
 ## Notes for Review (LOW confidence)
 
 These are observations that may become patterns:
-
-## History
-
-| Date | Session | Type | Learning |
-|------|---------|------|----------|
-| 2026-01-14 | 2026-01-14 | HIGH | Proactively identify missing files that should be in PR |
-| 2026-01-14 | 2026-01-14 | MED | Batch acknowledge all comments with GraphQL reactions |
-| 2026-01-14 | 2026-01-14 | MED | Load pr-comment-responder-skills.md before triage |
 
 ## Related
 
