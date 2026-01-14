@@ -4,22 +4,22 @@
 |---------------|-------------------|
 | session start init handoff protocol serena blocking | [skills-session-init-index](skills-session-init-index.md), [project-overview](project-overview.md), [codebase-structure](codebase-structure.md) |
 | session validation diagnose fixer protocol compliance NON_COMPLIANT changelog history | [changelog-session-log-fixer](changelog-session-log-fixer.md) |
-| github pr issue cli gh api | [skills-github-cli-index](skills-github-cli-index.md), [skills-pr-review-index](skills-pr-review-index.md), [project-labels-milestones](project-labels-milestones.md) |
+| github pr issue cli gh api review comment batch response | [skills-github-cli-index](skills-github-cli-index.md), [skills-pr-review-index](skills-pr-review-index.md), [pr-review-batch-response-pattern](pr-review-batch-response-pattern.md), [project-labels-milestones](project-labels-milestones.md) |
 | graphql mutation query resolve thread reply batch nested | [skills-graphql-index](skills-graphql-index.md) |
 | jq json parse filter select map array object string | [skills-jq-index](skills-jq-index.md) |
 | gh extension notify combine metrics milestone webhook grep sub-issue | [skills-gh-extensions-index](skills-gh-extensions-index.md) |
 | label milestone issue create tag priority | [project-labels-milestones](project-labels-milestones.md) |
-| powershell ps1 psm1 module pester test discovery isolation variable scope script BeforeAll It block visibility | [skills-powershell-index](skills-powershell-index.md), [skills-pester-testing-index](skills-pester-testing-index.md), [pester-variable-scoping](pester-variable-scoping.md), [pattern-thin-workflows](pattern-thin-workflows.md) |
+| powershell ps1 psm1 module pester test discovery isolation variable scope script BeforeAll It block visibility shadowing automatic | [skills-powershell-index](skills-powershell-index.md), [skills-pester-testing-index](skills-pester-testing-index.md), [pester-variable-scoping](pester-variable-scoping.md), [powershell-variable-shadowing-detection](powershell-variable-shadowing-detection.md), [pattern-thin-workflows](pattern-thin-workflows.md) |
 | bash exit code cross-language contract AUTOFIX pre-commit hook | [skills-bash-integration-index](skills-bash-integration-index.md) |
 | security vulnerability TOCTOU secret injection | [skills-security-index](skills-security-index.md) |
 | autonomous execution guardrails circuit breaker patch signal trust metric | [skills-autonomous-execution-index](skills-autonomous-execution-index.md) |
 | planning task file path scope breakdown | [skills-planning-index](skills-planning-index.md) |
 | architecture ADR model composite tool allocation producer-consumer | [skills-architecture-index](skills-architecture-index.md) |
-| adr decision record active proposed superseded rationale | [adr-reference-index](adr-reference-index.md) |
+| adr decision record active proposed superseded rationale artifact amendment retroactive verification count | [adr-reference-index](adr-reference-index.md), [adr-artifact-count-verification](adr-artifact-count-verification.md), [adr-retroactive-amendment-criteria](adr-retroactive-amendment-criteria.md) |
 | cache invalidation TTL session-local cloudmcp stale refresh | [adr-reference-index](adr-reference-index.md) |
 | design agent specialization entry-criteria limitation composability | [skills-design-index](skills-design-index.md) |
 | implementation code feature bug fix test TDD additive | [skills-implementation-index](skills-implementation-index.md) |
-| orchestration agent coordination parallel handoff dispatch | [skills-orchestration-index](skills-orchestration-index.md) |
+| orchestration agent coordination parallel handoff dispatch consensus disagree commit dissent | [skills-orchestration-index](skills-orchestration-index.md), [consensus-disagree-and-commit-pattern](consensus-disagree-and-commit-pattern.md) |
 | agent workflow pipeline critic atomic commit scope MVP | [skills-agent-workflow-index](skills-agent-workflow-index.md) |
 | quality qa DoD definition-of-done test strategy critique | [skills-quality-index](skills-quality-index.md) |
 | utility script markdown fence PathInfo security pattern | [skills-utilities-index](skills-utilities-index.md) |
@@ -39,7 +39,7 @@
 | triage stale closure verify history bot superseded duplicate | [triage-001-verify-before-stale-closure](triage-001-verify-before-stale-closure.md), [triage-002-bot-closure-verification](triage-002-bot-closure-verification.md) |
 | lost code recovery investigation unmerged branch orphaned | [recovery-001-lost-code-investigation](recovery-001-lost-code-investigation.md) |
 | protocol blocking gate RFC MUST verification template legacy | [skills-protocol-index](skills-protocol-index.md) |
-| retrospective learning session failure skill persistence extract | [skills-retrospective-index](skills-retrospective-index.md) |
+| retrospective learning session failure skill persistence extract artifact efficiency concurrent | [skills-retrospective-index](skills-retrospective-index.md), [retrospective-artifact-efficiency-pattern](retrospective-artifact-efficiency-pattern.md) |
 | regex pattern match escape lookahead anchor quantifier | [utilities-regex](utilities-regex.md) |
 | roadmap epic priority strategic vision business value | [roadmap-priorities](roadmap-priorities.md) |
 | governance agent consolidation design principle overlap | [governance-001-8-question-agent-interview](governance-001-8-question-agent-interview.md), [governance-002-five-consolidation-triggers](governance-002-five-consolidation-triggers.md) |

@@ -10,3 +10,4 @@
 | copilot swe prompting constraints templates scope limits | [orchestration-prompt-002-copilot-swe-constraints](orchestration-prompt-002-copilot-swe-constraints.md) |
 | copilot anti-patterns scope explosion test mutation signals | [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md) |
 | process workflow gap missing capability root cause consultation validation | orchestration-process-workflow-gaps |
+| consensus debate disagree commit dissent follow-up multi-agent | [consensus-disagree-and-commit-pattern](consensus-disagree-and-commit-pattern.md) |
