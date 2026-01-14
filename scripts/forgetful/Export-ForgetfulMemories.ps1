@@ -219,7 +219,7 @@ $ExportData = @{
 
 # Get schema version from alembic_version table
 try {
-    $SchemaVersion = sqlite3 $DatabasePath "SELECT version_num FROM alembic_version LIMIT 1;" 2>$null
+    $SchemaVersion = sqlite3 "$DatabasePath" "SELECT version_num FROM alembic_version LIMIT 1;" 2>$null
     if ($SchemaVersion) {
         $ExportData.export_metadata.schema_version = $SchemaVersion.Trim()
     }
@@ -236,10 +236,10 @@ foreach ($Table in $DataTables) {
         # Use SQLite JSON output mode for structured data
         # SECURITY: Quote all variables to prevent SQL injection (CWE-89)
         # WHY: Unquoted variables allow SQL injection attacks
-        $TableData = sqlite3 $DatabasePath "SELECT json_group_array(json_object(
+        $TableData = sqlite3 "$DatabasePath" "SELECT json_group_array(json_object(
             $(
                 # Build column list dynamically from table schema
-                $Columns = sqlite3 $DatabasePath "PRAGMA table_info($Table);" |
+                $Columns = sqlite3 "$DatabasePath" "PRAGMA table_info($Table);" |
                     ForEach-Object {
                         $Parts = $_ -split '\|'
                         "'$($Parts[1])', $($Parts[1])"
@@ -290,7 +290,7 @@ try {
         Write-Host "🔒 Running mandatory security review..." -ForegroundColor Cyan
         Write-Host ""
 
-        & $SecurityScript -ExportFile $OutputFile
+        & $SecurityScript -ExportFile "$OutputFile"
 
         if ($LASTEXITCODE -ne 0) {
             Write-Host ""

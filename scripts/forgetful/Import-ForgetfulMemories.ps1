@@ -306,37 +306,57 @@ foreach ($FilePath in $InputFiles) {
 
                     $ValuesString = $Values -join ', '
 
-                    # Check if record exists (for accurate insert vs update tracking)
-                    $RecordExists = $false
-                    if ($MergeMode -eq 'Replace' -and $PrimaryKeyColumn -and $Row.$PrimaryKeyColumn) {
+                    # Check if record exists BEFORE insert (for accurate tracking)
+                    # SECURITY: Quote $DatabasePath to prevent command injection (CWE-78)
+                    # SECURITY: Quote $PkValue to prevent SQL injection (CWE-89)
+                    $RecordExistedBefore = $false
+                    if ($PrimaryKeyColumn -and $Row.$PrimaryKeyColumn) {
                         $PkValue = $Row.$PrimaryKeyColumn
-                        $ExistsCheck = sqlite3 $DatabasePath "SELECT COUNT(*) FROM $Table WHERE $PrimaryKeyColumn = $PkValue;" 2>&1
-                        $RecordExists = ($ExistsCheck -eq '1')
+                        # Escape and quote string values for SQL
+                        $QuotedPkValue = if ($PkValue -is [string]) { "'$($PkValue -replace "'", "''")'" } else { $PkValue }
+                        $ExistsCheck = sqlite3 "$DatabasePath" "SELECT COUNT(*) FROM $Table WHERE $PrimaryKeyColumn = $QuotedPkValue;" 2>&1
+                        $RecordExistedBefore = ($ExistsCheck -eq '1')
                     }
 
                     # Execute INSERT with appropriate conflict handling
                     # SECURITY: Values are escaped above to prevent SQL injection
                     $InsertSQL = "$SqlOperation $Table ($ColumnNames) VALUES ($ValuesString);"
 
-                    $ErrorOutput = sqlite3 $DatabasePath "$InsertSQL" 2>&1
+                    $ErrorOutput = sqlite3 "$DatabasePath" "$InsertSQL" 2>&1
 
                     # Handle Fail mode - check for constraint violation
                     if ($MergeMode -eq 'Fail' -and $ErrorOutput -match 'UNIQUE constraint failed') {
                         throw "Duplicate record found in $Table (Fail mode enabled)"
                     }
 
-                    # Check if row was affected
-                    $Changes = sqlite3 $DatabasePath "SELECT changes();" 2>&1
-                    if ($Changes -eq '1') {
-                        if ($RecordExists) {
+                    # Determine outcome based on pre-check and mode
+                    # NOTE: We check existence BEFORE insert, not SELECT changes()
+                    # because SELECT changes() runs in separate process (always 0)
+                    if ($ErrorOutput -and $ErrorOutput -notmatch 'UNIQUE constraint failed') {
+                        # Error occurred (other than expected constraint violation)
+                        $SkippedCount++
+                    }
+                    elseif ($MergeMode -eq 'Replace') {
+                        # Replace mode: update if existed, insert if new
+                        if ($RecordExistedBefore) {
                             $UpdatedCount++
                         }
                         else {
                             $InsertedCount++
                         }
                     }
+                    elseif ($MergeMode -eq 'Skip') {
+                        # Skip mode: skip if existed, insert if new
+                        if ($RecordExistedBefore) {
+                            $SkippedCount++
+                        }
+                        else {
+                            $InsertedCount++
+                        }
+                    }
                     else {
-                        $SkippedCount++
+                        # Fail mode - if we got here without exception, it was inserted
+                        $InsertedCount++
                     }
                 }
                 catch {
