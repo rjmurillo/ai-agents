@@ -5,9 +5,12 @@
 
 .DESCRIPTION
     Idempotent import of JSON memory files into Forgetful SQLite database.
-    Automatically prevents duplicates using primary keys and composite keys.
+    Merges with existing data using upsert semantics (INSERT OR REPLACE).
 
-    Safe to run multiple times - existing records are skipped.
+    Safe to run multiple times:
+    - New records are inserted
+    - Existing records are updated with imported values
+    - No data is lost from existing database
 
     See .forgetful/exports/README.md for complete workflow documentation.
 
@@ -18,13 +21,24 @@
 .PARAMETER DatabasePath
     Path to Forgetful SQLite database. Defaults to ~/.local/share/forgetful/forgetful.db
 
+.PARAMETER MergeMode
+    How to handle existing records:
+    - 'Replace' (default): Update existing records with imported values (upsert)
+    - 'Skip': Skip existing records, only insert new ones
+    - 'Fail': Fail if any record already exists
+
 .PARAMETER Force
     Skip confirmation prompt for imports affecting existing data.
 
 .EXAMPLE
     pwsh scripts/forgetful/Import-ForgetfulMemories.ps1
 
-    Imports all JSON files from .forgetful/exports/
+    Imports all JSON files from .forgetful/exports/, merging with existing data
+
+.EXAMPLE
+    pwsh scripts/forgetful/Import-ForgetfulMemories.ps1 -MergeMode Skip
+
+    Only insert new records, skip duplicates
 
 .EXAMPLE
     pwsh scripts/forgetful/Import-ForgetfulMemories.ps1 -InputFiles @('.forgetful/exports/backup.json')
@@ -36,8 +50,9 @@
     Uses SQLite3 command-line tool to import data into Forgetful database.
     Requires sqlite3 to be installed and available in PATH.
 
-    IDEMPOTENCY: Records are inserted using INSERT OR IGNORE to prevent duplicates.
-    Existing records with matching primary keys are automatically skipped.
+    IDEMPOTENCY: Default mode uses INSERT OR REPLACE for upsert semantics.
+    Existing records with matching primary keys are updated with new values.
+    This allows merging exports from different machines/installations.
 
     LIMITATION: Only imports .json files from the top-level exports directory.
     Files in subdirectories are NOT imported. Organize exports at the root level.
@@ -50,6 +65,10 @@ param(
 
     [Parameter(Mandatory = $false)]
     [string]$DatabasePath = (Join-Path $env:HOME '.local' 'share' 'forgetful' 'forgetful.db'),
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet('Replace', 'Skip', 'Fail')]
+    [string]$MergeMode = 'Replace',
 
     [Parameter(Mandatory = $false)]
     [switch]$Force
@@ -125,13 +144,27 @@ else {
 }
 
 Write-Host "🔄 Importing $($InputFiles.Count) memory file(s) from .forgetful/exports/" -ForegroundColor Green
+Write-Host "   Merge mode: $MergeMode" -ForegroundColor Gray
 Write-Host ""
 
 if (-not $Force) {
     Write-Host "⚠️  WARNING: This will modify the Forgetful database at:" -ForegroundColor Yellow
     Write-Host "   $DatabasePath" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "   Existing records with matching IDs will be SKIPPED (idempotent)." -ForegroundColor Gray
+    switch ($MergeMode) {
+        'Replace' {
+            Write-Host "   Mode: REPLACE - Existing records will be UPDATED with imported values" -ForegroundColor Cyan
+            Write-Host "   New records will be inserted, existing records will be merged" -ForegroundColor Gray
+        }
+        'Skip' {
+            Write-Host "   Mode: SKIP - Existing records will be SKIPPED (insert new only)" -ForegroundColor Cyan
+            Write-Host "   Only new records will be inserted, duplicates ignored" -ForegroundColor Gray
+        }
+        'Fail' {
+            Write-Host "   Mode: FAIL - Import will ABORT if duplicates found" -ForegroundColor Cyan
+            Write-Host "   Ensures no existing data is modified" -ForegroundColor Gray
+        }
+    }
     Write-Host ""
     $Confirm = Read-Host "Continue? (y/N)"
     if ($Confirm -ne 'y' -and $Confirm -ne 'Y') {
@@ -142,8 +175,20 @@ if (-not $Force) {
 }
 
 $ImportCount = 0
+$UpdateCount = 0
 $SkipCount = 0
 $FailedFiles = @()
+
+# Determine SQL operation based on merge mode
+# WHY: Different modes support different use cases:
+# - Replace: Merge data from multiple sources (default, augments existing)
+# - Skip: Import only new records (safe, no overwrites)
+# - Fail: Strict import (ensures no conflicts)
+$SqlOperation = switch ($MergeMode) {
+    'Replace' { 'INSERT OR REPLACE INTO' }
+    'Skip' { 'INSERT OR IGNORE INTO' }
+    'Fail' { 'INSERT INTO' }
+}
 
 # Define import order (dependencies first)
 # WHY: Foreign key constraints require parent records to exist before children
@@ -206,19 +251,39 @@ foreach ($FilePath in $InputFiles) {
 
             Write-Host "     Importing $Table ($($Rows.Count) rows)..." -ForegroundColor DarkGray
 
-            # Build INSERT OR IGNORE statement for idempotency
-            # WHY: INSERT OR IGNORE skips existing records, making import idempotent
+            # Build INSERT statement based on merge mode
+            # WHY: Different SQL operations support different merge behaviors
             $SampleRow = $Rows[0]
             $Columns = $SampleRow.PSObject.Properties.Name
 
             $InsertedCount = 0
+            $UpdatedCount = 0
             $SkippedCount = 0
+
+            # For Replace mode, we need to check if record exists before insert
+            # to distinguish between inserts and updates
+            $PrimaryKeyColumn = switch ($Table) {
+                'users' { 'id' }
+                'memories' { 'id' }
+                'projects' { 'id' }
+                'entities' { 'id' }
+                'documents' { 'id' }
+                'code_artifacts' { 'id' }
+                'memory_links' { 'id' }
+                # Association tables use composite keys
+                'memory_project_association' { $null }
+                'memory_code_artifact_association' { $null }
+                'memory_document_association' { $null }
+                'memory_entity_association' { $null }
+                'entity_project_association' { $null }
+                'entity_relationships' { 'id' }
+                default { 'id' }
+            }
 
             foreach ($Row in $Rows) {
                 try {
                     # Build column names and values
                     $ColumnNames = ($Columns -join ', ')
-                    $Placeholders = ($Columns | ForEach-Object { '?' }) -join ', '
 
                     # Build values array, handling NULL values
                     $Values = $Columns | ForEach-Object {
@@ -241,29 +306,58 @@ foreach ($FilePath in $InputFiles) {
 
                     $ValuesString = $Values -join ', '
 
-                    # Execute INSERT OR IGNORE
-                    # SECURITY: Using parameterized values (already escaped above)
-                    $InsertSQL = "INSERT OR IGNORE INTO $Table ($ColumnNames) VALUES ($ValuesString);"
+                    # Check if record exists (for accurate insert vs update tracking)
+                    $RecordExists = $false
+                    if ($MergeMode -eq 'Replace' -and $PrimaryKeyColumn -and $Row.$PrimaryKeyColumn) {
+                        $PkValue = $Row.$PrimaryKeyColumn
+                        $ExistsCheck = sqlite3 $DatabasePath "SELECT COUNT(*) FROM $Table WHERE $PrimaryKeyColumn = $PkValue;" 2>&1
+                        $RecordExists = ($ExistsCheck -eq '1')
+                    }
 
-                    sqlite3 $DatabasePath "$InsertSQL" 2>&1 | Out-Null
+                    # Execute INSERT with appropriate conflict handling
+                    # SECURITY: Values are escaped above to prevent SQL injection
+                    $InsertSQL = "$SqlOperation $Table ($ColumnNames) VALUES ($ValuesString);"
 
-                    # Check if row was inserted (changes > 0) or skipped (changes = 0)
+                    $ErrorOutput = sqlite3 $DatabasePath "$InsertSQL" 2>&1
+
+                    # Handle Fail mode - check for constraint violation
+                    if ($MergeMode -eq 'Fail' -and $ErrorOutput -match 'UNIQUE constraint failed') {
+                        throw "Duplicate record found in $Table (Fail mode enabled)"
+                    }
+
+                    # Check if row was affected
                     $Changes = sqlite3 $DatabasePath "SELECT changes();" 2>&1
                     if ($Changes -eq '1') {
-                        $InsertedCount++
+                        if ($RecordExists) {
+                            $UpdatedCount++
+                        }
+                        else {
+                            $InsertedCount++
+                        }
                     }
                     else {
                         $SkippedCount++
                     }
                 }
                 catch {
+                    if ($MergeMode -eq 'Fail') {
+                        # In Fail mode, abort on any error
+                        throw $_
+                    }
                     Write-Warning "Failed to import row in ${Table}: $_"
                 }
             }
 
-            Write-Host "       ✓ Inserted: $InsertedCount, Skipped: $SkippedCount (duplicates)" -ForegroundColor DarkGray
+            # Display results based on merge mode
+            if ($MergeMode -eq 'Replace') {
+                Write-Host "       ✓ Inserted: $InsertedCount, Updated: $UpdatedCount, Skipped: $SkippedCount" -ForegroundColor DarkGray
+            }
+            else {
+                Write-Host "       ✓ Inserted: $InsertedCount, Skipped: $SkippedCount (duplicates)" -ForegroundColor DarkGray
+            }
 
             $ImportCount += $InsertedCount
+            $UpdateCount += $UpdatedCount
             $SkipCount += $SkippedCount
         }
     }
@@ -272,15 +366,21 @@ foreach ($FilePath in $InputFiles) {
             File = $FileName
             Reason = $_.Exception.Message
         }
-        Write-Warning "Failed to import $FileName: $_"
+        Write-Warning "Failed to import ${FileName}: $_"
     }
 }
 
 Write-Host ""
 
 if ($FailedFiles.Count -eq 0) {
-    Write-Host "✅ Import complete: $ImportCount records inserted, $SkipCount duplicates skipped" -ForegroundColor Green
-    Write-Host "   Duplicates automatically skipped via INSERT OR IGNORE (idempotent)" -ForegroundColor Gray
+    if ($MergeMode -eq 'Replace') {
+        Write-Host "✅ Import complete: $ImportCount inserted, $UpdateCount updated, $SkipCount unchanged" -ForegroundColor Green
+        Write-Host "   Merge mode: Records merged via INSERT OR REPLACE (idempotent upsert)" -ForegroundColor Gray
+    }
+    else {
+        Write-Host "✅ Import complete: $ImportCount records inserted, $SkipCount duplicates skipped" -ForegroundColor Green
+        Write-Host "   Mode: $MergeMode (idempotent)" -ForegroundColor Gray
+    }
 }
 else {
     Write-Host "⚠️  Import completed with failures: $ImportCount succeeded, $($FailedFiles.Count) files failed" -ForegroundColor Yellow

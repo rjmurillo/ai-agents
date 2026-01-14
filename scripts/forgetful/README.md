@@ -45,13 +45,19 @@ Export automatically runs security review script. Must pass before committing to
 
 ### Import-ForgetfulMemories.ps1
 
-Import Forgetful database from JSON format.
+Import Forgetful database from JSON format with merge support.
 
 **Usage:**
 
 ```powershell
-# Import all files from exports directory
+# Import all files from exports directory (default: merge/upsert)
 pwsh scripts/forgetful/Import-ForgetfulMemories.ps1
+
+# Import with merge mode (updates existing records)
+pwsh scripts/forgetful/Import-ForgetfulMemories.ps1 -MergeMode Replace
+
+# Import new records only (skip duplicates)
+pwsh scripts/forgetful/Import-ForgetfulMemories.ps1 -MergeMode Skip
 
 # Import specific files
 pwsh scripts/forgetful/Import-ForgetfulMemories.ps1 -InputFiles @('.forgetful/exports/backup.json')
@@ -64,11 +70,27 @@ pwsh scripts/forgetful/Import-ForgetfulMemories.ps1 -Force
 
 - `-InputFiles`: Array of JSON file paths (default: all `.json` files in `.forgetful/exports/`)
 - `-DatabasePath`: Path to Forgetful database (default: `~/.local/share/forgetful/forgetful.db`)
+- `-MergeMode`: How to handle existing records:
+  - `Replace` (default): Update existing records with imported values (upsert)
+  - `Skip`: Skip existing records, only insert new ones
+  - `Fail`: Abort if any record already exists
 - `-Force`: Skip confirmation prompt
 
 **Idempotency:**
 
-Safe to run multiple times. Existing records with matching primary keys are automatically skipped using `INSERT OR IGNORE`.
+Safe to run multiple times. Default mode (`Replace`) uses `INSERT OR REPLACE` for true upsert semantics:
+
+- New records are inserted
+- Existing records are updated with imported values
+- No data is lost from existing database
+
+**Merge Modes:**
+
+| Mode | SQL Operation | Behavior |
+|------|---------------|----------|
+| `Replace` | `INSERT OR REPLACE` | Upsert: insert new, update existing (default) |
+| `Skip` | `INSERT OR IGNORE` | Insert new only, skip duplicates |
+| `Fail` | `INSERT` | Abort on any duplicate |
 
 ## Workflow
 
