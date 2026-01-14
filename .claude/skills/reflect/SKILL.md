@@ -1,6 +1,6 @@
 ---
 name: reflect
-description: Analyze conversations for skill learnings and propose memory improvements. Use when user says "reflect", "improve skill", "learn from this", or at session end after skill-heavy work. Acts as mini-retrospective for skill-based memories.
+description: CRITICAL learning capture. Extracts HIGH/MED/LOW confidence patterns from conversations to prevent repeating mistakes and preserve what works. Use PROACTIVELY after user corrections ("no", "wrong"), after praise ("perfect", "exactly"), when discovering edge cases, or when skills are heavily used. Without reflection, valuable learnings are LOST forever. Acts as continuous improvement engine for all skills. Invoke EARLY and OFTEN - every correction is a learning opportunity.
 license: MIT
 model: claude-sonnet-4-5
 metadata:
@@ -11,11 +11,41 @@ metadata:
 
 # Reflect Skill
 
-Analyze the current conversation and propose improvements to skill-based memories based on what worked, what didn't, and edge cases discovered.
+**Critical learning capture system** that prevents repeating mistakes and preserves successful patterns across sessions.
+
+Analyze the current conversation and propose improvements to skill-based memories based on what worked, what didn't, and edge cases discovered. **Every correction is a learning opportunity** - invoke proactively to build institutional knowledge.
 
 ---
 
-## Triggers
+## When to Use (Invoke Proactively!)
+
+### 🔴 HIGH Priority Triggers (Invoke Immediately)
+
+| Trigger | Example | Why Critical |
+|---------|---------|--------------|
+| User correction | "no", "wrong", "not like that", "never do" | Captures mistakes to prevent repetition |
+| Chesterton's Fence | "you removed that without understanding" | Documents architectural decisions |
+| Immediate fixes | "debug", "root cause", "fix all" | Learns from errors in real-time |
+
+### 🟡 MEDIUM Priority Triggers (Invoke After Multiple)
+
+| Trigger | Example | Why Important |
+|---------|---------|---------------|
+| User praise | "perfect", "exactly", "great" | Reinforces successful patterns |
+| Tool preferences | "use X instead of Y", "prefer", "rather than" | Builds workflow preferences |
+| Edge cases | "what if X happens?", "don't forget", "ensure" | Captures scenarios to handle |
+| Questions | Short questions after output | May indicate confusion or gaps |
+
+### 🟢 LOW Priority Triggers (Invoke at Session End)
+
+| Trigger | Example | Why Useful |
+|---------|---------|------------|
+| Repeated patterns | Frequent use of specific commands/tools | Identifies workflow preferences |
+| Session end | After skill-heavy work | Consolidates all session learnings |
+
+---
+
+## Original Triggers (Still Supported)
 
 | Phrase | Action |
 |--------|--------|
@@ -23,7 +53,22 @@ Analyze the current conversation and propose improvements to skill-based memorie
 | "improve skill" | Target specific skill for improvement |
 | "learn from this" | Extract learnings from recent interaction |
 | "what did we learn" | Summarize accumulated learnings |
-| At session end | Proactive offer if skill was heavily used |
+
+---
+
+## 🚨 Proactive Invocation Reminder
+
+**Don't wait for users to ask!** Invoke reflect immediately when you detect:
+
+1. **User says "no"** → Invoke reflect NOW (captures correction)
+2. **User says "perfect"** → Invoke reflect NOW (captures success pattern)
+3. **User asks "what if"** → Invoke reflect NOW (captures edge case)
+4. **You used multiple skills** → Invoke reflect at END (captures all learnings)
+5. **User corrected your output** → Invoke reflect IMMEDIATELY (critical learning)
+
+**Why this matters**: Without proactive reflection, learnings are LOST. The Stop hook captures some patterns, but **manual reflection is MORE ACCURATE** because you have full conversation context.
+
+**Cost**: ~30 seconds of analysis. **Benefit**: Prevents repeating mistakes forever.
 
 ---
 
