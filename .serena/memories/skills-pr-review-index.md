@@ -25,3 +25,4 @@
 | python implicit string concat false positive PEP | [pr-review-python-implicit-string-concat](pr-review-python-implicit-string-concat.md) |
 | security-comments priority-boost TOCTOU injection XSS | [pr-review-security](pr-review-security.md) |
 | status classification decision tree blocking human | pr-review-status-001 |
+| batch response single commit multiple comments clean history efficiency | [pr-review-batch-response-pattern](pr-review-batch-response-pattern.md) |

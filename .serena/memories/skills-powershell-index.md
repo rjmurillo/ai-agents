@@ -8,3 +8,4 @@
 | array handling double-nested Write-Output NoEnumerate wrapper anti-pattern | [powershell-array-handling](powershell-array-handling.md) |
 | -like glob asterisk question flatten depth subdirectory filter files | [powershell-like-pattern-matching](powershell-like-pattern-matching.md) |
 | variable case collision parameter ConvertFrom-Json case-insensitive naming | powershell-variable-case-collision |
+| automatic variable shadowing matches Error PSItem conflict detection | [powershell-variable-shadowing-detection](powershell-variable-shadowing-detection.md) |
