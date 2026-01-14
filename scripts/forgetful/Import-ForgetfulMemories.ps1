@@ -251,10 +251,31 @@ foreach ($FilePath in $InputFiles) {
 
             Write-Host "     Importing $Table ($($Rows.Count) rows)..." -ForegroundColor DarkGray
 
+            # SECURITY: Get valid column names from database schema to prevent SQL injection (CWE-89)
+            # WHY: Column names from JSON could contain malicious SQL if not validated
+            # ATTACK SCENARIO: JSON with property "id; DROP TABLE memories;--" would execute arbitrary SQL
+            $SchemaColumns = @(sqlite3 "$DatabasePath" "PRAGMA table_info($Table);" 2>$null | ForEach-Object {
+                ($_ -split '\|')[1]  # Column name is second field in PRAGMA output
+            })
+
+            if ($SchemaColumns.Count -eq 0) {
+                Write-Warning "Could not retrieve schema for table $Table (skipping)"
+                continue
+            }
+
             # Build INSERT statement based on merge mode
             # WHY: Different SQL operations support different merge behaviors
             $SampleRow = $Rows[0]
-            $Columns = $SampleRow.PSObject.Properties.Name
+            $JsonColumns = $SampleRow.PSObject.Properties.Name
+
+            # SECURITY: Filter to only valid column names from schema
+            # WHY: Prevents SQL injection via malicious property names in JSON
+            $Columns = $JsonColumns | Where-Object { $SchemaColumns -contains $_ }
+
+            $InvalidColumns = $JsonColumns | Where-Object { $SchemaColumns -notcontains $_ }
+            if ($InvalidColumns.Count -gt 0) {
+                Write-Warning "Ignoring unknown columns in ${Table}: $($InvalidColumns -join ', ')"
+            }
 
             $InsertedCount = 0
             $UpdatedCount = 0
@@ -262,22 +283,23 @@ foreach ($FilePath in $InputFiles) {
 
             # For Replace mode, we need to check if record exists before insert
             # to distinguish between inserts and updates
-            $PrimaryKeyColumn = switch ($Table) {
-                'users' { 'id' }
-                'memories' { 'id' }
-                'projects' { 'id' }
-                'entities' { 'id' }
-                'documents' { 'id' }
-                'code_artifacts' { 'id' }
-                'memory_links' { 'id' }
-                # Association tables use composite keys
-                'memory_project_association' { $null }
-                'memory_code_artifact_association' { $null }
-                'memory_document_association' { $null }
-                'memory_entity_association' { $null }
-                'entity_project_association' { $null }
-                'entity_relationships' { 'id' }
-                default { 'id' }
+            # WHY: Single primary key vs composite key requires different existence check logic
+            $PrimaryKeyColumns = switch ($Table) {
+                'users' { @('id') }
+                'memories' { @('id') }
+                'projects' { @('id') }
+                'entities' { @('id') }
+                'documents' { @('id') }
+                'code_artifacts' { @('id') }
+                'memory_links' { @('id') }
+                # Association tables use composite keys (all columns form the key)
+                'memory_project_association' { @('memory_id', 'project_id') }
+                'memory_code_artifact_association' { @('memory_id', 'code_artifact_id') }
+                'memory_document_association' { @('memory_id', 'document_id') }
+                'memory_entity_association' { @('memory_id', 'entity_id') }
+                'entity_project_association' { @('entity_id', 'project_id') }
+                'entity_relationships' { @('id') }
+                default { @('id') }
             }
 
             foreach ($Row in $Rows) {
@@ -309,12 +331,26 @@ foreach ($FilePath in $InputFiles) {
                     # Check if record exists BEFORE insert (for accurate tracking)
                     # SECURITY: Quote $DatabasePath to prevent command injection (CWE-78)
                     # SECURITY: Quote $PkValue to prevent SQL injection (CWE-89)
+                    # WHY: Supports both single and composite primary keys for accurate statistics
                     $RecordExistedBefore = $false
-                    if ($PrimaryKeyColumn -and $Row.$PrimaryKeyColumn) {
-                        $PkValue = $Row.$PrimaryKeyColumn
-                        # Escape and quote string values for SQL
-                        $QuotedPkValue = if ($PkValue -is [string]) { "'$($PkValue -replace "'", "''")'" } else { $PkValue }
-                        $ExistsCheck = sqlite3 "$DatabasePath" "SELECT COUNT(*) FROM $Table WHERE $PrimaryKeyColumn = $QuotedPkValue;" 2>&1
+                    $AllKeysPresent = $true
+                    foreach ($KeyCol in $PrimaryKeyColumns) {
+                        if ($null -eq $Row.$KeyCol) {
+                            $AllKeysPresent = $false
+                            break
+                        }
+                    }
+
+                    if ($AllKeysPresent -and $PrimaryKeyColumns.Count -gt 0) {
+                        # Build WHERE clause for composite key
+                        $WhereConditions = $PrimaryKeyColumns | ForEach-Object {
+                            $PkValue = $Row.$_
+                            # Escape and quote string values for SQL
+                            $QuotedPkValue = if ($PkValue -is [string]) { "'$($PkValue -replace "'", "''")'" } else { $PkValue }
+                            "$_ = $QuotedPkValue"
+                        }
+                        $WhereClause = $WhereConditions -join ' AND '
+                        $ExistsCheck = sqlite3 "$DatabasePath" "SELECT COUNT(*) FROM $Table WHERE $WhereClause;" 2>&1
                         $RecordExistedBefore = ($ExistsCheck -eq '1')
                     }
 
