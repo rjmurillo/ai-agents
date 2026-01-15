@@ -1,135 +1,121 @@
 {
-  "sessionId": "2026-01-14-session-02",
-  "startTime": "2026-01-14T19:30:00Z",
-  "objective": "Continue PR #908 review response: investigate QA failure and address 18 unresolved review threads",
-  "branch": "feat/learning-skill",
-  "relatedPR": 908,
-  "session": "2026-01-14-session-02",
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2,
+    "startingCommit": "d528356",
+    "branch": "copilot/fix-pre-commit-hook-issue",
+    "date": "2026-01-14",
+    "objective": "Fix pre-commit hook adding ADR-017-violating sections to memory indexes (Issue #910)"
+  },
   "protocolCompliance": {
     "sessionStart": {
-      "serenaActivated": false,
-      "serenaActivationNote": "Serena MCP unavailable (fallback mode)",
-      "handoffRead": true,
-      "sessionLogCreated": true,
-      "memoriesLoaded": [
-        ".serena/memories/pr-908-session-handoff.md"
-      ],
-      "branchVerified": true
-    },
-    "sessionEnd": {
-      "sessionLogCompleted": true,
-      "serenaMemoryUpdated": true,
-      "serenaMemoryNote": "Updated pr-908-session-handoff.md with Session 02 progress",
-      "markdownLinted": true,
-      "qaAgentRouted": false,
-      "qaAgentRoutingNote": "PR review response work, not feature implementation",
-      "changesCommitted": true,
-      "sessionValidated": true
-    }
-  },
-  "context": {
-    "previousSession": "2026-01-14-session-01",
-    "prStatus": {
-      "resolvedThreads": 10,
-      "unresolvedThreads": 18,
-      "totalThreads": 28,
-      "progressPercentage": 36
-    },
-    "ciStatus": {
-      "qaReview": "FAILURE - needs investigation",
-      "aggregateResults": "FAILURE - depends on QA Review",
-      "validateMemoryFiles": "FAILURE - infrastructure issue #910 (not blocking)"
-    },
-    "previousCommits": [
-      "f666a01 - Fixed LOW learning persistence + skill detection",
-      "0238c92 - Fixed stdin piping to Stop hooks",
-      "f580305 - Standardized template format",
-      "6aaaee6 - Updated skill observations"
-    ]
-  },
-  "outcomes": [
-    {
-      "type": "code_fix",
-      "description": "Fixed 3 cursor[bot] and 1 Copilot review findings with commit 9b31e7d",
-      "commits": ["9b31e7d"],
-      "files": [".claude/hooks/Stop/Invoke-SkillLearning.ps1"],
-      "impact": "Improved skill learning detection accuracy and reduced false positives"
-    },
-    {
-      "type": "review_response",
-      "description": "Replied to 7 review comments with fix explanations and commit references",
-      "comments": [2690818086, 2690818089, 2691425103, 2691425293, 2691439513, 2691439517, 2691584115],
-      "breakdown": {
-        "cursor[bot]": 4,
-        "Copilot": 3
+      "CreateSessionLog": {
+        "level": "MUST",
+        "evidence": ".agents/sessions/2026-01-14-session-02.json",
+        "complete": true
+      },
+      "ReadHandoff": {
+        "level": "MUST",
+        "evidence": "Read issue description and agent instructions",
+        "complete": true
+      },
+      "SerenaInit": {
+        "level": "MUST",
+        "evidence": "Serena MCP not available",
+        "complete": false
       }
     },
-    {
-      "type": "bug_fix",
-      "description": "Fixed documentation skill pattern inconsistency between Detect-SkillUsage and Test-SkillContext",
-      "severity": "low",
-      "issue": "Different pattern arrays caused learning filtering inconsistency"
-    },
-    {
-      "type": "enhancement",
-      "description": "Improved edge case regex to match questions with text between trigger phrase and question mark",
-      "example": "Now matches 'what if the node_modules folder doesn't exist?' instead of only 'what if?'"
-    },
-    {
-      "type": "enhancement",
-      "description": "Added negative lookaheads to success pattern regex to reduce false positives",
-      "details": "Excludes 'yes, but', 'correct, but', 'right, about' while allowing acknowledgement prefixes"
+    "sessionEnd": {
+      "CommitChanges": {
+        "level": "MUST",
+        "evidence": "Changes committed - commit 3ccc324",
+        "complete": true
+      },
+      "RunLinting": {
+        "level": "MUST",
+        "evidence": "markdownlint-cli2 and PSScriptAnalyzer run successfully",
+        "complete": true
+      },
+      "CompleteChecklist": {
+        "level": "MUST",
+        "evidence": "All tasks completed - 34/34 tests passed",
+        "complete": true
+      },
+      "UpdateHandoff": {
+        "level": "MUST NOT",
+        "evidence": "HANDOFF.md is read-only per ADR-014",
+        "complete": false
+      }
     }
-  ],
-  "decisions": [
-    {
-      "decision": "Used --no-verify for commit 9b31e7d",
-      "rationale": "Pre-commit QA test runner has infrastructure issue with Linux temp path (/tmp/tmp.kTs2R5nOxL) on Windows system",
-      "justification": "Test directories exist with valid .Tests.ps1 files; changes are regex pattern fixes only, not test infrastructure",
-      "documented": "In commit message"
-    },
-    {
-      "decision": "Balanced approach for approval regex instead of Copilot's more complex suggestion",
-      "rationale": "Negative lookaheads provide sufficient false positive reduction while maintaining readability",
-      "tradeoff": "Simpler pattern easier to maintain vs. comprehensive coverage"
-    },
-    {
-      "decision": "Synchronized documentation patterns to Detect-SkillUsage values",
-      "rationale": "Comment at line 189 explicitly states patterns should match for consistency",
-      "impact": "Ensures learnings filtered correctly for documentation skill"
-    }
-  ],
-  "learnings": [
-    {
-      "category": "infrastructure",
-      "observation": "Pre-commit test runner has cross-platform path compatibility issue",
-      "details": "Linux temp path /tmp/ used on Windows system causes test discovery failure",
-      "action": "Documented --no-verify usage; issue should be investigated separately"
-    },
-    {
-      "category": "regex_patterns",
-      "observation": "Skill learning heuristics require careful balance",
-      "details": "Too strict misses valid patterns; too loose creates false positives",
-      "example": "Edge case regex needed .* between phrase and ? to capture real questions"
-    },
-    {
-      "category": "code_review",
-      "observation": "Cursor[bot] provides high-quality, actionable feedback",
-      "details": "All 4 cursor[bot] comments identified real bugs with specific line numbers and clear explanations",
-      "validation": "100% actionability rate maintained from memory observations"
-    },
-    {
-      "category": "pattern_duplication",
-      "observation": "Duplicated $skillPatterns hashtable caused maintenance burden",
-      "details": "Inconsistency between Detect-SkillUsage and Test-SkillContext for documentation skill",
-      "mitigation": "Fixed in this session; consider refactoring to single source of truth"
-    }
-  ],
+  },
+  "outcomes": {
+    "decisions": [
+      {
+        "decision": "Skip index files (*-index.md) in Improve-MemoryGraphDensity.ps1",
+        "rationale": "ADR-017 requires pure lookup table format for token efficiency",
+        "impact": "Prevents circular validation failure where hook adds content that validation rejects"
+      },
+      {
+        "decision": "Add detection by -index suffix pattern",
+        "rationale": "Simple, reliable pattern matching without complex parsing",
+        "impact": "Works for all index file naming conventions"
+      },
+      {
+        "decision": "Update ADR-017 with implementation note only",
+        "rationale": "Change is implementation detail, not decision modification",
+        "impact": "Non-blocking ADR review warning only"
+      }
+    ]
+  },
   "nextSteps": [
-    "Push commit 9b31e7d to remote",
-    "Update .serena/memories/pr-908-session-handoff.md with session progress",
-    "Address remaining 18 unresolved review threads (if time permits)",
-    "Monitor for additional cursor[bot] or reviewer comments",
-    "Investigate QA Review CI failure details when prioritized"
+    "Monitor pre-commit hook behavior in future commits",
+    "Verify no regression in memory cross-referencing functionality"
+  ],
+  "workLog": [
+    {
+      "action": "Analyzed problem and reviewed ADR-017",
+      "result": "Identified root cause: hook adds content that validation rejects",
+      "files": [
+        ".agents/architecture/ADR-017-tiered-memory-index-architecture.md",
+        ".claude/skills/memory/scripts/Improve-MemoryGraphDensity.ps1",
+        "scripts/Validate-MemoryIndex.ps1"
+      ]
+    },
+    {
+      "action": "Implemented index file exclusion logic",
+      "result": "Added -index suffix detection and skip logic at line 164-173",
+      "files": [
+        ".claude/skills/memory/scripts/Improve-MemoryGraphDensity.ps1"
+      ]
+    },
+    {
+      "action": "Updated documentation",
+      "result": "Script headers, pre-commit comments, and ADR-017 updated with implementation notes",
+      "files": [
+        ".claude/skills/memory/scripts/Improve-MemoryGraphDensity.ps1",
+        ".claude/skills/memory/scripts/Invoke-MemoryCrossReference.ps1",
+        ".githooks/pre-commit",
+        ".agents/architecture/ADR-017-tiered-memory-index-architecture.md"
+      ]
+    },
+    {
+      "action": "Added comprehensive test coverage",
+      "result": "6 new test cases for index file exclusion - all 34 tests passed",
+      "files": [
+        "tests/Improve-MemoryGraphDensity.Tests.ps1"
+      ]
+    },
+    {
+      "action": "Manual verification testing",
+      "result": "Confirmed index files remain unchanged, atomic files receive Related sections, validation correctly detects violations",
+      "files": []
+    },
+    {
+      "action": "Repository validation",
+      "result": "33 skills index files validated successfully - all compliant with ADR-017",
+      "files": [
+        ".serena/memories/skills-*-index.md"
+      ]
+    }
   ]
 }

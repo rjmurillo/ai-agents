@@ -7,7 +7,10 @@
     Executes in correct order:
     1. Convert-IndexTableLinks (tables first)
     2. Convert-MemoryReferences (backticks second)
-    3. Improve-MemoryGraphDensity (related sections last)
+    3. Improve-MemoryGraphDensity (related sections last - atomic files only)
+    
+    NOTE: Index files (*-index.md) are excluded from Related section addition
+    per ADR-017 requirement for pure lookup table format (token efficiency).
 
     Designed for use in git hooks with non-blocking error handling.
 

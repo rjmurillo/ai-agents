@@ -1420,12 +1420,15 @@ fi
 # Automatically adds cross-references to memory files:
 # - Converts table cell references to markdown links
 # - Converts backtick references to markdown links
-# - Adds Related sections based on domain patterns
+# - Adds Related sections based on domain patterns (atomic files only)
+#
+# NOTE: Index files (*-index.md) are excluded from Related section addition
+# per ADR-017 requirement for pure lookup table format (token efficiency).
 #
 # This is non-blocking (fail-open) to allow commits even if cross-referencing fails.
 # Auto-stages any modified files.
 #
-# Related: Issue #899, memory skill
+# Related: Issue #899, Issue #910, memory skill
 #
 MEMORY_CROSSREF_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/Invoke-MemoryCrossReference.ps1"
 

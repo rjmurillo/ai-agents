@@ -7,6 +7,9 @@
     - Naming patterns (shared prefixes like security-, git-, ci-)
     - Topic domain grouping (files with same prefix are related)
     - Index file discovery (links to domain-specific index files)
+    
+    NOTE: Index files (*-index.md) are excluded from Related section addition
+    per ADR-017 requirement for pure lookup table format (token efficiency).
 
 .EXAMPLE
     .\.claude\skills\memory\scripts\Improve-MemoryGraphDensity.ps1
@@ -163,6 +166,17 @@ foreach ($file in $memoryFilesToProcess) {
     $filesProcessed++
 
     try {
+        # Skip index files per ADR-017 requirement for pure lookup table format
+        # Index files match *-index.md pattern and must contain ONLY table content
+        # Adding "## Related" sections would violate token efficiency requirement
+        $baseName = $file.BaseName
+        if ($baseName -match '-index$') {
+            if (-not $OutputJson) {
+                Write-Host "Skipping index file (ADR-017): $($file.Name)"
+            }
+            continue
+        }
+
         $content = Get-Content $file.FullName -Raw -Encoding UTF8
 
         # Skip empty files
@@ -174,10 +188,6 @@ foreach ($file in $memoryFilesToProcess) {
         $hasRelated = $content -match '(?m)^## Related'
 
         # Find related files based on naming pattern
-        $baseName = $file.BaseName
-        if ($baseName -like '*-index') {
-            continue
-        }
         $relatedFiles = @()
 
         # Find files in same domain (search ALL memory files, not just filtered ones)
