@@ -274,9 +274,11 @@ Files with `skill-` prefix that are not referenced by any index MUST be detected
 
 **Implementation tracking**: Session 93 implements all P0 validations (Gap 1/2, Gap 4, Pure Lookup Format) in `Validate-MemoryIndex.ps1`.
 
-**Index File Protection**: The memory cross-reference automation (`Improve-MemoryGraphDensity.ps1`) explicitly excludes index files (*-index.md) from receiving "## Related" sections, ensuring compliance with the pure lookup table requirement (Issue #910). Validation enforcement via `Test-IndexFormat` remains in place as the authoritative check.
-
 **Caching Verification (P1)**: Verify MCP session caching behavior in parallel with Phase 3 expansion. Update efficiency claims to verified numbers (currently: 27.6-81.6% range depending on caching).
+
+### Implementation Notes
+
+**Index File Protection**: The memory cross-reference automation (`Improve-MemoryGraphDensity.ps1`) explicitly excludes index files (*-index.md) from receiving "## Related" sections, ensuring compliance with the pure lookup table requirement (Issue #910). Validation enforcement via `Test-IndexFormat` remains in place as the authoritative check.
 
 ---
 

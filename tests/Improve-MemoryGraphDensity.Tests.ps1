@@ -609,11 +609,34 @@ Some content with the word related in lowercase.
 
                 # Assert
                 if ($testCase.IsIndex) {
+                    # Index files should be skipped
                     $output | Should -Match "Skipping index file.*$([regex]::Escape($testCase.Name))"
                     $content = Get-Content $filePath -Raw
                     $content | Should -Not -Match '## Related'
+                } else {
+                    # Non-index files should not show skip message
+                    $output | Should -Not -Match "Skipping index file.*$([regex]::Escape($testCase.Name))"
                 }
             }
+        }
+
+        It 'Should process non-index files that match naming patterns but end with -indexed' {
+            # Arrange - Create files that should NOT be treated as index files
+            $indexedFile = Join-Path $script:memoriesPath 'security-indexed.md'
+            $normalFile = Join-Path $script:memoriesPath 'security-001.md'
+
+            Set-Content -Path $indexedFile -Value '# Security Indexed File'
+            Set-Content -Path $normalFile -Value '# Security Normal File'
+
+            # Act
+            & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation | Out-Null
+
+            # Assert - Both should receive Related sections since they match security- pattern
+            $indexedContent = Get-Content $indexedFile -Raw
+            $normalContent = Get-Content $normalFile -Raw
+
+            $indexedContent | Should -Match '## Related'
+            $normalContent | Should -Match '## Related'
         }
     }
 
