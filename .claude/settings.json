@@ -107,7 +107,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -u .claude/hooks/Stop/invoke_skill_learning.py",
+            "command": "python3 -u .claude/hooks/Stop/invoke_skill_learning.py",
             "statusMessage": "Extracting skill learnings from session (LLM-enhanced)"
           },
           {

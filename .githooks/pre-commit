@@ -158,18 +158,22 @@ get_markdownlint_cmd() {
 }
 
 set_python_cmd() {
+    # Try python3 first (preferred)
     if command -v python3 &> /dev/null; then
         if python3 -c 'import sys' &> /dev/null; then
             PYTHON_CMD=(python3)
             return 0
         fi
     fi
+    # Try python (if it's Python 3.x)
     if command -v python &> /dev/null; then
         if python -c 'import sys; exit(0 if sys.version_info >= (3,) else 1)' &> /dev/null; then
             PYTHON_CMD=(python)
             return 0
         fi
-    elif command -v py &> /dev/null; then
+    fi
+    # Try py launcher (Windows py.exe, regardless of python command status)
+    if command -v py &> /dev/null; then
         if py -3 -c 'import sys' &> /dev/null; then
             PYTHON_CMD=(py -3)
             return 0

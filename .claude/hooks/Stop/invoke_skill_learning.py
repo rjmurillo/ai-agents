@@ -536,8 +536,13 @@ def extract_learnings(messages: List[dict], skill_name: str) -> Dict[str, List[d
 
 
 def escape_replacement_string(text: str) -> str:
-    """Escape special characters for regex replacement."""
-    return text.replace('$', '$$')
+    """
+    Escape special characters for regex replacement.
+
+    Python re.sub() uses backreferences like \\1, not $1, so $ is not special.
+    This function is retained for consistency but performs no escaping.
+    """
+    return text
 
 
 def update_skill_memory(
@@ -552,13 +557,25 @@ def update_skill_memory(
     Returns True if successful, False otherwise.
     """
     # Security: Path traversal prevention (CWE-22)
-    # Step 1: Validate skill_name does not contain path traversal characters
+    # Step 1: Validate and resolve project_dir FIRST before any path operations
+    # This prevents attacks via malicious project_dir values
+    try:
+        allowed_dir = Path(project_dir).resolve(strict=False)
+        # Validate project_dir looks like a real directory path
+        if not allowed_dir.is_absolute():
+            print(f"Invalid project directory: '{project_dir}' does not resolve to absolute path", file=sys.stderr)
+            return False
+    except Exception as e:
+        print(f"Path validation error for project_dir: {e}", file=sys.stderr)
+        return False
+
+    # Step 2: Validate skill_name does not contain path traversal characters
     # This prevents attacks via skill names like "../../../etc/passwd" or "..\\attack"
     if '..' in skill_name or '/' in skill_name or '\\' in skill_name or os.sep in skill_name:
         print(f"Path traversal attempt detected in skill name: '{skill_name}'", file=sys.stderr)
         return False
 
-    allowed_dir = Path(project_dir).resolve()
+    # Step 3: Construct paths using validated allowed_dir
     memories_dir = allowed_dir / ".serena" / "memories"
 
     # Ensure directory exists before resolving paths
@@ -566,7 +583,7 @@ def update_skill_memory(
 
     memory_path = memories_dir / f"{skill_name}-observations.md"
 
-    # Step 2: Validate resolved path is within project directory
+    # Step 4: Validate resolved path is within project directory
     try:
         resolved_path = memory_path.resolve()
         # Include directory separator to prevent prefix attacks
@@ -575,12 +592,13 @@ def update_skill_memory(
             print(f"Path traversal attempt detected: '{resolved_path}' is outside project directory", file=sys.stderr)
             return False
     except Exception as e:
-        print(f"Path validation error: {e}", file=sys.stderr)
+        print(f"Path validation error for memory_path: {e}", file=sys.stderr)
         return False
 
+    # Step 5: Use validated resolved_path for all file operations
     # Read existing memory or create new
-    if memory_path.exists():
-        existing_content = memory_path.read_text(encoding='utf-8')
+    if resolved_path.exists():
+        existing_content = resolved_path.read_text(encoding='utf-8')
     else:
         today = datetime.now().strftime("%Y-%m-%d")
         existing_content = f"""# Skill Observations: {skill_name}
@@ -680,8 +698,8 @@ def update_skill_memory(
     # Update last updated date
     new_content = re.sub(r'\*\*Last Updated\*\*: [\d-]+', f'**Last Updated**: {today}', new_content)
 
-    # Write memory file
-    memory_path.write_text(new_content, encoding='utf-8')
+    # Write memory file using validated resolved_path
+    resolved_path.write_text(new_content, encoding='utf-8')
 
     return True
 
@@ -713,13 +731,18 @@ def main():
         # Get session ID from today's session log
         sessions_dir = Path(project_dir) / ".agents" / "sessions"
         today = datetime.now().strftime("%Y-%m-%d")
-        session_logs = sorted(
-            sessions_dir.glob(f"{today}-session-*.json"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True
-        )
 
-        session_id = session_logs[0].stem if session_logs else f"{today}-session-unknown"
+        # Check if sessions directory exists before globbing to avoid silent failures
+        if sessions_dir.exists():
+            session_logs = sorted(
+                sessions_dir.glob(f"{today}-session-*.json"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True
+            )
+            session_id = session_logs[0].stem if session_logs else f"{today}-session-unknown"
+        else:
+            # Sessions directory doesn't exist yet, use fallback ID
+            session_id = f"{today}-session-unknown"
 
         # Process each detected skill
         for skill_name in detected_skills:
