@@ -31,6 +31,56 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+# =============================================================================
+# SKILL PATTERN DEFINITIONS (Single Source of Truth)
+# =============================================================================
+# IMPORTANT: These patterns are used in 2 functions:
+#   1. detect_skill_usage() - Detects which skills were used in conversation
+#   2. test_skill_context() - Validates skill context for learning extraction
+#
+# If you add/modify patterns here, both functions automatically stay in sync.
+# The command_to_skill mapping below handles slash command -> skill resolution.
+# =============================================================================
+
+SKILL_PATTERNS: Dict[str, List[str]] = {
+    # GitHub skill: PR/issue operations, skill path, explicit mentions
+    'github': ['gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review', 'pull request'],
+    # Memory skill: Forgetful, Serena, memory operations
+    'memory': ['search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007', 'mcp__serena'],
+    # Session initialization
+    'session-init': ['/session-init', 'session log', 'session protocol', 'session-init skill'],
+    # SkillForge meta-skill
+    'SkillForge': ['SkillForge', 'create skill', 'synthesis panel', 'skill creation'],
+    # ADR review skill
+    'adr-review': ['adr-review', 'ADR files', 'architecture decision', 'decision record'],
+    # Incoherence detection
+    'incoherence': ['incoherence skill', 'detect incoherence', 'reconcile', 'incoherence detection'],
+    # Retrospective/reflection
+    'retrospective': ['retrospective', 'session end', 'retrospective skill'],
+    'reflect': ['reflect skill', 'learn from this', 'what did we learn', '/reflect'],
+    # PR comment handling
+    'pr-comment-responder': ['pr-comment-responder', 'review comments', 'feedback items', 'PR feedback'],
+    # Code review patterns
+    'code-review': ['code review skill', 'style guide', 'security patterns', 'review code'],
+    # API design patterns
+    'api-design': ['API design skill', 'REST API', 'API endpoint', 'API versioning'],
+    # Testing patterns - more specific to avoid false positives on generic "test"
+    'testing': ['test coverage', 'unit test', 'integration test', 'mocking', 'test assertion', 'testing skill'],
+    # Documentation - more specific patterns to avoid matching generic "documentation" text
+    'documentation': ['.claude/skills/documentation', 'documentation skill', 'write documentation', 'update docs', 'README update'],
+}
+
+# Slash command to skill mapping
+COMMAND_TO_SKILL: Dict[str, str] = {
+    'pr-review': 'github',
+    'session-init': 'session-init',
+    'memory-search': 'memory',
+    'memory-list': 'memory',
+    'research': 'research-and-incorporate',
+    'reflect': 'reflect',
+    'forgetful': 'memory',
+}
+
 # LLM fallback configuration
 CONFIDENCE_THRESHOLD = float(os.getenv("SKILL_LEARNING_CONFIDENCE_THRESHOLD", "0.7"))
 USE_LLM_FALLBACK = os.getenv("SKILL_LEARNING_USE_LLM", "true").lower() == "true"
@@ -69,23 +119,10 @@ def detect_skill_usage(messages: List[dict]) -> Dict[str, int]:
     Detect skills mentioned or used in conversation.
 
     Returns dict of skill names to usage counts.
-    """
-    skill_patterns = {
-        'github': ['gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review'],
-        'memory': ['search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007'],
-        'session-init': ['/session-init', 'session log', 'session protocol'],
-        'SkillForge': ['SkillForge', 'create skill', 'synthesis panel'],
-        'adr-review': ['adr-review', 'ADR files', 'architecture decision'],
-        'incoherence': ['incoherence skill', 'detect incoherence', 'reconcile'],
-        'retrospective': ['retrospective', 'session end', 'reflect'],
-        'reflect': ['reflect', 'learn from this', 'what did we learn'],
-        'pr-comment-responder': ['pr-comment-responder', 'review comments', 'feedback items'],
-        'code-review': ['code review', 'style guide', 'security patterns'],
-        'api-design': ['API design', 'REST', 'endpoint', 'versioning'],
-        'testing': ['test', 'coverage', 'mocking', 'assertion'],
-        'documentation': ['documentation', 'docs/', 'README', 'write doc'],
-    }
 
+    Uses SKILL_PATTERNS (module-level) for pattern matching.
+    Uses COMMAND_TO_SKILL (module-level) for slash command resolution.
+    """
     detected_skills = {}
     conversation_text = ' '.join(msg.get('content', '') for msg in messages if isinstance(msg.get('content'), str))
 
@@ -95,24 +132,16 @@ def detect_skill_usage(messages: List[dict]) -> Dict[str, int]:
         skill_name = match.group(1)
         detected_skills[skill_name] = detected_skills.get(skill_name, 0) + 1
 
-    # Detect skills from slash commands
+    # Detect skills from slash commands using centralized mapping
     slash_cmd_pattern = re.compile(r'/([a-z][a-z0-9-]+)')
-    command_to_skill = {
-        'pr-review': 'github',
-        'session-init': 'session-init',
-        'memory-search': 'memory',
-        'memory-list': 'memory',
-        'research': 'research-and-incorporate',
-    }
-
     for match in slash_cmd_pattern.finditer(conversation_text):
         cmd_name = match.group(1)
-        if cmd_name in command_to_skill:
-            skill_name = command_to_skill[cmd_name]
+        if cmd_name in COMMAND_TO_SKILL:
+            skill_name = COMMAND_TO_SKILL[cmd_name]
             detected_skills[skill_name] = detected_skills.get(skill_name, 0) + 1
 
-    # Pattern-based detection
-    for skill, patterns in skill_patterns.items():
+    # Pattern-based detection using centralized patterns
+    for skill, patterns in SKILL_PATTERNS.items():
         match_count = 0
         for msg in messages:
             content = msg.get('content', '')
@@ -131,29 +160,15 @@ def test_skill_context(text: str, skill: str) -> bool:
     """
     Check if skill is mentioned in the given text context.
 
-    For mapped skills, checks against known patterns.
+    For mapped skills, checks against SKILL_PATTERNS (module-level).
     For dynamically detected skills (not in map), checks for skill name mention
     or skill path reference to avoid silently discarding learnings.
-    """
-    patterns = {
-        'github': ['gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review'],
-        'memory': ['search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007'],
-        'session-init': ['/session-init', 'session log', 'session protocol'],
-        'SkillForge': ['SkillForge', 'create skill', 'synthesis panel'],
-        'adr-review': ['adr-review', 'ADR files', 'architecture decision'],
-        'incoherence': ['incoherence skill', 'detect incoherence', 'reconcile'],
-        'retrospective': ['retrospective', 'session end', 'reflect'],
-        'reflect': ['reflect', 'learn from this', 'what did we learn'],
-        'pr-comment-responder': ['pr-comment-responder', 'review comments', 'feedback items'],
-        'code-review': ['code review', 'style guide', 'security patterns'],
-        'api-design': ['API design', 'REST', 'endpoint', 'versioning'],
-        'testing': ['test', 'coverage', 'mocking', 'assertion'],
-        'documentation': ['documentation', 'docs/', 'README', 'write doc'],
-    }
 
-    # Check mapped skills against known patterns
-    if skill in patterns:
-        for pattern in patterns[skill]:
+    Uses SKILL_PATTERNS (module-level) - same source as detect_skill_usage().
+    """
+    # Check mapped skills against centralized patterns
+    if skill in SKILL_PATTERNS:
+        for pattern in SKILL_PATTERNS[skill]:
             if re.search(re.escape(pattern), text, re.IGNORECASE):
                 return True
         return False
@@ -226,16 +241,17 @@ Categories:
 - HIGH (correction): Strong user corrections ("no", "wrong", "never do", "must use")
 - HIGH (chestertons_fence): Removed something without understanding why
 - HIGH (immediate_correction): User immediately asked to debug/fix right after
-- MED (preference): Tool/approach preferences ("instead of", "prefer", "should use")
-- MED (success): Success patterns ("perfect", "great", "excellent", "exactly")
-- MED (edge_case): Important edge cases or questions ("what if", "ensure", "make sure")
+- MED (preference): Tool/approach preferences ("instead of using", "prefer to", "should use X")
+- MED (success): Success patterns ("perfect", "excellent", "exactly", "that's it") - no qualifiers like "but"
+- MED (edge_case): Important edge cases ("what if the/this", "ensure that", "make sure")
+- MED (documentation): Documentation feedback ("update the docs", "needs documentation")
 - MED (question): Short clarifying question (may indicate confusion)
 - LOW (command_pattern): Repeated command patterns
 
 Respond in JSON format:
 {{
   "is_learning": true/false,
-  "type": "correction|preference|success|edge_case|question|command_pattern|chestertons_fence|immediate_correction",
+  "type": "correction|preference|success|edge_case|documentation|question|command_pattern|chestertons_fence|immediate_correction",
   "confidence": 0.0-1.0,
   "category": "High|Med|Low",
   "extracted_learning": "The key lesson learned",
@@ -355,8 +371,19 @@ def extract_learnings(messages: List[dict], skill_name: str) -> Dict[str, List[d
             }
 
         # MED: Tool preferences (confidence 0.7-0.75)
-        elif re.search(r'(?i)\b(instead of|rather than|prefer|should use|use .+ not|better to)\b', user_response):
-            confidence = 0.75 if "prefer" in user_response.lower() or "should use" in user_response.lower() else 0.7
+        # Bug 7 fix: More specific patterns to avoid false positives
+        # Requires preference indicators with tool/approach context
+        elif re.search(
+            r'(?i)\b('
+            r'(?:instead of|rather than)\s+(?:using|that|the|this)|'  # "instead of using X"
+            r'prefer\s+(?:to|using|that)|'  # "prefer to/using/that"
+            r'should\s+use\s+\w+|'  # "should use X"
+            r'use\s+\w+\s+(?:instead|rather)|'  # "use X instead/rather"
+            r'better\s+to\s+(?:use|do|have)'  # "better to use/do/have"
+            r')\b',
+            user_response
+        ):
+            confidence = 0.75 if re.search(r'(?i)\b(prefer|should use)\b', user_response) else 0.7
             learning = {
                 "type": "preference",
                 "source": user_response[:150],
@@ -366,8 +393,23 @@ def extract_learnings(messages: List[dict], skill_name: str) -> Dict[str, List[d
             }
 
         # MED: Success patterns (confidence 0.65-0.7)
-        elif re.search(r'(?i)^(?:(?:ok|okay|yeah|yep|sure|alright)[,\s]+)?(perfect|great|excellent|exactly|that\'s it|good job|well done|works|yes(?!\s*,?\s*but)|correct(?!\s*,?\s*but)|right(?!\s*,?\s*about))\b', user_response):
-            confidence = 0.7 if "perfect" in user_response.lower() or "excellent" in user_response.lower() else 0.65
+        # Bug 5 fix: Tighter patterns to avoid false positives
+        # Excludes: "Great question", "Works for me but", "Yes, but..."
+        # Requires affirmation at start without qualifiers
+        elif re.search(
+            r'(?i)^(?:(?:ok|okay|yeah|yep|sure|alright)[,!\s]+)?'
+            r'(?:'
+            r'perfect(?![a-z])|'  # "perfect" but not "perfectly"
+            r'excellent(?:!|\s*$)|'  # "excellent!" or end of string
+            r'exactly(?:!|\s*$)|'  # "exactly!" or end of string
+            r"that's\s+(?:it|right|correct)|"  # "that's it/right/correct"
+            r'good\s+job|well\s+done|'  # "good job", "well done"
+            r'works(?:\s+great|\s+perfectly|!)(?!\s+(?:but|however|except))|'  # "works great/perfectly!" not followed by "but"
+            r'(?:yes|correct|right)(?:\s*[!.])?$'  # "yes/correct/right" at end
+            r')',
+            user_response
+        ) and not re.search(r'(?i)\b(but|however|except|although|though)\b', user_response):
+            confidence = 0.7 if re.search(r'(?i)\b(perfect|excellent)\b', user_response) else 0.65
             learning = {
                 "type": "success",
                 "source": user_response[:150],
@@ -377,10 +419,47 @@ def extract_learnings(messages: List[dict], skill_name: str) -> Dict[str, List[d
             }
 
         # MED: Edge cases (confidence 0.6-0.65)
-        elif re.search(r'(?i)(what if|how does|how will|what about|don\'t want to forget|ensure|make sure|needs to).*\?', user_response):
-            confidence = 0.65 if "ensure" in user_response.lower() or "make sure" in user_response.lower() else 0.6
+        # Bug 6 fix: Added negative lookaheads to exclude rhetorical/unrelated questions
+        # Excludes: "what if we had lunch?", "how does this work in general?"
+        # Requires skill-relevant context indicators
+        elif re.search(
+            r'(?i)(?:'
+            r'what\s+if\s+(?:the|this|we|it|there|a\s+user)|'  # "what if the/this/we..."
+            r'how\s+(?:does|will|would)\s+(?:it|this|the)|'  # "how does/will it..."
+            r'what\s+about\s+(?:the|when|if|edge|corner|error)|'  # "what about the/when..."
+            r"(?:don't|do\s+not)\s+(?:want\s+to\s+)?forget|"  # "don't forget"
+            r'(?:ensure|make\s+sure|verify)\s+(?:that|the|it|we)'  # "ensure that/the..."
+            r').*\?',
+            user_response
+        ) and not re.search(
+            r'(?i)\b(lunch|dinner|coffee|meeting|call|later|tomorrow)\b',
+            user_response
+        ):
+            confidence = 0.65 if re.search(r'(?i)\b(ensure|make sure|verify)\b', user_response) else 0.6
             learning = {
                 "type": "edge_case",
+                "source": user_response[:150],
+                "context": assistant_content[:150],
+                "confidence": confidence,
+                "method": "pattern"
+            }
+
+        # MED: Documentation feedback (confidence 0.6-0.65)
+        # Bug 8 fix: Added missing documentation learning type
+        # Detects user feedback about documentation quality/needs
+        elif re.search(
+            r'(?i)\b('
+            r'(?:update|add|fix|improve)\s+(?:the\s+)?(?:docs?|documentation|readme)|'
+            r'(?:docs?|documentation|readme)\s+(?:is|are|needs?|should)|'
+            r'document(?:ed)?\s+(?:this|that|it|the)|'
+            r'add\s+(?:a\s+)?comment|'
+            r'(?:missing|lacking|needs?)\s+(?:docs?|documentation)'
+            r')\b',
+            user_response
+        ):
+            confidence = 0.65 if re.search(r'(?i)\b(must|should|needs?)\b', user_response) else 0.6
+            learning = {
+                "type": "documentation",
                 "source": user_response[:150],
                 "context": assistant_content[:150],
                 "confidence": confidence,
@@ -478,6 +557,8 @@ def update_skill_memory(
 
 ## Edge Cases (MED confidence)
 
+## Documentation (MED confidence)
+
 ## Notes for Review (LOW confidence)
 
 """
@@ -521,6 +602,26 @@ def update_skill_memory(
         if edge_case_items:
             pattern = r'(## Edge Cases \(MED confidence\)\r?\n)'
             new_content = re.sub(pattern, f'\\1{edge_case_items}', new_content)
+
+        # Documentation feedback
+        documentation_items = ""
+        for learning in learnings["Med"]:
+            if learning["type"] == "documentation":
+                source = escape_replacement_string(learning["source"])
+                method_tag = f" [LLM]" if learning.get("method") == "haiku-llm" else ""
+                documentation_items += f"- {source}{method_tag} (Session {session_id}, {today})\n"
+
+        if documentation_items:
+            # Add section if it doesn't exist (for existing memory files)
+            if "## Documentation (MED confidence)" not in new_content:
+                # Insert before Notes for Review section
+                new_content = re.sub(
+                    r'(## Notes for Review \(LOW confidence\))',
+                    r'## Documentation (MED confidence)\n\n\1',
+                    new_content
+                )
+            pattern = r'(## Documentation \(MED confidence\)\r?\n)'
+            new_content = re.sub(pattern, f'\\1{documentation_items}', new_content)
 
     # LOW: Command patterns
     if learnings["Low"]:
