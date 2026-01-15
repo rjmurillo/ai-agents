@@ -148,10 +148,11 @@ if (-not $DestinationPath) {
 }
 
 # Validate source exists and reject symlinks (MEDIUM-002)
-# Use Get-Item with -Force to handle symlinks and hidden files
+# Check symlink using file attributes (works even with broken symlinks)
 if (Test-Path -LiteralPath $SourcePath) {
     $sourceItem = Get-Item -LiteralPath $SourcePath -Force
-    if ($sourceItem.LinkType) {
+    # Check both LinkType property and ReparsePoint attribute
+    if ($sourceItem.LinkType -or ($sourceItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
         Write-Error "Security: Source path is a symlink, which is not allowed: $SourcePath"
         exit 1
     }
@@ -234,11 +235,11 @@ if (-not $destContent.EndsWith("`n")) {
 
 # Check if destination needs updating
 $needsUpdate = $true
+# Security: Reject symlinks in destination (check even if target doesn't exist)
 if (Test-Path -LiteralPath $DestinationPath) {
-    # Security: Reject symlinks
-    # Use Get-Item with -Force to handle symlinks and hidden files
     $destItem = Get-Item -LiteralPath $DestinationPath -Force
-    if ($destItem.LinkType) {
+    # Check both LinkType property and ReparsePoint attribute
+    if ($destItem.LinkType -or ($destItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
         Write-Error "Security: Destination path is a symlink, which is not allowed: $DestinationPath"
         exit 1
     }
@@ -256,6 +257,7 @@ if (Test-Path -LiteralPath $DestinationPath) {
         }
     }
 }
+# If Test-Path returns false, destination doesn't exist, proceed with creation
 
 # Write destination
 if (-not $SyncAll) {
