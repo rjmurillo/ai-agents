@@ -2,11 +2,12 @@
 # Local GitHub Actions testing with nektos/act
 # Documentation: https://nektosact.com
 
-# Use GitHub-hosted runner images for better compatibility
-# Use Medium images for balance between size and tool availability
--P ubuntu-latest=catthehacker/ubuntu:act-latest
--P ubuntu-24.04=catthehacker/ubuntu:act-24.04
--P ubuntu-24.04-arm=catthehacker/ubuntu:act-latest
+# Use GitHub-hosted runner images for maximum compatibility with production
+# Use full images to match production environment ("no surprises")
+# Note: Full images are ~18GB but provide complete tool parity with GitHub-hosted runners
+-P ubuntu-latest=catthehacker/ubuntu:full-latest
+-P ubuntu-24.04=catthehacker/ubuntu:full-24.04
+-P ubuntu-24.04-arm=catthehacker/ubuntu:full-latest
 
 # Windows runners not available in act - use self-hosted workaround
 # This runs the workflow on the host machine instead of in a container

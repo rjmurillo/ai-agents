@@ -259,7 +259,7 @@ fi
 #
 
 # Filter for workflow YAML files only
-STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/workflows/.*\.ya?ml$' || true)
+STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
 
 # Check for SKIP_ACTIONLINT environment variable (emergency bypass)
 if [ "${SKIP_ACTIONLINT:-}" = "1" ]; then

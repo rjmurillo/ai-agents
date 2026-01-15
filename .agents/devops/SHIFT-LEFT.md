@@ -385,6 +385,7 @@ Workflows **not** compatible with local testing:
 # Install act
 brew install act                    # macOS
 choco install act-cli               # Windows
+gh extension install https://github.com/nektos/gh-act  # GitHub CLI extension
 # Linux: Download from https://github.com/nektos/act/releases
 
 # Install Docker (required by act)
@@ -400,11 +401,13 @@ docker info
 
 The repository includes `.actrc` with optimized defaults:
 
-- Uses `catthehacker/ubuntu:act-latest` images for better tool availability
+- Uses `catthehacker/ubuntu:full-latest` images for maximum production parity (~18GB)
 - Enables artifact storage in `.artifacts/`
 - Enables caching in `.cache/`
 - Uses linux/amd64 architecture for compatibility
 - Maps `windows-latest` to `-self-hosted` (runs on host, not container)
+
+**Note**: Full images are large (~18GB) but provide complete tool parity with GitHub-hosted runners, optimizing for "no surprises" - if it works locally, it works in production.
 
 ### Usage
 
@@ -460,11 +463,11 @@ act uses Linux containers, so Windows-specific behaviors may differ:
 
 #### Missing Pre-installed Tools
 
-GitHub-hosted runners have many pre-installed tools. act images may be missing some:
+GitHub-hosted runners have many pre-installed tools. The default `.actrc` configuration uses full images for maximum compatibility:
 
-- **Solution 1**: Use Large images (18GB+): `-P ubuntu-latest=catthehacker/ubuntu:full-latest`
-- **Solution 2**: Accept tool gaps for faster iteration
-- **Solution 3**: Use custom Dockerfile with required tools
+- **Default**: Full images (18GB+) via `.actrc` - complete tool parity with GitHub-hosted runners
+- **Alternative**: Medium images for faster iteration: `-P ubuntu-latest=catthehacker/ubuntu:act-latest`
+- **Custom**: Use custom Dockerfile with specific required tools
 
 #### AI-Dependent Workflows
 

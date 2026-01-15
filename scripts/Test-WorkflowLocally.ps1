@@ -121,9 +121,10 @@ if (-not (Get-Command act -ErrorAction SilentlyContinue)) {
     Write-Failure "act not found. Install act to enable local workflow testing."
     Write-Host ""
     Write-Host "Installation instructions:"
-    Write-Host "  macOS:    brew install act"
-    Write-Host "  Windows:  choco install act-cli"
-    Write-Host "  Linux:    Download from https://github.com/nektos/act/releases"
+    Write-Host "  macOS:       brew install act"
+    Write-Host "  Windows:     Download from https://github.com/nektos/act/releases"
+    Write-Host "  Linux:       Download from https://github.com/nektos/act/releases"
+    Write-Host "  GitHub CLI:  gh extension install https://github.com/nektos/gh-act"
     Write-Host ""
     Write-Host "See: https://nektosact.com/installation/index.html"
     exit 2
@@ -191,10 +192,13 @@ if (-not (Test-Path $workflowPath)) {
         Write-Host "  - $key"
     }
     Write-Host ""
-    Write-Host "Unsupported workflows (require AI infrastructure):"
-    Write-Host "  - ai-session-protocol (requires Copilot CLI)"
-    Write-Host "  - ai-pr-quality-gate (requires Copilot CLI)"
-    Write-Host "  - ai-spec-validation (requires Copilot CLI)"
+    Write-Host "Unsupported workflows (require AI infrastructure or Copilot CLI):"
+    Write-Host "  - ai-session-protocol (requires Copilot CLI with BOT_PAT)"
+    Write-Host "  - ai-pr-quality-gate (requires Copilot CLI with BOT_PAT)"
+    Write-Host "  - ai-spec-validation (requires Copilot CLI with BOT_PAT)"
+    Write-Host ""
+    Write-Host "Note: While Copilot CLI can be installed locally, these workflows"
+    Write-Host "require BOT_PAT and GitHub secrets that are only available in CI."
     exit 1
 }
 
