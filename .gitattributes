@@ -82,7 +82,7 @@
 # 3. Shows heading changes, list modifications, and formatting changes
 # 4. Makes documentation reviews more efficient
 #
-*.md text diff=markdown
+*.md text diff=markdown linguist-detectable
 *.mdx text diff=markdown
 *.txt text
 
