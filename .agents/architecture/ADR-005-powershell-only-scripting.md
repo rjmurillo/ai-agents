@@ -152,6 +152,29 @@ This resulted in:
 
 **Approved By**: Repository owner in PR #760
 
+#### 2. Claude Code Hooks with LLM Integration (Approved 2026-01-14)
+
+**Scope**: `.claude/hooks/**/*.py` only
+
+**Purpose**: Claude Code hooks requiring Anthropic SDK for LLM-enhanced classification
+
+**Justification**:
+- Anthropic SDK officially supported in Python (no official PowerShell SDK)
+- Hooks need direct LLM integration via Anthropic API for intelligent classification
+- PowerShell HTTP calls would be verbose and fragile compared to official SDK
+- Narrow scope limited to hooks directory (not CI/CD infrastructure)
+
+**Conditions**:
+1. Hooks MUST use official Anthropic SDK (`anthropic` package)
+2. Hooks MUST include path validation (CWE-22 prevention)
+3. Hooks MUST gracefully degrade when Python dependencies unavailable
+4. Hook functionality MUST NOT be part of CI/CD pipelines
+5. Python hooks MUST include proper error handling and never block sessions
+
+**Security**: Path traversal prevention via `Path().resolve()` validation against project root
+
+**Approved By**: Repository owner in PR #908
+
 ---
 
 **For all other scripts**: PowerShell-only requirement remains in effect.
@@ -224,3 +247,4 @@ Before merging code:
 **Supersedes**: None (new decision)
 **Amended by**:
 - 2026-01-04: SkillForge Python exception (PR #760)
+- 2026-01-14: Claude Code Hooks Python exception (PR #908)
