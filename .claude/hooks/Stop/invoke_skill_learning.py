@@ -487,6 +487,34 @@ def extract_learnings(messages: List[dict], skill_name: str) -> Dict[str, List[d
                 "method": "pattern"
             }
 
+        # LOW: Short acknowledgements without substance (confidence 0.35-0.45)
+        # These may indicate workflow patterns worth tracking
+        elif re.search(
+            r'(?i)^(?:ok|okay|sure|got it|sounds good|thanks|thank you|yep|yeah|alright|fine|k|kk)(?:[.!,]?\s*)?$',
+            user_response.strip()
+        ) and len(user_response.strip()) < 30:
+            learning = {
+                "type": "acknowledgement",
+                "source": user_response[:50],
+                "context": assistant_content[:100],
+                "confidence": 0.4,
+                "method": "pattern"
+            }
+
+        # LOW: Repeated tool/file mentions (confidence 0.35-0.45)
+        # User keeps referring to same resources, may indicate workflow patterns
+        elif re.search(
+            r'(?i)\b(same|again|also|another|more|repeat|similar|like before|as usual)\b',
+            user_response
+        ) and len(user_response) < 100:
+            learning = {
+                "type": "repeated_pattern",
+                "source": user_response[:100],
+                "context": assistant_content[:100],
+                "confidence": 0.4,
+                "method": "pattern"
+            }
+
         # LLM fallback for uncertain cases
         if learning and learning["confidence"] < CONFIDENCE_THRESHOLD and USE_LLM_FALLBACK:
             llm_result = classify_learning_by_llm(assistant_content, user_response, skill_name)
@@ -524,22 +552,31 @@ def update_skill_memory(
     Returns True if successful, False otherwise.
     """
     # Security: Path traversal prevention (CWE-22)
+    # Step 1: Validate skill_name does not contain path traversal characters
+    # This prevents attacks via skill names like "../../../etc/passwd" or "..\\attack"
+    if '..' in skill_name or '/' in skill_name or '\\' in skill_name or os.sep in skill_name:
+        print(f"Path traversal attempt detected in skill name: '{skill_name}'", file=sys.stderr)
+        return False
+
     allowed_dir = Path(project_dir).resolve()
     memories_dir = allowed_dir / ".serena" / "memories"
+
+    # Ensure directory exists before resolving paths
+    memories_dir.mkdir(parents=True, exist_ok=True)
+
     memory_path = memories_dir / f"{skill_name}-observations.md"
 
-    # Validate path is within project directory
+    # Step 2: Validate resolved path is within project directory
     try:
         resolved_path = memory_path.resolve()
-        if not str(resolved_path).startswith(str(allowed_dir)):
+        # Include directory separator to prevent prefix attacks
+        # e.g., "/home/user" should not match "/home/usermalicious"
+        if not str(resolved_path).lower().startswith(str(allowed_dir).lower() + os.sep):
             print(f"Path traversal attempt detected: '{resolved_path}' is outside project directory", file=sys.stderr)
             return False
     except Exception as e:
         print(f"Path validation error: {e}", file=sys.stderr)
         return False
-
-    # Ensure directory exists
-    memories_dir.mkdir(parents=True, exist_ok=True)
 
     # Read existing memory or create new
     if memory_path.exists():
@@ -575,7 +612,8 @@ def update_skill_memory(
             constraint_items += f"- {source}{method_tag} (Session {session_id}, {today})\n"
 
         pattern = r'(## Constraints \(HIGH confidence\)\r?\n)'
-        new_content = re.sub(pattern, f'\\1{constraint_items}', new_content)
+        # Use r'\1' (raw string) to preserve backreference - f'\1' creates ASCII SOH character
+        new_content = re.sub(pattern, r'\1' + constraint_items, new_content)
 
     # MED: Group by type
     if learnings["Med"]:
@@ -589,7 +627,7 @@ def update_skill_memory(
 
         if preference_items:
             pattern = r'(## Preferences \(MED confidence\)\r?\n)'
-            new_content = re.sub(pattern, f'\\1{preference_items}', new_content)
+            new_content = re.sub(pattern, r'\1' + preference_items, new_content)
 
         # Edge Cases: edge cases and questions
         edge_case_items = ""
@@ -601,7 +639,7 @@ def update_skill_memory(
 
         if edge_case_items:
             pattern = r'(## Edge Cases \(MED confidence\)\r?\n)'
-            new_content = re.sub(pattern, f'\\1{edge_case_items}', new_content)
+            new_content = re.sub(pattern, r'\1' + edge_case_items, new_content)
 
         # Documentation feedback
         documentation_items = ""
@@ -621,7 +659,7 @@ def update_skill_memory(
                     new_content
                 )
             pattern = r'(## Documentation \(MED confidence\)\r?\n)'
-            new_content = re.sub(pattern, f'\\1{documentation_items}', new_content)
+            new_content = re.sub(pattern, r'\1' + documentation_items, new_content)
 
     # LOW: Command patterns
     if learnings["Low"]:
@@ -631,7 +669,7 @@ def update_skill_memory(
             low_items += f"- {source} (Session {session_id}, {today})\n"
 
         pattern = r'(## Notes for Review \(LOW confidence\)\r?\n)'
-        new_content = re.sub(pattern, f'\\1{low_items}', new_content)
+        new_content = re.sub(pattern, r'\1' + low_items, new_content)
 
     # Update session count
     match = re.search(r'Sessions Analyzed: (\d+)', new_content)

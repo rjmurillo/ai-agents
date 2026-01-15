@@ -199,7 +199,7 @@ class TestSkillDetection(unittest.TestCase):
 
 
 class TestPathTraversalPrevention(unittest.TestCase):
-    """Test security: path traversal prevention in memory file creation."""
+    """Test security: path traversal prevention in memory file creation (CWE-22)."""
 
     def test_path_traversal_rejected(self):
         """Skill names with path traversal should be rejected."""
@@ -222,6 +222,58 @@ class TestPathTraversalPrevention(unittest.TestCase):
                         str(resolved).startswith(str(Path(project_dir).resolve())),
                         "Created file must be within project directory"
                     )
+
+    def test_path_traversal_with_forward_slash_rejected(self):
+        """Skill names with forward slashes should be rejected (CWE-22)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = tmpdir
+            malicious_skill = "foo/bar"
+            learnings = {"High": [], "Med": [], "Low": []}
+            session_id = "2026-01-14-session-001"
+
+            result = update_skill_memory(project_dir, malicious_skill, learnings, session_id)
+
+            self.assertFalse(result, "Skill names with / should be rejected")
+
+    def test_path_traversal_with_backslash_rejected(self):
+        """Skill names with backslashes should be rejected (CWE-22)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = tmpdir
+            malicious_skill = "foo\\bar"
+            learnings = {"High": [], "Med": [], "Low": []}
+            session_id = "2026-01-14-session-001"
+
+            result = update_skill_memory(project_dir, malicious_skill, learnings, session_id)
+
+            self.assertFalse(result, "Skill names with \\ should be rejected")
+
+    def test_path_traversal_with_dotdot_rejected(self):
+        """Skill names with .. should be rejected (CWE-22)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = tmpdir
+            malicious_skill = "foo..bar"
+            learnings = {"High": [], "Med": [], "Low": []}
+            session_id = "2026-01-14-session-001"
+
+            result = update_skill_memory(project_dir, malicious_skill, learnings, session_id)
+
+            self.assertFalse(result, "Skill names with .. should be rejected")
+
+    def test_valid_skill_name_accepted(self):
+        """Valid skill names should create files successfully."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = tmpdir
+            valid_skill = "github"
+            learnings = {"High": [], "Med": [], "Low": []}
+            session_id = "2026-01-14-session-001"
+
+            result = update_skill_memory(project_dir, valid_skill, learnings, session_id)
+
+            self.assertTrue(result, "Valid skill name should be accepted")
+
+            # Verify file was created in correct location
+            expected_path = Path(project_dir) / ".serena" / "memories" / f"{valid_skill}-observations.md"
+            self.assertTrue(expected_path.exists(), "Memory file should be created")
 
 
 class TestPatternSynchronization(unittest.TestCase):
@@ -537,6 +589,204 @@ class TestMemoryFileDocumentationSection(unittest.TestCase):
 
             self.assertIn("Update the docs with usage examples", content,
                          "Documentation learning should be in file")
+
+
+class TestMemoryFileContentPreservation(unittest.TestCase):
+    """Test that memory file updates preserve existing content and section headers."""
+
+    def test_high_learning_preserves_constraints_header(self):
+        """HIGH learnings should be inserted after Constraints header, not replace it."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = tmpdir
+            skill_name = "test-skill"
+            learnings = {
+                "High": [{
+                    "type": "correction",
+                    "source": "Never use deprecated API",
+                    "context": "test context",
+                    "confidence": 0.9,
+                    "method": "pattern"
+                }],
+                "Med": [],
+                "Low": []
+            }
+            session_id = "2026-01-14-session-001"
+
+            update_skill_memory(project_dir, skill_name, learnings, session_id)
+
+            memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            content = memory_path.read_text(encoding='utf-8')
+
+            # Header must still be present
+            self.assertIn("## Constraints (HIGH confidence)", content,
+                         "Constraints header should be preserved")
+            # Learning should be after the header
+            self.assertIn("Never use deprecated API", content,
+                         "Learning should be present")
+            # Header should come before the learning
+            header_pos = content.find("## Constraints (HIGH confidence)")
+            learning_pos = content.find("Never use deprecated API")
+            self.assertLess(header_pos, learning_pos,
+                           "Header should come before learning")
+
+    def test_med_learning_preserves_preferences_header(self):
+        """MED learnings should be inserted after Preferences header, not replace it."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = tmpdir
+            skill_name = "test-skill"
+            learnings = {
+                "High": [],
+                "Med": [{
+                    "type": "success",
+                    "source": "Works great with async",
+                    "context": "test context",
+                    "confidence": 0.7,
+                    "method": "pattern"
+                }],
+                "Low": []
+            }
+            session_id = "2026-01-14-session-001"
+
+            update_skill_memory(project_dir, skill_name, learnings, session_id)
+
+            memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            content = memory_path.read_text(encoding='utf-8')
+
+            # Header must still be present
+            self.assertIn("## Preferences (MED confidence)", content,
+                         "Preferences header should be preserved")
+            # Learning should be present
+            self.assertIn("Works great with async", content,
+                         "Learning should be present")
+
+    def test_low_learning_preserves_notes_header(self):
+        """LOW learnings should be inserted after Notes header, not replace it."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = tmpdir
+            skill_name = "test-skill"
+            learnings = {
+                "High": [],
+                "Med": [],
+                "Low": [{
+                    "type": "command_pattern",
+                    "source": "git status",
+                    "context": "test context",
+                    "confidence": 0.45,
+                    "method": "pattern"
+                }]
+            }
+            session_id = "2026-01-14-session-001"
+
+            update_skill_memory(project_dir, skill_name, learnings, session_id)
+
+            memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            content = memory_path.read_text(encoding='utf-8')
+
+            # Header must still be present
+            self.assertIn("## Notes for Review (LOW confidence)", content,
+                         "Notes header should be preserved")
+            # Learning should be present
+            self.assertIn("git status", content,
+                         "Learning should be present")
+
+    def test_multiple_updates_accumulate(self):
+        """Multiple updates should accumulate learnings, not overwrite."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = tmpdir
+            skill_name = "test-skill"
+            session_id = "2026-01-14-session-001"
+
+            # First update
+            learnings1 = {
+                "High": [{
+                    "type": "correction",
+                    "source": "First correction",
+                    "context": "test context",
+                    "confidence": 0.9,
+                    "method": "pattern"
+                }],
+                "Med": [],
+                "Low": []
+            }
+            update_skill_memory(project_dir, skill_name, learnings1, session_id)
+
+            # Second update
+            learnings2 = {
+                "High": [{
+                    "type": "correction",
+                    "source": "Second correction",
+                    "context": "test context",
+                    "confidence": 0.85,
+                    "method": "pattern"
+                }],
+                "Med": [],
+                "Low": []
+            }
+            update_skill_memory(project_dir, skill_name, learnings2, "session-002")
+
+            memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            content = memory_path.read_text(encoding='utf-8')
+
+            # Both learnings should be present
+            self.assertIn("First correction", content,
+                         "First learning should be preserved")
+            self.assertIn("Second correction", content,
+                         "Second learning should be added")
+
+
+class TestLowConfidenceDetection(unittest.TestCase):
+    """Test LOW confidence learning detection patterns."""
+
+    def _extract_low_learning(self, user_response, learning_type=None):
+        """Helper to extract LOW confidence learning from a test message."""
+        messages = [
+            {"role": "user", "content": "Check gh pr list"},
+            {"role": "assistant", "content": "Running gh pr list now"},
+            {"role": "user", "content": user_response},
+        ]
+        learnings = extract_learnings(messages, "github")
+        if learning_type:
+            return [l for l in learnings["Low"] if l["type"] == learning_type]
+        return learnings["Low"]
+
+    def test_command_pattern_detected(self):
+        """Command patterns should be detected as LOW confidence."""
+        learnings = self._extract_low_learning("git status", "command_pattern")
+        self.assertGreater(len(learnings), 0, "Should detect command pattern")
+
+    def test_acknowledgement_ok_detected(self):
+        """Simple 'ok' acknowledgement should be detected as LOW confidence."""
+        learnings = self._extract_low_learning("ok", "acknowledgement")
+        self.assertGreater(len(learnings), 0, "Should detect 'ok' acknowledgement")
+
+    def test_acknowledgement_thanks_detected(self):
+        """'Thanks' acknowledgement should be detected as LOW confidence."""
+        learnings = self._extract_low_learning("thanks!", "acknowledgement")
+        self.assertGreater(len(learnings), 0, "Should detect 'thanks' acknowledgement")
+
+    def test_acknowledgement_got_it_detected(self):
+        """'Got it' acknowledgement should be detected as LOW confidence."""
+        learnings = self._extract_low_learning("got it", "acknowledgement")
+        self.assertGreater(len(learnings), 0, "Should detect 'got it' acknowledgement")
+
+    def test_repeated_pattern_same_detected(self):
+        """'Same as before' patterns should be detected as LOW confidence."""
+        learnings = self._extract_low_learning("Do the same thing again", "repeated_pattern")
+        self.assertGreater(len(learnings), 0, "Should detect 'same' pattern")
+
+    def test_repeated_pattern_also_detected(self):
+        """'Also check' patterns should be detected as LOW confidence."""
+        learnings = self._extract_low_learning("also run the tests", "repeated_pattern")
+        self.assertGreater(len(learnings), 0, "Should detect 'also' pattern")
+
+    def test_long_acknowledgement_not_detected(self):
+        """Long messages should not be detected as acknowledgements."""
+        # Long message with 'ok' at start should not match simple acknowledgement
+        learnings = self._extract_low_learning(
+            "ok so I was thinking about this problem and here are my thoughts on how we should approach it",
+            "acknowledgement"
+        )
+        self.assertEqual(len(learnings), 0, "Long message should not match acknowledgement")
 
 
 if __name__ == "__main__":
