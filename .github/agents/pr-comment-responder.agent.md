@@ -1,6 +1,6 @@
 ---
-description: PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. Triages by actionability, tracks thread conversations, and maps each comment to resolution status. Use when handling PR feedback, review threads, or bot comments.
-argument-hint: Specify the PR number or review comments to address
+description: PR review coordinator who extracts PR context from prompts, gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. Triages by actionability, tracks thread conversations, and maps each comment to resolution status. Use when handling PR feedback, review threads, or bot comments.
+argument-hint: Provide PR number or URL (e.g., "Review PR #806", "https://github.com/owner/repo/pull/806", or "Review comments on pull/806")
 tools:
   - vscode
   - execute
@@ -331,6 +331,90 @@ echo "[PASS] All gates cleared"
 **Evidence required**: Both counts are zero.
 
 ## Workflow Protocol
+
+### Phase -1: Context Inference (BLOCKING)
+
+**Purpose**: Extract PR number and repository context from user prompt before any operations. This eliminates redundant user prompts and follows the "Inference Before Clarification" principle.
+
+#### Step -1.1: Extract PR Number from User Input
+
+**MANDATORY**: Attempt extraction before asking user for PR number.
+
+Use the `Get-GitHubContextFromText` utility for standardized extraction:
+
+```powershell
+# Extract PR context from user prompt
+$context = pwsh .claude/skills/github/scripts/utils/Get-GitHubContextFromText.ps1 -InputText $userPrompt
+
+if ($context.Type -eq 'PR' -and $context.Number) {
+    $prNumber = $context.Number
+    $owner = $context.Owner  # May be $null
+    $repo = $context.Repo    # May be $null
+    Write-Host "✓ Extracted PR #$prNumber from prompt (Source: $($context.Source))"
+} else {
+    # No PR context found - handle based on execution mode
+    Write-Host "✗ No PR context found in prompt"
+}
+```
+
+**Extraction Priority Order**:
+
+1. **Full GitHub URL**: `https://github.com/owner/repo/pull/123`
+2. **Relative URL**: `/pull/123` or `pull/123`
+3. **Text Pattern**: "PR #123", "PR 123", "pull request #123"
+4. **Hash Reference**: "#123" (defaults to PR if ambiguous)
+
+#### Step -1.2: Handle Missing Context
+
+**During autonomous execution** (no user interaction available):
+
+```powershell
+if (-not $prNumber) {
+    Write-Error "Cannot extract PR number from prompt. Please provide explicit PR number or URL."
+    Write-Error "Supported formats: 'PR #123', 'https://github.com/owner/repo/pull/123', '/pull/123'"
+    exit 1
+}
+```
+
+**During interactive execution** (user can respond):
+
+```powershell
+if (-not $prNumber) {
+    # Prompt user ONCE for PR number
+    Write-Host "Could not extract PR number from input. Please provide:"
+    $prNumber = Read-Host "PR number"
+    
+    # Validate input
+    if ($prNumber -notmatch '^\d+$') {
+        Write-Error "Invalid PR number: $prNumber"
+        exit 1
+    }
+}
+```
+
+#### Step -1.3: Validate Extracted Context
+
+Before proceeding to Phase 0:
+
+```powershell
+# Verify PR number is positive integer
+if ($prNumber -le 0) {
+    Write-Error "Invalid PR number: $prNumber (must be positive integer)"
+    exit 1
+}
+
+# If repository info extracted from URL, validate format
+if ($owner -and $repo) {
+    Write-Host "✓ Repository context: $owner/$repo"
+}
+
+# Log extraction method for debugging
+Write-Host "PR Context Source: $($context.Source)"
+```
+
+**Proceed to Phase 0** once PR number is confirmed.
+
+---
 
 ### Phase 0: Memory Initialization (BLOCKING)
 
