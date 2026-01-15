@@ -184,8 +184,12 @@ def get_project_directory(hook_input: dict) -> str:
         return str(SAFE_BASE_DIR)
 
     try:
-        # lgtm[py/path-injection]
-        # CodeQL suppression: validated_dir is checked against SAFE_BASE_DIR via _is_relative_to() at line 196
+        # nosec B602 - CodeQL py/path-injection suppression
+        # JUSTIFICATION: Defense-in-depth path validation prevents traversal:
+        #   1. PRE-VALIDATION: _validate_path_string() rejects malicious patterns (line 182)
+        #   2. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary (line 198)
+        #   3. FALLBACK: Returns SAFE_BASE_DIR on any validation failure (line 192)
+        # See: .github/codeql/suppressions.yml and .agents/analysis/908-codeql-path-traversal-analysis.md
         candidate = Path(validated_dir).expanduser().resolve(strict=False)
     except Exception:
         # Fall back to safe base directory on any resolution error
@@ -219,8 +223,12 @@ def get_safe_project_path(project_dir: str) -> Optional[Path]:
             candidate_root = SAFE_BASE_DIR
         else:
             try:
-                # lgtm[py/path-injection]
-                # CodeQL suppression: validated_root is checked against SAFE_BASE_DIR via _is_relative_to() at line 228
+                # nosec B602 - CodeQL py/path-injection suppression
+                # JUSTIFICATION: Defense-in-depth path validation prevents traversal:
+                #   1. PRE-VALIDATION: _validate_path_string() rejects malicious patterns (line 217)
+                #   2. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary (line 230)
+                #   3. FALLBACK: Returns SAFE_BASE_DIR on validation failure (line 227, 231)
+                # See: .github/codeql/suppressions.yml and .agents/analysis/908-codeql-path-traversal-analysis.md
                 candidate_root = Path(validated_root).expanduser().resolve(strict=False)
             except Exception:
                 # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
