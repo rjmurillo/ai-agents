@@ -171,7 +171,16 @@ def get_safe_project_path(project_dir: str) -> Optional[Path]:
     CLAUDE_PROJECT_DIR or hook-provided cwd are influenced by external input.
     """
     try:
-        safe_root = Path(os.getenv("CLAUDE_PROJECT_ROOT", os.getcwd())).resolve()
+        # Determine candidate safe root from environment or current working directory
+        root_raw = os.getenv("CLAUDE_PROJECT_ROOT", os.getcwd())
+        candidate_root = Path(root_raw).expanduser().resolve(strict=False)
+
+        # Ensure the candidate root is absolute and within the repository's SAFE_BASE_DIR
+        if not candidate_root.is_absolute() or not _is_relative_to(candidate_root, SAFE_BASE_DIR):
+            safe_root = SAFE_BASE_DIR
+        else:
+            safe_root = candidate_root
+
         resolved_project = Path(project_dir).resolve()
     except OSError:
         # If resolution fails for any reason, treat as unsafe
