@@ -157,6 +157,24 @@ get_markdownlint_cmd() {
     fi
 }
 
+set_python_cmd() {
+    if command -v python3 &> /dev/null; then
+        PYTHON_CMD=(python3)
+        return 0
+    elif command -v python &> /dev/null; then
+        if python -c 'import sys; exit(0 if sys.version_info >= (3,) else 1)' &> /dev/null; then
+            PYTHON_CMD=(python)
+            return 0
+        fi
+    elif command -v py &> /dev/null; then
+        if py -3 -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(py -3)
+            return 0
+        fi
+    fi
+    return 1
+}
+
 if [ -n "$STAGED_MD_FILES" ]; then
     echo_info "Checking markdown files..."
 
@@ -576,7 +594,7 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
         echo_error "Skill validator path is a symlink (security violation)"
         EXIT_STATUS=1
     elif [ -f "$SKILL_VALIDATOR" ]; then
-        if command -v python3 &> /dev/null; then
+        if set_python_cmd; then
             # Validate each staged SKILL.md file
             VALIDATION_FAILED=0
             while IFS= read -r skill_md; do
@@ -586,7 +604,7 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
                 skill_dir=$(dirname "$skill_md")
 
                 # Run validator on the skill directory
-                if python3 "$SKILL_VALIDATOR" "$skill_dir" 2>&1; then
+                if "${PYTHON_CMD[@]}" "$SKILL_VALIDATOR" "$skill_dir" 2>&1; then
                     echo_success "Valid: $skill_md"
                 else
                     echo_error "Validation failed: $skill_md"
@@ -602,7 +620,7 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
                 echo_success "All skill files validated successfully."
             fi
         else
-            echo_error "Python 3 not available. Cannot validate skills."
+            echo_error "Python 3 runtime not available (python3/python/py -3). Cannot validate skills."
             echo_info "  Install Python 3: https://www.python.org/downloads/"
             EXIT_STATUS=1
         fi
