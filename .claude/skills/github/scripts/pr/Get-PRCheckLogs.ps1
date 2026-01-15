@@ -165,6 +165,7 @@ function Get-FailureSnippets {
                 MatchedLine   = $line.Trim()
                 Context       = $snippetLines -join "`n"
                 StartLine     = $start + 1
+                # EndLine is 1-based and inclusive of the final snippet line.
                 EndLine       = $start + $snippetLines.Count
             })
 
@@ -209,7 +210,7 @@ function Get-WorkflowRunLogs {
     # Fall back to run view which gives formatted output
     Write-Verbose "Fetching logs for run $RunId via gh run view"
 
-    $result = gh run view $RunId --repo "$Owner/$Repo" --log-failed 2>&1
+    $result = gh run view "$RunId" --repo "$Owner/$Repo" --log-failed 2>&1
 
     if ($LASTEXITCODE -eq 0 -and $result) {
         return @{
@@ -220,7 +221,7 @@ function Get-WorkflowRunLogs {
     }
 
     # Try full log if --log-failed didn't work
-    $result = gh run view $RunId --repo "$Owner/$Repo" --log 2>&1
+    $result = gh run view "$RunId" --repo "$Owner/$Repo" --log 2>&1
 
     if ($LASTEXITCODE -eq 0 -and $result) {
         return @{
@@ -326,7 +327,17 @@ if ($MyInvocation.InvocationName -eq '.') {
 }
 
 # Verify authentication
-Assert-GhAuthenticated
+try {
+    Assert-GhAuthenticated
+}
+catch {
+    $output = [PSCustomObject]@{
+        Success = $false
+        Error   = "Authentication failed: $_"
+    }
+    Write-Output ($output | ConvertTo-Json -Depth 10)
+    exit 4
+}
 
 # Resolve repository parameters
 $resolved = Resolve-RepoParams -Owner $Owner -Repo $Repo

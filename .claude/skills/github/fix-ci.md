@@ -1,12 +1,12 @@
 ---
 name: fix-ci
+version: 1.0.0
+model: claude-opus-4-5
 description: Autonomously inspect failing GitHub Actions CI checks, fetch logs, analyze
   failures, and implement fixes without user approval. Integrates with Get-PRCheckLogs.ps1
   for log retrieval. Use for "fix ci", "why is ci failing", "debug ci failures".
 license: MIT
 metadata:
-  version: 1.0.0
-  model: claude-opus-4-5
   domains:
     - github
     - ci-cd
@@ -81,7 +81,7 @@ gh pr view --json number,state,headRefName 2>/dev/null
 Use the GitHub skill to retrieve CI check status:
 
 ```powershell
-pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest <PR_NUMBER>
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest <PR_NUMBER>
 ```
 
 **Parse output to identify:**
@@ -101,7 +101,7 @@ pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest <PR_NUMBER>
 For failing GitHub Actions checks, retrieve logs:
 
 ```powershell
-pwsh -NoProfile scripts/pr/Get-PRCheckLogs.ps1 -PullRequest <PR_NUMBER> -MaxLines 200 -ContextLines 40
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRCheckLogs.ps1 -PullRequest <PR_NUMBER> -MaxLines 200 -ContextLines 40
 ```
 
 **Output structure:**
@@ -172,11 +172,9 @@ After all fixes implemented:
 
 ```bash
 git add -A
-git commit -m "fix: resolve CI failures
-
-- [List each fix made]
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+git commit -m "fix: resolve CI failures" \
+  -m "- [List each fix made]" \
+  -m "Co-Authored-By: Claude <noreply@anthropic.com>"
 git push
 ```
 
@@ -185,7 +183,7 @@ git push
 Wait for CI to re-run:
 
 ```powershell
-pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest <PR_NUMBER> -Wait -TimeoutSeconds 300
+pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest <PR_NUMBER> -Wait -TimeoutSeconds 300
 ```
 
 **Report final status to user.**
