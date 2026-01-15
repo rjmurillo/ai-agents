@@ -1,26 +1,28 @@
 ---
 name: github
 version: 3.0.0
-description: Execute GitHub operations (PRs, issues, labels, comments, merges) using PowerShell scripts with structured output and error handling. Use when working with pull requests, issues, review comments, or CI checks instead of raw gh commands.
-license: MIT
 model: claude-opus-4-5
+description: Execute GitHub operations (PRs, issues, labels, comments, merges) using
+  PowerShell scripts with structured output and error handling. Use when working with
+  pull requests, issues, review comments, or CI checks instead of raw gh commands.
+license: MIT
 metadata:
   domains:
-  - github
-  - pr
-  - issue
-  - labels
-  - milestones
-  - comments
-  - reactions
+    - github
+    - pr
+    - issue
+    - labels
+    - milestones
+    - comments
+    - reactions
   type: integration
   complexity: intermediate
   generator:
     keep_headings:
-    - Decision Tree
-    - Script Reference
-    - Output Format
-    - See Also
+      - Decision Tree
+      - Script Reference
+      - Output Format
+      - See Also
 ---
 # GitHub Skill
 
@@ -46,6 +48,7 @@ Need GitHub data?
 ├─ List PRs (filtered) → Get-PullRequests.ps1
 ├─ PR info/diff → Get-PRContext.ps1
 ├─ CI check status → Get-PRChecks.ps1
+├─ CI failure logs → Get-PRCheckLogs.ps1
 ├─ Review comments → Get-PRReviewComments.ps1
 ├─ Review threads → Get-PRReviewThreads.ps1
 ├─ Unique reviewers → Get-PRReviewers.ps1
@@ -82,6 +85,7 @@ Need GitHub data?
 | `Get-PullRequests.ps1` | List PRs with filters | `-State`, `-Label`, `-Author`, `-Base`, `-Head`, `-Limit` |
 | `Get-PRContext.ps1` | PR metadata, diff, files | `-PullRequest`, `-IncludeChangedFiles`, `-IncludeDiff` |
 | `Get-PRChecks.ps1` | CI check status, polling | `-PullRequest`, `-Wait`, `-TimeoutSeconds`, `-RequiredOnly` |
+| `Get-PRCheckLogs.ps1` | Fetch logs from failing CI checks | `-PullRequest`, `-MaxLines`, `-ContextLines` |
 | `Get-PRReviewComments.ps1` | Paginated review comments | `-PullRequest`, `-IncludeIssueComments` |
 | `Get-PRReviewThreads.ps1` | Thread-level review data | `-PullRequest`, `-UnresolvedOnly` |
 | `Get-PRReviewers.ps1` | Enumerate unique reviewers | `-PullRequest`, `-ExcludeBots` |
@@ -128,6 +132,32 @@ All scripts output structured JSON with `Success` boolean:
 ```powershell
 $result = pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 | ConvertFrom-Json
 if ($result.Success) { ... }
+```
+
+---
+
+## Process
+
+This skill provides a toolkit of PowerShell scripts for GitHub operations. Use scripts directly or compose them into workflows.
+
+**Basic Usage:**
+1. Identify the operation needed using the Decision Tree
+2. Find the corresponding script in the Script Reference
+3. Call the script with required parameters
+4. Parse the JSON output and check `Success` field
+
+**Example Flow:**
+```powershell
+# Get PR context
+$pr = pwsh scripts/pr/Get-PRContext.ps1 -PullRequest 123 | ConvertFrom-Json
+
+# Check CI status
+$checks = pwsh scripts/pr/Get-PRChecks.ps1 -PullRequest 123 | ConvertFrom-Json
+
+# Add comment if needed
+if ($checks.FailedCount -gt 0) {
+    pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 123 -Body "CI failures detected"
+}
 ```
 
 ---
