@@ -516,8 +516,8 @@ fi
 #
 GENERATE_AGENTS_SCRIPT="$REPO_ROOT/build/Generate-Agents.ps1"
 
-# Check if any shared agent template is staged
-STAGED_AGENT_TEMPLATES=$(echo "$STAGED_FILES" | grep -E '^templates/agents/.*\.shared\.md$' || true)
+# Check if any shared agent template or platform config is staged
+STAGED_AGENT_TEMPLATES=$(echo "$STAGED_FILES" | grep -E '^templates/(agents/.*\.shared\.md|platforms/.*)$' || true)
 
 if [ -n "$STAGED_AGENT_TEMPLATES" ]; then
     # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
