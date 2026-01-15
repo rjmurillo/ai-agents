@@ -1,6 +1,11 @@
 ---
 description: Research external topics, create comprehensive analysis, and incorporate learnings into memory systems
-allowed-tools: [WebSearch, WebFetch, mcp__forgetful__*, mcp__serena__*, Skill]
+allowed-tools:
+  - WebSearch
+  - WebFetch
+  - mcp__forgetful__*
+  - mcp__serena__*
+  - Skill
 model: opus
 ---
 

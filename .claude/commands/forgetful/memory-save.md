@@ -1,7 +1,8 @@
 ---
 description: Save current context as atomic memory in Forgetful with structured fields. Use when capturing learnings, decisions, or patterns for cross-session retrieval.
 argument-hint: [optional guidance for what to save]
-allowed-tools: [mcp__forgetful__*]
+allowed-tools:
+  - mcp__forgetful__*
 ---
 
 # Save Memory
