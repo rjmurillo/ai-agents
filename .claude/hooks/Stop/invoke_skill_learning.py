@@ -53,6 +53,38 @@ def _is_relative_to(path: Path, base: Path) -> bool:
         return False
 
 
+def _validate_path_string(path_str: str) -> Optional[str]:
+    """
+    Validate and sanitize path string BEFORE Path() construction.
+
+    Returns the validated string if safe, None if validation fails.
+    This prevents tainted data from flowing into Path() constructor.
+
+    Rejects:
+    - Non-string types
+    - Null bytes (CWE-158)
+    - Control characters (newlines, tabs, etc.)
+    - Obvious path traversal patterns
+    """
+    # Type and null byte check
+    if not isinstance(path_str, str) or "\x00" in path_str:
+        return None
+
+    # Control character check (newline, carriage return, tab, vertical tab, form feed)
+    if any(char in path_str for char in ["\n", "\r", "\t", "\v", "\f"]):
+        return None
+
+    # Normalize path separators for consistent checking
+    normalized = path_str.replace("\\", "/")
+
+    # Reject obvious traversal patterns
+    # Note: This is pre-validation; full validation happens after Path() resolution
+    if "/../" in normalized or normalized.startswith("../"):
+        return None
+
+    return path_str
+
+
 # =============================================================================
 # SKILL PATTERN DEFINITIONS (Single Source of Truth)
 # =============================================================================
@@ -146,12 +178,13 @@ def get_project_directory(hook_input: dict) -> str:
     if not raw_dir:
         raw_dir = os.getcwd()
 
-    # Basic sanity check on untrusted directory string before path resolution
-    if not isinstance(raw_dir, str) or "\x00" in raw_dir:
+    # Validate and sanitize path string BEFORE Path() construction (CodeQL CWE-22)
+    validated_dir = _validate_path_string(raw_dir)
+    if validated_dir is None:
         return str(SAFE_BASE_DIR)
 
     try:
-        candidate = Path(raw_dir).expanduser().resolve(strict=False)
+        candidate = Path(validated_dir).expanduser().resolve(strict=False)
     except Exception:
         # Fall back to safe base directory on any resolution error
         return str(SAFE_BASE_DIR)
@@ -178,12 +211,13 @@ def get_safe_project_path(project_dir: str) -> Optional[Path]:
         # Determine candidate safe root from environment or current working directory
         root_raw = os.getenv("CLAUDE_PROJECT_ROOT", os.getcwd())
 
-        # Basic sanity check on untrusted root string before path resolution
-        if not isinstance(root_raw, str) or "\x00" in root_raw:
+        # Validate and sanitize root string BEFORE Path() construction (CodeQL CWE-22)
+        validated_root = _validate_path_string(root_raw)
+        if validated_root is None:
             candidate_root = SAFE_BASE_DIR
         else:
             try:
-                candidate_root = Path(root_raw).expanduser().resolve(strict=False)
+                candidate_root = Path(validated_root).expanduser().resolve(strict=False)
             except Exception:
                 # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
                 candidate_root = SAFE_BASE_DIR
