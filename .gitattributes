@@ -332,7 +332,8 @@
 # 3. Updates language bar on repository page
 # 4. Improves repository search and discovery
 #
-*.md linguist-detectable
+# Note: The linguist-detectable attribute for *.md is defined in the
+# Documents section (line 85) to keep all markdown attributes together.
 
 # ============================================================================
 # Export
