@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(pwsh:*), Task, Skill, Read, Write, Edit, Glob, Grep
+allowed-tools: [Bash(git:*), Bash(gh:*), Bash(pwsh:*), Task, Skill, Read, Write, Edit, Glob, Grep]
 argument-hint: <PR_NUMBERS> [--parallel] [--cleanup]
 description: Use when responding to PR review comments for specified pull request(s)
 ---
