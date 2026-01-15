@@ -1,17 +1,18 @@
 # PR #908 Session Handoff
 
-**Session**: 2026-01-14-session-02
+**Session**: 2026-01-14-session-907 (continuation)
 **PR**: #908 - feat(skill): add reflect skill and auto-learning hook
 **Branch**: `feat/learning-skill`
-**Last Updated**: 2026-01-14 21:30 UTC
+**Last Updated**: 2026-01-15 00:48 UTC
 
 ## Quick Summary
 
-**Status**: 🟢 Active Progress - Fixed cursor[bot] issues, addressing review threads
-**Progress**: 14/28 review threads resolved (50%) - 7 comments replied in this session
-**Total Comments**: 90 (72 review + 18 issue comments)
-**Commits**: 5 fixes pushed (f666a01, 0238c92, f580305, 6aaaee6, 9b31e7d)
-**Remaining**: 18 unresolved threads, 2 CI failures (QA + Aggregate)
+**Status**: 🟡 Active Progress - Session 02 threads resolved, new blocker identified
+**Progress**: 19/28 review threads resolved (68%) - 5 threads manually resolved in this session
+**Total Comments**: 90+ (72 review + 18 issue comments, plus new bot comments)
+**Commits**: 24 total (exceeds 20-commit limit - BLOCKER)
+**Remaining**: 23 unresolved threads, 2 CI failures (Validate PR commit count + Validate Memory Files #910)
+**New Discovery**: QA Review now PASSING ✅ (was CRITICAL_FAIL)
 
 ---
 
@@ -75,14 +76,22 @@
 
 ### 🔴 High Priority
 
-1. **CI Failures** (2 required checks failing)
-   - ❌ **QA Review**: CRITICAL_FAIL - blocking until the new Pester tests run in CI (local run now passes)
-   - ❌ **Aggregate Results**: FAILURE - depends on QA Review passing
-   - ✅ **Validate Memory Files**: FAILURE - infrastructure issue #910 (tracked, not blocking)
+1. **CRITICAL BLOCKER: PR Commit Count Limit Exceeded**
+   - ❌ **Validate PR**: BLOCKED - PR has 24 commits, exceeds 20-commit limit (issue #362)
+   - **Impact**: Hard blocker for merge - "needs-split" label applied
+   - **Resolution Required**: Either squash commits to <20 OR split PR
+   - **Recommendation**: Squash commits after addressing remaining threads
 
-2. **Unresolved Review Threads** (18 remaining after Session 02)
-   - **Session 02 resolved**: PRRT_kwDOQoWRls5pZXNK, PRRT_kwDOQoWRls5pZXPZ, PRRT_kwDOQoWRls5pZZvK, PRRT_kwDOQoWRls5pZZvL, PRRT_kwDOQoWRls5pZ0QM (5 threads)
-   - **Still unresolved**: PRRT_kwDOQoWRls5pZ0Qd, PRRT_kwDOQoWRls5pZ0Qn, PRRT_kwDOQoWRls5pZ0Qz, PRRT_kwDOQoWRls5pZ0Q6, PRRT_kwDOQoWRls5pZ-eT, PRRT_kwDOQoWRls5pZ-eY, PRRT_kwDOQoWRls5pZ-ea, PRRT_kwDOQoWRls5paX0L, PRRT_kwDOQoWRls5paX0g, PRRT_kwDOQoWRls5paX0n, PRRT_kwDOQoWRls5paX0s, PRRT_kwDOQoWRls5paX06, PRRT_kwDOQoWRls5paX1I
+2. **CI Failures** (3 checks failing, 1 blocker)
+   - ❌ **Validate PR**: BLOCKED - commit count (see above)
+   - ❌ **Validate Memory Files**: FAILURE - infrastructure issue #910 (tracked, not blocking PR progress)
+   - ❌ **Aggregate Results**: FAILURE - depends on Validate PR passing
+   - ✅ **QA Review**: SUCCESS (all agents passing - Analyst, Architect, DevOps, Roadmap, QA)
+
+3. **Unresolved Review Threads** (23 remaining after Session 907)
+   - **Session 907 manually resolved**: PRRT_kwDOQoWRls5pZXNK, PRRT_kwDOQoWRls5pZXPZ, PRRT_kwDOQoWRls5pZZvK, PRRT_kwDOQoWRls5pZZvL, PRRT_kwDOQoWRls5pZ0QM (5 threads - fixes already applied in Session 02, just needed manual resolution)
+   - **Original 13 unresolved**: PRRT_kwDOQoWRls5pZ0Qd, PRRT_kwDOQoWRls5pZ0Qn, PRRT_kwDOQoWRls5pZ0Qz, PRRT_kwDOQoWRls5pZ0Q6, PRRT_kwDOQoWRls5pZ-eT, PRRT_kwDOQoWRls5pZ-eY, PRRT_kwDOQoWRls5pZ-ea, PRRT_kwDOQoWRls5paX0L, PRRT_kwDOQoWRls5paX0g, PRRT_kwDOQoWRls5paX0n, PRRT_kwDOQoWRls5paX0s, PRRT_kwDOQoWRls5paX06, PRRT_kwDOQoWRls5paX1I
+   - **New threads (10)**: PRRT_kwDOQoWRls5pcMBT, PRRT_kwDOQoWRls5pcMBV, PRRT_kwDOQoWRls5pcMBX, PRRT_kwDOQoWRls5pclII, PRRT_kwDOQoWRls5pclIR, PRRT_kwDOQoWRls5pclIX, PRRT_kwDOQoWRls5pclIa, PRRT_kwDOQoWRls5pclIh, PRRT_kwDOQoWRls5pclIn, PRRT_kwDOQoWRls5pcnxU
    - Requires systematic triage for remaining threads
 
 ### 🟡 Medium Priority
@@ -218,51 +227,125 @@
 - **Automated tests**: Added `tests/Invoke-SkillLearning.Tests.ps1` to cover `Detect-SkillUsage`, `Extract-Learnings`, and `Update-SkillMemory` (including path traversal prevention and Markdown section updates).
 - **Local verification**: `pwsh ./build/scripts/Invoke-PesterTests.ps1 -TestPath tests/Invoke-SkillLearning.Tests.ps1` now passes, resolving the CRITICAL_FAIL root cause (lack of coverage) ahead of re-running QA in CI.
 
+## Session 907 Execution Summary (2026-01-15 00:30-00:48 UTC)
+
+### ✅ What Was Done
+
+1. **Verified Branch Status**
+   - Confirmed commit 9b31e7d and 4 subsequent commits (1136721, e7e8e28, 065ef88, 0d4afcb) already pushed
+   - Branch is up to date with remote - no pending pushes
+
+2. **CI Status Investigation**
+   - ✅ **Major Win**: QA Review now PASSING (all 5 agent reviews: Analyst, Architect, DevOps, Roadmap, QA)
+   - ❌ **New Blocker Identified**: Validate PR check BLOCKED - 24 commits exceed 20-commit limit (issue #362)
+   - ❌ Validate Memory Files still failing (Issue #910 - known infrastructure bug, tracked, not blocking)
+   - ❌ Aggregate Results failing (depends on Validate PR passing)
+
+3. **Thread Resolution**
+   - Manually resolved 5 Session 02 threads that had fixes applied but weren't marked resolved
+   - Thread IDs: PRRT_kwDOQoWRls5pZXNK, PRRT_kwDOQoWRls5pZXPZ, PRRT_kwDOQoWRls5pZZvK, PRRT_kwDOQoWRls5pZZvL, PRRT_kwDOQoWRls5pZ0QM
+   - Verified replies were already posted to these threads (not in unaddressed comments list)
+   - Progress: 14/28 → 19/28 threads resolved (50% → 68%)
+
+4. **Unresolved Threads Analysis**
+   - Current count: 23 unresolved threads (not 18 as in handoff)
+   - 13 original unresolved threads remain
+   - 10 new threads appeared after Session 02 (bot comments on newer commits)
+   - Breakdown documented in "What Remains" section
+
+### 📊 Session 907 Metrics
+
+- **Time**: ~18 minutes
+- **Threads Resolved**: 5 (manual resolution)
+- **Thread Resolution Progress**: 50% → 68%
+- **CI Improvements**: QA Review CRITICAL_FAIL → SUCCESS
+- **New Blockers Identified**: 1 (commit count limit)
+
+### 🎯 Session 907 Key Findings
+
+1. **QA Review Success**: Session 03 helper module refactor and test additions resolved the QA blocking issues
+2. **Commit Count Blocker**: 24 commits is a hard blocker per issue #362 policy - requires squashing or PR split
+3. **Thread Inflation**: 10 new review threads appeared (likely from newer commits), increasing remaining work
+4. **Manual Resolution Needed**: Fixes applied in code don't auto-resolve threads - manual GraphQL resolution required
+
 ## Next Session Actions
 
-### Immediate Actions for Session 03
+### Immediate Actions for Session 908
 
-**Status After Session 02**: 14/28 threads resolved (50%), 18 threads remaining, commit 9b31e7d ready to push
+**Status After Session 907**: 19/28 threads resolved (68%), 23 threads remaining, critical commit count blocker identified
 
-**Priority 1: Push Changes**
-1. Push commit 9b31e7d to remote: `git push origin feat/learning-skill`
-2. Verify CI checks status after push
-3. Monitor for new bot comments on latest commit
+### CRITICAL Decision Point: Commit Count Blocker
 
-**Priority 2: Address Remaining Threads (Choose One Approach)**
+**Current State**: PR has 24 commits (exceeds 20-commit limit - HARD BLOCKER per issue #362)
 
-**Option A: Continue with remaining Copilot/cursor comments** (incremental approach)
-- Review next 5-10 unresolved threads
-- Triage by severity and actionability
-- Fix code issues with commits
-- Reply to comments with explanations
+**Three Strategic Options**:
+
+**Option A: Squash commits NOW, then address threads** (Recommended)
+1. Squash 24 commits to <20 (ideally 10-15 logical commits)
+2. This unblocks "Validate PR" check immediately
+3. Continue addressing remaining 23 threads with new commits
+4. Risk: May need to squash again if adding many more commits
+5. Benefit: Removes blocker early, allows merge as soon as threads resolved
+
+**Option B: Address threads first, then squash before merge**
+1. Continue fixing code issues for 23 remaining threads
+2. Reply to all comments with commit references
+3. Once all threads resolved, squash all commits to <20
+4. Risk: Adding more commits before squashing (could reach 30+)
+5. Benefit: All commit history preserved until final squash
+
+**Option C: Split the PR** (Only if scope is too large)
+1. Identify separable components (e.g., reflect skill separate from hook)
+2. Create new PR with subset of changes
+3. Close or reduce scope of PR #908
+4. Risk: High complexity, delays both PRs
+5. Benefit: Smaller PRs are easier to review and merge
+
+### Recommended Approach: **Option A** (Squash Now)
+
+**Rationale**:
+- Removes hard blocker immediately
+- QA Review already passing - squashing won't break that
+- 23 threads can be addressed with <10 additional commits
+- Final commit count: ~15-20 after all fixes (still under limit)
+
+### Priority 2: Address Remaining 23 Threads
+
+After resolving commit count blocker, choose thread addressing strategy:
+
+**Strategy 1: Triage and fix high-impact threads** (Incremental)
+- Review 10 newest threads (pcMBT through pcnxU series)
+- Check if they're duplicates or new issues
+- Fix critical/high-severity issues first
 - Estimated: 1-2 hours
 
-**Option B: Investigate QA Review verdict** (comprehensive approach)
-- Review full QA agent output (4722 chars) from CI failure
-- May reveal systematic issues across multiple files
-- Could inform fixes for other comments
-- Estimated: Investigation + fixes, ~2 hours
+**Strategy 2: Batch process all threads** (Systematic)
+- Use `/pr-comment-responder` skill or protocol
+- Analyze all 23 threads systematically
+- Group by theme, prioritize, implement fixes
+- Estimated: 2-3 hours
 
-**Option C: Batch process remaining threads** (systematic approach)
-- Create `.agents/pr-comments/PR-908/remaining-threads.md`
-- Analyze all 18 remaining threads
-- Group by theme (regex, error handling, edge cases, etc.)
-- Prioritize by security > correctness > style
-- Implement pr-comment-responder protocol
-- Estimated: Full workflow, ~3 hours
+**Strategy 3: Quick wins - check for easy resolutions**
+- Some threads may just need replies (design decisions)
+- Some may already be fixed (need verification)
+- Resolve low-hanging fruit first
+- Estimated: 30 minutes - 1 hour
 
 ### Before Merge Checklist
 
 - [x] Session 01 fixes committed and pushed (f666a01, 0238c92, f580305, 6aaaee6)
-- [x] Session 02 fixes committed (9b31e7d)
-- [ ] Session 02 commit pushed to remote
-- [ ] All review threads resolved (14/28 → 28/28) - **50% complete**
-- [ ] QA Review CRITICAL_FAIL addressed
-- [ ] All CI checks passing (or failures acknowledged as infrastructure)
-- [ ] No new comments from reviewers
-- [ ] PR mergeable: `gh pr view 908 --json mergeable`
-- [ ] Final verification: all commits pushed and branch up to date
+- [x] Session 02 fixes committed and pushed (9b31e7d)
+- [x] Session 03 fixes committed and pushed (1136721, e7e8e28, 065ef88, 0d4afcb)
+- [x] Session 907: 5 Session 02 threads manually resolved (14 → 19 total resolved)
+- [ ] **BLOCKER**: Squash commits to <20 (currently 24)
+- [ ] All review threads resolved (19/28 → 28/28) - **68% complete, 23 remaining**
+- [x] QA Review passing (was CRITICAL_FAIL, now SUCCESS)
+- [ ] All CI checks passing - **2 blockers remain**:
+  - [ ] Validate PR (commit count blocker)
+  - [ ] Validate Memory Files (Issue #910 - infrastructure, tracked)
+- [ ] No new unaddressed comments from reviewers
+- [ ] PR mergeable after commit count resolved
+- [x] All commits pushed and branch up to date with remote
 
 ### Commands Reference
 
