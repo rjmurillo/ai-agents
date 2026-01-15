@@ -6,7 +6,7 @@ model: claude-sonnet-4-5
 metadata:
   version: 1.0.0
   timelessness: 8/10
-  adr: ADR-007
+  adr: ADR-007, ADR-017
 ---
 
 # Reflect Skill
