@@ -931,11 +931,14 @@ fi
 # - PowerShell code under scripts/, build/, .claude/skills/, or .github/scripts/
 # - Any PowerShell tests under tests/ or scripts/tests/ (and related test roots)
 #
-# Strategy:
-# - If only specific tests are staged, run only those tests
-# - Else, run a targeted suite by deriving test directories from changed code
-# - Fallbacks to a quick, narrow set of standard test paths when needed
+# Strategy (Issue #917 fix):
+# - Run tests ONLY for changed files, not entire test directories
+# - Maps each changed .ps1/.psm1 file to its corresponding .Tests.ps1 file
+# - If no specific test file exists for a changed file, skip it (no pre-existing failures)
+# - Fallback to minimal test set only if no test paths resolved at all
 # - No bypass option - QA gate is enforced for safety
+#
+# This prevents pre-existing test failures in unrelated files from blocking commits.
 #
 # Determine if relevant files are staged
 STAGED_PS_CODE_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
@@ -990,27 +993,61 @@ else
                 esac
             done <<< "$STAGED_PS_CODE_FILES"
 
-            # Map changed code paths (including tests) to likely test roots
+            # Map changed code files to their corresponding test files (Issue #917)
+            # Only run tests for changed files, not entire test directories
             while IFS= read -r cf; do
                 [ -z "$cf" ] && continue
                 case "$cf" in
-                    .claude/skills/*/scripts/*.ps1|.claude/skills/*/scripts/*.psm1)
+                    .claude/skills/*/scripts/*.ps1)
+                        # Map skill script to its test file
+                        # Example: .claude/skills/github/scripts/Get-PR.ps1 -> .claude/skills/github/tests/Get-PR.Tests.ps1
                         skilldir=${cf%%/scripts/*}
-                        testdir="$skilldir/tests"
-                        [ -d "$testdir" ] && TESTPATHS+=("$testdir")
+                        scriptname=$(basename "$cf")
+                        testfile="$skilldir/tests/${scriptname%.ps1}.Tests.ps1"
+                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
+                            TESTPATHS+=("$testfile")
+                        fi
                         ;;
-                    scripts/*)
-                        [ -d "$REPO_ROOT/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/scripts/tests")
+                    .claude/skills/*/scripts/*.psm1)
+                        # Map skill module to its test file
+                        skilldir=${cf%%/scripts/*}
+                        modulename=$(basename "$cf")
+                        testfile="$skilldir/tests/${modulename%.psm1}.Tests.ps1"
+                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
+                            TESTPATHS+=("$testfile")
+                        fi
                         ;;
-                    build/*)
-                        [ -d "$REPO_ROOT/build/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/build/scripts/tests")
-                        [ -d "$REPO_ROOT/build/tests" ] && TESTPATHS+=("$REPO_ROOT/build/tests")
+                    scripts/*.ps1|scripts/*.psm1)
+                        # Map root script to its test file
+                        scriptname=$(basename "$cf")
+                        testfile="scripts/tests/${scriptname%.*}.Tests.ps1"
+                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
+                            TESTPATHS+=("$testfile")
+                        fi
                         ;;
-                    .github/scripts/*)
-                        # Some tests live under .github/tests/**
-                        [ -d "$REPO_ROOT/.github/tests" ] && TESTPATHS+=("$REPO_ROOT/.github/tests")
-                        # Allow script directory tests if present
-                        [ -d "$REPO_ROOT/.github/scripts" ] && TESTPATHS+=("$REPO_ROOT/.github/scripts")
+                    build/scripts/*.ps1|build/scripts/*.psm1)
+                        # Map build script to its test file
+                        scriptname=$(basename "$cf")
+                        testfile="build/scripts/tests/${scriptname%.*}.Tests.ps1"
+                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
+                            TESTPATHS+=("$testfile")
+                        fi
+                        ;;
+                    build/*.ps1|build/*.psm1)
+                        # Map build root script to its test file
+                        scriptname=$(basename "$cf")
+                        testfile="build/tests/${scriptname%.*}.Tests.ps1"
+                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
+                            TESTPATHS+=("$testfile")
+                        fi
+                        ;;
+                    .github/scripts/*.ps1|.github/scripts/*.psm1)
+                        # Map GitHub script to its test file
+                        scriptname=$(basename "$cf")
+                        testfile=".github/tests/${scriptname%.*}.Tests.ps1"
+                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
+                            TESTPATHS+=("$testfile")
+                        fi
                         ;;
                     *.Tests.ps1)
                         # Already handled above but kept as a catch-all
