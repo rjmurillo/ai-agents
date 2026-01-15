@@ -7,10 +7,3 @@
 | generated files edit warning analyst impact-analysis nested fence backtick | [coderabbit-documentation-false-positives](coderabbit-documentation-false-positives.md) |
 | markdownlint MD004 MD012 MD013 duplicate linting yaml | [coderabbit-markdownlint](coderabbit-markdownlint.md) |
 
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

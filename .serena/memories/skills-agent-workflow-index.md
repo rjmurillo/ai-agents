@@ -10,10 +10,3 @@
 | handoff table format structured automation parseable orchestrator routing | [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md) |
 | post-implementation critic validation compliance standards naming formatting | [agent-workflow-post-implementation-critic-validation](agent-workflow-post-implementation-critic-validation.md) |
 
-## Related
-
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)
-- [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md)

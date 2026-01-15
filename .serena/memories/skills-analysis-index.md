@@ -8,10 +8,3 @@
 | verify codebase state git grep search missing code claim blocking branch | [analysis-004-verify-codebase-state](analysis-004-verify-codebase-state.md) |
 | comprehensive analyst trade-off evidence 100% implementation accuracy options exhaustive | [analysis-001-comprehensive-analysis-standard](analysis-001-comprehensive-analysis-standard.md) |
 
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)
-- [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md)

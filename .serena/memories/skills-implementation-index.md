@@ -10,10 +10,3 @@
 | GraphQL-first API analysis REST check capabilities isResolved field | [implementation-006-graphql-first](implementation-006-graphql-first.md) |
 | verbatim patch mode user-provided code exact character copy no modification | [implementation-verbatim-patch-mode](implementation-verbatim-patch-mode.md) |
 
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

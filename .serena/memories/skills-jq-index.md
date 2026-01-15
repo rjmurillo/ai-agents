@@ -13,10 +13,3 @@
 | jq reference quick operator function syntax | [jq-quick-reference](jq-quick-reference.md) |
 | jq pr github status parse escape error pattern validated | [jq-pr-operation-patterns](jq-pr-operation-patterns.md) |
 
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

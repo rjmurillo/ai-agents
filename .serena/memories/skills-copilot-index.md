@@ -8,10 +8,3 @@
 | directive issue-comment review-comment noise signal anti-pattern best-practice relocation PR-249 | [copilot-directive-relocation](copilot-directive-relocation.md) |
 | cli model configuration token authentication bot PAT GPT Claude Gemini | [copilot-cli-model-configuration](copilot-cli-model-configuration.md) |
 
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

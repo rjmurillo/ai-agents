@@ -27,10 +27,3 @@
 | status classification decision tree blocking human | [pr-review-status-001](pr-review-status-001.md) |
 | batch response single commit multiple comments clean history efficiency | [pr-review-batch-response-pattern](pr-review-batch-response-pattern.md) |
 
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

@@ -8,10 +8,3 @@
 | branch declaration header session log explicit tracking accountability verification | [session-init-003-branch-declaration](session-init-003-branch-declaration.md) |
 | scope limit multi-issue confusion 2-issue maximum context session focus contamination | [session-scope-002-multi-issue-limit](session-scope-002-multi-issue-limit.md) |
 
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

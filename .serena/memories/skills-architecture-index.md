@@ -10,10 +10,3 @@
 | template variant claude copilot generate maintain separate dual update | [architecture-template-variant-maintenance](architecture-template-variant-maintenance.md) |
 | ADR number check collision parallel branch sequential numbering | [architecture-016-adr-number-check](architecture-016-adr-number-check.md) |
 
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)
-- [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md)

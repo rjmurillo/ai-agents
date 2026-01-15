@@ -16,10 +16,3 @@
 | commit threshold trigger 10 commits PR stuck pattern mini-retrospective | [retrospective-commit-trigger](retrospective-commit-trigger.md) |
 | artifact efficiency concurrent documentation during execution time savings | [retrospective-artifact-efficiency-pattern](retrospective-artifact-efficiency-pattern.md) |
 
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)

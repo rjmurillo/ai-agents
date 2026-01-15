@@ -16,10 +16,3 @@
 | error message investigate tool output infra flag classification handler | [ci-infrastructure-004-error-message-investigation](ci-infrastructure-004-error-message-investigation.md) |
 | dorny paths-filter checkout fetch-depth base ref PR diff sparse | [ci-infrastructure-dorny-paths-filter-checkout](ci-infrastructure-dorny-paths-filter-checkout.md) |
 
-## Related
-
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
-- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)
-- [skills-bash-integration-index](skills-bash-integration-index.md)
