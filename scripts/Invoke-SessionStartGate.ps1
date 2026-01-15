@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Verification-based session start gate for Codex (GitHub Copilot).
+    Verification-based session start gate for all AI agents.
 
 .DESCRIPTION
-    Implements Phase 1 BLOCKING gates for Codex sessions to ensure:
+    Implements BLOCKING gates for AI agent sessions to ensure:
     1. Memory-First: memory-index and task-relevant memories loaded
     2. Skill Availability: GitHub skills cataloged and usage-mandatory memory loaded
     3. Session Log: Valid session log exists
@@ -11,6 +11,8 @@
 
     This script enforces session protocol compliance through verification-based gates
     per ADR-033 (Routing-Level Enforcement Gates).
+    
+    Applicable to all AI agents including Claude Code, GitHub Copilot, and others.
 
 .PARAMETER CheckOnly
     Run all gates and report status without blocking (for diagnostics)
@@ -28,11 +30,11 @@
     Skip Gate 4 (Branch Verification) - use only for read-only operations
 
 .EXAMPLE
-    .\Invoke-CodexSessionStartGate.ps1
+    .\Invoke-SessionStartGate.ps1
     Runs all gates; blocks if any gate fails
 
 .EXAMPLE
-    .\Invoke-CodexSessionStartGate.ps1 -CheckOnly
+    .\Invoke-SessionStartGate.ps1 -CheckOnly
     Diagnostic mode: reports gate status without blocking
 
 .NOTES
@@ -44,7 +46,7 @@
 
     See: ADR-033 Routing-Level Enforcement Gates
     See: ADR-035 Exit Code Standardization
-    See: .agents/CODEX-PROTOCOL.md for Codex session protocol
+    See: .agents/SESSION-PROTOCOL.md for session protocol
 #>
 
 [CmdletBinding()]
@@ -116,7 +118,7 @@ if (-not $repoRoot) {
     exit 3  # External dependency failure
 }
 
-Write-Host "`nCodex Session Start Gate - Verification-Based Protocol Enforcement" -ForegroundColor Magenta
+Write-Host "`nSession Start Gate - Verification-Based Protocol Enforcement" -ForegroundColor Magenta
 Write-Host "Repository: $repoRoot" -ForegroundColor Gray
 Write-Host "Mode: $(if ($CheckOnly) { 'Check Only (Non-Blocking)' } else { 'Enforcement (Blocking)' })" -ForegroundColor Gray
 

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Pester tests for Invoke-CodexSessionStartGate.ps1
+    Pester tests for Invoke-SessionStartGate.ps1
 
 .DESCRIPTION
     Tests gate script execution, exit codes, and core functionality.
@@ -18,11 +18,11 @@
 #>
 
 BeforeAll {
-    $Script:GateScriptPath = Join-Path $PSScriptRoot ".." "Invoke-CodexSessionStartGate.ps1"
+    $Script:GateScriptPath = Join-Path $PSScriptRoot ".." "scripts" "Invoke-SessionStartGate.ps1"
     $Script:RepoRoot = (git -C $PSScriptRoot rev-parse --show-toplevel).Trim()
 }
 
-Describe "Invoke-CodexSessionStartGate.ps1 - Script Existence" {
+Describe "Invoke-SessionStartGate.ps1 - Script Existence" {
     It "Gate script exists" {
         Test-Path $Script:GateScriptPath | Should -Be $true
     }
