@@ -82,13 +82,10 @@ class TestDynamicSkillDetection(unittest.TestCase):
         """Mapped skills should fail when patterns don't match."""
         text = "This text mentions github but not in a pattern way"
         # 'github' patterns include 'gh pr', 'gh issue', '.claude/skills/github', etc.
-        # Just mentioning 'github' shouldn't match
+        # Use a text that does not match any of the defined GitHub patterns
+        text = "Reading about version control systems"
         result = test_skill_context(text, "github")
-        # Note: 'github' appears in '.claude/skills/github' pattern so this could match
-        # Let's use cleaner test case
-        text2 = "Reading about version control systems"
-        result2 = test_skill_context(text2, "github")
-        self.assertFalse(result2, "Mapped skill should fail without pattern match")
+        self.assertFalse(result, "Mapped skill should fail without pattern match")
 
 
 class TestFilenamePatternConsistency(unittest.TestCase):

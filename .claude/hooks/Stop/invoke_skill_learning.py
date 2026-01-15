@@ -732,7 +732,7 @@ def update_skill_memory(
         resolved_path = memory_path.resolve()
         # Include directory separator to prevent prefix attacks
         # e.g., "/home/user" should not match "/home/usermalicious"
-        if not str(resolved_path).lower().startswith(str(allowed_dir).lower() + os.sep):
+        if not str(resolved_path).startswith(str(allowed_dir) + os.sep):
             print(f"Path traversal attempt detected: '{resolved_path}' is outside project directory", file=sys.stderr)
             return False
     except Exception as e:
