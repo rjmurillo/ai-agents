@@ -421,6 +421,170 @@ Save to: `.agents/planning/impact-analysis-security-[feature].md`
 - **Total**: [Hours/Days]
 ```
 
+## PowerShell Security Checklist
+
+**Purpose**: PowerShell-specific security patterns for code review. Per ADR-005, this project uses PowerShell-only scripting, making PowerShell security critical.
+
+When reviewing PowerShell scripts (`.ps1`, `.psm1`), verify:
+
+### Input Validation
+
+- [ ] All parameters have `[ValidatePattern]`, `[ValidateSet]`, or `[ValidateScript]` attributes
+- [ ] User input never passed directly to `Invoke-Expression` or `iex`
+- [ ] File paths validated with `[ValidateScript({Test-Path $_ -PathType Leaf})]` or equivalent
+- [ ] Numeric inputs have `[ValidateRange]` to prevent overflow or negative values
+- [ ] String inputs have length limits via `[ValidateLength]`
+
+### Command Injection Prevention (CWE-77, CWE-78)
+
+**WHY THIS MATTERS**: PowerShell passes unquoted arguments directly to shell. Shell interprets metacharacters (`;|&><`) as command separators, not literals. Attack: `$Query = "; rm -rf /"` executes TWO commands. Solution: Quotes force literal string interpretation, metacharacters become data not operators.
+
+**UNSAFE**: Unquoted variables in external commands allow shell metacharacters to inject commands
+
+```powershell
+# VULNERABLE - Special characters in $Query or $OutputFile can inject commands
+npx tsx $PluginScript $Query $OutputFile
+
+# Example attack: $Query = "; rm -rf /"
+# Result: Executes TWO commands - plugin script AND destructive deletion
+```
+
+**SAFE**: Quote all variables to prevent command injection
+
+```powershell
+# SECURE - Variables quoted, metacharacters treated as literals
+npx tsx "$PluginScript" "$Query" "$OutputFile"
+
+# RECOMMENDED - Use explicit array for commands with 5+ parameters (improves readability)
+# NOTE: PowerShell splatting (@Args) only works with cmdlets/functions, not external commands
+$Args = @("$PluginScript", "$Query", "$OutputFile")
+& npx tsx $Args
+```
+
+**Checklist**:
+
+- [ ] All variables in external commands are quoted (`"$Variable"` not `$Variable`)
+- [ ] Check for unquoted variables in: `npx`, `node`, `python`, `git`, `gh`, `pwsh`, `bash`, `docker`, `kubectl`
+- [ ] For commands with 5+ parameters, use array variable with quoted elements for readability
+- [ ] Avoid string concatenation for commands: `& "cmd $UserInput"` is UNSAFE (use array instead)
+- [ ] Use `Start-Process` with `-ArgumentList` for complex command invocation (provides automatic escaping)
+
+### Path Traversal Prevention (CWE-22)
+
+**WHY THIS MATTERS**: `StartsWith()` performs string comparison on raw input. `".."` sequences resolve AFTER comparison. `"..\..\etc\passwd"` passes `StartsWith` check. File system THEN resolves `".."` to parent directory. Solution: `GetFullPath()` resolves `".."` sequences BEFORE comparison, validates resolved path.
+
+**UNSAFE**: `StartsWith()` without path normalization allows directory traversal via `..` sequences
+
+```powershell
+# VULNERABLE - StartsWith does not normalize paths
+$OutputFile = "..\..\..\etc\passwd"  # Escapes $MemoriesDir
+if (-not $OutputFile.StartsWith($MemoriesDir)) {
+    Write-Warning "Output file should be in $MemoriesDir"
+}
+# WARNING ONLY - Path traversal succeeds, file written outside allowed directory
+```
+
+**SAFE**: Use `GetFullPath()` to normalize paths before validation
+
+```powershell
+# SECURE - Paths normalized before comparison
+$NormalizedOutput = [System.IO.Path]::GetFullPath($OutputFile)
+$NormalizedDir = [System.IO.Path]::GetFullPath($MemoriesDir)
+if (-not $NormalizedOutput.StartsWith($NormalizedDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Path traversal attempt detected. Output file must be inside '$MemoriesDir' directory."
+}
+# THROWS - Path traversal blocked
+```
+
+**Checklist**:
+
+- [ ] Use `[System.IO.Path]::GetFullPath()` to normalize paths before validation
+- [ ] Never trust `StartsWith()` for path containment checks without normalization
+- [ ] Validate resolved path is within allowed directory AFTER normalization
+- [ ] Check for symlinks with `$_.Attributes -band [IO.FileAttributes]::ReparsePoint`
+- [ ] Use `Join-Path` instead of string concatenation for path building
+- [ ] Reject paths containing `..` sequences AFTER normalization (defense in depth)
+- [ ] For Windows, check for 8.3 short names (`RUNNER~1`) that bypass string checks
+
+### Secrets and Credentials (CWE-798, CWE-522)
+
+- [ ] No hardcoded passwords, API keys, tokens, or connection strings
+- [ ] Use `Read-Host -AsSecureString` for password input (not plain text)
+- [ ] Use `ConvertTo-SecureString` and `PSCredential` for credential handling
+- [ ] Avoid `Write-Host`, `Write-Verbose`, or `Write-Debug` for sensitive data
+- [ ] Environment variables for secrets use `$env:` prefix, not hardcoded values
+- [ ] Check for secrets in: parameter default values, variable assignments, connection strings
+- [ ] Use secret detection tools: `git-secrets`, `truffleHog`, or `detect-secrets`
+
+### Error Handling (CWE-209, CWE-532)
+
+- [ ] `Set-StrictMode -Version Latest` at script top to catch uninitialized variables
+- [ ] `$ErrorActionPreference = 'Stop'` for production scripts (fail-fast)
+- [ ] Try-catch blocks do not expose sensitive data in error messages
+- [ ] Exit codes checked after external commands: `if ($LASTEXITCODE -ne 0) { throw "Command failed" }`
+- [ ] Error messages do not reveal internal paths, stack traces, or implementation details
+- [ ] No credentials or secrets in error output (check `$Error[0]`, `$_.Exception.Message`)
+- [ ] Use `Write-Error` for user-facing errors, not raw exception messages
+
+### Code Execution (CWE-94)
+
+**WHY THIS MATTERS**: `Invoke-Expression` treats string as PowerShell code. No input sanitization or command whitelisting. User input passed directly to interpreter. Solution: Hashtable restricts to predefined commands, user selects KEY not syntax, script block execution isolates input from interpreter.
+
+**UNSAFE**: `Invoke-Expression` executes arbitrary code from strings
+
+```powershell
+# VULNERABLE - User input executed as PowerShell code
+$UserCommand = Read-Host "Enter command"
+Invoke-Expression $UserCommand
+
+# Example attack: $UserCommand = "Remove-Item -Recurse -Force C:\"
+# Result: Executes arbitrary PowerShell code, including destructive operations
+```
+
+**SAFE**: Use parameterized commands or script blocks with whitelisting
+
+```powershell
+# SECURE - Predefined commands, user selects option
+$AllowedCommands = @{
+    'status' = { git status }
+    'log'    = { git log -n 10 }
+    'diff'   = { git diff }
+}
+$Choice = Read-Host "Choose: status, log, diff"
+if ($AllowedCommands.ContainsKey($Choice)) {
+    & $AllowedCommands[$Choice]
+} else {
+    Write-Error "Invalid choice. Allowed: status, log, diff"
+}
+```
+
+**Checklist**:
+
+- [ ] No use of `Invoke-Expression` unless absolutely required with sanitized input
+- [ ] No `Add-Type` with user-controlled C# code (allows arbitrary code execution)
+- [ ] No `.Invoke()` on user-provided script blocks (use predefined blocks only)
+- [ ] No dynamic module imports from untrusted paths (`Import-Module $UserPath`)
+- [ ] No `$ExecutionContext.InvokeCommand.InvokeScript()` with user input
+- [ ] For data processing, use `ConvertFrom-Json`, `ConvertFrom-Csv`, not `Invoke-Expression`
+
+### PowerShell-Specific Patterns
+
+- [ ] Use `$PSBoundParameters` to access provided parameters (prevents uninitialized variable access)
+- [ ] Check for `ExpandString` in logging/output that could leak variables
+- [ ] Avoid `Write-Host` for structured output (use `Write-Output` or objects)
+- [ ] Check for ReDoS (CWE-1333) in regex patterns: `[a-z]+`, `(a+)+`, `(a*)*`
+- [ ] Use `-WhatIf` support for destructive operations (`[CmdletBinding(SupportsShouldProcess)]`)
+- [ ] Validate array bounds before access (no negative indices, check `.Count` first)
+- [ ] Use `-Force` parameter for confirmation bypass, not hardcoded `$ConfirmPreference = 'None'`
+
+### References
+
+- OWASP PowerShell Security Cheat Sheet: <https://cheatsheetseries.owasp.org/cheatsheets/PowerShell_Security_Cheat_Sheet.html>
+- CWE-77 Command Injection: <https://cwe.mitre.org/data/definitions/77.html>
+- CWE-22 Path Traversal: <https://cwe.mitre.org/data/definitions/22.html>
+- CWE-94 Code Injection: <https://cwe.mitre.org/data/definitions/94.html>
+- PowerShell Security Best Practices: <https://learn.microsoft.com/en-us/powershell/scripting/dev-cross-plat/security/securing-powershell>
+
 ## Memory Protocol
 
 Use cloudmcp-manager memory tools directly for cross-session context:
