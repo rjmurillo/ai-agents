@@ -159,9 +159,12 @@ get_markdownlint_cmd() {
 
 set_python_cmd() {
     if command -v python3 &> /dev/null; then
-        PYTHON_CMD=(python3)
-        return 0
-    elif command -v python &> /dev/null; then
+        if python3 -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(python3)
+            return 0
+        fi
+    fi
+    if command -v python &> /dev/null; then
         if python -c 'import sys; exit(0 if sys.version_info >= (3,) else 1)' &> /dev/null; then
             PYTHON_CMD=(python)
             return 0
