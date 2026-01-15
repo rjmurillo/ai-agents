@@ -9,5 +9,5 @@
 | scope discipline minimal fix debug investigation constraints | [orchestration-scope-002-minimal-viable-fix](orchestration-scope-002-minimal-viable-fix.md) |
 | copilot swe prompting constraints templates scope limits | [orchestration-prompt-002-copilot-swe-constraints](orchestration-prompt-002-copilot-swe-constraints.md) |
 | copilot anti-patterns scope explosion test mutation signals | [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md) |
-| process workflow gap missing capability root cause consultation validation | orchestration-process-workflow-gaps |
+| process workflow gap missing capability root cause consultation validation | [orchestration-process-workflow-gaps](orchestration-process-workflow-gaps.md) |
 | consensus debate disagree commit dissent follow-up multi-agent | [consensus-disagree-and-commit-pattern](consensus-disagree-and-commit-pattern.md) |
