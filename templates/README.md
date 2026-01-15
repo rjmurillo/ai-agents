@@ -195,10 +195,22 @@ When drift is detected:
 ```yaml
 ---
 description: Brief description of the agent's purpose
-tools_vscode: ['vscode', 'read', 'search', 'cloudmcp-manager/*']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'agent', 'cloudmcp-manager/*']
+tools_vscode:
+  - vscode
+  - read
+  - search
+  - cloudmcp-manager/*
+tools_copilot:
+  - shell
+  - read
+  - edit
+  - search
+  - agent
+  - cloudmcp-manager/*
 ---
 ```
+
+> **CRITICAL:** Use block-style YAML arrays (hyphen-bulleted) for cross-platform compatibility. Inline array syntax `['tool1', 'tool2']` fails on GitHub Copilot CLI with CRLF line endings on Windows. See Session 826 RCA and GitHub Copilot CLI Issue #694 for details.
 
 ### Required Sections
 
