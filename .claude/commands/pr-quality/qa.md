@@ -1,7 +1,13 @@
 ---
 description: Use when performing local QA review before pushing PR changes. Evaluates test coverage, error handling, and code quality.
 argument-hint: [--base BRANCH]
-allowed-tools: [Bash(git:*), Read, Grep, Glob, mcp__forgetful__*, mcp__serena__*]
+allowed-tools:
+  - Bash(git:*)
+  - Read
+  - Grep
+  - Glob
+  - mcp__forgetful__*
+  - mcp__serena__*
 model: sonnet
 ---
 

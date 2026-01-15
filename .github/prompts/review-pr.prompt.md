@@ -1,7 +1,27 @@
 ---
 description: "Comprehensive PR review using specialized agents"
 argument-hint: "[review-aspects]"
-tools: ['execute/getTerminalOutput', 'execute/runTask', 'execute/createAndRunTask', 'execute/runInTerminal', 'execute/runTests', 'execute/testFailure', 'read/terminalSelection', 'read/terminalLastCommand', 'read/getTaskOutput', 'read/problems', 'read/readFile', 'agent', 'edit/createDirectory', 'edit/createFile', 'edit/editFiles', 'search', 'forgetful/*', 'serena/*', 'todo', 'memory']
+tools:
+  - execute/getTerminalOutput
+  - execute/runTask
+  - execute/createAndRunTask
+  - execute/runInTerminal
+  - execute/runTests
+  - execute/testFailure
+  - read/terminalSelection
+  - read/terminalLastCommand
+  - read/getTaskOutput
+  - read/problems
+  - read/readFile
+  - agent
+  - edit/createDirectory
+  - edit/createFile
+  - edit/editFiles
+  - search
+  - forgetful/*
+  - serena/*
+  - todo
+  - memory
 model: Claude Opus 4.5 (copilot)
 ---
 

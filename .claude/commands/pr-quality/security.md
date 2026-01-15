@@ -1,7 +1,13 @@
 ---
 description: Use when performing local security review before pushing PR changes. Scans for vulnerabilities, secrets exposure, and security anti-patterns per OWASP Top 10.
 argument-hint: [--base BRANCH]
-allowed-tools: [Bash(git:*), Read, Grep, Glob, mcp__forgetful__*, mcp__serena__*]
+allowed-tools:
+  - Bash(git:*)
+  - Read
+  - Grep
+  - Glob
+  - mcp__forgetful__*
+  - mcp__serena__*
 model: sonnet
 ---
 

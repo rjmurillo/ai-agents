@@ -76,6 +76,7 @@ Before creating a skill, verify:
 - [ ] Defined output format
 - [ ] Phase gates for multi-step workflows (see [SKILL-PHASE-GATES.md](./SKILL-PHASE-GATES.md))
 - [ ] Success metrics
+- [ ] Frontmatter uses block-style YAML arrays (not inline `['tool1', 'tool2']`)
 
 ---
 

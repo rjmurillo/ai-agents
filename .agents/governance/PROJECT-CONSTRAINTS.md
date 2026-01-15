@@ -145,6 +145,50 @@ uses: actions/checkout@v4
 
 ---
 
+## YAML Frontmatter Constraints
+
+| Constraint | Source | Verification |
+|------------|--------|--------------|
+| MUST use block-style arrays in agent/skill/prompt frontmatter | ADR-040 Amendment, Session 826 RCA | Pre-commit hook, CI validation |
+| MUST NOT use inline array syntax `['tool1', 'tool2']` | ADR-040 Amendment, Session 826 RCA | Pre-commit hook blocks |
+| MUST use hyphen-bulleted format for `tools`, `allowed-tools`, `tools_vscode`, `tools_copilot` arrays | ADR-040 Amendment, Session 826 RCA | Validation script |
+
+**Rationale**: Inline array syntax fails on GitHub Copilot CLI with CRLF line endings due to stricter YAML parser. Block-style arrays work universally across VS Code, Copilot CLI (Windows/macOS/Linux), and Claude Code.
+
+**Pattern**:
+
+```yaml
+# Correct: Block-style array
+tools:
+  - vscode
+  - read
+  - edit
+
+allowed-tools:
+  - Bash(git:*)
+  - Read
+  - Grep
+
+tools_vscode:
+  - vscode
+  - read
+  - search
+
+# Incorrect: Inline array (fails on Copilot CLI + Windows CRLF)
+tools: ['vscode', 'read', 'edit']
+allowed-tools: [Bash(git:*), Read, Grep]
+tools_vscode: ['vscode', 'read', 'search']
+```
+
+**Evidence**:
+- GitHub Copilot CLI Issue #694: "failed to parse front matter: Unexpected scalar at node end"
+- Session 826 Retrospective: 88 files converted, 32 tests passed, 0 failures, user validation confirmed
+- ADR-040 Amendment (2026-01-13): Cross-platform compatibility analysis
+
+**Exceptions**: None. All agent, skill, prompt, and command frontmatter must use block-style arrays.
+
+---
+
 ## Validation Checklist
 
 Use this checklist during session start:
@@ -153,6 +197,7 @@ Use this checklist during session start:
 - [ ] For GitHub operations: Verify skill exists before writing code
 - [ ] For new scripts: Verify PowerShell-only (no .sh or .py files)
 - [ ] For workflow changes: Verify logic in modules, not YAML; actions are SHA-pinned, not version tags
+- [ ] For agent/skill/prompt frontmatter: Verify block-style arrays (not inline `['tool1', 'tool2']`)
 - [ ] Before commit: Verify atomic commit rule (single logical change)
 
 ---

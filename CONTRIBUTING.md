@@ -174,10 +174,22 @@ Use this template structure (see existing agents in `templates/agents/` for exam
 ```yaml
 ---
 description: Brief description of the agent's purpose
-tools_vscode: ['vscode', 'read', 'search', 'cloudmcp-manager/*']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'agent', 'cloudmcp-manager/*']
+tools_vscode:
+  - vscode
+  - read
+  - search
+  - cloudmcp-manager/*
+tools_copilot:
+  - shell
+  - read
+  - edit
+  - search
+  - agent
+  - cloudmcp-manager/*
 ---
 ```
+
+> **Note:** Use block-style YAML arrays (hyphen-bulleted) for cross-platform compatibility. Inline array syntax `['tool1', 'tool2']` fails on GitHub Copilot CLI with CRLF line endings.
 
 **Required Sections:**
 
@@ -204,8 +216,20 @@ Example:
 ```yaml
 ---
 description: Code review specialist
-tools_vscode: ['vscode', 'read', 'search', 'cloudmcp-manager/*', 'github/*']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'github/*']
+tools_vscode:
+  - vscode
+  - read
+  - search
+  - cloudmcp-manager/*
+  - github/*
+tools_copilot:
+  - shell
+  - read
+  - edit
+  - search
+  - agent
+  - cloudmcp-manager/*
+  - github/*
 ---
 ```
 
