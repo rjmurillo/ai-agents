@@ -8,7 +8,7 @@ tools:
   - memory
   - cloudmcp-manager/*
   - serena/*
-model: Claude Opus 4.5 (anthropic)
+model: Claude Opus 4.5 (copilot)
 ---
 # Memory Agent
 

@@ -20,7 +20,7 @@ tools:
   - perplexity/*
   - serena/*
   - memory
-model: Claude Opus 4.5 (anthropic)
+model: Claude Opus 4.5 (copilot)
 ---
 # Analyst Agent
 

@@ -18,7 +18,7 @@ tools:
   - github/list_workflow_runs
   - github/get_workflow_run
   - serena/*
-model: Claude Opus 4.5 (anthropic)
+model: Claude Opus 4.5 (copilot)
 ---
 # Orchestrator Agent
 
