@@ -299,9 +299,8 @@ class TestPatternSynchronization(unittest.TestCase):
                     {"role": "user", "content": patterns[0]},
                     {"role": "assistant", "content": patterns[0]},
                 ]
-                detected = detect_skill_usage(messages)
-                # Should detect skill (at least path detection works)
-                # Not asserting specific skill due to threshold requirements
+                # Detection tested - not asserting specific skill due to threshold requirements
+                detect_skill_usage(messages)
 
     def test_test_skill_context_uses_centralized_patterns(self):
         """test_skill_context should use SKILL_PATTERNS."""

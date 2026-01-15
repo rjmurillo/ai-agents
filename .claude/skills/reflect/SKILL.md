@@ -84,13 +84,13 @@ Also monitor user phrasing such as `what did we learn?`, "what if...", "ensure",
 
 Locate the skill-based memory to update:
 
-1. **Check Serena memories**: Look for files ending with `-skill-sidecar-learnings.md` in `.serena/memories/`
+1. **Check Serena memories**: Look for files ending with `-observations.md` in `.serena/memories/`
 2. **Infer from context**: Identify which skill(s) were used in the conversation
-3. **Create if needed**: If missing, propose `{skill-name}-skill-sidecar-learnings.md` (agent sidecar pattern per ADR-007)
+3. **Create if needed**: If missing, propose `{skill-name}-observations.md` (skill observations pattern)
 
 **Storage Locations**:
 
-- **Serena MCP (canonical)**: `.serena/memories/{skill-name}-skill-sidecar-learnings.md` via `mcp__serena__write_memory`
+- **Serena MCP (canonical)**: `.serena/memories/{skill-name}-observations.md` via `mcp__serena__write_memory`
 - **Contingency (Serena unavailable)**: Manually edit the same file in Git and note the manual update in the session log for later Serena sync
 
 ### Phase 2: Analyze the Conversation
@@ -243,20 +243,20 @@ After user approval:
 1. **Read existing memory** (if exists)
 2. **Append new learnings** with timestamp and session reference
 3. **Preserve existing content** - never remove without explicit request
-4. **Write to file**: `.serena/memories/{skill-name}-skill-sidecar-learnings.md`
+4. **Write to file**: `.serena/memories/{skill-name}-observations.md`
 
 **Storage Strategy**:
 
 1. **Serena MCP (canonical)**:
 
    ```text
-   mcp__serena__write_memory(memory_file_name="{name}-skill-sidecar-learnings", memory_content="...")
+   mcp__serena__write_memory(memory_file_name="{name}-observations", memory_content="...")
    ```
 
 2. **If Serena unavailable** (contingency):
 
    ```powershell
-   $path = ".serena/memories/{name}-skill-sidecar-learnings.md"
+   $path = ".serena/memories/{name}-observations.md"
    $existingContent = Get-Content $path -ErrorAction SilentlyContinue
    $newContent = $existingContent + "`n" + $newLearnings
    Set-Content $path -Value $newContent
@@ -398,7 +398,7 @@ Capture learnings about code review patterns:
 - **Severity levels**: When issues are P0 vs P1 vs P2
 - **False positives**: Patterns that look like issues but aren't
 
-**Example memory**: `.serena/memories/code-review-skill-sidecar-learnings.md`
+**Example memory**: `.serena/memories/code-review-observations.md`
 
 ### 2. API Design Skills
 
@@ -409,7 +409,7 @@ Track API design decisions:
 - **Auth patterns**: OAuth, JWT, API key patterns
 - **Versioning style**: URL versioning, header versioning
 
-**Example memory**: `.serena/memories/api-design-skill-sidecar-learnings.md`
+**Example memory**: `.serena/memories/api-design-observations.md`
 
 ### 3. Testing Skills
 
@@ -420,7 +420,7 @@ Remember testing preferences:
 - **Assertion styles**: Preferred assertion libraries, patterns
 - **Test naming**: Convention for test method names
 
-**Example memory**: `.serena/memories/testing-skill-sidecar-learnings.md`
+**Example memory**: `.serena/memories/testing-observations.md`
 
 ### 4. Documentation Skills
 
@@ -431,7 +431,7 @@ Learn documentation patterns:
 - **Tone preferences**: Formal vs casual, active vs passive voice
 - **Diagram styles**: Mermaid vs ASCII, detail level
 
-**Example memory**: `.serena/memories/documentation-skill-sidecar-learnings.md`
+**Example memory**: `.serena/memories/documentation-observations.md`
 
 ---
 
@@ -467,10 +467,10 @@ Skill memories integrate with the memory system:
 
 ```powershell
 # Search skill sidecar learnings
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "github-skill-sidecar-learnings constraints"
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "github-observations constraints"
 
 # Read specific skill sidecar
-Read .serena/memories/github-skill-sidecar-learnings.md
+Read .serena/memories/github-observations.md
 ```
 
 ### With Serena
@@ -478,8 +478,8 @@ Read .serena/memories/github-skill-sidecar-learnings.md
 If Serena MCP is available:
 
 ```text
-mcp__serena__read_memory(memory_file_name="github-skill-sidecar-learnings")
-mcp__serena__write_memory(memory_file_name="github-skill-sidecar-learnings", memory_content="...")
+mcp__serena__read_memory(memory_file_name="github-observations")
+mcp__serena__write_memory(memory_file_name="github-observations", memory_content="...")
 ```
 
 ---
@@ -498,9 +498,9 @@ mcp__serena__write_memory(memory_file_name="github-skill-sidecar-learnings", mem
 
 ## Design Decisions
 
-### Agent Sidecar Naming: `{skill-name}-skill-sidecar-learnings.md`
+### Agent Sidecar Naming: `{skill-name}-observations.md`
 
-**Decision**: Skill memories follow the ADR-007 sidecar pattern (e.g., `github-skill-sidecar-learnings.md`).
+**Decision**: Skill memories follow the ADR-007 sidecar pattern (e.g., `github-observations.md`).
 
 **Rationale**:
 
@@ -509,11 +509,11 @@ mcp__serena__write_memory(memory_file_name="github-skill-sidecar-learnings", mem
 - **Discovery**: Sidecars are now referenced in `memory-index.md`, preventing orphaned learnings
 - **Single Canonical Store**: Serena MCP and Git both write to the same file path, eliminating dual-governance ambiguity
 
-**Migration**: Rename `{skill}-observations.md` (or legacy `skill-{name}.md`) to `{skill}-skill-sidecar-learnings.md` and update index references.
+**Migration**: Rename `{skill}-observations.md` (or legacy `skill-{name}.md`) to `{skill}-observations.md` and update index references.
 
 ### Serena vs Forgetful Roles
 
-- **Serena MCP** remains the canonical record. Every learning is persisted to the `{skill}-skill-sidecar-learnings.md` file.
+- **Serena MCP** remains the canonical record. Every learning is persisted to the `{skill}-observations.md` file.
 - **Forgetful** is optional and used for semantic lookup only. When storing supporting context, tag the entry with `skill-{name}` and reference the Serena sidecar instead of duplicating the content.
 
 ### Relationship to `curating-memories`
