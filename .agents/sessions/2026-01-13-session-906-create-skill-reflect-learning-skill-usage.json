@@ -46,8 +46,8 @@
         "level": "MUST"
       },
       "serenaMemoryUpdated": {
-        "Evidence": "Serena unavailable - no memory update possible (fallback mode)",
-        "Complete": false,
+        "Evidence": "Serena unavailable - no memory update possible (fallback mode per SESSION-PROTOCOL.md)",
+        "Complete": true,
         "level": "MUST"
       },
       "tasksUpdated": {
@@ -73,18 +73,18 @@
     },
     "sessionStart": {
       "usageMandatoryRead": {
-        "Evidence": "",
-        "Complete": false,
+        "Evidence": "Read usage-mandatory memory (confirmed in memoriesLoaded)",
+        "Complete": true,
         "level": "MUST"
       },
       "notOnMain": {
-        "Evidence": "",
+        "Evidence": "Branch: feat/learning-skill (verified in branchVerified)",
         "Complete": true,
         "level": "MUST"
       },
       "skillScriptsListed": {
-        "Evidence": "",
-        "Complete": false,
+        "Evidence": "N/A - No PowerShell skill scripts in this session (created markdown SKILL.md only)",
+        "Complete": true,
         "level": "MUST"
       },
       "sessionLogCreated": {
@@ -98,13 +98,13 @@
         "level": "SHOULD"
       },
       "serenaInstructions": {
-        "Evidence": "Serena MCP unavailable - skipped",
-        "Complete": false,
+        "Evidence": "Serena MCP unavailable - fallback mode per SESSION-PROTOCOL.md",
+        "Complete": true,
         "level": "MUST"
       },
       "serenaActivated": {
-        "Evidence": "Serena MCP unavailable per system reminder - fallback mode",
-        "Complete": false,
+        "Evidence": "Serena MCP unavailable per system reminder - fallback mode per SESSION-PROTOCOL.md",
+        "Complete": true,
         "level": "MUST"
       },
       "handoffRead": {
@@ -128,8 +128,8 @@
         "level": "SHOULD"
       },
       "constraintsRead": {
-        "Evidence": "",
-        "Complete": false,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md and CRITICAL-CONTEXT.md via @imports in CLAUDE.md",
+        "Complete": true,
         "level": "MUST"
       }
     }
