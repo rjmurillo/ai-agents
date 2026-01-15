@@ -281,6 +281,149 @@ Validations run sequentially by design to:
 
 Future enhancement: Add `-Parallel` flag for independent validations.
 
+## Local Workflow Testing with act
+
+### Overview
+
+The `act` tool (nektos/act) enables local testing of GitHub Actions workflows using Docker containers. This reduces the expensive push-check-tweak cycle by catching workflow errors before CI runs.
+
+### Supported Workflows
+
+Workflows compatible with local testing (PowerShell-only, no AI dependencies):
+
+| Workflow | Description | Test Viability |
+|----------|-------------|----------------|
+| `pester-tests.yml` | Run Pester unit tests | ✅ Full support |
+| `validate-paths.yml` | Path normalization validation | ✅ Full support |
+| `memory-validation.yml` | Memory index validation | ✅ Full support |
+
+Workflows **not** compatible with local testing:
+
+| Workflow | Reason |
+|----------|--------|
+| `ai-session-protocol.yml` | Requires Copilot CLI and BOT_PAT |
+| `ai-pr-quality-gate.yml` | Requires Copilot CLI and BOT_PAT |
+| `ai-spec-validation.yml` | Requires Copilot CLI and BOT_PAT |
+
+### Prerequisites
+
+```bash
+# Install act
+brew install act                    # macOS
+choco install act-cli               # Windows
+# Linux: Download from https://github.com/nektos/act/releases
+
+# Install Docker (required by act)
+# macOS/Windows: https://www.docker.com/products/docker-desktop
+# Linux: https://docs.docker.com/engine/install/
+
+# Verify installation
+act --version
+docker info
+```
+
+### Configuration
+
+The repository includes `.actrc` with optimized defaults:
+
+- Uses `catthehacker/ubuntu:act-latest` images for better tool availability
+- Enables artifact storage in `.artifacts/`
+- Enables caching in `.cache/`
+- Uses linux/amd64 architecture for compatibility
+- Maps `windows-latest` to `-self-hosted` (runs on host, not container)
+
+### Usage
+
+#### PowerShell Wrapper (Recommended)
+
+Use `scripts/Test-WorkflowLocally.ps1` for simplified workflow testing:
+
+```powershell
+# Run pester-tests workflow
+pwsh scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests
+
+# Dry-run to validate syntax only
+pwsh scripts/Test-WorkflowLocally.ps1 -Workflow validate-paths -DryRun
+
+# Run specific job with verbose output
+pwsh scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests -Job test -Verbose
+
+# Pass secrets
+pwsh scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests -Secrets @{ GITHUB_TOKEN = $env:GITHUB_TOKEN }
+```
+
+#### Direct act Commands
+
+```bash
+# Run workflow
+act pull_request -W .github/workflows/pester-tests.yml
+
+# Dry-run (validate only)
+act pull_request -W .github/workflows/validate-paths.yml -n
+
+# Run specific job
+act pull_request -j test -W .github/workflows/pester-tests.yml
+
+# Pass secret
+act pull_request -W .github/workflows/pester-tests.yml -s GITHUB_TOKEN="$(gh auth token)"
+
+# List available workflows
+act -l
+```
+
+### Limitations
+
+#### Windows-Specific Code
+
+act uses Linux containers, so Windows-specific behaviors may differ:
+
+- File paths (backslashes vs. forward slashes)
+- Line endings (CRLF vs. LF)
+- Hidden file detection
+- Case sensitivity
+
+**Workaround**: Use `-P windows-latest=-self-hosted` to run on host machine (see `.actrc`).
+
+#### Missing Pre-installed Tools
+
+GitHub-hosted runners have many pre-installed tools. act images may be missing some:
+
+- **Solution 1**: Use Large images (18GB+): `-P ubuntu-latest=catthehacker/ubuntu:full-latest`
+- **Solution 2**: Accept tool gaps for faster iteration
+- **Solution 3**: Use custom Dockerfile with required tools
+
+#### AI-Dependent Workflows
+
+Workflows requiring Copilot CLI or BOT_PAT cannot run locally:
+
+- Infrastructure-dependent (no local alternative)
+- Shift-left not possible for these workflows
+- Must rely on CI feedback
+
+**ROI**: Medium - Reduces iteration time for 30% of workflows (PowerShell-only). Highest-failure workflows (Session Protocol, AI Quality Gate) still require CI.
+
+### Troubleshooting
+
+#### act Issues
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| `act: command not found` | act not installed | Install via brew/choco or download binary |
+| `Cannot connect to Docker daemon` | Docker not running | Start Docker Desktop |
+| `Error: image not found` | Missing Docker image | Pull image: `docker pull catthehacker/ubuntu:act-latest` |
+| `Permission denied` | Docker socket permissions | Add user to docker group or use sudo |
+| `Workflow validation failed` | Syntax error in workflow | Fix YAML syntax, run actionlint first |
+| `Action not found` | Typo in action name | Check action exists on GitHub Marketplace |
+| `Unknown runner label` | Invalid runs-on value | Use official labels: ubuntu-latest, windows-latest |
+
+#### PowerShell Issues in act
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| `$ErrorActionPreference` not respected | act's PowerShell handling | act automatically prepends `$ErrorActionPreference = 'stop'` |
+| `Write-Host` output missing | PowerShell stream redirection | Use `Write-Output` or check act's stdout |
+| Module not found | Missing from Docker image | Install module in workflow: `Install-Module -Name Pester` |
+
 ## Troubleshooting
 
 ### Environment Issues

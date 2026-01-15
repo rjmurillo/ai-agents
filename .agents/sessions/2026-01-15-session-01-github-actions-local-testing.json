@@ -124,6 +124,10 @@
     "Added workflow YAML validation to scripts/Validate-PrePR.ps1 (validation 3.5)",
     "Updated .config/wt.toml to include actionlint in pre-merge hooks",
     "Updated .agents/devops/SHIFT-LEFT.md with workflow YAML validation section and validation sequence table",
-    "Updated Validate-PrePR.ps1 header comment to reflect new validation sequence"
+    "Updated Validate-PrePR.ps1 header comment to reflect new validation sequence",
+    "Created .actrc configuration file for act (nektos/act) with optimized defaults",
+    "Created scripts/Test-WorkflowLocally.ps1 PowerShell wrapper for act",
+    "Updated SHIFT-LEFT.md with comprehensive local workflow testing documentation",
+    "Documented supported vs unsupported workflows for local testing"
   ]
 }
