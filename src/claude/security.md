@@ -52,8 +52,67 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 
 ### Capability 1: Static Analysis & Vulnerability Scanning
 
-- CWE detection (CWE-78 shell injection, CWE-79 XSS, CWE-89 SQL injection)
-- OWASP Top 10 scanning
+- CWE detection (CWE-699 Software Development View):
+
+  **[Injection and Code Execution]**
+  - CWE-22: Path Traversal - Improper limitation of pathname to restricted directory (OWASP A01:2021 Broken Access Control)
+  - CWE-77: Command Injection - Improper neutralization of special elements used in a command (OWASP A03:2021 Injection)
+  - CWE-78: OS Command Injection - Improper neutralization of special elements used in an OS command (OWASP A03:2021 Injection)
+  - CWE-89: SQL Injection - Improper neutralization of special elements used in an SQL command (OWASP A03:2021 Injection)
+  - CWE-91: XML Injection - Improper neutralization of special elements used in an XML document
+  - CWE-94: Code Injection - Improper control of generation of code, including script injection and eval vulnerabilities (OWASP A03:2021 Injection, OWASP ASI01 Agent Goal Hijack)
+
+  **[Authentication and Session Management]**
+  - CWE-287: Improper Authentication - Failure to properly verify identity (OWASP A07:2021 Identification and Authentication Failures)
+  - CWE-640: Weak Password Recovery Mechanism - Password reset without proper identity verification
+  - CWE-798: Use of Hard-coded Credentials - Credentials embedded in code or configuration (OWASP A07:2021)
+
+  **[Authorization and Access Control]**
+  - CWE-269: Improper Privilege Management - Privilege escalation or insufficient privilege separation (OWASP ASI03 Identity Abuse)
+  - CWE-284: Improper Access Control - Generic access control failure (OWASP A01:2021 Broken Access Control, OWASP ASI10 Rogue Agents)
+  - CWE-285: Improper Authorization - Failure to restrict operations to authorized users (OWASP A01:2021)
+  - CWE-863: Incorrect Authorization - Authorization check missing or incorrect logic
+
+  **[Cryptography]**
+  - CWE-327: Use of Broken or Risky Cryptographic Algorithm - Weak encryption, hashing, or signing (OWASP A02:2021 Cryptographic Failures)
+  - CWE-759: Use of One-Way Hash without Salt - Password hashing without salt enables rainbow table attacks
+
+  **[Input Validation and Representation]**
+  - CWE-20: Improper Input Validation - Failure to validate or incorrectly validate input (OWASP ASI02 Tool Misuse)
+  - CWE-129: Improper Validation of Array Index - Out-of-bounds read/write via untrusted index
+
+  **[Resource Management]**
+  - CWE-400: Uncontrolled Resource Consumption - Missing limits on memory, CPU, disk, or network usage (OWASP A04:2021 Insecure Design, OWASP ASI08 Cascading Failures)
+  - CWE-770: Allocation of Resources Without Limits or Throttling - No rate limiting or resource quotas
+
+  **[Error Handling and Logging]**
+  - CWE-209: Generation of Error Message Containing Sensitive Information - Stack traces or internal details in error responses (OWASP A04:2021 Insecure Design)
+  - CWE-532: Insertion of Sensitive Information into Log File - Passwords, tokens, or PII in logs
+
+  **[API and Function Abuse]**
+  - CWE-306: Missing Authentication for Critical Function - API endpoints accessible without credentials
+  - CWE-862: Missing Authorization - Authenticated but not authorized to perform operation
+
+  **[Race Conditions and Concurrency]**
+  - CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization (Race Condition)
+  - CWE-367: Time-of-check Time-of-use (TOCTOU) Race Condition - Security check invalidated before use
+
+  **[Code Quality and Maintainability]**
+  - CWE-484: Omitted Break Statement in Switch - Unintended fallthrough logic
+  - CWE-665: Improper Initialization - Variables used before assignment or default values insecure
+
+  **[Supply Chain and Dependencies]**
+  - CWE-295: Improper Certificate Validation - Accepting invalid or untrusted SSL/TLS certificates
+  - CWE-426: Untrusted Search Path - Loading code from directories that can be modified by untrusted parties (OWASP ASI04 Supply Chain)
+  - CWE-502: Deserialization of Untrusted Data - Unsafe deserialization leading to code execution (OWASP ASI06 Memory Poisoning)
+
+  **[Agentic AI Security Patterns]**
+  - CWE-522: Insufficiently Protected Credentials - Agent context exposure of API keys or credentials (OWASP ASI03 Identity Abuse)
+  - CWE-1321: Improperly Controlled Modification of Object Prototype Attributes - Memory poisoning via prototype pollution (OWASP ASI06 Memory Poisoning)
+  - CWE-1333: Inefficient Regular Expression Complexity - ReDoS attacks via complex regex patterns
+
+- OWASP Top 10 (2021) scanning
+- OWASP Top 10 for Agentic Applications (2026) patterns
 - Vulnerable dependency detection
 - Code anti-pattern detection
 
