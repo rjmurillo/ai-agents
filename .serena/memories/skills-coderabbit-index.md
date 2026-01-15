@@ -5,4 +5,4 @@
 | MCP tool path case-sensitive cloudmcp bracket placeholder template | [coderabbit-mcp-false-positives](coderabbit-mcp-false-positives.md) |
 | infrastructure naming spaces security injection vulnerable expression | [coderabbit-security-false-positives](coderabbit-security-false-positives.md) |
 | generated files edit warning analyst impact-analysis nested fence backtick | [coderabbit-documentation-false-positives](coderabbit-documentation-false-positives.md) |
-| markdownlint MD004 MD012 MD013 duplicate linting yaml | coderabbit-markdownlint |
+| markdownlint MD004 MD012 MD013 duplicate linting yaml | [coderabbit-markdownlint](coderabbit-markdownlint.md) |

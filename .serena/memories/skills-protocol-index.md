@@ -6,4 +6,4 @@
 | legacy historical session grandfather marker predates format | [protocol-legacy-sessions](protocol-legacy-sessions.md) |
 | branch handoff feature validator HANDOFF ADR-014 compliance | [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md) |
 | verification enforcement programmatic check git commit tool output artifact observable | [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md) |
-| trust antipattern documentation voluntary failure repetitive memory forget context | protocol-014-trust-antipattern |
+| trust antipattern documentation voluntary failure repetitive memory forget context | [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md) |

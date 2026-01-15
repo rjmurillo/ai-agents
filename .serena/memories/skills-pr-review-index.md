@@ -24,5 +24,5 @@
 | list-completeness verification cross-check total-count | [pr-review-enum-001](pr-review-enum-001.md) |
 | python implicit string concat false positive PEP | [pr-review-python-implicit-string-concat](pr-review-python-implicit-string-concat.md) |
 | security-comments priority-boost TOCTOU injection XSS | [pr-review-security](pr-review-security.md) |
-| status classification decision tree blocking human | pr-review-status-001 |
+| status classification decision tree blocking human | [pr-review-status-001](pr-review-status-001.md) |
 | batch response single commit multiple comments clean history efficiency | [pr-review-batch-response-pattern](pr-review-batch-response-pattern.md) |
