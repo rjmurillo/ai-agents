@@ -533,6 +533,7 @@ Some content with the word related in lowercase.
         It 'Should not count index files in FilesModified statistics' {
             # Arrange
             $indexFile = Join-Path $script:memoriesPath 'skills-test-index.md'
+            # Use security- domain pattern which exists in the script's $domainPatterns
             $sec1 = Join-Path $script:memoriesPath 'security-001.md'
             $sec2 = Join-Path $script:memoriesPath 'security-002.md'
 
@@ -544,10 +545,16 @@ Some content with the word related in lowercase.
             $output = & $scriptPath -MemoriesPath $script:memoriesPath -SkipPathValidation *>&1 | Out-String
 
             # Assert
-            # Only security files should be counted as updated
+            # Only security files should be counted as updated (they match security- domain pattern)
             $output | Should -Match 'Files updated: 2'
 
-            # Index file should be skipped
+            # Verify security files received Related sections (proves domain pattern matched)
+            $sec1Content = Get-Content $sec1 -Raw
+            $sec2Content = Get-Content $sec2 -Raw
+            $sec1Content | Should -Match '## Related'
+            $sec2Content | Should -Match '## Related'
+
+            # Index file should be skipped (not counted in statistics)
             $indexContent = Get-Content $indexFile -Raw
             $indexContent | Should -Not -Match '## Related'
         }
@@ -616,6 +623,12 @@ Some content with the word related in lowercase.
                 } else {
                     # Non-index files should not show skip message
                     $output | Should -Not -Match "Skipping index file.*$([regex]::Escape($testCase.Name))"
+                    # Non-index files should be processed normally (no skip, file unchanged if no domain match)
+                    $content = Get-Content $filePath -Raw
+                    # Verify file was not incorrectly treated as index
+                    # (May or may not have Related section depending on domain pattern match,
+                    #  but definitely should not have been skipped with "Skipping index file" message)
+                    $content | Should -Not -BeNullOrEmpty
                 }
             }
         }
