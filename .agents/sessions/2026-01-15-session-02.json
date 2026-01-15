@@ -33,7 +33,7 @@
     "sessionEnd": {
       "CommitChanges": {
         "level": "MUST",
-        "evidence": "Pending - will commit after document creation",
+        "evidence": "Pending - will commit after Phase 2 completion",
         "complete": false
       },
       "RunLinting": {
@@ -43,7 +43,7 @@
       },
       "CompleteChecklist": {
         "level": "MUST",
-        "evidence": "Phase 1 tasks complete",
+        "evidence": "Phase 1 and Phase 2 tasks complete",
         "complete": false
       },
       "UpdateHandoff": {
@@ -94,6 +94,20 @@
       "result": "Documented token budget baseline (~30K tokens), optimization strategies, and 10-15% reduction targets",
       "files": [
         ".agents/planning/codex-context-optimization-plan.md"
+      ]
+    },
+    {
+      "action": "Created Invoke-CodexSessionStartGate.ps1 script",
+      "result": "Implemented 4 verification gates (Memory-First, Skill Availability, Session Log, Branch Verification) with ADR-035 exit codes",
+      "files": [
+        "scripts/Invoke-CodexSessionStartGate.ps1"
+      ]
+    },
+    {
+      "action": "Created Pester tests for gate script",
+      "result": "26 tests covering prerequisites, execution, parameters, exit codes, and documentation compliance - all passing",
+      "files": [
+        "scripts/tests/Invoke-CodexSessionStartGate.Tests.ps1"
       ]
     }
   ]
