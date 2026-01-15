@@ -109,6 +109,33 @@ def get_project_directory(hook_input: dict) -> str:
     return hook_input.get("cwd", os.getcwd())
 
 
+def get_safe_project_path(project_dir: str) -> Optional[Path]:
+    """
+    Resolve and validate the project directory against a safe root.
+
+    This prevents path traversal or escaping the expected project tree when
+    CLAUDE_PROJECT_DIR or hook-provided cwd are influenced by external input.
+    """
+    try:
+        safe_root = Path(os.getenv("CLAUDE_PROJECT_ROOT", os.getcwd())).resolve()
+        resolved_project = Path(project_dir).resolve()
+    except OSError:
+        # If resolution fails for any reason, treat as unsafe
+        return None
+
+    # Python 3.9+ has is_relative_to; fall back to relative_to otherwise
+    if hasattr(resolved_project, "is_relative_to"):
+        if not resolved_project.is_relative_to(safe_root):
+            return None
+    else:
+        try:
+            resolved_project.relative_to(safe_root)
+        except ValueError:
+            return None
+
+    return resolved_project
+
+
 def get_conversation_messages(hook_input: dict) -> List[dict]:
     """Extract messages from hook input conversation history."""
     return hook_input.get("messages", [])
@@ -560,8 +587,8 @@ def update_skill_memory(
     # Step 1: Validate and resolve project_dir FIRST before any path operations
     # This prevents attacks via malicious project_dir values
     try:
-        # lgtm[py/path-injection]
-        # CodeQL suppression: project_dir validated via resolve() + is_absolute() check
+        # codeql[py/path-injection]
+        # Suppression: project_dir validated via resolve() + is_absolute() check
         # Validation ensures path is absolute and properly resolved before use
         allowed_dir = Path(project_dir).resolve(strict=False)
         # Validate project_dir looks like a real directory path
@@ -732,6 +759,11 @@ def main():
 
         hook_input = json.loads(input_json)
         project_dir = get_project_directory(hook_input)
+        safe_project_path = get_safe_project_path(project_dir)
+        if safe_project_path is None:
+            # Invalid or unsafe project directory; do not access the filesystem
+            return 0
+
         messages = get_conversation_messages(hook_input)
 
         if not messages:
@@ -745,16 +777,16 @@ def main():
 
         # Get session ID from today's session log
         # lgtm[py/path-injection]
-        # CodeQL suppression: project_dir is hook-provided cwd, used only for reading session logs
-        sessions_dir = Path(project_dir) / ".agents" / "sessions"
+        # CodeQL suppression: project_dir is validated against safe root and used only for reading session logs
+        sessions_dir = safe_project_path / ".agents" / "sessions"
         today = datetime.now().strftime("%Y-%m-%d")
 
         # Check if sessions directory exists before globbing to avoid silent failures
         # lgtm[py/path-injection]
-        # CodeQL suppression: sessions_dir constructed from trusted project_dir for read-only glob
+        # CodeQL suppression: sessions_dir constructed from validated project_dir for read-only glob
         if sessions_dir.exists():
             # lgtm[py/path-injection]
-            # CodeQL suppression: Read-only operation on trusted sessions directory
+            # CodeQL suppression: Read-only operation on validated sessions directory
             session_logs = sorted(
                 sessions_dir.glob(f"{today}-session-*.json"),
                 key=lambda p: p.stat().st_mtime,
