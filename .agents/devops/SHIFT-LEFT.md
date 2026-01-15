@@ -35,6 +35,7 @@ The runner executes validations in optimized order (fast checks first):
 | 1 | Session End | Verify session protocol compliance | No | 2-5s |
 | 2 | Pester Tests | Run all unit tests | No | 10-30s |
 | 3 | Markdown Lint | Auto-fix and validate markdown | No | 5-10s |
+| 3.5 | Workflow YAML | Validate GitHub Actions workflows | No | 2-5s |
 | 4 | Path Normalization | Check for absolute paths | Yes | 15-30s |
 | 5 | Planning Artifacts | Validate planning consistency | Yes | 10-20s |
 | 6 | Agent Drift | Detect semantic drift | Yes | 20-40s |
@@ -105,6 +106,71 @@ The runner executes validations in optimized order (fast checks first):
 - Run `npx markdownlint-cli2 --fix "**/*.md"` to auto-fix
 - Add language identifiers to code blocks (MD040)
 - Wrap generic types like `ArrayPool<T>` in backticks (MD033)
+
+### 3.5. Workflow YAML Validation
+
+**Tool**: `actionlint`
+
+**Checks**:
+
+- GitHub Actions workflow syntax validation
+- Invalid action inputs/outputs detection
+- Expression type checking (`${{ }}` syntax)
+- Runner label validation
+- Cron syntax validation
+- Security issues (script injection, credential exposure)
+- Integrated shellcheck for shell scripts
+- Integrated pyflakes for Python scripts
+
+**Fix suggestions**:
+
+- Review error messages for specific workflow file and line number
+- Check action inputs against action's `action.yml` definition
+- Verify runner labels exist (e.g., `ubuntu-latest`, `windows-latest`)
+- Test cron expressions with online validators
+- Fix expression syntax errors (missing spaces, incorrect property access)
+
+**Installation**:
+
+```bash
+# macOS
+brew install actionlint
+
+# Linux (download binary)
+bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+
+# Go
+go install github.com/rhysd/actionlint/cmd/actionlint@latest
+```
+
+**Local validation**:
+
+```bash
+# Validate all workflow files
+actionlint
+
+# Validate specific workflow
+actionlint .github/workflows/pester-tests.yml
+
+# JSON output for parsing
+actionlint -format json
+```
+
+**Integration points**:
+
+- Pre-commit hook: `.githooks/pre-commit` (blocking)
+- Unified runner: `scripts/Validate-PrePR.ps1` (blocking)
+- Worktrunk pre-merge: `.config/wt.toml` (blocking)
+
+**Common errors**:
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `property "foo" is not defined in object type` | Typo in action input name | Check action's `action.yml` |
+| `undefined variable "FOO"` | Using undefined output/env | Verify variable is set earlier |
+| `invalid CRON format` | Bad schedule syntax | Use `0 0 * * *` format |
+| `runner label "foo" is unknown` | Invalid runs-on value | Use official runner labels |
+| `shellcheck reported issue` | Shell script error | Fix script syntax |
 
 ### 4. Path Normalization
 

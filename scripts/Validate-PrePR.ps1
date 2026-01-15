@@ -10,6 +10,7 @@
     1. Session End (for latest session log)
     2. Pester Tests (all unit tests)
     3. Markdown Lint (auto-fix and validate)
+    3.5. Workflow YAML (validate GitHub Actions workflows)
     4. Path Normalization (check for absolute paths) [skip if -Quick]
     5. Planning Artifacts (validate planning consistency) [skip if -Quick]
     6. Agent Drift (detect semantic drift) [skip if -Quick]
@@ -319,6 +320,63 @@ Invoke-Validation -Name "Markdown Linting" -ScriptBlock {
         return $false
     }
 
+    return $true
+} | Out-Null
+
+#endregion
+
+#region Validation 3.5: Workflow YAML Validation
+
+Invoke-Validation -Name "Workflow YAML Validation" -ScriptBlock {
+    # Check for actionlint
+    if (-not (Get-Command actionlint -ErrorAction SilentlyContinue)) {
+        Write-Status 'WARNING' "actionlint not found (workflow validation skipped)"
+        Write-Host "  Install actionlint to enable GitHub Actions workflow validation:"
+        Write-Host "    macOS:  brew install actionlint"
+        Write-Host "    Linux:  Download from https://github.com/rhysd/actionlint/releases"
+        Write-Host "    Go:     go install github.com/rhysd/actionlint/cmd/actionlint@latest"
+        Write-Host ""
+        Write-Host "  See: https://github.com/rhysd/actionlint#installation"
+        return $true  # Non-blocking if not installed
+    }
+
+    # Get workflow files
+    $workflowPath = Join-Path $RepoRoot ".github" "workflows"
+    if (-not (Test-Path $workflowPath)) {
+        Write-Status 'WARNING' "No .github/workflows directory found"
+        return $true
+    }
+
+    $workflowFiles = Get-ChildItem -Path $workflowPath -Filter "*.yml" -File -ErrorAction SilentlyContinue
+    if (-not $workflowFiles -or $workflowFiles.Count -eq 0) {
+        Write-Status 'WARNING' "No workflow files found in .github/workflows/"
+        return $true
+    }
+
+    Write-Host "Validating $($workflowFiles.Count) workflow file(s)..."
+
+    # Run actionlint
+    $actionlintOutput = & actionlint $workflowFiles.FullName 2>&1
+    $actionlintExitCode = $LASTEXITCODE
+
+    if ($actionlintExitCode -ne 0) {
+        Write-Status 'FAIL' "actionlint found issues in workflow files"
+        Write-Host ""
+        # Display first 20 lines of errors
+        $actionlintOutput | Select-Object -First 20 | ForEach-Object { Write-Host $_ }
+        if ($actionlintOutput.Count -gt 20) {
+            Write-Host "... ($($actionlintOutput.Count - 20) more lines omitted)"
+        }
+        Write-Host ""
+        Write-Host "Common issues:"
+        Write-Host "  - Invalid action inputs (check 'with:' parameters)"
+        Write-Host "  - Expression syntax errors (check `${{ }} expressions)"
+        Write-Host "  - Unknown runner labels (check 'runs-on:' values)"
+        Write-Host "  - Invalid cron syntax in schedules"
+        return $false
+    }
+
+    Write-Host "All workflow files validated successfully."
     return $true
 } | Out-Null
 
