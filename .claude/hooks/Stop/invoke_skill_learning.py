@@ -29,11 +29,13 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 # Base directory for all project operations to prevent path traversal / arbitrary writes
 # We treat the repository root (two levels up from this file) as the safe base.
 SAFE_BASE_DIR = Path(__file__).resolve().parents[2]
+OBSERVATIONS_SUFFIX = "-observations.md"
+PROJECT_DIR: Optional[Path] = None
 
 
 def _is_relative_to(path: Path, base: Path) -> bool:
@@ -341,10 +343,15 @@ def get_api_key() -> Optional[str]:
     if api_key:
         return api_key
 
-    # Try .env file in project root
-    env_file = Path.cwd() / ".env"
+    # Try .env file in project root (prefer validated project directory)
+    env_root = PROJECT_DIR
+    if env_root is None:
+        env_value = os.getenv("CLAUDE_PROJECT_DIR")
+        env_root = Path(env_value) if env_value else Path.cwd()
+
+    env_file = env_root / ".env"
     if env_file.exists():
-        with open(env_file) as f:
+        with open(env_file, encoding="utf-8") as f:
             for line in f:
                 if line.startswith("ANTHROPIC_API_KEY="):
                     return line.split("=", 1)[1].strip().strip('"\'')
@@ -695,7 +702,7 @@ def escape_replacement_string(text: str) -> str:
 
 
 def update_skill_memory(
-    project_dir: str,
+    project_dir: Path,
     skill_name: str,
     learnings: Dict[str, List[dict]],
     session_id: str
@@ -710,10 +717,13 @@ def update_skill_memory(
     # get_project_directory already constrains this to SAFE_BASE_DIR, but we keep
     # local validation in case update_skill_memory is called directly elsewhere.
     try:
-        allowed_dir = Path(project_dir).resolve(strict=False)
+        allowed_dir = project_dir.resolve(strict=False)
         # Validate project_dir looks like a real directory path
         if not allowed_dir.is_absolute():
             print(f"Invalid project directory: '{project_dir}' does not resolve to absolute path", file=sys.stderr)
+            return False
+        if not _is_relative_to(allowed_dir, SAFE_BASE_DIR):
+            print(f"Path traversal attempt detected: '{allowed_dir}' is outside safe base directory", file=sys.stderr)
             return False
     except Exception as e:
         print(f"Path validation error for project_dir: {e}", file=sys.stderr)
@@ -721,6 +731,10 @@ def update_skill_memory(
 
     # Step 2: Validate skill_name does not contain path traversal characters
     # This prevents attacks via skill names like "../../../etc/passwd" or "..\\attack"
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", skill_name):
+        print(f"Invalid skill name: '{skill_name}' contains unsupported characters", file=sys.stderr)
+        return False
+
     if '..' in skill_name or '/' in skill_name or '\\' in skill_name or os.sep in skill_name:
         print(f"Path traversal attempt detected in skill name: '{skill_name}'", file=sys.stderr)
         return False
@@ -733,7 +747,7 @@ def update_skill_memory(
 
     # lgtm[py/path-injection]
     # CodeQL suppression: skill_name validated in Step 2 to not contain path traversal chars
-    memory_path = memories_dir / f"{skill_name}-observations.md"
+    memory_path = memories_dir / f"{skill_name}{OBSERVATIONS_SUFFIX}"
 
     # Step 4: Validate resolved path is within project directory
     try:
@@ -880,6 +894,9 @@ def main():
             # Invalid or unsafe project directory; do not access the filesystem
             return 0
 
+        global PROJECT_DIR
+        PROJECT_DIR = safe_project_path
+
         messages = get_conversation_messages(hook_input)
 
         if not messages:
@@ -923,7 +940,7 @@ def main():
 
             # Only update if learnings meet threshold
             if high_count >= 1 or med_count >= 2 or low_count >= 3:
-                updated = update_skill_memory(project_dir, skill_name, learnings, session_id)
+                updated = update_skill_memory(safe_project_path, skill_name, learnings, session_id)
 
                 if updated:
                     write_learning_notification(skill_name, high_count, med_count, low_count)

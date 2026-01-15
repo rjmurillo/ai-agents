@@ -17,13 +17,10 @@ Run with: python -m unittest .claude.hooks.Stop.test_invoke_skill_learning -v
 Or from Stop directory: python -m unittest test_invoke_skill_learning -v
 """
 
-import os
-import re
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -94,7 +91,7 @@ class TestFilenamePatternConsistency(unittest.TestCase):
     def test_memory_filename_uses_observations_suffix(self):
         """Memory files should use {skill-name}-observations.md pattern."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             skill_name = "test-skill"
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
@@ -112,7 +109,7 @@ class TestFilenamePatternConsistency(unittest.TestCase):
     def test_memory_filename_not_skill_sidecar_learnings(self):
         """Memory files should NOT use the old skill-sidecar-learnings pattern."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             skill_name = "test-skill"
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
@@ -201,7 +198,7 @@ class TestPathTraversalPrevention(unittest.TestCase):
     def test_path_traversal_rejected(self):
         """Skill names with path traversal should be rejected."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             # Attempt path traversal via skill name
             malicious_skill = "../../../etc/passwd"
             learnings = {"High": [], "Med": [], "Low": []}
@@ -223,7 +220,7 @@ class TestPathTraversalPrevention(unittest.TestCase):
     def test_path_traversal_with_forward_slash_rejected(self):
         """Skill names with forward slashes should be rejected (CWE-22)."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             malicious_skill = "foo/bar"
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
@@ -235,7 +232,7 @@ class TestPathTraversalPrevention(unittest.TestCase):
     def test_path_traversal_with_backslash_rejected(self):
         """Skill names with backslashes should be rejected (CWE-22)."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             malicious_skill = "foo\\bar"
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
@@ -247,7 +244,7 @@ class TestPathTraversalPrevention(unittest.TestCase):
     def test_path_traversal_with_dotdot_rejected(self):
         """Skill names with .. should be rejected (CWE-22)."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             malicious_skill = "foo..bar"
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
@@ -259,7 +256,7 @@ class TestPathTraversalPrevention(unittest.TestCase):
     def test_valid_skill_name_accepted(self):
         """Valid skill names should create files successfully."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             valid_skill = "github"
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
@@ -547,7 +544,7 @@ class TestMemoryFileDocumentationSection(unittest.TestCase):
     def test_new_memory_file_has_documentation_section(self):
         """New memory files should include Documentation (MED confidence) section."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             skill_name = "test-skill"
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
@@ -563,7 +560,7 @@ class TestMemoryFileDocumentationSection(unittest.TestCase):
     def test_documentation_learnings_written_to_section(self):
         """Documentation learnings should be written to Documentation section."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             skill_name = "test-skill"
             learnings = {
                 "High": [],
@@ -593,7 +590,7 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
     def test_high_learning_preserves_constraints_header(self):
         """HIGH learnings should be inserted after Constraints header, not replace it."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             skill_name = "test-skill"
             learnings = {
                 "High": [{
@@ -628,7 +625,7 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
     def test_med_learning_preserves_preferences_header(self):
         """MED learnings should be inserted after Preferences header, not replace it."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             skill_name = "test-skill"
             learnings = {
                 "High": [],
@@ -658,7 +655,7 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
     def test_low_learning_preserves_notes_header(self):
         """LOW learnings should be inserted after Notes header, not replace it."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             skill_name = "test-skill"
             learnings = {
                 "High": [],
@@ -688,7 +685,7 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
     def test_multiple_updates_accumulate(self):
         """Multiple updates should accumulate learnings, not overwrite."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_dir = tmpdir
+            project_dir = Path(tmpdir)
             skill_name = "test-skill"
             session_id = "2026-01-14-session-001"
 
