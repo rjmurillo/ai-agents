@@ -1,7 +1,7 @@
 # Skill Observations: github
 
-**Last Updated**: 2026-01-14
-**Sessions Analyzed**: 2
+**Last Updated**: 2026-01-15
+**Sessions Analyzed**: 3
 
 ## Purpose
 
@@ -17,6 +17,7 @@ These are preferences that SHOULD be followed:
 
 - For batch operations (reactions, labels), use gh api graphql with parallel mutations. Break into batches of 5 to avoid complexity limits. (Session 2026-01-14, 2026-01-14)
 - Use mutation aliases (c1, c2, etc.) for batch GraphQL operations to track individual results. (Session 2026-01-14, 2026-01-14)
+- Use GraphQL batch mutations for resolving multiple threads efficiently (single API call for 5+ threads) (Session 2026-01-14-session-907, 2026-01-15)
 
 ## Edge Cases (MED confidence)
 

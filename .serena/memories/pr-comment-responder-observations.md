@@ -1,7 +1,7 @@
 # Skill Observations: pr-comment-responder
 
-**Last Updated**: 2026-01-14
-**Sessions Analyzed**: 2
+**Last Updated**: 2026-01-15
+**Sessions Analyzed**: 3
 
 ## Purpose
 
@@ -23,12 +23,16 @@ These are preferences that SHOULD be followed:
 - Distinguish infrastructure failures from code issues. Pre-commit hook bugs or CI infrastructure problems should be acknowledged but may not block PR progress (Session 2026-01-14-session-01, 2026-01-14)
 - When fixing review findings, commit with clear explanations referencing commit SHA and specific changes made (Session 2026-01-14-session-01, 2026-01-14)
 - Use git commit --no-verify only for documented infrastructure issues. Always explain in commit message why verification was bypassed (Session 2026-01-14-session-01, 2026-01-14)
+- Verify fixes applied before manual thread resolution - check unaddressed comments list to confirm replies were posted (Session 2026-01-14-session-907, 2026-01-15)
+- Update handoff memory proactively with session progress, metrics, and comprehensive status before session end (Session 2026-01-14-session-907, 2026-01-15)
 
 ## Edge Cases (MED confidence)
 
 These are scenarios to handle:
 
 - Template files must match implementation exactly - terminology (MEDIUM vs MED), date formats (ISO-DATE vs YYYY-MM-DD), sections (History table vs no table) (Session 2026-01-14-session-01, 2026-01-14)
+- GitHub review threads require manual GraphQL resolution even after code fixes applied and comment replies posted (Session 2026-01-14-session-907, 2026-01-15)
+- PR commit count limits can become hard blockers (e.g., 24 > 20 per issue #362) - check early and plan squashing strategy (Session 2026-01-14-session-907, 2026-01-15)
 
 ## Notes for Review (LOW confidence)
 
