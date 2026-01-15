@@ -184,6 +184,8 @@ def get_project_directory(hook_input: dict) -> str:
         return str(SAFE_BASE_DIR)
 
     try:
+        # lgtm[py/path-injection]
+        # CodeQL suppression: validated_dir is checked against SAFE_BASE_DIR via _is_relative_to() at line 196
         candidate = Path(validated_dir).expanduser().resolve(strict=False)
     except Exception:
         # Fall back to safe base directory on any resolution error
@@ -217,6 +219,8 @@ def get_safe_project_path(project_dir: str) -> Optional[Path]:
             candidate_root = SAFE_BASE_DIR
         else:
             try:
+                # lgtm[py/path-injection]
+                # CodeQL suppression: validated_root is checked against SAFE_BASE_DIR via _is_relative_to() at line 228
                 candidate_root = Path(validated_root).expanduser().resolve(strict=False)
             except Exception:
                 # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
