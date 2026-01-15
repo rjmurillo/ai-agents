@@ -76,7 +76,7 @@
 ### 🔴 High Priority
 
 1. **CI Failures** (2 required checks failing)
-   - ❌ **QA Review**: CRITICAL_FAIL - code quality issues identified (legitimate)
+   - ❌ **QA Review**: CRITICAL_FAIL - blocking until the new Pester tests run in CI (local run now passes)
    - ❌ **Aggregate Results**: FAILURE - depends on QA Review passing
    - ✅ **Validate Memory Files**: FAILURE - infrastructure issue #910 (tracked, not blocking)
 
@@ -211,6 +211,12 @@
 2. **Regex Complexity**: Balance needed between comprehensiveness and maintainability
 3. **Pattern Duplication**: Duplicated hashtables caused maintenance burden (DRY violation consequence)
 4. **Infrastructure**: Pre-commit test runner needs cross-platform path fix
+
+## Session 03 Execution Summary (2026-01-15)
+
+- **Helper module + refactor**: Extracted the stop-hook logic into `.claude/hooks/Stop/SkillLearning.Helpers.psm1`, splitting `Extract-Learnings` into sub-helpers so no function exceeds 100 lines (QA blocking finding).
+- **Automated tests**: Added `tests/Invoke-SkillLearning.Tests.ps1` to cover `Detect-SkillUsage`, `Extract-Learnings`, and `Update-SkillMemory` (including path traversal prevention and Markdown section updates).
+- **Local verification**: `pwsh ./build/scripts/Invoke-PesterTests.ps1 -TestPath tests/Invoke-SkillLearning.Tests.ps1` now passes, resolving the CRITICAL_FAIL root cause (lack of coverage) ahead of re-running QA in CI.
 
 ## Next Session Actions
 

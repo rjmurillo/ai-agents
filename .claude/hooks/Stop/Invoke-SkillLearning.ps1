@@ -48,439 +48,12 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Canonical skill metadata keeps detection and filtering in sync
-$SkillPatternMap = @{
-    'github' = @('gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review')
-    'memory' = @('search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007')
-    'session-init' = @('/session-init', 'session log', 'session protocol')
-    'SkillForge' = @('SkillForge', 'create skill', 'synthesis panel')
-    'adr-review' = @('adr-review', 'ADR files', 'architecture decision')
-    'incoherence' = @('incoherence skill', 'detect incoherence', 'reconcile')
-    'retrospective' = @('retrospective', 'session end', 'reflect')
-    'reflect' = @('reflect', 'learn from this', 'what did we learn')
-    'pr-comment-responder' = @('pr-comment-responder', 'review comments', 'feedback items')
-    'code-review' = @('code review', 'style guide', 'security patterns')
-    'api-design' = @('API design', 'REST', 'endpoint', 'versioning')
-    'testing' = @('test', 'coverage', 'mocking', 'assertion')
-    'documentation' = @('documentation', 'docs/', 'README', 'write doc')
-}
+Import-Module (Join-Path $PSScriptRoot 'SkillLearning.Helpers.psm1') -Force
 
-$SlashCommandSkillMap = @{
-    'pr-review' = 'github'
-    'session-init' = 'session-init'
-    'memory-search' = 'memory'
-    'memory-list' = 'memory'
-    'research' = 'research-and-incorporate'
-}
-
-function Get-SkillSlug {
-    param([string]$SkillName)
-
-    if ([string]::IsNullOrWhiteSpace($SkillName)) {
-        return 'skill'
-    }
-
-    $slug = $SkillName.Trim().ToLowerInvariant()
-    $slug = $slug -replace '[^a-z0-9]+', '-'
-    $slug = $slug.Trim('-')
-
-    if (-not $slug) {
-        $slug = 'skill'
-    }
-
-    return $slug
-}
-
-function Get-SkillPatterns {
-    param([string]$SkillName)
-
-    $patterns = @()
-    if ($SkillPatternMap.ContainsKey($SkillName)) {
-        $patterns += $SkillPatternMap[$SkillName]
-    }
-
-    $slug = Get-SkillSlug -SkillName $SkillName
-    $slugWithSpaces = $slug -replace '-', ' '
-
-    $defaults = @(
-        $SkillName,
-        $slug,
-        $slugWithSpaces,
-        ".claude/skills/$slug",
-        ".claude\skills\$slug"
-    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-
-    $patterns += $defaults
-    return $patterns | Select-Object -Unique
-}
-
-function Add-DetectedSkill {
-    param(
-        [hashtable]$DetectedSkills,
-        [string]$SkillName,
-        [int]$Increment = 1
-    )
-
-    if ([string]::IsNullOrWhiteSpace($SkillName)) {
-        return
-    }
-
-    $valueToAdd = [Math]::Max(1, [Math]::Abs($Increment))
-    if ($DetectedSkills.ContainsKey($SkillName)) {
-        $DetectedSkills[$SkillName] += $valueToAdd
-    }
-    else {
-        $DetectedSkills[$SkillName] = $valueToAdd
-    }
-}
-
-function Test-SkillContext {
-    param(
-        [string]$Text,
-        [string]$Skill
-    )
-
-    $patterns = Get-SkillPatterns -SkillName $Skill
-    if ($patterns.Count -eq 0) {
-        return $true
-    }
-
-    foreach ($pattern in $patterns) {
-        if ([string]::IsNullOrWhiteSpace($pattern)) {
-            continue
-        }
-
-        if ($Text -match [regex]::Escape($pattern)) {
-            return $true
-        }
-    }
-
-    return $false
-}
-
-function Write-LearningNotification {
-    param(
-        [string]$SkillName,
-        [int]$HighCount,
-        [int]$MedCount,
-        [int]$LowCount
-    )
-
-    $total = $HighCount + $MedCount + $LowCount
-    if ($total -gt 0) {
-        Write-Host "✔️ learned from session ➡️ $SkillName ($HighCount HIGH, $MedCount MED, $LowCount LOW)" -ForegroundColor Green
-    }
-}
-
-function Get-ProjectDirectory {
-    param($HookInput)
-
-    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PROJECT_DIR)) {
-        return $env:CLAUDE_PROJECT_DIR
-    }
-    return $HookInput.cwd
-}
-
-function Get-ConversationMessages {
-    param($HookInput)
-
-    # Extract messages from hook input (conversation history)
-    if ($HookInput.PSObject.Properties.Name -contains 'messages') {
-        return $HookInput.messages
-    }
-    return @()
-}
-
-function Detect-SkillUsage {
-    param([array]$Messages)
-
-    $detectedSkills = @{}
-    $conversationText = ($Messages | ForEach-Object { $_.content }) -join ' '
-
-    # Detect explicit .claude/skills/{skill-name} references
-    $skillPathMatches = [regex]::Matches($conversationText, '\.claude[/\\]skills[/\\]([a-z0-9-]+)')
-    foreach ($match in $skillPathMatches) {
-        $skillName = $match.Groups[1].Value
-        Add-DetectedSkill -DetectedSkills $detectedSkills -SkillName $skillName
-    }
-
-    # Detect slash command references mapped to skills
-    $slashCommandMatches = [regex]::Matches($conversationText, '/([a-z][a-z0-9-]+)')
-    foreach ($match in $slashCommandMatches) {
-        $commandName = $match.Groups[1].Value
-        if ($SlashCommandSkillMap.ContainsKey($commandName)) {
-            $skillName = $SlashCommandSkillMap[$commandName]
-            Add-DetectedSkill -DetectedSkills $detectedSkills -SkillName $skillName
-        }
-    }
-
-    # Keyword-based detection for core skills
-    foreach ($skill in $SkillPatternMap.Keys) {
-        $patterns = Get-SkillPatterns -SkillName $skill
-        $matchCount = 0
-
-        foreach ($msg in $Messages) {
-            if (-not $msg.content) { continue }
-
-            foreach ($pattern in $patterns) {
-                if ($msg.content -match [regex]::Escape($pattern)) {
-                    $matchCount++
-                }
-            }
-        }
-
-        if ($matchCount -ge 2) {
-            Add-DetectedSkill -DetectedSkills $detectedSkills -SkillName $skill -Increment $matchCount
-        }
-    }
-
-    return $detectedSkills
-}
-
-function Extract-Learnings {
-    param(
-        [array]$Messages,
-        [string]$SkillName
-    )
-
-    $learnings = @{
-        High = @()
-        Med = @()
-        Low = @()
-    }
-
-    $explicitCorrectionPattern = '(?i)\b(nope|not like that|that''s wrong|this is wrong|wrong approach|incorrect|never do|always do|don''t ever|do not|please don''t|must use|should not|avoid (?:this|that|doing|using)|stop (?:this|that|doing|using))\b'
-    $immediateFixPattern = '(?i)\b(debug (?:this|that|it)|find the root cause|root cause (?:of|for)|fix (?:this|that|it|all of (?:this|it)|everything)|this is broken|that is broken|it''?s broken|please fix (?:this|that|it)|address (?:this|that|it) (?:bug|issue|error|problem)|resolve (?:this|that|it)|correct (?:this|that|it))\b'
-    $edgeCaseQuestionPattern = '(?i)(what if|how does|how will|what about).*\?'
-    $edgeCaseDirectivePattern = '(?i)\b(don''t want to forget|ensure|make sure|needs to)\b'
-
-    # Analyze messages for learning signals
-    for ($i = 0; $i -lt $Messages.Count - 1; $i++) {
-        $msg = $Messages[$i]
-        $nextMsg = $Messages[$i + 1]
-
-        if ($msg.role -eq 'assistant' -and $nextMsg.role -eq 'user') {
-            $userResponse = $nextMsg.content
-
-            # Check if this learning is relevant to the current skill
-            # by looking at the surrounding context (current and adjacent messages)
-            $contextWindow = ""
-            if ($i -gt 0) { $contextWindow += $Messages[$i - 1].content + " " }
-            $contextWindow += $msg.content + " " + $userResponse
-            if ($i + 2 -lt $Messages.Count) { $contextWindow += " " + $Messages[$i + 2].content }
-
-            # Skip if skill is not mentioned in the context window
-            if (-not (Test-SkillContext -Text $contextWindow -Skill $SkillName)) {
-                continue
-            }
-
-            # HIGH: Strong corrections and directives
-            $startsWithStrongNo = ($userResponse -match '(?i)^\s*no\b') -and -not ($userResponse -match '(?i)^\s*no\s+(problem|worries|issue|rush|need|idea|thanks|pressure|biggie)\b')
-            if ($startsWithStrongNo -or $userResponse -match $explicitCorrectionPattern) {
-                $learnings.High += @{
-                    Type = 'correction'
-                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
-                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
-                }
-            }
-
-            # HIGH: Chesterton's Fence violations (removing things without understanding)
-            if ($userResponse -match '(?i)(trashed without understanding|removed without knowing|deleted without checking|why was this here)') {
-                $learnings.High += @{
-                    Type = 'chestertons_fence'
-                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
-                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
-                }
-            }
-
-            # HIGH: Immediate corrections (commands right after output suggesting it was wrong)
-            if ($userResponse -match $immediateFixPattern) {
-                $learnings.High += @{
-                    Type = 'immediate_correction'
-                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
-                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
-                }
-            }
-
-            # MED: Tool/approach preferences
-            # Based on memory patterns: "instead", "rather than", "prefer", "should use"
-            if ($userResponse -match '(?i)\b(instead of|rather than|prefer|should use|use .+ not|better to)\b') {
-                $learnings.Med += @{
-                    Type = 'preference'
-                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
-                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
-                }
-            }
-
-            # MED: Success patterns (approval at start of response)
-            # Allow acknowledgement prefixes and exclude ambiguous "yes/right" when followed by "but/about"
-            if ($userResponse -match '(?i)^(?:(?:ok|okay|yeah|yep|sure|alright)[,\s]+)?(perfect|great|excellent|exactly|that''s it|good job|well done|works|yes(?!\s*,?\s*but)|correct(?!\s*,?\s*but)|right(?!\s*,?\s*about))\b') {
-                $learnings.Med += @{
-                    Type = 'success'
-                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
-                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
-                }
-            }
-
-            # MED: Edge cases and important questions
-            $edgeQuestion = $userResponse -match $edgeCaseQuestionPattern
-            $edgeDirective = $userResponse -match $edgeCaseDirectivePattern
-            if ($edgeQuestion -or $edgeDirective) {
-                $learnings.Med += @{
-                    Type = 'edge_case'
-                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
-                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
-                }
-            }
-
-            # MED: Short clarifying questions after output (may indicate confusion)
-            # Only capture very short questions to reduce noise
-            if ($userResponse -match '\?' -and $userResponse.Length -lt 50 -and ($userResponse -match '(?i)^(why|how|what|when|where|can|does|is|are)\b')) {
-                $learnings.Med += @{
-                    Type = 'question'
-                    Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
-                    Context = $msg.content.Substring(0, [Math]::Min(150, $msg.content.Length))
-                }
-            }
-
-            # LOW: Repeated commands or patterns (may become preferences)
-            # Track for frequency analysis
-            if ($userResponse -match '(?i)^(\.\/|pwsh |gh |git )') {
-                $learnings.Low += @{
-                    Type = 'command_pattern'
-                    Source = $userResponse.Substring(0, [Math]::Min(100, $userResponse.Length))
-                    Context = $msg.content.Substring(0, [Math]::Min(100, $msg.content.Length))
-                }
-            }
-        }
-    }
-
-    return $learnings
-}
-
-function Update-SkillMemory {
-    param(
-        [string]$ProjectDir,
-        [string]$SkillName,
-        [hashtable]$Learnings,
-        [string]$SessionId
-    )
-
-    # Security: Path Traversal Prevention per CWE-22
-    $allowedDir = [IO.Path]::GetFullPath($ProjectDir)
-    $memoriesDir = Join-Path $allowedDir ".serena" "memories"
-    $memoryFileName = "{0}-skill-sidecar-learnings.md" -f (Get-SkillSlug -SkillName $SkillName)
-    $memoryPath = Join-Path $memoriesDir $memoryFileName
-
-    # Validate path is within project directory
-    $resolvedPath = [IO.Path]::GetFullPath($memoryPath)
-    if (-not $resolvedPath.StartsWith($allowedDir + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-        Write-Warning "Path traversal attempt detected: '$resolvedPath' is outside the project directory."
-        return $false
-    }
-    $memoryPath = $resolvedPath
-
-    # Ensure directory exists
-    if (-not (Test-Path $memoriesDir)) {
-        New-Item -ItemType Directory -Path $memoriesDir -Force | Out-Null
-    }
-
-    # Read existing memory or create new
-    $existingContent = ""
-    if (Test-Path $memoryPath) {
-        $existingContent = Get-Content $memoryPath -Raw
-    }
-    else {
-        $existingContent = @"
-# Skill Sidecar Learnings: $SkillName
-
-**Last Updated**: $(Get-Date -Format "yyyy-MM-dd")
-**Sessions Analyzed**: 0
-
-## Constraints (HIGH confidence)
-
-## Preferences (MED confidence)
-
-## Edge Cases (MED confidence)
-
-## Notes for Review (LOW confidence)
-
-"@
-    }
-
-    # Append learnings
-    $newContent = $existingContent
-
-    # Helper function to escape regex replacement strings
-    function Escape-ReplacementString {
-        param([string]$Text)
-        # Escape $ characters to prevent regex backreference interpretation
-        return $Text -replace '\$', '$$'
-    }
-
-    # HIGH: Append to Constraints section
-    if ($Learnings.High.Count -gt 0) {
-        $constraintItems = ""
-        foreach ($learning in $Learnings.High) {
-            $escapedSource = Escape-ReplacementString $learning.Source
-            $constraintItems += "- $escapedSource (Session $SessionId, $(Get-Date -Format 'yyyy-MM-dd'))`n"
-        }
-        # Insert after header, preserving the header itself
-        $newContent = $newContent -replace '(## Constraints \(HIGH confidence\)\r?\n)', "`$1$constraintItems"
-    }
-
-    # MED: Group by type and append to appropriate sections
-    if ($Learnings.Med.Count -gt 0) {
-        # Preferences: success patterns and tool preferences
-        $preferenceItems = ""
-        foreach ($learning in $Learnings.Med | Where-Object { $_.Type -in @('success', 'preference') }) {
-            $escapedSource = Escape-ReplacementString $learning.Source
-            $preferenceItems += "- $escapedSource (Session $SessionId, $(Get-Date -Format 'yyyy-MM-dd'))`n"
-        }
-        if ($preferenceItems) {
-            $newContent = $newContent -replace '(## Preferences \(MED confidence\)\r?\n)', "`$1$preferenceItems"
-        }
-
-        # Edge Cases: edge case patterns and clarifying questions
-        $edgeCaseItems = ""
-        foreach ($learning in $Learnings.Med | Where-Object { $_.Type -in @('edge_case', 'question') }) {
-            $escapedSource = Escape-ReplacementString $learning.Source
-            $edgeCaseItems += "- $escapedSource (Session $SessionId, $(Get-Date -Format 'yyyy-MM-dd'))`n"
-        }
-        if ($edgeCaseItems) {
-            $newContent = $newContent -replace '(## Edge Cases \(MED confidence\)\r?\n)', "`$1$edgeCaseItems"
-        }
-    }
-
-    # LOW: Command patterns for frequency tracking
-    if ($Learnings.Low.Count -gt 0) {
-        $lowItems = ""
-        foreach ($learning in $Learnings.Low) {
-            $escapedSource = Escape-ReplacementString $learning.Source
-            $lowItems += "- $escapedSource (Session $SessionId, $(Get-Date -Format 'yyyy-MM-dd'))`n"
-        }
-        if ($lowItems) {
-            $newContent = $newContent -replace '(## Notes for Review \(LOW confidence\)\r?\n)', "`$1$lowItems"
-        }
-    }
-
-    # Update session count
-    if ($newContent -match 'Sessions Analyzed: (\d+)') {
-        $count = [int]$Matches[1] + 1
-        $newContent = $newContent -replace 'Sessions Analyzed: \d+', "Sessions Analyzed: $count"
-    }
-
-    # Update last updated date
-    $newContent = $newContent -replace '\*\*Last Updated\*\*: [\d-]+', "**Last Updated**: $(Get-Date -Format 'yyyy-MM-dd')"
-
-    # Write memory file
-    Set-Content -Path $memoryPath -Value $newContent -Force
-
-    return $true
-}
+$SkillPatternMap = Get-DefaultSkillPatternMap
+$SlashCommandSkillMap = Get-DefaultSlashCommandSkillMap
 
 try {
-    # Check for piped input
     if (-not [Console]::IsInputRedirected) {
         exit 0
     }
@@ -498,16 +71,14 @@ try {
         exit 0
     }
 
-    # Detect skills used in this session
-    $detectedSkills = Detect-SkillUsage -Messages $messages
+    $detectedSkills = Detect-SkillUsage -Messages $messages -SkillPatternMap $SkillPatternMap -SlashCommandSkillMap $SlashCommandSkillMap
 
     if ($detectedSkills.Count -eq 0) {
         exit 0
     }
 
-    # Get session ID from today's session log
-    $sessionsDir = Join-Path $projectDir ".agents" "sessions"
-    $today = Get-Date -Format "yyyy-MM-dd"
+    $sessionsDir = Join-Path $projectDir '.agents' 'sessions'
+    $today = Get-Date -Format 'yyyy-MM-dd'
     $sessionLog = Get-ChildItem -Path $sessionsDir -Filter "$today-session-*.json" -File -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
@@ -519,15 +90,13 @@ try {
         "$today-session-unknown"
     }
 
-    # Process each detected skill
     foreach ($skillName in $detectedSkills.Keys) {
-        $learnings = Extract-Learnings -Messages $messages -SkillName $skillName
+        $learnings = Extract-Learnings -Messages $messages -SkillName $skillName -SkillPatternMap $SkillPatternMap
 
         $highCount = $learnings.High.Count
         $medCount = $learnings.Med.Count
         $lowCount = $learnings.Low.Count
 
-        # Only update if learnings meet threshold
         if ($highCount -ge 1 -or $medCount -ge 2 -or $lowCount -ge 3) {
             $updated = Update-SkillMemory -ProjectDir $projectDir -SkillName $skillName -Learnings $learnings -SessionId $sessionId
 
@@ -540,7 +109,6 @@ try {
     exit 0
 }
 catch {
-    # Silent failure - don't block session end
     Write-Error "Skill learning hook error: $($_.Exception.Message)" -ErrorAction SilentlyContinue
     exit 0
 }
