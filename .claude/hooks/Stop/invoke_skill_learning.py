@@ -146,6 +146,10 @@ def get_project_directory(hook_input: dict) -> str:
     if not raw_dir:
         raw_dir = os.getcwd()
 
+    # Basic sanity check on untrusted directory string before path resolution
+    if not isinstance(raw_dir, str) or "\x00" in raw_dir:
+        return str(SAFE_BASE_DIR)
+
     try:
         candidate = Path(raw_dir).expanduser().resolve(strict=False)
     except Exception:
