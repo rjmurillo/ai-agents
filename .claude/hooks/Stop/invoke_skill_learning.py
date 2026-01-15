@@ -31,6 +31,28 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+# Base directory for all project operations to prevent path traversal / arbitrary writes
+# We treat the repository root (two levels up from this file) as the safe base.
+SAFE_BASE_DIR = Path(__file__).resolve().parents[2]
+
+
+def _is_relative_to(path: Path, base: Path) -> bool:
+    """
+    Return True if 'path' is located inside 'base' (or equal to it), after resolution.
+    Implemented for Python versions that may not support Path.is_relative_to.
+    """
+    try:
+        path = path.resolve(strict=False)
+        base = base.resolve(strict=False)
+    except Exception:
+        return False
+    try:
+        path.relative_to(base)
+        return True
+    except ValueError:
+        return False
+
+
 # =============================================================================
 # SKILL PATTERN DEFINITIONS (Single Source of Truth)
 # =============================================================================
@@ -103,10 +125,42 @@ def write_learning_notification(skill_name: str, high_count: int, med_count: int
 
 
 def get_project_directory(hook_input: dict) -> str:
-    """Get project directory from environment or hook input."""
-    if os.getenv("CLAUDE_PROJECT_DIR"):
-        return os.getenv("CLAUDE_PROJECT_DIR")
-    return hook_input.get("cwd", os.getcwd())
+    """Get a validated project directory from environment or hook input.
+
+    The resulting path is:
+      * absolute
+      * normalized
+      * contained within SAFE_BASE_DIR
+    If validation fails, SAFE_BASE_DIR is returned.
+    """
+    raw_dir = None
+
+    env_dir = os.getenv("CLAUDE_PROJECT_DIR")
+    if env_dir:
+        raw_dir = env_dir
+    elif isinstance(hook_input, dict):
+        cwd_val = hook_input.get("cwd")
+        if isinstance(cwd_val, str) and cwd_val.strip():
+            raw_dir = cwd_val
+
+    if not raw_dir:
+        raw_dir = os.getcwd()
+
+    try:
+        candidate = Path(raw_dir).expanduser().resolve(strict=False)
+    except Exception:
+        # Fall back to safe base directory on any resolution error
+        return str(SAFE_BASE_DIR)
+
+    # Enforce that the project directory is absolute and within SAFE_BASE_DIR
+    if not candidate.is_absolute():
+        return str(SAFE_BASE_DIR)
+
+    if not _is_relative_to(candidate, SAFE_BASE_DIR):
+        # Reject directories outside the allowed tree
+        return str(SAFE_BASE_DIR)
+
+    return str(candidate)
 
 
 def get_safe_project_path(project_dir: str) -> Optional[Path]:
@@ -585,11 +639,9 @@ def update_skill_memory(
     """
     # Security: Path traversal prevention (CWE-22)
     # Step 1: Validate and resolve project_dir FIRST before any path operations
-    # This prevents attacks via malicious project_dir values
+    # get_project_directory already constrains this to SAFE_BASE_DIR, but we keep
+    # local validation in case update_skill_memory is called directly elsewhere.
     try:
-        # codeql[py/path-injection]
-        # Suppression: project_dir validated via resolve() + is_absolute() check
-        # Validation ensures path is absolute and properly resolved before use
         allowed_dir = Path(project_dir).resolve(strict=False)
         # Validate project_dir looks like a real directory path
         if not allowed_dir.is_absolute():
@@ -606,13 +658,9 @@ def update_skill_memory(
         return False
 
     # Step 3: Construct paths using validated allowed_dir
-    # lgtm[py/path-injection]
-    # CodeQL suppression: allowed_dir already validated as absolute path in Step 1
     memories_dir = allowed_dir / ".serena" / "memories"
 
     # Ensure directory exists before resolving paths
-    # lgtm[py/path-injection]
-    # CodeQL suppression: memories_dir constructed from validated allowed_dir
     memories_dir.mkdir(parents=True, exist_ok=True)
 
     # lgtm[py/path-injection]
