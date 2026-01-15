@@ -3,7 +3,7 @@
 **Session**: 2026-01-14-session-907 (continuation)
 **PR**: #908 - feat(skill): add reflect skill and auto-learning hook
 **Branch**: `feat/learning-skill`
-**Last Updated**: 2026-01-15 00:48 UTC
+**Last Updated**: 2026-01-15 18:40 UTC
 
 ## Quick Summary
 
@@ -13,6 +13,12 @@
 **Commits**: 24 total (exceeds 20-commit limit - BLOCKER)
 **Remaining**: 23 unresolved threads, 2 CI failures (Validate PR commit count + Validate Memory Files #910)
 **New Discovery**: QA Review now PASSING ✅ (was CRITICAL_FAIL)
+
+### Session 909 Update (2026-01-15)
+
+- **Commit**: 4f2bc5d hardens `invoke_skill_learning.py` path handling (validated project path, skill-name allowlist, centralized observations suffix) and updates tests to pass `Path` instances.
+- **Review responses**: Replied to 20 review comments and resolved 20 threads (including GitHub Advanced Security alerts).
+- **Acknowledgments**: Added 👀 reactions to non-code-scanning comments; code-scanning comments reject reactions (HTTP 422).
 
 ---
 
