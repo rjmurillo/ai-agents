@@ -345,6 +345,67 @@ else
 fi
 
 #
+# YAML Style Validation with yamllint (Non-blocking warnings)
+#
+# Validates YAML files for style consistency:
+# - Line length limits
+# - Indentation consistency
+# - Trailing spaces
+# - Comment formatting
+#
+# Complements actionlint (which focuses on GitHub Actions semantics)
+# yamllint checks general YAML style across all YAML files
+#
+# Related: Epic GitHub Actions Local Testing (#848), yamllint documentation
+#
+
+# Filter for YAML files (all, not just workflows)
+STAGED_YAML_FILES=$(echo "$STAGED_FILES" | grep -E '\.ya?ml$' || true)
+
+# Check for SKIP_YAMLLINT environment variable (emergency bypass)
+if [ "${SKIP_YAMLLINT:-}" = "1" ]; then
+    echo_info "yamllint validation skipped (SKIP_YAMLLINT=1)"
+elif [ -n "$STAGED_YAML_FILES" ]; then
+    echo_info "Checking YAML files with yamllint (style warnings only)..."
+
+    # Check if yamllint is installed
+    if command -v yamllint &> /dev/null; then
+        # Run yamllint on repository root (respects .yamllint.yml config)
+        YAMLLINT_OUTPUT=$(mktemp)
+        
+        if ! yamllint -f parsable . > "$YAMLLINT_OUTPUT" 2>&1; then
+            echo_warning "yamllint found style issues (non-blocking):"
+            echo ""
+            # Show first 20 lines of warnings
+            head -20 "$YAMLLINT_OUTPUT"
+            echo ""
+            echo_info "Common style issues:"
+            echo_info "  - Line too long (exceeds 120 characters)"
+            echo_info "  - Trailing spaces"
+            echo_info "  - Inconsistent indentation"
+            echo_info "  - Missing space after comment"
+            echo ""
+            echo_info "Note: These are warnings, not errors. Fix when convenient."
+            # Non-blocking: don't set EXIT_STATUS
+        else
+            echo_success "YAML files conform to style guidelines."
+        fi
+        rm -f "$YAMLLINT_OUTPUT"
+    else
+        echo_info "yamllint not installed. Skipping YAML style validation."
+        echo_info ""
+        echo_info "Install yamllint to enable YAML style checking:"
+        echo_info "  macOS:    brew install yamllint"
+        echo_info "  Linux:    pip install yamllint"
+        echo_info "  Windows:  pip install yamllint"
+        echo_info ""
+        echo_info "See: https://yamllint.readthedocs.io/"
+    fi
+else
+    echo_info "No YAML files staged. Skipping yamllint validation."
+fi
+
+#
 # PowerShell Script Analysis with PSScriptAnalyzer
 #
 # Security: Validates PowerShell scripts for syntax errors and common issues

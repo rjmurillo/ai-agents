@@ -128,6 +128,11 @@
     "Created .actrc configuration file for act (nektos/act) with optimized defaults",
     "Created scripts/Test-WorkflowLocally.ps1 PowerShell wrapper for act",
     "Updated SHIFT-LEFT.md with comprehensive local workflow testing documentation",
-    "Documented supported vs unsupported workflows for local testing"
+    "Documented supported vs unsupported workflows for local testing",
+    "Created .yamllint.yml configuration with GitHub Actions-optimized rules",
+    "Added yamllint validation to scripts/Validate-PrePR.ps1 (validation 3.9, non-blocking)",
+    "Added yamllint validation to .githooks/pre-commit (non-blocking warnings)",
+    "Updated SHIFT-LEFT.md with YAML style validation documentation",
+    "Documented yamllint vs actionlint relationship and use cases"
   ]
 }

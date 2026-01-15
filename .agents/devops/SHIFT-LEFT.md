@@ -36,13 +36,14 @@ The runner executes validations in optimized order (fast checks first):
 | 2 | Pester Tests | Run all unit tests | No | 10-30s |
 | 3 | Markdown Lint | Auto-fix and validate markdown | No | 5-10s |
 | 3.5 | Workflow YAML | Validate GitHub Actions workflows | No | 2-5s |
+| 3.9 | YAML Style | Check YAML style (non-blocking warnings) | Yes | 2-5s |
 | 4 | Path Normalization | Check for absolute paths | Yes | 15-30s |
 | 5 | Planning Artifacts | Validate planning consistency | Yes | 10-20s |
 | 6 | Agent Drift | Detect semantic drift | Yes | 20-40s |
 
 ### Total Duration
 
-- **Quick mode**: ~20-50s (validations 1-3)
+- **Quick mode**: ~20-50s (validations 1-3.5)
 - **Full mode**: ~60-120s (all validations)
 
 ## Exit Codes
@@ -171,6 +172,79 @@ actionlint -format json
 | `invalid CRON format` | Bad schedule syntax | Use `0 0 * * *` format |
 | `runner label "foo" is unknown` | Invalid runs-on value | Use official runner labels |
 | `shellcheck reported issue` | Shell script error | Fix script syntax |
+
+### 3.9. YAML Style Validation
+
+**Tool**: `yamllint`
+
+**Purpose**: Validates YAML files for style consistency across the repository. Complements actionlint (which focuses on GitHub Actions semantics) by checking general YAML formatting.
+
+**Checks**:
+
+- Line length limits (120 characters max)
+- Consistent 2-space indentation
+- Trailing spaces
+- Comment formatting (space after `#`)
+- Unix line endings
+- New line at end of file
+
+**Configuration**: `.yamllint.yml` in repository root
+
+**Installation**:
+
+```bash
+# macOS
+brew install yamllint
+
+# Linux/Windows (via pip)
+pip install yamllint
+
+# Verify installation
+yamllint --version
+```
+
+**Local validation**:
+
+```bash
+# Validate all YAML files
+yamllint .
+
+# Validate specific file
+yamllint .github/workflows/pester-tests.yml
+
+# Parsable format (for CI)
+yamllint -f parsable .
+```
+
+**Integration points**:
+
+- Pre-commit hook: `.githooks/pre-commit` (non-blocking warnings)
+- Unified runner: `scripts/Validate-PrePR.ps1` (skipped if -Quick, non-blocking)
+
+**Behavior**:
+
+- **Non-blocking**: yamllint failures show warnings but don't fail commits
+- **Rationale**: Style issues are cosmetic and shouldn't block development velocity
+- **Recommendation**: Fix yamllint warnings during code cleanup or refactoring
+
+**Common warnings**:
+
+| Warning | Cause | Fix |
+|---------|-------|-----|
+| `line too long` | Line exceeds 120 chars | Split long lines or shorten URLs |
+| `trailing-spaces` | Spaces at end of line | Remove trailing spaces |
+| `indentation` | Inconsistent spacing | Use 2 spaces for indentation |
+| `comments` | Missing space after # | Add space: `# comment` not `#comment` |
+| `new-line-at-end-of-file` | No newline at EOF | Add blank line at end |
+
+**Relationship to actionlint**:
+
+| Tool | Focus | When to Use |
+|------|-------|-------------|
+| actionlint | GitHub Actions semantics | Always for workflow files (blocking) |
+| yamllint | General YAML style | All YAML files (non-blocking warnings) |
+
+Both tools should be used together: actionlint catches functional errors, yamllint enforces style consistency.
 
 ### 4. Path Normalization
 

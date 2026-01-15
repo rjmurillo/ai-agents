@@ -11,6 +11,7 @@
     2. Pester Tests (all unit tests)
     3. Markdown Lint (auto-fix and validate)
     3.5. Workflow YAML (validate GitHub Actions workflows)
+    3.9. YAML Style (check YAML style with yamllint) [skip if -Quick]
     4. Path Normalization (check for absolute paths) [skip if -Quick]
     5. Planning Artifacts (validate planning consistency) [skip if -Quick]
     6. Agent Drift (detect semantic drift) [skip if -Quick]
@@ -377,6 +378,64 @@ Invoke-Validation -Name "Workflow YAML Validation" -ScriptBlock {
     }
 
     Write-Host "All workflow files validated successfully."
+    return $true
+} | Out-Null
+
+#endregion
+
+#region Validation 3.9: YAML Style Validation (skip if -Quick)
+
+Invoke-Validation -Name "YAML Style Validation" -SkipCondition $Quick -ScriptBlock {
+    # Check for yamllint
+    if (-not (Get-Command yamllint -ErrorAction SilentlyContinue)) {
+        Write-Status 'WARNING' "yamllint not found (YAML style validation skipped)"
+        Write-Host "  Install yamllint to enable YAML style checking:"
+        Write-Host "    macOS:  brew install yamllint"
+        Write-Host "    Linux:  pip install yamllint"
+        Write-Host "    Windows: pip install yamllint"
+        Write-Host ""
+        Write-Host "  See: https://yamllint.readthedocs.io/"
+        return $true  # Non-blocking if not installed
+    }
+
+    # Get YAML files (all, not just workflows)
+    $yamlFiles = Get-ChildItem -Path $RepoRoot -Filter "*.yml" -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' -and
+                       $_.FullName -notmatch '[\\/]\.cache[\\/]' -and
+                       $_.FullName -notmatch '[\\/]\.artifacts[\\/]' -and
+                       $_.FullName -notmatch '[\\/]build[\\/]' }
+
+    if (-not $yamlFiles -or $yamlFiles.Count -eq 0) {
+        Write-Status 'WARNING' "No YAML files found"
+        return $true
+    }
+
+    Write-Host "Checking $($yamlFiles.Count) YAML file(s) for style issues..."
+
+    # Run yamllint
+    $yamllintOutput = & yamllint -f parsable $RepoRoot 2>&1
+    $yamllintExitCode = $LASTEXITCODE
+
+    if ($yamllintExitCode -ne 0) {
+        Write-Status 'WARNING' "yamllint found style issues (non-blocking)"
+        Write-Host ""
+        # Display first 30 lines of warnings
+        $yamllintOutput | Select-Object -First 30 | ForEach-Object { Write-Host $_ }
+        if ($yamllintOutput.Count -gt 30) {
+            Write-Host "... ($($yamllintOutput.Count - 30) more issues omitted)"
+        }
+        Write-Host ""
+        Write-Host "Common style issues:"
+        Write-Host "  - Line too long (exceeds 120 characters)"
+        Write-Host "  - Trailing spaces"
+        Write-Host "  - Inconsistent indentation"
+        Write-Host "  - Missing space after comment"
+        Write-Host ""
+        Write-Host "Note: These are warnings, not errors. Fix when convenient."
+        return $true  # Non-blocking warnings
+    }
+
+    Write-Host "All YAML files conform to style guidelines."
     return $true
 } | Out-Null
 
