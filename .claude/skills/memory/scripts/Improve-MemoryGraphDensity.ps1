@@ -175,6 +175,9 @@ foreach ($file in $memoryFilesToProcess) {
 
         # Find related files based on naming pattern
         $baseName = $file.BaseName
+        if ($baseName -like '*-index') {
+            continue
+        }
         $relatedFiles = @()
 
         # Find files in same domain (search ALL memory files, not just filtered ones)

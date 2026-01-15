@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Claude Code Stop hook that silently analyzes the conversation for
-    skill-related learnings and updates skill observation memories automatically.
+    skill-related learnings and updates skill sidecar memories automatically.
 
     Detects all skills used in the session and extracts:
 
@@ -24,8 +24,8 @@
 
     Heuristics improved based on real memory patterns from .claude-mem backup analysis.
 
-    Updates .serena/memories/{skill-name}-observations.md files and outputs silent
-    notifications like: "✔️learned from session ➡️github"
+    Updates .serena/memories/{skill-name}-skill-sidecar-learnings.md files and outputs
+    silent notifications like: "✔️ learned from session ➡️ github"
 
     This hook never blocks - session ends normally.
 
@@ -36,7 +36,7 @@
 
     Related:
     - .claude/skills/reflect/SKILL.md
-    - .serena/memories/{skill-name}-observations.md
+    - .serena/memories/{skill-name}-skill-sidecar-learnings.md
     - .claude-mem/memories/direct-backup-*.json (pattern source)
 
 .LINK
@@ -46,7 +46,117 @@
 param()
 
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'SilentlyContinue'  # Silent operation
+$ErrorActionPreference = 'Stop'
+
+# Canonical skill metadata keeps detection and filtering in sync
+$SkillPatternMap = @{
+    'github' = @('gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review')
+    'memory' = @('search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007')
+    'session-init' = @('/session-init', 'session log', 'session protocol')
+    'SkillForge' = @('SkillForge', 'create skill', 'synthesis panel')
+    'adr-review' = @('adr-review', 'ADR files', 'architecture decision')
+    'incoherence' = @('incoherence skill', 'detect incoherence', 'reconcile')
+    'retrospective' = @('retrospective', 'session end', 'reflect')
+    'reflect' = @('reflect', 'learn from this', 'what did we learn')
+    'pr-comment-responder' = @('pr-comment-responder', 'review comments', 'feedback items')
+    'code-review' = @('code review', 'style guide', 'security patterns')
+    'api-design' = @('API design', 'REST', 'endpoint', 'versioning')
+    'testing' = @('test', 'coverage', 'mocking', 'assertion')
+    'documentation' = @('documentation', 'docs/', 'README', 'write doc')
+}
+
+$SlashCommandSkillMap = @{
+    'pr-review' = 'github'
+    'session-init' = 'session-init'
+    'memory-search' = 'memory'
+    'memory-list' = 'memory'
+    'research' = 'research-and-incorporate'
+}
+
+function Get-SkillSlug {
+    param([string]$SkillName)
+
+    if ([string]::IsNullOrWhiteSpace($SkillName)) {
+        return 'skill'
+    }
+
+    $slug = $SkillName.Trim().ToLowerInvariant()
+    $slug = $slug -replace '[^a-z0-9]+', '-'
+    $slug = $slug.Trim('-')
+
+    if (-not $slug) {
+        $slug = 'skill'
+    }
+
+    return $slug
+}
+
+function Get-SkillPatterns {
+    param([string]$SkillName)
+
+    $patterns = @()
+    if ($SkillPatternMap.ContainsKey($SkillName)) {
+        $patterns += $SkillPatternMap[$SkillName]
+    }
+
+    $slug = Get-SkillSlug -SkillName $SkillName
+    $slugWithSpaces = $slug -replace '-', ' '
+
+    $defaults = @(
+        $SkillName,
+        $slug,
+        $slugWithSpaces,
+        ".claude/skills/$slug",
+        ".claude\skills\$slug"
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+    $patterns += $defaults
+    return $patterns | Select-Object -Unique
+}
+
+function Add-DetectedSkill {
+    param(
+        [hashtable]$DetectedSkills,
+        [string]$SkillName,
+        [int]$Increment = 1
+    )
+
+    if ([string]::IsNullOrWhiteSpace($SkillName)) {
+        return
+    }
+
+    $valueToAdd = [Math]::Max(1, [Math]::Abs($Increment))
+    if ($DetectedSkills.ContainsKey($SkillName)) {
+        $DetectedSkills[$SkillName] += $valueToAdd
+    }
+    else {
+        $DetectedSkills[$SkillName] = $valueToAdd
+    }
+}
+
+function Test-SkillContext {
+    param(
+        [string]$Text,
+        [string]$Skill
+    )
+
+    $patterns = Get-SkillPatterns -SkillName $Skill
+    if ($patterns.Count -eq 0) {
+        return $true
+    }
+
+    foreach ($pattern in $patterns) {
+        if ([string]::IsNullOrWhiteSpace($pattern)) {
+            continue
+        }
+
+        if ($Text -match [regex]::Escape($pattern)) {
+            return $true
+        }
+    }
+
+    return $false
+}
 
 function Write-LearningNotification {
     param(
@@ -84,86 +194,43 @@ function Get-ConversationMessages {
 function Detect-SkillUsage {
     param([array]$Messages)
 
-    # Detect skills mentioned or used in conversation
-    $skillPatterns = @{
-        'github' = @('gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review')
-        'memory' = @('search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007')
-        'session-init' = @('/session-init', 'session log', 'session protocol')
-        'SkillForge' = @('SkillForge', 'create skill', 'synthesis panel')
-        'adr-review' = @('adr-review', 'ADR files', 'architecture decision')
-        'incoherence' = @('incoherence skill', 'detect incoherence', 'reconcile')
-        'retrospective' = @('retrospective', 'session end', 'reflect')
-        'reflect' = @('reflect', 'learn from this', 'what did we learn')
-        'pr-comment-responder' = @('pr-comment-responder', 'review comments', 'feedback items')
-        'code-review' = @('code review', 'style guide', 'security patterns')
-        'api-design' = @('API design', 'REST', 'endpoint', 'versioning')
-        'testing' = @('test', 'coverage', 'mocking', 'assertion')
-        'documentation' = @('documentation', 'docs/', 'README', 'write doc')
-    }
-
     $detectedSkills = @{}
-
-    # Also detect skills from explicit references
     $conversationText = ($Messages | ForEach-Object { $_.content }) -join ' '
 
-    # Detect skills referenced as .claude/skills/{skill-name}
-    # Use Matches() to capture ALL skill references, not just the first
+    # Detect explicit .claude/skills/{skill-name} references
     $skillPathMatches = [regex]::Matches($conversationText, '\.claude[/\\]skills[/\\]([a-z0-9-]+)')
     foreach ($match in $skillPathMatches) {
         $skillName = $match.Groups[1].Value
-        if (-not $detectedSkills.ContainsKey($skillName)) {
-            $detectedSkills[$skillName] = 1
-        }
-        else {
-            $detectedSkills[$skillName]++
-        }
+        Add-DetectedSkill -DetectedSkills $detectedSkills -SkillName $skillName
     }
 
-    # Detect skills from slash commands
-    # Use Matches() to capture ALL slash command references
+    # Detect slash command references mapped to skills
     $slashCommandMatches = [regex]::Matches($conversationText, '/([a-z][a-z0-9-]+)')
     foreach ($match in $slashCommandMatches) {
         $commandName = $match.Groups[1].Value
-        # Map common commands to skills
-        $commandToSkill = @{
-            'pr-review' = 'github'
-            'session-init' = 'session-init'
-            'memory-search' = 'memory'
-            'memory-list' = 'memory'
-            'research' = 'research-and-incorporate'
-        }
-        if ($commandToSkill.ContainsKey($commandName)) {
-            $skillName = $commandToSkill[$commandName]
-            if (-not $detectedSkills.ContainsKey($skillName)) {
-                $detectedSkills[$skillName] = 1
-            }
-            else {
-                $detectedSkills[$skillName]++
-            }
+        if ($SlashCommandSkillMap.ContainsKey($commandName)) {
+            $skillName = $SlashCommandSkillMap[$commandName]
+            Add-DetectedSkill -DetectedSkills $detectedSkills -SkillName $skillName
         }
     }
 
-    foreach ($skill in $skillPatterns.Keys) {
-        $patterns = $skillPatterns[$skill]
+    # Keyword-based detection for core skills
+    foreach ($skill in $SkillPatternMap.Keys) {
+        $patterns = Get-SkillPatterns -SkillName $skill
         $matchCount = 0
 
         foreach ($msg in $Messages) {
-            if ($msg.content) {
-                foreach ($pattern in $patterns) {
-                    if ($msg.content -match [regex]::Escape($pattern)) {
-                        $matchCount++
-                    }
+            if (-not $msg.content) { continue }
+
+            foreach ($pattern in $patterns) {
+                if ($msg.content -match [regex]::Escape($pattern)) {
+                    $matchCount++
                 }
             }
         }
 
-        if ($matchCount -ge 2) {  # Threshold: mentioned at least twice
-            if ($detectedSkills.ContainsKey($skill)) {
-                $detectedSkills[$skill] += $matchCount
-            }
-            else {
-                $detectedSkills[$skill] = $matchCount
-            }
+        if ($matchCount -ge 2) {
+            Add-DetectedSkill -DetectedSkills $detectedSkills -SkillName $skill -Increment $matchCount
         }
     }
 
@@ -182,36 +249,10 @@ function Extract-Learnings {
         Low = @()
     }
 
-    # Helper function to check if skill is mentioned in context
-    function Test-SkillContext {
-        param([string]$Text, [string]$Skill)
-        # Check if the skill name or related patterns appear in the text
-        # Use the same patterns from Detect-SkillUsage to ensure consistency
-        $patterns = @{
-            'github' = @('gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review')
-            'memory' = @('search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007')
-            'session-init' = @('/session-init', 'session log', 'session protocol')
-            'SkillForge' = @('SkillForge', 'create skill', 'synthesis panel')
-            'adr-review' = @('adr-review', 'ADR files', 'architecture decision')
-            'incoherence' = @('incoherence skill', 'detect incoherence', 'reconcile')
-            'retrospective' = @('retrospective', 'session end', 'reflect')
-            'reflect' = @('reflect', 'learn from this', 'what did we learn')
-            'pr-comment-responder' = @('pr-comment-responder', 'review comments', 'feedback items')
-            'code-review' = @('code review', 'style guide', 'security patterns')
-            'api-design' = @('API design', 'REST', 'endpoint', 'versioning')
-            'testing' = @('test', 'coverage', 'mocking', 'assertion')
-            'documentation' = @('documentation', 'docs/', 'README', 'write doc')
-        }
-
-        if ($patterns.ContainsKey($Skill)) {
-            foreach ($pattern in $patterns[$Skill]) {
-                if ($Text -match [regex]::Escape($pattern)) {
-                    return $true
-                }
-            }
-        }
-        return $false
-    }
+    $explicitCorrectionPattern = '(?i)\b(nope|not like that|that''s wrong|this is wrong|wrong approach|incorrect|never do|always do|don''t ever|do not|please don''t|must use|should not|avoid (?:this|that|doing|using)|stop (?:this|that|doing|using))\b'
+    $immediateFixPattern = '(?i)\b(debug (?:this|that|it)|find the root cause|root cause (?:of|for)|fix (?:this|that|it|all of (?:this|it)|everything)|this is broken|that is broken|it''?s broken|please fix (?:this|that|it)|address (?:this|that|it) (?:bug|issue|error|problem)|resolve (?:this|that|it)|correct (?:this|that|it))\b'
+    $edgeCaseQuestionPattern = '(?i)(what if|how does|how will|what about).*\?'
+    $edgeCaseDirectivePattern = '(?i)\b(don''t want to forget|ensure|make sure|needs to)\b'
 
     # Analyze messages for learning signals
     for ($i = 0; $i -lt $Messages.Count - 1; $i++) {
@@ -234,9 +275,8 @@ function Extract-Learnings {
             }
 
             # HIGH: Strong corrections and directives
-            # Based on memory patterns: "no", "wrong", "incorrect", "fix", "never do", "always do", "must use"
-            # Pattern improved to match standalone "no" at word boundaries
-            if ($userResponse -match '(?i)\b(no\b|nope|not like that|that''s wrong|incorrect|never do|always do|don''t ever|must use|should not|avoid|stop)\b') {
+            $startsWithStrongNo = ($userResponse -match '(?i)^\s*no\b') -and -not ($userResponse -match '(?i)^\s*no\s+(problem|worries|issue|rush|need|idea|thanks|pressure|biggie)\b')
+            if ($startsWithStrongNo -or $userResponse -match $explicitCorrectionPattern) {
                 $learnings.High += @{
                     Type = 'correction'
                     Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
@@ -254,7 +294,7 @@ function Extract-Learnings {
             }
 
             # HIGH: Immediate corrections (commands right after output suggesting it was wrong)
-            if ($userResponse -match '(?i)\b(debug|root cause|correct|fix all|address|broken|error|issue|problem)\b' -and $userResponse.Length -lt 200) {
+            if ($userResponse -match $immediateFixPattern) {
                 $learnings.High += @{
                     Type = 'immediate_correction'
                     Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
@@ -283,8 +323,9 @@ function Extract-Learnings {
             }
 
             # MED: Edge cases and important questions
-            # Based on memory patterns: "what if", "how does", "don't want to forget", "ensure", "make sure"
-            if ($userResponse -match '(?i)(what if|how does|how will|what about|don''t want to forget|ensure|make sure|needs to).*\?') {
+            $edgeQuestion = $userResponse -match $edgeCaseQuestionPattern
+            $edgeDirective = $userResponse -match $edgeCaseDirectivePattern
+            if ($edgeQuestion -or $edgeDirective) {
                 $learnings.Med += @{
                     Type = 'edge_case'
                     Source = $userResponse.Substring(0, [Math]::Min(150, $userResponse.Length))
@@ -328,7 +369,8 @@ function Update-SkillMemory {
     # Security: Path Traversal Prevention per CWE-22
     $allowedDir = [IO.Path]::GetFullPath($ProjectDir)
     $memoriesDir = Join-Path $allowedDir ".serena" "memories"
-    $memoryPath = Join-Path $memoriesDir "$SkillName-observations.md"
+    $memoryFileName = "{0}-skill-sidecar-learnings.md" -f (Get-SkillSlug -SkillName $SkillName)
+    $memoryPath = Join-Path $memoriesDir $memoryFileName
 
     # Validate path is within project directory
     $resolvedPath = [IO.Path]::GetFullPath($memoryPath)
@@ -350,7 +392,7 @@ function Update-SkillMemory {
     }
     else {
         $existingContent = @"
-# Skill Observations: $SkillName
+# Skill Sidecar Learnings: $SkillName
 
 **Last Updated**: $(Get-Date -Format "yyyy-MM-dd")
 **Sessions Analyzed**: 0
