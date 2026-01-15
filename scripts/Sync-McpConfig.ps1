@@ -147,17 +147,16 @@ if (-not $DestinationPath) {
     }
 }
 
-# Validate source exists
-if (-not (Test-Path $SourcePath)) {
+# Validate source exists and reject symlinks (MEDIUM-002)
+# Use Get-Item with -Force to handle symlinks and hidden files
+if (Test-Path -LiteralPath $SourcePath) {
+    $sourceItem = Get-Item -LiteralPath $SourcePath -Force
+    if ($sourceItem.LinkType) {
+        Write-Error "Security: Source path is a symlink, which is not allowed: $SourcePath"
+        exit 1
+    }
+} else {
     Write-Error "Source file not found: $SourcePath"
-    exit 1
-}
-
-# Security: Reject symlinks (MEDIUM-002 from pre-commit patterns)
-# Use Get-ChildItem with -Force to handle hidden files
-$sourceItem = Get-ChildItem -Path $SourcePath -Force | Select-Object -First 1
-if ($sourceItem.LinkType) {
-    Write-Error "Security: Source path is a symlink, which is not allowed: $SourcePath"
     exit 1
 }
 
@@ -235,10 +234,10 @@ if (-not $destContent.EndsWith("`n")) {
 
 # Check if destination needs updating
 $needsUpdate = $true
-if (Test-Path $DestinationPath) {
+if (Test-Path -LiteralPath $DestinationPath) {
     # Security: Reject symlinks
-    # Use Get-ChildItem with -Force to handle hidden files
-    $destItem = Get-ChildItem -Path $DestinationPath -Force | Select-Object -First 1
+    # Use Get-Item with -Force to handle symlinks and hidden files
+    $destItem = Get-Item -LiteralPath $DestinationPath -Force
     if ($destItem.LinkType) {
         Write-Error "Security: Destination path is a symlink, which is not allowed: $DestinationPath"
         exit 1
