@@ -177,7 +177,16 @@ def get_safe_project_path(project_dir: str) -> Optional[Path]:
     try:
         # Determine candidate safe root from environment or current working directory
         root_raw = os.getenv("CLAUDE_PROJECT_ROOT", os.getcwd())
-        candidate_root = Path(root_raw).expanduser().resolve(strict=False)
+
+        # Basic sanity check on untrusted root string before path resolution
+        if not isinstance(root_raw, str) or "\x00" in root_raw:
+            candidate_root = SAFE_BASE_DIR
+        else:
+            try:
+                candidate_root = Path(root_raw).expanduser().resolve(strict=False)
+            except Exception:
+                # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
+                candidate_root = SAFE_BASE_DIR
 
         # Ensure the candidate root is absolute and within the repository's SAFE_BASE_DIR
         if not candidate_root.is_absolute() or not _is_relative_to(candidate_root, SAFE_BASE_DIR):
