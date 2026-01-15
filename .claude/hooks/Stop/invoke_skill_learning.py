@@ -128,7 +128,13 @@ def detect_skill_usage(messages: List[dict]) -> Dict[str, int]:
 
 
 def test_skill_context(text: str, skill: str) -> bool:
-    """Check if skill is mentioned in the given text context."""
+    """
+    Check if skill is mentioned in the given text context.
+
+    For mapped skills, checks against known patterns.
+    For dynamically detected skills (not in map), checks for skill name mention
+    or skill path reference to avoid silently discarding learnings.
+    """
     patterns = {
         'github': ['gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review'],
         'memory': ['search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007'],
@@ -145,10 +151,22 @@ def test_skill_context(text: str, skill: str) -> bool:
         'documentation': ['documentation', 'docs/', 'README', 'write doc'],
     }
 
+    # Check mapped skills against known patterns
     if skill in patterns:
         for pattern in patterns[skill]:
             if re.search(re.escape(pattern), text, re.IGNORECASE):
                 return True
+        return False
+
+    # For dynamically detected skills (not in pattern map):
+    # Check for skill name mention or skill path reference
+    # This ensures dynamically discovered skills get their learnings persisted
+    skill_name_pattern = re.compile(re.escape(skill), re.IGNORECASE)
+    skill_path_pattern = re.compile(rf'\.claude[/\\]skills[/\\]{re.escape(skill)}', re.IGNORECASE)
+
+    if skill_name_pattern.search(text) or skill_path_pattern.search(text):
+        return True
+
     return False
 
 

@@ -1,4 +1,4 @@
-# Skill Sidecar Learnings: {Skill Name}
+# Skill Observations: {Skill Name}
 
 **Last Updated**: {YYYY-MM-DD}
 **Sessions Analyzed**: 1
@@ -7,7 +7,7 @@
 
 This memory captures learnings from using the `{skill-name}` skill across sessions.
 
-**Naming Convention**: `{skill-name}-skill-sidecar-learnings.md` (ADR-007 agent sidecar pattern).
+**Naming Convention**: `{skill-name}-observations.md` (ADR-007 agent sidecar pattern).
 
 ## Constraints (HIGH confidence)
 
