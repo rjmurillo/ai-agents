@@ -29,7 +29,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pwsh scripts/Validate-SessionJson.ps1 -SessionPath .agents/sessions/2026-01-15-session-906-review-920.json"
+        "Evidence": "pwsh scripts/Validate-SessionJson.ps1 -SessionPath .agents/sessions/2026-01-15-session-910-review-920.json"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -96,7 +96,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "git status -sb: clean, untracked .agents/sessions/2026-01-15-session-906-review-920.json"
+        "Evidence": "git status -sb: clean, untracked .agents/sessions/2026-01-15-session-910-review-920.json"
       },
       "handoffRead": {
         "level": "MUST",
@@ -148,7 +148,7 @@
     }
   ],
   "session": {
-    "number": 906,
+    "number": 910,
     "date": "2026-01-15",
     "branch": "chore/memory-code-review-observations",
     "objective": "PR review 920",
