@@ -684,15 +684,17 @@ if ($MyInvocation.InvocationName -ne '.') {
         try {
             Push-Location $PSScriptRoot
             $projectRoot = git rev-parse --show-toplevel 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                $resolvedProjectRoot = [IO.Path]::GetFullPath($projectRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
-                $resolvedRepoPath = [IO.Path]::GetFullPath($RepoPath).TrimEnd([IO.Path]::DirectorySeparatorChar)
-                # Check: RepoPath equals project root OR is a subdirectory of it
-                $isValid = ($resolvedRepoPath -eq $resolvedProjectRoot) -or
-                           $resolvedRepoPath.StartsWith($resolvedProjectRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
-                if (-not $isValid) {
-                    throw "Path traversal attempt detected. RepoPath must be within the project directory."
-                }
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to determine project root using git. Ensure this script is run within a Git repository. Git output: $projectRoot"
+            }
+
+            $resolvedProjectRoot = [IO.Path]::GetFullPath($projectRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
+            $resolvedRepoPath = [IO.Path]::GetFullPath($RepoPath).TrimEnd([IO.Path]::DirectorySeparatorChar)
+            # Check: RepoPath equals project root OR is a subdirectory of it
+            $isValid = ($resolvedRepoPath -eq $resolvedProjectRoot) -or
+                       $resolvedRepoPath.StartsWith($resolvedProjectRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+            if (-not $isValid) {
+                throw "Path traversal attempt detected. RepoPath must be within the project directory."
             }
         }
         finally {

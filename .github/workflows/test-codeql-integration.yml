@@ -45,10 +45,14 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup CodeQL CLI
-        uses: github/codeql-action/init@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
-        with:
-          languages: python  # Need a language to initialize, use lightweight one
-          queries: security-extended
+        id: setup-codeql
+        uses: github/codeql-action/setup-codeql@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
+
+      - name: Add CodeQL to PATH
+        run: |
+          echo "$(dirname ${{ steps.setup-codeql.outputs.codeql-path }})" >> $GITHUB_PATH
+          echo "CodeQL path: ${{ steps.setup-codeql.outputs.codeql-path }}"
+          echo "CodeQL version: ${{ steps.setup-codeql.outputs.codeql-version }}"
 
       - name: Verify CodeQL CLI is accessible
         run: |
@@ -124,10 +128,12 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup CodeQL CLI
-        uses: github/codeql-action/init@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
-        with:
-          languages: python
-          queries: security-extended
+        id: setup-codeql
+        uses: github/codeql-action/setup-codeql@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
+
+      - name: Add CodeQL to PATH
+        run: |
+          echo "$(dirname ${{ steps.setup-codeql.outputs.codeql-path }})" >> $GITHUB_PATH
 
       - name: Run CodeQL scan with JSON output
         shell: pwsh
@@ -244,10 +250,12 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup CodeQL CLI
-        uses: github/codeql-action/init@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
-        with:
-          languages: ${{ matrix.language }}
-          queries: security-extended
+        id: setup-codeql
+        uses: github/codeql-action/setup-codeql@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
+
+      - name: Add CodeQL to PATH
+        run: |
+          echo "$(dirname ${{ steps.setup-codeql.outputs.codeql-path }})" >> $GITHUB_PATH
 
       - name: Run scan for ${{ matrix.language }}
         shell: pwsh

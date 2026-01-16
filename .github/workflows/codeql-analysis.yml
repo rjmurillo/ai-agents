@@ -48,7 +48,8 @@ jobs:
       contents: read
     outputs:
       # For workflow_dispatch or schedule, always run analysis; otherwise use paths-filter result
-      should-run-analysis: ${{ github.event_name == 'workflow_dispatch' && 'true' || github.event_name == 'schedule' && 'true' || steps.filter.outputs.scannable }}
+      # Parentheses added for explicit operator precedence (&&  has higher precedence than ||)
+      should-run-analysis: ${{ (github.event_name == 'workflow_dispatch' && 'true') || (github.event_name == 'schedule' && 'true') || steps.filter.outputs.scannable }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
