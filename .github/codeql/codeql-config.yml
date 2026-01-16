@@ -1,0 +1,39 @@
+name: "CodeQL Configuration"
+
+# Disable default queries to use explicit packs
+disable-default-queries: false
+
+# Query packs to run
+packs:
+  # PowerShell security queries
+  - codeql/powershell-queries:codeql-suites/powershell-security-extended.qls
+
+  # GitHub Actions security queries
+  - codeql/actions-queries:codeql-suites/actions-security-extended.qls
+
+  # Python security queries
+  - codeql/python-queries:codeql-suites/python-security-extended.qls
+
+# Query filters
+queries:
+  - uses: security-extended
+
+# Severity threshold
+severity: medium
+
+# Paths to scan (relative to repository root)
+paths:
+  - scripts/
+  - .github/workflows/
+  - .github/actions/
+  - .github/scripts/
+  - .claude/skills/
+  - build/
+  - scripts/
+
+# Paths to exclude
+paths-ignore:
+  - tests/
+  - .agents/
+  - docs/
+  - '**/*.md'
