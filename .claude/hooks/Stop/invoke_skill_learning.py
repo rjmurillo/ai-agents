@@ -221,11 +221,22 @@ def get_project_directory(hook_input: dict) -> str:
     try:
         # nosec B602 - CodeQL py/path-injection suppression
         # JUSTIFICATION: Defense-in-depth path validation prevents traversal:
-        #   1. PRE-VALIDATION: _validate_path_string() rejects malicious patterns (line 182)
-        #   2. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary (line 198)
-        #   3. FALLBACK: Returns SAFE_BASE_DIR on any validation failure (line 192)
+        #   1. PRE-VALIDATION: _validate_path_string() rejects malicious patterns
+        #   2. ROOT ANCHORING: All user input is interpreted under SAFE_BASE_DIR
+        #   3. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary
+        #   4. FALLBACK: Returns SAFE_BASE_DIR on any validation failure
         # See: .github/codeql/suppressions.yml and .agents/analysis/908-codeql-path-traversal-analysis.md
-        candidate = Path(validated_dir).expanduser().resolve(strict=False)  # lgtm[py/path-injection]
+
+        base_path = SAFE_BASE_DIR
+
+        # Treat validated_dir as relative to SAFE_BASE_DIR when possible.
+        # If an absolute path is provided, normalize it but only use it if it
+        # still falls under SAFE_BASE_DIR after resolution.
+        user_path = Path(validated_dir).expanduser()
+        if user_path.is_absolute():
+            candidate = user_path.resolve(strict=False)  # lgtm[py/path-injection]
+        else:
+            candidate = (base_path / user_path).resolve(strict=False)  # lgtm[py/path-injection]
     except Exception:
         # Fall back to safe base directory on any resolution error
         return str(SAFE_BASE_DIR)
