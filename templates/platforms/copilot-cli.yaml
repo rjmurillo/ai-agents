@@ -19,4 +19,4 @@ handoffSyntax: "/agent"
 toolSyntax: path
 
 # Memory protocol prefix (for MCP tools)
-memoryPrefix: "cloudmcp-manager/"
+memoryPrefix: "serena/"

@@ -502,7 +502,7 @@ Forgetful uses stdio transport with automatic installation via `uvx`. No manual 
 }
 ```
 
-### Installing uv
+### Forgetful Installation Prerequisites
 
 Install `uv` if not already present:
 
