@@ -22,3 +22,11 @@ pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 \
 
 GitHub review comment replies are tied to the comment ID; thread resolution is a
 separate GraphQL mutation.
+
+## Related
+
+- [pr-review-001-reviewer-enumeration](pr-review-001-reviewer-enumeration.md)
+- [pr-review-002-independent-comment-parsing](pr-review-002-independent-comment-parsing.md)
+- [pr-review-003-verification-count](pr-review-003-verification-count.md)
+- [pr-review-006-reviewer-signal-quality](pr-review-006-reviewer-signal-quality.md)
+- [pr-review-007-ci-verification](pr-review-007-ci-verification.md)

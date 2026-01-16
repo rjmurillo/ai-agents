@@ -9,4 +9,4 @@
 | branch validation pre-commit main master prevent feature | [git-hooks-001-pre-commit-branch-validation](git-hooks-001-pre-commit-branch-validation.md) |
 | branch recovery main commit mistake reset origin HEAD | [git-hooks-002-branch-recovery-procedure](git-hooks-002-branch-recovery-procedure.md) |
 | branch name validation pattern feat fix chore docs reject pre-commit mismatch declared | [git-hooks-004-branch-name-validation](git-hooks-004-branch-name-validation.md) |
-| pre-commit hook bypass no-verify protocol enforcement fix-errors | git-hooks-fix-hook-errors-never-bypass |
+| pre-commit hook bypass no-verify protocol enforcement fix-errors | [git-hooks-fix-hook-errors-never-bypass](git-hooks-fix-hook-errors-never-bypass.md) |
