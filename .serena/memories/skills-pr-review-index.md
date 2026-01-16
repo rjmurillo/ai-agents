@@ -13,6 +13,7 @@
 | path containment traversal CWE-22 normalization case-insensitive | [pr-review-012-path-containment-layers](pr-review-012-path-containment-layers.md) |
 | response template reply commit fix won't-fix bot comment | [pr-review-013-bot-response-templates](pr-review-013-bot-response-templates.md) |
 | branch checkout verification state git current uncommitted | [pr-review-014-branch-state-verification](pr-review-014-branch-state-verification.md) |
+| comment-source-agnostic bot-human-equal cursor-bot coderabbit-blocking universal-blocking-rule | [pr-review-015-all-comments-blocking](pr-review-015-all-comments-blocking.md) |
 | acknowledgment protocol eyes reaction blocking gate | [pr-review-acknowledgment](pr-review-acknowledgment.md) |
 | harmful-pattern assuming gh-pr-list complete without verify | [pr-review-anti-pattern-pr-001](pr-review-anti-pattern-pr-001.md) |
 | anti-pattern status conflation completion readiness premature | [pr-review-anti-pattern-status-001](pr-review-anti-pattern-status-001.md) |
@@ -24,5 +25,5 @@
 | list-completeness verification cross-check total-count | [pr-review-enum-001](pr-review-enum-001.md) |
 | python implicit string concat false positive PEP | [pr-review-python-implicit-string-concat](pr-review-python-implicit-string-concat.md) |
 | security-comments priority-boost TOCTOU injection XSS | [pr-review-security](pr-review-security.md) |
-| status classification decision tree blocking human | pr-review-status-001 |
+| status classification decision tree blocking human | [pr-review-status-001](pr-review-status-001.md) |
 | batch response single commit multiple comments clean history efficiency | [pr-review-batch-response-pattern](pr-review-batch-response-pattern.md) |
