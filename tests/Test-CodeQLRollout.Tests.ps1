@@ -108,9 +108,14 @@ BeforeAll {
         }
 
         # Set executable permissions for scripts and hooks (Unix only)
+        # Note: PowerShell doesn't expand globs for external commands, so use Get-ChildItem
         if (-not $IsWindows) {
-            & chmod +x (Join-Path $BasePath ".codeql/scripts/*.ps1")
-            & chmod +x (Join-Path $BasePath ".claude/hooks/PostToolUse/*.ps1")
+            Get-ChildItem -Path (Join-Path $BasePath ".codeql/scripts") -Filter "*.ps1" -ErrorAction SilentlyContinue | ForEach-Object {
+                & chmod +x $_.FullName
+            }
+            Get-ChildItem -Path (Join-Path $BasePath ".claude/hooks/PostToolUse") -Filter "*.ps1" -ErrorAction SilentlyContinue | ForEach-Object {
+                & chmod +x $_.FullName
+            }
         }
     }
 }
