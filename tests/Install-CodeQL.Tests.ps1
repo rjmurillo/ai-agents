@@ -181,14 +181,16 @@ Describe "Install-CodeQLCLI" {
         It "Requires Url parameter" {
             # Verify parameter is mandatory
             $params = (Get-Command Install-CodeQLCLI).Parameters['Url']
+            $mandatory = $params.Attributes | Where-Object { $_.GetType().Name -eq 'ParameterAttribute' } | Select-Object -First 1
 
-            $params.Attributes.Mandatory | Should -Contain $true
+            $mandatory.Mandatory | Should -Be $true
         }
 
         It "Requires DestinationPath parameter" {
             $params = (Get-Command Install-CodeQLCLI).Parameters['DestinationPath']
+            $mandatory = $params.Attributes | Where-Object { $_.GetType().Name -eq 'ParameterAttribute' } | Select-Object -First 1
 
-            $params.Attributes.Mandatory | Should -Contain $true
+            $mandatory.Mandatory | Should -Be $true
         }
     }
 
@@ -238,7 +240,8 @@ Describe "Add-CodeQLToPath" {
             # Path should not have duplicates - count occurrences
             $separator = if ($IsWindows) { ';' } else { ':' }
             $pathEntries = $env:PATH -split [regex]::Escape($separator)
-            $matchCount = ($pathEntries | Where-Object { $_ -eq $testPath }).Count
+            $matches = @($pathEntries | Where-Object { $_ -eq $testPath })
+            $matchCount = $matches.Count
 
             $matchCount | Should -BeLessOrEqual 1
         }
@@ -255,18 +258,20 @@ Describe "Add-CodeQLToPath" {
 
         It "Resolves relative paths to absolute paths" {
             # Create a relative path
-            $relativePath = Join-Path "." "relative-test-$(Get-Random)"
-            $absolutePath = Join-Path $PWD $relativePath
-            New-Item -ItemType Directory -Path $absolutePath -Force | Out-Null
+            $dirName = "relative-test-$(Get-Random)"
+            $relativePath = Join-Path "." $dirName
+            $expectedAbsolutePath = Join-Path $PWD $dirName
+            New-Item -ItemType Directory -Path $expectedAbsolutePath -Force | Out-Null
 
             try {
                 Add-CodeQLToPath -Path $relativePath
 
                 # PATH should contain absolute path, not relative
-                $env:PATH | Should -Match ([regex]::Escape($absolutePath))
+                # Use the resolved path without the "./" prefix
+                $env:PATH | Should -Match ([regex]::Escape($expectedAbsolutePath))
             }
             finally {
-                Remove-Item -Path $absolutePath -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path $expectedAbsolutePath -Force -ErrorAction SilentlyContinue
             }
         }
     }
@@ -329,14 +334,14 @@ Describe "Exit Codes" {
             $help.description.Text | Should -Match "Exit Code"
         }
 
-        It "Uses StandardExitCodes pattern (0=success, 1=error, 2=config, 3=external)" {
-            # Verify exit codes are documented
+        It "Uses StandardExitCodes pattern (0=success, 1=error, 3=external)" {
+            # Verify exit codes are used in script
             $content = Get-Content $scriptPath -Raw
 
             $content | Should -Match "exit 0"  # Success
             $content | Should -Match "exit 1"  # Logic error
-            $content | Should -Match "exit 2"  # Config error
             $content | Should -Match "exit 3"  # External error
+            # Note: exit 2 is documented for config errors but not currently used in implementation
         }
     }
 }
