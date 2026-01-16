@@ -132,7 +132,7 @@
       "files": [".codeql/scripts/Get-CodeQLDiagnostics.ps1"]
     }
   ],
-  "endingCommit": "pending",
+  "endingCommit": "18eecaef",
   "nextSteps": [
     "Test the CodeQL quick scan hook with actual Python/workflow file writes",
     "Verify quick scan config only runs the 5 critical CWE queries",
