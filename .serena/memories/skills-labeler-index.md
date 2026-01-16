@@ -6,4 +6,3 @@
 | any-glob-to-all-files every changed file must match | [labeler-004-all-files-matcher](labeler-004-all-files-matcher.md) |
 | all-globs-to-any-file multiple patterns required AND | [labeler-005-all-patterns-matcher](labeler-005-all-patterns-matcher.md) |
 | combined block include exclude merge positive negative | [labeler-combined-patterns](labeler-combined-patterns.md) |
-

@@ -10,4 +10,3 @@
 | branch recovery main commit mistake reset origin HEAD | [git-hooks-002-branch-recovery-procedure](git-hooks-002-branch-recovery-procedure.md) |
 | branch name validation pattern feat fix chore docs reject pre-commit mismatch declared | [git-hooks-004-branch-name-validation](git-hooks-004-branch-name-validation.md) |
 | pre-commit hook bypass no-verify protocol enforcement fix-errors | [git-hooks-fix-hook-errors-never-bypass](git-hooks-fix-hook-errors-never-bypass.md) |
-

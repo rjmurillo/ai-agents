@@ -6,4 +6,3 @@
 | powershell Resolve-Path PathInfo string Length cast convert | [utilities-pathinfo-conversion](utilities-pathinfo-conversion.md) |
 | regex pattern match escape lookahead anchor quantifier character class | [utilities-regex](utilities-regex.md) |
 | CVA refactoring variant consolidation template generate install script | [utilities-cva-refactoring](utilities-cva-refactoring.md) |
-

@@ -15,7 +15,7 @@ tools:
   - serena/*
   - perplexity/*
   - memory
-model: Claude Opus 4.5 (copilot)
+model: Claude Opus 4.5 (anthropic)
 ---
 # Security Agent
 

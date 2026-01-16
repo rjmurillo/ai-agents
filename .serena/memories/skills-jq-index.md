@@ -12,4 +12,3 @@
 | jq pitfall error null type mismatch raw quotes gotcha trap | [jq-pitfalls](jq-pitfalls.md) |
 | jq reference quick operator function syntax | [jq-quick-reference](jq-quick-reference.md) |
 | jq pr github status parse escape error pattern validated | [jq-pr-operation-patterns](jq-pr-operation-patterns.md) |
-

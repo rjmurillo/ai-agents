@@ -18,7 +18,7 @@ tools:
   - github/get_file_contents
   - serena/*
   - memory
-model: Claude Opus 4.5 (copilot)
+model: Claude Opus 4.5 (anthropic)
 ---
 # DevOps Agent
 

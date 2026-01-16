@@ -67,7 +67,7 @@ jobs:
       - name: Collect metrics
         id: metrics
         run: |
-          python .agents/utilities/metrics/collect_metrics.py \
+          python .claude/skills/metrics/collect_metrics.py \
             --since ${{ steps.period.outputs.days }} \
             --output ${{ steps.period.outputs.format }} \
             > metrics-report.txt
@@ -117,7 +117,7 @@ jobs:
         id: check
         run: |
           # Collect metrics as JSON for parsing
-          python .agents/utilities/metrics/collect_metrics.py \
+          python .claude/skills/metrics/collect_metrics.py \
             --since 7 \
             --output json > metrics.json
 

@@ -8,4 +8,3 @@
 | interface contract template consistent input output format | [design-interface](design-interface.md) |
 | mermaid diagram ASCII flowchart parseable visual node | [design-diagrams](design-diagrams.md) |
 | semantic precision state modeling lifecycle acknowledged resolved thread | [design-008-semantic-precision](design-008-semantic-precision.md) |
-

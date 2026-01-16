@@ -9,4 +9,3 @@
 | -like glob asterisk question flatten depth subdirectory filter files | [powershell-like-pattern-matching](powershell-like-pattern-matching.md) |
 | variable case collision parameter ConvertFrom-Json case-insensitive naming | [powershell-variable-case-collision](powershell-variable-case-collision.md) |
 | automatic variable shadowing matches Error PSItem conflict detection | [powershell-variable-shadowing-detection](powershell-variable-shadowing-detection.md) |
-

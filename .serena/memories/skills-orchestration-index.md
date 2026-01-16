@@ -11,4 +11,3 @@
 | copilot anti-patterns scope explosion test mutation signals | [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md) |
 | process workflow gap missing capability root cause consultation validation | [orchestration-process-workflow-gaps](orchestration-process-workflow-gaps.md) |
 | consensus debate disagree commit dissent follow-up multi-agent | [consensus-disagree-and-commit-pattern](consensus-disagree-and-commit-pattern.md) |
-

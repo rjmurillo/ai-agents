@@ -10,7 +10,7 @@ tools:
   - cloudmcp-manager/*
   - github.vscode-pull-request-github/*
   - serena/*
-model: Claude Opus 4.5 (copilot)
+model: Claude Opus 4.5 (anthropic)
 ---
 # PR Comment Responder Agent
 

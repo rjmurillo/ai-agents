@@ -6,4 +6,3 @@
 | checklist checkbox manifest analysis recommendation track | [planning-checkbox-manifest](planning-checkbox-manifest.md) |
 | priority consistency agent table recommendation shared | [planning-priority-consistency](planning-priority-consistency.md) |
 | platform scope claude templates copilot vs-code 72 files | [planning-multi-platform](planning-multi-platform.md) |
-

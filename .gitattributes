@@ -59,7 +59,311 @@
 * text=auto eol=lf
 
 # ============================================================================
-# HANDOFF.md Merge Strategy: 'ours' (main branch always wins)
+# Documents
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: Documentation files need explicit text handling and proper diff rendering
+# - Markdown files (*.md) used extensively for documentation, agent prompts, and skills
+# - MDX files (*.mdx) combine markdown with JSX for interactive documentation
+# - Text files (*.txt) need consistent line ending handling
+#
+# Solution: Explicit text attribute with enhanced diff rendering
+# - diff=markdown enables GitHub's markdown-aware diff rendering
+# - Shows structural changes (headings, lists) more clearly than generic text diffs
+# - Ensures documentation changes are reviewable and trackable
+#
+# HOW DOES IT WORK?
+#
+# Git's text attribute with diff driver:
+# 1. text: Treats file as text (enables line ending normalization)
+# 2. diff=markdown: Uses markdown-specific diff algorithm
+# 3. Shows heading changes, list modifications, and formatting changes
+# 4. Makes documentation reviews more efficient
+#
+*.md text diff=markdown linguist-detectable
+*.mdx text diff=markdown
+*.txt text
+
+# ============================================================================
+# Graphics
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: Binary image files can be corrupted by text operations
+# - Git's text normalization (line ending conversion) corrupts binary data
+# - Image files treated as text cause file corruption and diff noise
+# - SVG files are XML-based and should be treated as diffable text
+#
+# Solution: Explicit binary declarations for raster images, text for vectors
+# - binary: Prevents Git from applying text operations (line ending conversion)
+# - Protects image integrity across platforms
+# - SVG as text: Enables diff viewing and merge conflict resolution
+#
+# HOW DOES IT WORK?
+#
+# Git's binary attribute:
+# 1. binary: Treats file as binary blob (no text operations)
+# 2. No line ending conversion, no diff generation
+# 3. Uses binary diff (size comparison) instead
+# 4. SVG text: Treated as XML text for meaningful diffs
+#
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+
+# ============================================================================
+# Scripts - Shell
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: Unix shell scripts require LF line endings to execute correctly
+# - CRLF line endings cause "bad interpreter" errors on Unix systems
+# - Shebang (#!/bin/bash) must be followed by LF, not CRLF
+# - Repository contains bootstrap-vm.sh and other shell scripts
+#
+# Solution: Enforce LF line endings for all shell scripts
+# - eol=lf: Ensures LF in both repository and working directory
+# - Prevents execution failures on Unix systems
+# - Maintains compatibility even when edited on Windows
+#
+# HOW DOES IT WORK?
+#
+# Git's eol=lf attribute:
+# 1. Forces LF line endings on checkout (all platforms)
+# 2. Stores with LF in repository
+# 3. Overrides global text=auto setting for these files
+# 4. Shell interpreter can parse shebang correctly
+#
+# Evidence: scripts/bootstrap-vm.sh exists in repository
+#
+*.sh text eol=lf
+*.bash text eol=lf
+
+# ============================================================================
+# Scripts - PowerShell
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: PowerShell files need explicit text handling across platforms
+# - Repository contains 14 *.psm1 modules, 2 *.psd1 data files
+# - Canonical template recommends eol=crlf for Windows compatibility
+# - BUT: Our LF-first strategy is intentional (see Line Ending Normalization above)
+#
+# Solution: Override canonical template's CRLF recommendation with LF
+# - PowerShell 7+ (cross-platform) handles LF correctly on all platforms
+# - Maintains consistency with repository-wide LF strategy
+# - Prevents YAML frontmatter parsing issues (GitHub Copilot CLI #694/#673)
+#
+# HOW DOES IT WORK?
+#
+# Git's text attribute with eol=lf:
+# 1. text: Enables text normalization
+# 2. eol=lf: Forces LF line endings (overrides template's eol=crlf)
+# 3. All PowerShell files use LF consistently
+# 4. PowerShell 7+ runtime handles LF without issues
+#
+# TRADE-OFF
+#
+# Canonical template: eol=crlf (Windows PowerShell 5.1 compatibility)
+# This repository: eol=lf (cross-platform PowerShell 7+ compatibility)
+# Justification: LF-first strategy prevents YAML parsing errors
+#
+# Evidence: https://github.com/gitattributes/gitattributes/blob/master/PowerShell.gitattributes
+#           (We intentionally deviate from template's CRLF recommendation)
+#
+*.ps1 text eol=lf
+*.psm1 text eol=lf
+*.psd1 text eol=lf
+*.ps1xml text eol=lf
+*.pssc text eol=lf
+*.psrc text eol=lf
+*.cdxml text eol=lf
+
+# ============================================================================
+# Serialization
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: Structured data files need explicit text handling
+# - JSON, YAML, TOML, XML used for configuration and data
+# - Implicit handling can lead to line ending inconsistencies
+# - Configuration files should be diffable and mergeable
+#
+# Solution: Explicit text declarations for all serialization formats
+# - Ensures consistent line ending normalization
+# - Enables meaningful diffs for configuration changes
+# - Facilitates merge conflict resolution
+#
+# HOW DOES IT WORK?
+#
+# Git's text attribute:
+# 1. text: Treats file as text (line ending normalization)
+# 2. Enables diff generation and merge capabilities
+# 3. Consistent handling across all configuration files
+#
+*.json text
+*.yaml text
+*.yml text
+*.toml text
+*.xml text
+
+# ============================================================================
+# Python
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: Python files need specialized handling for source and binaries
+# - Repository contains 14 Python files
+# - Python-aware diffs improve code review quality
+# - Compiled bytecode should not be stored in repository
+# - Jupyter notebooks are JSON-based text files
+#
+# Solution: diff=python for source files, binary + export-ignore for compiled
+# - diff=python: Python-aware diff shows function/class changes clearly
+# - binary: Prevents corruption of compiled bytecode and serialized data
+# - export-ignore: Excludes compiled files from git archive distributions
+# - Jupyter notebooks: Text with LF (JSON format)
+#
+# HOW DOES IT WORK?
+#
+# Git's diff=python attribute:
+# 1. Uses Python language parser for diff generation
+# 2. Shows "def function_name" in diff hunks for context
+# 3. Makes code reviews more efficient and readable
+# 4. Binary files excluded from text operations and archives
+#
+*.py text diff=python
+*.pyw text diff=python
+*.pyi text diff=python
+*.ipynb text eol=lf
+*.pyc binary export-ignore
+*.pyo binary export-ignore
+*.pyd binary
+*.pickle binary
+
+# ============================================================================
+# Archives
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: Compressed archive files must be treated as binary
+# - Text operations (line ending conversion) corrupt compressed data
+# - Archive formats use binary compression algorithms
+# - Any text normalization breaks decompression
+#
+# Solution: Explicit binary declarations for all archive formats
+# - binary: Prevents Git from applying text operations
+# - Protects archive integrity
+# - Ensures archives can be extracted successfully
+#
+# HOW DOES IT WORK?
+#
+# Git's binary attribute:
+# 1. Treats file as opaque binary blob
+# 2. No line ending conversion, no text diff
+# 3. Uses binary diff (file size comparison)
+# 4. Maintains bit-perfect file integrity
+#
+*.zip binary
+*.gz binary
+*.tar binary
+*.7z binary
+*.rar binary
+
+# ============================================================================
+# Patches
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: Patch files must preserve original line endings exactly
+# - Patches contain diff hunks with specific line ending expectations
+# - Line ending normalization breaks patch application
+# - git apply fails if line endings are modified
+#
+# Solution: Use -text attribute to disable text processing
+# - -text: Disables all text operations (no normalization)
+# - Preserves line endings exactly as committed
+# - Ensures patches can be applied successfully
+#
+# HOW DOES IT WORK?
+#
+# Git's -text attribute:
+# 1. Disables text normalization for these files
+# 2. Stores and checks out with original line endings
+# 3. No line ending conversion on any platform
+# 4. git apply works correctly with preserved line endings
+#
+*.patch -text
+*.diff -text
+
+# ============================================================================
+# GitHub/Linguist
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: GitHub language statistics need hints for proper detection
+# - GitHub uses linguist for language detection and statistics
+# - Markdown files should be counted in repository language stats
+# - Improves repository discoverability and language breakdown
+#
+# Solution: linguist-detectable attribute for markdown files
+# - Ensures markdown appears in GitHub language statistics
+# - Helps users understand documentation scope
+# - Improves repository classification
+#
+# HOW DOES IT WORK?
+#
+# GitHub's linguist attributes:
+# 1. linguist-detectable: Includes file in language statistics
+# 2. GitHub processes during repository analysis
+# 3. Updates language bar on repository page
+# 4. Improves repository search and discovery
+#
+# Note: The linguist-detectable attribute for *.md is defined in the
+# Documents section (line 85) to keep all markdown attributes together.
+
+# ============================================================================
+# Export
+# ============================================================================
+#
+# WHY DO WE NEED THIS?
+#
+# Problem: Git metadata files should not be in distribution archives
+# - git archive creates distribution tarballs/zips
+# - .gitattributes and .gitignore are development files
+# - End users don't need Git configuration in releases
+#
+# Solution: export-ignore attribute for Git metadata
+# - Excludes files from git archive output
+# - Keeps distribution archives clean
+# - Reduces archive size and complexity
+#
+# HOW DOES IT WORK?
+#
+# Git's export-ignore attribute:
+# 1. git archive skips marked files
+# 2. Files remain in repository and working directory
+# 3. Only affects archive creation (git archive, GitHub releases)
+# 4. Distribution archives are cleaner
+#
+.gitattributes export-ignore
+.gitignore export-ignore
+
+# ============================================================================
+# Custom Merge Strategies - HANDOFF.md: 'ours' (main branch always wins)
 # ============================================================================
 #
 # WHY DO WE NEED THIS?
@@ -104,7 +408,7 @@
 .agents/HANDOFF.md merge=ours
 
 # ============================================================================
-# Branch Handoffs: 'handoff-aggregate' (custom merge driver)
+# Custom Merge Strategies - Branch Handoffs: 'handoff-aggregate' (custom merge driver)
 # ============================================================================
 #
 # STATUS: DECLARED BUT NOT YET IMPLEMENTED (P2 Future Work)

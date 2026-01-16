@@ -15,4 +15,3 @@
 | skill persistence memory durability cross-session storage | [retrospective-skill-persistence](retrospective-skill-persistence.md) |
 | commit threshold trigger 10 commits PR stuck pattern mini-retrospective | [retrospective-commit-trigger](retrospective-commit-trigger.md) |
 | artifact efficiency concurrent documentation during execution time savings | [retrospective-artifact-efficiency-pattern](retrospective-artifact-efficiency-pattern.md) |
-
