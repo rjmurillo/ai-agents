@@ -471,9 +471,19 @@ Respond in JSON format:
         if not result.get("is_learning"):
             return None
 
+        # Validate and normalize confidence to float
+        try:
+            confidence = float(result["confidence"])
+            if not (0.0 <= confidence <= 1.0):
+                print(f"LLM confidence out of range: {confidence}", file=sys.stderr)
+                return None
+        except (ValueError, TypeError):
+            print(f"Invalid LLM confidence value: {result.get('confidence')}", file=sys.stderr)
+            return None
+
         return {
             "type": result["type"],
-            "confidence": result["confidence"],
+            "confidence": confidence,
             "source": result.get("extracted_learning", user_response[:150]),
             "category": result["category"],
             "method": "haiku-llm"
@@ -729,12 +739,15 @@ def extract_learnings(messages: List[dict], skill_name: str) -> Dict[str, List[d
 
 def escape_replacement_string(text: str) -> str:
     """
-    Escape special characters for regex replacement.
+    Escape special characters for regex replacement strings.
 
-    Python re.sub() uses backreferences like \\1, not $1, so $ is not special.
-    This function is retained for consistency but performs no escaping.
+    In re.sub() replacement strings, backslashes are interpreted as escape
+    sequences (e.g., \\1 for backreferences). User content containing backslashes
+    must be escaped by doubling them to prevent interpretation as special sequences.
+
+    Example: "Use \\1 for regex" -> "Use \\\\1 for regex"
     """
-    return text
+    return text.replace("\\", "\\\\")
 
 
 def update_skill_memory(
@@ -767,12 +780,9 @@ def update_skill_memory(
 
     # Step 2: Validate skill_name does not contain path traversal characters
     # This prevents attacks via skill names like "../../../etc/passwd" or "..\\attack"
+    # Regex allowlist: only alphanumeric, underscore, and hyphen characters permitted
     if not re.fullmatch(r"[A-Za-z0-9_-]+", skill_name):
         print(f"Invalid skill name: '{skill_name}' contains unsupported characters", file=sys.stderr)
-        return False
-
-    if '..' in skill_name or '/' in skill_name or '\\' in skill_name or os.sep in skill_name:
-        print(f"Path traversal attempt detected in skill name: '{skill_name}'", file=sys.stderr)
         return False
 
     # Step 3: Construct paths using validated allowed_dir

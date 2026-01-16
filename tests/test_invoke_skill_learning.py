@@ -77,7 +77,6 @@ class TestDynamicSkillDetection(unittest.TestCase):
 
     def test_mapped_skill_fails_without_pattern_match(self):
         """Mapped skills should fail when patterns don't match."""
-        text = "This text mentions github but not in a pattern way"
         # 'github' patterns include 'gh pr', 'gh issue', '.claude/skills/github', etc.
         # Use a text that does not match any of the defined GitHub patterns
         text = "Reading about version control systems"
