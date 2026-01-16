@@ -37,15 +37,15 @@ Describe "Get-CodeQLDownloadUrl" {
             $url = Get-CodeQLDownloadUrl -Version "v2.23.9"
 
             $url | Should -Not -BeNullOrEmpty
-            $url | Should -Match "codeql-bundle-(win64|linux64|osx64)\.tar\.zst"
-            $url | Should -Match "v2.23.9"
+            $url | Should -Match "codeql-bundle-(win64|linux64|osx64)\.tar\.gz"
+            $url | Should -Match "codeql-bundle-v2.23.9"
         }
 
-        It "Includes version in URL" {
+        It "Includes version in URL with correct prefix" {
             $version = "v2.23.0"
             $url = Get-CodeQLDownloadUrl -Version $version
 
-            $url | Should -Match $version
+            $url | Should -Match "codeql-bundle-$version"
         }
 
         It "Uses github.com/github/codeql-action/releases as base URL" {
@@ -67,42 +67,8 @@ Describe "Get-CodeQLDownloadUrl" {
             $url2 = Get-CodeQLDownloadUrl -Version "v2.22.0"
 
             $url1 | Should -Not -Be $url2
-            $url1 | Should -Match "v2.23.9"
-            $url2 | Should -Match "v2.22.0"
-        }
-    }
-}
-
-Describe "Install-Zstd" {
-    Context "zstd Detection" {
-        It "Returns true if zstd is already installed" {
-            # This test assumes zstd may or may not be installed
-            # If installed, should return true; if not, should attempt installation
-            $result = Install-Zstd -CI
-
-            # Result should be boolean
-            $result | Should -BeOfType [bool]
-        }
-
-        It "Has CI parameter" {
-            $params = (Get-Command Install-Zstd).Parameters['CI']
-
-            $params | Should -Not -BeNullOrEmpty
-            $params.ParameterType.Name | Should -Be 'SwitchParameter'
-        }
-    }
-
-    Context "Platform Support" {
-        It "Supports current platform" {
-            # Should not throw for current platform
-            { Install-Zstd -CI -ErrorAction Stop } | Should -Not -Throw
-        }
-
-        It "Provides helpful error message if installation fails" {
-            # If zstd is not installed and automatic installation fails,
-            # error message should contain platform-specific instructions
-            # This is tested implicitly by the error message content in the function
-            $true | Should -Be $true  # Placeholder - actual behavior tested in integration tests
+            $url1 | Should -Match "codeql-bundle-v2.23.9"
+            $url2 | Should -Match "codeql-bundle-v2.22.0"
         }
     }
 }

@@ -58,7 +58,7 @@
         - PowerShell 7.0 or later
         - Internet connection for initial download
         - Write permissions to installation directory
-        - zstd compression tool (automatically installed if missing)
+        - tar command (included with PowerShell 7+)
 
 .LINK
     https://github.com/github/codeql-action/releases
@@ -120,7 +120,7 @@ function Get-CodeQLDownloadUrl {
 
     # Construct URL
     $baseUrl = "https://github.com/github/codeql-action/releases/download"
-    $url = "$baseUrl/$Version/codeql-bundle-$platform.tar.zst"
+    $url = "$baseUrl/codeql-bundle-$Version/codeql-bundle-$platform.tar.gz"
 
     return $url
 }
@@ -156,175 +156,6 @@ function Test-CodeQLInstalled {
     return $false
 }
 
-function Install-Zstd {
-    <#
-    .SYNOPSIS
-        Installs zstd compression tool if not already available.
-
-    .DESCRIPTION
-        Detects the current platform and installs zstd using the appropriate package manager:
-        - Windows: winget or manual download from GitHub releases
-        - Linux (Debian/Ubuntu): apt-get
-        - Linux (RHEL/Fedora): dnf
-        - macOS: brew
-
-    .PARAMETER CI
-        Enables CI mode with non-interactive behavior.
-
-    .OUTPUTS
-        [bool] True if zstd is available after installation attempt.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter()]
-        [switch]$CI
-    )
-
-    # Check if zstd is already available
-    $zstdCmd = Get-Command zstd -ErrorAction SilentlyContinue
-    if ($zstdCmd) {
-        Write-Verbose "zstd is already installed at: $($zstdCmd.Source)"
-        return $true
-    }
-
-    if (-not $CI) {
-        Write-Host "zstd not found. Attempting to install..." -ForegroundColor Yellow
-    }
-
-    try {
-        if ($IsWindows) {
-            # Try winget first (modern Windows package manager)
-            $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
-            if ($wingetCmd) {
-                if (-not $CI) {
-                    Write-Host "Installing zstd via winget..." -ForegroundColor Cyan
-                }
-                winget install --id Facebook.zstd --exact --silent --accept-source-agreements 2>&1 | Out-Null
-
-                # Verify installation
-                $zstdCmd = Get-Command zstd -ErrorAction SilentlyContinue
-                if ($zstdCmd) {
-                    if (-not $CI) {
-                        Write-Host "Successfully installed zstd via winget" -ForegroundColor Green
-                    }
-                    return $true
-                }
-            }
-
-            # Fallback: Provide manual installation instructions
-            $errorMessage = @"
-Failed to install zstd automatically on Windows.
-
-Please install manually using one of these methods:
-  1. Using winget: winget install Facebook.zstd
-  2. Download from: https://github.com/facebook/zstd/releases
-     - Download the Windows binary (zstd-v*-win64.zip)
-     - Extract zstd.exe to a directory in your PATH
-
-After installation, restart PowerShell and run this script again.
-"@
-            throw $errorMessage
-        }
-        elseif ($IsLinux) {
-            # Detect Linux distribution
-            if (Test-Path "/etc/os-release") {
-                $osRelease = Get-Content "/etc/os-release" -Raw
-
-                if ($osRelease -match 'ID_LIKE=.*debian' -or $osRelease -match 'ID=debian' -or $osRelease -match 'ID=ubuntu') {
-                    # Debian/Ubuntu
-                    if (-not $CI) {
-                        Write-Host "Installing zstd via apt-get..." -ForegroundColor Cyan
-                    }
-
-                    # Update package list and install zstd
-                    sudo apt-get update 2>&1 | Out-Null
-                    sudo apt-get install -y zstd 2>&1 | Out-Null
-
-                    # Verify installation
-                    $zstdCmd = Get-Command zstd -ErrorAction SilentlyContinue
-                    if ($zstdCmd) {
-                        if (-not $CI) {
-                            Write-Host "Successfully installed zstd via apt-get" -ForegroundColor Green
-                        }
-                        return $true
-                    }
-                }
-                elseif ($osRelease -match 'ID_LIKE=.*rhel' -or $osRelease -match 'ID_LIKE=.*fedora' -or $osRelease -match 'ID=rhel' -or $osRelease -match 'ID=fedora') {
-                    # RHEL/Fedora
-                    if (-not $CI) {
-                        Write-Host "Installing zstd via dnf..." -ForegroundColor Cyan
-                    }
-
-                    sudo dnf install -y zstd 2>&1 | Out-Null
-
-                    # Verify installation
-                    $zstdCmd = Get-Command zstd -ErrorAction SilentlyContinue
-                    if ($zstdCmd) {
-                        if (-not $CI) {
-                            Write-Host "Successfully installed zstd via dnf" -ForegroundColor Green
-                        }
-                        return $true
-                    }
-                }
-            }
-
-            # Fallback: Provide manual installation instructions
-            $errorMessage = @"
-Failed to install zstd automatically on Linux.
-
-Please install manually using your distribution's package manager:
-  - Debian/Ubuntu: sudo apt-get install zstd
-  - RHEL/Fedora: sudo dnf install zstd
-  - Other: Check your distribution's package repository
-
-After installation, run this script again.
-"@
-            throw $errorMessage
-        }
-        elseif ($IsMacOS) {
-            # macOS with Homebrew
-            $brewCmd = Get-Command brew -ErrorAction SilentlyContinue
-            if ($brewCmd) {
-                if (-not $CI) {
-                    Write-Host "Installing zstd via Homebrew..." -ForegroundColor Cyan
-                }
-
-                brew install zstd 2>&1 | Out-Null
-
-                # Verify installation
-                $zstdCmd = Get-Command zstd -ErrorAction SilentlyContinue
-                if ($zstdCmd) {
-                    if (-not $CI) {
-                        Write-Host "Successfully installed zstd via Homebrew" -ForegroundColor Green
-                    }
-                    return $true
-                }
-            }
-
-            # Fallback: Provide manual installation instructions
-            $errorMessage = @"
-Failed to install zstd automatically on macOS.
-
-Please install Homebrew and zstd:
-  1. Install Homebrew: https://brew.sh
-  2. Install zstd: brew install zstd
-
-After installation, run this script again.
-"@
-            throw $errorMessage
-        }
-        else {
-            throw "Unsupported platform for automatic zstd installation."
-        }
-    }
-    catch {
-        Write-Verbose "zstd installation failed: $_"
-        return $false
-    }
-
-    return $false
-}
-
 function Install-CodeQLCLI {
     <#
     .SYNOPSIS
@@ -344,7 +175,7 @@ function Install-CodeQLCLI {
     New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
     try {
-        $archivePath = Join-Path $tempDir "codeql-bundle.tar.zst"
+        $archivePath = Join-Path $tempDir "codeql-bundle.tar.gz"
 
         # Download bundle
         if (-not $CI) {
@@ -363,112 +194,24 @@ function Install-CodeQLCLI {
             Write-Host "Download complete. Extracting..." -ForegroundColor Cyan
         }
 
-        # Extract tar.zst archive
-        # PowerShell 7+ has native tar support, but .zst requires external tool or extraction in steps
+        # Extract tar.gz archive
+        # PowerShell 7+ has native tar support, and .tar.gz is universally supported
         $extractDir = Join-Path $tempDir "extracted"
         New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
 
-        $extractionSucceeded = $false
+        if (-not $CI) {
+            Write-Host "Extracting CodeQL CLI bundle..." -ForegroundColor Cyan
+        }
 
-        # Method 1: Try tar with built-in zstd support (modern GNU tar)
         try {
-            $tarVersion = tar --version 2>&1
-            if ($LASTEXITCODE -eq 0 -and $tarVersion -match 'zstd') {
-                if (-not $CI) {
-                    Write-Host "Using tar with native zstd support..." -ForegroundColor Cyan
-                }
-                tar -xf $archivePath -C $extractDir --zstd 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0) {
-                    $extractionSucceeded = $true
-                }
+            # Use tar to extract .tar.gz (works on all platforms with PowerShell 7+)
+            tar -xzf $archivePath -C $extractDir 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "tar extraction failed with exit code $LASTEXITCODE"
             }
         }
         catch {
-            Write-Verbose "tar with zstd support not available: $_"
-        }
-
-        # Method 2: Try zstd decompress + tar extract (two-step)
-        if (-not $extractionSucceeded) {
-            $zstdCmd = Get-Command zstd -ErrorAction SilentlyContinue
-
-            # If zstd is not available, try to install it
-            if (-not $zstdCmd) {
-                if (-not $CI) {
-                    Write-Host "zstd not found. Attempting automatic installation..." -ForegroundColor Yellow
-                }
-
-                $zstdInstalled = Install-Zstd -CI:$CI
-                if ($zstdInstalled) {
-                    $zstdCmd = Get-Command zstd -ErrorAction SilentlyContinue
-                }
-            }
-
-            if ($zstdCmd) {
-                try {
-                    if (-not $CI) {
-                        Write-Host "Using zstd + tar (two-step extraction)..." -ForegroundColor Cyan
-                    }
-                    $tarPath = Join-Path $tempDir "codeql-bundle.tar"
-
-                    # Decompress zstd to tar
-                    & zstd -d $archivePath -o $tarPath 2>&1 | Out-Null
-                    if ($LASTEXITCODE -ne 0) {
-                        throw "zstd decompression failed with exit code $LASTEXITCODE"
-                    }
-
-                    # Extract tar
-                    tar -xf $tarPath -C $extractDir 2>&1 | Out-Null
-                    if ($LASTEXITCODE -eq 0) {
-                        $extractionSucceeded = $true
-                    }
-                }
-                catch {
-                    Write-Verbose "zstd + tar extraction failed: $_"
-                }
-            }
-        }
-
-        # Method 3: Windows - try downloading zip format if available
-        if (-not $extractionSucceeded -and $IsWindows) {
-            try {
-                # Try to download zip version instead (older CodeQL releases had zip)
-                $zipUrl = $Url -replace '\.tar\.zst$', '.zip'
-                $zipPath = Join-Path $tempDir "codeql-bundle.zip"
-
-                if (-not $CI) {
-                    Write-Host "Attempting to download zip format for Windows..." -ForegroundColor Cyan
-                }
-
-                $testResponse = Invoke-WebRequest -Uri $zipUrl -Method Head -UseBasicParsing -ErrorAction SilentlyContinue
-                if ($testResponse.StatusCode -eq 200) {
-                    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
-                    Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
-                    $extractionSucceeded = $true
-                }
-            }
-            catch {
-                Write-Verbose "Zip download/extraction failed: $_"
-            }
-        }
-
-        # Method 4: Provide helpful error message if all extraction methods failed
-        if (-not $extractionSucceeded) {
-            $errorMessage = @"
-Failed to extract CodeQL CLI bundle. No suitable extraction method found.
-
-The CodeQL CLI bundle uses .tar.zst format which requires one of:
-  1. GNU tar with zstd support (tar --version should show 'zstd')
-  2. Standalone zstd tool
-
-Automatic installation was attempted but failed. Please install manually:
-  - Windows: winget install Facebook.zstd, or download from https://github.com/facebook/zstd/releases
-  - Linux (Debian/Ubuntu): sudo apt-get install zstd
-  - Linux (RHEL/Fedora): sudo dnf install zstd
-  - macOS: brew install zstd
-
-After installation, run this script again.
-"@
-            throw $errorMessage
+            throw "Failed to extract CodeQL CLI bundle: $_"
         }
 
         # Move extracted files to destination
