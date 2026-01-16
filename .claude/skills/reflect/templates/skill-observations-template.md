@@ -27,12 +27,6 @@ These are documentation improvements needed:
 
 These are observations that may become patterns:
 
-## History
-
-| Date | Session | Type | Learning |
-|------|---------|------|----------|
-| {YYYY-MM-DD} | {session-id} | {HIGH/MED/LOW} | {learning-summary} |
-
 ## Related
 
 - [{related-memory}]({related-memory}.md)
