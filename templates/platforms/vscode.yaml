@@ -8,7 +8,7 @@ fileExtension: .agent.md
 # Frontmatter settings
 frontmatter:
   # VS Code requires model field
-  model: "Claude Opus 4.5 (anthropic)"
+  model: "Claude Opus 4.5 (copilot)"
   # VS Code does not use name field
   includeNameField: false
 
@@ -19,4 +19,4 @@ handoffSyntax: "#runSubagent"
 toolSyntax: path
 
 # Memory protocol prefix (for MCP tools)
-memoryPrefix: "cloudmcp-manager/"
+memoryPrefix: "serena/"

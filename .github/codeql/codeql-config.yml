@@ -30,6 +30,7 @@ paths:
   - .github/actions/
   - .github/scripts/
   - .claude/skills/
+  - .claude/hooks/
   - build/
 
 # Paths to exclude

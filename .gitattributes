@@ -483,11 +483,25 @@
 .agents/handoffs/*.md merge=handoff-aggregate
 
 # ============================================================================
-# Skill Files: Diff Configuration
+# Markdown and Skill Files: Diff Configuration
 # ============================================================================
 #
 # Note: LF line endings are enforced globally above (see "Line Ending Normalization" section)
-# This section only specifies diff rendering for skill files.
-# See ADR-019 for rationale and implementation.
+# This section specifies diff rendering for markdown and skill files.
 #
+# WHY DO WE NEED THIS?
+#
+# Git's default diff algorithm operates line-by-line. For prose-heavy markdown files,
+# this produces noisy diffs when paragraphs are rewrapped or sentences are edited.
+# The `diff=markdown` attribute enables word-level diffing for better readability.
+#
+# WHAT FILES ARE AFFECTED?
+#
+# - Documentation: docs/**/*.md, README.md, CONTRIBUTING.md
+# - Agent definitions: src/**/*.md, .claude/**/*.md
+# - Session logs: .agents/sessions/*.json (not affected - JSON)
+# - Serena memories: .serena/memories/*.md
+# - Skill files: *.skill
+#
+*.md diff=markdown
 *.skill diff=markdown
