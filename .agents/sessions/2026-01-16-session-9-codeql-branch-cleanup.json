@@ -52,14 +52,14 @@
         "evidence": "npx markdownlint-cli2 completed successfully"
       },
       "commitChanges": {
-        "complete": false,
+        "complete": true,
         "level": "MUST",
-        "evidence": "Pending - awaiting session log fix"
+        "evidence": "Committed to docs/session-9-codeql-investigation: 9eb8b167"
       },
       "sessionValidation": {
-        "complete": false,
+        "complete": true,
         "level": "MUST",
-        "evidence": "Pending - running session-log-fixer skill"
+        "evidence": "pwsh scripts/Validate-SessionJson.ps1 returned PASS"
       }
     }
   },
@@ -101,9 +101,9 @@
       }
     ]
   },
+  "endingCommit": "9eb8b167",
   "nextSteps": [
-    "Complete session protocol validation",
-    "Commit session log to docs/session-9-codeql-investigation branch",
-    "Push to remote and verify CI passes"
+    "Monitor CI workflow run to confirm session protocol validation passes",
+    "PR not required - investigation only with no code changes"
   ]
 }
