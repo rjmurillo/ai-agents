@@ -223,6 +223,22 @@ if (-not $SkipVSCode) {
         # Just verify they exist
         if ((Test-Path $extensionsFile) -and (Test-Path $tasksFile) -and (Test-Path $settingsFile)) {
             Write-Status "VSCode configurations verified" -Type Success
+
+            # On Windows, update settings.json to add .exe suffix to CodeQL CLI path
+            if ($IsWindows) {
+                try {
+                    $settingsContent = Get-Content $settingsFile -Raw | ConvertFrom-Json
+                    if ($settingsContent.'codeQL.cli.executablePath' -notlike '*.exe') {
+                        $settingsContent.'codeQL.cli.executablePath' = $settingsContent.'codeQL.cli.executablePath' + '.exe'
+                        $settingsContent | ConvertTo-Json -Depth 10 | Set-Content $settingsFile -Encoding UTF8
+                        Write-Status "Updated CodeQL CLI path for Windows (.exe suffix)" -Type Success
+                    }
+                }
+                catch {
+                    Write-Status "Failed to update settings.json for Windows: $_" -Type Warning
+                }
+            }
+
             $installationSteps += "[✓] VSCode configurations created"
         }
         else {

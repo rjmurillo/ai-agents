@@ -184,7 +184,7 @@ switch ($Operation) {
 # Add language filter if specified
 if ($Languages) {
     $scanArgs += "-Languages"
-    $scanArgs += ($Languages -join ",")
+    $scanArgs += $Languages
     Write-ColorOutput "Scanning languages: $($Languages -join ', ')" -Type Info
 }
 

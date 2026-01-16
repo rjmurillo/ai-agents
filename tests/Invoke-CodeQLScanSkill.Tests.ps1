@@ -175,9 +175,12 @@ Describe "Invoke-CodeQLScanSkill.ps1 Language Filter" {
         $script | Should -Match '-Languages'
     }
 
-    It "Should join multiple languages with comma" {
+    It "Should add languages as array elements (not comma-joined)" {
         $script = Get-Content $scriptPath -Raw
-        $script | Should -Match '-join'
+        # Should add $Languages to $scanArgs without joining
+        $script | Should -Match '\$scanArgs\s*\+=\s*\$Languages'
+        # Should NOT join languages when adding to scanArgs (that would pass "python,actions" as single string)
+        $script | Should -Not -Match '\$scanArgs\s*\+=\s*\(\$Languages\s*-join'
     }
 
     It "Should report languages being scanned" {

@@ -97,6 +97,14 @@ Describe "Install-CodeQLIntegration.ps1 VSCode Configuration" {
         $content = Get-Content $scriptPath -Raw
         $content | Should -Match 'if \(-not \$SkipVSCode\)'
     }
+
+    It "Should update CodeQL CLI path with .exe suffix on Windows" {
+        $content = Get-Content $scriptPath -Raw
+        # Check for Windows-specific path update logic
+        $content | Should -Match 'if \(\$IsWindows\)'
+        $content | Should -Match "codeQL\.cli\.executablePath"
+        $content | Should -Match '\.exe'
+    }
 }
 
 Describe "Install-CodeQLIntegration.ps1 Claude Skill" {
