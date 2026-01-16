@@ -44,3 +44,9 @@ worktree--/
 .forgetful/exports/*.bak
 .forgetful/exports/*.tmp
 .forgetful/exports/*.swp
+
+# CodeQL artifacts
+.codeql/cli/
+.codeql/db/
+.codeql/results/
+.codeql/logs/

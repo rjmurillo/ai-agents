@@ -58,7 +58,8 @@ param(
         'pr-validation',
         'label-pr',
         'memory-validation',
-        'auto-assign-reviewer'
+        'auto-assign-reviewer',
+        'codeql-analysis'
     ),
 
     [Parameter()]

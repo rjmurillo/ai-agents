@@ -107,7 +107,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -Command \"& (Join-Path (Get-Location) '.claude/hooks/Stop/Invoke-SessionValidator.ps1')\"",
+            "command": "python3 -u .claude/hooks/Stop/invoke_skill_learning.py",
+            "statusMessage": "Extracting skill learnings from session (LLM-enhanced)"
+          },
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -Command '$input | & (Join-Path (Get-Location) \".claude/hooks/Stop/Invoke-SessionValidator.ps1\")'",
             "statusMessage": "Validating session completeness"
           }
         ]

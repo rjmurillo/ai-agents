@@ -410,9 +410,19 @@ if ($Config.Skills -and $Config.Skills.Count -gt 0 -and $Config.SkillsDir) {
         Join-Path $RootDir $Config.SkillsSourceDir
     }
 
-    if ($SkillsSourceDir -and (Test-Path $SkillsSourceDir)) {
-        $SkillsDestDir = Resolve-DestinationPath -PathExpression $Config.SkillsDir -RepoPath $RepoPath
+    # Resolve destination directory
+    $SkillsDestDir = Resolve-DestinationPath -PathExpression $Config.SkillsDir -RepoPath $RepoPath
 
+    # Check if source and destination are the same (repo scope installing to itself)
+    $NormalizedSource = if ($SkillsSourceDir) { [System.IO.Path]::GetFullPath($SkillsSourceDir) } else { $null }
+    $NormalizedDest = [System.IO.Path]::GetFullPath($SkillsDestDir)
+    $IsSamePath = $NormalizedSource -and ($NormalizedSource -eq $NormalizedDest)
+
+    if ($IsSamePath) {
+        Write-Host "  Skills already present in repository (source and destination are the same)" -ForegroundColor Gray
+        Write-Host ""
+    }
+    elseif ($SkillsSourceDir -and (Test-Path $SkillsSourceDir)) {
         $SkillStats = Install-SkillFiles `
             -SourceDir $SkillsSourceDir `
             -SkillsDir $SkillsDestDir `
@@ -421,6 +431,11 @@ if ($Config.Skills -and $Config.Skills.Count -gt 0 -and $Config.SkillsDir) {
 
         Write-Host ""
         Write-Host "Skills: $($SkillStats.Installed) installed, $($SkillStats.Updated) updated, $($SkillStats.Skipped) skipped" -ForegroundColor Gray
+        Write-Host ""
+    }
+    else {
+        Write-Host "  Skills source directory not found: $SkillsSourceDir" -ForegroundColor Yellow
+        Write-Host "  Skipping skills installation" -ForegroundColor Yellow
         Write-Host ""
     }
 }

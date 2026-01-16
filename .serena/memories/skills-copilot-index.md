@@ -6,4 +6,4 @@
 | model multiplier premium-request plan tier GPT-4o Claude Gemini o1 CLI chat cost | [copilot-supported-models](copilot-supported-models.md) |
 | synthesis verdict parsing workflow condition PASS output comment posting token | [copilot-synthesis-verdict-parsing](copilot-synthesis-verdict-parsing.md) |
 | directive issue-comment review-comment noise signal anti-pattern best-practice relocation PR-249 | [copilot-directive-relocation](copilot-directive-relocation.md) |
-| cli model configuration token authentication bot PAT GPT Claude Gemini | copilot-cli-model-configuration |
+| cli model configuration token authentication bot PAT GPT Claude Gemini | [copilot-cli-model-configuration](copilot-cli-model-configuration.md) |
