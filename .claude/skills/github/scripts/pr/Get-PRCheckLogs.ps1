@@ -361,6 +361,11 @@ if ($ChecksInput) {
             exit 1
         }
 
+        # Extract PR number from piped input
+        if ($checksData.Number -and $PullRequest -eq 0) {
+            $PullRequest = $checksData.Number
+        }
+
         $failingChecks = @($checksData.Checks | Where-Object {
             $_.Conclusion -in @('FAILURE', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED')
         })
