@@ -1,7 +1,7 @@
 # Skill Observations: github
 
-**Last Updated**: 2026-01-15
-**Sessions Analyzed**: 3
+**Last Updated**: 2026-01-16
+**Sessions Analyzed**: 4
 
 ## Purpose
 
@@ -11,6 +11,9 @@ This memory captures learnings from using the `github` skill across sessions.
 
 These are corrections that MUST be followed:
 
+- Always use GitHub skill PowerShell scripts instead of raw gh commands when script exists (Session 2026-01-16-session-07, 2026-01-16)
+- Route GitHub URLs to API calls, never fetch HTML directly (Session 2026-01-16-session-07, 2026-01-16)
+
 ## Preferences (MED confidence)
 
 These are preferences that SHOULD be followed:
@@ -18,6 +21,8 @@ These are preferences that SHOULD be followed:
 - For batch operations (reactions, labels), use gh api graphql with parallel mutations. Break into batches of 5 to avoid complexity limits. (Session 2026-01-14, 2026-01-14)
 - Use mutation aliases (c1, c2, etc.) for batch GraphQL operations to track individual results. (Session 2026-01-14, 2026-01-14)
 - Use GraphQL batch mutations for resolving multiple threads efficiently (single API call for 5+ threads) (Session 2026-01-14-session-907, 2026-01-15)
+- Prioritize github skill scripts > gh api > gh commands for routing (Session 2026-01-16-session-07, 2026-01-16)
+- When github skill script doesn't exist for URL pattern, use gh api with specific endpoint (e.g., repos/{owner}/{repo}/contents/...) (Session 2026-01-16-session-07, 2026-01-16)
 
 ## Edge Cases (MED confidence)
 
@@ -36,6 +41,10 @@ These are observations that may become patterns:
 | 2026-01-13 | 2026-01-13-session-906 | LOW | Use gh pr comment to keep PRs updated with major enhancements |
 | 2026-01-14 | 2026-01-14 | MED | Use gh api graphql with parallel mutations for batch operations |
 | 2026-01-14 | 2026-01-14 | MED | Use mutation aliases for batch GraphQL operations |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | Always use GitHub skill PowerShell scripts instead of raw gh commands |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | Route GitHub URLs to API calls, never fetch HTML directly |
+| 2026-01-16 | 2026-01-16-session-07 | MED | Prioritize github skill scripts > gh api > gh commands |
+| 2026-01-16 | 2026-01-16-session-07 | MED | When github skill script doesn't exist, use gh api with specific endpoint |
 
 ## Related
 
