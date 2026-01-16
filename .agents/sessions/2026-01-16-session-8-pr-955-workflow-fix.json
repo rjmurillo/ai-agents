@@ -1,0 +1,191 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 8,
+    "date": "2026-01-16",
+    "branch": "docs/session-8-pr-955-workflow-fix",
+    "startingCommit": "74fdfbc1",
+    "objective": "Fix PR #955 validation failure by triggering workflow with commit-limit-bypass label present"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "initializeSerenaActivate": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Tool mcp__serena__check_onboarding_performed called at session start"
+      },
+      "initializeSerenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena instructions confirmed via check_onboarding_performed"
+      },
+      "readHandoff": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/HANDOFF.md at session start"
+      },
+      "createSessionLog": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file exists"
+      },
+      "listSkillScripts": {
+        "complete": false,
+        "level": "MUST",
+        "evidence": "N/A - no GitHub skills needed for this session (PR API operations only)"
+      },
+      "readUsageMandatory": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read usage-mandatory memory via mcp__serena__read_memory"
+      },
+      "readProjectConstraints": {
+        "complete": false,
+        "level": "MUST",
+        "evidence": "N/A - referenced via CRITICAL-CONTEXT.md auto-loaded in CLAUDE.md"
+      },
+      "readMemoryIndex": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read memory-index via mcp__serena__list_memories, loaded validation-pr-gates memory"
+      },
+      "importSharedMemories": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Skipped - no cross-project context needed"
+      },
+      "verifyBranch": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch verified: main at session start, docs/session-8-pr-955-workflow-fix created for commit"
+      },
+      "confirmNotOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "On feature branch: docs/session-8-pr-955-workflow-fix"
+      },
+      "verifyGitStatus": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Git status clean at session start on main branch"
+      },
+      "noteStartingCommit": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Starting commit: 74fdfbc1"
+      }
+    },
+    "sessionEnd": {
+      "exportSessionMemories": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Skipped - operational fix, no learnings to export"
+      },
+      "securityReviewExport": {
+        "complete": false,
+        "level": "MUST",
+        "evidence": "N/A - no export performed"
+      },
+      "completeSessionLog": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All sections filled in this session log"
+      },
+      "updateSerenaMemory": {
+        "complete": false,
+        "level": "MUST",
+        "evidence": "Pending - will update after session-log-fixer completes"
+      },
+      "runMarkdownLint": {
+        "complete": false,
+        "level": "MUST",
+        "evidence": "Will run during pre-commit hook"
+      },
+      "routeToQA": {
+        "complete": false,
+        "level": "MUST",
+        "evidence": "SKIPPED: investigation-only (session log only, no code changes)"
+      },
+      "commitAllChanges": {
+        "complete": false,
+        "level": "MUST",
+        "evidence": "Pending commit after session log validation"
+      },
+      "doNotUpdateHandoff": {
+        "complete": true,
+        "level": "MUST NOT",
+        "evidence": "HANDOFF.md unchanged (read-only per ADR-014)"
+      },
+      "updateProjectPlan": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "N/A - no project plan for operational fixes"
+      },
+      "invokeRetrospective": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Skipped - routine operational fix, no significant learnings"
+      },
+      "verifyCleanGitStatus": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Will verify after commit"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Diagnosed PR #955 validation failure",
+      "result": "Found that commit-limit-bypass label was added at 19:35:23Z, 9 minutes after workflow failed at 19:26:23Z",
+      "files": []
+    },
+    {
+      "action": "Triggered new workflow run by closing and reopening PR #955",
+      "result": "New workflow run (21078538292) started at 19:36:44Z with bypass label present"
+    },
+    {
+      "action": "Verified workflow success",
+      "result": "PR Validation check passed with conclusion: success"
+    },
+    {
+      "action": "Created session log documenting the fix",
+      "result": "Session log created at .agents/sessions/2026-01-16-session-8-pr-955-workflow-fix.json"
+    }
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "type": "session",
+        "path": ".agents/sessions/2026-01-16-session-8-pr-955-workflow-fix.json",
+        "description": "Session log documenting PR #955 workflow fix"
+      }
+    ],
+    "decisions": [
+      {
+        "decision": "Close and reopen PR to trigger workflow",
+        "rationale": "Simplest way to trigger pull_request event with bypass label already present",
+        "impact": "Workflow re-ran with bypass label and passed validation"
+      }
+    ]
+  },
+  "observations": {
+    "technical_insights": [
+      {
+        "insight": "GitHub workflow label checks are point-in-time snapshots",
+        "evidence": "Workflow fetched labels at start, did not see bypass label added 9 minutes after failure",
+        "implications": "Labels must be present BEFORE workflow run, not added during or after"
+      }
+    ]
+  },
+  "endingCommit": "",
+  "nextSteps": [
+    "PR #955 is now unblocked and can proceed with merge once all other checks pass",
+    "Consider adding workflow retry mechanism for label changes"
+  ],
+  "links": {
+    "pr": "https://github.com/rjmurillo/ai-agents/pull/955",
+    "workflow_failed": "https://github.com/rjmurillo/ai-agents/actions/runs/21078229664",
+    "workflow_success": "https://github.com/rjmurillo/ai-agents/actions/runs/21078538292"
+  },
+  "summary": "Fixed PR #955 validation failure by triggering a new workflow run after the commit-limit-bypass label was added. The PR has 86 commits (exceeding the 20-commit limit), but the bypass label now allows it to pass validation. The workflow enforcement logic correctly checks for the bypass label and allows the PR to proceed when present."
+}
