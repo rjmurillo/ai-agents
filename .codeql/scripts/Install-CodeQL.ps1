@@ -205,7 +205,8 @@ function Install-CodeQLCLI {
 
         try {
             # Use tar to extract .tar.gz (works on all platforms with PowerShell 7+)
-            tar -xzf $archivePath -C $extractDir 2>&1 | Out-Null
+            # Quote variables to prevent command injection (CWE-78)
+            tar -xzf "$archivePath" -C "$extractDir" 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 throw "tar extraction failed with exit code $LASTEXITCODE"
             }

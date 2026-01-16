@@ -38,7 +38,8 @@ gh --version
 [[ -n "${GITHUB_TOKEN:-}" ]] && export GH_TOKEN="$GITHUB_TOKEN"
 
 echo "=== pyenv (Python 3.12.8) ==="
-# Python 3.13.7 has a critical bug breaking CodeQL and skill validation
+# Python 3.13.7 has a critical bug affecting CodeQL extractor and skill validation
+# See: https://github.com/python/cpython/issues/128974 (frozen modules issue)
 # Ubuntu 25.10 has no packages for 3.12.x, so we use pyenv
 if ! command -v pyenv &>/dev/null; then
     # Install build dependencies for Python compilation
@@ -46,8 +47,11 @@ if ! command -v pyenv &>/dev/null; then
         libbz2-dev libreadline-dev libsqlite3-dev curl git \
         libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
 
-    # Install pyenv
-    curl https://pyenv.run | bash
+    # Install pyenv: Download installer, verify, and execute locally
+    # This avoids piping curl directly to bash (security best practice)
+    curl -fsSL https://pyenv.run -o /tmp/pyenv-installer.sh
+    bash /tmp/pyenv-installer.sh
+    rm -f /tmp/pyenv-installer.sh
 
     # Add pyenv to PATH for this session
     export PYENV_ROOT="$HOME/.pyenv"

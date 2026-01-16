@@ -680,6 +680,22 @@ if ($MyInvocation.InvocationName -ne '.') {
         # Resolve paths to absolute
         $RepoPath = Resolve-Path $RepoPath | Select-Object -ExpandProperty Path
 
+        # Path traversal protection (CWE-22): Validate RepoPath is within project root
+        try {
+            Push-Location $PSScriptRoot
+            $projectRoot = git rev-parse --show-toplevel 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                $resolvedProjectRoot = [IO.Path]::GetFullPath($projectRoot) + [IO.Path]::DirectorySeparatorChar
+                $resolvedRepoPath = [IO.Path]::GetFullPath($RepoPath)
+                if (-not $resolvedRepoPath.StartsWith($resolvedProjectRoot, [StringComparison]::OrdinalIgnoreCase)) {
+                    throw "Path traversal attempt detected. RepoPath must be within the project directory."
+                }
+            }
+        }
+        finally {
+            Pop-Location
+        }
+
         # Use quick config if -QuickScan is specified
         if ($QuickScan -and $ConfigPath -eq ".github/codeql/codeql-config.yml") {
             $ConfigPath = ".github/codeql/codeql-config-quick.yml"

@@ -222,12 +222,13 @@ function Test-QueryPackAvailability {
                 $packRef = $pack -replace ':.*$', ''
 
                 # Try to resolve using codeql pack list or codeql resolve queries
-                $resolveOutput = & $CodeQLPath resolve queries $pack 2>&1
+                # Quote variables to prevent command injection (CWE-78)
+                $resolveOutput = & "$CodeQLPath" resolve queries "$pack" 2>&1
                 $resolveExitCode = $LASTEXITCODE
 
                 if ($resolveExitCode -ne 0) {
                     # Try pack download to see if it's available
-                    $packDownloadOutput = & $CodeQLPath pack download --dry-run $packRef 2>&1
+                    $packDownloadOutput = & "$CodeQLPath" pack download --dry-run "$packRef" 2>&1
                     $packListExitCode = $LASTEXITCODE
 
                     if ($packListExitCode -ne 0) {

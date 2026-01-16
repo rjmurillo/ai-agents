@@ -31,7 +31,6 @@ paths:
   - .github/scripts/
   - .claude/skills/
   - build/
-  - scripts/
 
 # Paths to exclude
 paths-ignore:
