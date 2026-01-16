@@ -13,6 +13,7 @@
 | path containment traversal CWE-22 normalization case-insensitive | [pr-review-012-path-containment-layers](pr-review-012-path-containment-layers.md) |
 | response template reply commit fix won't-fix bot comment | [pr-review-013-bot-response-templates](pr-review-013-bot-response-templates.md) |
 | branch checkout verification state git current uncommitted | [pr-review-014-branch-state-verification](pr-review-014-branch-state-verification.md) |
+| comment-source-agnostic bot-human-equal cursor-bot coderabbit-blocking universal-blocking-rule | [pr-review-015-all-comments-blocking](pr-review-015-all-comments-blocking.md) |
 | acknowledgment protocol eyes reaction blocking gate | [pr-review-acknowledgment](pr-review-acknowledgment.md) |
 | harmful-pattern assuming gh-pr-list complete without verify | [pr-review-anti-pattern-pr-001](pr-review-anti-pattern-pr-001.md) |
 | anti-pattern status conflation completion readiness premature | [pr-review-anti-pattern-status-001](pr-review-anti-pattern-status-001.md) |
