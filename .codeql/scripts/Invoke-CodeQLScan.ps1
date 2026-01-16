@@ -346,14 +346,22 @@ function Invoke-CodeQLDatabaseCreate {
     }
 
     try {
-        & $CodeQLPath database create $langDbPath `
+        $createOutput = & $CodeQLPath database create $langDbPath `
             --language=$Language `
             --source-root=$SourceRoot `
-            2>&1 | Out-String | Write-Verbose
+            2>&1
 
         if ($LASTEXITCODE -ne 0) {
+            # Show the actual CodeQL error output for troubleshooting
+            $errorDetails = ($createOutput | Out-String).Trim()
+            if ($errorDetails) {
+                Write-Error "CodeQL database creation failed with exit code ${LASTEXITCODE}:`n$errorDetails"
+            }
             throw "CodeQL database creation failed with exit code $LASTEXITCODE"
         }
+
+        # Log verbose output only on success
+        $createOutput | Out-String | Write-Verbose
 
         if (-not $CI) {
             Write-Host "✓ Database created for $Language" -ForegroundColor Green
