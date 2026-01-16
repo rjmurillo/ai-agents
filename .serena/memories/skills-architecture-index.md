@@ -8,4 +8,4 @@
 | DRY exception deployment unit embed portability agent config self-contained | [architecture-003-dry-exception-deployment](architecture-003-dry-exception-deployment.md) |
 | deployment path validation reference source tree resolve broken context | [architecture-015-deployment-path-validation](architecture-015-deployment-path-validation.md) |
 | template variant claude copilot generate maintain separate dual update | [architecture-template-variant-maintenance](architecture-template-variant-maintenance.md) |
-| ADR number check collision parallel branch sequential numbering | architecture-016-adr-number-check |
+| ADR number check collision parallel branch sequential numbering | [architecture-016-adr-number-check](architecture-016-adr-number-check.md) |
