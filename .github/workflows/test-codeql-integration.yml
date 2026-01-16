@@ -70,17 +70,19 @@ jobs:
       - name: Run codeql version
         shell: pwsh
         run: |
-          $version = & .codeql/cli/codeql version 2>&1
+          $versionOutput = & .codeql/cli/codeql version 2>&1
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to run 'codeql version': $version"
+            Write-Error "Failed to run 'codeql version': $versionOutput"
             exit 1
           }
 
+          # Convert to string (2>&1 can return array of objects)
+          $versionStr = $versionOutput | Out-String
           Write-Host "CodeQL Version Output:"
-          Write-Host $version
+          Write-Host $versionStr
 
           # Validate version output format
-          if ($version -notmatch '\d+\.\d+\.\d+') {
+          if ($versionStr -notmatch '\d+\.\d+\.\d+') {
             Write-Error "Unexpected version output format"
             exit 1
           }
