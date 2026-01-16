@@ -1,18 +1,18 @@
 # Test CodeQL Integration
 #
-# Validates CodeQL configuration and CLI availability in CI environment.
-# Actual scan testing is done locally with Install-CodeQL.ps1 or via the
-# main codeql-analysis.yml workflow which uses the official GitHub action.
+# Functional tests for CodeQL scripts that serve as documentation for how
+# to use the custom CLI tooling. Each job demonstrates a real usage pattern.
 #
-# Purpose:
-#   - Verify configuration YAML syntax and structure
-#   - Verify CodeQL CLI is accessible via setup-codeql action
-#   - Validate query pack references exist
+# Usage Patterns Documented:
+#   1. Install CLI once, validate config
+#   2. Run scan for specific language
+#   3. Run scan with JSON/SARIF output
 #
-# Local developers and AI agents can run full scans using:
+# Local developers and AI agents use the same commands:
 #   pwsh .codeql/scripts/Install-CodeQL.ps1  # One-time CLI setup
-#   pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
 #   pwsh .codeql/scripts/Test-CodeQLConfig.ps1
+#   pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Languages python
+#   pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Format json
 
 name: Test CodeQL Integration
 
@@ -33,112 +33,108 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test-config-validation:
-    name: Test Config Validation
+  # Pattern 1: Install CLI and validate configuration
+  test-install-and-config:
+    name: Install CLI & Validate Config
     # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
-      security-events: read  # Required for setup-codeql action API access
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Setup CodeQL CLI
-        id: setup-codeql
-        uses: github/codeql-action/setup-codeql@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
-
-      - name: Add CodeQL to PATH
+      - name: Install zstd (required for CodeQL bundle extraction)
         run: |
-          echo "$(dirname ${{ steps.setup-codeql.outputs.codeql-path }})" >> $GITHUB_PATH
-          echo "CodeQL path: ${{ steps.setup-codeql.outputs.codeql-path }}"
-          echo "CodeQL version: ${{ steps.setup-codeql.outputs.codeql-version }}"
+          sudo apt-get update
+          sudo apt-get install -y zstd
 
-      - name: Verify CodeQL CLI is accessible
-        run: |
-          codeql version
-          echo "CodeQL CLI setup successful"
-
-      - name: Install powershell-yaml module
+      # Usage: Install CodeQL CLI (one-time setup)
+      - name: Install CodeQL CLI
         shell: pwsh
         run: |
-          Install-Module -Name powershell-yaml -Force -Scope CurrentUser -AllowClobber
+          ./.codeql/scripts/Install-CodeQL.ps1 -CI -Force
 
-      - name: Validate configuration YAML syntax
+      - name: Verify CodeQL CLI version
         shell: pwsh
         run: |
-          $configPath = ".github/codeql/codeql-config.yml"
-
-          if (-not (Test-Path $configPath)) {
-            Write-Error "Config file not found: $configPath"
+          $codeql = ".codeql/cli/codeql"
+          if (-not (Test-Path $codeql)) {
+            Write-Error "CodeQL CLI not found at: $codeql"
             exit 1
           }
 
-          # Parse YAML
-          Import-Module powershell-yaml
-          $content = Get-Content $configPath -Raw
-          $config = ConvertFrom-Yaml $content
+          $version = & $codeql version
+          Write-Host "CodeQL CLI installed: $version"
 
-          Write-Host "Configuration parsed successfully"
-          Write-Host "Name: $($config.name)"
-
-          # Verify required fields
-          if (-not $config.packs -and -not $config.queries) {
-            Write-Error "Config must have 'packs' or 'queries' field"
-            exit 1
-          }
-
-          Write-Host "YAML syntax validation passed"
-
-      - name: Verify query packs are resolvable
-        run: |
-          echo "Checking if query packs can be resolved..."
-
-          # Test that the CLI can resolve the configured query packs
-          # This validates the pack references without running a full scan
-          codeql resolve queries codeql/python-queries:codeql-suites/python-security-extended.qls || echo "Note: Pack resolution may require download"
-          codeql resolve queries codeql/actions-queries:codeql-suites/actions-security-extended.qls || echo "Note: Pack resolution may require download"
-
-          echo "Query pack validation completed"
-
-      - name: Verify expected packs in config
+      # Usage: Validate configuration before running scans
+      - name: Validate CodeQL configuration
         shell: pwsh
         run: |
-          $configPath = ".github/codeql/codeql-config.yml"
-          Import-Module powershell-yaml
-          $content = Get-Content $configPath -Raw
-          $config = ConvertFrom-Yaml $content
+          ./.codeql/scripts/Test-CodeQLConfig.ps1 -CI
 
-          # Note: PowerShell is not a supported CodeQL language
-          # PowerShell scripts are analyzed via PSScriptAnalyzer instead
-          $expectedPacks = @(
-            'codeql/actions-queries:codeql-suites/actions-security-extended.qls',
-            'codeql/python-queries:codeql-suites/python-security-extended.qls'
-          )
-
-          $allFound = $true
-          foreach ($pack in $expectedPacks) {
-            if ($config.packs -notcontains $pack) {
-              Write-Warning "Expected pack not found: $pack"
-              $allFound = $false
-            } else {
-              Write-Host "Found pack: $pack"
-            }
-          }
-
-          if (-not $allFound) {
-            Write-Error "Some expected packs are missing from configuration"
-            exit 1
-          }
-
-          Write-Host "All expected query packs found in configuration"
-
-  validate-scripts-syntax:
-    name: Validate Scripts Syntax
+  # Pattern 2: Run scan for a specific language
+  test-scan-language:
+    name: Scan Language (${{ matrix.language }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Note: PowerShell is not a supported CodeQL language
+        # PowerShell scripts are analyzed via PSScriptAnalyzer instead
+        language: [actions, python]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install zstd
+        run: sudo apt-get update && sudo apt-get install -y zstd
+
+      - name: Install CodeQL CLI
+        shell: pwsh
+        run: ./.codeql/scripts/Install-CodeQL.ps1 -CI -Force
+
+      # Usage: Scan specific language with console output
+      - name: Run CodeQL scan for ${{ matrix.language }}
+        shell: pwsh
+        run: |
+          ./.codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "${{ matrix.language }}" -CI -Format console
+
+      - name: Verify scan artifacts
+        shell: pwsh
+        env:
+          LANGUAGE: ${{ matrix.language }}
+        run: |
+          # Verify database was created
+          $dbPath = ".codeql/db/$env:LANGUAGE"
+          if (-not (Test-Path $dbPath)) {
+            Write-Error "Database not created: $dbPath"
+            exit 1
+          }
+          Write-Host "Database created: $dbPath"
+
+          # Verify SARIF output
+          $sarifPath = ".codeql/results/$env:LANGUAGE.sarif"
+          if (-not (Test-Path $sarifPath)) {
+            Write-Error "SARIF not created: $sarifPath"
+            exit 1
+          }
+
+          $sarif = Get-Content $sarifPath -Raw | ConvertFrom-Json
+          Write-Host "SARIF created: $($sarif.runs[0].results.Count) findings"
+
+  # Pattern 3: Run scan with JSON output format
+  test-scan-json-output:
+    name: Scan with JSON Output
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -146,55 +142,47 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Validate PowerShell script syntax
+      - name: Install zstd
+        run: sudo apt-get update && sudo apt-get install -y zstd
+
+      - name: Install CodeQL CLI
+        shell: pwsh
+        run: ./.codeql/scripts/Install-CodeQL.ps1 -CI -Force
+
+      # Usage: Run full scan with JSON output (for CI integration)
+      - name: Run CodeQL scan with JSON output
         shell: pwsh
         run: |
-          $scripts = @(
-            ".codeql/scripts/Install-CodeQL.ps1",
-            ".codeql/scripts/Invoke-CodeQLScan.ps1",
-            ".codeql/scripts/Test-CodeQLConfig.ps1"
-          )
+          ./.codeql/scripts/Invoke-CodeQLScan.ps1 -CI -Format json
 
-          $hasErrors = $false
-          foreach ($script in $scripts) {
-            Write-Host "Checking syntax: $script"
+      - name: Verify SARIF structure
+        shell: pwsh
+        run: |
+          $sarifFiles = Get-ChildItem -Path ".codeql/results" -Filter "*.sarif"
 
-            if (-not (Test-Path $script)) {
-              Write-Error "Script not found: $script"
-              $hasErrors = $true
-              continue
-            }
-
-            try {
-              $null = [System.Management.Automation.Language.Parser]::ParseFile(
-                (Resolve-Path $script).Path,
-                [ref]$null,
-                [ref]$errors
-              )
-
-              if ($errors.Count -gt 0) {
-                Write-Error "Syntax errors in $script"
-                $errors | ForEach-Object { Write-Error $_.Message }
-                $hasErrors = $true
-              } else {
-                Write-Host "  Syntax OK"
-              }
-            }
-            catch {
-              Write-Error "Failed to parse $script : $_"
-              $hasErrors = $true
-            }
-          }
-
-          if ($hasErrors) {
+          if (-not $sarifFiles) {
+            Write-Error "No SARIF files created"
             exit 1
           }
 
-          Write-Host "All CodeQL scripts have valid syntax"
+          foreach ($file in $sarifFiles) {
+            Write-Host "Validating: $($file.Name)"
+            $sarif = Get-Content $file.FullName -Raw | ConvertFrom-Json
+
+            # Validate required SARIF fields
+            if (-not $sarif.version -or -not $sarif.runs) {
+              Write-Error "Invalid SARIF structure in $($file.Name)"
+              exit 1
+            }
+
+            Write-Host "  Version: $($sarif.version)"
+            Write-Host "  Runs: $($sarif.runs.Count)"
+            Write-Host "  Results: $($sarif.runs[0].results.Count)"
+          }
 
   aggregate-results:
     name: Aggregate Results
-    needs: [test-config-validation, validate-scripts-syntax]
+    needs: [test-install-and-config, test-scan-language, test-scan-json-output]
     if: always()
     # Aggregate job can use ARM since it doesn't run CodeQL CLI
     runs-on: ubuntu-24.04-arm
@@ -205,26 +193,37 @@ jobs:
       - name: Check job results
         shell: pwsh
         env:
-          CONFIG_RESULT: ${{ needs.test-config-validation.result }}
-          SYNTAX_RESULT: ${{ needs.validate-scripts-syntax.result }}
+          INSTALL_RESULT: ${{ needs.test-install-and-config.result }}
+          LANGUAGE_RESULT: ${{ needs.test-scan-language.result }}
+          JSON_RESULT: ${{ needs.test-scan-json-output.result }}
         run: |
           $results = @{
-            'Config Validation' = $env:CONFIG_RESULT
-            'Scripts Syntax' = $env:SYNTAX_RESULT
+            'Install & Config' = $env:INSTALL_RESULT
+            'Language Scans' = $env:LANGUAGE_RESULT
+            'JSON Output' = $env:JSON_RESULT
           }
 
           $allPassed = $true
           $summary = @"
           ## CodeQL Integration Test Results
 
-          | Test | Status |
-          |------|--------|
+          These tests document how to use the CodeQL scripts locally:
+
+          | Test | Status | Usage Pattern |
+          |------|--------|---------------|
           "@
+
+          $patterns = @{
+            'Install & Config' = '``Install-CodeQL.ps1`` + ``Test-CodeQLConfig.ps1``'
+            'Language Scans' = '``Invoke-CodeQLScan.ps1 -Languages <lang>``'
+            'JSON Output' = '``Invoke-CodeQLScan.ps1 -Format json``'
+          }
 
           foreach ($test in $results.Keys) {
             $status = $results[$test]
             $emoji = if ($status -eq 'success') { '✓' } elseif ($status -eq 'skipped') { '⏭' } else { '✗' }
-            $summary += "`n| $test | $emoji $status |"
+            $pattern = $patterns[$test]
+            $summary += "`n| $test | $emoji $status | $pattern |"
 
             if ($status -notin @('success', 'skipped')) {
               $allPassed = $false
@@ -232,11 +231,9 @@ jobs:
           }
 
           if ($allPassed) {
-            $summary += "`n`n> [!TIP]`n> All CodeQL integration tests passed!"
-            $summary += "`n`n**Note**: Full scan testing is done locally via \`Install-CodeQL.ps1\` + \`Invoke-CodeQLScan.ps1\`"
-            $summary += "`nor via the main \`codeql-analysis.yml\` workflow which uses the official GitHub action."
+            $summary += "`n`n> [!TIP]`n> All integration tests passed! See CONTRIBUTING.md for usage details."
           } else {
-            $summary += "`n`n> [!CAUTION]`n> Some CodeQL integration tests failed. Review logs above."
+            $summary += "`n`n> [!CAUTION]`n> Some tests failed. Review logs above."
           }
 
           $summary | Add-Content $env:GITHUB_STEP_SUMMARY
