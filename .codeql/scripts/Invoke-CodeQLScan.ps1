@@ -336,6 +336,11 @@ function Invoke-CodeQLDatabaseCreate {
 
     $langDbPath = Join-Path $DatabasePath $Language
 
+    # Ensure parent database directory exists
+    if (-not (Test-Path $DatabasePath)) {
+        New-Item -ItemType Directory -Path $DatabasePath -Force | Out-Null
+    }
+
     if (-not $CI) {
         Write-Host "Creating CodeQL database for $Language..." -ForegroundColor Cyan
     }
