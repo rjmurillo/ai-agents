@@ -31,11 +31,9 @@ Autonomous workflow for debugging and fixing failing GitHub Actions CI checks.
 
 ## Triggers
 
-| Phrase | Action |
-|--------|--------|
-| `fix ci` | Full autonomous fix workflow |
-| `fix ci failures` | Same as above |
-| `fix failing checks` | Same as above |
+| Phrase(s) | Action |
+|-----------|--------|
+| `fix ci`, `fix ci failures`, `fix failing checks` | Full autonomous fix workflow |
 | `why is ci failing` | Analyze failures, report findings |
 | `debug ci` | Fetch logs and analyze without fixing |
 | `get ci logs for #123` | Fetch failure logs only |
