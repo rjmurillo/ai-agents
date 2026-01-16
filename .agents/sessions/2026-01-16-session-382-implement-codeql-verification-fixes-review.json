@@ -178,14 +178,21 @@
         ".agents/analysis/041-adr-codeql-integration-review.md",
         ".agents/architecture/ADR-041-REVIEW.md"
       ]
+    },
+    {
+      "timestamp": "2026-01-16T13:00:00Z",
+      "action": "Fixed P1 issue: Added explicit language support section to ADR-041",
+      "details": "Added Language Support subsection in Decision Outcome section with explicit documentation of all three supported languages (PowerShell, Python, GitHub Actions) and their query packs. This complements the existing language coverage statement at line 233 and fully addresses the P1 documentation inconsistency identified in the ADR review.",
+      "files": [
+        ".agents/architecture/ADR-041-codeql-integration.md",
+        ".agents/critique/ADR-041-review-summary.md"
+      ]
     }
   ],
-  "endingCommit": "d1b72050",
+  "endingCommit": "6321e7cb",
   "nextSteps": [
-    "Commit all changes (documentation, tests, ADR review artifacts)",
-    "Fix P1 issue: Update ADR-041 PowerShell language coverage",
-    "Update Serena memory with learnings",
-    "Run retrospective"
+    "Update Serena memory with learnings from this session",
+    "Consider retrospective analysis for pattern extraction"
   ],
   "session": {
     "startingCommit": "55b4f3a6",
