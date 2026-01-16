@@ -1,10 +1,10 @@
 ---
 name: github
-version: 3.0.0
+version: 3.1.0
 model: claude-opus-4-5
-description: Execute GitHub operations (PRs, issues, labels, comments, merges) using
-  PowerShell scripts with structured output and error handling. Use when working with
-  pull requests, issues, review comments, or CI checks instead of raw gh commands.
+description: Execute GitHub operations (PRs, issues, milestones, labels, comments, merges)
+  using PowerShell scripts with structured output and error handling. Use when working
+  with pull requests, issues, review comments, CI checks, or milestones instead of raw gh.
 license: MIT
 metadata:
   domains:
@@ -36,8 +36,9 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 |--------|-----------|
 | `get PR context for #123` | Get-PRContext.ps1 |
 | `respond to review comments` | Post-PRCommentReply.ps1 |
-| `add label to issue #456` | Set-IssueLabels.ps1 |
-| `merge this PR` | Merge-PR.ps1 |
+| `check CI status` | Get-PRChecks.ps1 |
+| `add label to issue` | Set-IssueLabels.ps1 |
+| `assign milestone` | Set-ItemMilestone.ps1 |
 
 ---
 
@@ -57,6 +58,7 @@ Need GitHub data?
 ├─ Copilot follow-up PRs → Detect-CopilotFollowUpPR.ps1
 ├─ Issue info → Get-IssueContext.ps1
 ├─ Merge readiness check → Test-PRMergeReady.ps1
+├─ Latest milestone → Get-LatestSemanticMilestone.ps1
 └─ Need to take action?
    ├─ Create issue → New-Issue.ps1
    ├─ Create PR → New-PR.ps1
@@ -65,7 +67,9 @@ Need GitHub data?
    ├─ Comment on issue → Post-IssueComment.ps1
    ├─ Add reaction → Add-CommentReaction.ps1
    ├─ Apply labels → Set-IssueLabels.ps1
-   ├─ Set milestone → Set-IssueMilestone.ps1
+   ├─ Set issue milestone → Set-IssueMilestone.ps1
+   ├─ Set PR/issue milestone (auto-detect) → Set-ItemMilestone.ps1
+   ├─ Assign issue → Set-IssueAssignee.ps1
    ├─ Resolve threads → Resolve-PRReviewThread.ps1
    ├─ Process AI triage → Invoke-PRCommentProcessing.ps1
    ├─ Assign Copilot → Invoke-CopilotAssignment.ps1
@@ -116,6 +120,14 @@ Need GitHub data?
 | `Set-IssueMilestone.ps1` | Assign milestone | `-Issue`, `-Milestone` |
 | `Post-IssueComment.ps1` | Comments with idempotency | `-Issue`, `-Body`, `-Marker` |
 | `Invoke-CopilotAssignment.ps1` | Synthesize context for Copilot | `-IssueNumber`, `-WhatIf` |
+| `Set-IssueAssignee.ps1` | Assign users to issues | `-Issue`, `-Assignees` |
+
+### Milestone Operations (`scripts/milestone/`)
+
+| Script | Purpose | Key Parameters |
+|--------|---------|----------------|
+| `Get-LatestSemanticMilestone.ps1` | Detect latest semantic version milestone | `-Owner`, `-Repo` |
+| `Set-ItemMilestone.ps1` | Assign milestone to PR/issue (auto-detect) | `-ItemType`, `-ItemNumber`, `-MilestoneTitle` |
 
 ### Reactions (`scripts/reactions/`)
 
@@ -141,12 +153,14 @@ if ($result.Success) { ... }
 This skill provides a toolkit of PowerShell scripts for GitHub operations. Use scripts directly or compose them into workflows.
 
 **Basic Usage:**
+
 1. Identify the operation needed using the Decision Tree
 2. Find the corresponding script in the Script Reference
 3. Call the script with required parameters
 4. Parse the JSON output and check `Success` field
 
 **Example Flow:**
+
 ```powershell
 # Get PR context
 $pr = pwsh scripts/pr/Get-PRContext.ps1 -PullRequest 123 | ConvertFrom-Json
