@@ -9,7 +9,7 @@
         "serena",
         "start-mcp-server",
         "--project",
-        "${workspaceFolder:-.}",
+        ".",
         "--context",
         "ide",
         "--port",

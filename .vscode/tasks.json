@@ -1,0 +1,113 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CodeQL: Full Scan",
+      "type": "shell",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        ".codeql/scripts/Invoke-CodeQLScan.ps1"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "CodeQL: Scan Current File",
+      "type": "shell",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        ".codeql/scripts/Invoke-CodeQLScan.ps1",
+        "-Languages",
+        "${input:languageForCurrentFile}"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "group": "test",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "CodeQL: Install CLI",
+      "type": "shell",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        ".codeql/scripts/Install-CodeQL.ps1",
+        "-AddToPath"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "CodeQL: Rebuild Database",
+      "type": "shell",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        ".codeql/scripts/Invoke-CodeQLScan.ps1",
+        "-UseCache:$false"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "group": "test",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "CodeQL: Validate Config",
+      "type": "shell",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        ".codeql/scripts/Test-CodeQLConfig.ps1"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "languageForCurrentFile",
+      "type": "pickString",
+      "description": "Select language to scan",
+      "options": [
+        "powershell",
+        "python",
+        "actions"
+      ],
+      "default": "powershell"
+    }
+  ]
+}
