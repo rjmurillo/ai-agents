@@ -37,6 +37,54 @@ gh --version
 
 [[ -n "${GITHUB_TOKEN:-}" ]] && export GH_TOKEN="$GITHUB_TOKEN"
 
+echo "=== pyenv (Python 3.12.8) ==="
+# Python 3.13.7 has a critical bug breaking CodeQL and skill validation
+# Ubuntu 25.10 has no packages for 3.12.x, so we use pyenv
+if ! command -v pyenv &>/dev/null; then
+    # Install build dependencies for Python compilation
+    sudo apt-get install -y -qq build-essential libssl-dev zlib1g-dev \
+        libbz2-dev libreadline-dev libsqlite3-dev curl git \
+        libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
+
+    # Install pyenv
+    curl https://pyenv.run | bash
+
+    # Add pyenv to PATH for this session
+    export PYENV_ROOT="$HOME/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)"
+
+    # Add pyenv to .bashrc for future sessions
+    {
+        echo ''
+        echo '# pyenv'
+        echo 'export PYENV_ROOT="$HOME/.pyenv"'
+        echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"'
+        echo 'eval "$(pyenv init -)"'
+    } >> "$HOME/.bashrc"
+fi
+
+# Ensure pyenv is available
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+if command -v pyenv &>/dev/null; then
+    eval "$(pyenv init -)"
+fi
+
+# Install Python 3.12.8
+if ! pyenv versions --bare | grep -q "^3.12.8$"; then
+    echo "Installing Python 3.12.8 via pyenv (this may take a few minutes)..."
+    pyenv install 3.12.8
+fi
+
+# Set Python 3.12.8 as the local version for this project
+if [[ -d ".git" ]]; then
+    pyenv local 3.12.8
+    echo "Python 3.12.8 set as local version (.python-version file created)"
+fi
+
+python3 --version
+
 echo "=== Python uv ==="
 if ! command -v uv &>/dev/null && [[ ! -f "$HOME/.local/bin/uv" ]]; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
