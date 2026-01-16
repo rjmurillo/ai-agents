@@ -69,9 +69,9 @@ Describe "Invoke-CodeQLScanSkill.ps1 Parameter Validation" {
         $script | Should -Match '\$Operation\s*=\s*"full"'
     }
 
-    It "Should accept 'powershell', 'python', 'actions' for Languages" {
+    It "Should accept 'python', 'actions' for Languages" {
         $script = Get-Content $scriptPath -Raw
-        $script | Should -Match '\[ValidateSet\("powershell",\s*"python",\s*"actions"\)\]'
+        $script | Should -Match '\[ValidateSet\("python",\s*"actions"\)\]'
     }
 }
 

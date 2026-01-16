@@ -1,6 +1,6 @@
 ---
 name: codeql-scan
-description: Execute CodeQL security scans with language detection, database caching, and SARIF output. Use when performing static security analysis on PowerShell, Python, or GitHub Actions code.
+description: Execute CodeQL security scans with language detection, database caching, and SARIF output. Use when performing static security analysis on Python or GitHub Actions code.
 version: 1.0.0
 license: MIT
 model: claude-sonnet-4-5
@@ -49,7 +49,7 @@ Need CodeQL analysis?
 ├─ Validate config → Test-CodeQLConfig.ps1
 ├─ Full repository scan → Invoke-CodeQLScan.ps1
 ├─ Quick scan (cached) → Invoke-CodeQLScan.ps1 -UseCache
-├─ Specific language → Invoke-CodeQLScan.ps1 -Languages "powershell"
+├─ Specific language → Invoke-CodeQLScan.ps1 -Languages "python"
 └─ CI mode → Invoke-CodeQLScan.ps1 -CI -Format json
 ```
 
@@ -124,13 +124,8 @@ flowchart TD
 === CodeQL Security Scan ===
 
 [✓] CodeQL CLI found at .codeql/cli/codeql
-[✓] Languages detected: powershell, python, actions
+[✓] Languages detected: python, actions
 [✓] Running full scan (no cache)...
-
-Scanning powershell...
-  Database created: .codeql/db/powershell
-  Queries executed: 127
-  Findings: 3 (0 high, 2 medium, 1 low)
 
 Scanning python...
   Database created: .codeql/db/python
@@ -145,7 +140,7 @@ Scanning actions...
 [✓] SARIF results saved to .codeql/results/
 [✓] Scan completed successfully
 
-Total findings: 4 (0 high, 2 medium, 2 low)
+Total findings: 1 (0 high, 0 medium, 1 low)
 ```
 
 ### 2. Quick Scan (Cached)
@@ -196,7 +191,6 @@ Total findings: 4 (0 high, 2 medium, 2 low)
 [✓] Configuration file found: .github/codeql/codeql-config.yml
 [✓] YAML syntax valid
 [✓] Query packs resolved:
-    - codeql/powershell-queries
     - codeql/python-queries
     - codeql/actions-queries
 [✓] Language configurations valid
@@ -215,11 +209,11 @@ Configuration is valid
    ```powershell
    pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 `
        -Operation full `
-       -Languages "powershell"
+       -Languages "python"
    ```
 
 2. **Use Cases:**
-   - Testing PowerShell scripts only
+   - Testing Python scripts only
    - Validating GitHub Actions workflows only
    - Focused analysis during refactoring
 
@@ -253,7 +247,7 @@ Wrapper script providing skill-specific functionality.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `-Operation` | ValidateSet | `"full"` | Operation type: `full`, `quick`, `validate` |
-| `-Languages` | String[] | (auto-detect) | Languages to scan: `powershell`, `python`, `actions` |
+| `-Languages` | String[] | (auto-detect) | Languages to scan: `python`, `actions` |
 | `-CI` | Switch | `$false` | Enable CI mode (exit 1 on findings) |
 
 **Exit Codes (ADR-035):**
@@ -281,10 +275,10 @@ Wrapper script providing skill-specific functionality.
 .\Invoke-CodeQLScanSkill.ps1 -Operation full -CI
 
 # Scan specific language
-.\Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "powershell"
+.\Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "python"
 
 # Scan multiple languages
-.\Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "powershell", "python"
+.\Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "python", "actions"
 ```
 
 ### Underlying Scripts
@@ -318,15 +312,15 @@ Results are saved in SARIF format for IDE integration:
       }
     },
     "results": [{
-      "ruleId": "powershell/command-injection",
+      "ruleId": "py/sql-injection",
       "level": "error",
       "message": {
-        "text": "Potential command injection vulnerability"
+        "text": "Potential SQL injection vulnerability"
       },
       "locations": [{
         "physicalLocation": {
           "artifactLocation": {
-            "uri": "scripts/example.ps1"
+            "uri": "scripts/example.py"
           },
           "region": {
             "startLine": 42
@@ -345,11 +339,6 @@ Human-readable summary with severity counts:
 ```text
 === CodeQL Scan Results ===
 
-powershell:
-  ❌ High:   0
-  ⚠️  Medium: 2
-  ℹ️  Low:    1
-
 python:
   ❌ High:   0
   ⚠️  Medium: 0
@@ -358,7 +347,7 @@ python:
 actions:
   ✓ No findings
 
-Total: 4 findings (0 high, 2 medium, 2 low)
+Total: 1 finding (0 high, 0 medium, 1 low)
 
 SARIF files: .codeql/results/
 ```
@@ -370,15 +359,14 @@ Machine-readable format for CI integration:
 ```json
 {
   "status": "findings_detected",
-  "languages": ["powershell", "python", "actions"],
+  "languages": ["python", "actions"],
   "findings": {
-    "total": 4,
+    "total": 1,
     "high": 0,
-    "medium": 2,
-    "low": 2
+    "medium": 0,
+    "low": 1
   },
   "sarif_files": [
-    ".codeql/results/powershell.sarif",
     ".codeql/results/python.sarif",
     ".codeql/results/actions.sarif"
   ]
@@ -454,7 +442,7 @@ pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation qu
 ```powershell
 # Mixing interfaces
 pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "powershell"
+pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "python"
 ```
 
 **Correct:**
@@ -462,7 +450,7 @@ pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "powershell"
 ```powershell
 # Consistent interface via skill wrapper
 pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "powershell"
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "python"
 ```
 
 ## Verification Checklist
@@ -511,7 +499,7 @@ codeql version
 **Error:**
 
 ```text
-Error: Invalid query pack: codeql/powershell-queries
+Error: Invalid query pack: codeql/unknown-queries
 ```
 
 **Solution:**
@@ -542,7 +530,7 @@ Error: Query execution timed out after 300s
 # Or scan specific language to reduce scope
 pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 `
     -Operation full `
-    -Languages "powershell"
+    -Languages "python"
 ```
 
 ### Cache Invalidation Issues

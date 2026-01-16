@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     This script performs a complete CodeQL security scan by:
-    1. Auto-detecting languages in the repository (PowerShell, Python, GitHub Actions)
+    1. Auto-detecting languages in the repository (Python, GitHub Actions)
     2. Creating CodeQL databases for each detected language
     3. Running security queries against the databases using shared configuration
     4. Generating SARIF output files for review and upload
@@ -31,7 +31,7 @@
 
 .PARAMETER Languages
     Array of languages to scan. If not specified, languages are auto-detected.
-    Supported values: "powershell", "python", "actions"
+    Supported values: "python", "actions"
 
 .PARAMETER UseCache
     If specified, reuses cached databases if they are still valid (no config changes,
@@ -51,8 +51,8 @@
     Auto-detects languages and performs full scan with console output
 
 .EXAMPLE
-    .\Invoke-CodeQLScan.ps1 -Languages "powershell","python" -UseCache
-    Scans only PowerShell and Python, using cached databases if valid
+    .\Invoke-CodeQLScan.ps1 -Languages "python","actions" -UseCache
+    Scans only Python and GitHub Actions, using cached databases if valid
 
 .EXAMPLE
     .\Invoke-CodeQLScan.ps1 -CI -Format json
@@ -155,16 +155,6 @@ function Get-RepositoryLanguage {
     )
 
     $detectedLanguages = @()
-
-    # Check for PowerShell files
-    $psFiles = Get-ChildItem -Path $RepoPath -Filter "*.ps*1" -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.Extension -in @('.ps1', '.psm1', '.psd1') } |
-        Select-Object -First 1
-
-    if ($psFiles) {
-        $detectedLanguages += "powershell"
-        Write-Verbose "Detected PowerShell files"
-    }
 
     # Check for Python files
     $pyFiles = Get-ChildItem -Path $RepoPath -Filter "*.py" -Recurse -ErrorAction SilentlyContinue |

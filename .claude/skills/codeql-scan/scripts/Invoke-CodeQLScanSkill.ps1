@@ -15,7 +15,7 @@
 
 .PARAMETER Languages
     Array of languages to scan. If not provided, auto-detects from repository.
-    Valid values: "powershell", "python", "actions"
+    Valid values: "python", "actions"
 
 .PARAMETER CI
     Enable CI mode. When enabled, exits with code 1 if findings are detected.
@@ -37,8 +37,8 @@
     Run full scan in CI mode (exit 1 on findings).
 
 .EXAMPLE
-    .\Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "powershell"
-    Scan only PowerShell code.
+    .\Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "python"
+    Scan only Python code.
 
 .NOTES
     Exit Codes (ADR-035):
@@ -60,7 +60,7 @@ param(
     [string]$Operation = "full",
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("powershell", "python", "actions")]
+    [ValidateSet("python", "actions")]
     [string[]]$Languages,
 
     [Parameter(Mandatory = $false)]

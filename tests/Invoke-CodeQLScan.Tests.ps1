@@ -91,12 +91,6 @@ Describe "Get-CodeQLExecutable" {
 
 Describe "Get-RepositoryLanguage" {
     Context "Language Detection" {
-        It "Detects PowerShell files" {
-            $languages = Get-RepositoryLanguage -RepoPath $script:MockRepoPath
-
-            $languages | Should -Contain "powershell"
-        }
-
         It "Detects Python files" {
             $languages = Get-RepositoryLanguage -RepoPath $script:MockRepoPath
 
@@ -117,33 +111,21 @@ Describe "Get-RepositoryLanguage" {
             $languages = Get-RepositoryLanguage -RepoPath $script:MockRepoPath
 
             $languages.Count | Should -BeGreaterOrEqual 2
-            $languages | Should -Contain "powershell"
             $languages | Should -Contain "python"
-        }
-
-        It "Handles PowerShell file extensions (.ps1, .psm1, .psd1)" {
-            $multiExtRepo = Join-Path $script:TestTempDir "multi-ext-repo"
-            New-Item -ItemType Directory -Path $multiExtRepo -Force | Out-Null
-
-            "function Test {}" | Out-File -FilePath (Join-Path $multiExtRepo "module.psm1")
-            "@{ Version = '1.0' }" | Out-File -FilePath (Join-Path $multiExtRepo "manifest.psd1")
-
-            $languages = Get-RepositoryLanguage -RepoPath $multiExtRepo
-
-            $languages | Should -Contain "powershell"
+            $languages | Should -Contain "actions"
         }
 
         It "Ignores non-code files" {
             $mixedRepo = Join-Path $script:TestTempDir "mixed-repo"
             New-Item -ItemType Directory -Path $mixedRepo -Force | Out-Null
 
-            "Write-Host 'Code'" | Out-File -FilePath (Join-Path $mixedRepo "script.ps1")
+            "print('Code')" | Out-File -FilePath (Join-Path $mixedRepo "script.py")
             "# Documentation" | Out-File -FilePath (Join-Path $mixedRepo "readme.md")
             "Some text" | Out-File -FilePath (Join-Path $mixedRepo "data.txt")
 
             $languages = @(Get-RepositoryLanguage -RepoPath $mixedRepo)
 
-            $languages | Should -Contain "powershell"
+            $languages | Should -Contain "python"
             $languages.Count | Should -Be 1
         }
     }
@@ -239,13 +221,13 @@ Describe "Format-ScanResult" {
         It "Formats results without throwing" {
             $mockResults = @(
                 @{
-                    Language = "powershell"
+                    Language = "python"
                     FindingsCount = 5
                     Findings = @(
                         @{ level = "error"; message = @{ text = "Test error" } }
                         @{ level = "warning"; message = @{ text = "Test warning" } }
                     )
-                    SarifPath = "/path/to/powershell.sarif"
+                    SarifPath = "/path/to/python.sarif"
                 }
             )
 
@@ -270,7 +252,7 @@ Describe "Format-ScanResult" {
         It "Handles multiple findings without throwing" {
             $mockResults = @(
                 @{
-                    Language = "powershell"
+                    Language = "python"
                     FindingsCount = 3
                     Findings = @(
                         @{ level = "error" }
@@ -287,16 +269,16 @@ Describe "Format-ScanResult" {
         It "Handles multiple languages without throwing" {
             $mockResults = @(
                 @{
-                    Language = "powershell"
+                    Language = "python"
                     FindingsCount = 3
                     Findings = @()
-                    SarifPath = "/path/to/ps.sarif"
+                    SarifPath = "/path/to/py.sarif"
                 }
                 @{
-                    Language = "python"
+                    Language = "actions"
                     FindingsCount = 2
                     Findings = @()
-                    SarifPath = "/path/to/py.sarif"
+                    SarifPath = "/path/to/actions.sarif"
                 }
             )
 
@@ -308,7 +290,7 @@ Describe "Format-ScanResult" {
         It "Outputs valid JSON" {
             $mockResults = @(
                 @{
-                    Language = "powershell"
+                    Language = "python"
                     FindingsCount = 2
                     Findings = @()
                     SarifPath = "/path/to/results.sarif"
@@ -323,7 +305,7 @@ Describe "Format-ScanResult" {
         It "Includes total findings in JSON" {
             $mockResults = @(
                 @{
-                    Language = "powershell"
+                    Language = "python"
                     FindingsCount = 5
                     Findings = @()
                     SarifPath = "/path/to/results.sarif"
@@ -358,10 +340,10 @@ Describe "Format-ScanResult" {
         It "Formats SARIF output without throwing" {
             $mockResults = @(
                 @{
-                    Language = "powershell"
+                    Language = "python"
                     FindingsCount = 0
                     Findings = @()
-                    SarifPath = "/path/to/powershell.sarif"
+                    SarifPath = "/path/to/python.sarif"
                 }
             )
 
