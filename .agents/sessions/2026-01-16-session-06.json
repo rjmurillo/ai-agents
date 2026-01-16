@@ -108,12 +108,12 @@
         "evidence": "markdownlint-cli2 passed with 0 errors"
       },
       "changes_committed": {
-        "status": "pending",
-        "evidence": "Commit in progress"
+        "status": "complete",
+        "evidence": "Commit SHA: e682e313"
       },
       "validation_passed": {
-        "status": "pending",
-        "evidence": "Will run after commit"
+        "status": "complete",
+        "evidence": "Session Protocol validation: PASS"
       }
     }
   },
