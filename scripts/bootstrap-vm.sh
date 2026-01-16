@@ -6,7 +6,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 echo "=== System Prerequisites ==="
 sudo apt-get update -qq
-sudo apt-get install -y -qq curl wget git jq unzip apt-transport-https \
+sudo apt-get install -y -qq curl wget git jq unzip zstd apt-transport-https \
     ca-certificates gnupg software-properties-common build-essential
 
 echo "=== Node.js LTS ==="
