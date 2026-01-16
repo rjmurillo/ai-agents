@@ -496,7 +496,7 @@ Forgetful uses stdio transport with automatic installation via `uvx`. No manual 
 }
 ```
 
-### Prerequisites
+### Forgetful Installation Prerequisites
 
 Install `uv` if not already present:
 
