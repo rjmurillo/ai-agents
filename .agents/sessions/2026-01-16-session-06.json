@@ -34,6 +34,11 @@
       "timestamp": "2026-01-16T09:03:00Z",
       "action": "verification",
       "details": "Ran all Pester tests: 619 passed, 0 failed. Fixed markdown duplicate heading lint error."
+    },
+    {
+      "timestamp": "2026-01-16T10:00:00Z",
+      "action": "follow_up_update",
+      "details": "User verification requested for scripts/bootstrap-vm.sh and CONTRIBUTING.md. bootstrap-vm.sh already correct (Pester 5.7.1 on line 143). Updated CONTRIBUTING.md Prerequisites section to add PowerShell 7.5.4+ and Pester 5.7.1+ version requirements."
     }
   ],
   "decisions": [
@@ -54,6 +59,8 @@
   "outcomes": [
     "PowerShell version requirement updated from 7.4+/7.0+ to 7.5.4+ across all documentation",
     "Pester version requirement updated from 5.6+/5.x to 5.7.1+ across all documentation",
+    "CONTRIBUTING.md Prerequisites section updated with explicit PowerShell 7.5.4+ and Pester 5.7.1+ requirements",
+    "scripts/bootstrap-vm.sh verified as already correct (Pester 5.7.1 specified on line 143)",
     "All Pester tests pass with version 5.7.1 (619 passed, 0 failed)",
     "Markdown linting passes with no errors"
   ],
@@ -123,6 +130,8 @@
       "[x] PowerShell version updated to 7.5.4+",
       "[x] Pester version confirmed at 5.7.1+ (latest)",
       "[x] All documentation files updated",
+      "[x] CONTRIBUTING.md Prerequisites section updated",
+      "[x] scripts/bootstrap-vm.sh verified as correct",
       "[x] Tests verified (619 passed)",
       "[x] Markdown linting passed",
       "[x] Session log completed"

@@ -20,6 +20,12 @@ Thank you for your interest in contributing to this project. This guide explains
 
 ### Prerequisites
 
+**Required Versions:**
+
+- **PowerShell 7.5.4+** (for cross-platform script execution)
+- **Pester 5.7.1+** (for PowerShell testing framework)
+- **Python 3.12.x** (Not 3.13.x due to CodeQL/skill validation bug)
+
 **Python 3.12.x Required** (Not 3.13.x)
 
 This project requires Python 3.12.x due to a known bug in Python 3.13.7 that breaks CodeQL analysis and skill validation. Ubuntu 25.10 users must use `pyenv` to install Python 3.12.8:

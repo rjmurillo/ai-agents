@@ -81,6 +81,7 @@ globs:
   - "!.claude/skills/**"
   - "!tmp/**"
   - "!.factory/**"
+  - "!.codeql/**"
 
 ignores:
   - "node_modules/**"
@@ -89,6 +90,7 @@ ignores:
   - ".serena/memories/**"
   - "tmp/**"
   - ".factory/**"
+  - ".codeql/**"
   - "**/*.ps1"
   - "**/*.psm1"
   - ".factory/**"
