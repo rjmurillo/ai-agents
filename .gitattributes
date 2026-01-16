@@ -179,7 +179,7 @@
 .agents/handoffs/*.md merge=handoff-aggregate
 
 # ============================================================================
-# Markdown Files: Diff Configuration
+# Markdown and Skill Files: Diff Configuration
 # ============================================================================
 #
 # Note: LF line endings are enforced globally above (see "Line Ending Normalization" section)
