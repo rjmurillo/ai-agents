@@ -198,9 +198,18 @@ try {
             Write-Output "`n**CodeQL Quick Scan WARNING**: Scan timed out after 30s for ``$filePath``. Run full scan manually.`n"
         }
         else {
-            # Get results
+            # Get results and check job state
             $scanOutput = Receive-Job -Job $job
+            $jobState = $job.State  # Capture state BEFORE removing job
             Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+
+            # Check if job failed (Critical Issue #1 fix)
+            if ($jobState -eq 'Failed') {
+                Write-Warning "CodeQL quick scan failed for $filePath"
+                Write-Output "`n**CodeQL Quick Scan ERROR**: Scan failed. Check .codeql/logs/ or run manual scan for details.`n"
+                # Exit early - don't try to parse output from failed scan
+                return
+            }
 
             # Parse JSON output for findings count
             $findingsCount = 0
@@ -214,7 +223,12 @@ try {
                 }
             }
             catch {
-                Write-Verbose "Failed to parse scan JSON output: $_"
+                # Critical Issue #2 fix: Treat parse failures as errors, not silent failures
+                Write-Warning "CodeQL quick scan: Failed to parse scan output - $($_.Exception.Message)"
+                Write-Output "`n**CodeQL Quick Scan ERROR**: Scan output invalid. Run manual scan to see actual errors: ``pwsh .codeql/scripts/Invoke-CodeQLScan.ps1```n"
+                Write-Verbose "Full scan output: $($scanOutput | Out-String)"
+                # Exit early - parsing failed indicates scan error
+                return
             }
 
             if ($findingsCount -gt 0) {

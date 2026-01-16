@@ -525,14 +525,30 @@ function Invoke-CodeQLDatabaseAnalyze {
             }
         }
 
-        # Parse SARIF for findings count
-        if (Test-Path $sarifOutput) {
-            $sarif = Get-Content $sarifOutput -Raw | ConvertFrom-Json
-            $findings = $sarif.runs[0].results
+        # Parse SARIF for findings count (Critical Issue #4 fix: Add error handling)
+        $findings = @()
+        try {
+            if (Test-Path $sarifOutput) {
+                $sarif = Get-Content $sarifOutput -Raw | ConvertFrom-Json
+
+                # Validate SARIF structure before accessing nested properties
+                if ($sarif.runs -and $sarif.runs.Count -gt 0 -and $sarif.runs[0].results) {
+                    $findings = $sarif.runs[0].results
+                }
+                else {
+                    Write-Warning "SARIF file has unexpected structure for $Language (missing runs or results array)"
+                }
+            }
+            else {
+                # SARIF not generated (timeout or other issue)
+                Write-Verbose "SARIF output not found at $sarifOutput"
+            }
         }
-        else {
-            # SARIF not generated (timeout or other issue)
-            $findings = @()
+        catch {
+            Write-Error "Failed to parse SARIF output for ${Language}: $($_.Exception.Message)"
+            Write-Error "SARIF path: $sarifOutput"
+            Write-Verbose "This may indicate corrupted SARIF from crashed CodeQL process or schema version mismatch"
+            # Leave $findings as empty array - will report 0 findings with error logged
         }
 
         $result = @{
@@ -577,7 +593,18 @@ function Format-ScanResult {
             Write-Host "========================================" -ForegroundColor Cyan
 
             $totalFindings = 0
+            $timedOutLanguages = @()
+
             foreach ($result in $Results) {
+                # Critical Issue #3 fix: Check TimedOut flag before counting findings
+                if ($result.TimedOut) {
+                    $timedOutLanguages += $result.Language
+                    Write-Host "`n$($result.Language):" -ForegroundColor White -NoNewline
+                    Write-Host " TIMEOUT (not analyzed)" -ForegroundColor Red
+                    Write-Host "  Run manual scan to analyze this language" -ForegroundColor Gray
+                    continue
+                }
+
                 $totalFindings += $result.FindingsCount
 
                 $color = if ($result.FindingsCount -eq 0) { "Green" } else { "Yellow" }
@@ -601,8 +628,21 @@ function Format-ScanResult {
             }
 
             Write-Host "`n========================================" -ForegroundColor Cyan
+
+            # Show timeout warning if any languages timed out
+            if ($timedOutLanguages.Count -gt 0) {
+                Write-Host "WARNING: $($timedOutLanguages.Count) language(s) timed out and were not analyzed:" -ForegroundColor Red
+                Write-Host "  $($timedOutLanguages -join ', ')" -ForegroundColor Red
+                Write-Host ""
+            }
+
             $summaryColor = if ($totalFindings -eq 0) { "Green" } else { "Yellow" }
             Write-Host "Total Findings: $totalFindings" -ForegroundColor $summaryColor
+
+            if ($timedOutLanguages.Count -gt 0) {
+                Write-Host "(Excluding timed out languages)" -ForegroundColor Gray
+            }
+
             Write-Host "========================================" -ForegroundColor Cyan
         }
 
