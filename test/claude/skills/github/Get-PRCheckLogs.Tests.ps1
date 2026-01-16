@@ -23,8 +23,8 @@
 #>
 
 BeforeAll {
-    $Script:ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "pr" "Get-PRCheckLogs.ps1"
-    $Script:ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubCore.psm1"
+    $Script:ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Get-PRCheckLogs.ps1"
+    $Script:ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 
     # Verify script exists
     if (-not (Test-Path $Script:ScriptPath)) {

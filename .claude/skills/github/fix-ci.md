@@ -1,11 +1,11 @@
 ---
 name: fix-ci
-version: 1.0.0
-model: claude-opus-4-5
 description: Autonomously inspect failing GitHub Actions CI checks, fetch logs, analyze
   failures, and implement fixes without user approval. Integrates with Get-PRCheckLogs.ps1
   for log retrieval. Use for "fix ci", "why is ci failing", "debug ci failures".
 license: MIT
+version: 1.0.0
+model: claude-sonnet-4-5
 metadata:
   domains:
     - github
@@ -34,8 +34,7 @@ Autonomous workflow for debugging and fixing failing GitHub Actions CI checks.
 | Phrase(s) | Action |
 |-----------|--------|
 | `fix ci`, `fix ci failures`, `fix failing checks` | Full autonomous fix workflow |
-| `why is ci failing` | Analyze failures, report findings |
-| `debug ci` | Fetch logs and analyze without fixing |
+| `why is ci failing`, `debug ci` | Analyze failures, report findings |
 | `get ci logs for #123` | Fetch failure logs only |
 
 ---
@@ -172,7 +171,7 @@ After all fixes implemented:
 git add -A
 git commit -m "fix: resolve CI failures" \
   -m "- [List each fix made]" \
-  -m "Co-Authored-By: Claude <noreply@anthropic.com>"
+  -m "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 git push
 ```
 
