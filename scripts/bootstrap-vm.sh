@@ -54,14 +54,29 @@ if ! command -v pyenv &>/dev/null; then
     export PATH="$PYENV_ROOT/bin:$PATH"
     eval "$(pyenv init -)"
 
-    # Add pyenv to .bashrc for future sessions
-    {
-        echo ''
-        echo '# pyenv'
-        echo 'export PYENV_ROOT="$HOME/.pyenv"'
-        echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"'
-        echo 'eval "$(pyenv init -)"'
-    } >> "$HOME/.bashrc"
+    # Add pyenv to shell config for future sessions
+    # Detect shell and update appropriate config file
+    SHELL_CONFIG=""
+    if [[ -n "$ZSH_VERSION" ]] || [[ "$SHELL" == *"zsh"* ]]; then
+        SHELL_CONFIG="$HOME/.zshrc"
+    elif [[ -n "$BASH_VERSION" ]] || [[ "$SHELL" == *"bash"* ]]; then
+        SHELL_CONFIG="$HOME/.bashrc"
+    else
+        # Default to bashrc if shell cannot be detected
+        SHELL_CONFIG="$HOME/.bashrc"
+    fi
+
+    # Only add if not already present
+    if ! grep -q "PYENV_ROOT" "$SHELL_CONFIG" 2>/dev/null; then
+        {
+            echo ''
+            echo '# pyenv'
+            echo 'export PYENV_ROOT="$HOME/.pyenv"'
+            echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"'
+            echo 'eval "$(pyenv init -)"'
+        } >> "$SHELL_CONFIG"
+        echo "Added pyenv configuration to $SHELL_CONFIG"
+    fi
 fi
 
 # Ensure pyenv is available

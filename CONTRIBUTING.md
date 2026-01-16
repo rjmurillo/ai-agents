@@ -28,10 +28,19 @@ This project requires Python 3.12.x due to a known bug in Python 3.13.7 that bre
 # Install pyenv (if not already installed)
 curl https://pyenv.run | bash
 
-# Add to ~/.bashrc
+# Add to your shell profile (~/.bashrc or ~/.zshrc)
+cat >> ~/.bashrc <<'EOF'
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init -)"
+EOF
+
+# Or for zsh users:
+cat >> ~/.zshrc <<'EOF'
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+EOF
 
 # Reload shell
 exec "$SHELL"
