@@ -116,7 +116,8 @@ jobs:
           path: .codeql/cli
 
       - name: Set executable permissions
-        run: chmod +x .codeql/cli/codeql
+        # Artifacts don't preserve permissions; restore for all CLI binaries
+        run: find .codeql/cli -type f \( -name "codeql" -o -name "*.sh" -o -path "*/tools/*" \) -exec chmod +x {} \;
 
       - name: Install powershell-yaml module
         shell: pwsh
@@ -199,7 +200,8 @@ jobs:
           path: .codeql/cli
 
       - name: Set executable permissions
-        run: chmod +x .codeql/cli/codeql
+        # Artifacts don't preserve permissions; restore for all CLI binaries
+        run: find .codeql/cli -type f \( -name "codeql" -o -name "*.sh" -o -path "*/tools/*" \) -exec chmod +x {} \;
 
       - name: Run CodeQL scan with JSON output
         shell: pwsh
@@ -323,7 +325,8 @@ jobs:
           path: .codeql/cli
 
       - name: Set executable permissions
-        run: chmod +x .codeql/cli/codeql
+        # Artifacts don't preserve permissions; restore for all CLI binaries
+        run: find .codeql/cli -type f \( -name "codeql" -o -name "*.sh" -o -path "*/tools/*" \) -exec chmod +x {} \;
 
       - name: Run scan for ${{ matrix.language }}
         shell: pwsh
