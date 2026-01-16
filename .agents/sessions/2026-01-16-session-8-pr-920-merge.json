@@ -18,10 +18,10 @@
     },
     "sessionEnd": {
       "sessionLogComplete": true,
-      "serenaMemoryUpdated": false,
-      "lintingRun": false,
-      "changesCommitted": false,
-      "sessionValidationRun": false
+      "serenaMemoryUpdated": true,
+      "lintingRun": true,
+      "changesCommitted": true,
+      "sessionValidationRun": true
     }
   },
   "workCompleted": {
@@ -43,20 +43,26 @@
       },
       {
         "task": "Merge PR #920",
+        "status": "BLOCKED",
+        "details": "PR is BLOCKED by branch protection. mergeStateStatus: BLOCKED, mergeable: MERGEABLE, reviewDecision: null. All 36 required checks PASSED, 11 SKIPPED. Root cause: Previous approvals were DISMISSED, leaving no active approval. Branch protection requires at least one approval before auto-merge can proceed."
+      },
+      {
+        "task": "Investigate merge blocking reason",
         "status": "COMPLETE",
-        "details": "Enabled auto-merge with squash strategy and delete-branch option. Direct merge blocked by branch policy, auto-merge will complete when all branch protection requirements satisfied."
+        "details": "Confirmed via GraphQL API: reviewDecision is null. Latest review from rjmurillo was DISMISSED at 2026-01-16T16:56:52Z. Auto-merge was enabled at 2026-01-16T16:57:02Z but cannot proceed without active approval."
       }
     ]
   },
   "decisions": [
     {
-      "decision": "Use auto-merge instead of direct merge",
-      "rationale": "Direct merge blocked by branch policy. All required checks passing, but merge state shows BLOCKED. Auto-merge will complete merge once branch protection requirements fully satisfied.",
+      "decision": "Cannot proceed with merge - requires human approval",
+      "rationale": "PR #920 is BLOCKED by branch protection due to null reviewDecision (no active approval). Previous approvals were DISMISSED. Auto-merge is configured but cannot execute until an authorized reviewer provides approval. This is a policy gate requiring human action.",
       "alternatives": [
-        "Use admin flag to force merge"
+        "Use admin flag to force merge (not appropriate - violates branch protection)",
+        "Request fresh approval from repository owner"
       ],
       "risks": [
-        "Auto-merge may delay completion if additional checks run"
+        "Cannot be resolved without human intervention"
       ]
     }
   ],
@@ -64,12 +70,20 @@
     {
       "type": "constraint",
       "confidence": "HIGH",
-      "source": "Branch protection policies can block direct merge even when all required checks pass. Auto-merge provides cleaner workflow for protected branches.",
-      "context": "Merge-PR.ps1 script returned error about branch policy prohibiting merge, suggested --auto flag"
+      "source": "DISMISSED reviews clear reviewDecision and block auto-merge even when checks pass",
+      "context": "PR #920 had auto-merge enabled but couldn't merge due to null reviewDecision. Investigation revealed latest review was DISMISSED at 16:56:52Z, then auto-merge was enabled at 16:57:02Z. Branch protection requires active approval. mergeStateStatus: BLOCKED despite mergeable: MERGEABLE and all checks passing."
+    },
+    {
+      "type": "observation",
+      "confidence": "MED",
+      "source": "GitHub API returns mergeStateStatus: UNKNOWN initially, then BLOCKED after checks complete",
+      "context": "First API query showed mergeStateStatus: UNKNOWN and mergeable: UNKNOWN. After all checks completed, subsequent query showed mergeStateStatus: BLOCKED and mergeable: MERGEABLE. This suggests GitHub computes merge state asynchronously."
     }
   ],
   "outcomes": {
-    "filesChanged": [],
+    "filesChanged": [
+      ".agents/sessions/2026-01-16-session-8-pr-920-merge.json"
+    ],
     "filesCreated": [
       ".agents/sessions/2026-01-16-session-8-pr-920-merge.json"
     ],
@@ -78,18 +92,28 @@
     "issuesCreated": [],
     "prStatus": {
       "number": 920,
-      "status": "Auto-merge enabled with squash strategy and delete-branch",
-      "blockers": "None - awaiting branch protection requirements to be satisfied",
-      "nextSteps": "PR will merge automatically once all branch protection requirements met"
+      "state": "OPEN",
+      "mergeStateStatus": "BLOCKED",
+      "mergeable": "MERGEABLE",
+      "reviewDecision": null,
+      "autoMergeEnabled": true,
+      "autoMergeMethod": "SQUASH",
+      "checksStatus": "36 SUCCESS, 11 SKIPPED",
+      "blockers": "No active approval (reviewDecision: null). Previous approvals DISMISSED.",
+      "nextSteps": "Requires human approval from authorized reviewer before auto-merge can proceed. Branch protection policy blocks merge without approval."
     }
   },
   "metrics": {
-    "duration": "~10 minutes",
-    "toolCalls": 12,
-    "comments": {
-      "total": 0,
-      "addressed": 0,
-      "threadsResolved": 0
+    "duration": "~25 minutes",
+    "toolCalls": 25,
+    "apiQueries": {
+      "prStatusChecks": 8,
+      "graphqlQueries": 1,
+      "mergeAttempts": 2
+    },
+    "findings": {
+      "rootCause": "DISMISSED reviews clear reviewDecision",
+      "blockingFactor": "Branch protection requires active approval"
     }
   }
 }
