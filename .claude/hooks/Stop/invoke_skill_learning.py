@@ -187,12 +187,12 @@ def get_project_directory(hook_input: dict) -> str:
 
     try:
         # nosec B602 - CodeQL py/path-injection suppression
-        # lgtm[py/path-injection]
         # JUSTIFICATION: Defense-in-depth path validation prevents traversal:
         #   1. PRE-VALIDATION: _validate_path_string() rejects malicious patterns (line 182)
         #   2. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary (line 198)
         #   3. FALLBACK: Returns SAFE_BASE_DIR on any validation failure (line 192)
         # See: .github/codeql/suppressions.yml and .agents/analysis/908-codeql-path-traversal-analysis.md
+        # lgtm[py/path-injection]
         candidate = Path(validated_dir).expanduser().resolve(strict=False)
     except Exception:
         # Fall back to safe base directory on any resolution error
@@ -227,12 +227,12 @@ def get_safe_project_path(project_dir: str) -> Optional[Path]:
         else:
             try:
                 # nosec B602 - CodeQL py/path-injection suppression
-                # lgtm[py/path-injection]
                 # JUSTIFICATION: Defense-in-depth path validation prevents traversal:
                 #   1. PRE-VALIDATION: _validate_path_string() rejects malicious patterns (line 217)
                 #   2. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary (line 230)
                 #   3. FALLBACK: Returns SAFE_BASE_DIR on validation failure (line 227, 231)
                 # See: .github/codeql/suppressions.yml and .agents/analysis/908-codeql-path-traversal-analysis.md
+                # lgtm[py/path-injection]
                 candidate_root = Path(validated_root).expanduser().resolve(strict=False)
             except Exception:
                 # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
@@ -351,13 +351,13 @@ def get_api_key() -> Optional[str]:
         env_value = os.getenv("CLAUDE_PROJECT_DIR")
         env_root = Path(env_value) if env_value else Path.cwd()
 
-    # lgtm[py/path-injection]
     # CodeQL suppression: env_root is either Path(env_value) from validated environment variable
     # or Path.cwd() which is safe. The resulting .env path is contained within the project root.
+    # lgtm[py/path-injection]
     env_file = env_root / ".env"
     if env_file.exists():
-        # lgtm[py/path-injection]
         # CodeQL suppression: env_file is constructed from validated env_root and static ".env" string
+        # lgtm[py/path-injection]
         with open(env_file, encoding="utf-8") as f:
             for line in f:
                 if line.startswith("ANTHROPIC_API_KEY="):
