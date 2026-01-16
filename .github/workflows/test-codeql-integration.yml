@@ -54,7 +54,7 @@ jobs:
       - name: Install CodeQL CLI
         shell: pwsh
         run: |
-          ./codeql/scripts/Install-CodeQL.ps1 -CI -Force
+          ./.codeql/scripts/Install-CodeQL.ps1 -CI -Force
 
       - name: Verify CodeQL CLI is accessible
         shell: pwsh
@@ -150,7 +150,7 @@ jobs:
       - name: Run Test-CodeQLConfig script
         shell: pwsh
         run: |
-          ./codeql/scripts/Test-CodeQLConfig.ps1 -CI
+          ./.codeql/scripts/Test-CodeQLConfig.ps1 -CI
 
       - name: Verify query packs format
         shell: pwsh
@@ -201,7 +201,7 @@ jobs:
       - name: Run CodeQL scan with JSON output
         shell: pwsh
         run: |
-          ./codeql/scripts/Invoke-CodeQLScan.ps1 -CI -Format json
+          ./.codeql/scripts/Invoke-CodeQLScan.ps1 -CI -Format json
 
       - name: Verify SARIF output files created
         shell: pwsh
@@ -324,7 +324,7 @@ jobs:
       - name: Run scan for ${{ matrix.language }}
         shell: pwsh
         run: |
-          ./codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "${{ matrix.language }}" -CI -Format console
+          ./.codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "${{ matrix.language }}" -CI -Format console
 
       - name: Verify language-specific database created
         shell: pwsh

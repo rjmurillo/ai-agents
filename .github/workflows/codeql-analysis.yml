@@ -94,8 +94,9 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     needs: check-paths
-    if: needs.check-paths.outputs.should-run-analysis == 'true'
     # ADR-032: ARM runner for cost optimization (37.5% savings vs x64)
+    # IMPORTANT: This job ALWAYS runs to satisfy required status checks,
+    # but short-circuits steps when no scannable files are changed.
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     permissions:
@@ -118,7 +119,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      - name: Skip analysis (no scannable files changed)
+        if: needs.check-paths.outputs.should-run-analysis != 'true'
+        run: |
+          echo "No scannable files changed - skipping CodeQL analysis for ${{ matrix.language }}"
+          echo "Job runs unconditionally to satisfy required status check."
+          echo "See the 'scannable' filter in check-paths job for paths that trigger analysis."
+
       - name: Initialize CodeQL
+        if: needs.check-paths.outputs.should-run-analysis == 'true'
         uses: github/codeql-action/init@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
         with:
           languages: ${{ matrix.language }}
@@ -126,18 +135,19 @@ jobs:
           build-mode: ${{ matrix.build-mode }}
 
       - name: Perform CodeQL Analysis
+        if: needs.check-paths.outputs.should-run-analysis == 'true'
         uses: github/codeql-action/analyze@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
         with:
           category: '/language:${{ matrix.language }}'
           upload: true
-          output: .codeql/results
+          output: .codeql/results/${{ matrix.language }}.sarif
 
       - name: Upload SARIF artifact
+        if: always() && needs.check-paths.outputs.should-run-analysis == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
         with:
           name: codeql-results-${{ matrix.language }}
-          path: .codeql/results/*.sarif
+          path: .codeql/results/${{ matrix.language }}.sarif
           # Optimized retention per .agents/devops/artifact-retention-policy.md
           retention-days: 7
 
@@ -182,7 +192,7 @@ jobs:
   check-blocking-issues:
     name: Check for Blocking Issues
     needs: [check-paths, analyze]
-    if: always() && needs.check-paths.outputs.should-run-analysis == 'true' && needs.analyze.result != 'skipped'
+    if: always() && needs.check-paths.outputs.should-run-analysis == 'true'
     # ADR-032: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     permissions:
