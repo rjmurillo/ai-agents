@@ -39,6 +39,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      security-events: read  # Required for setup-codeql action API access
 
     steps:
       - name: Checkout repository
@@ -122,6 +123,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      security-events: read  # Required for setup-codeql action API access
 
     steps:
       - name: Checkout repository
@@ -238,6 +240,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      security-events: read  # Required for setup-codeql action API access
 
     strategy:
       fail-fast: false
