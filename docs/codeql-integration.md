@@ -57,7 +57,7 @@ pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache
 
 ### Prerequisites
 
-- **PowerShell 7.4+**: Cross-platform PowerShell (`pwsh`)
+- **PowerShell 7.5.4+**: Cross-platform PowerShell (`pwsh`)
 - **Internet connection**: For downloading CodeQL CLI
 - **Disk space**: ~500MB for CodeQL CLI and databases
 
