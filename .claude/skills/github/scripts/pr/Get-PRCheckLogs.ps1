@@ -386,7 +386,9 @@ elseif ($PullRequest -gt 0) {
     $checksScript = Join-Path $PSScriptRoot "Get-PRChecks.ps1"
     $checksJson = & $checksScript -Owner $Owner -Repo $Repo -PullRequest $PullRequest
 
-    if ($LASTEXITCODE -ne 0) {
+    # Only exit on actual errors (2=PR not found, 3=API error, 7=timeout)
+    # Exit 1 means failing checks exist - exactly when we want to fetch logs
+    if ($LASTEXITCODE -in @(2, 3, 7)) {
         Write-Output $checksJson
         exit $LASTEXITCODE
     }
