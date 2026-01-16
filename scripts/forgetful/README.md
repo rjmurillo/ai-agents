@@ -201,7 +201,7 @@ Exit code 0 = clean, 1 = sensitive data found (blocks commit)
 
 ## Requirements
 
-- PowerShell 7.0+ (cross-platform)
+- PowerShell 7.5.4+ (cross-platform)
 - SQLite3 command-line tool
 - Forgetful MCP server installed and database initialized
 

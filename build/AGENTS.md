@@ -115,7 +115,7 @@ Two automated checks enforce these rules:
 | **Input** | `templates/agents/*.shared.md`, `templates/platforms/*.yaml` |
 | **Output** | `src/vs-code-agents/*.agent.md`, `src/copilot-cli/*.agent.md` |
 | **Trigger** | Manual, CI validation |
-| **Dependencies** | `Generate-Agents.Common.psm1`, PowerShell 7.0+ |
+| **Dependencies** | `Generate-Agents.Common.psm1`, PowerShell 7.5.4+ |
 
 **Transformations Applied**:
 
@@ -154,7 +154,7 @@ pwsh build/Generate-Agents.ps1 -Validate
 | **Input** | `src/claude/*.md`, `src/vs-code-agents/*.agent.md` |
 | **Output** | Drift report (Text, JSON, or Markdown) |
 | **Trigger** | Weekly CI, manual |
-| **Dependencies** | PowerShell 7.0+ |
+| **Dependencies** | PowerShell 7.5.4+ |
 
 **What It Compares** (ignoring platform-specific differences):
 
@@ -206,7 +206,7 @@ pwsh build/scripts/Detect-AgentDrift.ps1 -OutputFormat Markdown
 | **Input** | `.agents/planning/*.md` |
 | **Output** | Validation report |
 | **Trigger** | CI on planning changes, manual |
-| **Dependencies** | PowerShell 7.0+ |
+| **Dependencies** | PowerShell 7.5.4+ |
 
 **Validations Performed**:
 
@@ -240,7 +240,7 @@ pwsh build/scripts/Validate-PlanningArtifacts.ps1 -FailOnWarning
 | **Input** | `**/*.md` (documentation files) |
 | **Output** | Path validation report |
 | **Trigger** | CI on PR, manual |
-| **Dependencies** | PowerShell 7.0+ |
+| **Dependencies** | PowerShell 7.5.4+ |
 
 **Forbidden Patterns**:
 
@@ -267,7 +267,7 @@ pwsh build/scripts/Validate-PathNormalization.ps1
 | **Input** | Test files (`**/*.Tests.ps1`) |
 | **Output** | Test results (XML, console) |
 | **Trigger** | CI, pre-commit, manual |
-| **Dependencies** | Pester 5.x, PowerShell 7.0+ |
+| **Dependencies** | Pester 5.7.1+, PowerShell 7.5.4+ |
 
 **Invocation**:
 
