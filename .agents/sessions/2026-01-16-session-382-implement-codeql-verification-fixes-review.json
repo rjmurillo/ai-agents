@@ -180,7 +180,7 @@
       ]
     }
   ],
-  "endingCommit": "Pending commit",
+  "endingCommit": "d1b72050",
   "nextSteps": [
     "Commit all changes (documentation, tests, ADR review artifacts)",
     "Fix P1 issue: Update ADR-041 PowerShell language coverage",

@@ -153,6 +153,18 @@ Tier 3 (Automatic Scanning)
 └── Output: Console warnings
 ```
 
+### Language Support
+
+**Supported Languages**:
+- **PowerShell** - Security analysis for PowerShell scripts (.ps1, .psm1)
+- **Python** - Security analysis for Python code
+- **GitHub Actions** - Workflow security analysis for CI/CD pipelines
+
+**Query Packs**:
+- `codeql/powershell-queries` - PowerShell security queries (if available)
+- `codeql/python-queries:codeql-suites/python-security-extended.qls`
+- `codeql/actions-queries:codeql-suites/actions-security-extended.qls`
+
 ### Implementation Components
 
 **Installation**:
