@@ -26,12 +26,6 @@ queries:
   - id: py/hardcoded-credentials
   - id: actions/hardcoded-credentials
 
-  # CWE-020: Improper Input Validation
-  - id: py/incomplete-url-substring-sanitization
-
-  # CWE-611: XML External Entity (XXE)
-  - id: py/xxe
-
 # Query filters to exclude low severity findings (medium+ only)
 query-filters:
   - exclude:

@@ -449,7 +449,10 @@ function Invoke-CodeQLDatabaseAnalyze {
         [string]$ResultsPath,
 
         [Parameter(Mandatory)]
-        [string]$ConfigPath
+        [string]$ConfigPath,
+
+        [Parameter()]
+        [switch]$QuickScan
     )
 
     $langDbPath = Join-Path $DatabasePath $Language
@@ -478,15 +481,59 @@ function Invoke-CodeQLDatabaseAnalyze {
             $analyzeArgs += "--config=$ConfigPath"
         }
 
-        & $CodeQLPath @analyzeArgs 2>&1 | Out-String | Write-Verbose
+        # QuickScan mode: wrap analysis in job with 30-second timeout
+        if ($QuickScan) {
+            $job = Start-Job -ScriptBlock {
+                param($CodeQLExe, $AnalysisArgs)
+                & $CodeQLExe @AnalysisArgs 2>&1
+            } -ArgumentList $CodeQLPath, $analyzeArgs
 
-        if ($LASTEXITCODE -ne 0) {
-            throw "CodeQL analysis failed with exit code $LASTEXITCODE"
+            $completed = Wait-Job -Job $job -Timeout 30
+            if ($null -eq $completed) {
+                # Timeout occurred
+                Stop-Job -Job $job -ErrorAction SilentlyContinue
+                Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+
+                Write-Warning "CodeQL quick scan timed out after 30 seconds for $Language"
+
+                # Return empty result on timeout (graceful degradation per ADR-035)
+                return @{
+                    Language = $Language
+                    FindingsCount = 0
+                    Findings = @()
+                    SarifPath = $null
+                    TimedOut = $true
+                }
+            }
+
+            # Get job output and check state
+            $null = Receive-Job -Job $job
+            $jobFailed = $job.State -eq 'Failed'
+            Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+
+            # Check exit code via job state
+            if ($jobFailed) {
+                throw "CodeQL analysis failed (job state: Failed)"
+            }
+        }
+        else {
+            # Normal mode: run without timeout
+            & $CodeQLPath @analyzeArgs 2>&1 | Out-String | Write-Verbose
+
+            if ($LASTEXITCODE -ne 0) {
+                throw "CodeQL analysis failed with exit code $LASTEXITCODE"
+            }
         }
 
         # Parse SARIF for findings count
-        $sarif = Get-Content $sarifOutput -Raw | ConvertFrom-Json
-        $findings = $sarif.runs[0].results
+        if (Test-Path $sarifOutput) {
+            $sarif = Get-Content $sarifOutput -Raw | ConvertFrom-Json
+            $findings = $sarif.runs[0].results
+        }
+        else {
+            # SARIF not generated (timeout or other issue)
+            $findings = @()
+        }
 
         $result = @{
             Language = $Language
@@ -671,7 +718,17 @@ if ($MyInvocation.InvocationName -ne '.') {
         # Run analysis
         $analysisResults = @()
         foreach ($lang in $Languages) {
-            $result = Invoke-CodeQLDatabaseAnalyze -CodeQLPath $codeQLPath -Language $lang -DatabasePath $DatabasePath -ResultsPath $ResultsPath -ConfigPath $ConfigPath
+            $analyzeParams = @{
+                CodeQLPath = $codeQLPath
+                Language = $lang
+                DatabasePath = $DatabasePath
+                ResultsPath = $ResultsPath
+                ConfigPath = $ConfigPath
+            }
+            if ($QuickScan) {
+                $analyzeParams['QuickScan'] = $true
+            }
+            $result = Invoke-CodeQLDatabaseAnalyze @analyzeParams
             $analysisResults += $result
         }
 

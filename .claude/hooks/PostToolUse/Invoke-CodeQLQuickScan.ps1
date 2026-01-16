@@ -183,10 +183,10 @@ try {
 
         Write-Verbose "Starting CodeQL quick scan for $filePath (language: $language)"
 
-        # Invoke quick scan with 30-second timeout
+        # Invoke quick scan with 30-second timeout (use JSON format for machine-readable output)
         $job = Start-Job -ScriptBlock {
-            param($ScanScript, $ScanLanguage, $ProjectDirectory)
-            & $ScanScript -Languages $ScanLanguage -QuickScan -UseCache -RepoPath $ProjectDirectory -Format console 2>&1
+            param($ScanScript, $ScanLanguage, $ProjectDir)
+            & $ScanScript -Languages $ScanLanguage -QuickScan -UseCache -RepoPath $ProjectDir -Format json 2>&1
         } -ArgumentList $scanScriptPath, $language, $projectDir
 
         $completed = Wait-Job -Job $job -Timeout 30
@@ -202,10 +202,19 @@ try {
             $scanOutput = Receive-Job -Job $job
             Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
 
-            # Parse output for findings count
+            # Parse JSON output for findings count
             $findingsCount = 0
-            if ($scanOutput -match 'Found (\d+) findings') {
-                $findingsCount = [int]$matches[1]
+            try {
+                # Filter out stderr and extract JSON
+                $jsonLines = $scanOutput | Where-Object { $_ -match '^\s*\{' }
+                if ($jsonLines) {
+                    $jsonOutput = $jsonLines -join "`n"
+                    $scanResult = $jsonOutput | ConvertFrom-Json
+                    $findingsCount = $scanResult.TotalFindings
+                }
+            }
+            catch {
+                Write-Verbose "Failed to parse scan JSON output: $_"
             }
 
             if ($findingsCount -gt 0) {

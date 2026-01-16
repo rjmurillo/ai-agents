@@ -162,16 +162,15 @@ function Test-CodeQLConfig {
 
     $result.exists = $true
 
-    # Validate YAML syntax
-    try {
-        $configContent = Get-Content $ConfigPath -Raw
-        $parsedYaml = ConvertFrom-Yaml -Yaml $configContent
-        $result.valid_yaml = $true
-    }
-    catch {
-        $result.recommendations += "Config invalid YAML syntax → Check YAML formatting: $_"
+    # Validate YAML syntax using real validation (not stub)
+    $yamlResult = Test-YamlSyntax -ConfigPath $ConfigPath
+    if (-not $yamlResult.Valid) {
+        $result.recommendations += "Config invalid YAML syntax → $($yamlResult.Error)"
         return $result
     }
+
+    $result.valid_yaml = $true
+    $configContent = $yamlResult.Content
 
     # Check query packs if CLI is available
     if ($CodeQLPath) {
@@ -254,7 +253,42 @@ function Test-CodeQLDatabase {
     return $result
 }
 
+function Get-DirectoryHash {
+    <#
+    .SYNOPSIS
+        Computes a hash of all files in a directory (recursive).
+    .DESCRIPTION
+        Imported from Invoke-CodeQLScan.ps1 for cache invalidation logic.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path $Path)) {
+        return ""
+    }
+
+    $files = Get-ChildItem -Path $Path -File -Recurse | Sort-Object FullName
+    $hashInput = ($files | ForEach-Object {
+        "$($_.FullName):$((Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash)"
+    }) -join "`n"
+
+    return (Get-FileHash -InputStream ([System.IO.MemoryStream]::new([System.Text.Encoding]::UTF8.GetBytes($hashInput))) -Algorithm SHA256).Hash
+}
+
 function Test-DatabaseCacheSimple {
+    <#
+    .SYNOPSIS
+        Validates if cached database is still current using same logic as Invoke-CodeQLScan.ps1.
+    .DESCRIPTION
+        Performs comprehensive cache validation using metadata file:
+        - Validates git HEAD (no new commits)
+        - Validates config file hash (no changes)
+        - Validates scripts directory hash (no changes to .codeql/scripts/)
+        - Validates config directory hash (no changes to .github/codeql/)
+    #>
     param(
         [string]$DatabasePath,
         [string]$ConfigPath,
@@ -268,19 +302,47 @@ function Test-DatabaseCacheSimple {
 
     try {
         $metadata = Get-Content $metadataPath -Raw | ConvertFrom-Json
+
+        # Validate git HEAD
         Push-Location $RepoPath
         $currentHead = git rev-parse HEAD 2>&1
         Pop-Location
 
-        if ($LASTEXITCODE -eq 0 -and $currentHead -eq $metadata.git_head) {
-            return $true
+        if ($LASTEXITCODE -eq 0 -and $currentHead -ne $metadata.git_head) {
+            return $false
         }
+
+        # Validate config hash
+        if (Test-Path $ConfigPath) {
+            $configHash = (Get-FileHash -Path $ConfigPath -Algorithm SHA256).Hash
+            if ($configHash -ne $metadata.config_hash) {
+                return $false
+            }
+        }
+
+        # Validate scripts directory hash
+        $scriptsDir = Join-Path $RepoPath ".codeql/scripts"
+        if (Test-Path $scriptsDir) {
+            $scriptsHash = Get-DirectoryHash -Path $scriptsDir
+            if ($scriptsHash -ne $metadata.scripts_hash) {
+                return $false
+            }
+        }
+
+        # Validate config directory hash
+        $configDir = Join-Path $RepoPath ".github/codeql"
+        if (Test-Path $configDir) {
+            $configDirHash = Get-DirectoryHash -Path $configDir
+            if ($configDirHash -ne $metadata.config_dir_hash) {
+                return $false
+            }
+        }
+
+        return $true
     }
     catch {
         return $false
     }
-
-    return $false
 }
 
 function Test-CodeQLResults {
@@ -336,16 +398,82 @@ function Test-CodeQLResults {
     return $result
 }
 
-function ConvertFrom-Yaml {
-    param([string]$Yaml)
-    # Simple YAML parsing (for basic validation only)
-    # In production, use PowerShell-Yaml module for full YAML support
+function Test-YamlSyntax {
+    <#
+    .SYNOPSIS
+        Validates YAML syntax and parses content using available YAML parsers.
+    .DESCRIPTION
+        Imported from Test-CodeQLConfig.ps1 for proper YAML validation.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ConfigPath
+    )
+
     try {
-        $null = $Yaml -split '\n' | Where-Object { $_ -notmatch '^\s*#' -and $_ -match '\S' }
-        return @{ valid = $true }
+        $content = Get-Content $ConfigPath -Raw
+
+        if ([string]::IsNullOrWhiteSpace($content)) {
+            return @{
+                Valid = $false
+                Error = "Config file is empty"
+                Content = $null
+            }
+        }
+
+        # Try to use ConvertFrom-Yaml if powershell-yaml module is available
+        $yamlModule = Get-Module -Name powershell-yaml -ListAvailable -ErrorAction SilentlyContinue
+        if ($yamlModule) {
+            try {
+                Import-Module powershell-yaml -ErrorAction Stop
+                $null = ConvertFrom-Yaml $content -ErrorAction Stop
+                return @{
+                    Valid = $true
+                    Content = $content
+                }
+            }
+            catch {
+                return @{
+                    Valid = $false
+                    Error = "YAML parse error: $($_.Exception.Message)"
+                    Content = $null
+                }
+            }
+        }
+
+        # Fallback: Use lightweight YAML parser for basic validation
+        $lines = $content -split "`n"
+        $lineNum = 0
+
+        foreach ($line in $lines) {
+            $lineNum++
+
+            # Skip empty lines and comments
+            if ($line -match '^\s*(#|$)') { continue }
+
+            # Check for tabs (YAML should use spaces)
+            if ($line -match '^\t') {
+                return @{
+                    Valid = $false
+                    Error = "YAML parse error at line ${lineNum}: Tabs are not allowed for indentation"
+                    Content = $null
+                }
+            }
+        }
+
+        # Basic structure validation passed
+        return @{
+            Valid = $true
+            Content = $content
+        }
     }
     catch {
-        throw "YAML parsing failed"
+        return @{
+            Valid = $false
+            Error = $_.Exception.Message
+            Content = $null
+        }
     }
 }
 
