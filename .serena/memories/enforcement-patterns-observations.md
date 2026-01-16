@@ -14,6 +14,7 @@ These are corrections that MUST be followed:
 - Verification-based enforcement (check evidence) achieves 100% compliance vs <50% with guidance alone (Session 2026-01-16-session-07, 2026-01-16)
 - Educational phase before blocking: 3 invocations with warnings, then block (Session 2026-01-16-session-07, 2026-01-16)
 - Date-based counter reset for educational thresholds (Session 2026-01-16-session-07, 2026-01-16)
+- YAML frontmatter must use block-style arrays, never inline arrays - inline arrays fail on Copilot CLI with CRLF line endings (Session 2026-01-16-session-07, 2026-01-16)
 
 ## Preferences (MED confidence)
 
@@ -41,6 +42,7 @@ These are observations that may become patterns:
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Verification-based enforcement achieves 100% compliance |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Educational phase before blocking: 3 warnings then block |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Date-based counter reset for educational thresholds |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | YAML frontmatter must use block-style arrays, never inline |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Hook audit logging for debugging and transparency |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Structured error messages with actionable steps |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Evidence patterns with proximity constraints |

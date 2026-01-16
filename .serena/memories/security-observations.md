@@ -14,6 +14,7 @@ These are corrections that MUST be followed:
 - All GitHub Actions must use commit SHA, never version tags (@v4, @v2, etc.) (Session 2026-01-16-session-07, 2026-01-16)
 - SEMVER 2.0.0 comprehensive detection required for version tags (major, major.minor, major.minor.patch, prerelease, build) (Session 2026-01-16-session-07, 2026-01-16)
 - Pre-commit hook + CI validation for defense in depth (Session 2026-01-16-session-07, 2026-01-16)
+- Repeated constraint violations indicate insufficient enforcement - add blocking pre-commit hooks for documented read-only rules (Session 2026-01-16-session-07, 2026-01-16)
 
 ## Preferences (MED confidence)
 
@@ -38,6 +39,7 @@ These are observations that may become patterns:
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | All GitHub Actions must use commit SHA, never version tags |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | SEMVER 2.0.0 comprehensive detection required |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Pre-commit hook + CI validation for defense in depth |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | Repeated constraint violations indicate insufficient enforcement |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Version comments after SHA improve maintainability |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Cross-platform regex patterns using POSIX syntax |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Security scanning in CI should be blocking for critical findings |
