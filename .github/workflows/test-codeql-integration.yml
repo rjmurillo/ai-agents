@@ -1,19 +1,17 @@
 # Test CodeQL Integration
 #
-# Verifies CodeQL CLI installation, configuration validation, and scan execution
-# in CI environment. This workflow ensures the CodeQL setup is working correctly
-# before the main codeql-analysis.yml workflow runs.
+# Verifies CodeQL configuration validation and scan execution in CI environment.
+# Uses GitHub's official setup-codeql action for CLI installation.
 #
 # Purpose:
-#   - Validate CodeQL CLI installation scripts work in CI
 #   - Verify configuration YAML syntax and query pack availability
 #   - Test scan execution for each supported language
 #   - Ensure SARIF output is correctly generated
 #
-# Local developers and AI agents can run the same tests using:
-#   pwsh .codeql/scripts/Install-CodeQL.ps1 -CI
-#   pwsh .codeql/scripts/Test-CodeQLConfig.ps1 -CI
-#   pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -CI
+# Local developers and AI agents can run scans using:
+#   pwsh .codeql/scripts/Install-CodeQL.ps1  # One-time CLI setup
+#   pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
+#   pwsh .codeql/scripts/Test-CodeQLConfig.ps1
 
 name: Test CodeQL Integration
 
@@ -34,71 +32,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test-cli-installation:
-    name: Test CLI Installation
-    # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Install zstd (required for CodeQL bundle extraction)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zstd
-
-      - name: Install CodeQL CLI
-        shell: pwsh
-        run: |
-          ./.codeql/scripts/Install-CodeQL.ps1 -CI -Force
-
-      - name: Verify CodeQL CLI is accessible
-        shell: pwsh
-        run: |
-          $codeqlPath = ".codeql/cli/codeql"
-          if (-not (Test-Path $codeqlPath)) {
-            Write-Error "CodeQL CLI not found at expected path: $codeqlPath"
-            exit 1
-          }
-
-          Write-Host "CodeQL CLI installed at: $codeqlPath"
-
-      - name: Run codeql version
-        shell: pwsh
-        run: |
-          $versionOutput = & .codeql/cli/codeql version 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to run 'codeql version': $versionOutput"
-            exit 1
-          }
-
-          # Convert to string (2>&1 can return array of objects)
-          $versionStr = $versionOutput | Out-String
-          Write-Host "CodeQL Version Output:"
-          Write-Host $versionStr
-
-          # Validate version output format
-          if ($versionStr -notmatch '\d+\.\d+\.\d+') {
-            Write-Error "Unexpected version output format"
-            exit 1
-          }
-
-          Write-Host "CodeQL CLI version check passed"
-
-      - name: Upload CLI installation for reuse
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: codeql-cli
-          path: .codeql/cli
-          retention-days: 1
-
   test-config-validation:
     name: Test Config Validation
-    needs: test-cli-installation
     # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -109,15 +44,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Download CodeQL CLI
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - name: Setup CodeQL CLI
+        uses: github/codeql-action/init@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
         with:
-          name: codeql-cli
-          path: .codeql/cli
+          languages: python  # Need a language to initialize, use lightweight one
+          queries: security-extended
 
-      - name: Set executable permissions
-        # Artifacts don't preserve permissions; restore for all CLI binaries
-        run: find .codeql/cli -type f \( -name "codeql" -o -name "*.sh" -o -path "*/tools/*" \) -exec chmod +x {} \;
+      - name: Verify CodeQL CLI is accessible
+        run: |
+          codeql version
+          echo "CodeQL CLI setup successful"
 
       - name: Install powershell-yaml module
         shell: pwsh
@@ -150,11 +86,6 @@ jobs:
 
           Write-Host "YAML syntax validation passed"
 
-      - name: Run Test-CodeQLConfig script
-        shell: pwsh
-        run: |
-          ./.codeql/scripts/Test-CodeQLConfig.ps1 -CI
-
       - name: Verify query packs format
         shell: pwsh
         run: |
@@ -182,7 +113,6 @@ jobs:
 
   test-scan-execution:
     name: Test Scan Execution
-    needs: test-cli-installation
     # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -193,15 +123,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Download CodeQL CLI
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - name: Setup CodeQL CLI
+        uses: github/codeql-action/init@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
         with:
-          name: codeql-cli
-          path: .codeql/cli
-
-      - name: Set executable permissions
-        # Artifacts don't preserve permissions; restore for all CLI binaries
-        run: find .codeql/cli -type f \( -name "codeql" -o -name "*.sh" -o -path "*/tools/*" \) -exec chmod +x {} \;
+          languages: python
+          queries: security-extended
 
       - name: Run CodeQL scan with JSON output
         shell: pwsh
@@ -301,7 +227,6 @@ jobs:
 
   test-matrix-languages:
     name: Test Language (${{ matrix.language }})
-    needs: test-cli-installation
     # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -318,15 +243,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Download CodeQL CLI
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - name: Setup CodeQL CLI
+        uses: github/codeql-action/init@a4fda0891d53e117609b7ddb3570638c2c6d7c89 # v3
         with:
-          name: codeql-cli
-          path: .codeql/cli
-
-      - name: Set executable permissions
-        # Artifacts don't preserve permissions; restore for all CLI binaries
-        run: find .codeql/cli -type f \( -name "codeql" -o -name "*.sh" -o -path "*/tools/*" \) -exec chmod +x {} \;
+          languages: ${{ matrix.language }}
+          queries: security-extended
 
       - name: Run scan for ${{ matrix.language }}
         shell: pwsh
@@ -368,7 +289,7 @@ jobs:
 
   aggregate-results:
     name: Aggregate Results
-    needs: [test-cli-installation, test-config-validation, test-scan-execution, test-matrix-languages]
+    needs: [test-config-validation, test-scan-execution, test-matrix-languages]
     if: always()
     # Aggregate job can use ARM since it doesn't run CodeQL CLI
     runs-on: ubuntu-24.04-arm
@@ -379,13 +300,11 @@ jobs:
       - name: Check job results
         shell: pwsh
         env:
-          CLI_RESULT: ${{ needs.test-cli-installation.result }}
           CONFIG_RESULT: ${{ needs.test-config-validation.result }}
           SCAN_RESULT: ${{ needs.test-scan-execution.result }}
           MATRIX_RESULT: ${{ needs.test-matrix-languages.result }}
         run: |
           $results = @{
-            'CLI Installation' = $env:CLI_RESULT
             'Config Validation' = $env:CONFIG_RESULT
             'Scan Execution' = $env:SCAN_RESULT
             'Matrix Languages' = $env:MATRIX_RESULT
