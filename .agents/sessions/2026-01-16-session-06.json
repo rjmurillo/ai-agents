@@ -39,6 +39,11 @@
       "timestamp": "2026-01-16T10:00:00Z",
       "action": "follow_up_update",
       "details": "User verification requested for scripts/bootstrap-vm.sh and CONTRIBUTING.md. bootstrap-vm.sh already correct (Pester 5.7.1 on line 143). Updated CONTRIBUTING.md Prerequisites section to add PowerShell 7.5.4+ and Pester 5.7.1+ version requirements."
+    },
+    {
+      "timestamp": "2026-01-16T14:30:00Z",
+      "action": "github_actions_update",
+      "details": "Updated .github/actions/setup-code-env/action.yml to use -MinimumVersion 5.7.1 instead of -RequiredVersion 5.7.1 for Pester, allowing 5.7.1+ versions. Updated comment from 'Pin to specific version' to 'Require minimum version' for clarity. .github/workflows/copilot-setup-steps.yml requires no changes as it uses the setup-code-env action."
     }
   ],
   "decisions": [
@@ -61,6 +66,8 @@
     "Pester version requirement updated from 5.6+/5.x to 5.7.1+ across all documentation",
     "CONTRIBUTING.md Prerequisites section updated with explicit PowerShell 7.5.4+ and Pester 5.7.1+ requirements",
     "scripts/bootstrap-vm.sh verified as already correct (Pester 5.7.1 specified on line 143)",
+    ".github/actions/setup-code-env/action.yml updated to use -MinimumVersion 5.7.1 instead of -RequiredVersion 5.7.1",
+    ".github/workflows/copilot-setup-steps.yml verified as correct (uses setup-code-env action, no direct changes needed)",
     "All Pester tests pass with version 5.7.1 (619 passed, 0 failed)",
     "Markdown linting passes with no errors"
   ],
@@ -132,10 +139,12 @@
       "[x] All documentation files updated",
       "[x] CONTRIBUTING.md Prerequisites section updated",
       "[x] scripts/bootstrap-vm.sh verified as correct",
+      "[x] .github/actions/setup-code-env/action.yml updated to MinimumVersion 5.7.1",
+      "[x] .github/workflows/copilot-setup-steps.yml verified (no changes needed)",
       "[x] Tests verified (619 passed)",
       "[x] Markdown linting passed",
       "[x] Session log completed"
     ],
-    "handoff_notes": "PowerShell and Pester versions updated across documentation. No CI workflow changes needed as Pester is already at 5.7.1 in setup-code-env action. PowerShell 7.5.4 is available but not yet enforced in CI - recommend follow-up to update GitHub Actions runner versions."
+    "handoff_notes": "PowerShell and Pester versions updated across documentation and GitHub Actions. Changed Pester installation from -RequiredVersion to -MinimumVersion 5.7.1 in setup-code-env action to allow patch updates. PowerShell 7.5.4 is available but not yet enforced in CI - recommend follow-up to update GitHub Actions runner versions if needed."
   }
 }
