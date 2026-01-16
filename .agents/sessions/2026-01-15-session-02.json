@@ -52,7 +52,7 @@
     "decisions": [
       {
         "decision": "Convert inline YAML arrays to block-style format across 18 prompt/command files",
-        "rationale": "Inline arrays fail on GitHub Copilot CLI with CRLF line endings per Session 826 RCA and GitHub Copilot CLI Issue #694",
+        "rationale": "Inline arrays fail on GitHub Copilot CLI with CRLF line endings per Session 826 RCA findings and local issue rjmurillo/ai-agents#893",
         "impact": "Universal compatibility across VS Code, Copilot CLI (Windows/macOS/Linux), and Claude Code"
       },
       {

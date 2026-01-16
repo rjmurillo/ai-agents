@@ -181,7 +181,7 @@ tools_vscode: ['vscode', 'read', 'search']
 ```
 
 **Evidence**:
-- GitHub Copilot CLI Issue #694: "failed to parse front matter: Unexpected scalar at node end"
+- GitHub Copilot CLI parser with CRLF line endings (see [github/copilot-cli#694](https://github.com/github/copilot-cli/issues/694) and [rjmurillo/ai-agents#893](https://github.com/rjmurillo/ai-agents/issues/893)): "failed to parse front matter: Unexpected scalar at node end"
 - Session 826 Retrospective: 88 files converted, 32 tests passed, 0 failures, user validation confirmed
 - ADR-040 Amendment (2026-01-13): Cross-platform compatibility analysis
 
