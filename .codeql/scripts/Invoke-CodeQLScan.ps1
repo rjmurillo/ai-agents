@@ -537,11 +537,19 @@ function Invoke-CodeQLDatabaseAnalyze {
         }
         else {
             # Normal mode: run without timeout
-            & $CodeQLPath @analyzeArgs 2>&1 | Out-String | Write-Verbose
+            $analyzeOutput = & $CodeQLPath @analyzeArgs 2>&1
 
             if ($LASTEXITCODE -ne 0) {
+                # Show the actual CodeQL error output for troubleshooting
+                $errorDetails = ($analyzeOutput | Out-String).Trim()
+                if ($errorDetails) {
+                    Write-Error "CodeQL analysis failed with exit code ${LASTEXITCODE}:`n$errorDetails"
+                }
                 throw "CodeQL analysis failed with exit code $LASTEXITCODE"
             }
+
+            # Log verbose output only on success
+            $analyzeOutput | Out-String | Write-Verbose
         }
 
         # Parse SARIF for findings count (Critical Issue #4 fix: Add error handling)
