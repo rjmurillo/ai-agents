@@ -19,7 +19,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Updated .serena/memories/pr-review-code-review-skill-observations.md (renamed from code-review-observations.md); updated skills-pr-review-index.md with index entry and keyword improvements"
+        "Evidence": "Updated .serena/memories/pr-review-code-review-skill-observations.md; updated skills-pr-review-index.md with index entry and keyword improvements"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
