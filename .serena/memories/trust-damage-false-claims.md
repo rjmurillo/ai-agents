@@ -189,7 +189,7 @@
 
 **Testing Protocol:** Require coverage metrics before claiming sufficient
 **QA Agent Review:** Add coverage parsing, flag vague claims
-**Skillbook:** Tag as `usage-mandatory` for evidence-based claims
+**Skillbook:** Tag as [usage-mandatory](usage-mandatory.md) for evidence-based claims
 **HANDOFF.md:** Add quality standard: 100% block coverage target
 
 ## Skill Updates

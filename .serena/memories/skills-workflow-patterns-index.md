@@ -7,4 +7,4 @@
 | verdict token PASS WARN CRITICAL_FAIL automation structured | [workflow-patterns-verdict-tokens](workflow-patterns-verdict-tokens.md) |
 | report generation markdown comment PR update footer unique-id | [workflow-patterns-report-pattern](workflow-patterns-report-pattern.md) |
 | run from branch trigger workflow dispatch ref checkout | [workflow-patterns-run-from-branch](workflow-patterns-run-from-branch.md) |
-| batch changes cost reduction COGS consolidate multiple single | workflow-patterns-batch-changes-reduce-cogs |
+| batch changes cost reduction COGS consolidate multiple single | [workflow-patterns-batch-changes-reduce-cogs](workflow-patterns-batch-changes-reduce-cogs.md) |
