@@ -413,20 +413,20 @@ The repository includes `.actrc` with optimized defaults:
 
 #### PowerShell Wrapper (Recommended)
 
-Use `scripts/Test-WorkflowLocally.ps1` for simplified workflow testing:
+Use `.claude/skills/github/scripts/Test-WorkflowLocally.ps1` for simplified workflow testing:
 
 ```powershell
 # Run pester-tests workflow
-pwsh scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests
+pwsh .claude/skills/github/scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests
 
 # Dry-run to validate syntax only
-pwsh scripts/Test-WorkflowLocally.ps1 -Workflow validate-paths -DryRun
+pwsh .claude/skills/github/scripts/Test-WorkflowLocally.ps1 -Workflow validate-paths -DryRun
 
 # Run specific job with verbose output
-pwsh scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests -Job test -Verbose
+pwsh .claude/skills/github/scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests -Job test -Verbose
 
 # Pass secrets
-pwsh scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests -Secrets @{ GITHUB_TOKEN = $env:GITHUB_TOKEN }
+pwsh .claude/skills/github/scripts/Test-WorkflowLocally.ps1 -Workflow pester-tests -Secrets @{ GITHUB_TOKEN = $env:GITHUB_TOKEN }
 ```
 
 #### Direct act Commands

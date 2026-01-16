@@ -127,7 +127,7 @@
     "Updated .agents/devops/SHIFT-LEFT.md with workflow YAML validation section and validation sequence table",
     "Updated Validate-PrePR.ps1 header comment to reflect new validation sequence",
     "Created .actrc configuration file for act (nektos/act) with optimized defaults",
-    "Created scripts/Test-WorkflowLocally.ps1 PowerShell wrapper for act",
+    "Created .claude/skills/github/scripts/Test-WorkflowLocally.ps1 PowerShell wrapper for act",
     "Updated SHIFT-LEFT.md with comprehensive local workflow testing documentation",
     "Documented supported vs unsupported workflows for local testing",
     "Created .yamllint.yml configuration with GitHub Actions-optimized rules",
@@ -140,6 +140,8 @@
     "Removed chocolatey recommendation, added GitHub CLI extension installation option",
     "Clarified Copilot CLI can be installed locally but workflows require BOT_PAT from CI",
     "Updated .actrc to use full production images (catthehacker/ubuntu:full-*) for no surprises",
-    "Updated SHIFT-LEFT.md to reflect full image usage and production parity rationale"
+    "Updated SHIFT-LEFT.md to reflect full image usage and production parity rationale",
+    "Moved Test-WorkflowLocally.ps1 from scripts/ to .claude/skills/github/scripts/ per PR feedback",
+    "Updated all documentation references to reflect new script location"
   ]
 }
