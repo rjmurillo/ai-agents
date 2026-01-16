@@ -895,6 +895,21 @@ def update_skill_memory(
             pattern = r'(## Documentation \(MED confidence\)\r?\n)'
             new_content = re.sub(pattern, r'\1' + documentation_items, new_content)
 
+        # Catch-all for MED learnings with types not handled above
+        # (e.g., correction, chestertons_fence, immediate_correction, command_pattern from LLM)
+        handled_med_types = {"success", "preference", "edge_case", "question", "documentation"}
+        other_med_items = ""
+        for learning in learnings["Med"]:
+            if learning["type"] not in handled_med_types:
+                source = escape_replacement_string(learning["source"])
+                learning_type = learning["type"]
+                method_tag = f" [LLM]" if learning.get("method") == "haiku-llm" else ""
+                other_med_items += f"- [{learning_type}] {source}{method_tag} (Session {session_id}, {today})\n"
+
+        if other_med_items:
+            pattern = r'(## Preferences \(MED confidence\)\r?\n)'
+            new_content = re.sub(pattern, r'\1' + other_med_items, new_content)
+
     # LOW: Command patterns
     if learnings["Low"]:
         low_items = ""
