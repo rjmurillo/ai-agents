@@ -66,3 +66,11 @@
 |------------|--------|
 | No bash/Python scripts | [user-preference-no-bash-python](user-preference-no-bash-python.md) |
 | No auto-generated headers | [user-preference-no-auto-headers](user-preference-no-auto-headers.md) |
+
+## Related
+
+- [memory-001-feedback-retrieval](memory-001-feedback-retrieval.md)
+- [memory-architecture-serena-primary](memory-architecture-serena-primary.md)
+- [memory-size-001-decomposition-thresholds](memory-size-001-decomposition-thresholds.md)
+- [memory-system-fragmentation-tech-debt](memory-system-fragmentation-tech-debt.md)
+- [memory-token-efficiency](memory-token-efficiency.md)
