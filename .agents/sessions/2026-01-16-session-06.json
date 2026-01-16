@@ -123,7 +123,7 @@
       },
       "changes_committed": {
         "status": "complete",
-        "evidence": "Initial commit SHA: e682e313, Follow-up commit SHA: a5df82b4"
+        "evidence": "Initial commit SHA: e682e313, Follow-up commits: a5df82b4 (CONTRIBUTING.md), 61c91dc8 (GitHub Actions)"
       },
       "validation_passed": {
         "status": "complete",
