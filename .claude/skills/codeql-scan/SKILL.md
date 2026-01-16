@@ -1,0 +1,572 @@
+---
+name: codeql-scan
+description: Execute CodeQL security scans with language detection, database caching, and SARIF output. Use when performing static security analysis on PowerShell, Python, or GitHub Actions code.
+version: 1.0.0
+license: MIT
+model: claude-sonnet-4-5
+metadata:
+  domains:
+    - security
+    - static-analysis
+    - codeql
+  type: security-tool
+---
+
+# CodeQL Scan Skill
+
+Execute CodeQL security scans with automated language detection, database caching, and SARIF output generation.
+
+## Quick Start
+
+### Manual Invocation
+
+```bash
+# Via Claude Code skill system
+/codeql-scan
+
+# Direct script invocation
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+
+# Quick scan with cached databases
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation quick
+
+# Validate configuration only
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation validate
+```
+
+## Triggers
+
+- "Run CodeQL scan"
+- "Check for vulnerabilities"
+- "Validate CodeQL configuration"
+- "Quick security scan"
+
+## Decision Tree
+
+```text
+Need CodeQL analysis?
+├─ First time setup → Install-CodeQL.ps1
+├─ Validate config → Test-CodeQLConfig.ps1
+├─ Full repository scan → Invoke-CodeQLScan.ps1
+├─ Quick scan (cached) → Invoke-CodeQLScan.ps1 -UseCache
+├─ Specific language → Invoke-CodeQLScan.ps1 -Languages "powershell"
+└─ CI mode → Invoke-CodeQLScan.ps1 -CI -Format json
+```
+
+### When to Use Each Operation
+
+| Operation | Use When | Performance | Output |
+|-----------|----------|-------------|--------|
+| `full` | First scan, major changes, pre-PR validation | 30-60s | SARIF + Console |
+| `quick` | Iterative development, minor changes | 10-20s | SARIF + Console |
+| `validate` | Config changes, troubleshooting | <5s | Console only |
+
+## Process Overview
+
+```mermaid
+flowchart TD
+    A[Start CodeQL Scan] --> B{Operation Type}
+    B -->|full| C[Check CLI Installed]
+    B -->|quick| C
+    B -->|validate| D[Run Test-CodeQLConfig.ps1]
+
+    C --> E{CLI Available?}
+    E -->|No| F[Error: Install CLI]
+    E -->|Yes| G[Detect Languages]
+
+    G --> H[Run Invoke-CodeQLScan.ps1]
+    H --> I{Scan Successful?}
+
+    I -->|Yes| J[Generate SARIF]
+    I -->|No| K[Error: Scan Failed]
+
+    J --> L[Display Summary]
+    D --> M[Display Config Status]
+
+    L --> N[Exit 0]
+    M --> N
+    F --> O[Exit 3]
+    K --> P[Exit 3]
+```
+
+## Workflow
+
+### 1. Full Repository Scan
+
+**Use Case:** Comprehensive security analysis of entire codebase
+
+**Steps:**
+
+1. **Check Prerequisites:**
+
+   ```powershell
+   # Verify CodeQL CLI is installed
+   if (-not (Test-Path .codeql/cli/codeql)) {
+       Write-Error "CodeQL CLI not found. Run: pwsh .codeql/scripts/Install-CodeQL.ps1"
+       exit 3
+   }
+   ```
+
+2. **Run Scan:**
+
+   ```powershell
+   pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+   ```
+
+3. **Review Results:**
+   - SARIF files: `.codeql/results/*.sarif`
+   - Console output: Summary of findings by severity
+   - Exit code: 0 (success), 1 (findings in CI mode), 3 (scan failed)
+
+**Expected Output:**
+
+```text
+=== CodeQL Security Scan ===
+
+[✓] CodeQL CLI found at .codeql/cli/codeql
+[✓] Languages detected: powershell, python, actions
+[✓] Running full scan (no cache)...
+
+Scanning powershell...
+  Database created: .codeql/db/powershell
+  Queries executed: 127
+  Findings: 3 (0 high, 2 medium, 1 low)
+
+Scanning python...
+  Database created: .codeql/db/python
+  Queries executed: 89
+  Findings: 1 (0 high, 0 medium, 1 low)
+
+Scanning actions...
+  Database created: .codeql/db/actions
+  Queries executed: 45
+  Findings: 0
+
+[✓] SARIF results saved to .codeql/results/
+[✓] Scan completed successfully
+
+Total findings: 4 (0 high, 2 medium, 2 low)
+```
+
+### 2. Quick Scan (Cached)
+
+**Use Case:** Rapid iteration during development
+
+**Steps:**
+
+1. **Run Quick Scan:**
+
+   ```powershell
+   pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation quick
+   ```
+
+2. **Review Changes:**
+   - Only re-scans if source files changed
+   - Uses cached databases from previous full scan
+   - 3-5x faster than full scan
+
+**Performance:**
+
+- First run: 30-60s (creates databases)
+- Subsequent runs: 10-20s (uses cache)
+- Cache invalidation: Automatic on source file changes
+
+### 3. Configuration Validation
+
+**Use Case:** Verify CodeQL configuration YAML syntax and query packs
+
+**Steps:**
+
+1. **Validate Config:**
+
+   ```powershell
+   pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation validate
+   ```
+
+2. **Review Output:**
+   - YAML syntax validation
+   - Query pack resolution
+   - Language configuration checks
+
+**Expected Output:**
+
+```text
+=== CodeQL Configuration Validation ===
+
+[✓] Configuration file found: .github/codeql/codeql-config.yml
+[✓] YAML syntax valid
+[✓] Query packs resolved:
+    - codeql/powershell-queries
+    - codeql/python-queries
+    - codeql/actions-queries
+[✓] Language configurations valid
+
+Configuration is valid
+```
+
+### 4. Language-Specific Scan
+
+**Use Case:** Scan only specific languages (faster iteration)
+
+**Steps:**
+
+1. **Specify Languages:**
+
+   ```powershell
+   pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 `
+       -Operation full `
+       -Languages "powershell"
+   ```
+
+2. **Use Cases:**
+   - Testing PowerShell scripts only
+   - Validating GitHub Actions workflows only
+   - Focused analysis during refactoring
+
+### 5. CI Mode (Non-Interactive)
+
+**Use Case:** Integration with continuous integration pipelines
+
+**Steps:**
+
+1. **Run in CI Mode:**
+
+   ```powershell
+   pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 `
+       -Operation full `
+       -CI
+   ```
+
+2. **Exit Behavior:**
+   - Exit 0: No findings
+   - Exit 1: Findings detected (fails CI)
+   - Exit 3: Scan execution failed
+
+## Script Reference
+
+### Invoke-CodeQLScanSkill.ps1
+
+Wrapper script providing skill-specific functionality.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `-Operation` | ValidateSet | `"full"` | Operation type: `full`, `quick`, `validate` |
+| `-Languages` | String[] | (auto-detect) | Languages to scan: `powershell`, `python`, `actions` |
+| `-CI` | Switch | `$false` | Enable CI mode (exit 1 on findings) |
+
+**Exit Codes (ADR-035):**
+
+| Code | Meaning | CI Behavior |
+|------|---------|-------------|
+| 0 | Success (no findings or findings ignored) | Pass |
+| 1 | Findings detected (CI mode only) | Fail |
+| 2 | Configuration invalid | Fail |
+| 3 | Scan execution failed | Fail |
+
+**Examples:**
+
+```powershell
+# Full scan with auto-detected languages
+.\Invoke-CodeQLScanSkill.ps1 -Operation full
+
+# Quick scan (cached databases)
+.\Invoke-CodeQLScanSkill.ps1 -Operation quick
+
+# Validate configuration only
+.\Invoke-CodeQLScanSkill.ps1 -Operation validate
+
+# CI mode (exit 1 on findings)
+.\Invoke-CodeQLScanSkill.ps1 -Operation full -CI
+
+# Scan specific language
+.\Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "powershell"
+
+# Scan multiple languages
+.\Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "powershell", "python"
+```
+
+### Underlying Scripts
+
+This skill wraps these core CodeQL scripts:
+
+| Script | Purpose | Location |
+|--------|---------|----------|
+| `Install-CodeQL.ps1` | Download and install CodeQL CLI | `.codeql/scripts/` |
+| `Invoke-CodeQLScan.ps1` | Execute security scans | `.codeql/scripts/` |
+| `Test-CodeQLConfig.ps1` | Validate configuration | `.codeql/scripts/` |
+
+## Output Format
+
+### SARIF Files
+
+Results are saved in SARIF format for IDE integration:
+
+**Location:** `.codeql/results/<language>.sarif`
+
+**Structure:**
+
+```json
+{
+  "version": "2.1.0",
+  "runs": [{
+    "tool": {
+      "driver": {
+        "name": "CodeQL",
+        "version": "2.15.0"
+      }
+    },
+    "results": [{
+      "ruleId": "powershell/command-injection",
+      "level": "error",
+      "message": {
+        "text": "Potential command injection vulnerability"
+      },
+      "locations": [{
+        "physicalLocation": {
+          "artifactLocation": {
+            "uri": "scripts/example.ps1"
+          },
+          "region": {
+            "startLine": 42
+          }
+        }
+      }]
+    }]
+  }]
+}
+```
+
+### Console Output
+
+Human-readable summary with severity counts:
+
+```text
+=== CodeQL Scan Results ===
+
+powershell:
+  ❌ High:   0
+  ⚠️  Medium: 2
+  ℹ️  Low:    1
+
+python:
+  ❌ High:   0
+  ⚠️  Medium: 0
+  ℹ️  Low:    1
+
+actions:
+  ✓ No findings
+
+Total: 4 findings (0 high, 2 medium, 2 low)
+
+SARIF files: .codeql/results/
+```
+
+### JSON Output (CI Mode)
+
+Machine-readable format for CI integration:
+
+```json
+{
+  "status": "findings_detected",
+  "languages": ["powershell", "python", "actions"],
+  "findings": {
+    "total": 4,
+    "high": 0,
+    "medium": 2,
+    "low": 2
+  },
+  "sarif_files": [
+    ".codeql/results/powershell.sarif",
+    ".codeql/results/python.sarif",
+    ".codeql/results/actions.sarif"
+  ]
+}
+```
+
+## Anti-Patterns
+
+### ❌ Don't: Skip Configuration Validation
+
+**Wrong:**
+
+```powershell
+# Running scan without verifying config
+pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
+```
+
+**Correct:**
+
+```powershell
+# Always validate config first
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation validate
+
+# Then run scan
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+```
+
+### ❌ Don't: Ignore Exit Codes
+
+**Wrong:**
+
+```powershell
+# Ignoring exit code
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+# Continue even if scan failed
+```
+
+**Correct:**
+
+```powershell
+# Check exit code
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+if ($LASTEXITCODE -ne 0) {
+    throw "CodeQL scan failed with exit code $LASTEXITCODE"
+}
+```
+
+### ❌ Don't: Run Full Scans Unnecessarily
+
+**Wrong:**
+
+```powershell
+# Full scan on every minor change
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+```
+
+**Correct:**
+
+```powershell
+# Use quick scan for iterative development
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation quick
+
+# Reserve full scans for:
+# - First run
+# - Major refactoring
+# - Pre-PR validation
+```
+
+### ❌ Don't: Mix Skill Wrapper with Direct Script Calls
+
+**Wrong:**
+
+```powershell
+# Mixing interfaces
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "powershell"
+```
+
+**Correct:**
+
+```powershell
+# Consistent interface via skill wrapper
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "powershell"
+```
+
+## Verification Checklist
+
+Before completing a security scan task:
+
+- [ ] CodeQL CLI installed and accessible
+- [ ] Configuration validated (`-Operation validate`)
+- [ ] Scan completed successfully (exit code 0)
+- [ ] SARIF files generated in `.codeql/results/`
+- [ ] Findings reviewed (if any)
+- [ ] High/medium severity findings addressed
+- [ ] Low severity findings documented or suppressed
+- [ ] Cache refreshed if source files changed significantly
+
+## Related Skills
+
+| Skill | Purpose | When to Use |
+|-------|---------|-------------|
+| `security-detection` | Detect security-critical file changes | Before CodeQL scan to identify high-risk changes |
+| `github` | GitHub operations (PR comments, issues) | Report CodeQL findings to PR reviews |
+| `session-init` | Initialize session with protocol | Before starting security analysis workflow |
+
+## Troubleshooting
+
+### CodeQL CLI Not Found
+
+**Error:**
+
+```text
+Error: CodeQL CLI not found at .codeql/cli/codeql
+```
+
+**Solution:**
+
+```powershell
+# Install CodeQL CLI
+pwsh .codeql/scripts/Install-CodeQL.ps1 -AddToPath
+
+# Verify installation
+codeql version
+```
+
+### Configuration Validation Failed
+
+**Error:**
+
+```text
+Error: Invalid query pack: codeql/powershell-queries
+```
+
+**Solution:**
+
+```powershell
+# Check configuration syntax
+pwsh .codeql/scripts/Test-CodeQLConfig.ps1
+
+# Verify query packs exist
+codeql resolve qlpacks
+```
+
+### Scan Timeout
+
+**Error:**
+
+```text
+Error: Query execution timed out after 300s
+```
+
+**Solution:**
+
+```powershell
+# Increase timeout in VSCode settings
+# .vscode/settings.json:
+# "codeQL.runningQueries.timeout": 600
+
+# Or scan specific language to reduce scope
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 `
+    -Operation full `
+    -Languages "powershell"
+```
+
+### Cache Invalidation Issues
+
+**Error:**
+
+```text
+Warning: Using cached database, but source files changed
+```
+
+**Solution:**
+
+```powershell
+# Force database rebuild
+pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache:$false
+
+# Or use full operation (always rebuilds)
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+```
+
+## References
+
+- **CodeQL Documentation:** <https://codeql.github.com/docs/>
+- **SARIF Specification:** <https://sarifweb.azurewebsites.net/>
+- **ADR-035:** Exit code standardization
+- **ADR-005:** PowerShell-only scripting standard
+- **Session Protocol:** `.agents/SESSION-PROTOCOL.md`
