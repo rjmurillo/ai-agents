@@ -83,7 +83,7 @@ pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest <
 
 **Parse output to identify:**
 
-- Failing checks: `Conclusion` in (FAILURE, CANCELLED, TIMED_OUT)
+- Failing checks: `Conclusion` in (FAILURE, CANCELLED, TIMED_OUT, ACTION_REQUIRED)
 - Pending checks: `State` in (IN_PROGRESS, QUEUED)
 - External checks: Non-GitHub Actions URLs (note as out-of-scope)
 
