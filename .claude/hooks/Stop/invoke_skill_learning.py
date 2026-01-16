@@ -347,14 +347,22 @@ def get_api_key() -> Optional[str]:
     env_root = PROJECT_DIR
     if env_root is None:
         env_value = os.getenv("CLAUDE_PROJECT_DIR")
-        env_root = Path(env_value) if env_value else Path.cwd()
+        candidate_root: Optional[Path] = None
+        if env_value:
+            try:
+                candidate_root = Path(env_value).resolve(strict=False)
+            except Exception:
+                candidate_root = None
+        # Only trust CLAUDE_PROJECT_DIR if it is inside SAFE_BASE_DIR
+        if candidate_root is not None and _is_relative_to(candidate_root, SAFE_BASE_DIR):
+            env_root = candidate_root
+        else:
+            # Fall back to a safe default within the repository
+            env_root = SAFE_BASE_DIR
 
-    # CodeQL suppression: env_root is either Path(env_value) from validated environment variable
-    # or Path.cwd() which is safe. The resulting .env path is contained within the project root.
-    env_file = env_root / ".env"  # lgtm[py/path-injection]
+    env_file = env_root / ".env"
     if env_file.exists():
-        # CodeQL suppression: env_file is constructed from validated env_root and static ".env" string
-        with open(env_file, encoding="utf-8") as f:  # lgtm[py/path-injection]
+        with open(env_file, encoding="utf-8") as f:
             for line in f:
                 if line.startswith("ANTHROPIC_API_KEY="):
                     return line.split("=", 1)[1].strip().strip('"\'')
