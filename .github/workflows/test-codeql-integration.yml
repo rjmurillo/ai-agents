@@ -36,8 +36,8 @@ concurrency:
 jobs:
   test-cli-installation:
     name: Test CLI Installation
-    # ADR-032: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
+    # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -97,8 +97,8 @@ jobs:
   test-config-validation:
     name: Test Config Validation
     needs: test-cli-installation
-    # ADR-032: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -179,8 +179,8 @@ jobs:
   test-scan-execution:
     name: Test Scan Execution
     needs: test-cli-installation
-    # ADR-032: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -297,8 +297,8 @@ jobs:
   test-matrix-languages:
     name: Test Language (${{ matrix.language }})
     needs: test-cli-installation
-    # ADR-032: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -363,7 +363,7 @@ jobs:
     name: Aggregate Results
     needs: [test-cli-installation, test-config-validation, test-scan-execution, test-matrix-languages]
     if: always()
-    # ADR-032: ARM runner for cost optimization
+    # Aggregate job can use ARM since it doesn't run CodeQL CLI
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
