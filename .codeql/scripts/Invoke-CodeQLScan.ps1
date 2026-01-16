@@ -140,7 +140,7 @@ function Get-CodeQLExecutable {
     }
 
     # Check default installation path
-    $defaultPath = Join-Path $PSScriptRoot "../../cli/codeql"
+    $defaultPath = Join-Path $PSScriptRoot "../cli/codeql"
     if ($IsWindows) {
         $defaultPath += ".exe"
     }
