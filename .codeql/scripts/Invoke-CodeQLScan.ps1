@@ -336,13 +336,13 @@ function Invoke-CodeQLDatabaseCreate {
 
     $langDbPath = Join-Path $DatabasePath $Language
 
-    # Ensure parent database directory exists
-    if (-not (Test-Path $DatabasePath)) {
-        New-Item -ItemType Directory -Path $DatabasePath -Force | Out-Null
-    }
-
     if (-not $CI) {
         Write-Host "Creating CodeQL database for $Language..." -ForegroundColor Cyan
+    }
+
+    # Ensure the parent database directory exists (CodeQL requires it)
+    if (-not (Test-Path $DatabasePath)) {
+        New-Item -ItemType Directory -Path $DatabasePath -Force | Out-Null
     }
 
     # Remove existing database for this language
@@ -351,10 +351,19 @@ function Invoke-CodeQLDatabaseCreate {
     }
 
     try {
-        $createOutput = & $CodeQLPath database create $langDbPath `
-            --language=$Language `
-            --source-root=$SourceRoot `
-            2>&1
+        $createArgs = @(
+            "database", "create",
+            $langDbPath,
+            "--language=$Language",
+            "--source-root=$SourceRoot"
+        )
+
+        # Add config file if it exists (used for path filters and query selection)
+        if (Test-Path $ConfigPath) {
+            $createArgs += "--codescanning-config=$ConfigPath"
+        }
+
+        $createOutput = & $CodeQLPath @createArgs 2>&1
 
         if ($LASTEXITCODE -ne 0) {
             # Show the actual CodeQL error output for troubleshooting
@@ -481,6 +490,8 @@ function Invoke-CodeQLDatabaseAnalyze {
     }
 
     try {
+        # Note: Config is applied during database creation (--codescanning-config),
+        # not during analysis. The database already has the config baked in.
         $analyzeArgs = @(
             "database", "analyze",
             $langDbPath,
@@ -488,11 +499,6 @@ function Invoke-CodeQLDatabaseAnalyze {
             "--output=$sarifOutput",
             "--sarif-category=$Language"
         )
-
-        # Add config if it exists
-        if (Test-Path $ConfigPath) {
-            $analyzeArgs += "--config=$ConfigPath"
-        }
 
         # QuickScan mode: wrap analysis in job with 30-second timeout
         if ($QuickScan) {
@@ -545,8 +551,9 @@ function Invoke-CodeQLDatabaseAnalyze {
                 $sarif = Get-Content $sarifOutput -Raw | ConvertFrom-Json
 
                 # Validate SARIF structure before accessing nested properties
-                if ($sarif.runs -and $sarif.runs.Count -gt 0 -and $sarif.runs[0].results) {
-                    $findings = $sarif.runs[0].results
+                # Note: Empty results array is valid (no findings), so use PSObject.Properties to check existence
+                if ($sarif.runs -and $sarif.runs.Count -gt 0 -and $null -ne $sarif.runs[0].PSObject.Properties['results']) {
+                    $findings = @($sarif.runs[0].results)  # Wrap in @() to ensure array even if empty
                 }
                 else {
                     Write-Warning "SARIF file has unexpected structure for $Language (missing runs or results array)"
@@ -569,6 +576,7 @@ function Invoke-CodeQLDatabaseAnalyze {
             FindingsCount = $findings.Count
             Findings = $findings
             SarifPath = $sarifOutput
+            TimedOut = $false
         }
 
         if (-not $CI) {

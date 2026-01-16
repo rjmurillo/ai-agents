@@ -228,6 +228,7 @@ Describe "Format-ScanResult" {
                         @{ level = "warning"; message = @{ text = "Test warning" } }
                     )
                     SarifPath = "/path/to/python.sarif"
+                    TimedOut = $false
                 }
             )
 
@@ -243,6 +244,7 @@ Describe "Format-ScanResult" {
                     FindingsCount = 0
                     Findings = @()
                     SarifPath = "/path/to/python.sarif"
+                    TimedOut = $false
                 }
             )
 
@@ -260,6 +262,7 @@ Describe "Format-ScanResult" {
                         @{ level = "warning" }
                     )
                     SarifPath = "/path/to/results.sarif"
+                    TimedOut = $false
                 }
             )
 
@@ -273,12 +276,14 @@ Describe "Format-ScanResult" {
                     FindingsCount = 3
                     Findings = @()
                     SarifPath = "/path/to/py.sarif"
+                    TimedOut = $false
                 }
                 @{
                     Language = "actions"
                     FindingsCount = 2
                     Findings = @()
                     SarifPath = "/path/to/actions.sarif"
+                    TimedOut = $false
                 }
             )
 
