@@ -222,21 +222,29 @@ def get_safe_project_path(project_dir: str) -> Optional[Path]:
         # Validate and sanitize root string BEFORE Path() construction (CodeQL CWE-22)
         validated_root = _validate_path_string(root_raw)
         if validated_root is None:
+            # Fall back immediately if the environment value fails basic string validation
             candidate_root = SAFE_BASE_DIR
         else:
             try:
                 # nosec B602 - CodeQL py/path-injection suppression
                 # JUSTIFICATION: Defense-in-depth path validation prevents traversal:
-                #   1. PRE-VALIDATION: _validate_path_string() rejects malicious patterns (line 217)
-                #   2. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary (line 230)
-                #   3. FALLBACK: Returns SAFE_BASE_DIR on validation failure (line 227, 231)
+                #   1. PRE-VALIDATION: _validate_path_string() rejects malicious patterns (line 223)
+                #   2. RAW RESOLUTION: Path(validated_root).resolve() computes an absolute path
+                #   3. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary (line 240)
+                #   4. FALLBACK: Returns SAFE_BASE_DIR on validation failure (lines 225, 235-237, 240-241)
                 # See: .github/codeql/suppressions.yml and .agents/analysis/908-codeql-path-traversal-analysis.md
-                candidate_root = Path(validated_root).expanduser().resolve(strict=False)  # lgtm[py/path-injection]
+                candidate_root_raw = Path(validated_root).expanduser().resolve(strict=False)  # lgtm[py/path-injection]
             except Exception:
                 # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
-                candidate_root = SAFE_BASE_DIR
+                candidate_root_raw = SAFE_BASE_DIR
 
-        # Ensure the candidate root is absolute and within the repository's SAFE_BASE_DIR
+            # Ensure the raw candidate root is absolute and within the repository's SAFE_BASE_DIR
+            if not candidate_root_raw.is_absolute() or not _is_relative_to(candidate_root_raw, SAFE_BASE_DIR):
+                candidate_root = SAFE_BASE_DIR
+            else:
+                candidate_root = candidate_root_raw
+
+        # Ensure the final candidate root is absolute and within the repository's SAFE_BASE_DIR
         if not candidate_root.is_absolute() or not _is_relative_to(candidate_root, SAFE_BASE_DIR):
             safe_root = SAFE_BASE_DIR
         else:
