@@ -94,10 +94,10 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     needs: check-paths
-    # ADR-032: ARM runner for cost optimization (37.5% savings vs x64)
+    # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
     # IMPORTANT: This job ALWAYS runs to satisfy required status checks,
     # but short-circuits steps when no scannable files are changed.
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       security-events: write  # Required for SARIF upload to GitHub Security tab
