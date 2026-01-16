@@ -192,8 +192,7 @@ def get_project_directory(hook_input: dict) -> str:
         #   2. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary (line 198)
         #   3. FALLBACK: Returns SAFE_BASE_DIR on any validation failure (line 192)
         # See: .github/codeql/suppressions.yml and .agents/analysis/908-codeql-path-traversal-analysis.md
-        # lgtm[py/path-injection]
-        candidate = Path(validated_dir).expanduser().resolve(strict=False)
+        candidate = Path(validated_dir).expanduser().resolve(strict=False)  # lgtm[py/path-injection]
     except Exception:
         # Fall back to safe base directory on any resolution error
         return str(SAFE_BASE_DIR)
@@ -232,8 +231,7 @@ def get_safe_project_path(project_dir: str) -> Optional[Path]:
                 #   2. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary (line 230)
                 #   3. FALLBACK: Returns SAFE_BASE_DIR on validation failure (line 227, 231)
                 # See: .github/codeql/suppressions.yml and .agents/analysis/908-codeql-path-traversal-analysis.md
-                # lgtm[py/path-injection]
-                candidate_root = Path(validated_root).expanduser().resolve(strict=False)
+                candidate_root = Path(validated_root).expanduser().resolve(strict=False)  # lgtm[py/path-injection]
             except Exception:
                 # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
                 candidate_root = SAFE_BASE_DIR
@@ -353,12 +351,10 @@ def get_api_key() -> Optional[str]:
 
     # CodeQL suppression: env_root is either Path(env_value) from validated environment variable
     # or Path.cwd() which is safe. The resulting .env path is contained within the project root.
-    # lgtm[py/path-injection]
-    env_file = env_root / ".env"
+    env_file = env_root / ".env"  # lgtm[py/path-injection]
     if env_file.exists():
         # CodeQL suppression: env_file is constructed from validated env_root and static ".env" string
-        # lgtm[py/path-injection]
-        with open(env_file, encoding="utf-8") as f:
+        with open(env_file, encoding="utf-8") as f:  # lgtm[py/path-injection]
             for line in f:
                 if line.startswith("ANTHROPIC_API_KEY="):
                     return line.split("=", 1)[1].strip().strip('"\'')
