@@ -46,6 +46,12 @@
     Valid values: "console" (colored summary), "sarif" (copy SARIF files), "json" (structured JSON)
     Defaults to "console".
 
+.PARAMETER QuickScan
+    Enables quick scan mode with targeted query selection (5-10 critical CWEs only).
+    Uses .github/codeql/codeql-config-quick.yml instead of the default configuration.
+    Quick scans complete in 5-15 seconds (cached database) vs 30-60 seconds (full scan).
+    Designed for PostToolUse hooks and interactive development with 30-second timeout.
+
 .EXAMPLE
     .\Invoke-CodeQLScan.ps1
     Auto-detects languages and performs full scan with console output
@@ -108,7 +114,10 @@ param(
 
     [Parameter()]
     [ValidateSet("console", "sarif", "json")]
-    [string]$Format = "console"
+    [string]$Format = "console",
+
+    [Parameter()]
+    [switch]$QuickScan
 )
 
 $ErrorActionPreference = 'Stop'
@@ -186,6 +195,13 @@ function Test-DatabaseCache {
     <#
     .SYNOPSIS
         Validates if cached database is still current.
+    .DESCRIPTION
+        Performs comprehensive cache validation using metadata file:
+        - Checks database directory existence
+        - Validates config file hash (no changes)
+        - Validates scripts directory hash (no changes to .codeql/scripts/)
+        - Validates .github/codeql/ directory hash (no changes to config directory)
+        - Checks git HEAD (no new commits)
     #>
     [CmdletBinding()]
     param(
@@ -205,37 +221,91 @@ function Test-DatabaseCache {
         return $false
     }
 
-    # Get database timestamp
-    $dbTimestamp = (Get-Item $DatabasePath).LastWriteTime
-
-    # Check if config file is newer than database
-    if (Test-Path $ConfigPath) {
-        $configTimestamp = (Get-Item $ConfigPath).LastWriteTime
-        if ($configTimestamp -gt $dbTimestamp) {
-            Write-Verbose "Config file modified after database creation"
-            return $false
-        }
+    # Check for cache metadata file
+    $metadataPath = Join-Path $DatabasePath ".cache-metadata.json"
+    if (-not (Test-Path $metadataPath)) {
+        Write-Verbose "Cache metadata not found (old cache format)"
+        return $false
     }
 
-    # Check if git HEAD changed (new commits)
+    try {
+        $metadata = Get-Content $metadataPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        Write-Verbose "Failed to parse cache metadata: $_"
+        return $false
+    }
+
+    # Validate git HEAD
     try {
         Push-Location $RepoPath
-        # Check for commits since database creation
-        $commitsSinceDb = git log --since="$($dbTimestamp.ToString('yyyy-MM-dd HH:mm:ss'))" --oneline 2>&1
-        if ($LASTEXITCODE -eq 0 -and $commitsSinceDb) {
-            Write-Verbose "New commits detected since database creation"
+        $currentHead = git rev-parse HEAD 2>&1
+        if ($LASTEXITCODE -eq 0 -and $currentHead -ne $metadata.git_head) {
+            Write-Verbose "Git HEAD changed: $($metadata.git_head) -> $currentHead"
             return $false
         }
     }
     catch {
-        Write-Verbose "Unable to check git history: $_"
+        Write-Verbose "Unable to check git HEAD: $_"
     }
     finally {
         Pop-Location
     }
 
-    Write-Verbose "Database cache is valid"
+    # Validate config hash
+    if (Test-Path $ConfigPath) {
+        $configHash = (Get-FileHash -Path $ConfigPath -Algorithm SHA256).Hash
+        if ($configHash -ne $metadata.config_hash) {
+            Write-Verbose "Config file changed (hash mismatch)"
+            return $false
+        }
+    }
+
+    # Validate scripts directory hash
+    $scriptsDir = Join-Path $RepoPath ".codeql/scripts"
+    if (Test-Path $scriptsDir) {
+        $scriptsHash = Get-DirectoryHash -Path $scriptsDir
+        if ($scriptsHash -ne $metadata.scripts_hash) {
+            Write-Verbose "CodeQL scripts directory changed (hash mismatch)"
+            return $false
+        }
+    }
+
+    # Validate config directory hash
+    $configDir = Join-Path $RepoPath ".github/codeql"
+    if (Test-Path $configDir) {
+        $configDirHash = Get-DirectoryHash -Path $configDir
+        if ($configDirHash -ne $metadata.config_dir_hash) {
+            Write-Verbose "CodeQL config directory changed (hash mismatch)"
+            return $false
+        }
+    }
+
+    Write-Verbose "Cache valid: git HEAD unchanged, config unchanged, scripts unchanged"
     return $true
+}
+
+function Get-DirectoryHash {
+    <#
+    .SYNOPSIS
+        Computes a hash of all files in a directory (recursive).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path $Path)) {
+        return ""
+    }
+
+    $files = Get-ChildItem -Path $Path -File -Recurse | Sort-Object FullName
+    $hashInput = ($files | ForEach-Object {
+        "$($_.FullName):$((Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash)"
+    }) -join "`n"
+
+    return (Get-FileHash -InputStream ([System.IO.MemoryStream]::new([System.Text.Encoding]::UTF8.GetBytes($hashInput))) -Algorithm SHA256).Hash
 }
 
 function Invoke-CodeQLDatabaseCreate {
@@ -255,7 +325,13 @@ function Invoke-CodeQLDatabaseCreate {
         [string]$SourceRoot,
 
         [Parameter(Mandatory)]
-        [string]$DatabasePath
+        [string]$DatabasePath,
+
+        [Parameter(Mandatory)]
+        [string]$ConfigPath,
+
+        [Parameter(Mandatory)]
+        [string]$RepoPath
     )
 
     $langDbPath = Join-Path $DatabasePath $Language
@@ -282,11 +358,75 @@ function Invoke-CodeQLDatabaseCreate {
         if (-not $CI) {
             Write-Host "✓ Database created for $Language" -ForegroundColor Green
         }
+
+        # Write cache metadata after successful database creation
+        Write-CacheMetadata -DatabasePath $DatabasePath -ConfigPath $ConfigPath -RepoPath $RepoPath
     }
     catch {
         Write-Error "Failed to create CodeQL database for ${Language}: $_"
         throw
     }
+}
+
+function Write-CacheMetadata {
+    <#
+    .SYNOPSIS
+        Writes cache metadata file for database invalidation tracking.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$DatabasePath,
+
+        [Parameter(Mandatory)]
+        [string]$ConfigPath,
+
+        [Parameter(Mandatory)]
+        [string]$RepoPath
+    )
+
+    try {
+        # Get git HEAD
+        Push-Location $RepoPath
+        $gitHead = git rev-parse HEAD 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            $gitHead = "unknown"
+        }
+    }
+    catch {
+        $gitHead = "unknown"
+    }
+    finally {
+        Pop-Location
+    }
+
+    # Compute config hash
+    $configHash = if (Test-Path $ConfigPath) {
+        (Get-FileHash -Path $ConfigPath -Algorithm SHA256).Hash
+    } else {
+        ""
+    }
+
+    # Compute scripts directory hash
+    $scriptsDir = Join-Path $RepoPath ".codeql/scripts"
+    $scriptsHash = Get-DirectoryHash -Path $scriptsDir
+
+    # Compute config directory hash
+    $configDir = Join-Path $RepoPath ".github/codeql"
+    $configDirHash = Get-DirectoryHash -Path $configDir
+
+    $metadata = @{
+        created = (Get-Date).ToUniversalTime().ToString('o')
+        git_head = $gitHead
+        config_hash = $configHash
+        scripts_hash = $scriptsHash
+        config_dir_hash = $configDirHash
+    }
+
+    $metadataPath = Join-Path $DatabasePath ".cache-metadata.json"
+    $metadata | ConvertTo-Json -Depth 10 | Set-Content -Path $metadataPath -Encoding UTF8
+
+    Write-Verbose "Cache metadata written to $metadataPath"
 }
 
 function Invoke-CodeQLDatabaseAnalyze {
@@ -452,6 +592,15 @@ if ($MyInvocation.InvocationName -ne '.') {
     try {
         # Resolve paths to absolute
         $RepoPath = Resolve-Path $RepoPath | Select-Object -ExpandProperty Path
+
+        # Use quick config if -QuickScan is specified
+        if ($QuickScan -and $ConfigPath -eq ".github/codeql/codeql-config.yml") {
+            $ConfigPath = ".github/codeql/codeql-config-quick.yml"
+            if (-not $CI) {
+                Write-Host "Quick scan mode enabled (targeted queries)" -ForegroundColor Yellow
+            }
+        }
+
         $ConfigPath = if ([System.IO.Path]::IsPathRooted($ConfigPath)) {
             $ConfigPath
         } else {
@@ -515,7 +664,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         # Create databases if needed
         if (-not $useCachedDb) {
             foreach ($lang in $Languages) {
-                Invoke-CodeQLDatabaseCreate -CodeQLPath $codeQLPath -Language $lang -SourceRoot $RepoPath -DatabasePath $DatabasePath
+                Invoke-CodeQLDatabaseCreate -CodeQLPath $codeQLPath -Language $lang -SourceRoot $RepoPath -DatabasePath $DatabasePath -ConfigPath $ConfigPath -RepoPath $RepoPath
             }
         }
 

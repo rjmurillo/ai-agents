@@ -162,9 +162,49 @@ Total findings: 1 (0 high, 0 medium, 1 low)
 
 **Performance:**
 
-- First run: 30-60s (creates databases)
-- Subsequent runs: 10-20s (uses cache)
-- Cache invalidation: Automatic on source file changes
+- Full scan: 30-60 seconds (creates databases + runs all queries)
+- Quick scan (CLI): 10-20 seconds (cached database + all queries)
+- Quick scan (PostToolUse hook): 5-15 seconds (cached database + targeted queries only)
+- Cache invalidation: Automatic on source file, config, or script changes
+
+### 2a. Quick Scan (PostToolUse Hook)
+
+**Use Case:** Automatic security feedback during file editing
+
+**How It Works:**
+
+The PostToolUse hook automatically triggers targeted CodeQL scans after you write Python files (*.py) or GitHub Actions workflows (*.yml in .github/workflows/). Uses a focused query set (5-10 critical CWEs) to complete within 30 seconds.
+
+**Automatic Triggers:**
+
+- Write a Python file → Quick scan for CWE-078, CWE-089, CWE-079, etc.
+- Write a workflow file → Quick scan for command injection, credential leaks
+
+**Configuration:**
+
+- Hook location: `.claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1`
+- Quick config: `.github/codeql/codeql-config-quick.yml`
+- Targeted queries only: CWE-078 (command injection), CWE-089 (SQL injection), CWE-079 (XSS), CWE-022 (path traversal), CWE-798 (hardcoded credentials)
+
+**Performance:**
+
+- Quick scan (cached DB): 5-15 seconds
+- Quick scan (first run): 20-30 seconds
+- Timeout budget: 30 seconds (graceful timeout if exceeded)
+
+**Output:**
+
+```text
+**CodeQL Quick Scan**: Analyzed `script.py` - No findings
+
+# Or if findings detected:
+**CodeQL Quick Scan**: Analyzed `script.py` - **2 finding(s) detected**
+```
+
+**Graceful Degradation:**
+
+- If CodeQL CLI not installed → Hook exits silently (non-blocking)
+- If scan times out → Warning message displayed, full scan recommended
 
 ### 3. Configuration Validation
 
@@ -290,6 +330,83 @@ This skill wraps these core CodeQL scripts:
 | `Install-CodeQL.ps1` | Download and install CodeQL CLI | `.codeql/scripts/` |
 | `Invoke-CodeQLScan.ps1` | Execute security scans | `.codeql/scripts/` |
 | `Test-CodeQLConfig.ps1` | Validate configuration | `.codeql/scripts/` |
+| `Get-CodeQLDiagnostics.ps1` | Comprehensive health check | `.codeql/scripts/` |
+
+## Diagnostics
+
+**Use Case:** Troubleshoot CodeQL setup and configuration
+
+**Run Diagnostics:**
+
+```powershell
+# Console output (default)
+pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1
+
+# JSON output (programmatic parsing)
+pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1 -OutputFormat json
+
+# Markdown report
+pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1 -OutputFormat markdown > diagnostics.md
+```
+
+**Checks Performed:**
+
+| Check | What It Validates |
+|-------|-------------------|
+| **CLI** | Installation, version, executable permissions |
+| **Config** | YAML syntax, query pack availability, language support |
+| **Database** | Existence, cache validity, size, creation timestamp |
+| **Results** | SARIF files, findings count, last scan timestamp |
+
+**Example Output:**
+
+```text
+========================================
+CodeQL Diagnostics Report
+========================================
+
+[CodeQL CLI]
+  ✓ Status: INSTALLED
+  ✓ Path: /path/to/.codeql/cli/codeql
+  ✓ Version: 2.15.3
+
+[Configuration]
+  ✓ Status: VALID
+  ✓ Query Packs: 2
+
+[Database]
+  ✓ Status: EXISTS
+  ✓ Languages: python, actions
+  ✓ Size: 45.3 MB
+  ✓ Created: 2026-01-15 20:00:00
+  ✓ Cache: VALID
+
+[Last Scan Results]
+  ✓ Status: AVAILABLE
+  ✓ Last Scan: 2026-01-15 20:05:00
+  ✓ Total Findings: 0
+
+========================================
+Overall Status: PASS
+========================================
+```
+
+**Exit Codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | All checks passed |
+| 1 | Some checks failed (warnings) |
+| 3 | Unable to run diagnostics |
+
+**Recommendations:**
+
+Diagnostics provides actionable recommendations when issues detected:
+
+- CLI not found → `Run: pwsh .codeql/scripts/Install-CodeQL.ps1 -AddToPath`
+- Config invalid YAML → `Check YAML formatting`
+- Cache metadata missing → `Database will be rebuilt on next scan`
+- No SARIF files found → `Run scan to generate results`
 
 ## Output Format
 
@@ -465,6 +582,8 @@ Before completing a security scan task:
 - [ ] High/medium severity findings addressed
 - [ ] Low severity findings documented or suppressed
 - [ ] Cache refreshed if source files changed significantly
+- [ ] PostToolUse hook enabled and functioning (automatic scans on file writes)
+- [ ] Diagnostics run and all checks passing
 
 ## Related Skills
 
@@ -550,6 +669,34 @@ pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache:$false
 # Or use full operation (always rebuilds)
 pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
 ```
+
+### Hook Not Triggering
+
+**Symptom:**
+
+PostToolUse hook not running after file writes
+
+**Troubleshooting:**
+
+```powershell
+# 1. Verify file type matches filter (*.py, *.yml in .github/workflows/)
+#    Hook only triggers for Python files and workflow files
+
+# 2. Check if CodeQL CLI is installed
+pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1
+
+# 3. Verify hook file exists and is executable
+Test-Path .claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1
+
+# 4. Check Claude Code hooks configuration
+#    Hooks should be enabled in Claude Code settings
+```
+
+**Common Causes:**
+
+- File type not supported (hook only scans `.py` and `.yml` in workflows)
+- CodeQL CLI not installed (graceful degradation, no error shown)
+- Hook disabled in Claude Code settings
 
 ## References
 
