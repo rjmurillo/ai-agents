@@ -15,6 +15,11 @@ These are corrections that MUST be followed:
 - SEMVER 2.0.0 comprehensive detection required for version tags (major, major.minor, major.minor.patch, prerelease, build) (Session 2026-01-16-session-07, 2026-01-16)
 - Pre-commit hook + CI validation for defense in depth (Session 2026-01-16-session-07, 2026-01-16)
 - Repeated constraint violations indicate insufficient enforcement - add blocking pre-commit hooks for documented read-only rules (Session 2026-01-16-session-07, 2026-01-16)
+- Create reusable validation functions for repeated security patterns (Test-SafePath, ConvertTo-SafeShellArgument) - 9 security fixes for similar vulnerability classes indicate missing centralization (Session 2026-01-16-session-07, 2026-01-16)
+- Bot-on-bot review loops must be prevented with actor filtering (github.actor != 'copilot[bot]' && github.actor != 'dependabot[bot]') (Session 2026-01-16-session-07, 2026-01-16)
+- Pass date as parameter to hooks/scripts to prevent midnight race conditions - generate timestamp ONCE at workflow start (Session 2026-01-16-session-07, 2026-01-16)
+- Silent catch blocks must include Write-Warning with error context - never swallow exceptions without logging (Session 2026-01-16-session-07, 2026-01-16)
+- Convert paths to absolute at entry point using Resolve-Path or Join-Path with $PSScriptRoot - test scripts from multiple working directories (Session 2026-01-16-session-07, 2026-01-16)
 
 ## Preferences (MED confidence)
 
@@ -40,6 +45,11 @@ These are observations that may become patterns:
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | SEMVER 2.0.0 comprehensive detection required |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Pre-commit hook + CI validation for defense in depth |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Repeated constraint violations indicate insufficient enforcement |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | Create reusable validation functions for security patterns |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | Bot-on-bot review loops prevention with actor filtering |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | Pass date as parameter to prevent midnight race conditions |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | Silent catch blocks must include Write-Warning |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | Convert paths to absolute at entry point |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Version comments after SHA improve maintainability |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Cross-platform regex patterns using POSIX syntax |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Security scanning in CI should be blocking for critical findings |

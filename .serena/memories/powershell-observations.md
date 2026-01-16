@@ -20,6 +20,8 @@ These are corrections that MUST be followed:
 
 These are preferences that SHOULD be followed:
 
+- PowerShell modules require -Force flag during development to reload changes (Import-Module ./MyModule.psm1 -Force) (Session 2026-01-16-session-07, 2026-01-16)
+
 ## Edge Cases (MED confidence)
 
 These are scenarios to handle:
@@ -38,6 +40,7 @@ These are observations that may become patterns:
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Always quote variables in external commands (CWE-78) |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Test both positive and negative cases |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Pattern matching: most specific first |
+| 2026-01-16 | 2026-01-16-session-07 | MED | PowerShell modules require -Force flag during development |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Null check consistency within script |
 
 ## Related

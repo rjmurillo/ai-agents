@@ -23,6 +23,7 @@ These are preferences that SHOULD be followed:
 
 - Analysis files use {session}-{3-5-word-description}.md format for traceability (Session 2026-01-14, 2026-01-14)
 - Distinguish .agents/critique/ (plan reviews) from .agents/analysis/ (research) (Session 2026-01-14, 2026-01-14)
+- Document constraints at point of enforcement, not buried in ADR amendments - improves discoverability for maintainers (Session 2026-01-16-session-07, 2026-01-16)
 
 ## Edge Cases (MED confidence)
 
@@ -46,6 +47,7 @@ These are observations that may become patterns:
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | ADR documentation should use dedicated subsections |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Verify example paths in comments match repository structure |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Code duplication should be consolidated proactively |
+| 2026-01-16 | 2026-01-16-session-07 | MED | Document constraints at point of enforcement for discoverability |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Remove duplicate configuration entries immediately |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Don't remove template variables without verification |
 

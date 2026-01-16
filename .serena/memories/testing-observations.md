@@ -15,6 +15,7 @@ These are corrections that MUST be followed:
 - Test inputs must align with script's actual matching logic, not hoped-for behavior - verify assumptions match reality (Session 2026-01-16-session-07, 2026-01-16)
 - Fixes without tests lead to regressions - add tests covering both old AND new scenarios before claiming success (Session 2026-01-16-session-07, 2026-01-16)
 - Cross-platform features require testing on all target platforms BEFORE merge (Session 2026-01-16-session-07, 2026-01-16)
+- Test plans must be completed before merge - unchecked test plan items = untested code = regressions. Block merge if checklist incomplete OR remove unchecked items from plan (Session 2026-01-16-session-07, 2026-01-16)
 
 ## Preferences (MED confidence)
 
@@ -25,6 +26,8 @@ These are preferences that SHOULD be followed:
 ## Edge Cases (MED confidence)
 
 These are scenarios to handle:
+
+- Large PRs (500+ files) hit pagination limits - emit explicit warning when truncating or use --paginate to fetch all files (Session 2026-01-16-session-07, 2026-01-16)
 
 ## Notes for Review (LOW confidence)
 
@@ -38,7 +41,9 @@ These are observations that may become patterns:
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Test inputs must align with actual matching logic |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Fixes without tests lead to regressions |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Cross-platform features require testing on all platforms before merge |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | Test plans must be completed before merge |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Use CI matrix builds for multi-platform validation |
+| 2026-01-16 | 2026-01-16-session-07 | MED | Large PRs hit pagination limits - emit warning when truncating |
 
 ## Related
 
