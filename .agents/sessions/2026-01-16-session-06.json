@@ -116,7 +116,7 @@
       },
       "changes_committed": {
         "status": "complete",
-        "evidence": "Commit SHA: e682e313"
+        "evidence": "Initial commit SHA: e682e313, Follow-up commit SHA: a5df82b4"
       },
       "validation_passed": {
         "status": "complete",
