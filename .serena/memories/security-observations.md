@@ -1,7 +1,7 @@
 # Skill Observations: security
 
 **Last Updated**: 2026-01-16
-**Sessions Analyzed**: 1
+**Sessions Analyzed**: 3
 
 ## Purpose
 
@@ -20,6 +20,11 @@ These are corrections that MUST be followed:
 - Pass date as parameter to hooks/scripts to prevent midnight race conditions - generate timestamp ONCE at workflow start (Session 2026-01-16-session-07, 2026-01-16)
 - Silent catch blocks must include Write-Warning with error context - never swallow exceptions without logging (Session 2026-01-16-session-07, 2026-01-16)
 - Convert paths to absolute at entry point using Resolve-Path or Join-Path with $PSScriptRoot - test scripts from multiple working directories (Session 2026-01-16-session-07, 2026-01-16)
+- Validate file paths within repository root using git rev-parse --show-toplevel, allow test bypass with IS_TEST_ENVIRONMENT=1 (Session 2026-01-16-session-07, PR #715)
+- Path injection prevention (CWE-22): Anchor BEFORE resolve using `(allowed_base / user_input).resolve()` not `Path(user_input).resolve()` then check containment. Absolute paths bypass unanchored resolution (Session 07, 2026-01-16)
+  - Evidence: PR #760 - incorrect pattern allowed absolute paths to bypass anchor check, CodeQL flagged 11 issues, user-provided patches show correct pattern
+- User frustration signals (WANTING TO SUPPRESS, patches PROVIDED) are BLOCKING - stop and clarify before continuing (Session 07, 2026-01-16)
+  - Evidence: PR #760 - user perception of suppression attempt, frustration indicated approach failure, required explicit clarification
 
 ## Preferences (MED confidence)
 
@@ -31,11 +36,11 @@ These are preferences that SHOULD be followed:
 
 ## Edge Cases (MED confidence)
 
-These are scenarios to handle:
+- None yet
 
 ## Notes for Review (LOW confidence)
 
-These are observations that may become patterns:
+- None yet
 
 ## History
 
@@ -50,6 +55,9 @@ These are observations that may become patterns:
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Pass date as parameter to prevent midnight race conditions |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Silent catch blocks must include Write-Warning |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Convert paths to absolute at entry point |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | Validate file paths within repo root using git rev-parse, test bypass with env var |
+| 2026-01-16 | Session 07 | HIGH | Path injection (CWE-22) prevention pattern: anchor before resolve |
+| 2026-01-16 | Session 07 | HIGH | User frustration signals are BLOCKING - stop and clarify |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Version comments after SHA improve maintainability |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Cross-platform regex patterns using POSIX syntax |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Security scanning in CI should be blocking for critical findings |

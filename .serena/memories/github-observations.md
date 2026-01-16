@@ -1,7 +1,7 @@
 # Skill Observations: github
 
 **Last Updated**: 2026-01-16
-**Sessions Analyzed**: 4
+**Sessions Analyzed**: 5
 
 ## Purpose
 
@@ -13,6 +13,8 @@ These are corrections that MUST be followed:
 
 - Always use GitHub skill PowerShell scripts instead of raw gh commands when script exists (Session 2026-01-16-session-07, 2026-01-16)
 - Route GitHub URLs to API calls, never fetch HTML directly (Session 2026-01-16-session-07, 2026-01-16)
+- Use GraphQL API for review thread resolution - REST API does not support resolveReviewThread operation (Session 07, 2026-01-16)
+  - Evidence: Session 38 - REST API research led to GraphQL discovery, thread resolution succeeded via GraphQL mutation
 
 ## Preferences (MED confidence)
 
@@ -27,6 +29,13 @@ These are preferences that SHOULD be followed:
 ## Edge Cases (MED confidence)
 
 These are scenarios to handle:
+
+- dorny/paths-filter requires checkout in ALL workflow jobs, not just jobs using the filter output (Session 07, 2026-01-16)
+  - Evidence: Session 38 - docs-only filter unused after discovering global checkout requirement
+- Workflow re-run executes on main branch, not PR branch - cannot use re-run to validate PR fixes, requires dummy commit to trigger PR run (Session 07, 2026-01-16)
+  - Evidence: Session 38 - workflow re-run behavior discovery, cannot validate PR changes via manual re-run
+- Bot PR authors need @mention to monitor PR feedback - don't automatically track review comments without explicit notification (Session 07, 2026-01-16)
+  - Evidence: Session 38 - Issue #152 created after PR #121 revealed bot author awareness gap
 
 ## Notes for Review (LOW confidence)
 
@@ -43,8 +52,12 @@ These are observations that may become patterns:
 | 2026-01-14 | 2026-01-14 | MED | Use mutation aliases for batch GraphQL operations |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Always use GitHub skill PowerShell scripts instead of raw gh commands |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Route GitHub URLs to API calls, never fetch HTML directly |
+| 2026-01-16 | Session 07 | HIGH | Use GraphQL API for review thread resolution (REST doesn't support it) |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Prioritize github skill scripts > gh api > gh commands |
 | 2026-01-16 | 2026-01-16-session-07 | MED | When github skill script doesn't exist, use gh api with specific endpoint |
+| 2026-01-16 | Session 07 | MED | dorny/paths-filter requires checkout in ALL workflow jobs |
+| 2026-01-16 | Session 07 | MED | Workflow re-run executes on main branch not PR branch |
+| 2026-01-16 | Session 07 | MED | Bot PR authors need @mention for PR feedback monitoring |
 
 ## Related
 

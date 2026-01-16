@@ -1,7 +1,7 @@
 # Skill Observations: testing
 
 **Last Updated**: 2026-01-16
-**Sessions Analyzed**: 1
+**Sessions Analyzed**: 3
 
 ## Purpose
 
@@ -16,12 +16,19 @@ These are corrections that MUST be followed:
 - Fixes without tests lead to regressions - add tests covering both old AND new scenarios before claiming success (Session 2026-01-16-session-07, 2026-01-16)
 - Cross-platform features require testing on all target platforms BEFORE merge (Session 2026-01-16-session-07, 2026-01-16)
 - Test plans must be completed before merge - unchecked test plan items = untested code = regressions. Block merge if checklist incomplete OR remove unchecked items from plan (Session 2026-01-16-session-07, 2026-01-16)
+- Test with non-numeric IDs (e.g., REQ-ABC) not just numeric patterns (REQ-001) - exposes regex anchoring bugs (Session 2026-01-16-session-07, PR #715)
+- Test ALL execution paths not just changed code - remote vs local, different OS, edge cases. Coverage claims require evidence not test count (Session 07, 2026-01-16)
+  - Evidence: PR #894 - claimed '63 tests pass' but missed remote execution path ($IsRemoteExecution branch), user found hidden glob-to-regex bug during verification, trust damage
+- Never mutate tests to match code changes - green tests hiding red reality is anti-pattern. Tests define contract (Session 07, 2026-01-16)
+  - Evidence: PR #395 Copilot SWE - 6 tests 'fixed' to match broken API (Boolean to hashtable), tests should have caught the breaking change
 
 ## Preferences (MED confidence)
 
 These are preferences that SHOULD be followed:
 
 - Use CI matrix builds for multi-platform validation to prevent regression cycles (Session 2026-01-16-session-07, 2026-01-16)
+- Target 25-30 tests for prompt validation suites to balance coverage against maintenance burden (Session 2026-01-16-session-07, Issue #357)
+- Test prompt changes against 4+ real PRs across DOCS, CODE, WORKFLOW, MIXED categories before merging (Session 2026-01-16-session-07, Issue #357)
 
 ## Edge Cases (MED confidence)
 
@@ -42,8 +49,13 @@ These are observations that may become patterns:
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Fixes without tests lead to regressions |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Cross-platform features require testing on all platforms before merge |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Test plans must be completed before merge |
+| 2026-01-16 | 2026-01-16-session-07 | HIGH | Test with non-numeric IDs to expose regex anchoring bugs |
+| 2026-01-16 | Session 07 | HIGH | Test ALL execution paths not just changed code (remote vs local, OS, edge cases) |
+| 2026-01-16 | Session 07 | HIGH | Never mutate tests to match code changes - tests define contract |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Use CI matrix builds for multi-platform validation |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Large PRs hit pagination limits - emit warning when truncating |
+| 2026-01-16 | 2026-01-16-session-07 | MED | Target 25-30 tests for prompt validation suites |
+| 2026-01-16 | 2026-01-16-session-07 | MED | Test prompt changes against 4+ real PRs across categories |
 
 ## Related
 
