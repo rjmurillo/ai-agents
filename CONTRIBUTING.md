@@ -23,7 +23,7 @@ Thank you for your interest in contributing to this project. This guide explains
 **Required Versions:**
 
 - **PowerShell 7.5.4+** (for cross-platform script execution)
-- **Pester 5.7.1+** (for PowerShell testing framework)
+- **Pester 5.7.1** (exact version, pinned for supply chain security)
 - **Python 3.12.x** (Not 3.13.x due to CodeQL/skill validation bug)
 
 **Python 3.12.x Required** (Not 3.13.x)
@@ -517,6 +517,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
+
+**Security Note**: Optional: verify installer integrity or use a package manager (e.g., brew/winget) when available.
 
 ### Verifying Connection
 

@@ -428,7 +428,7 @@ Specific versions matter for accurate tooling suggestions.
 |-----------|---------|-------|
 | **PowerShell** | 7.5.4+ | Cross-platform, required (ADR-005) |
 | **Node.js** | LTS (20+) | For markdownlint-cli2 |
-| **Pester** | 5.7.1+ | Testing framework |
+| **Pester** | 5.7.1 (exact) | Testing framework, pinned for supply chain security |
 | **GitHub CLI** | 2.60+ | For gh operations |
 | **Mermaid** | Latest | Diagram generation |
 

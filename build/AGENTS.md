@@ -267,7 +267,7 @@ pwsh build/scripts/Validate-PathNormalization.ps1
 | **Input** | Test files (`**/*.Tests.ps1`) |
 | **Output** | Test results (XML, console) |
 | **Trigger** | CI, pre-commit, manual |
-| **Dependencies** | Pester 5.7.1+, PowerShell 7.5.4+ |
+| **Dependencies** | Pester 5.7.1 (exact), PowerShell 7.5.4+ |
 
 **Invocation**:
 

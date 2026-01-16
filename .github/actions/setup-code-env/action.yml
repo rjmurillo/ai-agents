@@ -96,9 +96,9 @@ runs:
       run: |
         echo "Installing Pester testing framework..."
         Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
-        # Require minimum version for supply chain security (issue #304)
-        Install-Module -Name Pester -MinimumVersion 5.7.1 -Force -Scope CurrentUser
-        Import-Module Pester -MinimumVersion 5.7.1
+        # Require exact version for supply chain determinism (issue #304)
+        Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser
+        Import-Module Pester -RequiredVersion 5.7.1
         $pesterVersion = (Get-Module Pester).Version
         echo "✓ Pester $pesterVersion installed"
         "pester_version=$pesterVersion" >> "$env:GITHUB_OUTPUT"
