@@ -87,6 +87,39 @@ def _validate_path_string(path_str: str) -> Optional[str]:
     return path_str
 
 
+def _get_safe_root_from_env(env_value: str) -> Path:
+    """
+    Convert an environment-provided root path into a safe project root.
+
+    This function encapsulates all handling of potentially tainted path strings:
+      1. String-level validation via _validate_path_string.
+      2. Conversion to Path with expanduser/resolve.
+      3. Enforcement that the result is absolute and within SAFE_BASE_DIR.
+
+    On any validation failure, SAFE_BASE_DIR is returned.
+    """
+    # Step 1: String-level validation
+    validated_root = _validate_path_string(env_value)
+    if validated_root is None:
+        return SAFE_BASE_DIR
+
+    try:
+        # Step 2: Safely construct and normalize a Path from the validated string.
+        # nosec B602 - CodeQL py/path-injection suppression
+        # JUSTIFICATION: Input has passed _validate_path_string, and the resulting
+        # Path is immediately constrained to SAFE_BASE_DIR via _is_relative_to.
+        candidate_root = Path(validated_root).expanduser().resolve(strict=False)  # lgtm[py/path-injection]
+    except Exception:
+        # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
+        return SAFE_BASE_DIR
+
+    # Step 3: Enforce absolute path within SAFE_BASE_DIR
+    if not candidate_root.is_absolute() or not _is_relative_to(candidate_root, SAFE_BASE_DIR):
+        return SAFE_BASE_DIR
+
+    return candidate_root
+
+
 # =============================================================================
 # SKILL PATTERN DEFINITIONS (Single Source of Truth)
 # =============================================================================
@@ -219,36 +252,9 @@ def get_safe_project_path(project_dir: str) -> Optional[Path]:
         # Determine candidate safe root from environment or current working directory
         root_raw = os.getenv("CLAUDE_PROJECT_ROOT", os.getcwd())
 
-        # Validate and sanitize root string BEFORE Path() construction (CodeQL CWE-22)
-        validated_root = _validate_path_string(root_raw)
-        if validated_root is None:
-            # Fall back immediately if the environment value fails basic string validation
-            candidate_root = SAFE_BASE_DIR
-        else:
-            try:
-                # nosec B602 - CodeQL py/path-injection suppression
-                # JUSTIFICATION: Defense-in-depth path validation prevents traversal:
-                #   1. PRE-VALIDATION: _validate_path_string() rejects malicious patterns (line 223)
-                #   2. RAW RESOLUTION: Path(validated_root).resolve() computes an absolute path
-                #   3. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary (line 240)
-                #   4. FALLBACK: Returns SAFE_BASE_DIR on validation failure (lines 225, 235-237, 240-241)
-                # See: .github/codeql/suppressions.yml and .agents/analysis/908-codeql-path-traversal-analysis.md
-                candidate_root_raw = Path(validated_root).expanduser().resolve(strict=False)  # lgtm[py/path-injection]
-            except Exception:
-                # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
-                candidate_root_raw = SAFE_BASE_DIR
-
-            # Ensure the raw candidate root is absolute and within the repository's SAFE_BASE_DIR
-            if not candidate_root_raw.is_absolute() or not _is_relative_to(candidate_root_raw, SAFE_BASE_DIR):
-                candidate_root = SAFE_BASE_DIR
-            else:
-                candidate_root = candidate_root_raw
-
-        # Ensure the final candidate root is absolute and within the repository's SAFE_BASE_DIR
-        if not candidate_root.is_absolute() or not _is_relative_to(candidate_root, SAFE_BASE_DIR):
-            safe_root = SAFE_BASE_DIR
-        else:
-            safe_root = candidate_root
+        # Convert environment-provided root to a safe root within SAFE_BASE_DIR.
+        # This encapsulates all handling of potentially tainted path strings.
+        safe_root = _get_safe_root_from_env(root_raw)
 
         resolved_project = Path(project_dir).resolve()
     except OSError:
