@@ -95,7 +95,7 @@ if ($CoveragePercent -lt 90) {
 **Testing Protocol:** Add coverage measurement step before test sign-off
 **QA Agent Review:** Parse coverage.xml output, require metrics in PR description
 **AI Quality Gates:** Cannot detect coverage gaps via static analysis alone
-**Skill System:** Tag as `usage-mandatory` for all PowerShell testing
+**Skill System:** Tag as [usage-mandatory](usage-mandatory.md) for all PowerShell testing
 
 ## Related Patterns
 

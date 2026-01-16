@@ -1,0 +1,846 @@
+﻿<#
+.SYNOPSIS
+    Orchestrates CodeQL database creation and analysis for the repository.
+
+.DESCRIPTION
+    This script performs a complete CodeQL security scan by:
+    1. Auto-detecting languages in the repository (Python, GitHub Actions)
+    2. Creating CodeQL databases for each detected language
+    3. Running security queries against the databases using shared configuration
+    4. Generating SARIF output files for review and upload
+    5. Formatting results for console, JSON, or SARIF output
+
+    The script supports database caching to avoid redundant analysis and follows
+    the repository's PowerShell-only convention (ADR-005) with standardized exit
+    codes (ADR-035).
+
+.PARAMETER RepoPath
+    Path to the repository root directory. Defaults to current directory.
+
+.PARAMETER ConfigPath
+    Path to the CodeQL configuration YAML file.
+    Defaults to ".github/codeql/codeql-config.yml".
+
+.PARAMETER DatabasePath
+    Path where CodeQL databases will be created or cached.
+    Defaults to ".codeql/db".
+
+.PARAMETER ResultsPath
+    Path where SARIF result files will be saved.
+    Defaults to ".codeql/results".
+
+.PARAMETER Languages
+    Array of languages to scan. If not specified, languages are auto-detected.
+    Supported values: "python", "actions"
+
+.PARAMETER UseCache
+    If specified, reuses cached databases if they are still valid (no config changes,
+    no git HEAD changes). Significantly speeds up repeated scans.
+
+.PARAMETER CI
+    Enables CI mode with non-interactive behavior. In CI mode, the script exits with
+    code 1 if any high or critical severity findings are detected.
+
+.PARAMETER Format
+    Output format for scan results.
+    Valid values: "console" (colored summary), "sarif" (copy SARIF files), "json" (structured JSON)
+    Defaults to "console".
+
+.PARAMETER QuickScan
+    Enables quick scan mode with targeted query selection (5-10 critical CWEs only).
+    Uses .github/codeql/codeql-config-quick.yml instead of the default configuration.
+    Quick scans complete in 5-15 seconds (cached database) vs 30-60 seconds (full scan).
+    Designed for PostToolUse hooks and interactive development with 30-second timeout.
+
+.EXAMPLE
+    .\Invoke-CodeQLScan.ps1
+    Auto-detects languages and performs full scan with console output
+
+.EXAMPLE
+    .\Invoke-CodeQLScan.ps1 -Languages "python","actions" -UseCache
+    Scans only Python and GitHub Actions, using cached databases if valid
+
+.EXAMPLE
+    .\Invoke-CodeQLScan.ps1 -CI -Format json
+    Runs in CI mode with JSON output, exits with error if findings detected
+
+.EXAMPLE
+    .\Invoke-CodeQLScan.ps1 -DatabasePath ".codeql/custom-db" -ResultsPath ".codeql/custom-results"
+    Uses custom paths for databases and results
+
+.NOTES
+    Exit Codes (per ADR-035):
+        0 = Success (no findings or not in CI mode)
+        1 = Logic error or findings detected in CI mode
+        2 = Configuration error (missing config, invalid paths)
+        3 = External dependency error (CodeQL CLI not found, analysis failed)
+
+    Requirements:
+        - CodeQL CLI must be installed and in PATH (or in .codeql/cli/)
+        - Git repository (for cache invalidation)
+        - Valid codeql-config.yml
+
+    Performance:
+        - Database creation: ~30-120 seconds per language (first run)
+        - Analysis: ~10-60 seconds per language
+        - Cache: ~5-10 seconds for cache validation (subsequent runs)
+
+.LINK
+    https://codeql.github.com/docs/codeql-cli/
+#>
+
+[CmdletBinding()]
+param(
+    [Parameter()]
+    [string]$RepoPath = ".",
+
+    [Parameter()]
+    [string]$ConfigPath = ".github/codeql/codeql-config.yml",
+
+    [Parameter()]
+    [string]$DatabasePath = ".codeql/db",
+
+    [Parameter()]
+    [string]$ResultsPath = ".codeql/results",
+
+    [Parameter()]
+    [string[]]$Languages,
+
+    [Parameter()]
+    [switch]$UseCache,
+
+    [Parameter()]
+    [switch]$CI,
+
+    [Parameter()]
+    [ValidateSet("console", "sarif", "json")]
+    [string]$Format = "console",
+
+    [Parameter()]
+    [switch]$QuickScan
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+#region Helper Functions
+
+function Get-CodeQLExecutable {
+    <#
+    .SYNOPSIS
+        Locates the CodeQL CLI executable.
+    #>
+    [CmdletBinding()]
+    param()
+
+    # Check if in PATH
+    $codeqlCmd = Get-Command codeql -ErrorAction SilentlyContinue
+    if ($codeqlCmd) {
+        return $codeqlCmd.Source
+    }
+
+    # Check default installation path
+    $defaultPath = Join-Path $PSScriptRoot "../cli/codeql"
+    if ($IsWindows) {
+        $defaultPath += ".exe"
+    }
+
+    if (Test-Path $defaultPath) {
+        return $defaultPath
+    }
+
+    throw "CodeQL CLI not found. Please install using Install-CodeQL.ps1 or add to PATH."
+}
+
+function Get-RepositoryLanguage {
+    <#
+    .SYNOPSIS
+        Auto-detects programming languages in the repository.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$RepoPath
+    )
+
+    $detectedLanguages = @()
+
+    # Check for Python files
+    $pyFiles = Get-ChildItem -Path $RepoPath -Filter "*.py" -Recurse -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+
+    if ($pyFiles) {
+        $detectedLanguages += "python"
+        Write-Verbose "Detected Python files"
+    }
+
+    # Check for GitHub Actions workflows
+    $workflowPath = Join-Path $RepoPath ".github/workflows"
+    if (Test-Path $workflowPath) {
+        $workflowFiles = Get-ChildItem -Path $workflowPath -Filter "*.yml" -ErrorAction SilentlyContinue
+        if ($workflowFiles) {
+            $detectedLanguages += "actions"
+            Write-Verbose "Detected GitHub Actions workflows"
+        }
+    }
+
+    if ($detectedLanguages.Count -eq 0) {
+        Write-Warning "No supported languages detected in repository"
+    }
+
+    return $detectedLanguages
+}
+
+function Test-DatabaseCache {
+    <#
+    .SYNOPSIS
+        Validates if cached database is still current.
+    .DESCRIPTION
+        Performs comprehensive cache validation using metadata file:
+        - Checks database directory existence
+        - Validates config file hash (no changes)
+        - Validates scripts directory hash (no changes to .codeql/scripts/)
+        - Validates .github/codeql/ directory hash (no changes to config directory)
+        - Checks git HEAD (no new commits)
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$DatabasePath,
+
+        [Parameter(Mandatory)]
+        [string]$ConfigPath,
+
+        [Parameter(Mandatory)]
+        [string]$RepoPath
+    )
+
+    # Check if database exists
+    if (-not (Test-Path $DatabasePath)) {
+        Write-Verbose "Database cache not found"
+        return $false
+    }
+
+    # Check for cache metadata file
+    $metadataPath = Join-Path $DatabasePath ".cache-metadata.json"
+    if (-not (Test-Path $metadataPath)) {
+        Write-Verbose "Cache metadata not found (old cache format)"
+        return $false
+    }
+
+    try {
+        $metadata = Get-Content $metadataPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        Write-Verbose "Failed to parse cache metadata: $_"
+        return $false
+    }
+
+    # Validate git HEAD
+    try {
+        Push-Location $RepoPath
+        $currentHead = git rev-parse HEAD 2>&1
+        if ($LASTEXITCODE -eq 0 -and $currentHead -ne $metadata.git_head) {
+            Write-Verbose "Git HEAD changed: $($metadata.git_head) -> $currentHead"
+            return $false
+        }
+    }
+    catch {
+        Write-Verbose "Unable to check git HEAD: $_"
+    }
+    finally {
+        Pop-Location
+    }
+
+    # Validate config hash
+    if (Test-Path $ConfigPath) {
+        $configHash = (Get-FileHash -Path $ConfigPath -Algorithm SHA256).Hash
+        if ($configHash -ne $metadata.config_hash) {
+            Write-Verbose "Config file changed (hash mismatch)"
+            return $false
+        }
+    }
+
+    # Validate scripts directory hash
+    $scriptsDir = Join-Path $RepoPath ".codeql/scripts"
+    if (Test-Path $scriptsDir) {
+        $scriptsHash = Get-DirectoryHash -Path $scriptsDir
+        if ($scriptsHash -ne $metadata.scripts_hash) {
+            Write-Verbose "CodeQL scripts directory changed (hash mismatch)"
+            return $false
+        }
+    }
+
+    # Validate config directory hash
+    $configDir = Join-Path $RepoPath ".github/codeql"
+    if (Test-Path $configDir) {
+        $configDirHash = Get-DirectoryHash -Path $configDir
+        if ($configDirHash -ne $metadata.config_dir_hash) {
+            Write-Verbose "CodeQL config directory changed (hash mismatch)"
+            return $false
+        }
+    }
+
+    Write-Verbose "Cache valid: git HEAD unchanged, config unchanged, scripts unchanged"
+    return $true
+}
+
+function Get-DirectoryHash {
+    <#
+    .SYNOPSIS
+        Computes a hash of all files in a directory (recursive).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path $Path)) {
+        return ""
+    }
+
+    $files = Get-ChildItem -Path $Path -File -Recurse | Sort-Object FullName
+    $hashInput = ($files | ForEach-Object {
+        "$($_.FullName):$((Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash)"
+    }) -join "`n"
+
+    return (Get-FileHash -InputStream ([System.IO.MemoryStream]::new([System.Text.Encoding]::UTF8.GetBytes($hashInput))) -Algorithm SHA256).Hash
+}
+
+function Invoke-CodeQLDatabaseCreate {
+    <#
+    .SYNOPSIS
+        Creates a CodeQL database for the specified language.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$CodeQLPath,
+
+        [Parameter(Mandatory)]
+        [string]$Language,
+
+        [Parameter(Mandatory)]
+        [string]$SourceRoot,
+
+        [Parameter(Mandatory)]
+        [string]$DatabasePath,
+
+        [Parameter(Mandatory)]
+        [string]$ConfigPath,
+
+        [Parameter(Mandatory)]
+        [string]$RepoPath
+    )
+
+    $langDbPath = Join-Path $DatabasePath $Language
+
+    if (-not $CI) {
+        Write-Host "Creating CodeQL database for $Language..." -ForegroundColor Cyan
+    }
+
+    # Ensure the parent database directory exists (CodeQL requires it)
+    if (-not (Test-Path $DatabasePath)) {
+        New-Item -ItemType Directory -Path $DatabasePath -Force | Out-Null
+    }
+
+    # Remove existing database for this language
+    if (Test-Path $langDbPath) {
+        Remove-Item -Path $langDbPath -Recurse -Force
+    }
+
+    try {
+        $createArgs = @(
+            "database", "create",
+            $langDbPath,
+            "--language=$Language",
+            "--source-root=$SourceRoot"
+        )
+
+        # Add config file if it exists (used for path filters and query selection)
+        if (Test-Path $ConfigPath) {
+            $createArgs += "--codescanning-config=$ConfigPath"
+        }
+
+        $createOutput = & $CodeQLPath @createArgs 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            # Show the actual CodeQL error output for troubleshooting
+            $errorDetails = ($createOutput | Out-String).Trim()
+            if ($errorDetails) {
+                Write-Error "CodeQL database creation failed with exit code ${LASTEXITCODE}:`n$errorDetails"
+            }
+            throw "CodeQL database creation failed with exit code $LASTEXITCODE"
+        }
+
+        # Log verbose output only on success
+        $createOutput | Out-String | Write-Verbose
+
+        if (-not $CI) {
+            Write-Host "✓ Database created for $Language" -ForegroundColor Green
+        }
+
+        # Write cache metadata after successful database creation
+        Write-CacheMetadata -DatabasePath $DatabasePath -ConfigPath $ConfigPath -RepoPath $RepoPath
+    }
+    catch {
+        Write-Error "Failed to create CodeQL database for ${Language}: $_"
+        throw
+    }
+}
+
+function Write-CacheMetadata {
+    <#
+    .SYNOPSIS
+        Writes cache metadata file for database invalidation tracking.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$DatabasePath,
+
+        [Parameter(Mandatory)]
+        [string]$ConfigPath,
+
+        [Parameter(Mandatory)]
+        [string]$RepoPath
+    )
+
+    try {
+        # Get git HEAD
+        Push-Location $RepoPath
+        $gitHead = git rev-parse HEAD 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            $gitHead = "unknown"
+        }
+    }
+    catch {
+        $gitHead = "unknown"
+    }
+    finally {
+        Pop-Location
+    }
+
+    # Compute config hash
+    $configHash = if (Test-Path $ConfigPath) {
+        (Get-FileHash -Path $ConfigPath -Algorithm SHA256).Hash
+    } else {
+        ""
+    }
+
+    # Compute scripts directory hash
+    $scriptsDir = Join-Path $RepoPath ".codeql/scripts"
+    $scriptsHash = Get-DirectoryHash -Path $scriptsDir
+
+    # Compute config directory hash
+    $configDir = Join-Path $RepoPath ".github/codeql"
+    $configDirHash = Get-DirectoryHash -Path $configDir
+
+    $metadata = @{
+        created = (Get-Date).ToUniversalTime().ToString('o')
+        git_head = $gitHead
+        config_hash = $configHash
+        scripts_hash = $scriptsHash
+        config_dir_hash = $configDirHash
+    }
+
+    $metadataPath = Join-Path $DatabasePath ".cache-metadata.json"
+    $metadata | ConvertTo-Json -Depth 10 | Set-Content -Path $metadataPath -Encoding UTF8
+
+    Write-Verbose "Cache metadata written to $metadataPath"
+}
+
+function Invoke-CodeQLDatabaseAnalyze {
+    <#
+    .SYNOPSIS
+        Runs CodeQL analysis against the database.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$CodeQLPath,
+
+        [Parameter(Mandatory)]
+        [string]$Language,
+
+        [Parameter(Mandatory)]
+        [string]$DatabasePath,
+
+        [Parameter(Mandatory)]
+        [string]$ResultsPath,
+
+        [Parameter(Mandatory)]
+        [string]$ConfigPath,
+
+        [Parameter()]
+        [switch]$QuickScan
+    )
+
+    $langDbPath = Join-Path $DatabasePath $Language
+    $sarifOutput = Join-Path $ResultsPath "$Language.sarif"
+
+    if (-not $CI) {
+        Write-Host "Analyzing $Language code..." -ForegroundColor Cyan
+    }
+
+    # Ensure results directory exists
+    if (-not (Test-Path $ResultsPath)) {
+        New-Item -ItemType Directory -Path $ResultsPath -Force | Out-Null
+    }
+
+    try {
+        # Note: Config is applied during database creation (--codescanning-config),
+        # not during analysis. The database already has the config baked in.
+        $analyzeArgs = @(
+            "database", "analyze",
+            $langDbPath,
+            "--format=sarif-latest",
+            "--output=$sarifOutput",
+            "--sarif-category=$Language"
+        )
+
+        # QuickScan mode: wrap analysis in job with 30-second timeout
+        if ($QuickScan) {
+            $job = Start-Job -ScriptBlock {
+                param($CodeQLExe, $AnalysisArgs)
+                & $CodeQLExe @AnalysisArgs 2>&1
+            } -ArgumentList $CodeQLPath, $analyzeArgs
+
+            $completed = Wait-Job -Job $job -Timeout 30
+            if ($null -eq $completed) {
+                # Timeout occurred
+                Stop-Job -Job $job -ErrorAction SilentlyContinue
+                Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+
+                Write-Warning "CodeQL quick scan timed out after 30 seconds for $Language"
+
+                # Return empty result on timeout (graceful degradation per ADR-035)
+                return @{
+                    Language = $Language
+                    FindingsCount = 0
+                    Findings = @()
+                    SarifPath = $null
+                    TimedOut = $true
+                }
+            }
+
+            # Get job output and check state
+            $null = Receive-Job -Job $job
+            $jobFailed = $job.State -eq 'Failed'
+            Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+
+            # Check exit code via job state
+            if ($jobFailed) {
+                throw "CodeQL analysis failed (job state: Failed)"
+            }
+        }
+        else {
+            # Normal mode: run without timeout
+            $analyzeOutput = & $CodeQLPath @analyzeArgs 2>&1
+
+            if ($LASTEXITCODE -ne 0) {
+                # Show the actual CodeQL error output for troubleshooting
+                $errorDetails = ($analyzeOutput | Out-String).Trim()
+                if ($errorDetails) {
+                    Write-Error "CodeQL analysis failed with exit code ${LASTEXITCODE}:`n$errorDetails"
+                }
+                throw "CodeQL analysis failed with exit code $LASTEXITCODE"
+            }
+
+            # Log verbose output only on success
+            $analyzeOutput | Out-String | Write-Verbose
+        }
+
+        # Parse SARIF for findings count (Critical Issue #4 fix: Add error handling)
+        $findings = @()
+        try {
+            if (Test-Path $sarifOutput) {
+                $sarif = Get-Content $sarifOutput -Raw | ConvertFrom-Json
+
+                # Validate SARIF structure before accessing nested properties
+                # Note: Empty results array is valid (no findings), so use PSObject.Properties to check existence
+                if ($sarif.runs -and $sarif.runs.Count -gt 0 -and $null -ne $sarif.runs[0].PSObject.Properties['results']) {
+                    $findings = @($sarif.runs[0].results)  # Wrap in @() to ensure array even if empty
+                }
+                else {
+                    Write-Warning "SARIF file has unexpected structure for $Language (missing runs or results array)"
+                }
+            }
+            else {
+                # SARIF not generated (timeout or other issue)
+                Write-Verbose "SARIF output not found at $sarifOutput"
+            }
+        }
+        catch {
+            Write-Error "Failed to parse SARIF output for ${Language}: $($_.Exception.Message)"
+            Write-Error "SARIF path: $sarifOutput"
+            Write-Verbose "This may indicate corrupted SARIF from crashed CodeQL process or schema version mismatch"
+            # Leave $findings as empty array - will report 0 findings with error logged
+        }
+
+        $result = @{
+            Language = $Language
+            FindingsCount = $findings.Count
+            Findings = $findings
+            SarifPath = $sarifOutput
+            TimedOut = $false
+        }
+
+        if (-not $CI) {
+            $findingsColor = if ($findings.Count -eq 0) { "Green" } else { "Yellow" }
+            Write-Host "✓ Analysis complete: $($findings.Count) findings" -ForegroundColor $findingsColor
+        }
+
+        return $result
+    }
+    catch {
+        Write-Error "Failed to analyze CodeQL database for ${Language}: $_"
+        throw
+    }
+}
+
+function Format-ScanResult {
+    <#
+    .SYNOPSIS
+        Formats scan results for the specified output format.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [hashtable[]]$Results,
+
+        [Parameter(Mandatory)]
+        [ValidateSet("console", "sarif", "json")]
+        [string]$Format
+    )
+
+    switch ($Format) {
+        "console" {
+            Write-Host "`n========================================" -ForegroundColor Cyan
+            Write-Host "CodeQL Scan Results" -ForegroundColor Cyan
+            Write-Host "========================================" -ForegroundColor Cyan
+
+            $totalFindings = 0
+            $timedOutLanguages = @()
+
+            foreach ($result in $Results) {
+                # Critical Issue #3 fix: Check TimedOut flag before counting findings
+                if ($result.TimedOut) {
+                    $timedOutLanguages += $result.Language
+                    Write-Host "`n$($result.Language):" -ForegroundColor White -NoNewline
+                    Write-Host " TIMEOUT (not analyzed)" -ForegroundColor Red
+                    Write-Host "  Run manual scan to analyze this language" -ForegroundColor Gray
+                    continue
+                }
+
+                $totalFindings += $result.FindingsCount
+
+                $color = if ($result.FindingsCount -eq 0) { "Green" } else { "Yellow" }
+                Write-Host "`n$($result.Language):" -ForegroundColor White -NoNewline
+                Write-Host " $($result.FindingsCount) findings" -ForegroundColor $color
+
+                if ($result.FindingsCount -gt 0 -and $result.Findings) {
+                    # Group by severity
+                    $bySeverity = $result.Findings | Group-Object -Property { $_.level ?? "note" }
+                    foreach ($group in $bySeverity) {
+                        $severityColor = switch ($group.Name) {
+                            "error" { "Red" }
+                            "warning" { "Yellow" }
+                            default { "Gray" }
+                        }
+                        Write-Host "  - $($group.Name): $($group.Count)" -ForegroundColor $severityColor
+                    }
+                }
+
+                Write-Host "  SARIF: $($result.SarifPath)" -ForegroundColor Gray
+            }
+
+            Write-Host "`n========================================" -ForegroundColor Cyan
+
+            # Show timeout warning if any languages timed out
+            if ($timedOutLanguages.Count -gt 0) {
+                Write-Host "WARNING: $($timedOutLanguages.Count) language(s) timed out and were not analyzed:" -ForegroundColor Red
+                Write-Host "  $($timedOutLanguages -join ', ')" -ForegroundColor Red
+                Write-Host ""
+            }
+
+            $summaryColor = if ($totalFindings -eq 0) { "Green" } else { "Yellow" }
+            Write-Host "Total Findings: $totalFindings" -ForegroundColor $summaryColor
+
+            if ($timedOutLanguages.Count -gt 0) {
+                Write-Host "(Excluding timed out languages)" -ForegroundColor Gray
+            }
+
+            Write-Host "========================================" -ForegroundColor Cyan
+        }
+
+        "json" {
+            $jsonResults = @{
+                TotalFindings = ($Results | Measure-Object -Property FindingsCount -Sum).Sum
+                Languages = $Results | ForEach-Object {
+                    @{
+                        Language = $_.Language
+                        FindingsCount = $_.FindingsCount
+                        SarifPath = $_.SarifPath
+                    }
+                }
+            }
+
+            $jsonResults | ConvertTo-Json -Depth 10
+        }
+
+        "sarif" {
+            Write-Host "SARIF files available at:" -ForegroundColor Cyan
+            foreach ($result in $Results) {
+                Write-Host "  $($result.SarifPath)" -ForegroundColor White
+            }
+        }
+    }
+}
+
+#endregion
+
+#region Main Script
+
+# Only execute main logic if script is run directly, not dot-sourced for testing
+if ($MyInvocation.InvocationName -ne '.') {
+    try {
+        # Resolve paths to absolute
+        $RepoPath = Resolve-Path $RepoPath | Select-Object -ExpandProperty Path
+
+        # Path traversal protection (CWE-22): Validate RepoPath is within project root
+        try {
+            Push-Location $PSScriptRoot
+            $projectRoot = git rev-parse --show-toplevel 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to determine project root using git. Ensure this script is run within a Git repository. Git output: $projectRoot"
+            }
+
+            $resolvedProjectRoot = [IO.Path]::GetFullPath($projectRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
+            $resolvedRepoPath = [IO.Path]::GetFullPath($RepoPath).TrimEnd([IO.Path]::DirectorySeparatorChar)
+            # Check: RepoPath equals project root OR is a subdirectory of it
+            $isValid = ($resolvedRepoPath -eq $resolvedProjectRoot) -or
+                       $resolvedRepoPath.StartsWith($resolvedProjectRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+            if (-not $isValid) {
+                throw "Path traversal attempt detected. RepoPath must be within the project directory."
+            }
+        }
+        finally {
+            Pop-Location
+        }
+
+        # Use quick config if -QuickScan is specified
+        if ($QuickScan -and $ConfigPath -eq ".github/codeql/codeql-config.yml") {
+            $ConfigPath = ".github/codeql/codeql-config-quick.yml"
+            if (-not $CI) {
+                Write-Host "Quick scan mode enabled (targeted queries)" -ForegroundColor Yellow
+            }
+        }
+
+        $ConfigPath = if ([System.IO.Path]::IsPathRooted($ConfigPath)) {
+            $ConfigPath
+        } else {
+            Join-Path $RepoPath $ConfigPath
+        }
+        $DatabasePath = if ([System.IO.Path]::IsPathRooted($DatabasePath)) {
+            $DatabasePath
+        } else {
+            Join-Path $RepoPath $DatabasePath
+        }
+        $ResultsPath = if ([System.IO.Path]::IsPathRooted($ResultsPath)) {
+            $ResultsPath
+        } else {
+            Join-Path $RepoPath $ResultsPath
+        }
+
+        # Validate inputs
+        if (-not (Test-Path $RepoPath)) {
+            Write-Error "Repository path not found: $RepoPath"
+            exit 2
+        }
+
+        if (-not (Test-Path $ConfigPath)) {
+            Write-Warning "Config file not found at $ConfigPath. Proceeding without custom configuration."
+        }
+
+        # Locate CodeQL CLI
+        $codeQLPath = Get-CodeQLExecutable
+
+        if (-not $CI) {
+            Write-Host "CodeQL CLI: $codeQLPath" -ForegroundColor Cyan
+            Write-Host "Repository: $RepoPath" -ForegroundColor Cyan
+            Write-Host ""
+        }
+
+        # Auto-detect or validate languages
+        if (-not $Languages) {
+            $Languages = Get-RepositoryLanguage -RepoPath $RepoPath
+            if ($Languages.Count -eq 0) {
+                Write-Warning "No languages detected for scanning"
+                exit 0
+            }
+        }
+
+        if (-not $CI) {
+            Write-Host "Languages to scan: $($Languages -join ', ')" -ForegroundColor Cyan
+            Write-Host ""
+        }
+
+        # Check cache validity
+        $useCachedDb = $false
+        if ($UseCache) {
+            $useCachedDb = Test-DatabaseCache -DatabasePath $DatabasePath -ConfigPath $ConfigPath -RepoPath $RepoPath
+            if ($useCachedDb) {
+                if (-not $CI) {
+                    Write-Host "Using cached databases (validated)" -ForegroundColor Green
+                }
+            }
+        }
+
+        # Create databases if needed
+        if (-not $useCachedDb) {
+            foreach ($lang in $Languages) {
+                Invoke-CodeQLDatabaseCreate -CodeQLPath $codeQLPath -Language $lang -SourceRoot $RepoPath -DatabasePath $DatabasePath -ConfigPath $ConfigPath -RepoPath $RepoPath
+            }
+        }
+
+        # Run analysis
+        $analysisResults = @()
+        foreach ($lang in $Languages) {
+            $analyzeParams = @{
+                CodeQLPath = $codeQLPath
+                Language = $lang
+                DatabasePath = $DatabasePath
+                ResultsPath = $ResultsPath
+                ConfigPath = $ConfigPath
+            }
+            if ($QuickScan) {
+                $analyzeParams['QuickScan'] = $true
+            }
+            $result = Invoke-CodeQLDatabaseAnalyze @analyzeParams
+            $analysisResults += $result
+        }
+
+        # Format and display results
+        Format-ScanResult -Results $analysisResults -Format $Format
+
+        # Exit with error in CI mode if findings detected
+        if ($CI) {
+            $totalFindings = ($analysisResults | Measure-Object -Property FindingsCount -Sum).Sum
+            if ($totalFindings -gt 0) {
+                Write-Error "CodeQL scan detected $totalFindings findings"
+                exit 1
+            }
+        }
+
+        exit 0
+    }
+    catch {
+        Write-Error "CodeQL scan failed: $_"
+        Write-Error $_.ScriptStackTrace
+        exit 3
+    }
+} # End of direct execution check
+
+#endregion

@@ -160,6 +160,23 @@ Invoke-Pester -Path .\scripts\tests -Output Detailed
 
 Tests run automatically on PR/push to `scripts/**` via `.github/workflows/pester-tests.yml`.
 
+## CI Verification
+
+The `.github/workflows/verify-install-script.yml` workflow validates install output across
+Windows, macOS, and Linux for Claude, Copilot, and VS Code in both Global and Repo scopes.
+It uses file-based checks (`scripts/tests/Verify-InstallOutput.ps1`) to confirm expected
+files exist without requiring CLI authentication.
+
+### Run Locally
+
+```powershell
+# Verify a global install
+./scripts/tests/Verify-InstallOutput.ps1 -Environment Claude -Scope Global -CI
+
+# Verify a repo install
+./scripts/tests/Verify-InstallOutput.ps1 -Environment Copilot -Scope Repo -RepoPath . -CI
+```
+
 ## Validation Scripts
 
 The repository includes validation scripts for enforcing protocol compliance and code quality. These implement the technical guardrails from Issue #230.

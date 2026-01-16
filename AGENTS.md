@@ -181,6 +181,27 @@ pwsh scripts/Validate-Consistency.ps1
 pwsh build/Generate-Agents.ps1
 ```
 
+### CodeQL Security Analysis
+
+```bash
+# Installation
+pwsh .codeql/scripts/Install-CodeQL.ps1 -AddToPath
+pwsh .codeql/scripts/Install-CodeQLIntegration.ps1
+
+# Scanning
+pwsh .codeql/scripts/Invoke-CodeQLScan.ps1                    # Full scan
+pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache          # Quick scan (cached)
+pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "python" # Language-specific
+
+# Configuration & Diagnostics
+pwsh .codeql/scripts/Test-CodeQLConfig.ps1                    # Validate config
+pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1                # Health check
+
+# Claude Code skill
+/codeql-scan                                                   # Via skill system
+pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+```
+
 ### Git & GitHub Operations
 
 ```bash
