@@ -61,7 +61,7 @@ If an artifact ships outside the repository structure, it must be self-contained
 ```markdown
 <!-- src/claude/architect.md (ships to ~/.claude/) -->
 **Constraints**:
-- Use PowerShell 7.2+ for all scripting
+- Use PowerShell 7.5.4+ for all scripting
 - Follow ADR-005 for workflow design
 - No Node.js or Python dependencies
 [...full constraints embedded...]

@@ -263,7 +263,7 @@ For backward compatibility, individual scripts wrap the unified installer:
 | **Input** | `.mcp.json` (Claude Code format) |
 | **Output** | `.vscode/mcp.json` (VS Code format) |
 | **Trigger** | Manual |
-| **Dependencies** | PowerShell 7.0+ |
+| **Dependencies** | PowerShell 7.5.4+ |
 
 **Transformations Applied**:
 
@@ -328,7 +328,7 @@ For backward compatibility, individual scripts wrap the unified installer:
 | **Input** | `.agents/` directory artifacts |
 | **Output** | Consistency report |
 | **Trigger** | Manual, CI |
-| **Dependencies** | PowerShell 7.0+ |
+| **Dependencies** | PowerShell 7.5.4+ |
 
 **Validations**:
 
@@ -347,7 +347,7 @@ For backward compatibility, individual scripts wrap the unified installer:
 | **Input** | Session logs in `.agents/sessions/` |
 | **Output** | Protocol compliance report |
 | **Trigger** | CI on session log changes |
-| **Dependencies** | PowerShell 7.0+ |
+| **Dependencies** | PowerShell 7.5.4+ |
 
 **Checks Performed**:
 
