@@ -108,8 +108,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - language: powershell
-            build-mode: none
+          # Note: PowerShell is not a supported CodeQL language
+          # PowerShell scripts are analyzed via PSScriptAnalyzer instead
           - language: actions
             build-mode: none
           - language: python

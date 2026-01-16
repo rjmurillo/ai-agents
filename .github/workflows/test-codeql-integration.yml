@@ -162,8 +162,9 @@ jobs:
           $content = Get-Content $configPath -Raw
           $config = ConvertFrom-Yaml $content
 
+          # Note: PowerShell is not a supported CodeQL language
+          # PowerShell scripts are analyzed via PSScriptAnalyzer instead
           $expectedPacks = @(
-            'codeql/powershell-queries:codeql-suites/powershell-security-extended.qls',
             'codeql/actions-queries:codeql-suites/actions-security-extended.qls',
             'codeql/python-queries:codeql-suites/python-security-extended.qls'
           )
@@ -308,7 +309,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [powershell, actions, python]
+        # Note: PowerShell is not a supported CodeQL language
+        language: [actions, python]
 
     steps:
       - name: Checkout repository
