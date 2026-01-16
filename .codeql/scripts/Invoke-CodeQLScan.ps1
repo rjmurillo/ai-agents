@@ -180,10 +180,8 @@ function Get-RepositoryLanguage {
     if (Test-Path $workflowPath) {
         $workflowFiles = Get-ChildItem -Path $workflowPath -Filter "*.yml" -ErrorAction SilentlyContinue
         if ($workflowFiles) {
-            # Note: GitHub Actions is analyzed as part of the "actions" language in CodeQL
-            # However, CodeQL may not have native support for Actions as a language
-            # We'll document this for future workflow analysis integration
-            Write-Verbose "Detected GitHub Actions workflows (analyzed via actions queries)"
+            $detectedLanguages += "actions"
+            Write-Verbose "Detected GitHub Actions workflows"
         }
     }
 

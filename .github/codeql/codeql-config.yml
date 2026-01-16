@@ -18,8 +18,14 @@ packs:
 queries:
   - uses: security-extended
 
-# Severity threshold
-severity: medium
+# Query filters to enforce medium+ severity (exclude low severity findings)
+# This replaces the unsupported top-level 'severity' key with proper query-filters
+query-filters:
+  - exclude:
+      problem.severity: recommendation
+  - exclude:
+      problem.severity: warning
+      tags contain: low
 
 # Paths to scan (relative to repository root)
 paths:

@@ -81,7 +81,7 @@ Set-StrictMode -Version Latest
 function Test-YamlSyntax {
     <#
     .SYNOPSIS
-        Validates YAML syntax and parses content.
+        Validates YAML syntax and parses content using available YAML parsers.
     #>
     [CmdletBinding()]
     param(
@@ -90,35 +90,83 @@ function Test-YamlSyntax {
     )
 
     try {
-        # PowerShell doesn't have native YAML parsing in core modules
-        # Use simple parsing approach for validation
         $content = Get-Content $ConfigPath -Raw
 
         if ([string]::IsNullOrWhiteSpace($content)) {
             return @{
                 Valid = $false
                 Error = "Config file is empty"
+                ParsedContent = $null
             }
         }
 
-        # Basic YAML validation - check for common syntax errors
-        if ($content -match '^\s*-\s*\w+:\s*$' -or $content -match '^\s*\w+:\s*-\s*$') {
-            # Valid YAML structure
+        # Try to use ConvertFrom-Yaml if powershell-yaml module is available
+        $yamlModule = Get-Module -Name powershell-yaml -ListAvailable -ErrorAction SilentlyContinue
+        if ($yamlModule) {
+            try {
+                Import-Module powershell-yaml -ErrorAction Stop
+                $parsedContent = ConvertFrom-Yaml $content -ErrorAction Stop
+                return @{
+                    Valid = $true
+                    Content = $content
+                    ParsedContent = $parsedContent
+                }
+            }
+            catch {
+                return @{
+                    Valid = $false
+                    Error = "YAML parse error: $($_.Exception.Message)"
+                    ParsedContent = $null
+                }
+            }
         }
 
-        # Attempt to parse as structured data using ConvertFrom-Yaml or manual parsing
-        # For now, we'll do basic validation and rely on CodeQL CLI to validate structure
-        # TODO: Add powershell-yaml module support if available
+        # Fallback: Use a lightweight YAML parser for basic validation
+        # Check for common YAML syntax errors
+        $lines = $content -split "`n"
+        $lineNum = 0
 
+        foreach ($line in $lines) {
+            $lineNum++
+
+            # Skip empty lines and comments
+            if ($line -match '^\s*(#|$)') { continue }
+
+            # Check for tabs (YAML should use spaces)
+            if ($line -match '^\t') {
+                return @{
+                    Valid = $false
+                    Error = "YAML parse error at line ${lineNum}: Tabs are not allowed for indentation"
+                    ParsedContent = $null
+                }
+            }
+
+            # Check for invalid key-value syntax (colon without space)
+            if ($line -match '^\s*[\w\-]+:[^\s]' -and $line -notmatch '^\s*[\w\-]+:\s*[''"]' -and $line -notmatch '^\s*[\w\-]+:\s*$') {
+                # This might be a URL or valid value, so we're lenient here
+            }
+
+            # Check for unbalanced quotes
+            $singleQuotes = ($line -split "'" | Measure-Object).Count - 1
+            $doubleQuotes = ($line -split '"' | Measure-Object).Count - 1
+            if (($singleQuotes % 2 -ne 0) -or ($doubleQuotes % 2 -ne 0)) {
+                # Could be multi-line string, be lenient
+            }
+        }
+
+        # Basic structure validation passed
+        Write-Verbose "YAML basic validation passed (powershell-yaml module not available for deep parsing)"
         return @{
             Valid = $true
             Content = $content
+            ParsedContent = $null  # No deep parsing without powershell-yaml
         }
     }
     catch {
         return @{
             Valid = $false
             Error = $_.Exception.Message
+            ParsedContent = $null
         }
     }
 }
@@ -127,6 +175,9 @@ function Test-QueryPackAvailability {
     <#
     .SYNOPSIS
         Verifies that specified query packs can be resolved by CodeQL CLI.
+    .DESCRIPTION
+        Uses 'codeql resolve queries' to verify each pack is available.
+        Falls back to format validation if CodeQL CLI is unavailable.
     #>
     [CmdletBinding()]
     param(
@@ -134,23 +185,20 @@ function Test-QueryPackAvailability {
         [string]$CodeQLPath,
 
         [Parameter(Mandatory)]
-        [string[]]$Packs
+        [string[]]$Packs,
+
+        [Parameter()]
+        [switch]$CI
     )
 
     $missingPacks = @()
 
-    # Verify CodeQL CLI is available for future pack resolution
-    # Currently doing format validation only
     Write-Verbose "CodeQL CLI path: $CodeQLPath"
 
     foreach ($pack in $Packs) {
         Write-Verbose "Checking query pack: $pack"
 
         try {
-            # Note: CodeQL CLI doesn't have a direct "resolve queries" command for packs
-            # We'll validate pack format and defer to runtime validation
-            # This is a placeholder for future enhancement
-
             if ([string]::IsNullOrWhiteSpace($pack)) {
                 $missingPacks += @{
                     Pack = $pack
@@ -160,8 +208,53 @@ function Test-QueryPackAvailability {
             }
 
             # Basic format validation: should be "owner/repo:path" format
-            if ($pack -notmatch '^[\w\-]+/[\w\-]+:') {
-                Write-Warning "Query pack '$pack' may not follow expected format (owner/repo:path)"
+            if ($pack -notmatch '^[\w\-]+/[\w\-]+(:|@)') {
+                $missingPacks += @{
+                    Pack = $pack
+                    Error = "Invalid pack format. Expected 'owner/repo:path' or 'owner/repo@version'"
+                }
+                continue
+            }
+
+            # Use CodeQL CLI to resolve queries and verify pack availability
+            if ($CodeQLPath -and (Test-Path $CodeQLPath)) {
+                # Extract pack reference (without the query suite path for pack resolution)
+                $packRef = $pack -replace ':.*$', ''
+
+                # Try to resolve using codeql pack list or codeql resolve queries
+                $resolveOutput = & $CodeQLPath resolve queries $pack 2>&1
+                $resolveExitCode = $LASTEXITCODE
+
+                if ($resolveExitCode -ne 0) {
+                    # Try pack download to see if it's available
+                    $packDownloadOutput = & $CodeQLPath pack download --dry-run $packRef 2>&1
+                    $packListExitCode = $LASTEXITCODE
+
+                    if ($packListExitCode -ne 0) {
+                        $errorMessage = if ($resolveOutput -match 'not found|could not resolve|unable to') {
+                            "Pack not found or unavailable: $resolveOutput"
+                        } elseif ($packDownloadOutput -match 'not found|could not resolve|unable to') {
+                            "Pack not found in registry: $packDownloadOutput"
+                        } else {
+                            "Failed to resolve pack (exit code $resolveExitCode)"
+                        }
+
+                        $missingPacks += @{
+                            Pack = $pack
+                            Error = $errorMessage
+                        }
+
+                        if ($CI) {
+                            Write-Error "Query pack validation failed for '$pack': $errorMessage"
+                        }
+                    } else {
+                        Write-Verbose "Pack '$packRef' is available (dry-run download succeeded)"
+                    }
+                } else {
+                    Write-Verbose "Query pack '$pack' resolved successfully"
+                }
+            } else {
+                Write-Verbose "CodeQL CLI not available, skipping pack resolution for '$pack'"
             }
         }
         catch {
@@ -366,16 +459,25 @@ if ($MyInvocation.InvocationName -ne '.') {
             # 3. Validate query packs
             $codeqlPath = Get-CodeQLExecutable
             if ($codeqlPath -and $schemaResult.Packs.Count -gt 0) {
-                $missingPacks = Test-QueryPackAvailability -CodeQLPath $codeqlPath -Packs $schemaResult.Packs
+                $missingPacks = Test-QueryPackAvailability -CodeQLPath $codeqlPath -Packs $schemaResult.Packs -CI:$CI
 
                 if ($missingPacks.Count -gt 0) {
-                    foreach ($pack in $missingPacks) {
-                        $validationResults.Warnings += "Query pack '$($pack.Pack)': $($pack.Error)"
+                    if ($CI) {
+                        # In CI mode, missing packs are errors
+                        $validationResults.Valid = $false
+                        foreach ($pack in $missingPacks) {
+                            $validationResults.Errors += "Query pack '$($pack.Pack)': $($pack.Error)"
+                        }
+                    } else {
+                        # In non-CI mode, missing packs are warnings
+                        foreach ($pack in $missingPacks) {
+                            $validationResults.Warnings += "Query pack '$($pack.Pack)': $($pack.Error)"
+                        }
                     }
                 }
                 else {
                     if (-not $CI -and $Format -eq "console") {
-                        Write-Host "✓ Query pack format validation passed ($($schemaResult.Packs.Count) packs)" -ForegroundColor Green
+                        Write-Host "✓ Query pack validation passed ($($schemaResult.Packs.Count) packs)" -ForegroundColor Green
                     }
                 }
             }

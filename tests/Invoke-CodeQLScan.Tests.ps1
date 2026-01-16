@@ -149,16 +149,28 @@ Describe "Get-RepositoryLanguage" {
     }
 
     Context "GitHub Actions Detection" {
-        It "Detects GitHub Actions workflows" {
-            # Note: Current implementation may not return "actions" as a language
-            # but logs detection of workflows
-
+        It "Detects GitHub Actions workflows and includes 'actions' in languages" {
             # Verify .github/workflows exists with .yml files
             $workflowPath = Join-Path $script:MockRepoPath ".github/workflows"
             Test-Path $workflowPath | Should -Be $true
 
             $workflowFiles = @(Get-ChildItem -Path $workflowPath -Filter "*.yml")
             $workflowFiles.Count | Should -BeGreaterThan 0
+
+            # Get-RepositoryLanguage should now return 'actions' as a detected language
+            $languages = Get-RepositoryLanguage -RepoPath $script:MockRepoPath
+
+            $languages | Should -Contain "actions"
+        }
+
+        It "Does not include 'actions' when no workflow files exist" {
+            $noWorkflowRepo = Join-Path $script:TestTempDir "no-workflow-repo"
+            New-Item -ItemType Directory -Path $noWorkflowRepo -Force | Out-Null
+            "Write-Host 'Hello'" | Out-File -FilePath (Join-Path $noWorkflowRepo "test.ps1")
+
+            $languages = @(Get-RepositoryLanguage -RepoPath $noWorkflowRepo)
+
+            $languages | Should -Not -Contain "actions"
         }
     }
 }
