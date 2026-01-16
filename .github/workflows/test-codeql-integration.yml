@@ -1,0 +1,418 @@
+# Test CodeQL Integration
+#
+# Verifies CodeQL CLI installation, configuration validation, and scan execution
+# in CI environment. This workflow ensures the CodeQL setup is working correctly
+# before the main codeql-analysis.yml workflow runs.
+#
+# Purpose:
+#   - Validate CodeQL CLI installation scripts work in CI
+#   - Verify configuration YAML syntax and query pack availability
+#   - Test scan execution for each supported language
+#   - Ensure SARIF output is correctly generated
+#
+# Local developers and AI agents can run the same tests using:
+#   pwsh .codeql/scripts/Install-CodeQL.ps1 -CI
+#   pwsh .codeql/scripts/Test-CodeQLConfig.ps1 -CI
+#   pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -CI
+
+name: Test CodeQL Integration
+
+on:
+  pull_request:
+    paths:
+      - '.codeql/**'
+      - '.github/codeql/**'
+      - '.github/workflows/codeql-*.yml'
+      - '.github/workflows/test-codeql-integration.yml'
+    branches:
+      - main
+  workflow_dispatch: # Allow manual triggering
+
+# Concurrency control
+concurrency:
+  group: test-codeql-integration-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-cli-installation:
+    name: Test CLI Installation
+    # ADR-032: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install zstd (required for CodeQL bundle extraction)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd
+
+      - name: Install CodeQL CLI
+        shell: pwsh
+        run: |
+          ./codeql/scripts/Install-CodeQL.ps1 -CI -Force
+
+      - name: Verify CodeQL CLI is accessible
+        shell: pwsh
+        run: |
+          $codeqlPath = ".codeql/cli/codeql"
+          if (-not (Test-Path $codeqlPath)) {
+            Write-Error "CodeQL CLI not found at expected path: $codeqlPath"
+            exit 1
+          }
+
+          Write-Host "CodeQL CLI installed at: $codeqlPath"
+
+      - name: Run codeql version
+        shell: pwsh
+        run: |
+          $version = & .codeql/cli/codeql version 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to run 'codeql version': $version"
+            exit 1
+          }
+
+          Write-Host "CodeQL Version Output:"
+          Write-Host $version
+
+          # Validate version output format
+          if ($version -notmatch '\d+\.\d+\.\d+') {
+            Write-Error "Unexpected version output format"
+            exit 1
+          }
+
+          Write-Host "CodeQL CLI version check passed"
+
+      - name: Upload CLI installation for reuse
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: codeql-cli
+          path: .codeql/cli
+          retention-days: 1
+
+  test-config-validation:
+    name: Test Config Validation
+    needs: test-cli-installation
+    # ADR-032: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Download CodeQL CLI
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: codeql-cli
+          path: .codeql/cli
+
+      - name: Set executable permissions
+        run: chmod +x .codeql/cli/codeql
+
+      - name: Install powershell-yaml module
+        shell: pwsh
+        run: |
+          Install-Module -Name powershell-yaml -Force -Scope CurrentUser -AllowClobber
+
+      - name: Validate configuration YAML syntax
+        shell: pwsh
+        run: |
+          $configPath = ".github/codeql/codeql-config.yml"
+
+          if (-not (Test-Path $configPath)) {
+            Write-Error "Config file not found: $configPath"
+            exit 1
+          }
+
+          # Parse YAML
+          Import-Module powershell-yaml
+          $content = Get-Content $configPath -Raw
+          $config = ConvertFrom-Yaml $content
+
+          Write-Host "Configuration parsed successfully"
+          Write-Host "Name: $($config.name)"
+
+          # Verify required fields
+          if (-not $config.packs -and -not $config.queries) {
+            Write-Error "Config must have 'packs' or 'queries' field"
+            exit 1
+          }
+
+          Write-Host "YAML syntax validation passed"
+
+      - name: Run Test-CodeQLConfig script
+        shell: pwsh
+        run: |
+          ./codeql/scripts/Test-CodeQLConfig.ps1 -CI
+
+      - name: Verify query packs format
+        shell: pwsh
+        run: |
+          $configPath = ".github/codeql/codeql-config.yml"
+          Import-Module powershell-yaml
+          $content = Get-Content $configPath -Raw
+          $config = ConvertFrom-Yaml $content
+
+          $expectedPacks = @(
+            'codeql/powershell-queries:codeql-suites/powershell-security-extended.qls',
+            'codeql/actions-queries:codeql-suites/actions-security-extended.qls',
+            'codeql/python-queries:codeql-suites/python-security-extended.qls'
+          )
+
+          foreach ($pack in $expectedPacks) {
+            if ($config.packs -notcontains $pack) {
+              Write-Warning "Expected pack not found: $pack"
+            } else {
+              Write-Host "Found pack: $pack"
+            }
+          }
+
+          Write-Host "Query pack format verification completed"
+
+  test-scan-execution:
+    name: Test Scan Execution
+    needs: test-cli-installation
+    # ADR-032: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Download CodeQL CLI
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: codeql-cli
+          path: .codeql/cli
+
+      - name: Set executable permissions
+        run: chmod +x .codeql/cli/codeql
+
+      - name: Run CodeQL scan with JSON output
+        shell: pwsh
+        run: |
+          ./codeql/scripts/Invoke-CodeQLScan.ps1 -CI -Format json
+
+      - name: Verify SARIF output files created
+        shell: pwsh
+        run: |
+          $resultsPath = ".codeql/results"
+
+          if (-not (Test-Path $resultsPath)) {
+            Write-Error "Results directory not found: $resultsPath"
+            exit 1
+          }
+
+          $sarifFiles = Get-ChildItem -Path $resultsPath -Filter "*.sarif" -ErrorAction SilentlyContinue
+
+          if (-not $sarifFiles) {
+            Write-Error "No SARIF files found in $resultsPath"
+            exit 1
+          }
+
+          Write-Host "Found $($sarifFiles.Count) SARIF file(s):"
+          foreach ($file in $sarifFiles) {
+            Write-Host "  - $($file.Name) ($([math]::Round($file.Length / 1KB, 2)) KB)"
+          }
+
+      - name: Parse and validate SARIF structure
+        shell: pwsh
+        run: |
+          $sarifFiles = Get-ChildItem -Path ".codeql/results" -Filter "*.sarif"
+
+          foreach ($file in $sarifFiles) {
+            Write-Host "Validating SARIF structure: $($file.Name)"
+
+            $sarif = Get-Content $file.FullName -Raw | ConvertFrom-Json
+
+            # Validate SARIF schema version
+            if ($sarif.'$schema' -notlike '*sarif*') {
+              Write-Warning "SARIF schema may be missing or invalid"
+            }
+
+            # Validate required SARIF fields
+            if (-not $sarif.version) {
+              Write-Error "Missing SARIF version field"
+              exit 1
+            }
+
+            if (-not $sarif.runs) {
+              Write-Error "Missing SARIF runs field"
+              exit 1
+            }
+
+            foreach ($run in $sarif.runs) {
+              if (-not $run.tool) {
+                Write-Error "Missing tool field in run"
+                exit 1
+              }
+
+              Write-Host "  Tool: $($run.tool.driver.name)"
+              Write-Host "  Results: $($run.results.Count)"
+            }
+          }
+
+          Write-Host "SARIF structure validation passed"
+
+      - name: Check database creation
+        shell: pwsh
+        run: |
+          $dbPath = ".codeql/db"
+
+          if (-not (Test-Path $dbPath)) {
+            Write-Error "Database directory not found: $dbPath"
+            exit 1
+          }
+
+          $dbFolders = Get-ChildItem -Path $dbPath -Directory
+
+          if (-not $dbFolders) {
+            Write-Error "No database folders found"
+            exit 1
+          }
+
+          Write-Host "Found $($dbFolders.Count) database(s):"
+          foreach ($db in $dbFolders) {
+            Write-Host "  - $($db.Name)"
+
+            # Check for expected database structure
+            $dbYml = Join-Path $db.FullName "codeql-database.yml"
+            if (Test-Path $dbYml) {
+              Write-Host "    Database metadata found"
+            } else {
+              Write-Warning "    Database metadata missing"
+            }
+          }
+
+  test-matrix-languages:
+    name: Test Language (${{ matrix.language }})
+    needs: test-cli-installation
+    # ADR-032: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [powershell, actions, python]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Download CodeQL CLI
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: codeql-cli
+          path: .codeql/cli
+
+      - name: Set executable permissions
+        run: chmod +x .codeql/cli/codeql
+
+      - name: Run scan for ${{ matrix.language }}
+        shell: pwsh
+        run: |
+          ./codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "${{ matrix.language }}" -CI -Format console
+
+      - name: Verify language-specific database created
+        shell: pwsh
+        env:
+          LANGUAGE: ${{ matrix.language }}
+        run: |
+          $dbPath = ".codeql/db/$env:LANGUAGE"
+
+          if (-not (Test-Path $dbPath)) {
+            Write-Error "Database for $env:LANGUAGE not found at: $dbPath"
+            exit 1
+          }
+
+          Write-Host "Database for $env:LANGUAGE created successfully"
+
+      - name: Verify language-specific SARIF output
+        shell: pwsh
+        env:
+          LANGUAGE: ${{ matrix.language }}
+        run: |
+          $sarifPath = ".codeql/results/$env:LANGUAGE.sarif"
+
+          if (-not (Test-Path $sarifPath)) {
+            Write-Error "SARIF output for $env:LANGUAGE not found at: $sarifPath"
+            exit 1
+          }
+
+          $sarif = Get-Content $sarifPath -Raw | ConvertFrom-Json
+          $results = $sarif.runs[0].results
+
+          Write-Host "SARIF for $env:LANGUAGE:"
+          Write-Host "  File: $sarifPath"
+          Write-Host "  Results: $($results.Count)"
+
+  aggregate-results:
+    name: Aggregate Results
+    needs: [test-cli-installation, test-config-validation, test-scan-execution, test-matrix-languages]
+    if: always()
+    # ADR-032: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check job results
+        shell: pwsh
+        env:
+          CLI_RESULT: ${{ needs.test-cli-installation.result }}
+          CONFIG_RESULT: ${{ needs.test-config-validation.result }}
+          SCAN_RESULT: ${{ needs.test-scan-execution.result }}
+          MATRIX_RESULT: ${{ needs.test-matrix-languages.result }}
+        run: |
+          $results = @{
+            'CLI Installation' = $env:CLI_RESULT
+            'Config Validation' = $env:CONFIG_RESULT
+            'Scan Execution' = $env:SCAN_RESULT
+            'Matrix Languages' = $env:MATRIX_RESULT
+          }
+
+          $allPassed = $true
+          $summary = @"
+          ## CodeQL Integration Test Results
+
+          | Test | Status |
+          |------|--------|
+          "@
+
+          foreach ($test in $results.Keys) {
+            $status = $results[$test]
+            $emoji = if ($status -eq 'success') { '✓' } elseif ($status -eq 'skipped') { '⏭' } else { '✗' }
+            $summary += "`n| $test | $emoji $status |"
+
+            if ($status -notin @('success', 'skipped')) {
+              $allPassed = $false
+            }
+          }
+
+          if ($allPassed) {
+            $summary += "`n`n> [!TIP]`n> All CodeQL integration tests passed!"
+          } else {
+            $summary += "`n`n> [!CAUTION]`n> Some CodeQL integration tests failed. Review logs above."
+          }
+
+          $summary | Add-Content $env:GITHUB_STEP_SUMMARY
+
+          if (-not $allPassed) {
+            Write-Error "One or more integration tests failed"
+            exit 1
+          }
+
+          Write-Host "All integration tests passed!"
