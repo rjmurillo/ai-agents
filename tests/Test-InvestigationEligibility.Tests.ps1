@@ -32,10 +32,11 @@ Describe "Test-InvestigationEligibility.ps1" {
             $investigationAllowlist | Should -Contain '^\.agents/retrospective/'
             $investigationAllowlist | Should -Contain '^\.serena/memories($|/)'
             $investigationAllowlist | Should -Contain '^\.agents/security/'
+            $investigationAllowlist | Should -Contain '^\.agents/memory/'
         }
 
-        It "Has exactly 5 allowlist patterns per ADR-034" {
-            $investigationAllowlist.Count | Should -Be 5
+        It "Has exactly 6 allowlist patterns per ADR-034" {
+            $investigationAllowlist.Count | Should -Be 6
         }
     }
 
@@ -47,7 +48,8 @@ Describe "Test-InvestigationEligibility.ps1" {
                 '^\.agents/analysis/',
                 '^\.agents/retrospective/',
                 '^\.serena/memories($|/)',
-                '^\.agents/security/'
+                '^\.agents/security/',
+                '^\.agents/memory/'
             )
         }
 
@@ -81,6 +83,13 @@ Describe "Test-InvestigationEligibility.ps1" {
 
         It "Matches security assessment files" {
             $file = '.agents/security/threat-review.md'
+            $normalizedFile = $file -replace '\\', '/'
+            $matched = $patterns | Where-Object { $normalizedFile -match $_ }
+            $matched | Should -Not -BeNullOrEmpty
+        }
+
+        It "Matches memory infrastructure files" {
+            $file = '.agents/memory/causality/causal-graph.json'
             $normalizedFile = $file -replace '\\', '/'
             $matched = $patterns | Where-Object { $normalizedFile -match $_ }
             $matched | Should -Not -BeNullOrEmpty
