@@ -176,7 +176,7 @@ if ($session.ContainsKey('protocolCompliance')) {
   if ($pc.ContainsKey('sessionEnd')) {
     foreach ($key in $pc.sessionEnd.Keys) {
       $check = $pc.sessionEnd[$key]
-      $evidence = Get-Key $check 'evidence'
+      $evidence = Get-Key $check 'Evidence'
       if ($evidence -match '(?i)SKIPPED:\s*investigation-only') {
         $investigationOnly = $true
         break
@@ -196,8 +196,19 @@ if ($investigationOnly) {
     '^\.agents/security/'
   )
   
-  # Get staged files
-  $stagedFiles = @(git diff --cached --name-only 2>&1)
+  # Get staged files with error handling
+  $gitOutput = @(git diff --cached --name-only 2>&1)
+  if ($LASTEXITCODE -ne 0) {
+    $errors += @"
+E_GIT_COMMAND_FAILED: Failed to list staged files for investigation-only validation.
+  git exit code: $LASTEXITCODE
+  git output:
+  $($gitOutput -join "`n  ")
+"@
+    $stagedFiles = @()
+  } else {
+    $stagedFiles = @($gitOutput)
+  }
   
   # Filter for files not in allowlist
   $implementationFiles = @($stagedFiles | Where-Object {
