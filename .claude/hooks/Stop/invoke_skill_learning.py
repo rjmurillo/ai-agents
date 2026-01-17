@@ -458,15 +458,13 @@ Respond in JSON format:
 
         response_text = message.content[0].text.strip()
 
-        # Handle markdown code blocks
-        if "```" in response_text:
-            parts = response_text.split("```")
-            if len(parts) >= 2:
-                response_text = parts[1]
-                if response_text.startswith("json"):
-                    response_text = response_text[4:].strip()
+        # Use regex to reliably extract JSON from markdown code blocks or raw text
+        json_str = response_text
+        match = re.search(r"```(?:json)?\s*({.*?})\s*```", response_text, re.DOTALL)
+        if match:
+            json_str = match.group(1)
 
-        result = json.loads(response_text)
+        result = json.loads(json_str)
 
         if not result.get("is_learning"):
             return None
