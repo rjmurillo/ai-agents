@@ -14,3 +14,7 @@ copy = "wt step copy-ignored"
 # Run markdown linting before merge to catch documentation issues
 # Fails on violations without modifying files (no --fix flag prevents uncommitted changes during merge)
 lint = "npx markdownlint-cli2 \"**/*.md\""
+
+# Validate GitHub Actions workflow YAML files
+# Catches syntax errors, invalid action inputs, and security issues before merge
+workflows = "actionlint .github/workflows/*.yml"

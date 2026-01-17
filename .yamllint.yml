@@ -1,0 +1,65 @@
+# yamllint Configuration
+# General YAML linting for style consistency across all YAML files
+# Complements actionlint (which focuses on GitHub Actions semantics)
+#
+# Documentation: https://yamllint.readthedocs.io/
+# Related: Epic #848 (GitHub Actions Local Testing)
+
+extends: default
+
+rules:
+  # Allow longer lines for URLs and commands (GitHub Actions commonly exceed 80 chars)
+  line-length:
+    max: 120
+    level: warning
+
+  # Require consistent 2-space indentation
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  # Allow 'on' for workflow triggers without quotes (GitHub Actions convention)
+  truthy:
+    allowed-values: ['true', 'false', 'on', 'off']
+    check-keys: false
+
+  # Require document start (---) for clarity
+  document-start:
+    present: false  # GitHub Actions workflows typically omit document start
+
+  # Allow inline mappings for concise syntax
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Require space after comment marker
+  comments:
+    require-starting-space: true
+    min-spaces-from-content: 2
+
+  # Allow empty values for optional fields
+  empty-values:
+    forbid-in-block-mappings: false
+    forbid-in-flow-mappings: false
+
+  # Allow key duplication (handled by actionlint for workflows)
+  key-duplicates: enable
+
+  # Require new line at end of file
+  new-line-at-end-of-file: enable
+
+  # Require Unix line endings
+  new-lines:
+    type: unix
+
+  # Allow trailing spaces (some editors add them)
+  trailing-spaces:
+    level: warning
+
+ignore: |
+  node_modules/
+  .cache/
+  .artifacts/
+  build/
+  artifacts/
