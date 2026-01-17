@@ -53,24 +53,27 @@ SKIP_AUTOFIX=1 git commit -m "message"
 git commit --no-verify -m "message"
 ```
 
-## Installation Scripts
+## Agent Installation
 
-```powershell
-# VS Code - Global
-.\scripts\install-vscode-global.ps1
+Use [skill-installer](https://github.com/rjmurillo/skill-installer) for agent installation:
 
-# VS Code - Per-repository
-.\scripts\install-vscode-repo.ps1 -RepoPath "C:\Path\To\Repo"
+```bash
+# Install skill-installer
+uv tool install git+https://github.com/rjmurillo/skill-installer
 
-# GitHub Copilot CLI - Per-repository (recommended)
-.\scripts\install-copilot-cli-repo.ps1 -RepoPath "C:\Path\To\Repo"
+# Add ai-agents source
+skill-installer source add rjmurillo/ai-agents
 
-# Claude Code - Global
-.\scripts\install-claude-global.ps1
+# Interactive TUI installation
+skill-installer interactive
 
-# Claude Code - Per-repository
-.\scripts\install-claude-repo.ps1 -RepoPath "C:\Path\To\Repo"
+# CLI installation
+skill-installer install claude-agents --platform claude
+skill-installer install vscode-agents --platform vscode
+skill-installer install copilot-cli-agents --platform copilot
 ```
+
+See [docs/installation.md](../docs/installation.md) for complete installation documentation.
 
 ## Utility Scripts
 

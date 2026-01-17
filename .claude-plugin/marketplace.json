@@ -1,0 +1,31 @@
+{
+  "name": "ai-agents",
+  "owner": {
+    "name": "rjmurillo",
+    "email": ""
+  },
+  "metadata": {
+    "description": "AI coding agents for Claude Code, VS Code, and Copilot CLI",
+    "version": "0.2.0"
+  },
+  "plugins": [
+    {
+      "name": "claude-agents",
+      "description": "Agents for Claude Code",
+      "source": "./src/claude",
+      "skills": [
+        "./.claude/skills/github"
+      ]
+    },
+    {
+      "name": "copilot-cli-agents",
+      "description": "Agents for GitHub Copilot CLI",
+      "source": "./src/copilot-cli"
+    },
+    {
+      "name": "vscode-agents",
+      "description": "Agents for VS Code and Copilot Chat",
+      "source": "./src/vs-code-agents"
+    }
+  ]
+}

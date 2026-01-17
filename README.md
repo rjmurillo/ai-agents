@@ -12,53 +12,50 @@ A coordinated multi-agent system for software development, available for **VS Co
 - **Multi-Agent Impact Analysis Framework** for comprehensive planning
 - **Cross-session memory** using cloudmcp-manager
 - **Self-improvement system** with skill tracking and retrospectives
-- **Installation scripts** for global or per-repository setup
+- **TUI-based installation** via [skill-installer](https://github.com/rjmurillo/skill-installer)
 
 ## Quick Start
 
-### Remote Installation (Recommended)
+### Prerequisites
 
-Install directly from GitHub without cloning the repository:
+- Python 3.10+
+- [UV](https://docs.astral.sh/uv/) package manager
 
-```powershell
-# Remote installation (interactive) - installs from stable release v0.1.0
-Set-ExecutionPolicy Bypass -Scope Process -Force
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
+Install UV:
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-This prompts you to select the environment (Claude/Copilot/VSCode) and scope (Global/Repository).
+### Installation (Recommended)
 
-For bleeding edge updates, download the installer from the main branch:
+Use skill-installer to install agents:
 
-```powershell
-# Remote installation from main branch (bleeding edge)
-Set-ExecutionPolicy Bypass -Scope Process -Force
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
+```bash
+# Try without installing
+uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
+
+# Or install globally
+uv tool install git+https://github.com/rjmurillo/skill-installer
+skill-installer source add rjmurillo/ai-agents
+skill-installer interactive
 ```
 
-### Local Installation
+Navigate the TUI to select and install agents for your platform.
 
-If you have cloned the repository, use the unified installer:
+### CLI Installation (Non-Interactive)
 
-```powershell
-# Claude Code
-.\scripts\install.ps1 -Environment Claude -Global              # User-level
-.\scripts\install.ps1 -Environment Claude -RepoPath "."        # Repository
-
-# GitHub Copilot CLI
-.\scripts\install.ps1 -Environment Copilot -Global             # User-level
-.\scripts\install.ps1 -Environment Copilot -RepoPath "."       # Repository
-
-# VS Code
-.\scripts\install.ps1 -Environment VSCode -Global              # User-level
-.\scripts\install.ps1 -Environment VSCode -RepoPath "."        # Repository
+```bash
+skill-installer install claude-agents --platform claude
+skill-installer install copilot-cli-agents --platform copilot
+skill-installer install vscode-agents --platform vscode
 ```
 
-**Note**: Local installations use files from your current working directory. The `-Version` parameter only affects remote installations (when using `iex`).
-
-Add `-Force` to overwrite existing files without prompting.
-
-**Note**: Copilot CLI global installation has a [known issue](https://github.com/github/copilot-cli/issues/452) - use repository installation instead.
+**Note**: Copilot CLI global installation has a [known issue](https://github.com/github/copilot-cli/issues/452). Use repository installation instead.
 
 ### Usage Examples
 

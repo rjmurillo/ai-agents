@@ -66,14 +66,15 @@ VS Code / GitHub Copilot agents (same 18 agents with `.agent.md` suffix)
 
 ## scripts/ Directory
 
-Installation scripts (PowerShell):
+Validation and utility scripts (PowerShell):
 
-- install-vscode-global.ps1
-- install-vscode-repo.ps1
-- install-copilot-cli-global.ps1
-- install-copilot-cli-repo.ps1
-- install-claude-global.ps1
-- install-claude-repo.ps1
+- Validate-SessionJson.ps1 - Session protocol validation
+- Validate-PRDescription.ps1 - PR description validation
+- Detect-SkillViolation.ps1 - Skill usage detection
+- Sync-McpConfig.ps1 - MCP configuration sync
+
+> **Note**: Agent installation is handled by [skill-installer](https://github.com/rjmurillo/skill-installer).
+> See [docs/installation.md](../docs/installation.md) for installation instructions.
 
 ## docs/ Directory
 
