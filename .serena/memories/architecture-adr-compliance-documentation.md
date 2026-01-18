@@ -53,8 +53,8 @@ runs-on: ubuntu-24.04-arm
 
 ## Related Files
 
-- `ci-runner-selection` - Runner performance and cost comparison
-- `ci-deployment-validation` - Deployment workflow patterns
+- [ci-runner-selection](ci-runner-selection.md) - Runner performance and cost comparison
+- [ci-deployment-validation](ci-deployment-validation.md) - Deployment workflow patterns
 
 ## Related
 

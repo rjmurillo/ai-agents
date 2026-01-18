@@ -39,7 +39,7 @@ $validPattern = '^[a-zA-Z0-9][a-zA-Z0-9 _\-\\.]{0,48}[a-zA-Z0-9]?$'
 
 **Evidence**: Session 44 remediation, AIReviewCommon.psm1
 
-**Related**: `skills-security`
+**Related**: [skills-security](skills-security.md)
 
 ## Related
 
