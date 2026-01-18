@@ -1,7 +1,13 @@
 ---
 description: Use when performing local analyst review before pushing PR changes. Assesses code quality, impact analysis, and maintainability.
 argument-hint: [--base BRANCH]
-allowed-tools: [Bash(git:*), Read, Grep, Glob, mcp__forgetful__*, mcp__serena__*]
+allowed-tools:
+  - Bash(git:*)
+  - Read
+  - Grep
+  - Glob
+  - mcp__forgetful__*
+  - mcp__serena__*
 model: sonnet
 ---
 
