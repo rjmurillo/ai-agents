@@ -1,8 +1,9 @@
 # Factory-AI/droid-action: Incompatible with Repository Security Constraints
 
-**Date**: 2026-01-16
+**Date**: 2026-01-16 (Updated: 2026-01-17)
 **Category**: CI Infrastructure
-**Status**: BLOCKING
+**Status**: BLOCKING (Upstream issue filed)
+**Upstream Issue**: https://github.com/Factory-AI/droid-action/issues/20
 **Related**: ci-infrastructure-codeql-ruleset-friction, security-practices
 
 ## Problem
@@ -98,7 +99,7 @@ From https://raw.githubusercontent.com/Factory-AI/droid-action/v1/action.yml:
 ### Short-term
 1. Disable droid workflows on branches requiring SHA-pinned actions
 2. Document this limitation in ADR or operational runbook
-3. File issue with Factory-AI requesting SHA-pinned action references
+3. ✅ **DONE**: Filed upstream issue: https://github.com/Factory-AI/droid-action/issues/20
 
 ### Long-term
 1. Evaluate alternative PR review automation tools:

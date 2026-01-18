@@ -95,6 +95,18 @@
       "result": "Posted response confirming no upstream issue exists with recommendation to file one",
       "files": [],
       "artifacts": ["https://github.com/rjmurillo/ai-agents/pull/960#issuecomment-3764928573"]
+    },
+    {
+      "action": "Drafted upstream issue for Factory-AI/droid-action",
+      "result": "Updated PR comment with complete draft issue including problem statement, root cause, requested change, and justification",
+      "files": [],
+      "artifacts": ["https://github.com/rjmurillo/ai-agents/pull/960#issuecomment-3764928573"]
+    },
+    {
+      "action": "Upstream issue filed by user",
+      "result": "Issue created at Factory-AI/droid-action#20 requesting SHA-pinned action references",
+      "files": [".serena/memories/ci-infrastructure-droid-action-blocker.md"],
+      "artifacts": ["https://github.com/Factory-AI/droid-action/issues/20"]
     }
   ],
   "outcomes": {
@@ -160,7 +172,8 @@
     ]
   },
   "nextSteps": [
-    "File issue with Factory-AI requesting SHA-pinned action references in droid-action",
+    "✅ DONE: Filed upstream issue https://github.com/Factory-AI/droid-action/issues/20",
+    "Monitor upstream issue for response from Factory-AI maintainers",
     "Evaluate alternative PR review automation tools (GitHub Copilot, Reviewable.io, custom workflows)",
     "Document limitation in ADR or operational runbook for team awareness",
     "Consider adding third-party action vetting checklist to onboarding process"
