@@ -19,7 +19,8 @@
       "sessionLogComplete": true,
       "serenaMemoryUpdated": true,
       "markdownLintRun": true,
-      "changesCommitted": false
+      "changesCommitted": true,
+      "endingCommit": "2589997a"
     }
   },
   "workLog": [
