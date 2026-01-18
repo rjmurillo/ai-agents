@@ -50,6 +50,7 @@
 | cva refactoring variant consolidation template generate | [utilities-cva-refactoring](utilities-cva-refactoring.md) |
 | prompt engineering quality gate AI assessment template | [quality-prompt-engineering-gates](quality-prompt-engineering-gates.md) |
 | phase3 agent skill session handoff template verification | [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md), [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md) |
+| serena token efficiency symbolic tools cache memory read search | [skills-serena-index](skills-serena-index.md) |
 
 ## Engineering Knowledge Tiers
 
