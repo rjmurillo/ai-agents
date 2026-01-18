@@ -2,10 +2,37 @@
 
 **Status**: READY FOR EXECUTION
 **Created**: 2026-01-18
+**Repository**: `rjmurillo/ai-agents`
 **Epic**: [#965](https://github.com/rjmurillo/ai-agents/issues/965)
 **ADR**: [ADR-042](https://github.com/rjmurillo/ai-agents/blob/main/.agents/architecture/ADR-042-python-migration-strategy.md)
 **Timeline**: 12-24 months (phased)
 **Priority**: P1
+
+---
+
+## Quick Verification (Run First)
+
+Before executing this plan, verify the context is still valid:
+
+```bash
+# 1. Verify ADR-042 exists and is accepted
+cat .agents/architecture/ADR-042-python-migration-strategy.md | head -10
+# Should show "Status: Accepted"
+
+# 2. Verify epic is open
+gh issue view 965 --json state -q '.state'
+# Should return "OPEN"
+
+# 3. Verify pyproject.toml does NOT exist (Phase 1 not started)
+ls pyproject.toml 2>/dev/null || echo "NOT FOUND (expected)"
+
+# 4. Verify current Python/PowerShell file counts
+echo "Python files: $(find . -name '*.py' -type f | wc -l)"
+echo "PowerShell scripts: $(find . -name '*.ps1' -type f | wc -l)"
+# Expected: ~17 Python, ~222 PowerShell
+```
+
+**If pyproject.toml exists**: Phase 1 has started. Check Phase 1 completion checklist below.
 
 ---
 
@@ -614,5 +641,72 @@ For each script to migrate:
 
 ---
 
+## Session Protocol (Required)
+
+This project requires session logging. Before starting work:
+
+```bash
+# Create session log (replace NN with next session number)
+DATE=$(date +%Y-%m-%d)
+SESSION_FILE=".agents/sessions/${DATE}-session-NN-adr042-phase1.json"
+
+# Template (copy and customize):
+cat > "$SESSION_FILE" << 'EOF'
+{
+  "schema": "session-protocol-v1.4",
+  "session": {
+    "id": "YYYY-MM-DD-session-NN",
+    "number": NN,
+    "date": "YYYY-MM-DD",
+    "branch": "feat/adr042-phase1",
+    "startingCommit": "COMMIT_SHA",
+    "objective": "Implement ADR-042 Phase 1: Python infrastructure foundation",
+    "relatedIssues": ["965"],
+    "relatedPRs": []
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {"Complete": true, "Evidence": "mcp__serena__check_onboarding_performed"},
+      "handoffRead": {"Complete": true, "Evidence": "Read HANDOFF.md"},
+      "memoriesLoaded": {"Complete": true, "Evidence": ["adr-reference-index"]},
+      "branchVerified": {"Complete": true, "Evidence": "git branch --show-current"}
+    },
+    "sessionEnd": {
+      "sessionLogCompleted": {"Complete": false, "Evidence": ""},
+      "serenaMemoryUpdated": {"Complete": false, "Evidence": ""},
+      "lintingRun": {"Complete": false, "Evidence": ""},
+      "changesCommitted": {"Complete": false, "Evidence": ""}
+    }
+  },
+  "workLog": [],
+  "decisions": [],
+  "outcome": {"status": "in_progress", "summary": "", "filesChanged": [], "testsRun": false, "testsPass": false}
+}
+EOF
+```
+
+**Commit message format**: `feat(python): <description>` or `chore(python): <description>`
+
+**Required co-author**: `Co-Authored-By: Claude <noreply@anthropic.com>`
+
+---
+
+## Local File References (Verified 2026-01-18)
+
+All paths are relative to repository root:
+
+| Referenced File | Exists | Notes |
+|-----------------|--------|-------|
+| `.python-version` | Yes | Contains `3.12.8` |
+| `.github/workflows/pester-tests.yml` | Yes | Template pattern for pytest.yml |
+| `.github/dependabot.yml` | Yes | Add pip ecosystem here |
+| `.agents/governance/PROJECT-CONSTRAINTS.md` | Yes | Lines 19-21 need update |
+| `CRITICAL-CONTEXT.md` | Yes | Line 10 needs update |
+| `.githooks/pre-commit` | Yes | Check for Python blocking |
+| `.claude/hooks/` | Yes | Contains example Python files |
+
+---
+
 *Plan synthesized from: traycerai analysis, AI PRD generation, ADR-042 debate artifacts*
 *Last updated: 2026-01-18*
+*All links verified: 2026-01-18*
