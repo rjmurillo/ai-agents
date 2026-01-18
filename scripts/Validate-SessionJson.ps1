@@ -166,6 +166,86 @@ if ($session.ContainsKey('protocolCompliance')) {
   }
 }
 
+# Investigation-Only Mode Validation (ADR-034)
+# Check for "SKIPPED: investigation-only" pattern in any evidence field
+$investigationOnly = $false
+if ($session.ContainsKey('protocolCompliance')) {
+  $pc = $session.protocolCompliance
+  
+  # Check all sessionEnd evidence fields for investigation-only pattern
+  if ($pc.ContainsKey('sessionEnd')) {
+    foreach ($key in $pc.sessionEnd.Keys) {
+      $check = $pc.sessionEnd[$key]
+      $evidence = Get-Key $check 'Evidence'
+      if ($evidence -match '(?i)SKIPPED:\s*investigation-only') {
+        $investigationOnly = $true
+        break
+      }
+    }
+  }
+}
+
+# If investigation-only mode is claimed, validate staged files against allowlist
+if ($investigationOnly) {
+  # Define investigation artifact allowlist per ADR-034
+  $investigationAllowlist = @(
+    '^\.agents/sessions/',
+    '^\.agents/analysis/',
+    '^\.agents/retrospective/',
+    '^\.serena/memories($|/)',
+    '^\.agents/security/'
+  )
+  
+  # Get staged files with error handling
+  $gitOutput = @(git diff --cached --name-only 2>&1)
+  if ($LASTEXITCODE -ne 0) {
+    $errors += @"
+E_GIT_COMMAND_FAILED: Failed to list staged files for investigation-only validation.
+  git exit code: $LASTEXITCODE
+  git output:
+  $($gitOutput -join "`n  ")
+"@
+    $stagedFiles = @()
+  } else {
+    $stagedFiles = @($gitOutput)
+  }
+  
+  # Filter for files not in allowlist
+  $implementationFiles = @($stagedFiles | Where-Object {
+    $file = $_
+    $isAllowed = $false
+    foreach ($pattern in $investigationAllowlist) {
+      if ($file -match $pattern) {
+        $isAllowed = $true
+        break
+      }
+    }
+    -not $isAllowed
+  })
+  
+  if ($implementationFiles.Count -gt 0) {
+    $errorMsg = @"
+E_INVESTIGATION_HAS_IMPL: Investigation skip claimed but staged files contain implementation artifacts:
+  $($implementationFiles -join "`n  ")
+
+Investigation sessions may only stage:
+  - .agents/sessions/ (session logs)
+  - .agents/analysis/ (investigation outputs)
+  - .agents/retrospective/ (learnings)
+  - .serena/memories/ (memory updates)
+  - .agents/security/ (security assessments)
+
+Remove implementation artifacts or obtain QA validation.
+"@
+    $errors += $errorMsg
+  } else {
+    # Track metrics for investigation-only skips
+    if (-not $PreCommit) {
+      Write-Verbose "Investigation-only skip: $($stagedFiles.Count) files"
+    }
+  }
+}
+
 # Output
 if (-not $PreCommit) {
   Write-Host "`n=== Session Validation ===" -ForegroundColor Cyan

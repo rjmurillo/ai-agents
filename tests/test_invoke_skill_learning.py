@@ -22,8 +22,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+# Add .claude/hooks/Stop directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Stop"))
 
 from invoke_skill_learning import (
     SKILL_PATTERNS,

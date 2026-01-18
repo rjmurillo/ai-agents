@@ -91,13 +91,6 @@ Include:
 - Implementation changes (with code examples)
 - Integration points
 
-```markdown
-### Config.psd1 Changes
-\`\`\`powershell
-# Example configuration
-\`\`\`
-```
-
 ### 8. Implementation Plan
 
 Provide actionable phases with:

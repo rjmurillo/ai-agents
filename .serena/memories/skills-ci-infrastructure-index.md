@@ -15,3 +15,4 @@
 | job status success failure verdict PASS CRITICAL_FAIL multi-stage pipeline distinction | [ci-infrastructure-003-job-status-verdict-distinction](ci-infrastructure-003-job-status-verdict-distinction.md) |
 | error message investigate tool output infra flag classification handler | [ci-infrastructure-004-error-message-investigation](ci-infrastructure-004-error-message-investigation.md) |
 | dorny paths-filter checkout fetch-depth base ref PR diff sparse | [ci-infrastructure-dorny-paths-filter-checkout](ci-infrastructure-dorny-paths-filter-checkout.md) |
+| CodeQL code_scanning ruleset required_status_checks SARIF upload skip analysis merge blocked friction | [ci-infrastructure-codeql-ruleset-friction](ci-infrastructure-codeql-ruleset-friction.md) |

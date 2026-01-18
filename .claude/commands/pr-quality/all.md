@@ -1,7 +1,9 @@
 ---
 description: Use when running all 6 PR quality gate agents locally before pushing. Provides comprehensive pre-push validation across security, QA, analysis, architecture, DevOps, and roadmap.
 argument-hint: [--base BRANCH]
-allowed-tools: [Bash(git:*), Skill]
+allowed-tools:
+  - Bash(git:*)
+  - Skill
 model: haiku
 ---
 
