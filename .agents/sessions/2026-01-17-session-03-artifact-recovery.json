@@ -45,8 +45,8 @@
         "evidence": "Not applicable - documentation/artifact recovery, no features implemented"
       },
       "changesCommitted": {
-        "complete": false,
-        "evidence": "Pending commit and PR creation"
+        "complete": true,
+        "evidence": "Commit 17d3cf55, PR #964 created with auto-merge enabled"
       }
     }
   },
@@ -122,5 +122,12 @@
     "sessionLogsRecovered": 378,
     "memoryFilesRecovered": 272,
     "filesAlreadyInMain": 1080
+  },
+  "pullRequest": {
+    "number": 964,
+    "url": "https://github.com/rjmurillo/ai-agents/pull/964",
+    "autoMergeEnabled": true,
+    "mergeMethod": "SQUASH",
+    "reviewersRequested": ["rjmurillo"]
   }
 }
