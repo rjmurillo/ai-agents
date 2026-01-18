@@ -19,7 +19,7 @@
 | anti-pattern status conflation completion readiness premature | [pr-review-anti-pattern-status-001](pr-review-anti-pattern-status-001.md) |
 | bot mention side effects copilot coderabbit trigger | [pr-review-bot-mention-side-effects](pr-review-bot-mention-side-effects.md) |
 | checklist phases context acknowledgment verification | [pr-review-checklist](pr-review-checklist.md) |
-| coderabbit sparse checkout blindness agents missing | [pr-review-coderabbit-sparse-checkout-blindness](pr-review-coderabbit-sparse-checkout-blindness.md) |
+| coderabbit sparse-checkout git-ls-tree .agents blindness flag-missing false-positive checkout-pattern | [pr-review-coderabbit-sparse-checkout-blindness](pr-review-coderabbit-sparse-checkout-blindness.md) |
 | copilot follow-up PR detection branch pattern duplicate | [pr-review-copilot-followup](pr-review-copilot-followup.md) |
 | core workflow conversation resolution threads merge | [pr-review-core-workflow](pr-review-core-workflow.md) |
 | list-completeness verification cross-check total-count | [pr-review-enum-001](pr-review-enum-001.md) |
@@ -27,3 +27,4 @@
 | security-comments priority-boost TOCTOU injection XSS | [pr-review-security](pr-review-security.md) |
 | status classification decision tree blocking human | [pr-review-status-001](pr-review-status-001.md) |
 | batch response single commit multiple comments clean history efficiency | [pr-review-batch-response-pattern](pr-review-batch-response-pattern.md) |
+| code-review observations skill constraints parallel agents confidence threshold haiku sonnet permalink | [pr-review-code-review-skill-observations](pr-review-code-review-skill-observations.md) |

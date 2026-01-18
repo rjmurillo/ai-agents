@@ -1,5 +1,8 @@
 # Install Scripts CVA Analysis
 
+> **DEPRECATED (2026-01-17)**: This memory is historical. The PowerShell installation scripts
+> have been replaced by [skill-installer](https://github.com/rjmurillo/skill-installer).
+
 **Date**: 2025-12-15
 **Branch**: feat/install-script
 **Document**: `.agents/planning/cva-install-scripts.md`

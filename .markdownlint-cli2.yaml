@@ -81,6 +81,8 @@ globs:
   - "!.claude/skills/**"
   - "!tmp/**"
   - "!.factory/**"
+  # CodeQL assets are generated/managed separately; exclude from linting
+  - "!.codeql/**"
 
 ignores:
   - "node_modules/**"
@@ -89,6 +91,8 @@ ignores:
   - ".serena/memories/**"
   - "tmp/**"
   - ".factory/**"
+  # CodeQL assets are generated/managed separately; exclude from linting
+  - ".codeql/**"
   - "**/*.ps1"
   - "**/*.psm1"
   - ".factory/**"

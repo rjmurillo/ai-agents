@@ -1,5 +1,7 @@
 # Plan: Claude Code Feature Parity for VSCode, VSCode Insiders, and Copilot CLI
 
+> **HISTORICAL PLAN (2026-01-17)**: Written for v0.1.x with PowerShell installation infrastructure. Prerequisites reference install.ps1 and Config.psd1 which were deleted 2026-01-17 and replaced by [skill-installer](https://github.com/rjmurillo/skill-installer). Implementation approach remains valid but installation steps differ.
+
 **Status**: [APPROVED WITH REMEDIATIONS] - Full plan with specialist feedback incorporated
 
 **Revision**: 2026-01-14 (Post-Multi-Agent Review)

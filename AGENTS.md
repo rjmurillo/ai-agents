@@ -219,19 +219,27 @@ gh workflow run [workflow] --ref [branch]
 
 ### Installation Commands
 
+> [!NOTE] You will need uv. [Installation](https://docs.astral.sh/uv/getting-started/installation/)
+
+Install agents using [skill-installer](https://github.com/rjmurillo/skill-installer):
+
 ```bash
-# VS Code (global)
-.\scripts\install-vscode-global.ps1
+# Install skill-installer
+uv tool install git+https://github.com/rjmurillo/skill-installer
 
-# VS Code (per-repo)
-.\scripts\install-vscode-repo.ps1 -RepoPath "C:\Path\To\Repo"
+# Add this repository as a source
+skill-installer source add rjmurillo/ai-agents
 
-# Copilot CLI (per-repo)
-.\scripts\install-copilot-cli-repo.ps1 -RepoPath "C:\Path\To\Repo"
+# Launch TUI to select and install
+skill-installer interactive
 
-# Claude Code (global)
-.\scripts\install-claude-global.ps1
+# Or install directly via CLI
+skill-installer install claude-agents --platform claude
+skill-installer install vscode-agents --platform vscode
+skill-installer install copilot-cli-agents --platform copilot
 ```
+
+See [docs/installation.md](docs/installation.md) for complete installation documentation.
 
 ### Worktrunk Setup
 
@@ -426,9 +434,9 @@ Specific versions matter for accurate tooling suggestions.
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **PowerShell** | 7.4+ | Cross-platform, required (ADR-005) |
+| **PowerShell** | 7.5.4+ | Cross-platform, required (ADR-005) |
 | **Node.js** | LTS (20+) | For markdownlint-cli2 |
-| **Pester** | 5.6+ | Testing framework |
+| **Pester** | 5.7.1 (exact) | Testing framework, pinned for supply chain security |
 | **GitHub CLI** | 2.60+ | For gh operations |
 | **Mermaid** | Latest | Diagram generation |
 
@@ -482,49 +490,28 @@ The Memory agent provides long-running context across sessions using Serena (pro
 
 ## Quick Start
 
-### VS Code Installation
+### Platform Installation
 
-**Global (all workspaces):**
+Use [skill-installer](https://github.com/rjmurillo/skill-installer) to install agents:
 
-```powershell
-.\scripts\install-vscode-global.ps1
+```bash
+# Install skill-installer
+uv tool install git+https://github.com/rjmurillo/skill-installer
+skill-installer source add rjmurillo/ai-agents
+
+# VS Code
+skill-installer install vscode-agents --platform vscode
+
+# GitHub Copilot CLI
+skill-installer install copilot-cli-agents --platform copilot
+
+# Claude Code
+skill-installer install claude-agents --platform claude
 ```
 
-**Per-repository:**
+> **Note:** Copilot CLI global installation has a [known issue](https://github.com/github/copilot-cli/issues/452). Use per-repository installation.
 
-```powershell
-.\scripts\install-vscode-repo.ps1 -RepoPath "C:\Path\To\Your\Repo"
-```
-
-### GitHub Copilot CLI Installation
-
-**Per-repository (recommended):**
-
-```powershell
-.\scripts\install-copilot-cli-repo.ps1 -RepoPath "C:\Path\To\Your\Repo"
-```
-
-**Global (known issues - see [Issue #2](https://github.com/rjmurillo/vs-code-agents/issues/2)):**
-
-```powershell
-.\scripts\install-copilot-cli-global.ps1
-```
-
-> **Note:** User-level agents in `~/.copilot/agents/` are not currently loaded due to [GitHub Issue #452](https://github.com/github/copilot-cli/issues/452). Use per-repository installation.
-
-### Claude Code Installation
-
-**Global (all sessions):**
-
-```powershell
-.\scripts\install-claude-global.ps1
-```
-
-**Per-repository:**
-
-```powershell
-.\scripts\install-claude-repo.ps1 -RepoPath "C:\Path\To\Your\Repo"
-```
+See [docs/installation.md](docs/installation.md) for complete installation documentation.
 
 ---
 
@@ -540,13 +527,10 @@ The Memory agent provides long-running context across sessions using Serena (pro
 │   │   └── *.agent.md
 │   └── claude/               # Claude Code CLI agents
 │       └── *.md
-├── scripts/                  # Installation scripts
-│   ├── install-vscode-global.ps1
-│   ├── install-vscode-repo.ps1
-│   ├── install-copilot-cli-global.ps1
-│   ├── install-copilot-cli-repo.ps1
-│   ├── install-claude-global.ps1
-│   └── install-claude-repo.ps1
+├── scripts/                  # Validation and utility scripts
+│   ├── Validate-*.ps1        # Protocol validation scripts
+│   ├── Detect-*.ps1          # Code quality detection scripts
+│   └── New-ValidatedPR.ps1   # PR creation with guardrails
 ├── AGENTS.md                 # Canonical agent instructions (this file)
 ├── CLAUDE.md                 # Claude Code shim → AGENTS.md
 └── .github/copilot-instructions.md  # Copilot shim → AGENTS.md
@@ -1417,7 +1401,7 @@ To customize, edit the relevant agent file while keeping the handoff protocol in
 
 ### Running Pester Tests
 
-PowerShell unit tests for installation scripts are located in `scripts/tests/`. Run them using the reusable test runner:
+PowerShell unit tests are located in `tests/`. Run them using the reusable test runner:
 
 ```powershell
 # Local development (detailed output, continues on failure)
@@ -1427,17 +1411,11 @@ pwsh ./build/scripts/Invoke-PesterTests.ps1
 pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
 
 # Run specific test file
-pwsh ./build/scripts/Invoke-PesterTests.ps1 -TestPath "./scripts/tests/Install-Common.Tests.ps1"
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -TestPath "./tests/Validate-SessionJson.Tests.ps1"
 
 # Maximum verbosity for debugging
 pwsh ./build/scripts/Invoke-PesterTests.ps1 -Verbosity Diagnostic
 ```
-
-**Test Coverage:**
-
-- `Install-Common.Tests.ps1` - Tests for all 11 shared module functions
-- `Config.Tests.ps1` - Configuration validation tests
-- `install.Tests.ps1` - Entry point parameter validation
 
 **Output:**
 
@@ -1446,7 +1424,7 @@ Test results are saved to `artifacts/pester-results.xml` (gitignored).
 **When to Run Tests:**
 
 - Before committing changes to `scripts/`
-- After modifying `scripts/lib/Install-Common.psm1` or `scripts/lib/Config.psd1`
+- After modifying validation or utility scripts
 - When the `qa` agent validates implementation
 
 ---
