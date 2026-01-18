@@ -23,6 +23,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+# Add project root to path for imports
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.utils.path_validation import validate_safe_path  # noqa: E402
+
 
 @dataclass
 class ValidationResult:
@@ -337,8 +344,15 @@ def main() -> int:
     try:
         args = parse_args()
 
-        # Load session file
-        data, error = load_session_file(args.session_path)
+        # Validate the user-provided path against the project root
+        try:
+            validated_path = validate_safe_path(args.session_path, _PROJECT_ROOT)
+        except (ValueError, FileNotFoundError) as e:
+            print(f"ERROR: Invalid path provided: {e}", file=sys.stderr)
+            return 1
+
+        # Load session file using the validated path
+        data, error = load_session_file(validated_path)
         if error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 1
@@ -347,7 +361,7 @@ def main() -> int:
         result = validate_session_log(data)  # type: ignore[arg-type]
 
         # Report results
-        report_results(args.session_path, result, args.pre_commit)
+        report_results(validated_path, result, args.pre_commit)
 
         return 0 if result.is_valid else 1
 
