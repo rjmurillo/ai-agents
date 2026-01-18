@@ -1,7 +1,13 @@
 ---
 description: Use when performing local roadmap review before pushing PR changes. Assesses strategic alignment, feature scope, and user value.
 argument-hint: [--base BRANCH]
-allowed-tools: [Bash(git:*), Read, Grep, Glob, mcp__forgetful__*, mcp__serena__*]
+allowed-tools:
+  - Bash(git:*)
+  - Read
+  - Grep
+  - Glob
+  - mcp__forgetful__*
+  - mcp__serena__*
 model: opus
 ---
 

@@ -1,7 +1,13 @@
 ---
 description: Use when performing local architecture review before pushing PR changes. Reviews design patterns, system boundaries, coupling/cohesion, and ADR compliance.
 argument-hint: [--base BRANCH]
-allowed-tools: [Bash(git:*), Read, Grep, Glob, mcp__forgetful__*, mcp__serena__*]
+allowed-tools:
+  - Bash(git:*)
+  - Read
+  - Grep
+  - Glob
+  - mcp__forgetful__*
+  - mcp__serena__*
 model: opus
 ---
 

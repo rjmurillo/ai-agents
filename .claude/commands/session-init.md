@@ -1,7 +1,11 @@
 ---
 description: Create protocol-compliant session log with verification-based enforcement. Use when starting a new session to initialize session log with canonical template from SESSION-PROTOCOL.md.
 argument-hint: [--session-number N] [--objective "text"]
-allowed-tools: [Bash(pwsh .claude/skills/session-init/scripts/*), Bash(git:*), Bash(ls:*), Read]
+allowed-tools:
+  - Bash(pwsh .claude/skills/session-init/scripts/*)
+  - Bash(git:*)
+  - Bash(ls:*)
+  - Read
 model: sonnet
 ---
 

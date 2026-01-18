@@ -1,7 +1,15 @@
 ---
 description: Generate evidence-based documentary reports by searching across all memory systems
 argument-hint: <topic>
-allowed-tools: [mcp__forgetful__*, mcp__serena__*, mcp__context7__*, WebSearch, Grep, Glob, Read, Skill]
+allowed-tools:
+  - mcp__forgetful__*
+  - mcp__serena__*
+  - mcp__context7__*
+  - WebSearch
+  - Grep
+  - Glob
+  - Read
+  - Skill
 model: opus
 ---
 

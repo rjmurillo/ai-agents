@@ -1,7 +1,8 @@
 ---
 description: Search memories semantically using Forgetful with query context for improved ranking. Use when retrieving specific knowledge or verifying memory existence.
 argument-hint: <search-query>
-allowed-tools: [mcp__forgetful__*]
+allowed-tools:
+  - mcp__forgetful__*
 ---
 
 # Memory Search
