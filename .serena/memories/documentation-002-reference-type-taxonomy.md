@@ -1,4 +1,6 @@
-# Skill-Documentation-002: Reference Type Taxonomy
+# Documentation: Reference Type Taxonomy
+
+## Skill-Documentation-002: Reference Type Taxonomy
 
 **Statement**: Categorize references as instructive (update), informational (skip), or operational (skip) before migration.
 
@@ -15,7 +17,7 @@
 ## Related
 
 - [documentation-001-systematic-migration-search](documentation-001-systematic-migration-search.md)
+- [documentation-001-templatefirst-documentation-workflow](documentation-001-templatefirst-documentation-workflow.md)
 - [documentation-003-fallback-preservation](documentation-003-fallback-preservation.md)
 - [documentation-004-pattern-consistency](documentation-004-pattern-consistency.md)
 - [documentation-006-self-contained-operational-prompts](documentation-006-self-contained-operational-prompts.md)
-- [documentation-007-self-contained-artifacts](documentation-007-self-contained-artifacts.md)

@@ -1,4 +1,6 @@
-# Skill-Edit-002: Unique Context for Edit Matching
+# Edit: Unique Context For Edit Matching
+
+## Skill-Edit-002: Unique Context for Edit Matching
 
 **Statement**: Include surrounding context in old_string to ensure unique matching when target content appears multiple times.
 
@@ -26,7 +28,7 @@ Edit(file_path="file.md", old_string="return null;", new_string="return undefine
 
 ```text
 # CORRECT - Include unique surrounding context
-Edit(file_path="file.md",
+Edit(file_path="file.md", 
   old_string="function getValue() {\n  return null;\n}",
   new_string="function getValue() {\n  return undefined;\n}")
 ```
@@ -57,8 +59,4 @@ old_string="// Initialize counter\nconst x = 1;"
 
 **Validation**: 1 (common pattern across sessions)
 
-**Related Skills**:
-
-- Skill-Verification-003: Verify artifact state matches API response before modifications
-
-**Source**: Edit Skills (2025-12-20)
+---

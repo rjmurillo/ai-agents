@@ -1,4 +1,6 @@
-# Skill-Documentation-003: Fallback Preservation
+# Documentation: Fallback Preservation
+
+## Skill-Documentation-003: Fallback Preservation
 
 **Statement**: Include fallback clause when migrating to tool calls for graceful degradation.
 
@@ -20,7 +22,7 @@ Read [memory-name] using `mcp__serena__read_memory` with `memory_file_name="[mem
 ## Related
 
 - [documentation-001-systematic-migration-search](documentation-001-systematic-migration-search.md)
+- [documentation-001-templatefirst-documentation-workflow](documentation-001-templatefirst-documentation-workflow.md)
 - [documentation-002-reference-type-taxonomy](documentation-002-reference-type-taxonomy.md)
 - [documentation-004-pattern-consistency](documentation-004-pattern-consistency.md)
 - [documentation-006-self-contained-operational-prompts](documentation-006-self-contained-operational-prompts.md)
-- [documentation-007-self-contained-artifacts](documentation-007-self-contained-artifacts.md)

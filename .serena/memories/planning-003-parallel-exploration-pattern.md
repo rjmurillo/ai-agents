@@ -1,4 +1,6 @@
-# Skill-Planning-003: Parallel Exploration Pattern
+# Planning: Parallel Exploration Pattern
+
+## Skill-Planning-003: Parallel Exploration Pattern
 
 **Statement**: For infrastructure work, launch parallel Explore agents to gather context concurrently before planning.
 
@@ -12,8 +14,8 @@
 
 ## Related
 
-- [planning-004-approval-checkpoint](planning-004-approval-checkpoint.md)
-- [planning-checkbox-manifest](planning-checkbox-manifest.md)
-- [planning-multi-platform](planning-multi-platform.md)
-- [planning-priority-consistency](planning-priority-consistency.md)
-- [planning-task-descriptions](planning-task-descriptions.md)
+- [planning-001-checkbox-manifest](planning-001-checkbox-manifest.md)
+- [planning-001-task-descriptions-with-file-paths](planning-001-task-descriptions-with-file-paths.md)
+- [planning-002-priority-consistency](planning-002-priority-consistency.md)
+- [planning-002-selfcontained-task-design](planning-002-selfcontained-task-design.md)
+- [planning-003-parallel-exploration-pattern-95](planning-003-parallel-exploration-pattern-95.md)
