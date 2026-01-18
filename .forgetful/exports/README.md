@@ -188,7 +188,7 @@ Import is idempotent. Safe to run multiple times.
 
 ## Requirements
 
-- PowerShell 7.0+ (cross-platform)
+- PowerShell 7.5.4+ (cross-platform)
 - SQLite3 command-line tool
 - Forgetful MCP server installed
 

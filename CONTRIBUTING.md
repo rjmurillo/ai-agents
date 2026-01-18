@@ -18,12 +18,61 @@ Thank you for your interest in contributing to this project. This guide explains
 
 ## Getting Started
 
+### Prerequisites
+
+**Required Versions:**
+
+- **PowerShell 7.5.4+** (for cross-platform script execution)
+- **Pester 5.7.1** (exact version, pinned for supply chain security)
+- **Python 3.12.x** (Not 3.13.x due to CodeQL/skill validation bug)
+
+**Python 3.12.x Required** (Not 3.13.x)
+
+This project requires Python 3.12.x due to a known bug in Python 3.13.7 that breaks CodeQL analysis and skill validation. Ubuntu 25.10 users must use `pyenv` to install Python 3.12.8:
+
+```bash
+# Install pyenv (if not already installed)
+curl https://pyenv.run | bash
+
+# Add to your shell profile (~/.bashrc or ~/.zshrc)
+cat >> ~/.bashrc <<'EOF'
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+EOF
+
+# Or for zsh users:
+cat >> ~/.zshrc <<'EOF'
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+EOF
+
+# Reload shell
+exec "$SHELL"
+
+# Install Python 3.12.8
+pyenv install 3.12.8
+
+# Set for this project
+cd /path/to/ai-agents
+pyenv local 3.12.8
+
+# Verify
+python3 --version  # Should show Python 3.12.8
+```
+
+**See:** `.serena/memories/python-version-compatibility.md` for details on the Python 3.13.7 issue.
+
+### Setup Steps
+
 1. Fork the repository
 2. Clone your fork locally
-3. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
-4. Set up pre-commit hooks: `git config core.hooksPath .githooks`
-5. Make your changes following the guidelines below
-6. Submit a pull request
+3. **Install Python 3.12.x** (see Prerequisites above)
+4. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
+5. Set up pre-commit hooks: `git config core.hooksPath .githooks`
+6. Make your changes following the guidelines below
+7. Submit a pull request
 
 ## Git Configuration
 
@@ -351,7 +400,7 @@ pwsh build/scripts/Invoke-PesterTests.ps1
 pwsh build/scripts/Invoke-PesterTests.ps1 -CI
 
 # Run specific test file
-pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./scripts/tests/Install-Common.Tests.ps1"
+pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./tests/Validate-SessionJson.Tests.ps1"
 ```
 
 ### Agent Generation Tests
@@ -453,7 +502,7 @@ Forgetful uses stdio transport with automatic installation via `uvx`. No manual 
 }
 ```
 
-### Prerequisites
+### Forgetful Installation Prerequisites
 
 Install `uv` if not already present:
 
@@ -468,6 +517,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
+
+**Security Note**: Optional: verify installer integrity or use a package manager (e.g., brew/winget) when available.
 
 ### Verifying Connection
 

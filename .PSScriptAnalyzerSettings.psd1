@@ -37,4 +37,11 @@
             Enable = $true
         }
     }
+
+    # Exclude specific rules for user-facing scripts where Write-Host is appropriate
+    ExcludeRules = @(
+        # Write-Host is acceptable in installation/scan scripts for colored console output
+        # These scripts are meant for direct user interaction, not pipeline use
+        'PSAvoidUsingWriteHost'
+    )
 }

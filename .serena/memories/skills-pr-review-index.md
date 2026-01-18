@@ -13,16 +13,18 @@
 | path containment traversal CWE-22 normalization case-insensitive | [pr-review-012-path-containment-layers](pr-review-012-path-containment-layers.md) |
 | response template reply commit fix won't-fix bot comment | [pr-review-013-bot-response-templates](pr-review-013-bot-response-templates.md) |
 | branch checkout verification state git current uncommitted | [pr-review-014-branch-state-verification](pr-review-014-branch-state-verification.md) |
+| comment-source-agnostic bot-human-equal cursor-bot coderabbit-blocking universal-blocking-rule | [pr-review-015-all-comments-blocking](pr-review-015-all-comments-blocking.md) |
 | acknowledgment protocol eyes reaction blocking gate | [pr-review-acknowledgment](pr-review-acknowledgment.md) |
 | harmful-pattern assuming gh-pr-list complete without verify | [pr-review-anti-pattern-pr-001](pr-review-anti-pattern-pr-001.md) |
 | anti-pattern status conflation completion readiness premature | [pr-review-anti-pattern-status-001](pr-review-anti-pattern-status-001.md) |
 | bot mention side effects copilot coderabbit trigger | [pr-review-bot-mention-side-effects](pr-review-bot-mention-side-effects.md) |
 | checklist phases context acknowledgment verification | [pr-review-checklist](pr-review-checklist.md) |
-| coderabbit sparse checkout blindness agents missing | [pr-review-coderabbit-sparse-checkout-blindness](pr-review-coderabbit-sparse-checkout-blindness.md) |
+| coderabbit sparse-checkout git-ls-tree .agents blindness flag-missing false-positive checkout-pattern | [pr-review-coderabbit-sparse-checkout-blindness](pr-review-coderabbit-sparse-checkout-blindness.md) |
 | copilot follow-up PR detection branch pattern duplicate | [pr-review-copilot-followup](pr-review-copilot-followup.md) |
 | core workflow conversation resolution threads merge | [pr-review-core-workflow](pr-review-core-workflow.md) |
 | list-completeness verification cross-check total-count | [pr-review-enum-001](pr-review-enum-001.md) |
 | python implicit string concat false positive PEP | [pr-review-python-implicit-string-concat](pr-review-python-implicit-string-concat.md) |
 | security-comments priority-boost TOCTOU injection XSS | [pr-review-security](pr-review-security.md) |
-| status classification decision tree blocking human | pr-review-status-001 |
+| status classification decision tree blocking human | [pr-review-status-001](pr-review-status-001.md) |
 | batch response single commit multiple comments clean history efficiency | [pr-review-batch-response-pattern](pr-review-batch-response-pattern.md) |
+| code-review observations skill constraints parallel agents confidence threshold haiku sonnet permalink | [pr-review-code-review-skill-observations](pr-review-code-review-skill-observations.md) |

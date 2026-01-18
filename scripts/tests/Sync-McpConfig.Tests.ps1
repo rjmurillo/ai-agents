@@ -1153,9 +1153,14 @@ Describe "Get-ChildItem -Force Fix for Hidden Files" {
             
             # Create a symlink (on platforms that support it)
             try {
-                New-Item -ItemType SymbolicLink -Path $sourcePath -Target $targetPath -ErrorAction SilentlyContinue | Out-Null
+                $symlink = New-Item -ItemType SymbolicLink -Path $sourcePath -Target $targetPath -ErrorAction Stop
+                if ($null -eq $symlink) {
+                    Set-ItResult -Skipped -Because "Symlinks not supported (requires admin on Windows)"
+                    return
+                }
             } catch {
                 # Symlinks not supported on this platform - skip test
+                Set-ItResult -Skipped -Because "Symlinks not supported (requires admin on Windows)"
                 return
             }
 
@@ -1172,9 +1177,14 @@ Describe "Get-ChildItem -Force Fix for Hidden Files" {
             
             # Create a symlink (on platforms that support it)
             try {
-                New-Item -ItemType SymbolicLink -Path $symLinkPath -Target (Join-Path $Script:TestDir "mcp-target.json") -ErrorAction SilentlyContinue
+                $symlink = New-Item -ItemType SymbolicLink -Path $symLinkPath -Target (Join-Path $Script:TestDir "mcp-target.json") -ErrorAction Stop
+                if ($null -eq $symlink) {
+                    Set-ItResult -Skipped -Because "Symlinks not supported (requires admin on Windows)"
+                    return
+                }
             } catch {
                 # Symlinks not supported on this platform - skip test
+                Set-ItResult -Skipped -Because "Symlinks not supported (requires admin on Windows)"
                 return
             }
 

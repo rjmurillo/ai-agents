@@ -79,7 +79,7 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 **Thinking Models**:
 - [wardley-mapping](wardley-mapping.md): Capability evolution and strategy
 - [cynefin-framework](cynefin-framework.md): Problem classification (clear, complicated, complex, chaotic)
-- `antifragility`: Systems that improve from stress
+- [antifragility](antifragility.md): Systems that improve from stress
 - [rumsfeld-matrix](rumsfeld-matrix.md): Known/unknown knowns/unknowns
 
 **Operability**:
@@ -91,7 +91,7 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 ### Tier 4: Principal (15-25 Years)
 
 **Wisdom**:
-- `chestertons-fence`: [Advanced application]
+- [chestertons-fence](chestertons-fence.md): [Advanced application]
 - [conways-law](conways-law.md): [Strategic application with inverse Conway maneuver]
 - `paved-roads-guardrails`: Defaults without constraints
 
@@ -177,18 +177,18 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 - Tier 5: [second-system-effect](second-system-effect.md), `architectural-paleontology`, `sacrificial-architecture`
 
 ### Change Management
-- Tier 1: `chestertons-fence`, [boy-scout-rule](boy-scout-rule.md)
+- Tier 1: [chestertons-fence](chestertons-fence.md), [boy-scout-rule](boy-scout-rule.md)
 - Tier 3: [feature-toggles](feature-toggles.md), `branch-by-abstraction`, `expand-contract-migration`
 - Tier 4: [migrations-at-scale](migrations-at-scale.md)
 - Tier 5: [strangler-fig-pattern](strangler-fig-pattern.md), `capability-based-migration`
 
 ### Legacy Systems
-- Tier 1: `chestertons-fence`, [galls-law](galls-law.md)
+- Tier 1: [chestertons-fence](chestertons-fence.md), [galls-law](galls-law.md)
 - Tier 3: [strangler-fig-pattern](strangler-fig-pattern.md), `expand-contract-migration`
 - Tier 5: [lindy-effect](lindy-effect.md), [second-system-effect](second-system-effect.md), `path-dependence`, `architectural-paleontology`
 
 ### Strategic Planning
-- Tier 3: [wardley-mapping](wardley-mapping.md), [cynefin-framework](cynefin-framework.md), `antifragility`
+- Tier 3: [wardley-mapping](wardley-mapping.md), [cynefin-framework](cynefin-framework.md), [antifragility](antifragility.md)
 - Tier 4: [ooda-loop](ooda-loop.md), [critical-path-method](critical-path-method.md), [products-over-projects](products-over-projects.md)
 - Tier 5: [three-horizons-framework](three-horizons-framework.md), `core-context-mapping`
 

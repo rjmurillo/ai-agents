@@ -260,7 +260,7 @@ Update `src/claude/orchestrator.md` to include:
 - Parallel annotation in task delegation
 
 Add section:
-```markdown
+````markdown
 ## Parallel Execution (Documentation)
 
 When delegating tasks, assess parallel potential:
@@ -274,14 +274,13 @@ Tasks are independent when:
 
 ### Parallel Annotation
 When tasks could run in parallel, document:
-\`\`\`markdown
+```markdown
 ## Parallel Block: [Name]
 **Type**: Sectioning | Voting
 **Tasks**:
 - [ ] Task A (to: agent-a)
 - [ ] Task B (to: agent-b)
 **Aggregation**: merge | vote | escalate
-\`\`\`
 ```
 
 ### P-003: Create Aggregation Patterns
@@ -346,7 +345,7 @@ Continue on: `feat/phase-3-parallel`
 - `docs(governance): add parallel dispatch protocol`
 - `docs(agents): update orchestrator with parallel documentation`
 - `docs(governance): add aggregation patterns`
-```
+````
 
 ---
 
