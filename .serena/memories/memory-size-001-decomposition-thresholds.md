@@ -2,11 +2,11 @@
 
 **Date**: 2025-12-22
 **Issue**: #239
-**Subject**: `skills-github-cli` memory file
+**Subject**: [skills-github-cli](skills-github-cli.md) memory file
 
 ## Problem Statement
 
-The `skills-github-cli` memory has grown beyond maintainable size:
+The [skills-github-cli](skills-github-cli.md) memory has grown beyond maintainable size:
 
 | Metric | Value | Threshold | Status |
 |--------|-------|-----------|--------|
