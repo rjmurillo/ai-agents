@@ -1,7 +1,7 @@
 # Skill Sidecar Learnings: Retrospective
 
-**Last Updated**: 2026-01-16
-**Sessions Analyzed**: 1 (Session 07)
+**Last Updated**: 2026-01-18
+**Sessions Analyzed**: 2
 
 ## Constraints (HIGH confidence)
 
@@ -18,6 +18,13 @@
 
 - Cross-reference skill domains when analyzing retrospectives - single file often yields learnings for 3-5 different skill areas (Session 07, 2026-01-16)
   - Evidence: PR-715-phase2 retrospective yielded security (path traversal), PowerShell (array efficiency), testing (non-numeric IDs), documentation (Mermaid diagrams) patterns from one 998-line file
+
+- Implementation summary as retrospective artifact pattern - create IMPLEMENTATION-SUMMARY-{feature}.md files as lightweight alternative to full retrospective agent invocation (Session 68, 2025-12-22)
+  - Evidence: Session 68 guardrails implementation used IMPLEMENTATION-SUMMARY-guardrails.md as retrospectiveInvoked evidence, capturing outcomes without invoking retrospective agent
+- User feedback critical for analysis depth - initial analysis may miss learnings until user requests deeper extraction (Session 07, 2026-01-16)
+  - Evidence: Batch 37 - Initial 41 learnings expanded to 91 after user feedback requesting more thorough analysis
+- Iterative reflection more accurate than batch - invoke /reflect per skill domain for better learning extraction (Session 07, 2026-01-16)
+  - Evidence: Batch 37 - Domain-specific reflection invocations yielded higher quality learnings than bulk processing
 
 ## Edge Cases (MED confidence)
 

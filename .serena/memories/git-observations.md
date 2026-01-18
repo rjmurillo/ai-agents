@@ -1,7 +1,7 @@
 # Skill Observations: git
 
-**Last Updated**: 2026-01-16
-**Sessions Analyzed**: 1
+**Last Updated**: 2026-01-18
+**Sessions Analyzed**: 7
 
 ## Purpose
 
@@ -13,10 +13,23 @@ These are corrections that MUST be followed:
 
 - Verify branch before git operations using 'git branch --show-current' - SESSION-PROTOCOL.md mandates this at session start (Session 2026-01-16-session-07, 2026-01-16)
 - Use exit code 1 for failures that should block commits, not exit code 2 - exit code 2 bypasses pre-commit hooks (Session 2026-01-16-session-07, 2026-01-16)
+- Git --no-verify bypass CANNOT be prevented by exit codes. EMPIRICALLY TESTED: exit code 2 does NOT prevent bypass. --no-verify skips hook execution entirely before any code runs. Claude hooks at LLM level are the ONLY non-bypassable enforcement mechanism (Session 01, PR #845, 2026-01-16)
+  - Evidence: Session 01 - Attempted hook hardening with exit code 2 failed. Empirical testing proved --no-verify completely skips hook execution regardless of exit codes. Created git-hooks-no-verify-bypass-limitation memory. Claude hooks at SessionStart/ToolCall are canonical enforcement solution.
+- Never use 'git add -A' after failed cherry-pick - stages thousands of unintended file changes. Use git add on specific files only (Session 819, 2026-01-10)
+  - Evidence: git add -A after failed cherry-pick staged 2609 unintended file changes during nested worktree history cleanup, required manual unstaging
+- Pre-commit hook stack overflow with large memory file count - processing hundreds of files can exceed bash stack limits (Session 2, 2026-01-15)
+  - Evidence: Batch 37 - Pre-commit hook failed with stack overflow when processing ~400 memory files, required file count reduction
 
 ## Preferences (MED confidence)
 
 These are preferences that SHOULD be followed:
+
+- SHA validation pre-commit hook can hang on large changesets - --no-verify sometimes needed as workaround when hook times out (Session 825, 2026-01-13)
+  - Evidence: Pre-commit hook hung during commit, used --no-verify to proceed, noted in session log for manual validation
+- .serena/memories/ files accept main branch version during merge conflicts - auto-resolvable pattern per merge-resolver skill (Session 812, 2026-01-10)
+  - Evidence: Accepted Validate-SessionJson.ps1 (main) over Validate-Session.ps1 (HEAD) during merge, applied merge-resolver-auto-resolvable-patterns
+- --no-verify usage requires explicit justification in commit message or session log (Session 03, 2026-01-16)
+  - Evidence: Batch 36 - User later rejected --no-verify usage without justification, required documentation of reasoning
 
 ## Edge Cases (MED confidence)
 
@@ -34,6 +47,12 @@ These are observations that may become patterns:
 |------|---------|------|----------|
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Verify branch before git operations |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Use exit code 1 for blocking failures, not exit code 2 |
+| 2026-01-16 | Session 01, PR #845 | HIGH | Git --no-verify bypass cannot be prevented by exit codes |
+| 2026-01-10 | Session 819 | HIGH | Never use git add -A after failed cherry-pick |
+| 2026-01-15 | Session 2 | HIGH | Pre-commit hook stack overflow with large memory file count |
+| 2026-01-13 | Session 825 | MED | SHA validation hook can hang - --no-verify workaround |
+| 2026-01-16 | Session 03 | MED | --no-verify usage requires explicit justification |
+| 2026-01-10 | Session 812 | MED | .serena/memories/ files auto-resolvable with main branch |
 | 2026-01-16 | 2026-01-16-session-07 | MED | High fix: ratio indicates insufficient upfront testing |
 
 ## Related

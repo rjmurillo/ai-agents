@@ -1,7 +1,7 @@
 # Skill Observations: architecture
 
-**Last Updated**: 2026-01-16
-**Sessions Analyzed**: 4
+**Last Updated**: 2026-01-17
+**Sessions Analyzed**: 10
 
 ## Purpose
 
@@ -32,6 +32,18 @@ These are preferences that SHOULD be followed:
 - Template drift prevention: validate session logs match canonical template structure before commit (Session 2026-01-16-session-07, Session Protocol Mass Failure)
 - Tiered memory index architecture: 82% token reduction for memory retrieval. Domain indexes enable targeted discovery (ADR-017, Session 07, 2026-01-16)
 - Skills pattern superiority: 63-78% latency reduction vs PowerShell wrappers. Check skill inventory before using direct commands (ADR-030, Session 07, 2026-01-16)
+- Leverage existing modules instead of duplicating functionality - reuse GitHubCore.psm1, GitHelpers.psm1, SchemaValidation.psm1 when implementing new features rather than creating parallel implementations (Session 379, 2026-01-11)
+  - Evidence: Session evidence verification planning - identified existing modules could handle path validation, schema validation, and GitHub operations instead of creating new helper functions
+- Fix error visibility first, then fix root cause - two-step debugging pattern for cryptic failures (Session 6, PR #954, 2026-01-16)
+  - Evidence: Had to fix stderr suppression to see actual CodeQL errors, then could diagnose and fix missing parent directory issue
+- Metadata-based cache validation for performance optimization - combine git HEAD SHA, config file hash, and script hashes to invalidate cache only when source changes (Session 05, 2026-01-15)
+  - Evidence: CodeQL PostToolUse hook - validates cache using metadata object with GitHead + ConfigHash + ScriptsHash + ConfigDirHash, prevents unnecessary database rebuilds on every commit
+- ADR review DISAGREE_AND_COMMIT verdict allows P1 non-blocking issues to defer to follow-up - production readiness doesn't require perfection (Session 382, 2026-01-16)
+  - Evidence: ADR-041 review completed with 90% confidence DISAGREE_AND_COMMIT verdict. Implementation production-ready with one P1 non-blocking issue (PowerShell language coverage documentation inconsistency) tracked for follow-up commit
+- 4-phase integration plan prioritizing high-value low-effort changes first - enables incremental rollout and iteration (Session 819, 2026-01-10)
+  - Evidence: GitHub keywords integration plan - Phase 1+2 (3-5 hours) provide highest impact via validation infrastructure and agent prompt updates, Phase 3+4 (advanced features) deferred as optional
+- Enhance existing skill infrastructure vs creating standalone skills - avoid premature abstraction, can extract later if complexity grows (Session 819, 2026-01-10)
+  - Evidence: Test-PRDescription.ps1 designed as GitHub skill enhancement rather than standalone skill. Leverages existing github skill infrastructure, allows extraction to dedicated skill later if validation logic grows complex
 
 ## Edge Cases (MED confidence)
 
@@ -65,6 +77,12 @@ These are observations that may become patterns:
 | 2026-01-16 | 2026-01-16-session-07 | MED | Exit code 2 signals BLOCKING to Claude |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Template drift prevention with pre-commit validation |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Auto-trigger verification checkpoints prevent reactive work |
+| 2026-01-11 | Session 379 | MED | Leverage existing modules instead of duplicating functionality |
+| 2026-01-16 | Session 6, PR #954 | MED | Fix error visibility first, then root cause |
+| 2026-01-15 | Session 05 | MED | Metadata-based cache validation for performance optimization |
+| 2026-01-16 | Session 382 | MED | ADR review DISAGREE_AND_COMMIT with P1 non-blocking deferred |
+| 2026-01-10 | Session 819 | MED | 4-phase integration plan prioritizing high-value low-effort |
+| 2026-01-10 | Session 819 | MED | Enhance existing skills vs creating new ones to avoid premature abstraction |
 
 ## Related
 
@@ -73,3 +91,8 @@ These are observations that may become patterns:
 - [architecture-016-adr-number-check](architecture-016-adr-number-check.md)
 - [architecture-adr-compliance-documentation](architecture-adr-compliance-documentation.md)
 - [architecture-composite-action](architecture-composite-action.md)
+- [architecture-model-selection](architecture-model-selection.md)
+- [architecture-observations](architecture-observations.md)
+- [architecture-producer-consumer](architecture-producer-consumer.md)
+- [architecture-template-variant-maintenance](architecture-template-variant-maintenance.md)
+- [architecture-tool-allocation](architecture-tool-allocation.md)

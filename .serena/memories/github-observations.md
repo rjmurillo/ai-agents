@@ -1,7 +1,7 @@
 # Skill Observations: github
 
-**Last Updated**: 2026-01-16
-**Sessions Analyzed**: 5
+**Last Updated**: 2026-01-18
+**Sessions Analyzed**: 7
 
 ## Purpose
 
@@ -15,6 +15,10 @@ These are corrections that MUST be followed:
 - Route GitHub URLs to API calls, never fetch HTML directly (Session 2026-01-16-session-07, 2026-01-16)
 - Use GraphQL API for review thread resolution - REST API does not support resolveReviewThread operation (Session 07, 2026-01-16)
   - Evidence: Session 38 - REST API research led to GraphQL discovery, thread resolution succeeded via GraphQL mutation
+- GitHub code scanning reactions API not supported - HTTP 422 error when attempting to add reactions to code scanning alerts (Session 2, 2026-01-15)
+  - Evidence: Batch 37 - Attempted reaction to code scanning alert failed with HTTP 422 "Reactions are not available"
+- CommentId vs ThreadId distinction for PR replies - use correct ID type when posting threaded replies (Session 2, 2026-01-15)
+  - Evidence: Batch 37 - PR reply API requires ThreadId not CommentId for proper thread association
 
 ## Preferences (MED confidence)
 
@@ -36,6 +40,8 @@ These are scenarios to handle:
   - Evidence: Session 38 - workflow re-run behavior discovery, cannot validate PR changes via manual re-run
 - Bot PR authors need @mention to monitor PR feedback - don't automatically track review comments without explicit notification (Session 07, 2026-01-16)
   - Evidence: Session 38 - Issue #152 created after PR #121 revealed bot author awareness gap
+- GraphQL thread pagination edge case - query with first: 100 captures old threads but misses newest. Query both first: N and last: N for comprehensive coverage (Session 7, PR #908, 2026-01-16)
+  - Evidence: Batch 38 - GraphQL pagination with first: 100 returned old resolved threads but excluded most recent unresolved threads
 
 ## Notes for Review (LOW confidence)
 
@@ -53,11 +59,14 @@ These are observations that may become patterns:
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Always use GitHub skill PowerShell scripts instead of raw gh commands |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Route GitHub URLs to API calls, never fetch HTML directly |
 | 2026-01-16 | Session 07 | HIGH | Use GraphQL API for review thread resolution (REST doesn't support it) |
+| 2026-01-15 | Session 2 | HIGH | GitHub code scanning reactions API not supported (HTTP 422) |
+| 2026-01-15 | Session 2 | HIGH | CommentId vs ThreadId distinction for PR replies |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Prioritize github skill scripts > gh api > gh commands |
 | 2026-01-16 | 2026-01-16-session-07 | MED | When github skill script doesn't exist, use gh api with specific endpoint |
 | 2026-01-16 | Session 07 | MED | dorny/paths-filter requires checkout in ALL workflow jobs |
 | 2026-01-16 | Session 07 | MED | Workflow re-run executes on main branch not PR branch |
 | 2026-01-16 | Session 07 | MED | Bot PR authors need @mention for PR feedback monitoring |
+| 2026-01-16 | Session 7, PR #908 | MED | GraphQL thread pagination edge case - query both first/last |
 
 ## Related
 
