@@ -1,6 +1,6 @@
-# AI Agents Installation Scripts
+# AI Agents Scripts
 
-PowerShell scripts for installing the AI Agents system to Claude Code, GitHub Copilot CLI, and VS Code.
+PowerShell scripts for the AI Agents system.
 
 ## Script Organization
 
@@ -14,168 +14,22 @@ Scripts are organized by **intended audience and execution context**:
 
 **When to use each location**:
 
-- Creating a tool for developers to run? → `scripts/`
-- Building a GitHub Actions workflow helper? → `.github/scripts/`
-- Adding AI agent capability? → `.claude/skills/` (with wrapper in `scripts/` if needed)
-- Writing tests? → `tests/`
+- Creating a tool for developers to run? -> `scripts/`
+- Building a GitHub Actions workflow helper? -> `.github/scripts/`
+- Adding AI agent capability? -> `.claude/skills/` (with wrapper in `scripts/` if needed)
+- Writing tests? -> `tests/`
 
 See [ADR-019](../.agents/architecture/ADR-019-script-organization.md) for detailed rationale and guidelines.
 
-## Overview
+## Installation
 
-The installation system provides:
+For installing agents to Claude Code, VS Code, or Copilot CLI, use [skill-installer](https://github.com/rjmurillo/skill-installer):
 
-- **Unified installer** (`install.ps1`) - Single script for all environments
-- **Remote execution support** - Install directly from GitHub without cloning
-- **Legacy scripts** - Individual scripts for backward compatibility
-
-## Directory Structure
-
-```text
-scripts/
-├── install.ps1                      # Unified entry point
-├── lib/
-│   ├── Install-Common.psm1          # Shared functions module
-│   └── Config.psd1                  # Environment configurations
-├── tests/
-│   ├── Install-Common.Tests.ps1     # Module unit tests
-│   ├── Config.Tests.ps1             # Configuration validation tests
-│   └── install.Tests.ps1            # Entry point tests
-└── [legacy scripts]                 # Backward compatibility wrappers
+```bash
+uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
 ```
 
-## Quick Reference
-
-### Remote Installation
-
-```powershell
-# Stable release (v0.1.0)
-Set-ExecutionPolicy Bypass -Scope Process -Force
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
-
-# Bleeding edge (main branch)
-Set-ExecutionPolicy Bypass -Scope Process -Force
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
-```
-
-### Local Installation
-
-```powershell
-# Claude Code
-.\install.ps1 -Environment Claude -Global
-.\install.ps1 -Environment Claude -RepoPath "C:\MyRepo"
-
-# GitHub Copilot CLI
-.\install.ps1 -Environment Copilot -Global
-.\install.ps1 -Environment Copilot -RepoPath "."
-
-# VS Code
-.\install.ps1 -Environment VSCode -Global
-.\install.ps1 -Environment VSCode -RepoPath "C:\MyRepo" -Force
-```
-
-### Parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `-Environment` | String | `Claude`, `Copilot`, or `VSCode` |
-| `-Global` | Switch | Install to user-level location |
-| `-RepoPath` | String | Install to specified repository |
-| `-Force` | Switch | Overwrite without prompting |
-
-## Legacy Scripts
-
-For backward compatibility, individual scripts are available:
-
-| Script | Equivalent |
-|--------|------------|
-| `install-claude-global.ps1` | `install.ps1 -Environment Claude -Global` |
-| `install-claude-repo.ps1` | `install.ps1 -Environment Claude -RepoPath <path>` |
-| `install-copilot-cli-global.ps1` | `install.ps1 -Environment Copilot -Global` |
-| `install-copilot-cli-repo.ps1` | `install.ps1 -Environment Copilot -RepoPath <path>` |
-| `install-vscode-global.ps1` | `install.ps1 -Environment VSCode -Global` |
-| `install-vscode-repo.ps1` | `install.ps1 -Environment VSCode -RepoPath <path>` |
-
-## Module Functions
-
-The `Install-Common.psm1` module exports these functions:
-
-| Function | Purpose |
-|----------|---------|
-| `Get-InstallConfig` | Load configuration for environment/scope |
-| `Resolve-DestinationPath` | Expand path expressions with variables |
-| `Test-SourceDirectory` | Validate source directory exists |
-| `Get-AgentFiles` | Find agent files matching pattern |
-| `Initialize-Destination` | Create destination directory |
-| `Test-GitRepository` | Check if path is a git repository |
-| `Initialize-AgentsDirectories` | Create .agents subdirectories |
-| `Copy-AgentFile` | Copy single agent file with prompting |
-| `Install-InstructionsFile` | Install/upgrade instructions file |
-| `Write-InstallHeader` | Display installation header |
-| `Write-InstallComplete` | Display completion message |
-
-## Configuration
-
-`Config.psd1` contains environment-specific settings:
-
-```powershell
-@{
-    _Common = @{
-        BeginMarker = "<!-- BEGIN: ai-agents installer -->"
-        EndMarker = "<!-- END: ai-agents installer -->"
-        AgentsDirs = @(".agents/analysis", ...)
-    }
-
-    Claude = @{
-        DisplayName = "Claude Code"
-        SourceDir = "src/claude"
-        FilePattern = "*.md"
-        Global = @{ DestDir = '$HOME/.claude/agents' }
-        Repo = @{ DestDir = '.claude/agents' }
-    }
-
-    # Copilot, VSCode...
-}
-```
-
-## Running Tests
-
-Requires [Pester](https://pester.dev/) 5.x:
-
-```powershell
-# Install Pester
-Install-Module -Name Pester -Force -Scope CurrentUser
-
-# Run all tests
-Invoke-Pester -Path .\scripts\tests
-
-# Run specific test file
-Invoke-Pester -Path .\scripts\tests\Install-Common.Tests.ps1
-
-# Run with detailed output
-Invoke-Pester -Path .\scripts\tests -Output Detailed
-```
-
-## GitHub Actions
-
-Tests run automatically on PR/push to `scripts/**` via `.github/workflows/pester-tests.yml`.
-
-## CI Verification
-
-The `.github/workflows/verify-install-script.yml` workflow validates install output across
-Windows, macOS, and Linux for Claude, Copilot, and VS Code in both Global and Repo scopes.
-It uses file-based checks (`scripts/tests/Verify-InstallOutput.ps1`) to confirm expected
-files exist without requiring CLI authentication.
-
-### Run Locally
-
-```powershell
-# Verify a global install
-./scripts/tests/Verify-InstallOutput.ps1 -Environment Claude -Scope Global -CI
-
-# Verify a repo install
-./scripts/tests/Verify-InstallOutput.ps1 -Environment Copilot -Scope Repo -RepoPath . -CI
-```
+See [docs/installation.md](../docs/installation.md) for complete installation documentation.
 
 ## Validation Scripts
 
@@ -322,13 +176,26 @@ if ($synced) { Write-Host "Configuration was synced" }
 
 See [docs/technical-guardrails.md](../docs/technical-guardrails.md) for complete validation documentation.
 
+## Running Tests
+
+Requires [Pester](https://pester.dev/) 5.x:
+
+```powershell
+# Install Pester
+Install-Module -Name Pester -Force -Scope CurrentUser
+
+# Run all tests
+Invoke-Pester -Path .\tests
+
+# Run specific test file
+Invoke-Pester -Path .\tests\Validate-SessionJson.Tests.ps1
+
+# Run with detailed output
+Invoke-Pester -Path .\tests -Output Detailed
+```
+
 ## Full Documentation
 
-See [docs/installation.md](../docs/installation.md) for complete installation documentation including:
-
-- Installation paths for each environment
-- Upgrade process
-- Troubleshooting guide
-- Known issues
+See [docs/installation.md](../docs/installation.md) for complete installation documentation.
 
 See [docs/technical-guardrails.md](../docs/technical-guardrails.md) for validation and guardrail documentation.

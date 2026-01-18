@@ -149,110 +149,23 @@ flowchart TD
     end
 
     subgraph Scripts["Script Agents"]
-        INS[install.ps1]
         SYN[Sync-McpConfig.ps1]
         CHK[Check-SkillExists.ps1]
         VCS[Validate-Consistency.ps1]
         VSP[Validate-SessionJson.ps1]
     end
 
-    subgraph Lib["Shared Library"]
-        COM[lib/Install-Common.psm1]
-        CFG[lib/Config.psd1]
-    end
-
-    subgraph Targets["Installation Targets"]
-        CLG[~/.claude/agents]
-        VSG[%APPDATA%/Code/User/prompts]
-        CPG[~/.copilot/agents]
-        REP[.claude/agents or .github/agents]
-    end
-
-    SC --> INS
-    SV --> INS
-    SCP --> INS
-    COM --> INS
-    CFG --> INS
-    INS --> CLG
-    INS --> VSG
-    INS --> CPG
-    INS --> REP
-
     MCP --> SYN
     SYN --> VSC[.vscode/mcp.json]
 
     style Sources fill:#e1f5fe
     style Scripts fill:#fff3e0
-    style Lib fill:#fce4ec
-    style Targets fill:#e8f5e9
 ```
+
+> **Note**: Agent installation is handled by [skill-installer](https://github.com/rjmurillo/skill-installer).
+> See [docs/installation.md](../docs/installation.md) for installation instructions.
 
 ## Agent Catalog
-
-### install.ps1 (Unified Installer)
-
-**Role**: Single entry point for all agent installations
-
-| Attribute | Value |
-|-----------|-------|
-| **Input** | Environment, scope parameters |
-| **Output** | Installed agent files |
-| **Trigger** | Manual, remote execution |
-| **Dependencies** | `lib/Install-Common.psm1`, `lib/Config.psd1` |
-
-**Parameters**:
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `-Environment` | String | `Claude`, `Copilot`, or `VSCode` |
-| `-Global` | Switch | Install to user-level location |
-| `-RepoPath` | String | Install to specified repository |
-| `-Version` | String | Version tag or branch (default: `v0.1.0`) |
-| `-Force` | Switch | Overwrite without prompting |
-
-**Invocation**:
-
-```powershell
-# Remote installation (stable release v0.1.0)
-iex ((New-Object System.Net.WebClient).DownloadString(
-  'https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
-
-# Remote installation (bleeding edge from main)
-iex ((New-Object System.Net.WebClient).DownloadString(
-  'https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
-
-# Local installation (uses files from current working directory)
-.\install.ps1 -Environment Claude -Global
-.\install.ps1 -Environment VSCode -RepoPath "C:\MyRepo"
-.\install.ps1 -Environment Copilot -RepoPath "." -Force
-```
-
-**Note**: The `-Version` parameter only applies to remote installations where `install.ps1` is downloaded via `iex`. Local installations always use the files in the current working directory, regardless of the `-Version` parameter.
-
-**Installation Matrix**:
-
-| Environment | Global Location | Repo Location |
-|-------------|-----------------|---------------|
-| Claude | `~/.claude/agents` | `.claude/agents` |
-| VSCode | `%APPDATA%/Code/User/prompts` | `.github/agents` |
-| Copilot | `~/.copilot/agents` | `.github/agents` |
-
----
-
-### Legacy Installation Scripts
-
-For backward compatibility, individual scripts wrap the unified installer:
-
-| Script | Equivalent |
-|--------|------------|
-| `install-claude-global.ps1` | `install.ps1 -Environment Claude -Global` |
-| `install-claude-repo.ps1` | `install.ps1 -Environment Claude -RepoPath <path>` |
-| `install-copilot-cli-global.ps1` | `install.ps1 -Environment Copilot -Global` |
-| `install-copilot-cli-repo.ps1` | `install.ps1 -Environment Copilot -RepoPath <path>` |
-| `install-vscode-global.ps1` | `install.ps1 -Environment VSCode -Global` |
-| `install-vscode-repo.ps1` | `install.ps1 -Environment VSCode -RepoPath <path>` |
-
----
 
 ### Sync-McpConfig.ps1
 
@@ -374,127 +287,48 @@ For backward compatibility, individual scripts wrap the unified installer:
 
 ---
 
-## Shared Library
-
-### lib/Install-Common.psm1
-
-Shared functions used by all installation scripts:
-
-| Function | Purpose |
-|----------|---------|
-| `Get-InstallConfig` | Load environment/scope configuration |
-| `Resolve-DestinationPath` | Expand path expressions |
-| `Test-SourceDirectory` | Validate source exists |
-| `Get-AgentFiles` | Find agent files by pattern |
-| `Initialize-Destination` | Create destination directory |
-| `Test-GitRepository` | Check if path is git repo |
-| `Initialize-AgentsDirectories` | Create `.agents/` subdirectories |
-| `Copy-AgentFile` | Copy single agent with prompting |
-| `Install-InstructionsFile` | Install/upgrade instructions |
-| `Write-InstallHeader` | Display installation header |
-| `Write-InstallComplete` | Display completion message |
-
-### lib/Config.psd1
-
-Environment-specific configuration:
-
-```powershell
-@{
-    _Common = @{
-        BeginMarker = "<!-- BEGIN: ai-agents installer -->"
-        EndMarker = "<!-- END: ai-agents installer -->"
-        AgentsDirs = @(".agents/analysis", ".agents/planning", ...)
-    }
-
-    Claude = @{
-        DisplayName = "Claude Code"
-        SourceDir = "src/claude"
-        FilePattern = "*.md"
-        Global = @{ DestDir = '$HOME/.claude/agents' }
-        Repo = @{ DestDir = '.claude/agents' }
-    }
-
-    # VSCode, Copilot configurations...
-}
-```
-
----
-
-## Data Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Install as install.ps1
-    participant Config as lib/Config.psd1
-    participant Common as lib/Install-Common.psm1
-    participant Source as src/*
-    participant Target as Installation Target
-
-    User->>Install: Specify environment + scope
-    Install->>Config: Load configuration
-    Config-->>Install: Environment settings
-    Install->>Common: Initialize
-    Install->>Source: Get agent files
-    Source-->>Install: File list
-    loop For each agent
-        Install->>Common: Copy-AgentFile
-        Common->>Target: Write file
-    end
-    Install->>Common: Install-InstructionsFile
-    Common->>Target: Update instructions
-    Install-->>User: Installation complete
-```
-
 ## Error Handling
 
 | Agent | Error Scenario | Behavior |
 |-------|---------------|----------|
-| install.ps1 | Source not found | Exit with path error |
-| install.ps1 | Permission denied | Prompt for elevated permissions |
-| install.ps1 | File exists | Prompt unless `-Force` |
 | Sync-McpConfig.ps1 | Source missing | Exit with path error |
 | Validate-SessionJson.ps1 | Session not found | Warning, continue |
+| Validate-*.ps1 | Validation failure | Exit with error code |
 
 ## Security Considerations
 
 | Agent | Security Control |
 |-------|-----------------|
-| install.ps1 | Path validation prevents traversal |
-| install.ps1 | Remote execution uses HTTPS only |
 | Sync-McpConfig.ps1 | No external network access |
 | All scripts | No credential handling |
+| All scripts | Path validation prevents traversal |
 
 ## Testing
 
-Tests are located in `scripts/tests/`:
+Tests are located in `tests/`:
 
 | Test File | Coverage |
 |-----------|----------|
-| `Install-Common.Tests.ps1` | All 11 module functions |
-| `Config.Tests.ps1` | Configuration validation |
-| `install.Tests.ps1` | Entry point parameter validation |
 | `Sync-McpConfig.Tests.ps1` | MCP sync transformations |
-| `Validate-SessionProtocol.Tests.ps1` | Protocol validation logic |
+| `Validate-SessionJson.Tests.ps1` | Session protocol validation |
 
 **Running Tests**:
 
 ```powershell
 # All tests
-Invoke-Pester -Path .\scripts\tests
+Invoke-Pester -Path .\tests
 
 # Specific file
-Invoke-Pester -Path .\scripts\tests\Install-Common.Tests.ps1
+Invoke-Pester -Path .\tests\Sync-McpConfig.Tests.ps1
 
 # Detailed output
-Invoke-Pester -Path .\scripts\tests -Output Detailed
+Invoke-Pester -Path .\tests -Output Detailed
 ```
 
 ## Monitoring
 
 | Agent | CI Workflow | Trigger |
 |-------|------------|---------|
-| install.ps1 | `pester-tests.yml` | PR to `scripts/**` |
 | Sync-McpConfig.ps1 | `pester-tests.yml` | PR to `scripts/**` |
 | Validate-SessionJson.ps1 | `ai-session-protocol.yml` | PR to `.agents/**` |
 

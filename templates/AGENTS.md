@@ -27,7 +27,8 @@ templates/agents/*.shared.md ─────────┐
 src/claude/*.md ──────────────────────────────────────────────┘
    (HAND-MAINTAINED - separate flow)                          │
                                                               ▼
-                                                    scripts/install.ps1
+                                                      skill-installer
+                                                   (Python TUI tool)
                                                               │
                                                               ▼
                                                    .claude/agents/*.md

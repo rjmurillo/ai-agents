@@ -1,8 +1,12 @@
 # Code Value Analysis: Install Scripts Refactoring
 
+> **DEPRECATED (2026-01-17)**: This analysis is historical. The PowerShell installation scripts
+> have been replaced by [skill-installer](https://github.com/rjmurillo/skill-installer).
+> See [docs/installation.md](../../docs/installation.md) for current installation instructions.
+
 **Date**: 2025-12-15
 **Author**: Orchestrator Agent
-**Status**: Analysis Complete
+**Status**: ~~Analysis Complete~~ DEPRECATED
 **Branch**: feat/install-script
 
 ## Executive Summary
