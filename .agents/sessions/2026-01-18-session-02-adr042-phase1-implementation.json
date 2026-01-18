@@ -113,6 +113,11 @@
       "timestamp": "2026-01-18T11:42:00Z",
       "action": "Fixed markdownlint config",
       "details": "Added .venv/** to globs and ignores in .markdownlint-cli2.yaml to exclude Python venv markdown files"
+    },
+    {
+      "timestamp": "2026-01-18T12:15:00Z",
+      "action": "Updated documentation for Python-first",
+      "details": "Updated CONTRIBUTING.md and AGENTS.md: changed 'Always Do' to Python-first, updated 'Never Do' to allow Python, added Python to Tech Stack, added pytest testing sections, emphasized shift-left automation (pre-commit hooks + CI handle quality)"
     }
   ],
   "decisions": [
@@ -130,7 +135,7 @@
   ],
   "outcome": {
     "status": "complete",
-    "summary": "ADR-042 Phase 1 complete. Python infrastructure established: pyproject.toml, uv.lock with hashes, pytest CI workflow, dependabot pip ecosystem, updated constraints. All 8 tasks verified.",
+    "summary": "ADR-042 Phase 1 complete. Python infrastructure established: pyproject.toml, uv.lock with hashes, pytest CI workflow, dependabot pip ecosystem, updated constraints and documentation. CONTRIBUTING.md and AGENTS.md updated to reflect Python-first development with shift-left automation.",
     "filesChanged": [
       "pyproject.toml",
       "uv.lock",
@@ -140,7 +145,9 @@
       ".agents/governance/PROJECT-CONSTRAINTS.md",
       "CRITICAL-CONTEXT.md",
       ".githooks/pre-commit",
-      ".markdownlint-cli2.yaml"
+      ".markdownlint-cli2.yaml",
+      "CONTRIBUTING.md",
+      "AGENTS.md"
     ],
     "testsRun": true,
     "testsPass": true
