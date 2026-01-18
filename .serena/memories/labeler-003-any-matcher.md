@@ -1,4 +1,6 @@
-# Skill-Labeler-003: ANY Matcher
+# Labeler: Any Matcher
+
+## Skill-Labeler-003: ANY Matcher
 
 **Statement**: Use `any-glob-to-any-file` when label applies if ANY file matches pattern.
 
@@ -11,7 +13,7 @@
 ## Related
 
 - [labeler-001-negation-pattern-matcher-selection](labeler-001-negation-pattern-matcher-selection.md)
+- [labeler-002-combined-matcher-block-pattern](labeler-002-combined-matcher-block-pattern.md)
+- [labeler-003-matcher-type-selection-any](labeler-003-matcher-type-selection-any.md)
 - [labeler-004-all-files-matcher](labeler-004-all-files-matcher.md)
-- [labeler-005-all-patterns-matcher](labeler-005-all-patterns-matcher.md)
-- [labeler-006-negation-pattern-isolation](labeler-006-negation-pattern-isolation.md)
-- [labeler-combined-patterns](labeler-combined-patterns.md)
+- [labeler-004-matcher-type-selection-all-files](labeler-004-matcher-type-selection-all-files.md)
