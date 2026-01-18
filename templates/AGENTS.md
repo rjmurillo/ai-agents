@@ -27,7 +27,8 @@ templates/agents/*.shared.md ─────────┐
 src/claude/*.md ──────────────────────────────────────────────┘
    (HAND-MAINTAINED - separate flow)                          │
                                                               ▼
-                                                    scripts/install.ps1
+                                                      skill-installer
+                                                   (Python TUI tool)
                                                               │
                                                               ▼
                                                    .claude/agents/*.md
@@ -259,7 +260,7 @@ sequenceDiagram
 |------------|------|---------|
 | `build/Generate-Agents.ps1` | Script | Transforms templates to outputs |
 | `build/Generate-Agents.Common.psm1` | Module | Shared transformation functions |
-| PowerShell 7.0+ | Runtime | Script execution |
+| PowerShell 7.5.4+ | Runtime | Script execution |
 
 ## Security Considerations
 

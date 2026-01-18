@@ -1,176 +1,132 @@
 # Installation Guide
 
-This guide covers all installation methods for the AI Agents system across Claude Code, GitHub Copilot CLI, and VS Code environments.
+This guide covers installation of the AI Agents system using [skill-installer](https://github.com/rjmurillo/skill-installer), a Python-based TUI tool.
 
-## Quick Installation (Remote)
+## Prerequisites
 
-The easiest way to install is via remote execution. This downloads and runs the installer directly from GitHub.
+- Python 3.10+
+- [UV](https://docs.astral.sh/uv/) package manager
 
-### Windows PowerShell
+### Installing UV
 
-```powershell
-# Remote installation (interactive) - stable release v0.1.0
-Set-ExecutionPolicy Bypass -Scope Process -Force
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/v0.1.0/scripts/install.ps1'))
+**macOS/Linux:**
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-For bleeding edge updates:
+**Windows (PowerShell):**
 
 ```powershell
-# Remote installation from main branch (bleeding edge)
-Set-ExecutionPolicy Bypass -Scope Process -Force
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/rjmurillo/ai-agents/main/scripts/install.ps1'))
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-This will prompt you to select:
+## Quick Start (Try Without Installing)
 
-1. **Environment**: Claude Code, GitHub Copilot CLI, or VS Code
-2. **Scope**: Global (user-level) or Repository (project-specific)
+Run skill-installer directly without installing it:
 
-## Local Installation
-
-If you have cloned the repository, you can use the unified installer or legacy scripts.
-
-### Unified Installer (Recommended)
-
-The unified `install.ps1` script supports all environments and scopes:
-
-```powershell
-# Claude Code - Global
-.\scripts\install.ps1 -Environment Claude -Global
-
-# Claude Code - Repository
-.\scripts\install.ps1 -Environment Claude -RepoPath "C:\Path\To\Repo"
-
-# GitHub Copilot CLI - Global
-.\scripts\install.ps1 -Environment Copilot -Global
-
-# GitHub Copilot CLI - Repository
-.\scripts\install.ps1 -Environment Copilot -RepoPath "."
-
-# VS Code - Global
-.\scripts\install.ps1 -Environment VSCode -Global
-
-# VS Code - Repository
-.\scripts\install.ps1 -Environment VSCode -RepoPath "C:\Path\To\Repo"
+```bash
+uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
 ```
 
-#### Parameters
+This launches the TUI where you can browse and install agents.
 
-| Parameter | Description | Required |
-|-----------|-------------|----------|
-| `-Environment` | Target environment: `Claude`, `Copilot`, or `VSCode` | Yes* |
-| `-Global` | Install to user-level location | One of these |
-| `-RepoPath` | Install to specified repository path | One of these |
-| `-Version` | Version tag or branch to install from (default: `v0.1.0`). Only applicable when the script downloads files remotely; has no effect when running from a cloned repository. | No |
-| `-Force` | Overwrite existing files without prompting | No |
+## Global Installation
 
-*If not provided, interactive mode prompts for selection.
+Install skill-installer as a tool for repeated use:
 
-**Version Behavior:**
+```bash
+uv tool install git+https://github.com/rjmurillo/skill-installer
+```
 
-When using the **remote installer** (see *Quick Installation (Remote)* above), the `-Version` parameter controls which tag or branch is downloaded and executed (for example, `v0.1.0`, `v0.2.0`, or `main`).
+## Adding This Repository as a Source
 
-For **local installations** (running `.\scripts\install.ps1` from a cloned repository), the script always uses the files from the current working directory, and the `-Version` parameter has no effect.
+Add ai-agents as a source for discovering agents:
 
-### Legacy Scripts (Backward Compatible)
+```bash
+skill-installer source add rjmurillo/ai-agents
+```
 
-Individual scripts are still available for each environment/scope combination:
+## Using the TUI
 
-```powershell
-# VS Code
-.\scripts\install-vscode-global.ps1
-.\scripts\install-vscode-repo.ps1 -RepoPath "C:\Path\To\Repo"
+Launch the interactive interface:
 
-# GitHub Copilot CLI
-.\scripts\install-copilot-cli-global.ps1
-.\scripts\install-copilot-cli-repo.ps1 -RepoPath "C:\Path\To\Repo"
+```bash
+skill-installer interactive
+```
 
-# Claude Code
-.\scripts\install-claude-global.ps1
-.\scripts\install-claude-repo.ps1 -RepoPath "C:\Path\To\Repo"
+**Navigation:**
+
+1. Navigate to the **Discover** tab
+2. Browse available plugins (claude-agents, copilot-cli-agents, vscode-agents)
+3. Select platform(s) to install
+4. Press `i` to install
+
+## CLI Installation (Non-Interactive)
+
+Install specific items without the TUI:
+
+```bash
+# Install Claude agents
+skill-installer install claude-agents --platform claude
+
+# Install Copilot CLI agents
+skill-installer install copilot-cli-agents --platform copilot
+
+# Install VS Code agents
+skill-installer install vscode-agents --platform vscode
 ```
 
 ## Installation Paths
 
 ### Global Installation Paths
 
-| Environment | Agents | Commands/Prompts |
-|-------------|--------|------------------|
-| Claude Code | `~/.claude/agents/` | `~/.claude/commands/` |
-| Copilot CLI | `~/.copilot/agents/` | (same directory as agents) |
-| VS Code | `%APPDATA%/Code/User/prompts/` | (same directory as agents) |
+| Platform | Agents | Skills |
+|----------|--------|--------|
+| Claude Code | `~/.claude/agents/` | `~/.claude/skills/` |
+| Copilot CLI | `~/.copilot/agents/` | N/A |
+| VS Code | `~/.vscode/prompts/` | N/A |
 
 ### Repository Installation Paths
 
-| Environment | Agent Files | Commands/Prompts | Instructions File |
-|-------------|-------------|------------------|-------------------|
-| Claude Code | `.claude/agents/` | `.claude/commands/` | `CLAUDE.md` (repo root) |
-| Copilot CLI | `.github/agents/` | (same directory) | `.github/copilot-instructions.md` |
-| VS Code | `.github/agents/` | (same directory) | `.github/copilot-instructions.md` |
+| Platform | Agent Files | Instructions File |
+|----------|-------------|-------------------|
+| Claude Code | `.claude/agents/` | `CLAUDE.md` |
+| Copilot CLI | `.github/agents/` | `.github/copilot-instructions.md` |
+| VS Code | `.github/agents/` | `.github/copilot-instructions.md` |
 
-### .agents Directory (Repository Only)
+## Uninstallation
 
-Repository installations also create the `.agents/` artifact directory:
+Remove installed items:
 
-```text
-.agents/
-├── analysis/        # Analyst findings
-├── architecture/    # ADRs and design decisions
-├── planning/        # Plans and PRDs
-├── critique/        # Plan reviews
-├── qa/              # Test reports
-├── retrospective/   # Learning extractions
-├── roadmap/         # Roadmap documents
-├── devops/          # CI/CD artifacts
-├── security/        # Security reviews
-└── sessions/        # Session logs
+```bash
+skill-installer uninstall claude-agents
 ```
 
-### What Gets Installed
+## Troubleshooting
 
-The installer copies different file types depending on the environment:
+### UV Not Found
 
-**Claude Code:**
+Ensure UV is installed and in your PATH:
 
-| File Type | Extension | Location | Purpose |
-|-----------|-----------|----------|---------|
-| Agent files | `*.md` | `agents/` | Full agent definitions for Task tool invocation |
-| Command files | `*.md` | `commands/` | Slash commands (e.g., `/pr-comment-responder`) |
-
-**VS Code / Copilot CLI:**
-
-| File Type | Extension | Location | Purpose |
-|-----------|-----------|----------|---------|
-| Agent files | `*.agent.md` | `agents/` or `prompts/` | Full agent definitions with tools |
-| Prompt files | `*.prompt.md` | Same as agents | Reusable prompts for quick actions |
-
-**Note**: Prompt files are auto-generated from selected agent files during installation (e.g., `pr-comment-responder.agent.md` → `pr-comment-responder.prompt.md`).
-
-## Upgrade Process
-
-The installer supports upgrading existing installations:
-
-1. **Existing files**: Prompts before overwriting (use `-Force` to skip)
-2. **Instructions file**: Uses content blocks for clean upgrades
-
-### Instructions File Content Blocks
-
-The installer wraps content in HTML comment markers:
-
-```markdown
-<!-- BEGIN: ai-agents installer -->
-[Agent system content]
-<!-- END: ai-agents installer -->
+```bash
+which uv  # macOS/Linux
+where.exe uv  # Windows
 ```
 
-On upgrade:
+If not found, install UV using the commands in the Prerequisites section.
 
-- If markers exist: Content between markers is replaced (upgrade)
-- If no markers: Content is appended with markers (first install)
-- With `-Force`: Entire file is replaced
+### Python Version
 
-## Known Issues
+skill-installer requires Python 3.10+. Check your version:
+
+```bash
+python --version
+```
+
+### Network Issues
+
+If downloads fail, check internet connectivity and try again. The tool downloads from GitHub.
 
 ### GitHub Copilot CLI Global Installation
 
@@ -178,51 +134,6 @@ There is a known issue with user-level agent loading in Copilot CLI.
 
 - **Issue**: [#452 - User-level agents not loaded](https://github.com/github/copilot-cli/issues/452)
 - **Workaround**: Use repository-level installation instead
-
-The installer displays a warning when using Copilot CLI global installation.
-
-## Troubleshooting
-
-### PowerShell Execution Policy
-
-If you receive an execution policy error:
-
-```powershell
-# Option 1: Bypass for current session
-Set-ExecutionPolicy Bypass -Scope Process -Force
-
-# Option 2: Set policy permanently (Admin required)
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-### Source Directory Not Found
-
-Error: `Source directory not found: src/claude`
-
-Ensure you are running from the repository root or provide the full path.
-
-### Module Not Found (Remote Execution)
-
-Error: `Failed to download installer components`
-
-- Check internet connectivity
-- Verify GitHub is accessible
-- Try again (transient network issue)
-
-### Permission Denied
-
-Error when writing to destination directory:
-
-- **Windows**: Run PowerShell as Administrator for global installation
-- **macOS/Linux**: Check directory permissions
-
-### File Already Exists
-
-When prompted about existing files:
-
-- Enter `y` to overwrite
-- Enter `n` to skip
-- Use `-Force` flag to skip all prompts
 
 ### Worktrunk Setup (Optional)
 
@@ -249,10 +160,6 @@ claude plugin marketplace add max-sixty/worktrunk
 claude plugin install worktrunk@worktrunk
 ```
 
-The plugin provides visual status indicators in `wt list` output.
-
-**Configuration:**
-
 The repository includes `.config/wt.toml` with lifecycle hooks that:
 
 - Configure git hooks automatically on worktree creation
@@ -260,13 +167,6 @@ The repository includes `.config/wt.toml` with lifecycle hooks that:
 - Run markdown linting before merge
 
 **See**: [AGENTS.md Worktrunk Setup](../AGENTS.md#worktrunk-setup) for complete workflow documentation.
-
-**Troubleshooting:**
-
-- **"Hooks require approval"**: Project hooks require explicit user approval on first run for security. Review `.config/wt.toml` and approve when prompted.
-- **"wt switch: command not found"**: Shell integration not installed. Run `wt config shell install` and restart shell.
-- **Windows hook failures**: Hooks use bash syntax. Use Git Bash or WSL instead of PowerShell for hook execution.
-- **Dependencies not copying**: Verify directories exist in main worktree. Check `.worktreeinclude` lists correct paths.
 
 ## Post-Installation
 
@@ -280,21 +180,21 @@ After installation, restart your editor/CLI to load new agents:
 
 ### Verify Installation
 
-#### Claude Code
+**Claude Code:**
 
 ```python
 # In Claude Code, verify agents are available
 Task(subagent_type="analyst", prompt="Hello, are you available?")
 ```
 
-#### VS Code
+**VS Code:**
 
 ```text
 # In VS Code chat
 @orchestrator Hello, are you available?
 ```
 
-#### Copilot CLI
+**Copilot CLI:**
 
 ```bash
 # List available agents
@@ -303,52 +203,6 @@ copilot --list-agents
 # Test an agent
 copilot --agent analyst --prompt "Hello, are you available?"
 ```
-
-### Commit Changes (Repository Installation)
-
-For repository installations, commit the new files:
-
-```bash
-# Claude Code
-git add .claude CLAUDE.md .agents
-git commit -m "feat: add Claude agent system"
-
-# Copilot CLI / VS Code
-git add .github/agents .github/copilot-instructions.md .agents
-git commit -m "feat: add Copilot agent system"
-```
-
-## Uninstallation
-
-To remove the agent system, delete the installed files:
-
-### Global
-
-```powershell
-# Claude Code
-Remove-Item -Recurse -Force "~/.claude/agents"
-Remove-Item -Recurse -Force "~/.claude/commands"
-
-# Copilot CLI
-Remove-Item -Recurse -Force "~/.copilot/agents"
-
-# VS Code
-Remove-Item -Recurse -Force "$env:APPDATA/Code/User/prompts"
-```
-
-### Repository
-
-```bash
-# Remove agent files and artifacts
-git rm -r .claude/agents .claude/commands .agents  # For Claude
-git rm -r .github/agents .agents                    # For Copilot/VSCode
-git commit -m "chore: remove agent system"
-```
-
-For instructions files, either:
-
-- Delete the entire file, or
-- Remove the content between `<!-- BEGIN: ai-agents installer -->` and `<!-- END: ai-agents installer -->`
 
 ## Related Documentation
 

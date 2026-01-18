@@ -1,8 +1,14 @@
 name: PR Validation
 
 # Validates PR description matches diff and enforces review comment policies
-
 # Implements Phase 2 and Phase 4 from Issue #230
+#
+# Related Required Checks (configured in branch protection):
+#   - PR Validation (this workflow)
+#   - Session Protocol Validation (ai-session-protocol.yml)
+#   - Pester Tests (pester-tests.yml)
+#   - AI Quality Gate (ai-pr-quality-gate.yml)
+#   - CodeQL Analysis (codeql-analysis.yml) - Security scanning
 
 on:
   pull_request:

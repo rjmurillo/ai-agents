@@ -1,0 +1,49 @@
+# CodeQL Alert Suppressions
+#
+# This file documents CodeQL alerts that are false positives or accepted risks.
+# Each suppression requires justification and security review.
+#
+# Format:
+#   - rule: <codeql-rule-id>
+#     paths:
+#       - <file-path-pattern>
+#     reason: <justification>
+#
+# See: https://docs.github.com/en/code-security/code-scanning
+
+---
+# Path Traversal (CWE-22) - invoke_skill_learning.py
+# Status: False Positive
+# Last Reviewed: 2026-01-15
+
+- rule: py/path-injection
+  paths:
+    - .claude/hooks/Stop/invoke_skill_learning.py
+  reason: |
+    Defense-in-depth path traversal protection implemented:
+
+    1. PRE-VALIDATION (lines 56-85, 182, 217):
+       - _validate_path_string() rejects malicious patterns BEFORE Path() construction
+       - Blocks: null bytes (CWE-158), control characters, parent directory traversal
+
+    2. PATH CONSTRUCTION (lines 189, 224):
+       - Path() constructor receives only pre-validated input
+       - Exception handling returns SAFE_BASE_DIR on any resolution error
+
+    3. POST-VALIDATION (lines 198, 230):
+       - _is_relative_to() enforces paths stay within SAFE_BASE_DIR
+       - Rejects paths outside allowed tree
+
+    4. TEST COVERAGE (tests/test_invoke_skill_learning.py:198-274):
+       - 5 tests verify path traversal attacks are blocked
+       - Attack vectors tested: ../, ..\, null bytes, absolute paths
+
+    Security Review:
+    - Original analysis: .agents/analysis/908-codeql-path-traversal-analysis.md
+    - Comprehensive security review: PR #908 AI Quality Gate (Security Review: PASS)
+    - Pattern follows OWASP secure coding guidelines: sanitize → use → validate
+
+    Risk Acceptance:
+    - User controls environment variables (CLAUDE_PROJECT_DIR, CLAUDE_PROJECT_ROOT)
+    - Hook runs in user's context (not privileged)
+    - Multiple validation layers prevent exploitation even if one layer fails

@@ -30,6 +30,7 @@ flowchart TD
         VP[validate-paths.yml]
         VPA[validate-planning-artifacts.yml]
         PT[pester-tests.yml]
+        CQ[codeql-analysis.yml]
     end
 
     subgraph Outputs["Outputs"]
@@ -46,6 +47,7 @@ flowchart TD
     PR --> VP
     PR --> VPA
     PR --> PT
+    PR --> CQ
 
     ISS --> IT
 
@@ -63,6 +65,7 @@ flowchart TD
     VP --> CHK
     VPA --> CHK
     PT --> CHK
+    CQ --> CHK
 
     style Triggers fill:#e1f5fe
     style AIWorkflows fill:#fff3e0
@@ -314,6 +317,70 @@ sequenceDiagram
 
 ---
 
+### codeql-analysis.yml
+
+**Role**: Static security analysis using CodeQL
+
+| Attribute | Value |
+|-----------|-------|
+| **Trigger** | PR to main, push to main, weekly schedule |
+| **Languages** | PowerShell, GitHub Actions, Python |
+| **Output** | SARIF files uploaded to GitHub Security tab |
+| **Exit Behavior** | Blocks merge on critical/high severity findings |
+
+**Matrix Strategy**: Analyzes each language independently in parallel
+
+**Configuration**: Uses shared config at `.github/codeql/codeql-config.yml`
+
+**Query Packs**:
+
+- `codeql/powershell-queries:codeql-suites/powershell-security-extended.qls`
+- `codeql/actions-queries:codeql-suites/actions-security-extended.qls`
+- `codeql/python-queries:codeql-suites/python-security-extended.qls`
+
+**Severity Filtering**: Medium+ severity (excludes low severity and recommendations)
+
+**Architecture**:
+
+```mermaid
+flowchart LR
+    subgraph Jobs
+        CP[check-paths]
+        PS[analyze powershell]
+        AC[analyze actions]
+        PY[analyze python]
+        SK[skip-analysis]
+        BL[check-blocking-issues]
+    end
+
+    CP --> PS & AC & PY
+    CP --> SK
+    PS & AC & PY --> BL
+    BL --> GH[GitHub Security Tab]
+```
+
+---
+
+### test-codeql-integration.yml
+
+**Role**: CodeQL integration test runner
+
+| Attribute | Value |
+|-----------|-------|
+| **Trigger** | PR modifying `.codeql/**`, `.github/codeql/**`, or CodeQL workflows |
+| **Tests** | CLI installation, config validation, scan execution, language matrix |
+| **Output** | Test results summary in job summary |
+| **Exit Behavior** | Fails if any integration test fails |
+
+**Test Coverage**:
+
+- CodeQL CLI installation and PATH configuration
+- Configuration YAML syntax and query pack availability
+- Scan execution and SARIF output generation
+- Per-language database creation and analysis
+
+---
+
 ## Composite Actions
 
 ### ai-review/action.yml
@@ -434,6 +501,7 @@ All AI-powered and validation workflows use GitHub Actions `concurrency` groups 
 | label-pr | `pr-labeler-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
 | memory-validation | `memory-validation-${{ github.ref }}` | Cancels in-progress runs for same branch |
 | auto-assign-reviewer | `auto-reviewer-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
+| codeql-analysis | `codeql-analysis-${{ github.event.pull_request.number &#124;&#124; github.ref }}` | Cancels in-progress runs for same PR/ref |
 
 ### The "No Guarantee" Limitation
 
