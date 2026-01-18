@@ -46,7 +46,8 @@ $investigationAllowlist = @(
     '^\.agents/analysis/',        # Investigation outputs
     '^\.agents/retrospective/',   # Learnings
     '^\.serena/memories($|/)',    # Cross-session context
-    '^\.agents/security/'         # Security assessments
+    '^\.agents/security/',        # Security assessments
+    '^\.agents/memory/'           # Memory infrastructure
 )
 
 # Human-readable allowed paths (for display)
@@ -55,7 +56,8 @@ $allowedPaths = @(
     '.agents/analysis/',
     '.agents/retrospective/',
     '.serena/memories/',
-    '.agents/security/'
+    '.agents/security/',
+    '.agents/memory/'             # Memory infrastructure
 )
 
 # Get staged files - split by newlines to get array of individual file paths
