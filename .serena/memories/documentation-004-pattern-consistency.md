@@ -1,4 +1,6 @@
-# Skill-Documentation-004: Pattern Consistency
+# Documentation: Pattern Consistency
+
+## Skill-Documentation-004: Pattern Consistency
 
 **Statement**: Use identical syntax for all instances when migrating patterns.
 
@@ -18,7 +20,7 @@ Read {name} memory using `mcp__serena__read_memory` with `memory_file_name="{nam
 ## Related
 
 - [documentation-001-systematic-migration-search](documentation-001-systematic-migration-search.md)
+- [documentation-001-templatefirst-documentation-workflow](documentation-001-templatefirst-documentation-workflow.md)
 - [documentation-002-reference-type-taxonomy](documentation-002-reference-type-taxonomy.md)
 - [documentation-003-fallback-preservation](documentation-003-fallback-preservation.md)
 - [documentation-006-self-contained-operational-prompts](documentation-006-self-contained-operational-prompts.md)
-- [documentation-007-self-contained-artifacts](documentation-007-self-contained-artifacts.md)
