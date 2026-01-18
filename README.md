@@ -28,9 +28,11 @@
     - [Install via skill-installer](#install-via-skill-installer)
       - [Prerequisites](#prerequisites)
   - [Quick Start](#quick-start)
-    - [Claude Code](#claude-code)
-    - [VS Code / GitHub Copilot](#vs-code--github-copilot)
-    - [GitHub Copilot CLI](#github-copilot-cli)
+    - [Examples](#examples)
+      - [Multi-Step Coordination Pattern](#multi-step-coordination-pattern)
+      - [Recursive Fix Loop Pattern](#recursive-fix-loop-pattern)
+      - [Implementation with Validation Gate](#implementation-with-validation-gate)
+      - [PR Coordination Workflow](#pr-coordination-workflow)
   - [System Architecture](#system-architecture)
     - [Agent Catalog](#agent-catalog)
     - [Directory Structure](#directory-structure)
@@ -117,30 +119,36 @@ See [docs/installation.md](docs/installation.md) for complete installation docum
 
 ## Quick Start
 
-### Claude Code
+After installing the agents with the method of your choice, you can either select one of them explicitly, ask your LLM to use the agent by name, or even prefix your input with the name of the agent.
 
-```python
-Task(subagent_type="analyst", prompt="investigate issue X")
-Task(subagent_type="implementer", prompt="implement feature Y")
-Task(subagent_type="orchestrator", prompt="coordinate multi-step task Z")
-```
+### Examples
 
-### VS Code / GitHub Copilot
+#### Multi-Step Coordination Pattern
 
-```text
-@orchestrator Help me implement a new feature
-@analyst Investigate why tests are failing
-@implementer Fix the bug in UserService.cs
-```
+> orchestrator: merge your branch with main, then find other items that are in non-compliance with @path/to/historical-reference-protocol.md and create a plan to correct each. Store the plan in @path/to/plans/historical-reference-protocol-remediation.md and validate with critic, correcting all identified issues. After the plan is completed, start implementor to execute the plan and use critic, qa, and security to review the results, correcting all critical and major issues recursively. After the work is completed and verified, open a PR.
 
-### GitHub Copilot CLI
+This demonstrates the orchestrator's strengths in chaining operations together and routing between agents.
 
-```bash
-copilot --agent analyst --prompt "investigate issue X"
-copilot --agent implementer --prompt "fix the bug"
-```
+#### Recursive Fix Loop Pattern
 
-**Note**: Copilot CLI global installation has a [known issue](https://github.com/github/copilot-cli/issues/452). Use repository installation instead.
+> orchestrator: fix all items identified by the critic agent, then repeat the cycle recursively until no items are found.
+
+This can be really helpful to keep the AI agent "honest" with their work. Agents will try to be _helpful_ by declaring they're done sooner, skipping steps to speed up the process, or not reading all the documentation to be "efficient". Having another agent with the sole purpose of validating the work product of another makes the system stronger. A typical flow might be:
+
+1. Do work
+2. Validate that work against a spec (issue or ticket, plan, design, test, documentation, etc.)
+3. Send to another agent (QA)
+4. repeat on down the line
+
+You can start to chain different workflows together as subagents to keep the orchestration context alive longer. If you develop software, you probably have some form of "write code -> make it work -> refactor" cycle. Orchestrator is great at that. Invoke it from a skill, slash command, or prompt to facilitate.
+
+#### Implementation with Validation Gate
+
+> orchestrator: implement Task E2 session validation and E4 pre-commit memory evidence checks. Run the QA agent to verify the implementation meets the PRD acceptance criteria.
+
+#### PR Coordination Workflow
+
+> orchestrator: review the PR comments, address each reviewer's feedback, then run the code-reviewer agent to verify fixes before requesting re-review
 
 ---
 
