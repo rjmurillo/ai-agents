@@ -3,7 +3,10 @@
 > A coordinated multi-agent framework for AI-powered software development workflows.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rjmurillo/ai-agents)
-![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/rjmurillo/ai-agents?utm_source=oss&utm_medium=github&utm_campaign=rjmurillo%2Fai-agents&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+
+![GitHub commits since latest release](https://img.shields.io/github/commits-since/rjmurillo/ai-agents/latest)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/w/rjmurillo/ai-agents)
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/rjmurillo/ai-agents)
 
 ![AI Issue Triage](https://github.com/rjmurillo/ai-agents/actions/workflows/ai-issue-triage.yml/badge.svg)
 ![AI PR Quality Gate](https://github.com/rjmurillo/ai-agents/actions/workflows/ai-pr-quality-gate.yml/badge.svg)
@@ -15,20 +18,26 @@
 
 ## Table of Contents
 
-- [Purpose and Scope](#purpose-and-scope)
-  - [What is AI Agents?](#what-is-ai-agents)
-  - [Core Capabilities](#core-capabilities)
-- [Installation](#installation)
-  - [Supported Platforms](#supported-platforms)
-  - [Prerequisites](#prerequisites)
-  - [Install via skill-installer](#install-via-skill-installer)
-- [Quick Start](#quick-start)
-- [System Architecture](#system-architecture)
-  - [Agent Catalog](#agent-catalog)
-  - [Directory Structure](#directory-structure)
-- [Contributing](#contributing)
-- [Documentation](#documentation)
-- [License](#license)
+- [AI Agent System](#ai-agent-system)
+  - [Table of Contents](#table-of-contents)
+  - [Purpose and Scope](#purpose-and-scope)
+    - [What is AI Agents?](#what-is-ai-agents)
+    - [Core Capabilities](#core-capabilities)
+  - [Installation](#installation)
+    - [Supported Platforms](#supported-platforms)
+    - [Install via skill-installer](#install-via-skill-installer)
+      - [Prerequisites](#prerequisites)
+  - [Quick Start](#quick-start)
+    - [Claude Code](#claude-code)
+    - [VS Code / GitHub Copilot](#vs-code--github-copilot)
+    - [GitHub Copilot CLI](#github-copilot-cli)
+  - [System Architecture](#system-architecture)
+    - [Agent Catalog](#agent-catalog)
+    - [Directory Structure](#directory-structure)
+  - [Contributing](#contributing)
+    - [Agent Development](#agent-development)
+  - [Documentation](#documentation)
+  - [License](#license)
 
 ---
 
@@ -38,7 +47,9 @@
 
 AI Agents is a coordinated multi-agent system for software development. It provides specialized AI agents that handle different phases of the development lifecycle, from research and planning through implementation and quality assurance.
 
-The system is designed around explicit handoff protocols between agents, ensuring clear accountability and traceability across complex tasks.
+The orchestrator is the hub of operations. Within it has logic from taking everything from a "vibe" or a "shower thought" and building out a fully functional spec with acceptance criteria and user stories, to taking a well defined idea as input and executing on it. There are 17 agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
+
+The agents themselves use the platform specific handoffs to invoke subagents, keeping the orchestrator context clean. A great example of this is orchestrator facilitating creating and debating an [Architectural Decision Record](https://adr.github.io/) from research and drafting, to discussion, iterating on the issues, tie breaking when agents don't agree. And then  extracting persistent knowledge to steer future agents to adhere. Artifacts are stored in your memory system if you have one enabled, and Markdown files for easy reference to both agents and humans.
 
 ### Core Capabilities
 
@@ -62,44 +73,43 @@ The system is designed around explicit handoff protocols between agents, ensurin
 | **GitHub Copilot CLI** | `src/copilot-cli/` | Use `--agent` flag |
 | **Claude Code CLI** | `src/claude/` | Use `Task(subagent_type="...")` |
 
-### Prerequisites
+### Install via skill-installer
+
+#### Prerequisites
 
 - Python 3.10+
 - [UV](https://docs.astral.sh/uv/) package manager
 
 Install UV:
 
-```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
+macOS/Linux
 
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### Install via skill-installer
+Windows (PowerShell)
+
+```powershell
+pwsh -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
 
 Use [skill-installer](https://github.com/rjmurillo/skill-installer) to install agents:
 
-```bash
-# Try without installing (one-liner)
-uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
+Without installing (one-liner)
 
-# Or install globally for repeated use
+```bash
+uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
+```
+
+Or install globally for repeated use
+
+```bash
 uv tool install git+https://github.com/rjmurillo/skill-installer
-skill-installer source add rjmurillo/ai-agents
 skill-installer interactive
 ```
 
 Navigate the TUI to select and install agents for your platform.
-
-**CLI Installation (Non-Interactive):**
-
-```bash
-skill-installer install claude-agents --platform claude
-skill-installer install copilot-cli-agents --platform copilot
-skill-installer install vscode-agents --platform vscode
-```
 
 See [docs/installation.md](docs/installation.md) for complete installation documentation.
 
