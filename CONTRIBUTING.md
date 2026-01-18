@@ -400,7 +400,7 @@ pwsh build/scripts/Invoke-PesterTests.ps1
 pwsh build/scripts/Invoke-PesterTests.ps1 -CI
 
 # Run specific test file
-pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./scripts/tests/Install-Common.Tests.ps1"
+pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./tests/Validate-SessionJson.Tests.ps1"
 ```
 
 ### Agent Generation Tests

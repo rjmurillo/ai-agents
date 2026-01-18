@@ -46,8 +46,13 @@ See `.github/agents/` for the full catalog. Each agent file contains its descrip
 
 ### Known Limitations
 
-User-level (global) agent loading has a known issue. For best results, install agents at the repository level using:
+**Note**: User-level (global) agent loading has a known issue. For best results, install agents at the repository level using skill-installer:
 
-```powershell
-.\install.ps1 -Environment Copilot -RepoPath "."
+```bash
+# One-liner (no install required)
+uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
+
+# Or install globally
+uv tool install git+https://github.com/rjmurillo/skill-installer
+skill-installer interactive
 ```
