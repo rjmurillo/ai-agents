@@ -42,3 +42,11 @@ None yet.
 ## Notes for Review (LOW confidence)
 
 None yet.
+
+## Related
+
+- [skills-agent-workflow-index](skills-agent-workflow-index.md)
+- [skills-analysis-index](skills-analysis-index.md)
+- [skills-architecture-index](skills-architecture-index.md)
+- [skills-architecture-observations](skills-architecture-observations.md)
+- [skills-autonomous-execution-index](skills-autonomous-execution-index.md)

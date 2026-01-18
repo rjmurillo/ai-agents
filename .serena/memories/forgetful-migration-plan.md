@@ -126,12 +126,33 @@ After migration, validate:
 2. Periodic batch import to Forgetful for semantic search
 3. Use Forgetful for discovery, Serena for canonical reference
 
-## Next Steps
+## Migration Status
 
-1. Execute Phase 1 pilot import (testing-observations.md)
-2. Validate search quality and tag effectiveness
-3. Create bulk import script based on pilot learnings
-4. Document import workflow as skill or automation
+| Phase | Status | Memories | Notes |
+|-------|--------|----------|-------|
+| **Phase 1** | COMPLETED | 33 | Testing domain pilot |
+| **Phase 2** | COMPLETED | 30 | PR review, GitHub, PowerShell |
+| **Phase 3** | COMPLETED | 30 | Architecture, CI, Git, Validation |
+| **Phase 4** | COMPLETED | 30 | Enforcement, PR-comment, Prompting, QA, Performance, Skills |
+
+**Total Memories**: 344 in Forgetful
+**Total Projects**: 21 domain-specific projects
+
+## Phase 4 Completion Summary (2026-01-18)
+
+- **Dry-run prediction**: 87 HIGH learnings
+- **Actual imports**: 30 (many already existed from Phases 1-3)
+- **New projects created**: 5 (IDs 17-21)
+- **Auto-linking**: Working correctly
+- **Semantic search**: Validated with 3 test queries
+- **Provenance**: source_repo, source_files populated
+
+## Completed Steps
+
+1. Phase 1 pilot (testing-observations.md) - DONE
+2. Phase 2 high-value domains - DONE
+3. Phase 3 remaining observation files - DONE
+4. Phase 4 bulk import of remaining HIGH learnings - DONE
 
 ## Related
 
