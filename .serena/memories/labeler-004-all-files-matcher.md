@@ -1,4 +1,6 @@
-# Skill-Labeler-004: ALL FILES Matcher
+# Labeler: All Files Matcher
+
+## Skill-Labeler-004: ALL FILES Matcher
 
 **Statement**: Use `any-glob-to-all-files` when ALL changed files must match at least one pattern.
 
@@ -13,7 +15,7 @@
 ## Related
 
 - [labeler-001-negation-pattern-matcher-selection](labeler-001-negation-pattern-matcher-selection.md)
+- [labeler-002-combined-matcher-block-pattern](labeler-002-combined-matcher-block-pattern.md)
 - [labeler-003-any-matcher](labeler-003-any-matcher.md)
-- [labeler-005-all-patterns-matcher](labeler-005-all-patterns-matcher.md)
-- [labeler-006-negation-pattern-isolation](labeler-006-negation-pattern-isolation.md)
-- [labeler-combined-patterns](labeler-combined-patterns.md)
+- [labeler-003-matcher-type-selection-any](labeler-003-matcher-type-selection-any.md)
+- [labeler-004-matcher-type-selection-all-files](labeler-004-matcher-type-selection-all-files.md)

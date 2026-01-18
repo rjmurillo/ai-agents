@@ -1,4 +1,6 @@
-# Skill-Review-002: Python Implicit String Concat
+# Review: Python Implicit String Concat
+
+## Skill-Review-002: Python Implicit String Concat
 
 **Statement**: Dismiss Python implicit string concat warnings as false positives.
 

@@ -1,4 +1,6 @@
-# Skill-PR-006: Reviewer Signal Quality
+# Pr: Reviewer Signal Quality
+
+## Skill-PR-006: Reviewer Signal Quality
 
 **Statement**: Prioritize reviewers by historical actionability rate.
 
