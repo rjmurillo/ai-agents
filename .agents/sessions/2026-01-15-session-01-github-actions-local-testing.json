@@ -99,9 +99,9 @@
         "Complete": true
       },
       "handoffNotUpdated": {
-        "evidence": "HANDOFF.md not modified per ADR-014",
+        "Evidence": "HANDOFF.md not modified per ADR-014",
         "level": "MUST NOT",
-        "complete": false
+        "Complete": false
       }
     }
   },
@@ -112,7 +112,7 @@
     "number": 1,
     "startingCommit": "5d3532f"
   },
-  "endingCommit": "",
+  "endingCommit": "38217dc5",
   "nextSteps": [
     "Monitor workflow YAML error rates in CI to validate 80%+ reduction target",
     "Gather developer feedback on actionlint, act, and yamllint usability",

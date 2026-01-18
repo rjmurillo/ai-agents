@@ -10,6 +10,8 @@
     1. Session End (for latest session log)
     2. Pester Tests (all unit tests)
     3. Markdown Lint (auto-fix and validate)
+    3.5. Workflow YAML (validate GitHub Actions workflows)
+    3.9. YAML Style (check YAML style with yamllint) [skip if -Quick]
     4. Path Normalization (check for absolute paths) [skip if -Quick]
     5. Planning Artifacts (validate planning consistency) [skip if -Quick]
     6. Agent Drift (detect semantic drift) [skip if -Quick]
@@ -319,6 +321,121 @@ Invoke-Validation -Name "Markdown Linting" -ScriptBlock {
         return $false
     }
 
+    return $true
+} | Out-Null
+
+#endregion
+
+#region Validation 3.5: Workflow YAML Validation
+
+Invoke-Validation -Name "Workflow YAML Validation" -ScriptBlock {
+    # Check for actionlint
+    if (-not (Get-Command actionlint -ErrorAction SilentlyContinue)) {
+        Write-Status 'WARNING' "actionlint not found (workflow validation skipped)"
+        Write-Host "  Install actionlint to enable GitHub Actions workflow validation:"
+        Write-Host "    macOS:  brew install actionlint"
+        Write-Host "    Linux:  Download from https://github.com/rhysd/actionlint/releases"
+        Write-Host "    Go:     go install github.com/rhysd/actionlint/cmd/actionlint@latest"
+        Write-Host ""
+        Write-Host "  See: https://github.com/rhysd/actionlint#installation"
+        return $true  # Non-blocking if not installed
+    }
+
+    # Get workflow files
+    $workflowPath = Join-Path $RepoRoot ".github" "workflows"
+    if (-not (Test-Path $workflowPath)) {
+        Write-Status 'WARNING' "No .github/workflows directory found"
+        return $true
+    }
+
+    $workflowFiles = Get-ChildItem -Path $workflowPath -Include "*.yml", "*.yaml" -File -ErrorAction SilentlyContinue
+    if (-not $workflowFiles -or $workflowFiles.Count -eq 0) {
+        Write-Status 'WARNING' "No workflow files found in .github/workflows/"
+        return $true
+    }
+
+    Write-Host "Validating $($workflowFiles.Count) workflow file(s)..."
+
+    # Run actionlint
+    $actionlintOutput = & actionlint $workflowFiles.FullName 2>&1
+    $actionlintExitCode = $LASTEXITCODE
+
+    if ($actionlintExitCode -ne 0) {
+        Write-Status 'FAIL' "actionlint found issues in workflow files"
+        Write-Host ""
+        # Display first 20 lines of errors
+        $actionlintOutput | Select-Object -First 20 | ForEach-Object { Write-Host $_ }
+        if ($actionlintOutput.Count -gt 20) {
+            Write-Host "... ($($actionlintOutput.Count - 20) more lines omitted)"
+        }
+        Write-Host ""
+        Write-Host "Common issues:"
+        Write-Host "  - Invalid action inputs (check 'with:' parameters)"
+        Write-Host "  - Expression syntax errors (check `${{ }} expressions)"
+        Write-Host "  - Unknown runner labels (check 'runs-on:' values)"
+        Write-Host "  - Invalid cron syntax in schedules"
+        return $false
+    }
+
+    Write-Host "All workflow files validated successfully."
+    return $true
+} | Out-Null
+
+#endregion
+
+#region Validation 3.9: YAML Style Validation (skip if -Quick)
+
+Invoke-Validation -Name "YAML Style Validation" -SkipCondition $Quick -ScriptBlock {
+    # Check for yamllint
+    if (-not (Get-Command yamllint -ErrorAction SilentlyContinue)) {
+        Write-Status 'WARNING' "yamllint not found (YAML style validation skipped)"
+        Write-Host "  Install yamllint to enable YAML style checking:"
+        Write-Host "    macOS:  brew install yamllint"
+        Write-Host "    Linux:  pip install yamllint"
+        Write-Host "    Windows: pip install yamllint"
+        Write-Host ""
+        Write-Host "  See: https://yamllint.readthedocs.io/"
+        return $true  # Non-blocking if not installed
+    }
+
+    # Get YAML files (all, not just workflows)
+    $yamlFiles = Get-ChildItem -Path $RepoRoot -Include "*.yml", "*.yaml" -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' -and
+                       $_.FullName -notmatch '[\\/]\.cache[\\/]' -and
+                       $_.FullName -notmatch '[\\/]\.artifacts[\\/]' -and
+                       $_.FullName -notmatch '[\\/]build[\\/]' }
+
+    if (-not $yamlFiles -or $yamlFiles.Count -eq 0) {
+        Write-Status 'WARNING' "No YAML files found"
+        return $true
+    }
+
+    Write-Host "Checking $($yamlFiles.Count) YAML file(s) for style issues..."
+
+    # Run yamllint
+    $yamllintOutput = & yamllint -f parsable $RepoRoot 2>&1
+    $yamllintExitCode = $LASTEXITCODE
+
+    if ($yamllintExitCode -ne 0) {
+        Write-Status 'WARNING' "yamllint found style issues (non-blocking)"
+        Write-Host ""
+        # Display first 30 lines of warnings
+        $yamllintOutput | Select-Object -First 30 | ForEach-Object { Write-Host $_ }
+        if ($yamllintOutput.Count -gt 30) {
+            Write-Host "... ($($yamllintOutput.Count - 30) more issues omitted)"
+        }
+        Write-Host ""
+        Write-Host "Common style issues:"
+        Write-Host "  - Line too long (exceeds 120 characters)"
+        Write-Host "  - Trailing spaces"
+        Write-Host "  - Inconsistent indentation"
+        Write-Host "  - Missing space after comment"
+        Write-Host ""
+        Write-Host "Note: These are warnings, not errors. Fix when convenient."
+        return $true  # Non-blocking warnings
+    }
+
+    Write-Host "All YAML files conform to style guidelines."
     return $true
 } | Out-Null
 
