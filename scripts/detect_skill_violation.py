@@ -212,7 +212,8 @@ def extract_capability_gaps(violations: list[Violation]) -> set[str]:
         Set of gh commands that need skill implementations.
     """
     gaps: set[str] = set()
-    command_pattern = re.compile(r"gh\\s\+(\w+)")
+    # Pattern to extract the command (e.g., 'pr', 'issue', 'api') from violation patterns
+    command_pattern = re.compile(r"gh\s+(\w+)")
     for v in violations:
         match = command_pattern.search(v.pattern)
         if match:
@@ -232,14 +233,11 @@ def report_violations(violations: list[Violation]) -> None:
     print("  Use .claude/skills/github/ scripts instead, or file an issue to add the capability.")
     print()
 
-    capability_gaps: set[str] = set()
-
     for v in violations:
         print(f"  {v.file}:{v.line} - matches '{v.pattern}'")
-        # Extract the specific command for capability tracking
-        match = re.search(r"gh\\s\+(\w+)", v.pattern)
-        if match:
-            capability_gaps.add(match.group(1))
+
+    # Use the extract_capability_gaps function to identify missing skills
+    capability_gaps = extract_capability_gaps(violations)
 
     print()
     print("Missing skill capabilities detected:")
