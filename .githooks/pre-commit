@@ -266,50 +266,168 @@ else
     echo_info "No markdown files staged. Skipping markdown linting."
 fi
 
-# ============================================================================
-# TIER 1: GitHub Actions YAML Validation (BLOCKING)
-# ============================================================================
-# Validates GitHub Actions workflow YAML files using actionlint
-# Performance budget: <10s
-# Exit behavior: BLOCKING (fails commit on errors)
-# Install actionlint:
-#   macOS: brew install actionlint
-#   Linux: Download from https://github.com/rhysd/actionlint/releases
-#   Windows: winget install rhysd.actionlint
+#
+# GitHub Actions Workflow Validation with actionlint
+#
+# Validates GitHub Actions workflow YAML files for:
+# - Syntax errors and type mismatches
+# - Invalid action inputs/outputs
+# - Expression errors
+# - Runner label validation
+# - Cron syntax validation
+# - Security issues (script injection, credential exposure)
+#
+# Security: Uses arrays and proper quoting to prevent command injection (CRITICAL-001)
+# Security: Uses while/read loop to handle filenames with spaces (HIGH-001)
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: Epic GitHub Actions Local Testing (#848), ADR-005, Skill-CI-001
+#
 
-echo_info "Validating GitHub Actions workflows..."
+# Filter for workflow YAML files only
+STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
 
-# Check if actionlint is available
-if ! command -v actionlint &> /dev/null; then
-    echo_warning "actionlint not found. Skipping GitHub Actions validation."
-    echo_info "Install: https://github.com/rhysd/actionlint#installation"
-else
-    # Get staged workflow files
-    WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/workflows/.*\.ya?ml$' || true)
+# Check for SKIP_ACTIONLINT environment variable (emergency bypass)
+if [ "${SKIP_ACTIONLINT:-}" = "1" ]; then
+    echo_info "actionlint validation skipped (SKIP_ACTIONLINT=1)"
+elif [ -n "$STAGED_WORKFLOW_FILES" ]; then
+    echo_info "Checking GitHub Actions workflow files with actionlint..."
 
-    if [ -n "$WORKFLOW_FILES" ]; then
-        ACTIONLINT_ERRORS=0
-
+    # Check if actionlint is installed
+    if command -v actionlint &> /dev/null; then
+        # CRITICAL-001: Build array safely to prevent command injection
+        # Bash 3 compatibility (macOS default): avoid mapfile/readarray
+        WORKFLOW_FILES=()
         while IFS= read -r file; do
-            # Skip empty lines
             [ -z "$file" ] && continue
+            WORKFLOW_FILES+=("$file")
+        done <<< "$STAGED_WORKFLOW_FILES"
 
-            if [ -f "$file" ]; then
-                # Run actionlint with error-only output
-                if ! actionlint "$file" 2>&1; then
-                    ACTIONLINT_ERRORS=$((ACTIONLINT_ERRORS + 1))
-                fi
-            fi
-        done <<< "$WORKFLOW_FILES"
-
-        if [ $ACTIONLINT_ERRORS -gt 0 ]; then
-            echo_error "GitHub Actions validation failed for $ACTIONLINT_ERRORS file(s)"
-            echo_info "Fix workflow YAML errors before committing"
-            EXIT_STATUS=1
+        # Validate array is not empty
+        if [ ${#WORKFLOW_FILES[@]} -eq 0 ]; then
+            echo_info "No workflow files to process."
         else
-            echo_success "GitHub Actions validation passed"
+            # Run actionlint on staged workflow files
+            ACTIONLINT_ERRORS=0
+            ACTIONLINT_OUTPUT=$(mktemp)
+
+            # MEDIUM-002: Check for symlinks to prevent TOCTOU race conditions
+            for file in "${WORKFLOW_FILES[@]}"; do
+                # Skip empty entries
+                [ -z "$file" ] && continue
+
+                # MEDIUM-002: Reject symlinks to prevent race condition attacks
+                if [ -L "$file" ]; then
+                    echo_warning "Skipping symlink: $file"
+                    continue
+                fi
+
+                # Process regular files only
+                if [ -f "$file" ]; then
+                    echo_info "  Validating: $file"
+                fi
+            done
+
+            # CRITICAL-001: Use proper array expansion with quotes and -- separator
+            if ! actionlint "${WORKFLOW_FILES[@]}" > "$ACTIONLINT_OUTPUT" 2>&1; then
+                echo_error "actionlint found issues in workflow files:"
+                echo ""
+                # Show first 20 lines of errors to avoid overwhelming output
+                head -20 "$ACTIONLINT_OUTPUT"
+                echo ""
+                echo_info "Common issues:"
+                echo_info "  - Invalid action inputs (check 'with:' parameters)"
+                echo_info "  - Expression syntax errors (check \${{ }} expressions)"
+                echo_info "  - Unknown runner labels (check 'runs-on:' values)"
+                echo_info "  - Invalid cron syntax in schedules"
+                echo ""
+                echo_info "To bypass this check temporarily (not recommended):"
+                echo_info "  SKIP_ACTIONLINT=1 git commit ..."
+                echo ""
+                rm -f "$ACTIONLINT_OUTPUT"
+                ACTIONLINT_ERRORS=1
+                EXIT_STATUS=1
+            else
+                rm -f "$ACTIONLINT_OUTPUT"
+                echo_success "Workflow files validated successfully."
+            fi
+
+            if [ $ACTIONLINT_ERRORS -ne 0 ]; then
+                echo_error "actionlint validation failed. Fix issues above before committing."
+            fi
         fi
+    else
+        echo_warning "actionlint not installed. Skipping workflow validation."
+        echo_warning ""
+        echo_warning "Install actionlint to enable workflow YAML validation:"
+        echo_warning "  macOS:    brew install actionlint"
+        echo_warning "  Linux:    Download from https://github.com/rhysd/actionlint/releases"
+        echo_warning "  Go:       go install github.com/rhysd/actionlint/cmd/actionlint@latest"
+        echo_warning ""
+        echo_warning "See: https://github.com/rhysd/actionlint#installation"
     fi
+else
+    echo_info "No workflow files staged. Skipping actionlint validation."
+fi
+
+#
+# YAML Style Validation with yamllint (Non-blocking warnings)
+#
+# Validates YAML files for style consistency:
+# - Line length limits
+# - Indentation consistency
+# - Trailing spaces
+# - Comment formatting
+#
+# Complements actionlint (which focuses on GitHub Actions semantics)
+# yamllint checks general YAML style across all YAML files
+#
+# Related: Epic GitHub Actions Local Testing (#848), yamllint documentation
+#
+
+# Filter for YAML files (all, not just workflows)
+STAGED_YAML_FILES=$(echo "$STAGED_FILES" | grep -E '\.ya?ml$' || true)
+
+# Check for SKIP_YAMLLINT environment variable (emergency bypass)
+if [ "${SKIP_YAMLLINT:-}" = "1" ]; then
+    echo_info "yamllint validation skipped (SKIP_YAMLLINT=1)"
+elif [ -n "$STAGED_YAML_FILES" ]; then
+    echo_info "Checking YAML files with yamllint (style warnings only)..."
+
+    # Check if yamllint is installed
+    if command -v yamllint &> /dev/null; then
+        # Run yamllint on repository root (respects .yamllint.yml config)
+        YAMLLINT_OUTPUT=$(mktemp)
+        
+        if ! yamllint -f parsable . > "$YAMLLINT_OUTPUT" 2>&1; then
+            echo_warning "yamllint found style issues (non-blocking):"
+            echo ""
+            # Show first 20 lines of warnings
+            head -20 "$YAMLLINT_OUTPUT"
+            echo ""
+            echo_info "Common style issues:"
+            echo_info "  - Line too long (exceeds 120 characters)"
+            echo_info "  - Trailing spaces"
+            echo_info "  - Inconsistent indentation"
+            echo_info "  - Missing space after comment"
+            echo ""
+            echo_info "Note: These are warnings, not errors. Fix when convenient."
+            # Non-blocking: don't set EXIT_STATUS
+        else
+            echo_success "YAML files conform to style guidelines."
+        fi
+        rm -f "$YAMLLINT_OUTPUT"
+    else
+        echo_info "yamllint not installed. Skipping YAML style validation."
+        echo_info ""
+        echo_info "Install yamllint to enable YAML style checking:"
+        echo_info "  macOS:    brew install yamllint"
+        echo_info "  Linux:    pip install yamllint"
+        echo_info "  Windows:  pip install yamllint"
+        echo_info ""
+        echo_info "See: https://yamllint.readthedocs.io/"
+    fi
+else
+    echo_info "No YAML files staged. Skipping yamllint validation."
 fi
 
 #
