@@ -240,8 +240,11 @@ function Parse-ObservationFile {
       continue
     }
 
-    # Skip non-learning sections
+    # Skip non-learning sections - but first save any pending learning
     if ($trimmedLine -match '^##\s+(Purpose|History|Related|Overview)') {
+      if ($currentLearning) {
+        $learnings += $currentLearning
+      }
       $currentSection = $null
       $currentLearning = $null
       $inLearning = $false
@@ -259,6 +262,11 @@ function Parse-ObservationFile {
     $isLearningLine = $trimmedLine -match '^- (.+)$'
     $capturedText = if ($isLearningLine) { $Matches[1] } else { $null }
     if ($isLearningLine -and $line -match '^- ') {
+      # Skip placeholder entries like "None yet"
+      if ($capturedText -match '^\s*None\s*(yet)?\s*$') {
+        continue
+      }
+
       # Save previous learning if exists
       if ($currentLearning) {
         $learnings += $currentLearning

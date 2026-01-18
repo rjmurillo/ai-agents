@@ -133,10 +133,13 @@ After migration, validate:
 | **Phase 1** | COMPLETED | 33 | Testing domain pilot |
 | **Phase 2** | COMPLETED | 30 | PR review, GitHub, PowerShell |
 | **Phase 3** | COMPLETED | 30 | Architecture, CI, Git, Validation |
-| **Phase 4** | COMPLETED | 30 | Enforcement, PR-comment, Prompting, QA, Performance, Skills |
+| **Phase 4** | COMPLETED | 239 | Bulk import remaining HIGH learnings |
+| **Phase 5** | COMPLETED | 124 | MED confidence preferences and edge cases |
+| **Phase 6** | COMPLETED | 6 | LOW confidence notes for review |
 
-**Total Memories**: 344 in Forgetful
-**Total Projects**: 21 domain-specific projects
+**Total Memories**: 462 in Forgetful
+**Total Projects**: 26 domain-specific projects
+**Migration Complete**: 2026-01-18
 
 ## Phase 4 Completion Summary (2026-01-18)
 
