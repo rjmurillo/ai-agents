@@ -105,7 +105,7 @@ function Write-Failure {
     Write-Host "[ERROR] $Message" -ForegroundColor Red
 }
 
-function Write-Warning {
+function Write-WarningMessage {
     param([string]$Message)
     Write-Host "[WARNING] $Message" -ForegroundColor Yellow
 }
@@ -184,7 +184,7 @@ if ($Workflow.EndsWith('.yml') -or $Workflow.EndsWith('.yaml')) {
     $workflowPath = Join-Path $workflowsDir "$Workflow.yml"
 }
 
-if (-not (Test-Path $workflowPath)) {
+if (-not $workflowPath -or -not (Test-Path $workflowPath)) {
     Write-Failure "Workflow file not found: $Workflow"
     Write-Host ""
     Write-Host "Available workflows:"
@@ -250,7 +250,7 @@ if (-not $Secrets -or -not $Secrets.ContainsKey('GITHUB_TOKEN')) {
                 Write-Info "Using GITHUB_TOKEN from gh CLI"
             }
         } catch {
-            Write-Warning "Failed to retrieve GITHUB_TOKEN from gh CLI: $_"
+            Write-WarningMessage "Failed to retrieve GITHUB_TOKEN from gh CLI: $_"
         }
     }
 }

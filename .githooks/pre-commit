@@ -266,52 +266,6 @@ else
     echo_info "No markdown files staged. Skipping markdown linting."
 fi
 
-# ============================================================================
-# TIER 1: GitHub Actions YAML Validation (BLOCKING)
-# ============================================================================
-# Validates GitHub Actions workflow YAML files using actionlint
-# Performance budget: <10s
-# Exit behavior: BLOCKING (fails commit on errors)
-# Install actionlint:
-#   macOS: brew install actionlint
-#   Linux: Download from https://github.com/rhysd/actionlint/releases
-#   Windows: winget install rhysd.actionlint
-
-echo_info "Validating GitHub Actions workflows..."
-
-# Check if actionlint is available
-if ! command -v actionlint &> /dev/null; then
-    echo_warning "actionlint not found. Skipping GitHub Actions validation."
-    echo_info "Install: https://github.com/rhysd/actionlint#installation"
-else
-    # Get staged workflow files
-    WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/workflows/.*\.ya?ml$' || true)
-
-    if [ -n "$WORKFLOW_FILES" ]; then
-        ACTIONLINT_ERRORS=0
-
-        while IFS= read -r file; do
-            # Skip empty lines
-            [ -z "$file" ] && continue
-
-            if [ -f "$file" ]; then
-                # Run actionlint with error-only output
-                if ! actionlint "$file" 2>&1; then
-                    ACTIONLINT_ERRORS=$((ACTIONLINT_ERRORS + 1))
-                fi
-            fi
-        done <<< "$WORKFLOW_FILES"
-
-        if [ $ACTIONLINT_ERRORS -gt 0 ]; then
-            echo_error "GitHub Actions validation failed for $ACTIONLINT_ERRORS file(s)"
-            echo_info "Fix workflow YAML errors before committing"
-            EXIT_STATUS=1
-        else
-            echo_success "GitHub Actions validation passed"
-        fi
-    fi
-fi
-
 #
 # GitHub Actions Workflow Validation with actionlint
 #

@@ -382,11 +382,14 @@ Workflows **not** compatible with local testing:
 ### Prerequisites
 
 ```bash
-# Install act
+# Install act (cross-platform)
+gh extension install https://github.com/nektos/gh-act  # GitHub CLI extension (recommended)
+
+# Or install via package manager:
 brew install act                    # macOS
-choco install act-cli               # Windows
-gh extension install https://github.com/nektos/gh-act  # GitHub CLI extension
-# Linux: Download from https://github.com/nektos/act/releases
+
+# Or download binary for your OS from:
+# https://github.com/nektos/act/releases
 
 # Install Docker (required by act)
 # macOS/Windows: https://www.docker.com/products/docker-desktop

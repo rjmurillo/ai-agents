@@ -348,7 +348,7 @@ Invoke-Validation -Name "Workflow YAML Validation" -ScriptBlock {
         return $true
     }
 
-    $workflowFiles = Get-ChildItem -Path $workflowPath -Filter "*.yml" -File -ErrorAction SilentlyContinue
+    $workflowFiles = Get-ChildItem -Path $workflowPath -Include "*.yml", "*.yaml" -File -ErrorAction SilentlyContinue
     if (-not $workflowFiles -or $workflowFiles.Count -eq 0) {
         Write-Status 'WARNING' "No workflow files found in .github/workflows/"
         return $true
@@ -399,7 +399,7 @@ Invoke-Validation -Name "YAML Style Validation" -SkipCondition $Quick -ScriptBlo
     }
 
     # Get YAML files (all, not just workflows)
-    $yamlFiles = Get-ChildItem -Path $RepoRoot -Filter "*.yml" -Recurse -File -ErrorAction SilentlyContinue |
+    $yamlFiles = Get-ChildItem -Path $RepoRoot -Include "*.yml", "*.yaml" -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' -and
                        $_.FullName -notmatch '[\\/]\.cache[\\/]' -and
                        $_.FullName -notmatch '[\\/]\.artifacts[\\/]' -and
