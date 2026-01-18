@@ -14,9 +14,9 @@ BLOCKING gate at session start for monitoring tasks:
 
 1. Identify task type: monitoring or status classification
 2. Load domain memories BEFORE executing logic:
-   - CI/workflow monitoring: `ci-workflow-required-checks`, [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md)
-   - PR status classification: [skills-pr-review-index](skills-pr-review-index.md), `skills-pr-validation-gates`
-   - General monitoring: `skill-monitoring-001-blocked-pr-root-cause`
+   - CI/workflow monitoring: [ci-workflow-required-checks](ci-workflow-required-checks.md), [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md)
+   - PR status classification: [skills-pr-review-index](skills-pr-review-index.md), [skills-pr-validation-gates](skills-pr-validation-gates.md)
+   - General monitoring: [skill-monitoring-001-blocked-pr-root-cause](skill-monitoring-001-blocked-pr-root-cause.md)
 3. Review loaded context for patterns matching current scenario
 4. Proceed with classification/monitoring using memory-informed logic
 

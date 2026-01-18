@@ -73,7 +73,7 @@ Small Commit (fast):
 
 - [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md) - Commit atomicity principles
 - [implementation-additive-approach](implementation-additive-approach.md) - Additive vs refactor timing
-- `ci-quality-gates` - Automated review integration
+- [ci-quality-gates](ci-quality-gates.md) - Automated review integration
 
 **Success Example**: PR #343 used fast iteration to discover and fix 4 edge cases that weren't obvious upfront:
 
@@ -89,8 +89,8 @@ Each discovered through Copilot review, fixed in <5 minutes, validated in next c
 ## Related Files
 
 - [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md) - Atomic commit principles
-- `ci-quality-gates` - Automated review workflows
-- `implementation-test-discovery` - Test-first patterns
+- [ci-quality-gates](ci-quality-gates.md) - Automated review workflows
+- [implementation-test-discovery](implementation-test-discovery.md) - Test-first patterns
 
 ## Related
 

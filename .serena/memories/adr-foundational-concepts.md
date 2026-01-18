@@ -151,8 +151,8 @@ An ADR is NOT just documentation—it's a **decision artifact** that:
 
 ## Related Memories
 
-- `skill-debate-001-multi-agent-adr-consensus`: Process for validating ADRs
-- `skills-architecture`: Architectural skills and patterns
+- [skill-debate-001-multi-agent-adr-consensus](skill-debate-001-multi-agent-adr-consensus.md): Process for validating ADRs
+- [skills-architecture](skills-architecture.md): Architectural skills and patterns
 - [adr-014-review-findings](adr-014-review-findings.md): Example of ADR review process
 
 ## References
