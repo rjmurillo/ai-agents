@@ -266,6 +266,59 @@ else
     echo_info "No markdown files staged. Skipping markdown linting."
 fi
 
+#
+# Python Linting with Ruff (ADR-042)
+#
+# Non-blocking linting for Python files. Auto-fixes where possible.
+# Uses ruff for fast linting (written in Rust, 10-100x faster than flake8/pylint).
+#
+# Security: Uses proper quoting and array handling (CRITICAL-001)
+#
+STAGED_PY_FILES=$(echo "$STAGED_FILES" | grep -E '\.py$' || true)
+
+if [ -n "$STAGED_PY_FILES" ]; then
+    echo_info "Checking Python files..."
+
+    if command -v ruff &> /dev/null; then
+        # CRITICAL-001: Build array safely to prevent command injection
+        PY_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            PY_FILES+=("$file")
+        done <<< "$STAGED_PY_FILES"
+
+        if [ ${#PY_FILES[@]} -gt 0 ]; then
+            # Auto-fix if enabled
+            if [ "$AUTOFIX" = "1" ]; then
+                echo_action "Auto-fixing Python files with ruff..."
+                ruff check --fix -- "${PY_FILES[@]}" 2>/dev/null || true
+            fi
+
+            # Verify (non-blocking)
+            if ! ruff check -- "${PY_FILES[@]}" 2>/dev/null; then
+                echo_warning "Python linting found issues (non-blocking)."
+                echo_info "  Run: ruff check --fix <files>"
+                # Non-blocking: just warn, don't fail the commit
+            else
+                # Re-stage any fixed files
+                for file in "${PY_FILES[@]}"; do
+                    if [ -f "$file" ] && ! git diff --quiet -- "$file" 2>/dev/null; then
+                        echo_success "Fixed: $file"
+                        git add -- "$file"
+                        FILES_FIXED=1
+                    fi
+                done
+                echo_success "Python files OK."
+            fi
+        fi
+    else
+        echo_info "ruff not available. Skipping Python linting."
+        echo_info "  Install: pip install ruff"
+    fi
+else
+    echo_info "No Python files staged. Skipping Python linting."
+fi
+
 # ============================================================================
 # TIER 1: GitHub Actions YAML Validation (BLOCKING)
 # ============================================================================

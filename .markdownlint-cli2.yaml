@@ -75,6 +75,7 @@ config:
 globs:
   - "**/*.md"
   - "!node_modules/**"
+  - "!.venv/**"
   - "!.agents/**"
   - "!.serena/memories/**"
   - "!.flowbaby/**"
@@ -86,6 +87,7 @@ globs:
 
 ignores:
   - "node_modules/**"
+  - ".venv/**"
   - ".agents/**"
   - ".flowbaby/**"
   - ".serena/memories/**"
