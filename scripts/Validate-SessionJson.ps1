@@ -74,14 +74,6 @@ function Get-Key {
     return $null
 }
 
-function Test-Key {
-    param($Hash, $Key)
-    foreach ($k in $Hash.Keys) {
-        if ($k -ieq $Key) { return $true }
-    }
-    return $false
-}
-
 $errors = @()
 $warnings = @()
 
