@@ -28,6 +28,41 @@ BeforeAll {
         )
         Invoke-HookInNewProcess -Command $Command -HookPath $HookPath -ProjectDir $ProjectDir
     }
+
+    # Helper function to create test environment with hook and dependencies
+    # Reduces code duplication across BeforeAll blocks (Issue #979 review comment)
+    function New-SessionLogTestEnvironment {
+        param(
+            [string]$TestNameSuffix,
+            [hashtable]$SessionLogData = $null,
+            [switch]$NoSessionLog
+        )
+
+        $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-$TestNameSuffix-$(Get-Random)"
+        New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $testRoot ".claude/hooks/PreToolUse") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $testRoot ".claude/hooks/Common") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $testRoot ".agents/sessions") -Force | Out-Null
+
+        # Copy hook and shared module
+        $tempHookPath = Join-Path $testRoot ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
+        Copy-Item -Path $Script:HookPath -Destination $tempHookPath -Force
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $testRoot ".claude/hooks/Common/HookUtilities.psm1") -Force
+
+        # Create session log if data provided and NoSessionLog not specified
+        if (-not $NoSessionLog -and $SessionLogData) {
+            $sessionDate = if ($SessionLogData.session.date) { $SessionLogData.session.date } else { Get-Date -Format "yyyy-MM-dd" }
+            $sessionNumber = if ($SessionLogData.session.number) { $SessionLogData.session.number } else { 999 }
+            $sessionLog = $SessionLogData | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $testRoot ".agents/sessions/$sessionDate-session-$sessionNumber.json") -Value $sessionLog
+        }
+
+        return @{
+            TestRoot = $testRoot
+            HookPath = $tempHookPath
+        }
+    }
 }
 
 Describe "Invoke-SessionLogGuard" {
@@ -66,21 +101,8 @@ Describe "Invoke-SessionLogGuard" {
     Context "Git commit command detection" {
         BeforeAll {
             # Create temp test environment with valid session log
-            $Script:TestRoot = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-commit-$(Get-Random)"
-            New-Item -ItemType Directory -Path $Script:TestRoot -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRoot ".claude/hooks/PreToolUse") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRoot ".claude/hooks/Common") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRoot ".agents/sessions") -Force | Out-Null
-
-            # Copy hook and shared module
-            $Script:TempHookPath = Join-Path $Script:TestRoot ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPath -Force
-            $repoRoot = Join-Path $PSScriptRoot ".."
-            Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $Script:TestRoot ".claude/hooks/Common/HookUtilities.psm1") -Force
-
-            # Create valid session log for today
             $today = Get-Date -Format "yyyy-MM-dd"
-            $sessionLog = @{
+            $sessionLogData = @{
                 session = @{
                     number = 999
                     date = $today
@@ -96,8 +118,10 @@ Describe "Invoke-SessionLogGuard" {
                         commitMade = @{ complete = $true; level = "MUST"; evidence = "test" }
                     }
                 }
-            } | ConvertTo-Json -Depth 10
-            Set-Content -Path (Join-Path $Script:TestRoot ".agents/sessions/$today-session-999.json") -Value $sessionLog
+            }
+            $env = New-SessionLogTestEnvironment -TestNameSuffix "commit" -SessionLogData $sessionLogData
+            $Script:TestRoot = $env.TestRoot
+            $Script:TempHookPath = $env.HookPath
 
             # Set project directory
             $env:CLAUDE_PROJECT_DIR = $Script:TestRoot
@@ -130,17 +154,9 @@ Describe "Invoke-SessionLogGuard" {
     Context "Missing session log blocks commit" {
         BeforeAll {
             # Create temp test environment WITHOUT session log
-            $Script:TestRootNoLog = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-no-log-$(Get-Random)"
-            New-Item -ItemType Directory -Path $Script:TestRootNoLog -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootNoLog ".claude/hooks/PreToolUse") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootNoLog ".claude/hooks/Common") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootNoLog ".agents/sessions") -Force | Out-Null
-
-            # Copy hook and shared module
-            $Script:TempHookPathNoLog = Join-Path $Script:TestRootNoLog ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathNoLog -Force
-            $repoRoot = Join-Path $PSScriptRoot ".."
-            Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $Script:TestRootNoLog ".claude/hooks/Common/HookUtilities.psm1") -Force
+            $env = New-SessionLogTestEnvironment -TestNameSuffix "no-log" -NoSessionLog
+            $Script:TestRootNoLog = $env.TestRoot
+            $Script:TempHookPathNoLog = $env.HookPath
 
             # Set project directory (no session log exists)
             $env:CLAUDE_PROJECT_DIR = $Script:TestRootNoLog
@@ -169,21 +185,11 @@ Describe "Invoke-SessionLogGuard" {
     Context "Empty or invalid session log blocks commit" {
         BeforeAll {
             # Create temp test environment with EMPTY session log
-            $Script:TestRootEmpty = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-empty-$(Get-Random)"
-            New-Item -ItemType Directory -Path $Script:TestRootEmpty -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootEmpty ".claude/hooks/PreToolUse") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootEmpty ".claude/hooks/Common") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootEmpty ".agents/sessions") -Force | Out-Null
-
-            # Copy hook and shared module
-            $Script:TempHookPathEmpty = Join-Path $Script:TestRootEmpty ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathEmpty -Force
-            $repoRoot = Join-Path $PSScriptRoot ".."
-            Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $Script:TestRootEmpty ".claude/hooks/Common/HookUtilities.psm1") -Force
-
-            # Create EMPTY session log for today
             $today = Get-Date -Format "yyyy-MM-dd"
-            Set-Content -Path (Join-Path $Script:TestRootEmpty ".agents/sessions/$today-session-999.json") -Value "{}"
+            $emptyLogData = @{ }  # Empty hashtable will create empty JSON
+            $env = New-SessionLogTestEnvironment -TestNameSuffix "empty" -SessionLogData $emptyLogData
+            $Script:TestRootEmpty = $env.TestRoot
+            $Script:TempHookPathEmpty = $env.HookPath
 
             # Set project directory
             $env:CLAUDE_PROJECT_DIR = $Script:TestRootEmpty
@@ -211,21 +217,8 @@ Describe "Invoke-SessionLogGuard" {
     Context "Valid session log allows commit" {
         BeforeAll {
             # Create temp test environment with VALID session log
-            $Script:TestRootValid = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-valid-$(Get-Random)"
-            New-Item -ItemType Directory -Path $Script:TestRootValid -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootValid ".claude/hooks/PreToolUse") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootValid ".claude/hooks/Common") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootValid ".agents/sessions") -Force | Out-Null
-
-            # Copy hook and shared module
-            $Script:TempHookPathValid = Join-Path $Script:TestRootValid ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathValid -Force
-            $repoRoot = Join-Path $PSScriptRoot ".."
-            Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $Script:TestRootValid ".claude/hooks/Common/HookUtilities.psm1") -Force
-
-            # Create VALID session log for today
             $today = Get-Date -Format "yyyy-MM-dd"
-            $sessionLog = @{
+            $validLogData = @{
                 schemaVersion = "1.0"
                 session = @{
                     number = 999
@@ -248,8 +241,10 @@ Describe "Invoke-SessionLogGuard" {
                     @{ action = "Created test file"; result = "Success" }
                     @{ action = "Updated configuration"; result = "Applied" }
                 )
-            } | ConvertTo-Json -Depth 10
-            Set-Content -Path (Join-Path $Script:TestRootValid ".agents/sessions/$today-session-999.json") -Value $sessionLog
+            }
+            $env = New-SessionLogTestEnvironment -TestNameSuffix "valid" -SessionLogData $validLogData
+            $Script:TestRootValid = $env.TestRoot
+            $Script:TempHookPathValid = $env.HookPath
 
             # Set project directory
             $env:CLAUDE_PROJECT_DIR = $Script:TestRootValid
@@ -271,21 +266,8 @@ Describe "Invoke-SessionLogGuard" {
     Context "Long-running sessions across midnight" {
         BeforeAll {
             # Test environment for sessions that span midnight boundary
-            $Script:TestRootMidnight = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-midnight-$(Get-Random)"
-            New-Item -ItemType Directory -Path $Script:TestRootMidnight -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootMidnight ".claude/hooks/PreToolUse") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootMidnight ".claude/hooks/Common") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootMidnight ".agents/sessions") -Force | Out-Null
-
-            # Copy hook and shared module
-            $Script:TempHookPathMidnight = Join-Path $Script:TestRootMidnight ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
-            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathMidnight -Force
-            $repoRoot = Join-Path $PSScriptRoot ".."
-            Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $Script:TestRootMidnight ".claude/hooks/Common/HookUtilities.psm1") -Force
-
-            # Create session log dated YESTERDAY (simulates long-running session crossing midnight)
             $yesterday = (Get-Date).AddDays(-1).ToString("yyyy-MM-dd")
-            $sessionLog = @{
+            $midnightLogData = @{
                 schemaVersion = "1.0"
                 session = @{
                     number = 999
@@ -305,8 +287,10 @@ Describe "Invoke-SessionLogGuard" {
                 workLog = @(
                     @{ action = "Started work yesterday"; result = "In progress" }
                 )
-            } | ConvertTo-Json -Depth 10
-            Set-Content -Path (Join-Path $Script:TestRootMidnight ".agents/sessions/$yesterday-session-999.json") -Value $sessionLog
+            }
+            $env = New-SessionLogTestEnvironment -TestNameSuffix "midnight" -SessionLogData $midnightLogData
+            $Script:TestRootMidnight = $env.TestRoot
+            $Script:TempHookPathMidnight = $env.HookPath
 
             $env:CLAUDE_PROJECT_DIR = $Script:TestRootMidnight
         }
