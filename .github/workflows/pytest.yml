@@ -129,7 +129,7 @@ jobs:
       - name: Run pip-audit
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          pip-audit --requirement pyproject.toml
+          pip-audit
 
       - name: Run Bandit
         run: |
