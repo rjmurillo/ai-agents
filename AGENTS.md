@@ -871,7 +871,7 @@ copilot
 | Type | Location | Status |
 |------|----------|--------|
 | Per-repo | `.github/agents/` | **Works** |
-| Global | `~/.copilot/agents/` | Known bug (#452) |
+| Global | `~/.copilot/agents/` | **Works** |
 
 ### Copilot CLI File Types
 
@@ -884,7 +884,6 @@ The installer copies both agent files and prompt files:
 
 ### CLI Notes
 
-- Use per-repository installation until global agent loading is fixed
 - Agents are defined with YAML frontmatter including `name`, `description`, and `tools`
 - MCP servers (like `cloudmcp-manager`) need separate configuration in `~/.copilot/mcp-config.json`
 
