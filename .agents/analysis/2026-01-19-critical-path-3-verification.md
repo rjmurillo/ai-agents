@@ -1,5 +1,10 @@
 # Critical Path 3: ADR Enforcement Verification
 
+> **DEPRECATED**: This document contains outdated analysis that contradicts session log evidence.
+> **Superseded by**: `.agents/sessions/2026-01-18-session-11-adr-enforcement-critical-path.json`
+> **DO NOT USE**: Claims #729 is 60% complete and #741 is 20% complete are INCORRECT.
+> **Actual status**: All 5 issues (#612, #729, #649, #654, #741) are 100% complete per session-11 evidence.
+
 **Date**: 2026-01-19
 **Analyst**: Sonnet 4.5
 **Context**: Verification of deep-executor agent's claim that all Critical Path 3 issues were already implemented

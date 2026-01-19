@@ -268,6 +268,80 @@ Describe "Invoke-SessionLogGuard" {
         }
     }
 
+    Context "Long-running sessions across midnight" {
+        BeforeAll {
+            # Test environment for sessions that span midnight boundary
+            $Script:TestRootMidnight = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-midnight-$(Get-Random)"
+            New-Item -ItemType Directory -Path $Script:TestRootMidnight -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootMidnight ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootMidnight ".claude/hooks/Common") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootMidnight ".agents/sessions") -Force | Out-Null
+
+            # Copy hook and shared module
+            $Script:TempHookPathMidnight = Join-Path $Script:TestRootMidnight ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
+            Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathMidnight -Force
+            $repoRoot = Join-Path $PSScriptRoot ".."
+            Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $Script:TestRootMidnight ".claude/hooks/Common/HookUtilities.psm1") -Force
+
+            # Create session log dated YESTERDAY (simulates long-running session crossing midnight)
+            $yesterday = (Get-Date).AddDays(-1).ToString("yyyy-MM-dd")
+            $sessionLog = @{
+                schemaVersion = "1.0"
+                session = @{
+                    number = 999
+                    date = $yesterday
+                    branch = "feat/test-branch"
+                    startingCommit = "abc1234567890"
+                    objective = "Long-running session that started yesterday"
+                }
+                protocolCompliance = @{
+                    sessionStart = @{
+                        branchVerification = @{ complete = $true; level = "MUST"; evidence = "Verified on feature branch" }
+                    }
+                    sessionEnd = @{
+                        commitMade = @{ complete = $true; level = "MUST"; evidence = "Commit in progress" }
+                    }
+                }
+                workLog = @(
+                    @{ action = "Started work yesterday"; result = "In progress" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootMidnight ".agents/sessions/$yesterday-session-999.json") -Value $sessionLog
+
+            $env:CLAUDE_PROJECT_DIR = $Script:TestRootMidnight
+        }
+
+        AfterAll {
+            Remove-Item Env:\CLAUDE_PROJECT_DIR -ErrorAction SilentlyContinue
+            if (Test-Path $Script:TestRootMidnight) {
+                Remove-Item -Path $Script:TestRootMidnight -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Blocks commit when session log date is yesterday (documents midnight boundary behavior)" {
+            # EDGE CASE DOCUMENTATION: Long-running sessions that cross midnight boundary
+            #
+            # Scenario: Session starts at 23:30 yesterday, works past midnight, commits at 00:15 today.
+            # Session log has yesterday's date (2026-01-18), but commit timestamp is today (2026-01-19).
+            #
+            # Current behavior: Hook blocks commit (exit 2) because Get-TodaySessionLog searches for
+            # logs matching $today (line 136 of HookUtilities.psm1), and yesterday's log won't match.
+            #
+            # Workaround: Agent must create a new session log for today OR update existing log's date.
+            # This is intentional to ensure session log dates align with commit dates for audit trail.
+            #
+            # Alternative design considered: Search for logs within 24-hour window (yesterday + today).
+            # Rejected because it could allow stale logs to satisfy evidence requirement.
+            #
+            # Best practice: For long sessions crossing midnight, create continuation log for new day.
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'commit after midnight'" -HookPath $Script:TempHookPathMidnight -ProjectDir $Script:TestRootMidnight
+            $result.ExitCode | Should -Be 2 -Because "Hook requires session log dated today, not yesterday (midnight boundary constraint)"
+            $output = $result.Output -join "`n"
+            $output | Should -Match "BLOCKED|No Session Log" -Because "Should explain that session log for today is missing"
+        }
+    }
+
     Context "Edge cases and error handling" {
         It "Handles no stdin gracefully (exit 0)" {
             # When no stdin is redirected, script exits 0
