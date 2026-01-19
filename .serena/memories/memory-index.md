@@ -25,6 +25,7 @@
 | utility script markdown fence PathInfo security pattern | [skills-utilities-index](skills-utilities-index.md) |
 | documentation PRD spec user-facing migration self-contained | [skills-documentation-index](skills-documentation-index.md) |
 | validation quality lint false-positive gate test | [skills-validation-index](skills-validation-index.md) |
+| test exit code pytest pester error failed passed block commit | [testing-exit-code-interpretation](testing-exit-code-interpretation.md) |
 | linting markdown autofix config exclude language backtick | [skills-linting-index](skills-linting-index.md) |
 | CI CD workflow actions runner ARM | [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) |
 | workflow pattern composite matrix artifact verdict report | [skills-workflow-patterns-index](skills-workflow-patterns-index.md) |

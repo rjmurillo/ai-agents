@@ -91,3 +91,11 @@ Patterns that optimize but are not error-preventing:
 2. Create PR with skill updates
 3. Add skill pattern enforcement to quality gates
 4. Use /reflect going forward to capture skill-specific learnings incrementally
+
+## Related
+
+- [skills-agent-workflow-index](skills-agent-workflow-index.md)
+- [skills-agent-workflows](skills-agent-workflows.md)
+- [skills-analysis-index](skills-analysis-index.md)
+- [skills-architecture-index](skills-architecture-index.md)
+- [skills-architecture-observations](skills-architecture-observations.md)

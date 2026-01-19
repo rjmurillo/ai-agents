@@ -36,6 +36,8 @@
 
 Exit code 0 (PASS) required before claiming completion.
 
+**Test Exit Code Requirement**: ANY test output showing errors OR failures (e.g., "66 passed, 1 error") has non-zero exit code and MUST block commits. Both "failed" and "error" are failures.
+
 ## Skill-First Pattern
 
 **NEVER use raw commands when a skill exists.**

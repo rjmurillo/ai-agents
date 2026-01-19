@@ -1420,6 +1420,26 @@ Quality enforcement is automated (shift left, pit of success):
 
 **No manual commands required for routine development.**
 
+### Test Exit Code Interpretation (BLOCKING)
+
+**ANY non-zero exit code from test frameworks means FAILURE and MUST block commits.**
+
+Test output categories (all result in non-zero exit):
+
+- `passed` = success (test ran and assertions passed)
+- `failed` = assertion failure (test ran but assertions failed)
+- `error` = setup/collection failure (test could not run)
+
+| Output | Exit Code | Verdict | Action |
+|--------|-----------|---------|--------|
+| `66 passed` | 0 | PASS | Safe to commit |
+| `66 passed, 1 failed` | 1 | **FAIL** | Fix before commit |
+| `66 passed, 1 error` | 1 | **FAIL** | Fix before commit |
+
+**Common mistake**: Treating "error" as different from "failed". Both are failures that block commits.
+
+**Process**: Run full test suite before EVERY commit. Verify exit code 0. If ANY errors or failures appear, investigate and fix before pushing.
+
 ### Manual Testing (Optional)
 
 For local debugging or iteration:
