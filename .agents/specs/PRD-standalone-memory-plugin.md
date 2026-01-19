@@ -381,6 +381,11 @@ def verify_citation(citation: Citation, repo_root: Path) -> Citation:
     # Check line exists and content matches
     lines = file_path.read_text().splitlines()
 
+    if citation.line < 1:
+        citation.valid = False
+        citation.mismatch_reason = f"Invalid line number: {citation.line} (must be >= 1)"
+        return citation
+
     if citation.line > len(lines):
         citation.valid = False
         citation.mismatch_reason = f"Line {citation.line} exceeds file length ({len(lines)})"
@@ -618,19 +623,25 @@ def add_citation_to_memory(
     snippet_formatted = f"`{snippet}`" if snippet else ""
     new_row = f"| {file_path} | {line or ''} | {snippet_formatted} | {today} |"
 
-    # Check if ## Citations section exists
-    if "## Citations" in content:
-        # Append to existing table
-        lines = content.split("\n")
-        for i, line_content in enumerate(lines):
-            if line_content.startswith("## Citations"):
-                # Find end of table (next ## or end of file)
-                j = i + 1
-                while j < len(lines) and not lines[j].startswith("##"):
-                    j += 1
-                # Insert before next section
-                lines.insert(j, new_row)
+    # Check if ## Citations section exists (must be at line start)
+    lines = content.split("\n")
+    citations_idx = None
+    for i, line_content in enumerate(lines):
+        if line_content == "## Citations":
+            citations_idx = i
+            break
+
+    if citations_idx is not None:
+        # Append to existing table - find last table row (starts with |)
+        last_table_row = citations_idx
+        for j in range(citations_idx + 1, len(lines)):
+            if lines[j].startswith("|"):
+                last_table_row = j
+            elif lines[j].strip() and not lines[j].startswith("|"):
+                # Non-empty, non-table line means table ended
                 break
+        # Insert after last table row
+        lines.insert(last_table_row + 1, new_row)
         content = "\n".join(lines)
     else:
         # Create new section before ## Links or at end
@@ -641,8 +652,10 @@ def add_citation_to_memory(
 |------|------|---------|----------|
 {new_row}
 """
-        if "## Links" in content:
-            content = content.replace("## Links", f"{citation_section}\n## Links")
+        # Find ## Links heading at line start and insert before it
+        import re
+        if re.search(r'^## Links\s*$', content, re.MULTILINE):
+            content = re.sub(r'^(## Links)\s*$', f"{citation_section}\n\\1", content, count=1, flags=re.MULTILINE)
         else:
             content += citation_section
 
@@ -747,8 +760,11 @@ def main():
             print(f"  - {r}")
 
     elif args.command == "health":
-        report = generate_health_report(Path(args.dir))
-        print(report if args.format == "markdown" else json.dumps(report, indent=2))
+        report = generate_health_report(Path(args.dir), format=args.format)
+        if args.format == "json":
+            print(json.dumps(report, indent=2))
+        else:
+            print(report)
 
 if __name__ == "__main__":
     main()
