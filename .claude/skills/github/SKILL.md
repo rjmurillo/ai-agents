@@ -182,6 +182,7 @@ if ($checks.FailedCount -gt 0) {
 |-------|-----|---------|
 | Raw `gh pr view` commands | No structured output | Use `Get-PRContext.ps1` |
 | Raw `gh api` for comments | Doesn't preserve threading | Use `Post-PRCommentReply.ps1` |
+| Replying to thread expecting auto-resolve | Replies DON'T auto-resolve threads | Use `Resolve-PRReviewThread.ps1` after reply |
 | Inline issue creation | Missing validation | Use `New-Issue.ps1` |
 | Multiple individual reactions | 88% slower | Use batch mode in `Add-CommentReaction.ps1` |
 | Hardcoding owner/repo | Breaks in forks | Let scripts infer from `git remote` |

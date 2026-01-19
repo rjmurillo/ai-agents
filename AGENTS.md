@@ -169,7 +169,13 @@ pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[log].json"
 ### Development Tools
 
 ```bash
-# Testing
+# Python Testing (ADR-042)
+uv run pytest
+uv run pytest --cov --cov-report=html
+uv run pip-audit                            # Dependency vulnerability scan
+uv run bandit -r .claude/ scripts/          # Static security analysis
+
+# PowerShell Testing
 pwsh ./build/scripts/Invoke-PesterTests.ps1
 pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
 
@@ -219,19 +225,27 @@ gh workflow run [workflow] --ref [branch]
 
 ### Installation Commands
 
+> [!NOTE] You will need uv. [Installation](https://docs.astral.sh/uv/getting-started/installation/)
+
+Install agents using [skill-installer](https://github.com/rjmurillo/skill-installer):
+
 ```bash
-# VS Code (global)
-.\scripts\install-vscode-global.ps1
+# Install skill-installer
+uv tool install git+https://github.com/rjmurillo/skill-installer
 
-# VS Code (per-repo)
-.\scripts\install-vscode-repo.ps1 -RepoPath "C:\Path\To\Repo"
+# Add this repository as a source
+skill-installer source add rjmurillo/ai-agents
 
-# Copilot CLI (per-repo)
-.\scripts\install-copilot-cli-repo.ps1 -RepoPath "C:\Path\To\Repo"
+# Launch TUI to select and install
+skill-installer interactive
 
-# Claude Code (global)
-.\scripts\install-claude-global.ps1
+# Or install directly via CLI
+skill-installer install claude-agents --platform claude
+skill-installer install vscode-agents --platform vscode
+skill-installer install copilot-cli-agents --platform copilot
 ```
+
+See [docs/installation.md](docs/installation.md) for complete installation documentation.
 
 ### Worktrunk Setup
 
@@ -292,7 +306,7 @@ wt merge
 
 ### ✅ Always Do
 
-- **Use PowerShell (.ps1/.psm1)** for all scripts (ADR-005)
+- **Use Python (.py)** for new scripts (ADR-042); PowerShell (.ps1/.psm1) for existing scripts
 - **Verify branch** before ANY git/gh operation: `git branch --show-current`
 - **Update Serena memory** at session end with cross-session context
 - **Check for existing skills** before writing inline GitHub operations
@@ -315,7 +329,7 @@ wt merge
 
 - **Commit secrets or credentials** (use git-secret, environment variables, or secure vaults)
 - **Update HANDOFF.md** (read-only reference, write to session logs instead)
-- **Use bash/python for scripts** (PowerShell-only per ADR-005)
+- **Use bash for scripts** (Python or PowerShell only per ADR-042)
 - **Skip session protocol validation** (`Validate-SessionJson.ps1` must pass)
 - **Put logic in workflow YAML** (ADR-006: logic goes in .psm1 modules)
 - **Use raw gh commands** when skills exist (check `.claude/skills/` first)
@@ -426,13 +440,16 @@ Specific versions matter for accurate tooling suggestions.
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **PowerShell** | 7.5.4+ | Cross-platform, required (ADR-005) |
+| **Python** | 3.12.x (exact) | Primary scripting language (ADR-042); not 3.13.x due to Ubuntu 25 incompatibility |
+| **UV** | Latest | Python package manager with hash-pinned dependencies |
+| **PowerShell** | 7.5.4+ | Cross-platform, for existing scripts |
 | **Node.js** | LTS (20+) | For markdownlint-cli2 |
-| **Pester** | 5.7.1 (exact) | Testing framework, pinned for supply chain security |
+| **Pester** | 5.7.1 (exact) | PowerShell testing, pinned for supply chain security |
+| **pytest** | 8.0+ | Python testing framework |
 | **GitHub CLI** | 2.60+ | For gh operations |
 | **Mermaid** | Latest | Diagram generation |
 
-**Platform Support**: Windows, Linux, macOS (PowerShell cross-platform, use -Path parameters for OS-agnostic file handling)
+**Platform Support**: Windows, Linux, macOS (Python and PowerShell both cross-platform)
 
 ---
 
@@ -482,49 +499,26 @@ The Memory agent provides long-running context across sessions using Serena (pro
 
 ## Quick Start
 
-### VS Code Installation
+### Platform Installation
 
-**Global (all workspaces):**
+Use [skill-installer](https://github.com/rjmurillo/skill-installer) to install agents:
 
-```powershell
-.\scripts\install-vscode-global.ps1
+```bash
+# Install skill-installer
+uv tool install git+https://github.com/rjmurillo/skill-installer
+skill-installer source add rjmurillo/ai-agents
+
+# VS Code
+skill-installer install vscode-agents --platform vscode
+
+# GitHub Copilot CLI
+skill-installer install copilot-cli-agents --platform copilot
+
+# Claude Code
+skill-installer install claude-agents --platform claude
 ```
 
-**Per-repository:**
-
-```powershell
-.\scripts\install-vscode-repo.ps1 -RepoPath "C:\Path\To\Your\Repo"
-```
-
-### GitHub Copilot CLI Installation
-
-**Per-repository (recommended):**
-
-```powershell
-.\scripts\install-copilot-cli-repo.ps1 -RepoPath "C:\Path\To\Your\Repo"
-```
-
-**Global (known issues - see [Issue #2](https://github.com/rjmurillo/vs-code-agents/issues/2)):**
-
-```powershell
-.\scripts\install-copilot-cli-global.ps1
-```
-
-> **Note:** User-level agents in `~/.copilot/agents/` are not currently loaded due to [GitHub Issue #452](https://github.com/github/copilot-cli/issues/452). Use per-repository installation.
-
-### Claude Code Installation
-
-**Global (all sessions):**
-
-```powershell
-.\scripts\install-claude-global.ps1
-```
-
-**Per-repository:**
-
-```powershell
-.\scripts\install-claude-repo.ps1 -RepoPath "C:\Path\To\Your\Repo"
-```
+See [docs/installation.md](docs/installation.md) for complete installation documentation.
 
 ---
 
@@ -540,13 +534,10 @@ The Memory agent provides long-running context across sessions using Serena (pro
 │   │   └── *.agent.md
 │   └── claude/               # Claude Code CLI agents
 │       └── *.md
-├── scripts/                  # Installation scripts
-│   ├── install-vscode-global.ps1
-│   ├── install-vscode-repo.ps1
-│   ├── install-copilot-cli-global.ps1
-│   ├── install-copilot-cli-repo.ps1
-│   ├── install-claude-global.ps1
-│   └── install-claude-repo.ps1
+├── scripts/                  # Validation and utility scripts
+│   ├── Validate-*.ps1        # Protocol validation scripts
+│   ├── Detect-*.ps1          # Code quality detection scripts
+│   └── New-ValidatedPR.ps1   # PR creation with guardrails
 ├── AGENTS.md                 # Canonical agent instructions (this file)
 ├── CLAUDE.md                 # Claude Code shim → AGENTS.md
 └── .github/copilot-instructions.md  # Copilot shim → AGENTS.md
@@ -1415,9 +1406,53 @@ To customize, edit the relevant agent file while keeping the handoff protocol in
 
 ## Testing
 
-### Running Pester Tests
+### Automated Quality Gates
 
-PowerShell unit tests for installation scripts are located in `scripts/tests/`. Run them using the reusable test runner:
+Quality enforcement is automated (shift left, pit of success):
+
+| Stage | What Runs | Trigger |
+|-------|-----------|---------|
+| **Pre-commit hook** | ruff (Python), markdownlint | Every commit |
+| **CI pytest.yml** | pytest, pip-audit, bandit | Every PR/push |
+| **CI pester.yml** | Pester tests | Every PR/push |
+
+**No manual commands required for routine development.**
+
+### Test Exit Code Interpretation (BLOCKING)
+
+**ANY non-zero exit code from test frameworks means FAILURE and MUST block commits.**
+
+Test output categories (all result in non-zero exit):
+
+- `passed` = success (test ran and assertions passed)
+- `failed` = assertion failure (test ran but assertions failed)
+- `error` = setup/collection failure (test could not run)
+
+| Output | Exit Code | Verdict | Action |
+|--------|-----------|---------|--------|
+| `66 passed` | 0 | PASS | Safe to commit |
+| `66 passed, 1 failed` | 1 | **FAIL** | Fix before commit |
+| `66 passed, 1 error` | 1 | **FAIL** | Fix before commit |
+
+**Common mistake**: Treating "error" as different from "failed". Both are failures that block commits.
+
+**Process**: Run full test suite before EVERY commit. Verify exit code 0. If ANY errors or failures appear, investigate and fix before pushing.
+
+### Manual Testing (Optional)
+
+For local debugging or iteration:
+
+```bash
+# Python (ADR-042)
+uv run pytest                               # All tests
+uv run pytest tests/test_example.py         # Specific file
+uv run pip-audit                            # Dependency scan
+uv run bandit -r .claude/ scripts/          # Security scan
+```
+
+### Running Pester Tests (PowerShell)
+
+PowerShell unit tests are located in `tests/`. Run them using the reusable test runner:
 
 ```powershell
 # Local development (detailed output, continues on failure)
@@ -1427,17 +1462,11 @@ pwsh ./build/scripts/Invoke-PesterTests.ps1
 pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
 
 # Run specific test file
-pwsh ./build/scripts/Invoke-PesterTests.ps1 -TestPath "./scripts/tests/Install-Common.Tests.ps1"
+pwsh ./build/scripts/Invoke-PesterTests.ps1 -TestPath "./tests/Validate-SessionJson.Tests.ps1"
 
 # Maximum verbosity for debugging
 pwsh ./build/scripts/Invoke-PesterTests.ps1 -Verbosity Diagnostic
 ```
-
-**Test Coverage:**
-
-- `Install-Common.Tests.ps1` - Tests for all 11 shared module functions
-- `Config.Tests.ps1` - Configuration validation tests
-- `install.Tests.ps1` - Entry point parameter validation
 
 **Output:**
 
@@ -1446,7 +1475,7 @@ Test results are saved to `artifacts/pester-results.xml` (gitignored).
 **When to Run Tests:**
 
 - Before committing changes to `scripts/`
-- After modifying `scripts/lib/Install-Common.psm1` or `scripts/lib/Config.psd1`
+- After modifying validation or utility scripts
 - When the `qa` agent validates implementation
 
 ---

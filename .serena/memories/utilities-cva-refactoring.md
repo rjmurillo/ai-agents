@@ -1,7 +1,9 @@
 # CVA Refactoring Skills
 
+> **DEPRECATED (2026-01-17)**: This CVA describes the PowerShell installation implementation (v0.1.x, deleted 2026-01-17). Current installation uses [skill-installer](https://github.com/rjmurillo/skill-installer). The refactoring patterns described here remain valid for other CVA work.
+
 **Extracted**: 2025-12-15
-**Source**: ai-agents install scripts consolidation
+**Source**: ai-agents install scripts consolidation (v0.1.x, deleted 2026-01-17)
 
 ## Skill-Refactor-CVA-001: Phased Migration Pattern
 

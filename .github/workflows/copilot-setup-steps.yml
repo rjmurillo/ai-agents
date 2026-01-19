@@ -51,4 +51,6 @@ jobs:
           gh-token: ${{ github.token }}
           enable-pester: true
           enable-git-hooks: true
+          enable-python: true
+          python-version: '3.12'
           skip-autofix: 0

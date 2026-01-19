@@ -14,7 +14,7 @@ The `src/claude/` directory contains **hand-maintained** agent definitions for C
 src/claude/*.md  ───────────────────────────────────────┐
    (SOURCE - hand-maintained)                           │
                                                         ▼
-                                              scripts/install.ps1
+                                              skill-installer
                                                         │
                                                         ▼
                                            .claude/agents/*.md
@@ -34,7 +34,7 @@ src/claude/*.md  ─────────────────────
 1. Copy improvements from `.claude/agents/{agent}.md` to `src/claude/{agent}.md`
 2. Verify ADR enforcement, security gates, and blocking sections are PRESERVED
 3. Commit to `src/claude/` only
-4. Run `scripts/install-claude-repo.ps1 -Force` to reinstall
+4. Reinstall using skill-installer (see [docs/installation.md](../../docs/installation.md))
 
 **Common mistake**: Copying `.claude/agents/` wholesale to `src/claude/` may overwrite blocking gates (like ADR Review Enforcement) if the installed version was modified without including those sections.
 

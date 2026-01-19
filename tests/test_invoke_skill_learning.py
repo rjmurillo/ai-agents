@@ -21,15 +21,17 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 # Add .claude/hooks/Stop directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Stop"))
 
+import invoke_skill_learning
 from invoke_skill_learning import (
     SKILL_PATTERNS,
     COMMAND_TO_SKILL,
     detect_skill_usage,
-    test_skill_context,
+    check_skill_context,
     extract_learnings,
     update_skill_memory,
 )
@@ -53,26 +55,26 @@ class TestDynamicSkillDetection(unittest.TestCase):
         # Bug 1 fix: Skills not in pattern map should still pass context check
         # if the skill name or path is mentioned
         text = "Working with .claude/skills/my-custom-skill to process data"
-        result = test_skill_context(text, "my-custom-skill")
+        result = check_skill_context(text, "my-custom-skill")
         self.assertTrue(result, "Dynamically detected skill should pass context check")
 
     def test_dynamic_skill_name_mention_passes(self):
         """Skill name mention alone should pass context check for dynamic skills."""
         text = "The my-custom-skill is working correctly now"
-        result = test_skill_context(text, "my-custom-skill")
+        result = check_skill_context(text, "my-custom-skill")
         self.assertTrue(result, "Skill name mention should pass context check")
 
     def test_unmapped_skill_without_mention_fails(self):
         """Dynamic skills should fail context check when not mentioned at all."""
         text = "This is unrelated text about something else entirely"
-        result = test_skill_context(text, "unmapped-skill")
+        result = check_skill_context(text, "unmapped-skill")
         self.assertFalse(result, "Unmapped skill with no mention should fail")
 
     def test_mapped_skill_still_uses_patterns(self):
         """Mapped skills should still use pattern-based checking."""
         # 'github' is a mapped skill
         text = "I ran gh pr list to see the pull requests"
-        result = test_skill_context(text, "github")
+        result = check_skill_context(text, "github")
         self.assertTrue(result, "Mapped skill should match on patterns")
 
     def test_mapped_skill_fails_without_pattern_match(self):
@@ -80,7 +82,7 @@ class TestDynamicSkillDetection(unittest.TestCase):
         # 'github' patterns include 'gh pr', 'gh issue', '.claude/skills/github', etc.
         # Use a text that does not match any of the defined GitHub patterns
         text = "Reading about version control systems"
-        result = test_skill_context(text, "github")
+        result = check_skill_context(text, "github")
         self.assertFalse(result, "Mapped skill should fail without pattern match")
 
 
@@ -95,7 +97,9 @@ class TestFilenamePatternConsistency(unittest.TestCase):
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             expected_filename = f"{skill_name}-observations.md"
             memory_path = Path(project_dir) / ".serena" / "memories" / expected_filename
@@ -113,7 +117,9 @@ class TestFilenamePatternConsistency(unittest.TestCase):
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             # Old pattern from template before fix
             wrong_filename = f"{skill_name}-skill-sidecar-learnings.md"
@@ -260,7 +266,9 @@ class TestPathTraversalPrevention(unittest.TestCase):
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
 
-            result = update_skill_memory(project_dir, valid_skill, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                result = update_skill_memory(project_dir, valid_skill, learnings, session_id)
 
             self.assertTrue(result, "Valid skill name should be accepted")
 
@@ -295,13 +303,13 @@ class TestPatternSynchronization(unittest.TestCase):
                 # Detection tested - not asserting specific skill due to threshold requirements
                 detect_skill_usage(messages)
 
-    def test_test_skill_context_uses_centralized_patterns(self):
-        """test_skill_context should use SKILL_PATTERNS."""
+    def test_check_skill_context_uses_centralized_patterns(self):
+        """check_skill_context should use SKILL_PATTERNS."""
         # Verify mapped skills use SKILL_PATTERNS
         for skill, patterns in list(SKILL_PATTERNS.items())[:3]:
             if patterns:
                 text = patterns[0]
-                result = test_skill_context(text, skill)
+                result = check_skill_context(text, skill)
                 self.assertTrue(result, f"Skill '{skill}' should match pattern '{patterns[0]}'")
 
 
@@ -311,25 +319,25 @@ class TestDocumentationSkillPattern(unittest.TestCase):
     def test_documentation_matches_skill_path(self):
         """Should match .claude/skills/documentation path."""
         text = "Check .claude/skills/documentation for templates"
-        result = test_skill_context(text, "documentation")
+        result = check_skill_context(text, "documentation")
         self.assertTrue(result, "Should match skill path reference")
 
     def test_documentation_matches_skill_keyword(self):
         """Should match 'documentation skill' keyword."""
         text = "Use the documentation skill to update"
-        result = test_skill_context(text, "documentation")
+        result = check_skill_context(text, "documentation")
         self.assertTrue(result, "Should match 'documentation skill'")
 
     def test_documentation_rejects_generic_mention(self):
         """Should NOT match generic 'documentation' mentions."""
         text = "Read the documentation for more info"
-        result = test_skill_context(text, "documentation")
+        result = check_skill_context(text, "documentation")
         self.assertFalse(result, "Should not match generic documentation mention")
 
     def test_documentation_rejects_docs_folder_mention(self):
         """Should NOT match generic 'docs/' folder mentions."""
         text = "Check the docs/ folder for API reference"
-        result = test_skill_context(text, "documentation")
+        result = check_skill_context(text, "documentation")
         self.assertFalse(result, "Should not match generic docs/ mention")
 
 
@@ -548,7 +556,9 @@ class TestMemoryFileDocumentationSection(unittest.TestCase):
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')
@@ -574,7 +584,9 @@ class TestMemoryFileDocumentationSection(unittest.TestCase):
             }
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')
@@ -604,7 +616,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
             }
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')
@@ -639,7 +653,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
             }
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')
@@ -669,7 +685,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
             }
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')
@@ -700,7 +718,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
                 "Med": [],
                 "Low": []
             }
-            update_skill_memory(project_dir, skill_name, learnings1, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings1, session_id)
 
             # Second update
             learnings2 = {
@@ -714,7 +734,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
                 "Med": [],
                 "Low": []
             }
-            update_skill_memory(project_dir, skill_name, learnings2, "session-002")
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings2, "session-002")
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')

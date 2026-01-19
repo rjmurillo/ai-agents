@@ -1,7 +1,13 @@
 ---
 description: Use when performing local DevOps review before pushing PR changes. Evaluates CI/CD, build pipelines, and infrastructure changes.
 argument-hint: [--base BRANCH]
-allowed-tools: [Bash(git:*), Read, Grep, Glob, mcp__forgetful__*, mcp__serena__*]
+allowed-tools:
+  - Bash(git:*)
+  - Read
+  - Grep
+  - Glob
+  - mcp__forgetful__*
+  - mcp__serena__*
 model: sonnet
 ---
 

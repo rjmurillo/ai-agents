@@ -95,7 +95,7 @@ Initially dismissed CodeRabbit's symlink check suggestion (r2628504961) as redun
 ## Corrective Actions
 
 1. ✅ Implemented defense-in-depth symlink check (commit 8d9c05a)
-2. ✅ Updated TOCTOU patterns in `pattern-git-hooks-grep-patterns` memory
+2. ✅ Updated TOCTOU patterns in [pattern-git-hooks-grep-patterns](pattern-git-hooks-grep-patterns.md) memory
 3. ✅ Updated CodeRabbit signal quality in [pr-comment-responder-skills](pr-comment-responder-skills.md)
 4. TODO: Add skills to skillbook
 

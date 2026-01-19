@@ -27,7 +27,8 @@ templates/agents/*.shared.md ─────────┐
 src/claude/*.md ──────────────────────────────────────────────┘
    (HAND-MAINTAINED - separate flow)                          │
                                                               ▼
-                                                    scripts/install.ps1
+                                                      skill-installer
+                                                   (Python TUI tool)
                                                               │
                                                               ▼
                                                    .claude/agents/*.md
@@ -188,10 +189,18 @@ Each shared agent template (`agents/*.shared.md`) includes:
 ---
 description: Brief description for agent selection
 argument-hint: Guidance for users on what to provide
-tools_vscode: ['tool1', 'tool2', ...]    # VS Code tools array
-tools_copilot: ['tool1', 'tool2', ...]   # Copilot CLI tools array
+tools_vscode:
+  - tool1
+  - tool2
+  - ...
+tools_copilot:
+  - tool1
+  - tool2
+  - ...
 ---
 ```
+
+> **IMPORTANT:** Always use block-style YAML arrays (hyphen-bulleted) for tool lists. Inline array syntax `['tool1', 'tool2']` fails on GitHub Copilot CLI with CRLF line endings. See ADR-040 Amendment and Session 826 RCA.
 
 ### Content Sections
 

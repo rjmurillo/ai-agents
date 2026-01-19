@@ -176,7 +176,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
 
         self.assertIsNotNone(result)
         self.assertEqual(result["type"], "correction")
-        self.assertEqual(result["extracted_learning"], "Multi-line test")
+        self.assertEqual(result["source"], "Multi-line test")
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
     @patch('invoke_skill_learning.Anthropic')
@@ -195,7 +195,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         result = classify_learning_by_llm("Assistant", "User", "skill")
 
         self.assertIsNotNone(result)
-        self.assertIn("nested", result["extracted_learning"])
+        self.assertIn("nested", result["source"])
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
     @patch('invoke_skill_learning.Anthropic')
@@ -233,7 +233,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         result = classify_learning_by_llm("Assistant", "User", "skill")
 
         self.assertIsNotNone(result)
-        self.assertEqual(result["extracted_learning"], "Raw JSON")
+        self.assertEqual(result["source"], "Raw JSON")
 
 
 if __name__ == "__main__":

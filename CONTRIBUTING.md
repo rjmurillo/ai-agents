@@ -22,9 +22,10 @@ Thank you for your interest in contributing to this project. This guide explains
 
 **Required Versions:**
 
-- **PowerShell 7.5.4+** (for cross-platform script execution)
+- **Python 3.12.x** (primary scripting language per ADR-042; not 3.13.x due to CodeQL bug)
+- **PowerShell 7.5.4+** (for existing scripts and cross-platform execution)
 - **Pester 5.7.1** (exact version, pinned for supply chain security)
-- **Python 3.12.x** (Not 3.13.x due to CodeQL/skill validation bug)
+- **UV** (Python package manager, see [installation](https://docs.astral.sh/uv/getting-started/installation/))
 
 **Python 3.12.x Required** (Not 3.13.x)
 
@@ -69,10 +70,13 @@ python3 --version  # Should show Python 3.12.8
 1. Fork the repository
 2. Clone your fork locally
 3. **Install Python 3.12.x** (see Prerequisites above)
-4. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
-5. Set up pre-commit hooks: `git config core.hooksPath .githooks`
-6. Make your changes following the guidelines below
-7. Submit a pull request
+4. **Set up Python environment**: `uv venv && uv pip install -e ".[dev]"`
+5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
+6. Set up pre-commit hooks: `git config core.hooksPath .githooks`
+7. Make your changes following the guidelines below
+8. Submit a pull request
+
+**After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint. CI runs full test suites. No manual test commands needed for routine development.
 
 ## Git Configuration
 
@@ -223,10 +227,22 @@ Use this template structure (see existing agents in `templates/agents/` for exam
 ```yaml
 ---
 description: Brief description of the agent's purpose
-tools_vscode: ['vscode', 'read', 'search', 'cloudmcp-manager/*']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'agent', 'cloudmcp-manager/*']
+tools_vscode:
+  - vscode
+  - read
+  - search
+  - cloudmcp-manager/*
+tools_copilot:
+  - shell
+  - read
+  - edit
+  - search
+  - agent
+  - cloudmcp-manager/*
 ---
 ```
+
+> **Note:** Use block-style YAML arrays (hyphen-bulleted) for cross-platform compatibility. Inline array syntax `['tool1', 'tool2']` fails on GitHub Copilot CLI with CRLF line endings.
 
 **Required Sections:**
 
@@ -253,8 +269,20 @@ Example:
 ```yaml
 ---
 description: Code review specialist
-tools_vscode: ['vscode', 'read', 'search', 'cloudmcp-manager/*', 'github/*']
-tools_copilot: ['shell', 'read', 'edit', 'search', 'agent', 'cloudmcp-manager/*', 'github/*']
+tools_vscode:
+  - vscode
+  - read
+  - search
+  - cloudmcp-manager/*
+  - github/*
+tools_copilot:
+  - shell
+  - read
+  - edit
+  - search
+  - agent
+  - cloudmcp-manager/*
+  - github/*
 ---
 ```
 
@@ -390,6 +418,33 @@ See [ADR-034](.agents/architecture/ADR-034-investigation-session-qa-exemption.md
 
 ## Running Tests
 
+### Automated Quality Gates (Shift Left)
+
+The repository enforces quality automatically at multiple stages:
+
+| Stage | What Runs | Trigger |
+|-------|-----------|---------|
+| **Pre-commit hook** | Python linting (ruff), Markdown linting | Every commit |
+| **CI pytest.yml** | pytest, pip-audit, bandit | Every PR/push |
+| **CI pester.yml** | Pester tests | Every PR/push |
+
+**No manual test runs required for routine development.** Quality gates run automatically.
+
+### Manual Testing (Optional)
+
+For local debugging or development iteration:
+
+```bash
+# Python tests
+uv run pytest                               # All tests
+uv run pytest tests/test_example.py         # Specific file
+uv run pytest --cov --cov-report=html       # With coverage
+
+# Security scanning (also runs in CI)
+uv run pip-audit                            # Dependency vulnerabilities
+uv run bandit -r .claude/ scripts/          # Static analysis
+```
+
 ### PowerShell Tests (Pester)
 
 ```powershell
@@ -400,7 +455,7 @@ pwsh build/scripts/Invoke-PesterTests.ps1
 pwsh build/scripts/Invoke-PesterTests.ps1 -CI
 
 # Run specific test file
-pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./scripts/tests/Install-Common.Tests.ps1"
+pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./tests/Validate-SessionJson.Tests.ps1"
 ```
 
 ### Agent Generation Tests

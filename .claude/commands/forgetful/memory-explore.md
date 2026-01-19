@@ -1,7 +1,8 @@
 ---
 description: Deep exploration of Forgetful knowledge graph with entity traversal. Use when investigating relationships between memories or building comprehensive understanding of topic clusters.
 argument-hint: <starting-query>
-allowed-tools: [mcp__forgetful__*]
+allowed-tools:
+  - mcp__forgetful__*
 model: opus
 ---
 

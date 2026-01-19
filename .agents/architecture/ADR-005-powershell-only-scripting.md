@@ -1,6 +1,6 @@
 # ADR-005: PowerShell-Only Scripting Standard
 
-**Status**: Accepted
+**Status**: Superseded by [ADR-042](./ADR-042-python-migration-strategy.md)
 **Date**: 2025-12-18
 **Deciders**: User, Orchestrator Agent, Implementer Agent
 **Context**: PR #60 AI workflow implementation
@@ -245,6 +245,7 @@ Before merging code:
 ---
 
 **Supersedes**: None (new decision)
+**Superseded by**: [ADR-042: Python Migration Strategy](./ADR-042-python-migration-strategy.md) (2026-01-17)
 **Amended by**:
 - 2026-01-04: SkillForge Python exception (PR #760)
 - 2026-01-14: Claude Code Hooks Python exception (PR #908)

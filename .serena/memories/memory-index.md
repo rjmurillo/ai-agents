@@ -25,6 +25,7 @@
 | utility script markdown fence PathInfo security pattern | [skills-utilities-index](skills-utilities-index.md) |
 | documentation PRD spec user-facing migration self-contained | [skills-documentation-index](skills-documentation-index.md) |
 | validation quality lint false-positive gate test | [skills-validation-index](skills-validation-index.md) |
+| test exit code pytest pester error failed passed block commit | [testing-exit-code-interpretation](testing-exit-code-interpretation.md) |
 | linting markdown autofix config exclude language backtick | [skills-linting-index](skills-linting-index.md) |
 | CI CD workflow actions runner ARM | [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) |
 | workflow pattern composite matrix artifact verdict report | [skills-workflow-patterns-index](skills-workflow-patterns-index.md) |
@@ -50,6 +51,7 @@
 | cva refactoring variant consolidation template generate | [utilities-cva-refactoring](utilities-cva-refactoring.md) |
 | prompt engineering quality gate AI assessment template | [quality-prompt-engineering-gates](quality-prompt-engineering-gates.md) |
 | phase3 agent skill session handoff template verification | [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md), [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md) |
+| serena token efficiency symbolic tools cache memory read search | [skills-serena-index](skills-serena-index.md) |
 
 ## Engineering Knowledge Tiers
 

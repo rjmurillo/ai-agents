@@ -137,9 +137,9 @@ $changedFiles = $diffOutput -split '\r?\n' | Where-Object { $_ }
 
 ## Related Files
 
-- `ci-deployment-validation` - Pre-deployment validation patterns
-- `ci-quality-gates` - Required check configuration
-- `workflow-shell-safety` - Safe shell scripting in workflows
+- [ci-deployment-validation](ci-deployment-validation.md) - Pre-deployment validation patterns
+- [ci-quality-gates](ci-quality-gates.md) - Required check configuration
+- [workflow-shell-safety](workflow-shell-safety.md) - Safe shell scripting in workflows
 
 ## Related
 

@@ -16,15 +16,18 @@ Single source of truth for project constraints. Index-style document pointing to
 
 | Constraint | Source | Verification |
 |------------|--------|--------------|
-| MUST NOT create bash scripts (.sh) | ADR-005 | Pre-commit hook, code review |
-| MUST NOT create Python scripts (.py) | ADR-005 | Pre-commit hook, code review |
-| MUST use PowerShell for all scripting (.ps1, .psm1) | ADR-005 | Pre-commit hook, code review |
+| MUST NOT create bash scripts (.sh) | ADR-005, ADR-042 | Pre-commit hook, code review |
+| SHOULD prefer Python (.py) for new scripts | ADR-042 | Code review |
+| MAY use PowerShell (.ps1, .psm1) for existing scripts | ADR-042 | Code review |
 
-**Reference**: [ADR-005-powershell-only-scripting.md](../architecture/ADR-005-powershell-only-scripting.md)
+**References**:
 
-**Rationale Summary**: 100% of existing infrastructure is PowerShell. Single testing framework (Pester). Cross-platform (PowerShell Core). Token efficiency (agents stop wasting tokens on bash/Python).
+- [ADR-005-powershell-only-scripting.md](../architecture/ADR-005-powershell-only-scripting.md) (superseded for new development)
+- [ADR-042-python-migration-strategy.md](../architecture/ADR-042-python-migration-strategy.md) (current)
 
-**Exceptions**: None. If PowerShell is genuinely insufficient, document why and get explicit approval.
+**Rationale Summary**: ADR-042 establishes Python-first development due to 70-second PowerShell startup times, CodeQL support, and AI/ML ecosystem alignment. Existing PowerShell scripts are grandfathered; new scripts should use Python.
+
+**Exceptions**: Bash scripts are still prohibited. PowerShell may be used for existing script maintenance.
 
 ---
 
@@ -145,6 +148,50 @@ uses: actions/checkout@v4
 
 ---
 
+## YAML Frontmatter Constraints
+
+| Constraint | Source | Verification |
+|------------|--------|--------------|
+| MUST use block-style arrays in agent/skill/prompt frontmatter | ADR-040 Amendment, Session 826 RCA | Pre-commit hook, CI validation |
+| MUST NOT use inline array syntax `['tool1', 'tool2']` | ADR-040 Amendment, Session 826 RCA | Pre-commit hook blocks |
+| MUST use hyphen-bulleted format for `tools`, `allowed-tools`, `tools_vscode`, `tools_copilot` arrays | ADR-040 Amendment, Session 826 RCA | Validation script |
+
+**Rationale**: Inline array syntax fails on GitHub Copilot CLI with CRLF line endings due to stricter YAML parser. Block-style arrays work universally across VS Code, Copilot CLI (Windows/macOS/Linux), and Claude Code.
+
+**Pattern**:
+
+```yaml
+# Correct: Block-style array
+tools:
+  - vscode
+  - read
+  - edit
+
+allowed-tools:
+  - Bash(git:*)
+  - Read
+  - Grep
+
+tools_vscode:
+  - vscode
+  - read
+  - search
+
+# Incorrect: Inline array (fails on Copilot CLI + Windows CRLF)
+tools: ['vscode', 'read', 'edit']
+allowed-tools: [Bash(git:*), Read, Grep]
+tools_vscode: ['vscode', 'read', 'search']
+```
+
+**Evidence**:
+- GitHub Copilot CLI parser with CRLF line endings (see [github/copilot-cli#694](https://github.com/github/copilot-cli/issues/694) and [rjmurillo/ai-agents#893](https://github.com/rjmurillo/ai-agents/issues/893)): "failed to parse front matter: Unexpected scalar at node end"
+- Session 826 Retrospective: 88 files converted, 32 tests passed, 0 failures, user validation confirmed
+- ADR-040 Amendment (2026-01-13): Cross-platform compatibility analysis
+
+**Exceptions**: None. All agent, skill, prompt, and command frontmatter must use block-style arrays.
+
+---
+
 ## Validation Checklist
 
 Use this checklist during session start:
@@ -153,6 +200,7 @@ Use this checklist during session start:
 - [ ] For GitHub operations: Verify skill exists before writing code
 - [ ] For new scripts: Verify PowerShell-only (no .sh or .py files)
 - [ ] For workflow changes: Verify logic in modules, not YAML; actions are SHA-pinned, not version tags
+- [ ] For agent/skill/prompt frontmatter: Verify block-style arrays (not inline `['tool1', 'tool2']`)
 - [ ] Before commit: Verify atomic commit rule (single logical change)
 
 ---
