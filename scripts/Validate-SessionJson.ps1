@@ -188,12 +188,17 @@ if ($session.ContainsKey('protocolCompliance')) {
 # If investigation-only mode is claimed, validate staged files against allowlist
 if ($investigationOnly) {
   # Define investigation artifact allowlist per ADR-034
+  # Issue #732: Added adr-review skill outputs (REVIEW-*, debate logs, critique artifacts)
   $investigationAllowlist = @(
     '^\.agents/sessions/',
     '^\.agents/analysis/',
     '^\.agents/retrospective/',
     '^\.serena/memories($|/)',
-    '^\.agents/security/'
+    '^\.agents/security/',
+    # adr-review skill outputs (QA-equivalent critique artifacts)
+    '^\.agents/architecture/REVIEW-',        # ADR review artifacts
+    '^\.agents/critique/',                   # Debate logs
+    '^\.agents/memory/episodes/'             # Episode extractions
   )
   
   # Get staged files with error handling

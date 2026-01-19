@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "session_id": "2026-01-19-session-01-v020-critical-path-1",
+  "timestamp": "2026-01-19T00:00:00Z",
+  "objective": "Execute Critical Path 1 from v0.2.0 release plan: Fix pre-commit stability issues (#910, #843, #841, #732)",
+  "branch": "fix/v020-critical-path-1",
+  "issues": [
+    { "number": 910, "title": "Pre-commit hook adds ADR-017-violating sections", "status": "already-fixed", "note": "Fixed in PR #913 (commit 34de9496)" },
+    { "number": 843, "title": "fix(pre-commit): bash 3 portability", "status": "fixed", "note": "Replaced declare -a with TESTPATHS=() for bash 3 compatibility" },
+    { "number": 841, "title": "fix(tests): 3 pre-existing test failures", "status": "fixed", "note": "Original tests no longer exist. Removed orphaned test files from /tests/ that were duplicates with wrong paths" },
+    { "number": 732, "title": "Pre-commit: False E_INVESTIGATION_HAS_IMPL errors", "status": "fixed", "note": "Added .agents/architecture/REVIEW-, .agents/critique/, and .agents/memory/episodes/ to investigation allowlist" }
+  ],
+  "approach": "Parallel investigation using analyst agents, then parallel implementation using implementer agents",
+  "decisions": [
+    "Issue #910 was already fixed in PR #913 - no additional changes needed",
+    "Issue #843: Simple fix - replace bash 4+ declare -a with bash 3 compatible syntax",
+    "Issue #841: Original tests removed/fixed. Removed orphaned test files that were duplicates in wrong location",
+    "Issue #732: Extended investigation allowlist to include adr-review skill outputs"
+  ],
+  "outcomes": [
+    "Pre-commit hook now runs without errors on clean repo",
+    "Bash 3 portability improved (declare -a TESTPATHS -> TESTPATHS=())",
+    "Investigation allowlist extended to prevent false positives for critique artifacts",
+    "Orphaned test files removed from /tests/ directory"
+  ],
+  "files_changed": [
+    ".githooks/pre-commit",
+    "scripts/Validate-SessionJson.ps1",
+    "tests/Add-PRReviewThreadReply.Tests.ps1 (deleted)",
+    "tests/Set-PRAutoMerge.Tests.ps1 (deleted)"
+  ],
+  "status": "complete"
+}
