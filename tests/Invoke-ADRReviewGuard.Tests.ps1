@@ -168,9 +168,13 @@ Describe "Invoke-ADRReviewGuard" {
             New-Item -ItemType Directory -Path $Script:TestRootPatterns -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootPatterns ".agents/sessions") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootPatterns ".agents/architecture") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootPatterns ".agents/analysis") -Force | Out-Null
 
             # Copy hook with dependencies
             $Script:TempHookPathPatterns = Copy-HookWithDependencies -TestRoot $Script:TestRootPatterns
+
+            # Create debate log artifact (required by hook per rjmurillo #2679845429)
+            Set-Content -Path (Join-Path $Script:TestRootPatterns ".agents/analysis/ADR-999-debate-log.md") -Value "# ADR-999 Debate Log`n`nConsensus achieved."
 
             # Init git repo and stage ADR file
             Push-Location $Script:TestRootPatterns
@@ -266,9 +270,13 @@ Describe "Invoke-ADRReviewGuard" {
             New-Item -ItemType Directory -Path $Script:TestRootReviewed -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootReviewed ".agents/sessions") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootReviewed ".agents/architecture") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootReviewed ".agents/analysis") -Force | Out-Null
 
             # Copy hook with dependencies
             $Script:TempHookPathReviewed = Copy-HookWithDependencies -TestRoot $Script:TestRootReviewed
+
+            # Create debate log artifact (required by hook per rjmurillo #2679845429)
+            Set-Content -Path (Join-Path $Script:TestRootReviewed ".agents/analysis/ADR-999-debate-log.md") -Value "# ADR-999 Debate Log`n`nConsensus achieved."
 
             # Create session log WITH review evidence
             $today = Get-Date -Format "yyyy-MM-dd"

@@ -69,11 +69,14 @@ Describe "Invoke-SessionLogGuard" {
             $Script:TestRoot = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-commit-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRoot -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRoot ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRoot ".claude/hooks/Common") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRoot ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
+            # Copy hook and shared module
             $Script:TempHookPath = Join-Path $Script:TestRoot ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
             Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPath -Force
+            $repoRoot = Join-Path $PSScriptRoot ".."
+            Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $Script:TestRoot ".claude/hooks/Common/HookUtilities.psm1") -Force
 
             # Create valid session log for today
             $today = Get-Date -Format "yyyy-MM-dd"
@@ -130,11 +133,14 @@ Describe "Invoke-SessionLogGuard" {
             $Script:TestRootNoLog = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-no-log-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootNoLog -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootNoLog ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootNoLog ".claude/hooks/Common") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootNoLog ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
+            # Copy hook and shared module
             $Script:TempHookPathNoLog = Join-Path $Script:TestRootNoLog ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
             Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathNoLog -Force
+            $repoRoot = Join-Path $PSScriptRoot ".."
+            Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $Script:TestRootNoLog ".claude/hooks/Common/HookUtilities.psm1") -Force
 
             # Set project directory (no session log exists)
             $env:CLAUDE_PROJECT_DIR = $Script:TestRootNoLog
@@ -166,11 +172,14 @@ Describe "Invoke-SessionLogGuard" {
             $Script:TestRootEmpty = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-empty-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootEmpty -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootEmpty ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootEmpty ".claude/hooks/Common") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootEmpty ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
+            # Copy hook and shared module
             $Script:TempHookPathEmpty = Join-Path $Script:TestRootEmpty ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
             Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathEmpty -Force
+            $repoRoot = Join-Path $PSScriptRoot ".."
+            Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $Script:TestRootEmpty ".claude/hooks/Common/HookUtilities.psm1") -Force
 
             # Create EMPTY session log for today
             $today = Get-Date -Format "yyyy-MM-dd"
@@ -205,11 +214,14 @@ Describe "Invoke-SessionLogGuard" {
             $Script:TestRootValid = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-valid-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootValid -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootValid ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootValid ".claude/hooks/Common") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootValid ".agents/sessions") -Force | Out-Null
 
-            # Copy hook
+            # Copy hook and shared module
             $Script:TempHookPathValid = Join-Path $Script:TestRootValid ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
             Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathValid -Force
+            $repoRoot = Join-Path $PSScriptRoot ".."
+            Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $Script:TestRootValid ".claude/hooks/Common/HookUtilities.psm1") -Force
 
             # Create VALID session log for today
             $today = Get-Date -Format "yyyy-MM-dd"

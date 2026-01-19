@@ -11,6 +11,65 @@
 
 BeforeAll {
     $ScriptPath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "Invoke-RoutingGates.ps1"
+
+    <#
+    .SYNOPSIS
+        Creates a test git repo with proper origin/main remote for QA gate tests.
+
+    .DESCRIPTION
+        The QA gate uses 'git diff origin/main...HEAD' to determine if changes are
+        documentation-only. This requires a proper origin remote to work. This function
+        creates a bare repo as origin and sets it up so the test repo has a valid remote.
+    #>
+    function Initialize-TestGitRepoWithOrigin {
+        param(
+            [Parameter(Mandatory)]
+            [string]$TempDir,
+
+            [switch]$WithCodeChange
+        )
+
+        # Create a bare repo to act as origin
+        $originDir = Join-Path $TempDir "origin.git"
+        New-Item -ItemType Directory -Path $originDir -Force | Out-Null
+        Push-Location $originDir
+        & git init --bare --quiet 2>$null
+        Pop-Location
+
+        # Create the working repo
+        $workDir = Join-Path $TempDir "work"
+        New-Item -ItemType Directory -Path $workDir -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $workDir ".agents") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $workDir ".agents" "sessions") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $workDir ".claude") -Force | Out-Null
+        "# placeholder" | Set-Content (Join-Path $workDir ".claude/settings.json")
+
+        Push-Location $workDir
+        & git init --quiet 2>$null
+        & git config user.email "test@test.com" 2>$null
+        & git config user.name "Test" 2>$null
+        & git remote add origin $originDir 2>$null
+
+        # Initial commit
+        "initial" | Set-Content "initial.txt"
+        & git add . 2>$null
+        & git commit -m "initial" --quiet 2>$null
+        & git push -u origin HEAD:main --quiet 2>$null
+
+        # Create feature branch
+        & git checkout -b feature-branch --quiet 2>$null
+
+        if ($WithCodeChange) {
+            # Add a code file to trigger non-docs-only
+            "test" | Set-Content "test.ps1"
+            & git add . 2>$null
+            & git commit -m "add code" --quiet 2>$null
+        }
+
+        Pop-Location
+
+        return $workDir
+    }
 }
 
 Describe "Invoke-RoutingGates" {
@@ -90,25 +149,14 @@ Describe "Invoke-RoutingGates" {
         }
 
         It "Triggers on 'gh pr create' command" {
-            # Create a temporary test environment
+            # Create a temporary test environment with proper origin remote
             $OriginalLocation = Get-Location
             $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "test-routing-gates-$([Guid]::NewGuid())"
             New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents" "sessions") -Force | Out-Null
 
             try {
-                Set-Location $TempDir
-                # Initialize git repo for the test
-                & git init --quiet 2>$null
-                & git config user.email "test@test.com" 2>$null
-                & git config user.name "Test" 2>$null
-
-                # Create a code file to trigger non-docs-only
-                "test" | Set-Content "test.ps1"
-                & git add . 2>$null
-                & git commit -m "initial" --quiet 2>$null
-                "changed" | Set-Content "test.ps1"
+                $WorkDir = Initialize-TestGitRepoWithOrigin -TempDir $TempDir -WithCodeChange
+                Set-Location $WorkDir
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title test"}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
@@ -125,18 +173,10 @@ Describe "Invoke-RoutingGates" {
             $OriginalLocation = Get-Location
             $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "test-routing-gates-$([Guid]::NewGuid())"
             New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents" "sessions") -Force | Out-Null
 
             try {
-                Set-Location $TempDir
-                & git init --quiet 2>$null
-                & git config user.email "test@test.com" 2>$null
-                & git config user.name "Test" 2>$null
-                "test" | Set-Content "test.ps1"
-                & git add . 2>$null
-                & git commit -m "initial" --quiet 2>$null
-                "changed" | Set-Content "test.ps1"
+                $WorkDir = Initialize-TestGitRepoWithOrigin -TempDir $TempDir -WithCodeChange
+                Set-Location $WorkDir
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title \"Feature\" --body \"Description\""}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
@@ -195,22 +235,16 @@ Describe "Invoke-RoutingGates" {
             $OriginalLocation = Get-Location
             $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "test-routing-gates-$([Guid]::NewGuid())"
             New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents" "qa") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents" "sessions") -Force | Out-Null
 
             try {
-                Set-Location $TempDir
-                & git init --quiet 2>$null
-                & git config user.email "test@test.com" 2>$null
-                & git config user.name "Test" 2>$null
-                "test" | Set-Content "test.ps1"
-                & git add . 2>$null
-                & git commit -m "initial" --quiet 2>$null
-                "changed" | Set-Content "test.ps1"
+                $WorkDir = Initialize-TestGitRepoWithOrigin -TempDir $TempDir -WithCodeChange
+                Set-Location $WorkDir
+
+                # Create QA directory
+                New-Item -ItemType Directory -Path (Join-Path $WorkDir ".agents" "qa") -Force | Out-Null
 
                 # Create an old QA report
-                $QAReport = Join-Path $TempDir ".agents" "qa" "old-qa-report.md"
+                $QAReport = Join-Path $WorkDir ".agents" "qa" "old-qa-report.md"
                 "# QA Report`n`nTest passed" | Set-Content $QAReport
                 # Set the file time to 25 hours ago
                 $OldTime = (Get-Date).AddHours(-25)
@@ -391,20 +425,16 @@ All tests passed successfully.
             $OriginalLocation = Get-Location
             $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "test-routing-gates-$([Guid]::NewGuid())"
             New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents" "sessions") -Force | Out-Null
 
             try {
-                Set-Location $TempDir
-                & git init --quiet 2>$null
-                & git config user.email "test@test.com" 2>$null
-                & git config user.name "Test" 2>$null
-                "# Initial" | Set-Content "README.md"
-                "test" | Set-Content "script.ps1"
-                & git add . 2>$null
-                & git commit -m "initial" --quiet 2>$null
+                $WorkDir = Initialize-TestGitRepoWithOrigin -TempDir $TempDir
+                Set-Location $WorkDir
+
+                # Add docs and code changes
                 "# Updated" | Set-Content "README.md"
                 "changed" | Set-Content "script.ps1"
+                & git add . 2>$null
+                & git commit -m "mixed changes" --quiet 2>$null
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title \"Update\""}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
@@ -462,18 +492,10 @@ All tests passed successfully.
             $OriginalLocation = Get-Location
             $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "test-routing-gates-$([Guid]::NewGuid())"
             New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents" "sessions") -Force | Out-Null
 
             try {
-                Set-Location $TempDir
-                & git init --quiet 2>$null
-                & git config user.email "test@test.com" 2>$null
-                & git config user.name "Test" 2>$null
-                "test" | Set-Content "test.ps1"
-                & git add . 2>$null
-                & git commit -m "initial" --quiet 2>$null
-                "changed" | Set-Content "test.ps1"
+                $WorkDir = Initialize-TestGitRepoWithOrigin -TempDir $TempDir -WithCodeChange
+                Set-Location $WorkDir
 
                 $TestInput = '{"tool_input": {"command": "gh pr create"}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
@@ -490,18 +512,10 @@ All tests passed successfully.
             $OriginalLocation = Get-Location
             $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "test-routing-gates-$([Guid]::NewGuid())"
             New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents" "sessions") -Force | Out-Null
 
             try {
-                Set-Location $TempDir
-                & git init --quiet 2>$null
-                & git config user.email "test@test.com" 2>$null
-                & git config user.name "Test" 2>$null
-                "test" | Set-Content "test.ps1"
-                & git add . 2>$null
-                & git commit -m "initial" --quiet 2>$null
-                "changed" | Set-Content "test.ps1"
+                $WorkDir = Initialize-TestGitRepoWithOrigin -TempDir $TempDir -WithCodeChange
+                Set-Location $WorkDir
 
                 $TestInput = '{"tool_input": {"command": "gh pr create"}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
@@ -517,18 +531,10 @@ All tests passed successfully.
             $OriginalLocation = Get-Location
             $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "test-routing-gates-$([Guid]::NewGuid())"
             New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents" "sessions") -Force | Out-Null
 
             try {
-                Set-Location $TempDir
-                & git init --quiet 2>$null
-                & git config user.email "test@test.com" 2>$null
-                & git config user.name "Test" 2>$null
-                "test" | Set-Content "test.ps1"
-                & git add . 2>$null
-                & git commit -m "initial" --quiet 2>$null
-                "changed" | Set-Content "test.ps1"
+                $WorkDir = Initialize-TestGitRepoWithOrigin -TempDir $TempDir -WithCodeChange
+                Set-Location $WorkDir
 
                 $TestInput = '{"tool_input": {"command": "gh pr create"}}'
                 $Output = ($TestInput | & $ScriptPath) -join "`n"
