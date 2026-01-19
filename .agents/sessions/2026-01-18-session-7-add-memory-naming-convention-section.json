@@ -35,6 +35,12 @@
       "action": "Switched citation schema from markdown tables to YAML frontmatter",
       "outcome": "Updated all code examples to use python-frontmatter library instead of regex parsing",
       "decision": "YAML frontmatter is more robust - lesson learned from session log migration from markdown to JSON"
+    },
+    {
+      "timestamp": "2026-01-18T00:06:00Z",
+      "action": "Added typed link relationships and graph DB projection design",
+      "outcome": "Links now have types (related, supersedes, blocks, implements, extends) enabling semantic graph traversal",
+      "decision": "Frontmatter is source of truth, can hydrate Neo4j/ArangoDB later for complex Cypher queries"
     }
   ],
   "nextSteps": [],

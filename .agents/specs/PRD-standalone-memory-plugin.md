@@ -184,6 +184,8 @@ Extend existing Serena memory format with YAML frontmatter for structured metada
 
 ```markdown
 ---
+id: mem-api-versioning-001
+subject: API version synchronization between client and server
 citations:
   - path: src/client/constants.ts
     line: 42
@@ -193,14 +195,14 @@ citations:
     line: 15
     snippet: "router.use('/v2'"
     verified: 2026-01-18
+links:
+  - related: mem-deployment-checklist-003
+  - supersedes: mem-api-v1-deprecated-012
+  - blocks: mem-client-sdk-update-007
+tags: [api, versioning, client-server]
 confidence: 0.92
 last_verified: 2026-01-18T10:30:00Z
-links:
-  - api-deployment-checklist
-  - client-sdk-patterns
 ---
-
-# api-version-must-sync-between-client-and-server
 
 Client SDK API_VERSION constant must exactly match server route prefix.
 
@@ -208,6 +210,51 @@ Client SDK API_VERSION constant must exactly match server route prefix.
 
 Discovered during incident on 2026-01-10...
 ```
+
+#### Schema Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | Unique identifier (format: `mem-{topic}-{sequence}`) |
+| `subject` | Yes | Human-readable summary (activation vocabulary) |
+| `citations` | No | Code references with path, line, snippet, verified date |
+| `links` | No | Typed graph edges (see Link Types below) |
+| `tags` | No | Categorization for filtering |
+| `confidence` | No | Reliability score 0.0-1.0 (default 0.5) |
+| `last_verified` | No | ISO timestamp of last citation check |
+
+#### Link Types
+
+| Type | Semantics | Graph Traversal |
+|------|-----------|-----------------|
+| `related` | Topically connected | Bidirectional discovery |
+| `supersedes` | Replaces older memory | Deprecation chain |
+| `blocks` | Must be resolved before | Dependency ordering |
+| `implements` | Realizes a design decision | ADR traceability |
+| `extends` | Adds to existing memory | Inheritance chain |
+
+#### Future: Graph Database Projection
+
+The typed links in frontmatter are designed to hydrate a graph database later:
+
+```text
+Markdown (source of truth)     Graph DB (query layer)
+.serena/memories/*.md    -->   Neo4j / ArangoDB / etc.
+
+┌─────────────────────┐        ┌─────────────────────┐
+│ id: mem-api-001     │   -->  │ (mem-api-001)       │
+│ links:              │        │       │             │
+│   - supersedes: ... │        │   [SUPERSEDES]      │
+│   - blocks: ...     │        │       ↓             │
+└─────────────────────┘        │ (mem-api-deprecated)│
+                               └─────────────────────┘
+```
+
+**Benefits of this architecture:**
+- Markdown remains human-readable and git-trackable
+- Graph DB enables Cypher/AQL queries for complex traversal
+- Sync is one-way: markdown → graph (no write-back complexity)
+- Can start with file-based BFS, upgrade to graph DB when needed
 
 **Why YAML frontmatter?**
 - Standard parsing via `python-frontmatter` or `yaml` module
@@ -292,9 +339,18 @@ parses the frontmatter on read. Serena remains unaware of the schema.
 # src/memory_enhancement/models.py
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Optional
 import frontmatter  # pip install python-frontmatter
+
+class LinkType(Enum):
+    """Typed relationship between memories."""
+    RELATED = "related"          # Bidirectional discovery
+    SUPERSEDES = "supersedes"    # Deprecation chain
+    BLOCKS = "blocks"            # Dependency ordering
+    IMPLEMENTS = "implements"    # ADR traceability
+    EXTENDS = "extends"          # Inheritance chain
 
 @dataclass
 class Citation:
@@ -307,13 +363,21 @@ class Citation:
     mismatch_reason: Optional[str] = None
 
 @dataclass
+class Link:
+    """Typed edge in the memory graph."""
+    link_type: LinkType
+    target_id: str
+
+@dataclass
 class Memory:
-    """Parsed Serena memory with citations."""
+    """Parsed Serena memory with citations and typed links."""
     id: str
+    subject: str
     path: Path
     content: str
     citations: list[Citation] = field(default_factory=list)
-    links: list[str] = field(default_factory=list)
+    links: list[Link] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     confidence: float = 0.5
     last_verified: Optional[datetime] = None
 
@@ -321,7 +385,10 @@ class Memory:
     def from_serena_file(cls, path: Path) -> "Memory":
         """Parse a Serena memory markdown file with YAML frontmatter."""
         post = frontmatter.load(path)
-        memory_id = path.stem
+
+        # Extract ID from frontmatter or fall back to filename
+        memory_id = post.metadata.get("id", path.stem)
+        subject = post.metadata.get("subject", "")
 
         # Extract citations from frontmatter
         citations = [
@@ -334,24 +401,39 @@ class Memory:
             for c in post.metadata.get("citations", [])
         ]
 
-        # Extract links from frontmatter
-        links = post.metadata.get("links", [])
+        # Extract typed links from frontmatter
+        links = []
+        for link_entry in post.metadata.get("links", []):
+            # Each entry is a dict like {"related": "mem-foo-001"}
+            for link_type_str, target_id in link_entry.items():
+                try:
+                    link_type = LinkType(link_type_str)
+                    links.append(Link(link_type=link_type, target_id=target_id))
+                except ValueError:
+                    pass  # Unknown link type, skip
 
-        # Extract confidence from frontmatter
+        # Extract tags
+        tags = post.metadata.get("tags", [])
+
+        # Extract confidence and last_verified
         confidence = post.metadata.get("confidence", 0.5)
-
-        # Extract last_verified from frontmatter
         last_verified = cls._parse_date(post.metadata.get("last_verified"))
 
         return cls(
             id=memory_id,
+            subject=subject,
             path=path,
             content=post.content,
             citations=citations,
             links=links,
+            tags=tags,
             confidence=confidence,
             last_verified=last_verified
         )
+
+    def get_links_by_type(self, link_type: LinkType) -> list[str]:
+        """Get all target IDs for a specific link type."""
+        return [link.target_id for link in self.links if link.link_type == link_type]
 
     @staticmethod
     def _parse_date(value) -> Optional[datetime]:
@@ -479,30 +561,39 @@ def verify_all_memories(memories_dir: Path, repo_root: Path = None) -> list[Veri
 # src/memory_enhancement/graph.py
 from pathlib import Path
 from collections import deque
-from dataclasses import dataclass
-from .models import Memory
+from dataclasses import dataclass, field
+from .models import Memory, Link, LinkType
+
+@dataclass
+class GraphEdge:
+    """Edge in the memory graph with type information."""
+    source_id: str
+    target_id: str
+    link_type: LinkType
 
 @dataclass
 class GraphResult:
-    """Result of graph traversal."""
-    nodes: dict[str, list[str]]  # adjacency list
-    visited_count: int
-    max_depth_reached: int
-
-def get_memory_links(memory_path: Path) -> list[str]:
-    """Extract links from a memory file."""
-    memory = Memory.from_serena_file(memory_path)
-    return memory.links
+    """Result of graph traversal with typed edges."""
+    nodes: dict[str, list[Link]]  # node -> outgoing typed links
+    edges: list[GraphEdge] = field(default_factory=list)
+    visited_count: int = 0
+    max_depth_reached: int = 0
 
 
 def traverse_graph(
     root_id: str,
     memories_dir: Path,
     max_depth: int = 3,
-    link_types: list[str] | None = None
+    link_types: list[LinkType] | None = None
 ) -> GraphResult:
     """
-    BFS traversal of memory graph.
+    BFS traversal of memory graph with typed link filtering.
+
+    Args:
+        root_id: Starting memory ID
+        memories_dir: Path to .serena/memories/
+        max_depth: Maximum traversal depth
+        link_types: Filter to specific link types (None = all types)
 
     Uses only file I/O on Serena memories - no external graph DB.
     """
@@ -510,6 +601,7 @@ def traverse_graph(
     visited = set()
     queue = deque([(root_id, 0)])
     graph = {}
+    edges = []
     max_depth_reached = 0
 
     while queue:
@@ -521,23 +613,72 @@ def traverse_graph(
         visited.add(current_id)
         max_depth_reached = max(max_depth_reached, depth)
 
+        # Try both ID-based and filename-based lookup
         memory_path = memories_dir / f"{current_id}.md"
-
         if not memory_path.exists():
-            continue
+            # Fallback: search by frontmatter id
+            memory_path = _find_memory_by_id(current_id, memories_dir)
+            if memory_path is None:
+                continue
 
-        links = get_memory_links(memory_path)
-        graph[current_id] = links
+        memory = Memory.from_serena_file(memory_path)
 
-        for link in links:
-            if link not in visited:
-                queue.append((link, depth + 1))
+        # Filter links by type if specified
+        filtered_links = memory.links
+        if link_types is not None:
+            filtered_links = [l for l in memory.links if l.link_type in link_types]
+
+        graph[current_id] = filtered_links
+
+        for link in filtered_links:
+            edges.append(GraphEdge(
+                source_id=current_id,
+                target_id=link.target_id,
+                link_type=link.link_type
+            ))
+            if link.target_id not in visited:
+                queue.append((link.target_id, depth + 1))
 
     return GraphResult(
         nodes=graph,
+        edges=edges,
         visited_count=len(visited),
         max_depth_reached=max_depth_reached
     )
+
+
+def _find_memory_by_id(memory_id: str, memories_dir: Path) -> Path | None:
+    """Find memory file by frontmatter id field."""
+    for path in memories_dir.glob("*.md"):
+        try:
+            memory = Memory.from_serena_file(path)
+            if memory.id == memory_id:
+                return path
+        except Exception:
+            continue
+    return None
+
+
+def find_superseded_chain(memory_id: str, memories_dir: Path) -> list[str]:
+    """Find the deprecation chain via 'supersedes' links."""
+    result = traverse_graph(
+        memory_id,
+        memories_dir,
+        max_depth=10,
+        link_types=[LinkType.SUPERSEDES]
+    )
+    return [e.target_id for e in result.edges]
+
+
+def find_blocking_dependencies(memory_id: str, memories_dir: Path) -> list[str]:
+    """Find memories that must be resolved before this one."""
+    result = traverse_graph(
+        memory_id,
+        memories_dir,
+        max_depth=5,
+        link_types=[LinkType.BLOCKS]
+    )
+    return [e.target_id for e in result.edges]
 
 
 def find_related_memories(memory_id: str, memories_dir: Path) -> list[str]:
@@ -1139,6 +1280,8 @@ For existing Serena memories:
 
 ```markdown
 ---
+id: mem-api-versioning-001
+subject: API version synchronization between client and server
 citations:
   - path: src/client/constants.ts
     line: 42
@@ -1148,14 +1291,14 @@ citations:
     line: 15
     snippet: "router.use('/v2'"
     verified: 2026-01-18
+links:
+  - related: mem-deployment-checklist-003
+  - supersedes: mem-api-v1-deprecated-012
+  - blocks: mem-client-sdk-update-007
+tags: [api, versioning, client-server]
 confidence: 0.92
 last_verified: 2026-01-18T10:30:00Z
-links:
-  - api-deployment-checklist
-  - client-sdk-patterns
 ---
-
-# api-version-must-sync-between-client-and-server
 
 Client SDK API_VERSION constant must exactly match server route prefix.
 
