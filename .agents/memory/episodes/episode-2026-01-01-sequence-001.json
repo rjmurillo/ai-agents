@@ -1,28 +1,28 @@
 {
   "decisions": [
     {
-      "timestamp": "2026-01-01T10:00:00Z",
-      "id": "d002",
-      "type": "test",
-      "outcome": "success",
       "context": "Testing second",
+      "type": "test",
+      "timestamp": "2026-01-01T10:00:00Z",
+      "outcome": "success",
+      "id": "d002",
       "chosen": "Second"
     },
     {
-      "timestamp": "2026-01-01T09:00:00Z",
-      "id": "d001",
-      "type": "design",
-      "outcome": "success",
       "context": "Designing first",
+      "type": "design",
+      "timestamp": "2026-01-01T09:00:00Z",
+      "outcome": "success",
+      "id": "d001",
       "chosen": "First"
     }
   ],
-  "lessons": [],
-  "id": "episode-2026-01-01-sequence-001",
-  "session": "2026-01-01-sequence-001",
-  "timestamp": "2026-01-19T00:08:49.6251681-08:00",
-  "task": "Test",
+  "events": [],
   "outcome": "success",
+  "timestamp": "2026-01-19T00:33:38.9755783-08:00",
+  "task": "Test",
   "metrics": {},
-  "events": []
+  "session": "2026-01-01-sequence-001",
+  "id": "episode-2026-01-01-sequence-001",
+  "lessons": []
 }
