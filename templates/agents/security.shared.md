@@ -306,7 +306,6 @@ if ($hookFiles.Count -eq 0) {
 }
 Write-Host "[INFO] Found $($hookFiles.Count) PowerShell hook(s) to validate"
 
-$hookValidationFailed = $false
 foreach ($hook in $hookFiles) {
     try {
         $content = Get-Content $hook.FullName -Raw -ErrorAction Stop
