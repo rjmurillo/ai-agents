@@ -8,6 +8,46 @@ This plan outlines the work required for the v0.2.0 release. The release focuses
 **Target Audience**: External evaluators assessing the agent system
 **Success Criteria**: No broken workflows, no visible bugs, professional appearance
 
+## Current Status
+
+**Last Updated**: 2026-01-19
+
+### Critical Path Progress
+
+| Path | Status | Details |
+|------|--------|---------|
+| **Critical Path 1: Pre-commit Stability** | **COMPLETE** | 4 issues closed via PR #981 (#910, #843, #841, #732) |
+| **Critical Path 2: Security Remediation** | **PARTIAL** | 2 of 6 issues closed; #770, #820 merged; #755, #756 have remaining work |
+| **Critical Path 3: ADR Enforcement** | **COMPLETE** | 5 issues closed via PR #979 (#612, #649, #654, #729, #741) |
+| **Critical Path 4: Memory System** | **NOT STARTED** | All 5 issues open (#850, #734, #731, #751, #747) |
+
+### P0 Blockers Progress
+
+**5 of 10 closed (50%)**
+
+**Closed:**
+- #612 - Phase 1: Core ADR-033 Gates (PR #979)
+- #649 - Epic: ADR-034 Investigation Session QA Exemption (PR #979)
+- #654 - Task: Add investigation-only evidence pattern check (PR #979)
+- #729 - ADR-007 Bulletproof Enforcement (PR #979)
+- #741 - Epic: ADR Workflow Enforcement and Quality Gates (PR #979)
+
+**Open:**
+- #265 - [EPIC] Pre-PR Validation System
+- #324 - [EPIC] 10x Velocity Improvement: Shift-Left Validation
+- #755 - [CRITICAL] Security Agent Missed Two Vulnerabilities
+- #756 - Epic: Security Agent Detection Gaps Remediation
+- #829 - fix(agents): Add PR number extraction
+
+### Recent Completions
+
+| Commit | Issues | Title | Category |
+|--------|--------|-------|----------|
+| f832f9c4 | #910, #843, #841, #732 | v0.2.0 Critical Path 1 - Pre-commit Stability | Pre-commit |
+| 6746db58 | #612, #649, #654, #729, #741 | Critical Path 3 - ADR Enforcement Infrastructure | ADR Enforcement |
+| 0e295c6b | #820 | Make env var check fail-fast like other security checks | Security |
+| 448e099f | #770 | Expand CWE coverage to 45 patterns + OWASP Agentic Top 10 | Security |
+
 ## Issue Summary
 
 ### P0 Blockers (10 issues)
