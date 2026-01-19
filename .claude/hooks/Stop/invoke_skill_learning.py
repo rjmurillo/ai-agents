@@ -125,7 +125,7 @@ def _get_safe_root_from_env(env_value: str) -> Path:
 # =============================================================================
 # IMPORTANT: These patterns are used in 2 functions:
 #   1. detect_skill_usage() - Detects which skills were used in conversation
-#   2. test_skill_context() - Validates skill context for learning extraction
+#   2. check_skill_context() - Validates skill context for learning extraction
 #
 # If you add/modify patterns here, both functions automatically stay in sync.
 # The command_to_skill mapping below handles slash command -> skill resolution.
@@ -332,7 +332,7 @@ def detect_skill_usage(messages: List[dict]) -> Dict[str, int]:
     return detected_skills
 
 
-def test_skill_context(text: str, skill: str) -> bool:
+def check_skill_context(text: str, skill: str) -> bool:
     """
     Check if skill is mentioned in the given text context.
 
@@ -532,7 +532,7 @@ def extract_learnings(messages: List[dict], skill_name: str) -> Dict[str, List[d
                 context_window += " " + next_content
 
         # Skip if skill not mentioned in context
-        if not test_skill_context(context_window, skill_name):
+        if not check_skill_context(context_window, skill_name):
             continue
 
         # Pattern-based extraction with confidence scoring

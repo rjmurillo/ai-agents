@@ -7,7 +7,7 @@
 
 | Constraint | Rationale | Verification |
 |------------|-----------|--------------|
-| **PowerShell only** (.ps1/.psm1) | ADR-005: Cross-platform consistency | No bash/Python in scripts/ |
+| **Python-first** (.py preferred) | ADR-042: AI/ML ecosystem alignment | New scripts in Python; PowerShell grandfathered |
 | **No raw gh when skill exists** | usage-mandatory: Skills are tested, validated | Check `.claude/skills/github/` first |
 | **No logic in workflow YAML** | ADR-006: Testability | Delegate to PowerShell scripts |
 | **Verify branch before git ops** | SESSION-PROTOCOL: Prevent wrong-branch commits | `git branch --show-current` |
@@ -35,6 +35,8 @@
    - If validation fails, use `/session-log-fixer` skill to fix issues
 
 Exit code 0 (PASS) required before claiming completion.
+
+**Test Exit Code Requirement**: ANY test output showing errors OR failures (e.g., "66 passed, 1 error") has non-zero exit code and MUST block commits. Both "failed" and "error" are failures.
 
 ## Skill-First Pattern
 

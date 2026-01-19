@@ -6,6 +6,21 @@
 artifacts/
 coverage.xml
 
+# Python (ADR-042)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+ENV/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
 # Agent PR scratch files
 .agents/pr-comments/
 .agents/scratch/

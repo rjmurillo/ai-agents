@@ -169,7 +169,13 @@ pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[log].json"
 ### Development Tools
 
 ```bash
-# Testing
+# Python Testing (ADR-042)
+uv run pytest
+uv run pytest --cov --cov-report=html
+uv run pip-audit                            # Dependency vulnerability scan
+uv run bandit -r .claude/ scripts/          # Static security analysis
+
+# PowerShell Testing
 pwsh ./build/scripts/Invoke-PesterTests.ps1
 pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
 
@@ -300,7 +306,7 @@ wt merge
 
 ### ✅ Always Do
 
-- **Use PowerShell (.ps1/.psm1)** for all scripts (ADR-005)
+- **Use Python (.py)** for new scripts (ADR-042); PowerShell (.ps1/.psm1) for existing scripts
 - **Verify branch** before ANY git/gh operation: `git branch --show-current`
 - **Update Serena memory** at session end with cross-session context
 - **Check for existing skills** before writing inline GitHub operations
@@ -323,7 +329,7 @@ wt merge
 
 - **Commit secrets or credentials** (use git-secret, environment variables, or secure vaults)
 - **Update HANDOFF.md** (read-only reference, write to session logs instead)
-- **Use bash/python for scripts** (PowerShell-only per ADR-005)
+- **Use bash for scripts** (Python or PowerShell only per ADR-042)
 - **Skip session protocol validation** (`Validate-SessionJson.ps1` must pass)
 - **Put logic in workflow YAML** (ADR-006: logic goes in .psm1 modules)
 - **Use raw gh commands** when skills exist (check `.claude/skills/` first)
@@ -434,13 +440,16 @@ Specific versions matter for accurate tooling suggestions.
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **PowerShell** | 7.5.4+ | Cross-platform, required (ADR-005) |
+| **Python** | 3.12.x (exact) | Primary scripting language (ADR-042); not 3.13.x due to Ubuntu 25 incompatibility |
+| **UV** | Latest | Python package manager with hash-pinned dependencies |
+| **PowerShell** | 7.5.4+ | Cross-platform, for existing scripts |
 | **Node.js** | LTS (20+) | For markdownlint-cli2 |
-| **Pester** | 5.7.1 (exact) | Testing framework, pinned for supply chain security |
+| **Pester** | 5.7.1 (exact) | PowerShell testing, pinned for supply chain security |
+| **pytest** | 8.0+ | Python testing framework |
 | **GitHub CLI** | 2.60+ | For gh operations |
 | **Mermaid** | Latest | Diagram generation |
 
-**Platform Support**: Windows, Linux, macOS (PowerShell cross-platform, use -Path parameters for OS-agnostic file handling)
+**Platform Support**: Windows, Linux, macOS (Python and PowerShell both cross-platform)
 
 ---
 
@@ -1399,7 +1408,51 @@ To customize, edit the relevant agent file while keeping the handoff protocol in
 
 ## Testing
 
-### Running Pester Tests
+### Automated Quality Gates
+
+Quality enforcement is automated (shift left, pit of success):
+
+| Stage | What Runs | Trigger |
+|-------|-----------|---------|
+| **Pre-commit hook** | ruff (Python), markdownlint | Every commit |
+| **CI pytest.yml** | pytest, pip-audit, bandit | Every PR/push |
+| **CI pester.yml** | Pester tests | Every PR/push |
+
+**No manual commands required for routine development.**
+
+### Test Exit Code Interpretation (BLOCKING)
+
+**ANY non-zero exit code from test frameworks means FAILURE and MUST block commits.**
+
+Test output categories (all result in non-zero exit):
+
+- `passed` = success (test ran and assertions passed)
+- `failed` = assertion failure (test ran but assertions failed)
+- `error` = setup/collection failure (test could not run)
+
+| Output | Exit Code | Verdict | Action |
+|--------|-----------|---------|--------|
+| `66 passed` | 0 | PASS | Safe to commit |
+| `66 passed, 1 failed` | 1 | **FAIL** | Fix before commit |
+| `66 passed, 1 error` | 1 | **FAIL** | Fix before commit |
+
+**Common mistake**: Treating "error" as different from "failed". Both are failures that block commits.
+
+**Process**: Run full test suite before EVERY commit. Verify exit code 0. If ANY errors or failures appear, investigate and fix before pushing.
+
+### Manual Testing (Optional)
+
+For local debugging or iteration:
+
+```bash
+# Python (ADR-042)
+uv run pytest                               # All tests
+uv run pytest tests/test_example.py         # Specific file
+uv run pip-audit                            # Dependency scan
+uv run bandit -r .claude/ scripts/          # Security scan
+```
+
+### Running Pester Tests (PowerShell)
 
 PowerShell unit tests are located in `tests/`. Run them using the reusable test runner:
 

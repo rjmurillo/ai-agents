@@ -16,15 +16,18 @@ Single source of truth for project constraints. Index-style document pointing to
 
 | Constraint | Source | Verification |
 |------------|--------|--------------|
-| MUST NOT create bash scripts (.sh) | ADR-005 | Pre-commit hook, code review |
-| MUST NOT create Python scripts (.py) | ADR-005 | Pre-commit hook, code review |
-| MUST use PowerShell for all scripting (.ps1, .psm1) | ADR-005 | Pre-commit hook, code review |
+| MUST NOT create bash scripts (.sh) | ADR-005, ADR-042 | Pre-commit hook, code review |
+| SHOULD prefer Python (.py) for new scripts | ADR-042 | Code review |
+| MAY use PowerShell (.ps1, .psm1) for existing scripts | ADR-042 | Code review |
 
-**Reference**: [ADR-005-powershell-only-scripting.md](../architecture/ADR-005-powershell-only-scripting.md)
+**References**:
 
-**Rationale Summary**: 100% of existing infrastructure is PowerShell. Single testing framework (Pester). Cross-platform (PowerShell Core). Token efficiency (agents stop wasting tokens on bash/Python).
+- [ADR-005-powershell-only-scripting.md](../architecture/ADR-005-powershell-only-scripting.md) (superseded for new development)
+- [ADR-042-python-migration-strategy.md](../architecture/ADR-042-python-migration-strategy.md) (current)
 
-**Exceptions**: None. If PowerShell is genuinely insufficient, document why and get explicit approval.
+**Rationale Summary**: ADR-042 establishes Python-first development due to 70-second PowerShell startup times, CodeQL support, and AI/ML ecosystem alignment. Existing PowerShell scripts are grandfathered; new scripts should use Python.
+
+**Exceptions**: Bash scripts are still prohibited. PowerShell may be used for existing script maintenance.
 
 ---
 
