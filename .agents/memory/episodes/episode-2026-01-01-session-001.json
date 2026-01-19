@@ -1,11 +1,11 @@
 {
-  "lessons": [],
-  "metrics": {},
   "decisions": [],
-  "session": "2026-01-01-session-001",
-  "events": [],
+  "lessons": [],
   "id": "episode-2026-01-01-session-001",
+  "session": "2026-01-01-session-001",
+  "timestamp": "2026-01-19T00:08:49.1769305-08:00",
   "task": "Test implementation",
-  "timestamp": "2026-01-09T01:30:45.1704264-06:00",
-  "outcome": "success"
+  "outcome": "success",
+  "metrics": {},
+  "events": []
 }
