@@ -263,6 +263,7 @@ This is the existing memory content...
 │   └── memory_enhancement/
 │       ├── __init__.py
 │       ├── citations.py      # Citation parsing & verification
+│       ├── conflict.py       # Serena conflict detection
 │       ├── graph.py          # Graph traversal
 │       ├── health.py         # Health reporting
 │       ├── models.py         # Dataclasses
@@ -882,6 +883,173 @@ jobs:
         run: python -m memory_enhancement verify-all --json
         continue-on-error: true  # Warning, not blocking initially
 ```
+
+### 5.4 Serena Coexistence Analysis
+
+#### CAP Theorem Perspective
+
+Both this plugin and Serena's native memory tools write to the **same canonical
+store** (`.serena/memories/*.md`). Applying CAP theorem:
+
+| Property | Status | Rationale |
+|----------|--------|-----------|
+| **Consistency** | Eventual | Last-write-wins on same file; different files = no conflict |
+| **Availability** | Full | Both systems use local file I/O |
+| **Partition** | N/A | Single-node file system |
+
+**Key insight**: Since both systems share the same storage:
+- No data inconsistency risk (same source of truth)
+- Plugin enhancements (citations) are additive to Serena format
+- Memories created by either system are readable by both
+
+#### The Real Conflict: Tool Selection UX
+
+The conflict is **not data integrity** but **cognitive overhead**:
+
+| Concern | Impact | Severity |
+|---------|--------|----------|
+| "Which tool should I use?" | LLM may choose inconsistently | Medium |
+| Different capability surfaces | Plugin has citations, Serena doesn't | Low |
+| Redundant tool invocations | Token waste on overlapping calls | Low |
+
+#### Recommended Approach: Coexistence with Guidance
+
+Rather than disabling Serena tools, provide **steering guidance**:
+
+```markdown
+# In CLAUDE.md or system prompt
+
+## Memory Tool Selection
+
+- **Creating new memories**: Use `mcp__serena__write_memory` (simpler)
+- **Adding citations to memories**: Use `python -m memory_enhancement add-citation`
+- **Verifying memory accuracy**: Use `python -m memory_enhancement verify`
+- **Browsing memory graph**: Use `python -m memory_enhancement graph`
+
+Both systems write to `.serena/memories/` - they are eventually consistent.
+```
+
+#### Alternative: Single Interface (Optional)
+
+For teams preferring a single interface, the plugin can detect Serena and
+suggest disabling native memory tools. This is **optional**, not required.
+
+#### Detection Logic
+
+```python
+# src/memory_enhancement/conflict.py
+from pathlib import Path
+import yaml
+
+SERENA_MEMORY_TOOLS = [
+    "write_memory",
+    "read_memory",
+    "list_memories",
+    "delete_memory",
+    "edit_memory",
+]
+
+def detect_serena_config(repo_root: Path = None) -> dict | None:
+    """Detect Serena project configuration."""
+    repo_root = repo_root or Path.cwd()
+    config_path = repo_root / ".serena" / "project.yml"
+
+    if not config_path.exists():
+        return None
+
+    with open(config_path) as f:
+        return yaml.safe_load(f)
+
+def get_active_memory_tools(config: dict) -> list[str]:
+    """Return Serena memory tools NOT in excluded_tools."""
+    excluded = set(config.get("excluded_tools", []))
+    return [t for t in SERENA_MEMORY_TOOLS if t not in excluded]
+
+def suggest_config_update(config: dict) -> str:
+    """Generate suggested project.yml update."""
+    active_tools = get_active_memory_tools(config)
+
+    if not active_tools:
+        return "# No changes needed - Serena memory tools already excluded"
+
+    current_excluded = config.get("excluded_tools", [])
+    new_excluded = sorted(set(current_excluded + active_tools))
+
+    return f"""# Suggested update to .serena/project.yml
+# This prevents conflict between Serena native memory and the enhancement plugin
+
+excluded_tools:
+{chr(10).join(f'  - {tool}' for tool in new_excluded)}
+
+# The enhancement plugin provides these capabilities instead:
+#   write_memory  -> python -m memory_enhancement add (with citations)
+#   read_memory   -> python -m memory_enhancement get (with verification)
+#   list_memories -> python -m memory_enhancement list (with health status)
+#   delete_memory -> python -m memory_enhancement archive (with audit trail)
+"""
+```
+
+#### CLI Command
+
+```bash
+# Check for conflicts and suggest resolution
+python -m memory_enhancement doctor
+
+# Example output:
+# ⚠️  Serena memory tools detected
+#
+# Active tools that may conflict:
+#   - write_memory
+#   - read_memory
+#   - list_memories
+#   - delete_memory
+#
+# Suggested fix - add to .serena/project.yml:
+#
+#   excluded_tools:
+#     - write_memory
+#     - read_memory
+#     - list_memories
+#     - delete_memory
+#
+# This ensures the enhancement plugin is the single memory interface.
+```
+
+#### First-Run Workflow
+
+When the plugin is first invoked:
+
+1. **Detect** `.serena/project.yml` exists
+2. **Check** if memory tools are in `excluded_tools`
+3. **Warn** if conflict detected (non-blocking)
+4. **Suggest** configuration update with rationale
+
+```python
+def check_conflicts_on_startup():
+    """Run conflict detection on first plugin use."""
+    config = detect_serena_config()
+
+    if config is None:
+        return  # No Serena, no conflict
+
+    active_tools = get_active_memory_tools(config)
+
+    if active_tools:
+        print("⚠️  Potential conflict detected with Serena memory tools")
+        print(f"   Active: {', '.join(active_tools)}")
+        print()
+        print("   Run: python -m memory_enhancement doctor")
+        print("   to see suggested configuration changes.")
+```
+
+#### Migration Path
+
+For existing Serena memories:
+
+1. **No migration needed** - plugin reads `.serena/memories/` directly
+2. **Add citations incrementally** - existing memories work without citations
+3. **Disable Serena tools** - prevents new memories via old interface
+4. **Document in CLAUDE.md** - clarify which tool to use
 
 ---
 
