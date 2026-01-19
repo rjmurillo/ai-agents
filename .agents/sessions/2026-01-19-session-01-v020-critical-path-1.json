@@ -104,7 +104,7 @@
     },
     {
       "action": "Fixed PSScriptAnalyzer warnings in Validate-SessionJson.ps1",
-      "result": "Renamed Has-Key to Test-Key (approved verb), fixed 174 lines with inconsistent indentation to use 4-space standard",
+      "result": "Renamed Has-Key to Test-Key (approved verb), fixed 174 lines with inconsistent indentation to use 4-space standard, corrected scriptblock indentation in Where-Object",
       "files": ["scripts/Validate-SessionJson.ps1"]
     }
   ],
