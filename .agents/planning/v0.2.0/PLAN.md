@@ -17,27 +17,27 @@ This plan outlines the work required for the v0.2.0 release. The release focuses
 | Path | Status | Details |
 |------|--------|---------|
 | **Critical Path 1: Pre-commit Stability** | **COMPLETE** | 4 issues closed via PR #981 (#910, #843, #841, #732) |
-| **Critical Path 2: Security Remediation** | **PARTIAL** | 2 of 6 issues closed; #770, #820 merged; #755, #756 have remaining work |
+| **Critical Path 2: Security Remediation** | **COMPLETE** | All 6 issues closed; #755, #756 completed Session 14 |
 | **Critical Path 3: ADR Enforcement** | **COMPLETE** | 5 issues closed via PR #979 (#612, #649, #654, #729, #741) |
 | **Critical Path 4: Memory System** | **NOT STARTED** | All 5 issues open (#850, #734, #731, #751, #747) |
 
 ### P0 Blockers Progress
 
-**5 of 10 closed (50%)**
+**10 of 10 closed (100%)** 🎉
 
-**Closed:**
+**Closed (Original 5):**
 - #612 - Phase 1: Core ADR-033 Gates (PR #979)
 - #649 - Epic: ADR-034 Investigation Session QA Exemption (PR #979)
 - #654 - Task: Add investigation-only evidence pattern check (PR #979)
 - #729 - ADR-007 Bulletproof Enforcement (PR #979)
 - #741 - Epic: ADR Workflow Enforcement and Quality Gates (PR #979)
 
-**Open:**
-- #265 - [EPIC] Pre-PR Validation System
-- #324 - [EPIC] 10x Velocity Improvement: Shift-Left Validation
-- #755 - [CRITICAL] Security Agent Missed Two Vulnerabilities
-- #756 - Epic: Security Agent Detection Gaps Remediation
-- #829 - fix(agents): Add PR number extraction
+**Closed (Session 14 - 5 remaining blockers):**
+- #265 - [EPIC] Pre-PR Validation System (verified complete, all 7 sub-issues closed)
+- #324 - [EPIC] 10x Velocity Improvement (verified complete, all 6 sub-issues closed)
+- #755 - [CRITICAL] Security vulnerabilities (tests added validating fixes)
+- #756 - Epic: Security Agent Detection Gaps (7 milestones complete, CodeQL integrated)
+- #829 - PR number extraction (implemented with 50 tests)
 
 ### Recent Completions
 

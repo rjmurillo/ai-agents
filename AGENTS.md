@@ -1648,6 +1648,21 @@ Agents violating these standards produce inconsistent, unprofessional output. Re
 - Failing CI checks
 - Missing required approvals
 
+### Security Review Protocol
+
+Security review is integrated into the agent workflow. False negatives trigger immediate root cause analysis.
+
+| Document | Purpose |
+|----------|---------|
+| `.agents/governance/SECURITY-SEVERITY-CRITERIA.md` | CVSS-based severity classification |
+| `src/claude/security.md` | CWE-699 detection patterns |
+| `scripts/invoke_security_retrospective.py` | False negative RCA and memory storage |
+| `scripts/invoke_precommit_security.py` | Pre-commit security gate |
+
+**Key Constraint**: Security false negatives trigger immediate RCA (see SECURITY-REVIEW-PROTOCOL).
+
+**Security Agent Benchmarks**: `.agents/security/benchmarks/` contains intentionally vulnerable Python samples for testing detection capabilities.
+
 ---
 
 ## Putting It All Together
