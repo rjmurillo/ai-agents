@@ -337,8 +337,9 @@ try {
 
     if ($envMatches) {
         foreach ($match in $envMatches) {
-            Write-Warning "[REVIEW] Hardcoded env var: $($match.Path):$($match.LineNumber)"
+            Write-Warning "[FAIL] Hardcoded env var found: $($match.Path):$($match.LineNumber)"
         }
+        throw "Hardcoded environment variable assignments detected. This is a security risk. Please remove them."
     } else {
         Write-Host "[PASS] No hardcoded environment variables detected"
     }
