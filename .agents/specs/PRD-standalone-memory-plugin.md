@@ -204,16 +204,555 @@ This is the existing memory content...
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.3 New Scripts
+### 4.3 Implementation Languages
 
-| Script | Purpose | Inputs | Outputs |
-|--------|---------|--------|---------|
-| `Verify-MemoryCitations.ps1` | Validate citations in a memory | Memory path or ID | Verification result |
-| `Invoke-MemoryGraphTraversal.ps1` | BFS/DFS on memory links | Root ID, depth | Adjacency dict |
-| `Get-MemoryHealthReport.ps1` | Batch health check | Directory | Markdown report |
-| `Add-MemoryCitation.ps1` | Add citation to memory | Memory ID, file, line | Updated memory |
+**Dual implementation**: Both PowerShell (for CI/hooks) and Python (for tooling/ML).
 
-### 4.4 Verification Algorithm
+| Capability | PowerShell | Python |
+|------------|------------|--------|
+| Citation verification | `Verify-MemoryCitations.ps1` | `memory_citations.py` |
+| Graph traversal | `Invoke-MemoryGraphTraversal.ps1` | `memory_graph.py` |
+| Health reporting | `Get-MemoryHealthReport.ps1` | `memory_health.py` |
+| Add citations | `Add-MemoryCitation.ps1` | `memory_citations.py` |
+
+**Why both?**
+- PowerShell: Integrates with existing scripts/, CI workflows, pre-commit hooks
+- Python: Better for ML/embeddings, Claude Code tool calls, cross-platform CLI
+
+### 4.4 Python Implementation
+
+```
+.claude/skills/memory-enhancement/
+├── SKILL.md
+├── src/
+│   └── memory_enhancement/
+│       ├── __init__.py
+│       ├── citations.py      # Citation parsing & verification
+│       ├── graph.py          # Graph traversal
+│       ├── health.py         # Health reporting
+│       ├── models.py         # Dataclasses
+│       └── serena.py         # Serena MCP integration
+└── tests/
+    └── ...
+```
+
+#### 4.4.1 Core Models
+
+```python
+# src/memory_enhancement/models.py
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+import re
+
+@dataclass
+class Citation:
+    """Reference to a specific code location."""
+    path: str
+    line: Optional[int] = None
+    snippet: Optional[str] = None
+    verified: Optional[datetime] = None
+    valid: Optional[bool] = None
+    mismatch_reason: Optional[str] = None
+
+@dataclass
+class Memory:
+    """Parsed Serena memory with citations."""
+    id: str
+    path: Path
+    content: str
+    citations: list[Citation] = field(default_factory=list)
+    links: list[str] = field(default_factory=list)
+    confidence: float = 0.5
+    last_verified: Optional[datetime] = None
+
+    @classmethod
+    def from_serena_file(cls, path: Path) -> "Memory":
+        """Parse a Serena memory markdown file."""
+        content = path.read_text()
+        memory_id = path.stem
+
+        # Extract citations from ## Citations table
+        citations = cls._parse_citations_table(content)
+
+        # Extract links from ## Links section or [[wiki]] style
+        links = cls._parse_links(content)
+
+        # Extract confidence from ## Metadata
+        confidence = cls._parse_confidence(content)
+
+        return cls(
+            id=memory_id,
+            path=path,
+            content=content,
+            citations=citations,
+            links=links,
+            confidence=confidence
+        )
+
+    @staticmethod
+    def _parse_citations_table(content: str) -> list[Citation]:
+        """Parse markdown table in ## Citations section."""
+        citations = []
+
+        # Find ## Citations section
+        match = re.search(
+            r'## Citations\s*\n\|[^\n]+\|\s*\n\|[-\s|]+\|\s*\n((?:\|[^\n]+\|\s*\n?)+)',
+            content
+        )
+        if not match:
+            return citations
+
+        # Parse table rows
+        for row in match.group(1).strip().split('\n'):
+            cells = [c.strip() for c in row.split('|')[1:-1]]
+            if len(cells) >= 3:
+                citations.append(Citation(
+                    path=cells[0],
+                    line=int(cells[1]) if cells[1].isdigit() else None,
+                    snippet=cells[2].strip('`') if len(cells) > 2 else None,
+                    verified=datetime.fromisoformat(cells[3]) if len(cells) > 3 and cells[3] else None
+                ))
+
+        return citations
+
+    @staticmethod
+    def _parse_links(content: str) -> list[str]:
+        """Extract memory links from content."""
+        links = []
+
+        # Pattern 1: ## Links section with bullets
+        match = re.search(r'## Links\s*\n((?:[-*]\s+.+\n?)+)', content)
+        if match:
+            links.extend(re.findall(r'[-*]\s+(\S+)', match.group(1)))
+
+        # Pattern 2: [[wiki-style]] links
+        links.extend(re.findall(r'\[\[([^\]]+)\]\]', content))
+
+        return list(set(links))
+
+    @staticmethod
+    def _parse_confidence(content: str) -> float:
+        """Extract confidence score from metadata."""
+        match = re.search(r'\*\*Confidence\*\*:\s*([\d.]+)', content)
+        return float(match.group(1)) if match else 0.5
+```
+
+#### 4.4.2 Citation Verification
+
+```python
+# src/memory_enhancement/citations.py
+from pathlib import Path
+from dataclasses import dataclass
+from .models import Memory, Citation
+
+@dataclass
+class VerificationResult:
+    memory_id: str
+    valid: bool
+    total_citations: int
+    valid_count: int
+    stale_citations: list[Citation]
+    confidence: float
+
+def verify_citation(citation: Citation, repo_root: Path) -> Citation:
+    """
+    Verify a single citation against the codebase.
+
+    This is the GitHub Copilot insight: just-in-time verification
+    at retrieval time, not continuous sync.
+    """
+    file_path = repo_root / citation.path
+
+    # Check file exists
+    if not file_path.exists():
+        citation.valid = False
+        citation.mismatch_reason = f"File not found: {citation.path}"
+        return citation
+
+    # If no line specified, file existence is enough
+    if citation.line is None:
+        citation.valid = True
+        return citation
+
+    # Check line exists and content matches
+    lines = file_path.read_text().splitlines()
+
+    if citation.line > len(lines):
+        citation.valid = False
+        citation.mismatch_reason = f"Line {citation.line} exceeds file length ({len(lines)})"
+        return citation
+
+    actual_line = lines[citation.line - 1]
+
+    # Fuzzy match: snippet should be contained in line
+    if citation.snippet and citation.snippet not in actual_line:
+        citation.valid = False
+        citation.mismatch_reason = f"Snippet mismatch. Expected '{citation.snippet}', got '{actual_line.strip()}'"
+        return citation
+
+    citation.valid = True
+    return citation
+
+
+def verify_memory(memory: Memory, repo_root: Path = None) -> VerificationResult:
+    """Verify all citations in a memory."""
+    repo_root = repo_root or Path.cwd()
+
+    stale = []
+    valid_count = 0
+
+    for citation in memory.citations:
+        verify_citation(citation, repo_root)
+        if citation.valid:
+            valid_count += 1
+        else:
+            stale.append(citation)
+
+    # Calculate confidence based on citation validity
+    if memory.citations:
+        confidence = valid_count / len(memory.citations)
+    else:
+        confidence = memory.confidence  # No citations = use existing confidence
+
+    return VerificationResult(
+        memory_id=memory.id,
+        valid=len(stale) == 0,
+        total_citations=len(memory.citations),
+        valid_count=valid_count,
+        stale_citations=stale,
+        confidence=confidence
+    )
+
+
+def verify_all_memories(memories_dir: Path, repo_root: Path = None) -> list[VerificationResult]:
+    """Batch verify all memories in a directory."""
+    repo_root = repo_root or Path.cwd()
+    results = []
+
+    for path in memories_dir.glob("*.md"):
+        try:
+            memory = Memory.from_serena_file(path)
+            if memory.citations:  # Only verify memories with citations
+                results.append(verify_memory(memory, repo_root))
+        except Exception as e:
+            print(f"Warning: Failed to parse {path}: {e}")
+
+    return results
+```
+
+#### 4.4.3 Graph Traversal
+
+```python
+# src/memory_enhancement/graph.py
+from pathlib import Path
+from collections import deque
+from dataclasses import dataclass
+from .models import Memory
+
+@dataclass
+class GraphResult:
+    """Result of graph traversal."""
+    nodes: dict[str, list[str]]  # adjacency list
+    visited_count: int
+    max_depth_reached: int
+
+def get_memory_links(memory_path: Path) -> list[str]:
+    """Extract links from a memory file."""
+    memory = Memory.from_serena_file(memory_path)
+    return memory.links
+
+
+def traverse_graph(
+    root_id: str,
+    memories_dir: Path,
+    max_depth: int = 3,
+    link_types: list[str] | None = None
+) -> GraphResult:
+    """
+    BFS traversal of memory graph.
+
+    Uses only file I/O on Serena memories - no external graph DB.
+    """
+    memories_dir = Path(memories_dir)
+    visited = set()
+    queue = deque([(root_id, 0)])
+    graph = {}
+    max_depth_reached = 0
+
+    while queue:
+        current_id, depth = queue.popleft()
+
+        if current_id in visited or depth > max_depth:
+            continue
+
+        visited.add(current_id)
+        max_depth_reached = max(max_depth_reached, depth)
+
+        memory_path = memories_dir / f"{current_id}.md"
+
+        if not memory_path.exists():
+            continue
+
+        links = get_memory_links(memory_path)
+        graph[current_id] = links
+
+        for link in links:
+            if link not in visited:
+                queue.append((link, depth + 1))
+
+    return GraphResult(
+        nodes=graph,
+        visited_count=len(visited),
+        max_depth_reached=max_depth_reached
+    )
+
+
+def find_related_memories(memory_id: str, memories_dir: Path) -> list[str]:
+    """Find all memories that link TO this memory (reverse lookup)."""
+    memories_dir = Path(memories_dir)
+    related = []
+
+    for path in memories_dir.glob("*.md"):
+        if path.stem == memory_id:
+            continue
+
+        links = get_memory_links(path)
+        if memory_id in links:
+            related.append(path.stem)
+
+    return related
+
+
+def find_root_memories(memories_dir: Path) -> list[str]:
+    """Find memories with no incoming links (graph roots)."""
+    memories_dir = Path(memories_dir)
+
+    # Collect all outgoing links
+    all_targets = set()
+    all_memories = set()
+
+    for path in memories_dir.glob("*.md"):
+        memory_id = path.stem
+        all_memories.add(memory_id)
+        links = get_memory_links(path)
+        all_targets.update(links)
+
+    # Roots are memories not targeted by any link
+    return list(all_memories - all_targets)
+```
+
+#### 4.4.4 Serena Integration
+
+```python
+# src/memory_enhancement/serena.py
+"""
+Integration with Serena MCP for memory operations.
+
+This module provides helpers to work with Serena memories
+while the enhancement layer adds citation/graph capabilities.
+"""
+from pathlib import Path
+from typing import Optional
+from .models import Memory, Citation
+from .citations import verify_memory, VerificationResult
+
+# Default Serena memories location
+SERENA_MEMORIES_DIR = Path(".serena/memories")
+
+
+def search_with_verification(
+    query: str,
+    memories_dir: Path = SERENA_MEMORIES_DIR,
+    verify: bool = False,
+    min_confidence: float = 0.0
+) -> list[tuple[Memory, Optional[VerificationResult]]]:
+    """
+    Search memories with optional citation verification.
+
+    This wraps Serena's lexical search with our enhancement layer.
+    For semantic search, use Forgetful MCP directly.
+    """
+    results = []
+    query_terms = set(query.lower().split())
+
+    for path in memories_dir.glob("*.md"):
+        memory = Memory.from_serena_file(path)
+
+        # Simple keyword match (Serena does this better via MCP)
+        content_lower = memory.content.lower()
+        if not any(term in content_lower for term in query_terms):
+            continue
+
+        verification = None
+        if verify and memory.citations:
+            verification = verify_memory(memory)
+            if verification.confidence < min_confidence:
+                continue
+
+        results.append((memory, verification))
+
+    return results
+
+
+def add_citation_to_memory(
+    memory_path: Path,
+    file_path: str,
+    line: Optional[int] = None,
+    snippet: Optional[str] = None
+) -> None:
+    """
+    Add a citation to an existing Serena memory.
+
+    Appends to ## Citations table or creates it if missing.
+    """
+    from datetime import datetime
+
+    content = memory_path.read_text()
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    # Format citation row
+    snippet_formatted = f"`{snippet}`" if snippet else ""
+    new_row = f"| {file_path} | {line or ''} | {snippet_formatted} | {today} |"
+
+    # Check if ## Citations section exists
+    if "## Citations" in content:
+        # Append to existing table
+        lines = content.split("\n")
+        for i, line_content in enumerate(lines):
+            if line_content.startswith("## Citations"):
+                # Find end of table (next ## or end of file)
+                j = i + 1
+                while j < len(lines) and not lines[j].startswith("##"):
+                    j += 1
+                # Insert before next section
+                lines.insert(j, new_row)
+                break
+        content = "\n".join(lines)
+    else:
+        # Create new section before ## Links or at end
+        citation_section = f"""
+## Citations
+
+| File | Line | Snippet | Verified |
+|------|------|---------|----------|
+{new_row}
+"""
+        if "## Links" in content:
+            content = content.replace("## Links", f"{citation_section}\n## Links")
+        else:
+            content += citation_section
+
+    memory_path.write_text(content)
+```
+
+#### 4.4.5 CLI Entry Point
+
+```python
+# src/memory_enhancement/__main__.py
+"""CLI for memory enhancement tools."""
+import argparse
+import json
+from pathlib import Path
+from .citations import verify_memory, verify_all_memories
+from .graph import traverse_graph, find_related_memories
+from .health import generate_health_report
+from .models import Memory
+
+def main():
+    parser = argparse.ArgumentParser(description="Memory Enhancement Tools")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # verify command
+    verify_parser = subparsers.add_parser("verify", help="Verify memory citations")
+    verify_parser.add_argument("memory", help="Memory ID or path")
+    verify_parser.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # verify-all command
+    verify_all_parser = subparsers.add_parser("verify-all", help="Verify all memories")
+    verify_all_parser.add_argument("--dir", default=".serena/memories", help="Memories directory")
+    verify_all_parser.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # graph command
+    graph_parser = subparsers.add_parser("graph", help="Traverse memory graph")
+    graph_parser.add_argument("root", help="Root memory ID")
+    graph_parser.add_argument("--depth", type=int, default=3, help="Max traversal depth")
+    graph_parser.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # related command
+    related_parser = subparsers.add_parser("related", help="Find memories linking to target")
+    related_parser.add_argument("memory", help="Target memory ID")
+
+    # health command
+    health_parser = subparsers.add_parser("health", help="Generate health report")
+    health_parser.add_argument("--dir", default=".serena/memories", help="Memories directory")
+    health_parser.add_argument("--format", choices=["markdown", "json"], default="markdown")
+
+    args = parser.parse_args()
+
+    if args.command == "verify":
+        path = Path(args.memory)
+        if not path.exists():
+            path = Path(".serena/memories") / f"{args.memory}.md"
+        memory = Memory.from_serena_file(path)
+        result = verify_memory(memory)
+
+        if args.json:
+            print(json.dumps({
+                "memory_id": result.memory_id,
+                "valid": result.valid,
+                "confidence": result.confidence,
+                "stale_citations": [
+                    {"path": c.path, "line": c.line, "reason": c.mismatch_reason}
+                    for c in result.stale_citations
+                ]
+            }, indent=2))
+        else:
+            status = "✅ VALID" if result.valid else "❌ STALE"
+            print(f"{status} - {result.memory_id} (confidence: {result.confidence:.0%})")
+            for c in result.stale_citations:
+                print(f"  - {c.path}:{c.line} - {c.mismatch_reason}")
+
+    elif args.command == "verify-all":
+        results = verify_all_memories(Path(args.dir))
+        if args.json:
+            print(json.dumps([{
+                "memory_id": r.memory_id,
+                "valid": r.valid,
+                "confidence": r.confidence
+            } for r in results], indent=2))
+        else:
+            valid = sum(1 for r in results if r.valid)
+            print(f"Verified {len(results)} memories: {valid} valid, {len(results) - valid} stale")
+            for r in results:
+                if not r.valid:
+                    print(f"  ❌ {r.memory_id}")
+
+    elif args.command == "graph":
+        result = traverse_graph(args.root, Path(".serena/memories"), args.depth)
+        if args.json:
+            print(json.dumps({"nodes": result.nodes, "visited": result.visited_count}, indent=2))
+        else:
+            print(f"Graph from '{args.root}' (depth {result.max_depth_reached}):")
+            for node, links in result.nodes.items():
+                print(f"  {node} -> {', '.join(links) or '(no links)'}")
+
+    elif args.command == "related":
+        related = find_related_memories(args.memory, Path(".serena/memories"))
+        print(f"Memories linking to '{args.memory}':")
+        for r in related:
+            print(f"  - {r}")
+
+    elif args.command == "health":
+        report = generate_health_report(Path(args.dir))
+        print(report if args.format == "markdown" else json.dumps(report, indent=2))
+
+if __name__ == "__main__":
+    main()
+```
+
+### 4.5 PowerShell Implementation
 
 ```powershell
 function Test-Citation {
