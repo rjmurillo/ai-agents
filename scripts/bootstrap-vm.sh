@@ -111,6 +111,23 @@ fi
 export PATH="$HOME/.local/bin:$PATH"
 grep -q 'local/bin' "$HOME/.bashrc" 2>/dev/null || echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
 
+echo "=== Python Dependencies ==="
+if [[ -f "pyproject.toml" ]]; then
+    echo "Installing Python dependencies from pyproject.toml..."
+    uv pip install --system -e ".[dev]"
+    echo "✓ Python dependencies installed"
+
+    # Verify key tools are available
+    if command -v ruff &>/dev/null; then
+        echo "✓ ruff $(ruff --version) available for Python linting"
+    fi
+    if command -v pytest &>/dev/null; then
+        echo "✓ pytest $(pytest --version 2>&1 | head -1) available for Python testing"
+    fi
+else
+    echo "⚠ No pyproject.toml found, skipping Python dependency installation"
+fi
+
 echo "=== markdownlint-cli2 ==="
 if ! command -v markdownlint-cli2 &>/dev/null; then
     if command -v npm &>/dev/null; then
