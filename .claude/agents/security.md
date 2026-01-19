@@ -1,6 +1,6 @@
 ---
 name: security
-description: Security specialist with defense-first mindset—fluent in threat modeling, vulnerability assessment, and OWASP Top 10. Scans for CWE patterns, detects secrets, audits dependencies, maps attack surfaces. Use when you need hardening, penetration analysis, compliance review, or mitigation recommendations before shipping.
+description: Security specialist with defense-first mindset, fluent in threat modeling, vulnerability assessment, and OWASP Top 10. Scans for CWE patterns, detects secrets, audits dependencies, maps attack surfaces. Use when you need hardening, penetration analysis, compliance review, or mitigation recommendations before shipping.
 model: opus
 argument-hint: Specify the code, feature, or changes to security review
 ---
@@ -278,32 +278,37 @@ if (-not (Test-Path ".githooks")) {
 
 $hookFiles = Get-ChildItem -Path ".githooks" -Filter "*.ps1" -Recurse -ErrorAction Stop
 if ($hookFiles.Count -eq 0) {
-    Write-Warning "No PowerShell hooks found in .githooks directory"
+    throw "[FAIL] No PowerShell hooks found in .githooks directory. Cannot validate exit code handling."
 }
+Write-Host "[INFO] Found $($hookFiles.Count) PowerShell hook(s) to validate"
 
 $hookValidationFailed = $false
 foreach ($hook in $hookFiles) {
     try {
         $content = Get-Content $hook.FullName -Raw -ErrorAction Stop
         if ($content -notmatch '\$LASTEXITCODE') {
-            Write-Error "[FAIL] Missing exit code validation in $($hook.Name)"
-            $hookValidationFailed = $true
+            throw "Hook $($hook.Name) missing exit code validation"
         }
+        Write-Host "[PASS] Hook $($hook.Name) has exit code validation"
+    }
+    catch [System.Management.Automation.ItemNotFoundException] {
+        throw "Failed to read hook file $($hook.FullName): File not found"
     }
     catch {
         throw "Failed to read hook file $($hook.FullName): $_"
     }
 }
-
-if ($hookValidationFailed) {
-    throw "One or more hooks missing exit code validation. This is a CWE-78 vulnerability."
-}
-Write-Host "[PASS] All hooks have proper exit code validation"
+Write-Host "[PASS] All $($hookFiles.Count) hooks have proper exit code validation"
 
 # Check for hardcoded secrets in staged changes
-$diff = git diff --cached
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    throw "[FAIL] git command not found. Install Git and ensure it's in PATH."
+}
+
+$diff = git diff --cached 2>&1
 if ($LASTEXITCODE -ne 0) {
-    throw "git diff failed. Exit code: $LASTEXITCODE. Ensure you are in a git repository."
+    $gitError = ($diff | Out-String).Trim()
+    throw "[FAIL] git diff --cached failed (exit code: $LASTEXITCODE). Error: $gitError. Common causes: not in a git repository, corrupted index, or permission issues."
 }
 
 if ($diff -match '(api_key|password|secret|token)\s*[:=]\s*[''"][^''"]+[''"]') {
@@ -554,7 +559,7 @@ When reviewing PowerShell scripts (.ps1, .psm1), verify:
 
 #### Command Injection Prevention (CWE-77, CWE-78)
 
-**WHY**: Unquoted variables pass arguments to shell, which interprets metacharacters (`;|&><`) as command separators. Attack: `$Query = "; rm -rf /"` executes TWO commands. Quoting forces literal interpretation.
+**WHY**: Unquoted variables in external commands can be exploited when those programs invoke shells or interpret special characters. PowerShell passes unquoted `$Query` as a single argument to npx, but if the external program (or a shell it invokes) interprets metacharacters (`;|&><`), unintended commands execute. Quoting in PowerShell ensures the full string is passed as a single literal argument.
 
 **UNSAFE**:
 
@@ -583,7 +588,7 @@ $Args = @("$PluginScript", "$Query", "$OutputFile")
 
 #### Path Traversal Prevention (CWE-22, CWE-23, CWE-36)
 
-**WHY**: `StartsWith()` performs string comparison on raw input. `..` sequences resolve AFTER comparison. Attack: Path constructed before validation, filesystem resolves `..` to parent directory. `GetFullPath()` resolves `..` sequences BEFORE comparison.
+**WHY**: `StartsWith()` performs string comparison on the raw path string BEFORE filesystem resolution. Attack: Constructed path contains `..` sequences that pass string comparison (because the string DOES start with the base directory), but when the filesystem later resolves `..` sequences, the path escapes to parent directories. `GetFullPath()` resolves `..` sequences BEFORE validation, revealing the true target path.
 
 **UNSAFE**:
 
@@ -597,23 +602,55 @@ $OutputFile = Join-Path $MemoriesDir $UserInput
 if (-not $OutputFile.StartsWith($MemoriesDir)) {
     throw "Path traversal detected"
 }
-# DOES NOT THROW - String comparison passes because $OutputFile starts with "C:\Users\App\Memories"
-# But filesystem resolves it to C:\Windows\System32\config
+# DOES NOT THROW - String comparison passes: "C:\Users\App\Memories\..\..\..." DOES start with "C:\Users\App\Memories"
+# When this path is later used by filesystem operations, ".." sequences resolve to C:\Windows\System32\config
 ```
 
 **SAFE**:
 
 ```powershell
-# SECURE - Normalize BEFORE construction and validation
-$MemoriesDir = [System.IO.Path]::GetFullPath("C:\Users\App\Memories")
-$UserInput = "..\..\..\Windows\System32\config"
-$OutputFile = [System.IO.Path]::GetFullPath((Join-Path $MemoriesDir $UserInput))
-# $OutputFile is now "C:\Windows\System32\config" (normalized)
+# SECURE - Normalize and validate with error handling
+try {
+    # Validate base directory
+    if (-not $MemoriesDir) {
+        throw "Base directory parameter is required"
+    }
 
-if (-not $OutputFile.StartsWith($MemoriesDir, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "Path traversal attempt detected. Output must be inside '$MemoriesDir'."
+    $MemoriesDirFull = [System.IO.Path]::GetFullPath($MemoriesDir)
+
+    if (-not (Test-Path $MemoriesDirFull -PathType Container)) {
+        throw "Base directory does not exist: $MemoriesDirFull"
+    }
+
+    # Validate user input
+    if (-not $UserInput) {
+        throw "User input path is required"
+    }
+
+    # Normalize output path
+    $OutputFile = [System.IO.Path]::GetFullPath((Join-Path $MemoriesDirFull $UserInput))
+    # $OutputFile is now "C:\Windows\System32\config" (normalized)
+
+    # Check for path traversal
+    if (-not $OutputFile.StartsWith($MemoriesDirFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Path traversal attempt detected. Path '$UserInput' resolves to '$OutputFile' which is outside allowed directory '$MemoriesDirFull'."
+    }
+    # THROWS - Normalized path "C:\Windows\System32\config" does not start with "C:\Users\App\Memories"
+
+    Write-Host "[PASS] Path validated: $OutputFile"
 }
-# THROWS - Normalized path "C:\Windows\System32\config" does not start with "C:\Users\App\Memories"
+catch [System.ArgumentException] {
+    throw "Invalid path format: $_"
+}
+catch [System.IO.PathTooLongException] {
+    throw "Path exceeds maximum length: $_"
+}
+catch [System.Security.SecurityException] {
+    throw "Access denied to path: $_"
+}
+catch {
+    throw "Path validation failed: $_"
+}
 ```
 
 **Checklist**:
