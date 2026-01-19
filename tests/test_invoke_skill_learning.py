@@ -21,10 +21,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 # Add .claude/hooks/Stop directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Stop"))
 
+import invoke_skill_learning
 from invoke_skill_learning import (
     SKILL_PATTERNS,
     COMMAND_TO_SKILL,
@@ -95,7 +97,9 @@ class TestFilenamePatternConsistency(unittest.TestCase):
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             expected_filename = f"{skill_name}-observations.md"
             memory_path = Path(project_dir) / ".serena" / "memories" / expected_filename
@@ -113,7 +117,9 @@ class TestFilenamePatternConsistency(unittest.TestCase):
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             # Old pattern from template before fix
             wrong_filename = f"{skill_name}-skill-sidecar-learnings.md"
@@ -260,7 +266,9 @@ class TestPathTraversalPrevention(unittest.TestCase):
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
 
-            result = update_skill_memory(project_dir, valid_skill, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                result = update_skill_memory(project_dir, valid_skill, learnings, session_id)
 
             self.assertTrue(result, "Valid skill name should be accepted")
 
@@ -548,7 +556,9 @@ class TestMemoryFileDocumentationSection(unittest.TestCase):
             learnings = {"High": [], "Med": [], "Low": []}
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')
@@ -574,7 +584,9 @@ class TestMemoryFileDocumentationSection(unittest.TestCase):
             }
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')
@@ -604,7 +616,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
             }
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')
@@ -639,7 +653,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
             }
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')
@@ -669,7 +685,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
             }
             session_id = "2026-01-14-session-001"
 
-            update_skill_memory(project_dir, skill_name, learnings, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings, session_id)
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')
@@ -700,7 +718,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
                 "Med": [],
                 "Low": []
             }
-            update_skill_memory(project_dir, skill_name, learnings1, session_id)
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings1, session_id)
 
             # Second update
             learnings2 = {
@@ -714,7 +734,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
                 "Med": [],
                 "Low": []
             }
-            update_skill_memory(project_dir, skill_name, learnings2, "session-002")
+            # Patch SAFE_BASE_DIR to allow temp directory for testing
+            with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
+                update_skill_memory(project_dir, skill_name, learnings2, "session-002")
 
             memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
             content = memory_path.read_text(encoding='utf-8')

@@ -448,6 +448,10 @@ class TestMainFunction:
         """main() returns 0 for valid session."""
         from scripts import validate_session_json
 
+        # Allow temp directory paths for testing
+        monkeypatch.setattr(
+            validate_session_json, "_PROJECT_ROOT", valid_session_file.parent
+        )
         monkeypatch.setattr(
             "sys.argv",
             ["validate_session_json.py", str(valid_session_file)],
@@ -468,6 +472,10 @@ class TestMainFunction:
         """main() returns 1 for invalid session."""
         from scripts import validate_session_json
 
+        # Allow temp directory paths for testing
+        monkeypatch.setattr(
+            validate_session_json, "_PROJECT_ROOT", invalid_session_file.parent
+        )
         monkeypatch.setattr(
             "sys.argv",
             ["validate_session_json.py", str(invalid_session_file)],
@@ -488,6 +496,10 @@ class TestMainFunction:
         """main() with --pre-commit uses compact output."""
         from scripts import validate_session_json
 
+        # Allow temp directory paths for testing
+        monkeypatch.setattr(
+            validate_session_json, "_PROJECT_ROOT", invalid_session_file.parent
+        )
         monkeypatch.setattr(
             "sys.argv",
             ["validate_session_json.py", str(invalid_session_file), "--pre-commit"],
