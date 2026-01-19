@@ -204,22 +204,24 @@ This is the existing memory content...
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.3 Implementation Languages
+### 4.3 Implementation
 
-**Dual implementation**: Both PowerShell (for CI/hooks) and Python (for tooling/ML).
+**Python-only implementation** for simplicity and cross-platform compatibility.
 
-| Capability | PowerShell | Python |
-|------------|------------|--------|
-| Citation verification | `Verify-MemoryCitations.ps1` | `memory_citations.py` |
-| Graph traversal | `Invoke-MemoryGraphTraversal.ps1` | `memory_graph.py` |
-| Health reporting | `Get-MemoryHealthReport.ps1` | `memory_health.py` |
-| Add citations | `Add-MemoryCitation.ps1` | `memory_citations.py` |
+| Capability | Module |
+|------------|--------|
+| Citation verification | `citations.py` |
+| Graph traversal | `graph.py` |
+| Health reporting | `health.py` |
+| Serena integration | `serena.py` |
 
-**Why both?**
-- PowerShell: Integrates with existing scripts/, CI workflows, pre-commit hooks
-- Python: Better for ML/embeddings, Claude Code tool calls, cross-platform CLI
+**Why Python?**
+- Better ecosystem for ML/embeddings (future Chroma integration)
+- Claude Code tool calls work naturally with Python
+- Cross-platform without runtime dependencies
+- Zero external dependencies (stdlib only)
 
-### 4.4 Python Implementation
+### 4.4 Package Structure
 
 ```
 .claude/skills/memory-enhancement/
@@ -752,135 +754,43 @@ if __name__ == "__main__":
     main()
 ```
 
-### 4.5 PowerShell Implementation
-
-```powershell
-function Test-Citation {
-    param(
-        [string]$Path,
-        [int]$Line,
-        [string]$Snippet
-    )
-
-    # Check file exists
-    if (-not (Test-Path $Path)) {
-        return @{ Valid = $false; Reason = "File not found" }
-    }
-
-    # Check line exists
-    $lines = Get-Content $Path
-    if ($Line -gt $lines.Count) {
-        return @{ Valid = $false; Reason = "Line $Line exceeds file length" }
-    }
-
-    # Check snippet matches (fuzzy - contains)
-    $actualLine = $lines[$Line - 1]
-    if ($actualLine -notmatch [regex]::Escape($Snippet)) {
-        return @{
-            Valid = $false
-            Reason = "Snippet mismatch"
-            Expected = $Snippet
-            Actual = $actualLine.Trim()
-        }
-    }
-
-    return @{ Valid = $true }
-}
-```
-
-### 4.5 Graph Traversal
-
-Serena memories already support links via content references. Parse and traverse:
-
-```powershell
-function Get-MemoryLinks {
-    param([string]$MemoryPath)
-
-    $content = Get-Content $MemoryPath -Raw
-
-    # Extract from ## Links section or inline references
-    $links = @()
-
-    # Pattern 1: ## Links section with bullet list
-    if ($content -match '## Links\s*\n((?:[-*]\s+.+\n?)+)') {
-        $linkSection = $Matches[1]
-        $links += [regex]::Matches($linkSection, '[-*]\s+(\S+)') |
-            ForEach-Object { $_.Groups[1].Value }
-    }
-
-    # Pattern 2: [[wiki-style]] links
-    $links += [regex]::Matches($content, '\[\[([^\]]+)\]\]') |
-        ForEach-Object { $_.Groups[1].Value }
-
-    return $links | Select-Object -Unique
-}
-
-function Invoke-GraphTraversal {
-    param(
-        [string]$RootId,
-        [int]$MaxDepth = 3,
-        [string]$MemoriesPath = ".serena/memories"
-    )
-
-    $visited = @{}
-    $queue = [System.Collections.Queue]::new()
-    $queue.Enqueue(@{ Id = $RootId; Depth = 0 })
-    $graph = @{}
-
-    while ($queue.Count -gt 0) {
-        $current = $queue.Dequeue()
-
-        if ($visited.ContainsKey($current.Id) -or $current.Depth -gt $MaxDepth) {
-            continue
-        }
-
-        $visited[$current.Id] = $true
-        $memoryPath = Join-Path $MemoriesPath "$($current.Id).md"
-
-        if (Test-Path $memoryPath) {
-            $links = Get-MemoryLinks -MemoryPath $memoryPath
-            $graph[$current.Id] = $links
-
-            foreach ($link in $links) {
-                if (-not $visited.ContainsKey($link)) {
-                    $queue.Enqueue(@{ Id = $link; Depth = $current.Depth + 1 })
-                }
-            }
-        }
-    }
-
-    return $graph
-}
-```
-
 ---
 
 ## 5. Integration Points
 
 ### 5.1 With Existing MemoryRouter (ADR-037)
 
-```powershell
-# Enhanced Search-Memory with verification
-function Search-Memory {
-    param(
-        [string]$Query,
-        [switch]$VerifyCitations  # NEW parameter
-    )
+The Python implementation can enhance the existing MemoryRouter by providing
+citation verification as a post-search filter:
 
-    # Existing search logic...
-    $results = Invoke-SerenaSearch -Query $Query
+```python
+# Example integration with MemoryRouter results
+from memory_enhancement.citations import verify_memory
+from memory_enhancement.models import Memory
 
-    if ($VerifyCitations) {
-        $results = $results | ForEach-Object {
-            $verification = Verify-MemoryCitations -MemoryPath $_.Path
-            $_ | Add-Member -NotePropertyName 'CitationsValid' -NotePropertyValue $verification.Valid
-            $_ | Add-Member -NotePropertyName 'Confidence' -NotePropertyValue $verification.Confidence
-            $_
-        } | Where-Object { $_.CitationsValid -or -not $_.HasCitations }
-    }
+def search_with_verification(serena_results: list, min_confidence: float = 0.5):
+    """
+    Filter Serena/Forgetful search results by citation validity.
 
-    return $results
-}
+    Called after MemoryRouter.Search-Memory returns results.
+    """
+    verified_results = []
+
+    for result in serena_results:
+        memory = Memory.from_serena_file(Path(result['Path']))
+
+        if not memory.citations:
+            # No citations = trust existing result
+            verified_results.append(result)
+            continue
+
+        verification = verify_memory(memory)
+        if verification.confidence >= min_confidence:
+            result['confidence'] = verification.confidence
+            result['citations_valid'] = verification.valid
+            verified_results.append(result)
+
+    return verified_results
 ```
 
 ### 5.2 With Session Protocol
@@ -895,7 +805,7 @@ Add to session start (optional gate):
 3. ✅ Create session log
 4. ✅ Read usage-mandatory memory
 5. ✅ Verify branch
-6. **NEW (optional)**: Run `Get-MemoryHealthReport.ps1` for relevant memories
+6. **NEW (optional)**: Run `python -m memory_enhancement health` for relevant memories
 ```
 
 ### 5.3 With CI/Pre-commit
@@ -915,8 +825,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Validate memory citations
-        run: pwsh scripts/Verify-AllMemoryCitations.ps1
+        run: python -m memory_enhancement verify-all --json
         continue-on-error: true  # Warning, not blocking initially
 ```
 
@@ -928,49 +842,51 @@ jobs:
 
 **Deliverables:**
 - [ ] Document citation schema (table format in memory body)
-- [ ] `Verify-MemoryCitations.ps1` - single memory verification
-- [ ] `Verify-AllMemoryCitations.ps1` - batch verification
-- [ ] Unit tests for verification logic
+- [ ] `models.py` - Memory and Citation dataclasses
+- [ ] `citations.py` - single and batch verification
+- [ ] Unit tests with pytest
 
 **Exit Criteria:**
 - Can verify citations in any Serena memory
 - Clear pass/fail with details on mismatches
+- `python -m memory_enhancement verify <memory>` works
 
 ### Phase 2: Graph Traversal (1 week)
 
 **Deliverables:**
-- [ ] `Get-MemoryLinks.ps1` - extract links from memory
-- [ ] `Invoke-MemoryGraphTraversal.ps1` - BFS/DFS traversal
-- [ ] Integration with existing link formats
+- [ ] `graph.py` - BFS/DFS traversal, related memories, root finding
+- [ ] Integration with existing Serena link formats
 - [ ] Cycle detection
 
 **Exit Criteria:**
 - Can traverse memory relationships
 - Works with existing Serena memory format
+- `python -m memory_enhancement graph <root>` works
 
 ### Phase 3: Health Reporting & CI Integration (1 week)
 
 **Deliverables:**
-- [ ] `Get-MemoryHealthReport.ps1` - batch health check
-- [ ] CI workflow for PR validation
+- [ ] `health.py` - batch health check, markdown/JSON report generation
+- [ ] CI workflow for PR validation (GitHub Actions)
 - [ ] Pre-commit hook (optional)
 - [ ] Documentation for adding citations to memories
 
 **Exit Criteria:**
 - CI flags stale memories on code changes
 - Developers can see memory health at a glance
+- `python -m memory_enhancement health` generates report
 
 ### Phase 4: Confidence Scoring & Tooling (1 week)
 
 **Deliverables:**
 - [ ] Confidence calculation based on verification history
-- [ ] `Add-MemoryCitation.ps1` - helper to add citations
+- [ ] `serena.py` - helper to add citations to existing memories
 - [ ] Integration with `reflect` skill for auto-citations
-- [ ] Memory health dashboard
+- [ ] Claude Code skill wrapper (`SKILL.md`)
 
 **Exit Criteria:**
 - Memories track confidence over time
-- Easy to add/update citations
+- Easy to add/update citations via CLI or skill
 
 ---
 
