@@ -1228,7 +1228,8 @@ else
             fi
 
             # Build TestPath arguments safely using arrays
-            declare -a TESTPATHS
+            # Bash 3 compatibility: use simple array init instead of declare -a
+            TESTPATHS=()
 
             # Include any staged test files directly
             while IFS= read -r cf; do
