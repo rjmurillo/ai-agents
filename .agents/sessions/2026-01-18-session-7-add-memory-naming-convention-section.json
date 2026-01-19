@@ -29,6 +29,12 @@
       "action": "Added staleness analysis by tier table",
       "outcome": "Clarified plugin introduces no additional staleness since it uses file-based access like Serena",
       "decision": "Only Forgetful vector index has pre-existing staleness gap, unrelated to plugin"
+    },
+    {
+      "timestamp": "2026-01-18T00:05:00Z",
+      "action": "Switched citation schema from markdown tables to YAML frontmatter",
+      "outcome": "Updated all code examples to use python-frontmatter library instead of regex parsing",
+      "decision": "YAML frontmatter is more robust - lesson learned from session log migration from markdown to JSON"
     }
   ],
   "nextSteps": [],

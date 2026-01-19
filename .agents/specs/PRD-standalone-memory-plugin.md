@@ -180,32 +180,46 @@ many associations and may be skipped in favor of more specific matches.
 
 ### 4.2 Citation Schema (Serena Memory Extension)
 
-Extend existing Serena memory format with optional `citations` block:
+Extend existing Serena memory format with YAML frontmatter for structured metadata:
 
 ```markdown
-# .serena/memories/api-version-must-sync-between-client-and-server.md
+---
+citations:
+  - path: src/client/constants.ts
+    line: 42
+    snippet: "API_VERSION = 'v2'"
+    verified: 2026-01-18
+  - path: server/routes/api.ts
+    line: 15
+    snippet: "router.use('/v2'"
+    verified: 2026-01-18
+confidence: 0.92
+last_verified: 2026-01-18T10:30:00Z
+links:
+  - api-deployment-checklist
+  - client-sdk-patterns
+---
 
-This is the existing memory content...
+# api-version-must-sync-between-client-and-server
 
-## Citations
+Client SDK API_VERSION constant must exactly match server route prefix.
 
-| File | Line | Snippet | Verified |
-|------|------|---------|----------|
-| src/client/constants.ts | 42 | `API_VERSION = 'v2'` | 2026-01-18 |
-| server/routes/api.ts | 15 | `router.use('/v2'` | 2026-01-18 |
+## Why This Matters
 
-## Metadata
-
-- **Confidence**: 0.92
-- **Last Verified**: 2026-01-18T10:30:00Z
-- **Links**: api-deployment-checklist, client-sdk-patterns
+Discovered during incident on 2026-01-10...
 ```
 
-**Why table format?**
-- Human-readable (grep/cat friendly)
-- Parseable with simple regex
-- No YAML frontmatter changes needed
-- Backwards compatible with existing memories
+**Why YAML frontmatter?**
+- Standard parsing via `python-frontmatter` or `yaml` module
+- No fragile regex on markdown tables
+- Structured data with clear schema
+- Matches pattern used in static site generators (Jekyll, Hugo, MDX)
+- Lesson learned: Session logs moved from markdown to JSON for same reason
+
+**Serena compatibility**: Serena's `write_memory` accepts any text content. It doesn't
+parse or validate, just writes to `.serena/memories/*.md`. We control the content format.
+When we write memories with frontmatter, Serena stores them verbatim. Our plugin then
+parses the frontmatter on read. Serena remains unaware of the schema.
 
 ### 4.3 Architecture
 
@@ -272,7 +286,7 @@ This is the existing memory content...
     └── ...
 ```
 
-#### 4.4.1 Core Models
+#### 4.5.1 Core Models
 
 ```python
 # src/memory_enhancement/models.py
@@ -280,7 +294,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-import re
+import frontmatter  # pip install python-frontmatter
 
 @dataclass
 class Citation:
@@ -305,74 +319,50 @@ class Memory:
 
     @classmethod
     def from_serena_file(cls, path: Path) -> "Memory":
-        """Parse a Serena memory markdown file."""
-        content = path.read_text()
+        """Parse a Serena memory markdown file with YAML frontmatter."""
+        post = frontmatter.load(path)
         memory_id = path.stem
 
-        # Extract citations from ## Citations table
-        citations = cls._parse_citations_table(content)
+        # Extract citations from frontmatter
+        citations = [
+            Citation(
+                path=c.get("path", ""),
+                line=c.get("line"),
+                snippet=c.get("snippet"),
+                verified=cls._parse_date(c.get("verified"))
+            )
+            for c in post.metadata.get("citations", [])
+        ]
 
-        # Extract links from ## Links section or [[wiki]] style
-        links = cls._parse_links(content)
+        # Extract links from frontmatter
+        links = post.metadata.get("links", [])
 
-        # Extract confidence from ## Metadata
-        confidence = cls._parse_confidence(content)
+        # Extract confidence from frontmatter
+        confidence = post.metadata.get("confidence", 0.5)
+
+        # Extract last_verified from frontmatter
+        last_verified = cls._parse_date(post.metadata.get("last_verified"))
 
         return cls(
             id=memory_id,
             path=path,
-            content=content,
+            content=post.content,
             citations=citations,
             links=links,
-            confidence=confidence
+            confidence=confidence,
+            last_verified=last_verified
         )
 
     @staticmethod
-    def _parse_citations_table(content: str) -> list[Citation]:
-        """Parse markdown table in ## Citations section."""
-        citations = []
-
-        # Find ## Citations section
-        match = re.search(
-            r'## Citations\s*\n\|[^\n]+\|\s*\n\|[-\s|]+\|\s*\n((?:\|[^\n]+\|\s*\n?)+)',
-            content
-        )
-        if not match:
-            return citations
-
-        # Parse table rows
-        for row in match.group(1).strip().split('\n'):
-            cells = [c.strip() for c in row.split('|')[1:-1]]
-            if len(cells) >= 3:
-                citations.append(Citation(
-                    path=cells[0],
-                    line=int(cells[1]) if cells[1].isdigit() else None,
-                    snippet=cells[2].strip('`') if len(cells) > 2 else None,
-                    verified=datetime.fromisoformat(cells[3]) if len(cells) > 3 and cells[3] else None
-                ))
-
-        return citations
-
-    @staticmethod
-    def _parse_links(content: str) -> list[str]:
-        """Extract memory links from content."""
-        links = []
-
-        # Pattern 1: ## Links section with bullets
-        match = re.search(r'## Links\s*\n((?:[-*]\s+.+\n?)+)', content)
-        if match:
-            links.extend(re.findall(r'[-*]\s+(\S+)', match.group(1)))
-
-        # Pattern 2: [[wiki-style]] links
-        links.extend(re.findall(r'\[\[([^\]]+)\]\]', content))
-
-        return list(set(links))
-
-    @staticmethod
-    def _parse_confidence(content: str) -> float:
-        """Extract confidence score from metadata."""
-        match = re.search(r'\*\*Confidence\*\*:\s*([\d.]+)', content)
-        return float(match.group(1)) if match else 0.5
+    def _parse_date(value) -> Optional[datetime]:
+        """Parse date from string or datetime."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return datetime.fromisoformat(value)
+        return None
 ```
 
 #### 4.4.2 Citation Verification
@@ -646,54 +636,32 @@ def add_citation_to_memory(
     """
     Add a citation to an existing Serena memory.
 
-    Appends to ## Citations table or creates it if missing.
+    Uses YAML frontmatter for structured citation storage.
     """
     from datetime import datetime
+    import frontmatter
 
-    content = memory_path.read_text()
+    post = frontmatter.load(memory_path)
     today = datetime.now().strftime("%Y-%m-%d")
 
-    # Format citation row
-    snippet_formatted = f"`{snippet}`" if snippet else ""
-    new_row = f"| {file_path} | {line or ''} | {snippet_formatted} | {today} |"
+    # Initialize citations list if not present
+    if "citations" not in post.metadata:
+        post.metadata["citations"] = []
 
-    # Check if ## Citations section exists (must be at line start)
-    lines = content.split("\n")
-    citations_idx = None
-    for i, line_content in enumerate(lines):
-        if line_content == "## Citations":
-            citations_idx = i
-            break
+    # Add new citation
+    new_citation = {"path": file_path, "verified": today}
+    if line is not None:
+        new_citation["line"] = line
+    if snippet is not None:
+        new_citation["snippet"] = snippet
 
-    if citations_idx is not None:
-        # Append to existing table - find last table row (starts with |)
-        last_table_row = citations_idx
-        for j in range(citations_idx + 1, len(lines)):
-            if lines[j].startswith("|"):
-                last_table_row = j
-            elif lines[j].strip() and not lines[j].startswith("|"):
-                # Non-empty, non-table line means table ended
-                break
-        # Insert after last table row
-        lines.insert(last_table_row + 1, new_row)
-        content = "\n".join(lines)
-    else:
-        # Create new section before ## Links or at end
-        citation_section = f"""
-## Citations
+    post.metadata["citations"].append(new_citation)
 
-| File | Line | Snippet | Verified |
-|------|------|---------|----------|
-{new_row}
-"""
-        # Find ## Links heading at line start and insert before it
-        import re
-        if re.search(r'^## Links\s*$', content, re.MULTILINE):
-            content = re.sub(r'^(## Links)\s*$', f"{citation_section}\n\\1", content, count=1, flags=re.MULTILINE)
-        else:
-            content += citation_section
+    # Update last_verified timestamp
+    post.metadata["last_verified"] = datetime.now().isoformat()
 
-    memory_path.write_text(content)
+    # Write back with frontmatter
+    memory_path.write_text(frontmatter.dumps(post))
 ```
 
 #### 4.4.5 CLI Entry Point
@@ -1141,7 +1109,7 @@ For existing Serena memories:
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Citation schema too complex | Medium | Medium | Use simple table format, not YAML |
+| Citation schema too complex | Low | Low | Use standard YAML frontmatter, not regex |
 | False positives (valid code flagged stale) | Medium | High | Fuzzy matching; snippet tolerance |
 | Performance on large memory sets | Low | Medium | Lazy loading; caching |
 | Adoption friction | Medium | Medium | Make citations optional; demonstrate value |
@@ -1160,8 +1128,8 @@ For existing Serena memories:
 3. **Stale memory handling**: Warning vs blocking vs auto-archive?
    - Recommendation: Warning initially, blocking after adoption
 
-4. **Serena schema extension**: Table in body vs YAML frontmatter?
-   - Recommendation: Table in body (backwards compatible, human-readable)
+4. ~~**Serena schema extension**: Table in body vs YAML frontmatter?~~
+   - **RESOLVED**: YAML frontmatter (lesson learned from session log migration)
 
 ---
 
@@ -1170,9 +1138,24 @@ For existing Serena memories:
 ### A. Example Memory with Citations
 
 ```markdown
-# api-version-must-sync-between-client-and-server.md
+---
+citations:
+  - path: src/client/constants.ts
+    line: 42
+    snippet: "API_VERSION = 'v2'"
+    verified: 2026-01-18
+  - path: server/routes/api.ts
+    line: 15
+    snippet: "router.use('/v2'"
+    verified: 2026-01-18
+confidence: 0.92
+last_verified: 2026-01-18T10:30:00Z
+links:
+  - api-deployment-checklist
+  - client-sdk-patterns
+---
 
-## API Version Synchronization
+# api-version-must-sync-between-client-and-server
 
 Client SDK API_VERSION constant must exactly match server route prefix.
 
@@ -1187,23 +1170,6 @@ When updating API version:
 1. Search for `API_VERSION` in client code
 2. Search for route prefix in server code
 3. Update both in the same commit
-
-## Citations
-
-| File | Line | Snippet | Verified |
-|------|------|---------|----------|
-| src/client/constants.ts | 42 | `API_VERSION = 'v2'` | 2026-01-18 |
-| server/routes/api.ts | 15 | `router.use('/v2'` | 2026-01-18 |
-
-## Links
-
-- api-deployment-checklist
-- client-sdk-patterns
-
-## Metadata
-
-- **Confidence**: 0.92
-- **Last Verified**: 2026-01-18T10:30:00Z
 ```
 
 ### B. Comparison: Enhancement vs Replacement
@@ -1215,7 +1181,7 @@ When updating API version:
 | Effort | ~4 weeks | ~8 weeks |
 | Risk | Low (additive) | High (migration) |
 | Value delivered | Citations + Graph | Same |
-| Dependencies | None new | chromadb, PyYAML |
+| Dependencies | python-frontmatter | chromadb, PyYAML |
 
 ### C. References
 
