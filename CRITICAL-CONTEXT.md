@@ -7,7 +7,7 @@
 
 | Constraint | Rationale | Verification |
 |------------|-----------|--------------|
-| **PowerShell only** (.ps1/.psm1) | ADR-005: Cross-platform consistency | No bash/Python in scripts/ |
+| **Python-first** (.py preferred) | ADR-042: AI/ML ecosystem alignment | New scripts in Python; PowerShell grandfathered |
 | **No raw gh when skill exists** | usage-mandatory: Skills are tested, validated | Check `.claude/skills/github/` first |
 | **No logic in workflow YAML** | ADR-006: Testability | Delegate to PowerShell scripts |
 | **Verify branch before git ops** | SESSION-PROTOCOL: Prevent wrong-branch commits | `git branch --show-current` |
