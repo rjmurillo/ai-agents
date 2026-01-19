@@ -1,0 +1,113 @@
+{
+  "$schema": "../schemas/session-log.schema.json",
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-01-18",
+    "branch": "docs/user-level-custom-agents-copilot",
+    "startingCommit": "c8feb538",
+    "objective": "Remove references to resolved GitHub Copilot CLI issue #452"
+  },
+  "workLog": [
+    {
+      "action": "Initialized Serena and read HANDOFF.md",
+      "result": "Session context loaded"
+    },
+    {
+      "action": "Searched for issue #452 references",
+      "result": "Found 3 references in AGENTS.md, docs/installation.md, and .agents/planning/cva-install-scripts.md"
+    },
+    {
+      "action": "Updated AGENTS.md to remove resolved issue note",
+      "result": "Removed line 512 referencing known issue",
+      "files": ["AGENTS.md"]
+    },
+    {
+      "action": "Updated docs/installation.md to remove workaround section",
+      "result": "Removed GitHub Copilot CLI Global Installation section (lines 131-136)",
+      "files": ["docs/installation.md"]
+    },
+    {
+      "action": "Updated .agents/planning/cva-install-scripts.md",
+      "result": "Removed KnownBug reference from Copilot configuration",
+      "files": [".agents/planning/cva-install-scripts.md"]
+    },
+    {
+      "action": "Ran markdownlint-cli2 --fix",
+      "result": "0 errors found, all formatting correct"
+    }
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "type": "documentation",
+        "path": "AGENTS.md",
+        "description": "Removed outdated Copilot CLI issue reference"
+      },
+      {
+        "type": "documentation",
+        "path": "docs/installation.md",
+        "description": "Removed workaround documentation for resolved issue"
+      },
+      {
+        "type": "documentation",
+        "path": ".agents/planning/cva-install-scripts.md",
+        "description": "Removed KnownBug configuration reference"
+      }
+    ],
+    "decisions": [
+      {
+        "decision": "Remove workaround documentation for resolved Copilot CLI issue #452",
+        "rationale": "Issue has been resolved upstream, workarounds no longer needed",
+        "impact": "Users can now use global Copilot CLI installation without workarounds"
+      }
+    ]
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaInitialized": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Called mcp__serena__initial_instructions"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/HANDOFF.md"
+      },
+      "memoriesLoaded": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read memory-index from Serena"
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "On branch docs/user-level-custom-agents-copilot"
+      }
+    },
+    "sessionEnd": {
+      "sessionLogComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session log updated with all activities and outcomes"
+      },
+      "markdownlintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Ran npx markdownlint-cli2 --fix with 0 errors"
+      },
+      "allChangesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "All changes staged and committed"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session protocol validation passed"
+      }
+    }
+  },
+  "nextSteps": []
+}

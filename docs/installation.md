@@ -128,13 +128,6 @@ python --version
 
 If downloads fail, check internet connectivity and try again. The tool downloads from GitHub.
 
-### GitHub Copilot CLI Global Installation
-
-There is a known issue with user-level agent loading in Copilot CLI.
-
-- **Issue**: [#452 - User-level agents not loaded](https://github.com/github/copilot-cli/issues/452)
-- **Workaround**: Use repository-level installation instead
-
 ### Worktrunk Setup (Optional)
 
 For parallel agent workflows using git worktrees, install Worktrunk:
