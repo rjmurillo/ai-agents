@@ -2,8 +2,8 @@
 
 **Status**: Draft
 **Author**: Claude
-**Created**: 2026-01-19
-**Updated**: 2026-01-19
+**Created**: 2026-01-18
+**Updated**: 2026-01-18
 **Related Issues**: #724 (Traceability Graph), #584 (Serena Integration)
 **Inspiration**: [GitHub Copilot Agentic Memory System](https://github.blog/ai-and-ml/github-copilot/building-an-agentic-memory-system-for-github-copilot/)
 
@@ -145,12 +145,45 @@ This delivers 90% of GitHub Copilot's value at 10% of the cost.
 
 ## 4. Technical Design
 
-### 4.1 Citation Schema (Serena Memory Extension)
+### 4.1 Memory Naming Convention
+
+> See also: `.serena/memories/memory-token-efficiency.md`
+
+**Critical**: Memory filenames are the primary retrieval hint. Serena lists memory
+names early in context via `list_memories`, so names must contain **activation vocabulary**:
+the 5-10 words most associated with the memory's content.
+
+#### Rules
+
+| Rule | Rationale |
+|------|-----------|
+| **5-10 words** | Dense enough for context, compact enough for scanning |
+| **Kebab-case** | Standard URL-safe format |
+| **High-signal terms** | Use words that trigger relevance in LLM token space |
+| **Match training patterns** | Prefer common documentation terms over invented jargon |
+
+#### Examples
+
+| ❌ Bad (too vague) | ✅ Good (activation vocabulary) |
+|-------------------|--------------------------------|
+| `api-versioning.md` | `api-version-must-sync-between-client-and-server.md` |
+| `skills-powershell.md` | `skill-powershell-null-safety-contains-operator.md` |
+| `testing-patterns.md` | `pester-test-isolation-mock-module-boundary.md` |
+| `ci-config.md` | `ci-infrastructure-matrix-artifacts-upload-strategy.md` |
+
+#### Why This Matters
+
+LLMs map tokens into vector space where **association patterns** drive selection.
+When an agent sees `list_memories` output, it must "want to choose" a memory
+based solely on its name. Vague names like `api-versioning.md` activate too
+many associations and may be skipped in favor of more specific matches.
+
+### 4.2 Citation Schema (Serena Memory Extension)
 
 Extend existing Serena memory format with optional `citations` block:
 
 ```markdown
-# .serena/memories/api-versioning.md (existing format)
+# .serena/memories/api-version-must-sync-between-client-and-server.md
 
 This is the existing memory content...
 
@@ -174,14 +207,14 @@ This is the existing memory content...
 - No YAML frontmatter changes needed
 - Backwards compatible with existing memories
 
-### 4.2 Architecture
+### 4.3 Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Enhancement Layer (NEW)                           │
 │  ┌────────────────┐  ┌────────────────┐  ┌────────────────────┐    │
-│  │ Verify-Memory  │  │ Traverse-Graph │  │ Get-MemoryHealth   │    │
-│  │ Citations.ps1  │  │ .ps1           │  │ Report.ps1         │    │
+│  │ citations.py   │  │ graph.py       │  │ health.py          │    │
+│  │ (verify)       │  │ (traverse)     │  │ (report)           │    │
 │  └───────┬────────┘  └───────┬────────┘  └─────────┬──────────┘    │
 │          │                   │                      │               │
 └──────────┼───────────────────┼──────────────────────┼───────────────┘
@@ -190,7 +223,7 @@ This is the existing memory content...
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Existing Stack (UNCHANGED)                        │
 │  ┌────────────────────────────────────────────────────────────┐     │
-│  │                    MemoryRouter.psm1                        │     │
+│  │                    MemoryRouter                             │     │
 │  │                    (ADR-037)                                │     │
 │  └────────────────────────┬───────────────────────────────────┘     │
 │                           │                                          │
@@ -204,7 +237,7 @@ This is the existing memory content...
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.3 Implementation
+### 4.4 Implementation
 
 **Python-only implementation** for simplicity and cross-platform compatibility.
 
@@ -221,7 +254,7 @@ This is the existing memory content...
 - Cross-platform without runtime dependencies
 - Zero external dependencies (stdlib only)
 
-### 4.4 Package Structure
+### 4.5 Package Structure
 
 ```
 .claude/skills/memory-enhancement/
@@ -951,7 +984,9 @@ jobs:
 ### A. Example Memory with Citations
 
 ```markdown
-# API Version Synchronization
+# api-version-must-sync-between-client-and-server.md
+
+## API Version Synchronization
 
 Client SDK API_VERSION constant must exactly match server route prefix.
 
