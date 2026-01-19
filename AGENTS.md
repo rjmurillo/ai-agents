@@ -518,8 +518,6 @@ skill-installer install copilot-cli-agents --platform copilot
 skill-installer install claude-agents --platform claude
 ```
 
-> **Note:** Copilot CLI global installation has a [known issue](https://github.com/github/copilot-cli/issues/452). Use per-repository installation.
-
 See [docs/installation.md](docs/installation.md) for complete installation documentation.
 
 ---
