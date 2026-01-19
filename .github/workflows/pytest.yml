@@ -85,12 +85,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          source $HOME/.local/bin/env
+          export PATH="$HOME/.local/bin:$PATH"
           uv pip install -e ".[dev]"
 
       - name: Run pytest
         run: |
-          source $HOME/.local/bin/env
+          export PATH="$HOME/.local/bin:$PATH"
           mkdir -p artifacts
           pytest --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
 
@@ -123,17 +123,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          source $HOME/.local/bin/env
+          export PATH="$HOME/.local/bin:$PATH"
           uv pip install -e ".[dev]"
 
       - name: Run pip-audit
         run: |
-          source $HOME/.local/bin/env
+          export PATH="$HOME/.local/bin:$PATH"
           pip-audit --requirement pyproject.toml
 
       - name: Run Bandit
         run: |
-          source $HOME/.local/bin/env
+          export PATH="$HOME/.local/bin:$PATH"
           mkdir -p artifacts
           bandit -r .claude/ scripts/ -f sarif -o artifacts/bandit-results.sarif || true
 
