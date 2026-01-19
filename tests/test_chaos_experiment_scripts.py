@@ -27,6 +27,7 @@ from generate_experiment import (
     generate_experiment_id,
     load_template,
     save_document,
+    validate_path_no_traversal as generate_validate_path,
 )
 from validate_experiment import (
     INCOMPLETE_PATTERNS,
@@ -41,6 +42,7 @@ from validate_experiment import (
     check_section_presence,
     load_document,
     validate_experiment,
+    validate_path_no_traversal as validate_validate_path,
 )
 
 
@@ -1239,3 +1241,89 @@ Verify.
 
         # Should complete without timeout
         assert result is not None
+
+
+class TestPathTraversalSecurity:
+    """Tests for CWE-22 path traversal protection."""
+
+    def test_generate_validate_path_traversal_rejected(self, tmp_path: Path) -> None:
+        """Path traversal attempt raises PermissionError for generate script."""
+        # Path containing .. sequences is rejected
+        malicious_path = tmp_path / ".." / ".." / "etc" / "passwd"
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            generate_validate_path(malicious_path, "test path")
+
+    def test_generate_validate_path_relative_escape_rejected(self) -> None:
+        """Relative path that escapes cwd is rejected for generate script."""
+        malicious_path = Path("../../etc/passwd")
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            generate_validate_path(malicious_path, "test path")
+
+    def test_generate_validate_path_absolute_allowed(self, tmp_path: Path) -> None:
+        """Absolute paths without traversal are allowed for generate script."""
+        # Create a valid file in tmp_path
+        valid_path = tmp_path / "test.txt"
+        # Absolute paths without .. are valid (e.g., /tmp/pytest-xxx)
+        result = generate_validate_path(valid_path, "test path")
+        assert result is not None
+
+    def test_generate_validate_path_valid_inside_cwd(self) -> None:
+        """Valid path inside cwd is accepted for generate script."""
+        # Current directory should always be valid
+        valid_path = Path(".")
+        result = generate_validate_path(valid_path, "test path")
+        assert result is not None
+
+    def test_validate_validate_path_traversal_rejected(self, tmp_path: Path) -> None:
+        """Path traversal attempt raises PermissionError for validate script."""
+        malicious_path = tmp_path / ".." / ".." / "etc" / "passwd"
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            validate_validate_path(malicious_path, "test path")
+
+    def test_validate_validate_path_relative_escape_rejected(self) -> None:
+        """Relative path that escapes cwd is rejected for validate script."""
+        malicious_path = Path("../../etc/passwd")
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            validate_validate_path(malicious_path, "test path")
+
+    def test_validate_validate_path_absolute_allowed(self, tmp_path: Path) -> None:
+        """Absolute paths without traversal are allowed for validate script."""
+        valid_path = tmp_path / "test.md"
+        result = validate_validate_path(valid_path, "test path")
+        assert result is not None
+
+    def test_validate_validate_path_valid_inside_cwd(self) -> None:
+        """Valid path inside cwd is accepted for validate script."""
+        valid_path = Path(".")
+        result = validate_validate_path(valid_path, "test path")
+        assert result is not None
+
+    def test_save_document_rejects_traversal(self, tmp_path: Path) -> None:
+        """save_document rejects path traversal attempts."""
+        content = "Test content"
+        malicious_dir = Path("../../etc")
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            save_document(content, malicious_dir, "test")
+
+    def test_load_document_rejects_traversal(self) -> None:
+        """load_document rejects path traversal attempts."""
+        malicious_path = Path("../../etc/passwd")
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            load_document(malicious_path)
+
+    def test_validate_experiment_rejects_traversal(self) -> None:
+        """validate_experiment rejects path traversal attempts."""
+        malicious_path = Path("../../etc/passwd")
+
+        # Should return validation result with error, not crash
+        result = validate_experiment(malicious_path)
+
+        # The PermissionError should be caught and converted to validation error
+        assert not result.success
+        assert "Path traversal" in result.message or "prohibited" in result.message

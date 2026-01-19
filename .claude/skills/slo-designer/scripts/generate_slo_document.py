@@ -90,8 +90,39 @@ def format_downtime(minutes: float) -> str:
         return f"{hours}h {remaining_minutes}m"
 
 
+def validate_path_no_traversal(path: Path, context: str = "path") -> Path:
+    """Validate that path does not contain traversal patterns (CWE-22 protection).
+
+    This prevents directory traversal attacks like '../../../etc/passwd' while
+    still allowing legitimate absolute paths and paths within the working directory.
+    """
+    # Check for traversal patterns in the path string
+    path_str = str(path)
+    if ".." in path_str:
+        raise PermissionError(
+            f"Path traversal attempt detected: '{path}' contains prohibited '..' sequence."
+        )
+
+    # Resolve the path and check it doesn't escape when resolved
+    resolved = path.resolve()
+
+    # If original path was relative, ensure resolved doesn't escape cwd
+    if not path.is_absolute():
+        try:
+            resolved.relative_to(Path.cwd().resolve())
+        except ValueError as e:
+            raise PermissionError(
+                f"Path traversal attempt detected: '{path}' resolves outside the working directory."
+            ) from e
+
+    return resolved
+
+
 def parse_yaml_config(config_path: Path) -> SLOConfig:
     """Parse YAML configuration file into SLOConfig."""
+    # Validate path to prevent traversal (CWE-22)
+    validate_path_no_traversal(config_path, "config file")
+
     if not YAML_AVAILABLE:
         raise ImportError(
             "PyYAML is required for YAML config files. "
@@ -463,6 +494,8 @@ Note: Requires PyYAML for YAML config files (pip install pyyaml)
         document = generate_slo_document(config)
 
         if args.output:
+            # Validate path to prevent traversal (CWE-22)
+            validate_path_no_traversal(args.output, "output path")
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(document)
             print(f"Generated: {args.output}")

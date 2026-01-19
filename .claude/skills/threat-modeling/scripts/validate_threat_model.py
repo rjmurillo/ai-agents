@@ -12,6 +12,34 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def validate_path_no_traversal(path: Path, context: str = "path") -> Path:
+    """Validate that path does not contain traversal patterns (CWE-22 protection).
+
+    This prevents directory traversal attacks like '../../../etc/passwd' while
+    still allowing legitimate absolute paths and paths within the working directory.
+    """
+    # Check for traversal patterns in the path string
+    path_str = str(path)
+    if ".." in path_str:
+        raise PermissionError(
+            f"Path traversal attempt detected: '{path}' contains prohibited '..' sequence."
+        )
+
+    # Resolve the path and check it doesn't escape when resolved
+    resolved = path.resolve()
+
+    # If original path was relative, ensure resolved doesn't escape cwd
+    if not path.is_absolute():
+        try:
+            resolved.relative_to(Path.cwd().resolve())
+        except ValueError as e:
+            raise PermissionError(
+                f"Path traversal attempt detected: '{path}' resolves outside the working directory."
+            ) from e
+
+    return resolved
+
+
 @dataclass
 class ValidationResult:
     """Result of validation check."""
@@ -275,6 +303,16 @@ def validate_threat_model(path: Path) -> tuple[bool, list[ValidationResult]]:
     Returns:
         Tuple of (overall_pass, results)
     """
+    # Validate path to prevent traversal (CWE-22)
+    try:
+        validate_path_no_traversal(path, "document path")
+    except PermissionError as e:
+        return False, [ValidationResult(
+            passed=False,
+            message=str(e),
+            severity="error"
+        )]
+
     if not path.exists():
         return False, [ValidationResult(
             passed=False,

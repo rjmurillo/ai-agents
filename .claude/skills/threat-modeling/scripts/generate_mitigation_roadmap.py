@@ -14,6 +14,34 @@ from pathlib import Path
 from typing import Optional
 
 
+def validate_path_no_traversal(path: Path, context: str = "path") -> Path:
+    """Validate that path does not contain traversal patterns (CWE-22 protection).
+
+    This prevents directory traversal attacks like '../../../etc/passwd' while
+    still allowing legitimate absolute paths and paths within the working directory.
+    """
+    # Check for traversal patterns in the path string
+    path_str = str(path)
+    if ".." in path_str:
+        raise PermissionError(
+            f"Path traversal attempt detected: '{path}' contains prohibited '..' sequence."
+        )
+
+    # Resolve the path and check it doesn't escape when resolved
+    resolved = path.resolve()
+
+    # If original path was relative, ensure resolved doesn't escape cwd
+    if not path.is_absolute():
+        try:
+            resolved.relative_to(Path.cwd().resolve())
+        except ValueError as e:
+            raise PermissionError(
+                f"Path traversal attempt detected: '{path}' resolves outside the working directory."
+            ) from e
+
+    return resolved
+
+
 @dataclass
 class Threat:
     """Represents a threat extracted from the threat model."""
@@ -259,6 +287,9 @@ def generate_roadmap(input_path: Path, output_path: Path) -> int:
     Returns:
         Exit code (0 for success, 1 for failure)
     """
+    # Validate path to prevent traversal (CWE-22)
+    validate_path_no_traversal(input_path, "input path")
+
     if not input_path.exists():
         print(f"Error: Input file not found: {input_path}", file=sys.stderr)
         return 1
@@ -294,6 +325,8 @@ def generate_roadmap(input_path: Path, output_path: Path) -> int:
         threat_table=format_threat_table(threats),
     )
 
+    # Validate path to prevent traversal (CWE-22)
+    validate_path_no_traversal(output_path, "output path")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(roadmap)
 

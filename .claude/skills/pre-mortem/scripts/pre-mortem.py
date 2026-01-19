@@ -266,8 +266,33 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    # Check file exists
     inventory_path = Path(args.inventory_path)
+
+    # Validate path to prevent traversal (CWE-22)
+    path_str = str(inventory_path)
+    if ".." in path_str:
+        if not args.quiet:
+            print(
+                f"Error: Path traversal attempt detected: "
+                f"'{inventory_path}' contains prohibited '..' sequence.",
+                file=sys.stderr,
+            )
+        return 1
+
+    # If relative path, ensure it resolves within cwd
+    if not inventory_path.is_absolute():
+        try:
+            inventory_path.resolve().relative_to(Path.cwd().resolve())
+        except ValueError:
+            if not args.quiet:
+                print(
+                    f"Error: Path traversal attempt detected: "
+                    f"'{inventory_path}' resolves outside the working directory.",
+                    file=sys.stderr,
+                )
+            return 1
+
+    # Check file exists
     if not inventory_path.exists():
         if not args.quiet:
             print(f"Error: File not found: {inventory_path}", file=sys.stderr)

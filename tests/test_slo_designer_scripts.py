@@ -43,6 +43,9 @@ from calculate_error_budget import (
     format_markdown_output,
     format_text_output,
 )
+from generate_slo_document import (
+    validate_path_no_traversal,
+)
 
 
 class TestPeriodMinutes:
@@ -1084,3 +1087,107 @@ slos:
 
         # May fail with exit code 2 for PyYAML not installed or YAML error
         assert result.returncode == 2
+
+
+class TestPathTraversalSecurity:
+    """Tests for CWE-22 path traversal protection."""
+
+    def test_validate_path_traversal_rejected(self, tmp_path: Path) -> None:
+        """Path traversal attempt raises PermissionError."""
+        malicious_path = tmp_path / ".." / ".." / "etc" / "passwd"
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            validate_path_no_traversal(malicious_path, "test path")
+
+    def test_validate_path_relative_escape_rejected(self) -> None:
+        """Relative path that escapes cwd is rejected."""
+        malicious_path = Path("../../etc/passwd")
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            validate_path_no_traversal(malicious_path, "test path")
+
+    def test_validate_path_absolute_allowed(self, tmp_path: Path) -> None:
+        """Absolute paths without traversal are allowed."""
+        valid_path = tmp_path / "test.txt"
+        result = validate_path_no_traversal(valid_path, "test path")
+        assert result is not None
+
+    def test_validate_path_valid_inside_cwd(self) -> None:
+        """Valid path inside cwd is accepted."""
+        valid_path = Path(".")
+        result = validate_path_no_traversal(valid_path, "test path")
+        assert result is not None
+
+    def test_cli_config_traversal_rejected(self, tmp_path: Path) -> None:
+        """CLI rejects config file path traversal via subprocess."""
+        script_path = SCRIPTS_DIR / "generate_slo_document.py"
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(script_path),
+                "--config",
+                "../../etc/passwd",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        # Should fail with traversal error or file not found
+        assert result.returncode != 0
+        # Check for either traversal or permission error in output
+        output = result.stdout.lower() + result.stderr.lower()
+        assert (
+            "traversal" in output
+            or "permission" in output
+            or "not found" in output
+            or "error" in output
+        )
+
+    def test_cli_output_traversal_rejected(self, tmp_path: Path) -> None:
+        """CLI rejects output file path traversal."""
+        script_path = SCRIPTS_DIR / "generate_slo_document.py"
+
+        # Create a valid config file
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""service:
+  name: Test Service
+  owner: Test Team
+  description: Test description
+  criticality: Medium
+
+user_journeys:
+  - User can log in
+
+slis:
+  - name: Availability
+    description: Service availability
+    measurement: sum(rate(http_requests_total{status!~"5.."}[5m])) / sum(rate(http_requests_total[5m]))
+    data_source: Prometheus
+
+slos:
+  - sli: Availability
+    target: 99.9
+    window: 30-day rolling
+    rationale: Industry standard
+""")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(script_path),
+                "--config",
+                str(config_file),
+                "--output",
+                "../../etc/malicious.md",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        # Should fail with traversal error
+        assert result.returncode != 0
+        output = result.stdout.lower() + result.stderr.lower()
+        assert "traversal" in output or "permission" in output or "error" in output

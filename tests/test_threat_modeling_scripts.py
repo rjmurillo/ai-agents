@@ -26,11 +26,13 @@ from generate_mitigation_roadmap import (
     format_threat_table,
     generate_roadmap,
     parse_threat_matrix,
+    validate_path_no_traversal as roadmap_validate_path,
 )
 from generate_threat_matrix import (
     STRIDE_CATEGORIES,
     generate_stride_sections,
     generate_threat_matrix,
+    validate_path_no_traversal as matrix_validate_path,
 )
 from validate_threat_model import (
     REQUIRED_SECTIONS,
@@ -42,6 +44,7 @@ from validate_threat_model import (
     check_required_sections,
     check_threat_matrix,
     validate_threat_model,
+    validate_path_no_traversal as validate_model_validate_path,
 )
 
 if TYPE_CHECKING:
@@ -1074,3 +1077,128 @@ T001: Mitigation
         assert result == 0
         content = output_path.read_text()
         assert "Auth & Auth < > Service" in content
+
+
+# =============================================================================
+# Security Tests for Path Traversal (CWE-22)
+# =============================================================================
+
+
+class TestPathTraversalSecurity:
+    """Tests for CWE-22 path traversal protection across all threat-modeling scripts."""
+
+    # Tests for generate_mitigation_roadmap.py
+    def test_roadmap_validate_path_traversal_rejected(self, tmp_path: Path) -> None:
+        """Path traversal attempt raises PermissionError for roadmap script."""
+        malicious_path = tmp_path / ".." / ".." / "etc" / "passwd"
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            roadmap_validate_path(malicious_path, "test path")
+
+    def test_roadmap_validate_path_relative_escape_rejected(self) -> None:
+        """Relative path that escapes cwd is rejected for roadmap script."""
+        malicious_path = Path("../../etc/passwd")
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            roadmap_validate_path(malicious_path, "test path")
+
+    def test_roadmap_validate_path_absolute_without_traversal_allowed(self) -> None:
+        """Absolute path without traversal is allowed for pytest compatibility."""
+        # Absolute paths without '..' are allowed (needed for pytest's tmp_path)
+        absolute_path = Path("/tmp/test_file")
+        # Should not raise - returns resolved path
+        result = roadmap_validate_path(absolute_path, "test path")
+        assert result == absolute_path.resolve()
+
+    def test_roadmap_validate_path_valid_inside_cwd(self) -> None:
+        """Valid path inside cwd is accepted for roadmap script."""
+        valid_path = Path(".")
+        result = roadmap_validate_path(valid_path, "test path")
+        assert result is not None
+
+    # Tests for generate_threat_matrix.py
+    def test_matrix_validate_path_traversal_rejected(self, tmp_path: Path) -> None:
+        """Path traversal attempt raises PermissionError for matrix script."""
+        malicious_path = tmp_path / ".." / ".." / "etc" / "passwd"
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            matrix_validate_path(malicious_path, "test path")
+
+    def test_matrix_validate_path_relative_escape_rejected(self) -> None:
+        """Relative path that escapes cwd is rejected for matrix script."""
+        malicious_path = Path("../../etc/passwd")
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            matrix_validate_path(malicious_path, "test path")
+
+    def test_matrix_validate_path_valid_inside_cwd(self) -> None:
+        """Valid path inside cwd is accepted for matrix script."""
+        valid_path = Path(".")
+        result = matrix_validate_path(valid_path, "test path")
+        assert result is not None
+
+    # Tests for validate_threat_model.py
+    def test_validate_model_validate_path_traversal_rejected(self, tmp_path: Path) -> None:
+        """Path traversal attempt raises PermissionError for validation script."""
+        malicious_path = tmp_path / ".." / ".." / "etc" / "passwd"
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            validate_model_validate_path(malicious_path, "test path")
+
+    def test_validate_model_validate_path_relative_escape_rejected(self) -> None:
+        """Relative path that escapes cwd is rejected for validation script."""
+        malicious_path = Path("../../etc/passwd")
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            validate_model_validate_path(malicious_path, "test path")
+
+    def test_validate_model_validate_path_valid_inside_cwd(self) -> None:
+        """Valid path inside cwd is accepted for validation script."""
+        valid_path = Path(".")
+        result = validate_model_validate_path(valid_path, "test path")
+        assert result is not None
+
+    # Integration tests for public functions
+    def test_generate_threat_matrix_rejects_traversal(self) -> None:
+        """generate_threat_matrix rejects path traversal attempts."""
+        malicious_path = Path("../../etc/passwd")
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            generate_threat_matrix("Test Scope", malicious_path)
+
+    def test_validate_threat_model_rejects_traversal(self) -> None:
+        """validate_threat_model rejects path traversal attempts."""
+        malicious_path = Path("../../etc/passwd")
+
+        passed, results = validate_threat_model(malicious_path)
+
+        # Should return False with an error about path traversal
+        assert passed is False
+        assert len(results) == 1
+        assert "traversal" in results[0].message.lower() or "outside" in results[0].message.lower()
+
+    def test_generate_roadmap_input_rejects_traversal(self, tmp_path: Path) -> None:
+        """generate_roadmap rejects path traversal for input file."""
+        malicious_input = Path("../../etc/passwd")
+        output_path = tmp_path / "output.md"
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            generate_roadmap(malicious_input, output_path)
+
+    def test_generate_roadmap_output_rejects_traversal(self, tmp_path: Path) -> None:
+        """generate_roadmap rejects path traversal for output file."""
+        # Create a valid input file first
+        input_file = tmp_path / "threat-model.md"
+        input_file.write_text("""# Threat Model
+
+## Scope
+Test system
+
+| ID | Element | STRIDE | Threat | Likelihood | Impact | Risk |
+|----|---------|--------|--------|------------|--------|------|
+| T001 | Auth | S | Spoofing | H | H | Critical |
+""")
+        malicious_output = Path("../../etc/passwd")
+
+        with pytest.raises(PermissionError, match="Path traversal attempt detected"):
+            generate_roadmap(input_file, malicious_output)
