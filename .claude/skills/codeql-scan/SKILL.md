@@ -531,6 +531,31 @@ if ($LASTEXITCODE -ne 0) {
 }
 ```
 
+### ❌ Don't: Suppress Errors Before Checking Exit Code
+
+**Wrong:**
+
+```powershell
+# Redirecting stderr BEFORE exit code check hides errors
+$output = & codeql database create ... 2>&1 | Write-Verbose
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Command failed"  # Error message already lost!
+}
+```
+
+**Correct:**
+
+```powershell
+# Check exit code FIRST, then redirect stderr conditionally
+$output = & codeql database create ... 2>&1
+if ($LASTEXITCODE -ne 0) {
+    # IMPORTANT: Sanitize $output for secrets before logging in production.
+    Write-Error "Command failed: $($output | Out-String)"
+} else {
+    $output | Write-Verbose
+}
+```
+
 ### ❌ Don't: Run Full Scans Unnecessarily
 
 **Wrong:**
