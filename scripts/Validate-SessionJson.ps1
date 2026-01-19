@@ -217,16 +217,16 @@ E_GIT_COMMAND_FAILED: Failed to list staged files for investigation-only validat
 
     # Filter for files not in allowlist
     $implementationFiles = @($stagedFiles | Where-Object {
-        $file = $_
-        $isAllowed = $false
-        foreach ($pattern in $investigationAllowlist) {
-            if ($file -match $pattern) {
-                $isAllowed = $true
-                break
+            $file = $_
+            $isAllowed = $false
+            foreach ($pattern in $investigationAllowlist) {
+                if ($file -match $pattern) {
+                    $isAllowed = $true
+                    break
+                }
             }
-        }
-        -not $isAllowed
-    })
+            -not $isAllowed
+        })
 
     if ($implementationFiles.Count -gt 0) {
         $errorMsg = @"
