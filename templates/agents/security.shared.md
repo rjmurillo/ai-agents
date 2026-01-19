@@ -306,7 +306,6 @@ if ($hookFiles.Count -eq 0) {
 }
 Write-Host "[INFO] Found $($hookFiles.Count) PowerShell hook(s) to validate"
 
-$hookValidationFailed = $false
 foreach ($hook in $hookFiles) {
     try {
         $content = Get-Content $hook.FullName -Raw -ErrorAction Stop
@@ -348,8 +347,9 @@ try {
 
     if ($envMatches) {
         foreach ($match in $envMatches) {
-            Write-Warning "[REVIEW] Hardcoded env var: $($match.Path):$($match.LineNumber)"
+            Write-Warning "[FAIL] Hardcoded env var found: $($match.Path):$($match.LineNumber)"
         }
+        throw [System.Management.Automation.PSInvalidOperationException]::new("Hardcoded environment variable assignments detected. This is a security risk. Please remove them.")
     } else {
         Write-Host "[PASS] No hardcoded environment variables detected"
     }
