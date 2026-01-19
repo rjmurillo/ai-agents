@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 8,
+    "date": "2026-01-18",
+    "branch": "fix/codeql-required-check",
+    "startingCommit": "953b4534d1c9e6be416942d676312a5648d6d90d",
+    "objective": "Debug and fix CodeQL required check not reporting on PRs without scannable files"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": { "status": "done", "evidence": "git checkout -b fix/codeql-required-check from main" },
+      "memoryRetrieved": { "status": "done", "evidence": "Used codeql-verification-fixes memory context" },
+      "sessionLogCreated": { "status": "done", "evidence": "This file" }
+    },
+    "sessionEnd": {
+      "changesCommitted": { "status": "pending", "evidence": "" },
+      "lintingPassed": { "status": "pending", "evidence": "" }
+    }
+  },
+  "workLog": [
+    {
+      "activity": "Investigated CodeQL check status on PR #975",
+      "outcome": "Found CodeQL check from integration 57789 missing, only github-actions (15368) checks present"
+    },
+    {
+      "activity": "Compared with PR #970 which had CodeQL analysis",
+      "outcome": "Confirmed PR #970 has both app 15368 and app 57789 checks, PR #975 only has 15368"
+    },
+    {
+      "activity": "Root cause analysis",
+      "outcome": "CodeQL check only created by github/codeql-action/analyze when it runs and uploads SARIF"
+    },
+    {
+      "activity": "Documented fix in .agents/devops/codeql-required-check-fix.md",
+      "outcome": "Instructions to update ruleset via GitHub UI to use Analyze jobs instead of CodeQL check"
+    }
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "type": "file",
+        "path": ".agents/devops/codeql-required-check-fix.md",
+        "description": "Documentation of root cause and fix steps for CodeQL required check issue"
+      }
+    ],
+    "rootCause": "github/codeql-action/analyze only creates CodeQL check (integration 57789) when analysis runs; skipped analysis means no check created"
+  }
+}
