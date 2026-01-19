@@ -549,7 +549,8 @@ if ($LASTEXITCODE -ne 0) {
 # Check exit code FIRST, then redirect stderr conditionally
 $output = & codeql database create ... 2>&1
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Command failed: $output"
+    # IMPORTANT: Sanitize $output for secrets before logging in production.
+    Write-Error "Command failed: $($output | Out-String)"
 } else {
     $output | Write-Verbose
 }

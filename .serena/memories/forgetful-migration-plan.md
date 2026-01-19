@@ -162,4 +162,4 @@ After migration, validate:
 - `using-forgetful-memory.md` - Forgetful usage patterns
 - `curating-memories.md` - Memory maintenance strategies
 - `memory-observations.md` - Memory system patterns
-- `skill-integration-plan.md` - Skill enhancement with HIGH confidence patterns
+- `skills-pattern-integration.md` - Skill enhancement with HIGH confidence patterns
