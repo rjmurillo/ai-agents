@@ -403,6 +403,222 @@ Describe "Invoke-ADRReviewGuard" {
             # Future: should block (exit 2) when content structure validation added
             $result.ExitCode | Should -Be 0 -Because "Current implementation doesn't validate debate log content structure (security gap)"
         }
+
+        It "Currently allows commit when staging multiple ADRs without matching debate logs for each (SECURITY GAP - documents multi-ADR bypass threat)" {
+            # SECURITY GAP DOCUMENTATION:
+            # Threat model: Agent stages ADR-001.md, ADR-002.md, ADR-003.md but only one debate log exists (ADR-001)
+            # Current behavior: Hook checks for ANY debate log (line 98 in hook), doesn't verify matching
+            # Desired behavior: Require debate log for EACH staged ADR file
+            # Mitigation priority: P0 (HIGH risk - obvious semantic bypass)
+            # Risk: HIGH - Multiple ADRs can bypass review by having only one debate log
+            #
+            # Expected future behavior:
+            #   1. Extract all ADR numbers from staged files (e.g., "001", "002", "003")
+            #   2. For each staged ADR, verify matching debate log exists (ADR-001-debate-log.md, ADR-002-debate-log.md, etc.)
+            #   3. Block if ANY staged ADR lacks matching debate log
+            #   4. Return list of missing debate logs in error message
+
+            # Stage multiple ADR files
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/architecture/ADR-001.md") -Value "# ADR-001: First Decision"
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/architecture/ADR-002.md") -Value "# ADR-002: Second Decision"
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/architecture/ADR-003.md") -Value "# ADR-003: Third Decision"
+
+            # Only ONE debate log exists (for ADR-001), others missing
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/analysis/ADR-001-debate-log.md") -Value "# ADR-001 Debate Log`n`nConsensus achieved for ADR-001."
+
+            # Stage all three ADR files
+            Push-Location $Script:TestRootDebateLog
+            git add .agents/architecture/ADR-001.md
+            git add .agents/architecture/ADR-002.md
+            git add .agents/architecture/ADR-003.md
+            Pop-Location
+
+            # Session log claims review (doesn't specify which ADRs)
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                workLog = @(
+                    @{ action = "Executed /adr-review skill"; result = "multi-agent consensus achieved" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathDebateLog -ProjectDir $Script:TestRootDebateLog -WorkingDir $Script:TestRootDebateLog
+            # Current behavior: allows (exit 0) because ANY debate log exists (line 98: Get-ChildItem -Filter "*debate*.md")
+            # Future: should block (exit 2) when per-ADR matching added
+            # Expected error: "Missing debate logs: ADR-002-debate-log.md, ADR-003-debate-log.md"
+            $result.ExitCode | Should -Be 0 -Because "Current implementation only checks for ANY debate log, doesn't verify one exists for each staged ADR (P0 security gap)"
+        }
+
+        It "Future: Should reject debate log with sufficient length but missing agent sections (when content parser implemented)" -Skip {
+            # SECURITY GAP DOCUMENTATION:
+            # Threat model: Agent creates 300-byte debate log with Lorem Ipsum + "Consensus achieved"
+            # Current behavior: Hook only checks file existence (line 98), no content validation
+            # Desired behavior: Validate debate log has:
+            #   - Required sections: ## Architect, ## Critic, ## Independent-Thinker, etc.
+            #   - Multiple consensus rounds (Round 1, Round 2)
+            #   - Minimum length per section (50+ bytes)
+            #   - No Lorem Ipsum or placeholder text
+            # Mitigation priority: P0 (HIGH risk - bypasses consensus requirement with plausible content)
+            # Risk: HIGH - Looks legitimate in quick review but has zero multi-agent participation
+            #
+            # Expected future behavior:
+            #   1. Parse debate log markdown structure
+            #   2. Verify presence of required agent headers (## Architect, ## Critic, ## Independent-Thinker, ## Security, ## Analyst, ## High-Level-Advisor)
+            #   3. Verify each section has substantive content (minimum 50 bytes after header)
+            #   4. Verify multiple consensus rounds exist (Round 1, Round 2, etc.)
+            #   5. Detect placeholder text patterns (Lorem Ipsum, "placeholder", "TODO", etc.)
+            #   6. Block if any validation fails with specific error message
+
+            # Create debate log with sufficient length but missing agent sections
+            $fakeContent = @"
+# ADR-999 Debate Log
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+
+Consensus achieved after thorough review.
+"@
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/analysis/ADR-999-debate-log.md") -Value $fakeContent
+
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                workLog = @(
+                    @{ action = "Executed /adr-review skill"; result = "multi-agent consensus achieved" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathDebateLog -ProjectDir $Script:TestRootDebateLog -WorkingDir $Script:TestRootDebateLog
+            # Future: should block (exit 2) when content structure parser implemented
+            # Expected error: "Debate log missing required agent sections: ## Architect, ## Critic, ## Independent-Thinker"
+            $result.ExitCode | Should -Be 2 -Because "Future implementation should validate debate log has proper multi-agent structure"
+            $result.Output | Should -Match "missing required agent sections"
+        }
+
+        It "Future: Should block when debate log timestamp is 10+ days older than session log (when timestamp correlation implemented)" -Skip {
+            # SECURITY GAP DOCUMENTATION (P1 Issue 3: Timestamp correlation test missing):
+            # Threat model: Debate log from ADR-999 created 10 days ago is reused for new session today,
+            # bypassing temporal correlation check. Stale consensus evidence should not validate fresh ADR changes.
+            # Current behavior: Hook does not validate timestamp correlation between debate log and session log
+            # Desired behavior: Reject if debate log creation date differs from session date by more than 1 day
+            # Mitigation priority: P1 (Criticality: 7/10) - Prevents stale consensus reuse
+            # Risk: MEDIUM - Allows reusing old debate logs for new ADR changes without re-review
+            #
+            # Expected future behavior:
+            #   1. Extract debate log creation date from file metadata or embedded timestamp
+            #   2. Extract session date from session log JSON
+            #   3. Calculate delta between dates
+            #   4. Block if delta > 1 day (allows same-day or next-day commits)
+            #   5. Error message: "Debate log ADR-999-debate-log.md is 10 days old but session is today; re-run adr-review skill"
+
+            # Create debate log dated 10 days ago (simulate old file)
+            $oldDate = (Get-Date).AddDays(-10)
+            $debateLogPath = Join-Path $Script:TestRootDebateLog ".agents/analysis/ADR-999-debate-log.md"
+            Set-Content -Path $debateLogPath -Value "# ADR-999 Debate Log`n`nConsensus achieved on $($oldDate.ToString('yyyy-MM-dd'))."
+            # Set file modification time to 10 days ago
+            (Get-Item $debateLogPath).LastWriteTime = $oldDate
+
+            # Session log created today
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                workLog = @(
+                    @{ action = "Executed /adr-review skill"; result = "multi-agent consensus achieved" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathDebateLog -ProjectDir $Script:TestRootDebateLog -WorkingDir $Script:TestRootDebateLog
+            # Future: should block (exit 2) when timestamp correlation check implemented
+            # Expected error: "Debate log is 10 days old but session is today"
+            $result.ExitCode | Should -Be 2 -Because "Debate log 10 days old should not validate session today"
+            $result.Output | Should -Match "debate log.*10 days old"
+        }
+
+        It "Future: Should extract ADR number from staged file and require matching debate log (when ADR number extraction implemented)" -Skip {
+            # SECURITY GAP DOCUMENTATION (P1 Issue 4: ADR number extraction test missing):
+            # Threat model: Hook should extract ADR number from staged file path (e.g., "999" from ".agents/architecture/ADR-999.md")
+            # and verify matching debate log exists (e.g., ".agents/analysis/ADR-999-debate-log.md").
+            # Current behavior: Hook searches for ANY file matching *debate*.md without verifying ADR number match
+            # Desired behavior: Extract ADR number, lookup matching debate log, block if no match
+            # Mitigation priority: P1 (Criticality: 7/10) - Prevents mismatched debate logs
+            # Risk: MEDIUM - Allows using ADR-001 debate log for ADR-999 changes
+            #
+            # Expected future behavior:
+            #   1. Parse staged file path: ".agents/architecture/ADR-999.md" -> extract "999"
+            #   2. Construct expected debate log path: ".agents/analysis/ADR-999-debate-log.md"
+            #   3. Verify file exists at exact path
+            #   4. Parse debate log header: "# ADR-999 Debate Log" -> extract "999"
+            #   5. Verify staged ADR number matches debate log ADR number
+            #   6. Block if numbers don't match or debate log missing
+            #   7. Error message: "ADR-999 requires debate log ADR-999-debate-log.md, found only ADR-001-debate-log.md"
+
+            # Stage ADR-999
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/architecture/ADR-999.md") -Value "# ADR-999: Test Decision"
+            Push-Location $Script:TestRootDebateLog
+            git add .agents/architecture/ADR-999.md
+            Pop-Location
+
+            # Only ADR-001 debate log exists (wrong number)
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/analysis/ADR-001-debate-log.md") -Value "# ADR-001 Debate Log`n`nConsensus for different ADR."
+
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                workLog = @(
+                    @{ action = "Executed /adr-review skill"; result = "multi-agent consensus achieved" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathDebateLog -ProjectDir $Script:TestRootDebateLog -WorkingDir $Script:TestRootDebateLog
+            # Future: should block (exit 2) when ADR number extraction and matching implemented
+            # Expected error: "ADR-999 requires debate log ADR-999-debate-log.md, found only ADR-001-debate-log.md"
+            $result.ExitCode | Should -Be 2 -Because "Mismatched ADR numbers should be rejected"
+            $result.Output | Should -Match "ADR-999 requires.*ADR-999-debate-log\.md"
+        }
+
+        It "Future: Should block when debate log has future timestamp (when temporal validation implemented)" -Skip {
+            # SECURITY GAP DOCUMENTATION (P1 Issue 5: Debate log future timestamp test missing):
+            # Threat model: Debate log dated tomorrow should be rejected as temporal anomaly.
+            # A debate log from the future indicates either system clock manipulation or test data injection.
+            # Current behavior: Hook does not validate debate log timestamp against current date
+            # Desired behavior: Reject debate logs with creation date > current date
+            # Mitigation priority: P1 (Criticality: 7/10) - Prevents temporal bypass threats
+            # Risk: LOW - Future timestamp is obvious anomaly, but should be caught programmatically
+            #
+            # Expected future behavior:
+            #   1. Extract debate log creation date from file metadata
+            #   2. Compare to current system date
+            #   3. Block if debate log date > current date
+            #   4. Error message: "Debate log ADR-999-debate-log.md has future timestamp (tomorrow), rejecting as temporal anomaly"
+
+            # Create debate log dated tomorrow
+            $futureDate = (Get-Date).AddDays(1)
+            $debateLogPath = Join-Path $Script:TestRootDebateLog ".agents/analysis/ADR-999-debate-log.md"
+            Set-Content -Path $debateLogPath -Value "# ADR-999 Debate Log`n`nConsensus achieved on $($futureDate.ToString('yyyy-MM-dd'))."
+            # Set file modification time to tomorrow
+            (Get-Item $debateLogPath).LastWriteTime = $futureDate
+
+            # Session log created today
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLog = @{
+                session = @{ number = 999; date = $today; branch = "test"; startingCommit = "abc"; objective = "Test" }
+                workLog = @(
+                    @{ action = "Executed /adr-review skill"; result = "multi-agent consensus achieved" }
+                )
+            } | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/sessions/$today-session-999.json") -Value $sessionLog
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathDebateLog -ProjectDir $Script:TestRootDebateLog -WorkingDir $Script:TestRootDebateLog
+            # Future: should block (exit 2) when temporal validation implemented
+            # Expected error: "Debate log has future timestamp, rejecting as temporal anomaly"
+            $result.ExitCode | Should -Be 2 -Because "Future timestamp indicates temporal anomaly"
+            $result.Output | Should -Match "future timestamp.*temporal anomaly"
+        }
     }
 
     Context "ADR changes with review evidence allows commit" {
