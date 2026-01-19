@@ -902,6 +902,24 @@ store** (`.serena/memories/*.md`). Applying CAP theorem:
 - Plugin enhancements (citations) are additive to Serena format
 - Memories created by either system are readable by both
 
+#### Staleness Analysis by Tier
+
+| Query Type | Data Source | Staleness Risk |
+|------------|-------------|----------------|
+| Serena `list_memories` | File system | None |
+| Serena `read_memory` | File system | None |
+| Plugin `graph` | File system | None |
+| Plugin `verify` | File system | None |
+| Plugin `health` | File system | None |
+| Forgetful semantic search | Vector DB | **Pre-existing** |
+
+**The plugin introduces no additional staleness** because it uses the same file-based
+access pattern as Serena. Both read `.serena/memories/` directly via file I/O.
+
+The only eventual consistency gap is Forgetful's vector index, which requires
+re-indexing after new memories are written. This is a pre-existing condition
+unrelated to this plugin.
+
 #### The Real Conflict: Tool Selection UX
 
 The conflict is **not data integrity** but **cognitive overhead**:
