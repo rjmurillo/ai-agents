@@ -1,8 +1,9 @@
-# PRD: Standalone Memory Plugin for AI Agents
+# PRD: Memory Enhancement Layer for Serena + Forgetful
 
 **Status**: Draft
 **Author**: Claude
 **Created**: 2026-01-19
+**Updated**: 2026-01-19
 **Related Issues**: #724 (Traceability Graph), #584 (Serena Integration)
 **Inspiration**: [GitHub Copilot Agentic Memory System](https://github.blog/ai-and-ml/github-copilot/building-an-agentic-memory-system-for-github-copilot/)
 
@@ -12,37 +13,31 @@
 
 ### 1.1 Current State
 
-AI coding agents lose context between sessions. Existing solutions require:
+We have a working memory system:
 
-- **External databases** (Neo4j, Postgres) that add deployment complexity
-- **MCP servers** (Forgetful, Serena) that aren't available on all platforms
-- **Vendor lock-in** to specific memory implementations
+| Component | Role | Status |
+|-----------|------|--------|
+| **Serena** | Canonical markdown storage (`.serena/memories/`) | ✅ 460+ memories |
+| **Forgetful** | Semantic vector search | ✅ Configured |
+| **MemoryRouter** | Unified search across both | ✅ ADR-037 |
 
-### 1.2 Core Tension
+### 1.2 What's Missing
 
-There's a fundamental conflict between:
+GitHub Copilot's memory system revealed capabilities we lack:
 
-| Need | Current Solutions |
-|------|-------------------|
-| Semantic search (find related concepts) | Requires vector DB (Chroma, Pinecone) |
-| Cross-session persistence | Requires external state |
-| Portability (works everywhere) | Tied to specific MCP implementations |
-| Human-readable storage | Binary embeddings aren't inspectable |
+| Capability | GitHub Copilot | Our System |
+|------------|----------------|------------|
+| **Citation validation** | Memories reference `file:line`, verified at retrieval | ❌ No citations |
+| **Staleness detection** | Stale memories auto-flagged when code changes | ❌ Manual curation only |
+| **Just-in-time verification** | Verify on read, not continuous sync | ❌ No verification |
+| **Confidence scoring** | Track memory reliability over time | ❌ No scoring |
+| **Graph traversal** | Navigate memory relationships | ⚠️ Links exist, no traversal tools |
 
-### 1.3 Project Constraint (from Issue #724)
+### 1.3 Opportunity
 
-> **Everything should be markdown and accessible without special tools, configuration, or context bloat.**
->
-> This means no external graph database or MCP dependencies - the implementation must be a "poor man's graph database" built on markdown files.
+**Enhance Serena + Forgetful** with citation validation and graph operations—don't replace them.
 
-### 1.4 Opportunity
-
-GitHub Copilot's memory system demonstrates that **citation-backed validation** and **just-in-time verification** can replace complex encoding schemes. Combined with the markdown-first constraint, we can build a memory system that:
-
-1. Works with zero external dependencies
-2. Travels with the git repository
-3. Is human-readable and grep-able
-4. Optionally enhances with vector search when available
+This delivers 90% of GitHub Copilot's value at 10% of the cost.
 
 ---
 
@@ -52,23 +47,26 @@ GitHub Copilot's memory system demonstrates that **citation-backed validation** 
 
 | Priority | Goal | Success Metric |
 |----------|------|----------------|
-| P0 | **Markdown-canonical storage** | All memories readable via `cat`/`grep` |
-| P0 | **Zero required dependencies** | Works with Python stdlib only |
-| P0 | **Git-synchronized** | Memories travel with repository |
-| P1 | **Citation validation** | Detect stale memories via file references |
-| P1 | **Graph traversal** | Navigate memory relationships without external DB |
-| P2 | **Progressive enhancement** | Optional vector search when Chroma available |
-| P2 | **Multi-agent reinforcement** | Agents can validate/update each other's memories |
+| P0 | **Citation schema for Serena memories** | Standardized frontmatter format |
+| P0 | **Just-in-time citation verification** | `Verify-MemoryCitations.ps1` script |
+| P1 | **Staleness detection in CI** | Pre-commit hook flags stale memories |
+| P1 | **Graph traversal on Serena links** | Navigate memory relationships |
+| P2 | **Confidence scoring** | Track verification history |
+| P2 | **Multi-agent reinforcement** | Agents validate each other's memories |
 
 ### 2.2 Non-Goals
 
 | Explicitly Out of Scope | Rationale |
 |------------------------|-----------|
-| Real-time sync with external DBs | Violates markdown-canonical principle |
-| Binary storage formats | Must be human-readable |
-| Required MCP server | Must work standalone |
-| Cloud-hosted memory | Must work fully offline |
-| Automatic memory creation | Agents must explicitly save (intentionality) |
+| Replace Serena | Already works, 460+ memories invested |
+| Replace Forgetful | Already provides semantic search |
+| New storage format | Serena markdown is fine |
+| New MCP server | Adds complexity without benefit |
+| Standalone operation without Serena | Not needed for this project |
+
+### 2.3 Design Principle
+
+> **Enhance, don't replace.** Every new capability should work WITH the existing Serena + Forgetful stack, not around it.
 
 ---
 
@@ -78,555 +76,454 @@ GitHub Copilot's memory system demonstrates that **citation-backed validation** 
 
 | Persona | Description |
 |---------|-------------|
-| **Agent** | AI coding assistant that needs cross-session memory |
-| **Developer** | Human who reviews/curates agent memories |
-| **Platform** | CI/CD system that validates memory integrity |
+| **Agent** | AI coding assistant using Serena for memory |
+| **Developer** | Human who reviews/curates memories |
+| **CI Pipeline** | Validates memory integrity on PR |
 
 ### 3.2 User Stories
 
-#### US-1: Agent Searches Memory (P0)
+#### US-1: Agent Saves Memory with Citations (P0)
 
-**As an** agent starting a new session,
-**I want to** search for relevant memories by topic,
-**So that** I don't repeat past mistakes or rediscover known patterns.
-
-**Acceptance Criteria:**
-- [ ] Search returns memories ranked by relevance
-- [ ] Works without any external services running
-- [ ] Results include memory content and metadata
-- [ ] Search completes in <500ms for 1000 memories
-
-#### US-2: Agent Saves Memory (P0)
-
-**As an** agent that discovered a new pattern,
-**I want to** save it as a memory with citations,
-**So that** future sessions can benefit from this knowledge.
+**As an** agent that discovered a pattern,
+**I want to** save it with references to specific code locations,
+**So that** the memory can be validated against code changes.
 
 **Acceptance Criteria:**
-- [ ] Memory saved as markdown file with frontmatter
-- [ ] Citations reference specific file:line locations
-- [ ] Memory ID is deterministic and stable
-- [ ] File is immediately visible in git status
+- [ ] Citation schema defined in Serena memory frontmatter
+- [ ] `mcp__serena__write_memory` accepts citation metadata
+- [ ] Citations include path, line number, and snippet
 
-#### US-3: Agent Verifies Memory (P1)
+#### US-2: Agent Verifies Memory Before Acting (P0)
 
 **As an** agent retrieving a memory,
-**I want to** verify its citations are still valid,
+**I want to** verify its citations still match the codebase,
 **So that** I don't act on stale information.
 
 **Acceptance Criteria:**
-- [ ] Verification checks each citation file:line exists
-- [ ] Stale citations are flagged with specific details
-- [ ] Verification result includes confidence score
-- [ ] Agent can choose to skip or flag stale memories
+- [ ] Verification checks file:line exists
+- [ ] Verification checks snippet content matches
+- [ ] Stale citations return specific mismatch details
+- [ ] Agent receives confidence score
+
+#### US-3: CI Detects Stale Memories (P1)
+
+**As a** CI pipeline,
+**I want to** validate all memory citations on PR,
+**So that** stale memories are flagged before merge.
+
+**Acceptance Criteria:**
+- [ ] Batch validation script for all Serena memories
+- [ ] Exit code reflects validation status
+- [ ] Report lists stale citations with details
+- [ ] Integrates with existing pre-commit hooks
 
 #### US-4: Agent Traverses Memory Graph (P1)
 
 **As an** agent investigating a topic,
-**I want to** follow links between related memories,
+**I want to** follow links between related Serena memories,
 **So that** I can build comprehensive understanding.
 
 **Acceptance Criteria:**
-- [ ] Graph traversal uses only markdown file operations
+- [ ] Graph traversal works on existing Serena link format
 - [ ] Supports BFS/DFS with configurable depth
-- [ ] Returns adjacency structure for visualization
-- [ ] Handles cycles without infinite loops
+- [ ] Returns adjacency structure
+- [ ] Uses `mcp__serena__*` tools, not custom storage
 
-#### US-5: Developer Inspects Memories (P0)
+#### US-5: Developer Sees Memory Health Dashboard (P2)
 
-**As a** developer reviewing agent behavior,
-**I want to** read memories using standard tools,
-**So that** I can understand and curate agent knowledge.
-
-**Acceptance Criteria:**
-- [ ] `cat memories/mem-*.md` shows readable content
-- [ ] `grep -r "api versioning" memories/` finds relevant files
-- [ ] Frontmatter is valid YAML parseable by any tool
-- [ ] No binary files or encoded content
-
-#### US-6: Platform Validates Memory Integrity (P2)
-
-**As a** CI/CD pipeline,
-**I want to** validate all memory citations,
-**So that** stale memories are detected before merge.
+**As a** developer,
+**I want to** see which memories are stale or low-confidence,
+**So that** I can prioritize curation efforts.
 
 **Acceptance Criteria:**
-- [ ] Batch validation of all memories in directory
-- [ ] Exit code reflects validation status
-- [ ] Report lists all stale citations
-- [ ] Can be run as pre-commit hook or CI job
+- [ ] Script generates memory health report
+- [ ] Shows last verified date per memory
+- [ ] Ranks by staleness / confidence
+- [ ] Outputs markdown for easy review
 
 ---
 
-## 4. Technical Requirements
+## 4. Technical Design
 
-### 4.1 Memory Schema
+### 4.1 Citation Schema (Serena Memory Extension)
 
-```yaml
-# Frontmatter schema (YAML)
-id: string           # Unique identifier (e.g., "mem-api-versioning-001")
-subject: string      # Brief subject line (< 80 chars)
-created: datetime    # ISO 8601 timestamp
-verified: datetime   # Last verification timestamp (nullable)
-confidence: float    # 0.0-1.0 confidence score
-citations:           # Code references
-  - path: string     # Relative file path
-    line: integer    # Line number (optional)
-    snippet: string  # Expected content (optional)
-links:               # Graph edges
-  - type: enum       # related | supersedes | blocks | references
-    target: string   # Target memory ID
-tags: list[string]   # Classification tags
-```
+Extend existing Serena memory format with optional `citations` block:
 
 ```markdown
-# Content schema (Markdown body)
+# .serena/memories/api-versioning.md (existing format)
 
-**Fact**: <single sentence stating the knowledge>
+This is the existing memory content...
 
-**Reasoning**: <why this is true, how it was discovered>
+## Citations
 
-**Action**: <what to do with this knowledge>
+| File | Line | Snippet | Verified |
+|------|------|---------|----------|
+| src/client/constants.ts | 42 | `API_VERSION = 'v2'` | 2026-01-18 |
+| server/routes/api.ts | 15 | `router.use('/v2'` | 2026-01-18 |
+
+## Metadata
+
+- **Confidence**: 0.92
+- **Last Verified**: 2026-01-18T10:30:00Z
+- **Links**: api-deployment-checklist, client-sdk-patterns
 ```
 
-### 4.2 File Layout
+**Why table format?**
+- Human-readable (grep/cat friendly)
+- Parseable with simple regex
+- No YAML frontmatter changes needed
+- Backwards compatible with existing memories
+
+### 4.2 Architecture
 
 ```
-memories/
-├── index.md                    # Optional: human-curated index
-├── mem-api-versioning-001.md
-├── mem-deployment-checklist-003.md
-├── mem-security-headers-012.md
-└── .memory-config.yaml         # Optional: plugin configuration
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Enhancement Layer (NEW)                           │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────────┐    │
+│  │ Verify-Memory  │  │ Traverse-Graph │  │ Get-MemoryHealth   │    │
+│  │ Citations.ps1  │  │ .ps1           │  │ Report.ps1         │    │
+│  └───────┬────────┘  └───────┬────────┘  └─────────┬──────────┘    │
+│          │                   │                      │               │
+└──────────┼───────────────────┼──────────────────────┼───────────────┘
+           │                   │                      │
+           ▼                   ▼                      ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Existing Stack (UNCHANGED)                        │
+│  ┌────────────────────────────────────────────────────────────┐     │
+│  │                    MemoryRouter.psm1                        │     │
+│  │                    (ADR-037)                                │     │
+│  └────────────────────────┬───────────────────────────────────┘     │
+│                           │                                          │
+│           ┌───────────────┴───────────────┐                         │
+│           ▼                               ▼                         │
+│  ┌─────────────────┐             ┌─────────────────┐                │
+│  │ Serena MCP      │             │ Forgetful MCP   │                │
+│  │ (Canonical)     │             │ (Semantic)      │                │
+│  │ .serena/memories│             │ Vector search   │                │
+│  └─────────────────┘             └─────────────────┘                │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.3 Tool Interface
+### 4.3 New Scripts
 
-| Tool | Purpose | Required |
-|------|---------|----------|
-| `memory_search` | Find memories by query | Yes |
-| `memory_save` | Create/update memory | Yes |
-| `memory_get` | Retrieve by ID | Yes |
-| `memory_verify` | Validate citations | Yes |
-| `memory_list` | List all memories | Yes |
-| `memory_graph_traverse` | Navigate relationships | Yes |
-| `memory_graph_related` | Find referencing memories | Yes |
-| `memory_delete` | Remove memory | Yes |
-| `memory_batch_verify` | Validate all memories | No (P2) |
-| `memory_sync_index` | Sync to vector DB | No (P2) |
+| Script | Purpose | Inputs | Outputs |
+|--------|---------|--------|---------|
+| `Verify-MemoryCitations.ps1` | Validate citations in a memory | Memory path or ID | Verification result |
+| `Invoke-MemoryGraphTraversal.ps1` | BFS/DFS on memory links | Root ID, depth | Adjacency dict |
+| `Get-MemoryHealthReport.ps1` | Batch health check | Directory | Markdown report |
+| `Add-MemoryCitation.ps1` | Add citation to memory | Memory ID, file, line | Updated memory |
 
-### 4.4 Search Behavior
+### 4.4 Verification Algorithm
 
-**Default (Lexical):**
+```powershell
+function Test-Citation {
+    param(
+        [string]$Path,
+        [int]$Line,
+        [string]$Snippet
+    )
+
+    # Check file exists
+    if (-not (Test-Path $Path)) {
+        return @{ Valid = $false; Reason = "File not found" }
+    }
+
+    # Check line exists
+    $lines = Get-Content $Path
+    if ($Line -gt $lines.Count) {
+        return @{ Valid = $false; Reason = "Line $Line exceeds file length" }
+    }
+
+    # Check snippet matches (fuzzy - contains)
+    $actualLine = $lines[$Line - 1]
+    if ($actualLine -notmatch [regex]::Escape($Snippet)) {
+        return @{
+            Valid = $false
+            Reason = "Snippet mismatch"
+            Expected = $Snippet
+            Actual = $actualLine.Trim()
+        }
+    }
+
+    return @{ Valid = $true }
+}
 ```
-Query: "api versioning"
-→ Tokenize: ["api", "versioning"]
-→ Score each memory by keyword overlap in subject + content
-→ Return top N sorted by score
+
+### 4.5 Graph Traversal
+
+Serena memories already support links via content references. Parse and traverse:
+
+```powershell
+function Get-MemoryLinks {
+    param([string]$MemoryPath)
+
+    $content = Get-Content $MemoryPath -Raw
+
+    # Extract from ## Links section or inline references
+    $links = @()
+
+    # Pattern 1: ## Links section with bullet list
+    if ($content -match '## Links\s*\n((?:[-*]\s+.+\n?)+)') {
+        $linkSection = $Matches[1]
+        $links += [regex]::Matches($linkSection, '[-*]\s+(\S+)') |
+            ForEach-Object { $_.Groups[1].Value }
+    }
+
+    # Pattern 2: [[wiki-style]] links
+    $links += [regex]::Matches($content, '\[\[([^\]]+)\]\]') |
+        ForEach-Object { $_.Groups[1].Value }
+
+    return $links | Select-Object -Unique
+}
+
+function Invoke-GraphTraversal {
+    param(
+        [string]$RootId,
+        [int]$MaxDepth = 3,
+        [string]$MemoriesPath = ".serena/memories"
+    )
+
+    $visited = @{}
+    $queue = [System.Collections.Queue]::new()
+    $queue.Enqueue(@{ Id = $RootId; Depth = 0 })
+    $graph = @{}
+
+    while ($queue.Count -gt 0) {
+        $current = $queue.Dequeue()
+
+        if ($visited.ContainsKey($current.Id) -or $current.Depth -gt $MaxDepth) {
+            continue
+        }
+
+        $visited[$current.Id] = $true
+        $memoryPath = Join-Path $MemoriesPath "$($current.Id).md"
+
+        if (Test-Path $memoryPath) {
+            $links = Get-MemoryLinks -MemoryPath $memoryPath
+            $graph[$current.Id] = $links
+
+            foreach ($link in $links) {
+                if (-not $visited.ContainsKey($link)) {
+                    $queue.Enqueue(@{ Id = $link; Depth = $current.Depth + 1 })
+                }
+            }
+        }
+    }
+
+    return $graph
+}
 ```
-
-**Enhanced (Semantic, opt-in):**
-```
-Query: "api versioning"
-→ Lexical search (always)
-→ If Chroma available: semantic search
-→ Merge, deduplicate by content hash
-→ Return top N
-```
-
-### 4.5 Performance Requirements
-
-| Operation | Target | Constraint |
-|-----------|--------|------------|
-| Search (1000 memories) | < 500ms | Lexical only |
-| Search (1000 memories) | < 1000ms | With semantic |
-| Save | < 100ms | File write |
-| Verify (single) | < 200ms | File existence + content check |
-| Graph traverse (depth 3) | < 500ms | BFS with 100 nodes |
-
-### 4.6 Dependency Requirements
-
-| Dependency | Status | Purpose |
-|------------|--------|---------|
-| Python 3.10+ | Required | Runtime |
-| PyYAML | Required | Frontmatter parsing |
-| chromadb | Optional | Semantic search enhancement |
-| sentence-transformers | Optional | Embeddings for Chroma |
 
 ---
 
-## 5. Architecture
+## 5. Integration Points
 
-### 5.1 Component Diagram
+### 5.1 With Existing MemoryRouter (ADR-037)
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Tool Layer                               │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐   │
-│  │ search   │ │ save     │ │ verify   │ │ graph_traverse   │   │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────────┬─────────┘   │
-│       │            │            │                 │              │
-└───────┼────────────┼────────────┼─────────────────┼──────────────┘
-        │            │            │                 │
-        ▼            ▼            ▼                 ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        Core Layer                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │ MemoryStore  │  │ Citations    │  │ MarkdownGraph        │   │
-│  │              │  │              │  │                      │   │
-│  │ - search()   │  │ - verify()   │  │ - traverse()         │   │
-│  │ - save()     │  │ - parse()    │  │ - find_related()     │   │
-│  │ - get()      │  │ - update()   │  │ - find_roots()       │   │
-│  └──────┬───────┘  └──────────────┘  └──────────────────────┘   │
-│         │                                                        │
-└─────────┼────────────────────────────────────────────────────────┘
-          │
-          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       Index Layer (Optional)                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │ NullIndex    │  │ ChromaIndex  │  │ ForgetfulIndex       │   │
-│  │ (default)    │  │ (opt-in)     │  │ (opt-in)             │   │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘   │
-│         │                  │                    │                │
-│         └──────────────────┴────────────────────┘                │
-│                            │                                     │
-│                   MemoryIndex (ABC)                              │
-│                   - add(memory)                                  │
-│                   - search(query) -> [(memory, score)]           │
-│                   - health_check() -> bool                       │
-└─────────────────────────────────────────────────────────────────┘
-          │
-          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Storage Layer                               │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                    memories/*.md                          │   │
-│  │                    (Git-synchronized)                     │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
+```powershell
+# Enhanced Search-Memory with verification
+function Search-Memory {
+    param(
+        [string]$Query,
+        [switch]$VerifyCitations  # NEW parameter
+    )
+
+    # Existing search logic...
+    $results = Invoke-SerenaSearch -Query $Query
+
+    if ($VerifyCitations) {
+        $results = $results | ForEach-Object {
+            $verification = Verify-MemoryCitations -MemoryPath $_.Path
+            $_ | Add-Member -NotePropertyName 'CitationsValid' -NotePropertyValue $verification.Valid
+            $_ | Add-Member -NotePropertyName 'Confidence' -NotePropertyValue $verification.Confidence
+            $_
+        } | Where-Object { $_.CitationsValid -or -not $_.HasCitations }
+    }
+
+    return $results
+}
 ```
 
-### 5.2 Data Flow
+### 5.2 With Session Protocol
 
-```
-┌─────────┐     ┌─────────────┐     ┌─────────────┐     ┌──────────┐
-│ Agent   │────▶│ memory_save │────▶│ MemoryStore │────▶│ .md file │
-└─────────┘     └─────────────┘     └──────┬──────┘     └──────────┘
-                                           │
-                                           ▼ (optional)
-                                    ┌─────────────┐
-                                    │ ChromaIndex │
-                                    └─────────────┘
-```
+Add to session start (optional gate):
 
-```
-┌─────────┐     ┌───────────────┐     ┌─────────────┐
-│ Agent   │────▶│ memory_search │────▶│ MemoryStore │
-└─────────┘     └───────────────┘     └──────┬──────┘
-                                              │
-                      ┌───────────────────────┼───────────────────────┐
-                      ▼                       ▼                       ▼
-               ┌─────────────┐        ┌─────────────┐         ┌─────────────┐
-               │ Lexical     │        │ ChromaIndex │         │ Merge &     │
-               │ (grep-like) │        │ (optional)  │         │ Deduplicate │
-               └─────────────┘        └─────────────┘         └─────────────┘
+```markdown
+## Session Start (Enhanced)
+
+1. ✅ Activate Serena
+2. ✅ Read HANDOFF.md
+3. ✅ Create session log
+4. ✅ Read usage-mandatory memory
+5. ✅ Verify branch
+6. **NEW (optional)**: Run `Get-MemoryHealthReport.ps1` for relevant memories
 ```
 
-### 5.3 Configuration
+### 5.3 With CI/Pre-commit
 
 ```yaml
-# .memory-config.yaml (optional)
-storage:
-  directory: memories           # Default: "memories"
-  file_extension: .md          # Default: ".md"
+# .github/workflows/memory-validation.yml
+name: Memory Validation
 
-search:
-  default_limit: 10            # Default: 10
-  min_keyword_length: 3        # Default: 3
+on:
+  pull_request:
+    paths:
+      - '.serena/memories/**'
+      - 'src/**'  # Code changes may invalidate citations
 
-index:
-  type: null                   # null | chroma | forgetful
-  chroma:
-    persist_dir: .chroma
-    collection: memories
-  forgetful:
-    endpoint: http://localhost:8020
-
-verification:
-  on_retrieval: false          # Verify citations on every get
-  stale_threshold_days: 30     # Flag memories not verified in N days
-
-graph:
-  max_traversal_depth: 5       # Safety limit for BFS/DFS
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate memory citations
+        run: pwsh scripts/Verify-AllMemoryCitations.ps1
+        continue-on-error: true  # Warning, not blocking initially
 ```
 
 ---
 
-## 6. API Specification
+## 6. Implementation Phases
 
-### 6.1 memory_search
+### Phase 1: Citation Schema & Verification (1 week)
 
-```python
-def memory_search(
-    query: str,
-    limit: int = 10,
-    verify: bool = False,
-    tags: list[str] | None = None
-) -> list[MemoryResult]:
-    """
-    Search memories by query.
+**Deliverables:**
+- [ ] Document citation schema (table format in memory body)
+- [ ] `Verify-MemoryCitations.ps1` - single memory verification
+- [ ] `Verify-AllMemoryCitations.ps1` - batch verification
+- [ ] Unit tests for verification logic
 
-    Args:
-        query: Search query (keywords or natural language)
-        limit: Maximum results to return
-        verify: If True, exclude memories with stale citations
-        tags: Filter to memories with these tags
+**Exit Criteria:**
+- Can verify citations in any Serena memory
+- Clear pass/fail with details on mismatches
 
-    Returns:
-        List of MemoryResult with id, subject, content, score, citations
-    """
-```
+### Phase 2: Graph Traversal (1 week)
 
-### 6.2 memory_save
+**Deliverables:**
+- [ ] `Get-MemoryLinks.ps1` - extract links from memory
+- [ ] `Invoke-MemoryGraphTraversal.ps1` - BFS/DFS traversal
+- [ ] Integration with existing link formats
+- [ ] Cycle detection
 
-```python
-def memory_save(
-    subject: str,
-    content: str,
-    citations: list[Citation] | None = None,
-    links: list[Link] | None = None,
-    tags: list[str] | None = None,
-    id: str | None = None  # Auto-generated if not provided
-) -> SaveResult:
-    """
-    Save a new memory or update existing.
+**Exit Criteria:**
+- Can traverse memory relationships
+- Works with existing Serena memory format
 
-    Args:
-        subject: Brief subject line (< 80 chars)
-        content: Full content (Fact + Reasoning + Action)
-        citations: Code references [{path, line?, snippet?}]
-        links: Graph edges [{type, target}]
-        tags: Classification tags
-        id: Memory ID (auto-generated if not provided)
+### Phase 3: Health Reporting & CI Integration (1 week)
 
-    Returns:
-        SaveResult with id, path, created flag
-    """
-```
+**Deliverables:**
+- [ ] `Get-MemoryHealthReport.ps1` - batch health check
+- [ ] CI workflow for PR validation
+- [ ] Pre-commit hook (optional)
+- [ ] Documentation for adding citations to memories
 
-### 6.3 memory_verify
+**Exit Criteria:**
+- CI flags stale memories on code changes
+- Developers can see memory health at a glance
 
-```python
-def memory_verify(
-    memory_id: str,
-    update_timestamp: bool = True
-) -> VerifyResult:
-    """
-    Verify a memory's citations are still valid.
+### Phase 4: Confidence Scoring & Tooling (1 week)
 
-    Args:
-        memory_id: ID of memory to verify
-        update_timestamp: If True and valid, update verified timestamp
+**Deliverables:**
+- [ ] Confidence calculation based on verification history
+- [ ] `Add-MemoryCitation.ps1` - helper to add citations
+- [ ] Integration with `reflect` skill for auto-citations
+- [ ] Memory health dashboard
 
-    Returns:
-        VerifyResult with valid flag, stale_citations list, confidence
-    """
-```
-
-### 6.4 memory_graph_traverse
-
-```python
-def memory_graph_traverse(
-    root_id: str,
-    max_depth: int = 3,
-    link_types: list[str] | None = None  # Filter by link type
-) -> GraphResult:
-    """
-    Traverse memory graph from a root node.
-
-    Args:
-        root_id: Starting memory ID
-        max_depth: Maximum traversal depth
-        link_types: Only follow these link types (None = all)
-
-    Returns:
-        GraphResult with nodes dict and edges list
-    """
-```
+**Exit Criteria:**
+- Memories track confidence over time
+- Easy to add/update citations
 
 ---
 
-## 7. Implementation Phases
-
-### Phase 1: Core Foundation (Week 1-2)
-
-**Deliverables:**
-- [ ] Memory dataclass with YAML frontmatter serialization
-- [ ] MemoryStore with save/get/list/delete
-- [ ] Lexical search (keyword-based)
-- [ ] Basic tool interface (search, save, get, list)
-- [ ] Unit tests with >80% coverage
-
-**Exit Criteria:**
-- Agent can save and retrieve memories
-- All memories are readable markdown files
-- Works with zero external dependencies
-
-### Phase 2: Citation System (Week 3)
-
-**Deliverables:**
-- [ ] Citation dataclass with path/line/snippet
-- [ ] Citation verification (file exists, content matches)
-- [ ] memory_verify tool
-- [ ] Stale memory detection
-- [ ] Integration with memory_search (verify flag)
-
-**Exit Criteria:**
-- Memories reference specific code locations
-- Stale citations are detected and reported
-- Agent can filter out stale memories
-
-### Phase 3: Graph Operations (Week 4)
-
-**Deliverables:**
-- [ ] Link dataclass with type/target
-- [ ] MarkdownGraph with traverse/find_related/find_roots
-- [ ] memory_graph_traverse tool
-- [ ] memory_graph_related tool
-- [ ] Cycle detection in traversal
-
-**Exit Criteria:**
-- Agent can navigate memory relationships
-- Graph operations use only file I/O
-- No external graph database required
-
-### Phase 4: Progressive Enhancement (Week 5-6)
-
-**Deliverables:**
-- [ ] MemoryIndex abstract base class
-- [ ] NullIndex (no-op default)
-- [ ] ChromaIndex adapter
-- [ ] Lazy initialization (import only when used)
-- [ ] Configuration file support
-
-**Exit Criteria:**
-- Semantic search available when Chroma installed
-- No performance regression without Chroma
-- Clear opt-in mechanism
-
-### Phase 5: Integration & Polish (Week 7-8)
-
-**Deliverables:**
-- [ ] Claude Code skill integration
-- [ ] Batch verification tool
-- [ ] Pre-commit hook for CI
-- [ ] Documentation and examples
-- [ ] Migration guide from Serena memories
-
-**Exit Criteria:**
-- Plugin works as Claude Code skill
-- CI can validate memory integrity
-- Existing Serena memories can be migrated
-
----
-
-## 8. Success Metrics
+## 7. Success Metrics
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| Zero-dependency operation | 100% | Works with stdlib only |
-| Memory readability | 100% | All memories parseable by `cat`/`grep` |
-| Search latency (1000 memories) | < 500ms | Benchmark suite |
-| Citation verification accuracy | > 95% | True positive rate |
-| Graph traversal correctness | 100% | Test suite with known graphs |
-| Adoption | 3+ projects | GitHub search |
+| Citation coverage | 20% of high-value memories | Memories with ≥1 citation |
+| Stale detection accuracy | >90% | True positives on known stale |
+| CI integration | Active on all PRs | Workflow runs |
+| Graph traversal performance | <500ms for depth 3 | Benchmark |
+| Developer adoption | Citations added to new memories | PR reviews |
 
 ---
 
-## 9. Risks and Mitigations
+## 8. Risks and Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Lexical search too imprecise | Medium | Medium | Tune keyword extraction; offer semantic opt-in |
-| Graph traversal performance | Low | Medium | Lazy loading; depth limits; caching |
-| Memory file conflicts (git) | Medium | Low | Stable IDs; merge-friendly format |
-| Citation drift (false stales) | Medium | Medium | Fuzzy matching; snippet tolerance |
-| Scope creep to require vector DB | High | High | P0 requirement: zero dependencies |
+| Citation schema too complex | Medium | Medium | Use simple table format, not YAML |
+| False positives (valid code flagged stale) | Medium | High | Fuzzy matching; snippet tolerance |
+| Performance on large memory sets | Low | Medium | Lazy loading; caching |
+| Adoption friction | Medium | Medium | Make citations optional; demonstrate value |
+| Breaking existing memories | Low | High | Backwards compatible schema |
 
 ---
 
-## 10. Open Questions
+## 9. Open Questions
 
-1. **ID Generation**: Deterministic (content hash) vs. random (UUID)?
-   - Deterministic allows deduplication but complicates updates
-   - Recommendation: `mem-{topic_slug}-{short_hash}`
+1. **Citation granularity**: File-level vs line-level vs function-level?
+   - Recommendation: Line-level with fuzzy snippet matching
 
-2. **Link Semantics**: What link types should be supported?
-   - Current proposal: `related`, `supersedes`, `blocks`, `references`
-   - Should we add `contradicts` for conflict detection?
+2. **Verification trigger**: On every read vs on-demand vs scheduled?
+   - Recommendation: On-demand with CI batch validation
 
-3. **Multi-repo Memories**: Should memories reference other repositories?
-   - Current: No, memories are repo-scoped
-   - Future: Consider cross-repo links with full URLs
+3. **Stale memory handling**: Warning vs blocking vs auto-archive?
+   - Recommendation: Warning initially, blocking after adoption
 
-4. **Memory Expiration**: Should memories auto-expire?
-   - Current: No, manual curation
-   - Alternative: `expires` field in frontmatter
+4. **Serena schema extension**: Table in body vs YAML frontmatter?
+   - Recommendation: Table in body (backwards compatible, human-readable)
 
 ---
 
-## 11. Appendix
+## 10. Appendix
 
-### A. Example Memory File
+### A. Example Memory with Citations
 
 ```markdown
----
-id: mem-api-versioning-001
-subject: API version must be synchronized between client and server
-created: 2026-01-18T10:30:00Z
-verified: 2026-01-18T10:30:00Z
-confidence: 0.92
-citations:
-  - path: src/client/constants.ts
-    line: 42
-    snippet: "export const API_VERSION = 'v2'"
-  - path: server/routes/api.ts
-    line: 15
-    snippet: "router.use('/v2', v2Routes)"
-links:
-  - type: related
-    target: mem-deployment-checklist-003
-  - type: supersedes
-    target: mem-api-v1-deprecated-012
-tags:
-  - api
-  - versioning
-  - client-server
----
+# API Version Synchronization
 
-**Fact**: Client SDK API_VERSION constant must exactly match server route prefix.
+Client SDK API_VERSION constant must exactly match server route prefix.
 
-**Reasoning**: Discovered during incident on 2026-01-10 when client was updated to v2 but server routes still used v1 prefix. All API calls returned 404 until routes were updated. The version constant is used in request URL construction.
+## Why This Matters
 
-**Action**: When updating API version:
+Discovered during incident on 2026-01-10 when client was updated to v2
+but server routes still used v1 prefix. All API calls returned 404.
+
+## Action
+
+When updating API version:
 1. Search for `API_VERSION` in client code
 2. Search for route prefix in server code
 3. Update both in the same commit
-4. Verify with integration tests before merge
+
+## Citations
+
+| File | Line | Snippet | Verified |
+|------|------|---------|----------|
+| src/client/constants.ts | 42 | `API_VERSION = 'v2'` | 2026-01-18 |
+| server/routes/api.ts | 15 | `router.use('/v2'` | 2026-01-18 |
+
+## Links
+
+- api-deployment-checklist
+- client-sdk-patterns
+
+## Metadata
+
+- **Confidence**: 0.92
+- **Last Verified**: 2026-01-18T10:30:00Z
 ```
 
-### B. Comparison with Alternatives
+### B. Comparison: Enhancement vs Replacement
 
-| Feature | This Plugin | Serena | Forgetful | mem0 |
-|---------|-------------|--------|-----------|------|
-| Markdown canonical | ✅ | ✅ | ❌ | ❌ |
-| Zero dependencies | ✅ | ❌ (MCP) | ❌ (MCP) | ❌ (API) |
-| Git-synchronized | ✅ | ✅ | ❌ | ❌ |
-| Semantic search | Opt-in | ❌ | ✅ | ✅ |
-| Citation validation | ✅ | ❌ | ❌ | ❌ |
-| Graph traversal | ✅ | ❌ | ✅ | ❌ |
-| Human-readable | ✅ | ✅ | ❌ | ❌ |
+| Aspect | This PRD (Enhancement) | Original PRD (Replacement) |
+|--------|------------------------|---------------------------|
+| Storage | Serena (existing) | New markdown store |
+| Semantic search | Forgetful (existing) | Chroma (new) |
+| Effort | ~4 weeks | ~8 weeks |
+| Risk | Low (additive) | High (migration) |
+| Value delivered | Citations + Graph | Same |
+| Dependencies | None new | chromadb, PyYAML |
 
 ### C. References
 
@@ -634,3 +531,4 @@ tags:
 - [Issue #724: Traceability Graph Implementation](https://github.com/rjmurillo/ai-agents/issues/724)
 - [ADR-007: Memory-First Architecture](/.agents/architecture/ADR-007-memory-first-architecture.md)
 - [ADR-037: Memory Router Architecture](/.agents/architecture/ADR-037-memory-router-architecture.md)
+- [Serena MCP Documentation](https://github.com/oraios/serena)
