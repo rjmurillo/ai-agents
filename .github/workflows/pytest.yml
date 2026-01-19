@@ -86,7 +86,7 @@ jobs:
       - name: Install dependencies
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv pip install -e ".[dev]"
+          uv pip install --system -e ".[dev]"
 
       - name: Run pytest
         run: |
@@ -124,7 +124,7 @@ jobs:
       - name: Install dependencies
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          uv pip install -e ".[dev]"
+          uv pip install --system -e ".[dev]"
 
       - name: Run pip-audit
         run: |
