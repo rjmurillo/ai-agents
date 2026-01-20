@@ -194,12 +194,12 @@ process {
 
     if ($RequirePR -and $result.PRNumbers.Count -eq 0) {
         $errorMsg = "Cannot extract PR number from prompt. Provide explicit PR number or URL."
-        throw $errorMsg
+        throw [System.Management.Automation.PSInvalidOperationException]::new($errorMsg)
     }
 
     if ($RequireIssue -and $result.IssueNumbers.Count -eq 0) {
         $errorMsg = "Cannot extract issue number from prompt. Provide explicit issue number or URL."
-        throw $errorMsg
+        throw [System.Management.Automation.PSInvalidOperationException]::new($errorMsg)
     }
 
     #endregion
