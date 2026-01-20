@@ -23,194 +23,91 @@ from pathlib import Path
 import pytest
 
 
+def get_readme_path() -> Path:
+    """Get path to the benchmark suite README."""
+    return Path(__file__).parent / "README.md"
+
+
 class TestAgentReviewQuality:
     """Validate security agent produces high-quality reviews."""
 
     @pytest.mark.skip(reason="Requires integration with Task tool - future implementation")
     def test_review_completeness_all_findings_addressed(self) -> None:
-        """
-        Validate agent reviews 100% of CodeQL findings.
-
-        Success criteria from README.md:
-        - Review completeness: 100% findings reviewed
-
-        Test procedure:
-        1. Run security agent on vulnerable_samples/
-        2. Parse agent output (.agents/security/SR-benchmark-*.md)
-        3. Count findings in output
-        4. Compare against expected finding count (13 total: 6 CWE-22 + 7 CWE-77)
-
-        Expected: 13/13 findings reviewed
-        Current: Pending - requires Task tool integration
-
-        Implementation notes:
-        - Use Task(subagent_type='security', prompt='Review vulnerable_samples/')
-        - Parse markdown output for finding count
-        - Verify each PT-xxx and CI-xxx ID appears in review
-        """
-        # Future implementation:
-        # agent_output = invoke_security_agent("vulnerable_samples/")
-        # findings = parse_security_review(agent_output)
-        # assert len(findings) == 13  # All test cases covered
-        # assert all(f.pattern_id in ["PT-001", ..., "CI-007"] for f in findings)
-
+        """Validate agent reviews 100% of CodeQL findings."""
+        # Expected: 13/13 findings reviewed (6 CWE-22 + 7 CWE-77)
+        # Implementation approach:
+        # 1. Use Task(subagent_type="security", prompt="Review vulnerable_samples/")
+        # 2. Parse .agents/security/SR-benchmark-*.md output
+        # 3. Verify all PT-xxx and CI-xxx IDs appear in review
         pytest.skip("Integration test - requires Task tool and markdown parsing")
 
     @pytest.mark.skip(reason="Requires NLP quality assessment - future implementation")
     def test_mitigation_specificity_actionable_recommendations(self) -> None:
-        """
-        Validate agent provides specific, actionable mitigations.
-
-        Success criteria from README.md:
-        - Mitigation specificity: Actionable recommendations
-
-        Test procedure:
-        1. Run agent on single vulnerability (e.g., PT-001)
-        2. Extract mitigation section from output
-        3. Validate mitigation contains:
-           - Specific code fix (not generic "validate input")
-           - Code example or function name to change
-           - Reference to safe alternative (e.g., "use realpath()")
-
-        Expected: Mitigation includes code-level specifics
-        Current: Pending - requires NLP quality metrics
-
-        Implementation notes:
-        - Parse agent markdown for "Mitigation" or "Recommendation" section
-        - Check for code blocks, function names, or API references
-        - Reject generic advice like "validate user input"
-        """
-        # Future implementation:
-        # agent_output = invoke_security_agent("vulnerable_samples/cwe22_path_traversal.py")
-        # mitigation = extract_mitigation_section(agent_output)
-        # assert contains_code_example(mitigation) or contains_api_reference(mitigation)
-        # assert not is_generic_advice(mitigation)
-
+        """Validate agent provides specific, actionable mitigations."""
+        # Expected: Mitigation includes code-level specifics, not generic advice
+        # Implementation approach:
+        # 1. Parse "Mitigation" section from agent markdown output
+        # 2. Check for code blocks, function names, or API references
+        # 3. Reject generic advice like "validate user input"
         pytest.skip("Quality assessment requires NLP metrics")
 
     @pytest.mark.skip(reason="Requires deployment context integration - future implementation")
     def test_context_calibration_severity_adjusted(self) -> None:
-        """
-        Validate agent calibrates severity based on deployment context.
-
-        Success criteria from README.md:
-        - Context calibration: Severity adjusted for deployment
-
-        Test procedure:
-        1. Run agent with CLI tool context (current project is CLI tool)
-        2. Run agent with API service context (hypothetical)
-        3. Compare severity assessments for same vulnerability
-        4. Verify CLI context downgrades certain severities (e.g., SSRF less critical)
-
-        Expected: Severity reflects deployment context
-        Current: Pending - requires context parameter
-
-        Implementation notes:
-        - Add --deployment-context flag to agent invocation
-        - Compare PT-001 severity in CLI vs API contexts
-        - CLI tools may downgrade certain web-specific vulnerabilities
-        """
-        # Future implementation:
-        # cli_review = invoke_security_agent("vulnerable_samples/", context="cli-tool")
-        # api_review = invoke_security_agent("vulnerable_samples/", context="api-service")
-        # assert cli_review.severity("PT-001") != api_review.severity("PT-001")
-
+        """Validate agent calibrates severity based on deployment context."""
+        # Expected: Severity reflects deployment context (CLI vs API)
+        # Implementation approach:
+        # 1. Add --deployment-context flag to agent invocation
+        # 2. Compare severity for same vulnerability in different contexts
+        # 3. Verify CLI context downgrades web-specific vulnerabilities
         pytest.skip("Deployment context not yet parameterized")
 
     @pytest.mark.skip(reason="Requires false positive corpus - future implementation")
     def test_false_positive_identification_with_rationale(self) -> None:
-        """
-        Validate agent correctly identifies false positives with rationale.
-
-        Success criteria from README.md:
-        - False positive identification: Correct acceptance rationale
-
-        Test procedure:
-        1. Run agent on PT-005 (safe pattern false positive)
-        2. Verify agent marks as PASS/ACCEPTABLE
-        3. Extract rationale section
-        4. Validate rationale explains why pattern is safe (e.g., "input is hardcoded")
-
-        Expected: False positive correctly accepted with reasoning
-        Current: Pending - requires false positive test cases
-
-        Implementation notes:
-        - PT-005 and CI-005/CI-006 are false positive test cases
-        - Agent should mark these as PASS or LOW/ACCEPTABLE
-        - Rationale should reference why pattern is safe
-        """
-        # Future implementation:
-        # agent_output = invoke_security_agent("vulnerable_samples/cwe22_path_traversal.py")
-        # fp_finding = get_finding_by_id(agent_output, "PT-005")
-        # assert fp_finding.verdict in ["PASS", "ACCEPTABLE", "LOW"]
-        # assert "hardcoded" in fp_finding.rationale or "static" in fp_finding.rationale
-
+        """Validate agent correctly identifies false positives with rationale."""
+        # Expected: False positives (PT-005, CI-005, CI-006) marked as PASS/ACCEPTABLE
+        # Implementation approach:
+        # 1. Extract finding verdict and rationale from agent output
+        # 2. Verify verdict is PASS, ACCEPTABLE, or LOW
+        # 3. Verify rationale explains why pattern is safe (e.g., hardcoded input)
         pytest.skip("False positive rationale extraction not implemented")
 
     def test_documentation_agent_review_quality_metrics_defined(self) -> None:
-        """
-        Validate that agent review quality metrics are documented in README.
-
-        This is a meta-test that verifies the benchmark suite documents what
-        constitutes high-quality security agent reviews.
-
-        Expected: README.md contains "Interpretation (Agent responsibility)" table
-        """
-        readme_path = Path(__file__).parent / "README.md"
-        readme_content = readme_path.read_text()
+        """Validate that agent review quality metrics are documented in README."""
+        readme_content = get_readme_path().read_text()
 
         # Verify README documents the 4 quality metrics
-        assert "Review completeness" in readme_content
-        assert "Mitigation specificity" in readme_content
-        assert "Context calibration" in readme_content
-        assert "False positive identification" in readme_content
+        required_metrics = [
+            "Review completeness",
+            "Mitigation specificity",
+            "Context calibration",
+            "False positive identification",
+        ]
+        for metric in required_metrics:
+            assert metric in readme_content, f"Missing metric: {metric}"
 
         # Verify README distinguishes detection (CodeQL) from interpretation (Agent)
         assert "Detection** (CodeQL responsibility)" in readme_content
         assert "Interpretation** (Agent responsibility)" in readme_content
 
     def test_documentation_pending_metrics_acknowledged(self) -> None:
-        """
-        Verify README acknowledges that agent review metrics are pending.
+        """Verify README acknowledges that agent review metrics are pending."""
+        readme_content = get_readme_path().read_text()
 
-        This test documents the current state: infrastructure exists,
-        but automated quality validation is not yet implemented.
+        # Extract the Interpretation section (from header to next ## or end of file)
+        pattern = r"\*\*Interpretation\*\* \(Agent responsibility\):.*?(?=\n##|\Z)"
+        match = re.search(pattern, readme_content, re.DOTALL)
 
-        Expected: README shows "Pending" for all interpretation metrics
-        """
-        readme_path = Path(__file__).parent / "README.md"
-        readme_content = readme_path.read_text()
+        assert match is not None, "README missing Interpretation section"
 
-        # Extract the Interpretation table section
-        interpretation_section = re.search(
-            r"\*\*Interpretation\*\* \(Agent responsibility\):.*?\n\n",
-            readme_content,
-            re.DOTALL,
-        )
-
-        assert interpretation_section is not None, "README missing Interpretation section"
-
-        # Verify all metrics show "Pending" status
-        # This acknowledges the gap that P0-4 addresses
-        table_text = interpretation_section.group(0)
-        assert table_text.count("Pending") >= 3, "Expected at least 3 'Pending' entries"
+        # Verify metrics show "Pending" status to acknowledge the implementation gap
+        section_text = match.group(0)
+        pending_count = section_text.count("Pending")
+        assert pending_count >= 3, f"Expected at least 3 'Pending' entries, found {pending_count}"
 
     def test_future_implementation_roadmap(self) -> None:
-        """
-        Document the implementation roadmap for agent review quality tests.
-
-        This test captures the technical requirements for implementing
-        the skipped tests above.
-
-        Requirements:
-        1. Task tool integration - invoke security agent programmatically
-        2. Markdown parsing - extract findings from agent output
-        3. NLP quality metrics - assess mitigation specificity
-        4. Deployment context parameter - calibrate severity
-        5. False positive corpus - test correct acceptance
-
-        Once implemented, remove @pytest.mark.skip decorators above.
-        """
+        """Document the implementation roadmap for agent review quality tests."""
+        # This test documents the technical requirements for implementing
+        # the skipped tests above. Once implemented, remove @pytest.mark.skip decorators.
         implementation_plan = {
             "task_tool_integration": "Use Task(subagent_type='security') in tests",
             "markdown_parsing": "Parse .agents/security/SR-*.md output files",
@@ -219,6 +116,5 @@ class TestAgentReviewQuality:
             "false_positive_corpus": "Expand PT-005, CI-005, CI-006 test cases",
         }
 
-        # Verify all components documented
+        # Verify all 5 components are documented
         assert len(implementation_plan) == 5
-        assert all(isinstance(v, str) for v in implementation_plan.values())
