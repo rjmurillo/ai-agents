@@ -175,16 +175,18 @@ function Test-RateLimitSafe {
             return $result.Success
         }
         catch {
-            Write-Log "Failed to check rate limit via shared function: $_" -Level WARN
-            return $true  # Assume safe if check fails
+            Write-Log "Failed to check rate limit via shared function: $_" -Level ERROR
+            Write-Log "Cannot verify safe API usage. Aborting to prevent rate limit exhaustion." -Level ERROR
+            return $false  # Fail-safe: assume unsafe if can't check
         }
     }
 
     # Fallback to direct API call if module not loaded
     $limits = gh api rate_limit 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Log "Failed to check rate limit: $limits" -Level WARN
-        return $true  # Assume safe if can't check
+        Write-Log "Failed to check rate limit: $limits" -Level ERROR
+        Write-Log "Cannot verify safe API usage. Aborting to prevent rate limit exhaustion." -Level ERROR
+        return $false  # Fail-safe: assume unsafe if can't check
     }
 
     try {
@@ -199,8 +201,9 @@ function Test-RateLimitSafe {
         return $true
     }
     catch {
-        Write-Log "Failed to parse rate limit response: $_" -Level WARN
-        return $true
+        Write-Log "Failed to parse rate limit response: $_" -Level ERROR
+        Write-Log "Cannot verify safe API usage. Aborting to prevent rate limit exhaustion." -Level ERROR
+        return $false  # Fail-safe: assume unsafe if can't check
     }
 }
 
@@ -349,20 +352,21 @@ function Get-BotAuthorInfo {
     foreach ($category in $script:Config.BotCategories.Keys) {
         $bots = $script:Config.BotCategories[$category]
         foreach ($bot in $bots) {
-            if ($AuthorLogin -ieq $bot -or $AuthorLogin -imatch "^$([regex]::Escape($bot))") {
+            $escapedBot = [regex]::Escape($bot)
+            if ($AuthorLogin -ieq $bot -or $AuthorLogin -imatch "^$escapedBot") {
                 return @{
-                    IsBot = $true
+                    IsBot    = $true
                     Category = $category
-                    Name = $AuthorLogin
+                    Name     = $AuthorLogin
                 }
             }
         }
     }
 
     return @{
-        IsBot = $false
+        IsBot    = $false
         Category = 'human'
-        Name = $AuthorLogin
+        Name     = $AuthorLogin
     }
 }
 
@@ -373,13 +377,13 @@ function Test-IsBotReviewer {
         $ReviewRequests
     )
 
-    if ($null -eq $ReviewRequests -or $null -eq $ReviewRequests.nodes) {
+    if (-not $ReviewRequests -or -not $ReviewRequests.nodes) {
         return $false
     }
 
     foreach ($request in $ReviewRequests.nodes) {
         $reviewer = $request.requestedReviewer
-        if ($null -eq $reviewer) { continue }
+        if (-not $reviewer) { continue }
 
         $login = $reviewer.login
         if (-not $login) { continue }
@@ -632,47 +636,26 @@ function Invoke-PRMaintenance {
 
             if ($isAgentControlledBot -or $isBotReviewer) {
                 $role = if ($isAgentControlledBot) { 'author' } else { 'reviewer' }
+                $needsAction = $hasChangesRequested -or $hasConflicts -or $hasFailingChecks
 
-                if ($hasChangesRequested) {
-                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with CHANGES_REQUESTED" -Level WARN
+                if ($needsAction) {
+                    $reason = switch ($true) {
+                        $hasChangesRequested { 'CHANGES_REQUESTED'; break }
+                        $hasConflicts { 'HAS_CONFLICTS'; break }
+                        $hasFailingChecks { 'HAS_FAILING_CHECKS'; break }
+                    }
+
+                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with $reason" -Level WARN
                     $null = $results.ActionRequired.Add(@{
-                        number = $pr.number
-                        category = 'agent-controlled'
-                        hasConflicts = $hasConflicts
+                        number           = $pr.number
+                        category         = 'agent-controlled'
+                        hasConflicts     = $hasConflicts
                         hasFailingChecks = $hasFailingChecks
-                        reason = 'CHANGES_REQUESTED'
-                        author = $authorLogin
-                        title = $pr.title
-                        headRefName = $pr.headRefName
-                        baseRefName = $pr.baseRefName
-                    })
-                }
-                elseif ($hasConflicts) {
-                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with conflicts" -Level WARN
-                    $null = $results.ActionRequired.Add(@{
-                        number = $pr.number
-                        category = 'agent-controlled'
-                        hasConflicts = $true
-                        hasFailingChecks = $hasFailingChecks
-                        reason = 'HAS_CONFLICTS'
-                        author = $authorLogin
-                        title = $pr.title
-                        headRefName = $pr.headRefName
-                        baseRefName = $pr.baseRefName
-                    })
-                }
-                elseif ($hasFailingChecks) {
-                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with failing checks" -Level WARN
-                    $null = $results.ActionRequired.Add(@{
-                        number = $pr.number
-                        category = 'agent-controlled'
-                        hasConflicts = $false
-                        hasFailingChecks = $true
-                        reason = 'HAS_FAILING_CHECKS'
-                        author = $authorLogin
-                        title = $pr.title
-                        headRefName = $pr.headRefName
-                        baseRefName = $pr.baseRefName
+                        reason           = $reason
+                        author           = $authorLogin
+                        title            = $pr.title
+                        headRefName      = $pr.headRefName
+                        baseRefName      = $pr.baseRefName
                     })
                 }
                 else {
@@ -683,21 +666,26 @@ function Invoke-PRMaintenance {
                 # Copilot-SWE-Agent PR - rjmurillo-bot can synthesize comments and @copilot to unblock
                 # No need to check if rjmurillo-bot is reviewer - we can always help
                 # Triggers: CHANGES_REQUESTED, HAS_CONFLICTS, or HAS_FAILING_CHECKS
-                if ($hasChangesRequested -or $hasConflicts -or $hasFailingChecks) {
-                    $reason = if ($hasChangesRequested) { 'CHANGES_REQUESTED' }
-                              elseif ($hasConflicts) { 'HAS_CONFLICTS' }
-                              else { 'HAS_FAILING_CHECKS' }
+                $needsAction = $hasChangesRequested -or $hasConflicts -or $hasFailingChecks
+
+                if ($needsAction) {
+                    $reason = switch ($true) {
+                        $hasChangesRequested { 'CHANGES_REQUESTED'; break }
+                        $hasConflicts { 'HAS_CONFLICTS'; break }
+                        $hasFailingChecks { 'HAS_FAILING_CHECKS'; break }
+                    }
+
                     Write-Log "PR #$($pr.number): $authorLogin PR needs @copilot synthesis ($reason)" -Level WARN
                     $null = $results.ActionRequired.Add(@{
-                        number = $pr.number
-                        category = 'mention-triggered'
-                        hasConflicts = $hasConflicts
-                        hasFailingChecks = $hasFailingChecks
-                        reason = $reason
-                        author = $authorLogin
-                        title = $pr.title
-                        headRefName = $pr.headRefName
-                        baseRefName = $pr.baseRefName
+                        number            = $pr.number
+                        category          = 'mention-triggered'
+                        hasConflicts      = $hasConflicts
+                        hasFailingChecks  = $hasFailingChecks
+                        reason            = $reason
+                        author            = $authorLogin
+                        title             = $pr.title
+                        headRefName       = $pr.headRefName
+                        baseRefName       = $pr.baseRefName
                         requiresSynthesis = $true
                     })
                 }
@@ -707,38 +695,24 @@ function Invoke-PRMaintenance {
             }
             else {
                 # Human-authored PRs or mention-triggered bots without rjmurillo-bot reviewer
-                if ($hasChangesRequested) {
-                    Write-Log "PR #$($pr.number): Human-authored with CHANGES_REQUESTED" -Level INFO
+                $needsAction = $hasChangesRequested -or $hasConflicts -or $hasFailingChecks
+
+                if ($needsAction) {
+                    $reason = switch ($true) {
+                        $hasChangesRequested { 'CHANGES_REQUESTED'; break }
+                        $hasConflicts { 'HAS_CONFLICTS'; break }
+                        $hasFailingChecks { 'HAS_FAILING_CHECKS'; break }
+                    }
+
+                    Write-Log "PR #$($pr.number): Human-authored with $reason" -Level INFO
                     $null = $results.Blocked.Add(@{
-                        number = $pr.number
-                        category = 'human-blocked'
-                        hasConflicts = $hasConflicts
-                        reason = 'CHANGES_REQUESTED'
-                        author = $authorLogin
-                        title = $pr.title
-                    })
-                }
-                elseif ($hasConflicts) {
-                    Write-Log "PR #$($pr.number): Human-authored with conflicts" -Level INFO
-                    $null = $results.Blocked.Add(@{
-                        number = $pr.number
-                        category = 'human-blocked'
-                        hasConflicts = $true
-                        reason = 'HAS_CONFLICTS'
-                        author = $authorLogin
-                        title = $pr.title
-                    })
-                }
-                elseif ($hasFailingChecks) {
-                    Write-Log "PR #$($pr.number): Human-authored with failing checks" -Level INFO
-                    $null = $results.Blocked.Add(@{
-                        number = $pr.number
-                        category = 'human-blocked'
-                        hasConflicts = $false
-                        hasFailingChecks = $true
-                        reason = 'HAS_FAILING_CHECKS'
-                        author = $authorLogin
-                        title = $pr.title
+                        number           = $pr.number
+                        category         = 'human-blocked'
+                        hasConflicts     = $hasConflicts
+                        hasFailingChecks = $hasFailingChecks
+                        reason           = $reason
+                        author           = $authorLogin
+                        title            = $pr.title
                     })
                 }
             }

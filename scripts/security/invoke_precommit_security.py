@@ -146,8 +146,6 @@ class PreCommitSecurityCheck:
 
             # Parse owner/repo from URL
             # Supports: git@github.com:owner/repo.git or https://github.com/owner/repo.git
-            import re
-
             match = re.search(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?$", remote_url)
             if not match:
                 return None
@@ -159,13 +157,26 @@ class PreCommitSecurityCheck:
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                 capture_output=True,
                 text=True,
-                check=True,
+                check=False,  # Don't raise, check returncode explicitly
             )
+
+            if branch_result.returncode != 0:
+                logger.error(
+                    "Failed to get current branch: %s",
+                    branch_result.stderr.strip(),
+                )
+                return None
+
             branch = branch_result.stdout.strip()
+
+            if not branch:
+                logger.error("Empty branch name returned from git")
+                return None
 
             return owner, repo, branch
 
-        except subprocess.SubprocessError:
+        except subprocess.SubprocessError as e:
+            logger.error("Git command failed during context retrieval: %s", e)
             return None
 
     def _fetch_codeql_alerts(self) -> list[CodeQLAlert]:
@@ -238,8 +249,11 @@ class PreCommitSecurityCheck:
             try:
                 alerts_data = json.loads(result.stdout)
             except json.JSONDecodeError as e:
-                logger.warning("Failed to parse CodeQL alerts JSON: %s", e)
-                return []
+                logger.error(
+                    "Failed to parse CodeQL alerts JSON: %s. This indicates a gh CLI or API issue.",
+                    e,
+                )
+                raise  # Fail hard on JSON decode errors
 
             alerts = []
             for alert in alerts_data:
@@ -444,6 +458,7 @@ class PreCommitSecurityCheck:
     def _run_psscriptanalyzer(self, files: list[Path]) -> PreCommitResult:
         """Run PSScriptAnalyzer on the specified files."""
         findings = []
+        failed_files = []
 
         for file_path in files:
             try:
@@ -501,16 +516,39 @@ class PreCommitSecurityCheck:
                             )
                         )
 
-                except json.JSONDecodeError:
-                    # Non-JSON output, likely no findings
-                    pass
+                except json.JSONDecodeError as e:
+                    # PSScriptAnalyzer should always output valid JSON or nothing
+                    # If we get invalid JSON, something is wrong with the tool
+                    logger.error(
+                        "[FAIL] PSScriptAnalyzer returned invalid JSON for %s: %s",
+                        file_path.name,
+                        e,
+                    )
+                    failed_files.append(str(file_path))
 
             except subprocess.SubprocessError as e:
-                logger.warning(
-                    "PSScriptAnalyzer failed for %s: %s",
+                logger.error(
+                    "[FAIL] PSScriptAnalyzer failed for %s: %s",
                     file_path.name,
                     e,
                 )
+                failed_files.append(str(file_path))
+
+        # Check if any files failed analysis
+        if failed_files and not self.dry_run:
+            error_msg = (
+                f"PSScriptAnalyzer failed for {len(failed_files)} file(s): "
+                f"{', '.join(failed_files[:5])}"  # Show first 5 to avoid long messages
+            )
+            if len(failed_files) > 5:
+                error_msg += f" (and {len(failed_files) - 5} more)"
+            logger.error(error_msg)
+            return PreCommitResult(
+                passed=False,
+                findings=findings,
+                report_path=None,
+                error_message=error_msg,
+            )
 
         self.findings.extend(findings)
 
@@ -526,15 +564,24 @@ class PreCommitSecurityCheck:
         )
 
     def _map_rule_to_cwe(self, rule_name: str) -> str | None:
-        """Map PSScriptAnalyzer rule to CWE ID."""
+        """Map PSScriptAnalyzer rule to CWE ID.
+
+        TRACKING: CWE Mapping Review Required (Issue #756)
+        - This mapping is preliminary and requires security review for accuracy
+        - PSScriptAnalyzer rules may map to multiple CWEs depending on context
+        - Some mappings are approximate and should be validated against CWE definitions
+        - Consider: CWE-94 (Invoke-Expression) may also be CWE-77 (Command Injection)
+        - Consider: CWE-20 (Input Validation) is broad and may need more specific CWEs
+        - TODO: Review with security team and update based on actual vulnerability patterns
+        """
         rule_cwe_map = {
-            "PSAvoidUsingInvokeExpression": "CWE-94",
-            "PSAvoidUsingPlainTextForPassword": "CWE-798",
-            "PSAvoidUsingConvertToSecureStringWithPlainText": "CWE-798",
-            "PSAvoidUsingUserNameAndPassWordParams": "CWE-798",
-            "PSUseShouldProcessForStateChangingFunctions": "CWE-20",
-            "PSAvoidGlobalVars": "CWE-749",
-            "PSAvoidUsingPositionalParameters": "CWE-20",
+            "PSAvoidUsingInvokeExpression": "CWE-94",  # Code Injection
+            "PSAvoidUsingPlainTextForPassword": "CWE-798",  # Hardcoded Credentials
+            "PSAvoidUsingConvertToSecureStringWithPlainText": "CWE-798",  # Hardcoded Credentials
+            "PSAvoidUsingUserNameAndPassWordParams": "CWE-798",  # Hardcoded Credentials
+            "PSUseShouldProcessForStateChangingFunctions": "CWE-20",  # Improper Input Validation
+            "PSAvoidGlobalVars": "CWE-749",  # Exposed Dangerous Method or Function
+            "PSAvoidUsingPositionalParameters": "CWE-20",  # Improper Input Validation
         }
         return rule_cwe_map.get(rule_name)
 

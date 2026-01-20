@@ -19,6 +19,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -290,8 +291,6 @@ class SecurityRetrospective:
         for report in security_reports:
             content = report.get("content", "")
             # Simple CWE extraction pattern
-            import re
-
             cwes_found = re.findall(r"CWE-\d+", content, re.IGNORECASE)
             agent_cwes.update(cwe.upper() for cwe in cwes_found)
 
@@ -300,8 +299,6 @@ class SecurityRetrospective:
         # Extract CWE IDs from external comments
         for comment in external_findings:
             body = comment.get("body", "")
-            import re
-
             external_cwes = re.findall(r"CWE-(\d+)", body, re.IGNORECASE)
             path = comment.get("path", "unknown")
             line = comment.get("line") or comment.get("original_line")
@@ -331,8 +328,6 @@ class SecurityRetrospective:
     def _extract_description(self, body: str, cwe_id: str) -> str:
         """Extract vulnerability description from comment body."""
         # Return first 200 chars after CWE mention as description
-        import re
-
         match = re.search(rf"{cwe_id}[:\s]*(.{{0,200}})", body, re.IGNORECASE)
         if match:
             return match.group(1).strip()
@@ -353,8 +348,6 @@ class SecurityRetrospective:
     def _extract_remediation(self, body: str) -> str:
         """Extract remediation advice from comment body."""
         # Look for common remediation patterns
-        import re
-
         patterns = [
             r"(?:fix|remediat|resolv|should|must|need to)[:\s]+(.{0,200})",
             r"(?:instead|rather|use)[:\s]+(.{0,200})",
@@ -404,7 +397,9 @@ class SecurityRetrospective:
                     "Forgetful memory queued: %s",
                     memory_data["title"],
                 )
-            except Exception as e:
+            except (OSError, RuntimeError) as e:
+                # OSError: I/O failures (file system, network)
+                # RuntimeError: MCP server errors
                 logger.warning(
                     "[WARNING] Forgetful unavailable: %s. Using local JSON fallback.",
                     e,
