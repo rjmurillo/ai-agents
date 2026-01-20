@@ -339,11 +339,13 @@ class SecurityRetrospective:
         high_cwes = {"CWE-22", "CWE-23", "CWE-36", "CWE-287", "CWE-502"}
 
         cwe_upper = cwe_id.upper()
+
         if cwe_upper in critical_cwes:
             return "CRITICAL"
-        if cwe_upper in high_cwes:
+        elif cwe_upper in high_cwes:
             return "HIGH"
-        return "MEDIUM"
+        else:
+            return "MEDIUM"
 
     def _extract_remediation(self, body: str) -> str:
         """Extract remediation advice from comment body."""

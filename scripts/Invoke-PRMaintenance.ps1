@@ -430,24 +430,25 @@ function Test-PRHasFailingChecks {
     # Uses Write-Output -NoEnumerate to preserve arrays (prevents PowerShell unrolling)
     function Get-SafeProperty {
         param($Object, [string]$PropertyName)
-        if ($null -eq $Object) { return $null }
 
+        if ($null -eq $Object) {
+            return $null
+        }
+
+        # Retrieve value from hashtable or PSObject
         $value = $null
-
-        # Handle hashtables
         if ($Object -is [hashtable]) {
             if ($Object.ContainsKey($PropertyName)) {
                 $value = $Object[$PropertyName]
             }
         }
-        # Handle PSObjects (from JSON parsing)
         elseif ($Object.PSObject.Properties.Name -contains $PropertyName) {
             $value = $Object.$PropertyName
         }
 
         # Preserve arrays when returning (prevent PowerShell unrolling)
         if ($null -ne $value -and $value -is [array]) {
-            return @(,$value)  # Wrap in array to prevent unrolling
+            return ,@($value)
         }
         return $value
     }
@@ -627,94 +628,68 @@ function Invoke-PRMaintenance {
             $hasConflicts = Test-PRHasConflicts -PR $pr
             $hasFailingChecks = Test-PRHasFailingChecks -PR $pr
 
-            # Decision flow (classification only - no processing)
-            #
-            # Priority 1: Agent-controlled bot (rjmurillo-bot) as author or reviewer
-            # Priority 2: Mention-triggered bot (copilot-swe-agent) with rjmurillo-bot as reviewer
-            #             -> rjmurillo-bot can synthesize comments and @copilot to unblock
-            # Priority 3: Human-authored PRs (blocked, require human action)
-
-            if ($isAgentControlledBot -or $isBotReviewer) {
-                $role = if ($isAgentControlledBot) { 'author' } else { 'reviewer' }
-                $needsAction = $hasChangesRequested -or $hasConflicts -or $hasFailingChecks
-
-                if ($needsAction) {
-                    $reason = switch ($true) {
-                        $hasChangesRequested { 'CHANGES_REQUESTED'; break }
-                        $hasConflicts { 'HAS_CONFLICTS'; break }
-                        $hasFailingChecks { 'HAS_FAILING_CHECKS'; break }
-                    }
-
-                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role with $reason" -Level WARN
-                    $null = $results.ActionRequired.Add(@{
-                        number           = $pr.number
-                        category         = 'agent-controlled'
-                        hasConflicts     = $hasConflicts
-                        hasFailingChecks = $hasFailingChecks
-                        reason           = $reason
-                        author           = $authorLogin
-                        title            = $pr.title
-                        headRefName      = $pr.headRefName
-                        baseRefName      = $pr.baseRefName
-                    })
-                }
-                else {
-                    Write-Log "PR #$($pr.number): rjmurillo-bot is $role, no action needed" -Level INFO
-                }
+            # Determine reason for action (if any)
+            $needsAction = $hasChangesRequested -or $hasConflicts -or $hasFailingChecks
+            if (-not $needsAction) {
+                $roleDesc = if ($isAgentControlledBot -or $isBotReviewer) { 'bot' } else { 'human' }
+                Write-Log "PR #$($pr.number): $roleDesc PR, no action needed" -Level INFO
+                continue
             }
-            elseif ($isMentionTriggeredBot) {
-                # Copilot-SWE-Agent PR - rjmurillo-bot can synthesize comments and @copilot to unblock
-                # No need to check if rjmurillo-bot is reviewer - we can always help
-                # Triggers: CHANGES_REQUESTED, HAS_CONFLICTS, or HAS_FAILING_CHECKS
-                $needsAction = $hasChangesRequested -or $hasConflicts -or $hasFailingChecks
 
-                if ($needsAction) {
-                    $reason = switch ($true) {
-                        $hasChangesRequested { 'CHANGES_REQUESTED'; break }
-                        $hasConflicts { 'HAS_CONFLICTS'; break }
-                        $hasFailingChecks { 'HAS_FAILING_CHECKS'; break }
-                    }
-
-                    Write-Log "PR #$($pr.number): $authorLogin PR needs @copilot synthesis ($reason)" -Level WARN
-                    $null = $results.ActionRequired.Add(@{
-                        number            = $pr.number
-                        category          = 'mention-triggered'
-                        hasConflicts      = $hasConflicts
-                        hasFailingChecks  = $hasFailingChecks
-                        reason            = $reason
-                        author            = $authorLogin
-                        title             = $pr.title
-                        headRefName       = $pr.headRefName
-                        baseRefName       = $pr.baseRefName
-                        requiresSynthesis = $true
-                    })
-                }
-                else {
-                    Write-Log "PR #$($pr.number): $authorLogin PR, no action needed" -Level INFO
-                }
+            $reason = if ($hasChangesRequested) {
+                'CHANGES_REQUESTED'
+            }
+            elseif ($hasConflicts) {
+                'HAS_CONFLICTS'
             }
             else {
-                # Human-authored PRs or mention-triggered bots without rjmurillo-bot reviewer
-                $needsAction = $hasChangesRequested -or $hasConflicts -or $hasFailingChecks
+                'HAS_FAILING_CHECKS'
+            }
 
-                if ($needsAction) {
-                    $reason = switch ($true) {
-                        $hasChangesRequested { 'CHANGES_REQUESTED'; break }
-                        $hasConflicts { 'HAS_CONFLICTS'; break }
-                        $hasFailingChecks { 'HAS_FAILING_CHECKS'; break }
-                    }
-
-                    Write-Log "PR #$($pr.number): Human-authored with $reason" -Level INFO
-                    $null = $results.Blocked.Add(@{
-                        number           = $pr.number
-                        category         = 'human-blocked'
-                        hasConflicts     = $hasConflicts
-                        hasFailingChecks = $hasFailingChecks
-                        reason           = $reason
-                        author           = $authorLogin
-                        title            = $pr.title
-                    })
-                }
+            # Priority 1: Agent-controlled bot (rjmurillo-bot) as author or reviewer
+            if ($isAgentControlledBot -or $isBotReviewer) {
+                $role = if ($isAgentControlledBot) { 'author' } else { 'reviewer' }
+                Write-Log "PR #$($pr.number): rjmurillo-bot is $role with $reason" -Level WARN
+                $null = $results.ActionRequired.Add(@{
+                    number           = $pr.number
+                    category         = 'agent-controlled'
+                    hasConflicts     = $hasConflicts
+                    hasFailingChecks = $hasFailingChecks
+                    reason           = $reason
+                    author           = $authorLogin
+                    title            = $pr.title
+                    headRefName      = $pr.headRefName
+                    baseRefName      = $pr.baseRefName
+                })
+            }
+            # Priority 2: Mention-triggered bot (copilot-swe-agent)
+            elseif ($isMentionTriggeredBot) {
+                Write-Log "PR #$($pr.number): $authorLogin PR needs @copilot synthesis ($reason)" -Level WARN
+                $null = $results.ActionRequired.Add(@{
+                    number            = $pr.number
+                    category          = 'mention-triggered'
+                    hasConflicts      = $hasConflicts
+                    hasFailingChecks  = $hasFailingChecks
+                    reason            = $reason
+                    author            = $authorLogin
+                    title             = $pr.title
+                    headRefName       = $pr.headRefName
+                    baseRefName       = $pr.baseRefName
+                    requiresSynthesis = $true
+                })
+            }
+            # Priority 3: Human-authored PRs (blocked)
+            else {
+                Write-Log "PR #$($pr.number): Human-authored with $reason" -Level INFO
+                $null = $results.Blocked.Add(@{
+                    number           = $pr.number
+                    category         = 'human-blocked'
+                    hasConflicts     = $hasConflicts
+                    hasFailingChecks = $hasFailingChecks
+                    reason           = $reason
+                    author           = $authorLogin
+                    title            = $pr.title
+                })
             }
         }
         catch {

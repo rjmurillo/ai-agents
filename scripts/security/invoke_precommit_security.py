@@ -191,20 +191,18 @@ class PreCommitSecurityCheck:
 
         owner, repo, branch = context
 
-        try:
-            # Check if gh CLI is available
-            gh_check = subprocess.run(
-                ["gh", "--version"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if gh_check.returncode != 0:
-                logger.debug("gh CLI not available, skipping CodeQL alert fetch")
-                return []
+        # Check if gh CLI is available
+        gh_check = subprocess.run(
+            ["gh", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if gh_check.returncode != 0:
+            logger.debug("gh CLI not available, skipping CodeQL alert fetch")
+            return []
 
-            # Fetch code scanning alerts for the branch
-            # API: GET /repos/{owner}/{repo}/code-scanning/alerts
+        try:
             result = subprocess.run(
                 [
                     "gh",
@@ -230,7 +228,6 @@ class PreCommitSecurityCheck:
             )
 
             if result.returncode != 0:
-                # API might return 404 if code scanning not enabled
                 if "404" in result.stderr or "Not Found" in result.stderr:
                     logger.info("CodeQL code scanning not enabled for this repository")
                 else:
@@ -246,35 +243,32 @@ class PreCommitSecurityCheck:
 
             import json
 
-            try:
-                alerts_data = json.loads(result.stdout)
-            except json.JSONDecodeError as e:
-                logger.error(
-                    "Failed to parse CodeQL alerts JSON: %s. This indicates a gh CLI or API issue.",
-                    e,
+            alerts_data = json.loads(result.stdout)
+            alerts = [
+                CodeQLAlert(
+                    number=alert.get("number", 0),
+                    rule_id=alert.get("rule_id", "unknown"),
+                    severity=alert.get("severity", "unknown"),
+                    security_severity_level=alert.get("security_severity_level"),
+                    description=alert.get("description", ""),
+                    state=alert.get("state", "open"),
+                    html_url=alert.get("html_url", ""),
+                    location_path=alert.get("location_path", ""),
+                    location_line=alert.get("location_line", 0),
+                    cwe_ids=alert.get("cwe_ids", []),
                 )
-                raise  # Fail hard on JSON decode errors
-
-            alerts = []
-            for alert in alerts_data:
-                alerts.append(
-                    CodeQLAlert(
-                        number=alert.get("number", 0),
-                        rule_id=alert.get("rule_id", "unknown"),
-                        severity=alert.get("severity", "unknown"),
-                        security_severity_level=alert.get("security_severity_level"),
-                        description=alert.get("description", ""),
-                        state=alert.get("state", "open"),
-                        html_url=alert.get("html_url", ""),
-                        location_path=alert.get("location_path", ""),
-                        location_line=alert.get("location_line", 0),
-                        cwe_ids=alert.get("cwe_ids", []),
-                    )
-                )
+                for alert in alerts_data
+            ]
 
             logger.info("Fetched %d CodeQL alert(s) for branch: %s", len(alerts), branch)
             return alerts
 
+        except json.JSONDecodeError as e:
+            logger.error(
+                "Failed to parse CodeQL alerts JSON: %s. This indicates a gh CLI or API issue.",
+                e,
+            )
+            raise  # Fail hard on JSON decode errors
         except subprocess.SubprocessError as e:
             logger.warning("Failed to fetch CodeQL alerts: %s", e)
             return []
@@ -695,11 +689,13 @@ class PreCommitSecurityCheck:
             for a in self.codeql_alerts
             if a.security_severity_level in ("critical", "high")
         )
-        codeql_status = (
-            "SKIPPED"
-            if self.skip_codeql
-            else ("REVIEW REQUIRED" if codeql_critical > 0 else "PASS")
-        )
+
+        if self.skip_codeql:
+            codeql_status = "SKIPPED"
+        elif codeql_critical > 0:
+            codeql_status = "REVIEW REQUIRED"
+        else:
+            codeql_status = "PASS"
 
         content += f"""## Validation Status
 
