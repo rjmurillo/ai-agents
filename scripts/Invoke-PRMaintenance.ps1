@@ -319,16 +319,19 @@ query($owner: String!, $name: String!, $limit: Int!) {
     $result = gh api graphql -f query=$query -f owner="$Owner" -f name="$Repo" -F limit=$Limit 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Log "Failed to query PRs: $result" -Level ERROR
-        return @()
+        # Use comma operator to prevent PowerShell array unrolling (empty array -> $null)
+        return ,@()
     }
 
     try {
         $parsed = $result | ConvertFrom-Json
-        return @($parsed.data.repository.pullRequests.nodes)
+        # Use comma operator to prevent PowerShell array unrolling (empty array -> $null)
+        return ,@($parsed.data.repository.pullRequests.nodes)
     }
     catch {
         Write-Log "Failed to parse PR query response: $_" -Level ERROR
-        return @()
+        # Use comma operator to prevent PowerShell array unrolling (empty array -> $null)
+        return ,@()
     }
 }
 

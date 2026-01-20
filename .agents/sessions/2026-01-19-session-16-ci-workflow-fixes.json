@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 16,
+    "date": "2026-01-19",
+    "branch": "fix/v0.2.0-readiness",
+    "startingCommit": "6b510917",
+    "objective": "Fix 2 CI workflow failures blocking v0.2.0 release"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaInit": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "mcp__serena__check_onboarding_performed confirmed initialization"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read /home/richard/src/GitHub/rjmurillo/ai-agents/.agents/HANDOFF.md"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Created .agents/sessions/2026-01-19-session-16-ci-workflow-fixes.json"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read usage-mandatory memory via mcp__serena__read_memory"
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current confirmed fix/v0.2.0-readiness"
+      }
+    },
+    "sessionEnd": {
+      "sessionLogComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session log includes outcomes, decisions, and verification"
+      },
+      "markdownLinted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "npx markdownlint-cli2 --fix completed with 0 errors"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Committed CI fixes and session log"
+      },
+      "sessionValidated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session log validated against schema"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Investigated PR Maintenance workflow failure",
+      "result": "Found Get-OpenPRs returns $null instead of @() due to PowerShell array unrolling",
+      "files": ["scripts/Invoke-PRMaintenance.ps1"]
+    },
+    {
+      "action": "Investigated Memory Validation workflow failure",
+      "result": "Found git diff origin/main...HEAD fails with exit 129 when before SHA missing after force-push",
+      "files": [".github/workflows/memory-validation.yml"]
+    },
+    {
+      "action": "Fixed PR Maintenance script",
+      "result": "Changed return @() to return ,@() to prevent array unrolling",
+      "files": ["scripts/Invoke-PRMaintenance.ps1"]
+    },
+    {
+      "action": "Fixed Memory Validation workflow",
+      "result": "Added parent commit fallback, workflow_dispatch handling for main branch, env vars for SHA values",
+      "files": [".github/workflows/memory-validation.yml"]
+    },
+    {
+      "action": "Verified fixes locally",
+      "result": "PR Maintenance script returns valid JSON with exit 0"
+    }
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "type": "code",
+        "path": "scripts/Invoke-PRMaintenance.ps1",
+        "description": "Fixed array unrolling issue with comma operator"
+      },
+      {
+        "type": "code",
+        "path": ".github/workflows/memory-validation.yml",
+        "description": "Fixed git diff edge cases for push-to-main scenarios"
+      }
+    ],
+    "decisions": [
+      {
+        "decision": "Use comma operator to prevent PowerShell array unrolling",
+        "rationale": "Empty arrays returned from functions become $null due to PowerShell pipeline unrolling. Using ,@() preserves the empty array.",
+        "impact": "PR Maintenance script now handles zero open PRs correctly"
+      },
+      {
+        "decision": "Handle push-to-main scenario with parent commit comparison",
+        "rationale": "When force-pushing to main, the before SHA may not exist. Fall back to comparing against the parent commit of the pushed SHA.",
+        "impact": "Memory Validation workflow no longer fails on force-push scenarios"
+      },
+      {
+        "decision": "Use environment variables for GitHub context values",
+        "rationale": "Security best practice per GitHub Actions guide to avoid command injection risks with user-controlled inputs.",
+        "impact": "Improved security posture of Memory Validation workflow"
+      }
+    ]
+  },
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "PowerShell array unrolling in function returns",
+        "context": "Functions returning @() have their empty arrays converted to $null by PowerShell pipeline",
+        "application": "Always use ,@() when returning arrays that may be empty from PowerShell functions"
+      },
+      {
+        "pattern": "Git diff three-dot syntax requirements",
+        "context": "origin/main...HEAD requires commits to be on different branches",
+        "application": "Use two-dot syntax or parent-based comparison when on the same branch"
+      }
+    ]
+  },
+  "nextSteps": [
+    "Push commit and verify CI workflows pass on branch",
+    "Merge to main to fix failing CI workflows",
+    "Verify DoD score reaches 100% (6/6)"
+  ]
+}
