@@ -26,7 +26,14 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 Run skill-installer directly without installing it:
 
 ```bash
+# Latest version
 uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
+
+# Specific version (e.g., v0.2.0)
+uvx --from git+https://github.com/rjmurillo/skill-installer@v0.2.0 skill-installer interactive
+
+# Older version (e.g., v0.1.0)
+uvx --from git+https://github.com/rjmurillo/skill-installer@v0.1.0 skill-installer interactive
 ```
 
 This launches the TUI where you can browse and install agents.
@@ -36,8 +43,17 @@ This launches the TUI where you can browse and install agents.
 Install skill-installer as a tool for repeated use:
 
 ```bash
+# Latest version (main branch)
 uv tool install git+https://github.com/rjmurillo/skill-installer
+
+# Specific version (e.g., v0.2.0)
+uv tool install git+https://github.com/rjmurillo/skill-installer@v0.2.0
+
+# Older version (e.g., v0.1.0)
+uv tool install git+https://github.com/rjmurillo/skill-installer@v0.1.0
 ```
+
+**Note:** Installing a specific version provides stability and reproducibility. Use latest for bleeding-edge features.
 
 ## Adding This Repository as a Source
 

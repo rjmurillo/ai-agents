@@ -230,8 +230,11 @@ gh workflow run [workflow] --ref [branch]
 Install agents using [skill-installer](https://github.com/rjmurillo/skill-installer):
 
 ```bash
-# Install skill-installer
+# Install skill-installer (latest version)
 uv tool install git+https://github.com/rjmurillo/skill-installer
+
+# OR install specific version for stability
+uv tool install git+https://github.com/rjmurillo/skill-installer@v0.2.0
 
 # Add this repository as a source
 skill-installer source add rjmurillo/ai-agents
@@ -504,8 +507,13 @@ The Memory agent provides long-running context across sessions using Serena (pro
 Use [skill-installer](https://github.com/rjmurillo/skill-installer) to install agents:
 
 ```bash
-# Install skill-installer
+# Install skill-installer (latest version)
 uv tool install git+https://github.com/rjmurillo/skill-installer
+
+# OR install specific version for stability
+uv tool install git+https://github.com/rjmurillo/skill-installer@v0.2.0
+
+# Add this repository as a source
 skill-installer source add rjmurillo/ai-agents
 
 # VS Code
