@@ -49,10 +49,18 @@ See `.github/agents/` for the full catalog. Each agent file contains its descrip
 **Note**: User-level (global) agent loading has a known issue. For best results, install agents at the repository level using skill-installer:
 
 ```bash
-# One-liner (no install required)
+# One-liner (no install required) - latest version
 uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
 
-# Or install globally
+# OR specific version for stability
+uvx --from git+https://github.com/rjmurillo/skill-installer@v0.2.0 skill-installer interactive
+
+# Install globally (latest)
 uv tool install git+https://github.com/rjmurillo/skill-installer
+
+# OR install globally (specific version)
+uv tool install git+https://github.com/rjmurillo/skill-installer@v0.2.0
+
+# Run interactive installer
 skill-installer interactive
 ```
