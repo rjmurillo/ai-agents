@@ -36,6 +36,6 @@ None yet.
 
 ## Related Memories
 
-- `parallel-agent-execution-session-14`: Session 14 execution details
-- `adr-042-python-first-enforcement`: ADR conflict resolution pattern
-- `codeql-security-integration`: Tool reuse pattern
+- [parallel-agent-execution-session-14](parallel-agent-execution-session-14.md): Session 14 execution details
+- [adr-042-python-first-enforcement](adr-042-python-first-enforcement.md): ADR conflict resolution pattern
+- [codeql-security-integration](codeql-security-integration.md): Tool reuse pattern
