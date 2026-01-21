@@ -74,6 +74,10 @@ Describe "Get-PRReviewComments" {
             $scriptContent | Should -Match '\[switch\]\$IncludeIssueComments'
         }
 
+        It "Should have GroupByDomain switch parameter" {
+            $scriptContent | Should -Match '\[switch\]\$GroupByDomain'
+        }
+
         It "Should import GitHubCore module" {
             $scriptContent | Should -Match 'Import-Module.*GitHubCore\.psm1'
         }
@@ -246,6 +250,200 @@ Describe "Get-PRReviewComments" {
 
         It "Should mention AI Quality Gate as example of issue comment" {
             $scriptContent | Should -Match 'AI Quality Gate'
+        }
+
+        It "Should document GroupByDomain parameter" {
+            $scriptContent | Should -Match '\.PARAMETER\s+GroupByDomain'
+        }
+
+        It "Should have EXAMPLE showing GroupByDomain usage" {
+            $scriptContent | Should -Match '\.EXAMPLE[\s\S]*-GroupByDomain'
+        }
+
+        It "Should mention domain classification in description" {
+            $scriptContent | Should -Match 'domain classification|Domain Classification'
+        }
+    }
+
+    Context "Domain Classification Function" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should have Get-CommentDomain function" {
+            $scriptContent | Should -Match 'function Get-CommentDomain'
+        }
+
+        It "Should classify security keywords" {
+            # Test the classification logic by checking regex patterns
+            $scriptContent | Should -Match 'cwe-\\d\+'
+            $scriptContent | Should -Match 'vulnerability|injection|xss|sql|csrf'
+            $scriptContent | Should -Match 'auth(entication|orization)?'
+            $scriptContent | Should -Match 'secrets?|credentials?'
+            $scriptContent | Should -Match 'toctou|symlink|traversal'
+            $scriptContent | Should -Match 'sanitiz|escap'
+        }
+
+        It "Should classify bug keywords" {
+            $scriptContent | Should -Match 'error|crash|exception|fail|null'
+            $scriptContent | Should -Match 'race\\s\+condition|deadlock|memory\\s\+leak'
+        }
+
+        It "Should classify style keywords" {
+            $scriptContent | Should -Match 'formatting|naming|indentation|whitespace|convention'
+            $scriptContent | Should -Match 'prefer|consider|suggest'
+        }
+
+        It "Should classify summary patterns" {
+            $scriptContent | Should -Match 'summary|overview|changes|walkthrough'
+        }
+
+        It "Should return security domain" {
+            $scriptContent | Should -Match "return\s+[`"']security[`"']"
+        }
+
+        It "Should return bug domain" {
+            $scriptContent | Should -Match "return\s+[`"']bug[`"']"
+        }
+
+        It "Should return style domain" {
+            $scriptContent | Should -Match "return\s+[`"']style[`"']"
+        }
+
+        It "Should return summary domain" {
+            $scriptContent | Should -Match "return\s+[`"']summary[`"']"
+        }
+
+        It "Should return general domain as default" {
+            $scriptContent | Should -Match "return\s+[`"']general[`"']"
+        }
+
+        It "Should convert body to lowercase for case-insensitive matching" {
+            $scriptContent | Should -Match '\.ToLower\(\)|\.toLower\(\)'
+        }
+    }
+
+    Context "Domain Property in Comment Objects" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should add Domain property to review comments" {
+            $scriptContent | Should -Match 'Domain\s*=\s*Get-CommentDomain'
+        }
+
+        It "Should call Get-CommentDomain with comment body" {
+            $scriptContent | Should -Match 'Get-CommentDomain\s+-Body\s+\$comment\.body'
+        }
+
+        It "Should have Domain property in PSCustomObject for review comments" {
+            # Check that Domain appears after Body in review comment object
+            $scriptContent | Should -Match 'Body\s*=[\s\S]{0,100}Domain\s*='
+        }
+
+        It "Should have Domain property in PSCustomObject for issue comments" {
+            # There should be at least 2 occurrences (review + issue comments)
+            $matches = [regex]::Matches($scriptContent, 'Domain\s*=\s*Get-CommentDomain')
+            $matches.Count | Should -BeGreaterOrEqual 2
+        }
+    }
+
+    Context "GroupByDomain Output" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should check for GroupByDomain parameter" {
+            $scriptContent | Should -Match 'if\s*\(\$GroupByDomain\)'
+        }
+
+        It "Should group comments by Domain property" {
+            $scriptContent | Should -Match 'Group-Object\s+-Property\s+Domain'
+        }
+
+        It "Should initialize Security group" {
+            $scriptContent | Should -Match "Security\s*=\s*@\(\)"
+        }
+
+        It "Should initialize Bug group" {
+            $scriptContent | Should -Match "Bug\s*=\s*@\(\)"
+        }
+
+        It "Should initialize Style group" {
+            $scriptContent | Should -Match "Style\s*=\s*@\(\)"
+        }
+
+        It "Should initialize Summary group" {
+            $scriptContent | Should -Match "Summary\s*=\s*@\(\)"
+        }
+
+        It "Should initialize General group" {
+            $scriptContent | Should -Match "General\s*=\s*@\(\)"
+        }
+
+        It "Should capitalize domain names for grouped output" {
+            $scriptContent | Should -Match 'ToTitleCase'
+        }
+
+        It "Should include TotalComments in grouped output" {
+            $scriptContent | Should -Match '\.TotalComments\s*='
+        }
+
+        It "Should include DomainCounts in grouped output" {
+            $scriptContent | Should -Match '\.DomainCounts\s*='
+        }
+
+        It "Should return early when GroupByDomain is used" {
+            $scriptContent | Should -Match 'return' # After grouped output
+        }
+    }
+
+    Context "Domain Distribution in Standard Output" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should include DomainCounts in standard output object" {
+            $scriptContent | Should -Match 'DomainCounts\s*='
+        }
+
+        It "Should display domain distribution in console output" {
+            $scriptContent | Should -Match 'Domains:'
+        }
+
+        It "Should use color coding for security domain" {
+            $scriptContent | Should -Match "Red.*security|security.*Red"
+        }
+
+        It "Should use color coding for bug domain" {
+            $scriptContent | Should -Match "Yellow.*bug|bug.*Yellow"
+        }
+
+        It "Should use color coding for style domain" {
+            $scriptContent | Should -Match "Gray.*style|style.*Gray"
+        }
+
+        It "Should use color coding for general domain" {
+            $scriptContent | Should -Match "Cyan.*general|general.*Cyan"
+        }
+    }
+
+    Context "Backward Compatibility" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should still produce standard output when GroupByDomain not specified" {
+            # Standard output object should still be created
+            $scriptContent | Should -Match 'Success\s*=\s*\$true'
+            $scriptContent | Should -Match 'TotalComments\s*='
+            $scriptContent | Should -Match 'Comments\s*=.*\$allProcessedComments'
+        }
+
+        It "Should maintain existing output properties" {
+            $scriptContent | Should -Match 'ReviewCommentCount\s*='
+            $scriptContent | Should -Match 'IssueCommentCount\s*='
+            $scriptContent | Should -Match 'AuthorSummary\s*='
         }
     }
 
