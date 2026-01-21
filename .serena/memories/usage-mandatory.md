@@ -101,6 +101,13 @@ CORRECT:
 - Build operations (npm, pwsh for build scripts)
 - System operations (ls, mkdir, etc.)
 
+## Pre-PR Validation
+
+**Before creating any PR, verify:**
+
+- No BLOCKING synthesis issues exist (check synthesis panel documents for `blocking: true`)
+- Reference: Issue #934 (pre-PR validation), PR #908 evidence
+
 ## Enforcement
 
 **User will reject PRs/commits that:**
@@ -108,6 +115,7 @@ CORRECT:
 - Use raw `gh` commands when skill exists
 - Write inline scripts duplicating skill functionality
 - Ignore this guidance after being corrected
+- Create PRs with unresolved BLOCKING synthesis issues
 
 ## Skill Location
 
