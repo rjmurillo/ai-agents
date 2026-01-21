@@ -332,8 +332,8 @@ Describe "Get-PRReviewComments" {
             $scriptContent | Should -Match 'function\s+Test-LineExistsInFile'
         }
 
-        It "Should define Test-DiffHunkMatches function" {
-            $scriptContent | Should -Match 'function\s+Test-DiffHunkMatches'
+        It "Should define Test-DiffHunkMatch function" {
+            $scriptContent | Should -Match 'function\s+Test-DiffHunkMatch'
         }
 
         It "Should define Get-CommentStaleness function" {

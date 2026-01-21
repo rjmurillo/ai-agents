@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Gets all comments for a GitHub Pull Request with pagination and stale comment detection.
 
@@ -29,7 +29,7 @@
 .PARAMETER DetectStale
     If specified, analyzes each review comment to determine if it references deleted files,
     out-of-range lines, or changed code. Adds Stale and StaleReason properties to comments.
-    
+
     Stale reasons:
     - FileDeleted: Comment references a file that no longer exists in HEAD
     - LineOutOfRange: Comment line number exceeds current file length
@@ -69,12 +69,12 @@
 
 .NOTES
     Exit Codes: 0=Success, 1=Invalid params, 2=Not found, 3=API error, 4=Not authenticated
-    
+
     Stale Detection Performance:
     - Makes 1 API call to fetch file tree (cached for all comments)
     - Makes 1 API call per unique file path (cached)
     - Use -Verbose to see cache hit statistics
-    
+
     See: ADR-035 Exit Code Standardization
 #>
 
@@ -123,7 +123,7 @@ function Get-PRFileTree {
         [Parameter(Mandatory)] [string]$Owner,
         [Parameter(Mandatory)] [string]$Repo
     )
-    
+
     Write-Verbose "Fetching file tree for HEAD"
     try {
         $treeData = gh api "repos/$Owner/$Repo/git/trees/HEAD?recursive=1" 2>&1 | ConvertFrom-Json
@@ -150,12 +150,12 @@ function Get-FileContent {
         [Parameter(Mandatory)] [string]$Path,
         [Parameter(Mandatory)] [hashtable]$ContentCache
     )
-    
+
     if ($ContentCache.ContainsKey($Path)) {
         Write-Verbose "Cache hit for $Path"
         return $ContentCache[$Path]
     }
-    
+
     Write-Verbose "Fetching content for $Path"
     try {
         $encodedPath = [System.Uri]::EscapeDataString($Path)
@@ -165,7 +165,7 @@ function Get-FileContent {
             $ContentCache[$Path] = $null
             return $null
         }
-        
+
         # Decode base64 content
         $decodedContent = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($contentData.content))
         $ContentCache[$Path] = $decodedContent
@@ -187,7 +187,7 @@ function Test-FileExistsInPR {
         [Parameter(Mandatory)] [string]$Path,
         [Parameter(Mandatory)] [array]$FileTree
     )
-    
+
     return $Path -in $FileTree
 }
 
@@ -200,16 +200,16 @@ function Test-LineExistsInFile {
         [Parameter(Mandatory)] [int]$Line,
         [Parameter(Mandatory)] [string]$Content
     )
-    
+
     if ([string]::IsNullOrEmpty($Content)) {
         return $false
     }
-    
+
     $lineCount = ($Content -split "`r`n|`r|`n").Count
     return $Line -le $lineCount
 }
 
-function Test-DiffHunkMatches {
+function Test-DiffHunkMatch {
     <#
     .SYNOPSIS
         Checks if the diff hunk context still matches the current file content.
@@ -219,41 +219,41 @@ function Test-DiffHunkMatches {
         [string]$DiffHunk,
         [Parameter(Mandatory)] [string]$Content
     )
-    
+
     if ([string]::IsNullOrEmpty($DiffHunk) -or [string]::IsNullOrEmpty($Content)) {
         # If we don't have diff hunk data, we can't determine if it's stale
         return $true
     }
-    
+
     # Extract the actual code lines from the diff hunk (lines starting with ' ' or '+')
-    $diffLines = $DiffHunk -split "`r`n|`r|`n" | Where-Object { 
-        $_ -match '^\s' -or $_ -match '^\+[^+]' 
+    $diffLines = $DiffHunk -split "`r`n|`r|`n" | Where-Object {
+        $_ -match '^\s' -or $_ -match '^\+[^+]'
     } | ForEach-Object {
         # Remove the diff marker (first character)
         if ($_.Length -gt 0) { $_.Substring(1) } else { '' }
     }
-    
+
     if ($diffLines.Count -eq 0) {
         return $true
     }
-    
+
     # Get the corresponding lines from the current content
     $contentLines = $Content -split "`r`n|`r|`n"
     $startLine = [Math]::Max(0, $Line - 3)
     $endLine = [Math]::Min($contentLines.Count - 1, $Line + 3)
-    
+
     if ($startLine -ge $contentLines.Count) {
         return $false
     }
-    
+
     $contextLines = $contentLines[$startLine..$endLine]
-    
+
     # Fuzzy match: Check if any diff line appears in the context
     $matchCount = 0
     foreach ($diffLine in $diffLines) {
         $trimmedDiff = $diffLine.Trim()
         if ([string]::IsNullOrWhiteSpace($trimmedDiff)) { continue }
-        
+
         foreach ($contextLine in $contextLines) {
             if ($contextLine.Trim() -eq $trimmedDiff) {
                 $matchCount++
@@ -261,13 +261,13 @@ function Test-DiffHunkMatches {
             }
         }
     }
-    
+
     # Consider it matching if at least 50% of non-empty diff lines are found
     $nonEmptyDiffLines = ($diffLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
     if ($nonEmptyDiffLines -eq 0) {
         return $true
     }
-    
+
     $matchRatio = $matchCount / $nonEmptyDiffLines
     return $matchRatio -ge 0.5
 }
@@ -284,17 +284,17 @@ function Get-CommentStaleness {
         [Parameter(Mandatory)] [array]$FileTree,
         [Parameter(Mandatory)] [hashtable]$ContentCache
     )
-    
+
     # Skip issue comments (they don't have file/line context)
     if ($Comment.CommentType -eq "Issue" -or [string]::IsNullOrEmpty($Comment.Path)) {
         return @{ Stale = $false; StaleReason = $null }
     }
-    
+
     # Check 1: File existence
     if (-not (Test-FileExistsInPR -Path $Comment.Path -FileTree $FileTree)) {
         return @{ Stale = $true; StaleReason = "FileDeleted" }
     }
-    
+
     # Check 2: Line range
     $fileContent = Get-FileContent -Owner $Owner -Repo $Repo -Path $Comment.Path -ContentCache $ContentCache
     if ($null -eq $fileContent) {
@@ -302,18 +302,18 @@ function Get-CommentStaleness {
         Write-Verbose "Could not fetch content for $($Comment.Path), skipping line/diff checks"
         return @{ Stale = $false; StaleReason = $null }
     }
-    
+
     if ($Comment.Line -and -not (Test-LineExistsInFile -Line $Comment.Line -Content $fileContent)) {
         return @{ Stale = $true; StaleReason = "LineOutOfRange" }
     }
-    
+
     # Check 3: Diff context
     if ($Comment.DiffHunk -and $Comment.Line) {
-        if (-not (Test-DiffHunkMatches -Line $Comment.Line -DiffHunk $Comment.DiffHunk -Content $fileContent)) {
+        if (-not (Test-DiffHunkMatch -Line $Comment.Line -DiffHunk $Comment.DiffHunk -Content $fileContent)) {
             return @{ Stale = $true; StaleReason = "CodeChanged" }
         }
     }
-    
+
     return @{ Stale = $false; StaleReason = $null }
 }
 
@@ -333,46 +333,46 @@ if ($DetectStale) {
 $reviewComments = Invoke-GhApiPaginated -Endpoint "repos/$Owner/$Repo/pulls/$PullRequest/comments"
 
 $processedReviewComments = @(foreach ($comment in $reviewComments) {
-    if ($Author -and $comment.user.login -ne $Author) { continue }
+        if ($Author -and $comment.user.login -ne $Author) { continue }
 
-    # Determine staleness if requested
-    $staleInfo = if ($DetectStale) {
-        # Need to include DiffHunk for staleness detection
-        $commentWithDiff = $comment
-        if (-not $commentWithDiff.diff_hunk -and $IncludeDiffHunk -eq $false) {
-            # Fetch diff_hunk if not already included
-            $commentWithDiff = $comment | Select-Object *, @{Name='diff_hunk_temp'; Expression={$_.diff_hunk}}
+        # Determine staleness if requested
+        $staleInfo = if ($DetectStale) {
+            # Need to include DiffHunk for staleness detection
+            $commentWithDiff = $comment
+            if (-not $commentWithDiff.diff_hunk -and $IncludeDiffHunk -eq $false) {
+                # Fetch diff_hunk if not already included
+                $commentWithDiff = $comment | Select-Object *, @{Name = 'diff_hunk_temp'; Expression = { $_.diff_hunk } }
+            }
+            Get-CommentStaleness -Comment @{
+                CommentType = "Review"
+                Path = $comment.path
+                Line = if ($comment.line) { $comment.line } else { $comment.original_line }
+                DiffHunk = $comment.diff_hunk
+            } -Owner $Owner -Repo $Repo -FileTree $fileTree -ContentCache $contentCache
+        } else {
+            @{ Stale = $null; StaleReason = $null }
         }
-        Get-CommentStaleness -Comment @{
+
+        [PSCustomObject]@{
+            Id = $comment.id
             CommentType = "Review"
+            Author = $comment.user.login
+            AuthorType = $comment.user.type
             Path = $comment.path
             Line = if ($comment.line) { $comment.line } else { $comment.original_line }
-            DiffHunk = $comment.diff_hunk
-        } -Owner $Owner -Repo $Repo -FileTree $fileTree -ContentCache $contentCache
-    } else {
-        @{ Stale = $null; StaleReason = $null }
-    }
-
-    [PSCustomObject]@{
-        Id          = $comment.id
-        CommentType = "Review"
-        Author      = $comment.user.login
-        AuthorType  = $comment.user.type
-        Path        = $comment.path
-        Line        = if ($comment.line) { $comment.line } else { $comment.original_line }
-        Side        = $comment.side
-        Body        = $comment.body
-        CreatedAt   = $comment.created_at
-        UpdatedAt   = $comment.updated_at
-        InReplyToId = $comment.in_reply_to_id
-        IsReply     = $null -ne $comment.in_reply_to_id
-        DiffHunk    = if ($IncludeDiffHunk) { $comment.diff_hunk } else { $null }
-        HtmlUrl     = $comment.html_url
-        CommitId    = $comment.commit_id
-        Stale       = $staleInfo.Stale
-        StaleReason = $staleInfo.StaleReason
-    }
-})
+            Side = $comment.side
+            Body = $comment.body
+            CreatedAt = $comment.created_at
+            UpdatedAt = $comment.updated_at
+            InReplyToId = $comment.in_reply_to_id
+            IsReply = $null -ne $comment.in_reply_to_id
+            DiffHunk = if ($IncludeDiffHunk) { $comment.diff_hunk } else { $null }
+            HtmlUrl = $comment.html_url
+            CommitId = $comment.commit_id
+            Stale = $staleInfo.Stale
+            StaleReason = $staleInfo.StaleReason
+        }
+    })
 
 # Fetch issue comments (top-level PR comments) if requested
 $processedIssueComments = @()
@@ -381,28 +381,28 @@ if ($IncludeIssueComments) {
     $issueComments = Invoke-GhApiPaginated -Endpoint "repos/$Owner/$Repo/issues/$PullRequest/comments"
 
     $processedIssueComments = @(foreach ($comment in $issueComments) {
-        if ($Author -and $comment.user.login -ne $Author) { continue }
+            if ($Author -and $comment.user.login -ne $Author) { continue }
 
-        [PSCustomObject]@{
-            Id          = $comment.id
-            CommentType = "Issue"
-            Author      = $comment.user.login
-            AuthorType  = $comment.user.type
-            Path        = $null  # Issue comments are not on specific files
-            Line        = $null  # Issue comments are not on specific lines
-            Side        = $null
-            Body        = $comment.body
-            CreatedAt   = $comment.created_at
-            UpdatedAt   = $comment.updated_at
-            InReplyToId = $null  # Issue comments don't have reply threading like review comments
-            IsReply     = $false
-            DiffHunk    = $null
-            HtmlUrl     = $comment.html_url
-            CommitId    = $null
-            Stale       = if ($DetectStale) { $false } else { $null }  # Issue comments are never stale
-            StaleReason = $null
-        }
-    })
+            [PSCustomObject]@{
+                Id = $comment.id
+                CommentType = "Issue"
+                Author = $comment.user.login
+                AuthorType = $comment.user.type
+                Path = $null  # Issue comments are not on specific files
+                Line = $null  # Issue comments are not on specific lines
+                Side = $null
+                Body = $comment.body
+                CreatedAt = $comment.created_at
+                UpdatedAt = $comment.updated_at
+                InReplyToId = $null  # Issue comments don't have reply threading like review comments
+                IsReply = $false
+                DiffHunk = $null
+                HtmlUrl = $comment.html_url
+                CommitId = $null
+                Stale = if ($DetectStale) { $false } else { $null }  # Issue comments are never stale
+                StaleReason = $null
+            }
+        })
 }
 
 # Combine all comments
@@ -436,18 +436,18 @@ $reviewCount = @($processedReviewComments).Count
 $issueCount = @($processedIssueComments).Count
 
 $output = [PSCustomObject]@{
-    Success            = $true
-    PullRequest        = $PullRequest
-    Owner              = $Owner
-    Repo               = $Repo
-    TotalComments      = @($allProcessedComments).Count
+    Success = $true
+    PullRequest = $PullRequest
+    Owner = $Owner
+    Repo = $Repo
+    TotalComments = @($allProcessedComments).Count
     ReviewCommentCount = $reviewCount
-    IssueCommentCount  = $issueCount
-    TopLevelCount      = (@($allProcessedComments) | Where-Object { -not $_.IsReply }).Count
-    ReplyCount         = (@($allProcessedComments) | Where-Object { $_.IsReply }).Count
-    StaleCount         = $staleCount
-    AuthorSummary      = @($authorGroups | ForEach-Object { [PSCustomObject]@{ Author = $_.Name; Count = $_.Count } })
-    Comments           = @($allProcessedComments)
+    IssueCommentCount = $issueCount
+    TopLevelCount = (@($allProcessedComments) | Where-Object { -not $_.IsReply }).Count
+    ReplyCount = (@($allProcessedComments) | Where-Object { $_.IsReply }).Count
+    StaleCount = $staleCount
+    AuthorSummary = @($authorGroups | ForEach-Object { [PSCustomObject]@{ Author = $_.Name; Count = $_.Count } })
+    Comments = @($allProcessedComments)
 }
 
 Write-Output $output
