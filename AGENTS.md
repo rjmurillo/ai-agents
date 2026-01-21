@@ -66,7 +66,7 @@ You CANNOT claim session completion until validation PASSES. These requirements 
 | **MUST** | Complete Session End checklist in session log | All `[x]` checked |
 | **MUST NOT** | Update `.agents/HANDOFF.md` (read-only reference) | File unchanged |
 | **MUST** | Update Serena memory (cross-session context) | Memory write confirmed |
-| **MUST** | Run `npx markdownlint-cli2 --fix "**/*.md"` | Lint passes |
+| **MUST** | Run scoped markdownlint on changed files (ADR-043) | Lint passes |
 | **MUST** | Commit all changes including `.agents/` | Commit SHA in Evidence column |
 | **MUST** | Run `Validate-SessionJson.ps1` | Exit code 0 (PASS) |
 | **SHOULD** | Update PROJECT-PLAN.md task checkboxes | Tasks marked complete |
@@ -161,7 +161,13 @@ git branch --show-current
 #### Session End
 
 ```bash
-npx markdownlint-cli2 --fix "**/*.md"
+# Scoped markdownlint (ADR-043)
+CHANGED_MD=$(git diff --name-only --diff-filter=d HEAD '*.md' 2>/dev/null)
+if [ -n "$CHANGED_MD" ]; then
+  echo "$CHANGED_MD" | xargs npx markdownlint-cli2 --fix --no-globs
+fi
+
+# Session artifacts
 pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].json"
 pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[log].json"
 ```
@@ -180,7 +186,11 @@ pwsh ./build/scripts/Invoke-PesterTests.ps1
 pwsh ./build/scripts/Invoke-PesterTests.ps1 -CI
 
 # Linting
-npx markdownlint-cli2 --fix "**/*.md"
+# Scoped to changed files (ADR-043):
+CHANGED_MD=$(git diff --name-only --diff-filter=d HEAD '*.md' 2>/dev/null)
+if [ -n "$CHANGED_MD" ]; then echo "$CHANGED_MD" | xargs npx markdownlint-cli2 --fix --no-globs; fi
+# Repository-wide (cleanup PRs only):
+# npx markdownlint-cli2 --fix "**/*.md"
 pwsh scripts/Validate-Consistency.ps1
 
 # Build
@@ -316,7 +326,7 @@ wt merge
 - **Assign issues** before starting work: `gh issue edit <number> --add-assignee @me`
 - **Use PR template** with ALL sections from `.github/PULL_REQUEST_TEMPLATE.md`
 - **Commit atomically** (max 5 files OR single logical change)
-- **Run linting** before commits: `npx markdownlint-cli2 --fix "**/*.md"`
+- **Run scoped linting** before commits (ADR-043): `git diff --name-only '*.md' | xargs npx markdownlint-cli2 --fix --no-globs`
 - **Pin GitHub Actions to SHA** with version comment (security-practices)
 
 ### ⚠️ Ask First
@@ -1693,7 +1703,7 @@ SESSION END (BLOCKING - MUST complete before closing):
 6. MUST: Complete Session End checklist in session log (all [x] checked)
 7. MUST NOT: Update .agents/HANDOFF.md (read-only reference)
 8. MUST: Update Serena memory (cross-session context)
-9. MUST: Run npx markdownlint-cli2 --fix "**/*.md"
+9. MUST: Run scoped markdownlint on changed files (ADR-043)
 9. MUST: Commit all changes (record SHA in Evidence column)
 10. MUST: Run Validate-SessionJson.ps1 - PASS required before claiming completion
 11. SHOULD: Check off completed tasks in PROJECT-PLAN.md

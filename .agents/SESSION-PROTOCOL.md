@@ -356,7 +356,30 @@ The agent MUST run quality checks before ending.
 
 **Requirements:**
 
-1. The agent MUST run `npx markdownlint-cli2 --fix "**/*.md"` to fix markdown issues
+1. The agent MUST run scoped markdownlint on changed markdown files (per ADR-043):
+
+   **Bash:**
+
+   ```bash
+   CHANGED_MD=$(git diff --name-only --diff-filter=d HEAD '*.md' 2>/dev/null)
+   if [ -n "$CHANGED_MD" ]; then
+     echo "$CHANGED_MD" | xargs npx markdownlint-cli2 --fix --no-globs
+   fi
+   ```
+
+   **PowerShell:**
+
+   ```powershell
+   $ChangedMd = git diff --name-only --diff-filter=d HEAD '*.md' 2>$null
+   if ($ChangedMd) {
+       $ChangedMd | ForEach-Object { npx markdownlint-cli2 --fix --no-globs $_ }
+   }
+   ```
+
+   The agent MAY run repository-wide formatting (`npx markdownlint-cli2 --fix "**/*.md"`) only when:
+   - Session objective explicitly includes "format all files"
+   - Creating a dedicated formatting cleanup PR
+
 2. The agent SHOULD run validation scripts if available (e.g., `Validate-Consistency.ps1`)
 3. The agent MUST NOT end session with known failing lints
 
