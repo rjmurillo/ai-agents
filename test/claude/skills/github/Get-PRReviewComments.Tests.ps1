@@ -74,6 +74,18 @@ Describe "Get-PRReviewComments" {
             $scriptContent | Should -Match '\[switch\]\$IncludeIssueComments'
         }
 
+        It "Should have DetectStale switch parameter" {
+            $scriptContent | Should -Match '\[switch\]\$DetectStale'
+        }
+
+        It "Should have ExcludeStale switch parameter" {
+            $scriptContent | Should -Match '\[switch\]\$ExcludeStale'
+        }
+
+        It "Should have OnlyStale switch parameter" {
+            $scriptContent | Should -Match '\[switch\]\$OnlyStale'
+        }
+
         It "Should import GitHubCore module" {
             $scriptContent | Should -Match 'Import-Module.*GitHubCore\.psm1'
         }
@@ -274,6 +286,140 @@ Describe "Get-PRReviewComments" {
 
         It "Should include issue count in summary when IncludeIssueComments is set" {
             $scriptContent | Should -Match 'issue.*comments'
+        }
+    }
+
+    Context "Stale Detection Parameter Validation" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should validate that ExcludeStale requires DetectStale" {
+            $scriptContent | Should -Match 'if.*\$ExcludeStale.*-not.*\$DetectStale'
+        }
+
+        It "Should validate that OnlyStale requires DetectStale" {
+            $scriptContent | Should -Match 'if.*\$OnlyStale.*-not.*\$DetectStale'
+        }
+
+        It "Should validate that ExcludeStale and OnlyStale are mutually exclusive" {
+            $scriptContent | Should -Match 'if.*\$ExcludeStale.*\$OnlyStale'
+        }
+
+        It "Should exit with code 1 for invalid parameter combinations" {
+            $scriptContent | Should -Match 'exit\s+1'
+        }
+    }
+
+    Context "Stale Detection Functions" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should define Get-PRFileTree function" {
+            $scriptContent | Should -Match 'function\s+Get-PRFileTree'
+        }
+
+        It "Should define Get-FileContent function" {
+            $scriptContent | Should -Match 'function\s+Get-FileContent'
+        }
+
+        It "Should define Test-FileExistsInPR function" {
+            $scriptContent | Should -Match 'function\s+Test-FileExistsInPR'
+        }
+
+        It "Should define Test-LineExistsInFile function" {
+            $scriptContent | Should -Match 'function\s+Test-LineExistsInFile'
+        }
+
+        It "Should define Test-DiffHunkMatches function" {
+            $scriptContent | Should -Match 'function\s+Test-DiffHunkMatches'
+        }
+
+        It "Should define Get-CommentStaleness function" {
+            $scriptContent | Should -Match 'function\s+Get-CommentStaleness'
+        }
+
+        It "Should fetch file tree when DetectStale is enabled" {
+            $scriptContent | Should -Match 'if\s+\(\$DetectStale\)'
+            $scriptContent | Should -Match '\$fileTree\s+=\s+Get-PRFileTree'
+        }
+    }
+
+    Context "Stale Detection Output Properties" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should add Stale property to review comments" {
+            $scriptContent | Should -Match 'Stale\s*=.*staleInfo\.Stale'
+        }
+
+        It "Should add StaleReason property to review comments" {
+            $scriptContent | Should -Match 'StaleReason\s*=.*staleInfo\.StaleReason'
+        }
+
+        It "Should add Stale property to issue comments" {
+            $matches = [regex]::Matches($scriptContent, 'Stale\s*=')
+            $matches.Count | Should -BeGreaterOrEqual 2
+        }
+
+        It "Should include StaleCount in output object" {
+            $scriptContent | Should -Match 'StaleCount\s*='
+        }
+    }
+
+    Context "Stale Detection Filtering" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should filter out stale comments when ExcludeStale is specified" {
+            $scriptContent | Should -Match 'if\s+\(\$ExcludeStale\)'
+            $scriptContent | Should -Match 'Where-Object\s+\{\s+-not\s+\$_\.Stale\s+\}'
+        }
+
+        It "Should filter to only stale comments when OnlyStale is specified" {
+            $scriptContent | Should -Match 'elseif\s+\(\$OnlyStale\)'
+            $scriptContent | Should -Match 'Where-Object\s+\{\s+\$_\.Stale\s+-eq\s+\$true\s+\}'
+        }
+
+        It "Should calculate stale count when DetectStale is enabled" {
+            $scriptContent | Should -Match '\$staleCount.*if.*\$DetectStale'
+        }
+    }
+
+    Context "Stale Detection Help Documentation" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should document DetectStale parameter" {
+            $scriptContent | Should -Match '\.PARAMETER\s+DetectStale'
+        }
+
+        It "Should document ExcludeStale parameter" {
+            $scriptContent | Should -Match '\.PARAMETER\s+ExcludeStale'
+        }
+
+        It "Should document OnlyStale parameter" {
+            $scriptContent | Should -Match '\.PARAMETER\s+OnlyStale'
+        }
+
+        It "Should have example showing DetectStale usage" {
+            $scriptContent | Should -Match '\.EXAMPLE[\s\S]*-DetectStale'
+        }
+
+        It "Should document FileDeleted stale reason" {
+            $scriptContent | Should -Match 'FileDeleted'
+        }
+
+        It "Should document LineOutOfRange stale reason" {
+            $scriptContent | Should -Match 'LineOutOfRange'
+        }
+
+        It "Should document CodeChanged stale reason" {
+            $scriptContent | Should -Match 'CodeChanged'
         }
     }
 }

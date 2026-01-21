@@ -90,7 +90,7 @@ Need GitHub data?
 | `Get-PRContext.ps1` | PR metadata, diff, files | `-PullRequest`, `-IncludeChangedFiles`, `-IncludeDiff` |
 | `Get-PRChecks.ps1` | CI check status, polling | `-PullRequest`, `-Wait`, `-TimeoutSeconds`, `-RequiredOnly` |
 | `Get-PRCheckLogs.ps1` | Fetch logs from failing CI checks | `-PullRequest`, `-MaxLines`, `-ContextLines` |
-| `Get-PRReviewComments.ps1` | Paginated review comments | `-PullRequest`, `-IncludeIssueComments` |
+| `Get-PRReviewComments.ps1` | Paginated review comments with stale detection | `-PullRequest`, `-IncludeIssueComments`, `-DetectStale`, `-ExcludeStale`, `-OnlyStale` |
 | `Get-PRReviewThreads.ps1` | Thread-level review data | `-PullRequest`, `-UnresolvedOnly` |
 | `Get-PRReviewers.ps1` | Enumerate unique reviewers | `-PullRequest`, `-ExcludeBots` |
 | `Get-UnaddressedComments.ps1` | Bot comments needing attention | `-PullRequest` |
