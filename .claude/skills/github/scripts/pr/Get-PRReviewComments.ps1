@@ -111,23 +111,26 @@ function Get-CommentDomain {
     
     # Security: CWE identifiers, vulnerabilities, injection attacks, auth issues
     # Priority: Security issues must be detected first due to criticality
-    if ($bodyLower -match 'cwe-\d+|vulnerability|vulnerabilities|injection|xss|sql|csrf|auth(entication|orization)?|secrets?|credentials?|toctou|symlink|traversal|sanitiz|escap') {
+    # CRITICAL: Use word boundaries for "auth" to avoid matching "author", "authority"
+    if ($bodyLower -match 'cwe-\d+|vulnerability|vulnerabilities|injection|xss|sql|csrf|\bauth(?:entication|orization|enticat|orized)?\b|secrets?|credentials?|toctou|symlink|traversal|sanitiz|\bescap(?:e|ing)\b') {
         return "security"
     }
-    
-    # Bug: Runtime errors, crashes, null references, concurrency issues
-    if ($bodyLower -match 'error|crash|exception|fail|null|undefined|race\s+condition|deadlock|memory\s+leak') {
+
+    # Bug: Runtime errors, crashes, null/undefined references, concurrency issues
+    # Use more specific patterns to reduce false positives (e.g., "no error" matching "error")
+    if ($bodyLower -match 'throws?\s+error|error\s+(?:occurs?|occurred|happens?|when|while)|\bcrash(?:es|ed|ing)?\b|\bexception(?:s)?\b|\bfail(?:ed|s|ure|ing)\b|null\s+(?:pointer|reference|ref)\b|undefined\s+(?:behavior|reference|variable)\b|race\s+condition|deadlock|memory\s+leak') {
         return "bug"
     }
-    
+
     # Style: Formatting, naming conventions, code style suggestions
-    if ($bodyLower -match 'formatting|naming|indentation|whitespace|convention|prefer|consider|suggest') {
+    # Use more specific patterns to avoid false positives (e.g., "Consider the security implications")
+    if ($bodyLower -match 'formatting|naming|indentation|whitespace|convention|code\s*style|stylistic|readability|cleanup|refactor|refactoring') {
         return "style"
     }
-    
+
     # Summary: Bot-generated summary patterns (CodeRabbit, Copilot)
-    # Detect markdown headers at start of comment indicating summary sections
-    if ($bodyLower -match '^\s*#{1,3}\s*(summary|overview|changes|walkthrough)') {
+    # Detect markdown headers at the start of any line (not just comment start)
+    if ($bodyLower -match '(?m)^\s*#{1,3}\s*(?:summary|overview|changes|walkthrough)') {
         return "summary"
     }
     
@@ -158,7 +161,7 @@ $processedReviewComments = @(foreach ($comment in $reviewComments) {
         Author      = $comment.user.login
         AuthorType  = $comment.user.type
         Path        = $comment.path
-        Line = if ($comment.line) { $comment.line } else { $comment.original_line }
+        Line        = if ($comment.line) { $comment.line } else { $comment.original_line }
         Side        = $comment.side
         Body        = $comment.body
         Domain      = Get-CommentDomain -Body $comment.body
@@ -166,7 +169,7 @@ $processedReviewComments = @(foreach ($comment in $reviewComments) {
         UpdatedAt   = $comment.updated_at
         InReplyToId = $comment.in_reply_to_id
         IsReply     = $null -ne $comment.in_reply_to_id
-        DiffHunk = if ($IncludeDiffHunk) { $comment.diff_hunk } else { $null }
+        DiffHunk    = if ($IncludeDiffHunk) { $comment.diff_hunk } else { $null }
         HtmlUrl     = $comment.html_url
         CommitId    = $comment.commit_id
     }
@@ -208,11 +211,15 @@ $allProcessedComments = @($processedReviewComments) + @($processedIssueComments)
 # Sort by creation date
 $allProcessedComments = $allProcessedComments | Sort-Object -Property CreatedAt
 
+# Calculate domain distribution (SHARED - used by both grouped and standard output)
+$domainGroups = $allProcessedComments | Group-Object -Property Domain
+$domainCounts = @{}
+foreach ($group in $domainGroups) {
+    $domainCounts[$group.Name] = $group.Count
+}
+
 # Group by domain if requested
 if ($GroupByDomain) {
-    $domainGroups = $allProcessedComments | Group-Object -Property Domain
-    $domainCounts = @{}
-    
     # Initialize all domains with empty arrays
     $groupedOutput = @{
         Security = @()
@@ -221,43 +228,43 @@ if ($GroupByDomain) {
         Summary = @()
         General = @()
     }
-    
+
     # Populate with actual comments
     foreach ($group in $domainGroups) {
         $capitalizedDomain = (Get-Culture).TextInfo.ToTitleCase($group.Name)
         $groupedOutput[$capitalizedDomain] = @($group.Group)
-        $domainCounts[$capitalizedDomain] = $group.Count
     }
-    
-    # Add metadata
-    $groupedOutput.TotalComments = @($allProcessedComments).Count
-    $groupedOutput.DomainCounts = $domainCounts
-    
+
+    # Build capitalized domain counts for metadata
+    $capitalizedDomainCounts = @{}
+    foreach ($key in $domainCounts.Keys) {
+        $capitalizedKey = (Get-Culture).TextInfo.ToTitleCase($key)
+        $capitalizedDomainCounts[$capitalizedKey] = $domainCounts[$key]
+    }
+
+    # Add metadata (fix: handle empty comments correctly)
+    $groupedOutput.TotalComments = if ($allProcessedComments) { @($allProcessedComments).Count } else { 0 }
+    $groupedOutput.DomainCounts = $capitalizedDomainCounts
+
     Write-Output $groupedOutput
-    
+
     # Console summary for grouped output
     $domainSummaryParts = @()
     foreach ($domain in @('Security', 'Bug', 'Style', 'Summary', 'General')) {
-        $count = if ($domainCounts.ContainsKey($domain)) { $domainCounts[$domain] } else { 0 }
+        $count = if ($capitalizedDomainCounts.ContainsKey($domain)) { $capitalizedDomainCounts[$domain] } else { 0 }
         $domainSummaryParts += "$domain($count)"
     }
     $groupedSummary = "PR #$($PullRequest): Grouped by domain: " + ($domainSummaryParts -join ', ')
     Write-Host $groupedSummary -ForegroundColor Cyan
-    
+
     return
 }
 
+# Standard output mode
 $authorGroups = @($allProcessedComments) | Group-Object -Property Author
 
 $reviewCount = @($processedReviewComments).Count
 $issueCount = @($processedIssueComments).Count
-
-# Calculate domain distribution
-$domainGroups = $allProcessedComments | Group-Object -Property Domain
-$domainCounts = @{}
-foreach ($group in $domainGroups) {
-    $domainCounts[$group.Name] = $group.Count
-}
 
 $output = [PSCustomObject]@{
     Success            = $true
@@ -299,13 +306,14 @@ if ($domainSummaryParts.Count -gt 0) {
 Write-Host $commentSummary -ForegroundColor Cyan
 
 # Color-coded domain summary (one line per domain with count > 0)
-foreach ($domain in @('security', 'bug', 'style', 'general')) {
+foreach ($domain in @('security', 'bug', 'style', 'summary', 'general')) {
     $count = if ($domainCounts.ContainsKey($domain)) { $domainCounts[$domain] } else { 0 }
     if ($count -gt 0) {
         $color = switch ($domain) {
             'security' { 'Red' }
             'bug' { 'Yellow' }
             'style' { 'Gray' }
+            'summary' { 'DarkGray' }
             'general' { 'Cyan' }
             default    { 'White' }
         }

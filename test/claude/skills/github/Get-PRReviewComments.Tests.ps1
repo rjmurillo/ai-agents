@@ -321,6 +321,23 @@ Describe "Get-PRReviewComments" {
         It "Should convert body to lowercase for case-insensitive matching" {
             $scriptContent | Should -Match '\.ToLower\(\)|\.toLower\(\)'
         }
+
+        It "Should use word boundaries for auth keyword to avoid 'author' false positives" {
+            $scriptContent | Should -Match '\\bauth'
+        }
+
+        It "Should use word boundaries for escap keyword to avoid false positives" {
+            $scriptContent | Should -Match '\\bescap'
+        }
+
+        It "Should use specific bug patterns to reduce false positives" {
+            # Should match "throws error", "error occurs", etc., not just "error"
+            $scriptContent | Should -Match 'throws?\\s+error|error\\s+'
+        }
+
+        It "Should use multiline mode for summary detection" {
+            $scriptContent | Should -Match '\(\?m\)'
+        }
     }
 
     Context "Domain Property in Comment Objects" {

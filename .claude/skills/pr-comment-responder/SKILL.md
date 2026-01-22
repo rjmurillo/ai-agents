@@ -69,7 +69,7 @@ Comments are classified into domains for priority-based triage:
 
 | Priority | Domain | Keywords | Use Case |
 |----------|--------|----------|----------|
-| P0 | Security | CWE-\*, vulnerability, injection, XSS, SQL, CSRF, auth, secrets, credentials, TOCTOU, symlink, traversal | Process FIRST - security-critical issues |
+| P0 | Security | CWE-*, vulnerability, injection, XSS, SQL, CSRF, auth, secrets, credentials, TOCTOU, symlink, traversal | Process FIRST - security-critical issues |
 | P1 | Bug | error, crash, exception, fail, null, undefined, race condition, deadlock, memory leak | Address functional issues |
 | P2 | Style | formatting, naming, indentation, whitespace, convention, prefer, consider, suggest | Apply improvements when time permits |
 | P3 | Summary | Bot-generated summaries (## Summary, ### Overview) | Informational only |
@@ -91,9 +91,14 @@ foreach ($comment in $comments.Bug) {
     # Address functional issues
 }
 
-# Finally style (formatting, naming, conventions)
+# Then style (formatting, naming, conventions)
 foreach ($comment in $comments.Style) {
     # Apply style improvements
+}
+
+# Finally general comments (everything else)
+foreach ($comment in $comments.General) {
+    # Process general feedback
 }
 
 # Skip summary comments (bot-generated noise)
