@@ -28,7 +28,7 @@
 
 1. Complete session log with outcomes and decisions
 2. Update Serena memory with cross-session context
-3. Run `npx markdownlint-cli2 --fix "**/*.md"`
+3. Run scoped markdownlint on changed files (ADR-043)
 4. Route to qa agent (features only)
 5. Commit all changes (including `.agents/` and `.serena/`)
 6. Run `pwsh scripts/Validate-SessionJson.ps1 -SessionPath [log]`
