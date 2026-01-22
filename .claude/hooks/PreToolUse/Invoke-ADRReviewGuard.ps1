@@ -40,8 +40,13 @@ Import-Module "$PSScriptRoot/../Common/HookUtilities.psm1" -Force
 
 function Get-StagedADRChanges {
     try {
-        $stagedFiles = & git diff --cached --name-only 2>$null
-        if ($LASTEXITCODE -ne 0 -or -not $stagedFiles) {
+        $stagedFiles = & git diff --cached --name-only 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            # Fail-closed: git errors should block commits to prevent bypass
+            throw "git diff --cached failed with exit code $LASTEXITCODE : $stagedFiles"
+        }
+
+        if (-not $stagedFiles) {
             return @()
         }
 
@@ -50,7 +55,8 @@ function Get-StagedADRChanges {
         return $adrFiles
     }
     catch {
-        return @()
+        # Re-throw to fail-closed
+        throw "Failed to check staged ADR changes: $($_.Exception.Message)"
     }
 }
 
@@ -257,6 +263,8 @@ This ensures 6-agent debate (architect, critic, independent-thinker, security, a
 }
 catch {
     # Fail-open on errors (don't block on infrastructure issues)
-    Write-Warning "ADR review guard error: $($_.Exception.Message)"
+    $errorMsg = "ADR review guard error: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
+    Write-Warning $errorMsg
+    [Console]::Error.WriteLine($errorMsg)
     exit 0
 }
