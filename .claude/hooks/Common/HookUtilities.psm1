@@ -25,15 +25,14 @@ function Get-ProjectDirectory {
     .DESCRIPTION
         Returns the project root by checking CLAUDE_PROJECT_DIR environment
         variable first, then walking up from script location to find .git directory.
+        Falls back to current directory if project root cannot be determined.
 
     .OUTPUTS
-        String - Project root directory path, or $null if not found.
+        String - Project root directory path (never null).
 
     .EXAMPLE
         $projectDir = Get-ProjectDirectory
-        if ($projectDir) {
-            $sessionsDir = Join-Path $projectDir ".agents" "sessions"
-        }
+        $sessionsDir = Join-Path $projectDir ".agents" "sessions"
     #>
     if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PROJECT_DIR)) {
         return $env:CLAUDE_PROJECT_DIR
@@ -51,10 +50,13 @@ function Get-ProjectDirectory {
         }
     }
     catch {
-        Write-Warning "Failed to locate project directory: $($_.Exception.Message)"
+        Write-Warning "Failed to locate project directory: $($_.Exception.Message). Using current directory as fallback."
+        return (Get-Location).Path
     }
 
-    return $null
+    # Fallback: Use current directory if .git not found
+    Write-Warning "Project root (.git directory) not found. Using current directory as fallback."
+    return (Get-Location).Path
 }
 
 function Test-GitCommitCommand {
@@ -136,7 +138,10 @@ function Get-TodaySessionLog {
         $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$Date-session-*.json" -File -ErrorAction Stop)
     }
     catch {
-        Write-Warning "Failed to read session logs from $SessionsDir : $($_.Exception.Message)"
+        $errorMsg = "Failed to read session logs from $SessionsDir : $($_.Exception.Message)"
+        Write-Warning $errorMsg
+        # Audit logging deferred to caller - HookUtilities cannot import audit function
+        # to avoid circular dependencies with hook scripts
         return $null
     }
 

@@ -307,7 +307,7 @@ Describe "Invoke-ADRReviewGuard" {
             # no actual consensus evidence. Attacker creates empty file to bypass validation while
             # claiming "file exists" in session log.
             #
-            # Current behavior: Hook checks existence only (line 98-99 of Invoke-ADRReviewGuard.ps1)
+            # Current behavior: Test-ADRReviewEvidence checks debate log existence only
             # Desired behavior: Hook should validate debate log contains:
             #   1. Non-zero content (minimum 50 bytes for header + substance)
             #   2. Matching ADR number in filename and content
@@ -341,7 +341,7 @@ Describe "Invoke-ADRReviewGuard" {
             # a previous unrelated decision. Hook accepts any debate log regardless of ADR number,
             # allowing reuse of old consensus for new unrelated decisions.
             #
-            # Current behavior: Hook searches for ANY file matching *debate*.md (line 98)
+            # Current behavior: Test-ADRReviewEvidence searches for ANY file matching *debate*.md
             # Desired behavior: Hook should:
             #   1. Extract ADR number from staged file (e.g., "999" from "ADR-999.md")
             #   2. Look for matching debate log "ADR-999-debate-log.md"
@@ -376,7 +376,7 @@ Describe "Invoke-ADRReviewGuard" {
             # to satisfy existence check without providing actual multi-agent consensus evidence.
             # File is non-empty so basic size check would pass, but has no substantive content.
             #
-            # Current behavior: Hook checks existence only (line 98-99)
+            # Current behavior: Test-ADRReviewEvidence checks debate log existence only
             # Desired behavior: Hook should validate debate log contains:
             #   1. Minimum substantive content (e.g., >= 200 bytes for header + rounds + consensus)
             #   2. Sections indicating multi-agent participation (architect, critic, qa)
@@ -407,7 +407,7 @@ Describe "Invoke-ADRReviewGuard" {
         It "Currently allows commit when staging multiple ADRs without matching debate logs for each (SECURITY GAP - documents multi-ADR bypass threat)" {
             # SECURITY GAP DOCUMENTATION:
             # Threat model: Agent stages ADR-001.md, ADR-002.md, ADR-003.md but only one debate log exists (ADR-001)
-            # Current behavior: Hook checks for ANY debate log (line 98 in hook), doesn't verify matching
+            # Current behavior: Test-ADRReviewEvidence checks for ANY debate log, doesn't verify matching
             # Desired behavior: Require debate log for EACH staged ADR file
             # Mitigation priority: P0 (HIGH risk - obvious semantic bypass)
             # Risk: HIGH - Multiple ADRs can bypass review by having only one debate log
@@ -444,7 +444,7 @@ Describe "Invoke-ADRReviewGuard" {
             Set-Content -Path (Join-Path $Script:TestRootDebateLog ".agents/sessions/$today-session-999.json") -Value $sessionLog
 
             $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathDebateLog -ProjectDir $Script:TestRootDebateLog -WorkingDir $Script:TestRootDebateLog
-            # Current behavior: allows (exit 0) because ANY debate log exists (line 98: Get-ChildItem -Filter "*debate*.md")
+            # Current behavior: allows (exit 0) because ANY debate log exists (Test-ADRReviewEvidence uses wildcard filter)
             # Future: should block (exit 2) when per-ADR matching added
             # Expected error: "Missing debate logs: ADR-002-debate-log.md, ADR-003-debate-log.md"
             $result.ExitCode | Should -Be 0 -Because "Current implementation only checks for ANY debate log, doesn't verify one exists for each staged ADR (P0 security gap)"
@@ -453,7 +453,7 @@ Describe "Invoke-ADRReviewGuard" {
         It "Future: Should reject debate log with sufficient length but missing agent sections (when content parser implemented)" -Skip {
             # SECURITY GAP DOCUMENTATION:
             # Threat model: Agent creates 300-byte debate log with Lorem Ipsum + "Consensus achieved"
-            # Current behavior: Hook only checks file existence (line 98), no content validation
+            # Current behavior: Test-ADRReviewEvidence only checks file existence, no content validation
             # Desired behavior: Validate debate log has:
             #   - Required sections: ## Architect, ## Critic, ## Independent-Thinker, etc.
             #   - Multiple consensus rounds (Round 1, Round 2)
