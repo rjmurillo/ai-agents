@@ -2,6 +2,77 @@
 
 Full phase-by-phase workflow for PR comment response.
 
+## Phase -1: Context Inference (BLOCKING)
+
+Extract PR number and repository context from the user prompt before any API calls.
+
+**Principle**: Infer discoverable context from the prompt. Never prompt for information already provided.
+
+### Step -1.1: Extract GitHub Context
+
+```powershell
+# Extract PR numbers, issue numbers, owner/repo from user prompt
+$context = pwsh .claude/skills/github/scripts/utils/Extract-GitHubContext.ps1 -Text "[user_prompt]" -RequirePR
+
+# Result contains:
+# - PRNumbers: Array of PR numbers found
+# - IssueNumbers: Array of issue numbers found
+# - Owner: Repository owner (from URL)
+# - Repo: Repository name (from URL)
+# - URLs: Structured URL data
+# - RawMatches: Original matched text
+```
+
+### Step -1.2: Validate Context
+
+```powershell
+if ($context.PRNumbers.Count -eq 0) {
+    # FAIL FAST - Do not prompt the user
+    throw "Cannot extract PR number from prompt. Provide explicit PR number or URL."
+}
+
+# Use first PR number (most common case is single PR)
+$prNumber = $context.PRNumbers[0]
+
+# Use URL-derived owner/repo if available, otherwise infer from git remote
+if ($context.Owner) {
+    $owner = $context.Owner
+    $repo = $context.Repo
+} else {
+    # Fall back to current repository
+    $repoInfo = pwsh -c "Import-Module .claude/skills/github/modules/GitHubCore.psm1; Get-RepoInfo"
+    $owner = $repoInfo.Owner
+    $repo = $repoInfo.Repo
+}
+```
+
+### Supported Patterns
+
+| Pattern Type | Examples | Extracted |
+|--------------|----------|-----------|
+| Text: "PR N" | `PR 806`, `PR #806`, `pr 123` | PRNumbers: [806] or [123] |
+| Text: "pull request" | `pull request 123`, `Pull Request #456` | PRNumbers: [123] or [456] |
+| Text: "#N" | `#806` (standalone) | PRNumbers: [806] |
+| Text: "issue N" | `issue 45`, `issue #45` | IssueNumbers: [45] |
+| URL: PR | `github.com/owner/repo/pull/123` | PRNumbers: [123], Owner, Repo |
+| URL: Issue | `github.com/owner/repo/issues/456` | IssueNumbers: [456], Owner, Repo |
+
+### Autonomous Execution Mode
+
+When running autonomously (no user interaction possible):
+
+- Use `-RequirePR` flag to fail fast if PR cannot be inferred
+- Never prompt for clarification
+- Error message must be actionable: include what patterns are supported
+
+```powershell
+# Autonomous execution - fail if context missing
+$context = pwsh .claude/skills/github/scripts/utils/Extract-GitHubContext.ps1 -Text "[prompt]" -RequirePR
+
+# This will exit with code 1 and error message if no PR found:
+# "Cannot extract PR number from prompt. Provide explicit PR number or URL."
+```
+
 ## Phase 0: Memory Initialization (BLOCKING)
 
 Load relevant memories before any triage decisions.

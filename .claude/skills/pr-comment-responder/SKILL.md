@@ -21,13 +21,31 @@ Coordinates PR review responses through context gathering, comment tracking, and
 | "respond to PR comments" | Full workflow |
 | "address review feedback" | Full workflow |
 | "handle PR #123 comments" | Target specific PR |
+| "Review PR 806 comments... github.com/.../pull/806" | Extract PR from text/URL |
 
 ## Quick Reference
+
+### Context Inference (Phase -1)
+
+**ALWAYS extract PR context from prompt first. Never prompt for information already provided.**
+
+```powershell
+# Extract PR number and owner/repo from user prompt
+$context = pwsh .claude/skills/github/scripts/utils/Extract-GitHubContext.ps1 -Text "[prompt]" -RequirePR
+```
+
+Supported patterns:
+
+- Text: `PR 806`, `PR #806`, `pull request 123`, `#806`
+- URLs: `github.com/owner/repo/pull/123`
+
+See [references/workflow.md](references/workflow.md) Phase -1 for full details.
 
 ### Tools
 
 | Operation | Script |
 |-----------|--------|
+| **Context extraction** | `Extract-GitHubContext.ps1` |
 | PR metadata | `Get-PRContext.ps1` |
 | Comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` |
 | Reviewers | `Get-PRReviewers.ps1` |
@@ -46,6 +64,7 @@ Coordinates PR review responses through context gathering, comment tracking, and
 
 ### Workflow Phases
 
+0. **Context inference**: Extract PR number from prompt (BLOCKING)
 1. **Memory init**: Load `pr-comment-responder-skills` memory
 2. **Context gather**: PR metadata, reviewers, all comments
 3. **Acknowledge**: Batch eyes reactions

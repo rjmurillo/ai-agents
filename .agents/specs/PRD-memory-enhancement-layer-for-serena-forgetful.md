@@ -1,9 +1,10 @@
 # PRD: Memory Enhancement Layer for Serena + Forgetful
 
-**Status**: Draft
+**Status**: Active (v0.3.0)
 **Author**: Claude
 **Created**: 2026-01-18
-**Updated**: 2026-01-18
+**Updated**: 2026-01-21
+**Tracking Issue**: #990
 **Related Issues**: #724 (Traceability Graph), #584 (Serena Integration)
 **Inspiration**: [GitHub Copilot Agentic Memory System](https://github.blog/ai-and-ml/github-copilot/building-an-agentic-memory-system-for-github-copilot/)
 

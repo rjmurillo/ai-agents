@@ -73,9 +73,14 @@ jobs:
       - name: Check for memory file changes
         id: changes
         shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          # Use environment variables for SHA values (security best practice per GitHub guide)
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
         run: |
           # Get list of changed files based on event type
           $diffOutput = $null
+          $zeroSha = '0000000000000000000000000000000000000000'
 
           if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
             # Compare PR branch against the base branch (three dots for merge-base diff)
@@ -84,28 +89,54 @@ jobs:
             $diffOutput = git diff --name-only origin/$env:GITHUB_BASE_REF...HEAD
           } elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
             # Handle push event with guards for edge cases
-            $beforeSha = '${{ github.event.before }}'
-            $afterSha = '${{ github.sha }}'
-            $zeroSha = '0000000000000000000000000000000000000000'
+            $beforeSha = $env:BEFORE_SHA
+            $afterSha = $env:AFTER_SHA
 
             if ($beforeSha -eq $zeroSha) {
               # First commit on a new branch: fall back to comparing against main
               Write-Host "First commit on branch detected. Comparing against origin/main..." -ForegroundColor Yellow
-              $diffOutput = git diff --name-only origin/main..$afterSha
+              $diffOutput = git diff --name-only "origin/main..$afterSha"
             } else {
               # Verify that the 'before' commit exists (may not after force-push/rebase)
               git cat-file -e "$beforeSha^{commit}" 2>$null
               if ($LASTEXITCODE -ne 0) {
-                Write-Host "Warning: Base commit $beforeSha not found (possible force-push). Falling back to origin/main..." -ForegroundColor Yellow
-                $diffOutput = git diff --name-only origin/main..$afterSha
+                Write-Host "Warning: Base commit $beforeSha not found (possible force-push)." -ForegroundColor Yellow
+                # For push to main where base commit is missing, compare the single pushed commit
+                # Using $afterSha^..$afterSha gets just that commit's changes
+                # If that fails (e.g., first commit ever), fall back to empty diff (skip validation)
+                git cat-file -e "$afterSha^" 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                  Write-Host "Comparing single commit $afterSha against its parent..." -ForegroundColor Yellow
+                  $diffOutput = git diff --name-only "$afterSha^..$afterSha"
+                } else {
+                  Write-Host "Cannot determine base for comparison. Skipping memory validation." -ForegroundColor Yellow
+                  echo "skip=true" >> $env:GITHUB_OUTPUT
+                  exit 0
+                }
               } else {
                 # Normal push: use two dots for direct commit range
-                $diffOutput = git diff --name-only $beforeSha..$afterSha
+                $diffOutput = git diff --name-only "$beforeSha..$afterSha"
               }
             }
           } else {
-            # Fallback for workflow_dispatch or other events: compare against main
-            $diffOutput = git diff --name-only origin/main...HEAD
+            # Fallback for workflow_dispatch or other events
+            # Check if HEAD is on main branch
+            $currentBranch = git rev-parse --abbrev-ref HEAD
+            if ($currentBranch -eq 'main') {
+              # On main: compare against HEAD~1 if it exists, otherwise skip
+              git cat-file -e "HEAD^" 2>$null
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "On main branch. Comparing HEAD against parent..." -ForegroundColor Yellow
+                $diffOutput = git diff --name-only HEAD^..HEAD
+              } else {
+                Write-Host "On main branch with no parent. Skipping memory validation." -ForegroundColor Yellow
+                echo "skip=true" >> $env:GITHUB_OUTPUT
+                exit 0
+              }
+            } else {
+              # On feature branch: use three-dot syntax against main
+              $diffOutput = git diff --name-only origin/main...HEAD
+            }
           }
 
           # Check if git diff succeeded

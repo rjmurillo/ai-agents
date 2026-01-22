@@ -101,13 +101,23 @@ Use [skill-installer](https://github.com/rjmurillo/skill-installer) to install a
 Without installing (one-liner)
 
 ```bash
+# Latest version
 uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
+
+# Specific version (e.g., v0.2.0)
+uvx --from git+https://github.com/rjmurillo/skill-installer@v0.2.0 skill-installer interactive
 ```
 
 Or install globally for repeated use
 
 ```bash
+# Latest version
 uv tool install git+https://github.com/rjmurillo/skill-installer
+
+# Specific version (e.g., v0.1.0 or v0.2.0)
+uv tool install git+https://github.com/rjmurillo/skill-installer@v0.1.0
+
+# Run the interactive installer
 skill-installer interactive
 ```
 

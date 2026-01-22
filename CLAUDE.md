@@ -56,7 +56,7 @@ For non-trivial tasks, delegate to specialized agents using the Task tool:
 
 1. Complete session log
 2. Update Serena memory
-3. Run `npx markdownlint-cli2 --fix "**/*.md"`
+3. Run scoped markdownlint on changed files (ADR-043)
 4. Route to qa agent (features only)
 5. Commit all changes
 6. Run `pwsh scripts/Validate-SessionJson.ps1 -SessionPath [log]`

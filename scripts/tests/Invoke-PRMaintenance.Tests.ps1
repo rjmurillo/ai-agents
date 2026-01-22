@@ -612,9 +612,9 @@ Describe "Invoke-PRMaintenance.ps1" {
                 throw "Failed to fetch rate limits"
             }
 
-            # Should return true (assume safe) on failure
+            # Should return false (assume unsafe, fail-safe) on failure
             $result = Test-RateLimitSafe
-            $result | Should -Be $true
+            $result | Should -Be $false
         }
 
         It "Test-RateLimitSafe returns false when rate limit is low" {

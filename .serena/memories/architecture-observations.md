@@ -1,7 +1,7 @@
 # Skill Observations: architecture
 
-**Last Updated**: 2026-01-17
-**Sessions Analyzed**: 10
+**Last Updated**: 2026-01-21
+**Sessions Analyzed**: 11
 
 ## Purpose
 
@@ -11,6 +11,12 @@ This memory captures learnings from architecture and ADR compliance work across 
 
 These are corrections that MUST be followed:
 
+- ADR exceptions require Chesterton's Fence analysis: document why rule exists, impact if removed, alternatives tried (PR #908, 2026-01-15)
+  - Evidence: ADR-005 exception (Python hooks) created in PR #908 without justification analysis, violating architectural consistency
+  - Reference: Issue #937 (ADR exception criteria)
+- Synthesis panel documents MUST have YAML frontmatter with `status`, `priority`, `blocking` fields for automated parsing (PR #908, 2026-01-15)
+  - Evidence: DESIGN-REVIEW-skill-reflect.md had BLOCKING verdict that was ignored because it was in prose, not structured format
+  - Reference: Issue #938 (synthesis panel frontmatter)
 - Multi-tier architecture pattern for tool integrations: Tier 1 (CI/CD enforcement), Tier 2 (Local fast feedback), Tier 3 (Automatic background) (Session 2026-01-16-session-07, 2026-01-16)
 - Fail-open for infrastructure errors, fail-closed for protocol violations (Session 2026-01-16-session-07, 2026-01-16)
 - Multi-agent ADR review catches P0 structural violations - architect found 2 P0 MADR violations in Issue #357 that were invisible to single reviewer (Session 2026-01-16-session-07, Issue #357)
@@ -60,6 +66,8 @@ These are observations that may become patterns:
 
 | Date | Session | Type | Learning |
 |------|---------|------|----------|
+| 2026-01-15 | PR #908 | HIGH | ADR exceptions require Chesterton's Fence analysis |
+| 2026-01-15 | PR #908 | HIGH | Synthesis panel frontmatter with blocking field for automation |
 | 2026-01-14 | 2026-01-14 | MED | When fixing ADR-017 violations preserve intuitiveness and keyword clustering |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Multi-tier architecture pattern for tool integrations |
 | 2026-01-16 | 2026-01-16-session-07 | HIGH | Fail-open for infrastructure errors, fail-closed for protocol violations |
@@ -96,3 +104,5 @@ These are observations that may become patterns:
 - [architecture-producer-consumer](architecture-producer-consumer.md)
 - [architecture-template-variant-maintenance](architecture-template-variant-maintenance.md)
 - [architecture-tool-allocation](architecture-tool-allocation.md)
+- [chestertons-fence](chestertons-fence.md) - Foundational pattern for ADR exception analysis
+- PR #908 retrospective - Evidence for ADR exception and synthesis panel learnings
