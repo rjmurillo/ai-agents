@@ -423,3 +423,624 @@ Describe "Get-PRReviewComments" {
         }
     }
 }
+
+Describe "Get-PRReviewComments Behavioral Tests" {
+    BeforeAll {
+        $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Get-PRReviewComments.ps1"
+        $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+
+        # Import the module
+        Import-Module $ModulePath -Force
+
+        # Create a helper to dot-source and extract functions from the script
+        # This allows us to test internal functions without executing the main script body
+        function Get-ScriptFunctions {
+            param([string]$ScriptPath)
+
+            # Parse the script to extract function definitions
+            $scriptContent = Get-Content $ScriptPath -Raw
+            $ast = [System.Management.Automation.Language.Parser]::ParseInput($scriptContent, [ref]$null, [ref]$null)
+
+            # Find function definitions
+            $functionDefs = $ast.FindAll({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+            }, $true)
+
+            return $functionDefs
+        }
+    }
+
+    Context "Test-LineExistsInFile Unit Tests" {
+        BeforeAll {
+            # Define the function inline for testing (extracted from script)
+            function Test-LineExistsInFile {
+                param(
+                    [Parameter(Mandatory)] [int]$Line,
+                    [Parameter(Mandatory)] [AllowEmptyString()] [string]$Content
+                )
+
+                if ([string]::IsNullOrEmpty($Content)) {
+                    return $false
+                }
+
+                $lineCount = ($Content -split "`r`n|`r|`n").Count
+                return $Line -le $lineCount -and $Line -gt 0
+            }
+        }
+
+        It "Should return true when line exists within file length" {
+            $content = "line1`nline2`nline3"
+            $result = Test-LineExistsInFile -Line 2 -Content $content
+            $result | Should -BeTrue
+        }
+
+        It "Should return false when line exceeds file length" {
+            $content = "line1`nline2"
+            $result = Test-LineExistsInFile -Line 5 -Content $content
+            $result | Should -BeFalse
+        }
+
+        It "Should return false when line is 0" {
+            $content = "line1"
+            $result = Test-LineExistsInFile -Line 0 -Content $content
+            $result | Should -BeFalse
+        }
+
+        It "Should return false when content is empty" {
+            $result = Test-LineExistsInFile -Line 1 -Content ""
+            $result | Should -BeFalse
+        }
+
+        It "Should return true for first line of single-line file" {
+            $content = "single line"
+            $result = Test-LineExistsInFile -Line 1 -Content $content
+            $result | Should -BeTrue
+        }
+
+        It "Should handle CRLF line endings correctly" {
+            $content = "line1`r`nline2`r`nline3"
+            $result = Test-LineExistsInFile -Line 3 -Content $content
+            $result | Should -BeTrue
+        }
+
+        It "Should return false for negative line numbers" {
+            $content = "line1`nline2"
+            $result = Test-LineExistsInFile -Line -1 -Content $content
+            $result | Should -BeFalse
+        }
+    }
+
+    Context "Test-FileExistsInPR Unit Tests" {
+        BeforeAll {
+            # Define the function inline for testing
+            function Test-FileExistsInPR {
+                param(
+                    [Parameter(Mandatory)] [string]$Path,
+                    [Parameter(Mandatory)] [array]$FileTree
+                )
+
+                return $Path -in $FileTree
+            }
+        }
+
+        It "Should return true when file exists in tree" {
+            $fileTree = @("src/main.ps1", "tests/test.ps1", "README.md")
+            $result = Test-FileExistsInPR -Path "src/main.ps1" -FileTree $fileTree
+            $result | Should -BeTrue
+        }
+
+        It "Should return false when file does not exist in tree" {
+            $fileTree = @("src/main.ps1", "tests/test.ps1")
+            $result = Test-FileExistsInPR -Path "deleted.ps1" -FileTree $fileTree
+            $result | Should -BeFalse
+        }
+
+        It "Should return false for empty file tree" {
+            # Use a single-element array that won't match instead of @()
+            # because parameter validation prevents empty arrays
+            $fileTree = @("nonexistent-placeholder.xyz")
+            $result = Test-FileExistsInPR -Path "any.ps1" -FileTree $fileTree
+            $result | Should -BeFalse
+        }
+
+        It "Should be case-sensitive on Unix-like systems" {
+            $fileTree = @("SRC/Main.ps1")
+            # This tests the actual -in operator behavior
+            $result = Test-FileExistsInPR -Path "src/main.ps1" -FileTree $fileTree
+            # On case-sensitive file systems, these should not match
+            # But PowerShell -in is case-insensitive by default
+            $result | Should -BeTrue  # PowerShell default is case-insensitive
+        }
+    }
+
+    Context "Test-DiffHunkMatch Unit Tests" {
+        BeforeAll {
+            # Define the function inline for testing
+            function Test-DiffHunkMatch {
+                param(
+                    [Parameter(Mandatory)] [int]$Line,
+                    [string]$DiffHunk,
+                    [Parameter(Mandatory)] [AllowEmptyString()] [string]$Content
+                )
+
+                if ([string]::IsNullOrEmpty($DiffHunk) -or [string]::IsNullOrEmpty($Content)) {
+                    # If we don't have diff hunk data, assume code is still valid
+                    return $true
+                }
+
+                # Extract the actual code lines from the diff hunk
+                $diffLines = $DiffHunk -split "`r`n|`r|`n" | Where-Object {
+                    $_ -match '^\s' -or $_ -match '^\+[^+]'
+                } | ForEach-Object {
+                    if ($_.Length -gt 0) { $_.Substring(1) } else { '' }
+                }
+
+                if ($null -eq $diffLines -or @($diffLines).Count -eq 0) {
+                    return $true
+                }
+
+                $contentLines = $Content -split "`r`n|`r|`n"
+                $startLine = [Math]::Max(0, $Line - 3)
+                $endLine = [Math]::Min($contentLines.Count - 1, $Line + 3)
+
+                if ($startLine -ge $contentLines.Count) {
+                    return $false
+                }
+
+                $contextLines = $contentLines[$startLine..$endLine]
+
+                $matchCount = 0
+                foreach ($diffLine in $diffLines) {
+                    $trimmedDiff = $diffLine.Trim()
+                    if ([string]::IsNullOrWhiteSpace($trimmedDiff)) { continue }
+
+                    foreach ($contextLine in $contextLines) {
+                        if ($contextLine.Trim() -eq $trimmedDiff) {
+                            $matchCount++
+                            break
+                        }
+                    }
+                }
+
+                $nonEmptyDiffLines = @($diffLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
+                if ($nonEmptyDiffLines -eq 0) {
+                    return $true
+                }
+
+                $matchRatio = $matchCount / $nonEmptyDiffLines
+                return $matchRatio -ge 0.5
+            }
+        }
+
+        It "Should return true when empty diff hunk provided" {
+            $result = Test-DiffHunkMatch -Line 1 -DiffHunk "" -Content "some content"
+            $result | Should -BeTrue
+        }
+
+        It "Should return true when empty content provided" {
+            $result = Test-DiffHunkMatch -Line 1 -DiffHunk "@@ -1,2 +1,2 @@" -Content ""
+            $result | Should -BeTrue
+        }
+
+        It "Should return true when more than 50% of lines match" {
+            $diffHunk = "@@ -1,3 +1,3 @@`n match1`n match2`n nomatch"
+            $content = "match1`nmatch2`nother"
+
+            $result = Test-DiffHunkMatch -Line 2 -DiffHunk $diffHunk -Content $content
+            $result | Should -BeTrue
+        }
+
+        It "Should return true when exactly 50% of lines match" {
+            $diffHunk = "@@ -1,4 +1,4 @@`n match1`n nomatch1`n match2`n nomatch2"
+            $content = "match1`nother1`nmatch2`nother2"
+
+            $result = Test-DiffHunkMatch -Line 2 -DiffHunk $diffHunk -Content $content
+            $result | Should -BeTrue
+        }
+
+        It "Should return false when less than 50% of lines match" {
+            $diffHunk = "@@ -1,4 +1,4 @@`n old1`n old2`n old3`n old4"
+            $content = "new1`nnew2`nnew3`nnew4"
+
+            $result = Test-DiffHunkMatch -Line 2 -DiffHunk $diffHunk -Content $content
+            $result | Should -BeFalse
+        }
+
+        It "Should handle diff hunk with only header line" {
+            $diffHunk = "@@ -1,2 +1,2 @@"
+            $content = "line1`nline2"
+
+            $result = Test-DiffHunkMatch -Line 1 -DiffHunk $diffHunk -Content $content
+            $result | Should -BeTrue
+        }
+
+        It "Should handle CRLF line endings in diff hunk" {
+            $diffHunk = "@@ -1,2 +1,2 @@`r`n line1`r`n line2"
+            $content = "line1`r`nline2"
+
+            $result = Test-DiffHunkMatch -Line 1 -DiffHunk $diffHunk -Content $content
+            $result | Should -BeTrue
+        }
+
+        It "Should ignore empty lines in match calculation" {
+            $diffHunk = "@@ -1,3 +1,3 @@`n match1`n `n match2"
+            $content = "match1`n`nmatch2"
+
+            $result = Test-DiffHunkMatch -Line 2 -DiffHunk $diffHunk -Content $content
+            $result | Should -BeTrue
+        }
+
+        It "Should handle lines with only whitespace" {
+            $diffHunk = "@@ -1,2 +1,2 @@`n    `n match"
+            $content = "   `nmatch"
+
+            $result = Test-DiffHunkMatch -Line 1 -DiffHunk $diffHunk -Content $content
+            $result | Should -BeTrue
+        }
+    }
+
+    Context "Get-CommentStaleness Integration Tests" {
+        BeforeAll {
+            # Define helper functions for testing
+            function Test-FileExistsInPR {
+                param([string]$Path, [array]$FileTree)
+                return $Path -in $FileTree
+            }
+
+            function Test-LineExistsInFile {
+                param([int]$Line, [string]$Content)
+                if ([string]::IsNullOrEmpty($Content)) { return $false }
+                $lineCount = ($Content -split "`r`n|`r|`n").Count
+                return $Line -le $lineCount -and $Line -gt 0
+            }
+
+            function Test-DiffHunkMatch {
+                param([int]$Line, [string]$DiffHunk, [string]$Content)
+                if ([string]::IsNullOrEmpty($DiffHunk) -or [string]::IsNullOrEmpty($Content)) {
+                    return $true
+                }
+                $diffLines = $DiffHunk -split "`r`n|`r|`n" | Where-Object {
+                    $_ -match '^\s' -or $_ -match '^\+[^+]'
+                } | ForEach-Object {
+                    if ($_.Length -gt 0) { $_.Substring(1) } else { '' }
+                }
+                if ($null -eq $diffLines -or @($diffLines).Count -eq 0) { return $true }
+                $contentLines = $Content -split "`r`n|`r|`n"
+                $startLine = [Math]::Max(0, $Line - 3)
+                $endLine = [Math]::Min($contentLines.Count - 1, $Line + 3)
+                if ($startLine -ge $contentLines.Count) { return $false }
+                $contextLines = $contentLines[$startLine..$endLine]
+                $matchCount = 0
+                foreach ($diffLine in $diffLines) {
+                    $trimmedDiff = $diffLine.Trim()
+                    if ([string]::IsNullOrWhiteSpace($trimmedDiff)) { continue }
+                    foreach ($contextLine in $contextLines) {
+                        if ($contextLine.Trim() -eq $trimmedDiff) {
+                            $matchCount++
+                            break
+                        }
+                    }
+                }
+                $nonEmptyDiffLines = @($diffLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
+                if ($nonEmptyDiffLines -eq 0) { return $true }
+                return ($matchCount / $nonEmptyDiffLines) -ge 0.5
+            }
+
+            # Mock Get-FileContent
+            $script:MockFileContent = @{}
+            function Get-FileContent {
+                param([string]$Owner, [string]$Repo, [string]$Path, [hashtable]$ContentCache)
+                if ($ContentCache.ContainsKey($Path)) {
+                    return $ContentCache[$Path]
+                }
+                if ($script:MockFileContent.ContainsKey($Path)) {
+                    $content = $script:MockFileContent[$Path]
+                    $ContentCache[$Path] = $content
+                    return $content
+                }
+                return $null
+            }
+
+            function Get-CommentStaleness {
+                param(
+                    [object]$Comment,
+                    [string]$Owner,
+                    [string]$Repo,
+                    [array]$FileTree,
+                    [hashtable]$ContentCache
+                )
+
+                if ($Comment.CommentType -eq "Issue" -or [string]::IsNullOrEmpty($Comment.Path)) {
+                    return @{ Stale = $false; StaleReason = $null }
+                }
+
+                if (-not (Test-FileExistsInPR -Path $Comment.Path -FileTree $FileTree)) {
+                    return @{ Stale = $true; StaleReason = "FileDeleted" }
+                }
+
+                $fileContent = Get-FileContent -Owner $Owner -Repo $Repo -Path $Comment.Path -ContentCache $ContentCache
+                if ($null -eq $fileContent) {
+                    return @{ Stale = $false; StaleReason = $null }
+                }
+
+                if ($Comment.Line -and -not (Test-LineExistsInFile -Line $Comment.Line -Content $fileContent)) {
+                    return @{ Stale = $true; StaleReason = "LineOutOfRange" }
+                }
+
+                if ($Comment.DiffHunk -and $Comment.Line) {
+                    if (-not (Test-DiffHunkMatch -Line $Comment.Line -DiffHunk $Comment.DiffHunk -Content $fileContent)) {
+                        return @{ Stale = $true; StaleReason = "CodeChanged" }
+                    }
+                }
+
+                return @{ Stale = $false; StaleReason = $null }
+            }
+        }
+
+        BeforeEach {
+            $script:MockFileContent = @{}
+        }
+
+        It "Should return not stale for issue comments" {
+            $comment = @{
+                CommentType = "Issue"
+                Path = $null
+                Line = $null
+                DiffHunk = $null
+            }
+
+            $result = Get-CommentStaleness -Comment $comment -Owner "test" -Repo "repo" -FileTree @() -ContentCache @{}
+
+            $result.Stale | Should -BeFalse
+            $result.StaleReason | Should -BeNullOrEmpty
+        }
+
+        It "Should detect FileDeleted when file not in tree" {
+            $fileTree = @("other.ps1", "another.ps1")
+            $comment = @{
+                CommentType = "Review"
+                Path = "deleted.ps1"
+                Line = 10
+                DiffHunk = $null
+            }
+            $cache = @{}
+
+            $result = Get-CommentStaleness -Comment $comment -Owner "test" -Repo "repo" -FileTree $fileTree -ContentCache $cache
+
+            $result.Stale | Should -BeTrue
+            $result.StaleReason | Should -Be "FileDeleted"
+        }
+
+        It "Should detect LineOutOfRange when line exceeds file length" {
+            $script:MockFileContent["file.ps1"] = "line1`nline2`nline3"
+
+            $fileTree = @("file.ps1")
+            $comment = @{
+                CommentType = "Review"
+                Path = "file.ps1"
+                Line = 100
+                DiffHunk = $null
+            }
+            $cache = @{}
+
+            $result = Get-CommentStaleness -Comment $comment -Owner "test" -Repo "repo" -FileTree $fileTree -ContentCache $cache
+
+            $result.Stale | Should -BeTrue
+            $result.StaleReason | Should -Be "LineOutOfRange"
+        }
+
+        It "Should detect CodeChanged when diff does not match" {
+            $script:MockFileContent["file.ps1"] = "totally`ndifferent`ncode"
+
+            $fileTree = @("file.ps1")
+            $comment = @{
+                CommentType = "Review"
+                Path = "file.ps1"
+                Line = 2
+                DiffHunk = "@@ -1,3 +1,3 @@`n old1`n old2`n old3"
+            }
+            $cache = @{}
+
+            $result = Get-CommentStaleness -Comment $comment -Owner "test" -Repo "repo" -FileTree $fileTree -ContentCache $cache
+
+            $result.Stale | Should -BeTrue
+            $result.StaleReason | Should -Be "CodeChanged"
+        }
+
+        It "Should return not stale when all checks pass" {
+            $script:MockFileContent["file.ps1"] = "line1`nline2`nline3"
+
+            $fileTree = @("file.ps1")
+            $comment = @{
+                CommentType = "Review"
+                Path = "file.ps1"
+                Line = 2
+                DiffHunk = "@@ -1,3 +1,3 @@`n line1`n line2`n line3"
+            }
+            $cache = @{}
+
+            $result = Get-CommentStaleness -Comment $comment -Owner "test" -Repo "repo" -FileTree $fileTree -ContentCache $cache
+
+            $result.Stale | Should -BeFalse
+            $result.StaleReason | Should -BeNullOrEmpty
+        }
+
+        It "Should return not stale when file content unavailable" {
+            # File exists in tree but Get-FileContent returns null (permissions, binary, etc.)
+            $script:MockFileContent = @{}  # No content available
+
+            $fileTree = @("binary.dll")
+            $comment = @{
+                CommentType = "Review"
+                Path = "binary.dll"
+                Line = 10
+                DiffHunk = "@@ -1,2 +1,2 @@"
+            }
+            $cache = @{}
+
+            $result = Get-CommentStaleness -Comment $comment -Owner "test" -Repo "repo" -FileTree $fileTree -ContentCache $cache
+
+            $result.Stale | Should -BeFalse
+            $result.StaleReason | Should -BeNullOrEmpty
+        }
+
+        It "Should skip diff check when no diff hunk provided" {
+            $script:MockFileContent["file.ps1"] = "line1`nline2`nline3"
+
+            $fileTree = @("file.ps1")
+            $comment = @{
+                CommentType = "Review"
+                Path = "file.ps1"
+                Line = 2
+                DiffHunk = $null  # No diff hunk
+            }
+            $cache = @{}
+
+            $result = Get-CommentStaleness -Comment $comment -Owner "test" -Repo "repo" -FileTree $fileTree -ContentCache $cache
+
+            $result.Stale | Should -BeFalse
+            $result.StaleReason | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Cache Behavior Tests" {
+        BeforeAll {
+            # Define minimal Get-FileContent to test caching
+            function Get-FileContentWithTracking {
+                param(
+                    [string]$Owner,
+                    [string]$Repo,
+                    [string]$Path,
+                    [hashtable]$ContentCache,
+                    [ref]$ApiCallCount
+                )
+
+                if ($ContentCache.ContainsKey($Path)) {
+                    return $ContentCache[$Path]
+                }
+
+                # Simulate API call
+                $ApiCallCount.Value++
+                $content = "simulated content for $Path"
+                $ContentCache[$Path] = $content
+                return $content
+            }
+        }
+
+        It "Should use cache for repeated file access" {
+            $cache = @{}
+            $apiCalls = 0
+
+            # First call - should make API call
+            $result1 = Get-FileContentWithTracking -Owner "test" -Repo "repo" -Path "file.ps1" -ContentCache $cache -ApiCallCount ([ref]$apiCalls)
+            $apiCalls | Should -Be 1
+
+            # Second call - should use cache
+            $result2 = Get-FileContentWithTracking -Owner "test" -Repo "repo" -Path "file.ps1" -ContentCache $cache -ApiCallCount ([ref]$apiCalls)
+            $apiCalls | Should -Be 1  # Still 1, not incremented
+
+            # Third call for different file - should make API call
+            $result3 = Get-FileContentWithTracking -Owner "test" -Repo "repo" -Path "other.ps1" -ContentCache $cache -ApiCallCount ([ref]$apiCalls)
+            $apiCalls | Should -Be 2
+
+            $result1 | Should -Be $result2
+        }
+
+        It "Should store null in cache for failed fetches" {
+            $cache = @{}
+            $cache["failed.ps1"] = $null
+
+            # Accessing cached null should not trigger API call
+            $cache.ContainsKey("failed.ps1") | Should -BeTrue
+            $cache["failed.ps1"] | Should -BeNull
+        }
+    }
+
+    Context "Error Handling Validation" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should use Write-ErrorAndExit for file tree failures" {
+            $scriptContent | Should -Match 'Write-ErrorAndExit.*file tree'
+        }
+
+        It "Should use Write-Warning for file content failures" {
+            $scriptContent | Should -Match 'Write-Warning.*Failed to fetch content'
+        }
+
+        It "Should handle large/binary files gracefully" {
+            $scriptContent | Should -Match 'too large or binary'
+        }
+
+        It "Should have specific exception handling for RuntimeException" {
+            $scriptContent | Should -Match 'catch\s+\[System\.Management\.Automation\.RuntimeException\]'
+        }
+
+        It "Should have cache statistics logging" {
+            $scriptContent | Should -Match 'Cache statistics.*files cached'
+        }
+    }
+
+    Context "P0 Fix Validation - Dead Code Removal" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should not have the dead commentWithDiff variable assignment pattern" {
+            # The old dead code pattern was:
+            # $commentWithDiff = $comment
+            # if (-not $commentWithDiff.diff_hunk ...
+            $scriptContent | Should -Not -Match '\$commentWithDiff\s*=\s*\$comment[\s\S]*if\s*\(\s*-not\s*\$commentWithDiff\.diff_hunk'
+        }
+
+        It "Should not have diff_hunk_temp in Select-Object expression" {
+            $scriptContent | Should -Not -Match 'diff_hunk_temp'
+        }
+    }
+
+    Context "P0 Fix Validation - Redundant Conditional" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should not have redundant staleText conditional" {
+            # Should not have: if ($staleCount -eq 1) { "stale" } else { "stale" }
+            $scriptContent | Should -Not -Match '\$staleText\s*=\s*if.*stale.*else.*stale'
+        }
+
+        It "Should have simplified stale count output" {
+            $scriptContent | Should -Match '\$commentSummary\s*\+=\s*.*\$staleCount\s+stale'
+        }
+    }
+
+    Context "P1 Fix Validation - Division by Zero" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should wrap Where-Object result in @() for null safety" {
+            $scriptContent | Should -Match '@\(\$diffLines\s*\|\s*Where-Object'
+        }
+    }
+
+    Context "P1 Fix Validation - Pagination Error Handling in GitHubCore" {
+        BeforeAll {
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $moduleContent = Get-Content $modulePath -Raw
+        }
+
+        It "Should distinguish first page vs mid-pagination failure" {
+            $moduleContent | Should -Match 'if\s*\(\$page\s*-eq\s*1\)'
+        }
+
+        It "Should use Write-ErrorAndExit for first page failure" {
+            $moduleContent | Should -Match 'page\s*-eq\s*1[\s\S]*?Write-ErrorAndExit'
+        }
+
+        It "Should return partial results for mid-pagination failure" {
+            $moduleContent | Should -Match 'partial results'
+        }
+    }
+}

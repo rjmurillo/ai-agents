@@ -128,14 +128,17 @@ function Get-PRFileTree {
     try {
         $treeData = gh api "repos/$Owner/$Repo/git/trees/HEAD?recursive=1" 2>&1 | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to fetch file tree: $treeData"
-            return @()
+            Write-ErrorAndExit "Failed to fetch file tree from GitHub API. Cannot perform stale detection. Error: $treeData" 3
         }
         return $treeData.tree | Where-Object { $_.type -eq "blob" } | ForEach-Object { $_.path }
     }
+    catch [System.Management.Automation.RuntimeException] {
+        # Expected: API or JSON errors
+        Write-ErrorAndExit "Failed to fetch file tree from GitHub API. Cannot perform stale detection. Error: $_" 3
+    }
     catch {
-        Write-Warning "Error fetching file tree: $_"
-        return @()
+        # Unexpected: bug
+        Write-ErrorAndExit "Unexpected error fetching file tree from GitHub API: $_" 3
     }
 }
 
@@ -161,7 +164,14 @@ function Get-FileContent {
         $encodedPath = [System.Uri]::EscapeDataString($Path)
         $contentData = gh api "repos/$Owner/$Repo/contents/$encodedPath`?ref=HEAD" 2>&1 | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0) {
-            Write-Verbose "Failed to fetch content for $Path"
+            Write-Warning "Failed to fetch content for file '$Path' from GitHub API. Skipping line/diff checks. Error: $contentData"
+            $ContentCache[$Path] = $null
+            return $null
+        }
+
+        # Handle large files or binary files that don't have base64 content
+        if ([string]::IsNullOrEmpty($contentData.content)) {
+            Write-Warning "File content not available via contents API (too large or binary): $Path"
             $ContentCache[$Path] = $null
             return $null
         }
@@ -171,10 +181,15 @@ function Get-FileContent {
         $ContentCache[$Path] = $decodedContent
         return $decodedContent
     }
-    catch {
-        Write-Verbose "Error fetching content for $Path : $_"
+    catch [System.Management.Automation.RuntimeException] {
+        # Expected: API or JSON errors
+        Write-Warning "Error fetching content for file '$Path': $_"
         $ContentCache[$Path] = $null
         return $null
+    }
+    catch {
+        # Unexpected: bug
+        Write-ErrorAndExit "Unexpected error in Get-FileContent for '$Path': $_" 3
     }
 }
 
@@ -221,7 +236,7 @@ function Test-DiffHunkMatch {
     )
 
     if ([string]::IsNullOrEmpty($DiffHunk) -or [string]::IsNullOrEmpty($Content)) {
-        # If we don't have diff hunk data, we can't determine if it's stale
+        # If we don't have diff hunk data, assume code is still valid (conservative approach to avoid false positives)
         return $true
     }
 
@@ -263,7 +278,8 @@ function Test-DiffHunkMatch {
     }
 
     # Consider it matching if at least 50% of non-empty diff lines are found
-    $nonEmptyDiffLines = ($diffLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
+    # Wrap in @() for null safety when Where-Object returns nothing
+    $nonEmptyDiffLines = @($diffLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
     if ($nonEmptyDiffLines -eq 0) {
         return $true
     }
@@ -337,12 +353,6 @@ $processedReviewComments = @(foreach ($comment in $reviewComments) {
 
         # Determine staleness if requested
         $staleInfo = if ($DetectStale) {
-            # Need to include DiffHunk for staleness detection
-            $commentWithDiff = $comment
-            if (-not $commentWithDiff.diff_hunk -and $IncludeDiffHunk -eq $false) {
-                # Fetch diff_hunk if not already included
-                $commentWithDiff = $comment | Select-Object *, @{Name = 'diff_hunk_temp'; Expression = { $_.diff_hunk } }
-            }
             Get-CommentStaleness -Comment @{
                 CommentType = "Review"
                 Path = $comment.path
@@ -410,6 +420,11 @@ $allProcessedComments = @($processedReviewComments) + @($processedIssueComments)
 
 # Apply filtering if requested
 if ($DetectStale) {
+    # Log cache statistics for performance monitoring
+    $uniqueFiles = @($allProcessedComments | Where-Object { $_.Path } | Select-Object -ExpandProperty Path -Unique).Count
+    $cachedFiles = $contentCache.Keys.Count
+    Write-Verbose "Cache statistics: $cachedFiles files cached for $uniqueFiles unique file paths in comments"
+
     if ($ExcludeStale) {
         Write-Verbose "Filtering out stale comments"
         $allProcessedComments = @($allProcessedComments | Where-Object { -not $_.Stale })
@@ -459,8 +474,7 @@ if ($IncludeIssueComments) {
     $commentSummary += " + $issueCount $issueText"
 }
 if ($DetectStale -and $staleCount -gt 0) {
-    $staleText = if ($staleCount -eq 1) { "stale" } else { "stale" }
-    $commentSummary += " ($staleCount $staleText)"
+    $commentSummary += " ($staleCount stale)"
 }
 Write-Host $commentSummary -ForegroundColor Cyan
 if ($DetectStale -and $staleCount -gt 0) {
