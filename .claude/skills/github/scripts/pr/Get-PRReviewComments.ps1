@@ -161,7 +161,7 @@ $processedReviewComments = @(foreach ($comment in $reviewComments) {
         Author      = $comment.user.login
         AuthorType  = $comment.user.type
         Path        = $comment.path
-        Line        = if ($comment.line) { $comment.line } else { $comment.original_line }
+        Line = if ($comment.line) { $comment.line } else { $comment.original_line }
         Side        = $comment.side
         Body        = $comment.body
         Domain      = Get-CommentDomain -Body $comment.body
@@ -169,7 +169,7 @@ $processedReviewComments = @(foreach ($comment in $reviewComments) {
         UpdatedAt   = $comment.updated_at
         InReplyToId = $comment.in_reply_to_id
         IsReply     = $null -ne $comment.in_reply_to_id
-        DiffHunk    = if ($IncludeDiffHunk) { $comment.diff_hunk } else { $null }
+        DiffHunk = if ($IncludeDiffHunk) { $comment.diff_hunk } else { $null }
         HtmlUrl     = $comment.html_url
         CommitId    = $comment.commit_id
     }

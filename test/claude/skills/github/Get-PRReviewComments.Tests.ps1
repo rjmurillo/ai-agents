@@ -445,6 +445,117 @@ Describe "Get-PRReviewComments" {
         }
     }
 
+    Context "Get-CommentDomain Function Tests" {
+        BeforeAll {
+            # Extract and execute just the Get-CommentDomain function
+            $scriptContent = Get-Content $ScriptPath -Raw
+            $functionMatch = [regex]::Match($scriptContent, 'function Get-CommentDomain\s*{[\s\S]*?^}', [System.Text.RegularExpressions.RegexOptions]::Multiline)
+            if ($functionMatch.Success) {
+                Invoke-Expression $functionMatch.Value
+            }
+        }
+
+        It "Should classify CWE identifier as security" {
+            $result = Get-CommentDomain -Body "Potential Path Traversal (CWE-22) vulnerability"
+            $result | Should -Be "security"
+        }
+
+        It "Should classify vulnerability keyword as security" {
+            $result = Get-CommentDomain -Body "This code has a vulnerability in the authentication logic"
+            $result | Should -Be "security"
+        }
+
+        It "Should classify XSS as security" {
+            $result = Get-CommentDomain -Body "Potential XSS attack vector"
+            $result | Should -Be "security"
+        }
+
+        It "Should NOT classify 'author' as security (word boundary test)" {
+            $result = Get-CommentDomain -Body "The author should update the documentation"
+            $result | Should -Not -Be "security"
+        }
+
+        It "Should classify 'authentication' as security" {
+            $result = Get-CommentDomain -Body "Fix the authentication logic"
+            $result | Should -Be "security"
+        }
+
+        It "Should classify error throws as bug" {
+            $result = Get-CommentDomain -Body "This function throws error when given invalid input"
+            $result | Should -Be "bug"
+        }
+
+        It "Should classify null pointer as bug" {
+            $result = Get-CommentDomain -Body "Potential null pointer dereference"
+            $result | Should -Be "bug"
+        }
+
+        It "Should NOT classify 'no error' as bug (false positive test)" {
+            $result = Get-CommentDomain -Body "There is no error in this code"
+            $result | Should -Not -Be "bug"
+        }
+
+        It "Should classify formatting as style" {
+            $result = Get-CommentDomain -Body "Fix the formatting of this function"
+            $result | Should -Be "style"
+        }
+
+        It "Should classify readability as style" {
+            $result = Get-CommentDomain -Body "Improve readability by extracting this logic"
+            $result | Should -Be "style"
+        }
+
+        It "Should classify CWE with 'consider' wording as security (security wins priority)" {
+            $result = Get-CommentDomain -Body "Consider the CWE-79 vulnerability in this change"
+            $result | Should -Be "security"
+        }
+
+        It "Should classify summary header as summary" {
+            $result = Get-CommentDomain -Body "## Summary`nThis PR adds feature X"
+            $result | Should -Be "summary"
+        }
+
+        It "Should classify overview header as summary" {
+            $result = Get-CommentDomain -Body "### Overview`nChanges made in this PR"
+            $result | Should -Be "summary"
+        }
+
+        It "Should classify summary header in middle of comment as summary (multiline test)" {
+            $result = Get-CommentDomain -Body "Some intro text`n`n## Summary`nMain content"
+            $result | Should -Be "summary"
+        }
+
+        It "Should return general for non-matching comment" {
+            $result = Get-CommentDomain -Body "Great work on this feature!"
+            $result | Should -Be "general"
+        }
+
+        It "Should return general for empty body" {
+            $result = Get-CommentDomain -Body ""
+            $result | Should -Be "general"
+        }
+
+        It "Should be case-insensitive" {
+            $result = Get-CommentDomain -Body "POTENTIAL XSS ATTACK"
+            $result | Should -Be "security"
+        }
+
+        It "Should prioritize security over other domains" {
+            $result = Get-CommentDomain -Body "Fix this vulnerability (CWE-79) with better formatting"
+            $result | Should -Be "security"
+        }
+
+        It "Should prioritize bug over style" {
+            $result = Get-CommentDomain -Body "This crashes the application. Also fix formatting."
+            $result | Should -Be "bug"
+        }
+
+        It "Should prioritize style over general" {
+            $result = Get-CommentDomain -Body "Improve the naming convention for this variable"
+            $result | Should -Be "style"
+        }
+    }
+
     Context "Backward Compatibility" {
         BeforeAll {
             $scriptContent = Get-Content $ScriptPath -Raw
