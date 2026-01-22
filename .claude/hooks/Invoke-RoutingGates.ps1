@@ -234,12 +234,12 @@ end {
                 # Fallback to simple comparison if three-dot syntax fails
                 $ChangedFiles = & git diff --name-only origin/main 2>&1
                 if ($LASTEXITCODE -ne 0) {
-                    # Git command failed - fail-open for docs-only bypass (convenience feature)
-                    # This allows PRs to proceed when git ref resolution fails (e.g., test environments)
+                    # Git command failed - fail-closed to prevent QA bypass
+                    # This prevents PRs from bypassing QA requirements when git ref resolution fails
                     $errorMsg = "git diff failed (exit $LASTEXITCODE): $ChangedFiles"
-                    Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open (docs-only bypass unavailable)."
+                    Write-Warning "Invoke-RoutingGates: $errorMsg. Failing closed (git errors block)."
                     Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
-                    return $true
+                    return $false
                 }
             }
 

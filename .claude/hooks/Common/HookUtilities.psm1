@@ -138,7 +138,10 @@ function Get-TodaySessionLog {
         $logs = @(Get-ChildItem -Path $SessionsDir -Filter "$Date-session-*.json" -File -ErrorAction Stop)
     }
     catch {
-        Write-Warning "Failed to read session logs from $SessionsDir : $($_.Exception.Message)"
+        $errorMsg = "Failed to read session logs from $SessionsDir : $($_.Exception.Message)"
+        Write-Warning $errorMsg
+        # Audit logging deferred to caller - HookUtilities cannot import audit function
+        # to avoid circular dependencies with hook scripts
         return $null
     }
 

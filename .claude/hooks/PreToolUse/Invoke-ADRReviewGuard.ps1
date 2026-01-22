@@ -266,5 +266,19 @@ catch {
     $errorMsg = "ADR review guard error: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
     Write-Warning $errorMsg
     [Console]::Error.WriteLine($errorMsg)
+
+    # Audit log entry for infrastructure errors
+    try {
+        $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+        $hookDir = Split-Path -Parent $scriptDir
+        $auditLogPath = Join-Path $hookDir "audit.log"
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $logEntry = "[$timestamp] [ADRReviewGuard] $errorMsg"
+        Add-Content -Path $auditLogPath -Value $logEntry -ErrorAction SilentlyContinue
+    }
+    catch {
+        # Silent fallback if audit log write fails
+    }
+
     exit 0
 }
