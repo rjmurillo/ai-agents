@@ -144,19 +144,48 @@ $Repo = $resolved.Repo
 
 #region Stale Detection Helper Functions
 
-function Get-PRFileTree {
+function Get-PRHeadSha {
     <#
     .SYNOPSIS
-        Fetches and caches the file tree for the PR's HEAD commit.
+        Fetches the PR's head commit SHA for accurate stale detection.
     #>
     param(
         [Parameter(Mandatory)] [string]$Owner,
-        [Parameter(Mandatory)] [string]$Repo
+        [Parameter(Mandatory)] [string]$Repo,
+        [Parameter(Mandatory)] [int]$PullRequest
     )
 
-    Write-Verbose "Fetching file tree for HEAD"
+    Write-Verbose "Fetching head SHA for PR #$PullRequest"
     try {
-        $treeData = gh api "repos/$Owner/$Repo/git/trees/HEAD?recursive=1" 2>&1 | ConvertFrom-Json
+        $prData = gh api "repos/$Owner/$Repo/pulls/$PullRequest" --jq '.head.sha' 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to fetch PR head SHA. Falling back to HEAD (default branch). Error: $prData"
+            return $null
+        }
+        Write-Verbose "PR head SHA: $prData"
+        return $prData.Trim()
+    }
+    catch {
+        Write-Warning "Failed to fetch PR head SHA: $_. Falling back to HEAD (default branch)."
+        return $null
+    }
+}
+
+function Get-PRFileTree {
+    <#
+    .SYNOPSIS
+        Fetches and caches the file tree for the PR's head commit.
+    #>
+    param(
+        [Parameter(Mandatory)] [string]$Owner,
+        [Parameter(Mandatory)] [string]$Repo,
+        [string]$HeadSha
+    )
+
+    $ref = if ($HeadSha) { $HeadSha } else { "HEAD" }
+    Write-Verbose "Fetching file tree for ref: $ref"
+    try {
+        $treeData = gh api "repos/$Owner/$Repo/git/trees/$ref`?recursive=1" 2>&1 | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0) {
             Write-ErrorAndExit "Failed to fetch file tree from GitHub API. Cannot perform stale detection. Error: $treeData" 3
         }
@@ -178,13 +207,14 @@ function Get-PRFileTree {
 function Get-FileContent {
     <#
     .SYNOPSIS
-        Fetches and caches file content from HEAD.
+        Fetches and caches file content from PR's head commit.
     #>
     param(
         [Parameter(Mandatory)] [string]$Owner,
         [Parameter(Mandatory)] [string]$Repo,
         [Parameter(Mandatory)] [string]$Path,
-        [Parameter(Mandatory)] [hashtable]$ContentCache
+        [Parameter(Mandatory)] [hashtable]$ContentCache,
+        [string]$HeadSha
     )
 
     if ($ContentCache.ContainsKey($Path)) {
@@ -192,10 +222,11 @@ function Get-FileContent {
         return $ContentCache[$Path]
     }
 
-    Write-Verbose "Cache miss - fetching content for $Path"
+    $ref = if ($HeadSha) { $HeadSha } else { "HEAD" }
+    Write-Verbose "Cache miss - fetching content for $Path at ref: $ref"
     try {
         $encodedPath = [System.Uri]::EscapeDataString($Path)
-        $contentData = gh api "repos/$Owner/$Repo/contents/$encodedPath`?ref=HEAD" 2>&1 | ConvertFrom-Json
+        $contentData = gh api "repos/$Owner/$Repo/contents/$encodedPath`?ref=$ref" 2>&1 | ConvertFrom-Json
 
         if ($LASTEXITCODE -ne 0) {
             Write-Warning "Failed to fetch content for file '$Path' from GitHub API (exit code $LASTEXITCODE). Skipping line/diff checks. Error: $contentData"
@@ -290,9 +321,10 @@ function Test-DiffHunkMatch {
         return $true
     }
 
-    # Extract the actual code lines from the diff hunk (lines starting with ' ' or '+')
+    # Extract the actual code lines from the diff hunk (lines starting with ' ' for context or '+' for additions)
+    # Note: Diff hunks use literal space ' ' for unchanged lines, not arbitrary whitespace
     $diffLines = $DiffHunk -split "`r`n|`r|`n" | Where-Object {
-        $_ -match '^\s' -or $_ -match '^\+[^+]'
+        $_ -match '^ ' -or $_ -match '^\+[^+]'
     } | ForEach-Object {
         # Remove the diff marker (first character)
         if ($_.Length -gt 0) { $_.Substring(1) } else { '' }
@@ -311,8 +343,10 @@ function Test-DiffHunkMatch {
         return $false
     }
 
-    $startLine = [Math]::Max(0, $Line - 3)
-    $endLine = [Math]::Min($contentLines.Count - 1, $Line + 3)
+    # Convert 1-based line number to 0-based array index
+    $zeroBasedLine = $Line - 1
+    $startLine = [Math]::Max(0, $zeroBasedLine - 3)
+    $endLine = [Math]::Min($contentLines.Count - 1, $zeroBasedLine + 3)
 
     # Validate bounds before array access
     if ($startLine -ge $contentLines.Count -or $endLine -lt 0 -or $startLine -gt $endLine) {
@@ -363,7 +397,8 @@ function Get-CommentStaleness {
         [Parameter(Mandatory)] [string]$Owner,
         [Parameter(Mandatory)] [string]$Repo,
         [Parameter(Mandatory)] [array]$FileTree,
-        [Parameter(Mandatory)] [hashtable]$ContentCache
+        [Parameter(Mandatory)] [hashtable]$ContentCache,
+        [string]$HeadSha
     )
 
     # Skip issue comments (they don't have file/line context)
@@ -377,7 +412,7 @@ function Get-CommentStaleness {
     }
 
     # Check 2: Line range
-    $fileContent = Get-FileContent -Owner $Owner -Repo $Repo -Path $Comment.Path -ContentCache $ContentCache
+    $fileContent = Get-FileContent -Owner $Owner -Repo $Repo -Path $Comment.Path -ContentCache $ContentCache -HeadSha $HeadSha
     if ($null -eq $fileContent) {
         # File exists in tree but couldn't fetch content (permissions, binary, etc.)
         Write-Verbose "Could not fetch content for $($Comment.Path), skipping line/diff checks"
@@ -464,8 +499,14 @@ Write-Verbose "Fetching review comments for PR #$PullRequest"
 # Initialize caches if stale detection is enabled
 $fileTree = @()
 $contentCache = @{}
+$headSha = $null
 if ($DetectStale) {
-    $fileTree = Get-PRFileTree -Owner $Owner -Repo $Repo
+    # First, get the PR's head SHA for accurate file/content lookups
+    $headSha = Get-PRHeadSha -Owner $Owner -Repo $Repo -PullRequest $PullRequest
+    $fileTree = Get-PRFileTree -Owner $Owner -Repo $Repo -HeadSha $headSha
+    if ($fileTree.Count -eq 0) {
+        Write-Warning "File tree is empty. API may have failed. Stale detection may be inaccurate."
+    }
     Write-Verbose "File tree loaded with $($fileTree.Count) files"
 }
 
@@ -487,7 +528,7 @@ $processedReviewComments = @(foreach ($comment in $reviewComments) {
                 Path = $comment.path
                 Line = if ($comment.line) { $comment.line } else { $comment.original_line }
                 DiffHunk = $comment.diff_hunk
-            } -Owner $Owner -Repo $Repo -FileTree $fileTree -ContentCache $contentCache
+            } -Owner $Owner -Repo $Repo -FileTree $fileTree -ContentCache $contentCache -HeadSha $headSha
         } else {
             @{ Stale = $null; StaleReason = $null }
         }
@@ -578,15 +619,17 @@ foreach ($group in $domainGroups) {
     $domainCounts[$group.Name] = $group.Count
 }
 
-# Count stale comments if detection was enabled
+# Calculate counts from filtered results for consistency
+# Note: After filtering (ExcludeStale/OnlyStale), counts should match the Comments array
 $staleCount = if ($DetectStale) {
-    @($processedReviewComments + $processedIssueComments | Where-Object { $_.Stale -eq $true }).Count
+    @($allProcessedComments | Where-Object { $_.Stale -eq $true }).Count
 } else {
     0
 }
 
-$reviewCount = @($processedReviewComments).Count
-$issueCount = @($processedIssueComments).Count
+# Count review vs issue comments from the filtered results
+$reviewCount = @($allProcessedComments | Where-Object { $_.CommentType -eq "Review" }).Count
+$issueCount = @($allProcessedComments | Where-Object { $_.CommentType -eq "Issue" }).Count
 
 # Handle GroupByDomain output mode
 if ($GroupByDomain) {
@@ -659,7 +702,8 @@ if ($IncludeIssueComments) {
     $commentSummary += " + $issueCount $issueText"
 }
 if ($DetectStale -and $staleCount -gt 0) {
-    $commentSummary += " ($staleCount stale)"
+    $staleText = if ($staleCount -eq 1) { "stale comment" } else { "stale comments" }
+    $commentSummary += " ($staleCount $staleText)"
 }
 
 # Add domain distribution to summary

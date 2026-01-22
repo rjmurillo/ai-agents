@@ -1327,18 +1327,18 @@ Describe "Get-PRReviewComments Behavioral Tests" {
         }
     }
 
-    Context "P0 Fix Validation - Redundant Conditional" {
+    Context "P0 Fix Validation - Stale Text Pluralization" {
         BeforeAll {
             $scriptContent = Get-Content $ScriptPath -Raw
         }
 
-        It "Should not have redundant staleText conditional" {
-            # Should not have: if ($staleCount -eq 1) { "stale" } else { "stale" }
-            $scriptContent | Should -Not -Match '\$staleText\s*=\s*if.*stale.*else.*stale'
+        It "Should have proper stale comment pluralization" {
+            # Should have: "stale comment" vs "stale comments" for proper grammar
+            $scriptContent | Should -Match '\$staleText\s*=\s*if.*stale comment.*else.*stale comments'
         }
 
-        It "Should have simplified stale count output" {
-            $scriptContent | Should -Match '\$commentSummary\s*\+=\s*.*\$staleCount\s+stale'
+        It "Should include stale text in comment summary" {
+            $scriptContent | Should -Match '\$commentSummary\s*\+=\s*.*\$staleCount\s+\$staleText'
         }
     }
 
