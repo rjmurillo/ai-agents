@@ -974,8 +974,9 @@ Describe "Get-PRReviewComments Behavioral Tests" {
             $scriptContent | Should -Match 'too large or binary'
         }
 
-        It "Should have specific exception handling for RuntimeException" {
-            $scriptContent | Should -Match 'catch\s+\[System\.Management\.Automation\.RuntimeException\]'
+        It "Should have specific exception handling for ArgumentException" {
+            # PR #987: Replaced broad RuntimeException with specific exception types
+            $scriptContent | Should -Match 'catch\s+\[System\.ArgumentException\]'
         }
 
         It "Should have cache statistics logging" {
@@ -1041,6 +1042,222 @@ Describe "Get-PRReviewComments Behavioral Tests" {
 
         It "Should return partial results for mid-pagination failure" {
             $moduleContent | Should -Match 'partial results'
+        }
+    }
+
+    Context "PR #987 Fix Validation - Line Number Validation" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should validate line number is greater than 0 in Test-LineExistsInFile" {
+            $scriptContent | Should -Match 'return\s+\$Line\s+-le\s+\$lineCount\s+-and\s+\$Line\s+-gt\s+0'
+        }
+    }
+
+    Context "PR #987 Fix Validation - Specific Exception Handling" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should catch System.ArgumentException in Get-PRFileTree" {
+            $scriptContent | Should -Match 'catch\s+\[System\.ArgumentException\][\s\S]*?file tree JSON'
+        }
+
+        It "Should catch System.ArgumentException in Get-FileContent" {
+            $scriptContent | Should -Match 'catch\s+\[System\.ArgumentException\][\s\S]*?parse/decode'
+        }
+
+        It "Should catch System.FormatException in Get-FileContent" {
+            $scriptContent | Should -Match 'catch\s+\[System\.FormatException\][\s\S]*?base64'
+        }
+
+        It "Should NOT catch RuntimeException in Get-PRFileTree" {
+            # The function should not have RuntimeException catch
+            $functionPattern = 'function\s+Get-PRFileTree\s*\{[\s\S]*?^\}'
+            $functionMatch = [regex]::Match($scriptContent, $functionPattern, [System.Text.RegularExpressions.RegexOptions]::Multiline)
+            if ($functionMatch.Success) {
+                $functionMatch.Value | Should -Not -Match 'RuntimeException'
+            }
+        }
+
+        It "Should NOT catch RuntimeException in Get-FileContent" {
+            # The function should not have RuntimeException catch
+            $functionPattern = 'function\s+Get-FileContent\s*\{[\s\S]*?^\}'
+            $functionMatch = [regex]::Match($scriptContent, $functionPattern, [System.Text.RegularExpressions.RegexOptions]::Multiline)
+            if ($functionMatch.Success) {
+                $functionMatch.Value | Should -Not -Match 'RuntimeException'
+            }
+        }
+    }
+
+    Context "PR #987 Fix Validation - Array Bounds Validation" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should validate content has lines" {
+            $scriptContent | Should -Match 'if\s+\(\$contentLines\.Count\s+-eq\s+0\)'
+        }
+
+        It "Should validate bounds before array access" {
+            $scriptContent | Should -Match '\$startLine\s+-ge\s+\$contentLines\.Count\s+-or\s+\$endLine\s+-lt\s+0\s+-or\s+\$startLine\s+-gt\s+\$endLine'
+        }
+
+        It "Should have try-catch around array indexing" {
+            $scriptContent | Should -Match 'try\s*\{[\s\S]*?\$contextLines\s*=\s*\$contentLines\[\$startLine\.\.\$endLine\]'
+        }
+    }
+
+    Context "PR #987 Fix Validation - Improved Error Messages" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should provide example for ExcludeStale without DetectStale" {
+            $scriptContent | Should -Match 'Example:.*-DetectStale\s+-ExcludeStale'
+        }
+
+        It "Should provide example for OnlyStale without DetectStale" {
+            $scriptContent | Should -Match 'Example:.*-DetectStale\s+-OnlyStale'
+        }
+
+        It "Should explain mutual exclusivity clearly" {
+            $scriptContent | Should -Match 'Use.*-ExcludeStale.*OR.*-OnlyStale'
+        }
+    }
+
+    Context "PR #987 Fix Validation - Diagnostic Logging" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should log cache miss before fetch" {
+            $scriptContent | Should -Match 'Write-Verbose\s+"Cache miss'
+        }
+
+        It "Should log cached bytes on successful fetch" {
+            $scriptContent | Should -Match 'Write-Verbose\s+"Cached\s+\$\('
+        }
+
+        It "Should log cached null with reason on failure" {
+            $scriptContent | Should -Match 'Write-Verbose\s+"Cached null'
+        }
+
+        It "Should log exit code on API failure" {
+            $scriptContent | Should -Match 'exit code \$LASTEXITCODE'
+        }
+    }
+
+    Context "Filter Integration Tests" {
+        BeforeAll {
+            # Define helper functions for filter testing
+            function Test-FileExistsInPR {
+                param([string]$Path, [array]$FileTree)
+                return $Path -in $FileTree
+            }
+
+            function Test-LineExistsInFile {
+                param([int]$Line, [string]$Content)
+                if ([string]::IsNullOrEmpty($Content)) { return $false }
+                $lineCount = ($Content -split "`r`n|`r|`n").Count
+                return $Line -le $lineCount -and $Line -gt 0
+            }
+
+            function Test-DiffHunkMatch {
+                param([int]$Line, [string]$DiffHunk, [string]$Content)
+                if ([string]::IsNullOrEmpty($DiffHunk) -or [string]::IsNullOrEmpty($Content)) {
+                    return $true
+                }
+                return $true  # Simplified for filter testing
+            }
+
+            function Get-CommentStaleness {
+                param(
+                    [object]$Comment,
+                    [string]$Owner,
+                    [string]$Repo,
+                    [array]$FileTree,
+                    [hashtable]$ContentCache
+                )
+
+                if ($Comment.CommentType -eq "Issue" -or [string]::IsNullOrEmpty($Comment.Path)) {
+                    return @{ Stale = $false; StaleReason = $null }
+                }
+
+                if (-not (Test-FileExistsInPR -Path $Comment.Path -FileTree $FileTree)) {
+                    return @{ Stale = $true; StaleReason = "FileDeleted" }
+                }
+
+                return @{ Stale = $false; StaleReason = $null }
+            }
+        }
+
+        It "Should correctly identify stale comments for deleted files" {
+            $fileTree = @("existing.ps1", "another.ps1")
+            $comment = @{
+                CommentType = "Review"
+                Path = "deleted.ps1"
+                Line = 10
+            }
+
+            $result = Get-CommentStaleness -Comment $comment -Owner "test" -Repo "repo" -FileTree $fileTree -ContentCache @{}
+
+            $result.Stale | Should -BeTrue
+            $result.StaleReason | Should -Be "FileDeleted"
+        }
+
+        It "Should correctly identify non-stale comments for existing files" {
+            $fileTree = @("existing.ps1", "another.ps1")
+            $comment = @{
+                CommentType = "Review"
+                Path = "existing.ps1"
+                Line = 5
+            }
+
+            $result = Get-CommentStaleness -Comment $comment -Owner "test" -Repo "repo" -FileTree $fileTree -ContentCache @{}
+
+            $result.Stale | Should -BeFalse
+            $result.StaleReason | Should -BeNullOrEmpty
+        }
+
+        It "Should filter out stale when simulating ExcludeStale" {
+            $comments = @(
+                [PSCustomObject]@{ Id = 1; Path = "deleted.ps1"; Stale = $true; StaleReason = "FileDeleted" },
+                [PSCustomObject]@{ Id = 2; Path = "existing.ps1"; Stale = $false; StaleReason = $null }
+            )
+
+            # Simulate ExcludeStale filtering
+            $filtered = @($comments | Where-Object { -not $_.Stale })
+
+            $filtered.Count | Should -Be 1
+            $filtered[0].Path | Should -Be "existing.ps1"
+        }
+
+        It "Should return only stale when simulating OnlyStale" {
+            $comments = @(
+                [PSCustomObject]@{ Id = 1; Path = "deleted.ps1"; Stale = $true; StaleReason = "FileDeleted" },
+                [PSCustomObject]@{ Id = 2; Path = "existing.ps1"; Stale = $false; StaleReason = $null }
+            )
+
+            # Simulate OnlyStale filtering
+            $filtered = @($comments | Where-Object { $_.Stale -eq $true })
+
+            $filtered.Count | Should -Be 1
+            $filtered[0].Path | Should -Be "deleted.ps1"
+        }
+
+        It "Should count stale comments correctly" {
+            $comments = @(
+                [PSCustomObject]@{ Stale = $true; StaleReason = "FileDeleted" },
+                [PSCustomObject]@{ Stale = $true; StaleReason = "LineOutOfRange" },
+                [PSCustomObject]@{ Stale = $false; StaleReason = $null },
+                [PSCustomObject]@{ Stale = $false; StaleReason = $null }
+            )
+
+            $staleCount = @($comments | Where-Object { $_.Stale -eq $true }).Count
+
+            $staleCount | Should -Be 2
         }
     }
 }

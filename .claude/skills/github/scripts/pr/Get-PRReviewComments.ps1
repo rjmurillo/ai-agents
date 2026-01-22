@@ -95,15 +95,18 @@ Import-Module (Join-Path $PSScriptRoot ".." ".." "modules" "GitHubCore.psm1") -F
 
 # Validate parameter combinations
 if ($ExcludeStale -and -not $DetectStale) {
-    Write-Error "-ExcludeStale requires -DetectStale to be specified"
+    Write-Error "-ExcludeStale filters stale comments, but stale detection is disabled. Add -DetectStale to enable detection."
+    Write-Host "Example: Get-PRReviewComments.ps1 -PullRequest $PullRequest -DetectStale -ExcludeStale" -ForegroundColor Yellow
     exit 1
 }
 if ($OnlyStale -and -not $DetectStale) {
-    Write-Error "-OnlyStale requires -DetectStale to be specified"
+    Write-Error "-OnlyStale returns only stale comments, but stale detection is disabled. Add -DetectStale to enable detection."
+    Write-Host "Example: Get-PRReviewComments.ps1 -PullRequest $PullRequest -DetectStale -OnlyStale" -ForegroundColor Yellow
     exit 1
 }
 if ($ExcludeStale -and $OnlyStale) {
-    Write-Error "-ExcludeStale and -OnlyStale are mutually exclusive"
+    Write-Error "-ExcludeStale and -OnlyStale are mutually exclusive."
+    Write-Host "Use -DetectStale -ExcludeStale to hide stale, OR -DetectStale -OnlyStale to show only stale." -ForegroundColor Yellow
     exit 1
 }
 
@@ -130,16 +133,19 @@ function Get-PRFileTree {
         if ($LASTEXITCODE -ne 0) {
             Write-ErrorAndExit "Failed to fetch file tree from GitHub API. Cannot perform stale detection. Error: $treeData" 3
         }
+
+        # Validate response structure
+        if ($null -eq $treeData -or $null -eq $treeData.tree) {
+            Write-ErrorAndExit "GitHub API returned invalid file tree structure. Cannot perform stale detection." 3
+        }
+
         return $treeData.tree | Where-Object { $_.type -eq "blob" } | ForEach-Object { $_.path }
     }
-    catch [System.Management.Automation.RuntimeException] {
-        # Expected: API or JSON errors
-        Write-ErrorAndExit "Failed to fetch file tree from GitHub API. Cannot perform stale detection. Error: $_" 3
+    catch [System.ArgumentException] {
+        # Specific: JSON parsing failed from ConvertFrom-Json
+        Write-ErrorAndExit "Failed to parse file tree JSON from GitHub API: $_" 3
     }
-    catch {
-        # Unexpected: bug
-        Write-ErrorAndExit "Unexpected error fetching file tree from GitHub API: $_" 3
-    }
+    # Let unexpected errors propagate for debugging
 }
 
 function Get-FileContent {
@@ -159,19 +165,30 @@ function Get-FileContent {
         return $ContentCache[$Path]
     }
 
-    Write-Verbose "Fetching content for $Path"
+    Write-Verbose "Cache miss - fetching content for $Path"
     try {
         $encodedPath = [System.Uri]::EscapeDataString($Path)
         $contentData = gh api "repos/$Owner/$Repo/contents/$encodedPath`?ref=HEAD" 2>&1 | ConvertFrom-Json
+
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to fetch content for file '$Path' from GitHub API. Skipping line/diff checks. Error: $contentData"
+            Write-Warning "Failed to fetch content for file '$Path' from GitHub API (exit code $LASTEXITCODE). Skipping line/diff checks. Error: $contentData"
+            Write-Verbose "Cached null for $Path (API failure)"
+            $ContentCache[$Path] = $null
+            return $null
+        }
+
+        # Validate response exists
+        if ($null -eq $contentData) {
+            Write-Warning "GitHub API returned null response for file '$Path'. Skipping line/diff checks."
+            Write-Verbose "Cached null for $Path (null response)"
             $ContentCache[$Path] = $null
             return $null
         }
 
         # Handle large files or binary files that don't have base64 content
         if ([string]::IsNullOrEmpty($contentData.content)) {
-            Write-Warning "File content not available via contents API (too large or binary): $Path"
+            Write-Verbose "File content not available via contents API (too large or binary): $Path"
+            Write-Verbose "Cached null for $Path (no content)"
             $ContentCache[$Path] = $null
             return $null
         }
@@ -179,18 +196,24 @@ function Get-FileContent {
         # Decode base64 content
         $decodedContent = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($contentData.content))
         $ContentCache[$Path] = $decodedContent
+        Write-Verbose "Cached $($decodedContent.Length) bytes for $Path"
         return $decodedContent
     }
-    catch [System.Management.Automation.RuntimeException] {
-        # Expected: API or JSON errors
-        Write-Warning "Error fetching content for file '$Path': $_"
+    catch [System.ArgumentException] {
+        # Specific: JSON parsing or base64 decode failed
+        Write-Warning "Failed to parse/decode content for file '$Path': $_"
+        Write-Verbose "Cached null for $Path (parse error)"
         $ContentCache[$Path] = $null
         return $null
     }
-    catch {
-        # Unexpected: bug
-        Write-ErrorAndExit "Unexpected error in Get-FileContent for '$Path': $_" 3
+    catch [System.FormatException] {
+        # Specific: Base64 decode format error
+        Write-Warning "File '$Path' contains invalid base64 content. Likely binary or corrupted."
+        Write-Verbose "Cached null for $Path (base64 error)"
+        $ContentCache[$Path] = $null
+        return $null
     }
+    # Let unexpected errors propagate for debugging
 }
 
 function Test-FileExistsInPR {
@@ -221,7 +244,7 @@ function Test-LineExistsInFile {
     }
 
     $lineCount = ($Content -split "`r`n|`r|`n").Count
-    return $Line -le $lineCount
+    return $Line -le $lineCount -and $Line -gt 0
 }
 
 function Test-DiffHunkMatch {
@@ -254,14 +277,29 @@ function Test-DiffHunkMatch {
 
     # Get the corresponding lines from the current content
     $contentLines = $Content -split "`r`n|`r|`n"
-    $startLine = [Math]::Max(0, $Line - 3)
-    $endLine = [Math]::Min($contentLines.Count - 1, $Line + 3)
 
-    if ($startLine -ge $contentLines.Count) {
+    # Validate content has lines
+    if ($contentLines.Count -eq 0) {
+        Write-Verbose "Content has no lines for comparison"
         return $false
     }
 
-    $contextLines = $contentLines[$startLine..$endLine]
+    $startLine = [Math]::Max(0, $Line - 3)
+    $endLine = [Math]::Min($contentLines.Count - 1, $Line + 3)
+
+    # Validate bounds before array access
+    if ($startLine -ge $contentLines.Count -or $endLine -lt 0 -or $startLine -gt $endLine) {
+        Write-Verbose "Line $Line is out of range for file with $($contentLines.Count) lines"
+        return $false
+    }
+
+    try {
+        $contextLines = $contentLines[$startLine..$endLine]
+    }
+    catch {
+        Write-Warning "Array indexing failed for lines $startLine..$endLine`: $_"
+        return $false
+    }
 
     # Fuzzy match: Check if any diff line appears in the context
     $matchCount = 0
