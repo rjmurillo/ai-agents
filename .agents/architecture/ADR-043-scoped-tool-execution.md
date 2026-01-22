@@ -53,7 +53,7 @@ fi
 ```powershell
 $ChangedMd = git diff --name-only --diff-filter=d HEAD '*.md' 2>$null
 if ($ChangedMd) {
-    $ChangedMd | ForEach-Object { npx markdownlint-cli2 --fix --no-globs $_ }
+    npx markdownlint-cli2 --fix --no-globs $ChangedMd
 }
 ```
 
@@ -75,9 +75,9 @@ This scoping applies to:
 
 | Tool | Scope Pattern | Notes |
 |------|---------------|-------|
-| **markdownlint** | `git diff --name-only '*.md'` | Session protocol Phase 2 |
-| **prettier** | `git diff --name-only '*.{json,yaml,yml}'` | If adopted |
-| **PSScriptAnalyzer** | `git diff --name-only '*.ps1'` | When running for modified scripts |
+| **markdownlint** | `git diff --name-only --diff-filter=d HEAD '*.md'` | Session protocol Phase 2 |
+| **prettier** | `git diff --name-only --diff-filter=d HEAD '*.{json,yaml,yml}'` | If adopted |
+| **PSScriptAnalyzer** | `git diff --name-only --diff-filter=d HEAD '*.ps1'` | When running for modified scripts |
 
 ### Exclusions
 
@@ -86,7 +86,7 @@ Repository-wide execution remains appropriate for:
 - **Explicit cleanup sessions**: PRs with objective "Format all markdown files"
 - **CI/CD validation**: Workflows that verify entire repository state
 - **Pre-commit hooks**: User-initiated git hooks (not agent-driven)
-- **Major version migrations**: Example: markdownlint v1 → v2 upgrade
+- **Major version migrations**: Example: markdownlint v1 to v2 upgrade
 
 ## Rationale
 
@@ -156,7 +156,7 @@ Update `.agents/SESSION-PROTOCOL.md` Phase 2 (Quality Checks):
    ```powershell
    $ChangedMd = git diff --name-only --diff-filter=d HEAD '*.md' 2>$null
    if ($ChangedMd) {
-       $ChangedMd | ForEach-Object { npx markdownlint-cli2 --fix --no-globs $_ }
+       npx markdownlint-cli2 --fix --no-globs $ChangedMd
    }
    ```
 

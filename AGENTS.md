@@ -326,7 +326,7 @@ wt merge
 - **Assign issues** before starting work: `gh issue edit <number> --add-assignee @me`
 - **Use PR template** with ALL sections from `.github/PULL_REQUEST_TEMPLATE.md`
 - **Commit atomically** (max 5 files OR single logical change)
-- **Run scoped linting** before commits (ADR-043): `git diff --name-only '*.md' | xargs npx markdownlint-cli2 --fix --no-globs`
+- **Run scoped linting** before commits (ADR-043): `git diff --name-only --diff-filter=d HEAD '*.md' | xargs npx markdownlint-cli2 --fix --no-globs`
 - **Pin GitHub Actions to SHA** with version comment (security-practices)
 
 ### ⚠️ Ask First
@@ -1704,10 +1704,10 @@ SESSION END (BLOCKING - MUST complete before closing):
 7. MUST NOT: Update .agents/HANDOFF.md (read-only reference)
 8. MUST: Update Serena memory (cross-session context)
 9. MUST: Run scoped markdownlint on changed files (ADR-043)
-9. MUST: Commit all changes (record SHA in Evidence column)
-10. MUST: Run Validate-SessionJson.ps1 - PASS required before claiming completion
-11. SHOULD: Check off completed tasks in PROJECT-PLAN.md
-12. SHOULD: Invoke retrospective agent (for significant sessions)
+10. MUST: Commit all changes (record SHA in Evidence column)
+11. MUST: Run Validate-SessionJson.ps1 - PASS required before claiming completion
+12. SHOULD: Check off completed tasks in PROJECT-PLAN.md
+13. SHOULD: Invoke retrospective agent (for significant sessions)
 ```
 
 ### Agent Workflow

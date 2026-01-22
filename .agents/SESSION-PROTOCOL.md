@@ -372,7 +372,7 @@ The agent MUST run quality checks before ending.
    ```powershell
    $ChangedMd = git diff --name-only --diff-filter=d HEAD '*.md' 2>$null
    if ($ChangedMd) {
-       $ChangedMd | ForEach-Object { npx markdownlint-cli2 --fix --no-globs $_ }
+       npx markdownlint-cli2 --fix --no-globs $ChangedMd
    }
    ```
 

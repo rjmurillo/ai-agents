@@ -110,6 +110,9 @@
     ".agents/architecture/ADR-043-scoped-tool-execution.md",
     ".agents/SESSION-PROTOCOL.md",
     "AGENTS.md",
+    "CLAUDE.md",
+    "CRITICAL-CONTEXT.md",
+    ".github/copilot-instructions.md",
     ".agents/sessions/2026-01-21-session-20-adr-043-scoped-tool-execution.json"
   ],
   "relatedIssues": [
