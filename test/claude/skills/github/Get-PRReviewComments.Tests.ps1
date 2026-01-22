@@ -974,9 +974,9 @@ Describe "Get-PRReviewComments Behavioral Tests" {
             $scriptContent | Should -Match 'too large or binary'
         }
 
-        It "Should have specific exception handling for ArgumentException" {
-            # PR #987: Replaced broad RuntimeException with specific exception types
-            $scriptContent | Should -Match 'catch\s+\[System\.ArgumentException\]'
+        It "Should have specific exception handling for RuntimeException" {
+            # PR #987 Cycle 3: RuntimeException catches JSON parsing errors from ConvertFrom-Json
+            $scriptContent | Should -Match 'catch\s+\[System\.Management\.Automation\.RuntimeException\]'
         }
 
         It "Should have cache statistics logging" {
@@ -1055,39 +1055,48 @@ Describe "Get-PRReviewComments Behavioral Tests" {
         }
     }
 
-    Context "PR #987 Fix Validation - Specific Exception Handling" {
+    Context "PR #987 Cycle 3 Fix Validation - Exception Handling" {
         BeforeAll {
             $scriptContent = Get-Content $ScriptPath -Raw
         }
 
-        It "Should catch System.ArgumentException in Get-PRFileTree" {
-            $scriptContent | Should -Match 'catch\s+\[System\.ArgumentException\][\s\S]*?file tree JSON'
+        It "Should catch System.Management.Automation.RuntimeException in Get-PRFileTree for JSON errors" {
+            # RuntimeException catches JsonConversionException, PSInvalidOperationException, and gh errors
+            $scriptContent | Should -Match 'catch\s+\[System\.Management\.Automation\.RuntimeException\][\s\S]*?file tree JSON'
         }
 
-        It "Should catch System.ArgumentException in Get-FileContent" {
-            $scriptContent | Should -Match 'catch\s+\[System\.ArgumentException\][\s\S]*?parse/decode'
+        It "Should catch System.Management.Automation.RuntimeException in Get-FileContent for JSON errors" {
+            $scriptContent | Should -Match 'catch\s+\[System\.Management\.Automation\.RuntimeException\][\s\S]*?parse/decode'
         }
 
-        It "Should catch System.FormatException in Get-FileContent" {
+        It "Should catch System.FormatException in Get-FileContent for base64 errors" {
             $scriptContent | Should -Match 'catch\s+\[System\.FormatException\][\s\S]*?base64'
         }
 
-        It "Should NOT catch RuntimeException in Get-PRFileTree" {
-            # The function should not have RuntimeException catch
-            $functionPattern = 'function\s+Get-PRFileTree\s*\{[\s\S]*?^\}'
-            $functionMatch = [regex]::Match($scriptContent, $functionPattern, [System.Text.RegularExpressions.RegexOptions]::Multiline)
-            if ($functionMatch.Success) {
-                $functionMatch.Value | Should -Not -Match 'RuntimeException'
-            }
+        It "Should have FormatException before RuntimeException in Get-FileContent" {
+            # FormatException is more specific and should be caught first (within Get-FileContent only)
+            $functionStart = $scriptContent.IndexOf('function Get-FileContent')
+            $functionEnd = $scriptContent.IndexOf('function Test-FileExistsInPR')
+            $functionBody = $scriptContent.Substring($functionStart, $functionEnd - $functionStart)
+            $formatPos = $functionBody.IndexOf('catch [System.FormatException]')
+            $runtimePos = $functionBody.IndexOf('catch [System.Management.Automation.RuntimeException]')
+            $formatPos | Should -BeLessThan $runtimePos
         }
 
-        It "Should NOT catch RuntimeException in Get-FileContent" {
-            # The function should not have RuntimeException catch
-            $functionPattern = 'function\s+Get-FileContent\s*\{[\s\S]*?^\}'
-            $functionMatch = [regex]::Match($scriptContent, $functionPattern, [System.Text.RegularExpressions.RegexOptions]::Multiline)
-            if ($functionMatch.Success) {
-                $functionMatch.Value | Should -Not -Match 'RuntimeException'
-            }
+        It "Should NOT catch ArgumentException in Get-PRFileTree" {
+            # ArgumentException was incorrect for JSON parsing
+            $functionStart = $scriptContent.IndexOf('function Get-PRFileTree')
+            $functionEnd = $scriptContent.IndexOf('function Get-FileContent')
+            $functionBody = $scriptContent.Substring($functionStart, $functionEnd - $functionStart)
+            $functionBody | Should -Not -Match 'catch\s+\[System\.ArgumentException\]'
+        }
+
+        It "Should NOT catch ArgumentException in Get-FileContent" {
+            # ArgumentException was incorrect for JSON parsing
+            $functionStart = $scriptContent.IndexOf('function Get-FileContent')
+            $functionEnd = $scriptContent.IndexOf('function Test-FileExistsInPR')
+            $functionBody = $scriptContent.Substring($functionStart, $functionEnd - $functionStart)
+            $functionBody | Should -Not -Match 'catch\s+\[System\.ArgumentException\]'
         }
     }
 
@@ -1146,6 +1155,60 @@ Describe "Get-PRReviewComments Behavioral Tests" {
 
         It "Should log exit code on API failure" {
             $scriptContent | Should -Match 'exit code \$LASTEXITCODE'
+        }
+    }
+
+    Context "PR #987 Cycle 3 Fix Validation - API Response Structure" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should validate response has content property" {
+            $scriptContent | Should -Match '\$contentData\.PSObject\.Properties\[.content.\]'
+        }
+
+        It "Should handle null response with structure validation" {
+            $scriptContent | Should -Match 'invalid or null response'
+        }
+
+        It "Should log invalid structure in verbose output" {
+            $scriptContent | Should -Match 'Cached null.*invalid structure'
+        }
+    }
+
+    Context "PR #987 Cycle 3 Fix Validation - Pagination Error Handling" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should wrap review comments pagination in try-catch" {
+            $scriptContent | Should -Match 'try\s*\{[\s\S]*?Invoke-GhApiPaginated[\s\S]*?pulls.*comments[\s\S]*?\}[\s\S]*?catch'
+        }
+
+        It "Should include PR number in pagination error message" {
+            $scriptContent | Should -Match 'Failed to fetch PR review comments.*PR #\$PullRequest'
+        }
+
+        It "Should include Owner and Repo in pagination error message" {
+            $scriptContent | Should -Match 'in \$Owner/\$Repo'
+        }
+
+        It "Should exit with code 3 on pagination failure" {
+            $scriptContent | Should -Match 'Write-ErrorAndExit.*Failed to fetch PR review comments.*3'
+        }
+    }
+
+    Context "PR #987 Cycle 3 Fix Validation - Array Bounds Error Message" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptPath -Raw
+        }
+
+        It "Should include file line count in array bounds error" {
+            $scriptContent | Should -Match 'in file with \$\(\$contentLines\.Count\) lines'
+        }
+
+        It "Should include exception message in array bounds error" {
+            $scriptContent | Should -Match '\$\(\$_\.Exception\.Message\)'
         }
     }
 

@@ -141,8 +141,8 @@ function Get-PRFileTree {
 
         return $treeData.tree | Where-Object { $_.type -eq "blob" } | ForEach-Object { $_.path }
     }
-    catch [System.ArgumentException] {
-        # Specific: JSON parsing failed from ConvertFrom-Json
+    catch [System.Management.Automation.RuntimeException] {
+        # Catches JsonConversionException, PSInvalidOperationException, and gh errors
         Write-ErrorAndExit "Failed to parse file tree JSON from GitHub API: $_" 3
     }
     # Let unexpected errors propagate for debugging
@@ -177,10 +177,10 @@ function Get-FileContent {
             return $null
         }
 
-        # Validate response exists
-        if ($null -eq $contentData) {
-            Write-Warning "GitHub API returned null response for file '$Path'. Skipping line/diff checks."
-            Write-Verbose "Cached null for $Path (null response)"
+        # Validate response structure (must have content property)
+        if ($null -eq $contentData -or -not $contentData.PSObject.Properties['content']) {
+            Write-Warning "GitHub API returned invalid or null response for file '$Path'. Skipping line/diff checks."
+            Write-Verbose "Cached null for $Path (invalid structure)"
             $ContentCache[$Path] = $null
             return $null
         }
@@ -199,17 +199,17 @@ function Get-FileContent {
         Write-Verbose "Cached $($decodedContent.Length) bytes for $Path"
         return $decodedContent
     }
-    catch [System.ArgumentException] {
-        # Specific: JSON parsing or base64 decode failed
-        Write-Warning "Failed to parse/decode content for file '$Path': $_"
-        Write-Verbose "Cached null for $Path (parse error)"
+    catch [System.FormatException] {
+        # Base64 decode format error
+        Write-Warning "File '$Path' contains invalid base64 content: $_"
+        Write-Verbose "Cached null for $Path (base64 error)"
         $ContentCache[$Path] = $null
         return $null
     }
-    catch [System.FormatException] {
-        # Specific: Base64 decode format error
-        Write-Warning "File '$Path' contains invalid base64 content. Likely binary or corrupted."
-        Write-Verbose "Cached null for $Path (base64 error)"
+    catch [System.Management.Automation.RuntimeException] {
+        # Catches JSON parsing errors and other gh/API errors
+        Write-Warning "Failed to parse/decode content for file '$Path': $_"
+        Write-Verbose "Cached null for $Path (parse error)"
         $ContentCache[$Path] = $null
         return $null
     }
@@ -297,7 +297,7 @@ function Test-DiffHunkMatch {
         $contextLines = $contentLines[$startLine..$endLine]
     }
     catch {
-        Write-Warning "Array indexing failed for lines $startLine..$endLine`: $_"
+        Write-Warning "Array indexing failed for lines $startLine..$endLine in file with $($contentLines.Count) lines: $($_.Exception.Message)"
         return $false
     }
 
@@ -384,7 +384,12 @@ if ($DetectStale) {
 }
 
 # Fetch review comments (code-level comments on specific lines/files)
-$reviewComments = Invoke-GhApiPaginated -Endpoint "repos/$Owner/$Repo/pulls/$PullRequest/comments"
+try {
+    $reviewComments = Invoke-GhApiPaginated -Endpoint "repos/$Owner/$Repo/pulls/$PullRequest/comments"
+}
+catch {
+    Write-ErrorAndExit "Failed to fetch PR review comments for PR #$PullRequest in $Owner/$Repo. Error: $_" 3
+}
 
 $processedReviewComments = @(foreach ($comment in $reviewComments) {
         if ($Author -and $comment.user.login -ne $Author) { continue }
