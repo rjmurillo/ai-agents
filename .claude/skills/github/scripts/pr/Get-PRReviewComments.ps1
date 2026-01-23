@@ -49,40 +49,66 @@
     instead of a flat array. Enables priority-based triage workflows where security comments
     can be processed first, followed by bugs, then style suggestions.
 
+.PARAMETER OnlyUnaddressed
+    If specified, filters to only comments that need attention:
+    - Unacknowledged (eyes reaction = 0), OR
+    - Acknowledged but thread not resolved (eyes > 0, thread still open)
+
+    This is a convenience parameter that combines eye reactions with thread resolution status.
+    Use this to quickly identify which comments still need work.
+
+.PARAMETER BotOnly
+    If specified with -OnlyUnaddressed, filters to only bot comments.
+    Default: false (includes all unaddressed comments).
+
 .EXAMPLE
+    # QUICK START: Which comments need replies?
+    $result = .\Get-PRReviewComments.ps1 -PullRequest 50 -OnlyUnaddressed
+    Write-Host "$($result.TotalComments) comments need attention"
+    $result.Comments | ForEach-Object { Write-Host "[$($_.LifecycleState)] $($_.Author): $($_.Body.Substring(0, [Math]::Min(50, $_.Body.Length)))..." }
+
+.EXAMPLE
+    # Get unaddressed bot comments only (most common use case for AI agents)
+    .\Get-PRReviewComments.ps1 -PullRequest 50 -OnlyUnaddressed -BotOnly
+
+.EXAMPLE
+    # Get comment counts by author
+    $result = .\Get-PRReviewComments.ps1 -PullRequest 50
+    $result.AuthorSummary  # Shows: @{Author="cursor[bot]"; Count=5}, @{Author="coderabbitai[bot]"; Count=3}
+
+.EXAMPLE
+    # Get comment counts by domain (security first priority)
+    $result = .\Get-PRReviewComments.ps1 -PullRequest 50
+    $result.DomainCounts  # Shows: @{security=1; bug=2; style=5; general=10}
+
+.EXAMPLE
+    # Basic: Get all review comments
     .\Get-PRReviewComments.ps1 -PullRequest 50
-    Get all review comments for PR #50
 
 .EXAMPLE
+    # Include issue comments (top-level PR comments)
     .\Get-PRReviewComments.ps1 -PullRequest 50 -IncludeIssueComments
-    Get all review and issue comments for PR #50
 
 .EXAMPLE
+    # Filter by author
     .\Get-PRReviewComments.ps1 -PullRequest 50 -Author "cursor[bot]"
-    Get only comments from cursor[bot] for PR #50
 
 .EXAMPLE
+    # Detect stale comments (references deleted files, changed code)
     .\Get-PRReviewComments.ps1 -PullRequest 908 -DetectStale
-    Detect stale comments on PR #908 and include Stale/StaleReason properties
 
 .EXAMPLE
+    # Get active comments only (exclude stale)
     .\Get-PRReviewComments.ps1 -PullRequest 908 -DetectStale -ExcludeStale
-    Get active comments only, excluding stale ones (recommended for response workflow)
 
 .EXAMPLE
+    # Get only stale comments for cleanup
     .\Get-PRReviewComments.ps1 -PullRequest 908 -DetectStale -OnlyStale
-    Get only stale comments for cleanup and resolution
 
 .EXAMPLE
+    # Group by domain for security-first processing
     .\Get-PRReviewComments.ps1 -PullRequest 908 -GroupByDomain
-    Returns comments grouped by domain for security-first processing:
-    @{
-        Security = @(... CWE, vulnerability comments ...)
-        Bug = @(... error, crash comments ...)
-        Style = @(... formatting, naming comments ...)
-        Summary = @(... bot summary comments ...)
-        General = @(... other comments ...)
-    }
+    # Returns: @{ Security = @(...); Bug = @(...); Style = @(...); Summary = @(...); General = @(...) }
 
 .NOTES
     Exit Codes: 0=Success, 1=Invalid params, 2=Not found, 3=API error, 4=Not authenticated
@@ -115,7 +141,9 @@ param(
     [switch]$DetectStale,
     [switch]$ExcludeStale,
     [switch]$OnlyStale,
-    [switch]$GroupByDomain
+    [switch]$GroupByDomain,
+    [switch]$OnlyUnaddressed,
+    [switch]$BotOnly
 )
 
 Import-Module (Join-Path $PSScriptRoot ".." ".." "modules" "GitHubCore.psm1") -Force
@@ -134,6 +162,11 @@ if ($OnlyStale -and -not $DetectStale) {
 if ($ExcludeStale -and $OnlyStale) {
     Write-Error "-ExcludeStale and -OnlyStale are mutually exclusive."
     Write-Host "Use -DetectStale -ExcludeStale to hide stale, OR -DetectStale -OnlyStale to show only stale." -ForegroundColor Yellow
+    exit 1
+}
+if ($BotOnly -and -not $OnlyUnaddressed) {
+    Write-Error "-BotOnly filters to bot comments, but requires -OnlyUnaddressed to determine lifecycle state."
+    Write-Host "Example: Get-PRReviewComments.ps1 -PullRequest $PullRequest -OnlyUnaddressed -BotOnly" -ForegroundColor Yellow
     exit 1
 }
 
@@ -566,6 +599,7 @@ $processedReviewComments = @(foreach ($comment in $reviewComments) {
             CommitId = $comment.commit_id
             Stale = $staleInfo.Stale
             StaleReason = $staleInfo.StaleReason
+            EyesCount = if ($comment.reactions.eyes) { $comment.reactions.eyes } else { 0 }
         }
     })
 
@@ -602,6 +636,7 @@ if ($IncludeIssueComments) {
                 CommitId = $null
                 Stale = if ($DetectStale) { $false } else { $null }  # Issue comments are never stale
                 StaleReason = $null
+                EyesCount = if ($comment.reactions.eyes) { $comment.reactions.eyes } else { 0 }
             }
         })
 }
@@ -624,6 +659,44 @@ if ($DetectStale) {
         Write-Verbose "Filtering to only stale comments"
         $allProcessedComments = @($allProcessedComments | Where-Object { $_.Stale -eq $true })
     }
+}
+
+# Apply unaddressed filtering if requested
+if ($OnlyUnaddressed) {
+    Write-Verbose "Fetching unresolved threads for unaddressed comment detection"
+    $unresolvedThreads = Get-UnresolvedReviewThreads -Owner $Owner -Repo $Repo -PullRequest $PullRequest
+
+    # Extract comment IDs from unresolved threads
+    $unresolvedCommentIds = @()
+    foreach ($thread in $unresolvedThreads) {
+        $firstComment = $thread.comments.nodes | Select-Object -First 1
+        if ($null -ne $firstComment -and $null -ne $firstComment.databaseId) {
+            $unresolvedCommentIds += $firstComment.databaseId
+        }
+    }
+
+    Write-Verbose "Found $($unresolvedCommentIds.Count) unresolved thread comment IDs"
+
+    # Filter to unaddressed: unacknowledged (eyes=0) OR acknowledged but thread unresolved
+    $allProcessedComments = @($allProcessedComments | Where-Object {
+            $isUnacknowledged = $_.EyesCount -eq 0
+            $isUnresolved = $unresolvedCommentIds -contains $_.Id
+
+            # Apply bot filter if specified
+            if ($BotOnly -and $_.AuthorType -ne 'Bot') {
+                return $false
+            }
+
+            return ($isUnacknowledged -or $isUnresolved)
+        })
+
+    # Add lifecycle state to filtered comments
+    $allProcessedComments = @($allProcessedComments | ForEach-Object {
+            $lifecycleState = if ($_.EyesCount -eq 0) { "NEW" } else { "ACKNOWLEDGED" }
+            $_ | Add-Member -NotePropertyName LifecycleState -NotePropertyValue $lifecycleState -PassThru
+        })
+
+    Write-Verbose "Filtered to $($allProcessedComments.Count) unaddressed comments"
 }
 
 # Sort by creation date
