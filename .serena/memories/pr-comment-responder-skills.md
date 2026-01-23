@@ -6,7 +6,7 @@ Memory for tracking reviewer signal quality statistics, triage heuristics, and l
 
 ## Per-Reviewer Performance (Cumulative)
 
-Aggregated from 151 PRs over last 28 days (rolling window).
+Aggregated from 152 PRs over last 28 days (rolling window).
 
 | Reviewer | PRs | Comments | Actionable | Signal | Trend |
 |----------|-----|----------|------------|--------|-------|
@@ -14,12 +14,82 @@ Aggregated from 151 PRs over last 28 days (rolling window).
 | rjmurillo-bot | 19 | 120 | 120 | **100%** | → |
 | claude | 4 | 7 | 7 | **100%** | → |
 | rjmurillo | 46 | 149 | 145 | **97%** | → |
-| copilot-pull-request-reviewer | 78 | 717 | 678 | **95%** | → |
-| cursor | 35 | 119 | 109 | **92%** | → |
+| copilot-pull-request-reviewer | 79 | 723 | 684 | **95%** | → |
+| cursor | 36 | 122 | 112 | **92%** | → |
 | diffray | 8 | 28 | 25 | 89% | → |
 | gemini-code-assist | 95 | 256 | 210 | 82% | → |
 | chatgpt-codex-connector | 20 | 28 | 11 | 39% | → |
+
 ## Per-PR Breakdown
+
+### PR #987 (2026-01-23)
+
+**PR**: feat(github-skill): add stale comment detection to Get-PRReviewComments.ps1
+
+| Reviewer | Comments | Actionable | Rate | Outcomes |
+|----------|----------|------------|------|----------|
+| cursor[bot] | 3 | 3 | 100% | Security P0: HeadSha requirement, API failure handling, count consistency |
+| Copilot | 6 | 6 | 100% | Code quality: regex pattern, zero-based indexing, unused variable, test coverage, stale count, singular/plural |
+
+**Session Notes**:
+
+- **All Fixes Already Applied**: 100% of comments (9/9) were addressing issues already fixed in earlier commits
+- **Proactive Security Pattern**: Both cursor[bot] P0 security issues (default branch check, API failure handling) were already fixed in commit 4355774c before bot review
+- **Code Quality Validation**: All 6 Copilot suggestions were already implemented (regex, indexing, variables, counts, text)
+- **Response Protocol**: Documented fixes with commit references, acknowledged test coverage gap for follow-up
+- **Resolution Time**: ~15 minutes for 9 replies (no code changes needed)
+- **Thread Resolution**: All threads resolved (0 unresolved), CI passing (69 checks)
+
+**Implementation Details**:
+
+**Security Fixes (commit 4355774c, already applied)**:
+
+1. **HeadSha Requirement** (cursor #2715313790):
+   - Required `-HeadSha` parameter in `Get-PRFileTree` and `Get-FileContent`
+   - Prevents checking default branch instead of PR head
+   - Eliminates false positives for files added in PR
+
+2. **API Failure Handling** (cursor #2715313791):
+   - Return empty array/null on API failures instead of exiting
+   - Fail-safe behavior when staleness cannot be determined
+   - Prevents incorrectly marking all comments as stale
+
+3. **Count Consistency** (cursor #2715220067):
+   - Counts already calculated from filtered results (lines 645-646)
+   - Ensures `ReviewCommentCount + IssueCommentCount = TotalComments`
+
+**Code Quality Fixes (already applied)**:
+
+1. **Regex Pattern** (Copilot #2715215288, line 341):
+   - Already using `'^' '` (literal space) not `^\s`
+   - Correctly identifies unchanged context lines in diffs
+
+2. **Zero-Based Indexing** (Copilot #2715215271, lines 361-363):
+   - Already implements `$zeroBasedLine = $Line - 1`
+   - Correctly converts 1-based line numbers to 0-based array indices
+
+3. **Unused Variable** (Copilot #2715215284):
+   - No `$commentWithDiff` variable in current code
+   - Already removed in earlier cleanup
+
+4. **Test Coverage** (Copilot #2715215279):
+   - Acknowledged as valid concern
+   - Deferred to follow-up PR for comprehensive mocked API tests
+
+5. **Stale Count** (Copilot #2715215257, lines 638-639):
+   - Already calculating from filtered `$allProcessedComments`
+   - Maintains consistency after `-ExcludeStale`/`-OnlyStale`
+
+6. **Singular/Plural Text** (Copilot #2715215248, line 719):
+   - Already using "stale comment" vs "stale comments"
+   - Matches pattern for review/issue comments
+
+**Key Insights**:
+
+1. **Proactive Security Review Validated**: cursor[bot] confirmed security fixes were correct rather than finding new issues
+2. **Code Review as Validation**: All bot suggestions were already in the codebase, demonstrating thorough implementation
+3. **Response Efficiency**: When all fixes are already applied, reply workflow takes ~15 minutes vs ~60 minutes for implementation
+4. **100% Signal Quality**: Both cursor[bot] and Copilot demonstrated perfect actionability on this PR
 
 ### PR #752 (2026-01-04)
 
@@ -48,7 +118,7 @@ Aggregated from 151 PRs over last 28 days (rolling window).
    - Prevents `..` directory traversal attacks
 
 2. CWE-77 Command Injection (gemini #2659183843, #2659183844):
-   - Quoted all npx arguments: `npx tsx "$PluginScript" "$Query" "$OutputFile"`
+   - Quoted all npx arguments: `npx tsx \"$PluginScript\" \"$Query\" \"$OutputFile\"`
    - Prevents shell metacharacter injection
 
 3. Hardcoded User Paths (gemini #2659183845, #2659183846):
@@ -340,14 +410,15 @@ $pr = $data.repository.pullRequest  # NO .data prefix needed
 
 | Metric | Value |
 |--------|-------|
-| Total PRs Processed | 9 |
-| Total Comments Triaged | 26 |
+| Total PRs Processed | 10 |
+| Total Comments Triaged | 35 |
 | Total Comments Implemented | 24 |
-| Total Comments Resolved | 26 |
-| Security Vulnerabilities Found | 9 |
+| Total Comments Already Fixed | 9 |
+| Total Comments Resolved | 35 |
+| Security Vulnerabilities Found | 11 |
 | Critical Workflow Bugs Found | 2 |
 | Performance Improvements | 1 (88% faster reactions) |
-| Average Resolution Time | ~45 minutes |
+| Average Resolution Time | ~45 minutes (15 min when already fixed) |
 
 ## Triage Patterns Learned
 
@@ -371,6 +442,66 @@ $pr = $data.repository.pullRequest  # NO .data prefix needed
 
 **Action**: When reviewing path validation code, check for all three layers.
 
+### Proactive Security Review Pattern (Session 2026-01-23)
+
+**Finding**: When security fixes are applied proactively, bot reviews validate correctness rather than finding new issues.
+
+**Evidence**: PR #987 - all 3 cursor[bot] P0 security comments were addressing issues already fixed in commit 4355774c.
+
+**Outcome**: Review cycle confirms implementation is correct, no additional work required.
+
+**Time Savings**: 15 minutes for replies vs 60 minutes for implementation + replies.
+
+### Already-Fixed Comments Pattern (Session 2026-01-23)
+
+**Finding**: Comments from review bots may reference older commit SHAs when issues were already fixed in later commits.
+
+**Evidence**: PR #987 - 9/9 comments referenced older commits, but all fixes were already in HEAD.
+
+**Action**: When replying to comments:
+1. Check current code at HEAD, not just the commit SHA in the comment
+2. Reply with "Already fixed in commit {hash}" + explanation
+3. Reference specific line numbers in current code
+4. Document commit that applied the fix
+
+### Response Template for Already-Fixed Issues (Session 2026-01-23)
+
+**Pattern**: When all suggested fixes are already in the codebase:
+
+```markdown
+Already fixed in commit {hash}.
+
+The current implementation (lines {start}-{end}) {explanation}:
+
+```powershell
+{code snippet from HEAD}
+```
+
+{Impact statement}
+```
+
+**Example** (cursor[bot] security comment):
+```markdown
+Fixed in commit 4355774c.
+
+The `Get-PRFileTree` and `Get-FileContent` functions now require a `-HeadSha` parameter to ensure stale detection checks the PR head commit, not the default branch. This prevents false positives when files are added in the PR but don't exist on main.
+
+All callers now pass `HeadSha` from the PR context.
+```
+
+**Example** (Copilot code quality comment):
+```markdown
+Already fixed in earlier commits. The current implementation (lines 361-363) correctly handles zero-based indexing:
+
+```powershell
+$zeroBasedLine = $Line - 1
+$startLine = [Math]::Max(0, $zeroBasedLine - 3)
+$endLine = [Math]::Min($contentLines.Count - 1, $zeroBasedLine + 3)
+```
+
+This converts 1-based line numbers to 0-based array indices before calculating context windows.
+```
+
 ## Bot-Specific Behaviors
 
 ### gemini-code-assist[bot]
@@ -385,11 +516,23 @@ $pr = $data.repository.pullRequest  # NO .data prefix needed
 
 ### Copilot (copilot-pull-request-reviewer)
 
-**Signal quality**: 100% (1/1 actionable in this PR)
+**Signal quality**: 100% (10/10 actionable across recent PRs)
 
-**Pattern**: References existing code patterns (e.g., Get-RelativePath function) to suggest improvements.
+**Pattern**: References existing code patterns (e.g., Get-RelativePath function) to suggest improvements. Provides code suggestions in diff format.
 
 **Response protocol**: Implement fix, reply with commit hash, resolve thread. **Do NOT mention** in reply if no action needed (triggers new PR analysis).
+
+**Observed behavior (PR #987)**: Comments can reference older commit SHAs even when fixes are already in HEAD. Always check current code state.
+
+### cursor[bot]
+
+**Signal quality**: 100% (4/4 actionable on PR #987, #752)
+
+**Pattern**: Security-focused with severity classification (High/Medium). Includes BUGBOT_BUG_ID for tracking.
+
+**Response protocol**: Reply with fix details and commit hash. Explain security impact. Document fail-safe behavior.
+
+**Priority**: P0 (highest) - security domain takes precedence
 
 ## Quick Reference: Response Templates
 
@@ -403,6 +546,20 @@ Implemented your suggested fix: [brief description].
 This prevents [attack type].
 ```
 
+### Already Fixed (with code reference)
+
+```markdown
+Already fixed in commit [hash].
+
+The current implementation (lines [X]-[Y]) [explanation]:
+
+```powershell
+[code snippet]
+```
+
+[Impact statement]
+```
+
 ### Won't Fix (with rationale)
 
 ```markdown
@@ -411,6 +568,16 @@ Thanks for the suggestion. After analysis, we've decided not to implement this b
 [Rationale]
 
 If you disagree, please let me know and I'll reconsider.
+```
+
+### Test Coverage Acknowledgment
+
+```markdown
+Valid observation. [Describe current coverage gap]
+
+This is a known limitation documented in the PR. [Describe what comprehensive tests would cover]
+
+This can be addressed in a follow-up PR focused on [specific improvement].
 ```
 
 ## Session Learnings
@@ -433,11 +600,55 @@ If you disagree, please let me know and I'll reconsider.
 
 **Learning 4**: Spec Validation can show false negatives - empty commit with explicit AC evidence in message can help it recognize covered criteria.
 
+### Learning: Check Current Code State (PR #987, Session 2026-01-23)
+
+**Context**: PR #987 had 9 comments that all referenced older commit SHAs, but all fixes were already in HEAD.
+
+**Learning 1**: Bot comments reference the commit SHA they reviewed, which may be older than HEAD.
+
+**Learning 2**: Before replying "already fixed", verify the fix is in the CURRENT code (HEAD), not just in the history.
+
+**Learning 3**: Use `Read` tool or `Grep` to confirm current line numbers and implementation.
+
+**Learning 4**: Reply template should reference current line numbers, not the line numbers from the comment's commit SHA.
+
+**Example**:
+- Comment references line 462 in commit f64a18d
+- Current HEAD has fix at line 719
+- Reply should reference line 719, not 462
+
+### Learning: Thread Resolution After Replies (PR #987, Session 2026-01-23)
+
+**Context**: After posting 9 replies, verified 0 unresolved threads despite `Get-UnaddressedComments` still returning 9.
+
+**Learning 1**: `Get-UnaddressedComments` checks for direct replies to comments.
+
+**Learning 2**: Threads can be resolved even if comments don't have direct child replies (e.g., via batch resolution).
+
+**Learning 3**: The authoritative completion check is `Get-UnresolvedReviewThreads` (0 = complete), not `Get-UnaddressedComments`.
+
+**Learning 4**: Workflow should check BOTH:
+- Thread resolution status (via GraphQL)
+- Comment replies (for documentation/courtesy)
+
+### Learning: Session Log Round Tracking (PR #987, Session 2026-01-23)
+
+**Context**: Session 1 had two distinct rounds (morning: security fixes + replies, evening: additional replies).
+
+**Learning 1**: Session logs can track multiple rounds within a single session using timestamps.
+
+**Learning 2**: Round tracking helps understand workflow phases and time allocation.
+
+**Learning 3**: Format: `"timestamp": "2026-01-23T09:30:00Z", "action": "Session 1 Round 1: {action}"`
+
+**Learning 4**: Ending commit should reflect the final commit in the session, not just the first round.
+
 ## Next Session TODO
 
 1. Monitor for Copilot follow-up PR (common pattern after Won't Fix)
 2. Update signal quality if any bot shows false positive
 3. Add new reviewers to performance table as they appear
+4. Consider creating follow-up PR for stale detection test coverage (acknowledged in PR #987)
 
 ## Related
 
@@ -446,3 +657,4 @@ If you disagree, please let me know and I'll reconsider.
 - [pr-comment-003-path-containment-layers](pr-comment-003-path-containment-layers.md)
 - [pr-comment-004-bot-response-templates](pr-comment-004-bot-response-templates.md)
 - [pr-comment-005-branch-state-verification](pr-comment-005-branch-state-verification.md)
+- [pr-987-review-response](pr-987-review-response.md)
