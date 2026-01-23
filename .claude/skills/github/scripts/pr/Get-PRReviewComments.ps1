@@ -182,24 +182,32 @@ function Get-PRFileTree {
         [string]$HeadSha
     )
 
-    $ref = if ($HeadSha) { $HeadSha } else { "HEAD" }
-    Write-Verbose "Fetching file tree for ref: $ref"
+    # Require HeadSha to prevent checking default branch instead of PR head
+    if ([string]::IsNullOrEmpty($HeadSha)) {
+        Write-Warning "No head SHA provided. Cannot fetch file tree for PR. Returning empty tree (stale detection will be conservative)."
+        return @()
+    }
+
+    Write-Verbose "Fetching file tree for PR head SHA: $HeadSha"
     try {
-        $treeData = gh api "repos/$Owner/$Repo/git/trees/$ref`?recursive=1" 2>&1 | ConvertFrom-Json
+        $treeData = gh api "repos/$Owner/$Repo/git/trees/$HeadSha`?recursive=1" 2>&1 | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0) {
-            Write-ErrorAndExit "Failed to fetch file tree from GitHub API. Cannot perform stale detection. Error: $treeData" 3
+            Write-Warning "Failed to fetch file tree from GitHub API. Returning empty tree (stale detection disabled). Error: $treeData"
+            return @()
         }
 
         # Validate response structure
         if ($null -eq $treeData -or $null -eq $treeData.tree) {
-            Write-ErrorAndExit "GitHub API returned invalid file tree structure. Cannot perform stale detection." 3
+            Write-Warning "GitHub API returned invalid file tree structure. Returning empty tree (stale detection disabled)."
+            return @()
         }
 
         return $treeData.tree | Where-Object { $_.type -eq "blob" } | ForEach-Object { $_.path }
     }
     catch [System.Management.Automation.RuntimeException] {
         # Catches JsonConversionException, PSInvalidOperationException, and gh errors
-        Write-ErrorAndExit "Failed to parse file tree JSON from GitHub API: $_" 3
+        Write-Warning "Failed to parse file tree JSON from GitHub API: $_. Returning empty tree (stale detection disabled)."
+        return @()
     }
     # Let unexpected errors propagate for debugging
 }
@@ -222,11 +230,17 @@ function Get-FileContent {
         return $ContentCache[$Path]
     }
 
-    $ref = if ($HeadSha) { $HeadSha } else { "HEAD" }
-    Write-Verbose "Cache miss - fetching content for $Path at ref: $ref"
+    # Require HeadSha to prevent checking default branch instead of PR head
+    if ([string]::IsNullOrEmpty($HeadSha)) {
+        Write-Warning "No head SHA provided. Cannot fetch content for file '$Path'. Skipping line/diff checks."
+        $ContentCache[$Path] = $null
+        return $null
+    }
+
+    Write-Verbose "Cache miss - fetching content for $Path at PR head SHA: $HeadSha"
     try {
         $encodedPath = [System.Uri]::EscapeDataString($Path)
-        $contentData = gh api "repos/$Owner/$Repo/contents/$encodedPath`?ref=$ref" 2>&1 | ConvertFrom-Json
+        $contentData = gh api "repos/$Owner/$Repo/contents/$encodedPath`?ref=$HeadSha" 2>&1 | ConvertFrom-Json
 
         if ($LASTEXITCODE -ne 0) {
             Write-Warning "Failed to fetch content for file '$Path' from GitHub API (exit code $LASTEXITCODE). Skipping line/diff checks. Error: $contentData"
@@ -505,7 +519,7 @@ if ($DetectStale) {
     $headSha = Get-PRHeadSha -Owner $Owner -Repo $Repo -PullRequest $PullRequest
     $fileTree = Get-PRFileTree -Owner $Owner -Repo $Repo -HeadSha $headSha
     if ($fileTree.Count -eq 0) {
-        Write-Warning "File tree is empty. API may have failed. Stale detection may be inaccurate."
+        Write-Warning "File tree is empty. Stale detection disabled (all comments will be marked as non-stale to avoid false positives)."
     }
     Write-Verbose "File tree loaded with $($fileTree.Count) files"
 }
