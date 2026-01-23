@@ -573,7 +573,12 @@ $processedReviewComments = @(foreach ($comment in $reviewComments) {
 $processedIssueComments = @()
 if ($IncludeIssueComments) {
     Write-Verbose "Fetching issue comments for PR #$PullRequest"
-    $issueComments = Invoke-GhApiPaginated -Endpoint "repos/$Owner/$Repo/issues/$PullRequest/comments"
+    try {
+        $issueComments = Invoke-GhApiPaginated -Endpoint "repos/$Owner/$Repo/issues/$PullRequest/comments"
+    }
+    catch {
+        Write-ErrorAndExit "Failed to fetch issue comments for PR #$PullRequest in $Owner/$Repo. Error: $_" 3
+    }
 
     $processedIssueComments = @(foreach ($comment in $issueComments) {
             if ($Author -and $comment.user.login -ne $Author) { continue }

@@ -1288,8 +1288,10 @@ Describe "Get-PRReviewComments Behavioral Tests" {
             $scriptContent = Get-Content $ScriptPath -Raw
         }
 
-        It "Should use Write-ErrorAndExit for file tree failures" {
-            $scriptContent | Should -Match 'Write-ErrorAndExit.*file tree'
+        It "Should use Write-Warning for file tree failures (graceful degradation)" {
+            # File tree failures are handled gracefully - returns empty tree instead of fatal error
+            # This prevents stale detection from blocking the entire command when API fails
+            $scriptContent | Should -Match 'Write-Warning.*file tree.*empty tree'
         }
 
         It "Should use Write-Warning for file content failures" {

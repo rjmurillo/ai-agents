@@ -215,8 +215,10 @@ end {
                 # Fallback to simple comparison if three-dot syntax fails
                 $ChangedFiles = & git diff --name-only origin/main 2>&1
                 if ($LASTEXITCODE -ne 0) {
-                    Write-Warning "Invoke-RoutingGates: git diff origin/main also failed (exit $LASTEXITCODE). Failing open."
-                    return $true
+                    # SECURITY: Fail-closed to prevent QA bypass via git errors
+                    # If we cannot determine changed files, assume code changes exist
+                    Write-Warning "Invoke-RoutingGates: git diff origin/main also failed (exit $LASTEXITCODE). Failing closed (QA required)."
+                    return $false
                 }
             }
 
@@ -244,25 +246,25 @@ end {
             return ($CodeFiles.Count -eq 0)
         }
         catch [System.UnauthorizedAccessException] {
-            # Permission error - likely temporary, fail-open
+            # SECURITY: Fail-closed to prevent QA bypass via permission errors
             $errorMsg = "Permission denied checking git diff: $($_.Exception.Message)"
-            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open."
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing closed (QA required)."
             Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
-            return $true
+            return $false
         }
         catch [System.IO.IOException] {
-            # I/O error (disk, network) - infrastructure issue, fail-open
+            # SECURITY: Fail-closed to prevent QA bypass via I/O errors
             $errorMsg = "I/O error checking git diff: $($_.Exception.Message)"
-            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open."
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing closed (QA required)."
             Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
-            return $true
+            return $false
         }
         catch {
-            # Unexpected error during file filtering - log type for debugging
+            # SECURITY: Fail-closed to prevent QA bypass via unexpected errors
             $errorMsg = "Unexpected error checking changed files: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
-            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open."
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing closed (QA required)."
             Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
-            return $true
+            return $false
         }
     }
 
