@@ -4,6 +4,54 @@ Complete examples for common GitHub operations.
 
 ---
 
+## Comment Triage (Most Common)
+
+```powershell
+# Which comments need replies? (MOST COMMON USE CASE)
+$result = pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50 -OnlyUnaddressed
+if ($result.TotalComments -gt 0) {
+    Write-Host "$($result.TotalComments) comments need attention"
+    $result.Comments | ForEach-Object { Write-Host "[$($_.LifecycleState)] $($_.Author): $($_.Body.Substring(0, 50))..." }
+}
+
+# Get unaddressed bot comments only (for AI agent workflows)
+pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50 -OnlyUnaddressed -BotOnly
+
+# Get comments with full lifecycle state analysis
+$result = pwsh -NoProfile scripts/pr/Get-UnaddressedComments.ps1 -PullRequest 50
+$result.LifecycleStateCounts      # @{NEW=2; ACKNOWLEDGED=1; IN_DISCUSSION=3; RESOLVED=5}
+$result.DiscussionSubStateCounts  # @{WONT_FIX=1; FIX_DESCRIBED=1; FIX_COMMITTED=0; NEEDS_CLARIFICATION=1}
+$result.DomainCounts              # @{security=1; bug=2; style=5; general=3}
+$result.AuthorSummary             # @{Author="cursor[bot]"; Count=3}, @{Author="coderabbitai[bot]"; Count=2}
+
+# Lifecycle states explained:
+#   NEW: 0 eyes, 0 replies, unresolved -> needs acknowledgment + reply
+#   ACKNOWLEDGED: >0 eyes, 0 replies, unresolved -> needs reply
+#   IN_DISCUSSION: >0 eyes, >0 replies, unresolved -> analyze reply content
+#   RESOLVED: thread marked resolved -> no action needed
+
+# IN_DISCUSSION sub-states:
+#   WONT_FIX: Reply says "won't fix", "out of scope", "future PR" -> resolve thread
+#   FIX_DESCRIBED: Reply describes fix, no commit hash -> add commit reference
+#   FIX_COMMITTED: Reply has commit hash -> resolve thread
+#   NEEDS_CLARIFICATION: Reply asks questions -> wait for response
+
+# Get all comments including resolved (for audit/reporting)
+pwsh -NoProfile scripts/pr/Get-UnaddressedComments.ps1 -PullRequest 50 -OnlyUnaddressed:$false
+
+# Get comment counts by author
+$result = pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50
+$result.AuthorSummary
+
+# Get comment counts by domain (security, bug, style)
+$result.DomainCounts
+
+# Group by domain for security-first processing
+pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50 -GroupByDomain
+```
+
+---
+
 ## PR Operations
 
 ```powershell

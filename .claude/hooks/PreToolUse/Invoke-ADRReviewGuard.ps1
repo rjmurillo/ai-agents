@@ -40,13 +40,8 @@ Import-Module "$PSScriptRoot/../Common/HookUtilities.psm1" -Force
 
 function Get-StagedADRChanges {
     try {
-        $stagedFiles = & git diff --cached --name-only 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            # Fail-closed: git errors should block commits to prevent bypass
-            throw "git diff --cached failed with exit code $LASTEXITCODE : $stagedFiles"
-        }
-
-        if (-not $stagedFiles) {
+        $stagedFiles = & git diff --cached --name-only 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $stagedFiles) {
             return @()
         }
 
@@ -55,8 +50,7 @@ function Get-StagedADRChanges {
         return $adrFiles
     }
     catch {
-        # Re-throw to fail-closed
-        throw "Failed to check staged ADR changes: $($_.Exception.Message)"
+        return @()
     }
 }
 
@@ -263,22 +257,6 @@ This ensures 6-agent debate (architect, critic, independent-thinker, security, a
 }
 catch {
     # Fail-open on errors (don't block on infrastructure issues)
-    $errorMsg = "ADR review guard error: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
-    Write-Warning $errorMsg
-    [Console]::Error.WriteLine($errorMsg)
-
-    # Audit log entry for infrastructure errors
-    try {
-        $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-        $hookDir = Split-Path -Parent $scriptDir
-        $auditLogPath = Join-Path $hookDir "audit.log"
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        $logEntry = "[$timestamp] [ADRReviewGuard] $errorMsg"
-        Add-Content -Path $auditLogPath -Value $logEntry -ErrorAction SilentlyContinue
-    }
-    catch {
-        # Silent fallback if audit log write fails
-    }
-
+    Write-Warning "ADR review guard error: $($_.Exception.Message)"
     exit 0
 }

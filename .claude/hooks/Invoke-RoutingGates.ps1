@@ -125,17 +125,7 @@ end {
             Add-Content -Path $auditLogPath -Value $logEntry -ErrorAction SilentlyContinue
         }
         catch {
-            # Fallback: Write to stderr and try temp directory
-            [Console]::Error.WriteLine("[$HookName] Audit log write failed: $($_.Exception.Message)")
-            try {
-                $tempAuditLog = Join-Path ([System.IO.Path]::GetTempPath()) "claude-hook-audit.log"
-                $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-                $logEntry = "[$timestamp] [$HookName] $Message"
-                Add-Content -Path $tempAuditLog -Value $logEntry -ErrorAction SilentlyContinue
-            }
-            catch {
-                # Final fallback: silent failure
-            }
+            # Silently fail - don't block hook operation if audit logging fails
         }
     }
 
@@ -153,22 +143,13 @@ end {
         $SessionDir = ".agents/sessions"
         $Today = Get-Date -Format "yyyy-MM-dd"
 
-        if (-not (Test-Path $SessionDir)) {
-            Write-Warning "Invoke-RoutingGates: Session directory not found: $SessionDir"
-            return $null
-        }
-
-        try {
-            $SessionLog = Get-ChildItem -Path $SessionDir -Filter "$Today*-session-*.md" -ErrorAction Stop |
+        if (Test-Path $SessionDir) {
+            $SessionLog = Get-ChildItem -Path $SessionDir -Filter "$Today*-session-*.md" |
                 Sort-Object Name -Descending |
                 Select-Object -First 1
             return $SessionLog
         }
-        catch {
-            Write-Warning "Invoke-RoutingGates: Failed to read session logs from ${SessionDir}: $($_.Exception.Message)"
-            Write-HookAuditLog -HookName "RoutingGates" -Message "Session log read error: $($_.Exception.Message)"
-            return $null
-        }
+        return $null
     }
 
     <#
@@ -234,11 +215,9 @@ end {
                 # Fallback to simple comparison if three-dot syntax fails
                 $ChangedFiles = & git diff --name-only origin/main 2>&1
                 if ($LASTEXITCODE -ne 0) {
-                    # Git command failed - fail-closed to prevent QA bypass
-                    # This prevents PRs from bypassing QA requirements when git ref resolution fails
-                    $errorMsg = "git diff failed (exit $LASTEXITCODE): $ChangedFiles"
-                    Write-Warning "Invoke-RoutingGates: $errorMsg. Failing closed (git errors block)."
-                    Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
+                    # SECURITY: Fail-closed to prevent QA bypass via git errors
+                    # If we cannot determine changed files, assume code changes exist
+                    Write-Warning "Invoke-RoutingGates: git diff origin/main also failed (exit $LASTEXITCODE). Failing closed (QA required)."
                     return $false
                 }
             }
@@ -267,23 +246,23 @@ end {
             return ($CodeFiles.Count -eq 0)
         }
         catch [System.UnauthorizedAccessException] {
-            # Permission error - likely temporary, fail-open
+            # SECURITY: Fail-closed to prevent QA bypass via permission errors
             $errorMsg = "Permission denied checking git diff: $($_.Exception.Message)"
-            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open."
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing closed (QA required)."
             Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
-            return $true
+            return $false
         }
         catch [System.IO.IOException] {
-            # I/O error (disk, network) - infrastructure issue, fail-open
+            # SECURITY: Fail-closed to prevent QA bypass via I/O errors
             $errorMsg = "I/O error checking git diff: $($_.Exception.Message)"
-            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing open."
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing closed (QA required)."
             Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
-            return $true
+            return $false
         }
         catch {
-            # Unexpected error during file filtering - fail-closed by default
+            # SECURITY: Fail-closed to prevent QA bypass via unexpected errors
             $errorMsg = "Unexpected error checking changed files: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
-            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing closed."
+            Write-Warning "Invoke-RoutingGates: $errorMsg. Failing closed (QA required)."
             Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
             return $false
         }

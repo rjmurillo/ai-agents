@@ -48,7 +48,6 @@ See [references/workflow.md](references/workflow.md) Phase -1 for full details.
 | **Context extraction** | `Extract-GitHubContext.ps1` |
 | PR metadata | `Get-PRContext.ps1` |
 | Comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` |
-| Domain classification | `Get-PRReviewComments.ps1 -GroupByDomain` |
 | Reviewers | `Get-PRReviewers.ps1` |
 | Reply | `Post-PRCommentReply.ps1` |
 | Reaction | `Add-CommentReaction.ps1` |
@@ -63,62 +62,14 @@ See [references/workflow.md](references/workflow.md) Phase -1 for full details.
 | P2 | coderabbitai[bot] | ~50% |
 | P2 | Copilot | ~44% |
 
-### Domain-Based Priority
-
-Comments are classified into domains for priority-based triage:
-
-| Priority | Domain | Keywords | Use Case |
-|----------|--------|----------|----------|
-| P0 | Security | CWE-*, vulnerability, injection, XSS, SQL, CSRF, auth, secrets, credentials, TOCTOU, symlink, traversal | Process FIRST - security-critical issues |
-| P1 | Bug | error, crash, exception, fail, null, undefined, race condition, deadlock, memory leak | Address functional issues |
-| P2 | Style | formatting, naming, indentation, whitespace, convention, prefer, consider, suggest | Apply improvements when time permits |
-| P3 | Summary | Bot-generated summaries (## Summary, ### Overview) | Informational only |
-
-**Domain-First Processing Workflow:**
-
-```powershell
-# Get comments grouped by domain
-$comments = Get-PRReviewComments.ps1 -PullRequest 908 -GroupByDomain -IncludeIssueComments
-
-# Process security FIRST (CWE, vulnerabilities, injection)
-foreach ($comment in $comments.Security) {
-    # Handle security-critical issues immediately
-    # Route to security agent if needed
-}
-
-# Then bugs (errors, crashes, null references)
-foreach ($comment in $comments.Bug) {
-    # Address functional issues
-}
-
-# Then style (formatting, naming, conventions)
-foreach ($comment in $comments.Style) {
-    # Apply style improvements
-}
-
-# Finally general comments (everything else)
-foreach ($comment in $comments.General) {
-    # Process general feedback
-}
-
-# Skip summary comments (bot-generated noise)
-# $comments.Summary contains informational summaries only
-```
-
-**Benefits:**
-
-- Security issues processed before style suggestions
-- Reduces noise from bot-generated summaries
-- Enables metrics tracking (security vs style comment distribution)
-
 ### Workflow Phases
 
 0. **Context inference**: Extract PR number from prompt (BLOCKING)
 1. **Memory init**: Load `pr-comment-responder-skills` memory
-2. **Context gather**: PR metadata, reviewers, all comments (optionally use `-GroupByDomain` for priority-based triage)
+2. **Context gather**: PR metadata, reviewers, all comments
 3. **Acknowledge**: Batch eyes reactions
 4. **Generate map**: `.agents/pr-comments/PR-[N]/comments.md`
-5. **Delegate**: Each comment to orchestrator (process security domain first when using domain classification)
+5. **Delegate**: Each comment to orchestrator
 6. **Implement**: Via orchestrator delegation
 7. **Verify**: All comments addressed, CI passing
 

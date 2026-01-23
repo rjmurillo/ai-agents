@@ -61,6 +61,7 @@ You have direct access to:
 |-----------|--------|----------|
 | PR metadata | `Get-PRContext.ps1` | `gh pr view` |
 | Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
+| Review + Issue comments (exclude stale) | `Get-PRReviewComments.ps1 -IncludeIssueComments -DetectStale -ExcludeStale` | Manual pagination + stale detection |
 | Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq unique` |
 | Reply to comment | `Post-PRCommentReply.ps1` | `gh api ... -X POST` |
 | Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
@@ -78,6 +79,33 @@ pwsh $HOME/.claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 50
 ```
 
 See `.claude/skills/github/SKILL.md` for full documentation.
+
+### Stale Comment Detection
+
+Use `-DetectStale` with `Get-PRReviewComments.ps1` to identify comments referencing deleted or moved code:
+
+```powershell
+# Detect and exclude stale comments (recommended for response workflow)
+pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 `
+  -PullRequest 908 `
+  -IncludeIssueComments `
+  -DetectStale `
+  -ExcludeStale
+```
+
+**Stale Reasons**:
+
+- `FileDeleted`: Comment references a file that no longer exists in HEAD
+- `LineOutOfRange`: Comment line number exceeds current file length  
+- `CodeChanged`: Diff hunk context no longer matches current code
+
+**When to Use**:
+
+- **Phase 1 (Context Gathering)**: Use `-DetectStale -ExcludeStale` to avoid wasting effort on deleted code
+- **PR Cleanup**: Use `-DetectStale -OnlyStale` to identify and resolve stale comment threads
+- **Bot Comment Hygiene**: Detect when bots reviewed outdated commits
+
+**Example**: PR #908 had 4 Gemini security comments on `.claude/hooks/Stop/Invoke-SkillLearning.ps1` (PowerShell), which was deleted in commit `2777c91` and replaced with Python. All 4 comments were stale (reason: `FileDeleted`).
 
 ## Workflow Paths Reference
 

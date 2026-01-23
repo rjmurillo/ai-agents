@@ -26,7 +26,9 @@ BeforeAll {
             [Parameter(Mandatory)]
             [string]$TempDir,
 
-            [switch]$WithCodeChange
+            [switch]$WithCodeChange,
+
+            [switch]$WithDocsOnlyChange
         )
 
         # Create a bare repo to act as origin
@@ -50,8 +52,9 @@ BeforeAll {
         & git config user.name "Test" 2>$null
         & git remote add origin $originDir 2>$null
 
-        # Initial commit
+        # Initial commit - include a README.md for docs-only test scenarios
         "initial" | Set-Content "initial.txt"
+        "# Initial README" | Set-Content "README.md"
         & git add . 2>$null
         & git commit -m "initial" --quiet 2>$null
         & git push -u origin HEAD:main --quiet 2>$null
@@ -64,6 +67,13 @@ BeforeAll {
             "test" | Set-Content "test.ps1"
             & git add . 2>$null
             & git commit -m "add code" --quiet 2>$null
+        }
+
+        if ($WithDocsOnlyChange) {
+            # Modify only documentation files
+            "# Updated README" | Set-Content "README.md"
+            & git add . 2>$null
+            & git commit -m "update docs" --quiet 2>$null
         }
 
         Pop-Location
@@ -441,18 +451,10 @@ All tests passed successfully.
             $OriginalLocation = Get-Location
             $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "test-routing-gates-$([Guid]::NewGuid())"
             New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents" "sessions") -Force | Out-Null
 
             try {
-                Set-Location $TempDir
-                & git init --quiet 2>$null
-                & git config user.email "test@test.com" 2>$null
-                & git config user.name "Test" 2>$null
-                "# Initial" | Set-Content "README.md"
-                & git add . 2>$null
-                & git commit -m "initial" --quiet 2>$null
-                "# Updated" | Set-Content "README.md"
+                $WorkDir = Initialize-TestGitRepoWithOrigin -TempDir $TempDir -WithDocsOnlyChange
+                Set-Location $WorkDir
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title \"Update docs\""}}'
                 $Output = $TestInput | & $ScriptPath
@@ -469,24 +471,50 @@ All tests passed successfully.
             $OriginalLocation = Get-Location
             $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "test-routing-gates-$([Guid]::NewGuid())"
             New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents") -Force | Out-Null
-            New-Item -ItemType Directory -Path (Join-Path $TempDir ".agents" "sessions") -Force | Out-Null
 
             try {
-                Set-Location $TempDir
+                # Create a bare repo to act as origin
+                $originDir = Join-Path $TempDir "origin.git"
+                New-Item -ItemType Directory -Path $originDir -Force | Out-Null
+                Push-Location $originDir
+                & git init --bare --quiet 2>$null
+                Pop-Location
+
+                # Create the working repo
+                $workDir = Join-Path $TempDir "work"
+                New-Item -ItemType Directory -Path $workDir -Force | Out-Null
+                New-Item -ItemType Directory -Path (Join-Path $workDir ".agents") -Force | Out-Null
+                New-Item -ItemType Directory -Path (Join-Path $workDir ".agents" "sessions") -Force | Out-Null
+                New-Item -ItemType Directory -Path (Join-Path $workDir ".claude") -Force | Out-Null
+                "# placeholder" | Set-Content (Join-Path $workDir ".claude/settings.json")
+
+                Push-Location $workDir
                 & git init --quiet 2>$null
                 & git config user.email "test@test.com" 2>$null
                 & git config user.name "Test" 2>$null
+                & git remote add origin $originDir 2>$null
+
+                # Initial commit with mixed-case markdown files
+                "initial" | Set-Content "initial.txt"
                 "# Initial" | Set-Content "README.md"
                 "# Initial" | Set-Content "CHANGELOG.MD"
                 "# Initial" | Set-Content "NOTES.Md"
                 & git add . 2>$null
                 & git commit -m "initial" --quiet 2>$null
+                & git push -u origin HEAD:main --quiet 2>$null
 
-                # Change files with mixed-case extensions
+                # Create feature branch
+                & git checkout -b feature-branch --quiet 2>$null
+
+                # Change only mixed-case markdown files
                 "# Updated" | Set-Content "README.md"
                 "# Updated" | Set-Content "CHANGELOG.MD"
                 "# Updated" | Set-Content "NOTES.Md"
+                & git add . 2>$null
+                & git commit -m "update docs" --quiet 2>$null
+
+                Pop-Location
+                Set-Location $workDir
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title \"Update docs\""}}'
                 $Output = $TestInput | & $ScriptPath

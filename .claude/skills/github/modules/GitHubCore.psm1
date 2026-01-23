@@ -402,8 +402,15 @@ function Invoke-GhApiPaginated {
         $response = gh api $url 2>&1
 
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "API request failed: $response"
-            break
+            $errorMsg = "GitHub API request failed for endpoint '$Endpoint' (page $page): $response"
+            if ($page -eq 1) {
+                # First page failure is fatal - no partial data to return
+                Write-ErrorAndExit $errorMsg 3
+            } else {
+                # Mid-pagination failure - return partial results
+                Write-Warning "$errorMsg. Returning partial results from $($allItems.Count) items."
+                break
+            }
         }
 
         $items = $response | ConvertFrom-Json
