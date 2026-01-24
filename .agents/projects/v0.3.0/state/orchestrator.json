@@ -1,0 +1,15 @@
+{
+  "version": "0.3.0",
+  "started": null,
+  "current_week": 1,
+  "chains": {
+    "1": {"status": "pending", "current_issue": null, "completed_issues": []},
+    "2": {"status": "pending", "current_issue": null, "completed_issues": []},
+    "3": {"status": "pending", "current_issue": null, "completed_issues": []},
+    "4": {"status": "pending", "current_issue": null, "completed_issues": []},
+    "5": {"status": "pending", "current_issue": null, "completed_issues": []},
+    "6": {"status": "pending", "current_issue": null, "completed_issues": []}
+  },
+  "issues": {},
+  "messages": []
+}
