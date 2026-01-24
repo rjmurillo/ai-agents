@@ -105,6 +105,29 @@ flowchart TD
 
 ---
 
+## Memory Interface Decision Matrix
+
+> **When to use which memory interface.** This matrix eliminates confusion about the 4 memory backends.
+
+| Use Case | Interface | Command/Tool | Why |
+|----------|-----------|--------------|-----|
+| Quick memory search from CLI | `/memory-search` slash command | `/memory-search "topic"` | Fastest, no agent overhead |
+| Complex context gathering | `context-retrieval` agent | `Task(subagent_type="context-retrieval")` | Deep exploration, graph traversal |
+| Script integration | Memory Router skill | `Search-Memory -Query "topic"` | PowerShell pipeline, structured output |
+| Direct MCP access (agents only) | Forgetful/Serena MCP | `mcp__forgetful__*`, `mcp__serena__*` | Full control, programmatic |
+| Cross-session knowledge | Forgetful semantic search | `execute_forgetful_tool("query_memory")` | Vector similarity, cross-project |
+| File-based lookup | Serena memories | `mcp__serena__read_memory` | Git-synced, always available |
+
+**Decision Tree**:
+
+1. Are you a human at CLI? → Use `/memory-search`
+2. Are you an agent needing deep context? → Use `context-retrieval` agent
+3. Are you a PowerShell script? → Use Memory Router skill
+4. Need semantic search across projects? → Use Forgetful directly
+5. Need specific memory by name? → Use Serena directly
+
+---
+
 ## Agent Catalog
 
 ### Coordination Agents
