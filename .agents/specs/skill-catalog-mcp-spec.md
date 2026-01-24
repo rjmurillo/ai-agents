@@ -1,9 +1,24 @@
-# Skill Catalog MCP Technical Specification
+---
+type: spec
+id: skill-catalog-mcp
+title: Skill Catalog MCP Technical Specification
+status: draft
+version: 0.1.0
+created: 2025-12-21
+updated: 2025-12-21
+author: Claude Code
+tags:
+  - mcp
+  - skill-catalog
+  - specification
+adr: ADR-012
+related:
+  - ADR-012-skill-catalog-mcp.md
+  - agent-orchestration-mcp-spec.md
+  - session-state-mcp-spec.md
+---
 
-> **Status**: Draft
-> **Version**: 0.1.0
-> **ADR**: [ADR-012](../architecture/ADR-012-skill-catalog-mcp.md)
-> **Date**: 2025-12-21
+# Skill Catalog MCP Technical Specification
 
 ## Overview
 

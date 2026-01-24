@@ -1,9 +1,24 @@
-# Agent Orchestration MCP Technical Specification
+---
+type: spec
+id: agent-orchestration-mcp
+title: Agent Orchestration MCP Technical Specification
+status: draft
+version: 0.1.0
+created: 2025-12-21
+updated: 2025-12-21
+author: Claude Code
+tags:
+  - mcp
+  - agent-orchestration
+  - specification
+adr: ADR-013
+related:
+  - ADR-013-agent-orchestration-mcp.md
+  - session-state-mcp-spec.md
+  - skill-catalog-mcp-spec.md
+---
 
-> **Status**: Draft
-> **Version**: 0.1.0
-> **ADR**: [ADR-013](../architecture/ADR-013-agent-orchestration-mcp.md)
-> **Date**: 2025-12-21
+# Agent Orchestration MCP Technical Specification
 
 ## Overview
 

@@ -1,8 +1,23 @@
-# MCP Integration Overview
+---
+type: overview
+id: mcp-integration
+title: MCP Integration Overview
+status: draft
+version: 0.1.0
+created: 2025-12-21
+updated: 2025-12-21
+author: Claude Code
+tags:
+  - mcp
+  - integration
+  - architecture
+related:
+  - agent-orchestration-mcp-spec.md
+  - session-state-mcp-spec.md
+  - skill-catalog-mcp-spec.md
+---
 
-> **Status**: Draft
-> **Version**: 0.1.0
-> **Date**: 2025-12-21
+# MCP Integration Overview
 
 ## Three-MCP Architecture
 

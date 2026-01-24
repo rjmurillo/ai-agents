@@ -1,9 +1,24 @@
-# Session State MCP Technical Specification
+---
+type: spec
+id: session-state-mcp
+title: Session State MCP Technical Specification
+status: draft
+version: 0.1.0
+created: 2025-12-21
+updated: 2025-12-21
+author: Claude Code
+tags:
+  - mcp
+  - session-state
+  - specification
+adr: ADR-011
+related:
+  - ADR-011-session-state-mcp.md
+  - agent-orchestration-mcp-spec.md
+  - skill-catalog-mcp-spec.md
+---
 
-> **Status**: Draft
-> **Version**: 0.1.0
-> **ADR**: [ADR-011](../architecture/ADR-011-session-state-mcp.md)
-> **Date**: 2025-12-21
+# Session State MCP Technical Specification
 
 ## Overview
 
