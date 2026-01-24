@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .citations import verify_all_memories, verify_memory
 from .graph import MemoryGraph, TraversalStrategy
+from .health import generate_health_report
 from .models import LinkType, Memory
 
 
@@ -235,6 +236,36 @@ def cmd_graph(args):
         sys.exit(1)
 
 
+def cmd_health(args):
+    """Generate health report for memories.
+
+    Args:
+        args: Parsed command-line arguments
+    """
+    memories_dir = Path(args.dir)
+    if not memories_dir.exists():
+        print(f"Error: Directory not found: {args.dir}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        report = generate_health_report(
+            memories_dir,
+            format=args.format,
+            include_graph_analysis=args.include_graph,
+        )
+
+        if args.format == "json":
+            print(json.dumps(report, indent=2))
+        else:
+            print(report)
+
+        sys.exit(0)
+
+    except Exception as e:
+        print(f"Error generating health report: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -290,6 +321,26 @@ def main():
     )
     graph_parser.add_argument("--json", action="store_true", help="Output as JSON")
     graph_parser.set_defaults(func=cmd_graph)
+
+    # Health command
+    health_parser = subparsers.add_parser("health", help="Generate memory health report")
+    health_parser.add_argument(
+        "--dir",
+        default=".serena/memories",
+        help="Memory directory (default: .serena/memories)",
+    )
+    health_parser.add_argument(
+        "--format",
+        choices=["markdown", "json"],
+        default="markdown",
+        help="Output format (default: markdown)",
+    )
+    health_parser.add_argument(
+        "--include-graph",
+        action="store_true",
+        help="Include graph connectivity analysis (orphaned memories)",
+    )
+    health_parser.set_defaults(func=cmd_health)
 
     args = parser.parse_args()
 
