@@ -40,7 +40,7 @@ You have direct access to:
 
 - **Read/Grep/Glob**: Analyze execution artifacts
 - **Bash**: `git log`, `gh pr view` for context
-- **cloudmcp-manager memory tools**: Store learnings
+- **Forgetful MCP tools**: Store learnings (see [Memory Interface Decision Matrix](../../AGENTS.md#memory-interface-decision-matrix))
 - **TodoWrite**: Track analysis
 
 ## Core Mission
@@ -746,7 +746,7 @@ Store root cause entities for future pattern matching:
 **Create root cause entity:**
 
 ```text
-mcp__cloudmcp-manager__memory-create_entities
+execute_forgetful_tool("create_entity")
 {
   "entities": [{
     "name": "RootCause-{Category}-{NNN}",
@@ -766,7 +766,7 @@ mcp__cloudmcp-manager__memory-create_entities
 **Create prevention relations:**
 
 ```text
-mcp__cloudmcp-manager__memory-create_relations
+execute_forgetful_tool("link_memories")
 {
   "relations": [
     {"from": "RootCause-{Category}-{NNN}", "to": "Skill-{Prevention}", "relationType": "prevents_by"},
@@ -839,7 +839,7 @@ After storing root cause patterns, delegate to skillbook for skill persistence:
 **Deduplication Query:**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
+execute_forgetful_tool("query_memory")
 Query: "RootCause {Category} {Keywords from description}"
 ```
 
@@ -1167,44 +1167,38 @@ Meta-learning about the retrospective process.
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for all persistence operations.
+Use Forgetful MCP tools directly for all persistence operations. See [Memory Interface Decision Matrix](../../AGENTS.md#memory-interface-decision-matrix) for guidance.
 
 **Create new skills:**
 
 ```json
-mcp__cloudmcp-manager__memory-create_entities
-{
-  "entities": [{
-    "name": "{domain}-{description}",
-    "entityType": "Skill",
-    "observations": ["[Skill statement with context and evidence]"]
-  }]
-}
+execute_forgetful_tool("create_entity", {
+  "name": "{domain}-{description}",
+  "entity_type": "Skill",
+  "notes": "[Skill statement with context and evidence]"
+})
 ```
 
 **Add observations to existing entities:**
 
 ```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "[Skill ID]",
-    "contents": ["[New observation with evidence source]"]
-  }]
-}
+execute_forgetful_tool("create_memory", {
+  "title": "[Observation title]",
+  "content": "[Observation content with evidence]",
+  "context": "[Why this matters]",
+  "keywords": ["skill", "{domain}"],
+  "tags": ["retrospective"],
+  "importance": 7
+})
 ```
 
 **Create relations between entities:**
 
 ```json
-mcp__cloudmcp-manager__memory-create_relations
-{
-  "relations": [
-    {"from": "[Skill ID]", "to": "[Learning ID]", "relationType": "derived_from"},
-    {"from": "[Skill ID]", "to": "[Failure ID]", "relationType": "prevents"},
-    {"from": "[Skill ID]", "to": "[Old Skill ID]", "relationType": "supersedes"}
-  ]
-}
+execute_forgetful_tool("link_memories", {
+  "memory_id": [skill_id],
+  "related_ids": [[learning_id], [failure_id]]
+})
 ```
 
 ---
@@ -1238,7 +1232,7 @@ When retrospective is complete:
 | **planner** | Process improvement | Update approach |
 | **architect** | Design insight | Update guidance |
 
-**Note**: Use cloudmcp-manager memory tools directly to persist skills, relations, and observations - no delegation to memory agent required.
+**Note**: Use Forgetful MCP tools directly to persist skills, relations, and observations - no delegation to memory agent required.
 
 ---
 
@@ -1330,7 +1324,7 @@ When retrospective is complete:
 | **planner** | Process improvement | Update approach |
 | **architect** | Design insight | Update guidance |
 
-**Note**: Memory persistence is done directly via cloudmcp-manager memory tools (see Memory Protocol section above).
+**Note**: Memory persistence is done directly via Forgetful MCP tools (see Memory Protocol section above).
 
 ## Execution Mindset
 
