@@ -30,11 +30,14 @@ Based on the above changes:
 1. Create a new branch if on main
    1. Determine the type of change that maps to conventional commit type followed by a 3-5 word description (e.g., fix/parser-log-enrichment)
 2. Push the branch to origin
-3. Create a pull request using the New-PR skill script:
+3. Read @.github/PULL_REQUEST_TEMPLATE.md
+4. Write a new file to capturing the changes of this branch in the format and style of PULL_REQUEST_TEMPLATE.md (e.g. /tmp/PR-123-BODY.md)
+5. Create a pull request using the New-PR skill script:
 
    ```bash
-   pwsh .claude/skills/github/scripts/pr/New-PR.ps1 -Title "<conventional commit title>" -BodyFile .github/PULL_REQUEST_TEMPLATE.md
+   pwsh .claude/skills/github/scripts/pr/New-PR.ps1 -Title "<conventional commit title>" -BodyFile /tmp/PR-123-BODY.md
    ```
 
    - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
-4. You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.
+
+You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.
