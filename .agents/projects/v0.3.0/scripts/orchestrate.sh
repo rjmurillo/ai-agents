@@ -368,7 +368,8 @@ CRITIQUE_EOF
     esac
 
     log_info "Running critic (${CRITIC_MODEL} model)..."
-    critique=$(claude ${model_flag} --dangerously-skip-permissions -p "${critique_prompt}" 2>/dev/null | grep -E '^(VERDICT|CONFIDENCE|SUMMARY|ISSUES):' | head -4)
+    # Use || true to prevent grep exit code 1 (no matches) from failing the pipeline
+    critique=$(claude ${model_flag} --dangerously-skip-permissions -p "${critique_prompt}" 2>/dev/null | grep -E '^(VERDICT|CONFIDENCE|SUMMARY|ISSUES):' | head -4 || true)
 
     # Log the critique
     log_critique "${chain}" "${issue}" "${critique}"
@@ -743,7 +744,8 @@ DECISION_EOF
     esac
 
     log_info "Escalating decision to ${DECISION_MODEL} model..."
-    decision=$(claude ${model_flag} --dangerously-skip-permissions -p "${decision_prompt}" 2>/dev/null | grep -E '^(DECISION|RATIONALE|NEXT_ACTION):' | head -3)
+    # Use || true to prevent grep exit code 1 (no matches) from failing the pipeline
+    decision=$(claude ${model_flag} --dangerously-skip-permissions -p "${decision_prompt}" 2>/dev/null | grep -E '^(DECISION|RATIONALE|NEXT_ACTION):' | head -3 || true)
 
     # Fallback if decision is empty or malformed
     if [[ -z "${decision}" ]] || ! echo "${decision}" | grep -q "^DECISION:"; then
@@ -979,10 +981,10 @@ ${critique_feedback}
                 log_info "Running remediation agent..."
                 case "${AGENT_CMD}" in
                     claude)
-                        (cd "${dir}" && claude --dangerously-skip-permissions -p "${remediation_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        (cd "${dir}" && claude --dangerously-skip-permissions -p "${remediation_prompt}" 2>&1 | tee -a "${log_file}") || log_warn "Critic remediation agent failed"
                         ;;
                     copilot)
-                        (cd "${dir}" && gh copilot suggest --yolo "${remediation_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        (cd "${dir}" && gh copilot suggest --yolo "${remediation_prompt}" 2>&1 | tee -a "${log_file}") || log_warn "Critic remediation agent failed"
                         ;;
                 esac
 
@@ -1010,8 +1012,18 @@ ${critique_feedback}
         if [[ ${pr_verified} -ne 0 ]]; then
             log_error "Issue #${issue} failed PR/CI verification"
 
-            # If no PR, run agent to create one
-            if [[ -z "$(cd "${dir}" && gh pr list --head "${branch}" --json number --jq '.[0].number' 2>/dev/null)" ]]; then
+            # Check if PR exists (with proper error handling)
+            local pr_check_result=""
+            local pr_check_exit=0
+            pr_check_result=$(cd "${dir}" && gh pr list --head "${branch}" --json number --jq '.[0].number' 2>&1) || pr_check_exit=$?
+
+            # If gh command failed (not just empty result), log and continue to CI fix
+            if [[ ${pr_check_exit} -ne 0 ]]; then
+                log_warn "PR check failed: ${pr_check_result}"
+            fi
+
+            # If no PR (empty result and command succeeded), run agent to create one
+            if [[ ${pr_check_exit} -eq 0 && -z "${pr_check_result}" ]]; then
                 log_info "Running agent to create PR..."
                 local pr_prompt="${base_prompt}
 
@@ -1026,10 +1038,10 @@ Your implementation is ready but you did not create a Pull Request.
 
                 case "${AGENT_CMD}" in
                     claude)
-                        (cd "${dir}" && claude --dangerously-skip-permissions -p "${pr_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        (cd "${dir}" && claude --dangerously-skip-permissions -p "${pr_prompt}" 2>&1 | tee -a "${log_file}") || log_warn "PR creation agent failed"
                         ;;
                     copilot)
-                        (cd "${dir}" && gh copilot suggest --yolo "${pr_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        (cd "${dir}" && gh copilot suggest --yolo "${pr_prompt}" 2>&1 | tee -a "${log_file}") || log_warn "PR creation agent failed"
                         ;;
                 esac
 
@@ -1054,10 +1066,10 @@ Your PR has failing CI checks. You must fix them before the issue can be marked 
 
                 case "${AGENT_CMD}" in
                     claude)
-                        (cd "${dir}" && claude --dangerously-skip-permissions -p "${ci_fix_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        (cd "${dir}" && claude --dangerously-skip-permissions -p "${ci_fix_prompt}" 2>&1 | tee -a "${log_file}") || log_warn "CI fix agent failed"
                         ;;
                     copilot)
-                        (cd "${dir}" && gh copilot suggest --yolo "${ci_fix_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        (cd "${dir}" && gh copilot suggest --yolo "${ci_fix_prompt}" 2>&1 | tee -a "${log_file}") || log_warn "CI fix agent failed"
                         ;;
                 esac
 
