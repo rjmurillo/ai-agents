@@ -383,6 +383,116 @@ read_messages() {
     echo -e "${messages}"
 }
 
+# Decision maker configuration
+DECISION_MODEL="${DECISION_MODEL:-opus}"  # opus or gpt
+DECISION_LOG="${PROJECT_DIR}/decisions/decisions.jsonl"
+MAX_DECISION_ROUNDS=3  # Prevent infinite loops
+
+# Detect if agent output contains a question requiring a decision
+# Returns 0 if question detected, 1 otherwise
+detect_question() {
+    local log_file="$1"
+    local last_lines
+    last_lines=$(tail -50 "${log_file}" 2>/dev/null || echo "")
+
+    # Patterns that indicate agent is asking for input
+    if echo "${last_lines}" | grep -qiE '(which (option|approach)|how would you like|would you prefer|should I|do you want|please (choose|select|confirm)|option [A-Z]:|waiting for|need.*clarification|\?$)'; then
+        return 0
+    fi
+    return 1
+}
+
+# Get autonomous decision using orchestrator agent pattern
+# Args: chain, issue, question_context
+# Returns: decision text via stdout
+get_decision() {
+    local chain="$1"
+    local issue="$2"
+    local context="$3"
+    local decision_prompt
+
+    # Use orchestrator agent pattern - it has workflow to handle ambiguity
+    decision_prompt=$(cat << DECISION_EOF
+You are the orchestrator agent making an autonomous decision for v0.3.0 milestone execution.
+
+## Situation
+An implementer agent working on issue #${issue} (chain ${chain}) encountered ambiguity and needs guidance to continue.
+
+## Agent's Question/Context
+${context}
+
+## Decision Framework
+Apply the orchestrator workflow:
+1. Analyze dependencies - what blocks what?
+2. Apply YAGNI - what's the minimum to unblock progress?
+3. Consider chain ownership - this chain owns its issues sequentially
+4. Prefer implementation over waiting - momentum matters
+
+## Constraints
+- Do NOT ask follow-up questions
+- Do NOT suggest waiting for human input
+- Make a decisive choice NOW
+- The system must not stall
+
+## Response Format (EXACTLY this format)
+DECISION: [Your choice - e.g., "Option C" or clear directive]
+RATIONALE: [One sentence why]
+NEXT_ACTION: [What the agent should do immediately]
+DECISION_EOF
+)
+
+    local decision=""
+    local model_flag=""
+
+    case "${DECISION_MODEL}" in
+        opus)
+            model_flag="--model claude-opus-4-5-20251101"
+            ;;
+        sonnet)
+            model_flag="--model claude-sonnet-4-20250514"
+            ;;
+        *)
+            model_flag="--model claude-opus-4-5-20251101"
+            ;;
+    esac
+
+    log_info "Escalating decision to ${DECISION_MODEL} model..."
+    decision=$(claude ${model_flag} --dangerously-skip-permissions -p "${decision_prompt}" 2>/dev/null | grep -E '^(DECISION|RATIONALE|NEXT_ACTION):' | head -3)
+
+    # Fallback if decision is empty or malformed
+    if [[ -z "${decision}" ]] || ! echo "${decision}" | grep -q "^DECISION:"; then
+        decision="DECISION: Option A - Proceed with first available option
+RATIONALE: Decision service returned incomplete response, defaulting to forward progress
+NEXT_ACTION: Implement the first option and iterate"
+    fi
+
+    echo "${decision}"
+}
+
+# Log decision for audit trail
+log_decision() {
+    local chain="$1"
+    local issue="$2"
+    local question="$3"
+    local decision="$4"
+    local timestamp
+    timestamp=$(date -Iseconds)
+
+    mkdir -p "$(dirname "${DECISION_LOG}")"
+
+    jq -n \
+        --arg ts "${timestamp}" \
+        --argjson chain "${chain}" \
+        --argjson issue "${issue}" \
+        --arg question "${question}" \
+        --arg decision "${decision}" \
+        --arg model "${DECISION_MODEL}" \
+        '{timestamp: $ts, chain: $chain, issue: $issue, question: $question, decision: $decision, model: $model}' \
+        >> "${DECISION_LOG}"
+
+    log_info "Decision logged: Chain ${chain}, Issue #${issue}"
+}
+
 # Generate agent prompt for an issue
 generate_prompt() {
     local chain="$1"
@@ -407,6 +517,13 @@ You are working on v0.3.0 milestone, chain ${chain}, issue #${issue}.
 6. Create atomic commits with conventional messages
 7. When done, push your branch and create a PR
 
+## CRITICAL: Autonomous Execution
+- Do NOT ask questions or wait for input - make autonomous decisions
+- If facing ambiguity, choose the most pragmatic option that unblocks progress
+- If dependencies are missing, implement stubs or the minimal viable version
+- Document your decisions in commit messages
+- The system will escalate to a decision-maker if truly blocked, but prefer self-resolution
+
 ## Messages from Other Chains
 ${messages:-"No messages from other chains."}
 
@@ -415,15 +532,16 @@ Complete when ALL verification commands in the Implementation Card exit with cod
 EOF
 }
 
-# Run agent on a specific issue. Side effects: Updates state file to running/completed/failed,
-# logs to LOG_DIR, sends completion messages to dependent chains.
+# Run agent on a specific issue with automatic decision escalation.
+# If agent asks a question, escalates to decision-maker and re-runs with answer.
+# Side effects: Updates state file, logs to LOG_DIR, sends completion messages.
 run_agent() {
     local chain="$1"
     local issue="$2"
     local dir="${WORKTREE_BASE}/chain${chain}"
     local log_file="${LOG_DIR}/chain${chain}-issue${issue}-$(date +%Y%m%d-%H%M%S).log"
-    local prompt
-    prompt=$(generate_prompt "${chain}" "${issue}")
+    local base_prompt
+    base_prompt=$(generate_prompt "${chain}" "${issue}")
 
     log_info "run_agent: Starting ${AGENT_CMD} for chain ${chain}, issue #${issue}"
     log_info "run_agent: Working directory: ${dir}"
@@ -434,33 +552,87 @@ run_agent() {
         return 1
     fi
 
-    # Run agent in worktree directory
     local exit_code=0
-    log_info "run_agent: Executing ${AGENT_CMD} command..."
-    case "${AGENT_CMD}" in
-        claude)
-            log_info "run_agent: Running: cd ${dir} && claude --dangerously-skip-permissions -p <prompt>"
-            (cd "${dir}" && claude --dangerously-skip-permissions -p "${prompt}" 2>&1 | tee "${log_file}") || exit_code=$?
-            log_info "run_agent: claude exited with code ${exit_code}"
-            ;;
-        copilot)
-            # NOTE: copilot mode is experimental
-            (cd "${dir}" && gh copilot suggest --yolo "${prompt}" 2>&1 | tee "${log_file}") || exit_code=$?
-            ;;
-        *)
-            log_error "Unknown agent: ${AGENT_CMD}"
-            return 1
-            ;;
-    esac
+    local decision_round=0
+    local prompt="${base_prompt}"
+    local accumulated_decisions=""
 
+    # Decision loop - runs agent, checks for questions, escalates if needed
+    while [[ ${decision_round} -lt ${MAX_DECISION_ROUNDS} ]]; do
+        log_info "run_agent: Round $((decision_round + 1))/${MAX_DECISION_ROUNDS}"
+
+        # Run agent
+        log_info "run_agent: Executing ${AGENT_CMD} command..."
+        case "${AGENT_CMD}" in
+            claude)
+                log_info "run_agent: Running claude in ${dir}"
+                (cd "${dir}" && claude --dangerously-skip-permissions -p "${prompt}" 2>&1 | tee -a "${log_file}") || exit_code=$?
+                log_info "run_agent: claude exited with code ${exit_code}"
+                ;;
+            copilot)
+                (cd "${dir}" && gh copilot suggest --yolo "${prompt}" 2>&1 | tee -a "${log_file}") || exit_code=$?
+                ;;
+            *)
+                log_error "Unknown agent: ${AGENT_CMD}"
+                return 1
+                ;;
+        esac
+
+        # Check if agent asked a question
+        if detect_question "${log_file}"; then
+            decision_round=$((decision_round + 1))
+            log_warn "Agent asked a question (round ${decision_round}/${MAX_DECISION_ROUNDS}), escalating to decision-maker..."
+
+            # Extract question context (last 100 lines of log)
+            local question_context
+            question_context=$(tail -100 "${log_file}" 2>/dev/null || echo "No context available")
+
+            # Get decision from higher model
+            local decision
+            decision=$(get_decision "${chain}" "${issue}" "${question_context}")
+
+            # Log the decision
+            log_decision "${chain}" "${issue}" "${question_context}" "${decision}"
+
+            log_info "Decision received:"
+            echo "${decision}" | while read -r line; do log_info "  ${line}"; done
+
+            # Append decision to prompt and continue
+            accumulated_decisions="${accumulated_decisions}
+
+## Decision from Orchestrator (Round ${decision_round})
+${decision}
+
+Continue implementing based on this decision. Do NOT ask further questions - make autonomous choices."
+
+            prompt="${base_prompt}${accumulated_decisions}"
+
+            # Add separator to log file
+            echo "" >> "${log_file}"
+            echo "=== DECISION ESCALATION (Round ${decision_round}) ===" >> "${log_file}"
+            echo "${decision}" >> "${log_file}"
+            echo "=== CONTINUING WITH DECISION ===" >> "${log_file}"
+            echo "" >> "${log_file}"
+        else
+            # No question detected, agent completed its work
+            log_info "run_agent: No question detected, agent work complete"
+            break
+        fi
+    done
+
+    if [[ ${decision_round} -ge ${MAX_DECISION_ROUNDS} ]]; then
+        log_error "Max decision rounds (${MAX_DECISION_ROUNDS}) reached for issue #${issue}"
+        exit_code=1
+    fi
+
+    # Handle completion or failure
     if [[ ${exit_code} -eq 0 ]]; then
         if ! mark_issue_completed "${chain}" "${issue}"; then
             log_error "CRITICAL: Issue #${issue} completed but state update failed!"
             log_error "Manual fix needed: Update ${STATE_FILE} to mark issue ${issue} complete"
             return 1
         fi
-        log_success "Issue #${issue} completed"
-        # Notify dependent chains. Failure is non-fatal since chains poll state anyway.
+        log_success "Issue #${issue} completed (${decision_round} decision rounds)"
         if ! send_completion_message "${chain}" "${issue}"; then
             log_warn "Some completion notifications failed, dependent chains will discover via polling"
         fi
@@ -924,6 +1096,12 @@ main() {
             echo "Environment:"
             echo "  AGENT_CMD=${AGENT_CMD}  (claude or copilot)"
             echo "  PARALLEL_CHAINS=${PARALLEL_CHAINS}  (max concurrent chains, default 3)"
+            echo "  DECISION_MODEL=${DECISION_MODEL}  (opus or sonnet for escalation)"
+            echo ""
+            echo "Decision Escalation:"
+            echo "  When agents ask questions, they are automatically escalated to"
+            echo "  the DECISION_MODEL for autonomous resolution. Decisions are logged"
+            echo "  to ${DECISION_LOG}"
             ;;
         *)
             echo "Unknown command: $1"
