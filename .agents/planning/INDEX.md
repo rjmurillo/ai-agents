@@ -1,7 +1,8 @@
 # Planning Directory Index
 
-**Last Updated**: 2026-01-21
+**Last Updated**: 2026-01-23
 **Total Planning Docs**: Active tracking
+**Current Milestone**: v0.3.0 (Memory Enhancement + Quality)
 
 ---
 
@@ -21,11 +22,27 @@ This directory contains:
 
 | Document | Type | Status | Related Issue/PR |
 |----------|------|--------|------------------|
-| [phase2b-memory-sync-strategy.md](./phase2b-memory-sync-strategy.md) | Strategy | Active | Phase 2B work |
-| [prd-workflow-orchestration-enhancement.md](./prd-workflow-orchestration-enhancement.md) | PRD | Planning | Epic #739 |
+| **[v0.3.0/PLAN.md](./v0.3.0/PLAN.md)** | **Milestone Plan** | **🟢 ACTIVE** | **v0.3.0 (23 issues)** |
+| [phase2b-memory-sync-strategy.md](./phase2b-memory-sync-strategy.md) | Strategy | Active | #747 |
+| [prd-workflow-orchestration-enhancement.md](./prd-workflow-orchestration-enhancement.md) | PRD | ⚠️ Deferred | Epic #739 (Future) |
 | [prd-agent-consolidation.md](./prd-agent-consolidation.md) | PRD | Planning | Epic #907, #972 |
 | [prd-visual-studio-install-support.md](./prd-visual-studio-install-support.md) | PRD | Planning | TBD |
 | [prd-pre-pr-security-gate.md](./prd-pre-pr-security-gate.md) | PRD | Planning | TBD |
+
+### v0.3.0 Milestone (Current Focus)
+
+**Master Plan**: [v0.3.0/PLAN.md](./v0.3.0/PLAN.md)
+
+| Focus Area | Issues | Key Deliverables |
+|------------|--------|------------------|
+| Memory Enhancement | #997, #998, #999, #1001 | Citations, graph traversal, health reporting |
+| Memory Optimization | #751, #734, #747, #731 | Unified interface, 13x performance |
+| Traceability | #724, #721, #722, #723 | Graph implementation, spec tooling |
+| Quality & Testing | #749, #778, #840 | Testing philosophy, coverage |
+| Skill Quality | #761, #809 | v2.0 compliance, session-end skill |
+| CI/CD | #77, #90, #71, #101 | Permissions, documentation |
+
+**Parallel Chains**: 6 independent worktrees for concurrent execution. See plan for details.
 
 ---
 
