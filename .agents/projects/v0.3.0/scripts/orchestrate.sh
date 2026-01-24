@@ -300,6 +300,58 @@ setup_worktree() {
     return 1
 }
 
+# Sync chain branch after issue completion.
+# Ensures commits from previous issues are available to subsequent issues.
+# Called after each issue completes successfully.
+sync_chain_branch() {
+    local chain="$1"
+    local issue="$2"
+    local dir="${WORKTREE_BASE}/chain${chain}"
+    local branch="${CHAIN_BRANCHES[$chain]}"
+
+    log_info "Syncing chain ${chain} branch after issue #${issue}..."
+
+    # Check for uncommitted changes and commit them
+    if (cd "${dir}" && git status --porcelain | grep -q .); then
+        log_info "Found uncommitted changes, committing..."
+        (cd "${dir}" && git add -A && git commit -m "chore(chain${chain}): auto-commit for issue #${issue}
+
+Orchestrator auto-commit to preserve work between issues.
+
+Co-Authored-By: Orchestrator <noreply@orchestrator.local>") || {
+            log_warn "Auto-commit failed, changes may be lost"
+        }
+    fi
+
+    # Push to remote
+    log_info "Pushing ${branch} to origin..."
+    if ! (cd "${dir}" && git push -u origin "${branch}" 2>&1); then
+        log_warn "Push failed for chain ${chain}, subsequent issues may not see this work"
+        return 1
+    fi
+
+    log_success "Chain ${chain} branch synced after issue #${issue}"
+    return 0
+}
+
+# Pull latest changes before starting an issue.
+# Ensures work from previous issues in the chain is available.
+pull_chain_branch() {
+    local chain="$1"
+    local dir="${WORKTREE_BASE}/chain${chain}"
+    local branch="${CHAIN_BRANCHES[$chain]}"
+
+    log_info "Pulling latest for chain ${chain} branch..."
+
+    # Fetch and pull
+    if ! (cd "${dir}" && git fetch origin && git pull origin "${branch}" --rebase 2>&1); then
+        log_warn "Pull failed for chain ${chain}, may be working with stale code"
+        # Don't fail - the branch might be new
+    fi
+
+    return 0
+}
+
 # Remove worktree for a chain. Logs warnings on failure but allows continuation.
 cleanup_worktree() {
     local chain="$1"
@@ -517,12 +569,24 @@ You are working on v0.3.0 milestone, chain ${chain}, issue #${issue}.
 6. Create atomic commits with conventional messages
 7. When done, push your branch and create a PR
 
-## CRITICAL: Autonomous Execution
-- Do NOT ask questions or wait for input - make autonomous decisions
-- If facing ambiguity, choose the most pragmatic option that unblocks progress
-- If dependencies are missing, implement stubs or the minimal viable version
+## CRITICAL: Autonomous Execution (MUST FOLLOW)
+You are running non-interactively. There is NO human to answer questions.
+
+**NEVER**:
+- Wait for permission approvals (you have --dangerously-skip-permissions)
+- Ask "how would you like to proceed?" or similar questions
+- Wait for clarification - make the best choice and document it
+- Stall on missing dependencies - implement stubs if needed
+
+**ALWAYS**:
+- Make autonomous decisions immediately
+- Create files, edit code, run commands without asking
+- If previous phase code is missing, implement it yourself or create minimal stubs
 - Document your decisions in commit messages
-- The system will escalate to a decision-maker if truly blocked, but prefer self-resolution
+- Complete your assigned issue, don't stop halfway
+
+The orchestrator will escalate to a decision-maker ONLY if absolutely necessary.
+Prefer forward progress over perfect information.
 
 ## Messages from Other Chains
 ${messages:-"No messages from other chains."}
@@ -546,6 +610,9 @@ run_agent() {
     log_info "run_agent: Starting ${AGENT_CMD} for chain ${chain}, issue #${issue}"
     log_info "run_agent: Working directory: ${dir}"
     log_info "run_agent: Log file: ${log_file}"
+
+    # Pull latest chain branch to get work from previous issues
+    pull_chain_branch "${chain}"
 
     if ! mark_issue_started "${chain}" "${issue}"; then
         log_error "Failed to mark issue #${issue} as started"
@@ -633,6 +700,10 @@ Continue implementing based on this decision. Do NOT ask further questions - mak
             return 1
         fi
         log_success "Issue #${issue} completed (${decision_round} decision rounds)"
+
+        # Sync branch so subsequent issues in this chain can access the code
+        sync_chain_branch "${chain}" "${issue}"
+
         if ! send_completion_message "${chain}" "${issue}"; then
             log_warn "Some completion notifications failed, dependent chains will discover via polling"
         fi
