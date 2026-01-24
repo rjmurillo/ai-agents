@@ -213,6 +213,43 @@ update_state() {
     fi
 }
 
+# Verify that actual work was done in the worktree.
+# Returns 0 if work detected, 1 if no work detected.
+# Checks: new commits, uncommitted changes, or new files.
+verify_work_done() {
+    local chain="$1"
+    local issue="$2"
+    local dir="${WORKTREE_BASE}/chain${chain}"
+    local branch="${CHAIN_BRANCHES[$chain]}"
+
+    log_info "Verifying work was done for chain ${chain}, issue #${issue}..."
+
+    # Check 1: Are there new commits on this branch vs origin/main?
+    local new_commits
+    new_commits=$(cd "${dir}" && git log origin/main..HEAD --oneline 2>/dev/null | wc -l)
+    if [[ "${new_commits}" -gt 0 ]]; then
+        log_info "Found ${new_commits} new commit(s)"
+        return 0
+    fi
+
+    # Check 2: Are there uncommitted changes?
+    if (cd "${dir}" && git status --porcelain | grep -q .); then
+        log_info "Found uncommitted changes"
+        return 0
+    fi
+
+    # Check 3: Were any files modified in the working tree?
+    local modified_files
+    modified_files=$(cd "${dir}" && git diff --name-only HEAD 2>/dev/null | wc -l)
+    if [[ "${modified_files}" -gt 0 ]]; then
+        log_info "Found ${modified_files} modified file(s)"
+        return 0
+    fi
+
+    log_warn "NO WORK DETECTED for issue #${issue} - agent may have stalled"
+    return 1
+}
+
 # State update helpers for common operations
 mark_issue_started() {
     local chain="$1" issue="$2"
@@ -694,6 +731,19 @@ Continue implementing based on this decision. Do NOT ask further questions - mak
 
     # Handle completion or failure
     if [[ ${exit_code} -eq 0 ]]; then
+        # CRITICAL: Verify actual work was done before marking complete
+        local work_verified=0
+        verify_work_done "${chain}" "${issue}" || work_verified=$?
+
+        if [[ ${work_verified} -ne 0 ]]; then
+            log_error "Issue #${issue} exited cleanly but NO WORK WAS DETECTED"
+            log_error "Agent may have stalled, asked questions, or encountered silent failure"
+            log_error "NOT marking issue as complete - requires investigation"
+            # Update state to reflect stalled status
+            update_state ".issues.\"${issue}\".status = \"stalled\" | .issues.\"${issue}\".error = \"No work detected - agent may have stalled\""
+            return 1
+        fi
+
         if ! mark_issue_completed "${chain}" "${issue}"; then
             log_error "CRITICAL: Issue #${issue} completed but state update failed!"
             log_error "Manual fix needed: Update ${STATE_FILE} to mark issue ${issue} complete"

@@ -4,12 +4,14 @@
   "current_week": 1,
   "chains": {
     "1": {"status": "pending", "current_issue": null, "completed_issues": []},
-    "2": {"status": "pending", "current_issue": null, "completed_issues": []},
+    "2": {"status": "pending", "current_issue": null, "completed_issues": [751]},
     "3": {"status": "pending", "current_issue": null, "completed_issues": []},
     "4": {"status": "pending", "current_issue": null, "completed_issues": []},
     "5": {"status": "pending", "current_issue": null, "completed_issues": []},
     "6": {"status": "pending", "current_issue": null, "completed_issues": []}
   },
-  "issues": {},
+  "issues": {
+    "751": {"status": "completed", "started": "2026-01-24T13:39:20-08:00", "completed": "2026-01-24T13:46:22-08:00", "pr": 1007}
+  },
   "messages": []
 }
