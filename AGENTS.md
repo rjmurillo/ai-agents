@@ -1130,6 +1130,67 @@ Read `.serena/memories/usage-mandatory.md`
 | **retrospective** | Search all related entities; create skill entities from learnings |
 | **skillbook** | Search for duplicates; create/update skill entities |
 
+### Memory Enhancement Layer (Citations & Confidence)
+
+The memory-enhancement skill provides citation management and confidence scoring for Serena memories.
+
+**Purpose:** Link memories to specific code locations and track validity over time.
+
+**When to Use:**
+
+- Adding citations when documenting code-specific learnings
+- Verifying citations after refactoring or code changes
+- Monitoring memory health (stale citations detection)
+- Calculating confidence scores based on citation validity
+
+**CLI Commands:**
+
+| Command | Purpose | Example |
+|---------|---------|---------|
+| `add-citation` | Link memory to code location | `python -m memory_enhancement add-citation memory-001 --file src/api.py --line 42` |
+| `verify` | Check citation validity | `python -m memory_enhancement verify memory-001` |
+| `verify-all` | Batch verification | `python -m memory_enhancement verify-all` |
+| `update-confidence` | Recalculate confidence score | `python -m memory_enhancement update-confidence memory-001` |
+| `list-citations` | Show citations with status | `python -m memory_enhancement list-citations memory-001` |
+| `health` | Generate health report | `python -m memory_enhancement health` |
+
+**Confidence Scoring:**
+
+```text
+confidence = valid_citations / total_citations
+```
+
+| Score Range | Interpretation | Action |
+|-------------|----------------|--------|
+| 0.9 - 1.0 | High confidence | Trust memory, use in decisions |
+| 0.7 - 0.9 | Medium confidence | Review stale citations |
+| 0.5 - 0.7 | Low confidence | Update or mark obsolete |
+| 0.0 - 0.5 | Very low confidence | Memory likely outdated |
+
+**Integration with reflect Skill:**
+
+The reflect skill automatically detects code references in learnings and adds citations:
+
+```text
+Learning: "Bug was in `src/api.py` line 42, forgot to handle None"
+→ Auto-adds citation: src/api.py:42 with snippet "handle None"
+```
+
+**Best Practices:**
+
+- Add citations when creating code-specific memories
+- Run `verify-all` after major refactoring
+- Check confidence before relying on memories in decisions
+- Use `health` command to prioritize memory maintenance
+- Focus on 2-3 key citations (avoid over-citing)
+
+**See Also:**
+
+- [memory-enhancement skill](.claude/skills/memory-enhancement/SKILL.md)
+- [Confidence scoring guide](.claude/skills/memory-enhancement/references/confidence-scoring.md)
+- [Examples](.claude/skills/memory-enhancement/references/examples.md)
+- [ADR-037: Reflexion Memory Schema](.agents/architecture/ADR-037-reflexion-schema.md) (if exists)
+
 ---
 
 ## Workflow Patterns
