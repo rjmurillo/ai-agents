@@ -213,6 +213,203 @@ update_state() {
     fi
 }
 
+# Critic validation configuration
+CRITIC_MODEL="${CRITIC_MODEL:-sonnet}"  # sonnet for speed, opus for thoroughness
+MAX_CRITIQUE_ROUNDS=2  # Allow one retry after critique
+CRITIQUE_LOG="${PROJECT_DIR}/decisions/critiques.jsonl"
+
+# Verify PR exists and CI checks pass.
+# Returns 0 if PR exists with passing checks, 1 otherwise.
+verify_pr_and_checks() {
+    local chain="$1"
+    local issue="$2"
+    local dir="${WORKTREE_BASE}/chain${chain}"
+    local branch="${CHAIN_BRANCHES[$chain]}"
+
+    log_info "Verifying PR and CI checks for chain ${chain}, issue #${issue}..."
+
+    # Check if PR exists for this branch
+    local pr_number
+    pr_number=$(cd "${dir}" && gh pr list --head "${branch}" --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+    if [[ -z "${pr_number}" ]]; then
+        log_error "No PR found for branch ${branch}"
+        log_error "Agent must create a PR before marking issue complete"
+        return 1
+    fi
+
+    log_info "Found PR #${pr_number} for branch ${branch}"
+
+    # Check CI status
+    local check_status
+    check_status=$(cd "${dir}" && gh pr checks "${pr_number}" --json state --jq '.[].state' 2>/dev/null || echo "UNKNOWN")
+
+    # Count failures
+    local failures
+    failures=$(echo "${check_status}" | grep -c "FAILURE\|ERROR" || echo "0")
+
+    if [[ "${failures}" -gt 0 ]]; then
+        log_error "PR #${pr_number} has ${failures} failing CI check(s)"
+        log_error "CI checks must pass before marking issue complete"
+
+        # Show which checks are failing
+        log_info "Failing checks:"
+        cd "${dir}" && gh pr checks "${pr_number}" 2>/dev/null | grep -E "fail|error" || true
+
+        return 1
+    fi
+
+    # Check if any checks are still pending
+    local pending
+    pending=$(echo "${check_status}" | grep -c "PENDING\|QUEUED\|IN_PROGRESS" || echo "0")
+
+    if [[ "${pending}" -gt 0 ]]; then
+        log_warn "PR #${pr_number} has ${pending} pending CI check(s)"
+        log_warn "Waiting for CI to complete..."
+
+        # Wait up to 5 minutes for CI
+        local wait_count=0
+        local max_wait=30  # 30 * 10s = 5 minutes
+
+        while [[ ${wait_count} -lt ${max_wait} ]]; do
+            sleep 10
+            wait_count=$((wait_count + 1))
+
+            check_status=$(cd "${dir}" && gh pr checks "${pr_number}" --json state --jq '.[].state' 2>/dev/null || echo "UNKNOWN")
+            pending=$(echo "${check_status}" | grep -c "PENDING\|QUEUED\|IN_PROGRESS" || echo "0")
+            failures=$(echo "${check_status}" | grep -c "FAILURE\|ERROR" || echo "0")
+
+            if [[ "${failures}" -gt 0 ]]; then
+                log_error "CI check(s) failed after waiting"
+                return 1
+            fi
+
+            if [[ "${pending}" -eq 0 ]]; then
+                log_success "All CI checks completed"
+                break
+            fi
+
+            log_info "Still waiting for CI... (${wait_count}/${max_wait})"
+        done
+
+        if [[ "${pending}" -gt 0 ]]; then
+            log_error "CI checks still pending after 5 minutes"
+            return 1
+        fi
+    fi
+
+    # Update state with PR number
+    update_state ".issues.\"${issue}\".pr = ${pr_number}"
+    log_success "PR #${pr_number} verified with passing CI checks"
+    return 0
+}
+
+# Run critic validation on completed work.
+# Returns 0 if approved, 1 if rejected with feedback.
+# Outputs critique verdict and feedback via stdout.
+run_critic_validation() {
+    local chain="$1"
+    local issue="$2"
+    local dir="${WORKTREE_BASE}/chain${chain}"
+    local critique_prompt
+
+    log_info "Running critic validation for chain ${chain}, issue #${issue}..."
+
+    # Get the diff of changes made
+    local changes
+    changes=$(cd "${dir}" && git diff origin/main --stat 2>/dev/null || echo "No diff available")
+    local detailed_diff
+    detailed_diff=$(cd "${dir}" && git diff origin/main 2>/dev/null | head -500 || echo "No diff available")
+
+    critique_prompt=$(cat << CRITIQUE_EOF
+You are a critic agent validating work completed for issue #${issue}.
+
+## Your Role
+Review the implementation for quality, completeness, and correctness.
+Be rigorous but fair. The goal is to catch real problems, not nitpick.
+
+## Changes Made
+\`\`\`
+${changes}
+\`\`\`
+
+## Detailed Diff (first 500 lines)
+\`\`\`diff
+${detailed_diff}
+\`\`\`
+
+## Validation Criteria
+1. **Completeness**: Does the implementation address the issue requirements?
+2. **Quality**: Is the code well-structured, following patterns in the codebase?
+3. **Safety**: Are there any security issues, error handling gaps, or breaking changes?
+4. **Tests**: If code was added, were tests added or updated?
+
+## Response Format (EXACTLY this format)
+VERDICT: [PASS or FAIL]
+CONFIDENCE: [HIGH, MEDIUM, or LOW]
+SUMMARY: [One sentence summary of assessment]
+ISSUES: [If FAIL, list specific issues that must be fixed. If PASS, write "None"]
+CRITIQUE_EOF
+)
+
+    local critique=""
+    local model_flag=""
+
+    case "${CRITIC_MODEL}" in
+        opus)
+            model_flag="--model claude-opus-4-5-20251101"
+            ;;
+        sonnet)
+            model_flag="--model claude-sonnet-4-20250514"
+            ;;
+        *)
+            model_flag="--model claude-sonnet-4-20250514"
+            ;;
+    esac
+
+    log_info "Running critic (${CRITIC_MODEL} model)..."
+    critique=$(claude ${model_flag} --dangerously-skip-permissions -p "${critique_prompt}" 2>/dev/null | grep -E '^(VERDICT|CONFIDENCE|SUMMARY|ISSUES):' | head -4)
+
+    # Log the critique
+    log_critique "${chain}" "${issue}" "${critique}"
+
+    # Parse verdict
+    local verdict
+    verdict=$(echo "${critique}" | grep "^VERDICT:" | cut -d: -f2 | tr -d ' ')
+
+    if [[ "${verdict}" == "PASS" ]]; then
+        log_success "Critic validation PASSED for issue #${issue}"
+        echo "${critique}"
+        return 0
+    else
+        log_warn "Critic validation FAILED for issue #${issue}"
+        echo "${critique}"
+        return 1
+    fi
+}
+
+# Log critique for audit trail
+log_critique() {
+    local chain="$1"
+    local issue="$2"
+    local critique="$3"
+    local timestamp
+    timestamp=$(date -Iseconds)
+
+    mkdir -p "$(dirname "${CRITIQUE_LOG}")"
+
+    jq -n \
+        --arg ts "${timestamp}" \
+        --argjson chain "${chain}" \
+        --argjson issue "${issue}" \
+        --arg critique "${critique}" \
+        --arg model "${CRITIC_MODEL}" \
+        '{timestamp: $ts, chain: $chain, issue: $issue, critique: $critique, model: $model}' \
+        >> "${CRITIQUE_LOG}"
+
+    log_info "Critique logged: Chain ${chain}, Issue #${issue}"
+}
+
 # Verify that actual work was done in the worktree.
 # Returns 0 if work detected, 1 if no work detected.
 # Checks: new commits, uncommitted changes, or new files.
@@ -739,8 +936,138 @@ Continue implementing based on this decision. Do NOT ask further questions - mak
             log_error "Issue #${issue} exited cleanly but NO WORK WAS DETECTED"
             log_error "Agent may have stalled, asked questions, or encountered silent failure"
             log_error "NOT marking issue as complete - requires investigation"
-            # Update state to reflect stalled status
             update_state ".issues.\"${issue}\".status = \"stalled\" | .issues.\"${issue}\".error = \"No work detected - agent may have stalled\""
+            return 1
+        fi
+
+        # FEEDBACK LOOP: Run critic validation with retry
+        local critique_round=0
+        local critique_passed=false
+        local critique_feedback=""
+
+        while [[ ${critique_round} -lt ${MAX_CRITIQUE_ROUNDS} ]]; do
+            critique_round=$((critique_round + 1))
+            log_info "Critic validation round ${critique_round}/${MAX_CRITIQUE_ROUNDS}..."
+
+            local critic_result=0
+            critique_feedback=$(run_critic_validation "${chain}" "${issue}") || critic_result=$?
+
+            if [[ ${critic_result} -eq 0 ]]; then
+                critique_passed=true
+                break
+            fi
+
+            # Critic rejected - if we have retries left, send feedback to agent
+            if [[ ${critique_round} -lt ${MAX_CRITIQUE_ROUNDS} ]]; then
+                log_warn "Critic rejected work, running remediation round..."
+
+                local remediation_prompt="${base_prompt}
+
+## CRITIC FEEDBACK - MUST ADDRESS
+The critic agent reviewed your implementation and found issues:
+
+${critique_feedback}
+
+## Instructions
+1. Address ALL issues listed above
+2. Make the necessary fixes
+3. Commit your changes
+4. Do NOT ask questions - fix the issues directly"
+
+                # Run agent again to fix issues
+                log_info "Running remediation agent..."
+                case "${AGENT_CMD}" in
+                    claude)
+                        (cd "${dir}" && claude --dangerously-skip-permissions -p "${remediation_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        ;;
+                    copilot)
+                        (cd "${dir}" && gh copilot suggest --yolo "${remediation_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        ;;
+                esac
+
+                # Log remediation attempt
+                echo "" >> "${log_file}"
+                echo "=== CRITIC REMEDIATION (Round ${critique_round}) ===" >> "${log_file}"
+                echo "${critique_feedback}" >> "${log_file}"
+                echo "=== REMEDIATION COMPLETE ===" >> "${log_file}"
+            fi
+        done
+
+        if [[ "${critique_passed}" != "true" ]]; then
+            log_error "Issue #${issue} failed critic validation after ${MAX_CRITIQUE_ROUNDS} rounds"
+            log_error "Marking as needs_review for manual inspection"
+            update_state ".issues.\"${issue}\".status = \"needs_review\" | .issues.\"${issue}\".error = \"Failed critic validation\" | .issues.\"${issue}\".critique = \"${critique_feedback}\""
+            return 1
+        fi
+
+        log_success "Issue #${issue} passed critic validation (round ${critique_round})"
+
+        # FINAL GATE: Verify PR exists and CI checks pass
+        local pr_verified=0
+        verify_pr_and_checks "${chain}" "${issue}" || pr_verified=$?
+
+        if [[ ${pr_verified} -ne 0 ]]; then
+            log_error "Issue #${issue} failed PR/CI verification"
+
+            # If no PR, run agent to create one
+            if [[ -z "$(cd "${dir}" && gh pr list --head "${branch}" --json number --jq '.[0].number' 2>/dev/null)" ]]; then
+                log_info "Running agent to create PR..."
+                local pr_prompt="${base_prompt}
+
+## MISSING PR - MUST CREATE
+Your implementation is ready but you did not create a Pull Request.
+
+## Instructions
+1. Push your branch if not already pushed
+2. Create a PR with: gh pr create --title 'fix(chain${chain}): implement issue #${issue}' --body '...'
+3. Wait for CI to start
+4. Do NOT ask questions - just create the PR"
+
+                case "${AGENT_CMD}" in
+                    claude)
+                        (cd "${dir}" && claude --dangerously-skip-permissions -p "${pr_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        ;;
+                    copilot)
+                        (cd "${dir}" && gh copilot suggest --yolo "${pr_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        ;;
+                esac
+
+                # Retry PR verification
+                verify_pr_and_checks "${chain}" "${issue}" || pr_verified=$?
+            fi
+
+            # If CI is failing, run agent to fix
+            if [[ ${pr_verified} -ne 0 ]]; then
+                log_info "Running agent to fix CI failures..."
+                local ci_fix_prompt="${base_prompt}
+
+## CI CHECKS FAILING - MUST FIX
+Your PR has failing CI checks. You must fix them before the issue can be marked complete.
+
+## Instructions
+1. Run: gh pr checks
+2. Identify the failing checks
+3. Fix the issues in your code
+4. Commit and push the fixes
+5. Do NOT ask questions - fix the CI failures"
+
+                case "${AGENT_CMD}" in
+                    claude)
+                        (cd "${dir}" && claude --dangerously-skip-permissions -p "${ci_fix_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        ;;
+                    copilot)
+                        (cd "${dir}" && gh copilot suggest --yolo "${ci_fix_prompt}" 2>&1 | tee -a "${log_file}") || true
+                        ;;
+                esac
+
+                # Final retry
+                verify_pr_and_checks "${chain}" "${issue}" || pr_verified=$?
+            fi
+        fi
+
+        if [[ ${pr_verified} -ne 0 ]]; then
+            log_error "Issue #${issue} could not pass PR/CI verification after remediation"
+            update_state ".issues.\"${issue}\".status = \"ci_failed\" | .issues.\"${issue}\".error = \"PR or CI checks failed\""
             return 1
         fi
 
@@ -749,7 +1076,7 @@ Continue implementing based on this decision. Do NOT ask further questions - mak
             log_error "Manual fix needed: Update ${STATE_FILE} to mark issue ${issue} complete"
             return 1
         fi
-        log_success "Issue #${issue} completed (${decision_round} decision rounds)"
+        log_success "Issue #${issue} completed (${decision_round} decision rounds, ${critique_round} critique rounds)"
 
         # Sync branch so subsequent issues in this chain can access the code
         sync_chain_branch "${chain}" "${issue}"
@@ -1217,12 +1544,24 @@ main() {
             echo "Environment:"
             echo "  AGENT_CMD=${AGENT_CMD}  (claude or copilot)"
             echo "  PARALLEL_CHAINS=${PARALLEL_CHAINS}  (max concurrent chains, default 3)"
-            echo "  DECISION_MODEL=${DECISION_MODEL}  (opus or sonnet for escalation)"
+            echo "  DECISION_MODEL=${DECISION_MODEL}  (opus or sonnet for decision escalation)"
+            echo "  CRITIC_MODEL=${CRITIC_MODEL}  (sonnet or opus for critic validation)"
+            echo ""
+            echo "Feedback Loops:"
+            echo "  1. Work Verification: Checks for actual commits/changes before proceeding"
+            echo "  2. Critic Validation: Reviews code quality, runs ${MAX_CRITIQUE_ROUNDS} rounds max"
+            echo "  3. PR/CI Gate: Ensures PR exists and all CI checks pass"
             echo ""
             echo "Decision Escalation:"
             echo "  When agents ask questions, they are automatically escalated to"
             echo "  the DECISION_MODEL for autonomous resolution. Decisions are logged"
             echo "  to ${DECISION_LOG}"
+            echo ""
+            echo "Completion Criteria (ALL required):"
+            echo "  - Actual work done (commits or changes)"
+            echo "  - Critic validation passed"
+            echo "  - PR created"
+            echo "  - All CI checks passing"
             ;;
         *)
             echo "Unknown command: $1"
