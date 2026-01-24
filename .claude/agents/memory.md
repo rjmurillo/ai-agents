@@ -38,16 +38,16 @@ Key requirements:
 
 You have direct access to:
 
-- **Memory Router skill** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic" -MaxResults 10`
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic" -LexicalOnly` (Serena only)
-  - Returns JSON with deduplicated results from both sources
-- **Serena memory tools**: Memory storage in `.serena/memories/`
-  - `mcp__serena__list_memories`: List all available memories
-  - `mcp__serena__read_memory`: Read specific memory file
-  - `mcp__serena__write_memory`: Create new memory file
-  - `mcp__serena__edit_memory`: Update existing memory
-  - `mcp__serena__delete_memory`: Remove obsolete memory
+- **Memory Router** (ADR-037): Unified memory access in `.claude/skills/memory/scripts/MemoryRouter.psm1`
+  - `Search-Memory`: Semantic/lexical search with Serena-first routing, Forgetful augmentation
+    - `Search-Memory -Query "topic" -MaxResults 10`: Combined semantic + lexical search
+    - `Search-Memory -Query "topic" -LexicalOnly`: Serena-only (always available)
+    - `Search-Memory -Query "topic" -SemanticOnly`: Forgetful-only (requires availability)
+  - Direct Serena MCP tools (until Memory Router fully implements ADR-037 interface):
+    - `mcp__serena__read_memory`: Read specific memory file by name
+    - `mcp__serena__write_memory`: Create new memory file
+    - `mcp__serena__edit_memory`: Update existing memory
+    - `mcp__serena__delete_memory`: Remove obsolete memory
 - **Read/Grep**: Context search in codebase
 - **TodoWrite**: Track memory operations
 
@@ -99,44 +99,52 @@ Correct format:
 
 ### Memory Tools Reference
 
-### List (Discover Available)
+### Search (Discover by Keywords)
 
-```text
-mcp__serena__list_memories
-Returns: All memory files in .serena/memories/
+```powershell
+# Preferred: Use Memory Router for unified search
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
+Search-Memory -Query "topic keywords" -MaxResults 10
+
+# Returns deduplicated results with:
+# - Name: Memory file name
+# - Content: Full memory content
+# - Source: "Serena", "Forgetful", or "Both"
+# - Score: Relevance score
+# - Path: File path (Serena only)
 ```
 
-### Read (Retrieve Content)
+### Read (Retrieve Content by Name)
 
-```text
-mcp__serena__read_memory
-memory_file_name: "[file-name-without-extension]"
-Returns: Full content of memory file
+```powershell
+# Direct read by memory name (until Memory Router implements Get-Memory)
+mcp__serena__read_memory -memory_file_name "[file-name-without-extension]"
+# Returns: Full content of memory file
 ```
 
 ### Write (Create New)
 
-```text
-mcp__serena__write_memory
-memory_file_name: "[domain]-[descriptive-name]"
-content: "[memory content in markdown format]"
+```powershell
+# Direct write (until Memory Router implements Save-Memory)
+mcp__serena__write_memory -memory_file_name "[domain]-[descriptive-name]" `
+  -content "[memory content in markdown format]"
 ```
 
 ### Edit (Update Existing)
 
-```text
-mcp__serena__edit_memory
-memory_file_name: "[file-name]"
-needle: "[text to find]"
-repl: "[replacement text]"
-mode: "literal" | "regex"
+```powershell
+# Direct edit (until Memory Router implements Save-Memory)
+mcp__serena__edit_memory -memory_file_name "[file-name]" `
+  -needle "[text to find]" `
+  -repl "[replacement text]" `
+  -mode "literal"  # or "regex"
 ```
 
 ### Delete (Remove Obsolete)
 
-```text
-mcp__serena__delete_memory
-memory_file_name: "[file-name]"
+```powershell
+# Direct delete (until Memory Router provides deletion interface)
+mcp__serena__delete_memory -memory_file_name "[file-name]"
 ```
 
 ## File Naming vs Entity IDs
@@ -199,29 +207,25 @@ pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "task keywords" -Max
 
 **Tiered Lookup Example:**
 
-```text
+```powershell
 # Step 1: Route via L1 index
-mcp__serena__read_memory
-memory_file_name: "memory-index"
+mcp__serena__read_memory -memory_file_name "memory-index"
 # Result: "powershell ps1 module pester" -> skills-powershell-index
 
 # Step 2: Find specific skill via L2 index
-mcp__serena__read_memory
-memory_file_name: "skills-powershell-index"
+mcp__serena__read_memory -memory_file_name "skills-powershell-index"
 # Result: Keywords "isolation mock" -> pester-test-isolation-pattern
 
 # Step 3: Retrieve atomic memory
-mcp__serena__read_memory
-memory_file_name: "pester-test-isolation-pattern"
+mcp__serena__read_memory -memory_file_name "pester-test-isolation-pattern"
 ```
 
 **Direct Access (When Path Known):**
 
 If you already know the memory file name, skip L1/L2 lookup:
 
-```text
-mcp__serena__read_memory
-memory_file_name: "powershell-testing-patterns"
+```powershell
+mcp__serena__read_memory -memory_file_name "powershell-testing-patterns"
 ```
 
 ## Storage Protocol
@@ -252,9 +256,8 @@ flowchart TD
 
 Consult `memory-index.md` to find correct domain:
 
-```text
-mcp__serena__read_memory
-memory_file_name: "memory-index"
+```powershell
+mcp__serena__read_memory -memory_file_name "memory-index"
 ```
 
 Match memory topic against Task Keywords column to find domain index.
@@ -270,15 +273,23 @@ Match memory topic against Task Keywords column to find domain index.
 
 ### Creating New Memories
 
-```text
-# Step 1: Create atomic memory file
-mcp__serena__write_memory
-memory_file_name: "[domain]-[descriptive-name]"
-content: "# [Title]\n\n**Statement**: [Atomic description]\n\n**Context**: [When applicable]\n\n**Evidence**: [Source/proof]\n\n## Details\n\n[Content]"
+```powershell
+# Step 1: Create atomic memory file (until Memory Router implements Save-Memory)
+mcp__serena__write_memory -memory_file_name "[domain]-[descriptive-name]" `
+  -content "# [Title]
+
+**Statement**: [Atomic description]
+
+**Context**: [When applicable]
+
+**Evidence**: [Source/proof]
+
+## Details
+
+[Content]"
 
 # Step 2: Read domain index to find last table row
-mcp__serena__read_memory
-memory_file_name: "skills-[domain]-index"
+mcp__serena__read_memory -memory_file_name "skills-[domain]-index"
 # WARNING: Markdown tables have structure:
 #   | Keywords | File |           <-- Header row
 #   |----------|------|           <-- Delimiter row (SKIP THIS)
@@ -286,9 +297,8 @@ memory_file_name: "skills-[domain]-index"
 # Find the LAST DATA ROW (not header, not delimiter)
 # Inserting after header/delimiter corrupts the table
 
-# Step 3: Insert new row AFTER the last existing DATA row
-mcp__serena__edit_memory
-memory_file_name: "skills-[domain]-index"
+# Step 3: Insert new row AFTER the last existing DATA row (until Memory Router implements Save-Memory)
+mcp__serena__edit_memory -memory_file_name "skills-[domain]-index" `
 needle: "| [last-existing-keywords] | [last-existing-file] |"
 repl: "| [last-existing-keywords] | [last-existing-file] |\n| [new-keywords] | [new-file-name] |"
 mode: "literal"

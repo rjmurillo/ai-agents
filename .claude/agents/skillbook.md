@@ -39,12 +39,13 @@ Key requirements:
 
 You have direct access to:
 
-- **Serena memory tools**: Skill storage in `.serena/memories/`
-  - `mcp__serena__list_memories`: List all available memories
-  - `mcp__serena__read_memory`: Read specific memory file
-  - `mcp__serena__write_memory`: Create new memory file
-  - `mcp__serena__edit_memory`: Update existing memory
-  - `mcp__serena__delete_memory`: Remove obsolete memory
+- **Memory Router** (ADR-037): Unified memory access in `.claude/skills/memory/scripts/MemoryRouter.psm1`
+  - `Search-Memory`: Semantic/lexical search with Serena-first routing, Forgetful augmentation
+  - Direct Serena MCP tools (until Memory Router fully implements ADR-037 interface):
+    - `mcp__serena__read_memory`: Read specific memory file by name
+    - `mcp__serena__write_memory`: Create new memory file
+    - `mcp__serena__edit_memory`: Update existing memory
+    - `mcp__serena__delete_memory`: Remove obsolete memory
 - **Read/Grep**: Search for existing patterns
 - **TodoWrite**: Track skill operations
 
@@ -103,12 +104,13 @@ Before adding ANY new skill:
 [Full text]
 
 ### Similarity Search
-1. Read memory-index.md for domain routing
-2. Read relevant domain index (skills-*-index.md)
-3. Search activation vocabulary for similar keywords
+1. Use Memory Router to search for similar skills
+2. Read memory-index.md for domain routing (if needed)
+3. Read relevant domain index (skills-*-index.md)
 
-mcp__serena__list_memories  # List all memories
-mcp__serena__read_memory    # Read specific domain index
+# Search for similar skills using Memory Router
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
+Search-Memory -Query "your skill keywords" -MaxResults 5
 
 ### Most Similar Existing
 - **File**: [skill-file-name.md or "None"]
@@ -211,9 +213,9 @@ Skills are stored as atomic markdown files in `.serena/memories/`. Every skill u
 **Atomicity**: 98% | **Impact**: 10/10
 
 ## Pattern
-1. mcp__serena__activate_project
-2. mcp__serena__initial_instructions
-3. Proceed with work
+1. Initialize Serena (session protocol requirement)
+2. Search Memory Router for existing skills before adding new ones
+3. Proceed with skill operations
 ```
 
 ### Index Selection
@@ -239,9 +241,9 @@ When adding a skill to a domain index, select 4-8 keywords:
 
 To find the correct index for a new skill, consult `memory-index.md`:
 
-```text
-mcp__serena__read_memory
-memory_file_name: "memory-index"
+```powershell
+# Read memory-index directly (until Memory Router implements Get-Memory)
+mcp__serena__read_memory -memory_file_name "memory-index"
 ```
 
 Match skill keywords against the Task Keywords column. The Essential Memories column shows which index to use.
@@ -279,19 +281,19 @@ After creating a skill file, update the domain index:
 
 **Step 1**: Read current index to find insertion point
 
-```text
-mcp__serena__read_memory
-memory_file_name: "skills-[domain]-index"
+```powershell
+# Read domain index directly (until Memory Router implements Get-Memory)
+mcp__serena__read_memory -memory_file_name "skills-[domain]-index"
 ```
 
 **Step 2**: Insert new row in Activation Vocabulary table
 
-```text
-mcp__serena__edit_memory
-memory_file_name: "skills-[domain]-index"
-needle: "| [last-existing-keywords] | [last-existing-file] |"
-repl: "| [last-existing-keywords] | [last-existing-file] |\n| [new-keywords] | [new-file-name] |"
-mode: "literal"
+```powershell
+# Update domain index directly (until Memory Router implements Save-Memory)
+mcp__serena__edit_memory -memory_file_name "skills-[domain]-index" `
+  -needle "| [last-existing-keywords] | [last-existing-file] |" `
+  -repl "| [last-existing-keywords] | [last-existing-file] |`n| [new-keywords] | [new-file-name] |" `
+  -mode "literal"
 ```
 
 **Step 3**: Validate
@@ -316,40 +318,40 @@ atomic-skill.md (L3)        # Individual skill file
 
 ### Skill Lookup (Read)
 
-1. **Start with memory-index.md** to find the right domain index
-2. **Read the domain index** (e.g., `skills-powershell-index.md`)
+1. **Use Memory Router** to search for skills by keywords
+2. **Optionally read memory-index.md** to find domain index
 3. **Match activation vocabulary** to find specific skill file
 4. **Read atomic skill file** for detailed guidance
 
-```text
-mcp__serena__read_memory
-memory_file_name: "memory-index"
+```powershell
+# Preferred: Use Memory Router for keyword search
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
+Search-Memory -Query "your keywords" -MaxResults 5
 
-mcp__serena__read_memory
-memory_file_name: "skills-powershell-index"
-
-mcp__serena__read_memory
-memory_file_name: "powershell-testing-patterns"
+# Fallback: Read specific memory by name (until Memory Router implements Get-Memory)
+mcp__serena__read_memory -memory_file_name "memory-index"
+mcp__serena__read_memory -memory_file_name "skills-powershell-index"
+mcp__serena__read_memory -memory_file_name "powershell-testing-patterns"
 ```
 
 ### Skill Creation (Write)
 
 New skills go into atomic files following domain naming:
 
-```text
-mcp__serena__write_memory
-memory_file_name: "[domain]-[skill-name]"
-content: "[skill content in standard format]"
+```powershell
+# Create new skill file (until Memory Router implements Save-Memory)
+mcp__serena__write_memory -memory_file_name "[domain]-[skill-name]" `
+  -content "[skill content in standard format]"
 ```
 
 Then update the domain index to include the new skill:
 
-```text
-mcp__serena__edit_memory
-memory_file_name: "skills-[domain]-index"
-needle: "| Keywords | File |"
-repl: "| Keywords | File |\n|----------|------|\n| [keywords] | [new-skill-name] |"
-mode: "literal"
+```powershell
+# Update domain index (until Memory Router implements Save-Memory)
+mcp__serena__edit_memory -memory_file_name "skills-[domain]-index" `
+  -needle "| Keywords | File |" `
+  -repl "| Keywords | File |`n|----------|------|`n| [keywords] | [new-skill-name] |" `
+  -mode "literal"
 ```
 
 ### Validation
@@ -412,9 +414,13 @@ Skillbook Manager:
 
 When agents retrieve skills:
 
-```text
-mcp__serena__read_memory
-memory_file_name: "skills-[domain]-index"
+```powershell
+# Preferred: Use Memory Router for keyword search
+Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
+Search-Memory -Query "relevant keywords" -MaxResults 5
+
+# Fallback: Read specific memory by name (until Memory Router implements Get-Memory)
+mcp__serena__read_memory -memory_file_name "skills-[domain]-index"
 # Then read specific skill file from index
 ```
 
