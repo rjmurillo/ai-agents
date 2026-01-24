@@ -15,6 +15,8 @@ The main agent is about to plan or implement something. Your job is to gather RE
 
 ## Five-Source Strategy
 
+> **Memory Interface Selection**: See [AGENTS.md#memory-interface-decision-matrix](../../AGENTS.md#memory-interface-decision-matrix) for when to use this agent vs other memory interfaces.
+
 ### 0. Unified Memory Router (Recommended for This Project)
 
 **Use the Memory Router skill for Serena-first search with Forgetful augmentation**:

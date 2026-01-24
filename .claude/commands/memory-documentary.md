@@ -58,3 +58,7 @@ Report saved to: `.agents/analysis/[topic]-documentary-[date].md`
 
 - `/memory-search` - Simple memory search
 - `/memory-explore` - Knowledge graph traversal
+
+## When to Use
+
+For guidance on choosing between memory interfaces, see [Memory Interface Decision Matrix](../../AGENTS.md#memory-interface-decision-matrix).
