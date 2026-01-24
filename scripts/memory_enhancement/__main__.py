@@ -12,6 +12,11 @@ from .citations import verify_all_memories, verify_memory
 from .graph import MemoryGraph, TraversalStrategy
 from .health import generate_health_report
 from .models import LinkType, Memory
+from .serena import (
+    add_citation_to_memory,
+    list_citations_with_status,
+    update_confidence,
+)
 
 
 def format_human_result(result) -> str:
@@ -266,6 +271,133 @@ def cmd_health(args):
         sys.exit(1)
 
 
+def cmd_add_citation(args):
+    """Add a citation to an existing memory.
+
+    Args:
+        args: Parsed command-line arguments
+    """
+    # Try as direct path first
+    memory_path = Path(args.memory)
+    if not memory_path.exists():
+        # Try as memory ID in default directory
+        memory_path = Path(".serena/memories") / f"{args.memory}.md"
+
+    if not memory_path.exists():
+        print(f"Error: Memory not found: {args.memory}", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        if args.dry_run:
+            print(f"[DRY RUN] Would add citation to {memory_path}")
+            print(f"  File: {args.file}")
+            print(f"  Line: {args.line or 'N/A'}")
+            print(f"  Snippet: {args.snippet or 'N/A'}")
+            sys.exit(0)
+
+        add_citation_to_memory(
+            memory_path=memory_path,
+            file_path=args.file,
+            line=args.line,
+            snippet=args.snippet,
+        )
+
+        print(f"✅ Citation added to {memory_path.stem}")
+        print(f"   File: {args.file}:{args.line or ''}")
+        sys.exit(0)
+
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
+    except Exception as e:
+        print(f"Error adding citation: {e}", file=sys.stderr)
+        sys.exit(3)
+
+
+def cmd_update_confidence(args):
+    """Recalculate and update confidence score for a memory.
+
+    Args:
+        args: Parsed command-line arguments
+    """
+    # Try as direct path first
+    memory_path = Path(args.memory)
+    if not memory_path.exists():
+        # Try as memory ID in default directory
+        memory_path = Path(".serena/memories") / f"{args.memory}.md"
+
+    if not memory_path.exists():
+        print(f"Error: Memory not found: {args.memory}", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        memory = Memory.from_serena_file(memory_path)
+        result = verify_memory(memory)
+
+        # Update confidence in file
+        update_confidence(memory, result)
+
+        confidence_pct = result.confidence * 100
+        print(f"✅ Confidence updated for {memory.id}")
+        print(f"   Confidence: {confidence_pct:.1f}%")
+        print(f"   Citations: {result.valid_count}/{result.total_citations} valid")
+
+        if result.stale_citations:
+            print(f"\n⚠️  {len(result.stale_citations)} stale citation(s) found")
+            sys.exit(1)
+
+        sys.exit(0)
+
+    except Exception as e:
+        print(f"Error updating confidence: {e}", file=sys.stderr)
+        sys.exit(3)
+
+
+def cmd_list_citations(args):
+    """List all citations in a memory with verification status.
+
+    Args:
+        args: Parsed command-line arguments
+    """
+    # Try as direct path first
+    memory_path = Path(args.memory)
+    if not memory_path.exists():
+        # Try as memory ID in default directory
+        memory_path = Path(".serena/memories") / f"{args.memory}.md"
+
+    if not memory_path.exists():
+        print(f"Error: Memory not found: {args.memory}", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        citations = list_citations_with_status(memory_path)
+
+        if args.json:
+            print(json.dumps({"citations": citations}, indent=2))
+        else:
+            memory = Memory.from_serena_file(memory_path)
+            print(f"Citations for {memory.id}:")
+            print(f"Total: {len(citations)}\n")
+
+            if not citations:
+                print("  No citations found")
+            else:
+                for citation in citations:
+                    status = "✅" if citation["valid"] else "❌"
+                    print(f"{status} {citation['path']}:{citation['line'] or ''}")
+                    if citation["snippet"]:
+                        print(f"   Snippet: {citation['snippet']}")
+                    if not citation["valid"]:
+                        print(f"   Reason: {citation['mismatch_reason']}")
+                    print()
+
+        sys.exit(0)
+
+    except Exception as e:
+        print(f"Error listing citations: {e}", file=sys.stderr)
+        sys.exit(3)
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -341,6 +473,46 @@ def main():
         help="Include graph connectivity analysis (orphaned memories)",
     )
     health_parser.set_defaults(func=cmd_health)
+
+    # Add-citation command
+    add_citation_parser = subparsers.add_parser(
+        "add-citation", help="Add a citation to an existing memory"
+    )
+    add_citation_parser.add_argument(
+        "memory", help="Memory ID or file path (e.g., memory-001 or path/to/memory.md)"
+    )
+    add_citation_parser.add_argument(
+        "--file", required=True, help="Relative file path from repository root"
+    )
+    add_citation_parser.add_argument(
+        "--line", type=int, help="Line number (1-indexed, optional for file-level citations)"
+    )
+    add_citation_parser.add_argument(
+        "--snippet", help="Optional code snippet for fuzzy matching"
+    )
+    add_citation_parser.add_argument(
+        "--dry-run", action="store_true", help="Preview changes without writing"
+    )
+    add_citation_parser.set_defaults(func=cmd_add_citation)
+
+    # Update-confidence command
+    update_confidence_parser = subparsers.add_parser(
+        "update-confidence", help="Recalculate and update confidence score"
+    )
+    update_confidence_parser.add_argument(
+        "memory", help="Memory ID or file path (e.g., memory-001 or path/to/memory.md)"
+    )
+    update_confidence_parser.set_defaults(func=cmd_update_confidence)
+
+    # List-citations command
+    list_citations_parser = subparsers.add_parser(
+        "list-citations", help="List all citations in a memory with verification status"
+    )
+    list_citations_parser.add_argument(
+        "memory", help="Memory ID or file path (e.g., memory-001 or path/to/memory.md)"
+    )
+    list_citations_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    list_citations_parser.set_defaults(func=cmd_list_citations)
 
     args = parser.parse_args()
 
