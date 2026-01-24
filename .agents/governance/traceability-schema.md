@@ -1,9 +1,14 @@
-# Traceability Graph Schema
+---
+type: governance
+id: traceability-schema
+status: active
+version: 1.0.0
+created: 2025-12-31
+related:
+  - enhancement-PROJECT-PLAN.md Phase 2
+---
 
-> **Version**: 1.0.0
-> **Created**: 2025-12-31
-> **Status**: Active
-> **Related**: [enhancement-PROJECT-PLAN.md](../planning/enhancement-PROJECT-PLAN.md) Phase 2
+# Traceability Graph Schema
 
 ## Overview
 

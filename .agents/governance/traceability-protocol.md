@@ -1,9 +1,15 @@
-# Traceability Protocol
+---
+type: governance
+id: traceability-protocol
+status: active
+version: 1.0.0
+created: 2025-12-31
+phase: 2
+related:
+  - enhancement-PROJECT-PLAN
+---
 
-> **Version**: 1.0.0
-> **Created**: 2025-12-31
-> **Status**: Active
-> **Phase**: 2 (Enhancement PROJECT-PLAN)
+# Traceability Protocol
 
 ## Purpose
 
