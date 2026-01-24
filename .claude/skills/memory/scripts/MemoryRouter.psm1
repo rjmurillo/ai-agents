@@ -35,7 +35,7 @@ $script:HealthCache = @{
 $script:Config = @{
     SerenaPath       = ".serena/memories"
     ForgetfulPort    = 8020
-    ForgetfulTimeout = 500  # milliseconds
+    ForgetfulTimeout = 50   # Reduced from 500ms for <20ms target
     MaxResults       = 10
 }
 
