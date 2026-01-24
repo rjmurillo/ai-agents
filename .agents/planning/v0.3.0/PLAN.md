@@ -962,24 +962,64 @@ Search-Memory -Query "test" -LexicalOnly  # No TCP check, ~5ms
 pwsh -c "Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1 -Force; (Measure-Command { Search-Memory 'test' -LexicalOnly }).TotalMilliseconds" | awk '{print ($1 < 20 ? "PASS" : "FAIL") " - " $1 "ms"}'
 ```
 
-##### #778 Status: LIKELY FIXED (Verify and Close)
+##### #778 Haiku-Ready Implementation (Verify and Close)
 
 > **Investigation Result**: The `foundMemories` variable pattern no longer exists in the codebase.
 > **Evidence**: `grep -r "foundMemories" --include="*.ps1" .` returns no matches.
 > **QA Report**: `.agents/qa/384-test-memoryevidence-migration.md` shows "Property access error fixed (Warnings.Count issue resolved)".
 
-**Action Required**:
-1. Run validation: `pwsh scripts/Validate-SessionJson.ps1 -SessionPath .agents/sessions/2026-01-24-session-913-*.json`
-2. If passes, close issue #778 with reference to session 384 fix
-3. If fails, investigate new location of the bug
+**Issue Acceptance Criteria Checklist**:
+- [ ] `foundMemories` pattern no longer exists in any `.ps1` file
+- [ ] Session validation script runs without errors
+- [ ] Issue closed with root cause and fix evidence
 
-**Verification**:
+**Copy-paste ready**:
+<details>
+<summary>Step 1: Verify pattern removed</summary>
+
+```bash
+grep -r "foundMemories" --include="*.ps1" . && exit 1 || echo "PASS: foundMemories pattern absent"
+```
+</details>
+
+<details>
+<summary>Step 2: Run session validation</summary>
+
+```bash
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/$(ls -1t .agents/sessions/*.json | head -1)"
+```
+</details>
+
+<details>
+<summary>Step 3: Close issue with comment (copy this to GitHub)</summary>
+
+```markdown
+## Resolution
+
+**Root Cause**: The `foundMemories` variable was accessing `.Count` on a potentially null object.
+
+**Fix Evidence**:
+- Pattern no longer exists: `grep -r "foundMemories" --include="*.ps1" .` returns 0 matches
+- Fixed during session 384 refactoring
+- QA report: `.agents/qa/384-test-memoryevidence-migration.md`
+
+**Verification**: Session validation passes without errors.
+
+Closing as fixed.
+```
+</details>
+
+**#778 Verification** (all must exit 0):
 ```bash
 # Confirm foundMemories pattern no longer exists
-grep -r "foundMemories" --include="*.ps1" . && echo "FAIL: Pattern still exists" || echo "PASS: Pattern removed"
+grep -r "foundMemories" --include="*.ps1" . && echo "FAIL: Pattern still exists" || echo "PASS"
 # Run actual validation
-pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/$(ls -t .agents/sessions/*.json | head -1)"
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/$(ls -1t .agents/sessions/*.json | head -1)"
 ```
+
+**#778 STOP Criteria** (close issue when ALL pass):
+- [ ] Verification commands exit 0
+- [ ] Issue closed on GitHub with resolution comment
 
 ---
 
@@ -999,7 +1039,7 @@ pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/$(ls -t .ag
 | Issue | Files | Exit Criteria | Status |
 |-------|-------|---------------|--------|
 | **#749** (P1) | `.claude/agents/qa.md`, `.serena/memories/testing-004-*` | QA agent uses evidence-based criteria, security-critical = 100% coverage | Has research in `.agents/analysis/testing-coverage-philosophy.md` |
-| **#778** (P1) | Likely fixed in session 384 | Verify validation passes, then close issue | [LIKELY FIXED](#778-status-likely-fixed-verify-and-close) |
+| **#778** (P1) | Likely fixed in session 384 | Verify validation passes, then close issue | [Haiku-Ready](#778-haiku-ready-implementation-verify-and-close) |
 | **#840** (P1) | `scripts/Validate-Session.ps1`, `scripts/Validate-SessionProtocol.ps1` | Consolidate duplicates to `SessionValidation.psm1`, 95% coverage | Has PR #830 follow-up list |
 | **#836** (P1) | `scripts/session-validation/Validate-SessionPath.ps1` (line 125) | Error shows normalized path, analysis in `.agents/analysis/809-path-escape-root-cause.md` | Has fix recommendation |
 
