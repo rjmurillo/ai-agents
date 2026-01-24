@@ -276,11 +276,20 @@ Phase 2 (Current - Issue #998):
 - ✅ Root memory discovery
 - ✅ Adjacency list representation
 
-Phase 3 (Planned - Issue #999):
+Phase 3 (Current - Issue #999):
 
-- Health reporting
-- Coverage metrics
-- Stale citation alerts
+- ✅ Health reporting
+- ✅ Coverage metrics
+- ✅ Stale citation alerts
+- ✅ CI integration
+
+Phase 4 (Current - Issue #1001):
+
+- ✅ Confidence scoring (`valid_citations / total_citations`)
+- ✅ Citation management CLI (`add-citation`, `update-confidence`, `list-citations`)
+- ✅ Integration with `reflect` skill for auto-citations
+- ✅ Claude Code skill wrapper (`.claude/skills/memory-enhancement/`)
+- ✅ Historical tracking (timestamps per verification)
 
 ## See Also
 
