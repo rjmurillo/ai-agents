@@ -25,7 +25,9 @@ readonly STATE_LOCK="${STATE_FILE}.lock"
 readonly LOG_DIR="${PROJECT_DIR}/logs"
 readonly INBOX_DIR="${PROJECT_DIR}/messages/inbox"
 readonly OUTBOX_DIR="${PROJECT_DIR}/messages/outbox"
-readonly WORKTREE_BASE="${REPO_ROOT}/../worktrees"
+# WORKTREE_BASE: Parent of current worktree (where all worktrees live)
+# When running from v0.3.0 worktree, REPO_ROOT is the worktree root, so parent is worktrees dir
+readonly WORKTREE_BASE="$(cd "${REPO_ROOT}/.." && pwd)"
 readonly PLAN_FILE="${REPO_ROOT}/.agents/planning/v0.3.0/PLAN.md"
 
 # Agent configuration
