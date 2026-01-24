@@ -32,18 +32,22 @@ cd ../ai-agents-chainN
 # 2. Start session
 /session-init
 
-# 3. Read your first issue
-gh issue view <ISSUE_NUMBER>
+# 3. Assign yourself to the issue (required)
+pwsh .claude/skills/github/scripts/issue/Set-IssueAssignee.ps1 -Issue <ISSUE_NUMBER> -Assignees @("@me")
 
-# 4. Begin implementation
+# 4. Read your first issue (use skill, no raw gh)
+pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMBER>
+
+# 5. Begin implementation
 ```
 
 ### Step 3: Stop/Resume Work
 
 **To Stop (End of Session)**:
 ```bash
-# 1. Commit your work
-git add . && git commit -m "WIP: [Chain N] Progress on #XXX"
+# 1. Commit your work (atomic, conventional)
+git add <files>
+git commit -m "docs(chainN): progress on #XXX"
 
 # 2. Complete session log
 pwsh scripts/Validate-SessionJson.ps1 -SessionPath .agents/sessions/<your-session>.json
@@ -61,7 +65,8 @@ cd ../ai-agents-chain<N>
 git pull
 
 # 3. Read this PLAN.md section for your chain
-# 4. Check issue status: gh issue view <ISSUE_NUMBER>
+# 4. Check issue status (use skill, no raw gh)
+pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMBER>
 # 5. Continue from where you stopped
 ```
 
@@ -76,7 +81,7 @@ git pull
 | 5 | - | 🟡 Week 3 | - | Waits for Week 3 |
 | 6 | - | 🟡 Week 5 | - | Waits for Week 5 |
 
-> **Update this table** when starting/completing issues to help other agents track progress.
+> **Update this table** only during integration to avoid merge conflicts. For live status, use branch handoffs in `.agents/handoffs/{branch}/{session}.md` or add an issue comment.
 
 ---
 
@@ -415,6 +420,32 @@ v0.3.0 delivers **Memory Enhancement** and **Quality Improvements** that establi
 **Rationale**: These two issues unlock all other memory-related work in v0.3.0.
 
 ### P1 Important (19 issues) - HIGH BUSINESS VALUE
+
+### TODO: Expand Issue Definitions (Files + Acceptance Criteria)
+
+The following issues lack concrete file paths and/or acceptance criteria. Update **both** the GitHub issue and this plan before assigning to an agent.
+
+| Issue | Missing Details | TODO |
+|-------|-----------------|------|
+| [#990](https://github.com/rjmurillo/ai-agents/issues/990) | File paths + acceptance criteria | Add specific files/dirs and completion criteria per phase |
+| [#734](https://github.com/rjmurillo/ai-agents/issues/734) | File paths + acceptance criteria | Identify target files/modules + benchmark exit criteria |
+| [#747](https://github.com/rjmurillo/ai-agents/issues/747) | File paths + acceptance criteria | Specify sync components, configs, and validation steps |
+| [#731](https://github.com/rjmurillo/ai-agents/issues/731) | File paths | Enumerate agent prompt files to update |
+| [#761](https://github.com/rjmurillo/ai-agents/issues/761) | File paths + acceptance criteria | List skills/paths and compliance checks |
+| [#809](https://github.com/rjmurillo/ai-agents/issues/809) | File paths + acceptance criteria | Define script/skill locations and pass/fail checks |
+| [#749](https://github.com/rjmurillo/ai-agents/issues/749) | File paths + acceptance criteria | Identify test/coverage files and success metrics |
+| [#778](https://github.com/rjmurillo/ai-agents/issues/778) | File paths + acceptance criteria | Point to failing script + expected fix behavior |
+| [#840](https://github.com/rjmurillo/ai-agents/issues/840) | File paths + acceptance criteria | Enumerate test targets and required coverage |
+| [#724](https://github.com/rjmurillo/ai-agents/issues/724) | File paths + acceptance criteria | Name decision doc(s) + output artifact |
+| [#721](https://github.com/rjmurillo/ai-agents/issues/721) | File paths + acceptance criteria | Identify graph tooling files and perf thresholds |
+| [#722](https://github.com/rjmurillo/ai-agents/issues/722) | File paths + acceptance criteria | Specify CLI tool locations and completion checks |
+| [#723](https://github.com/rjmurillo/ai-agents/issues/723) | File paths + acceptance criteria | List spec files to standardize and validation rule |
+| [#77](https://github.com/rjmurillo/ai-agents/issues/77) | File paths + acceptance criteria | Identify workflow(s) and permission change validation |
+| [#90](https://github.com/rjmurillo/ai-agents/issues/90) | File paths + acceptance criteria | Identify workflow(s) and label mutation verification |
+| [#836](https://github.com/rjmurillo/ai-agents/issues/836) | File paths + acceptance criteria | Point to validation script + expected error output |
+| [#71](https://github.com/rjmurillo/ai-agents/issues/71) | File paths + acceptance criteria | Specify docs location + required sections |
+| [#101](https://github.com/rjmurillo/ai-agents/issues/101) | File paths + acceptance criteria | Identify workflow + expected path filter behavior |
+| [#1001](https://github.com/rjmurillo/ai-agents/issues/1001) | File paths + acceptance criteria | Identify tooling files and output expectations |
 
 #### Epic [#990](https://github.com/rjmurillo/ai-agents/issues/990): Memory Enhancement Layer (4 issues)
 
@@ -1483,9 +1514,9 @@ graph TD
 
 ### Milestone Links
 
-- **GitHub Milestone v0.3.0**: https://github.com/rmurillo21/ai-agents/milestone/6
-- **v0.3.0 Issues**: https://github.com/rmurillo21/ai-agents/issues?q=milestone%3A0.3.0
-- **Future Milestone**: https://github.com/rmurillo21/ai-agents/milestone/2 (contains 17 deferred issues)
+- **GitHub Milestone v0.3.0**: https://github.com/rjmurillo/ai-agents/milestone/6
+- **v0.3.0 Issues**: https://github.com/rjmurillo/ai-agents/issues?q=milestone%3A0.3.0
+- **Future Milestone**: https://github.com/rjmurillo/ai-agents/milestone/2 (contains 17 deferred issues)
 
 ---
 
