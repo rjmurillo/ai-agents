@@ -32,6 +32,11 @@
       "action": "Critic verification",
       "outcome": "PASS verdict - Production ready for v0.3.0 orchestration",
       "files": []
+    },
+    {
+      "action": "Address QA and Architect concerns from AI Quality Gate",
+      "outcome": "Added Python tests (test_orchestrate_sh.py), documented copilot mode limitations in README, moved summary file out of sessions/ to fix validation",
+      "files": ["tests/test_orchestrate_sh.py", ".agents/projects/v0.3.0/README.md", ".agents/planning/v0.3.0/v0.3.0-milestone-review-summary.md"]
     }
   ],
   "protocolCompliance": {
@@ -152,7 +157,7 @@
     "result": "PASS - All critical error handling issues resolved"
   },
   "nextSteps": [
-    "Commit error handling fixes",
-    "Push to remote and update PR #1006"
+    "Merge PR #1006 after CI passes",
+    "Archive project after v0.3.0 ships"
   ]
 }

@@ -57,12 +57,26 @@ chmod +x scripts/orchestrate.sh
 ## Configuration
 
 ```bash
-# Use Copilot instead of Claude
+# Use Copilot instead of Claude (see limitations below)
 AGENT_CMD=copilot ./scripts/orchestrate.sh start
 
 # Run 6 chains simultaneously
 PARALLEL_CHAINS=6 ./scripts/orchestrate.sh start
 ```
+
+### Agent Mode Limitations
+
+| Mode | Status | Notes |
+|------|--------|-------|
+| `claude` | Stable | Default. Uses `claude --print` for non-interactive execution. |
+| `copilot` | Experimental | Uses `gh copilot suggest`. May require interactive terminal input. Not recommended for automated/background execution. |
+
+**Copilot Mode Caveats**:
+
+- Requires `gh copilot` extension installed (`gh extension install github/gh-copilot`)
+- May prompt for interactive input, breaking automated workflows
+- Not tested for long-running background execution
+- Consider using Claude mode for production orchestration
 
 ## Chain Structure
 
@@ -141,3 +155,43 @@ After all chains complete:
 4. Chain 4 (quality) - Independent
 5. Chain 5 (skills) - Independent
 6. Chain 6 (CI/docs) - Polish
+
+## Testing
+
+Automated tests for orchestrate.sh are in `tests/test_orchestrate_sh.py`:
+
+```bash
+# Run orchestrator tests
+pytest tests/test_orchestrate_sh.py -v
+
+# Run specific test class
+pytest tests/test_orchestrate_sh.py::TestOrchestrateShHelp -v
+```
+
+**Test Coverage**:
+
+- Script syntax validation (bash -n)
+- Help command output
+- Status command execution
+- Chain configuration validation
+- State file structure
+- Directory structure
+- Input validation (chain numbers 1-6)
+- Error handling patterns (file locking, temp cleanup)
+
+## Chain Definitions
+
+Chain definitions in `orchestrate.sh` are synchronized with `.agents/planning/v0.3.0/PLAN.md`.
+
+**Source of Truth**: PLAN.md is authoritative. If the schedule or chain structure changes:
+
+1. Update PLAN.md first
+2. Sync orchestrate.sh arrays: `CHAINS`, `CHAIN_BRANCHES`, `CHAIN_START_WEEK`, `ISSUE_BLOCKED_BY`
+
+## Platform Notes
+
+**macOS Compatibility**:
+
+- Script uses GNU `date -Iseconds` format
+- On macOS, install coreutils: `brew install coreutils`
+- Or modify date commands to use BSD-compatible format
