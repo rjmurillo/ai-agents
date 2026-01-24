@@ -837,6 +837,7 @@ run_agent() {
     local chain="$1"
     local issue="$2"
     local dir="${WORKTREE_BASE}/chain${chain}"
+    local branch="${CHAIN_BRANCHES[$chain]}"
     local log_file="${LOG_DIR}/chain${chain}-issue${issue}-$(date +%Y%m%d-%H%M%S).log"
     local base_prompt
     base_prompt=$(generate_prompt "${chain}" "${issue}")
