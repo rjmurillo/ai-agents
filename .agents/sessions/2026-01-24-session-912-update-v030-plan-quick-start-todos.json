@@ -26,7 +26,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit pending; will update with SHA"
+        "Evidence": "Commit 71b7e42"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -112,7 +112,7 @@
       }
     }
   },
-  "endingCommit": "",
+  "endingCommit": "71b7e42",
   "nextSteps": [],
   "schemaVersion": "1.0",
   "workLog": [
