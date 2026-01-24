@@ -84,6 +84,47 @@ Stale citations:
     Reason: Line 23 exceeds file length (20 lines)
 ```
 
+### Traverse Memory Graph
+
+```bash
+# Traverse from a root memory (BFS by default)
+PYTHONPATH=scripts:$PYTHONPATH python -m memory_enhancement graph memory-001
+
+# Use DFS traversal
+PYTHONPATH=scripts:$PYTHONPATH python -m memory_enhancement graph memory-001 --strategy dfs
+
+# Limit traversal depth
+PYTHONPATH=scripts:$PYTHONPATH python -m memory_enhancement graph memory-001 --max-depth 3
+
+# Filter by link types
+PYTHONPATH=scripts:$PYTHONPATH python -m memory_enhancement graph memory-001 --link-types related,implements
+
+# Find all root memories (no incoming links)
+PYTHONPATH=scripts:$PYTHONPATH python -m memory_enhancement graph find-roots
+
+# JSON output
+PYTHONPATH=scripts:$PYTHONPATH python -m memory_enhancement graph memory-001 --json
+```
+
+Output:
+
+```text
+Graph traversal from: memory-001-feedback-retrieval
+Strategy: BFS
+Max depth reached: 2
+Nodes visited: 5
+
+Traversal tree:
+- memory-001-feedback-retrieval
+  - adr-007-memory-first (IMPLEMENTS)
+  - memory-observations (RELATED)
+    - memory-token-efficiency (RELATED)
+    - session-94-psscriptanalyzer-ci (SUPERSEDES)
+
+⚠️  Detected 1 cycle(s):
+  - memory-observations → memory-001-feedback-retrieval
+```
+
 ## Citation Schema
 
 Add citations to memory frontmatter in YAML format:
@@ -227,11 +268,13 @@ Phase 1 (Current):
 - ✅ Verification logic
 - ✅ CLI interface
 
-Phase 2 (Planned - Issue #998):
+Phase 2 (Current - Issue #998):
 
-- Graph traversal (BFS/DFS)
-- Link following (RELATED, SUPERSEDES, etc.)
-- Circular dependency detection
+- ✅ Graph traversal (BFS/DFS)
+- ✅ Link following (RELATED, SUPERSEDES, etc.)
+- ✅ Circular dependency detection
+- ✅ Root memory discovery
+- ✅ Adjacency list representation
 
 Phase 3 (Planned - Issue #999):
 
