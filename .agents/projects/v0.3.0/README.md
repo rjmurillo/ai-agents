@@ -31,6 +31,9 @@ Self-contained project directory for the v0.3.0 milestone execution.
 # Navigate to project
 cd .agents/projects/v0.3.0
 
+# Make executable (first time only)
+chmod +x scripts/orchestrate.sh
+
 # Interactive mode (recommended)
 ./scripts/orchestrate.sh
 
