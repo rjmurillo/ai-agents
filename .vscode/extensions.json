@@ -1,7 +1,0 @@
-{
-  "recommendations": [
-    "github.vscode-codeql",
-    "ms-vscode.powershell",
-    "github.vscode-github-actions"
-  ]
-}
