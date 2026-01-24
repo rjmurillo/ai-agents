@@ -106,7 +106,7 @@
       }
     }
   },
-  "endingCommit": "",
+  "endingCommit": "694d7f0f",
   "nextSteps": [
     "Move to #721 (Graph Optimization) after this issue is complete"
   ],
