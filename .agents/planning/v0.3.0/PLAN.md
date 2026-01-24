@@ -83,6 +83,28 @@ pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMB
 
 > **Update this table** only during integration to avoid merge conflicts. For live status, use branch handoffs in `.agents/handoffs/{branch}/{session}.md` or add an issue comment.
 
+### Chain Done Criteria (Verification Commands)
+
+| Chain | Done When | Verification Command |
+|-------|-----------|---------------------|
+| **1** | All 4 phases complete | `python -m memory_enhancement verify .serena/memories/memory-index.md && python -m memory_enhancement health --format json` (exit code 0) |
+| **2** | Router <20ms, prompts updated | `pwsh -c "Measure-Command { Import-Module .claude/skills/memory/modules/MemoryRouter.psm1; Search-Memory 'test' }" \| Select TotalMilliseconds` (must be <20) |
+| **3** | Tooling works, specs standardized | `pwsh scripts/traceability/Show-TraceabilityGraph.ps1 -DryRun` (exit code 0) |
+| **4** | Tests pass, coverage >90% | `pwsh -c "Invoke-Pester -Path tests/ -CodeCoverage scripts/*.ps1 -PassThru"` (FailedCount=0, CodeCoverage >0.9) |
+| **5** | 27/27 skills compliant | `pwsh scripts/Validate-SkillCompliance.ps1` (output shows 100%) |
+| **6** | CI green, docs complete | `gh run list --workflow=ai-issue-triage.yml --limit 1 --json conclusion -q '.[0].conclusion'` returns "success" |
+
+### Chain-Specific Traycer Plans
+
+| Chain | Issues with Traycer Plans | Link |
+|-------|---------------------------|------|
+| **1** | #997, #999 | [#997 Plan](https://github.com/rjmurillo/ai-agents/issues/997#issuecomment-3793075511), [#999 Plan](https://github.com/rjmurillo/ai-agents/issues/999#issuecomment-3793075471) |
+| **2** | #751 has Option A decision | [#751 Decision](https://github.com/rjmurillo/ai-agents/issues/751#issuecomment-3793072661) |
+| **3** | None yet | Add `@traycerai plan` to #721 |
+| **4** | None yet | Add `@traycerai plan` to #749 |
+| **5** | #761 has PRD comment | [#761 PRD](https://github.com/rjmurillo/ai-agents/issues/761#issuecomment-3707704698) |
+| **6** | None yet | Issues are well-scoped |
+
 ---
 
 ## 🤖 Agent Quick Context
@@ -421,31 +443,603 @@ v0.3.0 delivers **Memory Enhancement** and **Quality Improvements** that establi
 
 ### P1 Important (19 issues) - HIGH BUSINESS VALUE
 
-### TODO: Expand Issue Definitions (Files + Acceptance Criteria)
+---
 
-The following issues lack concrete file paths and/or acceptance criteria. Update **both** the GitHub issue and this plan before assigning to an agent.
+## 📋 Implementation Cards (Agent-Ready Reference)
 
-| Issue | Missing Details | TODO |
-|-------|-----------------|------|
-| [#990](https://github.com/rjmurillo/ai-agents/issues/990) | File paths + acceptance criteria | Add specific files/dirs and completion criteria per phase |
-| [#734](https://github.com/rjmurillo/ai-agents/issues/734) | File paths + acceptance criteria | Identify target files/modules + benchmark exit criteria |
-| [#747](https://github.com/rjmurillo/ai-agents/issues/747) | File paths + acceptance criteria | Specify sync components, configs, and validation steps |
-| [#731](https://github.com/rjmurillo/ai-agents/issues/731) | File paths | Enumerate agent prompt files to update |
-| [#761](https://github.com/rjmurillo/ai-agents/issues/761) | File paths + acceptance criteria | List skills/paths and compliance checks |
-| [#809](https://github.com/rjmurillo/ai-agents/issues/809) | File paths + acceptance criteria | Define script/skill locations and pass/fail checks |
-| [#749](https://github.com/rjmurillo/ai-agents/issues/749) | File paths + acceptance criteria | Identify test/coverage files and success metrics |
-| [#778](https://github.com/rjmurillo/ai-agents/issues/778) | File paths + acceptance criteria | Point to failing script + expected fix behavior |
-| [#840](https://github.com/rjmurillo/ai-agents/issues/840) | File paths + acceptance criteria | Enumerate test targets and required coverage |
-| [#724](https://github.com/rjmurillo/ai-agents/issues/724) | File paths + acceptance criteria | Name decision doc(s) + output artifact |
-| [#721](https://github.com/rjmurillo/ai-agents/issues/721) | File paths + acceptance criteria | Identify graph tooling files and perf thresholds |
-| [#722](https://github.com/rjmurillo/ai-agents/issues/722) | File paths + acceptance criteria | Specify CLI tool locations and completion checks |
-| [#723](https://github.com/rjmurillo/ai-agents/issues/723) | File paths + acceptance criteria | List spec files to standardize and validation rule |
-| [#77](https://github.com/rjmurillo/ai-agents/issues/77) | File paths + acceptance criteria | Identify workflow(s) and permission change validation |
-| [#90](https://github.com/rjmurillo/ai-agents/issues/90) | File paths + acceptance criteria | Identify workflow(s) and label mutation verification |
-| [#836](https://github.com/rjmurillo/ai-agents/issues/836) | File paths + acceptance criteria | Point to validation script + expected error output |
-| [#71](https://github.com/rjmurillo/ai-agents/issues/71) | File paths + acceptance criteria | Specify docs location + required sections |
-| [#101](https://github.com/rjmurillo/ai-agents/issues/101) | File paths + acceptance criteria | Identify workflow + expected path filter behavior |
-| [#1001](https://github.com/rjmurillo/ai-agents/issues/1001) | File paths + acceptance criteria | Identify tooling files and output expectations |
+> **This section is the authoritative source for agents starting work.**
+> Each card provides file paths, exit criteria, and Traycer plan links.
+
+### Issue Readiness Summary
+
+| Status | Issues | Description |
+|--------|--------|-------------|
+| 🟢 **Ready** | #997, #998, #999, #1001 | Traycer plan + file paths + exit criteria |
+| 🟡 **Partial** | #751, #734, #747, #731, #761, #809, #749, #778, #840, #836, #721-#724 | Good detail, may need Traycer plan |
+| 🔴 **Needs Work** | #77, #90, #71, #101 | CI/Docs, well-scoped but needs investigation |
+
+### Implementation Cards
+
+> **For each issue**: Find Traycer comment link, file paths, and exit criteria below.
+> **If missing Traycer plan**: Add `@traycerai plan` comment to trigger generation.
+
+---
+
+#### 🟢 READY: Memory Enhancement Epic (#990, #997, #998, #999, #1001)
+
+**Traycer Plans Available**: [#997](https://github.com/rjmurillo/ai-agents/issues/997#issuecomment-3793075511), [#999](https://github.com/rjmurillo/ai-agents/issues/999#issuecomment-3793075471)
+
+| Issue | Files to Create/Modify | Exit Criteria | Traycer |
+|-------|------------------------|---------------|---------|
+| **#997** (P0) | `scripts/memory_enhancement/models.py`, `citations.py`, `__init__.py`, `__main__.py` | `python -m memory_enhancement verify <memory>` works | [Plan](https://github.com/rjmurillo/ai-agents/issues/997#issuecomment-3793075511) |
+| **#998** (P1) | `scripts/memory_enhancement/graph.py` | `python -m memory_enhancement graph <root>` traverses links | Use #997 as template |
+| **#999** (P1) | `scripts/memory_enhancement/health.py`, `.github/workflows/memory-health.yml` | CI flags stale memories on PRs, exit code reflects status | [Plan](https://github.com/rjmurillo/ai-agents/issues/999#issuecomment-3793075471) |
+| **#1001** (P2) | `scripts/memory_enhancement/serena.py`, `.claude/skills/memory-enhancement/SKILL.md` | Memories track confidence (0.0-1.0), CLI adds citations | Depends on #997-#999 |
+
+**PRD**: [`.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md`](.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md)
+
+##### #997 Haiku-Ready Implementation (Citation Schema & Verification)
+
+<details>
+<summary>Step 1: Create scripts/memory_enhancement/__init__.py</summary>
+
+```python
+"""Memory Enhancement Layer for Serena + Forgetful.
+
+Implements citation verification, graph traversal, and health reporting.
+Per ADR-042: Python-first for AI/ML ecosystem alignment.
+
+Usage:
+    python -m memory_enhancement verify <memory-id-or-path>
+    python -m memory_enhancement verify-all [--dir .serena/memories]
+"""
+
+from .models import Memory, Citation, Link, LinkType
+from .citations import verify_citation, verify_memory, verify_all_memories, VerificationResult
+
+__all__ = [
+    "Memory",
+    "Citation",
+    "Link",
+    "LinkType",
+    "verify_citation",
+    "verify_memory",
+    "verify_all_memories",
+    "VerificationResult",
+]
+```
+</details>
+
+<details>
+<summary>Step 2: Create scripts/memory_enhancement/models.py</summary>
+
+```python
+"""Data models for memory enhancement layer.
+
+Dataclasses for Memory, Citation, and Link per PRD section 4.5.1.
+"""
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Optional
+
+import frontmatter
+
+
+class LinkType(Enum):
+    """Typed relationship between memories."""
+    RELATED = "related"
+    SUPERSEDES = "supersedes"
+    BLOCKS = "blocks"
+    IMPLEMENTS = "implements"
+    EXTENDS = "extends"
+
+
+@dataclass
+class Citation:
+    """Code reference with verification metadata."""
+    path: str
+    line: Optional[int] = None
+    snippet: Optional[str] = None
+    verified: Optional[datetime] = None
+    valid: Optional[bool] = None
+    mismatch_reason: Optional[str] = None
+
+
+@dataclass
+class Link:
+    """Typed relationship to another memory."""
+    link_type: LinkType
+    target_id: str
+
+
+@dataclass
+class Memory:
+    """Serena memory with citations and links."""
+    id: str
+    subject: str
+    path: Path
+    content: str
+    citations: list[Citation] = field(default_factory=list)
+    links: list[Link] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    confidence: float = 1.0
+    last_verified: Optional[datetime] = None
+
+    @classmethod
+    def from_serena_file(cls, path: Path) -> "Memory":
+        """Parse a Serena memory markdown file."""
+        post = frontmatter.load(path)
+        meta = post.metadata
+
+        citations = [
+            Citation(
+                path=c.get("path", ""),
+                line=c.get("line"),
+                snippet=c.get("snippet"),
+            )
+            for c in meta.get("citations", [])
+        ]
+
+        links = []
+        for link_data in meta.get("links", []):
+            try:
+                link_type = LinkType(link_data.get("type", "related"))
+                links.append(Link(link_type=link_type, target_id=link_data.get("target", "")))
+            except ValueError:
+                pass  # Skip invalid link types
+
+        return cls(
+            id=meta.get("id", path.stem),
+            subject=meta.get("subject", path.stem),
+            path=path,
+            content=post.content,
+            citations=citations,
+            links=links,
+            tags=meta.get("tags", []),
+            confidence=float(meta.get("confidence", 1.0)),
+            last_verified=cls._parse_date(meta.get("last_verified")),
+        )
+
+    @staticmethod
+    def _parse_date(value) -> Optional[datetime]:
+        """Parse datetime from various formats."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        return datetime.fromisoformat(str(value))
+
+    def get_links_by_type(self, link_type: LinkType) -> list[str]:
+        """Return target IDs for links of the given type."""
+        return [link.target_id for link in self.links if link.link_type == link_type]
+```
+</details>
+
+<details>
+<summary>Step 3: Create scripts/memory_enhancement/citations.py</summary>
+
+```python
+"""Citation verification logic.
+
+Validates that code references in memories still exist at expected locations.
+"""
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from .models import Citation, Memory
+
+
+@dataclass
+class VerificationResult:
+    """Result of verifying a memory's citations."""
+    memory_id: str
+    valid: bool
+    total_citations: int
+    valid_count: int
+    stale_citations: list[Citation]
+    confidence: float
+
+
+def verify_citation(citation: Citation, repo_root: Path) -> Citation:
+    """Verify a single citation against the codebase."""
+    file_path = repo_root / citation.path
+
+    if not file_path.exists():
+        citation.valid = False
+        citation.mismatch_reason = f"File not found: {citation.path}"
+        return citation
+
+    if citation.line is None:
+        citation.valid = True
+        return citation
+
+    try:
+        lines = file_path.read_text().splitlines()
+        if citation.line < 1 or citation.line > len(lines):
+            citation.valid = False
+            citation.mismatch_reason = f"Line {citation.line} out of range (file has {len(lines)} lines)"
+            return citation
+
+        actual_line = lines[citation.line - 1]
+        if citation.snippet and citation.snippet not in actual_line:
+            citation.valid = False
+            citation.mismatch_reason = f"Snippet not found at line {citation.line}"
+            return citation
+
+        citation.valid = True
+    except Exception as e:
+        citation.valid = False
+        citation.mismatch_reason = str(e)
+
+    return citation
+
+
+def verify_memory(memory: Memory, repo_root: Path = None) -> VerificationResult:
+    """Verify all citations in a memory."""
+    repo_root = repo_root or Path.cwd()
+
+    if not memory.citations:
+        return VerificationResult(
+            memory_id=memory.id,
+            valid=True,
+            total_citations=0,
+            valid_count=0,
+            stale_citations=[],
+            confidence=memory.confidence,
+        )
+
+    verified = [verify_citation(c, repo_root) for c in memory.citations]
+    valid_count = sum(1 for c in verified if c.valid)
+    stale = [c for c in verified if not c.valid]
+
+    return VerificationResult(
+        memory_id=memory.id,
+        valid=len(stale) == 0,
+        total_citations=len(verified),
+        valid_count=valid_count,
+        stale_citations=stale,
+        confidence=valid_count / len(verified) if verified else memory.confidence,
+    )
+
+
+def verify_all_memories(memories_dir: Path, repo_root: Path = None) -> list[VerificationResult]:
+    """Verify all memories in a directory."""
+    repo_root = repo_root or Path.cwd()
+    results = []
+
+    for md_file in memories_dir.glob("*.md"):
+        try:
+            memory = Memory.from_serena_file(md_file)
+            if memory.citations:
+                results.append(verify_memory(memory, repo_root))
+        except Exception as e:
+            print(f"Warning: Could not parse {md_file}: {e}")
+
+    return results
+```
+</details>
+
+<details>
+<summary>Step 4: Create scripts/memory_enhancement/__main__.py</summary>
+
+```python
+"""CLI entry point for memory enhancement layer.
+
+Usage:
+    python -m memory_enhancement verify <memory-id-or-path>
+    python -m memory_enhancement verify-all [--dir .serena/memories]
+"""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from .citations import verify_memory, verify_all_memories
+from .models import Memory
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Memory Enhancement Layer CLI")
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # verify command
+    verify_parser = subparsers.add_parser("verify", help="Verify a single memory")
+    verify_parser.add_argument("memory", help="Memory ID or file path")
+
+    # verify-all command
+    verify_all_parser = subparsers.add_parser("verify-all", help="Verify all memories")
+    verify_all_parser.add_argument("--dir", default=".serena/memories", help="Memories directory")
+
+    args = parser.parse_args()
+
+    if args.command == "verify":
+        path = Path(args.memory)
+        if not path.exists():
+            path = Path(f".serena/memories/{args.memory}.md")
+        if not path.exists():
+            print(f"Memory not found: {args.memory}", file=sys.stderr)
+            sys.exit(1)
+
+        memory = Memory.from_serena_file(path)
+        result = verify_memory(memory)
+
+        if args.json:
+            print(json.dumps({
+                "memory_id": result.memory_id,
+                "valid": result.valid,
+                "confidence": result.confidence,
+                "stale_citations": [
+                    {"path": c.path, "line": c.line, "reason": c.mismatch_reason}
+                    for c in result.stale_citations
+                ],
+            }))
+        else:
+            status = "✅ VALID" if result.valid else "❌ STALE"
+            print(f"{status} ({result.confidence:.0%} confidence)")
+            for c in result.stale_citations:
+                print(f"  - {c.path}:{c.line} - {c.mismatch_reason}")
+
+        sys.exit(0 if result.valid else 1)
+
+    elif args.command == "verify-all":
+        results = verify_all_memories(Path(args.dir))
+        stale = [r for r in results if not r.valid]
+
+        if args.json:
+            print(json.dumps([{
+                "memory_id": r.memory_id,
+                "valid": r.valid,
+                "confidence": r.confidence,
+            } for r in results]))
+        else:
+            print(f"Verified {len(results)} memories with citations")
+            if stale:
+                print(f"❌ {len(stale)} stale:")
+                for r in stale:
+                    print(f"  - {r.memory_id}")
+            else:
+                print("✅ All citations valid")
+
+        sys.exit(0 if not stale else 1)
+
+
+if __name__ == "__main__":
+    main()
+```
+</details>
+
+<details>
+<summary>Step 5: Update pyproject.toml (add dependency after line 11)</summary>
+
+```toml
+    "python-frontmatter>=1.0.0",
+```
+</details>
+
+**#997 Verification** (all must exit 0):
+```bash
+# Create module structure
+mkdir -p scripts/memory_enhancement
+# After adding files above:
+python -c "from memory_enhancement import Memory, verify_memory; print('Import OK')"
+python -m memory_enhancement verify memory-index
+```
+
+---
+
+#### 🟡 PARTIAL: Memory System (#751, #734, #747, #731)
+
+| Issue | Files | Exit Criteria | Status |
+|-------|-------|---------------|--------|
+| **#751** (P0) | `AGENTS.md`, `.claude/agents/context-retrieval.md`, `.claude/skills/memory/SKILL.md` | Decision matrix in AGENTS.md, all interfaces cross-reference it | [Haiku-Ready](#751-haiku-ready-implementation-option-a-decision-matrix) |
+| **#734** (P1) | `.claude/skills/memory/scripts/MemoryRouter.psm1` (lines 35-40, config) | `Measure-Command { Search-Memory "test" -LexicalOnly }` < 20ms | [Haiku-Ready](#734-haiku-ready-implementation-memory-router-optimization) |
+| **#747** (P1) | `scripts/Sync-MemoryToForgetful.ps1`, `Test-MemoryFreshness.ps1`, `.githooks/pre-commit` | `Test-MemoryFreshness.ps1` returns no stale entries | Plan: `.agents/planning/phase2b-memory-sync-strategy.md` |
+| **#731** (P1) | `.claude/agents/skillbook.md`, `.claude/agents/memory.md`, `.claude/agents/retrospective.md` | `grep -c "mcp__serena__\|cloudmcp" .claude/agents/*.md` = 0 | Blocked by #751, #734 |
+
+##### #751 Haiku-Ready Implementation (Option A: Decision Matrix)
+
+> **Strategic Context**: High-level-advisor recommended Option A (Decision Matrix Documentation) as Phase 1.
+> **Verdict**: P0 prerequisite for all memory enhancement work. See [#751 Strategic Update](https://github.com/rjmurillo/ai-agents/issues/751#issuecomment-3793072661).
+
+**Issue Acceptance Criteria Checklist**:
+- [ ] Update CLAUDE.md with memory interface decision matrix
+- [ ] Add "When to Use" section to memory skill SKILL.md
+- [ ] Cross-reference between context-retrieval.md and memory skill
+- [ ] Validate all 4+ slash commands reference the decision matrix
+
+**Copy-paste ready**:
+
+<details>
+<summary>Step 1: Add to AGENTS.md (insert after line 582, before "## Agent Catalog")</summary>
+
+```markdown
+## Memory Interface Decision Matrix
+
+> **When to use which memory interface.** This matrix eliminates confusion about the 4 memory backends.
+
+| Use Case | Interface | Command/Tool | Why |
+|----------|-----------|--------------|-----|
+| Quick memory search from CLI | `/memory-search` slash command | `/memory-search "topic"` | Fastest, no agent overhead |
+| Complex context gathering | `context-retrieval` agent | `Task(subagent_type="context-retrieval")` | Deep exploration, graph traversal |
+| Script integration | Memory Router skill | `Search-Memory -Query "topic"` | PowerShell pipeline, structured output |
+| Direct MCP access (agents only) | Forgetful/Serena MCP | `mcp__forgetful__*`, `mcp__serena__*` | Full control, programmatic |
+| Cross-session knowledge | Forgetful semantic search | `execute_forgetful_tool("query_memory")` | Vector similarity, cross-project |
+| File-based lookup | Serena memories | `mcp__serena__read_memory` | Git-synced, always available |
+
+**Decision Tree**:
+1. Are you a human at CLI? → Use `/memory-search`
+2. Are you an agent needing deep context? → Use `context-retrieval` agent
+3. Are you a PowerShell script? → Use Memory Router skill
+4. Need semantic search across projects? → Use Forgetful directly
+5. Need specific memory by name? → Use Serena directly
+
+```
+</details>
+
+<details>
+<summary>Step 2: Add to .claude/agents/context-retrieval.md (insert at line 17, after "## Five-Source Strategy")</summary>
+
+```markdown
+> **Memory Interface Selection**: See [AGENTS.md#memory-interface-decision-matrix](../../../AGENTS.md#memory-interface-decision-matrix) for when to use this agent vs other memory interfaces.
+
+```
+</details>
+
+<details>
+<summary>Step 3: Add to .claude/skills/memory/SKILL.md (insert at line 37, before "## Memory-First as Chesterton's Fence")</summary>
+
+```markdown
+## When to Use This Skill
+
+| Scenario | Use Memory Router? | Alternative |
+|----------|-------------------|-------------|
+| PowerShell script needs memory | ✅ Yes | - |
+| Agent needs deep context | ❌ No | `context-retrieval` agent |
+| Human at CLI | ❌ No | `/memory-search` command |
+| Cross-project semantic search | ❌ No | Forgetful MCP directly |
+
+See [AGENTS.md#memory-interface-decision-matrix](../../../../AGENTS.md#memory-interface-decision-matrix) for complete decision tree.
+
+```
+</details>
+
+**#751 Verification** (all must exit 0 for DONE):
+```bash
+# Acceptance Criterion 1: Decision matrix in AGENTS.md
+grep -q "## Memory Interface Decision Matrix" AGENTS.md && echo "✓ AC1: Matrix in AGENTS.md"
+
+# Acceptance Criterion 2: "When to Use" in memory skill
+grep -q "## When to Use This Skill" .claude/skills/memory/SKILL.md && echo "✓ AC2: When to Use in SKILL.md"
+
+# Acceptance Criterion 3: Cross-reference from context-retrieval
+grep -q "AGENTS.md#memory-interface-decision-matrix" .claude/agents/context-retrieval.md && echo "✓ AC3: Cross-ref in context-retrieval"
+
+# Acceptance Criterion 4: Slash commands reference decision matrix (check at least one)
+grep -q "decision.*matrix\|AGENTS.md#memory" .claude/commands/forgetful/memory-search.md && echo "✓ AC4: Slash command cross-ref"
+```
+
+**#751 STOP Criteria** (close issue when ALL pass):
+- [ ] All 4 verification commands exit 0
+- [ ] No new memory interfaces added without updating matrix
+- [ ] User can find appropriate interface in <30 seconds using decision tree
+
+##### #734 Haiku-Ready Implementation (Memory Router Optimization)
+
+<details>
+<summary>Root Cause: TCP health check timeout is 500ms, dominates <20ms target</summary>
+
+File: `.claude/skills/memory/scripts/MemoryRouter.psm1`
+
+**Current code (lines 36-40)**:
+```powershell
+$script:Config = @{
+    SerenaPath       = ".serena/memories"
+    ForgetfulPort    = 8020
+    ForgetfulTimeout = 500  # <-- BOTTLENECK: 500ms timeout
+    MaxResults       = 10
+}
+```
+
+**Fix: Reduce timeout to 50ms (line 38)**:
+```powershell
+    ForgetfulTimeout = 50   # Reduced from 500ms for <20ms target
+```
+
+**Alternative: Use `-LexicalOnly` switch for fast path** (skip Forgetful entirely):
+```powershell
+Search-Memory -Query "test" -LexicalOnly  # No TCP check, ~5ms
+```
+</details>
+
+**#734 Verification**:
+```bash
+pwsh -c "Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1 -Force; (Measure-Command { Search-Memory 'test' -LexicalOnly }).TotalMilliseconds" | awk '{print ($1 < 20 ? "PASS" : "FAIL") " - " $1 "ms"}'
+```
+
+##### #778 Status: LIKELY FIXED (Verify and Close)
+
+> **Investigation Result**: The `foundMemories` variable pattern no longer exists in the codebase.
+> **Evidence**: `grep -r "foundMemories" --include="*.ps1" .` returns no matches.
+> **QA Report**: `.agents/qa/384-test-memoryevidence-migration.md` shows "Property access error fixed (Warnings.Count issue resolved)".
+
+**Action Required**:
+1. Run validation: `pwsh scripts/Validate-SessionJson.ps1 -SessionPath .agents/sessions/2026-01-24-session-913-*.json`
+2. If passes, close issue #778 with reference to session 384 fix
+3. If fails, investigate new location of the bug
+
+**Verification**:
+```bash
+# Confirm foundMemories pattern no longer exists
+grep -r "foundMemories" --include="*.ps1" . && echo "FAIL: Pattern still exists" || echo "PASS: Pattern removed"
+# Run actual validation
+pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/$(ls -t .agents/sessions/*.json | head -1)"
+```
+
+---
+
+#### 🟡 PARTIAL: Skill Quality (#761, #809)
+
+| Issue | Files | Exit Criteria | Status |
+|-------|-------|---------------|--------|
+| **#761** (P1) | `.claude/skills/*/SKILL.md` (27 skills) | Validation script passes 100%, see `.agents/analysis/skill-v2-compliance-gaps.md` | Has phase breakdown |
+| **#809** (P1) | `.claude/skills/session-end/SKILL.md`, `scripts/session-end/` | `/session-end` skill validates logs before commit | Has problem statement |
+
+**Reference**: `.agents/governance/skill-description-trigger-standard.md` v2.0
+
+---
+
+#### 🟡 PARTIAL: Testing & Quality (#749, #778, #840, #836)
+
+| Issue | Files | Exit Criteria | Status |
+|-------|-------|---------------|--------|
+| **#749** (P1) | `.claude/agents/qa.md`, `.serena/memories/testing-004-*` | QA agent uses evidence-based criteria, security-critical = 100% coverage | Has research in `.agents/analysis/testing-coverage-philosophy.md` |
+| **#778** (P1) | Likely fixed in session 384 | Verify validation passes, then close issue | [LIKELY FIXED](#778-status-likely-fixed-verify-and-close) |
+| **#840** (P1) | `scripts/Validate-Session.ps1`, `scripts/Validate-SessionProtocol.ps1` | Consolidate duplicates to `SessionValidation.psm1`, 95% coverage | Has PR #830 follow-up list |
+| **#836** (P1) | `scripts/session-validation/Validate-SessionPath.ps1` (line 125) | Error shows normalized path, analysis in `.agents/analysis/809-path-escape-root-cause.md` | Has fix recommendation |
+
+---
+
+#### 🟡 PARTIAL: Traceability (#724, #721, #722, #723)
+
+| Issue | Files | Exit Criteria | Status |
+|-------|-------|---------------|--------|
+| **#724** (P1) | Output: `.agents/analysis/traceability-build-vs-buy.md` | Run `/programming-advisor`, document decision | Consultation only |
+| **#721** (P1) | `scripts/Validate-Traceability.ps1`, add caching | Sub-second traversal on 100+ specs, benchmark before/after | Depends on #724 |
+| **#722** (P1) | `scripts/traceability/Rename-SpecId.ps1`, `Update-SpecReferences.ps1`, `Show-TraceabilityGraph.ps1` | Dry-run mode, atomic updates, no partial failures | Has proposed scripts |
+| **#723** (P1) | `.agents/governance/traceability-schema.md`, `.agents/governance/traceability-protocol.md` | All use YAML frontmatter, consistent fields | Scope is 2 files |
+
+---
+
+#### 🔴 NEEDS WORK: CI/Docs (#77, #90, #71, #101)
+
+| Issue | Files | Exit Criteria | TODO |
+|-------|-------|---------------|------|
+| **#77** (P1) | `.github/workflows/ai-pr-quality-gate.yml` | QA agent can run Pester, add `pwsh` to allowed commands | Update issue with workflow line numbers |
+| **#90** (P1) | `.github/workflows/ai-issue-triage.yml`, BOT_PAT token | Labels apply via GraphQL, verify `addLabelsToLabelable` works | Token permission investigation |
+| **#71** (P2) | `docs/patterns/prompt-vs-agent.md` (create) | Document orchestration pattern with examples | Create file outline |
+| **#101** (P2) | `.github/workflows/validate-generated-agents.yml` | Uses `dorny/paths-filter@v3`, skips with passing status | Has design pattern in issue |
+
+---
+
+#### 🔴 NEEDS WORK: Prompt Updates (#731)
+
+**Issue**: [#731](https://github.com/rjmurillo/ai-agents/issues/731)
+
+**Files to Update** (enumerated):
+- `.claude/agents/skillbook.md` (lines 43, 1230-1267 for cloudmcp references)
+- `.claude/agents/memory.md`
+- `.claude/agents/retrospective.md`
+- All agents with `mcp__serena__*` or `mcp__forgetful__*` direct calls
+
+**Exit Criteria**: `grep -r "mcp__serena__\|mcp__forgetful__\|cloudmcp" .claude/agents/` returns only Memory Router usage.
+
+**Blocked By**: #751 (unified interface), #734 (router optimization)
 
 #### Epic [#990](https://github.com/rjmurillo/ai-agents/issues/990): Memory Enhancement Layer (4 issues)
 
