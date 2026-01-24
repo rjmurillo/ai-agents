@@ -25,7 +25,7 @@ readonly STATE_LOCK="${STATE_FILE}.lock"
 readonly LOG_DIR="${PROJECT_DIR}/logs"
 readonly INBOX_DIR="${PROJECT_DIR}/messages/inbox"
 readonly OUTBOX_DIR="${PROJECT_DIR}/messages/outbox"
-readonly WORKTREE_BASE="${PROJECT_DIR}/worktrees"
+readonly WORKTREE_BASE="${REPO_ROOT}/../worktrees"
 readonly PLAN_FILE="${REPO_ROOT}/.agents/planning/v0.3.0/PLAN.md"
 
 # Agent configuration
@@ -157,11 +157,13 @@ read_state() {
     local query="$1"
     local result
 
+    log_info "read_state: Running jq query: ${query}" >&2
     if ! result=$(jq -r "${query}" "${STATE_FILE}" 2>&1); then
         log_error "Failed to read state: ${result}"
         log_error "Query: ${query}"
         return 1
     fi
+    log_info "read_state: Result: ${result}" >&2
 
     echo "${result}"
 }
@@ -423,7 +425,9 @@ run_agent() {
     local prompt
     prompt=$(generate_prompt "${chain}" "${issue}")
 
-    log_info "Starting ${AGENT_CMD} for chain ${chain}, issue #${issue}"
+    log_info "run_agent: Starting ${AGENT_CMD} for chain ${chain}, issue #${issue}"
+    log_info "run_agent: Working directory: ${dir}"
+    log_info "run_agent: Log file: ${log_file}"
 
     if ! mark_issue_started "${chain}" "${issue}"; then
         log_error "Failed to mark issue #${issue} as started"
@@ -432,9 +436,12 @@ run_agent() {
 
     # Run agent in worktree directory
     local exit_code=0
+    log_info "run_agent: Executing ${AGENT_CMD} command..."
     case "${AGENT_CMD}" in
         claude)
-            (cd "${dir}" && claude --print "${prompt}" 2>&1 | tee "${log_file}") || exit_code=$?
+            log_info "run_agent: Running: cd ${dir} && claude -p <prompt>"
+            (cd "${dir}" && claude -p "${prompt}" 2>&1 | tee "${log_file}") || exit_code=$?
+            log_info "run_agent: claude exited with code ${exit_code}"
             ;;
         copilot)
             # NOTE: copilot mode is experimental and may require interactive input
@@ -514,9 +521,8 @@ get_next_issue() {
             continue
         fi
 
-        local dep_result
-        check_dependencies "${issue}"
-        dep_result=$?
+        local dep_result=0
+        check_dependencies "${issue}" || dep_result=$?
         if [[ ${dep_result} -eq 2 ]]; then
             log_error "Cannot determine dependency status for issue #${issue}, skipping"
             continue
@@ -533,14 +539,18 @@ get_next_issue() {
 # Returns 0 if complete, 1 if incomplete, 2 on state read error.
 is_chain_complete() {
     local chain="$1"
+    log_info "is_chain_complete: Checking chain ${chain}"
     local issues
     read -ra issues <<< "${CHAINS[$chain]}"
+    log_info "is_chain_complete: Chain ${chain} has ${#issues[@]} issues"
     local completed_count
 
+    log_info "is_chain_complete: Reading state for chain ${chain}..."
     if ! completed_count=$(read_state ".chains.\"${chain}\".completed_issues | length"); then
         log_error "Failed to read completion count for chain ${chain}"
         return 2
     fi
+    log_info "is_chain_complete: Chain ${chain} has ${completed_count} completed"
 
     [[ "${completed_count}" -eq "${#issues[@]}" ]]
 }
@@ -551,15 +561,19 @@ is_chain_complete() {
 run_chain() {
     local chain="$1"
 
+    log_info "run_chain: Starting chain ${chain}"
+
     if ! setup_worktree "${chain}"; then
         log_error "Failed to setup worktree for chain ${chain}"
         return 1
     fi
 
+    log_info "run_chain: Worktree ready for chain ${chain}, entering main loop"
+
     local chain_complete_result
     while true; do
-        is_chain_complete "${chain}"
-        chain_complete_result=$?
+        chain_complete_result=0
+        is_chain_complete "${chain}" || chain_complete_result=$?
         if [[ ${chain_complete_result} -eq 0 ]]; then
             break  # Chain is complete
         elif [[ ${chain_complete_result} -eq 2 ]]; then
@@ -572,6 +586,7 @@ run_chain() {
         local get_issue_result
         next_issue=$(get_next_issue "${chain}")
         get_issue_result=$?
+        log_info "run_chain: get_next_issue returned '${next_issue}' (exit: ${get_issue_result})"
 
         if [[ ${get_issue_result} -ne 0 ]]; then
             log_error "Failed to get next issue for chain ${chain}, aborting"
@@ -583,6 +598,8 @@ run_chain() {
             sleep 30
             continue
         fi
+
+        log_info "run_chain: Will work on issue #${next_issue}"
 
         if ! run_agent "${chain}" "${next_issue}"; then
             log_error "Agent failed for chain ${chain} issue #${next_issue}"
@@ -619,15 +636,21 @@ orchestrate() {
 
     log_info "Chains for week ${week}: ${chains_to_run[*]}"
 
+    if [[ ${#chains_to_run[@]} -eq 0 ]]; then
+        log_warn "No chains to run for week ${week}"
+        return 0
+    fi
+
     # Track chain-to-PID mapping for error reporting
     declare -A chain_pids
     local pids=()
     local running=0
 
     for chain in "${chains_to_run[@]}"; do
-        local complete_result
-        is_chain_complete "${chain}"
-        complete_result=$?
+        log_info "Evaluating chain ${chain}..."
+        local complete_result=0
+        is_chain_complete "${chain}" || complete_result=$?
+        log_info "Chain ${chain} completion check returned: ${complete_result}"
         if [[ ${complete_result} -eq 0 ]]; then
             log_info "Chain ${chain} already complete, skipping"
             continue
@@ -635,6 +658,7 @@ orchestrate() {
             log_error "Cannot check chain ${chain} completion status, skipping"
             continue
         fi
+        log_info "Chain ${chain} is not complete, will start"
 
         # Wait if at parallel limit, removing completed PIDs
         while [[ ${running} -ge ${PARALLEL_CHAINS} ]]; do
@@ -665,6 +689,13 @@ orchestrate() {
         running=$((running + 1))
         log_info "Started chain ${chain} (PID: ${pid})"
     done
+
+    log_info "Started ${#chain_pids[@]} chain(s), waiting for completion..."
+
+    if [[ ${#chain_pids[@]} -eq 0 ]]; then
+        log_warn "No chains were started"
+        return 0
+    fi
 
     # Wait with proper error tracking
     local failed_chains=()
@@ -791,8 +822,8 @@ interactive() {
                 fi
                 run_chain "${chain_num}"
                 ;;
-            5) for_each_chain setup_worktree ;;
-            6) for_each_chain cleanup_worktree ;;
+            5) for_each_chain setup_worktree || true ;;
+            6) for_each_chain cleanup_worktree || true ;;
             7)
                 if ! read -rp "From chain (1-6): " from; then
                     log_info "Input stream closed"
@@ -848,9 +879,8 @@ cleanup_project() {
         log_info "Cleanup cancelled"
         return 0
     fi
-    local failures
-    for_each_chain cleanup_worktree
-    failures=$?
+    local failures=0
+    for_each_chain cleanup_worktree || failures=$?
     if [[ ${failures} -gt 0 ]]; then
         log_warn "${failures} worktree(s) failed to remove"
     fi
@@ -876,7 +906,7 @@ main() {
             fi
             run_chain "${2}"
             ;;
-        setup) for_each_chain setup_worktree ;;
+        setup) for_each_chain setup_worktree || true ;;
         cleanup) cleanup_project ;;
         interactive) interactive ;;
         help|--help|-h)
