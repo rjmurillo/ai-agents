@@ -8,6 +8,8 @@ license = {text = "MIT"}
 
 dependencies = [
     "anthropic>=0.39.0",
+    "python-frontmatter>=1.0.0",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -37,7 +39,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = [".claude", "scripts"]
+source = [".claude", "scripts", "scripts/memory_enhancement"]
 omit = ["**/tests/*", "**/__pycache__/*"]
 
 [tool.coverage.report]
