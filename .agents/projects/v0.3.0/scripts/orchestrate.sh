@@ -439,13 +439,13 @@ run_agent() {
     log_info "run_agent: Executing ${AGENT_CMD} command..."
     case "${AGENT_CMD}" in
         claude)
-            log_info "run_agent: Running: cd ${dir} && claude -p <prompt>"
-            (cd "${dir}" && claude -p "${prompt}" 2>&1 | tee "${log_file}") || exit_code=$?
+            log_info "run_agent: Running: cd ${dir} && claude --dangerously-skip-permissions -p <prompt>"
+            (cd "${dir}" && claude --dangerously-skip-permissions -p "${prompt}" 2>&1 | tee "${log_file}") || exit_code=$?
             log_info "run_agent: claude exited with code ${exit_code}"
             ;;
         copilot)
-            # NOTE: copilot mode is experimental and may require interactive input
-            (cd "${dir}" && gh copilot suggest "${prompt}" 2>&1 | tee "${log_file}") || exit_code=$?
+            # NOTE: copilot mode is experimental
+            (cd "${dir}" && gh copilot suggest --yolo "${prompt}" 2>&1 | tee "${log_file}") || exit_code=$?
             ;;
         *)
             log_error "Unknown agent: ${AGENT_CMD}"
