@@ -911,23 +911,25 @@ See [AGENTS.md#memory-interface-decision-matrix](../../../../AGENTS.md#memory-in
 
 **#751 Verification** (all must exit 0 for DONE):
 ```bash
-# Acceptance Criterion 1: Decision matrix in AGENTS.md
-grep -q "## Memory Interface Decision Matrix" AGENTS.md && echo "✓ AC1: Matrix in AGENTS.md"
+# Acceptance Criterion 1: Decision matrix in context-retrieval.md (authoritative location per commit fe82e735)
+grep -q "## Memory Interface Decision Matrix" .claude/agents/context-retrieval.md && echo "✓ AC1: Matrix in context-retrieval.md"
 
 # Acceptance Criterion 2: "When to Use" in memory skill
 grep -q "## When to Use This Skill" .claude/skills/memory/SKILL.md && echo "✓ AC2: When to Use in SKILL.md"
 
-# Acceptance Criterion 3: Cross-reference from context-retrieval
-grep -q "AGENTS.md#memory-interface-decision-matrix" .claude/agents/context-retrieval.md && echo "✓ AC3: Cross-ref in context-retrieval"
+# Acceptance Criterion 3: AGENTS.md references context-retrieval.md for decision matrix
+grep -q "context-retrieval" AGENTS.md && echo "✓ AC3: AGENTS.md references context-retrieval"
 
 # Acceptance Criterion 4: Slash commands reference decision matrix (check at least one)
-grep -q "decision.*matrix\|AGENTS.md#memory" .claude/commands/forgetful/memory-search.md && echo "✓ AC4: Slash command cross-ref"
+grep -q "decision.*matrix\|context-retrieval" .claude/commands/forgetful/memory-search.md && echo "✓ AC4: Slash command cross-ref"
 ```
 
 **#751 STOP Criteria** (close issue when ALL pass):
-- [ ] All 4 verification commands exit 0
-- [ ] No new memory interfaces added without updating matrix
-- [ ] User can find appropriate interface in <30 seconds using decision tree
+- [x] All 4 verification commands exit 0
+- [x] No new memory interfaces added without updating matrix
+- [x] User can find appropriate interface in <30 seconds using decision tree
+
+**#751 Status**: ✅ COMPLETE (commit 7f903379)
 
 ##### #734 Haiku-Ready Implementation (Memory Router Optimization)
 
@@ -1080,6 +1082,156 @@ pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/$(ls -1t .a
 **Exit Criteria**: `grep -r "mcp__serena__\|mcp__forgetful__\|cloudmcp" .claude/agents/` returns only Memory Router usage.
 
 **Blocked By**: #751 (unified interface), #734 (router optimization)
+
+---
+
+#### 🔴 PROPOSAL: Automatic Context-Retrieval Invocation (New Issue)
+
+> **Shower Thought**: The `context-retrieval` agent exists and is documented in the Memory Interface Decision Matrix (#751), but nothing actually triggers it automatically. The agent says "Use PROACTIVELY when about to plan or implement code" but relies on manual invocation.
+
+**Problem Statement**:
+
+Current state:
+- `context-retrieval` agent exists at `.claude/agents/context-retrieval.md`
+- Agent description says: "Use PROACTIVELY when about to plan or implement code"
+- Memory Interface Decision Matrix (#751) documents when to use it: "Complex context gathering"
+- **Gap**: No automatic invocation mechanism exists
+
+Evidence of manual-only pattern:
+```bash
+# Search for automatic invocation of context-retrieval
+grep -r "context-retrieval" .claude/agents/orchestrator.md
+# Result: Zero matches (orchestrator doesn't automatically invoke it)
+```
+
+**User Impact**:
+- Agents miss relevant context from Forgetful Memory cross-project search
+- Repeated discovery of solutions already solved elsewhere
+- Manual invocation required (if remembered)
+- Inconsistent memory utilization across sessions
+
+**Proposed Solution**:
+
+Add automatic context-retrieval invocation to orchestrator workflow with these trigger conditions:
+
+| Trigger Condition | When to Invoke | Rationale |
+|------------------|----------------|-----------|
+| **Before analyst delegation** | Task type = Feature, Bug Fix, Research | Gather relevant patterns before investigation |
+| **Before planner delegation** | Epic/milestone breakdown | Find similar planning artifacts |
+| **Before implementer delegation** | Code changes required | Discover cross-project implementation patterns |
+| **User explicitly requests** | "Research", "investigate", "find examples" | Direct user intent |
+
+**Implementation Options**:
+
+1. **Option A: Orchestrator Phase Injection** (Minimal Change)
+   - Insert context-retrieval call in orchestrator Phase 1 (Initialization)
+   - Add to MANDATORY checklist: "Route to context-retrieval for memory search"
+   - Gating: Skip if task is trivial (direct answer, simple file edit)
+
+   **Pros**: Simple, uses existing infrastructure, no new patterns
+   **Cons**: Adds latency to all workflows
+
+2. **Option B: Conditional Hook** (Smart Routing)
+   - Add decision logic to orchestrator triage phase
+   - Invoke context-retrieval only for Medium/Complex tasks
+   - Skip for Simple/Trivial tasks
+
+   **Pros**: Optimizes for performance, minimal overhead
+   **Cons**: More complex routing logic
+
+3. **Option C: Workflow Skill** (Declarative)
+   - Create `/context-gather` skill that orchestrator/planner can invoke
+   - Documents when to use it (before planning/implementation)
+   - Explicit invocation, not automatic
+
+   **Pros**: Clear intent, reusable, testable
+   **Cons**: Still requires manual invocation (doesn't solve core problem)
+
+**Recommended Approach**: **Option B (Conditional Hook)** - Best balance of value and simplicity.
+
+**Proposed Changes**:
+
+1. Update `.claude/agents/orchestrator.md`:
+   ```markdown
+   ### Phase 0.5: Context Retrieval (CONDITIONAL)
+
+   **Trigger**: Task complexity >= Standard (see Complexity Assessment)
+
+   Before routing to analyst/planner/implementer, gather relevant context:
+
+   Task(
+       subagent_type="context-retrieval",
+       prompt="""Gather context for: [task description]
+
+       Focus:
+       - Cross-project patterns for [domain]
+       - Prior solutions to similar problems
+       - Framework best practices from Context7
+       - Code artifacts from Forgetful
+
+       Return: Focused summary of relevant findings."""
+   )
+   ```
+
+2. Add to orchestrator checklist (Phase 1):
+   ```markdown
+   - [ ] CONDITIONAL: If complexity >= Standard, route to context-retrieval
+   ```
+
+3. Update context-retrieval.md to clarify automatic vs manual usage:
+   ```markdown
+   ## Invocation Patterns
+
+   **Automatic**: Orchestrator invokes for Standard/Complex tasks
+   **Manual**: Any agent can invoke when needing cross-project context
+   ```
+
+**Acceptance Criteria**:
+- [ ] Orchestrator automatically invokes context-retrieval for Standard/Complex tasks
+- [ ] Trivial/Simple tasks skip context-retrieval (performance)
+- [ ] Context-retrieval results passed to downstream agents (analyst/planner/implementer)
+- [ ] No duplicate context gathering (once per workflow)
+- [ ] Documentation updated in orchestrator.md and context-retrieval.md
+
+**Scope/Effort Estimate**:
+- **Files to change**: 2 (orchestrator.md, context-retrieval.md)
+- **Lines of change**: ~50 total
+- **Complexity**: Low (single conditional block)
+- **Testing**: Manual verification (no Pester tests for agent prompts)
+- **Risk**: Low (additive change, easy to revert)
+- **Haiku-ready**: Yes (simple text changes)
+
+**YAGNI Check**:
+- Is this solving a real problem? **Yes** - Context is missed regularly
+- Is there a simpler solution? **No** - Manual invocation already available but not used
+- Does it add unnecessary complexity? **No** - Single conditional in existing phase
+- Will users actually benefit? **Yes** - Cross-project learning improves with use
+
+**Potential Issues**:
+1. **Latency**: Context-retrieval adds 2-5s to workflow
+   - Mitigation: Only for Standard/Complex tasks (not Simple)
+2. **Context pollution**: Too much context confuses agents
+   - Mitigation: context-retrieval returns focused summary (not raw results)
+3. **Cost**: Additional Haiku agent invocation per workflow
+   - Mitigation: Haiku is cheap (<$0.01/invocation), value justifies cost
+
+**ADR Alignment**:
+- ADR-007 (Memory-First Architecture): ✅ Aligns - Enforces memory consultation
+- ADR-037 (Memory Router): ✅ Compatible - context-retrieval uses Memory Router
+- ADR-042 (Python-first): ✅ N/A - No code changes
+
+**Dependencies**:
+- Blocks: None (can implement immediately)
+- Blocked by: #751 (Memory Interface Decision Matrix) - **Already merged**
+- Enhances: #731 (Prompt Updates), #734 (Router Optimization)
+
+**Next Steps** (if approved):
+1. Add this proposal as GitHub issue
+2. Get critic review (YAGNI, over-engineering check)
+3. Implement Option B (Conditional Hook)
+4. Verify with test workflows
+
+---
 
 #### Epic [#990](https://github.com/rjmurillo/ai-agents/issues/990): Memory Enhancement Layer (4 issues)
 
@@ -2203,6 +2355,512 @@ graph TD
    - **Question**: Are there breaking changes requiring user migration?
    - **Analysis**: Memory Router interface change ([#731](https://github.com/rjmurillo/ai-agents/issues/731)), skill v2.0 updates ([#761](https://github.com/rjmurillo/ai-agents/issues/761))
    - **Deliverable**: CHANGELOG.md with migration instructions
+
+### Context-Retrieval Auto-Invocation
+
+9. **Context-Retrieval Auto-Invocation ([#1014](https://github.com/rjmurillo/ai-agents/issues/1014))**:
+   - **Problem**: The `context-retrieval` agent exists and the Decision Matrix documents WHEN to use it, but nothing automatically triggers it. Orchestrator and planner agents must manually remember to invoke it, leading to missed cross-project patterns and context gaps.
+   - **Gap**: Memory-first architecture (ADR-007) is documented but not enforced. Agents start planning/implementation without gathering available context.
+   - **Impact**: Lost efficiency (solving already-solved problems), inconsistent memory usage, manual cognitive load on agents.
+   - **Stakeholders**: Orchestrator, Planner, Memory, Architect agents
+   - **Timeline**: Week 3-4 (after P0 blockers, before Skill v2.0 compliance)
+   - **Issue**: [#1014](https://github.com/rjmurillo/ai-agents/issues/1014) (approved, ready for implementation)
+   - **PRD**: [Auto-generated PRD](https://github.com/rjmurillo/ai-agents/issues/1014#issuecomment-3796985782) (Complexity Score: 7/12 Detailed)
+   - **Sub-Issues**:
+     - [#1015](https://github.com/rjmurillo/ai-agents/issues/1015): Phase 1 - Conservative auto-invocation (chain2)
+     - [#1016](https://github.com/rjmurillo/ai-agents/issues/1016): Create measure_context_retrieval_metrics.py (chain2)
+     - [#1017](https://github.com/rjmurillo/ai-agents/issues/1017): Phase 2 - Expand to Standard + Multi-domain (chain3+)
+     - [#1018](https://github.com/rjmurillo/ai-agents/issues/1018): Phase 3 - Full automation (chain4+/v0.4.0)
+
+#### PRD Executive Summary
+
+| Scope | Issue | Status | Blocker | Chain |
+|-------|-------|--------|---------|-------|
+| Phase 1: Conservative auto-invocation (Complex + Security) | [#1015](https://github.com/rjmurillo/ai-agents/issues/1015) | 🟢 READY | None | chain2 |
+| Measurement script creation (Python per ADR-042) | [#1016](https://github.com/rjmurillo/ai-agents/issues/1016) | 🟢 READY | None | chain2 |
+| Phase 2: Expanded invocation (Standard + Multi-domain) | [#1017](https://github.com/rjmurillo/ai-agents/issues/1017) | 🟡 PARTIAL | Depends on Phase 1 metrics validation | chain3+ |
+| Phase 3: Full automation with metrics | [#1018](https://github.com/rjmurillo/ai-agents/issues/1018) | 🟡 PARTIAL | Depends on Phase 2 validation | chain4+ |
+
+**Verdict**: READY for Phase 1 implementation in chain2. Phase 2-3 are CONDITIONAL on Phase 1 metric validation and will be implemented in downstream chains.
+
+#### Functional Requirements
+
+##### FR-1: Orchestrator Decision Logic (P0)
+
+| ID | Requirement | Acceptance Criteria |
+|----|-------------|---------------------|
+| FR-1.1 | Orchestrator MUST evaluate context-retrieval invocation criteria before routing | `orchestrator.md` contains decision logic block |
+| FR-1.2 | Token budget check MUST execute before invocation decision | Token check appears before complexity check |
+| FR-1.3 | Complex tasks MUST trigger context-retrieval automatically | Complexity="Complex" always invokes |
+| FR-1.4 | Security domain tasks MUST trigger context-retrieval automatically | Secondary domains containing "Security" always invoke |
+
+##### FR-2: Context-Retrieval Constraints (P0)
+
+| ID | Requirement | Acceptance Criteria |
+|----|-------------|---------------------|
+| FR-2.1 | context-retrieval agent MUST NOT have access to Task tool | `tools:` field excludes `Task` |
+| FR-2.2 | context-retrieval MUST return context to orchestrator | Agent documentation specifies return pattern |
+
+##### FR-3: Measurement Infrastructure (P1)
+
+| ID | Requirement | Acceptance Criteria |
+|----|-------------|---------------------|
+| FR-3.1 | System MUST track auto-invocation rate | Metrics script reports percentage |
+| FR-3.2 | System MUST track token overhead per invocation | Metrics script reports average tokens |
+| FR-3.3 | System MUST track context reuse rate | Metrics script reports usage percentage |
+| FR-3.4 | System MUST track false positive rate | Metrics script reports unnecessary invocations |
+
+#### Blocking Questions
+
+| Question | Status | Resolution |
+|----------|--------|------------|
+| How should orchestrator detect remaining token budget percentage? | NON-CRITICAL | Start with fixed threshold (80,000 tokens remaining as "safe"). Refine in Phase 2. |
+
+#### Related Issues
+
+| Issue | Relationship |
+|-------|--------------|
+| #751 | Memory fragmentation (should complete first) |
+| #731 | Update prompts to Memory Router |
+| #734 | Memory Router optimization |
+
+#### Haiku-Ready Implementation Cards
+
+##### #1015 Haiku-Ready Implementation (Phase 1: Conservative Auto-Invocation)
+
+<details>
+<summary>Files to modify and verification commands</summary>
+
+**Files**:
+1. `.claude/agents/orchestrator.md` - Add Phase 0.75 auto-invocation logic
+2. `.claude/agents/context-retrieval.md` - Add architectural constraint (no Task tool)
+
+**Step 1: Update orchestrator.md**
+
+Insert after "Phase 0.5: Task Classification" section:
+
+```markdown
+### Phase 0.75: Context-Retrieval Auto-Invocation (CONDITIONAL)
+
+**Decision Logic** (Phase 1 - Conservative):
+1. Check token budget: IF remaining_budget_percent < 20% → SKIP
+2. Check complexity: IF complexity = "Complex" → INVOKE
+3. Check security: IF "Security" in secondary_domains → INVOKE
+4. Default: SKIP (expand in Phase 2 based on metrics)
+
+**When invoked**:
+Task(
+    subagent_type="context-retrieval",
+    prompt="Gather context for: [task summary]. Task Type: [type]. Primary Domain: [domain]. Complexity: [complexity]. Return focused summary with code patterns and design decisions."
+)
+
+**After context-retrieval returns**:
+- Incorporate relevant findings into routing decision
+- PRUNE context that does not affect routing (free tokens)
+- Document invocation in session log Evidence column
+```
+
+**Step 2: Update context-retrieval.md**
+
+Add at end of file:
+
+```markdown
+## Architectural Constraint (DO NOT VIOLATE)
+
+This agent MUST NOT use the Task tool. It is a leaf node in the delegation tree.
+Delegation would create circular dependencies (orchestrator → context-retrieval → orchestrator).
+If you need multi-step logic, return instructions for orchestrator to execute.
+
+**Rationale**: Enforces fail-closed architecture for auto-invocation safety.
+```
+
+</details>
+
+**#1015 Verification** (all must exit 0 for DONE):
+```bash
+# AC1: orchestrator.md contains Phase 0.75 decision logic
+grep -q "Phase 0.75.*Context-Retrieval" .claude/agents/orchestrator.md && echo "✓ AC1: Phase 0.75 in orchestrator"
+
+# AC2: Token budget check appears before complexity check
+grep -A5 "Phase 0.75" .claude/agents/orchestrator.md | grep -q "token.*budget" && echo "✓ AC2: Token budget check present"
+
+# AC3: Complex tasks trigger invocation
+grep -q 'complexity.*=.*"Complex".*INVOKE\|Complex.*INVOKE' .claude/agents/orchestrator.md && echo "✓ AC3: Complex tasks invoke"
+
+# AC4: Security domain triggers invocation
+grep -q 'Security.*INVOKE' .claude/agents/orchestrator.md && echo "✓ AC4: Security domain invokes"
+
+# AC5: context-retrieval.md has architectural constraint
+grep -q "MUST NOT use the Task tool\|Architectural Constraint" .claude/agents/context-retrieval.md && echo "✓ AC5: Task tool constraint present"
+```
+
+**#1015 STOP Criteria** (close issue when ALL pass):
+- [ ] All 5 verification commands exit 0
+- [ ] Manual test: Run orchestrator with Complex task, verify context-retrieval invoked
+- [ ] Manual test: Run orchestrator with Simple task, verify context-retrieval NOT invoked
+
+---
+
+##### #1016 Haiku-Ready Implementation (Measurement Script)
+
+<details>
+<summary>Script specification and verification commands</summary>
+
+**File**: `scripts/measure_context_retrieval_metrics.py`
+
+**Purpose**: Measure context-retrieval auto-invocation effectiveness from session logs.
+
+**Usage**:
+```bash
+python scripts/measure_context_retrieval_metrics.py --session-logs .agents/sessions/*.json
+```
+
+**Inputs**:
+- Session log JSON files from `.agents/sessions/`
+- Parses `protocolCompliance`, `decisions`, and `agentInvocations` fields
+
+**Outputs** (JSON to stdout):
+```json
+{
+  "auto_invocation_rate": 0.90,
+  "avg_tokens_per_invocation": 4500,
+  "context_reuse_rate": 0.65,
+  "false_positive_rate": 0.15,
+  "sessions_analyzed": 10,
+  "verdict": "PASS"
+}
+```
+
+**Exit Codes**:
+- 0: All BLOCKING metrics pass
+- 1: One or more BLOCKING metrics fail
+- 2: Invalid input or parse error
+
+**Metric Definitions**:
+| Metric | Formula | Target | Blocking |
+|--------|---------|--------|----------|
+| Auto-invocation rate | (Complex+Security tasks with invocation) / (Total Complex+Security tasks) | ≥90% | Yes |
+| Avg tokens/invocation | Sum(context-retrieval output tokens) / Count(invocations) | ≤5000 | Yes |
+| Context reuse rate | (Routing decisions citing context) / (Total invocations) | ≥60% | Yes |
+| False positive rate | (Invocations with "no relevant context") / (Total invocations) | ≤20% | No (warning) |
+
+**Implementation Notes**:
+- Use `argparse` for CLI arguments
+- Use `pathlib` for cross-platform paths
+- Parse JSON with `json` module
+- Output structured JSON for downstream processing
+- Include `--verbose` flag for detailed per-session output
+
+</details>
+
+**#1016 Verification** (all must exit 0 for DONE):
+```bash
+# AC1: Script exists
+test -f scripts/measure_context_retrieval_metrics.py && echo "✓ AC1: Script exists"
+
+# AC2: Script is executable Python
+python -m py_compile scripts/measure_context_retrieval_metrics.py && echo "✓ AC2: Valid Python syntax"
+
+# AC3: Script accepts --session-logs argument
+python scripts/measure_context_retrieval_metrics.py --help | grep -q "session-logs" && echo "✓ AC3: Accepts --session-logs"
+
+# AC4: Script outputs JSON with required fields
+python scripts/measure_context_retrieval_metrics.py --session-logs .agents/sessions/*.json 2>/dev/null | python -c "import sys,json; d=json.load(sys.stdin); assert all(k in d for k in ['auto_invocation_rate','context_reuse_rate','verdict'])" && echo "✓ AC4: Output has required fields"
+
+# AC5: Exit code reflects verdict (run on test data)
+python scripts/measure_context_retrieval_metrics.py --session-logs .agents/sessions/*.json; [ $? -le 1 ] && echo "✓ AC5: Valid exit code"
+```
+
+**#1016 STOP Criteria** (close issue when ALL pass):
+- [ ] All 5 verification commands exit 0
+- [ ] Script handles empty session directory gracefully
+- [ ] Script handles malformed JSON gracefully (exit 2)
+
+---
+
+#### Proposed Solution
+
+**Phased Rollout Approach**:
+
+**Phase 1 (Week 3)**: Conservative Start - Complex + Security Only
+**Phase 2 (Week 4)**: Expand if validated - Standard + (Multi-domain OR Low confidence)
+**Phase 3 (v0.4.0)**: Full automation based on metrics
+
+**Auto-Invocation Trigger Logic** (Phase 1 - Conservative):
+
+After Phase 0.5 (Task Classification) and before Phase 2 (Planning), orchestrator evaluates whether to invoke context-retrieval:
+
+```
+# Phase 1 Logic (Week 3)
+IF token_budget_percent < 20%:
+    SKIP (preserve tokens for implementation)
+
+IF complexity = "Complex":
+    INVOKE (cross-cutting tasks always benefit)
+
+IF "Security" in secondary_domains:
+    INVOKE (past security decisions critical)
+
+ELSE:
+    SKIP (defer to Phase 2 expansion)
+
+# Phase 2 Logic (Week 4 - if Phase 1 metrics pass)
+IF classification_confidence < 60%:
+    INVOKE (unfamiliar domain, likely cross-project pattern)
+
+IF domain_count >= 3:
+    INVOKE (multi-domain integration patterns)
+
+# Phase 3 Logic (v0.4.0 - if Phase 2 metrics pass)
+IF user_explicit_request:
+    INVOKE (user knows context exists)
+```
+
+**Invocation Pattern**:
+
+```markdown
+Task(
+    subagent_type="context-retrieval",
+    prompt=f"""Gather context for: {task_summary}
+
+    Task Type: {task_type}
+    Primary Domain: {primary_domain}
+    Secondary Domains: {secondary_domains}
+    Complexity: {complexity}
+
+    Search Strategy:
+    1. Cross-project patterns (ALL projects, not just current)
+    2. Similar implementations from Forgetful Memory
+    3. Framework-specific guidance from Context7
+    4. Architectural decisions from Serena memories
+
+    Return focused summary with code patterns and design decisions.
+    """
+)
+```
+
+**Decision Tree for Auto-Invocation** (Phase 1 - Conservative):
+
+| Condition | Phase 1 (Week 3) | Phase 2 (Week 4) | Phase 3 (v0.4.0) | Rationale |
+|-----------|------------------|------------------|------------------|-----------|
+| Token budget < 20% | ❌ No | ❌ No | ❌ No | Preserve tokens for implementation |
+| Complexity = Trivial | ❌ No | ❌ No | ❌ No | Waste of tokens, direct answer |
+| Complexity = Simple | ❌ No | ❌ No | ⚠️ If user requests | implementer has local context |
+| Complexity = Complex | ✅ Yes | ✅ Yes | ✅ Yes | Cross-cutting, always benefit |
+| Security domain | ✅ Yes | ✅ Yes | ✅ Yes | Past security decisions critical |
+| Standard + Low confidence (<60%) | ❌ Defer to Phase 2 | ✅ Yes | ✅ Yes | Unfamiliar domain, cross-project pattern likely |
+| Standard + Multi-domain (3+) | ❌ Defer to Phase 2 | ✅ Yes | ✅ Yes | Integration patterns likely exist |
+| User explicit request | ❌ Defer to Phase 3 | ❌ Defer to Phase 3 | ✅ Yes | User knows context exists |
+
+**Phase Gate Criteria**:
+- **Phase 1 → Phase 2**: Context reuse rate > 60%, false positive rate < 20% (10 sessions)
+- **Phase 2 → Phase 3**: Incremental value demonstrated, no context window exhaustion (10 sessions)
+
+**Implementation Approach**:
+
+1. **Add to orchestrator.md** (Phase 1: Initialization):
+   ```markdown
+   ### Phase 1: Initialization (MANDATORY)
+
+   - [ ] CRITICAL: Retrieve memory context
+   - [ ] **NEW**: Auto-invoke context-retrieval if threshold met (see decision tree)
+   - [ ] Read repository docs: CLAUDE.md, .github/copilot-instructions.md
+   - [ ] Identify project type and existing tools
+   - [ ] Check for similar past orchestrations in memory
+   - [ ] Plan agent routing sequence (WITH context from context-retrieval if invoked)
+   ```
+
+2. **Add decision logic to orchestrator prompt** (Phase 1):
+   ```markdown
+   ## Context-Retrieval Auto-Invocation (Phase 1)
+
+   After Phase 0.5 (Task Classification), evaluate if context-retrieval should be invoked:
+
+   Decision Logic (Conservative Start):
+   - Check token budget: If <20% remaining, SKIP (preserve tokens)
+   - If Complexity = Complex, INVOKE
+   - If "Security" in secondary_domains, INVOKE
+   - Otherwise, SKIP (expand in Phase 2 based on metrics)
+
+   If invoked, store context in working memory and reference during routing.
+   After routing decision made, PRUNE context from working memory to free tokens.
+   ```
+
+3. **Add architectural constraint to context-retrieval.md**:
+   ```markdown
+   ## ARCHITECTURAL CONSTRAINT (DO NOT VIOLATE)
+
+   This agent MUST NOT use the Task tool. It is a leaf node in the delegation tree.
+   Delegation would create circular dependencies (orchestrator → context-retrieval → orchestrator).
+   If you need multi-step logic, return instructions for orchestrator to execute.
+
+   Rationale: Enforces fail-closed architecture for auto-invocation safety.
+   ```
+
+3. **Context Injection Pattern**:
+   After context-retrieval returns, orchestrator stores summary in working memory:
+   ```markdown
+   ## Context Retrieved (Auto-Invoked)
+
+   [Summary from context-retrieval agent]
+
+   **Key Patterns**:
+   - [Pattern 1]
+   - [Pattern 2]
+
+   **Architectural Decisions**:
+   - [Decision 1]
+   - [Decision 2]
+
+   **Cross-Project Insights**:
+   - [Similar implementation in Project X]
+
+   This context MUST inform agent routing and task delegation.
+   ```
+
+#### Exit Criteria / Acceptance Criteria (Phase 1)
+
+| Criterion | Measurement Protocol | Target | Pass/Fail |
+|-----------|---------------------|--------|-----------|
+| **Auto-invocation rate** | Grep session logs for `"Routing to context-retrieval"` / Total Complex+Security tasks | 90%+ of eligible tasks | BLOCKING |
+| **Token overhead** | Sum context-retrieval output tokens / # invocations | <5000 tokens/invocation | BLOCKING |
+| **Context reuse** | Count routing decisions that cite context-retrieval findings / Total invocations | >60% | BLOCKING (Phase 1 → Phase 2 gate) |
+| **False positive rate** | Grep for `"no relevant context found"` / Total invocations | <20% | WARNING (tune thresholds) |
+| **Performance impact** | Median time from invocation to response | <3 seconds | WARNING |
+| **Cross-project hit rate** | Grep for `"Similar pattern in Project"` / Total invocations | >20% | INFORMATIONAL |
+| **Context freshness** | Count memories older than 30 days cited / Total memories cited | <30% | INFORMATIONAL |
+
+**Measurement Protocol for "Context Reuse"** (addresses critique about subjectivity):
+
+1. Grep session log for routing decision sections AFTER context-retrieval output
+2. Check if routing decision explicitly mentions:
+   - "Based on context-retrieval findings..."
+   - "Pattern identified: [from context]"
+   - "Architectural decision [from context]"
+   - "Cross-project implementation [from context]"
+3. If any of above present → count as "reused"
+4. If routing decision ignores context → count as "false positive"
+
+**Validation Method** (Phase 1):
+- After 10 orchestrations with auto-invocation enabled, run:
+  ```bash
+  python scripts/measure_context_retrieval_metrics.py --session-logs .agents/sessions/*.json
+  ```
+- Output: Pass/Fail verdict for each criterion
+- If all BLOCKING criteria pass → proceed to Phase 2
+- If Context reuse < 60% → abort expansion, analyze why
+
+#### Risks and Mitigations
+
+| Risk | Impact | Likelihood | Mitigation | Phase |
+|------|--------|------------|------------|-------|
+| **Token bloat** | Every orchestration adds 5K tokens | Low (Phase 1) | Phase 1 only Complex+Security (~20% of tasks); prune after routing | Week 3 |
+| **Context window pollution** | 30K tokens/day in long sessions | Medium | PRUNE context after routing decision; measure via token budget tracking | Week 3 |
+| **Circular dependency** | context-retrieval calls orchestrator, infinite loop | Low | Add architectural constraint to context-retrieval.md forbidding Task tool | Week 3 |
+| **Over-engineering** | Adds complexity for marginal benefit | Medium | Phase 1 validation gate: abort if reuse rate < 60% | Week 3 |
+| **Latency impact** | Adds 2-3 seconds to every Complex task | Low | Haiku is fast; acceptable for Complex tasks; measure P95 | Week 3 |
+| **Context irrelevance** | Retrieves context that doesn't apply | Medium | Phase 1 filters by complexity only; tune in Phase 2 based on false positive rate | Week 4 |
+| **Memory search failures** | Forgetful/Serena unavailable, context-retrieval fails | Low | Fail gracefully, log gap, proceed without context (status quo) | Week 3 |
+| **Context staleness** | Outdated patterns retrieved | Medium | context-retrieval filters by importance (9-10 only); add `updated_after` filter | Week 4 |
+
+**Mitigation Strategy** (Phased):
+1. **Phase 1 (Week 3)**: Conservative start (Complex+Security only, 20% token threshold)
+2. **Measure Phase 1**: Run 10 sessions, collect metrics, validate reuse rate > 60%
+3. **Phase 2 (Week 4)**: Expand to Standard + (Low confidence OR Multi-domain) IF Phase 1 passes
+4. **Measure Phase 2**: Run 10 sessions, validate no context window exhaustion
+5. **Kill Switch**: Abort expansion if false positive rate > 30% at any phase
+
+#### Alternative Approaches Considered
+
+| Approach | Pros | Cons | Verdict |
+|----------|------|------|--------|
+| **Manual opt-in** (status quo) | No token overhead, agents decide | Requires manual memory, inconsistent | ❌ Rejected - defeats memory-first architecture |
+| **Always invoke** | Guarantees memory-first | 5K tokens × every task = bloat | ❌ Rejected - wasteful for Trivial/Simple tasks |
+| **Memory Index Pre-Flight** | Lightweight, data-driven suggestion; scan Serena index for keyword hits before orchestration | Simple, low overhead | ⚠️ Considered for v0.4.0 - simpler but less proactive |
+| **Lazy Loading** | Only invoke if routing decision is ambiguous (confidence < 70%) | Reactive, catches ambiguity | ⚠️ Considered - misses cross-project patterns |
+| **Pre-Commit Hook** | Warn if Complex task proceeded without context-retrieval | Post-hoc education, no runtime overhead | ⚠️ Considered for v0.4.0 - doesn't prevent the gap |
+| **Proposed: Phased Auto-Invocation** | Balances cost vs value, token-aware, conservative start, data-driven expansion | Requires tuning thresholds across 3 phases | ✅ Selected - validates value before scaling |
+
+**Why Phased Auto-Invocation Over Memory Index Pre-Flight**:
+- Pre-Flight is simpler but requires agents to interpret suggestions (manual decision)
+- Auto-invocation enforces memory-first architecture (no cognitive load)
+- Phased rollout mitigates over-engineering risk while validating value
+- Can evolve to Pre-Flight in v0.4.0 if auto-invocation proves too heavy
+
+#### Success Metrics (Retrospective Analysis)
+
+After v0.3.0 ships, retrospective agent measures:
+
+1. **Context Reuse Rate**: How often did context-retrieval findings influence routing/implementation?
+   - **Target**: 60%+ of auto-invocations
+   - **Measurement**: Grep session logs for "Context Retrieved" followed by routing changes
+
+2. **Cross-Project Learning**: How many times did we find a pattern from another project?
+   - **Target**: 20%+ of auto-invocations
+   - **Measurement**: Grep context-retrieval outputs for "Project:" mentions
+
+3. **Token Efficiency**: Was the token cost justified by value?
+   - **Target**: Average 5K tokens/invocation, 60%+ reuse = 8.3K tokens/useful context
+   - **Measurement**: Compare to manual memory searches (estimated 2K tokens but 30% miss rate)
+
+4. **False Positive Rate**: How often was context irrelevant?
+   - **Target**: <20% of auto-invocations
+   - **Measurement**: Retrospective reviews session logs for unused context
+
+#### Open Questions
+
+1. **Token Budget Threshold**: Is 30% the right cutoff? Should it be dynamic based on task complexity?
+   - **Resolution**: Start with 30%, tune based on first 10 sessions
+
+2. **Domain Novelty Detection**: How does orchestrator know if a domain is "new"?
+   - **Proposed**: Check Serena memory index for recent memories in that domain; if last memory >7 days old, consider "new"
+   - **Alternative**: Simple heuristic based on classification confidence (Low confidence = likely new)
+
+3. **Context Staleness**: How do we avoid retrieving outdated patterns?
+   - **Proposed**: context-retrieval already filters by importance (9-10 = architectural, 7-8 = patterns, <7 = stale)
+   - **Enhancement**: Add `updated_after` filter to memory queries
+
+4. **Integration with Planner**: Should planner also auto-invoke context-retrieval?
+   - **Analysis**: Planner creates milestones, not implementation details. Context less critical.
+   - **Decision**: Start with orchestrator only; expand to planner in v0.4.0 if proven valuable
+
+#### Critique Response Summary
+
+**Major Revisions Made** (addressing critique feedback):
+
+| Critique Point | Original Proposal | Revised Proposal |
+|----------------|-------------------|------------------|
+| **Over-engineering** | 8-condition decision tree, all at once | Phased rollout: Phase 1 (2 conditions), Phase 2 (4 conditions), Phase 3 (6 conditions) |
+| **Token threshold** | 30% (arbitrary) | 20% for Complex (data-driven based on task priority) |
+| **Context window pollution** | No pruning mechanism | PRUNE context after routing decision |
+| **Circular dependency** | Social contract only | Add architectural constraint to context-retrieval.md |
+| **Success metrics** | Subjective "influence" | Concrete grep protocol for measuring context reuse |
+| **Start conservative** | Standard + Complex in Week 3 | Complex + Security only in Week 3, expand in Week 4 if validated |
+| **Simpler alternatives** | Not compared | Added Memory Index Pre-Flight comparison for v0.4.0 evolution |
+
+**Verdict**: Revised proposal addresses all major concerns. Ready for approval gate.
+
+#### Next Steps
+
+1. **Approval Gate** (Week 3 start): Review with Architect, High-Level-Advisor, and Roadmap agents
+2. **File Issue**: Create GitHub issue with approved proposal (assign to Week 3)
+3. **Phase 1 Implementation** (Week 3):
+   - Update orchestrator.md with Phase 1 decision logic (Complex + Security only)
+   - Add context pruning mechanism to orchestrator prompt
+   - Add architectural constraint to context-retrieval.md (no Task tool)
+   - Create `scripts/measure_context_retrieval_metrics.py` measurement script (Python per ADR-042)
+4. **Phase 1 Validation** (Week 3 end):
+   - Run 10 orchestrations with auto-invocation enabled
+   - Execute `measure_context_retrieval_metrics.py`
+   - If reuse rate > 60% and false positive rate < 20%, proceed to Phase 2
+   - If metrics fail, abort expansion and analyze root cause
+5. **Phase 2 Implementation** (Week 4 - conditional):
+   - Expand to Standard + (Low confidence OR Multi-domain)
+   - Run 10 more sessions, validate no context window exhaustion
+6. **Documentation**:
+   - Update AGENTS.md with memory-first enforcement
+   - Add example orchestration log showing auto-invocation in action
+   - Document Phase 1 → Phase 2 → Phase 3 evolution plan
 
 ---
 

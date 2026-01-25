@@ -580,6 +580,16 @@ Files distributed to end-users (`src/claude/`, `src/copilot-cli/`, `src/vs-code-
 
 ---
 
+## Memory Interface Selection
+
+> **Confused about which memory interface to use?** The project has 4 memory backends (Forgetful, Serena, Memory Router, slash commands). Use the `context-retrieval` agent when you need to gather context before planning or implementation.
+
+**When to invoke**: Before starting complex tasks that require understanding existing patterns, prior decisions, or cross-project knowledge.
+
+**Full decision matrix**: See [context-retrieval agent](.claude/agents/context-retrieval.md#memory-interface-decision-matrix) for the complete interface selection guide.
+
+---
+
 ## Agent Catalog
 
 > **Persona-Based Definitions**: Each agent has a specific expertise and persona for focused task execution.
