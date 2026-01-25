@@ -1,0 +1,414 @@
+name: PR Validation
+
+# Validates PR description matches diff and enforces review comment policies
+# Implements Phase 2 and Phase 4 from Issue #230
+#
+# Related Required Checks (configured in branch protection):
+#   - PR Validation (this workflow)
+#   - Session Protocol Validation (ai-session-protocol.yml)
+#   - Pester Tests (pester-tests.yml)
+#   - AI Quality Gate (ai-pr-quality-gate.yml)
+#   - CodeQL Analysis (codeql-analysis.yml) - Security scanning
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+# Concurrency control: Attempts to cancel in-progress runs when new runs start
+
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+
+# where multiple runs start before cancellation takes effect. This is best-effort
+
+# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+# for architectural decision on workflow-level concurrency control
+
+# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  validate-pr:
+    name: Validate PR
+    # ADR-032: ARM runner for cost optimization (37.5% savings vs x64)
+    # PowerShell Core and GitHub CLI fully support ARM64
+    runs-on: ubuntu-24.04-arm
+    # Note: No job-level if condition - job must always run to report status for required checks
+    # Bot exclusions handled at step level to ensure status is always reported
+    timeout-minutes: 10
+
+    steps:
+      - name: Check if validation should run
+        id: should-run
+        shell: pwsh
+        run: |
+          $actor = "${{ github.actor }}"
+          $excludedBots = @('dependabot[bot]', 'github-actions[bot]')
+          
+          if ($actor -in $excludedBots) {
+            Write-Host "Skipping validation for bot actor: $actor"
+            "skip=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "Running validation for actor: $actor"
+            "skip=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Checkout repository
+        if: steps.should-run.outputs.skip != 'true'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup PowerShell
+        if: steps.should-run.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
+          Write-Host "Available modules:"
+          Get-Module -ListAvailable | Select-Object Name, Version | Format-Table
+
+      - name: Validate PR Description vs Diff
+        if: steps.should-run.outputs.skip != 'true'
+        id: validate-description
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          $scriptPath = "scripts/Validate-PRDescription.ps1"
+          
+          if (-not (Test-Path $scriptPath)) {
+            Write-Warning "Validate-PRDescription.ps1 not found, skipping validation"
+            "validation_result=SKIP" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          
+          Write-Host "Validating PR description..."
+          
+          try {
+            & pwsh -NoProfile -File $scriptPath -PRNumber $env:PR_NUMBER
+            $exitCode = $LASTEXITCODE
+            
+            if ($exitCode -eq 0) {
+              "validation_result=PASS" >> $env:GITHUB_OUTPUT
+              Write-Host "✓ PR description validation passed"
+            } else {
+              "validation_result=FAIL" >> $env:GITHUB_OUTPUT
+              Write-Warning "PR description validation failed (exit code: $exitCode)"
+            }
+          } catch {
+            Write-Error "Validation script error: $_"
+            "validation_result=ERROR" >> $env:GITHUB_OUTPUT
+            exit 1
+          }
+
+      - name: Check Review Comment Status
+        if: steps.should-run.outputs.skip != 'true'
+        id: check-comments
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          Write-Host "Checking review comment status..."
+          
+          # Fetch PR review comments
+          $comments = gh api "/repos/${{ github.repository }}/pulls/$env:PR_NUMBER/comments" | ConvertFrom-Json
+
+          # Count unresolved and security-related comments
+          $unresolvedCount = 0
+          $securityUnresolved = 0
+
+          foreach ($comment in $comments) {
+            # Count all unresolved comments (GitHub does not expose resolved status via API)
+            # For now, we count all comments as this is informational
+            $unresolvedCount++
+
+            # Check for security-related keywords that are not marked as "won't fix"
+            if ($comment.body -match '\b(security|vulnerability|CVE|injection|XSS)\b' -and
+                -not ($comment.body -match '\bwon''t fix\b|\bWONT_FIX\b')) {
+              $securityUnresolved++
+            }
+          }
+
+          "unresolved_count=$unresolvedCount" >> $env:GITHUB_OUTPUT
+          "security_unresolved=$securityUnresolved" >> $env:GITHUB_OUTPUT
+
+          Write-Host "Review comment status:"
+          Write-Host "  Total comments: $unresolvedCount"
+          Write-Host "  Security-related unresolved: $securityUnresolved"
+
+      - name: Check QA Report Exists
+        if: steps.should-run.outputs.skip != 'true'
+        id: check-qa
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          Write-Host "Checking for QA report..."
+
+          # Get changed files in PR using files API (no line limit, unlike gh pr diff)
+          # See issue #468: gh pr diff fails with HTTP 406 when diff exceeds 20,000 lines
+          $changedFiles = gh api "repos/$env:GITHUB_REPOSITORY/pulls/$env:PR_NUMBER/files" --paginate --jq '.[].filename' | Out-String
+          
+          # Check if code files changed (not just docs)
+          $codeExtensions = @('.ps1', '.cs', '.ts', '.js', '.py', '.yml', '.yaml', '.json')
+          $hasCodeChanges = $false
+          
+          foreach ($line in ($changedFiles -split "`n")) {
+            $ext = [IO.Path]::GetExtension($line.Trim())
+            if ($ext -in $codeExtensions -and $line -notmatch '^\.agents/') {
+              $hasCodeChanges = $true
+              break
+            }
+          }
+          
+          "has_code_changes=$hasCodeChanges" >> $env:GITHUB_OUTPUT
+          
+          if ($hasCodeChanges) {
+            # Check for QA report in .agents/qa/
+            $qaReports = Get-ChildItem -Path ".agents/qa/" -Filter "*pr-$env:PR_NUMBER*.md" -ErrorAction SilentlyContinue
+            
+            if ($qaReports.Count -gt 0) {
+              "qa_report_exists=true" >> $env:GITHUB_OUTPUT
+              "qa_report=$($qaReports[0].Name)" >> $env:GITHUB_OUTPUT
+              Write-Host "✓ QA report found: $($qaReports[0].Name)"
+            } else {
+              "qa_report_exists=false" >> $env:GITHUB_OUTPUT
+              Write-Warning "No QA report found for code changes"
+            }
+          } else {
+            "qa_report_exists=N/A" >> $env:GITHUB_OUTPUT
+            Write-Host "No code changes, QA report not required"
+          }
+
+      - name: Generate Validation Report
+        if: steps.should-run.outputs.skip != 'true'
+        id: report
+        shell: pwsh
+        env:
+          DESCRIPTION_RESULT: ${{ steps.validate-description.outputs.validation_result }}
+          UNRESOLVED_COUNT: ${{ steps.check-comments.outputs.unresolved_count }}
+          SECURITY_UNRESOLVED: ${{ steps.check-comments.outputs.security_unresolved }}
+          HAS_CODE_CHANGES: ${{ steps.check-qa.outputs.has_code_changes }}
+          QA_EXISTS: ${{ steps.check-qa.outputs.qa_report_exists }}
+          QA_REPORT: ${{ steps.check-qa.outputs.qa_report }}
+        run: |
+          $overallStatus = "PASS"
+          $blockingIssues = @()
+          $warnings = @()
+          
+          # Check description validation
+          if ($env:DESCRIPTION_RESULT -eq "FAIL") {
+            $overallStatus = "FAIL"
+            $blockingIssues += "PR description does not match actual changes"
+          } elseif ($env:DESCRIPTION_RESULT -eq "ERROR") {
+            $overallStatus = "ERROR"
+            $blockingIssues += "Description validation error"
+          }
+          
+          # Check QA report
+          if ($env:HAS_CODE_CHANGES -eq "true" -and $env:QA_EXISTS -eq "false") {
+            $warnings += "QA report not found for code changes (recommended before merge)"
+          }
+          
+          # Build report
+          $alertType = if ($overallStatus -eq "FAIL") { "CAUTION" } 
+                      elseif ($overallStatus -eq "ERROR") { "WARNING" }
+                      elseif ($warnings.Count -gt 0) { "NOTE" }
+                      else { "TIP" }
+          
+          $emoji = if ($overallStatus -eq "PASS") { "✅" } else { "❌" }
+          
+          $report = @"
+          <!-- PR-VALIDATION -->
+          
+          ## PR Validation Report
+          
+          > [!$alertType]
+          > $emoji **Status: $overallStatus**
+          
+          ### Description Validation
+          
+          | Check | Status |
+          |:------|:-------|
+          | Description matches diff | $env:DESCRIPTION_RESULT |
+          
+          ### QA Validation
+          
+          | Check | Status |
+          |:------|:-------|
+          | Code changes detected | $env:HAS_CODE_CHANGES |
+          | QA report exists | $env:QA_EXISTS |
+          "@
+          
+          if ($env:QA_REPORT) {
+            $report += "`n| QA report | ``.agents/qa/$env:QA_REPORT`` |"
+          }
+          
+          if ($blockingIssues.Count -gt 0) {
+            $report += "`n`n### ⚠️ Blocking Issues`n`n"
+            foreach ($issue in $blockingIssues) {
+              $report += "- $issue`n"
+            }
+          }
+          
+          if ($warnings.Count -gt 0) {
+            $report += "`n`n### ⚡ Warnings`n`n"
+            foreach ($warning in $warnings) {
+              $report += "- $warning`n"
+            }
+          }
+          
+          $report += "`n`n---`n`n"
+          $report += "<sub>Powered by [PR Validation](https://github.com/${{ github.repository }}) workflow</sub>`n"
+          
+          # Save report
+          $report | Set-Content "pr-validation-report.md" -Encoding UTF8
+          "overall_status=$overallStatus" >> $env:GITHUB_OUTPUT
+
+      - name: Post PR Comment
+        if: steps.should-run.outputs.skip != 'true'
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          $reportFile = "pr-validation-report.md"
+          
+          if (Test-Path $reportFile) {
+            # Use GitHub skill script for idempotent comment posting
+            if (Test-Path ".claude/skills/github/scripts/issue/Post-IssueComment.ps1") {
+              & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
+                -Issue $env:PR_NUMBER `
+                -BodyFile $reportFile `
+                -Marker "PR-VALIDATION"
+            } else {
+              Write-Warning "Post-IssueComment skill not found, using gh directly"
+              $body = Get-Content $reportFile -Raw
+              gh pr comment $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --body $body
+            }
+          }
+
+      - name: Set Job Summary
+        if: steps.should-run.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          if (Test-Path "pr-validation-report.md") {
+            Get-Content "pr-validation-report.md" | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Check PR commit count
+        if: steps.should-run.outputs.skip != 'true'
+        id: commit-check
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Get commit count for this PR (see #362 for thresholds)
+          # NOTE: Pagination limited to 100 commits. PRs exceeding this are rare given 20-commit block threshold.
+          $commits = gh api "/repos/${{ github.repository }}/pulls/$env:PR_NUMBER/commits?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to fetch commits for PR #$env:PR_NUMBER via 'gh api'. Exit code: $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+
+          if (-not $commits) {
+            Write-Error "No commits were returned for PR #$env:PR_NUMBER. Aborting commit count check."
+            exit 1
+          }
+
+          $commitCount = $commits.Count
+
+          Write-Host "PR #$env:PR_NUMBER has $commitCount commits"
+          "commit_count=$commitCount" >> $env:GITHUB_OUTPUT
+
+          # Define thresholds per issue #362
+          $warningThreshold = 10
+          $alertThreshold = 15
+          $blockThreshold = 20
+
+          if ($commitCount -ge $blockThreshold) {
+            Write-Host "::error::PR exceeds commit limit ($commitCount >= $blockThreshold). Consider splitting this PR."
+            "status=BLOCKED" >> $env:GITHUB_OUTPUT
+          } elseif ($commitCount -ge $alertThreshold) {
+            Write-Host "::warning::PR approaching commit limit ($commitCount >= $alertThreshold). Consider shipping current changes."
+            "status=ALERT" >> $env:GITHUB_OUTPUT
+          } elseif ($commitCount -ge $warningThreshold) {
+            Write-Host "::notice::PR has many commits ($commitCount >= $warningThreshold). Consider squashing or splitting."
+            "status=WARNING" >> $env:GITHUB_OUTPUT
+          } else {
+            "status=OK" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Apply needs-split label
+        if: steps.commit-check.outputs.status == 'WARNING' || steps.commit-check.outputs.status == 'ALERT' || steps.commit-check.outputs.status == 'BLOCKED'
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Check if label already exists on PR (2>$null is safe - PR exists when workflow runs)
+          $existingLabels = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
+          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
+
+          if ($existingLabels -notcontains 'needs-split') {
+            gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "needs-split"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to add needs-split label (exit code: $LASTEXITCODE)" }
+            Write-Host "Added 'needs-split' label to PR #$env:PR_NUMBER"
+          } else {
+            Write-Host "PR #$env:PR_NUMBER already has 'needs-split' label"
+          }
+
+      - name: Remove needs-split label when below threshold
+        if: steps.commit-check.outputs.status == 'OK'
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Remove label if it exists and commit count is back below threshold
+          # 2>$null is safe - PR exists when workflow runs
+          $existingLabels = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
+          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
+
+          if ($existingLabels -contains 'needs-split') {
+            gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --remove-label "needs-split"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to remove needs-split label (exit code: $LASTEXITCODE)" }
+            Write-Host "Removed 'needs-split' label from PR #$env:PR_NUMBER"
+          }
+
+      - name: Enforce Blocking Issues
+        if: steps.should-run.outputs.skip != 'true'
+        shell: pwsh
+        env:
+          OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
+          COMMIT_STATUS: ${{ steps.commit-check.outputs.status }}
+          COMMIT_COUNT: ${{ steps.commit-check.outputs.commit_count }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if ($env:OVERALL_STATUS -eq "FAIL" -or $env:OVERALL_STATUS -eq "ERROR") {
+            Write-Error "PR validation failed: $env:OVERALL_STATUS"
+            exit 1
+          }
+
+          # Block if commit count exceeds limit (requires human override via bypass label)
+          if ($env:COMMIT_STATUS -eq "BLOCKED") {
+            # Check for bypass label (2>$null is safe - PR exists when workflow runs)
+            $labels = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
+            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
+
+            if ($labels -contains 'commit-limit-bypass') {
+              Write-Host "::warning::Commit limit bypassed via 'commit-limit-bypass' label"
+            } else {
+              Write-Error "PR has $env:COMMIT_COUNT commits (limit: 20). Add 'commit-limit-bypass' label to override or split this PR."
+              exit 1
+            }
+          }
+
+          Write-Host "✓ PR validation passed"
