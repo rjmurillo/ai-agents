@@ -9,7 +9,13 @@ Usage:
 """
 
 from .models import Memory, Citation, Link, LinkType
-from .citations import verify_citation, verify_memory, verify_all_memories, VerificationResult
+from .citations import (
+    verify_citation,
+    verify_memory,
+    verify_all_memories,
+    VerificationResult,
+    VerifyAllResult,
+)
 
 __all__ = [
     "Memory",
@@ -20,4 +26,5 @@ __all__ = [
     "verify_memory",
     "verify_all_memories",
     "VerificationResult",
+    "VerifyAllResult",
 ]

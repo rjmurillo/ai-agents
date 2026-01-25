@@ -193,11 +193,13 @@ citations:
     # Create the valid file
     (tmp_path / "valid.py").write_text("# valid")
 
-    results = verify_all_memories(memories_dir, tmp_path)
+    verify_result = verify_all_memories(memories_dir, tmp_path)
+    results = verify_result.results
 
     assert len(results) == 2
     assert sum(1 for r in results if r.valid) == 1
     assert sum(1 for r in results if not r.valid) == 1
+    assert verify_result.parse_failures == 0
 
 
 @pytest.mark.unit
@@ -227,11 +229,13 @@ id: no-cit
 """
     (memories_dir / "no-cit.md").write_text(no_cit)
 
-    results = verify_all_memories(memories_dir, tmp_path)
+    verify_result = verify_all_memories(memories_dir, tmp_path)
+    results = verify_result.results
 
     # Only the memory with citations should be included
     assert len(results) == 1
     assert results[0].memory_id == "with-cit"
+    assert verify_result.parse_failures == 0
 
 
 @pytest.mark.unit
@@ -263,8 +267,11 @@ citations: [[[invalid yaml
     (memories_dir / "malformed.md").write_text(malformed)
 
     # Should not raise, just skip malformed and continue
-    results = verify_all_memories(memories_dir, tmp_path)
+    verify_result = verify_all_memories(memories_dir, tmp_path)
+    results = verify_result.results
 
     # Should only get the valid memory
     assert len(results) == 1
     assert results[0].memory_id == "valid"
+    # Malformed file should be counted as a parse failure
+    assert verify_result.parse_failures == 1
