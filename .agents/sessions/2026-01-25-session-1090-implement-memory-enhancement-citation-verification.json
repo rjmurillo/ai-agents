@@ -141,7 +141,7 @@
       "details": "All deliverables present, CLI works, tests pass - issue #998 already complete"
     }
   ],
-  "endingCommit": "265f4300",
+  "endingCommit": "c13c943d",
   "schemaVersion": "1.0",
   "session": {
     "objective": "Verify implementation of issue #998 (Phase 2: Graph Traversal)",
