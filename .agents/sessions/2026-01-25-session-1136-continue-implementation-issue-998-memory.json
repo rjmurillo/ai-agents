@@ -19,7 +19,7 @@
     "Issue #998 is complete. No further work needed.",
     "Move to next issue in v0.3.0 chain1 milestone (Issue #999 or #1001)."
   ],
-  "endingCommit": "daa61abd",
+  "endingCommit": "d47de260",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
