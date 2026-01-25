@@ -7,7 +7,7 @@ allowed-tools:
 
 # Memory Search
 
-> **Interface Selection**: This is the CLI interface. See [Memory Interface Decision Matrix](../../../../AGENTS.md#memory-interface-decision-matrix) for when to use other interfaces.
+> **Interface Selection**: This is the CLI interface. See [Memory Interface Decision Matrix](../../../.claude/agents/context-retrieval.md#memory-interface-decision-matrix) for when to use other interfaces.
 
 Search the Forgetful knowledge base for relevant memories.
 

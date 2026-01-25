@@ -43,7 +43,7 @@ pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
 | Human at CLI | ❌ No | `/memory-search` command |
 | Cross-project semantic search | ❌ No | Forgetful MCP directly |
 
-See [AGENTS.md#memory-interface-decision-matrix](../../../../AGENTS.md#memory-interface-decision-matrix) for complete decision tree.
+See [context-retrieval agent](../../../.claude/agents/context-retrieval.md#memory-interface-decision-matrix) for complete decision tree.
 
 ---
 
