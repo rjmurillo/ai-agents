@@ -1,0 +1,163 @@
+# Python Tests
+#
+# Runs pytest and security checks for Python code in the repository.
+# Uses dorny/paths-filter to determine if tests should run or be skipped.
+#
+# IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
+# but skips actual test execution when no Python files are changed.
+#
+# Testable paths are defined in the check-paths job filters block.
+#
+# Local developers and AI agents can run the same tests using:
+#   uv run pytest
+#   uv run pip-audit
+#   uv run bandit -r .claude/ scripts/
+
+name: Python Tests
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: # Allow manual triggering
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-paths:
+    name: Check Changed Paths
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    outputs:
+      python-changed: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.python }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Check for Python file changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            python:
+              - '**/*.py'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'tests/conftest.py'
+              - 'scripts/memory_enhancement/**'
+              - '.github/workflows/pytest.yml'
+
+      - name: Report path check result
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger - running all tests"
+          else
+            echo "Python files changed: ${{ steps.filter.outputs.python }}"
+          fi
+
+  test:
+    name: Run Python Tests
+    needs: check-paths
+    if: needs.check-paths.outputs.python-changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install UV
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -e ".[dev]"
+
+      - name: Run pytest
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p artifacts
+          pytest --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
+
+      - name: Upload test results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: pytest-results
+          path: artifacts/
+          retention-days: 7
+
+  security:
+    name: Python Security Checks
+    needs: check-paths
+    if: needs.check-paths.outputs.python-changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install UV
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          uv pip install --system -e ".[dev]"
+
+      - name: Run pip-audit
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          pip-audit
+
+      - name: Run Bandit
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p artifacts
+          bandit -r .claude/ scripts/ -f sarif -o artifacts/bandit-results.sarif || true
+
+      - name: Upload Bandit results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: bandit-results
+          path: artifacts/bandit-results.sarif
+          retention-days: 7
+
+  skip-tests:
+    name: Skip Python Tests (No Changes)
+    needs: check-paths
+    if: needs.check-paths.outputs.python-changed != 'true'
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Skip tests (no Python files changed)
+        run: |
+          echo "No Python files changed - skipping tests"
+          echo ""
+          echo "See the 'python' filter in check-paths job for paths that trigger tests."
+          echo "Reference: .github/workflows/pytest.yml"
