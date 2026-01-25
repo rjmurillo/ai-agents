@@ -31,7 +31,7 @@
       "details": "scripts/memory_enhancement/graph.py exists with complete BFS/DFS, cycle detection, Serena integration"
     }
   ],
-  "endingCommit": "21c326b9",
+  "endingCommit": "45364862",
   "protocolCompliance": {
     "sessionStart": {
       "handoffRead": {
