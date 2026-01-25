@@ -70,7 +70,7 @@
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Verified branch is chain1/memory-enhancement (not main/master)"
+        "Evidence": "Verified branch: chain1/memory-enhancement (not main)"
       },
       "constraintsRead": {
         "level": "MUST",
