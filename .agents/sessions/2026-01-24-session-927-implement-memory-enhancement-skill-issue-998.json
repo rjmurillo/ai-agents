@@ -139,7 +139,7 @@
       }
     }
   },
-  "endingCommit": "",
+  "endingCommit": "26ad6968",
   "nextSteps": [
     "Issue #998 implementation was already complete and verified in session 926",
     "All exit criteria confirmed met: graph.py exists, CLI functional, works with Serena format",
