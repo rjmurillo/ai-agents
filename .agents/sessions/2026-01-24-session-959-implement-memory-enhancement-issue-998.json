@@ -73,7 +73,7 @@
       "notOnMain": {
         "Complete": true,
         "level": "MUST",
-        "Evidence": ""
+        "Evidence": "Branch: chain1/memory-enhancement (not main)"
       },
       "memoriesLoaded": {
         "Complete": false,
