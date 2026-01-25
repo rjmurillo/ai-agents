@@ -68,3 +68,6 @@ worktree--/
 
 # Traceability cache
 .agents/.cache/
+
+# Serena runtime state (caches and memories)
+.serena/
