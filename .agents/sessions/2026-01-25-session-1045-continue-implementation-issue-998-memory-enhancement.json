@@ -11,7 +11,7 @@
       "details": "All 10 tests in memory_enhancement/tests/test_graph.py pass. CLI command 'python3 -m memory_enhancement graph <root>' works correctly. Session 1044 already documented verification."
     }
   ],
-  "endingCommit": "29f79b77",
+  "endingCommit": "d37d161e",
   "protocolCompliance": {
     "sessionEnd": {
       "serenaMemoryUpdated": {
