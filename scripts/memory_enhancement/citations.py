@@ -21,8 +21,23 @@ class VerificationResult:
 
 
 def verify_citation(citation: Citation, repo_root: Path) -> Citation:
-    """Verify a single citation against the codebase."""
-    file_path = repo_root / citation.path
+    """Verify a single citation against the codebase.
+
+    Validates that the citation path stays within repo_root to prevent
+    path traversal attacks (CWE-22).
+    """
+    # Resolve and validate path stays within repo_root (CWE-22 protection)
+    try:
+        file_path = (repo_root / citation.path).resolve()
+        repo_root_resolved = repo_root.resolve()
+        if not str(file_path).startswith(str(repo_root_resolved) + "/"):
+            citation.valid = False
+            citation.mismatch_reason = f"Path traversal detected: {citation.path}"
+            return citation
+    except (ValueError, OSError) as e:
+        citation.valid = False
+        citation.mismatch_reason = f"Invalid path: {e}"
+        return citation
 
     if not file_path.exists():
         citation.valid = False

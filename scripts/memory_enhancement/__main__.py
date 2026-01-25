@@ -44,6 +44,17 @@ def main():
             print(f"Memory not found: {args.memory}", file=sys.stderr)
             sys.exit(1)
 
+        # CWE-22 path traversal protection: validate path is within expected directories
+        try:
+            resolved = path.resolve()
+            cwd_resolved = Path.cwd().resolve()
+            if not str(resolved).startswith(str(cwd_resolved) + "/"):
+                print(f"Security error: Path traversal detected: {args.memory}", file=sys.stderr)
+                sys.exit(1)
+        except (ValueError, OSError) as e:
+            print(f"Invalid path: {e}", file=sys.stderr)
+            sys.exit(1)
+
         memory = Memory.from_serena_file(path)
         result = verify_memory(memory)
 

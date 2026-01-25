@@ -63,6 +63,9 @@ class Memory:
                 path=c.get("path", ""),
                 line=c.get("line"),
                 snippet=c.get("snippet"),
+                valid=c.get("valid"),
+                mismatch_reason=c.get("mismatch_reason"),
+                verified=cls._parse_date(c.get("verified")),
             )
             for c in meta.get("citations", [])
         ]
@@ -82,6 +85,12 @@ class Memory:
             except ValueError:
                 pass  # Skip invalid link types
 
+        # Parse confidence with error handling
+        try:
+            confidence = float(meta.get("confidence", 1.0))
+        except (ValueError, TypeError):
+            confidence = 1.0
+
         return cls(
             id=meta.get("id", path.stem),
             subject=meta.get("subject", ""),
@@ -90,18 +99,24 @@ class Memory:
             citations=citations,
             links=links,
             tags=meta.get("tags", []),
-            confidence=float(meta.get("confidence", 1.0)),
+            confidence=confidence,
             last_verified=cls._parse_date(meta.get("last_verified")),
         )
 
     @staticmethod
     def _parse_date(value) -> Optional[datetime]:
-        """Parse datetime from various formats."""
+        """Parse datetime from various formats.
+
+        Returns None for invalid formats rather than raising ValueError.
+        """
         if value is None:
             return None
         if isinstance(value, datetime):
             return value
-        return datetime.fromisoformat(str(value))
+        try:
+            return datetime.fromisoformat(str(value))
+        except ValueError:
+            return None
 
     def get_links_by_type(self, link_type: LinkType) -> list[str]:
         """Return target IDs for links of the given type."""
