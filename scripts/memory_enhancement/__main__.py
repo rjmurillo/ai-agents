@@ -3,7 +3,7 @@
 Usage:
     python -m memory_enhancement verify <memory-id-or-path>
     python -m memory_enhancement verify-all [--dir .serena/memories]
-    python -m memory_enhancement health [--format {text|markdown}]
+    python -m memory_enhancement health [--format {text|markdown|json}]
     python -m memory_enhancement graph <root> [--strategy {bfs|dfs}] [--max-depth N]
 """
 
@@ -34,7 +34,7 @@ def main():
     # health command
     health_parser = subparsers.add_parser("health", help="Generate memory health report")
     health_parser.add_argument("--dir", default=".serena/memories", help="Memories directory")
-    health_parser.add_argument("--format", choices=["text", "markdown"], default="text", help="Output format")
+    health_parser.add_argument("--format", choices=["text", "markdown", "json"], default="text", help="Output format")
 
     # graph command
     graph_parser = subparsers.add_parser("graph", help="Traverse memory relationship graph")
@@ -107,11 +107,15 @@ def main():
         sys.exit(0 if not stale else 1)
 
     elif args.command == "health":
-        report = generate_health_report(Path(args.dir), format=args.format)
-        if args.format == "markdown":
-            print(report)
-        else:
+        # Map CLI format to internal format (text->markdown for backward compatibility)
+        internal_format = "markdown" if args.format in ("text", "markdown") else "json"
+        report = generate_health_report(Path(args.dir), format=internal_format)
+
+        if args.format == "json":
             print(json.dumps(report, indent=2))
+        else:
+            # text or markdown both print as markdown
+            print(report)
         sys.exit(0)
 
     elif args.command == "graph":
