@@ -1,17 +1,63 @@
 {
   "version": "0.3.0",
-  "started": null,
+  "started": "2026-01-24T15:53:01-08:00",
   "current_week": 1,
   "chains": {
-    "1": {"status": "pending", "current_issue": null, "completed_issues": []},
-    "2": {"status": "pending", "current_issue": null, "completed_issues": [751]},
-    "3": {"status": "pending", "current_issue": null, "completed_issues": []},
-    "4": {"status": "pending", "current_issue": null, "completed_issues": []},
-    "5": {"status": "pending", "current_issue": null, "completed_issues": []},
-    "6": {"status": "pending", "current_issue": null, "completed_issues": []}
+    "1": {
+      "status": "completed",
+      "current_issue": null,
+      "completed_issues": [997]
+    },
+    "2": {
+      "status": "running",
+      "current_issue": 734,
+      "completed_issues": [
+        751
+      ]
+    },
+    "3": {
+      "status": "running",
+      "current_issue": 724,
+      "completed_issues": []
+    },
+    "4": {
+      "status": "pending",
+      "current_issue": null,
+      "completed_issues": []
+    },
+    "5": {
+      "status": "pending",
+      "current_issue": null,
+      "completed_issues": []
+    },
+    "6": {
+      "status": "pending",
+      "current_issue": null,
+      "completed_issues": []
+    }
   },
   "issues": {
-    "751": {"status": "completed", "started": "2026-01-24T13:39:20-08:00", "completed": "2026-01-24T13:46:22-08:00", "pr": 1007}
+    "751": {
+      "status": "completed",
+      "started": "2026-01-24T13:39:20-08:00",
+      "completed": "2026-01-24T13:46:22-08:00",
+      "pr": 1007
+    },
+    "734": {
+      "status": "in_progress",
+      "started": "2026-01-24T15:53:02-08:00"
+    },
+    "997": {
+      "status": "completed",
+      "started": "2026-01-24T16:34:21-08:00",
+      "completed": "2026-01-24T16:55:00-08:00"
+    },
+    "724": {
+      "status": "in_progress",
+      "started": "2026-01-24T16:41:00-08:00",
+      "error": "Failed critic validation",
+      "critique": "\u001b[0;34m[INFO]\u001b[0m Running critic validation for chain 3, issue #724...\n\u001b[0;34m[INFO]\u001b[0m Running critic (sonnet model)...\n\u001b[0;34m[INFO]\u001b[0m Critique logged: Chain 3, Issue #724\n\u001b[1;33m[WARN]\u001b[0m Critic validation FAILED for issue #724"
+    }
   },
   "messages": []
 }
