@@ -75,7 +75,7 @@ No implementation work required in session 940.
 - Session 937: First completion of #998
 - Session 938: First verification attempt
 - Session 939: Duplicate session (also verified complete)
-- Memory: `session-938-issue-998-already-complete`
+- Memory: [session-938-issue-998-already-complete](session-938-issue-998-already-complete.md)
 - Implementation: `scripts/memory_enhancement/graph.py`
 - Tests: `tests/memory_enhancement/test_graph.py`
 
@@ -89,3 +89,11 @@ Session 940 served as verification-only session:
 - ✅ Verified implementation
 - ✅ Updated session log
 - ✅ Updated Serena memory (this file)
+
+## Related
+
+- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
+- [session-110-agent-upgrade](session-110-agent-upgrade.md)
+- [session-110-autonomous-development](session-110-autonomous-development.md)
+- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
+- [session-112-pr-712-review](session-112-pr-712-review.md)
