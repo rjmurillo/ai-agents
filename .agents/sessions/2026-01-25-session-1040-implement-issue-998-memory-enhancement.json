@@ -31,7 +31,7 @@
       "details": "All deliverables met: graph.py exists, integrates with Serena link formats, has cycle detection via BFS visited tracking, and CLI works. Issue was closed on 2026-01-25."
     }
   ],
-  "endingCommit": "85f0062c",
+  "endingCommit": "68cc835f",
   "schemaVersion": "1.0",
   "nextSteps": [
     "No further action needed - issue #998 is already complete",
