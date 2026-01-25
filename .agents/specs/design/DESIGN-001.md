@@ -1,7 +1,7 @@
 ---
 type: design
 id: DESIGN-001
-status: draft
+status: implemented
 related:
   - REQ-001
 ---
