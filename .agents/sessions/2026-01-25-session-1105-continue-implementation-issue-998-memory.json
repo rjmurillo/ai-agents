@@ -39,7 +39,7 @@
     "number": 1105,
     "startingCommit": "3205631a"
   },
-  "endingCommit": "TBD",
+  "endingCommit": "2b3c898a",
   "protocolCompliance": {
     "sessionStart": {
       "serenaInstructions": {
