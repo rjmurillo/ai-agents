@@ -21,7 +21,7 @@
       "details": "All exit criteria from Implementation Card met: graph.py exists, CLI works, traverses relationships"
     }
   ],
-  "endingCommit": "1d08a544",
+  "endingCommit": "efe6f20c",
   "schemaVersion": "1.0",
   "protocolCompliance": {
     "sessionEnd": {
