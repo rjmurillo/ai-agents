@@ -500,8 +500,8 @@ Phase 4: Deprecate PowerShell validation (keep markdown → SQLite sync)
 
 **Immediate** (This Session):
 - [x] Document build vs buy analysis (this document)
-- [ ] Close Issue #724 with link to this analysis
-- [ ] Update HANDOFF.md with scaling threshold (5,000 specs)
+- [x] Close Issue #724 with link to this analysis
+- [x] Record scaling threshold (5,000 specs) - documented in Section 4.2 of this analysis
 
 **Near-Term** (Next Sprint):
 - [ ] Implement schema validation (P0)
