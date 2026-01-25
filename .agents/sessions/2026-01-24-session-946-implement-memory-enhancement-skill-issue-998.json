@@ -127,7 +127,7 @@
       "outcome": "python3 -m scripts.memory_enhancement graph usage-mandatory works (exit code 0, output shows BFS traversal)"
     }
   ],
-  "endingCommit": "c6d8e211",
+  "endingCommit": "7f5e1b51",
   "nextSteps": [
     "Create Serena memory documenting verification",
     "Commit session log",
