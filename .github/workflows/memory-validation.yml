@@ -3,13 +3,9 @@ name: Memory Validation
 
 on:
   pull_request:
-    paths:
-      - '.serena/memories/**'
-      - 'scripts/memory_enhancement/**'
-      - 'scripts/**/*.py'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/memory-validation.yml'
+    # NOTE: No paths filter here - use dorny/paths-filter internally
+    # This ensures skip-validation job runs to satisfy required checks
+    # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
   workflow_dispatch:
 
 concurrency:
@@ -179,6 +175,11 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 1
     steps:
+      - name: Checkout code
+        # Required for dorny/paths-filter pattern consistency
+        # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.3.1
+
       - name: Skip message
         run: |
           echo "No memory or code changes detected - skipping validation"
