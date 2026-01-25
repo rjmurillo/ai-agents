@@ -107,8 +107,11 @@ def main():
         sys.exit(0 if not stale else 1)
 
     elif args.command == "health":
-        report = generate_health_report(Path(args.dir))
-        print(report.to_markdown() if args.format == "markdown" else report.to_text())
+        report = generate_health_report(Path(args.dir), format=args.format)
+        if args.format == "markdown":
+            print(report)
+        else:
+            print(json.dumps(report, indent=2))
         sys.exit(0)
 
     elif args.command == "graph":
