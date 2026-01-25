@@ -79,7 +79,7 @@
         "Complete": true
       },
       "validationPassed": {
-        "Evidence": "Validate-SessionJson.ps1 exit code 0",
+        "Evidence": "Validate-SessionJson.ps1 exit code 0 - PASS",
         "level": "MUST",
         "Complete": true
       },
