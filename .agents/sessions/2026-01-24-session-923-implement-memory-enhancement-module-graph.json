@@ -130,6 +130,9 @@
       "details": "Added 'json' to --format choices in __main__.py to match plan verification requirements. Previous implementation supported JSON internally but CLI didn't expose it."
     }
   ],
-  "nextSteps": [],
-  "endingCommit": "pending"
+  "nextSteps": [
+    "Issue #998 is complete - verification commands pass with exit code 0",
+    "Implementation includes graph.py, health.py, and CLI with full JSON support"
+  ],
+  "endingCommit": "494f60ce"
 }
