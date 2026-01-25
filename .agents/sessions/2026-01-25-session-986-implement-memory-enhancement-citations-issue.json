@@ -103,7 +103,7 @@
       },
       "notOnMain": {
         "Complete": true,
-        "Evidence": "On branch chain1/memory-enhancement, not main",
+        "Evidence": "git branch --show-current returned chain1/memory-enhancement (not main)",
         "level": "MUST"
       },
       "serenaInstructions": {
