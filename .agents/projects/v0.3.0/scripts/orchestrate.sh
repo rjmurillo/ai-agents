@@ -484,7 +484,7 @@ read_messages() {
 
         # Use file locking to prevent race conditions with concurrent chains
         local msg_output=""
-        msg_output=$( (
+        if ! msg_output=$( (
             flock -x 200 || { echo "LOCK_FAILED" >&2; exit 1; }
 
             local read_status
