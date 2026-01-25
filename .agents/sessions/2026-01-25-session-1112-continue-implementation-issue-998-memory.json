@@ -137,7 +137,7 @@
     }
   ],
   "schemaVersion": "1.0",
-  "endingCommit": "pending",
+  "endingCommit": "5cad4454034af33f228f53dda6f19ffa6d7ea6d7",
   "session": {
     "branch": "chain1/memory-enhancement",
     "objective": "Verify issue #998 complete, continue with issue #1001 (Phase 4: Confidence Scoring)",
