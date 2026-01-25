@@ -128,6 +128,20 @@
       "files": [
         ".agents/analysis/high-impact-p3-identification.md"
       ]
+    },
+    {
+      "action": "Reviewed ADR-007 Memory-First Architecture",
+      "result": "Discovered that #167 has been superseded by Forgetful MCP integration (2026-01-01). ADR explicitly recommends closing #167.",
+      "files": [
+        ".agents/architecture/ADR-007-memory-first-architecture.md"
+      ]
+    },
+    {
+      "action": "Created resolution documentation for #167",
+      "result": "Documented that Forgetful MCP meets/exceeds all #167 requirements with gap analysis and closure recommendation",
+      "files": [
+        ".agents/analysis/issue-167-resolution.md"
+      ]
     }
   ],
   "outcomes": {
@@ -136,6 +150,11 @@
         "type": "analysis",
         "path": ".agents/analysis/high-impact-p3-identification.md",
         "description": "Comprehensive analysis of P3 items with impact matrix, RICE scores, and implementation recommendations"
+      },
+      {
+        "type": "analysis",
+        "path": ".agents/analysis/issue-167-resolution.md",
+        "description": "Documentation proving #167 is superseded by Forgetful MCP with gap analysis and closure recommendation"
       }
     ],
     "decisions": [
@@ -143,13 +162,18 @@
         "decision": "Identified #167 Vector Memory System as the most likely high impact P3 item",
         "rationale": "Only P3 item with quantifiable high impact metrics and strategic alignment with v0.3.0 milestone",
         "impact": "Provides clear direction for implementing meaningful improvement while maintaining minimal change scope"
+      },
+      {
+        "decision": "Recommend closing #167 as superseded by Forgetful MCP",
+        "rationale": "Forgetful MCP (integrated 2026-01-01) provides all #167 capabilities and more. ADR-007 explicitly recommends closure.",
+        "impact": "Reduces backlog noise, clarifies that vector memory capability exists, encourages adoption"
       }
     ]
   },
   "nextSteps": [
-    "Determine appropriate minimal changes related to vector memory preparation",
-    "Look for documentation gaps or quick wins",
-    "Implement focused improvements that increase readiness for #167"
+    "Close issue #167 with comment referencing .agents/analysis/issue-167-resolution.md",
+    "Update issue triage to reflect #167 closure",
+    "Consider similar analysis for other stale P3 items (#171, #128-134)"
   ],
-  "endingCommit": ""
+  "endingCommit": "a0bebee"
 }
