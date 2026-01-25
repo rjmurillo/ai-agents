@@ -3,8 +3,11 @@
 Validates that code references in memories still exist at expected locations.
 """
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+import yaml
 
 from .models import Citation, Memory
 
@@ -30,7 +33,7 @@ def verify_citation(citation: Citation, repo_root: Path) -> Citation:
     try:
         file_path = (repo_root / citation.path).resolve()
         repo_root_resolved = repo_root.resolve()
-        if not str(file_path).startswith(str(repo_root_resolved) + "/"):
+        if not file_path.is_relative_to(repo_root_resolved):
             citation.valid = False
             citation.mismatch_reason = f"Path traversal detected: {citation.path}"
             return citation
@@ -66,9 +69,9 @@ def verify_citation(citation: Citation, repo_root: Path) -> Citation:
             return citation
 
         citation.valid = True
-    except Exception as e:
+    except (OSError, IOError, UnicodeDecodeError) as e:
         citation.valid = False
-        citation.mismatch_reason = str(e)
+        citation.mismatch_reason = f"File read error: {e}"
 
     return citation
 
@@ -101,17 +104,33 @@ def verify_memory(memory: Memory, repo_root: Path = None) -> VerificationResult:
     )
 
 
-def verify_all_memories(memories_dir: Path, repo_root: Path = None) -> list[VerificationResult]:
-    """Verify all memories in a directory."""
+@dataclass
+class VerifyAllResult:
+    """Result of verifying all memories in a directory."""
+    results: list[VerificationResult]
+    parse_failures: int
+
+
+def verify_all_memories(
+    memories_dir: Path, repo_root: Path = None
+) -> VerifyAllResult:
+    """Verify all memories in a directory.
+
+    Returns:
+        VerifyAllResult containing verification results and count of parse failures.
+        Callers can check parse_failures to detect if some files could not be processed.
+    """
     repo_root = repo_root or Path.cwd()
     results = []
+    parse_failures = 0
 
     for md_file in memories_dir.glob("*.md"):
         try:
             memory = Memory.from_serena_file(md_file)
             if memory.citations:
                 results.append(verify_memory(memory, repo_root))
-        except Exception as e:
-            print(f"Warning: Could not parse {md_file}: {e}")
+        except (OSError, IOError, UnicodeDecodeError, ValueError, KeyError, yaml.YAMLError) as e:
+            print(f"Warning: Could not parse {md_file}: {e}", file=sys.stderr)
+            parse_failures += 1
 
-    return results
+    return VerifyAllResult(results=results, parse_failures=parse_failures)

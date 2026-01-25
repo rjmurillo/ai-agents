@@ -228,8 +228,8 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@40c6b50cc6aa807e2d020b243100c016221d604c # v5.3.0
         with:
           python-version: '3.12'
       - run: pip install -e .
@@ -238,7 +238,7 @@ jobs:
       - run: cat results.json
       - name: Comment on PR
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
             const results = require('./results.json');

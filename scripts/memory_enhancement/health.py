@@ -4,7 +4,7 @@ This module provides batch health checking and report generation
 for memory citation validity and graph connectivity.
 """
 
-import json
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -62,7 +62,13 @@ def generate_health_report(
         raise ValueError(f"Invalid format: {format}. Must be 'markdown' or 'json'")
 
     # Verify all memories with citations
-    results = verify_all_memories(memories_dir)
+    verify_result = verify_all_memories(memories_dir)
+    results = verify_result.results
+    if verify_result.parse_failures > 0:
+        print(
+            f"Warning: {verify_result.parse_failures} memory file(s) could not be parsed",
+            file=sys.stderr,
+        )
 
     # Count total memories (including those without citations)
     total_memory_files = len(list(memories_dir.glob("*.md")))
@@ -77,9 +83,8 @@ def generate_health_report(
             graph = MemoryGraph(memories_dir)
             orphaned = _find_orphaned_memories(graph)
             stats.orphaned_memories = len(orphaned)
-        except Exception:
-            # Graph analysis is optional, continue without it
-            pass
+        except (FileNotFoundError, OSError, ValueError) as e:
+            print(f"Warning: Graph analysis failed: {e}", file=sys.stderr)
 
     # Group results by category
     categorized = _categorize_results(results)

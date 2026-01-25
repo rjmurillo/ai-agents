@@ -5,11 +5,14 @@ supporting all Serena link types (RELATED, SUPERSEDES, BLOCKS, etc.)
 with cycle detection and configurable depth limits.
 """
 
+import sys
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Optional
+
+import yaml
 
 from .models import Link, LinkType, Memory
 
@@ -75,8 +78,11 @@ class MemoryGraph:
 
     @property
     def memories(self) -> dict[str, Memory]:
-        """Public access to memory cache."""
-        return self._memory_cache
+        """Public access to memory cache.
+
+        Returns a shallow copy to prevent external modification of the internal cache.
+        """
+        return dict(self._memory_cache)
 
     def _load_memories(self):
         """Load all memories from directory into cache."""
@@ -87,9 +93,9 @@ class MemoryGraph:
             try:
                 memory = Memory.from_serena_file(memory_file)
                 self._memory_cache[memory.id] = memory
-            except Exception as e:
+            except (OSError, IOError, UnicodeDecodeError, ValueError, KeyError, yaml.YAMLError) as e:
                 # Skip invalid memory files but continue loading others
-                print(f"Warning: Failed to load {memory_file}: {e}")
+                print(f"Warning: Failed to load {memory_file}: {e}", file=sys.stderr)
 
     def get_memory(self, memory_id: str) -> Optional[Memory]:
         """Retrieve a memory by ID.
