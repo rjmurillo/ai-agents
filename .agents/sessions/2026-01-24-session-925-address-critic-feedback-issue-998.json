@@ -53,7 +53,7 @@
     },
     "sessionStart": {
       "notOnMain": {
-        "Evidence": "",
+        "Evidence": "Current branch chain1/memory-enhancement, not on main/master",
         "Complete": true,
         "level": "MUST"
       },
