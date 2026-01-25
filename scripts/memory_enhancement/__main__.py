@@ -5,6 +5,9 @@ Usage:
     python -m memory_enhancement verify-all [--dir .serena/memories]
     python -m memory_enhancement health [--format {text|markdown|json}]
     python -m memory_enhancement graph <root> [--strategy {bfs|dfs}] [--max-depth N]
+    python -m memory_enhancement add-citation <memory-id> --file <path> [--line <num>] [--snippet <text>]
+    python -m memory_enhancement update-confidence <memory-id-or-path>
+    python -m memory_enhancement list-citations <memory-id-or-path>
 """
 
 import argparse
@@ -16,6 +19,7 @@ from .citations import verify_memory, verify_all_memories
 from .graph import MemoryGraph, TraversalStrategy
 from .health import generate_health_report
 from .models import Memory
+from .serena import add_citation_to_memory, update_confidence, list_citations_with_status
 
 
 def main():
@@ -42,6 +46,22 @@ def main():
     graph_parser.add_argument("--dir", default=".serena/memories", help="Memories directory")
     graph_parser.add_argument("--strategy", choices=["bfs", "dfs"], default="bfs", help="Traversal strategy")
     graph_parser.add_argument("--max-depth", type=int, help="Maximum traversal depth")
+
+    # add-citation command
+    add_citation_parser = subparsers.add_parser("add-citation", help="Add citation to memory")
+    add_citation_parser.add_argument("memory", help="Memory ID or file path")
+    add_citation_parser.add_argument("--file", required=True, help="Relative file path from repository root")
+    add_citation_parser.add_argument("--line", type=int, help="Line number (1-indexed)")
+    add_citation_parser.add_argument("--snippet", help="Code snippet for fuzzy matching")
+    add_citation_parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
+
+    # update-confidence command
+    update_confidence_parser = subparsers.add_parser("update-confidence", help="Update memory confidence score")
+    update_confidence_parser.add_argument("memory", help="Memory ID or file path")
+
+    # list-citations command
+    list_citations_parser = subparsers.add_parser("list-citations", help="List citations with status")
+    list_citations_parser.add_argument("memory", help="Memory ID or file path")
 
     args = parser.parse_args()
 
@@ -183,6 +203,127 @@ def main():
                     print(f"  - {from_id} -> {to_id}")
 
         sys.exit(0)
+
+    elif args.command == "add-citation":
+        # Resolve memory path
+        path = Path(args.memory)
+        if not path.exists():
+            path = Path(f".serena/memories/{args.memory}.md")
+        if not path.exists():
+            print(f"Memory not found: {args.memory}", file=sys.stderr)
+            sys.exit(2)
+
+        # CWE-22 path traversal protection
+        try:
+            resolved = path.resolve()
+            cwd_resolved = Path.cwd().resolve()
+            if not str(resolved).startswith(str(cwd_resolved) + "/"):
+                print(f"Security error: Path traversal detected: {args.memory}", file=sys.stderr)
+                sys.exit(2)
+        except (ValueError, OSError) as e:
+            print(f"Invalid path: {e}", file=sys.stderr)
+            sys.exit(2)
+
+        if args.dry_run:
+            print(f"[DRY RUN] Would add citation to {path}")
+            print(f"  File: {args.file}")
+            print(f"  Line: {args.line if args.line else '(file-level)'}")
+            print(f"  Snippet: {args.snippet if args.snippet else '(none)'}")
+            sys.exit(0)
+
+        try:
+            add_citation_to_memory(
+                memory_path=path,
+                file_path=args.file,
+                line=args.line,
+                snippet=args.snippet
+            )
+            print(f"✅ Citation added to {path.stem}")
+            sys.exit(0)
+        except FileNotFoundError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(2)
+        except ValueError as e:
+            print(f"Validation failed: {e}", file=sys.stderr)
+            sys.exit(1)
+        except IOError as e:
+            print(f"I/O error: {e}", file=sys.stderr)
+            sys.exit(3)
+
+    elif args.command == "update-confidence":
+        # Resolve memory path
+        path = Path(args.memory)
+        if not path.exists():
+            path = Path(f".serena/memories/{args.memory}.md")
+        if not path.exists():
+            print(f"Memory not found: {args.memory}", file=sys.stderr)
+            sys.exit(2)
+
+        # CWE-22 path traversal protection
+        try:
+            resolved = path.resolve()
+            cwd_resolved = Path.cwd().resolve()
+            if not str(resolved).startswith(str(cwd_resolved) + "/"):
+                print(f"Security error: Path traversal detected: {args.memory}", file=sys.stderr)
+                sys.exit(2)
+        except (ValueError, OSError) as e:
+            print(f"Invalid path: {e}", file=sys.stderr)
+            sys.exit(2)
+
+        try:
+            memory = Memory.from_serena_file(path)
+            verification = verify_memory(memory)
+            update_confidence(memory, verification)
+            print(f"✅ Confidence updated: {verification.confidence:.0%}")
+            if verification.stale_citations:
+                print(f"⚠️  {len(verification.stale_citations)} stale citations found:")
+                for c in verification.stale_citations:
+                    print(f"  - {c.path}:{c.line} - {c.mismatch_reason}")
+            sys.exit(0)
+        except FileNotFoundError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(2)
+        except IOError as e:
+            print(f"I/O error: {e}", file=sys.stderr)
+            sys.exit(3)
+
+    elif args.command == "list-citations":
+        # Resolve memory path
+        path = Path(args.memory)
+        if not path.exists():
+            path = Path(f".serena/memories/{args.memory}.md")
+        if not path.exists():
+            print(f"Memory not found: {args.memory}", file=sys.stderr)
+            sys.exit(2)
+
+        # CWE-22 path traversal protection
+        try:
+            resolved = path.resolve()
+            cwd_resolved = Path.cwd().resolve()
+            if not str(resolved).startswith(str(cwd_resolved) + "/"):
+                print(f"Security error: Path traversal detected: {args.memory}", file=sys.stderr)
+                sys.exit(2)
+        except (ValueError, OSError) as e:
+            print(f"Invalid path: {e}", file=sys.stderr)
+            sys.exit(2)
+
+        try:
+            citations = list_citations_with_status(path)
+            if not citations:
+                print(f"No citations in {path.stem}")
+                sys.exit(0)
+
+            print(f"Citations in {path.stem}:")
+            for c in citations:
+                status = "✅" if c["valid"] else "❌"
+                line_info = f":{c['line']}" if c["line"] else ""
+                print(f"  {status} {c['path']}{line_info}")
+                if not c["valid"]:
+                    print(f"     Reason: {c['mismatch_reason']}")
+            sys.exit(0)
+        except FileNotFoundError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(2)
 
 
 if __name__ == "__main__":
