@@ -139,7 +139,7 @@
       "outcome": "SUCCESS"
     }
   ],
-  "endingCommit": "911f3493",
+  "endingCommit": "de4061cd",
   "nextSteps": [
     "Issue #998 is already complete - no further action needed",
     "Implementation found in commit d862847b",
