@@ -19,7 +19,7 @@
     "Move to next issue in v0.3.0 chain1 milestone."
   ],
   "schemaVersion": "1.0",
-  "endingCommit": "4139e487",
+  "endingCommit": "8dbecc0a",
   "protocolCompliance": {
     "sessionEnd": {
       "tasksUpdated": {
