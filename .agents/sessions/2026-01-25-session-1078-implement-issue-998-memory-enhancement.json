@@ -125,7 +125,7 @@
       }
     }
   },
-  "endingCommit": "",
+  "endingCommit": "caf7ffcc",
   "nextSteps": [
     "Issue #998 was already complete - no further action needed",
     "Session log and Serena memory updated to document finding"
