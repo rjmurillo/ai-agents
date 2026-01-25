@@ -24,7 +24,7 @@
     "All graph traversal features verified working",
     "Exit criteria satisfied: `python -m memory_enhancement graph <root>` traverses links"
   ],
-  "endingCommit": "ad20ab31",
+  "endingCommit": "57252ed4",
   "protocolCompliance": {
     "sessionStart": {
       "gitStatusVerified": {
