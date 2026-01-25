@@ -1,7 +1,0 @@
-# Claude Code local-only scope (do not commit)
-# Local scope convention: .claude/*.local.*
-settings.local.json
-*.local.*
-
-# Keep this file
-!.gitignore
