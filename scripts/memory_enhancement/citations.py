@@ -33,7 +33,7 @@ def verify_citation(citation: Citation, repo_root: Path) -> Citation:
     try:
         file_path = (repo_root / citation.path).resolve()
         repo_root_resolved = repo_root.resolve()
-        if not str(file_path).startswith(str(repo_root_resolved) + "/"):
+        if not file_path.is_relative_to(repo_root_resolved):
             citation.valid = False
             citation.mismatch_reason = f"Path traversal detected: {citation.path}"
             return citation
