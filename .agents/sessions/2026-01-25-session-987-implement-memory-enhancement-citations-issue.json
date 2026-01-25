@@ -10,7 +10,7 @@
     "sessionStart": {
       "notOnMain": {
         "Complete": true,
-        "Evidence": "Branch: chain1/memory-enhancement (not main)",
+        "Evidence": "git branch --show-current => chain1/memory-enhancement (not main or master)",
         "level": "MUST"
       },
       "gitStatusVerified": {
