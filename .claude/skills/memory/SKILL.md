@@ -34,6 +34,19 @@ pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
 
 ---
 
+## When to Use This Skill
+
+| Scenario | Use Memory Router? | Alternative |
+|----------|-------------------|-------------|
+| PowerShell script needs memory | ✅ Yes | - |
+| Agent needs deep context | ❌ No | `context-retrieval` agent |
+| Human at CLI | ❌ No | `/memory-search` command |
+| Cross-project semantic search | ❌ No | Forgetful MCP directly |
+
+See [AGENTS.md#memory-interface-decision-matrix](../../../../AGENTS.md#memory-interface-decision-matrix) for complete decision tree.
+
+---
+
 ## Memory-First as Chesterton's Fence
 
 **Core Insight**: Memory-first architecture implements Chesterton's Fence principle for AI agents.
