@@ -1,0 +1,67 @@
+# Generated index files
+.codebase-index.json
+.codebase-intelligence.json
+
+# Build artifacts
+artifacts/
+coverage.xml
+
+# Python (ADR-042)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+ENV/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
+# Agent PR scratch files
+.agents/pr-comments/
+.agents/scratch/
+.agents/temp/
+.agents/logs/
+.agents/.hook-state/
+
+# Hook runtime logs
+.claude/hooks/audit.log
+
+# IDE settings
+.idea/
+*.DotSettings.user
+
+# Obsidian workspace (user-specific state)
+**/.obsidian/workspace.json
+**/.obsidian/workspace-mobile.json
+
+# Git worktrees (isolated development branches)
+.work-*/
+worktree-*/
+worktree--/
+
+# Flowbaby files
+.flowbaby/
+
+# Local environment configuration
+.env*
+
+# Factory.ai (DROID)
+.factory/
+# Claude hook runtime state
+/.agents/.hook-state/
+
+# Forgetful temporary files
+.forgetful/exports/*.bak
+.forgetful/exports/*.tmp
+.forgetful/exports/*.swp
+
+# CodeQL artifacts
+.codeql/cli/
+.codeql/db/
+.codeql/results/
+.codeql/logs/

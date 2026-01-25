@@ -1,0 +1,27 @@
+# Copilot Context Synthesis Configuration
+# See references/copilot-synthesis-guide.md for documentation
+
+trusted_sources:
+  maintainers:
+    - rjmurillo
+
+  ai_agents:
+    - rjmurillo-bot
+    - coderabbitai
+    - Copilot
+    - cursor[bot]
+    - github-actions
+
+extraction_patterns:
+  coderabbit:
+    implementation_plan: "## Implementation"
+    related_issues: "🔗 Similar Issues"
+    related_prs: "🔗 Related PRs"
+
+  ai_triage:
+    marker: "<!-- AI-ISSUE-TRIAGE -->"
+    priority: "Priority"
+    category: "Category"
+
+synthesis:
+  marker: "<!-- COPILOT-CONTEXT-SYNTHESIS -->"

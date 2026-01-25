@@ -1,0 +1,236 @@
+# DevOps Review Task
+
+You are reviewing a pull request for CI/CD, build, deployment, and infrastructure concerns.
+
+## PR Scope Detection (FIRST STEP)
+
+Before evaluating, categorize the PR by examining changed files:
+
+| Category | File Patterns | DevOps Review Scope |
+|----------|---------------|---------------------|
+| WORKFLOW | `*.yml` in `.github/workflows/` | Full CI/CD review |
+| ACTION | `.github/actions/**` | Composite action review |
+| SCRIPT | `*.sh`, `*.ps1` in `scripts/` | Shell quality review |
+| TEMPLATE | `.github/*.md`, `.github/ISSUE_TEMPLATE/**` | Template review only |
+| CODE | `*.ps1`, `*.cs`, `*.ts`, `*.js`, `*.py` (non-scripts/) | Build impact only |
+| DOCS | `*.md` (non-.github/), `*.txt` | None required |
+| CONFIG | `*.json`, `*.yaml` (non-workflow) | Schema validation only |
+
+**Principle**: Apply review sections relevant to the changed file types.
+Skip irrelevant sections (e.g., don't review "Artifact Management" for docs-only PRs).
+
+## Expected Patterns (Do NOT Flag)
+
+These patterns are normal and should not trigger DevOps warnings:
+
+| Pattern | Why It's Acceptable |
+|---------|---------------------|
+| `ubuntu-latest` runner | Standard for most workflows |
+| Matrix jobs without fail-fast | Sometimes intentional for comprehensive testing |
+| `permissions: {}` (empty) | Restricts to minimum permissions |
+| Workflows without caching | Small jobs don't need cache overhead |
+| Actions pinned to tags (v1, v4) | Acceptable if from trusted sources (actions/*) |
+
+**Principle**: Not every workflow optimization is a blocking issue.
+
+## Analysis Focus Areas
+
+### 1. Build Pipeline Impact
+
+- Does this change affect build processes?
+- Are build scripts modified correctly?
+- Will this break existing builds?
+- Are build dependencies managed properly?
+
+### 2. CI/CD Configuration
+
+- Are workflow files (`.github/workflows/`) properly structured?
+- Is YAML syntax correct and validated?
+- Are job dependencies and ordering correct?
+- Are triggers (push, pull_request, schedule) appropriate?
+
+### 3. GitHub Actions Best Practices
+
+- Are actions pinned to specific versions (SHA or tag)?
+- Is `fail-fast` set appropriately for matrix jobs?
+- Are secrets handled securely (not logged, proper masking)?
+- Are permissions scoped minimally (`contents: read`, etc.)?
+- Are caching strategies used effectively?
+
+### 4. Shell Script Quality
+
+- Are scripts compatible with target environments (bash, PowerShell)?
+- Is input validation present (untrusted inputs sanitized)?
+- Are exit codes handled correctly?
+- Is error handling robust (set -e, try/catch)?
+- Are heredocs and special characters escaped properly?
+
+### 5. Artifact Management
+
+- Are artifacts uploaded/downloaded correctly?
+- Is artifact retention appropriate?
+- Are artifact names unique to prevent conflicts?
+- Is sensitive data excluded from artifacts?
+
+### 6. Environment & Secrets
+
+- Are environment variables named consistently?
+- Are secrets referenced securely (`${{ secrets.X }}`)?
+- Are environment-specific configs handled properly?
+- Is there risk of secret exposure in logs?
+
+### 7. Performance & Cost
+
+- Will this increase CI/CD execution time significantly?
+- Are jobs parallelized where possible?
+- Is caching used to avoid redundant work?
+- Are runner specifications appropriate (ubuntu-latest vs self-hosted)?
+
+### 8. Custom Composite Actions
+
+Review changes to `.github/actions/`:
+
+- Is the action well-documented with clear inputs/outputs?
+- Are action inputs validated before use?
+- Is the action reusable across multiple workflows?
+- Are there opportunities to extract repeated workflow steps into actions?
+- Is error handling consistent with calling workflows?
+
+### 9. GitHub Templates
+
+Review changes to `.github/PULL_REQUEST_TEMPLATE.md` and `.github/ISSUE_TEMPLATE/`:
+
+- Are templates clear and actionable?
+- Do PR templates guide contributors to provide necessary context?
+- Do issue templates capture required information for triage?
+- Are checklists comprehensive but not overwhelming?
+- Is the template structure consistent with project conventions?
+
+### 10. Automation & Skill Extraction
+
+Look for opportunities to improve developer experience:
+
+- Are there repeated manual steps that could be automated?
+- Could workflow patterns be extracted to `.claude/commands/` for reuse?
+- Are there complex procedures that should be documented as skills?
+- Is there duplication between workflows that could be consolidated?
+- Could AI agent prompts be improved based on workflow patterns?
+
+**Check for extraction candidates**:
+
+- Repeated shell script blocks → composite action
+- Common workflow patterns → reusable workflow
+- Manual procedures → slash command or skill
+
+## Output Requirements
+
+Provide your analysis in this format:
+
+### Pipeline Impact Assessment
+
+| Area | Impact | Notes |
+|------|--------|-------|
+| Build | None/Low/Medium/High | |
+| Test | None/Low/Medium/High | |
+| Deploy | None/Low/Medium/High | |
+| Cost | None/Low/Medium/High | |
+
+### CI/CD Quality Checks
+
+| Check | Status | Location |
+|-------|--------|----------|
+| YAML syntax valid | ✅/❌ | [file] |
+| Actions pinned | ✅/❌ | [file:line] |
+| Secrets secure | ✅/❌ | [file:line] |
+| Permissions minimal | ✅/❌ | [file:line] |
+| Shell scripts robust | ✅/❌ | [file:line] |
+
+### Findings
+
+| Severity | Category | Finding | Location | Fix |
+|----------|----------|---------|----------|-----|
+| Critical/High/Medium/Low | [category] | [description] | [file:line] | [recommendation] |
+
+### Template Assessment
+
+- **PR Template**: Adequate/Needs improvement/Missing
+- **Issue Templates**: Adequate/Needs improvement/Missing
+- **Template Issues**: [list any problems found]
+
+### Automation Opportunities
+
+| Opportunity | Type | Benefit | Effort |
+|-------------|------|---------|--------|
+| [description] | Action/Workflow/Skill/Command | Low/Medium/High | Low/Medium/High |
+
+### Recommendations
+
+1. [Specific CI/CD improvements]
+
+### Verdict
+
+Choose ONE verdict:
+
+- `VERDICT: PASS` - CI/CD changes are safe and well-configured
+- `VERDICT: WARN` - Minor issues that should be addressed
+- `VERDICT: CRITICAL_FAIL` - Issues that will break builds or expose secrets
+
+```text
+VERDICT: [PASS|WARN|CRITICAL_FAIL]
+MESSAGE: [Brief explanation]
+```
+
+## Verdict Thresholds
+
+### CRITICAL_FAIL (Merge Blocked)
+
+#### For WORKFLOW and ACTION PRs
+
+Use `CRITICAL_FAIL` if ANY of these are true:
+
+| Condition | Rationale |
+|-----------|-----------|
+| Secrets exposed in logs or artifacts | Credential leakage |
+| Unpinned actions from untrusted sources | Supply chain attack |
+| Shell injection via untrusted inputs | Remote code execution |
+| `permissions: write-all` without justification | Excessive privileges |
+| Workflow syntax errors that prevent execution | Broken CI |
+| Missing input validation for `${{ github.event.* }}` | Injection vector |
+
+#### For SCRIPT PRs
+
+Use `CRITICAL_FAIL` if:
+
+- Scripts accept untrusted input without sanitization
+- Missing error handling for critical operations
+- Exit codes not propagated correctly
+
+#### For TEMPLATE PRs
+
+CRITICAL_FAIL is NOT applicable. Use PASS unless:
+
+- Template syntax is invalid
+- Required sections are removed
+
+#### For DOCS-only PRs
+
+CRITICAL_FAIL is NOT applicable. Use PASS.
+
+### WARN (Proceed with Caution)
+
+Use `WARN` if:
+
+- Actions pinned to tags (not SHA) from trusted sources
+- Caching could be improved
+- Job parallelization opportunities exist
+- Minor shell script improvements suggested
+- Template clarity could be improved
+
+### PASS (Standards Met)
+
+Use `PASS` if:
+
+- PR is DOCS-only or TEMPLATE-only with valid content
+- All CI/CD checks pass
+- Expected patterns used appropriately
+- No blocking issues identified

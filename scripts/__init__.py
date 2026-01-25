@@ -1,1 +1,1 @@
-# AI Agents scripts package
+"""Scripts package for ai-agents."""

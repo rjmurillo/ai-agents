@@ -1,0 +1,73 @@
+# Dependabot Configuration
+#
+# Manages automated dependency updates for this repository.
+# Currently tracks GitHub Actions only (no package.json, requirements.txt, etc.)
+#
+# Documentation: https://docs.github.com/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+  # GitHub Actions - update workflow dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+
+    # Use conventional commit format to match repository standards
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+    # Add labels for filtering and automation
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+    # Automatically rebase PRs when they become outdated
+    rebase-strategy: "auto"
+
+    # Group all actions together to reduce PR noise
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+    # Keep major updates separate for careful review
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+    # Open PRs against main branch
+    target-branch: "main"
+
+    # Limit concurrent PRs to avoid overwhelming reviewers
+    open-pull-requests-limit: 5
+
+  # Python dependencies (ADR-042)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 5

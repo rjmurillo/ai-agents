@@ -1,0 +1,238 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-labeler.json
+
+# Label configuration for actions/labeler@v5
+# Automatically applies labels to PRs based on file paths and branch names
+# Labels aligned with existing repository label configuration
+
+# ============================================================================
+# AREA LABELS (aligned with existing area-* labels)
+# ============================================================================
+
+area-workflows:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**/*"
+          - ".github/actions/**/*"
+
+area-prompts:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/prompts/**/*"
+          - "**/*.prompt.md"
+
+area-installation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "scripts/Install-*.ps1"
+          - "scripts/Setup-*.ps1"
+          - "**/install*.ps1"
+          - "**/setup*.ps1"
+
+area-infrastructure:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "build/**/*"
+          - ".github/dependabot.yml"
+          - ".github/labeler.yml"
+          - ".github/FUNDING.yml"
+          - ".markdownlint-cli2.yaml"
+          - ".coderabbit.yaml"
+          - ".gitignore"
+
+area-skills:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".claude/skills/**/*"
+          - ".serena/memories/skill-*.md"
+
+# ============================================================================
+# CONTENT TYPE LABELS
+# ============================================================================
+
+documentation:
+  # Match markdown files but exclude agent/memory working directories
+  - all:
+      - changed-files:
+          - any-glob-to-any-file:
+              - "**/*.md"
+      - changed-files:
+          - all-globs-to-all-files:
+              - "!.agents/**/*.md"
+              - "!.serena/memories/**/*.md"
+              - "!src/**/*.md"
+  # Always match docs directory
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**/*"
+  # Match docs branches
+  - head-branch:
+      - "^docs[/-]"
+
+github-actions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**/*"
+          - ".github/actions/**/*"
+  - head-branch:
+      - "^ci[/-]"
+
+automation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".githooks/**/*"
+          - "scripts/**/*"
+          - ".github/scripts/**/*"
+  - head-branch:
+      - "^copilot[/-]"
+      - "^latta[/-]"
+      - "^chore[/-]"
+      - "^refactor[/-]"
+      - "^style[/-]"
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/package.json"
+          - "**/package-lock.json"
+          - ".github/dependabot.yml"
+  - head-branch:
+      - "^dependabot[/-]"
+      - "^deps[/-]"
+      - "^build[/-]"
+
+# ============================================================================
+# AGENT LABELS (specific to src/ and templates/ agent definitions)
+# ============================================================================
+
+agent-orchestrator:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/orchestrator.md"
+          - "src/copilot-cli/orchestrator.agent.md"
+          - "src/vs-code-agents/orchestrator.agent.md"
+          - "templates/agents/orchestrator.shared.md"
+
+agent-analyst:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/analyst.md"
+          - "src/copilot-cli/analyst.agent.md"
+          - "src/vs-code-agents/analyst.agent.md"
+          - "templates/agents/analyst.shared.md"
+
+agent-architect:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/architect.md"
+          - "src/copilot-cli/architect.agent.md"
+          - "src/vs-code-agents/architect.agent.md"
+          - "templates/agents/architect.shared.md"
+
+agent-implementer:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/implementer.md"
+          - "src/copilot-cli/implementer.agent.md"
+          - "src/vs-code-agents/implementer.agent.md"
+          - "templates/agents/implementer.shared.md"
+
+agent-planner:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/planner.md"
+          - "src/copilot-cli/planner.agent.md"
+          - "src/vs-code-agents/planner.agent.md"
+          - "templates/agents/planner.shared.md"
+
+agent-critic:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/critic.md"
+          - "src/copilot-cli/critic.agent.md"
+          - "src/vs-code-agents/critic.agent.md"
+          - "templates/agents/critic.shared.md"
+
+agent-qa:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/qa.md"
+          - "src/copilot-cli/qa.agent.md"
+          - "src/vs-code-agents/qa.agent.md"
+          - "templates/agents/qa.shared.md"
+
+agent-security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/security.md"
+          - "src/copilot-cli/security.agent.md"
+          - "src/vs-code-agents/security.agent.md"
+          - "templates/agents/security.shared.md"
+
+agent-devops:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/devops.md"
+          - "src/copilot-cli/devops.agent.md"
+          - "src/vs-code-agents/devops.agent.md"
+          - "templates/agents/devops.shared.md"
+
+agent-roadmap:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/roadmap.md"
+          - "src/copilot-cli/roadmap.agent.md"
+          - "src/vs-code-agents/roadmap.agent.md"
+          - "templates/agents/roadmap.shared.md"
+
+agent-explainer:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/explainer.md"
+          - "src/copilot-cli/explainer.agent.md"
+          - "src/vs-code-agents/explainer.agent.md"
+          - "templates/agents/explainer.shared.md"
+
+agent-memory:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/memory.md"
+          - "src/copilot-cli/memory.agent.md"
+          - "src/vs-code-agents/memory.agent.md"
+          - "templates/agents/memory.shared.md"
+
+agent-retrospective:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/retrospective.md"
+          - "src/copilot-cli/retrospective.agent.md"
+          - "src/vs-code-agents/retrospective.agent.md"
+          - "templates/agents/retrospective.shared.md"
+
+# ============================================================================
+# BRANCH-BASED LABELS (Conventional Commits standard)
+# https://www.conventionalcommits.org/
+#
+# Mapping:
+#   feat, add, enhance, perf  → enhancement
+#   fix, bug, hotfix, revert  → bug
+#   docs                      → documentation
+#   style, refactor, chore    → automation
+#   build, deps               → dependencies
+#   ci                        → github-actions
+# ============================================================================
+
+# feat: A new feature
+enhancement:
+  - head-branch:
+      - "^feat(ure)?[/-]"
+      - "^add[/-]"
+      - "^enhance[/-]"
+      - "^perf[/-]"
+
+# fix: A bug fix
+bug:
+  - head-branch:
+      - "^fix[/-]"
+      - "^bug[/-]"
+      - "^hotfix[/-]"
+      - "^revert[/-]"

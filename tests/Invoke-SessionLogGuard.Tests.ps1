@@ -1,0 +1,385 @@
+#Requires -Modules Pester
+
+<#
+.SYNOPSIS
+    Pester tests for Invoke-SessionLogGuard.ps1
+
+.DESCRIPTION
+    Tests the PreToolUse hook that blocks git commit without session log evidence.
+    Validates command detection, session log checks, and exit code behavior.
+#>
+
+BeforeAll {
+    # Import shared test utilities (Issue #859 Thread 4: DRY violation fix)
+    Import-Module "$PSScriptRoot/TestUtilities.psm1" -Force
+
+    $Script:HookPath = Join-Path $PSScriptRoot ".." ".claude" "hooks" "PreToolUse" "Invoke-SessionLogGuard.ps1"
+
+    if (-not (Test-Path $Script:HookPath)) {
+        throw "Hook script not found at: $Script:HookPath"
+    }
+
+    # Wrapper function for backward compatibility with existing tests
+    function Invoke-HookWithInput {
+        param(
+            [string]$Command,
+            [string]$HookPath = $Script:HookPath,
+            [string]$ProjectDir = $null
+        )
+        Invoke-HookInNewProcess -Command $Command -HookPath $HookPath -ProjectDir $ProjectDir
+    }
+
+    # Helper function to create test environment with hook and dependencies
+    # Reduces code duplication across BeforeAll blocks (Issue #979 review comment)
+    function New-SessionLogTestEnvironment {
+        param(
+            [string]$TestNameSuffix,
+            [hashtable]$SessionLogData = $null,
+            [switch]$NoSessionLog
+        )
+
+        $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-$TestNameSuffix-$(Get-Random)"
+        New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $testRoot ".claude/hooks/PreToolUse") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $testRoot ".claude/hooks/Common") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $testRoot ".agents/sessions") -Force | Out-Null
+
+        # Copy hook and shared module
+        $tempHookPath = Join-Path $testRoot ".claude/hooks/PreToolUse/Invoke-SessionLogGuard.ps1"
+        Copy-Item -Path $Script:HookPath -Destination $tempHookPath -Force
+        $repoRoot = Join-Path $PSScriptRoot ".."
+        Copy-Item -Path (Join-Path $repoRoot ".claude/hooks/Common/HookUtilities.psm1") -Destination (Join-Path $testRoot ".claude/hooks/Common/HookUtilities.psm1") -Force
+
+        # Create session log if data provided and NoSessionLog not specified
+        if (-not $NoSessionLog -and $SessionLogData) {
+            $sessionDate = if ($SessionLogData.session.date) { $SessionLogData.session.date } else { Get-Date -Format "yyyy-MM-dd" }
+            $sessionNumber = if ($SessionLogData.session.number) { $SessionLogData.session.number } else { 999 }
+            $sessionLog = $SessionLogData | ConvertTo-Json -Depth 10
+            Set-Content -Path (Join-Path $testRoot ".agents/sessions/$sessionDate-session-$sessionNumber.json") -Value $sessionLog
+        }
+
+        return @{
+            TestRoot = $testRoot
+            HookPath = $tempHookPath
+        }
+    }
+}
+
+Describe "Invoke-SessionLogGuard" {
+    Context "Non-commit commands pass through" {
+        It "Allows git status (exit 0)" {
+            $result = Invoke-HookWithInput -Command "git status"
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Allows git diff (exit 0)" {
+            $result = Invoke-HookWithInput -Command "git diff"
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Allows git push (exit 0)" {
+            $result = Invoke-HookWithInput -Command "git push origin main"
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Allows git log (exit 0)" {
+            $result = Invoke-HookWithInput -Command "git log --oneline -5"
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Allows non-git commands (exit 0)" {
+            $result = Invoke-HookWithInput -Command "ls -la"
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Allows npm commands (exit 0)" {
+            $result = Invoke-HookWithInput -Command "npm test"
+            $result.ExitCode | Should -Be 0
+        }
+    }
+
+    Context "Git commit command detection" {
+        BeforeAll {
+            # Create temp test environment with valid session log
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $sessionLogData = @{
+                session = @{
+                    number = 999
+                    date = $today
+                    branch = "test-branch"
+                    startingCommit = "abc1234"
+                    objective = "Test session for unit tests"
+                }
+                protocolCompliance = @{
+                    sessionStart = @{
+                        branchVerification = @{ complete = $true; level = "MUST"; evidence = "test" }
+                    }
+                    sessionEnd = @{
+                        commitMade = @{ complete = $true; level = "MUST"; evidence = "test" }
+                    }
+                }
+            }
+            $env = New-SessionLogTestEnvironment -TestNameSuffix "commit" -SessionLogData $sessionLogData
+            $Script:TestRoot = $env.TestRoot
+            $Script:TempHookPath = $env.HookPath
+
+            # Set project directory
+            $env:CLAUDE_PROJECT_DIR = $Script:TestRoot
+        }
+
+        AfterAll {
+            Remove-Item Env:\CLAUDE_PROJECT_DIR -ErrorAction SilentlyContinue
+            if (Test-Path $Script:TestRoot) {
+                Remove-Item -Path $Script:TestRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Detects 'git commit' command" {
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPath -ProjectDir $Script:TestRoot
+            # Should allow since we have valid session log
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Detects 'git commit' with flags before" {
+            $result = Invoke-HookWithInput -Command "git -c user.name='Test' commit -m 'test'" -HookPath $Script:TempHookPath -ProjectDir $Script:TestRoot
+            $result.ExitCode | Should -Be 0
+        }
+
+        It "Detects 'git ci' alias" {
+            $result = Invoke-HookWithInput -Command "git ci -m 'test'" -HookPath $Script:TempHookPath -ProjectDir $Script:TestRoot
+            $result.ExitCode | Should -Be 0
+        }
+    }
+
+    Context "Missing session log blocks commit" {
+        BeforeAll {
+            # Create temp test environment WITHOUT session log
+            $env = New-SessionLogTestEnvironment -TestNameSuffix "no-log" -NoSessionLog
+            $Script:TestRootNoLog = $env.TestRoot
+            $Script:TempHookPathNoLog = $env.HookPath
+
+            # Set project directory (no session log exists)
+            $env:CLAUDE_PROJECT_DIR = $Script:TestRootNoLog
+        }
+
+        AfterAll {
+            Remove-Item Env:\CLAUDE_PROJECT_DIR -ErrorAction SilentlyContinue
+            if (Test-Path $Script:TestRootNoLog) {
+                Remove-Item -Path $Script:TestRootNoLog -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Blocks git commit when no session log exists (exit 2)" {
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathNoLog -ProjectDir $Script:TestRootNoLog
+            $result.ExitCode | Should -Be 2
+        }
+
+        It "Outputs blocking message with session-init instruction" {
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathNoLog -ProjectDir $Script:TestRootNoLog
+            $output = $result.Output -join "`n"
+            $output | Should -Match "BLOCKED"
+            $output | Should -Match "session-init"
+        }
+    }
+
+    Context "Empty or invalid session log blocks commit" {
+        BeforeAll {
+            # Create temp test environment with EMPTY session log
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $emptyLogData = @{ }  # Empty hashtable will create empty JSON
+            $env = New-SessionLogTestEnvironment -TestNameSuffix "empty" -SessionLogData $emptyLogData
+            $Script:TestRootEmpty = $env.TestRoot
+            $Script:TempHookPathEmpty = $env.HookPath
+
+            # Set project directory
+            $env:CLAUDE_PROJECT_DIR = $Script:TestRootEmpty
+        }
+
+        AfterAll {
+            Remove-Item Env:\CLAUDE_PROJECT_DIR -ErrorAction SilentlyContinue
+            if (Test-Path $Script:TestRootEmpty) {
+                Remove-Item -Path $Script:TestRootEmpty -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Blocks git commit when session log is empty (exit 2)" {
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathEmpty -ProjectDir $Script:TestRootEmpty
+            $result.ExitCode | Should -Be 2
+        }
+
+        It "Outputs message about insufficient evidence" {
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathEmpty -ProjectDir $Script:TestRootEmpty
+            $output = $result.Output -join "`n"
+            $output | Should -Match "BLOCKED|empty|Invalid"
+        }
+    }
+
+    Context "Valid session log allows commit" {
+        BeforeAll {
+            # Create temp test environment with VALID session log
+            $today = Get-Date -Format "yyyy-MM-dd"
+            $validLogData = @{
+                schemaVersion = "1.0"
+                session = @{
+                    number = 999
+                    date = $today
+                    branch = "feat/test-branch"
+                    startingCommit = "abc1234567890"
+                    objective = "Implement feature X for testing purposes"
+                }
+                protocolCompliance = @{
+                    sessionStart = @{
+                        branchVerification = @{ complete = $true; level = "MUST"; evidence = "Verified on feature branch" }
+                        handoffRead = @{ complete = $true; level = "MUST"; evidence = "Read HANDOFF.md" }
+                    }
+                    sessionEnd = @{
+                        commitMade = @{ complete = $true; level = "MUST"; evidence = "Commit abc123" }
+                        testsPass = @{ complete = $true; level = "MUST"; evidence = "All tests green" }
+                    }
+                }
+                workLog = @(
+                    @{ action = "Created test file"; result = "Success" }
+                    @{ action = "Updated configuration"; result = "Applied" }
+                )
+            }
+            $env = New-SessionLogTestEnvironment -TestNameSuffix "valid" -SessionLogData $validLogData
+            $Script:TestRootValid = $env.TestRoot
+            $Script:TempHookPathValid = $env.HookPath
+
+            # Set project directory
+            $env:CLAUDE_PROJECT_DIR = $Script:TestRootValid
+        }
+
+        AfterAll {
+            Remove-Item Env:\CLAUDE_PROJECT_DIR -ErrorAction SilentlyContinue
+            if (Test-Path $Script:TestRootValid) {
+                Remove-Item -Path $Script:TestRootValid -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Allows git commit when valid session log exists (exit 0)" {
+            $result = Invoke-HookWithInput -Command "git commit -m 'test'" -HookPath $Script:TempHookPathValid -ProjectDir $Script:TestRootValid
+            $result.ExitCode | Should -Be 0
+        }
+    }
+
+    Context "Long-running sessions across midnight" {
+        BeforeAll {
+            # Test environment for sessions that span midnight boundary
+            $yesterday = (Get-Date).AddDays(-1).ToString("yyyy-MM-dd")
+            $midnightLogData = @{
+                schemaVersion = "1.0"
+                session = @{
+                    number = 999
+                    date = $yesterday
+                    branch = "feat/test-branch"
+                    startingCommit = "abc1234567890"
+                    objective = "Long-running session that started yesterday"
+                }
+                protocolCompliance = @{
+                    sessionStart = @{
+                        branchVerification = @{ complete = $true; level = "MUST"; evidence = "Verified on feature branch" }
+                    }
+                    sessionEnd = @{
+                        commitMade = @{ complete = $true; level = "MUST"; evidence = "Commit in progress" }
+                    }
+                }
+                workLog = @(
+                    @{ action = "Started work yesterday"; result = "In progress" }
+                )
+            }
+            $env = New-SessionLogTestEnvironment -TestNameSuffix "midnight" -SessionLogData $midnightLogData
+            $Script:TestRootMidnight = $env.TestRoot
+            $Script:TempHookPathMidnight = $env.HookPath
+
+            $env:CLAUDE_PROJECT_DIR = $Script:TestRootMidnight
+        }
+
+        AfterAll {
+            Remove-Item Env:\CLAUDE_PROJECT_DIR -ErrorAction SilentlyContinue
+            if (Test-Path $Script:TestRootMidnight) {
+                Remove-Item -Path $Script:TestRootMidnight -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Blocks commit when session log date is yesterday (documents midnight boundary behavior)" {
+            # EDGE CASE DOCUMENTATION: Long-running sessions that cross midnight boundary
+            #
+            # Scenario: Session starts at 23:30 yesterday, works past midnight, commits at 00:15 today.
+            # Session log has yesterday's date (2026-01-18), but commit timestamp is today (2026-01-19).
+            #
+            # Current behavior: Hook blocks commit (exit 2) because Get-TodaySessionLog searches for
+            # logs matching $today (line 136 of HookUtilities.psm1), and yesterday's log won't match.
+            #
+            # Workaround: Agent must create a new session log for today OR update existing log's date.
+            # This is intentional to ensure session log dates align with commit dates for audit trail.
+            #
+            # Alternative design considered: Search for logs within 24-hour window (yesterday + today).
+            # Rejected because it could allow stale logs to satisfy evidence requirement.
+            #
+            # Best practice: For long sessions crossing midnight, create continuation log for new day.
+
+            $result = Invoke-HookWithInput -Command "git commit -m 'commit after midnight'" -HookPath $Script:TempHookPathMidnight -ProjectDir $Script:TestRootMidnight
+            $result.ExitCode | Should -Be 2 -Because "Hook requires session log dated today, not yesterday (midnight boundary constraint)"
+            $output = $result.Output -join "`n"
+            $output | Should -Match "BLOCKED|No Session Log" -Because "Should explain that session log for today is missing"
+        }
+    }
+
+    Context "Edge cases and error handling" {
+        It "Handles no stdin gracefully (exit 0)" {
+            # When no stdin is redirected, script exits 0
+            & $Script:HookPath
+            $LASTEXITCODE | Should -Be 0
+        }
+
+        It "Handles malformed JSON gracefully (exit 0 - fail open)" {
+            $tempInput = [System.IO.Path]::GetTempFileName()
+            $tempOutput = [System.IO.Path]::GetTempFileName()
+            try {
+                Set-Content -Path $tempInput -Value "{ not valid json" -NoNewline
+                $process = Start-Process -FilePath "pwsh" -ArgumentList "-NoProfile", "-File", $Script:HookPath -RedirectStandardInput $tempInput -RedirectStandardOutput $tempOutput -PassThru -Wait -NoNewWindow
+                $process.ExitCode | Should -Be 0
+            }
+            finally {
+                Remove-Item $tempInput, $tempOutput -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Handles missing tool_input gracefully (exit 0)" {
+            $tempInput = [System.IO.Path]::GetTempFileName()
+            $tempOutput = [System.IO.Path]::GetTempFileName()
+            try {
+                $json = @{ other = "data" } | ConvertTo-Json
+                Set-Content -Path $tempInput -Value $json -NoNewline
+                $process = Start-Process -FilePath "pwsh" -ArgumentList "-NoProfile", "-File", $Script:HookPath -RedirectStandardInput $tempInput -RedirectStandardOutput $tempOutput -PassThru -Wait -NoNewWindow
+                $process.ExitCode | Should -Be 0
+            }
+            finally {
+                Remove-Item $tempInput, $tempOutput -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Handles missing command property gracefully (exit 0)" {
+            $tempInput = [System.IO.Path]::GetTempFileName()
+            $tempOutput = [System.IO.Path]::GetTempFileName()
+            try {
+                $json = @{ tool_input = @{ other = "data" } } | ConvertTo-Json
+                Set-Content -Path $tempInput -Value $json -NoNewline
+                $process = Start-Process -FilePath "pwsh" -ArgumentList "-NoProfile", "-File", $Script:HookPath -RedirectStandardInput $tempInput -RedirectStandardOutput $tempOutput -PassThru -Wait -NoNewWindow
+                $process.ExitCode | Should -Be 0
+            }
+            finally {
+                Remove-Item $tempInput, $tempOutput -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    Context "Script structure" {
+        It "Script parses without errors" {
+            $errors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile($Script:HookPath, [ref]$null, [ref]$errors)
+            $errors | Should -BeNullOrEmpty
+        }
+    }
+}

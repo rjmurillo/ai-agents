@@ -1,0 +1,225 @@
+name: 'Setup Code Environment'
+description: 'Setup development environment with linting tools and testing frameworks'
+
+inputs:
+  gh-token:
+    description: 'GitHub token for GitHub CLI operations'
+    required: true
+  enable-pester:
+    description: 'Install Pester testing framework (default: true)'
+    required: false
+    default: 'true'
+  enable-git-hooks:
+    description: 'Enable git hooks configuration (default: true)'
+    required: false
+    default: 'true'
+  enable-python:
+    description: 'Install Python and project dependencies (default: true)'
+    required: false
+    default: 'true'
+  python-version:
+    description: 'Python version to install (default: 3.12)'
+    required: false
+    default: '3.12'
+  skip-autofix:
+    description: 'Set SKIP_AUTOFIX environment variable (0=enabled, 1=disabled, default: 0)'
+    required: false
+    default: '0'
+
+outputs:
+  node-version:
+    description: 'Node.js version installed'
+    value: ${{ steps.node-version.outputs.node_version }}
+  pester-version:
+    description: 'Pester version installed (if enabled)'
+    value: ${{ steps.pester.outputs.pester_version }}
+  python-version:
+    description: 'Python version installed (if enabled)'
+    value: ${{ steps.python-version.outputs.python_version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      id: node-setup
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: "lts/*"
+
+    - name: Verify Node.js installation
+      shell: bash
+      run: |
+        echo "Verifying Node.js installation..."
+        node --version
+        npm --version
+        echo ""
+        echo "✓ Node.js and npm are ready"
+
+    - name: Store Node.js version
+      id: node-version
+      shell: bash
+      run: |
+        NODE_VERSION=$(node --version)
+        echo "node_version=$NODE_VERSION" >> "$GITHUB_OUTPUT"
+
+    - name: Verify GitHub CLI availability
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.gh-token }}
+      run: |
+        echo "Verifying GitHub CLI availability..."
+        gh --version
+        echo ""
+        echo "✓ GitHub CLI is available"
+        echo "✓ GH_TOKEN is configured"
+
+    - name: Enable git hooks
+      if: inputs.enable-git-hooks == 'true'
+      shell: bash
+      run: |
+        echo "Configuring git hooks..."
+        git config core.hooksPath .githooks
+        echo "✓ Git hooks enabled at .githooks/"
+
+        # Verify hooks are configured
+        HOOKS_PATH=$(git config --get core.hooksPath)
+        echo "Current hooks path: $HOOKS_PATH"
+
+    - name: Install markdownlint-cli2
+      shell: bash
+      run: |
+        echo "Installing markdownlint-cli2..."
+        npm install --global markdownlint-cli2
+        echo "✓ markdownlint-cli2 installed"
+
+    - name: Install uv (Python package manager)
+      shell: bash
+      run: |
+        echo "Installing uv..."
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        echo "✓ uv installed"
+
+    - name: Setup Python
+      if: inputs.enable-python == 'true'
+      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Store Python version
+      id: python-version
+      if: inputs.enable-python == 'true'
+      shell: bash
+      run: |
+        PYTHON_VERSION=$(python3 --version)
+        echo "python_version=$PYTHON_VERSION" >> "$GITHUB_OUTPUT"
+        echo "✓ $PYTHON_VERSION installed"
+
+    - name: Install Python dependencies
+      if: inputs.enable-python == 'true'
+      shell: bash
+      run: |
+        echo "Installing Python dependencies..."
+        export PATH="$HOME/.local/bin:$PATH"
+        if [ -f "pyproject.toml" ]; then
+          uv pip install --system -e ".[dev]"
+          echo "✓ Python dependencies installed from pyproject.toml"
+        else
+          echo "⚠ No pyproject.toml found, skipping dependency installation"
+        fi
+
+    - name: Verify Python tools
+      if: inputs.enable-python == 'true'
+      shell: bash
+      run: |
+        echo "Verifying Python tools..."
+        export PATH="$HOME/.local/bin:$PATH"
+        python3 --version
+        if command -v ruff &>/dev/null; then
+          ruff --version
+          echo "✓ ruff is available for Python linting"
+        fi
+        if command -v pytest &>/dev/null; then
+          pytest --version
+          echo "✓ pytest is available for Python testing"
+        fi
+
+    - name: Install Pester
+      id: pester
+      if: inputs.enable-pester == 'true'
+      shell: pwsh -NoProfile -Command "& '{0}'"
+      run: |
+        echo "Installing Pester testing framework..."
+        Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
+        # Require exact version for supply chain determinism (issue #304)
+        Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser
+        Import-Module Pester -RequiredVersion 5.7.1
+        $pesterVersion = (Get-Module Pester).Version
+        echo "✓ Pester $pesterVersion installed"
+        "pester_version=$pesterVersion" >> "$env:GITHUB_OUTPUT"
+
+    - name: Set SKIP_AUTOFIX environment variable
+      shell: bash
+      env:
+        SKIP_AUTOFIX_VALUE: ${{ inputs.skip-autofix }}
+      run: |
+        echo "SKIP_AUTOFIX=$SKIP_AUTOFIX_VALUE" >> "$GITHUB_ENV"
+        echo "✓ SKIP_AUTOFIX set to $SKIP_AUTOFIX_VALUE (0=enabled, 1=disabled)"
+
+    - name: Verify setup
+      shell: pwsh -NoProfile -Command "& '{0}'"
+      env:
+        ENABLE_PESTER: ${{ inputs.enable-pester }}
+        ENABLE_PYTHON: ${{ inputs.enable-python }}
+      run: |
+        Write-Host ""
+        Write-Host "=== Setup Verification ===" -ForegroundColor Cyan
+        Write-Host "Git hooks path: $(git config --get core.hooksPath)"
+        Write-Host "SKIP_AUTOFIX: $($env:SKIP_AUTOFIX ?? '0') (0=enabled, 1=disabled)"
+        Write-Host ""
+
+        # Test that tools are available
+        if (Get-Command npx -ErrorAction SilentlyContinue) {
+          Write-Host "✓ npx is available" -ForegroundColor Green
+          # Check if markdownlint-cli2 is available (--help may return non-zero)
+          $null = npx markdownlint-cli2 --help 2>&1
+          Write-Host "✓ markdownlint-cli2 is installed" -ForegroundColor Green
+        }
+
+        if (Get-Command gh -ErrorAction SilentlyContinue) {
+          Write-Host "✓ GitHub CLI is available for workflow monitoring" -ForegroundColor Green
+        }
+
+        # Test Python tools
+        if ($env:ENABLE_PYTHON -eq 'true') {
+          if (Get-Command python3 -ErrorAction SilentlyContinue) {
+            $pythonVersion = python3 --version 2>&1
+            Write-Host "✓ $pythonVersion is installed" -ForegroundColor Green
+          }
+          if (Get-Command ruff -ErrorAction SilentlyContinue) {
+            Write-Host "✓ ruff is available for Python linting" -ForegroundColor Green
+          }
+          if (Get-Command pytest -ErrorAction SilentlyContinue) {
+            Write-Host "✓ pytest is available for Python testing" -ForegroundColor Green
+          }
+        }
+
+        # Test Pester
+        if ($env:ENABLE_PESTER -eq 'true') {
+          $pester = Get-Module -ListAvailable -Name Pester | Select-Object -First 1
+          if ($pester) {
+            Write-Host "✓ Pester $($pester.Version) is installed" -ForegroundColor Green
+          }
+        }
+
+        # Test powershell-yaml (optional)
+        $yaml = Get-Module -ListAvailable -Name powershell-yaml | Select-Object -First 1
+        if ($yaml) {
+          Write-Host "✓ powershell-yaml $($yaml.Version) is installed" -ForegroundColor Green
+        }
+
+        Write-Host ""
+        Write-Host "✓ Setup complete! Development tools ready: Node.js, markdownlint-cli2, Python (if enabled), GitHub CLI (if available), Pester (if enabled), git hooks (if configured)." -ForegroundColor Green
+
+        # Explicitly exit with success (previous commands may have set $LASTEXITCODE)
+        exit 0
