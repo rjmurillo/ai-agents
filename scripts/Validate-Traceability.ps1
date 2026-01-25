@@ -488,18 +488,37 @@ if (-not $resolvedPath) {
     exit 1
 }
 
-# Path traversal protection: When running from a git repository, ensure paths stay within repo root
-# Skip this check for absolute paths (e.g., test fixtures in /tmp) to allow legitimate test scenarios
-$repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { $null }
-if ($repoRoot) {
-    $normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
-    $allowedBase = [System.IO.Path]::GetFullPath($repoRoot)
+# Path traversal protection: Detect and block path traversal attacks
+# Security model:
+# - Absolute paths (e.g., /tmp/test, C:\Test): Allowed as-is (tests, CI scenarios)
+# - Relative paths from git repo: Must resolve within repository root
+# - Relative paths with ".." traversal: Must not escape allowed boundaries
+# The attack vector is a relative path like "../../etc/passwd" that resolves outside the repo
 
-    # Only enforce path traversal check if the original path was relative (not an absolute temp path)
-    $isRelativePath = -not [System.IO.Path]::IsPathRooted($SpecsPath)
-    if ($isRelativePath -and -not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
-        Write-Error "Path traversal attempt detected: '$SpecsPath' is outside the repository root." -ErrorAction Continue
-        exit 1
+$normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
+$isAbsolutePath = [System.IO.Path]::IsPathRooted($SpecsPath)
+
+if (-not $isAbsolutePath) {
+    # Relative path: enforce path traversal protection
+    $repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { $null }
+
+    if ($repoRoot) {
+        # Git context: relative paths must resolve within repository root
+        $allowedBase = [System.IO.Path]::GetFullPath($repoRoot)
+        if (-not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Error "Path traversal attempt detected: '$SpecsPath' resolves to '$normalizedPath' which is outside the repository root '$allowedBase'." -ErrorAction Continue
+            exit 1
+        }
+    }
+    else {
+        # Non-git context: block ".." traversal sequences
+        if ($SpecsPath -match '\.\.[\\/]' -or $SpecsPath -match '[\\/]\.\.') {
+            $currentDir = [System.IO.Path]::GetFullPath((Get-Location).Path)
+            if (-not $normalizedPath.StartsWith($currentDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+                Write-Error "Path traversal attempt detected: '$SpecsPath' resolves outside the current directory." -ErrorAction Continue
+                exit 1
+            }
+        }
     }
 }
 
