@@ -82,7 +82,7 @@
       },
       "changesCommitted": {
         "Complete": true,
-        "Evidence": "Session log committed",
+        "Evidence": "Session log committed at fa990dc5",
         "level": "MUST"
       },
       "validationPassed": {
@@ -107,7 +107,7 @@
       }
     }
   },
-  "endingCommit": "",
+  "endingCommit": "fa990dc5",
   "session": {
     "objective": "Implement memory enhancement citations for issue #998",
     "number": 984,
