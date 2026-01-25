@@ -35,9 +35,13 @@ def verify_citation(citation: Citation, repo_root: Path) -> Citation:
 
     try:
         lines = file_path.read_text().splitlines()
-        if citation.line < 1 or citation.line > len(lines):
+        if citation.line < 1:
             citation.valid = False
-            citation.mismatch_reason = f"Line {citation.line} out of range (file has {len(lines)} lines)"
+            citation.mismatch_reason = f"Invalid line number: {citation.line}"
+            return citation
+        if citation.line > len(lines):
+            citation.valid = False
+            citation.mismatch_reason = f"Line {citation.line} exceeds file length ({len(lines)} lines)"
             return citation
 
         actual_line = lines[citation.line - 1]

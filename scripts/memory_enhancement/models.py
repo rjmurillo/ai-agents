@@ -14,11 +14,11 @@ import frontmatter
 
 class LinkType(Enum):
     """Typed relationship between memories."""
-    RELATED = "related"
-    SUPERSEDES = "supersedes"
-    BLOCKS = "blocks"
-    IMPLEMENTS = "implements"
-    EXTENDS = "extends"
+    RELATED = "RELATED"
+    SUPERSEDES = "SUPERSEDES"
+    BLOCKS = "BLOCKS"
+    IMPLEMENTS = "IMPLEMENTS"
+    EXTENDS = "EXTENDS"
 
 
 @dataclass
@@ -70,14 +70,21 @@ class Memory:
         links = []
         for link_data in meta.get("links", []):
             try:
-                link_type = LinkType(link_data.get("type", "related"))
-                links.append(Link(link_type=link_type, target_id=link_data.get("target", "")))
+                # Support both 'link_type' and 'type' field names for compatibility
+                type_value = link_data.get("link_type") or link_data.get("type")
+                if type_value is None:
+                    continue  # Skip links without a type
+                link_type = LinkType(type_value)
+                # Support both 'target_id' and 'target' field names for compatibility
+                target = link_data.get("target_id") or link_data.get("target", "")
+                if target:  # Only add links with non-empty targets
+                    links.append(Link(link_type=link_type, target_id=target))
             except ValueError:
                 pass  # Skip invalid link types
 
         return cls(
             id=meta.get("id", path.stem),
-            subject=meta.get("subject", path.stem),
+            subject=meta.get("subject", ""),
             path=path,
             content=post.content,
             citations=citations,
