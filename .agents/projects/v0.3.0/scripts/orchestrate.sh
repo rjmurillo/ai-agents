@@ -25,7 +25,7 @@ readonly STATE_LOCK="${STATE_FILE}.lock"
 readonly LOG_DIR="${PROJECT_DIR}/logs"
 readonly INBOX_DIR="${PROJECT_DIR}/messages/inbox"
 readonly OUTBOX_DIR="${PROJECT_DIR}/messages/outbox"
-readonly WORKTREE_BASE="${PROJECT_DIR}/worktrees"
+readonly WORKTREE_BASE="${REPO_ROOT}/../worktrees"
 readonly PLAN_FILE="${REPO_ROOT}/.agents/planning/v0.3.0/PLAN.md"
 
 # Agent configuration
@@ -157,11 +157,13 @@ read_state() {
     local query="$1"
     local result
 
+    log_info "read_state: Running jq query: ${query}" >&2
     if ! result=$(jq -r "${query}" "${STATE_FILE}" 2>&1); then
         log_error "Failed to read state: ${result}"
         log_error "Query: ${query}"
         return 1
     fi
+    log_info "read_state: Result: ${result}" >&2
 
     echo "${result}"
 }
@@ -211,24 +213,86 @@ update_state() {
     fi
 }
 
+# Verify that actual work was done in the worktree.
+# Returns 0 if work detected, 1 if no work detected.
+# Checks: new commits, uncommitted changes, or new files.
+verify_work_done() {
+    local chain="$1"
+    local issue="$2"
+    local dir="${WORKTREE_BASE}/chain${chain}"
+
+    log_info "Verifying work was done for chain ${chain}, issue #${issue}..."
+
+    # Check 1: Are there new commits on this branch vs origin/main?
+    local git_log_output=""
+    local git_log_exit=0
+    git_log_output=$(cd "${dir}" && git log origin/main..HEAD --oneline 2>&1) || git_log_exit=$?
+    if [[ ${git_log_exit} -ne 0 ]]; then
+        log_warn "git log failed (may be new branch): ${git_log_output}"
+        # Fall through to other checks
+    else
+        local new_commits
+        new_commits=$(echo "${git_log_output}" | grep -c . || echo "0")
+        if [[ "${new_commits}" -gt 0 ]]; then
+            log_info "Found ${new_commits} new commit(s)"
+            return 0
+        fi
+    fi
+
+    # Check 2: Are there uncommitted changes?
+    if (cd "${dir}" && git status --porcelain | grep -q .); then
+        log_info "Found uncommitted changes"
+        return 0
+    fi
+
+    # Check 3: Were any files modified in the working tree?
+    local git_diff_output=""
+    local git_diff_exit=0
+    git_diff_output=$(cd "${dir}" && git diff --name-only HEAD 2>&1) || git_diff_exit=$?
+    if [[ ${git_diff_exit} -ne 0 ]]; then
+        log_warn "git diff failed: ${git_diff_output}"
+        # Fall through to no work detected
+    else
+        local modified_files
+        modified_files=$(echo "${git_diff_output}" | grep -c . || echo "0")
+        if [[ "${modified_files}" -gt 0 ]]; then
+            log_info "Found ${modified_files} modified file(s)"
+            return 0
+        fi
+    fi
+
+    log_warn "NO WORK DETECTED for issue #${issue} - agent may have stalled"
+    return 1
+}
+
 # State update helpers for common operations
+# All return 1 on failure to allow callers to handle errors.
 mark_issue_started() {
     local chain="$1" issue="$2"
     local now
     now=$(date -Iseconds)
-    update_state ".chains.\"${chain}\".status = \"running\" | .chains.\"${chain}\".current_issue = ${issue} | .issues.\"${issue}\".status = \"in_progress\" | .issues.\"${issue}\".started = \"${now}\""
+    if ! update_state ".chains.\"${chain}\".status = \"running\" | .chains.\"${chain}\".current_issue = ${issue} | .issues.\"${issue}\".status = \"in_progress\" | .issues.\"${issue}\".started = \"${now}\""; then
+        log_error "Failed to mark issue #${issue} as started in state file"
+        return 1
+    fi
 }
 
 mark_issue_completed() {
     local chain="$1" issue="$2"
     local now
     now=$(date -Iseconds)
-    update_state ".issues.\"${issue}\".status = \"completed\" | .issues.\"${issue}\".completed = \"${now}\" | .chains.\"${chain}\".completed_issues += [${issue}]"
+    if ! update_state ".issues.\"${issue}\".status = \"completed\" | .issues.\"${issue}\".completed = \"${now}\" | .chains.\"${chain}\".completed_issues += [${issue}]"; then
+        log_error "Failed to mark issue #${issue} as completed in state file"
+        return 1
+    fi
 }
 
 mark_issue_failed() {
     local issue="$1" exit_code="$2"
-    update_state ".issues.\"${issue}\".status = \"failed\" | .issues.\"${issue}\".error = \"Exit code ${exit_code}\""
+    if ! update_state ".issues.\"${issue}\".status = \"failed\" | .issues.\"${issue}\".error = \"Exit code ${exit_code}\""; then
+        log_error "Failed to mark issue #${issue} as failed in state file"
+        return 1
+    fi
 }
 
 # Check if issue dependencies are satisfied.
@@ -298,6 +362,72 @@ setup_worktree() {
     return 1
 }
 
+# Sync chain branch after issue completion.
+# Ensures commits from previous issues are available to subsequent issues.
+# Called after each issue completes successfully.
+sync_chain_branch() {
+    local chain="$1"
+    local issue="$2"
+    local dir="${WORKTREE_BASE}/chain${chain}"
+    local branch="${CHAIN_BRANCHES[$chain]}"
+
+    log_info "Syncing chain ${chain} branch after issue #${issue}..."
+
+    # Check for uncommitted changes and commit them
+    if (cd "${dir}" && git status --porcelain | grep -q .); then
+        log_info "Found uncommitted changes, committing..."
+        local commit_output=""
+        if ! commit_output=$(cd "${dir}" && git add -A && git commit -m "chore(chain${chain}): auto-commit for issue #${issue}
+
+Orchestrator auto-commit to preserve work between issues.
+
+Co-Authored-By: Orchestrator <noreply@orchestrator.local>" 2>&1); then
+            log_error "Auto-commit failed - uncommitted changes will be lost"
+            log_error "Output: ${commit_output}"
+            log_error "Manual intervention required: cd ${dir} && git status"
+            return 1
+        fi
+    fi
+
+    # Push to remote
+    log_info "Pushing ${branch} to origin..."
+    if ! (cd "${dir}" && git push -u origin "${branch}" 2>&1); then
+        log_warn "Push failed for chain ${chain}, subsequent issues may not see this work"
+        return 1
+    fi
+
+    log_success "Chain ${chain} branch synced after issue #${issue}"
+    return 0
+}
+
+# Pull latest changes before starting an issue.
+# Ensures work from previous issues in the chain is available.
+# Returns 0 on success or if branch doesn't exist remotely yet (expected for new chains).
+# Returns 1 on actual pull failures (network, auth, merge conflicts).
+pull_chain_branch() {
+    local chain="$1"
+    local dir="${WORKTREE_BASE}/chain${chain}"
+    local branch="${CHAIN_BRANCHES[$chain]}"
+
+    log_info "Pulling latest for chain ${chain} branch..."
+
+    # Fetch and pull
+    local pull_output=""
+    local pull_exit=0
+    pull_output=$(cd "${dir}" && git fetch origin && git pull origin "${branch}" --rebase 2>&1) || pull_exit=$?
+
+    if [[ ${pull_exit} -ne 0 ]]; then
+        # Check if this is just "branch doesn't exist remotely yet" (expected for new chains)
+        if echo "${pull_output}" | grep -qE "(couldn't find remote ref|no such ref)"; then
+            log_info "Remote branch ${branch} does not exist yet (expected for new chains)"
+            return 0
+        fi
+        log_error "Pull failed for chain ${chain}: ${pull_output}"
+        return 1
+    fi
+    return 0
+}
+
 # Remove worktree for a chain. Logs warnings on failure but allows continuation.
 cleanup_worktree() {
     local chain="$1"
@@ -344,41 +474,191 @@ send_message() {
 }
 
 # Read unread messages for a chain. Logs warnings on parse errors but continues.
+# Uses file locking to prevent race conditions with concurrent chains.
 read_messages() {
     local chain="$1"
     local messages=""
 
     for msg_file in "${INBOX_DIR}"/chain"${chain}"-*.json; do
         [[ -f "${msg_file}" ]] || continue
-        local read_status
-        if ! read_status=$(jq -r '.read' "${msg_file}" 2>&1); then
-            log_warn "Failed to read message file ${msg_file}: ${read_status}"
-            continue
+
+        # Use file locking to prevent race conditions with concurrent chains
+        local msg_output=""
+        if ! msg_output=$( (
+            flock -x 200 || { echo "LOCK_FAILED" >&2; exit 1; }
+
+            local read_status
+            if ! read_status=$(jq -r '.read' "${msg_file}" 2>&1); then
+                echo "PARSE_FAILED: ${read_status}" >&2
+                exit 1
+            fi
+            if [[ "${read_status}" == "false" ]]; then
+                local subject body
+                if ! subject=$(jq -r '.subject' "${msg_file}" 2>&1); then
+                    echo "JQ_SUBJECT_FAILED: ${subject}" >&2
+                    exit 1
+                fi
+                if ! body=$(jq -r '.body' "${msg_file}" 2>&1); then
+                    echo "JQ_BODY_FAILED: ${body}" >&2
+                    exit 1
+                fi
+                echo "- ${subject}: ${body}"
+                # Mark as read atomically
+                local mark_error=""
+                if ! jq '.read = true' "${msg_file}" > "${msg_file}.tmp" 2>&1; then
+                    echo "MARK_READ_FAILED: Could not update ${msg_file}" >&2
+                elif ! mv "${msg_file}.tmp" "${msg_file}" 2>&1; then
+                    echo "MARK_READ_MV_FAILED: Could not replace ${msg_file}" >&2
+                    rm -f "${msg_file}.tmp"
+                fi
+            fi
+        ) 200>"${msg_file}.lock" 2>&1 ); then
+            log_warn "Message processing failed for ${msg_file}: ${msg_output}"
         fi
-        if [[ "${read_status}" == "false" ]]; then
-            local subject body
-            if ! subject=$(jq -r '.subject' "${msg_file}" 2>&1); then
-                log_warn "Failed to parse subject from ${msg_file}: ${subject}"
-                continue
-            fi
-            if ! body=$(jq -r '.body' "${msg_file}" 2>&1); then
-                log_warn "Failed to parse body from ${msg_file}: ${body}"
-                continue
-            fi
-            messages="${messages}\n- ${subject}: ${body}"
-            # Mark as read
-            if ! jq '.read = true' "${msg_file}" > "${msg_file}.tmp"; then
-                log_warn "Failed to mark message as read: ${msg_file}"
-                continue
-            fi
-            if ! mv "${msg_file}.tmp" "${msg_file}"; then
-                log_warn "Failed to update message file ${msg_file}, message may be re-read"
-                rm -f "${msg_file}.tmp"
-            fi
+
+        if [[ -n "${msg_output}" ]]; then
+            messages="${messages}\n${msg_output}"
         fi
     done
 
     echo -e "${messages}"
+}
+
+# Decision maker configuration
+DECISION_MODEL="${DECISION_MODEL:-opus}"  # opus or gpt
+DECISION_LOG="${PROJECT_DIR}/decisions/decisions.jsonl"
+MAX_DECISION_ROUNDS=3  # Prevent infinite loops
+
+# Detect if agent output contains a question requiring a decision
+# Returns 0 if question detected, 1 otherwise
+# Patterns checked: option prompts, clarification requests, questions ending with ?
+detect_question() {
+    local log_file="$1"
+
+    if [[ ! -f "${log_file}" ]]; then
+        log_warn "Log file does not exist: ${log_file}"
+        return 1
+    fi
+
+    local last_lines
+    if ! last_lines=$(tail -50 "${log_file}" 2>&1); then
+        log_warn "Failed to read log file: ${last_lines}"
+        return 1
+    fi
+
+    # Patterns that indicate agent is asking for input
+    if echo "${last_lines}" | grep -qiE '(which (option|approach)|how would you like|would you prefer|should I|do you want|please (choose|select|confirm)|option [A-Z]:|waiting for|need.*clarification|\?$)'; then
+        return 0
+    fi
+    return 1
+}
+
+# Get autonomous decision using orchestrator agent pattern
+# Args: chain, issue, question_context
+# Returns: decision text via stdout
+get_decision() {
+    local chain="$1"
+    local issue="$2"
+    local context="$3"
+    local decision_prompt
+
+    # Use orchestrator agent pattern - it has workflow to handle ambiguity
+    decision_prompt=$(cat << DECISION_EOF
+You are the orchestrator agent making an autonomous decision for v0.3.0 milestone execution.
+
+## Situation
+An implementer agent working on issue #${issue} (chain ${chain}) encountered ambiguity and needs guidance to continue.
+
+## Agent's Question/Context
+${context}
+
+## Decision Framework
+Apply the orchestrator workflow:
+1. Analyze dependencies - what blocks what?
+2. Apply YAGNI - what's the minimum to unblock progress?
+3. Consider chain ownership - this chain owns its issues sequentially
+4. Prefer implementation over waiting - momentum matters
+
+## Constraints
+- Do NOT ask follow-up questions
+- Do NOT suggest waiting for human input
+- Make a decisive choice NOW
+- The system must not stall
+
+## Response Format (EXACTLY this format)
+DECISION: [Your choice - e.g., "Option C" or clear directive]
+RATIONALE: [One sentence why]
+NEXT_ACTION: [What the agent should do immediately]
+DECISION_EOF
+)
+
+    local decision=""
+    local model_flag=""
+
+    case "${DECISION_MODEL}" in
+        opus)
+            model_flag="--model claude-opus-4-5-20251101"
+            ;;
+        sonnet)
+            model_flag="--model claude-sonnet-4-20250514"
+            ;;
+        *)
+            model_flag="--model claude-opus-4-5-20251101"
+            ;;
+    esac
+
+    log_info "Escalating decision to ${DECISION_MODEL} model..."
+    local raw_output=""
+    local claude_exit=0
+    raw_output=$(claude ${model_flag} --dangerously-skip-permissions -p "${decision_prompt}" 2>&1) || claude_exit=$?
+
+    if [[ ${claude_exit} -ne 0 ]]; then
+        log_error "Claude decision service failed with exit code ${claude_exit}"
+        log_error "Output: ${raw_output}"
+    fi
+
+    decision=$(echo "${raw_output}" | grep -E '^(DECISION|RATIONALE|NEXT_ACTION):' | head -3)
+
+    # Fallback if decision is empty or malformed - log error first
+    if [[ -z "${decision}" ]] || ! echo "${decision}" | grep -q "^DECISION:"; then
+        log_error "Claude returned no parseable decision output"
+        log_error "Raw output (first 500 chars): ${raw_output:0:500}"
+        decision="DECISION: Option A - Proceed with first available option
+RATIONALE: Decision service returned incomplete response, defaulting to forward progress
+NEXT_ACTION: Implement the first option and iterate"
+    fi
+
+    echo "${decision}"
+}
+
+# Log decision for audit trail
+log_decision() {
+    local chain="$1"
+    local issue="$2"
+    local question="$3"
+    local decision="$4"
+    local timestamp
+    timestamp=$(date -Iseconds)
+
+    if ! mkdir -p "$(dirname "${DECISION_LOG}")"; then
+        log_warn "Failed to create decision log directory"
+        return 1
+    fi
+
+    if ! jq -n \
+        --arg ts "${timestamp}" \
+        --argjson chain "${chain}" \
+        --argjson issue "${issue}" \
+        --arg question "${question}" \
+        --arg decision "${decision}" \
+        --arg model "${DECISION_MODEL}" \
+        '{timestamp: $ts, chain: $chain, issue: $issue, question: $question, decision: $decision, model: $model}' \
+        >> "${DECISION_LOG}" 2>&1; then
+        log_warn "Failed to append decision to ${DECISION_LOG}"
+        return 1
+    fi
+
+    log_info "Decision logged: Chain ${chain}, Issue #${issue}"
 }
 
 # Generate agent prompt for an issue
@@ -405,6 +685,25 @@ You are working on v0.3.0 milestone, chain ${chain}, issue #${issue}.
 6. Create atomic commits with conventional messages
 7. When done, push your branch and create a PR
 
+## CRITICAL: Autonomous Execution (MUST FOLLOW)
+You are running non-interactively. There is NO human to answer questions.
+
+**NEVER**:
+- Wait for permission approvals (you have --dangerously-skip-permissions)
+- Ask "how would you like to proceed?" or similar questions
+- Wait for clarification - make the best choice and document it
+- Stall on missing dependencies - implement stubs if needed
+
+**ALWAYS**:
+- Make autonomous decisions immediately
+- Create files, edit code, run commands without asking
+- If previous phase code is missing, implement it yourself or create minimal stubs
+- Document your decisions in commit messages
+- Complete your assigned issue, don't stop halfway
+
+The orchestrator will escalate to a decision-maker ONLY if absolutely necessary.
+Prefer forward progress over perfect information.
+
 ## Messages from Other Chains
 ${messages:-"No messages from other chains."}
 
@@ -413,47 +712,147 @@ Complete when ALL verification commands in the Implementation Card exit with cod
 EOF
 }
 
-# Run agent on a specific issue. Side effects: Updates state file to running/completed/failed,
-# logs to LOG_DIR, sends completion messages to dependent chains.
+# Run agent on a specific issue with automatic decision escalation.
+# If agent asks a question, escalates to decision-maker and re-runs with answer.
+# Side effects: Updates state file, logs to LOG_DIR, sends completion messages.
 run_agent() {
     local chain="$1"
     local issue="$2"
     local dir="${WORKTREE_BASE}/chain${chain}"
     local log_file="${LOG_DIR}/chain${chain}-issue${issue}-$(date +%Y%m%d-%H%M%S).log"
-    local prompt
-    prompt=$(generate_prompt "${chain}" "${issue}")
+    local base_prompt
+    base_prompt=$(generate_prompt "${chain}" "${issue}")
 
-    log_info "Starting ${AGENT_CMD} for chain ${chain}, issue #${issue}"
+    log_info "run_agent: Starting ${AGENT_CMD} for chain ${chain}, issue #${issue}"
+    log_info "run_agent: Working directory: ${dir}"
+    log_info "run_agent: Log file: ${log_file}"
+
+    # Pull latest chain branch to get work from previous issues
+    if ! pull_chain_branch "${chain}"; then
+        log_error "Failed to pull latest changes for chain ${chain}"
+        log_error "Agent may be working with stale code - proceeding anyway"
+        # Don't return 1 - agent may still succeed with local state
+    fi
 
     if ! mark_issue_started "${chain}" "${issue}"; then
         log_error "Failed to mark issue #${issue} as started"
         return 1
     fi
 
-    # Run agent in worktree directory
     local exit_code=0
-    case "${AGENT_CMD}" in
-        claude)
-            (cd "${dir}" && claude --print "${prompt}" 2>&1 | tee "${log_file}") || exit_code=$?
-            ;;
-        copilot)
-            # NOTE: copilot mode is experimental and may require interactive input
-            (cd "${dir}" && gh copilot suggest "${prompt}" 2>&1 | tee "${log_file}") || exit_code=$?
-            ;;
-        *)
-            log_error "Unknown agent: ${AGENT_CMD}"
-            return 1
-            ;;
-    esac
+    local decision_round=0
+    local prompt="${base_prompt}"
+    local accumulated_decisions=""
 
+    # Decision loop - runs agent, checks for questions, escalates if needed
+    while [[ ${decision_round} -lt ${MAX_DECISION_ROUNDS} ]]; do
+        log_info "run_agent: Round $((decision_round + 1))/${MAX_DECISION_ROUNDS}"
+
+        # Run agent
+        log_info "run_agent: Executing ${AGENT_CMD} command..."
+        case "${AGENT_CMD}" in
+            claude)
+                log_info "run_agent: Running claude in ${dir}"
+                (cd "${dir}" && claude --dangerously-skip-permissions -p "${prompt}" 2>&1 | tee -a "${log_file}") || exit_code=$?
+                log_info "run_agent: claude exited with code ${exit_code}"
+                ;;
+            copilot)
+                (cd "${dir}" && gh copilot suggest --yolo "${prompt}" 2>&1 | tee -a "${log_file}") || exit_code=$?
+                ;;
+            *)
+                log_error "Unknown agent: ${AGENT_CMD}"
+                return 1
+                ;;
+        esac
+
+        # Check if agent asked a question
+        if detect_question "${log_file}"; then
+            decision_round=$((decision_round + 1))
+            log_warn "Agent asked a question (round ${decision_round}/${MAX_DECISION_ROUNDS}), escalating to decision-maker..."
+
+            # Extract question context (last 100 lines of log)
+            local question_context
+            local tail_output=""
+            local tail_exit=0
+            tail_output=$(tail -100 "${log_file}" 2>&1) || tail_exit=$?
+            if [[ ${tail_exit} -ne 0 ]]; then
+                log_warn "Failed to read log context: ${tail_output}"
+                question_context="No context available (tail failed)"
+            else
+                question_context="${tail_output}"
+            fi
+
+            # Get decision from higher model
+            local decision
+            decision=$(get_decision "${chain}" "${issue}" "${question_context}")
+
+            # Log the decision for audit trail
+            if ! log_decision "${chain}" "${issue}" "${question_context}" "${decision}"; then
+                log_warn "Failed to log decision to audit trail, continuing anyway"
+            fi
+
+            log_info "Decision received:"
+            echo "${decision}" | while read -r line; do log_info "  ${line}"; done
+
+            # Append decision to prompt and continue
+            accumulated_decisions="${accumulated_decisions}
+
+## Decision from Orchestrator (Round ${decision_round})
+${decision}
+
+Continue implementing based on this decision. Do NOT ask further questions - make autonomous choices."
+
+            prompt="${base_prompt}${accumulated_decisions}"
+
+            # Add separator to log file
+            echo "" >> "${log_file}"
+            echo "=== DECISION ESCALATION (Round ${decision_round}) ===" >> "${log_file}"
+            echo "${decision}" >> "${log_file}"
+            echo "=== CONTINUING WITH DECISION ===" >> "${log_file}"
+            echo "" >> "${log_file}"
+        else
+            # No question detected, agent completed its work
+            log_info "run_agent: No question detected, agent work complete"
+            break
+        fi
+    done
+
+    if [[ ${decision_round} -ge ${MAX_DECISION_ROUNDS} ]]; then
+        log_error "Max decision rounds (${MAX_DECISION_ROUNDS}) reached for issue #${issue}"
+        exit_code=1
+    fi
+
+    # Handle completion or failure
     if [[ ${exit_code} -eq 0 ]]; then
+        # CRITICAL: Verify actual work was done before marking complete
+        local work_verified=0
+        verify_work_done "${chain}" "${issue}" || work_verified=$?
+
+        if [[ ${work_verified} -ne 0 ]]; then
+            log_error "Issue #${issue} exited cleanly but NO WORK WAS DETECTED"
+            log_error "Agent may have stalled, asked questions, or encountered silent failure"
+            log_error "NOT marking issue as complete - requires investigation"
+            # Update state to reflect stalled status
+            if ! update_state ".issues.\"${issue}\".status = \"stalled\" | .issues.\"${issue}\".error = \"No work detected - agent may have stalled\""; then
+                log_error "CRITICAL: Failed to update state for stalled issue #${issue}"
+                log_error "State file may be inconsistent - manual intervention required"
+            fi
+            return 1
+        fi
+
         if ! mark_issue_completed "${chain}" "${issue}"; then
             log_error "CRITICAL: Issue #${issue} completed but state update failed!"
             log_error "Manual fix needed: Update ${STATE_FILE} to mark issue ${issue} complete"
             return 1
         fi
-        log_success "Issue #${issue} completed"
-        # Notify dependent chains. Failure is non-fatal since chains poll state anyway.
+        log_success "Issue #${issue} completed (${decision_round} decision rounds)"
+
+        # Sync branch so subsequent issues in this chain can access the code
+        if ! sync_chain_branch "${chain}" "${issue}"; then
+            log_error "Branch sync failed - subsequent issues in chain ${chain} may fail"
+            # Don't return 1 here since the issue is complete, just log the error
+        fi
+
         if ! send_completion_message "${chain}" "${issue}"; then
             log_warn "Some completion notifications failed, dependent chains will discover via polling"
         fi
@@ -514,9 +913,8 @@ get_next_issue() {
             continue
         fi
 
-        local dep_result
-        check_dependencies "${issue}"
-        dep_result=$?
+        local dep_result=0
+        check_dependencies "${issue}" || dep_result=$?
         if [[ ${dep_result} -eq 2 ]]; then
             log_error "Cannot determine dependency status for issue #${issue}, skipping"
             continue
@@ -533,14 +931,18 @@ get_next_issue() {
 # Returns 0 if complete, 1 if incomplete, 2 on state read error.
 is_chain_complete() {
     local chain="$1"
+    log_info "is_chain_complete: Checking chain ${chain}"
     local issues
     read -ra issues <<< "${CHAINS[$chain]}"
+    log_info "is_chain_complete: Chain ${chain} has ${#issues[@]} issues"
     local completed_count
 
+    log_info "is_chain_complete: Reading state for chain ${chain}..."
     if ! completed_count=$(read_state ".chains.\"${chain}\".completed_issues | length"); then
         log_error "Failed to read completion count for chain ${chain}"
         return 2
     fi
+    log_info "is_chain_complete: Chain ${chain} has ${completed_count} completed"
 
     [[ "${completed_count}" -eq "${#issues[@]}" ]]
 }
@@ -551,15 +953,19 @@ is_chain_complete() {
 run_chain() {
     local chain="$1"
 
+    log_info "run_chain: Starting chain ${chain}"
+
     if ! setup_worktree "${chain}"; then
         log_error "Failed to setup worktree for chain ${chain}"
         return 1
     fi
 
+    log_info "run_chain: Worktree ready for chain ${chain}, entering main loop"
+
     local chain_complete_result
     while true; do
-        is_chain_complete "${chain}"
-        chain_complete_result=$?
+        chain_complete_result=0
+        is_chain_complete "${chain}" || chain_complete_result=$?
         if [[ ${chain_complete_result} -eq 0 ]]; then
             break  # Chain is complete
         elif [[ ${chain_complete_result} -eq 2 ]]; then
@@ -572,6 +978,7 @@ run_chain() {
         local get_issue_result
         next_issue=$(get_next_issue "${chain}")
         get_issue_result=$?
+        log_info "run_chain: get_next_issue returned '${next_issue}' (exit: ${get_issue_result})"
 
         if [[ ${get_issue_result} -ne 0 ]]; then
             log_error "Failed to get next issue for chain ${chain}, aborting"
@@ -583,6 +990,8 @@ run_chain() {
             sleep 30
             continue
         fi
+
+        log_info "run_chain: Will work on issue #${next_issue}"
 
         if ! run_agent "${chain}" "${next_issue}"; then
             log_error "Agent failed for chain ${chain} issue #${next_issue}"
@@ -619,15 +1028,21 @@ orchestrate() {
 
     log_info "Chains for week ${week}: ${chains_to_run[*]}"
 
+    if [[ ${#chains_to_run[@]} -eq 0 ]]; then
+        log_warn "No chains to run for week ${week}"
+        return 0
+    fi
+
     # Track chain-to-PID mapping for error reporting
     declare -A chain_pids
     local pids=()
     local running=0
 
     for chain in "${chains_to_run[@]}"; do
-        local complete_result
-        is_chain_complete "${chain}"
-        complete_result=$?
+        log_info "Evaluating chain ${chain}..."
+        local complete_result=0
+        is_chain_complete "${chain}" || complete_result=$?
+        log_info "Chain ${chain} completion check returned: ${complete_result}"
         if [[ ${complete_result} -eq 0 ]]; then
             log_info "Chain ${chain} already complete, skipping"
             continue
@@ -635,6 +1050,7 @@ orchestrate() {
             log_error "Cannot check chain ${chain} completion status, skipping"
             continue
         fi
+        log_info "Chain ${chain} is not complete, will start"
 
         # Wait if at parallel limit, removing completed PIDs
         while [[ ${running} -ge ${PARALLEL_CHAINS} ]]; do
@@ -665,6 +1081,13 @@ orchestrate() {
         running=$((running + 1))
         log_info "Started chain ${chain} (PID: ${pid})"
     done
+
+    log_info "Started ${#chain_pids[@]} chain(s), waiting for completion..."
+
+    if [[ ${#chain_pids[@]} -eq 0 ]]; then
+        log_warn "No chains were started"
+        return 0
+    fi
 
     # Wait with proper error tracking
     local failed_chains=()
@@ -791,8 +1214,8 @@ interactive() {
                 fi
                 run_chain "${chain_num}"
                 ;;
-            5) for_each_chain setup_worktree ;;
-            6) for_each_chain cleanup_worktree ;;
+            5) for_each_chain setup_worktree || true ;;
+            6) for_each_chain cleanup_worktree || true ;;
             7)
                 if ! read -rp "From chain (1-6): " from; then
                     log_info "Input stream closed"
@@ -848,9 +1271,8 @@ cleanup_project() {
         log_info "Cleanup cancelled"
         return 0
     fi
-    local failures
-    for_each_chain cleanup_worktree
-    failures=$?
+    local failures=0
+    for_each_chain cleanup_worktree || failures=$?
     if [[ ${failures} -gt 0 ]]; then
         log_warn "${failures} worktree(s) failed to remove"
     fi
@@ -876,7 +1298,7 @@ main() {
             fi
             run_chain "${2}"
             ;;
-        setup) for_each_chain setup_worktree ;;
+        setup) for_each_chain setup_worktree || true ;;
         cleanup) cleanup_project ;;
         interactive) interactive ;;
         help|--help|-h)
@@ -894,6 +1316,12 @@ main() {
             echo "Environment:"
             echo "  AGENT_CMD=${AGENT_CMD}  (claude or copilot)"
             echo "  PARALLEL_CHAINS=${PARALLEL_CHAINS}  (max concurrent chains, default 3)"
+            echo "  DECISION_MODEL=${DECISION_MODEL}  (opus or sonnet for escalation)"
+            echo ""
+            echo "Decision Escalation:"
+            echo "  When agents ask questions, they are automatically escalated to"
+            echo "  the DECISION_MODEL for autonomous resolution. Decisions are logged"
+            echo "  to ${DECISION_LOG}"
             ;;
         *)
             echo "Unknown command: $1"

@@ -243,7 +243,8 @@ After user approval:
 1. **Read existing memory** (if exists)
 2. **Append new learnings** with timestamp and session reference
 3. **Preserve existing content** - never remove without explicit request
-4. **Write to file**: `.serena/memories/{skill-name}-observations.md`
+4. **Extract code citations** (Phase 4 Enhancement - see below)
+5. **Write to file**: `.serena/memories/{skill-name}-observations.md`
 
 **Storage Strategy**:
 
@@ -294,6 +295,52 @@ After user approval:
 - {note 1} (Session {N}, {date})
 - {note 2} (Session {N}, {date})
 ```
+
+#### Phase 4 Enhancement: Auto-Citation Capture
+
+When persisting learnings that reference specific code locations, automatically capture citations:
+
+1. **Detect code references** in learning text:
+   - Inline code references: `` `path/to/file.ext` line N ``
+   - Function references: `` `functionName()` in `file.ext` ``
+   - Explicit citations: "See: file.ext:42"
+
+2. **Extract citation metadata**: file path, line number, snippet (if available)
+
+3. **Add citations to memory frontmatter**:
+
+   ```bash
+   python -m memory_enhancement add-citation <memory-id> --file <path> --line <num> --snippet <text>
+   ```
+
+4. **Update confidence score** based on initial verification
+
+**Detection Patterns**:
+
+| Pattern | Example | Extraction |
+|---------|---------|------------|
+| Inline code + line | In `` `src/client/constants.ts` line 42 `` | file=src/client/constants.ts, line=42 |
+| Function in file | `` `handleError()` in `src/utils.ts` `` | file=src/utils.ts (file-level) |
+| Explicit citation | See: src/api.py:100 | file=src/api.py, line=100 |
+
+**Integration Point**:
+
+After user approves learnings (step 4 above), before writing to Serena:
+
+1. Parse learning text for code references using patterns above
+2. For each reference found:
+   - Extract file path, line number, and snippet
+   - Call `python -m memory_enhancement add-citation <memory-id> --file <path> --line <num> --snippet <text>`
+3. If citation extraction fails, proceed without citations (non-blocking)
+4. Proceed with normal Serena MCP write
+
+**Example**:
+
+Learning text: "The bug was in `scripts/health.py` line 45, where we forgot to handle None"
+
+1. Extract: file=scripts/health.py, line=45, snippet="handle None"
+2. Add citation: `python -m memory_enhancement add-citation memory-observations --file scripts/health.py --line 45 --snippet "handle None"`
+3. Write learning to Serena with citation attached
 
 ---
 

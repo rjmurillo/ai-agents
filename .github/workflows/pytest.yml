@@ -53,6 +53,7 @@ jobs:
               - 'pyproject.toml'
               - 'uv.lock'
               - 'tests/conftest.py'
+              - 'scripts/memory_enhancement/**'
               - '.github/workflows/pytest.yml'
 
       - name: Report path check result
