@@ -1,7 +1,6 @@
 """Data models for memory enhancement layer.
 
-This module provides data structures for representing memories, citations,
-and links between memories following the Serena memory schema.
+Dataclasses for Memory, Citation, and Link per PRD section 4.5.1.
 """
 
 from dataclasses import dataclass, field
@@ -14,28 +13,17 @@ import frontmatter
 
 
 class LinkType(Enum):
-    """Types of relationships between memories."""
-
-    RELATED = "RELATED"
-    SUPERSEDES = "SUPERSEDES"
-    BLOCKS = "BLOCKS"
-    IMPLEMENTS = "IMPLEMENTS"
-    EXTENDS = "EXTENDS"
+    """Typed relationship between memories."""
+    RELATED = "related"
+    SUPERSEDES = "supersedes"
+    BLOCKS = "blocks"
+    IMPLEMENTS = "implements"
+    EXTENDS = "extends"
 
 
 @dataclass
 class Citation:
-    """Reference to a specific location in the codebase.
-
-    Attributes:
-        path: Relative file path from repository root
-        line: Line number (1-indexed), None for file-level citations
-        snippet: Optional code snippet for fuzzy matching
-        verified: Timestamp of last verification
-        valid: Whether the citation is still valid
-        mismatch_reason: Details on why validation failed
-    """
-
+    """Code reference with verification metadata."""
     path: str
     line: Optional[int] = None
     snippet: Optional[str] = None
@@ -46,33 +34,14 @@ class Citation:
 
 @dataclass
 class Link:
-    """Typed relationship to another memory.
-
-    Attributes:
-        link_type: Type of relationship (RELATED, SUPERSEDES, etc.)
-        target_id: ID of the target memory
-    """
-
+    """Typed relationship to another memory."""
     link_type: LinkType
     target_id: str
 
 
 @dataclass
 class Memory:
-    """Representation of a Serena memory with citations and links.
-
-    Attributes:
-        id: Unique memory identifier
-        subject: Memory title/subject
-        path: File path to memory markdown file
-        content: Markdown body content
-        citations: List of code references
-        links: Relationships to other memories
-        tags: Classification tags
-        confidence: Trust score (0.0-1.0)
-        last_verified: Timestamp of last citation verification
-    """
-
+    """Serena memory with citations and links."""
     id: str
     subject: str
     path: Path
@@ -85,98 +54,48 @@ class Memory:
 
     @classmethod
     def from_serena_file(cls, path: Path) -> "Memory":
-        """Parse a Serena memory file with YAML frontmatter.
+        """Parse a Serena memory markdown file."""
+        post = frontmatter.load(path)
+        meta = post.metadata
 
-        Args:
-            path: Path to the memory markdown file
-
-        Returns:
-            Memory instance populated from file
-
-        Raises:
-            FileNotFoundError: If file doesn't exist
-            ValueError: If file has invalid structure
-        """
-        if not path.exists():
-            raise FileNotFoundError(f"Memory file not found: {path}")
-
-        with path.open("r", encoding="utf-8") as f:
-            post = frontmatter.load(f)
-
-        metadata = post.metadata
-        content = post.content
-
-        # Extract memory ID from metadata or filename
-        memory_id = metadata.get("id", path.stem)
-        subject = metadata.get("subject", "")
-
-        # Parse citations
-        citations_raw = metadata.get("citations", [])
         citations = [
             Citation(
-                path=c["path"],
+                path=c.get("path", ""),
                 line=c.get("line"),
                 snippet=c.get("snippet"),
-                verified=cls._parse_date(c.get("verified")),
-                valid=c.get("valid"),
-                mismatch_reason=c.get("mismatch_reason"),
             )
-            for c in citations_raw
+            for c in meta.get("citations", [])
         ]
 
-        # Parse links
-        links_raw = metadata.get("links", [])
         links = []
-        for link_data in links_raw:
+        for link_data in meta.get("links", []):
             try:
-                link_type = LinkType(link_data.get("link_type", "RELATED"))
-                links.append(Link(link_type=link_type, target_id=link_data["target_id"]))
-            except (ValueError, KeyError):
-                # Skip invalid links but don't fail parsing
-                continue
-
-        # Extract other metadata
-        tags = metadata.get("tags", [])
-        confidence = float(metadata.get("confidence", 1.0))
-        last_verified = cls._parse_date(metadata.get("last_verified"))
+                link_type = LinkType(link_data.get("type", "related"))
+                links.append(Link(link_type=link_type, target_id=link_data.get("target", "")))
+            except ValueError:
+                pass  # Skip invalid link types
 
         return cls(
-            id=memory_id,
-            subject=subject,
+            id=meta.get("id", path.stem),
+            subject=meta.get("subject", path.stem),
             path=path,
-            content=content,
+            content=post.content,
             citations=citations,
             links=links,
-            tags=tags,
-            confidence=confidence,
-            last_verified=last_verified,
+            tags=meta.get("tags", []),
+            confidence=float(meta.get("confidence", 1.0)),
+            last_verified=cls._parse_date(meta.get("last_verified")),
         )
-
-    def get_links_by_type(self, link_type: LinkType) -> list[str]:
-        """Filter links by type and return target IDs.
-
-        Args:
-            link_type: Type of relationship to filter by
-
-        Returns:
-            List of target memory IDs
-        """
-        return [link.target_id for link in self.links if link.link_type == link_type]
 
     @staticmethod
     def _parse_date(value) -> Optional[datetime]:
-        """Parse date from various formats.
-
-        Args:
-            value: Date value (None, datetime, or ISO string)
-
-        Returns:
-            datetime instance or None
-        """
+        """Parse datetime from various formats."""
         if value is None:
             return None
         if isinstance(value, datetime):
             return value
-        if isinstance(value, str):
-            return datetime.fromisoformat(value)
-        return None
+        return datetime.fromisoformat(str(value))
+
+    def get_links_by_type(self, link_type: LinkType) -> list[str]:
+        """Return target IDs for links of the given type."""
+        return [link.target_id for link in self.links if link.link_type == link_type]
