@@ -41,9 +41,6 @@ def traverse_graph(
         if current_id in visited or depth > max_depth:
             continue
 
-        visited.add(current_id)
-        max_depth_reached = max(max_depth_reached, depth)
-
         # Try both ID-based and filename-based lookup
         memory_path = memories_dir / f"{current_id}.md"
         if not memory_path.exists():
@@ -51,6 +48,9 @@ def traverse_graph(
             memory_path = _find_memory_by_id(current_id, memories_dir)
             if memory_path is None:
                 continue
+
+        visited.add(current_id)
+        max_depth_reached = max(max_depth_reached, depth)
 
         memory = Memory.from_serena_file(memory_path)
 
