@@ -85,9 +85,7 @@ Describe 'Show-TraceabilityGraph.ps1' -Tag 'Traceability', 'Graph' {
     }
 
     Context 'Basic Functionality' {
-        It 'Generates text graph successfully' -Skip {
-            # TODO: Restore when Show-TraceabilityGraph.ps1 full implementation is complete
-            # Currently only has minimal stub implementation
+        It 'Generates text graph successfully' {
             $result = & "$PSScriptRoot/../scripts/traceability/Show-TraceabilityGraph.ps1" `
                 -SpecsPath $script:TestSpecsDir `
                 -Format 'text'
@@ -97,8 +95,7 @@ Describe 'Show-TraceabilityGraph.ps1' -Tag 'Traceability', 'Graph' {
             $result | Should -Match 'REQ-001'
         }
 
-        It 'Generates mermaid graph successfully' -Skip {
-            # TODO: Restore when Show-TraceabilityGraph.ps1 full implementation is complete
+        It 'Generates mermaid graph successfully' {
             $result = & "$PSScriptRoot/../scripts/traceability/Show-TraceabilityGraph.ps1" `
                 -SpecsPath $script:TestSpecsDir `
                 -Format 'mermaid'
@@ -109,8 +106,7 @@ Describe 'Show-TraceabilityGraph.ps1' -Tag 'Traceability', 'Graph' {
             $result | Should -Match 'graph TD'
         }
 
-        It 'Generates json graph successfully' -Skip {
-            # TODO: Restore when Show-TraceabilityGraph.ps1 full implementation is complete
+        It 'Generates json graph successfully' {
             $result = & "$PSScriptRoot/../scripts/traceability/Show-TraceabilityGraph.ps1" `
                 -SpecsPath $script:TestSpecsDir `
                 -Format 'json'
@@ -130,8 +126,7 @@ Describe 'Show-TraceabilityGraph.ps1' -Tag 'Traceability', 'Graph' {
             $LASTEXITCODE | Should -Be 0
         }
 
-        It 'Supports RootId parameter' -Skip {
-            # TODO: Restore when Show-TraceabilityGraph.ps1 full implementation is complete
+        It 'Supports RootId parameter' {
             $result = & "$PSScriptRoot/../scripts/traceability/Show-TraceabilityGraph.ps1" `
                 -SpecsPath $script:TestSpecsDir `
                 -RootId 'REQ-001' `
@@ -141,8 +136,7 @@ Describe 'Show-TraceabilityGraph.ps1' -Tag 'Traceability', 'Graph' {
             $result | Should -Match 'REQ-001'
         }
 
-        It 'Supports depth limiting' -Skip {
-            # TODO: Restore when Show-TraceabilityGraph.ps1 full implementation is complete
+        It 'Supports depth limiting' {
             $result = & "$PSScriptRoot/../scripts/traceability/Show-TraceabilityGraph.ps1" `
                 -SpecsPath $script:TestSpecsDir `
                 -Depth 1 `
@@ -153,23 +147,158 @@ Describe 'Show-TraceabilityGraph.ps1' -Tag 'Traceability', 'Graph' {
     }
 
     Context 'Error Handling' {
-        It 'Returns error for non-existent specs path' -Skip {
-            # TODO: Restore when Show-TraceabilityGraph.ps1 full implementation is complete
-            & "$PSScriptRoot/../scripts/traceability/Show-TraceabilityGraph.ps1" `
-                -SpecsPath '/non/existent/path' `
-                -ErrorAction SilentlyContinue
+        It 'Returns error for non-existent specs path' {
+            $errorThrown = $false
+            try {
+                & "$PSScriptRoot/../scripts/traceability/Show-TraceabilityGraph.ps1" `
+                    -SpecsPath '/non/existent/path' `
+                    -ErrorAction Stop
+            }
+            catch {
+                $errorThrown = $true
+            }
 
-            $LASTEXITCODE | Should -Be 1
+            $errorThrown | Should -Be $true
         }
 
-        It 'Returns error for invalid RootId' -Skip {
-            # TODO: Restore when Show-TraceabilityGraph.ps1 full implementation is complete
-            & "$PSScriptRoot/../scripts/traceability/Show-TraceabilityGraph.ps1" `
-                -SpecsPath $script:TestSpecsDir `
-                -RootId 'INVALID-999' `
-                -ErrorAction SilentlyContinue
+        It 'Returns error for invalid RootId' {
+            $errorThrown = $false
+            try {
+                & "$PSScriptRoot/../scripts/traceability/Show-TraceabilityGraph.ps1" `
+                    -SpecsPath $script:TestSpecsDir `
+                    -RootId 'INVALID-999' `
+                    -ErrorAction Stop
+            }
+            catch {
+                $errorThrown = $true
+            }
 
-            $LASTEXITCODE | Should -Be 1
+            $errorThrown | Should -Be $true
+        }
+    }
+}
+
+Describe 'Resolve-OrphanedSpecs.ps1' -Tag 'Traceability', 'Orphans' {
+    BeforeEach {
+        # Create test data with some orphans
+        New-TestSpec -Id 'REQ-001' -Type 'requirement' -Status 'approved'
+        New-TestSpec -Id 'REQ-002' -Type 'requirement' -Status 'draft'  # Orphan: no design refs
+        New-TestSpec -Id 'DESIGN-001' -Type 'design' -Related @('REQ-001') -Status 'approved'
+        New-TestSpec -Id 'DESIGN-002' -Type 'design' -Status 'draft'  # Orphan: no REQ or TASK refs
+        New-TestSpec -Id 'TASK-001' -Type 'task' -Related @('DESIGN-001') -Status 'complete'
+        New-TestSpec -Id 'TASK-002' -Type 'task' -Status 'draft'  # Orphan: no design ref
+    }
+
+    AfterEach {
+        # Clean up test specs
+        Get-ChildItem -Path $script:TestSpecsDir -Recurse -Filter "*.md" | Remove-Item -Force
+        # Clean up archive directory if created
+        $archivePath = Join-Path $script:TestSpecsDir ".archive"
+        if (Test-Path $archivePath) {
+            Remove-Item -Path $archivePath -Recurse -Force
+        }
+    }
+
+    Context 'List Action' {
+        It 'Lists all orphaned specs' {
+            $result = & "$PSScriptRoot/../scripts/traceability/Resolve-OrphanedSpecs.ps1" `
+                -SpecsPath $script:TestSpecsDir `
+                -Action list
+
+            # Exit code 2 means orphans found
+            $LASTEXITCODE | Should -Be 2
+        }
+
+        It 'Filters by type' {
+            $result = & "$PSScriptRoot/../scripts/traceability/Resolve-OrphanedSpecs.ps1" `
+                -SpecsPath $script:TestSpecsDir `
+                -Action list `
+                -Type tasks
+
+            $LASTEXITCODE | Should -Be 2
+        }
+    }
+
+    Context 'Archive Action' {
+        It 'Supports dry-run mode' {
+            $result = & "$PSScriptRoot/../scripts/traceability/Resolve-OrphanedSpecs.ps1" `
+                -SpecsPath $script:TestSpecsDir `
+                -Action archive `
+                -DryRun
+
+            $LASTEXITCODE | Should -Be 0
+
+            # Verify files are NOT moved
+            $reqFile = Join-Path $reqDir 'REQ-002.md'
+            $reqFile | Should -Exist
+        }
+
+        It 'Archives orphaned specs with -Force' {
+            & "$PSScriptRoot/../scripts/traceability/Resolve-OrphanedSpecs.ps1" `
+                -SpecsPath $script:TestSpecsDir `
+                -Action archive `
+                -Type tasks `
+                -Force
+
+            $LASTEXITCODE | Should -Be 0
+
+            # Verify orphaned task was moved
+            $originalPath = Join-Path $taskDir 'TASK-002.md'
+            $originalPath | Should -Not -Exist
+
+            $archivePath = Join-Path $script:TestSpecsDir ".archive/tasks/TASK-002.md"
+            $archivePath | Should -Exist
+        }
+    }
+
+    Context 'Delete Action' {
+        It 'Supports dry-run mode' {
+            & "$PSScriptRoot/../scripts/traceability/Resolve-OrphanedSpecs.ps1" `
+                -SpecsPath $script:TestSpecsDir `
+                -Action delete `
+                -DryRun
+
+            $LASTEXITCODE | Should -Be 0
+
+            # Verify files are NOT deleted
+            $reqFile = Join-Path $reqDir 'REQ-002.md'
+            $reqFile | Should -Exist
+        }
+
+        It 'Deletes orphaned specs with -Force' {
+            & "$PSScriptRoot/../scripts/traceability/Resolve-OrphanedSpecs.ps1" `
+                -SpecsPath $script:TestSpecsDir `
+                -Action delete `
+                -Type tasks `
+                -Force
+
+            $LASTEXITCODE | Should -Be 0
+
+            # Verify orphaned task was deleted
+            $taskFile = Join-Path $taskDir 'TASK-002.md'
+            $taskFile | Should -Not -Exist
+
+            # Verify non-orphaned task still exists
+            $goodTaskFile = Join-Path $taskDir 'TASK-001.md'
+            $goodTaskFile | Should -Exist
+        }
+    }
+
+    Context 'Error Handling' {
+        It 'Returns error for non-existent specs path' {
+            # Script uses Write-Error with $ErrorActionPreference = "Stop"
+            # which throws an exception before setting exit code
+            $errorThrown = $false
+            try {
+                & "$PSScriptRoot/../scripts/traceability/Resolve-OrphanedSpecs.ps1" `
+                    -SpecsPath '/non/existent/path' `
+                    -ErrorAction Stop
+            }
+            catch {
+                $errorThrown = $true
+            }
+
+            $errorThrown | Should -Be $true
         }
     }
 }
