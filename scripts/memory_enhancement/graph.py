@@ -73,6 +73,11 @@ class MemoryGraph:
         self._memory_cache: dict[str, Memory] = {}
         self._load_memories()
 
+    @property
+    def memories(self) -> dict[str, Memory]:
+        """Public access to memory cache."""
+        return self._memory_cache
+
     def _load_memories(self):
         """Load all memories from directory into cache."""
         if not self.memories_dir.exists():

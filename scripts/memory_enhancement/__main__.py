@@ -3,6 +3,7 @@
 Usage:
     python -m memory_enhancement verify <memory-id-or-path>
     python -m memory_enhancement verify-all [--dir .serena/memories]
+    python -m memory_enhancement health [--format {text|markdown}]
 """
 
 import argparse
@@ -11,6 +12,7 @@ import sys
 from pathlib import Path
 
 from .citations import verify_memory, verify_all_memories
+from .health import generate_health_report
 from .models import Memory
 
 
@@ -26,6 +28,11 @@ def main():
     # verify-all command
     verify_all_parser = subparsers.add_parser("verify-all", help="Verify all memories")
     verify_all_parser.add_argument("--dir", default=".serena/memories", help="Memories directory")
+
+    # health command
+    health_parser = subparsers.add_parser("health", help="Generate memory health report")
+    health_parser.add_argument("--dir", default=".serena/memories", help="Memories directory")
+    health_parser.add_argument("--format", choices=["text", "markdown"], default="text", help="Output format")
 
     args = parser.parse_args()
 
@@ -78,6 +85,11 @@ def main():
                 print("✅ All citations valid")
 
         sys.exit(0 if not stale else 1)
+
+    elif args.command == "health":
+        report = generate_health_report(Path(args.dir))
+        print(report.to_markdown() if args.format == "markdown" else report.to_text())
+        sys.exit(0)
 
 
 if __name__ == "__main__":
