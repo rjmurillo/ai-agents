@@ -127,7 +127,7 @@
     }
   ],
   "schemaVersion": "1.0",
-  "endingCommit": "7b8c2d0e",
+  "endingCommit": "2c7c8ec8",
   "nextSteps": [
     "Close issue #998 as already complete",
     "Update session log and commit",
