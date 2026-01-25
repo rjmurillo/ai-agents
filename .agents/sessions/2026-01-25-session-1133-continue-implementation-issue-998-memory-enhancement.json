@@ -28,7 +28,7 @@
       "outcome": "Issue #998 deliverables complete: graph traversal, Serena integration, cycle detection, CLI functional"
     }
   ],
-  "endingCommit": "a174884d",
+  "endingCommit": "06d1edd4",
   "schemaVersion": "1.0",
   "protocolCompliance": {
     "sessionStart": {
