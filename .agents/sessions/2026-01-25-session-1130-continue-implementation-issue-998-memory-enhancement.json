@@ -36,7 +36,7 @@
       "outcome": "Confirmed Chain 1 is complete, all exit criteria met in previous sessions"
     }
   ],
-  "endingCommit": "7d1878ce",
+  "endingCommit": "eb2e0c32",
   "nextSteps": [
     "Chain 1 verification complete",
     "Issue #998 already closed, graph traversal fully functional",
