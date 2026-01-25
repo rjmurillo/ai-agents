@@ -3,7 +3,7 @@
   "nextSteps": [
     "Continue to Phase 3: Health Reporting (issue #999)"
   ],
-  "endingCommit": "TBD",
+  "endingCommit": "891ef585",
   "protocolCompliance": {
     "sessionEnd": {
       "handoffNotUpdated": {
