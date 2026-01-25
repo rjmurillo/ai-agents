@@ -108,7 +108,7 @@
       }
     }
   },
-  "endingCommit": "in-progress",
+  "endingCommit": "64a70dcc",
   "session": {
     "branch": "chain2/memory-optimization",
     "startingCommit": "7f903379",
