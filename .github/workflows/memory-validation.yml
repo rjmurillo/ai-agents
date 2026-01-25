@@ -1,0 +1,184 @@
+---
+name: Memory Validation
+
+on:
+  pull_request:
+    paths:
+      - '.serena/memories/**'
+      - 'scripts/memory_enhancement/**'
+      - 'scripts/**/*.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/memory-validation.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-paths:
+    name: Detect changes
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    outputs:
+      memories-changed: ${{ steps.filter.outputs.memories }}
+      code-changed: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.3.1
+
+      - name: Check path filters
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            memories:
+              - '.serena/memories/**'
+            code:
+              - 'scripts/memory_enhancement/**'
+              - 'scripts/**/*.py'
+              - 'pyproject.toml'
+              - 'uv.lock'
+
+  validate-memories:
+    name: Validate memory citations
+    needs: check-paths
+    if: needs.check-paths.outputs.memories-changed == 'true' || needs.check-paths.outputs.code-changed == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.3.1
+
+      - name: Setup Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install UV package manager
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+
+      - name: Verify all memories
+        id: verify
+        continue-on-error: true
+        run: |
+          python -m scripts.memory_enhancement verify-all --json > memory-validation-results.json
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Generate health report
+        run: |
+          python -m scripts.memory_enhancement health --format markdown > memory-health-report.md
+
+      - name: Upload validation results
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.5.0
+        with:
+          name: memory-validation-results
+          path: |
+            memory-validation-results.json
+            memory-health-report.md
+          retention-days: 7
+
+      - name: Parse validation results
+        id: parse
+        run: |
+          if [ -f memory-validation-results.json ]; then
+            total=$(jq 'length' memory-validation-results.json)
+            stale=$(jq '[.[] | select(.valid == false)] | length' memory-validation-results.json)
+            valid=$((total - stale))
+
+            echo "total=$total" >> $GITHUB_OUTPUT
+            echo "valid=$valid" >> $GITHUB_OUTPUT
+            echo "stale=$stale" >> $GITHUB_OUTPUT
+
+            if [ "$stale" -gt 0 ]; then
+              echo "has_stale=true" >> $GITHUB_OUTPUT
+            else
+              echo "has_stale=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "has_stale=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('memory-health-report.md', 'utf8');
+            const hasStale = '${{ steps.parse.outputs.has_stale }}' === 'true';
+
+            const status = hasStale ? '⚠️  Warning' : '✅ Pass';
+            const message = `<!-- MEMORY-VALIDATION -->
+            ## ${status}: Memory Validation
+
+            ${report}
+
+            ---
+            <details>
+            <summary>📊 Validation Details</summary>
+
+            - **Total memories checked**: ${{ steps.parse.outputs.total }}
+            - **Valid**: ${{ steps.parse.outputs.valid }}
+            - **Stale**: ${{ steps.parse.outputs.stale }}
+
+            </details>`;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('<!-- MEMORY-VALIDATION -->')
+            );
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: message
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: message
+              });
+            }
+
+      - name: Set job status
+        if: steps.parse.outputs.has_stale == 'true'
+        run: |
+          echo "::warning::Found ${{ steps.parse.outputs.stale }} memories with stale citations"
+          # Currently non-blocking - change to 'exit 1' to make blocking
+
+  skip-validation:
+    name: Skip validation (no changes)
+    needs: check-paths
+    if: needs.check-paths.outputs.memories-changed != 'true' && needs.check-paths.outputs.code-changed != 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    steps:
+      - name: Skip message
+        run: |
+          echo "No memory or code changes detected - skipping validation"
