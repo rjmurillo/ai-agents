@@ -4,9 +4,11 @@
   "current_week": 1,
   "chains": {
     "1": {
-      "status": "completed",
-      "current_issue": null,
-      "completed_issues": [997]
+      "status": "running",
+      "current_issue": 998,
+      "completed_issues": [
+        997
+      ]
     },
     "2": {
       "status": "running",
@@ -16,9 +18,10 @@
       ]
     },
     "3": {
-      "status": "running",
-      "current_issue": 724,
-      "completed_issues": []
+      "status": "complete",
+      "current_issue": null,
+      "completed_issues": [721, 722, 723, 724],
+      "pr": 1011
     },
     "4": {
       "status": "pending",
@@ -52,11 +55,34 @@
       "started": "2026-01-24T16:34:21-08:00",
       "completed": "2026-01-24T16:55:00-08:00"
     },
-    "724": {
-      "status": "in_progress",
+    "721": {
+      "status": "completed",
       "started": "2026-01-24T16:41:00-08:00",
-      "error": "Failed critic validation",
-      "critique": "\u001b[0;34m[INFO]\u001b[0m Running critic validation for chain 3, issue #724...\n\u001b[0;34m[INFO]\u001b[0m Running critic (sonnet model)...\n\u001b[0;34m[INFO]\u001b[0m Critique logged: Chain 3, Issue #724\n\u001b[1;33m[WARN]\u001b[0m Critic validation FAILED for issue #724"
+      "completed": "2026-01-26T02:42:16-08:00",
+      "pr": 1011
+    },
+    "722": {
+      "status": "completed",
+      "started": "2026-01-24T16:41:00-08:00",
+      "completed": "2026-01-26T02:42:16-08:00",
+      "pr": 1011
+    },
+    "723": {
+      "status": "completed",
+      "started": "2026-01-24T16:41:00-08:00",
+      "completed": "2026-01-26T02:42:16-08:00",
+      "pr": 1011
+    },
+    "724": {
+      "status": "completed",
+      "started": "2026-01-24T16:41:00-08:00",
+      "completed": "2026-01-26T02:42:16-08:00",
+      "pr": 1011
+    },
+    "998": {
+      "status": "in_progress",
+      "error": "Exit code 1",
+      "started": "2026-01-25T17:19:22-08:00"
     }
   },
   "messages": []
