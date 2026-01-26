@@ -21,6 +21,12 @@
     Output format: "console", "markdown", or "json".
     Default: "console"
 
+.PARAMETER NoCache
+    Disable caching. Forces re-parsing of all spec files.
+
+.PARAMETER Benchmark
+    Display timing information for performance analysis.
+
 .EXAMPLE
     .\Validate-Traceability.ps1
 
@@ -30,12 +36,20 @@
 .EXAMPLE
     .\Validate-Traceability.ps1 -SpecsPath ".agents/specs" -Format markdown
 
+.EXAMPLE
+    .\Validate-Traceability.ps1 -NoCache
+    # Run validation without using cached data
+
+.EXAMPLE
+    .\Validate-Traceability.ps1 -Benchmark
+    # Run validation and display timing information
+
 .NOTES
     Exit codes:
     0 = Pass (no errors; warnings allowed unless -Strict)
     1 = Errors found (broken references, untraced tasks)
     2 = Warnings found with -Strict flag (orphaned REQs/DESIGNs)
-    
+
     See: ADR-035 Exit Code Standardization
 #>
 
@@ -49,10 +63,69 @@ param(
 
     [Parameter()]
     [ValidateSet("console", "markdown", "json")]
-    [string]$Format = "console"
+    [string]$Format = "console",
+
+    [Parameter()]
+    [switch]$NoCache,
+
+    [Parameter()]
+    [switch]$Benchmark
 )
 
 $ErrorActionPreference = "Stop"
+
+#region Caching and Benchmarking
+# Import caching module
+$cacheModulePath = Join-Path $PSScriptRoot "traceability/TraceabilityCache.psm1"
+if (Test-Path $cacheModulePath) {
+    Import-Module $cacheModulePath -Force
+    $script:CacheAvailable = $true
+} else {
+    $script:CacheAvailable = $false
+}
+
+# Clear cache if -NoCache specified
+if ($NoCache -and $script:CacheAvailable) {
+    Clear-TraceabilityCache
+}
+
+# Benchmark timing
+$script:BenchmarkTimings = @{}
+function Measure-Step {
+    param([string]$StepName, [scriptblock]$ScriptBlock)
+    if ($Benchmark) {
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $result = & $ScriptBlock
+        $stopwatch.Stop()
+        $script:BenchmarkTimings[$StepName] = $stopwatch.ElapsedMilliseconds
+        return $result
+    } else {
+        return & $ScriptBlock
+    }
+}
+
+function Write-BenchmarkReport {
+    if ($Benchmark -and $script:BenchmarkTimings.Count -gt 0) {
+        Write-Host ""
+        Write-Host "Benchmark Results:" -ForegroundColor Cyan
+        Write-Host "==================" -ForegroundColor Cyan
+        $total = 0
+        foreach ($step in $script:BenchmarkTimings.GetEnumerator() | Sort-Object Name) {
+            Write-Host ("  {0,-25}: {1,6} ms" -f $step.Name, $step.Value)
+            $total += $step.Value
+        }
+        Write-Host ("  {0,-25}: {1,6} ms" -f "TOTAL", $total) -ForegroundColor Green
+
+        if ($script:CacheAvailable) {
+            $cacheStats = Get-CacheStat
+            Write-Host ""
+            Write-Host "Cache Statistics:" -ForegroundColor Cyan
+            Write-Host ("  Memory entries: {0}" -f $cacheStats.MemoryCacheEntries)
+            Write-Host ("  Disk entries:   {0}" -f $cacheStats.DiskCacheEntries)
+        }
+    }
+}
+#endregion
 
 #region Color Output
 $ColorReset = "`e[0m"
@@ -454,16 +527,25 @@ if ($repoRoot) {
 }
 
 # Load all specs
-$specs = Get-AllSpecs -BasePath $resolvedPath.Path
+$specs = Measure-Step -StepName "Load Specs" -ScriptBlock {
+    Get-AllSpecs -BasePath $resolvedPath.Path
+}
 
 # Validate traceability
-$results = Test-Traceability -Specs $specs
+$results = Measure-Step -StepName "Validate Traceability" -ScriptBlock {
+    Test-Traceability -Specs $specs
+}
 
 # Output results
-$output = Format-Results -Results $results -OutputFormat $Format
+$output = Measure-Step -StepName "Format Results" -ScriptBlock {
+    Format-Results -Results $results -OutputFormat $Format
+}
 if ($output) {
     Write-Output $output
 }
+
+# Display benchmark results if requested
+Write-BenchmarkReport
 
 # Determine exit code
 if ($results.errors.Count -gt 0) {
