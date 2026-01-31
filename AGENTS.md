@@ -1478,6 +1478,68 @@ Learnings are scored 0-100% for quality:
 
 ---
 
+## Passive Context Strategy
+
+> **Key Insight**: Based on Vercel's evaluation research, models don't invoke on-demand skills 56% of the time. Passive context (information loaded every session) significantly outperforms on-demand retrieval.
+
+### The Skill Invocation Problem
+
+Skills are powerful, but they require the model to:
+
+1. Recognize that a skill might exist
+2. Decide to look it up
+3. Read and apply it correctly
+
+Research shows step 1 fails over half the time—the model just doesn't think to look.
+
+### Our Solution: Layered Context
+
+We use a three-tier approach:
+
+| Tier | File | Purpose | Loaded |
+|------|------|---------|--------|
+| 1 | `CLAUDE.md` | Minimal entry point | Every session |
+| 2 | `CRITICAL-CONTEXT.md` | Blocking constraints | Via @import |
+| 3 | `SKILL-QUICK-REF.md` | Skill awareness triggers | Via @import |
+
+**Tier 1-3 are always in context.** Full skills (`.claude/skills/`) are on-demand.
+
+### What Goes in Passive Context
+
+**Include** (high-frequency, high-value):
+
+- Skill invocation triggers ("when you see X, use skill Y")
+- Most-used skill summaries
+- Blocking constraints and gates
+- Common workflows
+
+**Exclude** (on-demand is fine):
+
+- Full skill documentation
+- Detailed scripts and examples
+- Rarely-used features
+- Historical context
+
+### The 80/20 Rule for Skills
+
+The top 5 skills (github, session-init, pr-comment-responder, memory, adr-review) account for ~80% of skill usage. We surface these in `SKILL-QUICK-REF.md` while keeping the long tail on-demand.
+
+### Pattern Recognition > Skill Lookup
+
+Instead of hoping the model looks up skills, we teach pattern recognition:
+
+```markdown
+# This passive context approach:
+"When addressing PR review comments → use pr-comment-responder skill"
+
+# Is more effective than:
+"Skills are in .claude/skills/, read them when needed"
+```
+
+The first version activates on pattern match; the second requires the model to initiate a search.
+
+---
+
 ## Customizing Agents
 
 Each agent file defines:

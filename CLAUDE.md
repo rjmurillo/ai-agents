@@ -13,6 +13,7 @@ For non-trivial tasks, delegate to specialized agents using the Task tool:
 - This manages context efficiently and provides specialized capabilities
 
 @CRITICAL-CONTEXT.md
+@SKILL-QUICK-REF.md
 
 ## Primary Reference
 
