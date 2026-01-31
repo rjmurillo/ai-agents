@@ -34,7 +34,7 @@
 3. Run scoped markdownlint on changed files
 4. Route to qa agent (features only)
 5. Commit all changes
-6. Validate: `pwsh scripts/Validate-SessionJson.ps1 -SessionPath [log]`
+6. Validate: `pwsh scripts/Validate-SessionJson.ps1 -SessionPath "[log]"`
 
 ---
 
@@ -106,13 +106,13 @@ Common validation failures and fixes:
 
 ```bash
 # Get unaddressed PR comments
-pwsh .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest <num>
+pwsh .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest "<num>"
 
 # Post PR comment reply  
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest <num> -Body "..."
+pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest "<num>" -Body "..."
 
 # Get PR check logs for CI failures
-pwsh .claude/skills/github/scripts/pr/Get-PRCheckLogs.ps1 -PullRequest <num>
+pwsh .claude/skills/github/scripts/pr/Get-PRCheckLogs.ps1 -PullRequest "<num>"
 ```
 
 **NEVER**: Use raw `gh pr comment`, `gh issue edit` when these scripts exist.
@@ -144,4 +144,4 @@ pwsh .claude/skills/github/scripts/pr/Get-PRCheckLogs.ps1 -PullRequest <num>
 
 ---
 
-**For full skill documentation**: Read `.claude/skills/<name>/SKILL.md`
+**For full skill documentation**: Read `.claude/skills/"<name>"/SKILL.md`
