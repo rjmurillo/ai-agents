@@ -1,40 +1,10 @@
 # Passive Context Reference (Auto-loaded)
 
-> **Purpose**: Passive context for session protocol, memory hierarchy, and skill awareness.
+> **Purpose**: Skill awareness, memory hierarchy, and PR routing patterns.
 > Based on Vercel research: passive context (100% pass rate) outperforms skill invocation (53-79%).
 >
 > **Principle**: Prefer retrieval-led reasoning over pre-training-led reasoning for session protocol,
 > memory operations, and repository conventions.
-
----
-
-## Session Protocol (Blocking Gates)
-
-```text
-[Session Protocol]
-|BLOCKING-START: serena-init, handoff-read, log-create, branch-verify
-|BLOCKING-END: log-complete, serena-update, lint-check, validate-pass
-|QA-GATE: feature-impl requires qa-validation; skip-allowed: docs-only, investigation-only
-|SCRIPTS: Validate-SessionJson.ps1, New-SessionLog.ps1
-|EXIT-CODE: 0=PASS required; "errors" OR "failures" in test output = non-zero = BLOCK
-```
-
-**Session Start Checklist:**
-
-1. `mcp__serena__activate_project` → `mcp__serena__initial_instructions`
-2. Read HANDOFF.md (read-only)
-3. Create log: `pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1`
-4. Read usage-mandatory memory
-5. Verify branch: `git branch --show-current`
-
-**Session End Checklist:**
-
-1. Complete session log with outcomes
-2. Update Serena memory
-3. Run scoped markdownlint on changed files
-4. Route to qa agent (features only)
-5. Commit all changes
-6. Validate: `pwsh scripts/Validate-SessionJson.ps1 -SessionPath "[log]"`
 
 ---
 
@@ -104,11 +74,11 @@ Common validation failures and fixes:
 
 ### GitHub Operations
 
-```bash
+```powershell
 # Get unaddressed PR comments
 pwsh .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest "<num>"
 
-# Post PR comment reply  
+# Post PR comment reply
 pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest "<num>" -Body "..."
 
 # Get PR check logs for CI failures

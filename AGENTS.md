@@ -1546,13 +1546,13 @@ These require explicit user triggers:
 
 We use a three-tier approach:
 
-| Tier | File | Purpose | Loaded |
-|------|------|---------|--------|
-| 1 | `CLAUDE.md` | Minimal entry point | Every session |
-| 2 | `CRITICAL-CONTEXT.md` | Blocking constraints | Via @import |
-| 3 | `SKILL-QUICK-REF.md` | Horizontal knowledge + skill awareness | Via @import |
+| Tier | File | Purpose | Size |
+|------|------|---------|------|
+| 1 | `CLAUDE.md` | Minimal entry point | ~2.5KB |
+| 2 | `CRITICAL-CONTEXT.md` | Blocking constraints | ~2.5KB |
+| 3 | `SKILL-QUICK-REF.md` | Skill awareness + routing | ~3.5KB |
 
-**Tier 1-3 are always in context.** Full skills (`.claude/skills/`) are on-demand for vertical actions.
+**Context Budget**: ~8.5KB always-loaded (target ceiling: 10KB). Full skills (`.claude/skills/`) are on-demand.
 
 ### Compression Strategy
 
