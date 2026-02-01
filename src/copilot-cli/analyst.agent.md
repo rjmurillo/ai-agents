@@ -19,6 +19,7 @@ tools:
   - context7/*
   - perplexity/*
   - serena/*
+model: claude-opus-4.5
 ---
 # Analyst Agent
 
