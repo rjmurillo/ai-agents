@@ -5,6 +5,8 @@ Tests CLI invocation via subprocess to verify:
 - JSON output schemas
 - Path traversal security (CWE-22)
 - Memory path resolution
+- Corrupt YAML error handling
+- Path resolution regression (CWE-22 fix)
 """
 
 import json
@@ -772,3 +774,19 @@ def test_update_confidence_returns_1_on_corrupt_yaml(tmp_path):
     result = run_cli("update-confidence", str(corrupt_file), cwd=tmp_path)
     assert result.returncode == 1
     assert "Error" in result.stderr
+
+
+def test_add_citation_returns_1_on_corrupt_yaml(tmp_path):
+    """add-citation command returns EXIT_VALIDATION_ERROR for corrupt YAML."""
+    memories_dir = tmp_path / ".serena" / "memories"
+    memories_dir.mkdir(parents=True)
+    corrupt_file = memories_dir / "corrupt.md"
+    corrupt_file.write_text("---\nid: [unclosed\n---\nContent")
+
+    result = run_cli(
+        "add-citation", str(corrupt_file),
+        "--file", "some/file.py",
+        cwd=tmp_path,
+    )
+    assert result.returncode == 1
+    assert "Validation failed" in result.stderr or "Error" in result.stderr

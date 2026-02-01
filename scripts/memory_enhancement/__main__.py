@@ -277,7 +277,7 @@ def _handle_add_citation(args) -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NOT_FOUND
-    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError) as e:
+    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError, OSError) as e:
         print(f"Validation failed: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
     except IOError as e:
@@ -333,7 +333,7 @@ def _handle_list_citations(args) -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NOT_FOUND
-    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError) as e:
+    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError, OSError) as e:
         print(f"Error: Failed to process memory file: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
     except IOError as e:
