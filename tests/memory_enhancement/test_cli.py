@@ -1,6 +1,6 @@
 """CLI integration tests for memory enhancement layer.
 
-Tests CLI invocation via subprocess to verify:
+Tests CLI invocation in-process to verify:
 - Exit codes for various conditions
 - JSON output schemas
 - Path traversal security (CWE-22)
@@ -10,34 +10,56 @@ Tests CLI invocation via subprocess to verify:
 """
 
 import json
-import os
-import subprocess
-import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
-from scripts.memory_enhancement.__main__ import _resolve_directory_path, _resolve_memory_path
+from scripts.memory_enhancement.__main__ import (
+    CLIError,
+    _resolve_directory_path,
+    _resolve_memory_path,
+    main,
+)
 
 
-def run_cli(*args: str, cwd: Path = None) -> subprocess.CompletedProcess:
-    """Run the memory enhancement CLI with the given arguments.
+@dataclass
+class CLIResult:
+    """Mirrors subprocess.CompletedProcess interface for in-process CLI calls."""
 
-    Args:
-        *args: CLI arguments to pass
-        cwd: Working directory for the command
+    returncode: int
+    stdout: str
+    stderr: str
 
-    Returns:
-        CompletedProcess with returncode, stdout, stderr
+
+@pytest.fixture
+def call_main(monkeypatch, capsys):
+    """Fixture that calls main() in-process via monkeypatch + capsys.
+
+    Returns a callable(*args, cwd=None) -> CLIResult.
     """
-    cmd = [sys.executable, "-m", "scripts.memory_enhancement", *args]
-    return subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-        env={**os.environ, "PYTHONPATH": str(Path(__file__).parent.parent.parent)},
-    )
+
+    def _call(*args: str, cwd: Optional[Path] = None) -> CLIResult:
+        argv = ["memory_enhancement", *args]
+        monkeypatch.setattr("sys.argv", argv)
+        if cwd is not None:
+            monkeypatch.chdir(cwd)
+
+        try:
+            returncode = main()
+        except SystemExit as exc:
+            # argparse calls sys.exit(2) on bad args
+            returncode = exc.code if exc.code is not None else 0
+
+        captured = capsys.readouterr()
+        return CLIResult(
+            returncode=returncode,
+            stdout=captured.out,
+            stderr=captured.err,
+        )
+
+    return _call
 
 
 # ============================================================================
@@ -48,7 +70,7 @@ def run_cli(*args: str, cwd: Path = None) -> subprocess.CompletedProcess:
 class TestPathTraversalSecurity:
     """Tests for CWE-22 path traversal protection."""
 
-    def test_verify_rejects_path_traversal(self, tmp_path):
+    def test_verify_rejects_path_traversal(self, tmp_path, call_main):
         """verify command blocks ../../../etc/passwd style paths."""
         # Create a valid memory in tmp_path to ensure we're testing path validation
         memories_dir = tmp_path / ".serena" / "memories"
@@ -65,16 +87,15 @@ class TestPathTraversalSecurity:
         )
 
         # Attempt path traversal
-        result = run_cli("verify", "../../../etc/passwd", cwd=tmp_path)
+        result = call_main("verify", "../../../etc/passwd", cwd=tmp_path)
 
         # Should exit with non-zero code (1=validation error for not found, or 4=security)
-        # The CLI exits with the exit_code parameter (1) when file not found
         assert result.returncode != 0, f"Should reject path traversal, got exit 0"
         # Should NOT contain sensitive file contents in output
         assert "root:" not in result.stdout
         assert "root:" not in result.stderr
 
-    def test_graph_rejects_dir_path_traversal(self, tmp_path):
+    def test_graph_rejects_dir_path_traversal(self, tmp_path, call_main):
         """graph --dir rejects ../../../etc style paths."""
         # Create minimal setup
         memories_dir = tmp_path / ".serena" / "memories"
@@ -84,7 +105,7 @@ class TestPathTraversalSecurity:
         )
 
         # Attempt path traversal via --dir
-        result = run_cli(
+        result = call_main(
             "graph", "test", "--dir", "../../../etc",
             cwd=tmp_path
         )
@@ -92,7 +113,7 @@ class TestPathTraversalSecurity:
         # Should exit with security error (4) or not found (2)
         assert result.returncode in (2, 4), f"Expected exit 2 or 4, got {result.returncode}"
 
-    def test_add_citation_rejects_path_traversal_in_file(self, tmp_path):
+    def test_add_citation_rejects_path_traversal_in_file(self, tmp_path, call_main):
         """add-citation blocks path traversal in --file argument."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -107,7 +128,7 @@ class TestPathTraversalSecurity:
         )
 
         # Attempt path traversal in --file argument
-        result = run_cli(
+        result = call_main(
             "add-citation", str(memory_file),
             "--file", "../../../etc/passwd",
             cwd=tmp_path
@@ -128,7 +149,7 @@ class TestPathTraversalSecurity:
 class TestExitCodes:
     """Tests for CLI exit codes."""
 
-    def test_verify_returns_0_on_valid(self, tmp_path):
+    def test_verify_returns_0_on_valid(self, tmp_path, call_main):
         """verify exits 0 for memory with valid citations."""
         # Create directory structure
         memories_dir = tmp_path / ".serena" / "memories"
@@ -153,12 +174,12 @@ class TestExitCodes:
             "Content"
         )
 
-        result = run_cli("verify", str(memory_file), cwd=tmp_path)
+        result = call_main("verify", str(memory_file), cwd=tmp_path)
 
         assert result.returncode == 0, f"Expected exit 0, got {result.returncode}: {result.stderr}"
         assert "VALID" in result.stdout
 
-    def test_verify_returns_1_on_stale(self, tmp_path):
+    def test_verify_returns_1_on_stale(self, tmp_path, call_main):
         """verify exits 1 for memory with stale citations."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -176,22 +197,22 @@ class TestExitCodes:
             "Content"
         )
 
-        result = run_cli("verify", str(memory_file), cwd=tmp_path)
+        result = call_main("verify", str(memory_file), cwd=tmp_path)
 
         assert result.returncode == 1, f"Expected exit 1, got {result.returncode}: {result.stderr}"
         assert "STALE" in result.stdout
 
-    def test_verify_returns_nonzero_on_not_found(self, tmp_path):
+    def test_verify_returns_nonzero_on_not_found(self, tmp_path, call_main):
         """verify exits non-zero for nonexistent memory."""
-        result = run_cli("verify", "nonexistent-memory", cwd=tmp_path)
+        result = call_main("verify", "nonexistent-memory", cwd=tmp_path)
 
         # CLI uses exit_code param (1 for verify) when memory not found
         assert result.returncode != 0, f"Expected non-zero exit, got {result.returncode}"
         assert "not found" in result.stderr.lower()
 
-    def test_graph_returns_2_on_missing_dir(self, tmp_path):
+    def test_graph_returns_2_on_missing_dir(self, tmp_path, call_main):
         """graph exits 2 for nonexistent directory."""
-        result = run_cli(
+        result = call_main(
             "graph", "test-root",
             "--dir", "nonexistent/directory",
             cwd=tmp_path
@@ -200,7 +221,7 @@ class TestExitCodes:
         assert result.returncode == 2, f"Expected exit 2, got {result.returncode}"
         assert "not found" in result.stderr.lower()
 
-    def test_add_citation_returns_1_on_invalid_file(self, tmp_path):
+    def test_add_citation_returns_1_on_invalid_file(self, tmp_path, call_main):
         """add-citation exits 1 when cited file doesn't exist."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -214,7 +235,7 @@ class TestExitCodes:
             "Content"
         )
 
-        result = run_cli(
+        result = call_main(
             "add-citation", str(memory_file),
             "--file", "nonexistent/file.py",
             cwd=tmp_path
@@ -223,7 +244,7 @@ class TestExitCodes:
         # Should fail validation (exit 1)
         assert result.returncode == 1, f"Expected exit 1, got {result.returncode}"
 
-    def test_verify_all_returns_0_when_all_valid(self, tmp_path):
+    def test_verify_all_returns_0_when_all_valid(self, tmp_path, call_main):
         """verify-all exits 0 when all memories are valid."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -245,11 +266,11 @@ class TestExitCodes:
             "Content"
         )
 
-        result = run_cli("verify-all", "--dir", str(memories_dir), cwd=tmp_path)
+        result = call_main("verify-all", "--dir", str(memories_dir), cwd=tmp_path)
 
         assert result.returncode == 0, f"Expected exit 0, got {result.returncode}: {result.stderr}"
 
-    def test_verify_all_returns_1_when_any_stale(self, tmp_path):
+    def test_verify_all_returns_1_when_any_stale(self, tmp_path, call_main):
         """verify-all exits 1 when any memory has stale citations."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -266,7 +287,7 @@ class TestExitCodes:
             "Content"
         )
 
-        result = run_cli("verify-all", "--dir", str(memories_dir), cwd=tmp_path)
+        result = call_main("verify-all", "--dir", str(memories_dir), cwd=tmp_path)
 
         assert result.returncode == 1, f"Expected exit 1, got {result.returncode}"
 
@@ -279,7 +300,7 @@ class TestExitCodes:
 class TestJsonOutputSchemas:
     """Tests for JSON output format schemas."""
 
-    def test_verify_json_output_schema(self, tmp_path):
+    def test_verify_json_output_schema(self, tmp_path, call_main):
         """verify --json has expected fields."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -304,7 +325,7 @@ class TestJsonOutputSchemas:
         )
 
         # --json is a global flag and must come before the subcommand
-        result = run_cli("--json", "verify", str(memory_file), cwd=tmp_path)
+        result = call_main("--json", "verify", str(memory_file), cwd=tmp_path)
 
         assert result.returncode == 0, f"CLI failed: {result.stderr}"
 
@@ -322,7 +343,7 @@ class TestJsonOutputSchemas:
         assert isinstance(data["confidence"], (int, float))
         assert isinstance(data["stale_citations"], list)
 
-    def test_verify_json_stale_citation_schema(self, tmp_path):
+    def test_verify_json_stale_citation_schema(self, tmp_path, call_main):
         """verify --json stale_citations have expected fields."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -341,7 +362,7 @@ class TestJsonOutputSchemas:
         )
 
         # --json is a global flag and must come before the subcommand
-        result = run_cli("--json", "verify", str(memory_file), cwd=tmp_path)
+        result = call_main("--json", "verify", str(memory_file), cwd=tmp_path)
 
         # Will exit 1 due to stale citation, but should still output JSON
         data = json.loads(result.stdout)
@@ -354,7 +375,7 @@ class TestJsonOutputSchemas:
         assert "line" in stale
         assert "reason" in stale
 
-    def test_verify_all_json_output_schema(self, tmp_path):
+    def test_verify_all_json_output_schema(self, tmp_path, call_main):
         """verify-all --json has expected fields."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -377,7 +398,7 @@ class TestJsonOutputSchemas:
         )
 
         # --json is a global flag and must come before the subcommand
-        result = run_cli(
+        result = call_main(
             "--json", "verify-all", "--dir", str(memories_dir),
             cwd=tmp_path
         )
@@ -401,7 +422,7 @@ class TestJsonOutputSchemas:
             assert "valid" in result_entry
             assert "confidence" in result_entry
 
-    def test_graph_json_output_schema(self, tmp_path):
+    def test_graph_json_output_schema(self, tmp_path, call_main):
         """graph --json has expected fields."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -424,7 +445,7 @@ class TestJsonOutputSchemas:
         )
 
         # --json is a global flag and must come before the subcommand
-        result = run_cli(
+        result = call_main(
             "--json", "graph", "memory-a", "--dir", str(memories_dir),
             cwd=tmp_path
         )
@@ -454,7 +475,7 @@ class TestJsonOutputSchemas:
             assert "depth" in node
             # parent and link_type can be None for root
 
-    def test_health_json_output_format(self, tmp_path):
+    def test_health_json_output_format(self, tmp_path, call_main):
         """health --format json outputs valid JSON with summary."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -468,7 +489,7 @@ class TestJsonOutputSchemas:
             "Content"
         )
 
-        result = run_cli(
+        result = call_main(
             "health", "--format", "json", "--dir", str(memories_dir),
             cwd=tmp_path
         )
@@ -486,7 +507,7 @@ class TestJsonOutputSchemas:
         assert "stale_memories" in summary
         assert "average_confidence" in summary
 
-    def test_health_text_format(self, tmp_path):
+    def test_health_text_format(self, tmp_path, call_main):
         """health --format text outputs markdown."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -499,7 +520,7 @@ class TestJsonOutputSchemas:
             "Content"
         )
 
-        result = run_cli(
+        result = call_main(
             "health", "--format", "text", "--dir", str(memories_dir),
             cwd=tmp_path
         )
@@ -509,7 +530,7 @@ class TestJsonOutputSchemas:
         assert "# Memory Health Report" in result.stdout
         assert "## Summary" in result.stdout
 
-    def test_health_markdown_format(self, tmp_path):
+    def test_health_markdown_format(self, tmp_path, call_main):
         """health --format markdown outputs markdown."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -522,7 +543,7 @@ class TestJsonOutputSchemas:
             "Content"
         )
 
-        result = run_cli(
+        result = call_main(
             "health", "--format", "markdown", "--dir", str(memories_dir),
             cwd=tmp_path
         )
@@ -539,7 +560,7 @@ class TestJsonOutputSchemas:
 class TestMemoryPathResolution:
     """Tests for memory ID vs path resolution."""
 
-    def test_verify_accepts_memory_id(self, tmp_path):
+    def test_verify_accepts_memory_id(self, tmp_path, call_main):
         """verify resolves 'memory-id' to .serena/memories/memory-id.md."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -553,12 +574,12 @@ class TestMemoryPathResolution:
             "Content"
         )
 
-        result = run_cli("verify", "my-memory", cwd=tmp_path)
+        result = call_main("verify", "my-memory", cwd=tmp_path)
 
         assert result.returncode == 0, f"Expected exit 0, got {result.returncode}: {result.stderr}"
         assert "VALID" in result.stdout
 
-    def test_verify_accepts_full_path(self, tmp_path):
+    def test_verify_accepts_full_path(self, tmp_path, call_main):
         """verify accepts explicit file path."""
         memories_dir = tmp_path / "custom" / "location"
         memories_dir.mkdir(parents=True)
@@ -572,11 +593,11 @@ class TestMemoryPathResolution:
             "Content"
         )
 
-        result = run_cli("verify", str(memory_file), cwd=tmp_path)
+        result = call_main("verify", str(memory_file), cwd=tmp_path)
 
         assert result.returncode == 0, f"Expected exit 0, got {result.returncode}: {result.stderr}"
 
-    def test_verify_prefers_existing_path_over_id_resolution(self, tmp_path):
+    def test_verify_prefers_existing_path_over_id_resolution(self, tmp_path, call_main):
         """verify uses existing path before trying ID resolution."""
         # Create a file that could be confused with memory ID resolution
         memories_dir = tmp_path / ".serena" / "memories"
@@ -602,7 +623,7 @@ class TestMemoryPathResolution:
         )
 
         # --json is a global flag and must come before the subcommand
-        result = run_cli("--json", "verify", "test-memory.md", cwd=tmp_path)
+        result = call_main("--json", "verify", "test-memory.md", cwd=tmp_path)
 
         data = json.loads(result.stdout)
         # Should use the direct path (file exists), not ID resolution
@@ -617,7 +638,7 @@ class TestMemoryPathResolution:
 class TestEdgeCases:
     """Edge case tests for CLI behavior."""
 
-    def test_verify_memory_without_citations(self, tmp_path):
+    def test_verify_memory_without_citations(self, tmp_path, call_main):
         """verify succeeds for memory with no citations."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -630,7 +651,7 @@ class TestEdgeCases:
             "Content without citations"
         )
 
-        result = run_cli(
+        result = call_main(
             "verify", str(memories_dir / "no-citations.md"),
             cwd=tmp_path
         )
@@ -638,18 +659,18 @@ class TestEdgeCases:
         assert result.returncode == 0, f"Expected exit 0, got {result.returncode}"
         assert "VALID" in result.stdout
 
-    def test_verify_all_empty_directory(self, tmp_path):
+    def test_verify_all_empty_directory(self, tmp_path, call_main):
         """verify-all handles empty directory."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
 
-        result = run_cli("verify-all", "--dir", str(memories_dir), cwd=tmp_path)
+        result = call_main("verify-all", "--dir", str(memories_dir), cwd=tmp_path)
 
         assert result.returncode == 0, f"Expected exit 0, got {result.returncode}"
         # Should report 0 memories verified
         assert "0 memories" in result.stdout.lower()
 
-    def test_graph_root_not_found(self, tmp_path):
+    def test_graph_root_not_found(self, tmp_path, call_main):
         """graph exits 2 when root memory doesn't exist."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -662,7 +683,7 @@ class TestEdgeCases:
             "Content"
         )
 
-        result = run_cli(
+        result = call_main(
             "graph", "nonexistent-root", "--dir", str(memories_dir),
             cwd=tmp_path
         )
@@ -670,7 +691,7 @@ class TestEdgeCases:
         assert result.returncode == 2, f"Expected exit 2, got {result.returncode}"
         assert "not found" in result.stderr.lower()
 
-    def test_add_citation_dry_run(self, tmp_path):
+    def test_add_citation_dry_run(self, tmp_path, call_main):
         """add-citation --dry-run previews without writing."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
@@ -690,7 +711,7 @@ class TestEdgeCases:
         src_dir.mkdir()
         (src_dir / "test.py").write_text("def hello():\n    pass\n")
 
-        result = run_cli(
+        result = call_main(
             "add-citation", str(memory_file),
             "--file", "src/test.py",
             "--line", "1",
@@ -740,53 +761,484 @@ def test_resolve_directory_path_returns_resolved_absolute_path(tmp_path, monkeyp
 # ============================================================================
 
 
-def test_verify_returns_1_on_corrupt_yaml(tmp_path):
+def test_verify_returns_1_on_corrupt_yaml(tmp_path, call_main):
     """verify command returns EXIT_VALIDATION_ERROR for corrupt YAML."""
     memories_dir = tmp_path / ".serena" / "memories"
     memories_dir.mkdir(parents=True)
     corrupt_file = memories_dir / "corrupt.md"
     corrupt_file.write_text("---\nid: [unclosed\n---\nContent")
 
-    result = run_cli("verify", str(corrupt_file), cwd=tmp_path)
+    result = call_main("verify", str(corrupt_file), cwd=tmp_path)
     assert result.returncode == 1
     assert "Failed to parse" in result.stderr or "Error" in result.stderr
 
 
-def test_list_citations_returns_1_on_corrupt_yaml(tmp_path):
+def test_list_citations_returns_1_on_corrupt_yaml(tmp_path, call_main):
     """list-citations command returns EXIT_VALIDATION_ERROR for corrupt YAML."""
     memories_dir = tmp_path / ".serena" / "memories"
     memories_dir.mkdir(parents=True)
     corrupt_file = memories_dir / "corrupt.md"
     corrupt_file.write_text("---\nid: [unclosed\n---\nContent")
 
-    result = run_cli("list-citations", str(corrupt_file), cwd=tmp_path)
+    result = call_main("list-citations", str(corrupt_file), cwd=tmp_path)
     assert result.returncode == 1
     assert "Error" in result.stderr
 
 
-def test_update_confidence_returns_1_on_corrupt_yaml(tmp_path):
+def test_update_confidence_returns_1_on_corrupt_yaml(tmp_path, call_main):
     """update-confidence command returns EXIT_VALIDATION_ERROR for corrupt YAML."""
     memories_dir = tmp_path / ".serena" / "memories"
     memories_dir.mkdir(parents=True)
     corrupt_file = memories_dir / "corrupt.md"
     corrupt_file.write_text("---\nid: [unclosed\n---\nContent")
 
-    result = run_cli("update-confidence", str(corrupt_file), cwd=tmp_path)
+    result = call_main("update-confidence", str(corrupt_file), cwd=tmp_path)
     assert result.returncode == 1
     assert "Error" in result.stderr
 
 
-def test_add_citation_returns_1_on_corrupt_yaml(tmp_path):
+def test_add_citation_returns_1_on_corrupt_yaml(tmp_path, call_main):
     """add-citation command returns EXIT_VALIDATION_ERROR for corrupt YAML."""
     memories_dir = tmp_path / ".serena" / "memories"
     memories_dir.mkdir(parents=True)
     corrupt_file = memories_dir / "corrupt.md"
     corrupt_file.write_text("---\nid: [unclosed\n---\nContent")
 
-    result = run_cli(
+    result = call_main(
         "add-citation", str(corrupt_file),
         "--file", "some/file.py",
         cwd=tmp_path,
     )
     assert result.returncode == 1
     assert "Validation failed" in result.stderr or "Error" in result.stderr
+
+
+# ============================================================================
+# Happy-Path Coverage Tests
+# ============================================================================
+
+
+class TestGraphTextOutput:
+    """Tests for graph command text output (non-JSON)."""
+
+    def test_graph_text_output(self, tmp_path, call_main):
+        """graph without --json outputs human-readable text."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+
+        (memories_dir / "memory-a.md").write_text(
+            "---\n"
+            "id: memory-a\n"
+            "links:\n"
+            "  - target: memory-b\n"
+            "    type: RELATED\n"
+            "---\n"
+            "Content"
+        )
+        (memories_dir / "memory-b.md").write_text(
+            "---\n"
+            "id: memory-b\n"
+            "---\n"
+            "Content"
+        )
+
+        result = call_main(
+            "graph", "memory-a", "--dir", str(memories_dir),
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "Graph Traversal" in result.stdout
+        assert "Root: memory-a" in result.stdout
+        assert "Traversal order:" in result.stdout
+        assert "memory-a" in result.stdout
+
+    def test_graph_text_output_with_cycles(self, tmp_path, call_main):
+        """graph text output shows cycles section when cycles exist."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+
+        (memories_dir / "cycle-a.md").write_text(
+            "---\n"
+            "id: cycle-a\n"
+            "links:\n"
+            "  - target: cycle-b\n"
+            "    type: RELATED\n"
+            "---\n"
+            "Content"
+        )
+        (memories_dir / "cycle-b.md").write_text(
+            "---\n"
+            "id: cycle-b\n"
+            "links:\n"
+            "  - target: cycle-a\n"
+            "    type: RELATED\n"
+            "---\n"
+            "Content"
+        )
+
+        result = call_main(
+            "graph", "cycle-a", "--dir", str(memories_dir),
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "Cycles:" in result.stdout
+
+
+class TestUpdateConfidenceHappyPath:
+    """Tests for update-confidence command success paths."""
+
+    def test_update_confidence_valid_memory(self, tmp_path, call_main):
+        """update-confidence outputs updated confidence for valid memory."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "test.py").write_text("def hello():\n    pass\n")
+
+        (memories_dir / "my-mem.md").write_text(
+            "---\n"
+            "id: my-mem\n"
+            "subject: Test\n"
+            "citations:\n"
+            "  - path: src/test.py\n"
+            "    line: 1\n"
+            "    snippet: def hello\n"
+            "---\n"
+            "Content"
+        )
+
+        result = call_main(
+            "update-confidence", str(memories_dir / "my-mem.md"),
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "Confidence updated:" in result.stdout
+
+
+class TestListCitationsHappyPath:
+    """Tests for list-citations command success paths."""
+
+    def test_list_citations_with_valid_citations(self, tmp_path, call_main):
+        """list-citations shows citation status for memory with citations."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "test.py").write_text("def hello():\n    pass\n")
+
+        (memories_dir / "cited-mem.md").write_text(
+            "---\n"
+            "id: cited-mem\n"
+            "subject: Test\n"
+            "citations:\n"
+            "  - path: src/test.py\n"
+            "    line: 1\n"
+            "    snippet: def hello\n"
+            "---\n"
+            "Content"
+        )
+
+        result = call_main(
+            "list-citations", str(memories_dir / "cited-mem.md"),
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "Citations in cited-mem:" in result.stdout
+        assert "VALID" in result.stdout
+
+    def test_list_citations_no_citations(self, tmp_path, call_main):
+        """list-citations reports no citations for memory without any."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+
+        (memories_dir / "empty-mem.md").write_text(
+            "---\n"
+            "id: empty-mem\n"
+            "subject: No Citations\n"
+            "---\n"
+            "Content"
+        )
+
+        result = call_main(
+            "list-citations", str(memories_dir / "empty-mem.md"),
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "No citations" in result.stdout
+
+    def test_list_citations_with_stale_citation(self, tmp_path, call_main):
+        """list-citations shows INVALID for stale citation with reason."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+
+        (memories_dir / "stale-mem.md").write_text(
+            "---\n"
+            "id: stale-mem\n"
+            "subject: Test\n"
+            "citations:\n"
+            "  - path: nonexistent.py\n"
+            "    line: 1\n"
+            "---\n"
+            "Content"
+        )
+
+        result = call_main(
+            "list-citations", str(memories_dir / "stale-mem.md"),
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "INVALID" in result.stdout
+        assert "Reason:" in result.stdout
+
+
+class TestAddCitationHappyPath:
+    """Tests for add-citation command success path."""
+
+    def test_add_citation_success(self, tmp_path, call_main):
+        """add-citation adds a citation and reports success."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+
+        memory_file = memories_dir / "target-mem.md"
+        memory_file.write_text(
+            "---\n"
+            "id: target-mem\n"
+            "subject: Test\n"
+            "---\n"
+            "Content"
+        )
+
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "test.py").write_text("def hello():\n    pass\n")
+
+        result = call_main(
+            "add-citation", str(memory_file),
+            "--file", "src/test.py",
+            "--line", "1",
+            "--snippet", "def hello",
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "Citation added" in result.stdout
+
+
+class TestVerifyAllTextWithParseFailures:
+    """Tests for verify-all text output with parse failures."""
+
+    def test_verify_all_text_shows_parse_failures(self, tmp_path, call_main):
+        """verify-all text output reports parse failures count."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+
+        # Create a corrupt memory that will fail parsing
+        (memories_dir / "corrupt.md").write_text(
+            "---\nid: [unclosed\n---\nContent"
+        )
+        # Create a valid memory (no citations)
+        (memories_dir / "valid.md").write_text(
+            "---\nid: valid\nsubject: Test\n---\nContent"
+        )
+
+        result = call_main(
+            "verify-all", "--dir", str(memories_dir),
+            cwd=tmp_path,
+        )
+
+        # Should still succeed (parse failures are warnings, not fatal)
+        assert "could not be parsed" in result.stderr
+
+
+class TestDirectoryPathEdgeCases:
+    """Tests for _resolve_directory_path edge cases."""
+
+    def test_file_passed_as_directory(self, tmp_path, call_main):
+        """Passing a file path where directory expected gives validation error."""
+        some_file = tmp_path / "not-a-dir.txt"
+        some_file.write_text("I am a file")
+
+        result = call_main(
+            "verify-all", "--dir", str(some_file),
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 1
+        assert "Not a directory" in result.stderr
+
+
+class TestUpdateConfidenceWithStaleCitations:
+    """Tests for update-confidence stale citation warning path."""
+
+    def test_update_confidence_shows_stale_warning(self, tmp_path, call_main):
+        """update-confidence warns about stale citations."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+
+        (memories_dir / "stale-mem.md").write_text(
+            "---\n"
+            "id: stale-mem\n"
+            "subject: Test\n"
+            "citations:\n"
+            "  - path: nonexistent.py\n"
+            "    line: 1\n"
+            "---\n"
+            "Content"
+        )
+
+        result = call_main(
+            "update-confidence", str(memories_dir / "stale-mem.md"),
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "Confidence updated:" in result.stdout
+        assert "stale citations found:" in result.stdout
+
+
+class TestHandlerErrorPaths:
+    """Tests for handler exception branches via monkeypatching."""
+
+    def test_graph_file_not_found_on_init(self, tmp_path, call_main, monkeypatch):
+        """graph returns 2 when MemoryGraph init raises FileNotFoundError."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        (memories_dir / "test.md").write_text("---\nid: test\n---\nContent")
+
+        def _raise_fnf(path):
+            raise FileNotFoundError("mocked")
+
+        monkeypatch.setattr(
+            "scripts.memory_enhancement.__main__.MemoryGraph", _raise_fnf
+        )
+
+        result = call_main(
+            "graph", "test", "--dir", str(memories_dir), cwd=tmp_path
+        )
+
+        assert result.returncode == 2
+        assert "mocked" in result.stderr
+
+    def test_add_citation_file_not_found(self, tmp_path, call_main, monkeypatch):
+        """add-citation returns 2 when add_citation_to_memory raises FileNotFoundError."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        memory_file = memories_dir / "test-mem.md"
+        memory_file.write_text("---\nid: test-mem\nsubject: T\n---\nContent")
+
+        def _raise_fnf(**kwargs):
+            raise FileNotFoundError("cited file missing")
+
+        monkeypatch.setattr(
+            "scripts.memory_enhancement.__main__.add_citation_to_memory", _raise_fnf
+        )
+
+        result = call_main(
+            "add-citation", str(memory_file),
+            "--file", "src/test.py", cwd=tmp_path,
+        )
+
+        assert result.returncode == 2
+        assert "cited file missing" in result.stderr
+
+    def test_update_confidence_file_not_found(self, tmp_path, call_main, monkeypatch):
+        """update-confidence returns 2 when verify/update raises FileNotFoundError."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        memory_file = memories_dir / "test-mem.md"
+        memory_file.write_text(
+            "---\nid: test-mem\nsubject: T\n---\nContent"
+        )
+
+        def _raise_fnf(memory):
+            raise FileNotFoundError("missing file")
+
+        monkeypatch.setattr(
+            "scripts.memory_enhancement.__main__.verify_memory", _raise_fnf
+        )
+
+        result = call_main(
+            "update-confidence", str(memory_file), cwd=tmp_path,
+        )
+
+        assert result.returncode == 2
+        assert "missing file" in result.stderr
+
+    def test_update_confidence_io_error(self, tmp_path, call_main, monkeypatch):
+        """update-confidence returns 3 when update raises IOError."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        memory_file = memories_dir / "test-mem.md"
+        memory_file.write_text(
+            "---\nid: test-mem\nsubject: T\n---\nContent"
+        )
+
+        def _raise_io(memory, verification):
+            raise IOError("write failed")
+
+        monkeypatch.setattr(
+            "scripts.memory_enhancement.__main__.update_confidence", _raise_io
+        )
+
+        result = call_main(
+            "update-confidence", str(memory_file), cwd=tmp_path,
+        )
+
+        assert result.returncode == 3
+        assert "write failed" in result.stderr
+
+    def test_list_citations_file_not_found(self, tmp_path, call_main, monkeypatch):
+        """list-citations returns 2 when list_citations_with_status raises FileNotFoundError."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        memory_file = memories_dir / "test-mem.md"
+        memory_file.write_text(
+            "---\nid: test-mem\nsubject: T\n---\nContent"
+        )
+
+        def _raise_fnf(path):
+            raise FileNotFoundError("gone")
+
+        monkeypatch.setattr(
+            "scripts.memory_enhancement.__main__.list_citations_with_status", _raise_fnf
+        )
+
+        result = call_main(
+            "list-citations", str(memory_file), cwd=tmp_path,
+        )
+
+        assert result.returncode == 2
+        assert "gone" in result.stderr
+
+class TestResolvePathTraversalExceptionPaths:
+    """Tests for path traversal exception branches in resolve functions."""
+
+    def test_resolve_memory_path_traversal_raises_cli_error(self, tmp_path, monkeypatch):
+        """_resolve_memory_path raises CLIError on path traversal."""
+        monkeypatch.chdir(tmp_path)
+        # Create a file outside cwd that is reachable via traversal
+        outside = tmp_path.parent / "outside-test-file.md"
+        try:
+            outside.write_text("---\nid: test\n---\nContent")
+            # Use relative path that escapes cwd
+            with pytest.raises(CLIError) as exc_info:
+                _resolve_memory_path(str(outside))
+            assert exc_info.value.exit_code == 4
+        finally:
+            outside.unlink(missing_ok=True)
+
+    def test_resolve_directory_path_traversal_raises_cli_error(self, tmp_path, monkeypatch):
+        """_resolve_directory_path raises CLIError on path traversal."""
+        monkeypatch.chdir(tmp_path)
+        # Parent directory is outside cwd
+        with pytest.raises(CLIError) as exc_info:
+            _resolve_directory_path(str(tmp_path.parent))
+        assert exc_info.value.exit_code == 4

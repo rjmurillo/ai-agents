@@ -42,6 +42,15 @@ EXIT_IO_ERROR = 3
 EXIT_SECURITY_ERROR = 4
 
 
+class CLIError(Exception):
+    """Raised by resolve functions for structured error handling in main()."""
+
+    def __init__(self, message: str, exit_code: int) -> None:
+        super().__init__(message)
+        self.message = message
+        self.exit_code = exit_code
+
+
 def _resolve_memory_path(memory_arg: str, exit_code: int = EXIT_NOT_FOUND) -> Path:
     """Resolve memory path with CWE-22 path traversal protection.
 
@@ -52,16 +61,14 @@ def _resolve_memory_path(memory_arg: str, exit_code: int = EXIT_NOT_FOUND) -> Pa
     Returns:
         Resolved Path to the memory file
 
-    Exits:
-        With exit_code if memory not found
-        With EXIT_SECURITY_ERROR if path traversal detected
+    Raises:
+        CLIError: If memory not found or path traversal detected
     """
     path = Path(memory_arg)
     if not path.exists():
         path = Path(f".serena/memories/{memory_arg}.md")
     if not path.exists():
-        print(f"Memory not found: {memory_arg}", file=sys.stderr)
-        sys.exit(exit_code)
+        raise CLIError(f"Memory not found: {memory_arg}", exit_code)
 
     # CWE-22 path traversal protection using relative_to() for robust containment check
     try:
@@ -69,11 +76,12 @@ def _resolve_memory_path(memory_arg: str, exit_code: int = EXIT_NOT_FOUND) -> Pa
         cwd_resolved = Path.cwd().resolve()
         resolved.relative_to(cwd_resolved)
     except ValueError:
-        print(f"Security error: Path traversal detected: {memory_arg}", file=sys.stderr)
-        sys.exit(EXIT_SECURITY_ERROR)
+        raise CLIError(
+            f"Security error: Path traversal detected: {memory_arg}",
+            EXIT_SECURITY_ERROR,
+        )
     except OSError as e:
-        print(f"Invalid path: {e}", file=sys.stderr)
-        sys.exit(EXIT_SECURITY_ERROR)
+        raise CLIError(f"Invalid path: {e}", EXIT_SECURITY_ERROR)
 
     return resolved
 
@@ -87,17 +95,14 @@ def _resolve_directory_path(dir_arg: str) -> Path:
     Returns:
         Resolved Path to the directory
 
-    Exits:
-        With EXIT_NOT_FOUND if directory not found
-        With EXIT_SECURITY_ERROR if path traversal detected
+    Raises:
+        CLIError: If directory not found, not a directory, or path traversal detected
     """
     dir_path = Path(dir_arg)
     if not dir_path.exists():
-        print(f"Directory not found: {dir_arg}", file=sys.stderr)
-        sys.exit(EXIT_NOT_FOUND)
+        raise CLIError(f"Directory not found: {dir_arg}", EXIT_NOT_FOUND)
     if not dir_path.is_dir():
-        print(f"Not a directory: {dir_arg}", file=sys.stderr)
-        sys.exit(EXIT_VALIDATION_ERROR)
+        raise CLIError(f"Not a directory: {dir_arg}", EXIT_VALIDATION_ERROR)
 
     # CWE-22 path traversal protection
     try:
@@ -105,11 +110,12 @@ def _resolve_directory_path(dir_arg: str) -> Path:
         cwd_resolved = Path.cwd().resolve()
         resolved.relative_to(cwd_resolved)
     except ValueError:
-        print(f"Security error: Path traversal detected: {dir_arg}", file=sys.stderr)
-        sys.exit(EXIT_SECURITY_ERROR)
+        raise CLIError(
+            f"Security error: Path traversal detected: {dir_arg}",
+            EXIT_SECURITY_ERROR,
+        )
     except OSError as e:
-        print(f"Invalid path: {e}", file=sys.stderr)
-        sys.exit(EXIT_SECURITY_ERROR)
+        raise CLIError(f"Invalid path: {e}", EXIT_SECURITY_ERROR)
 
     return resolved
 
@@ -401,7 +407,11 @@ def main() -> int:
         "list-citations": _handle_list_citations,
     }
 
-    return handlers[args.command](args)
+    try:
+        return handlers[args.command](args)
+    except CLIError as e:
+        print(e.message, file=sys.stderr)
+        return e.exit_code
 
 
 if __name__ == "__main__":
