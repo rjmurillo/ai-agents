@@ -1,7 +1,7 @@
 """Tests for memory_enhancement.graph module.
 
 Tests BFS/DFS traversal, cycle detection, root finding,
-and adjacency list construction.
+adjacency list construction, and memory loading behaviors.
 """
 
 import pytest

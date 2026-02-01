@@ -214,9 +214,6 @@ def _handle_graph(args) -> int:
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
-    except Exception as e:
-        print(f"Unexpected error during graph traversal: {e}", file=sys.stderr)
-        return EXIT_IO_ERROR
 
     if args.json:
         print(json.dumps({
@@ -280,7 +277,7 @@ def _handle_add_citation(args) -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NOT_FOUND
-    except ValueError as e:
+    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError) as e:
         print(f"Validation failed: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
     except IOError as e:
@@ -294,6 +291,11 @@ def _handle_update_confidence(args) -> int:
 
     try:
         memory = Memory.from_serena_file(path)
+    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError, OSError) as e:
+        print(f"Error: Failed to parse memory file: {e}", file=sys.stderr)
+        return EXIT_VALIDATION_ERROR
+
+    try:
         verification = verify_memory(memory)
         update_confidence(memory, verification)
         print(f"Confidence updated: {verification.confidence:.0%}")
@@ -331,8 +333,8 @@ def _handle_list_citations(args) -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NOT_FOUND
-    except ValueError as e:
-        print(f"Validation failed: {e}", file=sys.stderr)
+    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError) as e:
+        print(f"Error: Failed to process memory file: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
     except IOError as e:
         print(f"I/O error: {e}", file=sys.stderr)

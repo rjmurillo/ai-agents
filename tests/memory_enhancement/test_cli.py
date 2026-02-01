@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from scripts.memory_enhancement.__main__ import _resolve_directory_path, _resolve_memory_path
+
 
 def run_cli(*args: str, cwd: Path = None) -> subprocess.CompletedProcess:
     """Run the memory enhancement CLI with the given arguments.
@@ -713,7 +715,6 @@ def test_resolve_memory_path_returns_resolved_absolute_path(tmp_path, monkeypatc
     memories_dir.mkdir(parents=True)
     (memories_dir / "test-mem.md").write_text("---\nid: test-mem\n---\nContent")
 
-    from scripts.memory_enhancement.__main__ import _resolve_memory_path
     result = _resolve_memory_path("test-mem")
 
     assert result.is_absolute()
@@ -726,8 +727,48 @@ def test_resolve_directory_path_returns_resolved_absolute_path(tmp_path, monkeyp
     target_dir = tmp_path / "memories"
     target_dir.mkdir()
 
-    from scripts.memory_enhancement.__main__ import _resolve_directory_path
     result = _resolve_directory_path("memories")
 
     assert result.is_absolute()
     assert result == (tmp_path / "memories").resolve()
+
+
+# ============================================================================
+# Corrupt YAML Handling Tests
+# ============================================================================
+
+
+def test_verify_returns_1_on_corrupt_yaml(tmp_path):
+    """verify command returns EXIT_VALIDATION_ERROR for corrupt YAML."""
+    memories_dir = tmp_path / ".serena" / "memories"
+    memories_dir.mkdir(parents=True)
+    corrupt_file = memories_dir / "corrupt.md"
+    corrupt_file.write_text("---\nid: [unclosed\n---\nContent")
+
+    result = run_cli("verify", str(corrupt_file), cwd=tmp_path)
+    assert result.returncode == 1
+    assert "Failed to parse" in result.stderr or "Error" in result.stderr
+
+
+def test_list_citations_returns_1_on_corrupt_yaml(tmp_path):
+    """list-citations command returns EXIT_VALIDATION_ERROR for corrupt YAML."""
+    memories_dir = tmp_path / ".serena" / "memories"
+    memories_dir.mkdir(parents=True)
+    corrupt_file = memories_dir / "corrupt.md"
+    corrupt_file.write_text("---\nid: [unclosed\n---\nContent")
+
+    result = run_cli("list-citations", str(corrupt_file), cwd=tmp_path)
+    assert result.returncode == 1
+    assert "Error" in result.stderr
+
+
+def test_update_confidence_returns_1_on_corrupt_yaml(tmp_path):
+    """update-confidence command returns EXIT_VALIDATION_ERROR for corrupt YAML."""
+    memories_dir = tmp_path / ".serena" / "memories"
+    memories_dir.mkdir(parents=True)
+    corrupt_file = memories_dir / "corrupt.md"
+    corrupt_file.write_text("---\nid: [unclosed\n---\nContent")
+
+    result = run_cli("update-confidence", str(corrupt_file), cwd=tmp_path)
+    assert result.returncode == 1
+    assert "Error" in result.stderr
