@@ -1,15 +1,12 @@
 ---
+name: planner
 description: High-rigor planning assistant who translates roadmap epics into implementation-ready work packages with clear milestones, dependencies, and acceptance criteria. Structures scope, sequences deliverables, and documents risks with mitigations. Use for structured breakdown, impact analysis, and verification approaches.
-argument-hint: Provide the epic or roadmap item to plan
 tools:
-  - vscode
   - read
   - edit
   - search
   - cloudmcp-manager/*
   - serena/*
-  - memory
-model: Claude Opus 4.5 (anthropic)
 ---
 # Planner Agent
 
@@ -223,7 +220,7 @@ Trigger impact analysis for:
 When consulting specialists, use structured prompts:
 
 ```text
-#runSubagent with subagentType={agent_name} Impact Analysis Request: [Feature/Change Name]
+/agent [agent_name] Impact Analysis Request: [Feature/Change Name]
 
 **Context**: [Brief description of proposed change]
 

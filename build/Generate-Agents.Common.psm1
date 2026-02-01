@@ -259,8 +259,8 @@ function Format-FrontmatterYaml {
 
     $lines = @()
 
-    # Define field order (argument-hint after description for VS Code agents)
-    $fieldOrder = @('name', 'description', 'argument-hint', 'tools', 'model')
+    # Define field order for frontmatter output
+    $fieldOrder = @('name', 'description', 'tools', 'model')
 
     # Helper to format a value (handles arrays specially)
     $formatValue = {
