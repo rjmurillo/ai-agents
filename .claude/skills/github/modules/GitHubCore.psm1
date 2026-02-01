@@ -653,7 +653,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
     }
 
     Write-Verbose "Found $($allPRs.Count) PRs with review comments"
-    return $allPRs.ToArray()
+    return , $allPRs.ToArray()
 }
 
 #endregion
