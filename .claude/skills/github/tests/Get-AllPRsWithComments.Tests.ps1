@@ -199,13 +199,13 @@ Describe "Get-AllPRsWithComments" {
     Context "Pagination" {
 
         It "Follows cursor-based pagination across multiple pages" {
-            $callCount = 0
+            $script:callCount = 0
 
             Mock -ModuleName GitHubCore -CommandName 'gh' -MockWith {
                 $global:LASTEXITCODE = 0
-                $callCount++
+                $script:callCount++
 
-                if ($callCount -eq 1) {
+                if ($script:callCount -eq 1) {
                     $pr1 = New-MockPRNode -Number 1 -UpdatedAt "2025-12-15T00:00:00Z"
                     return (New-MockGraphQLResponse -Nodes @($pr1) -HasNextPage $true -EndCursor "cursor1")
                 }
