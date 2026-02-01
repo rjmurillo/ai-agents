@@ -885,6 +885,41 @@ class TestGraphTextOutput:
         assert result.returncode == 0
         assert "Cycles:" in result.stdout
 
+    def test_graph_json_output_with_cycles(self, tmp_path, call_main):
+        """graph --json includes cycle entries with from/to fields."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+
+        (memories_dir / "cycle-a.md").write_text(
+            "---\n"
+            "id: cycle-a\n"
+            "links:\n"
+            "  - target: cycle-b\n"
+            "    type: RELATED\n"
+            "---\n"
+            "Content"
+        )
+        (memories_dir / "cycle-b.md").write_text(
+            "---\n"
+            "id: cycle-b\n"
+            "links:\n"
+            "  - target: cycle-a\n"
+            "    type: RELATED\n"
+            "---\n"
+            "Content"
+        )
+
+        result = call_main(
+            "--json", "graph", "cycle-a", "--dir", str(memories_dir),
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert len(data["cycles"]) == 1
+        assert data["cycles"][0]["from"] == "cycle-b"
+        assert data["cycles"][0]["to"] == "cycle-a"
+
 
 class TestUpdateConfidenceHappyPath:
     """Tests for update-confidence command success paths."""
@@ -1107,6 +1142,48 @@ class TestUpdateConfidenceWithStaleCitations:
 class TestHandlerErrorPaths:
     """Tests for handler exception branches via monkeypatching."""
 
+    def test_verify_os_error_routes_to_io_exit(self, tmp_path, call_main, monkeypatch):
+        """verify returns 3 when Memory.from_serena_file raises OSError."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        memory_file = memories_dir / "test-mem.md"
+        memory_file.write_text("---\nid: test-mem\nsubject: T\n---\nContent")
+
+        def _raise_os(path):
+            raise OSError("permission denied")
+
+        monkeypatch.setattr(
+            "scripts.memory_enhancement.__main__.Memory.from_serena_file",
+            _raise_os,
+        )
+
+        result = call_main("verify", str(memory_file), cwd=tmp_path)
+
+        assert result.returncode == 3
+        assert "permission denied" in result.stderr
+
+    def test_update_confidence_parse_os_error(self, tmp_path, call_main, monkeypatch):
+        """update-confidence returns 3 when from_serena_file raises OSError."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        memory_file = memories_dir / "test-mem.md"
+        memory_file.write_text("---\nid: test-mem\nsubject: T\n---\nContent")
+
+        def _raise_os(path):
+            raise OSError("disk error")
+
+        monkeypatch.setattr(
+            "scripts.memory_enhancement.__main__.Memory.from_serena_file",
+            _raise_os,
+        )
+
+        result = call_main(
+            "update-confidence", str(memory_file), cwd=tmp_path,
+        )
+
+        assert result.returncode == 3
+        assert "disk error" in result.stderr
+
     def test_graph_file_not_found_on_init(self, tmp_path, call_main, monkeypatch):
         """graph returns 2 when MemoryGraph init raises FileNotFoundError."""
         memories_dir = tmp_path / ".serena" / "memories"
@@ -1181,11 +1258,11 @@ class TestHandlerErrorPaths:
             "---\nid: test-mem\nsubject: T\n---\nContent"
         )
 
-        def _raise_io(memory, verification):
-            raise IOError("write failed")
+        def _raise_os(memory, verification):
+            raise OSError("write failed")
 
         monkeypatch.setattr(
-            "scripts.memory_enhancement.__main__.update_confidence", _raise_io
+            "scripts.memory_enhancement.__main__.update_confidence", _raise_os
         )
 
         result = call_main(
@@ -1260,6 +1337,7 @@ class TestHandlerErrorPaths:
 
         assert result.returncode == 2
         assert "gone" in result.stderr
+
 
 class TestResolvePathTraversalExceptionPaths:
     """Tests for path traversal exception branches in resolve functions."""

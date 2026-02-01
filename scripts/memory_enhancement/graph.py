@@ -14,7 +14,7 @@ from typing import Optional
 
 import yaml
 
-from .models import Link, LinkType, Memory
+from .models import LinkType, Memory
 
 
 class TraversalStrategy(Enum):
@@ -124,19 +124,15 @@ class MemoryGraph:
         if not memory:
             return []
 
-        # Filter links by type if specified
         links = memory.links
         if link_type:
             links = [link for link in links if link.link_type == link_type]
 
-        # Resolve link targets
-        related = []
-        for link in links:
-            target = self.get_memory(link.target_id)
-            if target:
-                related.append(target)
-
-        return related
+        return [
+            target
+            for link in links
+            if (target := self.get_memory(link.target_id))
+        ]
 
     def _enqueue_children(
         self,
@@ -229,20 +225,16 @@ class MemoryGraph:
         Returns:
             List of memory IDs that are not referenced by any other memory
         """
-        # Collect all target IDs
-        referenced_ids: set[str] = set()
-        for memory in self._memory_cache.values():
-            for link in memory.links:
-                referenced_ids.add(link.target_id)
-
-        # Find memories not in referenced set
-        roots = [
+        referenced_ids = {
+            link.target_id
+            for memory in self._memory_cache.values()
+            for link in memory.links
+        }
+        return [
             memory_id
-            for memory_id in self._memory_cache.keys()
+            for memory_id in self._memory_cache
             if memory_id not in referenced_ids
         ]
-
-        return roots
 
     def get_adjacency_list(self) -> dict[str, list[tuple[str, LinkType]]]:
         """Build adjacency list representation of the graph.
@@ -250,11 +242,7 @@ class MemoryGraph:
         Returns:
             Dictionary mapping memory IDs to lists of (target_id, link_type) pairs
         """
-        adjacency: dict[str, list[tuple[str, LinkType]]] = {}
-
-        for memory_id, memory in self._memory_cache.items():
-            adjacency[memory_id] = [
-                (link.target_id, link.link_type) for link in memory.links
-            ]
-
-        return adjacency
+        return {
+            memory_id: [(link.target_id, link.link_type) for link in memory.links]
+            for memory_id, memory in self._memory_cache.items()
+        }

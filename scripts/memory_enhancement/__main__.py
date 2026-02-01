@@ -24,7 +24,6 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -41,11 +40,9 @@ EXIT_NOT_FOUND = 2
 EXIT_IO_ERROR = 3
 EXIT_SECURITY_ERROR = 4
 
-# Exceptions raised when parsing memory YAML frontmatter.
-# Split into two tuples so handlers can route OSError to EXIT_IO_ERROR
-# while keeping parse-only errors on EXIT_VALIDATION_ERROR.
+# Exceptions from parsing memory YAML frontmatter (maps to EXIT_VALIDATION_ERROR).
+# Handlers catch OSError separately to route I/O failures to EXIT_IO_ERROR.
 _PARSE_ERRORS = (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError)
-_PARSE_ERRORS_WITH_OS = _PARSE_ERRORS + (OSError,)
 
 
 class CLIError(Exception):
@@ -55,6 +52,32 @@ class CLIError(Exception):
         super().__init__(message)
         self.message = message
         self.exit_code = exit_code
+
+
+def _assert_within_cwd(path: Path, label: str) -> Path:
+    """Resolve *path* and verify it stays within cwd (CWE-22 protection).
+
+    Args:
+        path: Filesystem path to validate
+        label: Original user-supplied string shown in error messages
+
+    Returns:
+        Fully resolved absolute path
+
+    Raises:
+        CLIError: If the resolved path escapes the working directory
+    """
+    try:
+        resolved = path.resolve()
+        resolved.relative_to(Path.cwd().resolve())
+    except ValueError:
+        raise CLIError(
+            f"Security error: Path traversal detected: {label}",
+            EXIT_SECURITY_ERROR,
+        )
+    except OSError as e:
+        raise CLIError(f"Invalid path: {e}", EXIT_SECURITY_ERROR)
+    return resolved
 
 
 def _resolve_memory_path(memory_arg: str, exit_code: int = EXIT_NOT_FOUND) -> Path:
@@ -76,20 +99,7 @@ def _resolve_memory_path(memory_arg: str, exit_code: int = EXIT_NOT_FOUND) -> Pa
     if not path.exists():
         raise CLIError(f"Memory not found: {memory_arg}", exit_code)
 
-    # CWE-22 path traversal protection using relative_to() for robust containment check
-    try:
-        resolved = path.resolve()
-        cwd_resolved = Path.cwd().resolve()
-        resolved.relative_to(cwd_resolved)
-    except ValueError:
-        raise CLIError(
-            f"Security error: Path traversal detected: {memory_arg}",
-            EXIT_SECURITY_ERROR,
-        )
-    except OSError as e:
-        raise CLIError(f"Invalid path: {e}", EXIT_SECURITY_ERROR)
-
-    return resolved
+    return _assert_within_cwd(path, memory_arg)
 
 
 def _resolve_directory_path(dir_arg: str) -> Path:
@@ -110,20 +120,7 @@ def _resolve_directory_path(dir_arg: str) -> Path:
     if not dir_path.is_dir():
         raise CLIError(f"Not a directory: {dir_arg}", EXIT_VALIDATION_ERROR)
 
-    # CWE-22 path traversal protection
-    try:
-        resolved = dir_path.resolve()
-        cwd_resolved = Path.cwd().resolve()
-        resolved.relative_to(cwd_resolved)
-    except ValueError:
-        raise CLIError(
-            f"Security error: Path traversal detected: {dir_arg}",
-            EXIT_SECURITY_ERROR,
-        )
-    except OSError as e:
-        raise CLIError(f"Invalid path: {e}", EXIT_SECURITY_ERROR)
-
-    return resolved
+    return _assert_within_cwd(dir_path, dir_arg)
 
 
 def _handle_verify(args) -> int:
@@ -131,9 +128,12 @@ def _handle_verify(args) -> int:
     path = _resolve_memory_path(args.memory, EXIT_VALIDATION_ERROR)
     try:
         memory = Memory.from_serena_file(path)
-    except _PARSE_ERRORS_WITH_OS as e:
+    except _PARSE_ERRORS as e:
         print(f"Error: Failed to parse memory file: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
+    except OSError as e:
+        print(f"I/O error: {e}", file=sys.stderr)
+        return EXIT_IO_ERROR
     result = verify_memory(memory)
 
     if args.json:
@@ -313,9 +313,12 @@ def _handle_update_confidence(args) -> int:
 
     try:
         memory = Memory.from_serena_file(path)
-    except _PARSE_ERRORS_WITH_OS as e:
+    except _PARSE_ERRORS as e:
         print(f"Error: Failed to parse memory file: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
+    except OSError as e:
+        print(f"I/O error: {e}", file=sys.stderr)
+        return EXIT_IO_ERROR
 
     try:
         verification = verify_memory(memory)

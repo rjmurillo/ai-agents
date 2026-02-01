@@ -43,8 +43,7 @@ def update_confidence(memory: Memory, verification: VerificationResult) -> None:
     # Update citation validity in frontmatter
     if "citations" in post.metadata:
         citations_list = post.metadata["citations"]
-        for i, citation_data in enumerate(citations_list):
-            # Find matching citation in verification result
+        for citation_data in citations_list:
             citation_path = citation_data.get("path")
             citation_line = citation_data.get("line")
 
