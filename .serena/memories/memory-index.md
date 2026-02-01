@@ -30,6 +30,7 @@
 | CI CD workflow actions runner ARM | [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) |
 | workflow pattern composite matrix artifact verdict report | [skills-workflow-patterns-index](skills-workflow-patterns-index.md) |
 | copilot review false-positive triage response | [skills-copilot-index](skills-copilot-index.md) |
+| copilot cli agent frontmatter regression version pin auto-update diagnostic | [skills-copilot-index](skills-copilot-index.md), [copilot-cli-frontmatter-regression-runbook](copilot-cli-frontmatter-regression-runbook.md) |
 | gemini code assist config styleguide ignore path enterprise | [skills-gemini-index](skills-gemini-index.md) |
 | coderabbit noise config path-filter false-positive | [skills-coderabbit-index](skills-coderabbit-index.md) |
 | labeler yaml glob negation matcher any-glob all-glob | [skills-labeler-index](skills-labeler-index.md) |

@@ -17,6 +17,7 @@ tools:
   - github/list_releases
   - github/get_file_contents
   - serena/*
+model: claude-opus-4.5
 ---
 # DevOps Agent
 

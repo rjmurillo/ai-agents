@@ -10,6 +10,7 @@ tools:
   - cloudmcp-manager/*
   - github.vscode-pull-request-github/*
   - serena/*
+model: claude-opus-4.5
 ---
 # PR Comment Responder Agent
 

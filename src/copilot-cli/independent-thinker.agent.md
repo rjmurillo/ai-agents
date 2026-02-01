@@ -11,6 +11,7 @@ tools:
   - cloudmcp-manager/*
   - perplexity/*
   - serena/*
+model: claude-opus-4.5
 ---
 # Independent Thinker Agent
 

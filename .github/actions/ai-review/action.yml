@@ -153,9 +153,12 @@ runs:
       run: |
         set -e  # Exit on any error
 
-        echo "Installing GitHub Copilot CLI..."
-        if ! npm install -g @github/copilot; then
-          echo "::error::Failed to install GitHub Copilot CLI"
+        # Pin to 0.0.397 (last known good version before frontmatter regression)
+        # See: github/copilot-cli#1195, ADR-044
+        COPILOT_VERSION="0.0.397"
+        echo "Installing GitHub Copilot CLI@${COPILOT_VERSION}..."
+        if ! npm install -g "@github/copilot@${COPILOT_VERSION}"; then
+          echo "::error::Failed to install GitHub Copilot CLI@${COPILOT_VERSION}"
           exit 1
         fi
 
@@ -166,11 +169,17 @@ runs:
         fi
 
         echo "Copilot CLI version:"
-        VERSION_FULL=$(copilot --version 2>&1 || echo "unknown")
+        VERSION_FULL=$(copilot --no-auto-update --version 2>&1 || echo "unknown")
         echo "$VERSION_FULL"
         # Extract just the version number (first line) for output
         VERSION=$(echo "$VERSION_FULL" | head -1 | tr -d '\n')
         echo "copilot_version=$VERSION" >> $GITHUB_OUTPUT
+
+        # Verify pinned version (binary may auto-update despite npm pin)
+        if ! echo "$VERSION" | grep -q "${COPILOT_VERSION}"; then
+          echo "::warning::Expected version ${COPILOT_VERSION} but got ${VERSION}. Binary may have auto-updated."
+          echo "::warning::See ADR-044 for auto-update bypass details."
+        fi
 
     - name: Verify GitHub authentication
       if: inputs.enable-diagnostics == 'true'
@@ -284,7 +293,7 @@ runs:
         # Run minimal test with very short timeout
         echo "   Running minimal test prompt (10s timeout)..."
         echo "   Agent: $COPILOT_AGENT, Model: $COPILOT_MODEL"
-        timeout 10 copilot --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "Reply with only the word OK" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+        timeout 10 copilot --no-auto-update --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "Reply with only the word OK" > "$STDOUT_FILE" 2> "$STDERR_FILE"
         TEST_EXIT_CODE=$?
 
         COPILOT_TEST_OUTPUT=$(cat "$STDOUT_FILE")
@@ -666,7 +675,7 @@ runs:
           STDERR_FILE=$(mktemp)
 
           set +e
-          timeout "$TIMEOUT_SECONDS" copilot --no-color --silent --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+          timeout "$TIMEOUT_SECONDS" copilot --no-auto-update --no-color --silent --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
           EXIT_CODE=$?
 
           OUTPUT=$(cat "$STDOUT_FILE")

@@ -1,9 +1,9 @@
 ---
+name: devops
 description: DevOps specialist fluent in CI/CD pipelines, build automation, and deployment workflows. Thinks in reliability, security, and developer experience. Designs GitHub Actions, configures build systems, manages secrets. Use for pipeline configuration, infrastructure automation, and anything involving environments, artifacts, caching, or runners.
 argument-hint: Describe the CI/CD workflow, pipeline, or infrastructure task
 tools:
-  - vscode
-  - execute
+  - shell
   - read
   - edit
   - search
@@ -17,8 +17,7 @@ tools:
   - github/list_releases
   - github/get_file_contents
   - serena/*
-  - memory
-model: Claude Opus 4.5 (anthropic)
+model: claude-opus-4.5
 ---
 # DevOps Agent
 
