@@ -31,7 +31,7 @@ Authentication (line ~225)
 Error Handling (line ~260)
   - Write-ErrorAndExit       Context-aware error handling (script vs module)
 
-API Helpers (line ~320)
+API Helpers (line ~365)
   - Invoke-GhApiPaginated    Fetch all pages from API
   - Invoke-GhGraphQL         Execute GraphQL queries/mutations
   - Get-AllPRsWithComments   Fetch PRs with review comments via GraphQL
@@ -560,6 +560,7 @@ function Get-AllPRsWithComments {
         [datetime]$Since,
 
         [Parameter()]
+        [ValidateRange(1, [int]::MaxValue)]
         [int]$MaxPages = 50
     )
 
@@ -570,16 +571,10 @@ function Get-AllPRsWithComments {
 
     Write-Verbose "Fetching PRs updated since $($Since.ToString('yyyy-MM-dd'))..."
 
-    while ($hasNextPage -and $pageCount -lt $MaxPages) {
-        $pageCount++
-
-        # Build cursor clause for pagination
-        $cursorClause = if ($cursor) { ", after: `"$cursor`"" } else { "" }
-
-        $query = @"
-query {
-  repository(owner: "$Owner", name: "$Repo") {
-    pullRequests(first: 50, orderBy: {field: UPDATED_AT, direction: DESC}$cursorClause) {
+    $query = @'
+query($owner: String!, $repo: String!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequests(first: 50, orderBy: {field: UPDATED_AT, direction: DESC}, after: $cursor) {
       pageInfo {
         hasNextPage
         endCursor
@@ -612,46 +607,45 @@ query {
     }
   }
 }
-"@
+'@
 
-        $result = gh api graphql -f query=$query 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "GraphQL query failed: $result"
-            throw "Failed to query PRs: $result"
+    while ($hasNextPage -and $pageCount -lt $MaxPages) {
+        $pageCount++
+
+        $variables = @{
+            owner = $Owner
+            repo  = $Repo
+        }
+        if ($cursor) {
+            $variables.cursor = $cursor
         }
 
-        try {
-            $parsed = $result | ConvertFrom-Json
-            $prData = $parsed.data.repository.pullRequests
+        $result = Invoke-GhGraphQL -Query $query -Variables $variables
+        $prData = $result.repository.pullRequests
 
-            foreach ($pr in $prData.nodes) {
-                # Check if PR was updated within our time range
-                $updatedAt = [datetime]::Parse($pr.updatedAt)
-                if ($updatedAt -lt $Since) {
-                    # PRs are ordered by updatedAt DESC, so we can stop here
-                    $hasNextPage = $false
-                    break
-                }
-
-                # Only include PRs that have review comments
-                $hasComments = $pr.reviewThreads.nodes | Where-Object { $_.comments.nodes.Count -gt 0 }
-                if ($hasComments) {
-                    $null = $allPRs.Add($pr)
-                }
+        foreach ($pr in $prData.nodes) {
+            # Check if PR was updated within our time range
+            $updatedAt = [datetime]::Parse($pr.updatedAt)
+            if ($updatedAt -lt $Since) {
+                # PRs are ordered by updatedAt DESC, so we can stop here
+                $hasNextPage = $false
+                break
             }
 
-            # Check pagination
-            if ($hasNextPage) {
-                $hasNextPage = $prData.pageInfo.hasNextPage
-                $cursor = $prData.pageInfo.endCursor
+            # Only include PRs that have review comments
+            $hasComments = $pr.reviewThreads.nodes | Where-Object { $_.comments.nodes.Count -gt 0 }
+            if ($hasComments) {
+                $null = $allPRs.Add($pr)
             }
+        }
 
-            Write-Verbose "Page $pageCount processed, total PRs with comments: $($allPRs.Count)"
+        # Check pagination
+        if ($hasNextPage) {
+            $hasNextPage = $prData.pageInfo.hasNextPage
+            $cursor = $prData.pageInfo.endCursor
         }
-        catch {
-            Write-Warning "Failed to parse GraphQL response: $_"
-            throw
-        }
+
+        Write-Verbose "Page $pageCount processed, total PRs with comments: $($allPRs.Count)"
     }
 
     if ($pageCount -ge $MaxPages) {
