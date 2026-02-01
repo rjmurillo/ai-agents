@@ -73,7 +73,7 @@ def _resolve_memory_path(memory_arg: str, exit_code: int = EXIT_NOT_FOUND) -> Pa
         print(f"Invalid path: {e}", file=sys.stderr)
         sys.exit(EXIT_SECURITY_ERROR)
 
-    return path
+    return resolved
 
 
 def _resolve_directory_path(dir_arg: str) -> Path:
@@ -109,7 +109,7 @@ def _resolve_directory_path(dir_arg: str) -> Path:
         print(f"Invalid path: {e}", file=sys.stderr)
         sys.exit(EXIT_SECURITY_ERROR)
 
-    return dir_path
+    return resolved
 
 
 def _handle_verify(args) -> int:
