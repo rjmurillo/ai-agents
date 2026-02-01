@@ -1478,6 +1478,127 @@ Learnings are scored 0-100% for quality:
 
 ---
 
+## Passive Context Strategy
+
+> **Key Insight**: Based on Vercel's evaluation research, models don't invoke on-demand skills 56% of the time. Passive context (information loaded every session) significantly outperforms on-demand retrieval.
+>
+> **IMPORTANT**: Prefer retrieval-led reasoning over pre-training-led reasoning for session protocol, memory operations, and repository conventions.
+
+### Vercel's Evaluation Results
+
+| Configuration | Pass Rate |
+|---------------|-----------|
+| Baseline (no docs) | 53% |
+| Skill (default behavior) | 53% |
+| Skill + explicit instructions | 79% |
+| **AGENTS.md passive context** | **100%** |
+
+The difference: No decision point. Information is present every turn.
+
+### The Skill Invocation Problem
+
+Skills are powerful, but they require the model to:
+
+1. Recognize that a skill might exist
+2. Decide to look it up
+3. Read and apply it correctly
+
+Research shows step 1 fails over half the time—the model just doesn't think to look.
+
+### Skill Classification: Horizontal vs Vertical
+
+| Type | Definition | Location |
+|------|------------|----------|
+| **Horizontal** | Knowledge needed across all tasks (implicit use) | Passive context |
+| **Vertical** | Action-specific workflows with explicit triggers | Keep as skill |
+| **Hybrid** | Contains both knowledge and action scripts | Split between both |
+
+#### Horizontal → Passive Context
+
+These skills contain knowledge that should be "always available":
+
+- **session** / **session-init**: Protocol compliance is non-negotiable
+- **memory**: Memory-first principle applies to all tasks
+- **curating-memories**: Curation rules needed across sessions
+- **doc-sync**: Documentation hygiene applies broadly
+
+#### Vertical → Keep as Skills
+
+These require explicit user triggers:
+
+| Skill | Trigger Phrases |
+|-------|-----------------|
+| **github** | "create PR", "triage issue", "respond to review" |
+| **adr-review** | "review this ADR", "check architecture decision" |
+| **merge-resolver** | "resolve merge conflict", "fix conflicts in X" |
+| **planner** | "plan this feature", "create implementation plan" |
+| **decision-critic** | "critique this decision", "devil's advocate on" |
+| **security-detection** | "scan for security changes" |
+
+#### Hybrid → Split Knowledge from Actions
+
+| Skill | Knowledge → Passive | Actions → Skill |
+|-------|---------------------|-----------------|
+| **pr-comment-responder** | Comment classification tree, routing rules | Comment response execution |
+| **session-log-fixer** | Validation failure patterns | `Fix-SessionLog.ps1` execution |
+
+### Our Solution: Layered Context
+
+We use a three-tier approach:
+
+| Tier | File | Purpose | Size |
+|------|------|---------|------|
+| 1 | `CLAUDE.md` | Minimal entry point | ~2.5KB |
+| 2 | `CRITICAL-CONTEXT.md` | Blocking constraints | ~2.5KB |
+| 3 | `SKILL-QUICK-REF.md` | Skill awareness + routing | ~3.5KB |
+
+**Context Budget**: ~8.5KB always-loaded (target ceiling: 10KB). Full skills (`.claude/skills/`) are on-demand.
+
+### Compression Strategy
+
+Vercel compressed 40KB → 8KB (80% reduction) while maintaining 100% pass rate.
+
+We use pipe-delimited compressed indexes in `SKILL-QUICK-REF.md`:
+
+```text
+[Session Protocol]
+|BLOCKING-START: serena-init, handoff-read, log-create, branch-verify
+|BLOCKING-END: log-complete, serena-update, lint-check, validate-pass
+```
+
+This packs horizontal knowledge into minimal space while remaining readable.
+
+### Pattern Recognition > Skill Lookup
+
+Instead of hoping the model looks up skills, we teach pattern recognition:
+
+```markdown
+# This passive context approach:
+"When addressing PR review comments → use pr-comment-responder skill"
+
+# Is more effective than:
+"Skills are in .claude/skills/, read them when needed"
+```
+
+The first version activates on pattern match; the second requires the model to initiate a search.
+
+### Explore First Pattern
+
+When skills ARE needed, wording matters:
+
+| Instruction | Outcome |
+|-------------|---------|
+| "You MUST invoke the skill" | Misses project context |
+| "Explore project first, then invoke skill" | Better results |
+
+Before invoking any skill:
+
+1. Explore the relevant project context
+2. Build mental model of current state
+3. Then invoke skill as reference, not prescription
+
+---
+
 ## Customizing Agents
 
 Each agent file defines:
