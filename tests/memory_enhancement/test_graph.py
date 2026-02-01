@@ -149,6 +149,80 @@ subject: {mem_id.title().replace('-', ' ')}
     return memories_dir
 
 
+@pytest.fixture
+def memories_dir_branching(tmp_path):
+    """Create a branching graph that differentiates BFS from DFS.
+
+    Graph structure:
+        A -> B, D
+        B -> C
+        D -> E
+
+    BFS visits level-order: A, B, D, C, E
+    DFS visits depth-first: A, D, E, B, C
+    """
+    memories_dir = tmp_path / "memories"
+    memories_dir.mkdir()
+
+    (memories_dir / "memory-a.md").write_text("""---
+id: memory-a
+subject: Memory A
+links:
+  - link_type: RELATED
+    target_id: memory-b
+  - link_type: RELATED
+    target_id: memory-d
+---
+
+# Memory A
+Root with two branches.
+""")
+
+    (memories_dir / "memory-b.md").write_text("""---
+id: memory-b
+subject: Memory B
+links:
+  - link_type: RELATED
+    target_id: memory-c
+---
+
+# Memory B
+Left branch parent.
+""")
+
+    (memories_dir / "memory-c.md").write_text("""---
+id: memory-c
+subject: Memory C
+---
+
+# Memory C
+Left branch leaf.
+""")
+
+    (memories_dir / "memory-d.md").write_text("""---
+id: memory-d
+subject: Memory D
+links:
+  - link_type: RELATED
+    target_id: memory-e
+---
+
+# Memory D
+Right branch parent.
+""")
+
+    (memories_dir / "memory-e.md").write_text("""---
+id: memory-e
+subject: Memory E
+---
+
+# Memory E
+Right branch leaf.
+""")
+
+    return memories_dir
+
+
 @pytest.mark.unit
 def test_memory_graph_init(memories_dir_simple):
     """Test MemoryGraph initialization."""
@@ -256,6 +330,46 @@ def test_traverse_dfs_simple(memories_dir_simple):
     assert result.nodes[0].memory.id == "memory-a"
     assert result.nodes[1].memory.id == "memory-b"
     assert result.nodes[2].memory.id == "memory-c"
+
+
+@pytest.mark.unit
+def test_traverse_bfs_branching(memories_dir_branching):
+    """BFS visits level-order on a branching graph."""
+    graph = MemoryGraph(memories_dir_branching)
+
+    result = graph.traverse("memory-a", strategy=TraversalStrategy.BFS)
+
+    assert len(result.nodes) == 5
+    assert result.strategy == TraversalStrategy.BFS
+    assert result.max_depth == 2
+    assert len(result.cycles) == 0
+
+    # BFS: FIFO popleft -> A(0), B(1), D(1), C(2), E(2)
+    ids = [n.memory.id for n in result.nodes]
+    assert ids == ["memory-a", "memory-b", "memory-d", "memory-c", "memory-e"]
+
+    depths = [n.depth for n in result.nodes]
+    assert depths == [0, 1, 1, 2, 2]
+
+
+@pytest.mark.unit
+def test_traverse_dfs_branching(memories_dir_branching):
+    """DFS visits depth-first on a branching graph, diverging from BFS order."""
+    graph = MemoryGraph(memories_dir_branching)
+
+    result = graph.traverse("memory-a", strategy=TraversalStrategy.DFS)
+
+    assert len(result.nodes) == 5
+    assert result.strategy == TraversalStrategy.DFS
+    assert result.max_depth == 2
+    assert len(result.cycles) == 0
+
+    # DFS: LIFO pop takes D before B -> A(0), D(1), E(2), B(1), C(2)
+    ids = [n.memory.id for n in result.nodes]
+    assert ids == ["memory-a", "memory-d", "memory-e", "memory-b", "memory-c"]
+
+    depths = [n.depth for n in result.nodes]
+    assert depths == [0, 1, 2, 1, 2]
 
 
 @pytest.mark.unit
