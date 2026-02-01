@@ -26,6 +26,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+import yaml
+
 from .citations import verify_memory, verify_all_memories
 from .graph import MemoryGraph, TraversalStrategy
 from .health import generate_health_report
@@ -115,7 +117,11 @@ def _resolve_directory_path(dir_arg: str) -> Path:
 def _handle_verify(args) -> int:
     """Handle the verify command."""
     path = _resolve_memory_path(args.memory, EXIT_VALIDATION_ERROR)
-    memory = Memory.from_serena_file(path)
+    try:
+        memory = Memory.from_serena_file(path)
+    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError, OSError) as e:
+        print(f"Error: Failed to parse memory file: {e}", file=sys.stderr)
+        return EXIT_VALIDATION_ERROR
     result = verify_memory(memory)
 
     if args.json:
@@ -208,6 +214,9 @@ def _handle_graph(args) -> int:
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
+    except Exception as e:
+        print(f"Unexpected error during graph traversal: {e}", file=sys.stderr)
+        return EXIT_IO_ERROR
 
     if args.json:
         print(json.dumps({
@@ -322,6 +331,12 @@ def _handle_list_citations(args) -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NOT_FOUND
+    except ValueError as e:
+        print(f"Validation failed: {e}", file=sys.stderr)
+        return EXIT_VALIDATION_ERROR
+    except IOError as e:
+        print(f"I/O error: {e}", file=sys.stderr)
+        return EXIT_IO_ERROR
 
 
 def _build_parser() -> argparse.ArgumentParser:

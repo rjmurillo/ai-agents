@@ -699,3 +699,35 @@ class TestEdgeCases:
 
         # File should be unchanged
         assert memory_file.read_text() == original_content
+
+
+# ============================================================================
+# Path Resolution Regression Tests (CWE-22 security fix)
+# ============================================================================
+
+
+def test_resolve_memory_path_returns_resolved_absolute_path(tmp_path, monkeypatch):
+    """_resolve_memory_path returns a fully resolved absolute path."""
+    monkeypatch.chdir(tmp_path)
+    memories_dir = tmp_path / ".serena" / "memories"
+    memories_dir.mkdir(parents=True)
+    (memories_dir / "test-mem.md").write_text("---\nid: test-mem\n---\nContent")
+
+    from scripts.memory_enhancement.__main__ import _resolve_memory_path
+    result = _resolve_memory_path("test-mem")
+
+    assert result.is_absolute()
+    assert result == (memories_dir / "test-mem.md").resolve()
+
+
+def test_resolve_directory_path_returns_resolved_absolute_path(tmp_path, monkeypatch):
+    """_resolve_directory_path returns a fully resolved absolute path."""
+    monkeypatch.chdir(tmp_path)
+    target_dir = tmp_path / "memories"
+    target_dir.mkdir()
+
+    from scripts.memory_enhancement.__main__ import _resolve_directory_path
+    result = _resolve_directory_path("memories")
+
+    assert result.is_absolute()
+    assert result == (tmp_path / "memories").resolve()
